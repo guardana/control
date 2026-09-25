@@ -1,8 +1,20 @@
-# Guardana Control
+<div align="center">
 
-An inline control and evidence layer for AI agents. It decides whether a
-proposed tool call may happen, enforces that decision, and records what was
-decided and why.
+# 🚦 Guardana Control
+
+**Decide, enforce and record the tool calls your AI agents make.**
+
+[![CI](https://github.com/guardana/control/actions/workflows/ci.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/ci.yml)
+[![Security](https://github.com/guardana/control/actions/workflows/security.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/guardana/control/badge)](https://scorecard.dev/viewer/?uri=github.com/guardana/control)
+[![Release](https://img.shields.io/github/v/release/guardana/control?include_prereleases&sort=semver)](https://github.com/guardana/control/releases)
+[![Go 1.27](https://img.shields.io/badge/go-1.27-00ADD8.svg)](go.mod)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](docs/status.md)
+
+[Try the demo](docs/get-started/try-the-demo.md) · [Docs](docs/index.md) · [Status](docs/status.md) · [Roadmap](ROADMAP.md) · [Releases](RELEASING.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+
+</div>
 
 ## Status: alpha
 
@@ -73,13 +85,14 @@ reports to the operator's alerting and logging, and can stop an agent.
 
 ```mermaid
 flowchart LR
+    AG[Agents]
     subgraph IN[Inputs]
         PX["Proxy: MCP today, HTTP tool APIs next"]
         PT[Framework ports]
-        FD["Feeds: agent traces, logs, process events"]
+        FD["Feeds: traces, logs, process events"]
     end
     subgraph CTL[Guardana Control]
-        DK["Decision kernel: policy, approvals, stop"]
+        PEP["Enforcement point: policy, approvals, pause"]
         SV["Supervisor: procedures, deviations, access attempts, unfinished work"]
         EV[(Evidence)]
     end
@@ -88,15 +101,20 @@ flowchart LR
         EX["OpenTelemetry, metrics, SIEM"]
         GR[Run graph and console]
     end
-    PX --> DK
-    PT --> DK
+    TL[Tools and APIs]
+    AG --> PX
+    AG --> PT
+    AG -.-> FD
+    PX --> PEP
+    PT --> PEP
+    PEP -->|allowed calls| TL
     FD --> SV
-    DK --> EV
+    PEP --> EV
     EV --> SV
     SV --> AL
     EV --> EX
     SV --> GR
-    GR -->|stop an agent| DK
+    GR -->|stop an agent| PEP
 ```
 
 Rules and scenarios are already documents a team writes and tests; procedures

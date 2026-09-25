@@ -29,7 +29,7 @@ DEFAULT_BRANCH="main"
 # The admin both teams start with, as a team maintainer.
 ADMIN_LOGIN="${ADMIN_LOGIN:-karauda}"
 
-DESCRIPTION="An inline control and evidence layer for AI agents: it decides whether a proposed tool call may run, enforces the decision, and records what was decided and why."
+DESCRIPTION="Decide, enforce and record the tool calls your AI agents make: an MCP gateway with signed policies, human approvals, pause and an evidence trail. Open source, Go."
 TOPICS=(
   ai-agents
   agent-security
@@ -45,6 +45,9 @@ TOPICS=(
   opentelemetry
   audit-trail
   golang
+  llm-security
+  ai-governance
+  security-tools
 )
 
 # Status checks the main ruleset requires. A check-run context is a workflow

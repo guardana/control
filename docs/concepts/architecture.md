@@ -247,37 +247,38 @@ plane.
 
 ```mermaid
 flowchart LR
+    AG[Agents]
     subgraph IN[Inputs]
         PX["Proxy: MCP today, HTTP tool APIs next"]
         PT["Framework ports over one API"]
-        FD["Feeds: agent traces, logs, process events"]
+        FD["Feeds: traces, logs, process events"]
     end
     subgraph CTL[Guardana Control]
-        DK["Decision kernel: policy, approvals, stop"]
+        PEP["Enforcement point: policy, approvals, pause"]
         SV["Supervisor: procedures, deviations, access attempts, unfinished work"]
         EV[(Evidence)]
     end
     subgraph OUT[Outputs]
         AL["Alerts: webhooks, chat"]
         EX["OpenTelemetry, metrics, SIEM"]
-        GR["Run graph and console"]
+        GR[Run graph and console]
     end
-    DOC["Documents: policies, scenarios, procedures"]
-    SEAM["Seams: adapters, detectors, policy providers"]
-    PX --> DK
-    PT --> DK
+    TL[Tools and APIs]
+    XT["Extend: adapters, detectors, policy providers; policies, scenarios, procedures as documents"]
+    AG --> PX
+    AG --> PT
+    AG -.-> FD
+    PX --> PEP
+    PT --> PEP
+    PEP -->|allowed calls| TL
     FD --> SV
-    DK --> EV
+    PEP --> EV
     EV --> SV
     SV --> AL
     EV --> EX
     SV --> GR
-    GR -->|stop an agent| DK
-    DOC -.-> DK
-    DOC -.-> SV
-    SEAM -.-> PT
-    SEAM -.-> SV
-    SEAM -.-> DK
+    GR -->|stop an agent| PEP
+    XT -.-> CTL
 ```
 
 Sources: `ROADMAP.md`, `internal/policy/rules/document.go`, `internal/scenario/doc.go`,
