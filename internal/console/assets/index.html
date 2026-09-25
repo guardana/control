@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Approvals and pauses</title>
+<link rel="stylesheet" href="/app.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<header>
+  <h1>Approvals and pauses</h1>
+  <p id="who"></p>
+  <button type="button" id="refresh">Refresh</button>
+</header>
+<div id="notices" role="status" aria-live="polite"></div>
+<main>
+  <section aria-labelledby="held-title">
+    <h2 id="held-title">Held calls</h2>
+    <p class="note">Anyone who can write the approvals directory can answer these. The fields shown come from a
+      projection and are not bound to the action digest beside them: the approval binds the exact arguments, which
+      no record holds.</p>
+    <p id="dir"></p>
+    <p id="plane"></p>
+    <p class="note">An answer takes two clicks: the second confirms the call by its tool, its upstream and the start
+      of its action digest. Cards keep their place; a new held call is added after them.</p>
+    <div id="listing"></div>
+    <div id="records"></div>
+  </section>
+  <section aria-labelledby="pause-title">
+    <h2 id="pause-title">Pauses</h2>
+    <p class="note">This page cannot tell whether a plane reads this pause file. A pause blocks new calls it covers;
+      it does not stop a call already running.</p>
+    <div id="pause"></div>
+  </section>
+</main>
+</body>
+</html>

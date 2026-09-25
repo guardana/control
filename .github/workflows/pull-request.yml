@@ -1,0 +1,139 @@
+name: Pull request
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+# Read-only: both jobs only read the event and the history.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # GitHub's "bash" adds -o pipefail, which the bare default shell does not.
+    shell: bash
+
+jobs:
+  title:
+    name: Conventional title
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check the title
+        # The title becomes the squash commit's subject on main, where GitHub
+        # appends " (#N)"; the limit counts that suffix.
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Length is counted in characters, not bytes.
+          export LC_ALL=C.UTF-8
+          [[ "${NUMBER}" =~ ^[0-9]+$ ]] || { echo "not a pull request number: ${NUMBER}" >&2; exit 1; }
+          suffix=" (#${NUMBER})"
+          limit=$((72 - ${#suffix}))
+          rule="type(scope)!: description, where type is one of feat, fix, docs, test, refactor, perf, build, ci, chore, revert; the scope is optional, lower case, and may list several separated by commas; \"!\" marks a breaking change; at most ${limit} characters, so the subject with \"${suffix}\" fits in 72; no trailing period"
+          re='^(feat|fix|docs|test|refactor|perf|build|ci|chore|revert)(\([a-z0-9][a-z0-9-]*(,[a-z0-9][a-z0-9-]*)*\))?!?: [^[:space:]].*$'
+          problem=""
+          if [[ ! "${TITLE}" =~ ${re} ]]; then
+            problem="it does not have the form"
+          elif (( ${#TITLE} > limit )); then
+            problem="it is ${#TITLE} characters long"
+          elif [[ "${TITLE}" == *. ]]; then
+            problem="it ends with a period"
+          elif [[ "${TITLE}" =~ [[:space:]]$ ]]; then
+            problem="it ends with white space"
+          fi
+          if [[ -n "${problem}" ]]; then
+            printf 'The pull request title does not follow the rule: %s.\n' "${problem}" >&2
+            printf 'Rule:  %s\n' "${rule}" >&2
+            printf 'Title: %s\n' "${TITLE}" >&2
+            exit 1
+          fi
+          printf 'Title ok: %s\n' "${TITLE}"
+
+  signoff:
+    name: Sign-off
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history, so both ends of the pull request's range exist.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check every commit for the author's sign-off
+        # The Developer Certificate of Origin is signed by the author, so the
+        # Signed-off-by trailer has to carry the author's own email.
+        #
+        # Dependabot cannot sign off. Its commits are exempt only in a pull
+        # request GitHub itself says Dependabot opened: an author name or email
+        # is whatever the committer typed, and would exempt anyone. A merge
+        # commit that only joins its parents, such as the one "Update branch"
+        # makes, carries no content of its own and needs no sign-off; one that
+        # resolves a conflict or adds a change does.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          for sha in "${BASE_SHA}" "${HEAD_SHA}"; do
+            [[ "${sha}" =~ ^[0-9a-f]{40}$ ]] || { echo "not a commit SHA: ${sha}" >&2; exit 1; }
+          done
+          dependabot_email='49699333+dependabot[bot]@users.noreply.github.com'
+          lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+          # Kept in a variable: written inline, an escaped angle bracket would be
+          # read as a word boundary.
+          email_re='<([^>]+)>[[:space:]]*$'
+
+          commits="$(git rev-list --reverse "${BASE_SHA}..${HEAD_SHA}")"
+          checked=0
+          exempt=0
+          failed=0
+          while IFS= read -r sha; do
+            [[ -n "${sha}" ]] || continue
+            author_email="$(git log -1 --format='%ae' "${sha}")"
+            if [[ "${PR_AUTHOR}" == 'dependabot[bot]' && "${author_email}" == "${dependabot_email}" ]]; then
+              printf 'exempt  %s  authored by dependabot[bot]\n' "${sha}"
+              exempt=$((exempt + 1))
+              continue
+            fi
+            if [[ -n "$(git rev-parse --verify --quiet "${sha}^2")" ]]; then
+              own="$(git diff-tree --cc --no-commit-id -r "${sha}")" || { echo "cannot read merge ${sha}" >&2; exit 1; }
+              if [[ -z "${own}" ]]; then
+                printf 'exempt  %s  a merge with no change of its own\n' "${sha}"
+                exempt=$((exempt + 1))
+                continue
+              fi
+            fi
+            checked=$((checked + 1))
+            signed=0
+            while IFS= read -r trailer; do
+              [[ "${trailer}" =~ ${email_re} ]] || continue
+              if [[ "$(lower "${BASH_REMATCH[1]}")" == "$(lower "${author_email}")" ]]; then
+                signed=1
+              fi
+            done < <(git log -1 --format='%(trailers:key=Signed-off-by,valueonly,unfold)' "${sha}")
+            if [[ "${signed}" -eq 1 ]]; then
+              printf 'ok      %s\n' "${sha}"
+            else
+              printf 'FAIL    %s  %s: no Signed-off-by with the author email %s\n' \
+                "${sha}" "$(git log -1 --format='%s' "${sha}")" "${author_email}" >&2
+              failed=$((failed + 1))
+            fi
+          done <<<"${commits}"
+
+          printf '%d commit(s) checked, %d exempt, %d without the sign-off\n' "${checked}" "${exempt}" "${failed}"
+          if (( checked + exempt == 0 )); then
+            echo "no commit in ${BASE_SHA}..${HEAD_SHA} to check; refusing to report a pass" >&2
+            exit 1
+          fi
+          if (( failed > 0 )); then
+            echo "Sign off with the email you commit as: 'git commit --amend -s' for the last commit, or 'git rebase --signoff ${BASE_SHA}' for every commit, then force-push the branch." >&2
+            exit 1
+          fi

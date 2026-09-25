@@ -1,0 +1,176 @@
+// Frozen v1 wire contract. schema_version is "1.0".
+//
+// Every digest string in this package is "sha256:" followed by lowercase hex.
+// These strings are compared for equality to authorize a call, so the case is
+// part of the contract, not a formatting preference.
+//
+// Validation refuses, in every string of the envelope and every map key and
+// value: white space at either end, a space other than U+0020 anywhere, a
+// control, format, line-separator or paragraph-separator character, a
+// default-ignorable code point, and invalid UTF-8 (Unicode 17.0.0). The two
+// free-text fields, arguments.redacted_preview and delegation[].reason, are held
+// only to valid UTF-8 and to the control-character rule, with tab, line feed and
+// carriage return allowed. In every map, a key beginning with "reserved." and two
+// keys equal under simple case folding are refused. See ADR-0011.
+
+syntax = "proto3";
+
+package guardana.control.v1;
+
+import "google/protobuf/timestamp.proto";
+import "guardana/control/v1/common.proto";
+
+message Principal {
+  string id = 1;
+  string type = 2;
+  // An opaque token, compared only for equality against values an operator has
+  // declared. It carries no ordering: nothing may infer that one value is
+  // stronger than another, because "mfa", "aal2" and "workload_identity" are
+  // all plausible spellings from different producers.
+  string authn_strength = 3;
+  string tenant_id = 4;
+  // Adapter-supplied, and policy keys on it, so an adapter that could set any
+  // key would be able to grant authority by translation. Keys beginning with
+  // "reserved." are refused by validation and are the namespace this contract
+  // keeps for itself. The prefix is deliberately not the product name: it is
+  // wire semantics, so a rename must not make a previously refused key legal.
+  // An attribute carries only the trust of the authn_strength that produced it.
+  map<string, string> attributes = 5;
+}
+
+message Agent {
+  string id = 1;
+  string instance_id = 2;
+  string framework = 3;
+  string version = 4;
+  string model_ref = 5;
+}
+
+// One hop of delegated authority. The list on the envelope is ordered from the
+// root outwards: delegation[i].to equals delegation[i+1].from, the first hop
+// starts at principal.id and the last one ends at agent.id, and validation
+// enforces all three. Reading the list backwards inverts the "child exceeds
+// parent" check into a no-op, so the order is normative rather than
+// conventional.
+message Delegation {
+  string from = 1;
+  string to = 2;
+  // Compared as a set. The canonical action digest sorts these, so two
+  // producers listing the same scopes in a different order agree. An empty list
+  // grants nothing.
+  repeated string scopes = 3;
+  string reason = 4;
+  google.protobuf.Timestamp issued_at = 5;
+  // Required: a hop with no expiry is refused, and so is one that expires before
+  // it was issued. Measured against the receiver's clock.
+  google.protobuf.Timestamp expires_at = 6;
+}
+
+message Action {
+  string kind = 1;
+  string name = 2;
+  string protocol = 3;
+  EffectClass effect = 4;
+  // The authority that publishes this tool, as the protocol already identifies
+  // it: the MCP server name, the A2A agent id. Never derived by splitting
+  // name, because that would put a policy boundary in an adapter. Required
+  // whenever the effect class is material; an empty value never satisfies a
+  // provider predicate.
+  string provider = 5;
+}
+
+message Resource {
+  string type = 1;
+  string id = 2;
+  // The tenant that owns the resource. The cross-tenant check compares this
+  // with Principal.tenant_id; the envelope's own tenant_id records where the
+  // request was received and is not the security comparison.
+  string tenant_id = 3;
+  string environment = 4;
+  map<string, string> labels = 5;
+}
+
+// Where the call sends data. There is no separate "external" boolean: it would
+// be a second answer to the same question and could contradict trust_zone.
+// TRUST_ZONE_UNSPECIFIED counts as untrusted.
+message Destination {
+  TrustZone trust_zone = 1;
+  string host = 3;
+  // Field 2 held a bool "external" in the draft. It is not reused: a number
+  // that changes type or meaning makes old bytes decode as something else.
+  reserved 2;
+  reserved "external";
+}
+
+message DataLabels {
+  // SENSITIVITY_UNSPECIFIED is refused as an element: a label that says nothing
+  // is not a label.
+  repeated Sensitivity sensitivities = 1;
+  repeated string sources = 2;
+  // A positive assertion only. False means the producer did not assert that
+  // secrets are present, never that it established their absence.
+  bool contains_secrets = 3;
+}
+
+// Arguments never travel whole: the hash pins what was decided on, the preview
+// is for humans reading an evidence trail.
+message Arguments {
+  // "sha256:" and the lowercase hex of sha256 over "agent-arguments-hash/v1\n"
+  // followed by the canonical form of the authorized arguments, "{}" when there
+  // are none. It is never the value an approval binds to or the
+  // executed-arguments comparison uses: both use the canonical action digest the
+  // receiver computes. Validation checks its shape; the receiver, which holds
+  // the arguments, checks its value and refuses a mismatch. See ADR-0011.
+  string canonical_hash = 1;
+  string redacted_preview = 2;
+  string schema_ref = 3;
+  // Names the redaction profile that produced redacted_preview, so that
+  // "content capture is off by default" is auditable from the record instead
+  // of trusted. Empty means no redaction ran, so validation refuses a preview
+  // with no profile. See ADR-0004.
+  string redaction_profile = 4;
+}
+
+// Named RunContext rather than Context because core signatures carry a
+// context.Context beside it. The protojson key stays "context".
+//
+// Not part of the canonical action digest: it describes the run around an
+// action rather than the action, and an approval answers one held request whose
+// envelope does not change. See ADR-0011.
+message RunContext {
+  string session_id = 1;
+  string run_id = 2;
+  string step_id = 3;
+  string risk = 4;
+  map<string, int64> budgets = 5;
+  repeated string tags = 6;
+}
+
+message ActionEnvelope {
+  string schema_version = 1;
+  // Producer-supplied and unique within a project: the pair
+  // (project_id, request_id) identifies one proposed action. It is the join key
+  // for the whole evidence chain, so a duplicate merges two actions into one
+  // trail. It never authorizes anything on its own.
+  string request_id = 2;
+  string trace_id = 3;
+  string span_id = 4;
+  google.protobuf.Timestamp occurred_at = 5;
+  string project_id = 6;
+  // Where the request was received. The cross-tenant security comparison is
+  // Principal.tenant_id against Resource.tenant_id, not this field. With
+  // project_id and environment it is part of the canonical action digest, so an
+  // approval never crosses projects, tenants or environments (ADR-0011).
+  string tenant_id = 7;
+  string environment = 8;
+  Principal principal = 9;
+  Agent agent = 10;
+  // Ordered from the root outwards; see Delegation.
+  repeated Delegation delegation = 11;
+  Action action = 12;
+  Resource resource = 13;
+  Destination destination = 14;
+  DataLabels data = 15;
+  Arguments arguments = 16;
+  RunContext context = 17;
+}

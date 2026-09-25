@@ -1,0 +1,26 @@
+{
+  "subject": {
+    "type": "",
+    "id": "user-7",
+    "properties": {"tenant_id": "", "authn_strength": "", "attributes": {}}
+  },
+  "action": {
+    "name": "files.read",
+    "properties": {"kind": "", "provider": "", "protocol": "", "effect": "READ"}
+  },
+  "resource": {
+    "type": "",
+    "id": "file-1",
+    "properties": {"tenant_id": "", "environment": "", "labels": {}}
+  },
+  "context": {
+    "agent": {"id": "", "framework": ""},
+    "destination": {"trust_zone": "UNSPECIFIED", "host": ""},
+    "data": {"sensitivities": [], "contains_secrets": false},
+    "project_id": "proj-a",
+    "tenant_id": "tenant-a",
+    "environment": "",
+    "request_id": "req-min",
+    "supported_obligations": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "An operator pauses the orders server, a read is blocked, and once the pause is lifted the next read runs.",
+  "plane": {"mode": "ENFORCE", "bundle": {"id": "vulnerable-mcp-agent"}},
+  "steps": [
+    {"pause": {"provider": "orders", "reason": "checking the orders server"}},
+    {"call": {
+      "tool": "read_order",
+      "args": {"id": "ord-1"},
+      "answer": {"kind": "blocked", "codes": ["PAUSED"]},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_BLOCKED"]}
+    }},
+    {"unpause": {"step": 0}},
+    {"call": {
+      "tool": "read_order",
+      "args": {"id": "ord-1"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }}
+  ]
+}

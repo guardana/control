@@ -1,0 +1,75 @@
+{
+  "apiVersion": "agent-policy/v1alpha1",
+  "bundle": {
+    "id": "payments",
+    "version": "2026-09-11.1",
+    "serial": 12,
+    "maxStaleSeconds": 900
+  },
+  "rules": [
+    {
+      "id": "no-secrets-to-untrusted-hosts",
+      "effect": "DENY",
+      "reason": "TOXIC_FLOW_SENSITIVE_TO_EXTERNAL",
+      "when": {
+        "destination": {"trustZone": ["UNTRUSTED_EXTERNAL", "USER_CONTROLLED"], "host": ["paste.example.net"]},
+        "data": {"sensitivityAtLeast": "CONFIDENTIAL"},
+        "flow": {"toxicAtLeast": "RESTRICTED"}
+      }
+    },
+    {
+      "id": "prod-stays-in-its-team",
+      "effect": "DENY",
+      "reason": "RULE_DENY",
+      "when": {
+        "principal": {
+          "id": ["user:ana"],
+          "type": ["human"],
+          "authnStrength": ["mfa"],
+          "tenantId": ["acme"],
+          "attributes": {"team": ["payments", "risk"], "rôle": ["\u00e9quipe"]}
+        },
+        "resource": {
+          "type": ["ledger"],
+          "id": ["ledger\/eu-1"],
+          "tenantId": ["acme"],
+          "environment": ["prod"],
+          "labels": {"tier": ["gold"]}
+        }
+      }
+    },
+    {
+      "id": "refunds-need-approval",
+      "effect": "REQUIRE_APPROVAL",
+      "obligations": [
+        {"type": "cap_amount", "params": {"max": "10000", "currency": "EUR"}},
+        {"type": "emit_alert", "advisory": true}
+      ],
+      "when": {
+        "agent": {"id": ["billing-agent"], "framework": ["custom"]},
+        "action": {
+          "name": ["refund"],
+          "provider": ["payments"],
+          "protocol": ["mcp"],
+          "kind": ["tool_call"],
+          "effect": ["TRANSACT", "WRITE"]
+        }
+      }
+    },
+    {
+      "id": "delegated-reads-stay-read-only",
+      "effect": "ALLOW_WITH_OBLIGATIONS",
+      "reason": "OBLIGATIONS_ATTACHED",
+      "obligations": [{"type": "read_only", "advisory": false}],
+      "when": {
+        "delegation": {"scopes": ["ledger:read"]},
+        "action": {"effect": ["READ"]}
+      }
+    },
+    {
+      "id": "reads",
+      "effect": "ALLOW",
+      "when": {"action": {"effect": ["READ"]}}
+    }
+  ]
+}

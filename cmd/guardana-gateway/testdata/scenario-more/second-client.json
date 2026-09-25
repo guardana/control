@@ -1,0 +1,14 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "The upstream calls the plane back as another client while this call is under way.",
+  "plane": {"mode": "APPROVE", "bundle": {"id": "scenario-fixture"}},
+  "steps": [
+    {"call": {
+      "tool": "relay",
+      "args": {"id": "r-1"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }}
+  ]
+}

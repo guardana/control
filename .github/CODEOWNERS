@@ -1,0 +1,48 @@
+# scripts/github-bootstrap.sh creates both teams and gives them their roles.
+#
+# This file requests the right reviewer. Requiring the approval is the ruleset's
+# job, not this file's; the ruleset also requires two approvals from
+# @guardana/security-maintainers on the authorization paths among those below,
+# listed in scripts/github-bootstrap.sh. Who has to approve what is in
+# GOVERNANCE.md.
+#
+# Last matching pattern wins, so the specific paths below override the
+# catch-all above them.
+
+*                      @guardana/maintainers
+
+# Paths that carry authorization meaning: the decision path, the enforcement
+# pipeline, the approvals store, the policy keys, the digest an approval binds
+# to, the evidence record, contract validation, the policy provider interface,
+# the wire schema and the fixtures that pin them.
+/internal/core/        @guardana/security-maintainers
+/internal/policy/      @guardana/security-maintainers
+/internal/canon/       @guardana/security-maintainers
+/internal/evidence/    @guardana/security-maintainers
+/internal/gateway/     @guardana/security-maintainers
+/internal/approvals/   @guardana/security-maintainers
+/internal/policykey/   @guardana/security-maintainers
+/pkg/contract/         @guardana/security-maintainers
+/pkg/policyprovider/   @guardana/security-maintainers
+/api/proto/            @guardana/security-maintainers
+/testdata/             @guardana/security-maintainers
+
+# The gate those paths are held to, and what it is built from. A change here
+# can drop a check or a linter, weaken the breaking-change rule or add a
+# dependency without touching a line of the decision path. /.golangci.* covers
+# every name golangci-lint reads as its configuration, not only the one
+# `make lint` passes to it.
+/Makefile              @guardana/security-maintainers
+/.golangci.*           @guardana/security-maintainers
+/buf.yaml              @guardana/security-maintainers
+/buf.gen.yaml          @guardana/security-maintainers
+/go.mod                @guardana/security-maintainers
+/go.sum                @guardana/security-maintainers
+/scripts/              @guardana/security-maintainers
+/.github/              @guardana/security-maintainers
+/.goreleaser.yaml      @guardana/security-maintainers
+
+# The normative pages. A spec change is a contract change: the wire contract
+# page and everything under docs/spec/ are reviewed as the schema is.
+/docs/contracts.md     @guardana/security-maintainers
+/docs/spec/            @guardana/security-maintainers

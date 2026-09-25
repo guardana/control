@@ -1,0 +1,51 @@
+// Frozen v1 wire contract. schema_version is "1.0".
+
+syntax = "proto3";
+
+package guardana.control.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum ApprovalState {
+  APPROVAL_STATE_UNSPECIFIED = 0;
+  APPROVAL_STATE_PENDING = 1;
+  APPROVAL_STATE_APPROVED = 2;
+  APPROVAL_STATE_REJECTED = 3;
+  APPROVAL_STATE_EXPIRED = 4;
+}
+
+message Approval {
+  string schema_version = 12;
+  string approval_id = 1;
+  // Must equal the request_id of the envelope the approval is presented with:
+  // an approval is honoured only in the trail of the request it was requested
+  // for, the held call (ADR-0011). It is never enough on its own, and never the
+  // key an approval is looked up by; the binding below is what binds.
+  string request_id = 2;
+  // With policy_bundle_digest, the binding. An approval covers exactly this
+  // canonical action digest under exactly this policy bundle; it never covers a
+  // similar action, a re-execution after the approved one ran, or a later one.
+  string action_digest = 3;
+  string policy_bundle_digest = 4;
+  // UNSPECIFIED is not approved, and APPROVED with no approver_id is refused.
+  ApprovalState state = 5;
+  string approver_id = 6;
+  string reason = 7;
+  google.protobuf.Timestamp requested_at = 8;
+  google.protobuf.Timestamp decided_at = 9;
+  // Required: an approval with no expiry is expired. Measured against the
+  // receiver's clock, never against the envelope's occurred_at.
+  google.protobuf.Timestamp expires_at = 10;
+  // False, the default, means the approval is consumed by one execution. An
+  // approval that may be presented more than once is the exception and has to
+  // be asked for, because the opposite default would make forgetting this field
+  // an opt-out of the binding above.
+  //
+  // Number 13, not 11: field 11 held "one_shot" in the draft, whose meaning is
+  // the exact inverse. Reusing the number would make an old producer's
+  // "one_shot: true" arrive as "multi_use: true", which is the widest possible
+  // reading of the narrowest possible intent.
+  bool multi_use = 13;
+  reserved 11;
+  reserved "one_shot";
+}

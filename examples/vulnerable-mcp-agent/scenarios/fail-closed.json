@@ -1,0 +1,21 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "An export the decision point must clear is blocked when it never answers; a read it has no say in still runs.",
+  "plane": {"mode": "ENFORCE", "bundle": {"id": "vulnerable-mcp-agent"}},
+  "steps": [
+    {"call": {
+      "tool": "export_orders",
+      "args": {"id": "cust-1"},
+      "answer": {"kind": "blocked", "codes": ["RULE_ALLOW", "RULE_UNDETERMINED", "PDP_TIMEOUT"]},
+      "decided": {"verdict": "INDETERMINATE", "codes": ["RULE_ALLOW", "RULE_UNDETERMINED", "PDP_TIMEOUT"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_BLOCKED"]}
+    }},
+    {"call": {
+      "tool": "read_order",
+      "args": {"id": "ord-1"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }}
+  ]
+}

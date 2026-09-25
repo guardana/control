@@ -1,0 +1,113 @@
+# The plane the demo runs. Every path resolves against this file's
+# directory; the victims are the binary built into bin/ at the repository's
+# root. The listener, the health address, the bundle, the key, the approvals,
+# the pause file, the spool and the collector are set by dev.
+mode: ENFORCE
+project_id: demo
+tenant_id: acme
+environment: dev
+
+listener:
+  kind: stateless_http
+  principal:
+    id: demo-agent
+  agent:
+    id: vulnerable-mcp-agent
+
+policy:
+  bundle_id: vulnerable-mcp-agent
+  max_stale: 1h                 # the plane never reloads its bundle; this is how long dev decides on it
+
+pause:
+  # A plane whose last read of its pause file is three intervals old blocks
+  # every call; half a second keeps a loaded machine clear of that window.
+  poll_interval: 500ms
+
+export:
+  linger: 5ms
+
+# A decision point that publishes its metadata and never answers, served by
+# the orders victim on this address.
+pdp:
+  identifier: http://127.0.0.1:18213
+  allow_plaintext: true
+
+upstreams:
+  - name: orders
+    command: ../../bin/vulnerable-mcp-agent
+    args:
+      - --serve
+      - orders
+      - --decision-point
+      - 127.0.0.1:18213
+    tenant_id: acme
+    environment: dev
+  - name: web
+    command: ../../bin/vulnerable-mcp-agent
+    args:
+      - --serve
+      - web
+    tenant_id: acme
+    environment: dev
+
+overrides:
+  - upstream: orders
+    tool: read_order
+    fingerprint: sha256:f64abfe663a5d7eddf041e16a0bec59e63ff7b0966f40aedaabb2797ab04f3a4
+    effect: READ
+    resource_type: order
+    resource_from: /id
+    trust_zone: TRUSTED_INTERNAL
+    returns:
+      trust: TRUSTED_INTERNAL
+      sensitivity: CONFIDENTIAL
+  - upstream: orders
+    tool: update_order
+    fingerprint: sha256:513c1d0feb8958a5e893bda5e8751ed6a6f70c9c4bbed4a42e844dc9a8993d02
+    effect: WRITE
+    resource_type: order
+    resource_from: /id
+    trust_zone: TRUSTED_INTERNAL
+    returns:
+      trust: TRUSTED_INTERNAL
+      sensitivity: CONFIDENTIAL
+  - upstream: orders
+    tool: refund
+    fingerprint: sha256:ce1c752bfcc4980977fde7d5c08ca406ce25825d04c508235a4f7a60be94e51b
+    effect: TRANSACT
+    resource_type: order
+    resource_from: /id
+    trust_zone: TRUSTED_INTERNAL
+    returns:
+      trust: TRUSTED_INTERNAL
+      sensitivity: CONFIDENTIAL
+  - upstream: orders
+    tool: export_orders
+    fingerprint: sha256:e54df40251fa8b4833475de641c0fc3deed16a97b6b381adf1d26724ddbbf03f
+    effect: READ
+    resource_type: customer
+    resource_from: /id
+    trust_zone: TRUSTED_INTERNAL
+    returns:
+      trust: TRUSTED_INTERNAL
+      sensitivity: CONFIDENTIAL
+  - upstream: web
+    tool: fetch_page
+    fingerprint: sha256:1c1f2895733c765695d4016019ea86aa9db57e7c5102a7e76c72bd17de056198
+    effect: READ
+    resource_type: page
+    resource_from: /url
+    trust_zone: UNTRUSTED_EXTERNAL
+    returns:
+      trust: UNTRUSTED_EXTERNAL
+      sensitivity: PUBLIC
+  - upstream: web
+    tool: send_mail
+    fingerprint: sha256:b4d8f7a6378185232375cfaff6715d909e2294c8cb92c489c0610a0ae032d145
+    effect: COMMUNICATE
+    resource_type: mailbox
+    resource_from: /to
+    trust_zone: UNTRUSTED_EXTERNAL
+    returns:
+      trust: TRUSTED_INTERNAL
+      sensitivity: PUBLIC

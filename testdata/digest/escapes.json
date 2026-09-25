@@ -1,0 +1,62 @@
+{
+  "envelope": {
+    "schemaVersion": "1.0",
+    "requestId": "req-00000000-0000-4000-8000-000000000005",
+    "occurredAt": "2026-05-06T07:08:09Z",
+    "projectId": "proj-fixture",
+    "tenantId": "tenant-fixture",
+    "environment": "dev",
+    "principal": {
+      "id": "user-fixture-5",
+      "type": "human",
+      "attributes": {
+        "break_glass": "",
+        "team": "fixture-team"
+      }
+    },
+    "agent": {
+      "id": "agent-fixture-reports"
+    },
+    "delegation": [
+      {
+        "from": "user-fixture-5",
+        "to": "agent-fixture-reports",
+        "scopes": ["reports:read", ""],
+        "issuedAt": "2026-05-06T07:00:00Z",
+        "expiresAt": "2026-05-06T08:00:00Z"
+      }
+    ],
+    "action": {
+      "kind": "http_call",
+      "name": "fetch_report",
+      "protocol": "https",
+      "effect": "EFFECT_CLASS_READ",
+      "provider": "fixture-reports"
+    },
+    "resource": {
+      "type": "report",
+      "id": "report-fixture-5",
+      "labels": {
+        "": "unnamed",
+        "tier": "internal"
+      }
+    },
+    "destination": {
+      "trustZone": "TRUST_ZONE_UNTRUSTED_EXTERNAL",
+      "host": "reports.example.test"
+    }
+  },
+  "authorized_args": {
+    "url": "https://reports.example.test/q?a=1&b=<2>",
+    "quote": "it's",
+    "html": "<script>alert('x')</script>",
+    "unit_separator": "a\u001fb",
+    "delete": "a\u007fb",
+    "line_separator": "a\u2028b",
+    "paragraph_separator": "a\u2029b",
+    "\ue000": "private use key",
+    "\ud83d\ude00": "astral key",
+    "escaped_solidus": "a\/b"
+  },
+  "expected_digest": "sha256:4c12075d685dfd732ac18569a4c79ef58607355374c5b4ab7d8738eaa2b7f9a5"
+}

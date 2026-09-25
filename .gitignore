@@ -1,0 +1,33 @@
+# Every group below is mirrored by hand in scripts/lib/repo-files.sh, whose
+# find fallback lists files in a tree with no .git, such as an export. Change
+# both together.
+
+# Build and editor noise
+.DS_Store
+.env
+.env.*
+!.env.example
+bin/
+dist/
+coverage/
+*.out
+*.test
+.idea/
+.vscode/
+node_modules/
+
+# Go workspace files are per-developer
+go.work
+go.work.sum
+
+# Benchmark results are per-machine; the directory is kept, the runs are not
+/bench/results/*
+!/bench/results/.keep
+
+# Local override of the project law, per developer
+/AGENTS.local.md
+
+# Local planning material, not part of the project
+/docs/foundation/
+/docs/plans/
+/docs/design/foundation-decisions.md

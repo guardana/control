@@ -1,0 +1,116 @@
+// Frozen v1 wire contract. schema_version is "1.0".
+//
+// Two rules govern every message in this package.
+//
+// Absence is never more permissive than presence. A field a producer forgets
+// must not read as the safe answer, so a boolean that would grant something by
+// being false is written the other way round, and an enum's UNSPECIFIED is
+// treated as the restrictive case.
+//
+// A receiver never ignores what it does not understand. An unknown field or an
+// undeclared enum number does not become a transport error either: it becomes
+// VERDICT_INDETERMINATE with a reason code, so the fail-closed table decides
+// what happens rather than an adapter's error branch. See ADR-0002 and
+// ADR-0003.
+
+syntax = "proto3";
+
+package guardana.control.v1;
+
+// The effect a call has on the world, decided by the caller before the call
+// runs. Policy keys off this rather than off a tool name.
+//
+// An undeclared number here is not an error to return to the caller: it means
+// the producer classified the action in a taxonomy this receiver does not have,
+// which is INDETERMINATE. That is what keeps this enum extensible: a value
+// added in a later minor version degrades rather than breaking every older
+// receiver.
+enum EffectClass {
+  EFFECT_CLASS_UNSPECIFIED = 0;
+  EFFECT_CLASS_READ = 1;
+  EFFECT_CLASS_WRITE = 2;
+  EFFECT_CLASS_DELETE = 3;
+  EFFECT_CLASS_EXECUTE = 4;
+  EFFECT_CLASS_COMMUNICATE = 5;
+  EFFECT_CLASS_TRANSACT = 6;
+  EFFECT_CLASS_IDENTITY_OR_ACCESS = 7;
+  EFFECT_CLASS_CONFIGURE = 8;
+  EFFECT_CLASS_SPAWN_OR_DELEGATE = 9;
+}
+
+// Ordered, least sensitive first. UNSPECIFIED is unknown, never the bottom of the
+// scale: a check that denies at or above a floor cannot rule it out and refuses
+// to answer, and a check that allows at or below a ceiling does not pass it. It
+// is never a label either; validation refuses it inside DataLabels. See
+// ADR-0011.
+enum Sensitivity {
+  SENSITIVITY_UNSPECIFIED = 0;
+  SENSITIVITY_PUBLIC = 1;
+  SENSITIVITY_INTERNAL = 2;
+  SENSITIVITY_CONFIDENTIAL = 3;
+  SENSITIVITY_RESTRICTED = 4;
+  SENSITIVITY_SECRET = 5;
+}
+
+// Where data is going, or where it came from. UNSPECIFIED counts as untrusted:
+// an envelope that does not say must not be treated as the safe case.
+enum TrustZone {
+  TRUST_ZONE_UNSPECIFIED = 0;
+  TRUST_ZONE_TRUSTED_INTERNAL = 1;
+  TRUST_ZONE_PARTNER = 2;
+  TRUST_ZONE_UNTRUSTED_EXTERNAL = 3;
+  TRUST_ZONE_USER_CONTROLLED = 4;
+  TRUST_ZONE_MODEL_GENERATED = 5;
+}
+
+// Precedence is deny-overrides: DENY beats INDETERMINATE, which beats
+// REQUIRE_APPROVAL, which beats ALLOW_WITH_OBLIGATIONS, which beats ALLOW. The
+// numbers below are not in that order; precedence is this sentence, never a
+// comparison of numbers.
+//
+// An undeclared number arriving from an external policy decision point becomes
+// INDETERMINATE. It must never fall back to VERDICT_UNSPECIFIED, which is zero
+// and reads as "nothing was decided". See ADR-0003.
+enum Verdict {
+  VERDICT_UNSPECIFIED = 0;
+  VERDICT_ALLOW = 1;
+  VERDICT_DENY = 2;
+  VERDICT_REQUIRE_APPROVAL = 3;
+  VERDICT_ALLOW_WITH_OBLIGATIONS = 4;
+  VERDICT_INDETERMINATE = 5;
+}
+
+// How much authority the enforcement point exercises over a decision. The mode
+// never changes what the matcher decides; it changes what is done about it.
+enum EnforcementMode {
+  // Refused as configuration. In evidence it means nothing is known to have
+  // been enforced.
+  ENFORCEMENT_MODE_UNSPECIFIED = 0;
+  // Decide and record, and enforce nothing the decision says: a call proceeds
+  // whatever the verdict. What the enforcement point refuses on its own
+  // account, such as a record it cannot write, it refuses in every mode.
+  ENFORCEMENT_MODE_OBSERVE = 1;
+  // A candidate policy is decided and recorded beside the enforced one; only
+  // the enforced decision is acted on.
+  ENFORCEMENT_MODE_SHADOW = 2;
+  // Every call proceeds, and each one the decision would have blocked raises
+  // an alert.
+  ENFORCEMENT_MODE_WARN = 3;
+  // A call with a material effect that the decision allows also waits for an
+  // approval; a DENY stays a DENY.
+  ENFORCEMENT_MODE_APPROVE = 4;
+  // The decision is enforced as the fail-closed table says.
+  ENFORCEMENT_MODE_ENFORCE = 5;
+  // Every call with a material effect is blocked whatever the decision; a read
+  // is enforced as under ENFORCE, with fail-open reads off.
+  ENFORCEMENT_MODE_LOCKDOWN = 6;
+}
+
+// Whether the policy behind a decision was known to be current. UNSPECIFIED is
+// treated as stale, so a producer that omits it cannot publish evidence
+// claiming the policy was fresh.
+enum PolicyFreshness {
+  POLICY_FRESHNESS_UNSPECIFIED = 0;
+  POLICY_FRESHNESS_FRESH = 1;
+  POLICY_FRESHNESS_STALE = 2;
+}

@@ -1,0 +1,170 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, so a vulnerability disclosed after the last merge is still found.
+    # Off the hour, because scheduled runs queue behind everyone else's :00.
+    - cron: "23 5 * * 1"
+
+# Read-only by default. A job that needs more says so at job level, with the
+# step that needs it named in a comment.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    # GitHub's "bash" adds -o pipefail, which the bare default shell does not.
+    shell: bash
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write # Analyse: uploads SARIF to the code scanning API
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        # Before init, so autobuild compiles with the version go.mod requires
+        # rather than whatever the runner image happens to ship.
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          languages: go
+          build-mode: autobuild
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+
+  govulncheck:
+    name: Known Go vulnerabilities
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run govulncheck
+        # The tool directive in go.mod pins the version, so there is nothing to
+        # install and nothing to keep in step with scripts/tool-versions.env.
+        run: go tool govulncheck ./...
+
+  osv-scanner:
+    name: Dependency advisories
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Load pinned tool versions
+        # A name allowlist, not a shape filter: on a pull request this file is
+        # the fork's. See ci.yml for the reasoning.
+        run: |
+          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env >>"$GITHUB_ENV"
+
+      - name: Install osv-scanner
+        run: |
+          bin="${RUNNER_TEMP}/bin"
+          dl="${RUNNER_TEMP}/dl"
+          mkdir -p "${bin}" "${dl}"
+          curl -fsSL --retry 3 --retry-connrefused -o "${dl}/osv-scanner" \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          printf '%s  %s\n' "${OSV_SCANNER_SHA256}" "${dl}/osv-scanner" | sha256sum -c -
+          install -m 0755 "${dl}/osv-scanner" "${bin}/osv-scanner"
+          echo "${bin}" >>"$GITHUB_PATH"
+
+      - name: Scan the source tree
+        # The settings of scripts/scan-repo-files.sh: an empty configuration,
+        # so no osv-scanner.toml in the tree can ignore a package or a
+        # vulnerability, and the files .gitignore names are read as well.
+        run: osv-scanner scan source -r --no-ignore --config /dev/null .
+
+  gitleaks:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The whole history: the working tree is already scanned by
+          # `make security` in ci.yml, and a secret that was committed and then
+          # removed is exactly the one the working tree no longer shows.
+          fetch-depth: 0
+
+      - name: Load pinned tool versions
+        run: |
+          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env >>"$GITHUB_ENV"
+
+      - name: Install gitleaks
+        run: |
+          bin="${RUNNER_TEMP}/bin"
+          dl="${RUNNER_TEMP}/dl"
+          mkdir -p "${bin}" "${dl}"
+          curl -fsSL --retry 3 --retry-connrefused -o "${dl}/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION#v}_linux_x64.tar.gz"
+          printf '%s  %s\n' "${GITLEAKS_SHA256}" "${dl}/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "${dl}/gitleaks.tar.gz" -C "${bin}" gitleaks
+          echo "${bin}" >>"$GITHUB_PATH"
+
+      - name: Scan the history
+        # The settings of scripts/scan-repo-files.sh: scripts/gitleaks.toml
+        # rather than any .gitleaks.toml or GITLEAKS_CONFIG, no gitleaks:allow
+        # comment and no ignore list. gitleaks reads a .gitleaksignore at the
+        # root of the repository it scans whatever --gitleaks-ignore-path says,
+        # and one commit fingerprint in it hides a secret from every later run,
+        # so the file is refused rather than read.
+        run: |
+          if [ -e .gitleaksignore ]; then
+            echo "Secret scan: the repository holds .gitleaksignore, and the scan takes no ignore list from the tree it scans; except a finding that is not a secret in scripts/gitleaks.toml" >&2
+            exit 1
+          fi
+          no_ignore_list="${RUNNER_TEMP}/gitleaks-no-ignore-list"
+          mkdir -p "${no_ignore_list}"
+          gitleaks git --no-banner --redact --config scripts/gitleaks.toml \
+            --ignore-gitleaks-allow --gitleaks-ignore-path "${no_ignore_list}" .
+
+  dependency-review:
+    name: Dependency review
+    # The action diffs the base against the head, which only a pull request has.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0

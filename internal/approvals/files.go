@@ -1,0 +1,214 @@
+package approvals
+
+import (
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"slices"
+	"strings"
+)
+
+// errExists is a name another writer linked first. Each caller translates it
+// into the refusal its own operation documents, so no caller has to read a
+// file system error to learn that it lost a race.
+const errExists Error = "approvals: the name exists already"
+
+// commit writes body to a temporary file, forces it to disk, and links it to
+// name. The link is the compare-and-swap: it fails with EEXIST when another
+// writer got there first, and nothing in the request path waits on another
+// process's lock. The temporary file is removed either way, and the directory
+// is forced to disk after a successful link, so a name that was reported
+// written survives a power loss.
+func (s *store) commit(name string, body []byte) error {
+	tmp := tmpPrefix + rand.Text() + tmpSuffix
+	f, err := s.root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(body)
+	if err = errors.Join(err, f.Sync(), f.Close()); err != nil {
+		return errors.Join(err, s.root.Remove(tmp))
+	}
+	err = s.root.Link(tmp, name)
+	if err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return errors.Join(errExists, s.root.Remove(tmp))
+		}
+		return errors.Join(err, s.root.Remove(tmp))
+	}
+	return errors.Join(s.root.Remove(tmp), s.syncDir())
+}
+
+// syncDir forces a directory entry to disk, so a name that was linked before a
+// power loss is there after it.
+func (s *store) syncDir() error {
+	d, err := s.root.Open(".")
+	if err != nil {
+		return err
+	}
+	return errors.Join(d.Sync(), d.Close())
+}
+
+// readDir lists the directory, sorted by name as os.ReadDir sorts it.
+func (s *store) readDir() ([]os.DirEntry, error) {
+	d, err := s.root.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	entries, err := d.ReadDir(-1)
+	if err = errors.Join(err, d.Close()); err != nil {
+		return nil, err
+	}
+	slices.SortFunc(entries, func(a, b os.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+	return entries, nil
+}
+
+// remove unlinks one name. A name that is already gone is not a failure: the
+// unlink after a transition is what the order in the package documentation
+// makes safe to lose.
+func (s *store) remove(name string) error {
+	if err := s.root.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// readBounded reads one file and refuses one larger than limit rather than
+// holding what it claims to be. A file that is exactly limit bytes is read;
+// one byte more is refused.
+//
+// The open does not block and the handle is held to a regular file, so a named
+// pipe or a device a writer of the directory left behind refuses the call
+// rather than waiting inside it for the mutex's whole lifetime.
+func (s *store) readBounded(name string, limit int) ([]byte, error) {
+	f, err := s.root.OpenFile(name, os.O_RDONLY|nonBlocking, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%w: %q is not a regular file", ErrForeignFile, cause(name))
+	}
+	raw, err := io.ReadAll(io.LimitReader(f, int64(limit)+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > limit {
+		return nil, fmt.Errorf("%w: over %d bytes", ErrRecordTooLarge, limit)
+	}
+	return raw, nil
+}
+
+// listing is what one pass over the directory found: the approval ids, sorted,
+// each with the furthest-along name present at that moment.
+type listing struct {
+	ids   []string
+	state map[string]state
+	// complete is false when the bound stopped the pass. An incomplete
+	// listing is unmeasured: it is neither the whole directory nor an empty
+	// one, and a caller says so rather than reporting what it managed to see
+	// as all there is.
+	complete bool
+}
+
+// scan lists the directory. A file this package did not write refuses the
+// whole pass: the store owns its directory, and guessing what else is in it is
+// how a forged name gets read as a record.
+func (s *store) scan() (listing, error) {
+	entries, err := s.readDir()
+	if err != nil {
+		return listing{}, err
+	}
+	l := listing{state: make(map[string]state), complete: true}
+	for _, e := range entries {
+		// What an entry is comes from the directory, not from its name. A
+		// pipe, a device or a symbolic link named like a record is foreign
+		// however well the name reads, and opening one would block this call
+		// and every call behind it.
+		if !e.Type().IsRegular() {
+			return listing{}, fmt.Errorf("%w: %q is not a regular file", ErrForeignFile, cause(e.Name()))
+		}
+		kind, id, st := classify(e.Name())
+		switch kind {
+		case kindRecord:
+			if furthest, seen := l.state[id]; !seen || st > furthest {
+				l.state[id] = st
+			}
+		case kindMarker, kindTemp, kindView:
+		case kindForeign:
+			return listing{}, fmt.Errorf("%w: %q", ErrForeignFile, cause(e.Name()))
+		}
+	}
+	for id := range l.state {
+		l.ids = append(l.ids, id)
+	}
+	slices.Sort(l.ids)
+	if len(l.ids) > s.opts.maxRecords {
+		l.ids = l.ids[:s.opts.maxRecords]
+		l.complete = false
+	}
+	return l, nil
+}
+
+// readRecord reads the record of id, preferring the furthest-along name. hint
+// is what a scan saw; a name linked since is found by the probe behind it, and
+// a name unlinked since costs one open and falls through to the same probe. It
+// reports fs.ErrNotExist when no name of id is there.
+func (s *store) readRecord(id string, hint state) (Record, state, error) {
+	if raw, err := s.readBounded(id+hint.suffix(), headerBytes+s.opts.maxRecordBytes); err == nil {
+		rec, err := s.decodeAt(id, hint, raw)
+		return rec, hint, err
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return Record{}, hint, err
+	}
+	for _, st := range byRank {
+		raw, err := s.readBounded(id+st.suffix(), headerBytes+s.opts.maxRecordBytes)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			continue
+		case err != nil:
+			return Record{}, st, err
+		}
+		rec, err := s.decodeAt(id, st, raw)
+		return rec, st, err
+	}
+	return Record{}, hint, fs.ErrNotExist
+}
+
+// decodeAt decodes raw and holds it to the name it was read under. A record
+// whose inner identifier or resolution disagrees with its name is refused,
+// never read as if the two agreed: the name is how the store finds it and the
+// content is what it answers from.
+func (s *store) decodeAt(id string, st state, raw []byte) (Record, error) {
+	rec, err := decodeRecord(raw, s.opts.maxRecordBytes, s.opts.maxApprovalWindow)
+	if err != nil {
+		return Record{}, fmt.Errorf("record %q: %w", cause(id+st.suffix()), err)
+	}
+	if rec.ApprovalID != id {
+		return Record{}, fmt.Errorf("%w: %q holds approval %q",
+			ErrNameMismatch, cause(id+st.suffix()), cause(rec.ApprovalID))
+	}
+	if rec.Resolution != st.resolution() {
+		return Record{}, fmt.Errorf("%w: %q holds resolution %s",
+			ErrNameMismatch, cause(id+st.suffix()), rec.Resolution)
+	}
+	return rec, nil
+}
+
+// drop forgets one record: every name it may take, and its projection. It is
+// how an expired or rejected record leaves the directory.
+func (s *store) drop(id string) error {
+	var errs []error
+	for _, st := range byRank {
+		errs = append(errs, s.remove(id+st.suffix()))
+	}
+	errs = append(errs, s.remove(id+viewSuffix))
+	return errors.Join(errs...)
+}

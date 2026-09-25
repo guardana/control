@@ -1,0 +1,51 @@
+// Frozen v1 wire contract. schema_version is "1.0".
+
+syntax = "proto3";
+
+package guardana.control.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum ResultStatus {
+  RESULT_STATUS_UNSPECIFIED = 0;
+  RESULT_STATUS_SUCCESS = 1;
+  RESULT_STATUS_FAILURE = 2;
+  RESULT_STATUS_TIMEOUT = 3;
+  RESULT_STATUS_CANCELLED = 4;
+  RESULT_STATUS_BLOCKED = 5;
+  RESULT_STATUS_UNKNOWN = 6;
+}
+
+message ActionResult {
+  string schema_version = 12;
+  string request_id = 1;
+  string execution_id = 2;
+  // UNSPECIFIED and UNKNOWN both mean the effect may have happened, and neither
+  // is ever retried automatically.
+  ResultStatus status = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp ended_at = 5;
+  string tool_protocol_status = 6;
+  // True only when the result was checked against its schema and conformed;
+  // false says nothing more than that.
+  bool result_schema_valid = 7;
+  string result_hash = 8;
+  string redacted_result_preview = 9;
+  // A producer's claim, never authority to retry a material effect.
+  bool retryable = 10;
+  // Set by whatever confirms a material effect actually happened, in the
+  // provider's own terms: a payment receipt, a write acknowledgement. Opaque
+  // to policy, recorded so a reviewer can follow the effect outside this
+  // system. It is not an idempotency key.
+  string side_effect_confirmation = 11;
+  // The canonical action digest recomputed from the arguments that were
+  // actually sent upstream. It differs from the decision's action_digest only
+  // if something changed the call after it was authorized, which is the
+  // EXECUTED_ARGS_MISMATCH case. Absent means the comparison did not run, which
+  // is not a pass.
+  string executed_action_digest = 13;
+  // Names the redaction profile that produced redacted_result_preview, as
+  // Arguments.redaction_profile does for the arguments. Empty means no redaction
+  // ran, which is right only when there is no preview (ADR-0011).
+  string redaction_profile = 14;
+}

@@ -1,0 +1,50 @@
+# Paths allowed to contain a brand literal. Everything else must reach the
+# product name through internal/brand.
+#
+# Entry shapes, matched by scripts/check-brand.sh:
+#   dir/       every path under that directory, anchored at the repository root
+#   **/dir/    every path under a directory of that name, at any depth
+#   path       that exact path, and nothing that merely starts with it
+#
+# The rule for what belongs here: a path is listed when a brand literal in it
+# would be rewritten by scripts/rename-product.sh, so the literal cannot go
+# stale. This is a policy about where a literal is permitted, not a record of
+# where one exists: most listed paths hold none today, and that is expected.
+#
+# Two deliberate absences, both of which would otherwise qualify:
+#   LICENSE                     the rename never edits it, so a brand string
+#                               there must fail the gate and be fixed by hand
+#   scripts/check-brand.sh      both read the brand at run time and must never
+#   scripts/rename-product.sh   hold a literal; this guard is what enforces it
+
+# The source of truth and its test, named exactly. Not the directory: a third
+# file in this package would inherit the exemption, and the one package whose
+# literals have to be right is the one the guard would then never inspect. The
+# test is here because the rename rewrites its expected values in the same
+# pass, which is what proves the rename is a single command.
+internal/brand/brand.go
+internal/brand/brand_test.go
+docs/
+**/testdata/
+api/proto/
+api/gen/
+.github/
+README.md
+AGENTS.md
+CONTRIBUTING.md
+SECURITY.md
+GOVERNANCE.md
+CODE_OF_CONDUCT.md
+TRADEMARKS.md
+ROADMAP.md
+CHANGELOG.md
+RELEASING.md
+NOTICE
+Makefile
+go.mod
+go.sum
+buf.yaml
+buf.gen.yaml
+.goreleaser.yaml
+scripts/brand-allowlist.txt
+scripts/github-bootstrap.sh

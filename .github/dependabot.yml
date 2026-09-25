@@ -1,0 +1,43 @@
+# Weekly updates for Go modules and for the actions the workflows use.
+#
+# Minor and patch updates are grouped, because a batch of routine version
+# bumps is one review rather than five.
+#
+# Security updates are deliberately not grouped. Dependabot opens those on
+# their own, and that is the point: a fix that has to be read, reviewed and
+# merged quickly must not sit behind unrelated bumps in a shared pull request,
+# and a grouped branch that fails on one member would hold back the rest.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    # Short group names keep a grouped pull request's title, which becomes
+    # the squash commit's subject, within the 72 characters the title check
+    # allows.
+    groups:
+      go:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      ci:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

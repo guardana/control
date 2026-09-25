@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "1.0",
+  "requestId": "req_demo_cross_tenant",
+  "traceId": "8a3c60f7d188f8fa79d48a391a778fa6",
+  "spanId": "1a2b3c4d5e6f7788",
+  "occurredAt": "2026-09-06T00:05:00Z",
+  "projectId": "proj_demo",
+  "tenantId": "tenant_demo",
+  "environment": "production",
+  "principal": {
+    "id": "user_demo",
+    "type": "user",
+    "authnStrength": "mfa",
+    "tenantId": "tenant_demo",
+    "attributes": {
+      "team": "support"
+    }
+  },
+  "agent": {
+    "id": "support-refund-agent",
+    "instanceId": "inst_demo_02",
+    "framework": "demo-agent-framework",
+    "version": "0.1.0",
+    "modelRef": "demo-model/v1"
+  },
+  "delegation": [
+    {
+      "from": "user_demo",
+      "to": "support-refund-agent",
+      "scopes": ["payments.refund"],
+      "reason": "customer requested a refund in ticket tkt_demo",
+      "issuedAt": "2026-09-06T00:00:00Z",
+      "expiresAt": "2026-09-06T01:00:00Z"
+    }
+  ],
+  "action": {
+    "kind": "tool.call",
+    "name": "payments.refund",
+    "protocol": "mcp",
+    "provider": "payments-mcp.demo.internal",
+    "effect": "EFFECT_CLASS_TRANSACT"
+  },
+  "resource": {
+    "type": "payment",
+    "id": "pay_other_demo",
+    "tenantId": "tenant_other_demo",
+    "environment": "production",
+    "labels": {
+      "currency": "USD"
+    }
+  },
+  "destination": {
+    "trustZone": "TRUST_ZONE_TRUSTED_INTERNAL",
+    "host": "payments.demo.internal"
+  },
+  "data": {
+    "sensitivities": ["SENSITIVITY_CONFIDENTIAL"],
+    "sources": ["ticket_system"],
+    "containsSecrets": false
+  },
+  "arguments": {
+    "canonicalHash": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+    "redactedPreview": "{\"payment_id\":\"pay_other_demo\",\"amount_minor\":\"[redacted]\"}",
+    "redactionProfile": "default"
+  },
+  "context": {
+    "sessionId": "sess_demo",
+    "runId": "run_demo",
+    "stepId": "step_04",
+    "risk": "high",
+    "budgets": {
+      "refund_amount_minor": "2500"
+    },
+    "tags": ["refund", "production", "cross-tenant"]
+  }
+}

@@ -1,0 +1,12 @@
+version: v2
+# The plugin is the one pinned by go.mod's tool directive, so generation is
+# reproducible from the module graph and needs no network.
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/guardana/control/api/gen/go
+plugins:
+  - local: ["go", "tool", "protoc-gen-go"]
+    out: api/gen/go
+    opt: paths=source_relative

@@ -1,0 +1,29 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "An update is held, an approver outside the plane approves it, and the retry runs on the held trail.",
+  "plane": {"mode": "APPROVE", "bundle": {"id": "scenario-fixture"}},
+  "steps": [
+    {"call": {
+      "tool": "update_order",
+      "args": {"id": "ord-10"},
+      "answer": {"kind": "pending", "codes": ["APPROVAL_PENDING"]},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "APPROVAL_REQUESTED"]}
+    }},
+    {"approve": {"step": 0, "approver": "alice", "reason": "the order is hers"}},
+    {"call": {
+      "tool": "update_order",
+      "args": {"id": "ord-10"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "step[0]", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }},
+    {"call": {
+      "tool": "update_order",
+      "args": {"id": "ord-11"},
+      "answer": {"kind": "pending", "codes": ["APPROVAL_PENDING"]},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "APPROVAL_REQUESTED"]}
+    }}
+  ]
+}

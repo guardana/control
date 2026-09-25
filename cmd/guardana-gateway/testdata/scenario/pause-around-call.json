@@ -1,0 +1,23 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "An operator pauses one tool, a call to it is blocked, and once the pause is lifted the same call runs.",
+  "plane": {"mode": "APPROVE", "bundle": {"id": "scenario-fixture"}},
+  "steps": [
+    {"pause": {"provider": "orders", "action": "tool", "name": "read_order", "reason": "checking the orders service"}},
+    {"call": {
+      "tool": "read_order",
+      "args": {"id": "ord-30"},
+      "answer": {"kind": "blocked", "codes": ["PAUSED"]},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_BLOCKED"]}
+    }},
+    {"unpause": {"step": 0}},
+    {"call": {
+      "tool": "read_order",
+      "args": {"id": "ord-30"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }}
+  ]
+}

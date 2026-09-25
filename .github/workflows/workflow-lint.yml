@@ -1,0 +1,101 @@
+name: Workflow lint
+
+on:
+  push:
+    paths:
+      - .github/workflows/**
+  pull_request:
+    paths:
+      - .github/workflows/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    # GitHub's "bash" adds -o pipefail, which the bare default shell does not.
+    shell: bash
+
+jobs:
+  lint:
+    name: actionlint, zizmor, pins
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Load pinned tool versions
+        # A name allowlist, not a shape filter. This job carries a token and
+        # runs on pull requests, where the checked out tree is the fork's, so a
+        # shape filter would let that fork write GH_HOST into the environment
+        # and move every API read below to a host it controls. See ci.yml.
+        run: |
+          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env >>"$GITHUB_ENV"
+
+      - name: Install actionlint and zizmor
+        run: |
+          bin="${RUNNER_TEMP}/bin"
+          dl="${RUNNER_TEMP}/dl"
+          mkdir -p "${bin}" "${dl}"
+          fetch() {
+            curl -fsSL --retry 3 --retry-connrefused -o "${dl}/$1" "$2"
+            printf '%s  %s\n' "$3" "${dl}/$1" | sha256sum -c -
+          }
+          fetch actionlint.tar.gz "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION#v}_linux_amd64.tar.gz" "${ACTIONLINT_SHA256}"
+          fetch zizmor.tar.gz "https://github.com/zizmorcore/zizmor/releases/download/${ZIZMOR_VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz" "${ZIZMOR_SHA256}"
+          tar -xzf "${dl}/actionlint.tar.gz" -C "${bin}" actionlint
+          tar -xzf "${dl}/zizmor.tar.gz" -C "${bin}" zizmor
+          echo "${bin}" >>"$GITHUB_PATH"
+
+      - name: Run actionlint
+        # actionlint takes files, not a directory, and an unexpanded glob would
+        # be read as a filename. nullglob plus the count turns "no workflows
+        # matched" into a failure instead of a linter that checked nothing.
+        #
+        # As in the Makefile's security target, no file in the tree decides
+        # what is reported: an empty configuration instead of
+        # .github/actionlint.yaml, and no rc file for the shellcheck actionlint
+        # runs over each run: block.
+        env:
+          SHELLCHECK_OPTS: --norc
+        run: |
+          shopt -s nullglob
+          files=(.github/workflows/*.yml .github/workflows/*.yaml)
+          if (( ${#files[@]} == 0 )); then
+            echo "no workflow files under .github/workflows" >&2
+            exit 1
+          fi
+          actionlint -color -config-file /dev/null "${files[@]}"
+
+      - name: Run zizmor
+        # A token is passed so the audits that need the GitHub API run here.
+        # `make security` has no token and runs the offline audits only, so
+        # this job is the one that sees a newly disclosed vulnerable action.
+        # The host is named on the command line, not left to $GH_HOST, and as
+        # in `make security` no zizmor.yml is loaded and no "zizmor: ignore"
+        # comment is honoured.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: zizmor --no-config --no-ignores --gh-hostname github.com --min-severity medium .github/workflows
+
+      - name: Check that every action is pinned to a commit
+        run: scripts/check-actions-pinned.sh
+
+      - name: Check that every pinned SHA is the one its version names
+        # The shape check above cannot see a SHA lifted from another
+        # repository, and forks share an object store, so such a SHA is
+        # fetchable under the action's own name. This resolves each tag and
+        # compares. It pins the API host inside the script for the same reason
+        # the zizmor step does on the command line.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/pin-actions.sh --check

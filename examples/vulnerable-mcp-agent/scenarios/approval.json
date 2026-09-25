@@ -1,0 +1,22 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "An update is held, a person approves it, and the retry runs on the held request's trail.",
+  "plane": {"mode": "ENFORCE", "bundle": {"id": "vulnerable-mcp-agent"}},
+  "steps": [
+    {"call": {
+      "tool": "update_order",
+      "args": {"id": "ord-1", "status": "cancelled"},
+      "answer": {"kind": "pending", "codes": ["APPROVAL_PENDING"]},
+      "decided": {"verdict": "REQUIRE_APPROVAL", "codes": ["APPROVAL_REQUIRED"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "APPROVAL_REQUESTED"]}
+    }},
+    {"approve": {"step": 0, "approver": "alice", "reason": "the customer asked for it"}},
+    {"call": {
+      "tool": "update_order",
+      "args": {"id": "ord-1", "status": "cancelled"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "REQUIRE_APPROVAL", "codes": ["APPROVAL_REQUIRED"], "obligations": []},
+      "trail": {"request": "step[0]", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }}
+  ]
+}

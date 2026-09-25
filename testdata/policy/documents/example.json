@@ -1,0 +1,13 @@
+{
+  "apiVersion": "agent-policy/v1alpha1",
+  "bundle": {"id": "payments", "version": "2026-09-10.1", "serial": 7, "maxStaleSeconds": 300},
+  "rules": [{
+    "id": "refunds-in-prod-need-approval",
+    "effect": "REQUIRE_APPROVAL",
+    "obligations": [{"type": "cap_amount", "params": {"max": "10000"}}],
+    "when": {
+      "action":   {"name": ["refund"], "provider": ["payments"], "effect": ["TRANSACT"]},
+      "resource": {"environment": ["prod"]}
+    }
+  }]
+}

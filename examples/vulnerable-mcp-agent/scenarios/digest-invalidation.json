@@ -1,0 +1,29 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "An approved update retried with other arguments is held anew, and the approval stays unspent for the call it was given for.",
+  "plane": {"mode": "ENFORCE", "bundle": {"id": "vulnerable-mcp-agent"}},
+  "steps": [
+    {"call": {
+      "tool": "update_order",
+      "args": {"id": "ord-2", "status": "shipped"},
+      "answer": {"kind": "pending", "codes": ["APPROVAL_PENDING"]},
+      "decided": {"verdict": "REQUIRE_APPROVAL", "codes": ["APPROVAL_REQUIRED"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "APPROVAL_REQUESTED"]}
+    }},
+    {"approve": {"step": 0, "approver": "alice"}},
+    {"call": {
+      "tool": "update_order",
+      "args": {"id": "ord-2", "status": "cancelled"},
+      "answer": {"kind": "pending", "codes": ["APPROVAL_PENDING"]},
+      "decided": {"verdict": "REQUIRE_APPROVAL", "codes": ["APPROVAL_REQUIRED"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "APPROVAL_REQUESTED"]}
+    }},
+    {"call": {
+      "tool": "update_order",
+      "args": {"id": "ord-2", "status": "shipped"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "REQUIRE_APPROVAL", "codes": ["APPROVAL_REQUIRED"], "obligations": []},
+      "trail": {"request": "step[0]", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "APPROVAL_REQUESTED", "APPROVAL_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }}
+  ]
+}

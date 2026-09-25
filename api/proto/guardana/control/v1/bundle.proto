@@ -1,0 +1,44 @@
+// Frozen v1 wire contract. schema_version is "1.0".
+
+syntax = "proto3";
+
+package guardana.control.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// What a decision points at. This is all the request path needs: the content
+// of a bundle is never read to explain a decision after the fact, only its
+// identity.
+message PolicyBundleRef {
+  string bundle_id = 1;
+  string version = 2;
+  // "sha256:" followed by lowercase hex, over the decoded bytes of
+  // PolicyBundle.canonical. Those bytes must equal their own canonical form, so
+  // that one policy has one digest (ADR-0011).
+  string digest = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+// A compiled set of policy rules and the signature over it. Separate from the
+// reference above because a compiled bundle can be far larger than any message
+// on the request path, and because a verifier needs fields a decision does not.
+//
+// The format of the signed document is recorded with the policy kernel; this
+// message fixes how it is signed. Every field outside canonical must equal what
+// the signed document says, or the bundle is refused.
+message PolicyBundle {
+  PolicyBundleRef ref = 1;
+  bytes canonical = 2;
+  // The signature is Ed25519 over DSSE's pre-authentication encoding of
+  // "application/vnd.agent-policy+json" and the decoded bytes of canonical.
+  // signature_alg is the fixed string "ed25519-dsse" and selects nothing; any
+  // other value is refused. key_id is an unauthenticated hint that selects a key
+  // the operator pinned, and an unknown one is refused. See ADR-0011.
+  string signature_alg = 3;
+  bytes signature = 4;
+  string key_id = 5;
+  // The staleness budget the bundle's author proposes. The effective limit is
+  // the smaller of this and the operator's own setting, so a policy author
+  // cannot widen what an operator allows. Zero or negative is refused.
+  int64 max_stale_seconds = 6;
+}

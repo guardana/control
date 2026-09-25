@@ -1,0 +1,34 @@
+# One gateway that observes one MCP server. Every path is relative to this
+# file, and every bound not named here stands at the default `doctor` prints.
+mode: OBSERVE
+project_id: orders
+tenant_id: acme
+environment: dev
+
+listener:
+  kind: stateless_http
+  address: 127.0.0.1:8080
+  origins:
+    - http://localhost:5173
+  principal:
+    id: agent-runner
+  agent:
+    id: orders-assistant
+    framework: example
+
+policy:
+  bundle_id: gateway-fixture
+  bundle_file: policy.bundle
+  key_id: k1
+  public_key: 6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=
+
+evidence:
+  dir: spool
+
+export:
+  endpoint: http://127.0.0.1:4318/v1/logs
+  allow_plaintext: true
+
+upstreams:
+  - name: orders
+    endpoint: http://127.0.0.1:1/mcp

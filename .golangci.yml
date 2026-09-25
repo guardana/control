@@ -1,0 +1,229 @@
+version: "2"
+# `make lint` and scripts/check-imports-probe.sh name this file with --config.
+# Discovered instead, it would lose to a .golangci.yaml, .golangci.toml or
+# .golangci.json beside it.
+run:
+  timeout: 5m
+linters:
+  default: standard
+  enable:
+    - depguard
+    - errcheck
+    - errorlint
+    - forbidigo
+    - gocyclo
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nilerr
+    - nolintlint
+    - revive
+    - staticcheck
+    - unparam
+    - unused
+  settings:
+    gocyclo:
+      min-complexity: 12
+    nolintlint:
+      # A //nolint names its linter and says why, and one that no longer
+      # suppresses anything is reported, so an exemption cannot outlive the
+      # code it excused. In the guarded trees none may name depguard or
+      # forbidigo at all: internal/core/layering_test.go refuses it.
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    forbidigo:
+      # Patterns match the resolved name, so an import renamed to `clock "time"`
+      # does not rename its way past `time\.Now`.
+      analyze-types: true
+      forbid:
+        - pattern: '^panic$'
+          msg: "no panic on external input; return an error"
+        - pattern: '^fmt\.Print(ln|f)?$'
+          msg: "use log/slog or return values"
+        # The next three hold in the guarded trees only; the exclusion rule
+        # below lifts them everywhere else. A decision is replayed from its
+        # recorded inputs, and fmt, time, context, crypto/ed25519 and the
+        # protobuf runtime are allowed there for what else they offer, not for
+        # these. Only reads a name reveals are caught: time.Unix(...).Format
+        # reads the local zone and passes, and the kernel's own tests hold it.
+        - pattern: '^(time\.(Now|Since|Until|After|AfterFunc|Tick|NewTicker|NewTimer|Sleep)|timestamppb\.Now|context\.With(Deadline|Timeout)(Cause)?)$'
+          msg: "guarded tree: take the time from the injected clock"
+        - pattern: '^(fmt\.Scan(f|ln)?|time\.LoadLocation)$'
+          msg: "guarded tree: no I/O; this reads standard input or the zone database"
+        - pattern: '^ed25519\.GenerateKey$'
+          msg: "guarded tree: no randomness; derive a key with ed25519.NewKeyFromSeed"
+    depguard:
+      # The dependency rule, an allowlist. scripts/lib/dependency-rule.sh and
+      # internal/core/layering_test.go hold the same lists, and
+      # internal/core/layering_agreement_test.go fails when the three disagree.
+      #
+      # depguard compares raw strings. An entry ending in "$" matches exactly
+      # and any other entry is a prefix, so each prefix is written twice, as
+      # "x$" and "x/": "x" alone would also admit "xy". Where an allow entry
+      # and a deny entry both match, the longer entry wins.
+      rules:
+        core:
+          list-mode: strict
+          files:
+            - "**/internal/core/**"
+            - "**/internal/policy/**"
+            - "**/internal/canon/**"
+            - "**/internal/evidence/**"
+            - "**/pkg/contract/**"
+            - "!$test"
+          allow:
+            - "github.com/guardana/control$"
+            - "github.com/guardana/control/"
+            - "google.golang.org/protobuf$"
+            - "google.golang.org/protobuf/"
+            - "bufio$"
+            - "bytes$"
+            - "cmp$"
+            - "context$"
+            - "crypto/ed25519$"
+            - "crypto/sha256$"
+            - "crypto/subtle$"
+            - "encoding/binary$"
+            - "encoding/hex$"
+            - "encoding/json$"
+            - "errors$"
+            - "fmt$"
+            - "io$"
+            - "maps$"
+            - "math$"
+            - "math/bits$"
+            - "slices$"
+            - "sort$"
+            - "strconv$"
+            - "strings$"
+            - "sync$"
+            - "sync/atomic$"
+            - "time$"
+            - "unicode$"
+            - "unicode/utf16$"
+            - "unicode/utf8$"
+          deny:
+            - pkg: "github.com/guardana/control/adapters$"
+              desc: "core must not import adapters"
+            - pkg: "github.com/guardana/control/adapters/"
+              desc: "core must not import adapters"
+            - pkg: "github.com/guardana/control/internal/storage$"
+              desc: "core must not import storage"
+            - pkg: "github.com/guardana/control/internal/storage/"
+              desc: "core must not import storage"
+            - pkg: "github.com/guardana/control/internal/controlapi$"
+              desc: "core must not import servers"
+            - pkg: "github.com/guardana/control/internal/controlapi/"
+              desc: "core must not import servers"
+            - pkg: "github.com/guardana/control/internal/gateway$"
+              desc: "core must not import the gateway"
+            - pkg: "github.com/guardana/control/internal/gateway/"
+              desc: "core must not import the gateway"
+            - pkg: "github.com/guardana/control/internal/ingest$"
+              desc: "core must not import the ingest pipeline"
+            - pkg: "github.com/guardana/control/internal/ingest/"
+              desc: "core must not import the ingest pipeline"
+        # Test files in the same trees: everything rule core allows, plus what
+        # a test needs to read fixtures, parse source and run the go command.
+        # Still no network, system call, randomness, unsafe or plugin. testing
+        # is allowed alone, not testing/...: testing/quick draws from
+        # math/rand. Seeded property tests use pgregory.net/rapid, the one
+        # module outside the standard library a test here may import.
+        core-tests:
+          list-mode: strict
+          files:
+            - "**/internal/core/**_test.go"
+            - "**/internal/policy/**_test.go"
+            - "**/internal/canon/**_test.go"
+            - "**/internal/evidence/**_test.go"
+            - "**/pkg/contract/**_test.go"
+          allow:
+            - "github.com/guardana/control$"
+            - "github.com/guardana/control/"
+            - "google.golang.org/protobuf$"
+            - "google.golang.org/protobuf/"
+            - "bufio$"
+            - "bytes$"
+            - "cmp$"
+            - "context$"
+            - "crypto/ed25519$"
+            - "crypto/sha256$"
+            - "crypto/subtle$"
+            - "encoding/binary$"
+            - "encoding/hex$"
+            - "encoding/json$"
+            - "errors$"
+            - "fmt$"
+            - "io$"
+            - "maps$"
+            - "math$"
+            - "math/bits$"
+            - "slices$"
+            - "sort$"
+            - "strconv$"
+            - "strings$"
+            - "sync$"
+            - "sync/atomic$"
+            - "time$"
+            - "unicode$"
+            - "unicode/utf16$"
+            - "unicode/utf8$"
+            - "go/ast$"
+            - "go/parser$"
+            - "go/token$"
+            - "go/types$"
+            - "io/fs$"
+            - "os$"
+            - "os/exec$"
+            - "path/filepath$"
+            - "pgregory.net/rapid$"
+            - "reflect$"
+            - "regexp$"
+            - "runtime$"
+            - "testing$"
+          deny:
+            - pkg: "github.com/guardana/control/adapters$"
+              desc: "core must not import adapters"
+            - pkg: "github.com/guardana/control/adapters/"
+              desc: "core must not import adapters"
+            - pkg: "github.com/guardana/control/internal/storage$"
+              desc: "core must not import storage"
+            - pkg: "github.com/guardana/control/internal/storage/"
+              desc: "core must not import storage"
+            - pkg: "github.com/guardana/control/internal/controlapi$"
+              desc: "core must not import servers"
+            - pkg: "github.com/guardana/control/internal/controlapi/"
+              desc: "core must not import servers"
+            - pkg: "github.com/guardana/control/internal/gateway$"
+              desc: "core must not import the gateway"
+            - pkg: "github.com/guardana/control/internal/gateway/"
+              desc: "core must not import the gateway"
+            - pkg: "github.com/guardana/control/internal/ingest$"
+              desc: "core must not import the ingest pipeline"
+            - pkg: "github.com/guardana/control/internal/ingest/"
+              desc: "core must not import the ingest pipeline"
+  exclusions:
+    # Written out whole in internal/core/layering_agreement_test.go, because
+    # each line here can switch the rule off: a path or a rule stops reporting
+    # what it matches, and a generated mode other than disable skips every file
+    # whose header claims it was generated.
+    #
+    # Anchored: an unanchored "api/gen/.*" also matches internal/api/gen/, and
+    # "testdata/.*" also matches internal/mytestdata/, exempting hand-written
+    # code from every linter without saying so anywhere.
+    generated: disable
+    paths:
+      - "^api/gen/"
+      - "(^|/)testdata/"
+    rules:
+      # Confines the "guarded tree:" forbidigo patterns to the trees the
+      # dependency rule guards; the agreement test reads this list too.
+      - linters: [forbidigo]
+        text: "guarded tree: "
+        path-except: "^(internal/core|internal/policy|internal/canon|internal/evidence|pkg/contract)/"
+formatters:
+  enable:
+    - gofmt
+    - goimports

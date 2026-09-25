@@ -1,0 +1,13 @@
+{
+  "apiVersion": "agent-policy/v1alpha1",
+  "bundle": {"id": "vulnerable-mcp-agent", "version": "1", "serial": 1, "maxStaleSeconds": 3600},
+  "rules": [
+    {"id": "allow-reads", "effect": "ALLOW", "when": {"action": {"effect": ["READ"]}}},
+    {"id": "exports-vetoed", "effect": "DENY", "when": {"action": {"name": ["export_orders"]}, "external": {"denies": true}}},
+    {"id": "updates-need-approval", "effect": "REQUIRE_APPROVAL", "when": {"action": {"name": ["update_order"]}}},
+    {"id": "no-refunds", "effect": "DENY", "when": {"action": {"name": ["refund"]}}},
+    {"id": "allow-mail", "effect": "ALLOW", "when": {"action": {"effect": ["COMMUNICATE"]}}},
+    {"id": "no-orders-to-strangers", "effect": "DENY", "reason": "TOXIC_FLOW_SENSITIVE_TO_EXTERNAL",
+      "when": {"destination": {"trustZone": ["UNTRUSTED_EXTERNAL"]}, "flow": {"toxicAtLeast": "CONFIDENTIAL"}}}
+  ]
+}

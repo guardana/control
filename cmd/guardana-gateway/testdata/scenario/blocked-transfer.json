@@ -1,0 +1,21 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "A transfer the policy denies is blocked and never runs; a read after it still does.",
+  "plane": {"mode": "APPROVE", "bundle": {"id": "scenario-fixture"}},
+  "steps": [
+    {"call": {
+      "tool": "transfer",
+      "args": {"id": "acct-1"},
+      "answer": {"kind": "blocked", "codes": ["RULE_DENY"]},
+      "decided": {"verdict": "DENY", "codes": ["RULE_DENY"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_BLOCKED"]}
+    }},
+    {"call": {
+      "tool": "read_order",
+      "args": {"id": "ord-1"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }}
+  ]
+}

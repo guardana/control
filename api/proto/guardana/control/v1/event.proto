@@ -1,0 +1,79 @@
+// Frozen v1 wire contract. schema_version is "1.0".
+
+syntax = "proto3";
+
+package guardana.control.v1;
+
+import "google/protobuf/timestamp.proto";
+import "guardana/control/v1/action_envelope.proto";
+import "guardana/control/v1/approval.proto";
+import "guardana/control/v1/bundle.proto";
+import "guardana/control/v1/common.proto";
+import "guardana/control/v1/decision.proto";
+import "guardana/control/v1/finding.proto";
+import "guardana/control/v1/result.proto";
+
+// The stages a proposed action passes through, plus the events that happen
+// around it. The orders that are legal are enforced by chain validation, not by
+// this enum.
+//
+// An undeclared number is INDETERMINATE for a reader, never an error, which is
+// what lets a later minor version add a kind without breaking every existing
+// consumer of an evidence stream.
+enum EventKind {
+  EVENT_KIND_UNSPECIFIED = 0;
+  EVENT_KIND_ACTION_PROPOSED = 1;
+  EVENT_KIND_POLICY_DECIDED = 2;
+  EVENT_KIND_APPROVAL_REQUESTED = 3;
+  EVENT_KIND_APPROVAL_DECIDED = 4;
+  EVENT_KIND_ACTION_STARTED = 5;
+  EVENT_KIND_ACTION_COMPLETED = 6;
+  EVENT_KIND_ACTION_FAILED = 7;
+  EVENT_KIND_ACTION_BLOCKED = 8;
+  // An approval window closed with nobody deciding. Distinct from
+  // APPROVAL_DECIDED because "nobody answered" and "somebody said no" are
+  // different facts about an operator's controls.
+  EVENT_KIND_APPROVAL_EXPIRED = 9;
+  EVENT_KIND_FINDING_RAISED = 10;
+  EVENT_KIND_POLICY_RELOADED = 11;
+}
+
+// One record in the evidence trail.
+message Event {
+  string event_id = 1;
+  EventKind kind = 2;
+  // The stream this event belongs to, and the scope of prev_event_id below:
+  // events chain per request_id, within a project. run_id groups requests and
+  // is not the chain.
+  string request_id = 3;
+  string run_id = 4;
+  string project_id = 5;
+  string tenant_id = 6;
+  google.protobuf.Timestamp occurred_at = 7;
+  // The version the whole event is read under, its payload included.
+  string schema_version = 8;
+  // This plane's own mode. A Decision's enforcement_mode is its producer's, and
+  // the two are never merged.
+  EnforcementMode enforcement_mode = 9;
+  // Set on ACTION_STARTED and on the events that close it, correlating this
+  // trail with whatever actually ran.
+  string execution_id = 10;
+  oneof payload {
+    ActionEnvelope proposed = 20;
+    Decision decision = 21;
+    Approval approval = 22;
+    ActionResult result = 23;
+    Finding finding = 24;
+    PolicyBundleRef policy = 25;
+  }
+  // The event_id of the previous event on the same request_id. An ordering
+  // link and nothing more: it shows a gap, it does not show that a record was
+  // not altered. Append-only is a write discipline, not tamper evidence. See
+  // ADR-0004.
+  string prev_event_id = 30;
+  // Planned: the digest of the previous event, the link that would show a
+  // record was not altered. Empty in 1.0 and read by nothing, so an empty link
+  // claims nothing. Declared now so that filling it later is not a field every
+  // 1.0 reader refuses (ADR-0011).
+  string prev_event_digest = 31;
+}

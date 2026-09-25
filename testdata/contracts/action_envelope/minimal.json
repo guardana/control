@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "requestId": "req_demo_minimal",
+  "occurredAt": "2026-09-06T00:00:00Z",
+  "projectId": "proj_demo",
+  "tenantId": "tenant_demo",
+  "principal": {
+    "id": "user_demo",
+    "tenantId": "tenant_demo"
+  },
+  "action": {
+    "name": "orders.read",
+    "effect": "EFFECT_CLASS_READ"
+  },
+  "resource": {
+    "type": "order",
+    "id": "ord_demo"
+  }
+}

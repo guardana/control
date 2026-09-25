@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("---\ntitle: The MCgPat eway\nsummary: How a call is intercepted, decided, held and recorded.\ntype: explanation\ncovers: [internKl/gateway/**, adapters/mcp/**]\n---")

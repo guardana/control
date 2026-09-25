@@ -1,0 +1,27 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "A read the policy allows runs, and its text feeds the next call.",
+  "plane": {
+    "mode": "APPROVE",
+    "bundle": {
+      "id": "scenario-fixture",
+      "digest": "sha256:6e99902208467e2fa5e63296a103dc0e1cac293ee41691e0317ceb9307372b96"
+    }
+  },
+  "steps": [
+    {"call": {
+      "tool": "read_order",
+      "args": {"id": "ord-1"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }},
+    {"call": {
+      "tool": "read_order",
+      "args": {"id": "${step[0].output}"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }}
+  ]
+}

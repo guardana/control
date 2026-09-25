@@ -1,0 +1,10 @@
+# The secret scan's configuration. scripts/scan-repo-files.sh and the history
+# job in .github/workflows/security.yml pass it with --config, which outranks
+# GITLEAKS_CONFIG, GITLEAKS_CONFIG_TOML and a .gitleaks.toml in the scanned
+# tree, so no file the tree adds can decide what the scan reports.
+#
+# The built-in rules and the built-in allowlist, nothing more. A finding that
+# is not a secret is excepted here, in a change the security maintainers
+# review, never by a gitleaks:allow comment or a .gitleaksignore beside it.
+[extend]
+useDefault = true

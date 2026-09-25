@@ -1,0 +1,63 @@
+{
+  "budgets": {
+    "tutorial": 1500,
+    "how-to": 1200,
+    "explanation": 3000,
+    "reference": 1500,
+    "extending": 2000
+  },
+  "exempt_types": ["spec", "project"],
+  "readme": {"root": 600, "folder": 300},
+  "ceilings": {
+    "AGENTS.md": 1035,
+    "CONTRIBUTING.md": 791,
+    "GOVERNANCE.md": 669,
+    "ROADMAP.md": 825,
+    "testdata/digest/README.md": 1971
+  },
+  "directories": {
+    "docs": {"type": "project"},
+    "docs/get-started": {"type": "tutorial"},
+    "docs/guides": {"type": "how-to"},
+    "docs/concepts": {"type": "explanation"},
+    "docs/reference": {"type": "reference"},
+    "docs/reference/wire": {"type": "reference"},
+    "docs/spec": {"type": "spec", "may_be_empty": true},
+    "docs/extending": {"type": "extending"}
+  },
+  "page_types": {
+    "docs/contracts.md": "spec"
+  },
+  "frozen": [
+    "docs/contracts.md",
+    "docs/status.md",
+    "docs/dependencies.md",
+    "docs/adr/",
+    "docs/reference/reason-codes.md",
+    "docs/reference/obligations.md",
+    "testdata/digest/"
+  ],
+  "excluded": [
+    ".github/",
+    "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
+    "docs/adr/",
+    "docs/design/foundation-decisions.md",
+    "docs/foundation/",
+    "docs/plans/",
+    "docs/work/",
+    "internal/docscheck/testdata/",
+    "node_modules/"
+  ],
+  "surfaces": [
+    "api/proto/**",
+    "pkg/**",
+    "cmd/**",
+    "adapters/**",
+    "internal/gatewayconfig/**",
+    "internal/policy/rules/**",
+    "internal/policy/reasons/**",
+    "internal/evidence/chain.go",
+    "scripts/lib/dependency-rule.sh"
+  ]
+}

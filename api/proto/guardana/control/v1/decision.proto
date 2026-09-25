@@ -1,0 +1,57 @@
+// Frozen v1 wire contract. schema_version is "1.0".
+
+syntax = "proto3";
+
+package guardana.control.v1;
+
+import "google/protobuf/timestamp.proto";
+import "guardana/control/v1/common.proto";
+
+// A condition on a call that proceeds: under ALLOW_WITH_OBLIGATIONS, and under
+// REQUIRE_APPROVAL once the approval is given. The call proceeds only if the
+// obligation is applied, so an obligation a receiver does not recognise is the
+// one place this contract could ignore what it does not understand.
+//
+// It does not: advisory is false by default, which means "must be understood".
+// A receiver that meets an obligation type it cannot apply denies the call with
+// OBLIGATION_NOT_UNDERSTOOD rather than executing it without the obligation,
+// and no fail-open setting relieves that denial. A policy author who wants a
+// hint rather than a condition sets advisory explicitly. ALLOW_WITH_OBLIGATIONS
+// with no obligation is never produced. See ADR-0011.
+message Obligation {
+  string type = 1;
+  map<string, string> params = 2;
+  bool advisory = 3;
+}
+
+message Decision {
+  string schema_version = 13;
+  string decision_id = 1;
+  string request_id = 2;
+  // The canonical action digest this decision was made about. Without it a
+  // decision exported to another system names a request but not the action
+  // bytes it decided, and an approval cannot be tied back to it.
+  string action_digest = 16;
+  string policy_bundle_digest = 3;
+  repeated string policy_rule_ids = 4;
+  Verdict verdict = 5;
+  repeated string reason_codes = 6;
+  repeated Obligation obligations = 7;
+  // Absent means the decision may not be reused.
+  google.protobuf.Timestamp expires_at = 8;
+  int64 decision_latency_us = 9;
+  string pdp_type = 10;
+  string pdp_instance = 11;
+  string pdp_version = 12;
+  EnforcementMode enforcement_mode = 14;
+  // UNSPECIFIED is treated as stale, so omitting this cannot publish evidence
+  // claiming the policy was current.
+  PolicyFreshness policy_freshness = 15;
+  // When the bundle behind this decision was last confirmed current, so a reader
+  // can compute the policy's age. The staleness budget in force is on no
+  // message, so policy_freshness is the receiver's answer and a reader cannot
+  // recompute it.
+  google.protobuf.Timestamp policy_loaded_at = 17;
+  // When the decision was made, by the receiver's clock (ADR-0011).
+  google.protobuf.Timestamp decided_at = 18;
+}

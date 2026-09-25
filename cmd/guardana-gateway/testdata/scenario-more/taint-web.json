@@ -1,0 +1,14 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "A read of a page from outside leaves the run holding untrusted content.",
+  "plane": {"mode": "APPROVE", "bundle": {"id": "scenario-fixture"}},
+  "steps": [
+    {"call": {
+      "tool": "read_web",
+      "args": {"id": "page-1"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }}
+  ]
+}

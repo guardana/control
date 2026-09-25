@@ -1,0 +1,36 @@
+{
+  "document": {
+    "apiVersion": "agent-policy/v1alpha1",
+    "bundle": {"id": "payments", "version": "2026-09-11.1", "serial": 7, "maxStaleSeconds": 300},
+    "rules": [
+      {
+        "id": "refunds-in-prod-need-approval",
+        "effect": "REQUIRE_APPROVAL",
+        "obligations": [{"type": "cap_amount", "params": {"max": "10000"}}],
+        "when": {
+          "action": {"name": ["refund"], "provider": ["payments"], "effect": ["TRANSACT"]},
+          "resource": {"environment": ["prod"]}
+        }
+      }
+    ]
+  },
+  "envelope": {
+    "schemaVersion": "1.0",
+    "requestId": "req-refund",
+    "projectId": "proj-1",
+    "tenantId": "tenant-1",
+    "environment": "prod",
+    "occurredAt": "2026-09-11T11:59:00Z",
+    "principal": {"id": "user-1", "tenantId": "tenant-1"},
+    "agent": {"id": "agent-1"},
+    "action": {"name": "refund", "effect": "EFFECT_CLASS_TRANSACT", "provider": "payments"},
+    "resource": {"type": "order", "id": "ord-1", "tenantId": "tenant-1", "environment": "prod"},
+    "arguments": {"canonicalHash": "sha256:b847fb758442166845ca9650f60949962c778c04fa607fbaf13f6821015c6aa1"}
+  },
+  "authorized_args": "{\"amount\": 1250, \"currency\": \"EUR\"}",
+  "flow": {"untrusted": false, "floor": "PUBLIC"},
+  "options": {"fail_open_read": false, "max_stale_seconds": 600, "applicable": ["cap_amount"]},
+  "loaded_at": "2026-09-11T12:00:00Z",
+  "decided_at": "2026-09-11T12:00:00Z",
+  "expect": {"verdict": "REQUIRE_APPROVAL", "action": "AwaitApproval", "reason_codes": ["APPROVAL_REQUIRED"]}
+}

@@ -1,0 +1,224 @@
+{
+  "document": {
+    "apiVersion": "agent-policy/v1alpha1",
+    "bundle": {
+      "id": "payments",
+      "version": "2026-09-11.1",
+      "serial": 12,
+      "maxStaleSeconds": 900
+    },
+    "rules": [
+      {
+        "id": "no-secrets-to-untrusted-hosts",
+        "effect": "DENY",
+        "reason": "TOXIC_FLOW_SENSITIVE_TO_EXTERNAL",
+        "when": {
+          "destination": {
+            "trustZone": [
+              "UNTRUSTED_EXTERNAL",
+              "USER_CONTROLLED"
+            ],
+            "host": [
+              "paste.example.net"
+            ]
+          },
+          "data": {
+            "sensitivityAtLeast": "CONFIDENTIAL"
+          },
+          "flow": {
+            "toxicAtLeast": "RESTRICTED"
+          }
+        }
+      },
+      {
+        "id": "prod-stays-in-its-team",
+        "effect": "DENY",
+        "reason": "RULE_DENY",
+        "when": {
+          "principal": {
+            "id": [
+              "user:ana"
+            ],
+            "type": [
+              "human"
+            ],
+            "authnStrength": [
+              "mfa"
+            ],
+            "tenantId": [
+              "acme"
+            ],
+            "attributes": {
+              "team": [
+                "payments",
+                "risk"
+              ],
+              "rôle": [
+                "équipe"
+              ]
+            }
+          },
+          "resource": {
+            "type": [
+              "ledger"
+            ],
+            "id": [
+              "ledger/eu-1"
+            ],
+            "tenantId": [
+              "acme"
+            ],
+            "environment": [
+              "prod"
+            ],
+            "labels": {
+              "tier": [
+                "gold"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": "refunds-need-approval",
+        "effect": "REQUIRE_APPROVAL",
+        "obligations": [
+          {
+            "type": "cap_amount",
+            "params": {
+              "max": "10000",
+              "currency": "EUR"
+            }
+          },
+          {
+            "type": "emit_alert",
+            "advisory": true
+          }
+        ],
+        "when": {
+          "agent": {
+            "id": [
+              "billing-agent"
+            ],
+            "framework": [
+              "custom"
+            ]
+          },
+          "action": {
+            "name": [
+              "refund"
+            ],
+            "provider": [
+              "payments"
+            ],
+            "protocol": [
+              "mcp"
+            ],
+            "kind": [
+              "tool_call"
+            ],
+            "effect": [
+              "TRANSACT",
+              "WRITE"
+            ]
+          }
+        }
+      },
+      {
+        "id": "delegated-reads-stay-read-only",
+        "effect": "ALLOW_WITH_OBLIGATIONS",
+        "reason": "OBLIGATIONS_ATTACHED",
+        "obligations": [
+          {
+            "type": "read_only",
+            "advisory": false
+          }
+        ],
+        "when": {
+          "delegation": {
+            "scopes": [
+              "ledger:read"
+            ]
+          },
+          "action": {
+            "effect": [
+              "READ"
+            ]
+          }
+        }
+      },
+      {
+        "id": "reads",
+        "effect": "ALLOW",
+        "when": {
+          "action": {
+            "effect": [
+              "READ"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "envelope": {
+    "schemaVersion": "1.0",
+    "requestId": "req-direct-read",
+    "projectId": "proj-1",
+    "tenantId": "acme",
+    "environment": "prod",
+    "occurredAt": "2026-09-11T11:59:00Z",
+    "principal": {
+      "id": "user:bo",
+      "type": "human",
+      "authnStrength": "mfa",
+      "tenantId": "acme"
+    },
+    "agent": {
+      "id": "reporting-agent",
+      "framework": "custom"
+    },
+    "action": {
+      "name": "ledger.read",
+      "effect": "EFFECT_CLASS_READ",
+      "provider": "ledger",
+      "protocol": "mcp",
+      "kind": "tool_call"
+    },
+    "resource": {
+      "type": "ledger",
+      "id": "ledger/eu-1",
+      "tenantId": "acme",
+      "environment": "prod",
+      "labels": {
+        "tier": "gold"
+      }
+    },
+    "destination": {
+      "trustZone": "TRUST_ZONE_TRUSTED_INTERNAL",
+      "host": "ledger.internal"
+    }
+  },
+  "authorized_args": "",
+  "flow": {
+    "untrusted": false,
+    "floor": "PUBLIC"
+  },
+  "options": {
+    "fail_open_read": true,
+    "max_stale_seconds": 600,
+    "applicable": [
+      "read_only",
+      "cap_amount"
+    ]
+  },
+  "loaded_at": "2026-09-11T12:00:00Z",
+  "decided_at": "2026-09-11T12:00:00Z",
+  "expect": {
+    "verdict": "INDETERMINATE",
+    "action": "Block",
+    "reason_codes": [
+      "RULE_ALLOW",
+      "RULE_UNDETERMINED"
+    ]
+  }
+}

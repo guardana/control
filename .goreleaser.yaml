@@ -1,0 +1,110 @@
+# Builds, packages and signs a release. Only .github/workflows/release.yml
+# runs it for real, on a pushed tag; `make release-snapshot` builds the same
+# archives locally and publishes nothing. RELEASING.md is the procedure.
+version: 2
+
+project_name: guardana-control
+
+builds:
+  - id: guardana-control
+    main: ./cmd/guardana-control
+    binary: guardana-control
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+    # The commit's time rather than the build's, so the same commit builds
+    # byte-identical binaries on any machine.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  - id: guardana-gateway
+    main: ./cmd/guardana-gateway
+    binary: guardana-gateway
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    ids: [guardana-control, guardana-gateway]
+    formats: [tar.gz]
+    name_template: "guardana-control_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # A tar entry records its file's time, owner and mode; fixing them keeps
+    # the archive itself reproducible, not only the binaries inside it. The
+    # order of the two binaries follows the order they finished building,
+    # which is why every run passes --parallelism=1.
+    builds_info:
+      owner: root
+      group: root
+      mtime: "{{ .CommitDate }}"
+    files:
+      - src: LICENSE
+        info:
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "{{ .CommitDate }}"
+      - src: NOTICE
+        info:
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "{{ .CommitDate }}"
+      - src: README.md
+        info:
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "{{ .CommitDate }}"
+      - src: CHANGELOG.md
+        info:
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "{{ .CommitDate }}"
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+sboms:
+  - id: archive
+    artifacts: archive
+    cmd: syft
+    documents: ["{{ .ArtifactName }}.cdx.json"]
+    # No --enrich: it reaches the network during the build, and what it adds
+    # would differ between two builds of the same commit.
+    args: ["$artifact", "--output", "cyclonedx-json=$document"]
+
+# Keyless: the certificate comes from the workflow's OIDC identity, so there is
+# no key or password to keep. Only the checksum file is signed; it names the
+# digest of every other asset.
+signs:
+  - id: checksum
+    cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
+
+release:
+  github:
+    owner: guardana
+    name: control
+  # The workflow publishes the draft only after the provenance is attested and
+  # the signature and attestations verify.
+  draft: true
+  prerelease: auto
+  mode: replace
+  name_template: "Guardana Control {{ .Version }}"
+
+# The notes come from CHANGELOG.md through scripts/release-notes.sh.
+changelog:
+  disable: true
+
+snapshot:
+  # A fixed 0.0.0 prerelease, so no snapshot sorts or reads as a real version.
+  version_template: "0.0.0-snapshot.{{ .ShortCommit }}"

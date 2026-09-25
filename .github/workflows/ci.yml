@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only by default. A job that needs more says so at job level, with the
+# step that needs it named in a comment.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Superseded pull request runs are cancelled; runs on main are not, because
+  # every commit there has to have its own recorded result.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    # GitHub's "bash" adds -o pipefail, which the bare default shell does not.
+    # Without it a failing command upstream of a pipe is invisible.
+    shell: bash
+
+jobs:
+  quality:
+    name: Quality gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing in this job pushes. Leaving the token in .git/config would
+          # only widen what a later step, or anything it uploads, can reach.
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # go.mod is the single source of the Go version. Never a literal.
+          go-version-file: go.mod
+
+      - name: Load pinned tool versions
+        # A name allowlist, not a shape filter. On a pull request the checked
+        # out tree is the fork's head, so this file is attacker-controlled and
+        # whatever matches here lands in the environment of every later step.
+        # Only names ending _VERSION or _SHA256 are admitted, with a value
+        # charset that cannot hold a host, a path or a heredoc: GH_HOST, PATH
+        # and GOSUMDB do not match, and neither does a comment line.
+        #
+        # BUF_SEMVER is derived because buf-action builds its download URL as
+        # ".../download/v${version}" and would otherwise double the "v";
+        # `grep .` turns a missing pin into a failure instead of a silent
+        # fall-through to whatever version is current.
+        run: |
+          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env >>"$GITHUB_ENV"
+          sed -n 's/^BUF_VERSION=v*\([0-9][A-Za-z0-9._+-]*\)$/BUF_SEMVER=\1/p' \
+            scripts/tool-versions.env | grep . >>"$GITHUB_ENV"
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          # `make lint` is the gate. This step only puts the binary on PATH, so
+          # the linter runs once, with the arguments the Makefile chooses.
+          install-only: true
+
+      - name: Install buf
+        uses: bufbuild/buf-action@8c6a16e16f12ba20b6470afa9c2ba9b5ba8c97c3 # v1.5.0
+        with:
+          version: ${{ env.BUF_SEMVER }}
+          # The action's own digest check on the binary it downloads.
+          checksum: ${{ env.BUF_SHA256 }}
+          # `make proto-check` drives buf. This step only installs it.
+          setup_only: true
+
+      - name: Install pinned release binaries
+        # gitleaks, osv-scanner, actionlint and zizmor publish actions that run
+        # a scan, not actions that install a binary. The Makefile calls the
+        # binaries, so the binaries are what CI has to provide. The runner
+        # image carries a shellcheck of its own, at whatever version the image
+        # was built with; the pinned one below comes first on PATH.
+        #
+        # Each download is checked against the digest pinned beside its version.
+        # A release asset can be replaced by its maintainer without the tag
+        # moving, and eight SHA-pinned actions in this job would be worth little
+        # standing next to five unverified downloads.
+        run: |
+          bin="${RUNNER_TEMP}/bin"
+          dl="${RUNNER_TEMP}/dl"
+          mkdir -p "${bin}" "${dl}"
+          fetch() {
+            curl -fsSL --retry 3 --retry-connrefused -o "${dl}/$1" "$2"
+            printf '%s  %s\n' "$3" "${dl}/$1" | sha256sum -c -
+          }
+          fetch gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION#v}_linux_x64.tar.gz" "${GITLEAKS_SHA256}"
+          fetch actionlint.tar.gz "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION#v}_linux_amd64.tar.gz" "${ACTIONLINT_SHA256}"
+          fetch zizmor.tar.gz "https://github.com/zizmorcore/zizmor/releases/download/${ZIZMOR_VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz" "${ZIZMOR_SHA256}"
+          fetch osv-scanner "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64" "${OSV_SCANNER_SHA256}"
+          fetch shellcheck.tar.xz "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" "${SHELLCHECK_SHA256}"
+          tar -xzf "${dl}/gitleaks.tar.gz" -C "${bin}" gitleaks
+          tar -xzf "${dl}/actionlint.tar.gz" -C "${bin}" actionlint
+          tar -xzf "${dl}/zizmor.tar.gz" -C "${bin}" zizmor
+          tar -xJf "${dl}/shellcheck.tar.xz" -C "${bin}" --strip-components=1 "shellcheck-${SHELLCHECK_VERSION}/shellcheck"
+          install -m 0755 "${dl}/osv-scanner" "${bin}/osv-scanner"
+          echo "${bin}" >>"$GITHUB_PATH"
+
+      - name: Run the quality gate
+        run: make quality
+
+  proto-breaking:
+    name: Wire contract compatibility
+    # Only a pull request has a proposed change to compare against main.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Load pinned tool versions
+        run: |
+          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env >>"$GITHUB_ENV"
+          sed -n 's/^BUF_VERSION=v*\([0-9][A-Za-z0-9._+-]*\)$/BUF_SEMVER=\1/p' \
+            scripts/tool-versions.env | grep . >>"$GITHUB_ENV"
+
+      - name: Install buf
+        uses: bufbuild/buf-action@8c6a16e16f12ba20b6470afa9c2ba9b5ba8c97c3 # v1.5.0
+        with:
+          version: ${{ env.BUF_SEMVER }}
+          checksum: ${{ env.BUF_SHA256 }}
+          setup_only: true
+
+      - name: Compare the wire contract against main
+        # No continue-on-error: a check that cannot fail is not a check. The
+        # published contract is what main holds, so main is what to compare to.
+        # Read from the run's own context rather than written out, so a fork
+        # compares against its own main and not this project's.
+        env:
+          AGAINST: ${{ github.server_url }}/${{ github.repository }}.git#branch=main
+        run: buf breaking --against "$AGAINST"

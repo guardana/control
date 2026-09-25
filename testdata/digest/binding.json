@@ -1,0 +1,6 @@
+{
+  "action_fixture": "refund_prod.json",
+  "action_digest": "sha256:1f3edcddf8af7b6779d5e7e47ce6754924a213d2f68273786d5dbda87b42db88",
+  "bundle_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "expected_binding": "sha256:3105283da9f4d61d9fa9558a8375d0796bce39ee48cdb7fbdff8a4ee0f34b394"
+}

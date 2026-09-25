@@ -1,0 +1,58 @@
+// Frozen v1 wire contract. schema_version is "1.0".
+
+syntax = "proto3";
+
+package guardana.control.v1;
+
+// How sure a detector is that what it reports actually happened.
+enum FindingVerdict {
+  FINDING_VERDICT_UNSPECIFIED = 0;
+  FINDING_VERDICT_CONFIRMED = 1;
+  FINDING_VERDICT_SUSPECTED = 2;
+  FINDING_VERDICT_INDETERMINATE = 3;
+}
+
+// Ordered, least severe first, so a threshold can be expressed as a floor
+// rather than as a set of strings. UNSPECIFIED is unknown, not below INFO.
+enum FindingSeverity {
+  FINDING_SEVERITY_UNSPECIFIED = 0;
+  FINDING_SEVERITY_INFO = 1;
+  FINDING_SEVERITY_LOW = 2;
+  FINDING_SEVERITY_MEDIUM = 3;
+  FINDING_SEVERITY_HIGH = 4;
+  FINDING_SEVERITY_CRITICAL = 5;
+}
+
+// What produced the finding. A FINDING_SOURCE_MODEL finding may annotate and
+// may never change a verdict; without this field on the wire, a model-derived
+// finding would be indistinguishable from a deterministic one and invariant 1
+// would rest on convention. See AGENTS.md. UNSPECIFIED is read as MODEL: a
+// finding that does not say where it came from gets the least authority.
+enum FindingSource {
+  FINDING_SOURCE_UNSPECIFIED = 0;
+  FINDING_SOURCE_DETERMINISTIC = 1;
+  FINDING_SOURCE_HEURISTIC = 2;
+  FINDING_SOURCE_MODEL = 3;
+}
+
+// What a detector reports after the fact. The detector plane is asynchronous
+// and off the decision path: a finding never grants or denies authority.
+message Finding {
+  string finding_id = 1;
+  string rule_id = 2;
+  string rule_version = 3;
+  FindingSeverity severity = 4;
+  FindingVerdict verdict = 5;
+  string request_id = 6;
+  string run_id = 7;
+  repeated string evidence_refs = 8;
+  repeated string framework_mappings = 9;
+  string recommended_action = 10;
+  FindingSource source = 12;
+  // Parts per thousand, 0 to 1000. An integer rather than a float because the
+  // canonical form this project hashes with forbids floats, and a double here
+  // would be the one value in the contract set that its own canonicalizer
+  // cannot represent. Absent when the detector does not score itself; above
+  // 1000 is refused.
+  optional uint32 confidence_permille = 11;
+}

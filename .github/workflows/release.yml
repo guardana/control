@@ -1,0 +1,230 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # A dry run: builds the snapshot a tag would build and publishes nothing.
+  workflow_dispatch:
+
+# Read-only by default. A job that needs more says so at job level, with the
+# step that needs it named in a comment.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # A release cancelled halfway leaves a draft with some of its assets, and a
+  # dry run is cheap enough to finish. Nothing here is worth cancelling.
+  cancel-in-progress: false
+
+defaults:
+  run:
+    # GitHub's "bash" adds -o pipefail, which the bare default shell does not.
+    shell: bash
+
+jobs:
+  snapshot:
+    name: Snapshot build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # goreleaser reads the tags to name the version it builds.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          # A release builds from a clean module cache, so the dry run does too.
+          cache: false
+
+      - name: Load pinned tool versions
+        # A name allowlist, not a shape filter. See ci.yml for the reasoning.
+        run: |
+          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env >>"$GITHUB_ENV"
+
+      - name: Install goreleaser and syft
+        # Each download is checked against the digest pinned beside its
+        # version, as in ci.yml.
+        run: |
+          bin="${RUNNER_TEMP}/bin"
+          dl="${RUNNER_TEMP}/dl"
+          mkdir -p "${bin}" "${dl}"
+          fetch() {
+            curl -fsSL --retry 3 --retry-connrefused -o "${dl}/$1" "$2"
+            printf '%s  %s\n' "$3" "${dl}/$1" | sha256sum -c -
+          }
+          fetch goreleaser.tar.gz "https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}/goreleaser_Linux_x86_64.tar.gz" "${GORELEASER_SHA256}"
+          fetch syft.tar.gz "https://github.com/anchore/syft/releases/download/${SYFT_VERSION}/syft_${SYFT_VERSION#v}_linux_amd64.tar.gz" "${SYFT_SHA256}"
+          tar -xzf "${dl}/goreleaser.tar.gz" -C "${bin}" goreleaser
+          tar -xzf "${dl}/syft.tar.gz" -C "${bin}" syft
+          echo "${bin}" >>"$GITHUB_PATH"
+
+      - name: Build the snapshot
+        # --parallelism=1 keeps the order of the binaries in each archive, and
+        # so the archive's digest, the same from run to run.
+        run: goreleaser release --snapshot --clean --skip=sign --parallelism=1
+
+      - name: Keep the snapshot
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: snapshot
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Build, sign and publish
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # The environment admits only tags matching v*. The token's scopes come
+    # from this file at the tagged commit, so the gate is the tag itself: only
+    # the admin and the maintain role can create one.
+    environment: release
+    permissions:
+      contents: write # Build and draft: goreleaser creates the draft and uploads its assets; Publish: gh releases it
+      id-token: write # Build and draft: cosign signs keyless; Attest: signs the provenance
+      attestations: write # Attest: stores the provenance attestations
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # goreleaser reads the tags to find the previous release.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check that the tagged commit is on main
+        # A release is a tag on a commit of main. This refuses a tag put on
+        # another branch by mistake; the provenance names the commit either way.
+        run: |
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" refs/remotes/origin/main; then
+            echo "the tagged commit ${GITHUB_SHA} is not on main" >&2
+            exit 1
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          # A restored cache is written by other runs; what ships is built
+          # from modules fetched and checked against go.sum in this one.
+          cache: false
+
+      - name: Load pinned tool versions
+        # A name allowlist, not a shape filter. See ci.yml for the reasoning.
+        run: |
+          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env >>"$GITHUB_ENV"
+
+      - name: Install goreleaser, cosign and syft
+        run: |
+          bin="${RUNNER_TEMP}/bin"
+          dl="${RUNNER_TEMP}/dl"
+          mkdir -p "${bin}" "${dl}"
+          fetch() {
+            curl -fsSL --retry 3 --retry-connrefused -o "${dl}/$1" "$2"
+            printf '%s  %s\n' "$3" "${dl}/$1" | sha256sum -c -
+          }
+          fetch goreleaser.tar.gz "https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}/goreleaser_Linux_x86_64.tar.gz" "${GORELEASER_SHA256}"
+          fetch cosign "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64" "${COSIGN_SHA256}"
+          fetch syft.tar.gz "https://github.com/anchore/syft/releases/download/${SYFT_VERSION}/syft_${SYFT_VERSION#v}_linux_amd64.tar.gz" "${SYFT_SHA256}"
+          tar -xzf "${dl}/goreleaser.tar.gz" -C "${bin}" goreleaser
+          tar -xzf "${dl}/syft.tar.gz" -C "${bin}" syft
+          install -m 0755 "${dl}/cosign" "${bin}/cosign"
+          echo "${bin}" >>"$GITHUB_PATH"
+
+      - name: Extract the release notes
+        # Fails when CHANGELOG.md has no dated, non-empty section for the tag,
+        # before anything is built or drafted.
+        run: scripts/release-notes.sh "${GITHUB_REF_NAME}" >"${RUNNER_TEMP}/notes.md"
+
+      - name: Build and draft
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: goreleaser release --clean --parallelism=1 --release-notes "${RUNNER_TEMP}/notes.md"
+
+      - name: Attest the assets
+        # checksums.txt names every archive and every bill of materials, so one
+        # attestation per line covers each of them.
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: dist/checksums.txt
+
+      - name: Attest the checksum file
+        # The action takes one kind of subject per step, and the checksum file
+        # is not listed in itself.
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/checksums.txt
+
+      - name: Verify before publishing
+        # The same checks RELEASING.md gives a user. A failure here leaves the
+        # draft unpublished, and nobody downloads a draft.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd dist && sha256sum --strict -c checksums.txt)
+          cosign verify-blob dist/checksums.txt \
+            --bundle dist/checksums.txt.sigstore.json \
+            --certificate-identity "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          archives=0
+          for f in dist/*.tar.gz dist/*.cdx.json dist/checksums.txt; do
+            [[ -f "${f}" ]] || { echo "no file matches ${f}" >&2; exit 1; }
+            gh attestation verify "${f}" --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
+              --source-ref "${GITHUB_REF}" --deny-self-hosted-runners
+            [[ "${f}" != *.tar.gz ]] || archives=$((archives + 1))
+          done
+          # Two systems times two architectures in .goreleaser.yaml. A missing
+          # platform, or a glob that matched nothing, is not a verified release.
+          if [[ "${archives}" -ne 4 ]]; then
+            echo "expected 4 archives, verified ${archives}" >&2
+            exit 1
+          fi
+
+      - name: Publish
+        # What was verified above is dist/. A draft can be edited by anyone
+        # with write access, so the draft is published only when it is the one
+        # draft for this tag and holds exactly those files, digest for digest;
+        # it is then published by its id, never looked up by the tag again.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          releases="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --paginate)"
+          ids="$(jq -r -s --arg tag "${GITHUB_REF_NAME}" \
+            '[.[][] | select(.draft and .tag_name == $tag) | .id] | .[]' <<<"${releases}")"
+          if [[ "$(grep -c . <<<"${ids}")" -ne 1 ]]; then
+            echo "want exactly one draft for ${GITHUB_REF_NAME}, found: ${ids:-none}" >&2
+            exit 1
+          fi
+          id="${ids}"
+          expected="$(cd dist && for f in *.tar.gz *.cdx.json checksums.txt checksums.txt.sigstore.json; do
+            [[ -f "${f}" ]] || { echo "no file matches ${f}" >&2; exit 1; }
+            printf '%s sha256:%s\n' "${f}" "$(sha256sum "${f}" | cut -d' ' -f1)"
+          done | sort)"
+          published="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${id}/assets?per_page=100" --paginate \
+            --jq '.[] | "\(.name) \(.digest)"' | sort)"
+          if [[ "${expected}" != "${published}" ]]; then
+            echo "the draft does not hold exactly the verified files" >&2
+            diff <(printf '%s\n' "${expected}") <(printf '%s\n' "${published}") >&2 || true
+            exit 1
+          fi
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${id}" -F draft=false >/dev/null
+          # A write could land between the comparison and the publication. The
+          # published release is immutable, so reading it once more settles it.
+          after="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${id}/assets?per_page=100" --paginate \
+            --jq '.[] | "\(.name) \(.digest)"' | sort)"
+          if [[ "${expected}" != "${after}" ]]; then
+            echo "RELEASE ${GITHUB_REF_NAME} WAS PUBLISHED WITH FILES OTHER THAN THE VERIFIED ONES; withdraw it and release the next version" >&2
+            diff <(printf '%s\n' "${expected}") <(printf '%s\n' "${after}") >&2 || true
+            exit 1
+          fi
+          echo "published release ${id} for ${GITHUB_REF_NAME}"

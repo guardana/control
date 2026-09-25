@@ -1,0 +1,96 @@
+{
+  "envelope": {
+    "schemaVersion": "1.0",
+    "requestId": "req-00000000-0000-4000-8000-000000000002",
+    "traceId": "0af7651916cd43dd8448eb211c80319c",
+    "spanId": "b7ad6b7169203331",
+    "occurredAt": "2026-03-04T09:15:22.310Z",
+    "projectId": "proj-fixture",
+    "tenantId": "tenant-fixture",
+    "environment": "prod",
+    "principal": {
+      "id": "user-fixture-2",
+      "type": "human",
+      "authnStrength": "aal2",
+      "tenantId": "tenant-fixture",
+      "attributes": {
+        "region": "eu-west",
+        "department": "support"
+      }
+    },
+    "agent": {
+      "id": "agent-fixture-support",
+      "instanceId": "inst-fixture-7",
+      "framework": "fixture-harness",
+      "version": "0.1.0",
+      "modelRef": "fixture-model-a"
+    },
+    "delegation": [
+      {
+        "from": "user-fixture-2",
+        "to": "agent-fixture-support",
+        "scopes": ["refunds:write", "orders:read"],
+        "reason": "support session",
+        "issuedAt": "2026-03-04T09:00:00Z",
+        "expiresAt": "2026-03-04T10:00:00Z"
+      }
+    ],
+    "action": {
+      "kind": "tool_call",
+      "name": "issue_refund",
+      "protocol": "mcp",
+      "effect": "EFFECT_CLASS_TRANSACT",
+      "provider": "fixture-payments-server"
+    },
+    "resource": {
+      "type": "payment",
+      "id": "pay-fixture-0001",
+      "tenantId": "tenant-fixture",
+      "environment": "prod",
+      "labels": {
+        "tier": "gold",
+        "owner": "team-fixture"
+      }
+    },
+    "destination": {
+      "trustZone": "TRUST_ZONE_PARTNER",
+      "host": "payments.example.test"
+    },
+    "data": {
+      "sensitivities": ["SENSITIVITY_CONFIDENTIAL"],
+      "sources": ["fixture-order-store"],
+      "containsSecrets": false
+    },
+    "arguments": {
+      "canonicalHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "redactedPreview": "{\"amount_minor\":\"[redacted]\",\"currency\":\"XTS\"}",
+      "schemaRef": "fixture.refund.v1",
+      "redactionProfile": "fixture-strict-v1"
+    },
+    "context": {
+      "sessionId": "sess-fixture-1",
+      "runId": "run-fixture-1",
+      "stepId": "step-3",
+      "risk": "elevated",
+      "budgets": {
+        "tokens": 1000
+      },
+      "tags": ["retry"]
+    }
+  },
+  "authorized_args": {
+    "amount_minor": 1250,
+    "currency": "XTS",
+    "idempotency_key": "idempotency-key-for-this-fixture",
+    "dry_run": false,
+    "memo": null,
+    "line_items": [
+      {"sku": "sku-001", "qty": 2},
+      {"sku": "sku-002", "qty": 1}
+    ],
+    "note": "tab\there and \"quoted\"",
+    "escaped": "caf\u00e9 \ud83d\ude00",
+    "literal": "café 😀"
+  },
+  "expected_digest": "sha256:1f3edcddf8af7b6779d5e7e47ce6754924a213d2f68273786d5dbda87b42db88"
+}

@@ -1,0 +1,60 @@
+name: Scorecard
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly. The score reflects repository settings, which change without a
+    # commit, so a push-only trigger would let it go stale silently.
+    - cron: "41 6 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # This workflow has no pull request trigger, and a scheduled or main-branch
+  # run is the record for that commit. Nothing here is worth cancelling.
+  cancel-in-progress: false
+
+# No workflow-level `env` or `defaults`: the Scorecard API rejects results from
+# a workflow that has either, and publish_results below is the point of the job.
+# No step here runs a shell, so there is nothing for a default to set.
+
+jobs:
+  analysis:
+    name: Supply-chain score
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # Run Scorecard: signs the result publish_results uploads
+      security-events: write # Upload the result to code scanning: writes SARIF
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Publishing is what lets the score be checked by anyone, including
+          # by this project's own dependents.
+          publish_results: true
+
+      - name: Keep the raw result
+        # Code scanning drops findings it does not understand; the artifact is
+        # the copy that can be read in full when a score changes.
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 7
+
+      - name: Upload the result to code scanning
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          sarif_file: results.sarif

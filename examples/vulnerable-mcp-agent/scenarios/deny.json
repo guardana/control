@@ -1,0 +1,21 @@
+{
+  "kind": "agent-scenario/v1alpha1",
+  "about": "A refund the policy denies is blocked before the orders server sees it; a read after it still runs.",
+  "plane": {"mode": "ENFORCE", "bundle": {"id": "vulnerable-mcp-agent"}},
+  "steps": [
+    {"call": {
+      "tool": "refund",
+      "args": {"id": "ord-1", "amount": "500.00"},
+      "answer": {"kind": "blocked", "codes": ["RULE_DENY"]},
+      "decided": {"verdict": "DENY", "codes": ["RULE_DENY"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_BLOCKED"]}
+    }},
+    {"call": {
+      "tool": "read_order",
+      "args": {"id": "ord-1"},
+      "answer": {"kind": "result", "codes": []},
+      "decided": {"verdict": "ALLOW", "codes": ["RULE_ALLOW"], "obligations": []},
+      "trail": {"request": "new", "kinds": ["ACTION_PROPOSED", "POLICY_DECIDED", "ACTION_STARTED", "ACTION_COMPLETED"]}
+    }}
+  ]
+}

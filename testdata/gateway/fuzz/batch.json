@@ -1,0 +1,1 @@
+[{"jsonrpc":"2.0","id":7,"method":"tools/list"},{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"read_file","arguments":{}}}]

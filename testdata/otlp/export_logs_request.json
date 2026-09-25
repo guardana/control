@@ -1,0 +1,214 @@
+{
+  "resourceLogs": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "guardana-control"
+            }
+          }
+        ]
+      },
+      "scopeLogs": [
+        {
+          "scope": {
+            "name": "guardana.control"
+          },
+          "logRecords": [
+            {
+              "timeUnixNano": "1789812000000000000",
+              "severityNumber": "SEVERITY_NUMBER_INFO",
+              "severityText": "INFO",
+              "body": {
+                "stringValue": "{\"eventId\":\"evt-1\",\"kind\":\"EVENT_KIND_ACTION_PROPOSED\",\"requestId\":\"req-1\",\"runId\":\"run-1\",\"projectId\":\"proj-1\",\"tenantId\":\"tenant-1\",\"occurredAt\":\"2026-09-19T10:00:00Z\",\"schemaVersion\":\"1.0\",\"enforcementMode\":\"ENFORCEMENT_MODE_OBSERVE\"}"
+              },
+              "attributes": [
+                {
+                  "key": "guardana.control.event_id",
+                  "value": {
+                    "stringValue": "evt-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.request_id",
+                  "value": {
+                    "stringValue": "req-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.run_id",
+                  "value": {
+                    "stringValue": "run-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.project_id",
+                  "value": {
+                    "stringValue": "proj-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.tenant_id",
+                  "value": {
+                    "stringValue": "tenant-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.kind",
+                  "value": {
+                    "stringValue": "EVENT_KIND_ACTION_PROPOSED"
+                  }
+                },
+                {
+                  "key": "guardana.control.enforcement_mode",
+                  "value": {
+                    "stringValue": "ENFORCEMENT_MODE_OBSERVE"
+                  }
+                }
+              ]
+            },
+            {
+              "timeUnixNano": "1789812000123456789",
+              "severityNumber": "SEVERITY_NUMBER_INFO",
+              "severityText": "INFO",
+              "body": {
+                "stringValue": "{\"eventId\":\"evt-2\",\"kind\":\"EVENT_KIND_POLICY_DECIDED\",\"requestId\":\"req-1\",\"runId\":\"run-1\",\"projectId\":\"proj-1\",\"tenantId\":\"tenant-1\",\"occurredAt\":\"2026-09-19T10:00:00.123456789Z\",\"schemaVersion\":\"1.0\",\"enforcementMode\":\"ENFORCEMENT_MODE_OBSERVE\",\"decision\":{\"schemaVersion\":\"1.0\",\"decisionId\":\"dec-1\",\"requestId\":\"req-1\",\"verdict\":\"VERDICT_DENY\",\"reasonCodes\":[\"NO_MATCHING_RULE\"]},\"prevEventId\":\"evt-1\"}"
+              },
+              "attributes": [
+                {
+                  "key": "guardana.control.event_id",
+                  "value": {
+                    "stringValue": "evt-2"
+                  }
+                },
+                {
+                  "key": "guardana.control.request_id",
+                  "value": {
+                    "stringValue": "req-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.run_id",
+                  "value": {
+                    "stringValue": "run-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.project_id",
+                  "value": {
+                    "stringValue": "proj-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.tenant_id",
+                  "value": {
+                    "stringValue": "tenant-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.kind",
+                  "value": {
+                    "stringValue": "EVENT_KIND_POLICY_DECIDED"
+                  }
+                },
+                {
+                  "key": "guardana.control.enforcement_mode",
+                  "value": {
+                    "stringValue": "ENFORCEMENT_MODE_OBSERVE"
+                  }
+                }
+              ]
+            },
+            {
+              "timeUnixNano": "1789812001000000000",
+              "severityNumber": "SEVERITY_NUMBER_INFO",
+              "severityText": "INFO",
+              "body": {
+                "stringValue": "{\"eventId\":\"evt-3\",\"kind\":\"EVENT_KIND_ACTION_STARTED\",\"requestId\":\"req-2\",\"projectId\":\"proj-1\",\"tenantId\":\"tenant-1\",\"occurredAt\":\"2026-09-19T10:00:01Z\",\"schemaVersion\":\"1.0\",\"enforcementMode\":\"ENFORCEMENT_MODE_OBSERVE\",\"executionId\":\"exec-1\"}"
+              },
+              "attributes": [
+                {
+                  "key": "guardana.control.event_id",
+                  "value": {
+                    "stringValue": "evt-3"
+                  }
+                },
+                {
+                  "key": "guardana.control.request_id",
+                  "value": {
+                    "stringValue": "req-2"
+                  }
+                },
+                {
+                  "key": "guardana.control.project_id",
+                  "value": {
+                    "stringValue": "proj-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.tenant_id",
+                  "value": {
+                    "stringValue": "tenant-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.kind",
+                  "value": {
+                    "stringValue": "EVENT_KIND_ACTION_STARTED"
+                  }
+                },
+                {
+                  "key": "guardana.control.enforcement_mode",
+                  "value": {
+                    "stringValue": "ENFORCEMENT_MODE_OBSERVE"
+                  }
+                }
+              ]
+            },
+            {
+              "severityNumber": "SEVERITY_NUMBER_INFO",
+              "severityText": "INFO",
+              "body": {
+                "stringValue": "{\"eventId\":\"evt-4\",\"kind\":\"EVENT_KIND_FINDING_RAISED\",\"projectId\":\"proj-1\",\"tenantId\":\"tenant-1\",\"schemaVersion\":\"1.0\"}"
+              },
+              "attributes": [
+                {
+                  "key": "guardana.control.event_id",
+                  "value": {
+                    "stringValue": "evt-4"
+                  }
+                },
+                {
+                  "key": "guardana.control.project_id",
+                  "value": {
+                    "stringValue": "proj-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.tenant_id",
+                  "value": {
+                    "stringValue": "tenant-1"
+                  }
+                },
+                {
+                  "key": "guardana.control.kind",
+                  "value": {
+                    "stringValue": "EVENT_KIND_FINDING_RAISED"
+                  }
+                },
+                {
+                  "key": "guardana.control.enforcement_mode",
+                  "value": {
+                    "stringValue": "ENFORCEMENT_MODE_UNSPECIFIED"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

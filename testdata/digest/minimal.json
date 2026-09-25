@@ -1,0 +1,21 @@
+{
+  "envelope": {
+    "schemaVersion": "1.0",
+    "requestId": "req-00000000-0000-4000-8000-000000000001",
+    "occurredAt": "2026-01-01T00:00:00Z",
+    "projectId": "proj-fixture",
+    "tenantId": "tenant-fixture",
+    "principal": {
+      "id": "user-fixture-1"
+    },
+    "action": {
+      "name": "read_item",
+      "effect": "EFFECT_CLASS_READ"
+    },
+    "resource": {
+      "type": "item"
+    }
+  },
+  "authorized_args": {},
+  "expected_digest": "sha256:423ea583eb1ce0e797ed73d1f6334063d37318890ba3ee7eb5cd8f1a489788d1"
+}

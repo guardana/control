@@ -1,0 +1,39 @@
+{
+  "subject": {
+    "type": "user",
+    "id": "user-7",
+    "properties": {
+      "tenant_id": "tenant-a",
+      "authn_strength": "mfa",
+      "attributes": {"level": "3", "team": "billing"}
+    }
+  },
+  "action": {
+    "name": "invoices.export",
+    "properties": {
+      "kind": "tool_call",
+      "provider": "billing-server",
+      "protocol": "mcp",
+      "effect": "COMMUNICATE"
+    }
+  },
+  "resource": {
+    "type": "invoice",
+    "id": "inv-42",
+    "properties": {
+      "tenant_id": "tenant-a",
+      "environment": "prod",
+      "labels": {"owner": "finance", "region": "eu"}
+    }
+  },
+  "context": {
+    "agent": {"id": "agent-1", "framework": "langgraph"},
+    "destination": {"trust_zone": "PARTNER", "host": "api.partner.example"},
+    "data": {"sensitivities": ["CONFIDENTIAL", "INTERNAL"], "contains_secrets": true},
+    "project_id": "proj-a",
+    "tenant_id": "tenant-a",
+    "environment": "prod",
+    "request_id": "req-0001",
+    "supported_obligations": []
+  }
+}
