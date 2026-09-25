@@ -533,19 +533,50 @@ run_json PUT "repos/${REPO}/topics" <<JSON
 { "names": ${TOPICS_JSON} }
 JSON
 
-# Dependency graph has no enable call here: it is on for every public
-# repository and cannot be turned off, and the alerts below depend on it.
-run gh api --method PUT "repos/${REPO}/vulnerability-alerts"
-run gh api --method PUT "repos/${REPO}/automated-security-fixes"
-run gh api --method PUT "repos/${REPO}/private-vulnerability-reporting"
-run_json PATCH "repos/${REPO}" <<'JSON'
+# The security features come from an organization configuration attached to
+# this repository alone, enforced so they cannot drift at the repository. A new
+# public repository has no dependency graph, and without it the required
+# "Dependency review" check cannot run. Code scanning's default setup stays
+# off: security.yml runs CodeQL itself, and GitHub refuses the results of one
+# while the other is on.
+read -r -d '' SECURITY_CONFIGURATION <<JSON || true
 {
-  "security_and_analysis": {
-    "secret_scanning": { "status": "enabled" },
-    "secret_scanning_push_protection": { "status": "enabled" }
-  }
+  "name": "${REPO_NAME}",
+  "description": "The security settings of ${REPO}, applied by its scripts/github-bootstrap.sh.",
+  "dependency_graph": "enabled",
+  "dependabot_alerts": "enabled",
+  "dependabot_security_updates": "enabled",
+  "code_scanning_default_setup": "disabled",
+  "secret_scanning": "enabled",
+  "secret_scanning_push_protection": "enabled",
+  "private_vulnerability_reporting": "enabled",
+  "enforcement": "enforced"
 }
 JSON
+configuration_id="$(gh api "orgs/${OWNER}/code-security/configurations" --paginate \
+  --jq ".[] | select(.name == \"${REPO_NAME}\") | .id" </dev/null)"
+if [[ -z "${configuration_id}" ]]; then
+  printf '+ gh api --method POST orgs/%s/code-security/configurations --input - <<JSON\n%s\nJSON\n' \
+    "${OWNER}" "${SECURITY_CONFIGURATION}"
+  configuration_id="$(printf '%s' "${SECURITY_CONFIGURATION}" |
+    gh api --method POST "orgs/${OWNER}/code-security/configurations" --input - --jq .id)"
+else
+  printf '%s' "${SECURITY_CONFIGURATION}" |
+    run_json PATCH "orgs/${OWNER}/code-security/configurations/${configuration_id}"
+fi
+if [[ ! "${configuration_id}" =~ ^[0-9]+$ ]]; then
+  printf 'github-bootstrap: no numeric id for the security configuration\n' >&2
+  exit 1
+fi
+REPO_ID="$(gh api "repos/${REPO}" --jq .id </dev/null)"
+if [[ ! "${REPO_ID}" =~ ^[0-9]+$ ]]; then
+  printf 'github-bootstrap: no numeric id for %s\n' "${REPO}" >&2
+  exit 1
+fi
+run_json POST "orgs/${OWNER}/code-security/configurations/${configuration_id}/attach" <<JSON
+{ "scope": "selected", "selected_repository_ids": [${REPO_ID}] }
+JSON
+
 # A published release keeps its tag and its assets as they were published.
 run gh api --method PUT "repos/${REPO}/immutable-releases"
 
