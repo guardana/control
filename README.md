@@ -84,7 +84,7 @@ A supervisor compares what agents do with their procedures and permissions,
 reports to the operator's alerting and logging, and can stop an agent.
 
 ```mermaid
-flowchart LR
+flowchart TB
     AG[Agents]
     subgraph IN[Inputs]
         PX["Proxy: MCP today, HTTP tool APIs next"]
