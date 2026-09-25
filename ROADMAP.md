@@ -20,16 +20,17 @@ has an identity of its own, so two runs of one agent never share state.
 
 ## A supervisor beside the agents
 
-Done when a supervisor reads each run's evidence and reports steps outside the
-procedure or out of order, skipped required steps, and runs unfinished past
-their deadline. It also reports a run that carries on after a failed step, and
-an attempt to reach a tool, resource or permission the run does not hold,
-including a denied action retried in another form. Later checks cover loops,
-fan-out, paths across tenants, empty results taken as success, and drift in a
-tool or a permission. Each report cites its evidence and each kind has positive,
-negative and indeterminate fixtures. When evidence is missing or the
-supervisor falls behind, it says so. It adds no latency to a decision and
-changes no verdict.
+Done when a supervisor reads the plane's evidence and the traces, logs and
+process events agents emit, those of agents that bypass the proxy included. It
+reports steps outside the procedure or out of order; skipped required steps;
+runs unfinished past their deadline; runs that carry on after a failed step;
+and attempts to use a tool, resource or permission the run does not hold,
+denied actions retried in another form among them. Loops,
+fan-out, paths across tenants, empty results taken as success and drift in a
+tool or a permission come later. Reports cite their evidence and reach the
+operator's alerting and logging: webhooks, OpenTelemetry, metrics, a SIEM.
+When evidence is missing or the supervisor falls behind, it says so; it adds
+no latency to a decision and changes no verdict.
 
 ## Every run as a graph
 
@@ -41,9 +42,9 @@ Missing evidence shows as a gap, not as nothing.
 ## Stopping one agent
 
 Done when an operator with the right permission can stop one run, one agent or
-one principal rather than a whole upstream, a severe report can stop a run
-where the operator configured that, and shadow mode decides a candidate policy
-beside the enforced one and records both.
+one principal, a severe report can stop a run where the operator configured
+that, and shadow mode decides a candidate policy beside the enforced one and
+records both.
 
 ## Reach across frameworks and agents
 
@@ -57,8 +58,11 @@ Done when:
   conformance suite and stating which tool paths it covers;
 - a stack without a port can go through the project's own proxy: MCP today, a
   generic one for HTTP tool APIs next;
-- an agent-to-agent (A2A) gateway binds authority across a handoff, delegation
-  is task-bound and expires, and workload identity comes from the platform.
+- others extend the plane through public seams for adapters, detectors and
+  policy providers;
+- an agent-to-agent (A2A) gateway keeps authority from growing across a
+  handoff; delegation is tied to a task and expires; the platform supplies
+  workload identity.
 
 ## Quality of outcomes
 
@@ -76,19 +80,17 @@ users and keeps tenants apart, and the graph and reports cover the fleet.
 
 ## Decision semantics, proven in isolation
 
-Done when a second implementation of the action digest, in another language,
-passes the same golden fixtures; a bundle's expiry is signed and its serial
-survives a restart; and every fixture produces a complete evidence record
-naming the policy version behind it.
+Done when a second implementation of the action digest passes the same golden
+fixtures, a bundle's expiry is signed and its serial survives a restart, and
+every fixture produces a complete evidence record.
 
 ## An optional bridge to Guardana
 
 Done when someone who runs both this project and
-[Guardana](https://github.com/guardana/guardana) can connect them: the plane's
-evidence exported in a form Guardana reads, and a Guardana contract turned into
-a signed policy. It is an optional adapter, off unless configured; nothing else
-waits on it, and this project loses nothing without it
-([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
+[Guardana](https://github.com/guardana/guardana) can connect them: evidence
+exported in a form Guardana reads, and a Guardana contract turned into a signed
+policy. It is an optional adapter, off unless configured, and nothing waits on
+it ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
 ## 1.0
 
@@ -106,5 +108,4 @@ waits on it, and this project loses nothing without it
   reporting tail latency;
 - the threat model has been refreshed by someone outside the project;
 - the disclosure process has been exercised at least once, end to end;
-- at least two third-party integrations are maintained outside the project,
-  the only real proof that the public Go surface works.
+- at least two third-party integrations are maintained outside the project.

@@ -1,8 +1,8 @@
 ---
 title: Architecture
-summary: The system in context, the containers it is made of, the request path from a proposed action to a decision and its evidence, and the dependency rule.
+summary: The system in context, its containers, the request path from a proposed action to a decision and its evidence, the dependency rule, and where it is going.
 type: explanation
-covers: [cmd/guardana-gateway/**, cmd/guardana-control/**, adapters/**, internal/gateway/**, internal/approvals/**, internal/holdjournal/**, internal/spool/**, internal/core/**, internal/policy/**, internal/canon/**, internal/evidence/**, pkg/**, scripts/lib/dependency-rule.sh]
+covers: [cmd/guardana-gateway/**, cmd/guardana-control/**, adapters/**, internal/gateway/**, internal/approvals/**, internal/holdjournal/**, internal/spool/**, internal/core/**, internal/policy/**, internal/canon/**, internal/evidence/**, internal/scenario/**, pkg/**, scripts/lib/dependency-rule.sh, ROADMAP.md]
 ---
 
 # Architecture
@@ -235,6 +235,73 @@ influence a verdict stays small enough for one person to read, and that no new
 module or standard library package enters that set without an edit to the rule
 itself, which the gate checks. See
 [ADR-0007](../adr/0007-repository-layout-and-dependency-rule.md).
+
+## Where it is going
+
+Everything in this section is `planned`, in the order
+[ROADMAP.md](../../ROADMAP.md) gives. The request path above stays how the
+plane stops a call. New inputs also observe agents that do not use the proxy.
+A supervisor compares what agents do with their procedures and permissions and
+reports to the operator's alerting and logging. Seams let others extend the
+plane.
+
+```mermaid
+flowchart LR
+    subgraph IN[Inputs]
+        PX["Proxy: MCP today, HTTP tool APIs next"]
+        PT["Framework ports over one API"]
+        FD["Feeds: agent traces, logs, process events"]
+    end
+    subgraph CTL[Guardana Control]
+        DK["Decision kernel: policy, approvals, stop"]
+        SV["Supervisor: procedures, deviations, access attempts, unfinished work"]
+        EV[(Evidence)]
+    end
+    subgraph OUT[Outputs]
+        AL["Alerts: webhooks, chat"]
+        EX["OpenTelemetry, metrics, SIEM"]
+        GR["Run graph and console"]
+    end
+    DOC["Documents: policies, scenarios, procedures"]
+    SEAM["Seams: adapters, detectors, policy providers"]
+    PX --> DK
+    PT --> DK
+    FD --> SV
+    DK --> EV
+    EV --> SV
+    SV --> AL
+    EV --> EX
+    SV --> GR
+    GR -->|stop an agent| DK
+    DOC -.-> DK
+    DOC -.-> SV
+    SEAM -.-> PT
+    SEAM -.-> SV
+    SEAM -.-> DK
+```
+
+Sources: `ROADMAP.md`, `internal/policy/rules/document.go`, `internal/scenario/doc.go`,
+`adapters/authzen/client.go`.
+
+- **Inputs.** The proxy stops a call before it runs. A framework port stops a
+  call from inside the agent, through one language-neutral API built on the
+  published contract. A feed brings in the traces, logs and process events an
+  agent's runtime records, also for agents that never route a call through the
+  plane. What a feed cannot see is reported as unknown, never as clean.
+- **Supervisor.** It reads the evidence and the feeds beside the request path,
+  compares each run with the procedure it follows, and reports deviations,
+  access attempts and unfinished work. It adds no latency to a decision and
+  never changes a verdict; stopping an agent goes through the decision kernel,
+  with the operator's permission.
+- **Outputs.** Reports reach the tools an operator already watches: webhooks
+  and chat for alerts, OpenTelemetry and metrics, and an export a SIEM reads.
+  The run graph shows the expected and the observed steps side by side.
+- **Extensions.** Policies are documents a team writes and tests today, and so
+  are scenarios (`experimental`); procedures will be too. The planned public
+  seams, `pkg/adapter`, `pkg/detector` and `pkg/policyprovider`, will let others
+  add a port, a detector or a decision source without forking. An external
+  decision point can already veto over AuthZEN (`experimental`).
+  [extending/adapters.md](../extending/adapters.md) is the first guide.
 
 ## What is deliberately not here
 

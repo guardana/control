@@ -10,7 +10,7 @@ An `experimental` gateway decides and enforces the tool calls an agent makes
 over the Model Context Protocol (MCP). Do not deploy this as a security
 boundary. The longer-term goal is to supervise an organization's agents:
 [ROADMAP.md](ROADMAP.md) describes it and [docs/status.md](docs/status.md) lists
-what exists.
+what exists. To try it, follow [the tutorial](docs/get-started/try-the-demo.md).
 
 ## The problem
 
@@ -44,9 +44,9 @@ defaults in [ADR-0004](docs/adr/0004-evidence-and-privacy-defaults.md).
 
 ## Architecture in 30 seconds
 
-The enforcement point consults the built-in policy engine. An external policy
-decision point (PDP) can veto what that policy allows, over AuthZEN, and never
-grant (`experimental`).
+Today the enforcement point sits between an agent and its MCP servers and
+consults the built-in policy engine. An external decision point (PDP) can veto
+over AuthZEN but cannot grant (`experimental`).
 
 ```mermaid
 flowchart LR
@@ -62,10 +62,46 @@ flowchart LR
 ```
 
 The enforcement point is the only component this project adds to the request
-path. Evidence goes to a local spool first and is exported from there, so the
-decision path does not wait on the exporter. That does not make
-loss impossible: a spool has a size and it can fill. What the design buys is
-loss that is bounded and counted rather than silent.
+path. Evidence goes to a local spool before export, so decisions do not wait
+for the exporter. If the spool fills, the plane counts what it drops.
+
+## Where it is going
+
+Everything beyond that path is `planned` and follows [ROADMAP.md](ROADMAP.md).
+A supervisor compares what agents do with their procedures and permissions,
+reports to the operator's alerting and logging, and can stop an agent.
+
+```mermaid
+flowchart LR
+    subgraph IN[Inputs]
+        PX["Proxy: MCP today, HTTP tool APIs next"]
+        PT[Framework ports]
+        FD["Feeds: agent traces, logs, process events"]
+    end
+    subgraph CTL[Guardana Control]
+        DK["Decision kernel: policy, approvals, stop"]
+        SV["Supervisor: procedures, deviations, access attempts, unfinished work"]
+        EV[(Evidence)]
+    end
+    subgraph OUT[Outputs]
+        AL["Alerts: webhooks, chat"]
+        EX["OpenTelemetry, metrics, SIEM"]
+        GR[Run graph and console]
+    end
+    PX --> DK
+    PT --> DK
+    FD --> SV
+    DK --> EV
+    EV --> SV
+    SV --> AL
+    EV --> EX
+    SV --> GR
+    GR -->|stop an agent| DK
+```
+
+Rules and scenarios are already documents a team writes and tests; procedures
+will be too. Adapters, detectors and policy providers are the planned seams for
+extensions ([docs/extending/](docs/extending/adapters.md)).
 
 ## Install
 
@@ -83,16 +119,6 @@ go install github.com/guardana/control/cmd/guardana-gateway@latest
 go install github.com/guardana/control/cmd/guardana-control@latest
 ```
 
-## What exists today
-
-The MCP gateway, `experimental`: the policy kernel decides every call, a call
-that needs an approval waits for an approver outside the gateway, and the
-evidence leaves over OpenTelemetry. `guardana-control`
-writes, tests and signs policies and answers held calls, `implemented`.
-`make quality` checks it all. To try it, follow
-[the tutorial](docs/get-started/try-the-demo.md); the decisions are in
-[docs/adr/](docs/adr/README.md).
-
 ## Related project: Guardana
 
 [Guardana](https://github.com/guardana/guardana) is a separate open-source
@@ -100,8 +126,7 @@ project that verifies AI systems before and after deployment: it scans
 artifacts, probes endpoints and reads recorded traces, outside the request
 path. Guardana Control decides each call inside it.
 
-The two are independent. Neither needs the other to build, run or be useful,
-and each has its own releases. They can work together through the formats each
+The two are independent: neither needs the other to build, run or be useful. They can work together through the formats each
 one publishes; a bridge between them would be an optional module
 ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
