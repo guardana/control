@@ -144,8 +144,17 @@ project that verifies AI systems before and after deployment: it scans
 artifacts, probes endpoints and reads recorded traces, outside the request
 path. Guardana Control decides each call inside it.
 
-The two are independent: neither needs the other to build, run or be useful. They can work together through the formats each
-one publishes; a bridge between them would be an optional module
+```mermaid
+flowchart LR
+    B[Build] --> G1["Guardana<br/>checks before release"]
+    G1 --> R[Release]
+    R --> C["Guardana Control<br/>decides while agents run"]
+    C --> G2["Guardana<br/>compares after release"]
+```
+
+The two are independent: neither needs the other to build, run or be useful.
+They can work together through the formats each one publishes; a bridge
+between them would be an optional module
 ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
 ## Links
