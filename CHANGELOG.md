@@ -11,6 +11,13 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- A threat model and a privacy page: what the plane protects, from whom
+  and where it stops; what a record holds, where it goes and how long it
+  stays ([docs/concepts/threat-model.md](docs/concepts/threat-model.md),
+  [docs/concepts/privacy.md](docs/concepts/privacy.md)).
+
 ### Changed
 
 - `export.allow_plaintext` admits a plaintext collector on a loopback IP

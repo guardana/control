@@ -31,6 +31,8 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [Glossary](concepts/glossary.md): One name per concept, as the pages and the code use it, with the symbol or path that defines each.
 - [How a call is decided](concepts/how-a-call-is-decided.md): From a proposed action to one of five verdicts and the action enforced for it, including what happens when the kernel cannot decide.
 - [The MCP gateway](concepts/mcp-gateway.md): How a tools/call becomes a decision, an authorized set of bytes and a trail, before the server sees it.
+- [Privacy](concepts/privacy.md): What the plane records about a call, where each record goes and who can read it, how long it stays, and that nothing goes to the project.
+- [Threat model](concepts/threat-model.md): What the plane protects, from whom, what it does about each attacker today with the code and the test behind it, and where it stops.
 
 ## Reference
 
