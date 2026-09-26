@@ -50,8 +50,8 @@ func declareCollect(flags *flag.FlagSet) commandFunc {
 
 // collect receives OTLP/HTTP logs on a loopback address and appends the
 // evidence each one carries to the trail file, until ctx ends. A plane reaches
-// a plaintext collector only under export.allow_plaintext, which is meant for
-// the loopback, so nothing else is listened on.
+// a plaintext collector only under export.allow_plaintext and only on a
+// loopback IP literal, so nothing else is listened on.
 func collect(ctx context.Context, listen, out string, stdout, stderr io.Writer) int {
 	if err := loopbackOnly(listen); err != nil {
 		return fail(stderr, "collect", err)

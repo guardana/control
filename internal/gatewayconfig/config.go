@@ -146,9 +146,9 @@ type EvidenceConfig struct {
 // ExportConfig is the collector the spool drains to.
 type ExportConfig struct {
 	Endpoint string
-	// AllowPlaintext lets the endpoint be http, which is for a collector on
-	// the loopback: over plaintext anyone on the path can forge the collector's
-	// acceptance and read the headers.
+	// AllowPlaintext lets the endpoint be http on a loopback IP literal only:
+	// over plaintext anyone on the path can forge the collector's acceptance
+	// and read the headers.
 	AllowPlaintext bool
 	Headers        map[string]string
 	Timeout        time.Duration

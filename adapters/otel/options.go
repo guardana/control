@@ -3,6 +3,7 @@ package otel
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,8 +19,8 @@ type Options struct {
 	// AllowPlaintext lets the endpoint be http. It is the named risk of a
 	// collector reached over plaintext: anyone on the path can forge the
 	// acceptance that releases the evidence, and the headers travel in the
-	// clear. A configuration naming an http endpoint has to set it, and it is
-	// meant for a collector on the loopback.
+	// clear. A configuration naming an http endpoint has to set it, and the
+	// endpoint's host has to be a loopback IP literal.
 	AllowPlaintext bool
 	// Headers go on every request, for the collector's authentication. A name
 	// has to be an HTTP token and a value free of CR, LF and NUL.
@@ -114,8 +115,17 @@ func (o Options) endpoint() (*url.URL, error) {
 		return nil, fmt.Errorf("%w: the endpoint is not an http(s) URL with a host", ErrInvalidOptions)
 	case u.Scheme == "http" && !o.AllowPlaintext:
 		return nil, fmt.Errorf("%w: the endpoint is plaintext and AllowPlaintext is not set", ErrInvalidOptions)
+	case u.Scheme == "http" && !isLoopback(u.Hostname()):
+		return nil, fmt.Errorf("%w: a plaintext endpoint has to be a loopback IP literal", ErrInvalidOptions)
 	}
 	return u, nil
+}
+
+// isLoopback reports whether host is a loopback IP literal. A name is not,
+// whatever it resolves to.
+func isLoopback(host string) bool {
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // checkHeaders refuses a name that is not an HTTP token and a value that

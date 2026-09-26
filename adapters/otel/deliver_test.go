@@ -572,6 +572,36 @@ func TestAPlaintextCollectorNeedsTheRiskSetting(t *testing.T) {
 	}
 }
 
+// TestAPlaintextCollectorIsOnTheLoopback: the risk setting admits plaintext
+// to a loopback IP literal and nowhere else, a name that resolves there
+// included.
+func TestAPlaintextCollectorIsOnTheLoopback(t *testing.T) {
+	r := reader(t, openSpool(t, 1<<20))
+	cases := map[string]bool{
+		"http://127.0.0.1:4318/v1/logs":    true,
+		"http://127.0.0.2:4318/v1/logs":    true,
+		"http://[::1]:4318/v1/logs":        true,
+		"http://localhost:4318/v1/logs":    false,
+		"http://10.0.0.5:4318/v1/logs":     false,
+		"http://collector.example/v1/logs": false,
+		"http://[::ffff:10.0.0.5]:4318/":   false,
+	}
+	for endpoint, admitted := range cases {
+		o := otel.Options{Endpoint: endpoint, AllowPlaintext: true, InFlight: 1, Timeout: time.Second}
+		_, err := otel.New(o, r)
+		switch {
+		case admitted && err != nil:
+			t.Errorf("New with %s = %v; want admitted", endpoint, err)
+		case !admitted && !errors.Is(err, otel.ErrInvalidOptions):
+			t.Errorf("New with %s = %v; want ErrInvalidOptions", endpoint, err)
+		}
+	}
+	o := otel.Options{Endpoint: "http://secret-x@10.0.0.5:4318/v1/logs", AllowPlaintext: true, InFlight: 1, Timeout: time.Second}
+	if _, err := otel.New(o, r); err == nil || strings.Contains(err.Error(), "secret-x") || strings.Contains(err.Error(), "10.0.0.5") {
+		t.Errorf("the refusal of a plaintext endpoint off the loopback quotes it: %v", err)
+	}
+}
+
 // TestTheBodyCarriesTheLineTheSpoolChecksummed: exported evidence is the
 // stored evidence, byte for byte, so nothing can read a different record from
 // the collector than from the spool.

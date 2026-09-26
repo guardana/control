@@ -11,6 +11,14 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- `export.allow_plaintext` admits a plaintext collector on a loopback IP
+  literal only, as `pdp.allow_plaintext` already did and as
+  [ADR-0020](docs/adr/0020-a-trail-and-counters-without-a-collector.md)
+  states. A plaintext endpoint on any other host, a name such as `localhost`
+  included, is refused at start.
+
 ### Fixed
 
 - A decision point's answer that reaches the gateway after the call's
