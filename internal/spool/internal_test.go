@@ -68,40 +68,55 @@ func TestFsyncEveryRecordSyncsOncePerAppend(t *testing.T) {
 	}
 }
 
-// TestFsyncIntervalSyncsOnTheTimerOnly: no sync until the tick, at least one
-// after it, and one more at Close for whatever the last tick missed.
+// TestFsyncIntervalSyncsOnTheTimerOnly: appends never sync, the tick does,
+// and Close syncs whatever no tick reached. The first half's interval is too
+// long to tick during the test, so a slow append cannot pass for the timer.
 func TestFsyncIntervalSyncsOnTheTimerOnly(t *testing.T) {
-	var syncs atomic.Int64
-	s, err := Open(Options{
-		Dir: t.TempDir(), MaxBytes: 1 << 20, SegmentBytes: 1 << 16,
-		Fsync: FsyncInterval, Interval: 40 * time.Millisecond,
-		openFile: countingOpener(&syncs, nil),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := range 3 {
-		if err := s.Append(context.Background(), sample(i)); err != nil {
+	open := func(t *testing.T, interval time.Duration, syncs *atomic.Int64) *Spool {
+		t.Helper()
+		s, err := Open(Options{
+			Dir: t.TempDir(), MaxBytes: 1 << 20, SegmentBytes: 1 << 16,
+			Fsync: FsyncInterval, Interval: interval,
+			openFile: countingOpener(syncs, nil),
+		})
+		if err != nil {
 			t.Fatal(err)
 		}
+		return s
 	}
-	if got := syncs.Load(); got != 0 {
-		t.Fatalf("under FsyncInterval the appends synced %d times before the tick", got)
-	}
-	deadline := time.Now().Add(2 * time.Second)
-	for syncs.Load() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if syncs.Load() == 0 {
-		t.Fatal("no sync within two seconds of a 40ms interval")
-	}
-	before := syncs.Load()
-	if err := s.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if got := syncs.Load(); got <= before {
-		t.Errorf("Close synced nothing: %d before, %d after", before, got)
-	}
+	t.Run("appends and Close", func(t *testing.T) {
+		var syncs atomic.Int64
+		s := open(t, time.Hour, &syncs)
+		for i := range 3 {
+			if err := s.Append(context.Background(), sample(i)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := syncs.Load(); got != 0 {
+			t.Fatalf("under FsyncInterval the appends synced %d times with no tick", got)
+		}
+		if err := s.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if syncs.Load() == 0 {
+			t.Error("Close synced nothing of three appends no tick reached")
+		}
+	})
+	t.Run("the tick", func(t *testing.T) {
+		var syncs atomic.Int64
+		s := open(t, 40*time.Millisecond, &syncs)
+		defer s.Close() //nolint:errcheck // the assertion is below
+		if err := s.Append(context.Background(), sample(0)); err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.Now().Add(2 * time.Second)
+		for syncs.Load() == 0 && time.Now().Before(deadline) {
+			time.Sleep(5 * time.Millisecond)
+		}
+		if syncs.Load() == 0 {
+			t.Fatal("no sync within two seconds of a 40ms interval")
+		}
+	})
 }
 
 // TestASyncFailureUnderTheTimerRefusesEverything: which records reached the
