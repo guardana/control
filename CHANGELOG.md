@@ -11,6 +11,12 @@ verify one.
 
 ## [Unreleased]
 
+### Fixed
+
+- A decision point's answer that reaches the gateway after the call's
+  deadline is a timeout (`PDP_TIMEOUT`), whatever its status and headers.
+  Such an answer could be read as refused or as unavailable instead.
+
 ## [0.1.0-alpha] - 2026-09-25
 
 The first public release. [docs/status.md](docs/status.md) says what is

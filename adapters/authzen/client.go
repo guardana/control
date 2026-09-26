@@ -128,6 +128,12 @@ func (c *Client) post(ctx context.Context, body []byte, requestID string) core.E
 		return failed(ctx)
 	}
 	defer resp.Body.Close() //nolint:errcheck // the answer is read; nothing to lose on close
+	if ctx.Err() != nil {
+		// The transport can hand back a response that arrived after ctx
+		// ended, such as one the server wrote on seeing the connection
+		// close; that is no answer.
+		return failed(ctx)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return core.ExternalUnavailable()
 	}

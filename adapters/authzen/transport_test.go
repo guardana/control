@@ -256,6 +256,79 @@ func TestABodyThatEndsPastTheDeadlineIsATimeout(t *testing.T) {
 	}
 }
 
+// answersPastTheDeadline returns its response only after the request's
+// deadline has passed: what the transport can hand back when the server
+// answers the connection the deadline is closing.
+type answersPastTheDeadline struct {
+	status int
+	header http.Header
+	body   string
+}
+
+func (a answersPastTheDeadline) RoundTrip(r *http.Request) (*http.Response, error) {
+	<-r.Context().Done()
+	h := a.header.Clone()
+	if h.Get("X-Request-ID") == "echo" {
+		h.Set("X-Request-ID", r.Header.Get("X-Request-ID"))
+	}
+	return &http.Response{StatusCode: a.status, Header: h, Body: io.NopCloser(strings.NewReader(a.body)), Request: r}, nil
+}
+
+// TestAnAnswerPastTheDeadlineIsATimeout: a response the transport returns
+// after the deadline is no answer within it, whatever its status and headers.
+func TestAnAnswerPastTheDeadlineIsATimeout(t *testing.T) {
+	p := newPDP(t, answer(`{"decision":true}`))
+	cases := map[string]answersPastTheDeadline{
+		"an empty 200":  {status: http.StatusOK, header: http.Header{}},
+		"a 500":         {status: http.StatusInternalServerError, header: http.Header{}},
+		"a whole allow": {status: http.StatusOK, header: http.Header{"Content-Type": {"application/json"}, "X-Request-Id": {"echo"}}, body: `{"decision":true}`},
+	}
+	for name, late := range cases {
+		t.Run(name, func(t *testing.T) {
+			opts := options(p)
+			opts.Timeout = 50 * time.Millisecond
+			c := client(t, opts)
+			c.http.Transport = late
+			if got := c.Ask(within(t, 30*time.Second), envelope()); got != core.ExternalTimeout() {
+				t.Errorf("%s past the deadline = %v, want timeout", name, got)
+			}
+		})
+	}
+}
+
+// cancelsThenAnswers cancels the ask's parent context while the request is in
+// flight, then answers once the request's context has ended.
+type cancelsThenAnswers struct {
+	cancel context.CancelFunc
+	late   answersPastTheDeadline
+}
+
+func (c cancelsThenAnswers) RoundTrip(r *http.Request) (*http.Response, error) {
+	c.cancel()
+	return c.late.RoundTrip(r)
+}
+
+// TestAnAnswerAfterACancelIsUnavailable: a response the transport returns
+// after the caller cancelled is no answer, and a cancel is not a timeout.
+func TestAnAnswerAfterACancelIsUnavailable(t *testing.T) {
+	p := newPDP(t, answer(`{"decision":true}`))
+	cases := map[string]answersPastTheDeadline{
+		"an empty 200": {status: http.StatusOK, header: http.Header{}},
+		"a 500":        {status: http.StatusInternalServerError, header: http.Header{}},
+	}
+	for name, late := range cases {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			c := client(t, options(p))
+			c.http.Transport = cancelsThenAnswers{cancel: cancel, late: late}
+			if got := c.Ask(ctx, envelope()); got != core.ExternalUnavailable() {
+				t.Errorf("%s after a cancel = %v, want unavailable", name, got)
+			}
+		})
+	}
+}
+
 // TestTransportFailureIsUnavailable: a decision point nobody answers at, and
 // one whose certificate this client does not trust, give no decision.
 func TestTransportFailureIsUnavailable(t *testing.T) {
