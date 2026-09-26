@@ -541,11 +541,13 @@ JSON
 # public repository has no dependency graph, and without it the required
 # "Dependency review" check cannot run. Code scanning's default setup stays
 # off: security.yml runs CodeQL itself, and GitHub refuses the results of one
-# while the other is on.
+# while the other is on. GitHub refuses secret scanning in a configuration that
+# leaves advanced_security off; on a public repository it costs nothing.
 read -r -d '' SECURITY_CONFIGURATION <<JSON || true
 {
   "name": "${REPO_NAME}",
   "description": "The security settings of ${REPO}, applied by its scripts/github-bootstrap.sh.",
+  "advanced_security": "enabled",
   "dependency_graph": "enabled",
   "dependabot_alerts": "enabled",
   "dependabot_security_updates": "enabled",
