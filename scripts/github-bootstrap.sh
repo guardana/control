@@ -29,7 +29,7 @@ DEFAULT_BRANCH="main"
 # The admin both teams start with, as a team maintainer.
 ADMIN_LOGIN="${ADMIN_LOGIN:-karauda}"
 
-DESCRIPTION="Decide, enforce and record the tool calls your AI agents make: an MCP gateway with signed policies, human approvals, pause and an evidence trail. Open source, Go."
+DESCRIPTION="Watch, decide, enforce and record the tool calls your AI agents make: an MCP gateway with signed policies, human approvals, pause and an evidence trail. Open source, Go."
 TOPICS=(
   ai-agents
   agent-security

@@ -2,7 +2,7 @@
 
 # 🚦 Guardana Control
 
-**Decide, enforce and record the tool calls your AI agents make.**
+**Watch, decide, enforce and record the tool calls your AI agents make.**
 
 [![CI](https://github.com/guardana/control/actions/workflows/ci.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/ci.yml)
 [![Security](https://github.com/guardana/control/actions/workflows/security.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/security.yml)
