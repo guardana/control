@@ -34,3 +34,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0023](0023-a-local-page-answers-through-the-directory.md) | A local page answers through the directory |
 | [0024](0024-control-and-guardana-are-independent.md) | Guardana Control and Guardana are independent |
 | [0025](0025-public-repository-merges-and-releases.md) | The admin pushes, maintainers merge and release, a release tag never moves |
+| [0026](0026-first-value-and-external-extension-paths.md) | First value and readable evidence come before the supervisor's breadth |

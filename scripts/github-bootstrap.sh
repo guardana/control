@@ -628,8 +628,8 @@ breaking-change|b60205|Changes a public contract or a verdict's meaning
 security-sensitive|b60205|Touches authorization, identity, approvals or release
 LABELS
 
-# Named after the first three outcomes in ROADMAP.md. That page has no phase
-# numbers and no dates, so neither do these.
+# Named after the first three outcomes in ROADMAP.md, without their numbers.
+# That page has no dates, so neither do these.
 existing_milestones="$(gh api "repos/${REPO}/milestones?state=all" --paginate --jq '.[].title')"
 while IFS= read -r milestone; do
   [[ -n "${milestone}" ]] || continue
@@ -639,9 +639,9 @@ while IFS= read -r milestone; do
     run_quiet gh api --method POST "repos/${REPO}/milestones" -f "title=${milestone}" </dev/null
   fi
 done <<'MILESTONES'
-Decision semantics, proven in isolation
-First enforceable integration
-Evidence an operator can read
+First value in one project
+Runs and evidence other tools can read
+Procedures and a supervisor
 MILESTONES
 
 printf 'github-bootstrap: finished for %s\n' "${REPO}"

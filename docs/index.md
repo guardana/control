@@ -68,6 +68,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 
 ## Project
 
+- [Delivery backlog](backlog.md): Planned work ordered by user value, with dependencies and observable acceptance checks.
 - [Dependencies](dependencies.md): Every direct dependency and pinned tool of the module, why the standard library will not do, its licence and whether it sits in the request path.
 - [Implementation status](status.md): What exists in this repository today, component by component, the one inventory every other page points to.
 
@@ -98,3 +99,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0023: A local page answers through the directory](adr/0023-a-local-page-answers-through-the-directory.md): accepted
 - [ADR-0024: Guardana Control and Guardana are independent](adr/0024-control-and-guardana-are-independent.md): accepted
 - [ADR-0025: The public repository: who pushes, who merges, who releases](adr/0025-public-repository-merges-and-releases.md): accepted
+- [ADR-0026: First value and readable evidence come before the supervisor's breadth](adr/0026-first-value-and-external-extension-paths.md): accepted

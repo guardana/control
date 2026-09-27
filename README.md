@@ -81,7 +81,8 @@ for the exporter. If the spool fills, the plane counts what it drops.
 
 Everything beyond that path is `planned` and follows [ROADMAP.md](ROADMAP.md).
 A supervisor compares what agents do with their procedures and permissions,
-reports to the operator's alerting and logging, and can stop an agent.
+reports to the operator's alerting and logging, and can stop an agent. A
+packaged demo, run identity and readable evidence come first.
 
 ```mermaid
 flowchart TB
@@ -117,9 +118,10 @@ flowchart TB
     GR -->|stop an agent| PEP
 ```
 
-Rules and scenarios are already documents a team writes and tests; procedures
-will be too. Adapters, detectors and policy providers are the planned seams for
-extensions ([docs/extending/](docs/extending/adapters.md)).
+Rules and scenarios are documents a team writes and tests; procedures will be
+too. The [adapter guide](docs/extending/adapters.md) describes an internal
+seam; public integration and detector APIs are
+[planned](docs/backlog.md).
 
 ## Install
 
