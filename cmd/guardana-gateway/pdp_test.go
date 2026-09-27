@@ -72,7 +72,7 @@ func (d *pdpDouble) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, metadata)
+		_, _ = io.WriteString(w, metadata) //nolint:gosec // G705: a test double's JSON document, chosen by the test; nothing renders it
 		return
 	}
 	if r.Method != http.MethodPost || r.URL.Path != d.eval {
@@ -85,7 +85,7 @@ func (d *pdpDouble) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Request-ID", r.Header.Get("X-Request-ID"))
-	_, _ = io.WriteString(w, answer)
+	_, _ = io.WriteString(w, answer) //nolint:gosec // G705: a test double's JSON answer, chosen by the test; nothing renders it
 }
 
 // wait holds an answer for delay and then until hold is released, and says

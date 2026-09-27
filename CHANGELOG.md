@@ -13,6 +13,11 @@ verify one.
 
 ### Added
 
+- A page of the failures the plane is built to survive: the collector, the
+  spool, the decision point, an upstream dying mid-call, the pause file
+  and a restart with calls held, each with a test that runs the built
+  binary against a real failure
+  ([docs/reference/failure-modes.md](docs/reference/failure-modes.md)).
 - A threat model and a privacy page: what the plane protects, from whom
   and where it stops; what a record holds, where it goes and how long it
   stays ([docs/concepts/threat-model.md](docs/concepts/threat-model.md),

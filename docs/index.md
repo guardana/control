@@ -41,6 +41,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [Configuration](reference/configuration.md): Every key the gateway reads, with its environment variable, kind, default, whether it is required and the spellings it takes.
 - [The approvals page](reference/console.md): What guardana-control console serves, what it prints, what it refuses and what it cannot tell you.
 - [Dev mode](reference/dev.md): What guardana-gateway dev lays out, refuses, prints and stops, and how --scenario runs each scenario on a plane of its own.
+- [Failure modes](reference/failure-modes.md): What a plane does when its collector, spool, decision point, an upstream or its pause file fails, or it is killed holding calls, and the test for each.
 - [MCP enforcement coverage](reference/mcp-coverage.md): Per revision, transport and method, what the gateway enforces today and what it does not.
 - [Metrics](reference/metrics.md): Every metric a plane answers on /metrics, with its type, its label, the statistic it reads and what it counts.
 - [Obligations](reference/obligations.md): The catalogue of obligation types a policy rule may name, and what the tree does with one.
