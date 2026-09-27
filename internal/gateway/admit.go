@@ -64,6 +64,9 @@ type call struct {
 	// records goes unrecorded, and one the sink refuses leaves the trail open
 	// with its journal entry and its request id.
 	held bool
+	// approvalExpires is when the approval a resumed call runs on expires; a
+	// resumed call is handed out only before it.
+	approvalExpires time.Time
 }
 
 func (c *call) run() Disposition {
@@ -271,19 +274,23 @@ func (c *call) close() {
 
 // start writes ACTION_STARTED on trail with a fresh execution id, keeps the
 // execution for Close and hands out what to send. An execution a pause taken
-// just now covers or cannot vouch for, or one the pipeline cannot name, cannot
-// keep under its own name, or cannot keep within MaxOpen, is blocked before it
-// is recorded as started; that block closes the trail, so a resumed hold's
-// entry is forgotten there, as Close would.
+// just now covers or cannot vouch for, a resumed one whose approval has
+// expired by the clock read with that pause, or one the pipeline cannot name,
+// cannot keep under its own name, or cannot keep within MaxOpen, is blocked
+// before it is recorded as started; that block closes the trail, so a resumed
+// hold's entry is forgotten there, as Close would. A resumed one whose
+// approval expired while ACTION_STARTED was appended is aborted instead of
+// handed out.
 func (c *call) start(trail *evidence.Builder) Disposition {
 	requestID := c.requestID
 	if c.pausedNow() {
-		c.trail = trail
-		d, closed := c.block()
-		if closed {
-			c.p.journalForget(c.ctx, requestID)
-		}
-		return d
+		return c.blockStart(trail, requestID)
+	}
+	if c.held && !c.now.Before(c.approvalExpires) {
+		// The approval stays spent: it was consumed, and a spent approval is
+		// never handed back to be used again.
+		c.decide(verdictDeny, codeApprovalExpired)
+		return c.blockStart(trail, requestID)
 	}
 	handle, executionID := c.decision.GetDecisionId(), c.p.cfg.NewID()
 	ex := &execution{
@@ -291,17 +298,21 @@ func (c *call) start(trail *evidence.Builder) Disposition {
 		envelope: c.env, digest: c.actionDigest, unrecorded: c.unrecorded,
 	}
 	if executionID == "" || !c.p.keep(handle, ex) {
-		c.trail = trail
 		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
-		d, closed := c.block()
-		if closed {
-			c.p.journalForget(c.ctx, requestID)
-		}
-		return d
+		return c.blockStart(trail, requestID)
 	}
 	if !c.record(trail.Started(executionID)) {
 		c.p.drop(handle)
 		return c.blockUnrecorded()
+	}
+	if c.held {
+		// The append can outlast the approval, so the clock is read once more
+		// after it; a zero reading proves nothing unexpired.
+		if now := c.p.cfg.Clock(); now.IsZero() || !now.Before(c.approvalExpires) {
+			c.now = now
+			c.p.drop(handle)
+			return c.lapsedAfterStart(trail, ex)
+		}
 	}
 	ex.unrecorded = c.unrecorded
 	c.p.took(c.flow, c.in.ResultTrust, c.in.ResultSensitivity)
@@ -316,6 +327,40 @@ func (c *call) start(trail *evidence.Builder) Disposition {
 		Obligations:      c.rest,
 		handle:           handle,
 	}
+}
+
+// lapsedAfterStart closes the trail of an execution whose approval expired
+// while its ACTION_STARTED was appended, the way an adapter aborts what it did
+// not send: ACTION_FAILED with a BLOCKED result naming APPROVAL_EXPIRED and no
+// executed digest. The call is blocked with a decision of the plane's own,
+// which no record carries, because the chain has no place for a decision
+// after ACTION_STARTED. A record the sink refuses leaves the trail open with
+// its request id and its journal entry, as blockUnrecorded does.
+func (c *call) lapsedAfterStart(trail *evidence.Builder, ex *execution) Disposition {
+	aborted := ex.stamp(nil)
+	aborted.Status = resultBlocked
+	aborted.ToolProtocolStatus = codeApprovalExpired
+	aborted.EndedAt = timestampOf(c.now)
+	if !c.record(trail.Failed(aborted)) {
+		return c.blockUnrecorded()
+	}
+	c.decide(verdictDeny, codeApprovalExpired)
+	c.p.counts.blocked(codeApprovalExpired)
+	requestID := c.requestID
+	c.close()
+	c.p.journalForget(c.ctx, requestID)
+	return Disposition{Action: core.Block, Decision: c.decision}
+}
+
+// blockStart writes the block start decided on trail and forgets the journal
+// entry of requestID once the trail is closed.
+func (c *call) blockStart(trail *evidence.Builder, requestID string) Disposition {
+	c.trail = trail
+	d, closed := c.block()
+	if closed {
+		c.p.journalForget(c.ctx, requestID)
+	}
+	return d
 }
 
 func firstCode(d *controlv1.Decision) string {

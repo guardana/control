@@ -23,7 +23,6 @@ type resolutionStore struct {
 
 	mu       sync.Mutex
 	say      *gateway.Resolution
-	alter    func(*controlv1.Approval)
 	consumes int
 	resolves int
 }
@@ -44,9 +43,6 @@ func (s *resolutionStore) Find(ctx context.Context, binding approval.Binding, no
 	for i := range found {
 		if s.say != nil {
 			found[i].Resolution = *s.say
-		}
-		if s.alter != nil {
-			s.alter(found[i].Approval)
 		}
 	}
 	return found, err
@@ -70,14 +66,6 @@ func (s *resolutionStore) reports(r gateway.Resolution) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.say = &r
-}
-
-// alters edits every record the store hands out, which is how a test asks
-// what the plane does with an answer that is not the one it minted.
-func (s *resolutionStore) alters(edit func(*controlv1.Approval)) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.alter = edit
 }
 
 func (s *resolutionStore) asked() (consumes, resolves int) {

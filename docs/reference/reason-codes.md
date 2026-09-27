@@ -69,3 +69,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 | `PDP_DENY` | 41 | `DENY` | The decision consulted the external decision point and it denied this call; the verdict is still INDETERMINATE when a rule stays undetermined. |
 | `PDP_ALLOW` | 42 | `ALLOW` | The decision consulted the external decision point and it did not deny this call; the verdict is still INDETERMINATE when a rule stays undetermined. |
 | `PAUSE_STATE_UNAVAILABLE` | 43 | `INDETERMINATE` | The enforcement point could not read the operator's pause state, so it blocked the call rather than assume that nothing is paused. |
+| `APPROVAL_STATE_UNKNOWN` | 44 | `INDETERMINATE` | The enforcement point could not read or trust the approver's answer for a lost hold, so the call was never run. |

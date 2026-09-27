@@ -25,6 +25,12 @@ answer the gateway made. Every `tools/call` answer also carries the request and
 decision ids of the trail it belongs to, under the same namespace, and those
 two keys mark nothing.
 
+Amended by [ADR-0027](0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md):
+an approval's expiry is judged again by the plane's clock right before the
+resumed call is handed out, and a call whose approval expired by then is not
+sent, with the approval spent. The block answered for an expiry found after
+`ACTION_STARTED` carries a decision id that no record on its trail holds.
+
 ## Context
 
 The kernel decides and nothing calls it. The first protocol target is the Model

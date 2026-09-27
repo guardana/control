@@ -43,6 +43,7 @@ const (
 	codeApprovalRejected        = "APPROVAL_REJECTED"
 	codeApprovalAlreadyUsed     = "APPROVAL_ALREADY_USED"
 	codeApprovalNotResumed      = "APPROVAL_NOT_RESUMED"
+	codeApprovalStateUnknown    = "APPROVAL_STATE_UNKNOWN"
 	codeDelegationExpired       = "DELEGATION_EXPIRED"
 	codeActionUnclassified      = "ACTION_UNCLASSIFIED"
 	codeApprovalDigestMismatch  = "APPROVAL_DIGEST_MISMATCH"

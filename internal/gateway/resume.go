@@ -148,6 +148,7 @@ func (c *call) resumeApproved(own *heldRequest, a *controlv1.Approval) Dispositi
 		return c.freshBlock()
 	}
 	c.requestID, c.trail, c.held = own.ids.RequestID, trail, true
+	c.approvalExpires = a.GetExpiresAt().AsTime()
 	c.kernel, c.decision = own.decision, own.decision
 	if !c.record(trail.ApprovalDecided(a)) {
 		return c.blockUnrecorded()

@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -41,10 +42,13 @@ type Reconciliation struct {
 // For each entry that reads as held it asks the store about the record, makes
 // the same field checks a live resume makes, and ends that trail: with the
 // answer and APPROVAL_NOT_RESUMED where an approver said yes,
-// APPROVAL_REJECTED where an approver said no, and APPROVAL_EXPIRED where
-// there is no answer, none the checks accept, or no store to ask. The record
-// is then resolved as not resumed and never consumed, so the next identical
-// call is held anew rather than told that an action ran. Entries in any other
+// APPROVAL_REJECTED where an approver said no, APPROVAL_EXPIRED where nobody
+// answered or the approval expired, and APPROVAL_STATE_UNKNOWN, an
+// INDETERMINATE, where the store cannot be read, has no record before the
+// minted expiry, or answers with a record the checks refuse, an approval with
+// no approver or a state no answer has. The record is then resolved as not
+// resumed and never consumed, so the next identical call is held anew rather
+// than told that an action ran. Entries in any other
 // state, and entries that will not decode, are counted and left untouched.
 //
 // The closings carry this plane's mode, because what they state is that the
@@ -89,7 +93,7 @@ func (p *Pipeline) reconcileMax() int {
 // forgotten once the trail is closed, so a pass that is interrupted leaves an
 // entry a later pass reports rather than a trail a later pass closes again.
 func (p *Pipeline) closeLostHold(ctx context.Context, entry HoldEntry, now time.Time) bool {
-	answer, code := p.lostHoldAnswer(ctx, entry, now)
+	answer, verdict, code := p.lostHoldAnswer(ctx, entry, now)
 	if !p.journalMark(ctx, entry.IDs.RequestID, HoldClosing) {
 		return false
 	}
@@ -107,7 +111,7 @@ func (p *Pipeline) closeLostHold(ctx context.Context, entry HoldEntry, now time.
 	if !p.append(ctx, outcome(trail)) {
 		return false
 	}
-	if !p.append(ctx, trail.Blocked(p.mint(lostHoldDecision(entry), now, verdictDeny, code))) {
+	if !p.append(ctx, trail.Blocked(p.mint(lostHoldDecision(entry), now, verdict, code))) {
 		return false
 	}
 	p.counts.blocked(code)
@@ -118,32 +122,53 @@ func (p *Pipeline) closeLostHold(ctx context.Context, entry HoldEntry, now time.
 }
 
 // lostHoldAnswer asks the store what became of a lost hold's approval and
-// returns the answer to record, with the code the close carries. Nobody
-// answered is not an answer, and neither is one the field checks refuse: both
-// close the trail as expired, with the approval the plane itself minted,
-// because the plane records nothing a store said that it did not check.
-func (p *Pipeline) lostHoldAnswer(ctx context.Context, entry HoldEntry, now time.Time) (*controlv1.Approval, string) {
+// returns the answer to record, with the verdict and code the close carries.
+// Only an answer that passes the field checks names what the approver did.
+// An expiry is said where the store's own record, or the plane's record of
+// the hold with its clock, shows one. A store that cannot be read, a record
+// the checks refuse, and a record missing before the plane's expiry leave the
+// answer unknown: the plane records its own approval then, because it records
+// nothing a store said that it did not check.
+func (p *Pipeline) lostHoldAnswer(ctx context.Context, entry HoldEntry, now time.Time) (*controlv1.Approval, controlv1.Verdict, string) {
 	helds, err := p.cfg.Approvals.Find(ctx, entry.Binding, now)
-	if err != nil {
-		return nil, codeApprovalExpired
+	if err != nil && !errors.Is(err, ErrNoApproval) {
+		return nil, verdictIndeterminate, codeApprovalStateUnknown
 	}
+	// The request id and the approval id the plane minted name its record
+	// together, as they do for Consume: a sibling filed under the same request
+	// is not the plane's to read.
 	for _, held := range helds {
 		a := held.Approval
-		if a.GetRequestId() != entry.Approval.GetRequestId() {
-			continue
+		if a.GetRequestId() == entry.Approval.GetRequestId() && a.GetApprovalId() == entry.Approval.GetApprovalId() {
+			return judgeLostAnswer(entry, a, now)
 		}
-		if _, _, refused := approvalFields(entry.Approval, a, entry.Expires, now); refused {
-			return nil, codeApprovalExpired
-		}
-		switch {
-		case a.GetState() == approvalApproved && a.GetApproverId() != "":
-			return a, codeApprovalNotResumed
-		case a.GetState() == approvalRejected:
-			return a, codeApprovalRejected
-		}
-		return nil, codeApprovalExpired
 	}
-	return nil, codeApprovalExpired
+	// A store drops what expired, so no record is an expiry once the approval
+	// the plane minted has expired, and an unknown before.
+	if !now.Before(entry.Expires) {
+		return nil, verdictDeny, codeApprovalExpired
+	}
+	return nil, verdictIndeterminate, codeApprovalStateUnknown
+}
+
+// judgeLostAnswer is what the store's record a of a lost hold says, once its
+// ids matched: the checks a live resume makes first, then its state.
+func judgeLostAnswer(entry HoldEntry, a *controlv1.Approval, now time.Time) (*controlv1.Approval, controlv1.Verdict, string) {
+	if _, code, refused := approvalFields(entry.Approval, a, entry.Expires, now); refused {
+		if code == codeApprovalExpired && a.GetExpiresAt() != nil {
+			return nil, verdictDeny, codeApprovalExpired
+		}
+		return nil, verdictIndeterminate, codeApprovalStateUnknown
+	}
+	switch {
+	case a.GetState() == approvalApproved && a.GetApproverId() != "":
+		return a, verdictDeny, codeApprovalNotResumed
+	case a.GetState() == approvalRejected:
+		return a, verdictDeny, codeApprovalRejected
+	case a.GetState() == approvalPending, a.GetState() == approvalExpired:
+		return nil, verdictDeny, codeApprovalExpired
+	}
+	return nil, verdictIndeterminate, codeApprovalStateUnknown
 }
 
 // resolveLostHold tells the store the request will not be resumed. A store

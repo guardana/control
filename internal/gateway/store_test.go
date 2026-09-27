@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,12 +21,16 @@ import (
 var errStore = errors.New("store: unavailable")
 
 // fakeStore is a memory store whose answers a test can break: an error from
-// Hold, Find or Consume, or a rewrite of what Consume hands out.
+// Hold, Find or Consume, or a rewrite of what Find or Consume hands out. It
+// counts the resolutions it was asked for.
 type fakeStore struct {
 	*gateway.MemoryApprovals
 	holdErr, findErr, consumeErr error
+	found                        func(*controlv1.Approval)
+	listed                       func([]gateway.Held) []gateway.Held
 	answer                       func(*controlv1.Approval, error) (*controlv1.Approval, error)
 	beforeConsume                func()
+	resolves                     atomic.Int64
 }
 
 func newFakeStore() *fakeStore { return &fakeStore{MemoryApprovals: &gateway.MemoryApprovals{}} }
@@ -41,7 +46,21 @@ func (f *fakeStore) Find(ctx context.Context, b approval.Binding, now time.Time)
 	if f.findErr != nil {
 		return nil, f.findErr
 	}
-	return f.MemoryApprovals.Find(ctx, b, now)
+	helds, err := f.MemoryApprovals.Find(ctx, b, now)
+	if f.found != nil {
+		for _, held := range helds {
+			f.found(held.Approval)
+		}
+	}
+	if f.listed != nil {
+		helds = f.listed(helds)
+	}
+	return helds, err
+}
+
+func (f *fakeStore) Resolve(ctx context.Context, b approval.Binding, requestID string, r gateway.Resolution, now time.Time) error {
+	f.resolves.Add(1)
+	return f.MemoryApprovals.Resolve(ctx, b, requestID, r, now)
 }
 
 func (f *fakeStore) Consume(ctx context.Context, b approval.Binding, requestID, approvalID string, now time.Time) (*controlv1.Approval, error) {

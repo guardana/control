@@ -106,6 +106,9 @@ var wantTriples = []triple{
 	// 43 is INDETERMINATE and not PAUSED: a pause state the plane cannot read
 	// is a fault, and a trail must not say an operator paused the call.
 	{"PAUSE_STATE_UNAVAILABLE", 43, controlv1.Verdict_VERDICT_INDETERMINATE},
+	// 44 is INDETERMINATE and not APPROVAL_EXPIRED: an answer the plane could
+	// not read or trust says nothing about whether the approval lapsed.
+	{"APPROVAL_STATE_UNKNOWN", 44, controlv1.Verdict_VERDICT_INDETERMINATE},
 }
 
 // wantTriples names verdicts by symbol, and a symbol is only worth pinning if
@@ -223,6 +226,20 @@ func TestThePauseCodesTellAnOperatorFromAFault(t *testing.T) {
 	}
 	if found != len(want) {
 		t.Errorf("the registry holds %d of the %d pause codes", found, len(want))
+	}
+}
+
+// A lost hold's close says what the approver answered only when the plane
+// could read and check it; the code for the rest says that, and never that the
+// approval expired.
+func TestTheUnknownApprovalStateSaysTheAnswerWasNotRead(t *testing.T) {
+	const want = "The enforcement point could not read or trust the approver's answer for a lost hold, so the call was never run."
+	code, ok := reasons.Lookup("APPROVAL_STATE_UNKNOWN")
+	if !ok {
+		t.Fatal("the registry holds no APPROVAL_STATE_UNKNOWN")
+	}
+	if code.Summary != want {
+		t.Errorf("APPROVAL_STATE_UNKNOWN says %q, want %q", code.Summary, want)
 	}
 }
 

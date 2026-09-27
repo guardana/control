@@ -33,6 +33,7 @@ var minted = map[string]controlv1.Verdict{
 	codeApprovalRejected:        verdictDeny,
 	codeApprovalAlreadyUsed:     verdictDeny,
 	codeApprovalNotResumed:      verdictDeny,
+	codeApprovalStateUnknown:    verdictIndeterminate,
 	codeObligationNotUnderstood: verdictDeny,
 	codeInvalidFieldValue:       verdictIndeterminate,
 	codeActionUnclassified:      verdictIndeterminate,

@@ -12,10 +12,12 @@ type Stats struct {
 	// Blocks counts blocks by the first reason code of the decision each
 	// carries, the kernel's or the plane's own: one for each trail closed with
 	// ACTION_BLOCKED, by the call it records, a resume, the sweep of an
-	// expired hold or a reconciliation; one for each call or resume whose
-	// block a refused record or journal write kept off its trail; and one for
-	// each call refused before any trail was written, because its request
-	// could not be named or its id was open. A sweep that cannot close a trail
+	// expired hold or a reconciliation; one for each resume whose approval
+	// expired while its ACTION_STARTED was appended, counted as
+	// APPROVAL_EXPIRED, whose trail closes with ACTION_FAILED; one for each
+	// call or resume whose block a refused record or journal write kept off
+	// its trail; and one for each call refused before any trail was written,
+	// because its request could not be named or its id was open. A sweep that cannot close a trail
 	// counts it in HeldTrailsLeftOpen alone, and a call whose hold the sweep
 	// or a resume took first is answered as blocked and not counted, since
 	// the taker counts that trail.

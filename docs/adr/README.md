@@ -35,3 +35,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0024](0024-control-and-guardana-are-independent.md) | Guardana Control and Guardana are independent |
 | [0025](0025-public-repository-merges-and-releases.md) | The admin pushes, maintainers merge and release, a release tag never moves |
 | [0026](0026-first-value-and-external-extension-paths.md) | First value and readable evidence come before the supervisor's breadth |
+| [0027](0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md) | An approval's expiry holds until the call is handed out, and an unreadable lost hold is unknown |

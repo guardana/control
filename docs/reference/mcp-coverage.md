@@ -122,7 +122,7 @@ point, the pipeline or this adapter, mints or answers on its own.
 | `PAUSE_STATE_UNAVAILABLE` | the plane has a pause file and cannot read it, or its last read is older than three poll intervals or dated ahead; every call is blocked until a read succeeds |
 | `EVIDENCE_UNAVAILABLE` | a record the decision depends on could not be written, kept or read back: the sink refused an event, a bound on held requests or open executions was reached, or the approval store or the hold journal could not answer, or answered with an approval that names another request, is not approved, or outlives the expiry the gateway minted |
 | `APPROVAL_PENDING`, `APPROVAL_EXPIRED`, `APPROVAL_REJECTED`, `APPROVAL_ALREADY_USED` | the state of the approval this call waits on |
-| `APPROVAL_NOT_RESUMED` | an approver granted a request this plane lost to a restart; the trail is closed and the call was never run |
+| `APPROVAL_NOT_RESUMED`, `APPROVAL_STATE_UNKNOWN` | a request this plane lost to a restart was granted, or its answer could not be read or trusted; it never ran |
 | `APPROVAL_DIGEST_MISMATCH`, `APPROVAL_BUNDLE_MISMATCH` | an approval a store returned named another action or another policy bundle |
 | `EXECUTED_ARGS_MISMATCH` | the bytes about to be sent, or the bytes sent, were not the authorized ones |
 | `OBLIGATION_NOT_UNDERSTOOD` | an obligation the plane cannot apply, or whose parameters it cannot read |

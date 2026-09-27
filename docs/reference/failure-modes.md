@@ -26,9 +26,10 @@ process that really fail. Nothing here is a security boundary yet
 | `stdio` upstream dies mid-call | sent once, never retried | none | a JSON-RPC error | no: restart the plane | `TestAStdioUpstreamThatDiesMidCallIsNeverASuccess` |
 | HTTP upstream drops the connection mid-call | sent once, never retried | none | a JSON-RPC error | yes, the next call is sent | `TestAnHTTPUpstreamThatDropsTheCallIsNeverASuccess` |
 | Pause file unreadable | blocked | `PAUSE_STATE_UNAVAILABLE` | `isError` and the code | yes, at the first read of a whole file | `TestAPauseFileSpoiledWhileThePlaneRunsBlocksEveryCall` |
-| Plane killed with calls held | never runs | `APPROVAL_NOT_RESUMED`, `APPROVAL_REJECTED` or `APPROVAL_EXPIRED` on the closing record | `APPROVAL_PENDING`, before the kill | at the next start, with a hold journal | `TestAnApproverOutsideThePlaneAnswersAndALostHoldIsClosed` |
+| Plane killed with calls held | never runs | `APPROVAL_NOT_RESUMED`, `APPROVAL_REJECTED`, `APPROVAL_EXPIRED` or `APPROVAL_STATE_UNKNOWN` on the closing record | `APPROVAL_PENDING`, before the kill | at the next start, with a hold journal | `TestAnApproverOutsideThePlaneAnswersAndALostHoldIsClosed` |
 
-The three approval codes are `DENY`; every other code in the table is
+`APPROVAL_NOT_RESUMED`, `APPROVAL_REJECTED` and `APPROVAL_EXPIRED` are
+`DENY`; every other code in the table, `APPROVAL_STATE_UNKNOWN` included, is
 `INDETERMINATE` ([reason codes](reason-codes.md)). A blocked `tools/call` is
 a tool result with `isError: true`; a blocked `resources/read` or
 `prompts/get`, whose results cannot say `isError`, is a JSON-RPC error with
@@ -111,8 +112,14 @@ an approver can still answer its record. With `approvals.hold_journal_dir`
 set, the next `run` closes that trail. It records the answer, then
 `ACTION_BLOCKED` with `APPROVAL_NOT_RESUMED` for an approval,
 `APPROVAL_REJECTED` for a rejection, or `APPROVAL_EXPIRED` when nobody
-answered or the answer fails its checks. The call never runs, and `run`
-prints `lost holds:` with the count it closed. The reconciliation is
+answered or the approval expired. When the store cannot be read, has lost a
+record whose approval has not expired, or answers with a record that fails
+its checks, an approval with no approver or a state no answer has, the block
+is `INDETERMINATE` with `APPROVAL_STATE_UNKNOWN`: the plane does not know what
+the approver said. A crash between journalling a hold and filing its record,
+followed by a restart before the expiry, closes that way too, because the
+plane cannot tell a record never filed from one deleted. The call never runs,
+and `run` prints `lost holds:` with the count it closed. The reconciliation is
 bounded, and what it cannot settle stays open: a journal it cannot read, or
 more entries than its bound, sets
 `guardana_control_pipeline_reconcile_incomplete` to 1, and an entry it

@@ -100,3 +100,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0024: Guardana Control and Guardana are independent](adr/0024-control-and-guardana-are-independent.md): accepted
 - [ADR-0025: The public repository: who pushes, who merges, who releases](adr/0025-public-repository-merges-and-releases.md): accepted
 - [ADR-0026: First value and readable evidence come before the supervisor's breadth](adr/0026-first-value-and-external-extension-paths.md): accepted
+- [ADR-0027: An approval's expiry holds until the call is handed out, and an unreadable lost hold is unknown](adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md): accepted

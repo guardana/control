@@ -13,6 +13,10 @@ verify one.
 
 ### Added
 
+- Reason code `APPROVAL_STATE_UNKNOWN` (44, `INDETERMINATE`): a lost hold
+  whose approval the plane could not read or trust closes with it, where
+  it closed as `APPROVAL_EXPIRED` before
+  ([ADR-0027](docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md)).
 - A benchmark of the gateway round trip, and `scripts/bench.sh --publish`,
   which records a run from a clean tree, with its hardware and Go
   settings, in a tracked file under `bench/results/`
@@ -43,6 +47,9 @@ verify one.
 
 ### Fixed
 
+- A resumed call whose approval expired by the plane's clock before it
+  was handed to the upstream is not sent: it is blocked with
+  `APPROVAL_EXPIRED`, and the approval stays spent.
 - A call whose answer the gateway could not read, or could not complete
   over HTTP (a malformed answer, a connection the upstream closed after
   reading the call, a 429 or 5xx status), is recorded with an `UNKNOWN`

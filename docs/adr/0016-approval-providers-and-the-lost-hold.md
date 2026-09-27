@@ -14,6 +14,11 @@ Amended by [ADR-0023](0023-a-local-page-answers-through-the-directory.md): both
 handles open the directory once and reach every file through it, and judge it
 again at every call, not only at `Open`, refusing one that changed since.
 
+Amended by [ADR-0027](0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md): a
+lost hold whose answer the store cannot give, or gives in a form the checks
+refuse, is closed `INDETERMINATE` with `APPROVAL_STATE_UNKNOWN`, not
+`APPROVAL_EXPIRED`.
+
 ## Context
 
 ADR-0013 fixed what the gateway does with a pending state and with an approved

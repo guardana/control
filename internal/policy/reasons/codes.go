@@ -291,4 +291,10 @@ var codes = [...]Code{
 		Verdict: controlv1.Verdict_VERDICT_INDETERMINATE,
 		Summary: "The enforcement point could not read the operator's pause state, so it blocked the call rather than assume that nothing is paused.",
 	},
+	{
+		ID:      "APPROVAL_STATE_UNKNOWN",
+		Num:     44,
+		Verdict: controlv1.Verdict_VERDICT_INDETERMINATE,
+		Summary: "The enforcement point could not read or trust the approver's answer for a lost hold, so the call was never run.",
+	},
 }

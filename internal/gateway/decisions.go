@@ -30,6 +30,7 @@ const (
 	codeApprovalRejected       = "APPROVAL_REJECTED"
 	codeApprovalAlreadyUsed    = "APPROVAL_ALREADY_USED"
 	codeApprovalNotResumed     = "APPROVAL_NOT_RESUMED"
+	codeApprovalStateUnknown   = "APPROVAL_STATE_UNKNOWN"
 	codeApprovalDigestMismatch = "APPROVAL_DIGEST_MISMATCH"
 	codeApprovalBundleMismatch = "APPROVAL_BUNDLE_MISMATCH"
 	codeObligationNotApplied   = "OBLIGATION_NOT_UNDERSTOOD"

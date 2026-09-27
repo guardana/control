@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -66,7 +67,7 @@ func TestTheReconciliationClosesALostHoldWithTheAnswerItFinds(t *testing.T) {
 	if (r != gateway.Reconciliation{Closed: 1, Complete: true}) {
 		t.Errorf("Reconcile = %+v; want one trail closed and a complete pass", r)
 	}
-	trail := expectClosedLostHold(t, first, kindApprovalDecided, codeApprovalNotResumed)
+	trail := expectClosedLostHold(t, first, kindApprovalDecided, verdictDeny, codeApprovalNotResumed)
 	decided := trail[3].GetApproval()
 	if decided.GetState() != approved || decided.GetApproverId() != "alice" || decided.GetApprovalId() != pending.Pending.ApprovalID {
 		t.Errorf("APPROVAL_DECIDED carries %+v; want the answer this plane found", decided)
@@ -115,99 +116,249 @@ func TestTheReconciliationClosesARefusedHoldAsRefused(t *testing.T) {
 	if r := next.p.Reconcile(context.Background()); (r != gateway.Reconciliation{Closed: 1, Complete: true}) {
 		t.Errorf("Reconcile = %+v; want one trail closed", r)
 	}
-	trail := expectClosedLostHold(t, first, kindApprovalDecided, codeApprovalRejected)
+	trail := expectClosedLostHold(t, first, kindApprovalDecided, verdictDeny, codeApprovalRejected)
 	if state := trail[3].GetApproval().GetState(); state != rejected {
 		t.Errorf("APPROVAL_DECIDED carries state %s, want REJECTED", state)
 	}
 }
 
-// TestTheReconciliationClosesAnUnanswerableHoldAsExpired: no answer, an
-// answer the field checks refuse, and no store to ask are one case, and the
-// plane records its own approval as expired rather than anything a store
-// said. The digest case is the adversarial one: a record that was edited
-// after the plane minted it closes the trail as unanswered and never as
-// granted.
-func TestTheReconciliationClosesAnUnanswerableHoldAsExpired(t *testing.T) {
-	snap := snapshot(t, approveRefunds)
-	for _, tc := range []struct {
-		name  string
-		setUp func(t *testing.T, store *resolutionStore, pending gateway.Disposition)
-	}{
-		{"nobody answered", func(*testing.T, *resolutionStore, gateway.Disposition) {}},
-		{"an answer under another digest", func(t *testing.T, store *resolutionStore, pending gateway.Disposition) {
-			if err := store.Answer(pending.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
-				t.Fatalf("Answer: %v", err)
-			}
-			store.alters(func(a *controlv1.Approval) { a.ActionDigest = "sha256:" + digits })
-		}},
-		{"an answer that outlives what the plane minted", func(t *testing.T, store *resolutionStore, pending gateway.Disposition) {
-			if err := store.Answer(pending.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
-				t.Fatalf("Answer: %v", err)
-			}
-			store.alters(func(a *controlv1.Approval) { a.ExpiresAt = timestamppb.New(base().Add(time.Hour)) })
-		}},
-		{"an answer for another request", func(t *testing.T, store *resolutionStore, pending gateway.Disposition) {
-			if err := store.Answer(pending.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
-				t.Fatalf("Answer: %v", err)
-			}
-			store.alters(func(a *controlv1.Approval) { a.RequestId = "req-other" })
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			j := &journalDouble{}
-			store := &resolutionStore{}
-			first := build(t, modeEnforce, snap, func(cfg *gateway.Config) {
-				cfg.Journal = j
-				cfg.Approvals = store
-			})
-			pending := hold(t, first)
-			tc.setUp(t, store, pending)
-
-			next := build(t, modeApprove, snap, func(cfg *gateway.Config) {
-				cfg.Journal = j
-				cfg.Approvals = store
-				cfg.Sink = first.sink
-				cfg.NewID = restartIDs()
-			})
-			next.clock.set(base().Add(time.Minute))
-			if r := next.p.Reconcile(context.Background()); (r != gateway.Reconciliation{Closed: 1, Complete: true}) {
-				t.Errorf("Reconcile = %+v; want one trail closed", r)
-			}
-			trail := expectClosedLostHold(t, first, kindApprovalExpired, codeApprovalExpired)
-			expired := trail[3].GetApproval()
-			if expired.GetState() != controlv1.ApprovalState_APPROVAL_STATE_EXPIRED || expired.GetApprovalId() != pending.Pending.ApprovalID {
-				t.Errorf("APPROVAL_EXPIRED carries %+v; want the approval this plane minted, expired", expired)
-			}
-			if consumes, resolves := store.asked(); consumes != 0 || resolves != 1 {
-				t.Errorf("the reconciliation consumed %d record(s) and resolved %d; want none consumed and one resolved", consumes, resolves)
-			}
-		})
-	}
-}
-
-// TestAReconciliationWithNoStoreToAskClosesTheTrail: a store that cannot
-// answer is not a reason to leave a trail standing at its request.
-func TestAReconciliationWithNoStoreToAskClosesTheTrail(t *testing.T) {
+// lostUnder holds one refund on a plane over store, lets setUp answer or
+// break the store, and reconciles from the plane that comes back to the same
+// journal, store and evidence with its clock at at. The pass must close the
+// one trail.
+func lostUnder(t *testing.T, store gateway.ApprovalStore, at time.Time, setUp func(pending gateway.Disposition)) (*harness, gateway.Disposition, *harness) {
+	t.Helper()
 	snap := snapshot(t, approveRefunds)
 	j := &journalDouble{}
-	store := newFakeStore()
 	first := build(t, modeEnforce, snap, func(cfg *gateway.Config) {
 		cfg.Journal = j
 		cfg.Approvals = store
 	})
-	hold(t, first)
-	store.findErr = errStore
+	pending := hold(t, first)
+	setUp(pending)
 	next := build(t, modeApprove, snap, func(cfg *gateway.Config) {
 		cfg.Journal = j
 		cfg.Approvals = store
 		cfg.Sink = first.sink
 		cfg.NewID = restartIDs()
 	})
-	next.clock.set(base().Add(time.Minute))
+	next.clock.set(at)
 	if r := next.p.Reconcile(context.Background()); (r != gateway.Reconciliation{Closed: 1, Complete: true}) {
-		t.Errorf("Reconcile = %+v; want the trail closed", r)
+		t.Errorf("Reconcile = %+v; want one trail closed", r)
 	}
-	expectClosedLostHold(t, first, kindApprovalExpired, codeApprovalExpired)
+	return first, pending, next
+}
+
+// expectOwnApprovalExpired asserts the lost hold's window was closed with the
+// approval this plane minted, marked expired, and nothing a store said.
+func expectOwnApprovalExpired(t *testing.T, trail []*controlv1.Event, pending gateway.Disposition) {
+	t.Helper()
+	expired := trail[3].GetApproval()
+	if expired.GetState() != controlv1.ApprovalState_APPROVAL_STATE_EXPIRED || expired.GetApprovalId() != pending.Pending.ApprovalID ||
+		expired.GetApproverId() != "" {
+		t.Errorf("APPROVAL_EXPIRED carries %+v; want the approval this plane minted, expired", expired)
+	}
+}
+
+// lostHoldExpiry is when the lost hold's approval expires: ten minutes after
+// base, the TTL build sets.
+var lostHoldExpiry = base().Add(10 * time.Minute)
+
+// answeredThen approves the held refund in store and edits every record the
+// store hands back with edit.
+func answeredThen(t *testing.T, store *fakeStore, pending gateway.Disposition, edit func(*controlv1.Approval)) {
+	t.Helper()
+	if err := store.Answer(pending.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	store.found = edit
+}
+
+// TestTheReconciliationClosesAnUnansweredOrLapsedHoldAsExpired: nobody
+// answered, the store hands back a record whose own expiry has passed, the
+// store holds no record once the approval the plane minted has expired by the
+// restarted plane's clock, or the store marks the record EXPIRED before its
+// expiry. Each is an expiry the plane can stand behind, so the close is
+// APPROVAL_EXPIRED with the plane's own approval.
+func TestTheReconciliationClosesAnUnansweredOrLapsedHoldAsExpired(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		at    time.Time
+		setUp func(t *testing.T, store *fakeStore, pending gateway.Disposition)
+	}{
+		{"nobody answered", base().Add(time.Minute), func(*testing.T, *fakeStore, gateway.Disposition) {}},
+		{"a record the store reports past its expiry", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.ExpiresAt = timestamppb.New(base()) })
+		}},
+		{"no record once the plane's own expiry passed", lostHoldExpiry, func(_ *testing.T, store *fakeStore, _ gateway.Disposition) {
+			store.findErr = gateway.ErrNoApproval
+		}},
+		{"a record the store marks expired before its expiry", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) {
+				a.State, a.ApproverId = controlv1.ApprovalState_APPROVAL_STATE_EXPIRED, ""
+			})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeStore()
+			first, pending, next := lostUnder(t, store, tc.at, func(pending gateway.Disposition) { tc.setUp(t, store, pending) })
+			trail := expectClosedLostHold(t, first, kindApprovalExpired, verdictDeny, codeApprovalExpired)
+			expectOwnApprovalExpired(t, trail, pending)
+			if s := next.p.Stats(); s.Blocks[codeApprovalExpired] != 1 || len(s.Blocks) != 1 {
+				t.Errorf("Stats().Blocks = %v; want the close counted once as APPROVAL_EXPIRED", s.Blocks)
+			}
+			expectResolvedOnce(t, store)
+		})
+	}
+}
+
+// TestTheReconciliationClosesAnAnswerItCannotReadOrTrustAsUnknown: a store
+// that fails, one that has lost a record whose approval has not expired, and
+// an answer the field checks refuse leave the plane unable to say what the
+// approver answered. The call still never runs, and the close says
+// INDETERMINATE with APPROVAL_STATE_UNKNOWN instead of claiming an expiry or
+// a grant. The digest case is the adversarial one: a record edited after the
+// plane minted it is never recorded as granted.
+func TestTheReconciliationClosesAnAnswerItCannotReadOrTrustAsUnknown(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		at    time.Time
+		setUp func(t *testing.T, store *fakeStore, pending gateway.Disposition)
+	}{
+		{"a store that fails", base().Add(time.Minute), func(_ *testing.T, store *fakeStore, _ gateway.Disposition) {
+			store.findErr = errStore
+		}},
+		{"a store that fails after the expiry", lostHoldExpiry, func(_ *testing.T, store *fakeStore, _ gateway.Disposition) {
+			store.findErr = errStore
+		}},
+		{"no record a tick before the expiry", lostHoldExpiry.Add(-time.Nanosecond), func(_ *testing.T, store *fakeStore, _ gateway.Disposition) {
+			store.findErr = gateway.ErrNoApproval
+		}},
+		{"an answer under another digest", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.ActionDigest = "sha256:" + digits })
+		}},
+		{"an answer under another bundle", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.PolicyBundleDigest = "sha256:" + digits })
+		}},
+		{"an answer that outlives what the plane minted", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.ExpiresAt = timestamppb.New(base().Add(time.Hour)) })
+		}},
+		{"an answer with no expiry", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.ExpiresAt = nil })
+		}},
+		{"an answer for another request only", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.RequestId = "req-other" })
+		}},
+		{"an approval with no approver", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.ApproverId = "" })
+		}},
+		{"a state no answer has", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.State = controlv1.ApprovalState(99) })
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeStore()
+			consumed := 0
+			store.beforeConsume = func() { consumed++ }
+			first, pending, next := lostUnder(t, store, tc.at, func(pending gateway.Disposition) { tc.setUp(t, store, pending) })
+			if consumed != 0 {
+				t.Errorf("the reconciliation consumed %d record(s); an answer to a lost hold is never spent", consumed)
+			}
+			trail := expectClosedLostHold(t, first, kindApprovalExpired, verdictIndeterminate, codeApprovalStateUnknown)
+			expectOwnApprovalExpired(t, trail, pending)
+			if s := next.p.Stats(); s.Blocks[codeApprovalStateUnknown] != 1 || len(s.Blocks) != 1 || s.HoldsClosed != 1 || s.Executed != 0 {
+				t.Errorf("Stats = %+v; want nothing run and the one close counted as APPROVAL_STATE_UNKNOWN", s)
+			}
+			expectResolvedOnce(t, store)
+		})
+	}
+}
+
+// TestTheLostHoldCodesTellTheFourAnswersApart: one lost hold, four answers
+// from the store, four closings. Only an answer the plane can read and check
+// names what the approver did; the call runs under none of them.
+func TestTheLostHoldCodesTellTheFourAnswersApart(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		setUp   func(t *testing.T, store *fakeStore, pending gateway.Disposition)
+		outcome controlv1.EventKind
+		verdict controlv1.Verdict
+		code    string
+	}{
+		{"the store fails", func(_ *testing.T, store *fakeStore, _ gateway.Disposition) { store.findErr = errStore },
+			kindApprovalExpired, verdictIndeterminate, codeApprovalStateUnknown},
+		{"the store answers garbage", func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.ActionDigest = "sha256:" + digits })
+		}, kindApprovalExpired, verdictIndeterminate, codeApprovalStateUnknown},
+		{"the store answers an expired record", func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.ExpiresAt = timestamppb.New(base().Add(time.Minute)) })
+		}, kindApprovalExpired, verdictDeny, codeApprovalExpired},
+		{"the store answers a rejection", func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			if err := store.Answer(pending.Pending.ApprovalID, rejected, "", "no", base()); err != nil {
+				t.Fatalf("Answer: %v", err)
+			}
+		}, kindApprovalDecided, verdictDeny, codeApprovalRejected},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeStore()
+			first, _, next := lostUnder(t, store, base().Add(time.Minute), func(pending gateway.Disposition) { tc.setUp(t, store, pending) })
+			expectClosedLostHold(t, first, tc.outcome, tc.verdict, tc.code)
+			if s := next.p.Stats(); s.Executed != 0 || s.Blocks[tc.code] != 1 || len(s.Blocks) != 1 {
+				t.Errorf("Stats = %+v; want nothing run and the close counted once as %s", s, tc.code)
+			}
+			expectResolvedOnce(t, store)
+		})
+	}
+}
+
+// expectResolvedOnce asserts the reconciliation told the store once that the
+// request will not be resumed, whatever the close said.
+func expectResolvedOnce(t *testing.T, store *fakeStore) {
+	t.Helper()
+	if got := store.resolves.Load(); got != 1 {
+		t.Errorf("the store was asked to resolve %d time(s); want once per closed hold", got)
+	}
+}
+
+// TestASiblingRecordDoesNotRelabelTheAnswer: a record filed under the lost
+// hold's request id with another approval id, listed ahead of the one the
+// plane minted, is not the plane's to read. The close names what the approver
+// answered on the minted approval.
+func TestASiblingRecordDoesNotRelabelTheAnswer(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		state, forged controlv1.ApprovalState
+		code          string
+	}{
+		{"a rejection behind a forged grant", rejected, approved, codeApprovalRejected},
+		{"a grant behind a forged rejection", approved, rejected, codeApprovalNotResumed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeStore()
+			first, pending, _ := lostUnder(t, store, base().Add(time.Minute), func(pending gateway.Disposition) {
+				approver := ""
+				if tc.state == approved {
+					approver = "alice"
+				}
+				if err := store.Answer(pending.Pending.ApprovalID, tc.state, approver, "", base()); err != nil {
+					t.Fatalf("Answer: %v", err)
+				}
+				store.listed = func(helds []gateway.Held) []gateway.Held {
+					if len(helds) == 0 {
+						return helds
+					}
+					sibling := helds[0]
+					sibling.Approval = proto.CloneOf(sibling.Approval)
+					sibling.Approval.ApprovalId, sibling.Approval.State, sibling.Approval.ApproverId = "sibling", tc.forged, "mallory"
+					return append([]gateway.Held{sibling}, helds...)
+				}
+			})
+			trail := expectClosedLostHold(t, first, kindApprovalDecided, verdictDeny, tc.code)
+			if decided := trail[3].GetApproval(); decided.GetApprovalId() != pending.Pending.ApprovalID || decided.GetState() != tc.state {
+				t.Errorf("APPROVAL_DECIDED carries %+v; want the minted approval as answered", decided)
+			}
+		})
+	}
 }
 
 // TestTheReconciliationLeavesAnInterruptedCloseAlone: an entry that left held
@@ -378,8 +529,8 @@ func TestAHoldWhoseCloseCannotBeWrittenIsReportedAndKept(t *testing.T) {
 }
 
 // expectClosedLostHold asserts the lost hold's trail ends in outcome and the
-// plane's own DENY naming code, and validates as one chain.
-func expectClosedLostHold(t *testing.T, h *harness, outcome controlv1.EventKind, code string) []*controlv1.Event {
+// plane's own block of verdict naming code, and validates as one chain.
+func expectClosedLostHold(t *testing.T, h *harness, outcome controlv1.EventKind, verdict controlv1.Verdict, code string) []*controlv1.Event {
 	t.Helper()
 	trail := h.trailOf("req-1")
 	expectKinds(t, kindsOf(trail), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested, outcome, kindBlocked})
@@ -390,9 +541,9 @@ func expectClosedLostHold(t *testing.T, h *harness, outcome controlv1.EventKind,
 		t.Fatalf("the trail holds %d event(s); the assertions below need the five", len(trail))
 	}
 	blocked := trail[4].GetDecision()
-	if blocked.GetVerdict() != verdictDeny || blocked.GetPdpType() != gateway.PDPType ||
+	if blocked.GetVerdict() != verdict || blocked.GetPdpType() != gateway.PDPType ||
 		blocked.GetRequestId() != "req-1" || len(blocked.GetReasonCodes()) != 1 || blocked.GetReasonCodes()[0] != code {
-		t.Errorf("ACTION_BLOCKED carries %+v; want this plane's DENY naming %s", blocked, code)
+		t.Errorf("ACTION_BLOCKED carries %+v; want this plane's %s naming %s", blocked, verdict, code)
 	}
 	return trail
 }
