@@ -109,13 +109,21 @@ func prunedDir(rel, name string) bool {
 	return hidden || slices.Contains(prunedDirs, rel)
 }
 
+// publishedRun reports whether rel is a benchmark run scripts/bench.sh
+// published, which .gitignore keeps: a <stamp>-<os>-<arch>.txt directly in
+// bench/results/.
+func publishedRun(rel, name string) bool {
+	ok, err := path.Match("[0-9]*T[0-9]*Z-*-*.txt", name)
+	return err == nil && ok && rel == "bench/results/"+name
+}
+
 func ignoredFile(rel, name string) bool {
 	switch {
 	case slices.Contains(ignoredPaths, rel):
 		return true
 	case strings.HasPrefix(name, ".env.") && name != ".env.example":
 		return true
-	case strings.HasPrefix(rel, "bench/results/") && name != ".keep":
+	case strings.HasPrefix(rel, "bench/results/") && rel != "bench/results/.keep" && !publishedRun(rel, name):
 		return true
 	}
 	return slices.ContainsFunc(ignoredNames, func(pattern string) bool {

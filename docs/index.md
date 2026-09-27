@@ -37,7 +37,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 
 ## Reference
 
-- [Benchmarks](reference/benchmarks.md): What three calls on the authorization path cost on one machine, how they are measured, and what the numbers are not.
+- [Benchmarks](reference/benchmarks.md): What three calls on the authorization path and one tool call through the gateway cost on one machine, how they are measured, and what the numbers are not.
 - [Command line](reference/cli.md): The two binaries, what each prints as its help, and the exit statuses they share.
 - [Configuration](reference/configuration.md): Every key the gateway reads, with its environment variable, kind, default, whether it is required and the spellings it takes.
 - [The approvals page](reference/console.md): What guardana-control console serves, what it prints, what it refuses and what it cannot tell you.

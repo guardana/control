@@ -1,36 +1,41 @@
 # Benchmarks
 
-Three benchmarks on the authorization path: `contract.Validate`,
-`canon.DigestV1` and `core.Decide`. What they measure, the numbers from one
-machine and what those numbers are not are in
+Three benchmarks on the authorization path, `contract.Validate`,
+`canon.DigestV1` and `core.Decide`, and one MCP tool call through the gateway.
+What they measure and what the numbers are not is in
 [docs/reference/benchmarks.md](../docs/reference/benchmarks.md).
 
 ## Run
 
     scripts/bench.sh
+    COUNT=5 BENCHTIME=1s scripts/bench.sh --publish
 
-`BENCHTIME` and `COUNT` are read from the environment and default to `1s` and
-`1`. The script refuses to record a run when the guard test fails or when the
-benchmark pattern matched nothing, so a results file always describes work that
-happened.
+`BENCHTIME` and `COUNT` default to `1s` and `1`. A run goes to
+`bench/results/local/`, which git ignores. `--publish` writes
+`bench/results/<stamp>-<os>-<arch>.txt`, which is tracked: commit it with the
+page that cites it, on a quiet machine. The script refuses to record a run when
+the guard test fails or nothing was measured. It refuses to publish from a tree
+that differs from its commit or changes during the run, that git is told to
+overlook or ignores Go sources in, under a workspace, `GOFLAGS` or
+`GOEXPERIMENT`, for a platform other than the host's or translated, or when it
+cannot read the CPU, cores or memory.
 
 ## Test
 
     go test ./bench/
 
-`TestBenchmarkedPathSucceeds` and `TestBenchmarkedDecideSucceeds` check every
-input before it is timed: the three functions return early when they refuse
-their input, so without the guard a broken fixture or a stale snapshot would be
-reported as fast work.
+The `TestBenchmarked*` guards check every input before it is timed: each
+measured call returns early on input it refuses, so without them a broken
+fixture, a stale snapshot or a blocked call would be reported as fast work.
 
 ## Traps
 
-- Each run is written to `bench/results/`, which `.gitignore` keeps out of the
-  repository except for `.keep`: a result belongs to the machine that produced
-  it. The file records the date, the commit, the host, the Go version and the
-  load average, because a duration without them says nothing.
-- No gate fails on a duration, and none should: a build that failed on one
-  would be reporting on the host rather than on the change.
-- `BenchmarkDecide` reads the real clock, because the latency field is part of
-  what a decision costs; run it on a quiet machine or read the medians, not
-  the tails.
+- A results file records the date, the commit, the CPU, cores, memory, OS,
+  usable CPUs, Go version, the Go environment variables and the load average,
+  because a duration without them says nothing.
+- The round trip runs the real exporter against a collector in the same
+  process, so its numbers include the exporter's work.
+- No gate fails on a duration: it would be reporting on the host rather than
+  on the change.
+- `BenchmarkDecide` and the round trip read the real clock; on a busy machine
+  read the medians, not the tails.

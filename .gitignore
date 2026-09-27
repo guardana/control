@@ -20,9 +20,15 @@ node_modules/
 go.work
 go.work.sum
 
-# Benchmark results are per-machine; the directory is kept, the runs are not
+# Benchmark runs: a published one (scripts/bench.sh --publish) is tracked, a
+# local one lands in local/, and nothing else in the directory is. The find
+# fallback in scripts/lib/repo-files.sh and internal/docscheck/impact mirror
+# these lines, and a test in the latter compares all three.
 /bench/results/*
 !/bench/results/.keep
+# With core.ignorecase=true, git's default on macOS, this also keeps a .TXT name, which both mirrors drop.
+!/bench/results/[0-9]*T[0-9]*Z-*-*.txt
+/bench/results/*/
 
 # Local override of the project law, per developer
 /AGENTS.local.md

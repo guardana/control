@@ -13,6 +13,10 @@ verify one.
 
 ### Added
 
+- A benchmark of the gateway round trip, and `scripts/bench.sh --publish`,
+  which records a run from a clean tree, with its hardware and Go
+  settings, in a tracked file under `bench/results/`
+  ([docs/reference/benchmarks.md](docs/reference/benchmarks.md)).
 - Each release is to publish `ghcr.io/guardana/control-gateway:<version>`
   for linux/amd64 and linux/arm64, signed keyless and with build
   provenance, its digest named in the release notes;

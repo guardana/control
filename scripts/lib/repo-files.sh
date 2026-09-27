@@ -73,7 +73,8 @@ _repo_files_find() {
         ! -name 'go.work.sum' \
         ! -path ./docs/design/foundation-decisions.md \
         ! -path ./AGENTS.local.md \
-        ! \( -path './bench/results/*' ! -name '.keep' \) \
+        ! \( -path './bench/results/*' ! -path ./bench/results/.keep \
+          ! \( -name '[0-9]*T[0-9]*Z-*-*.txt' ! -path './bench/results/*/*' \) \) \
         -print0
   )
 }

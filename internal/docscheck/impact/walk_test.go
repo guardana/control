@@ -60,17 +60,29 @@ func TestWalkPagesRefusesADirectoryWithNoPage(t *testing.T) {
 	}
 }
 
-func TestWalkFilesLeavesOutWhatTheRepositoryIgnores(t *testing.T) {
-	kept := []string{
+// walkKept and walkDropped are the files WalkFiles keeps and leaves out;
+// TestIgnoreMirrorsAgreeWithGit holds git to the same names.
+func walkKept() []string {
+	return []string{
 		"Makefile", "cmd/gw/main.go", ".github/workflows/ci.yml", ".env.example",
-		"bench/results/.keep", "docs/design/other.md", "go.work.example",
+		"bench/results/.keep", "bench/results/20260927T010203Z-darwin-arm64.txt",
+		"docs/design/other.md", "go.work.example",
 	}
-	dropped := []string{
+}
+
+func walkDropped() []string {
+	return []string{
 		".git/HEAD", ".tooling/x", "bin/gw", "dist/gw", "coverage/c.out", "node_modules/m/i.js",
 		"docs/foundation/spec.md", "docs/plans/p.md", "cmd/.DS_Store", "cmd/gw.test",
 		"cmd/cover.out", ".env", ".env.local", "go.work", "go.work.sum", "AGENTS.local.md",
-		"bench/results/run.txt", "bench/results/deep/run.txt", "docs/design/foundation-decisions.md",
+		"bench/results/run.txt", "bench/results/deep/run.txt", "bench/results/local/20260927T010203Z.txt",
+		"bench/results/local/a-b-c.txt", "bench/results/local/.keep", "bench/results/my-bench-notes.txt",
+		"docs/design/foundation-decisions.md",
 	}
+}
+
+func TestWalkFilesLeavesOutWhatTheRepositoryIgnores(t *testing.T) {
+	kept, dropped := walkKept(), walkDropped()
 	fsys := fstest.MapFS{}
 	for _, p := range slices.Concat(kept, dropped) {
 		fsys[p] = &fstest.MapFile{Data: []byte("x")}
