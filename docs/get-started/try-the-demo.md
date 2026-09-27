@@ -7,11 +7,11 @@ covers: [examples/vulnerable-mcp-agent/**]
 
 # Try the demo
 
-You start a plane on your machine in front of two MCP
-servers an agent should not be trusted with, make the calls an agent would,
-answer one that is held for a person, pause a server, and read what the plane
-recorded. Then you run the demo's seven scenarios, the agent's script as data,
-and make one fail on purpose.
+You start a plane on your machine: the gateway, placed between an agent and
+two MCP servers the agent should not be trusted with. You make the calls an
+agent would, answer one that is held for a person, pause a server, and read
+what the plane recorded. Then you run the demo's seven scenarios, which
+describe an agent's calls as data, and make one fail on purpose.
 
 Everything here is `experimental` ([status.md](../status.md)) and runs on the
 loopback only. It is a demo, not a security boundary. What the demo holds is
@@ -19,10 +19,10 @@ in [examples/vulnerable-mcp-agent](../../examples/vulnerable-mcp-agent/README.md
 
 ## What you need
 
-- This repository, at the Go toolchain `go.mod` pins.
+- This repository and the Go version its `go.mod` names.
 - A Unix-like system, `curl` and a browser.
-- Port `127.0.0.1:18213` free: the orders server answers there as a decision
-  point that never decides. If something else holds it, the orders server
+- Port `127.0.0.1:18213` free: the orders server also listens there, as a
+  decision point that never answers. If something else holds it, the orders server
   cannot start, and `dev` stops with an error that ends in `EOF`.
 
 ## 1. Build
@@ -33,8 +33,8 @@ From the repository's root:
 go build -o bin/ ./cmd/guardana-gateway ./cmd/guardana-control ./examples/vulnerable-mcp-agent
 ```
 
-This puts three programs in `bin/`: the gateway, the approver's
-`guardana-control`, which `dev` needs beside the gateway, and
+This puts three programs in `bin/`: the gateway, `guardana-control`, the
+approvals tool, which `dev` needs beside the gateway, and
 `vulnerable-mcp-agent`, the two servers the demo's configuration starts from
 there.
 
@@ -99,7 +99,8 @@ Now make the same call again, with the same arguments. It runs, and its
 approval covers one exact call: the same update with other arguments would
 be held as a request of its own.
 
-The page writes what `guardana-control approvals approve` writes. Without a
+The page records the same approval as `guardana-control approvals approve`
+does. Without a
 browser, answer from the terminal instead, with the `approvals` path and the
 `approval_id`:
 
@@ -122,22 +123,26 @@ pause** and the same call runs again.
 
 ## 6. Read the trail and the counters
 
-The plane's evidence went through its spool to the collector, which appends
-it to the trail file. Run the `trail_command` line:
+The plane's evidence, the events of each call, went through its spool, a
+directory on disk, to the collector, which appends it to the trail file. Run
+the `trail_command` line:
 
 ```
 bin/guardana-gateway trail <state>/trail.jsonl
 ```
 
 It prints one line per request, the kind of its last event, and whether its
-chain holds. The counters need no collector:
+events form an unbroken chain. The counters need no collector:
 
 ```
-curl -s http://127.0.0.1:<port>/metrics
+curl -s http://127.0.0.1:<port>/metrics | grep -E 'pipeline_(executed|pending|blocks)_total'
 ```
 
-Among them are the calls the plane executed, the ones it held, and its blocks
-by reason code.
+`guardana_control_pipeline_executed_total` counts the calls the plane ran,
+`guardana_control_pipeline_pending_total` the ones it held, and
+`guardana_control_pipeline_blocks_total` its blocks by reason code: the read
+the pause stopped is under `code="PAUSED"`
+([reference/metrics](../reference/metrics.md)).
 
 Stop `dev` with Ctrl-C. It stops every part, gives the exporter a moment to
 ship what the spool holds, and says how much it did not. The state directory
@@ -173,7 +178,7 @@ one shows:
 | `digest-invalidation` | holds anew an approved update retried with other arguments, then resumes the original |
 | `fail-closed` | blocks an export `INDETERMINATE` with `PDP_TIMEOUT` when the decision point never answers |
 | `pause` | blocks a read while the orders server is paused, runs it once the pause is lifted |
-| `toxic-flow` | after an untrusted page, blocks any mail, since `send_mail`'s destination is declared untrusted: undetermined before an order was read, `TOXIC_FLOW_SENSITIVE_TO_EXTERNAL` after |
+| `toxic-flow` | after an untrusted page, blocks any mail, since `send_mail`'s destination is declared untrusted. Before an order is read the block is undetermined; after, its reason is `TOXIC_FLOW_SENSITIVE_TO_EXTERNAL` |
 
 In `toxic-flow` the page asks the agent to mail an order away, and no rule
 names `fetch_page`: the plane blocks the mail because the page's result is
@@ -188,12 +193,12 @@ VICTIM_JOURNAL_DIR="$journal" bin/guardana-gateway dev --config examples/vulnera
 cat "$journal/web.jsonl"
 ```
 
-It holds the `fetch_page` call and no `send_mail`.
+`web.jsonl` lists the `fetch_page` call and no `send_mail`.
 
 ## 8. Make one fail
 
-A scenario is only worth something if it fails when the plane does something
-else. Copy one with its expected verdict changed; the file's name is the
+Check that a scenario fails when the plane does something else. Copy one
+with its expected verdict changed; the file's name is the
 scenario's id, so keep it:
 
 ```
