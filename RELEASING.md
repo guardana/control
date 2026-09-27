@@ -37,23 +37,32 @@ a pre-release.
    archive and a `checksums.txt` with the SHA-256 of every file.
 3. Signs `checksums.txt` with cosign, keyless: the certificate names this
    workflow and the tag. The signature is `checksums.txt.sigstore.json`.
-4. Drafts the GitHub release with those files.
-5. Records build provenance for every file in `checksums.txt` and for
-   `checksums.txt` itself.
-6. Verifies the checksums, the signature and the provenance the way a user
-   would, and only then publishes the draft.
+4. Pushes the image `ghcr.io/guardana/control-gateway` under the staging tag
+   `sha-<commit>`, for linux/amd64 and linux/arm64: `guardana-gateway` alone,
+   as a distroless base's nonroot user.
+5. Drafts the GitHub release with those files.
+6. Signs the image, and records build provenance for it and for every file of
+   the release.
+7. Verifies all of it as a user would, tags the image with the version, then
+   publishes the draft with the image's digest in its notes.
 
 The workflow refuses a tag whose commit is not on `main`, and publishes the
 draft only when it holds exactly the files it verified. If it fails before it
 drafts the release, there is no release; if it fails later, the draft stays
-unpublished. Delete the draft, fix the cause and release the next version.
+unpublished. Delete the draft, if any, and the image's staging version, fix the
+cause and release the next version.
+
+GitHub makes a new package private. After the first push, a maintainer makes
+`control-gateway` public (Package settings, Change visibility) and links it to
+this repository if needed.
 
 ## A dry run
 
 Run the workflow by hand (Actions, Release, Run workflow). It builds the same
 archives under a `0.0.0-snapshot.<commit>` version, unsigned, and keeps them as a run
-artifact for seven days. It publishes nothing. `make release-snapshot` does the
-same locally into `dist/`.
+artifact for seven days. It also runs the image for the runner's platform. It
+publishes nothing. `make release-snapshot` builds the same locally, and needs a
+running Docker daemon.
 
 ## A tag never moves
 
@@ -76,13 +85,31 @@ cosign verify-blob checksums.txt \
 
 gh attestation verify guardana-control_0.1.0-alpha_linux_amd64.tar.gz \
   --repo guardana/control \
-  --signer-workflow guardana/control/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.1.0-alpha
+  --cert-identity "https://github.com/guardana/control/.github/workflows/release.yml@refs/tags/v0.1.0-alpha" \
+  --source-ref refs/tags/v0.1.0-alpha --deny-self-hosted-runners
 ```
 
 On macOS use `shasum -a 256 --ignore-missing -c checksums.txt`. The first
 command says the archive is the one the checksum file names, the second that
-the checksum file was signed by this repository's release workflow for that
-tag, and the third that the archive was built by that workflow from that tag.
-Without the last two options the third would accept an attestation from any
-workflow of the repository.
+this repository's release workflow signed the checksum file for that tag, and
+the third that the archive was built by that workflow from that tag.
+
+## Checking the image
+
+Anyone with write access to the repository or package can overwrite a
+registry tag or a release's notes. Take the digest from the notes and check it
+with cosign v3 or later. The signature covers the index, not each platform's
+image. For `v0.2.0`:
+
+```sh
+image=ghcr.io/guardana/control-gateway@sha256:<the digest in the release notes>
+
+cosign verify "$image" \
+  --certificate-identity "https://github.com/guardana/control/.github/workflows/release.yml@refs/tags/v0.2.0" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+gh attestation verify "oci://$image" \
+  --repo guardana/control \
+  --cert-identity "https://github.com/guardana/control/.github/workflows/release.yml@refs/tags/v0.2.0" \
+  --source-ref refs/tags/v0.2.0 --deny-self-hosted-runners
+```

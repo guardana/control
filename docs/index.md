@@ -18,6 +18,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 ## Guides
 
 - [Let a decision point veto calls](guides/let-a-decision-point-veto.md): Point the gateway at an AuthZEN decision point, write the two rules that let it veto a scope, test what each answer does, and check the plane before it serves.
+- [Run the gateway in a container](guides/run-in-a-container.md): Run the release image of the gateway with Docker, with its evidence on a volume and its port reachable from the host alone.
 - [Run the gateway](guides/run-the-gateway.md): Start the MCP gateway in OBSERVE, read its health, classify the tools it sees, and move it to ENFORCE.
 - [Watch a plane without a collector](guides/watch-a-plane-without-a-collector.md): Run the collector the gateway binary ships, point a plane's export at it, and check each request's trail in the file it writes.
 - [Write and test a policy](guides/write-and-test-a-policy.md): Write an agent-policy/v1alpha1 document, lint it, prove what it decides with cases, and sign it into the bundle a plane loads.

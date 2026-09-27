@@ -86,6 +86,31 @@ but protobuf, and no standard library package it does not name, into the part
 that decides; a new one there means an edit to that rule. The MCP module is
 imported outside that part, by the adapter and by the gateway's command.
 
+### `gcr.io/distroless/static-debian12:nonroot`
+
+- Problem it solves: the base of the gateway's container image. It gives the
+  binary CA certificates to check its upstreams', decision point's and
+  collector's TLS certificates, a `nonroot` user (65532) to run as, `/tmp`,
+  and the time zone database. `.goreleaser.yaml` names it by the digest of its
+  multi-platform index, read from the registry, so a tag the upstream moves
+  cannot change what ships.
+- Why not `scratch`: the Go binary needs no C library, but `scratch` holds no
+  CA certificates and no user entry, so the image would have to carry and
+  refresh both itself.
+- Licence: the build definitions in `GoogleContainerTools/distroless` are
+  Apache-2.0. The image holds five Debian 12 packages, their licences read from
+  each `/usr/share/doc/<package>/copyright` in the image: `base-files` 12.4+deb12u15
+  (GPL-2+), `ca-certificates` 20250419~deb12u1 (GPL-2+ and MPL-2.0),
+  `media-types` 10.0.0 (public information, no restriction stated), `netbase`
+  6.4 (GPL-2) and `tzdata` 2026b-0+deb12u1 (public domain). They are data
+  files and are not linked with the gateway; their source is Debian's.
+- Maintenance signal: the repository is published by Google's container tools
+  organisation, is not archived, and its last commit is dated 2026-09-24. The
+  images are rebuilt from Debian's updates, which is why the digest is bumped
+  by hand rather than followed.
+- Request path: yes. It is the filesystem the gateway runs on, so a digest
+  bump is read, as a dependency bump is, rather than merged on a green gate.
+
 ## Test-only
 
 Imported by `_test.go` files. `go build ./...` does not link them, so none of
@@ -149,14 +174,16 @@ build a release, in `.github/workflows/release.yml` and in
 beside its version:
 
 - `goreleaser` (MIT) builds the two binaries for Linux and macOS, packs one
-  archive per platform, writes `checksums.txt` and drafts the GitHub release,
-  from `.goreleaser.yaml`. Doing that by hand in the workflow would be a long
-  script that nothing else tests.
+  archive per platform, writes `checksums.txt`, builds and pushes the
+  gateway's image with the `ko` library it links (Apache-2.0), and drafts the
+  GitHub release, from `.goreleaser.yaml`. `ko` adds no download of its own;
+  what it fetches is the base image above. Doing that by hand in the workflow
+  would be a long script that nothing else tests.
 - `syft` (Apache-2.0) writes a CycloneDX bill of materials for each archive,
   from the module information Go records in each binary.
-- `cosign` (Apache-2.0) signs `checksums.txt` without a key, with a
-  certificate for the release workflow's identity, and verifies that signature
-  before the release is published.
+- `cosign` (Apache-2.0) signs `checksums.txt` and the image's digest without a
+  key, with a certificate for the release workflow's identity, and verifies
+  both signatures before the release is published.
 
 None of these is a dependency of the product, and nothing in the tree imports
 any of them.
@@ -179,6 +206,6 @@ Each is pinned to a commit SHA with the version in a trailing comment;
 | `actions/dependency-review-action` | Blocks a pull request that adds a vulnerable dependency | MIT |
 | `ossf/scorecard-action` | Scores the repository's own supply-chain settings | Apache-2.0 |
 | `actions/upload-artifact` | Keeps the raw supply-chain result that code scanning would trim, and the dry run's release build | MIT |
-| `actions/attest-build-provenance` | Records signed build provenance for every release asset before the release is published | MIT |
+| `actions/attest-build-provenance` | Records signed build provenance for every release asset and for the image before the release is published | MIT |
 
 Licences were read from each action's repository metadata, not from a scanner.

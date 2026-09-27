@@ -67,6 +67,46 @@ archives:
           mode: 0644
           mtime: "{{ .CommitDate }}"
 
+# The gateway's image, built by ko from the build above without a Dockerfile.
+# A release pushes it under a staging tag and the workflow signs, attests and
+# verifies it by digest before it adds the version tag; a snapshot only loads
+# it into the local Docker daemon.
+kos:
+  - id: guardana-gateway
+    build: guardana-gateway
+    # The base is named by the digest of its multi-platform index, read from
+    # gcr.io/v2/distroless/static-debian12/manifests/nonroot. A tag the
+    # upstream moves would change what ships without a change here.
+    base_image: gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+    repositories: [ghcr.io/guardana/control-gateway]
+    bare: true
+    platforms: [linux/amd64, linux/arm64]
+    # A staging tag nobody pulls as a version: release.yml adds the version
+    # tag only after verification. No latest, since a tag that moves would
+    # name a different image tomorrow, which the release policy refuses.
+    tags: ["sha-{{ .FullCommit }}"]
+    # The base's nonroot user, named here so a change of base cannot make the
+    # gateway run as root.
+    user: "65532:65532"
+    creation_time: "{{ .CommitTimestamp }}"
+    ko_data_creation_time: "{{ .CommitTimestamp }}"
+    # ko would attach its SBOM under one more tag. The signature and the
+    # provenance attestation already sit beside the image, as referrers or as
+    # sha256-<digest> tags, depending on what the registry supports.
+    sbom: none
+    labels:
+      org.opencontainers.image.source: https://github.com/guardana/control
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: Apache-2.0
+    # The registry reads a multi-platform image's description from the index,
+    # not from the configuration of each image under it.
+    annotations:
+      org.opencontainers.image.source: https://github.com/guardana/control
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: Apache-2.0
+
 checksum:
   name_template: checksums.txt
   algorithm: sha256

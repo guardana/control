@@ -68,8 +68,28 @@ jobs:
 
       - name: Build the snapshot
         # --parallelism=1 keeps the order of the binaries in each archive, and
-        # so the archive's digest, the same from run to run.
+        # so the archive's digest, the same from run to run. A snapshot loads
+        # the gateway's image into the runner's Docker daemon, built for the
+        # daemon's platform only, and pushes nothing.
         run: goreleaser release --snapshot --clean --skip=sign --parallelism=1
+
+      - name: Run the snapshot image
+        # With no arguments the gateway prints its version and exits, so this
+        # runs the binary the image holds, as the user the image names.
+        run: |
+          version="$(jq -r .version dist/metadata.json)"
+          image="goreleaser.ko.local:sha-$(jq -r .commit dist/metadata.json)"
+          out="$(docker run --rm "${image}")"
+          printf '%s\n' "${out}"
+          if [[ "${out}" != "guardana-gateway ${version} "* ]]; then
+            echo "the image did not print version ${version}" >&2
+            exit 1
+          fi
+          user="$(docker image inspect "${image}" --format '{{.Config.User}}')"
+          if [[ "${user}" != "65532:65532" ]]; then
+            echo "the image runs as ${user:-root}, not as the base's nonroot user" >&2
+            exit 1
+          fi
 
       - name: Keep the snapshot
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -90,8 +110,12 @@ jobs:
     environment: release
     permissions:
       contents: write # Build and draft: goreleaser creates the draft and uploads its assets; Publish: gh releases it
-      id-token: write # Build and draft: cosign signs keyless; Attest: signs the provenance
+      id-token: write # Build and draft, Sign the image: cosign signs keyless; Attest: signs the provenance
       attestations: write # Attest: stores the provenance attestations
+      packages: write # Build and draft: ko pushes the image; Sign the image and Attest the image: push the signature and the provenance beside it
+    env:
+      # The repository .goreleaser.yaml's kos section pushes to.
+      IMAGE: ghcr.io/guardana/control-gateway
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -106,6 +130,16 @@ jobs:
         run: |
           if ! git merge-base --is-ancestor "${GITHUB_SHA}" refs/remotes/origin/main; then
             echo "the tagged commit ${GITHUB_SHA} is not on main" >&2
+            exit 1
+          fi
+
+      - name: Check that the tag names an image tag
+        # The version becomes the image's tag, whose grammar is narrower than
+        # a git tag's: semver build metadata such as +build would pass the
+        # build and the signing and fail only when the tag is written.
+        run: |
+          if [[ ! "${GITHUB_REF_NAME#v}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "the tag ${GITHUB_REF_NAME} gives ${GITHUB_REF_NAME#v}, which is not a valid image tag" >&2
             exit 1
           fi
 
@@ -140,14 +174,38 @@ jobs:
           install -m 0755 "${dl}/cosign" "${bin}/cosign"
           echo "${bin}" >>"$GITHUB_PATH"
 
-      - name: Extract the release notes
-        # Fails when CHANGELOG.md has no dated, non-empty section for the tag,
-        # before anything is built or drafted.
-        run: scripts/release-notes.sh "${GITHUB_REF_NAME}" >"${RUNNER_TEMP}/notes.md"
-
-      - name: Build and draft
+      - name: Log in to the container registry
+        # With the job's own token, scoped by packages: write above. ko, cosign,
+        # the attest action and gh read the credential docker stores.
         env:
           GITHUB_TOKEN: ${{ github.token }}
+        run: printf '%s' "${GITHUB_TOKEN}" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Extract the release notes
+        # Fails when CHANGELOG.md has no dated, non-empty section for the tag,
+        # before anything is built or drafted. Publish appends the image line
+        # to these notes, so notes that already name the image, or hold a
+        # comment that could hide text, are refused here.
+        run: |
+          notes="${RUNNER_TEMP}/notes.md"
+          scripts/release-notes.sh "${GITHUB_REF_NAME}" >"${notes}"
+          if grep -qF "${IMAGE}@" "${notes}"; then
+            echo "the notes for ${GITHUB_REF_NAME} already name ${IMAGE}@; only Publish writes that line" >&2
+            exit 1
+          fi
+          if grep -qF '<!--' "${notes}"; then
+            echo "the notes for ${GITHUB_REF_NAME} hold an HTML comment (<!--), which could hide text" >&2
+            exit 1
+          fi
+
+      - name: Build and draft
+        # ko pushes the gateway's image before the draft exists, under a
+        # staging tag named after the commit; the version tag is added only
+        # once the image is verified. The current tag is named because a
+        # commit can carry a pre-release and a final tag at once.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
         run: goreleaser release --clean --parallelism=1 --release-notes "${RUNNER_TEMP}/notes.md"
 
       - name: Attest the assets
@@ -164,22 +222,54 @@ jobs:
         with:
           subject-path: dist/checksums.txt
 
+      - name: Read the image's digest
+        id: image
+        # goreleaser records the digest of the index ko pushed, under the
+        # repository's name with neither tag nor digest. The image is signed,
+        # attested, verified and tagged by that digest.
+        run: |
+          digests="$(jq -r --arg name "${IMAGE}" \
+            '.[] | select(.type == "Docker Manifest" and .name == $name) | .extra.Digest' dist/artifacts.json)"
+          if [[ ! "${digests}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "want one digest for ${IMAGE} in dist/artifacts.json, found: ${digests:-none}" >&2
+            exit 1
+          fi
+          echo "digest=${digests}" >>"$GITHUB_OUTPUT"
+
+      - name: Sign the image
+        # Keyless, as the checksum file is: the certificate names this workflow
+        # and the tag. The signature is pushed beside the image.
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      - name: Attest the image
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+
       - name: Verify before publishing
         # The same checks RELEASING.md gives a user. A failure here leaves the
         # draft unpublished, and nobody downloads a draft.
         env:
           GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ steps.image.outputs.digest }}
         run: |
+          # The exact identity: gh's --signer-workflow is a prefix pattern.
+          identity="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"
           (cd dist && sha256sum --strict -c checksums.txt)
           cosign verify-blob dist/checksums.txt \
             --bundle dist/checksums.txt.sigstore.json \
-            --certificate-identity "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+            --certificate-identity "${identity}" \
+            --certificate-github-workflow-sha "${GITHUB_SHA}" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
           archives=0
           for f in dist/*.tar.gz dist/*.cdx.json dist/checksums.txt; do
             [[ -f "${f}" ]] || { echo "no file matches ${f}" >&2; exit 1; }
             gh attestation verify "${f}" --repo "${GITHUB_REPOSITORY}" \
-              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
+              --cert-identity "${identity}" \
               --source-ref "${GITHUB_REF}" --deny-self-hosted-runners
             [[ "${f}" != *.tar.gz ]] || archives=$((archives + 1))
           done
@@ -189,14 +279,69 @@ jobs:
             echo "expected 4 archives, verified ${archives}" >&2
             exit 1
           fi
+          cosign verify "${IMAGE}@${DIGEST}" \
+            --certificate-identity "${identity}" \
+            --certificate-github-workflow-sha "${GITHUB_SHA}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+          gh attestation verify "oci://${IMAGE}@${DIGEST}" --repo "${GITHUB_REPOSITORY}" \
+            --cert-identity "${identity}" \
+            --source-ref "${GITHUB_REF}" --deny-self-hosted-runners
+
+      - name: Tag the verified image
+        # The registry is handed the index's own bytes, checked against the
+        # verified digest, so the version tag cannot name anything else. A
+        # client that rebuilds the index could change its digest.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          repo="${IMAGE#ghcr.io/}"
+          version="${GITHUB_REF_NAME#v}"
+          token="$(curl -fsS -u "${GITHUB_ACTOR}:${GITHUB_TOKEN}" \
+            "https://ghcr.io/token?service=ghcr.io&scope=repository:${repo}:pull,push" | jq -r '.token // empty')"
+          if [[ -z "${token}" ]]; then
+            echo "the registry gave no token for ${repo}" >&2
+            exit 1
+          fi
+          echo "::add-mask::${token}"
+          dir="$(mktemp -d)"
+          curl -fsS -H "Authorization: Bearer ${token}" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+            -D "${dir}/headers" -o "${dir}/index" "https://ghcr.io/v2/${repo}/manifests/${DIGEST}"
+          type="$(tr -d '\r' <"${dir}/headers" | awk 'tolower($1) == "content-type:" { t = $2 } END { print t }')"
+          case "${type}" in
+            application/vnd.oci.image.index.v1+json | application/vnd.docker.distribution.manifest.list.v2+json) ;;
+            *)
+              echo "${IMAGE}@${DIGEST} is ${type:-of no type}, not an index" >&2
+              exit 1
+              ;;
+          esac
+          got="sha256:$(sha256sum "${dir}/index" | cut -d' ' -f1)"
+          if [[ "${got}" != "${DIGEST}" ]]; then
+            echo "the registry answered ${got} for ${DIGEST}" >&2
+            exit 1
+          fi
+          curl -fsS -X PUT -H "Authorization: Bearer ${token}" -H "Content-Type: ${type}" \
+            --data-binary "@${dir}/index" "https://ghcr.io/v2/${repo}/manifests/${version}" >/dev/null
+          # A user pulls by tag, so the tag has to name what was verified.
+          tagged="$(docker buildx imagetools inspect "${IMAGE}:${version}" --format '{{.Manifest.Digest}}')"
+          if [[ "${tagged}" != "${DIGEST}" ]]; then
+            echo "${IMAGE}:${version} names ${tagged:-nothing}, not the verified ${DIGEST}" >&2
+            exit 1
+          fi
 
       - name: Publish
         # What was verified above is dist/. A draft can be edited by anyone
         # with write access, so the draft is published only when it is the one
         # draft for this tag and holds exactly those files, digest for digest;
         # it is then published by its id, never looked up by the tag again.
+        # The notes gain a last line naming the image's digest: that is where
+        # users find it. A repository writer can still edit a published
+        # release's notes, so the digest is trusted only once cosign verifies
+        # it, as RELEASING.md says.
         env:
           GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ steps.image.outputs.digest }}
         run: |
           releases="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --paginate)"
           ids="$(jq -r -s --arg tag "${GITHUB_REF_NAME}" \
@@ -217,7 +362,10 @@ jobs:
             diff <(printf '%s\n' "${expected}") <(printf '%s\n' "${published}") >&2 || true
             exit 1
           fi
-          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${id}" -F draft=false >/dev/null
+          line="Image: \`${IMAGE}@${DIGEST}\`"
+          printf '\n%s\n' "${line}" >>"${RUNNER_TEMP}/notes.md"
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${id}" \
+            -F draft=false -F "body=@${RUNNER_TEMP}/notes.md" >/dev/null
           # A write could land between the comparison and the publication. The
           # published release is immutable, so reading it once more settles it.
           after="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${id}/assets?per_page=100" --paginate \
@@ -225,6 +373,14 @@ jobs:
           if [[ "${expected}" != "${after}" ]]; then
             echo "RELEASE ${GITHUB_REF_NAME} WAS PUBLISHED WITH FILES OTHER THAN THE VERIFIED ONES; withdraw it and release the next version" >&2
             diff <(printf '%s\n' "${expected}") <(printf '%s\n' "${after}") >&2 || true
+            exit 1
+          fi
+          last="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${id}" --jq .body |
+            tr -d '\r' | awk 'NF { line = $0 } END { print line }')"
+          if [[ "${last}" != "${line}" ]]; then
+            echo "RELEASE ${GITHUB_REF_NAME} WAS PUBLISHED WITHOUT ITS IMAGE LINE LAST IN THE NOTES; fix the notes by hand" >&2
+            echo "want: ${line}" >&2
+            echo "got:  ${last}" >&2
             exit 1
           fi
           echo "published release ${id} for ${GITHUB_REF_NAME}"

@@ -13,6 +13,12 @@ verify one.
 
 ### Added
 
+- Each release is to publish `ghcr.io/guardana/control-gateway:<version>`
+  for linux/amd64 and linux/arm64, signed keyless and with build
+  provenance, its digest named in the release notes;
+  [RELEASING.md](RELEASING.md) says how to check it and
+  [docs/guides/run-in-a-container.md](docs/guides/run-in-a-container.md)
+  how to run it.
 - A page of the failures the plane is built to survive: the collector, the
   spool, the decision point, an upstream dying mid-call, the pause file
   and a restart with calls held, each with a test that runs the built
