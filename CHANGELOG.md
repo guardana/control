@@ -28,6 +28,11 @@ verify one.
 
 ### Fixed
 
+- A call whose answer the gateway could not read, or could not complete
+  over HTTP (a malformed answer, a connection the upstream closed after
+  reading the call, a 429 or 5xx status), is recorded with an `UNKNOWN`
+  result rather than as the upstream's failure: whether it took effect
+  is unknown.
 - A decision point's answer that reaches the gateway after the call's
   deadline is a timeout (`PDP_TIMEOUT`), whatever its status and headers.
   Such an answer could be read as refused or as unavailable instead.

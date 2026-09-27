@@ -254,6 +254,22 @@ func upstreamError(err error) error {
 	return out
 }
 
+// codeRejectedByTransport is the code the SDK's HTTP client wraps around a
+// call it could not complete: a send that failed, or a 429 or 5xx status.
+const codeRejectedByTransport = -32005
+
+// raisedByTheClient reports whether code is one the SDK's client puts on an
+// error it raises itself: an answer it could not parse, or a call over HTTP
+// it could not complete. An upstream may send these codes too; either way,
+// whether the call took effect is unknown.
+func raisedByTheClient(code int64) bool {
+	switch code {
+	case jsonrpc.CodeParseError, jsonrpc.CodeInvalidRequest, codeRejectedByTransport:
+		return true
+	}
+	return false
+}
+
 // resultOf records what an upstream answered, or failed to, for Close: the
 // status, the protocol's own status and a hash of the result's encoding.
 // The identifiers are the pipeline's, which named the request and minted the
@@ -285,7 +301,7 @@ func resultOf(d gateway.Disposition, started, ended time.Time, res any, err erro
 		out.Status = controlv1.ResultStatus_RESULT_STATUS_UNKNOWN
 		out.ToolProtocolStatus = "error"
 		var werr *jsonrpc.Error
-		if errors.As(err, &werr) {
+		if errors.As(err, &werr) && !raisedByTheClient(werr.Code) {
 			out.Status = controlv1.ResultStatus_RESULT_STATUS_FAILURE
 			out.ToolProtocolStatus = "jsonrpc:" + strconv.FormatInt(werr.Code, 10)
 		}
