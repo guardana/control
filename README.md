@@ -62,15 +62,17 @@ over AuthZEN but cannot grant (`experimental`).
 
 ```mermaid
 flowchart LR
-    AG[Agent] -->|proposed action| PEP[Enforcement point]
-    PEP <--> POL[Built-in policy engine]
-    PEP -.->|can veto| PDP[External PDP]
-    PEP -->|require approval| APR[Approval provider]
-    APR --> PEP
-    PEP -->|allow| TOOL[Tool or API]
-    TOOL -->|result| PEP
+    accTitle: How a tool call is decided today
+    accDescr: The enforcement point decides an agent's proposed call from the built-in policy engine, an external decision point that can only veto, and an approval provider when a person has to approve. An allowed call goes to the tool or API. Every decision is appended to the evidence, which is exported over OpenTelemetry.
+    AG[Agent] --> PEP[Enforcement point]
+    POL[Built-in policy engine] --> PEP
+    PDP[External PDP] -.->|can veto| PEP
+    APR[Approval provider] --> PEP
+    PEP -->|allowed call| TOOL[Tool or API]
     PEP --> EV[(Append-only evidence)]
     EV --> OTEL[OpenTelemetry export]
+    classDef accent fill:#E6F4F2,stroke:#0B8F80,color:#0F1115
+    class PEP accent
 ```
 
 The enforcement point is the only component this project adds to the request
@@ -86,36 +88,38 @@ packaged demo, run identity and readable evidence come first.
 
 ```mermaid
 flowchart TB
+    accTitle: Where Guardana Control is going
+    accDescr: Agents reach Control through a proxy, framework ports, and feeds of traces, logs and process events. The enforcement point decides each call, can pause or stop an agent, passes allowed calls to tools and APIs, and records evidence. A supervisor compares that evidence and the feeds with procedures and permissions, and reports through alerts, OpenTelemetry, metrics, a SIEM, and a run graph with a console.
     AG[Agents]
     subgraph IN[Inputs]
         PX["Proxy: MCP today, HTTP tool APIs next"]
         PT[Framework ports]
         FD["Feeds: traces, logs, process events"]
     end
-    subgraph CTL[Guardana Control]
-        PEP["Enforcement point: policy, approvals, pause"]
-        SV["Supervisor: procedures, deviations, access attempts, unfinished work"]
-        EV[(Evidence)]
-    end
+    PEP["Enforcement point: policy, approvals, pause, stop"]
+    TL[Tools and APIs]
+    EV[(Evidence)]
+    SV["Supervisor: procedures, deviations, access attempts, unfinished work"]
     subgraph OUT[Outputs]
         AL["Alerts: webhooks, chat"]
         EX["OpenTelemetry, metrics, SIEM"]
         GR[Run graph and console]
     end
-    TL[Tools and APIs]
     AG --> PX
     AG --> PT
     AG -.-> FD
     PX --> PEP
     PT --> PEP
     PEP -->|allowed calls| TL
-    FD --> SV
     PEP --> EV
+    FD --> SV
     EV --> SV
-    SV --> AL
     EV --> EX
+    SV --> AL
+    SV --> EX
     SV --> GR
-    GR -->|stop an agent| PEP
+    classDef accent fill:#E6F4F2,stroke:#0B8F80,color:#0F1115
+    class PEP,EV,SV accent
 ```
 
 Rules and scenarios are documents a team writes and tests; procedures will be
@@ -148,6 +152,8 @@ path. Guardana Control decides each call inside it.
 
 ```mermaid
 flowchart LR
+    accTitle: Where Guardana and Guardana Control sit in a system's life
+    accDescr: Guardana checks a build before its release. While the released agents run, Guardana Control decides their calls. After the release, Guardana compares what changed.
     B[Build] --> G1["Guardana<br/>checks before release"]
     G1 --> R[Release]
     R --> C["Guardana Control<br/>decides while agents run"]

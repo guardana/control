@@ -130,6 +130,10 @@ func countNodes(lines []string) (int, error) {
 		return 0, errors.New("the diagram is empty")
 	}
 	header, rest := body[0], body[1:]
+	rest, err := withoutTextAlternative(rest)
+	if err != nil {
+		return 0, err
+	}
 	switch {
 	case flowchartHeader.MatchString(header):
 		return flowchartNodes(rest)
@@ -139,6 +143,23 @@ func countNodes(lines []string) (int, error) {
 		return stateNodes(rest)
 	}
 	return 0, fmt.Errorf("%q is not flowchart, sequenceDiagram or stateDiagram-v2", header)
+}
+
+// withoutTextAlternative drops the accTitle: and accDescr: lines, which name
+// no node in any kind, and refuses one left empty.
+func withoutTextAlternative(lines []string) ([]string, error) {
+	var out []string
+	for _, line := range lines {
+		key, text, found := strings.Cut(line, ":")
+		if !found || (key != "accTitle" && key != "accDescr") {
+			out = append(out, line)
+			continue
+		}
+		if strings.TrimSpace(text) == "" {
+			return nil, fmt.Errorf("%s: is empty", key)
+		}
+	}
+	return out, nil
 }
 
 // trimmedLines drops blank lines and comments and trims the rest.

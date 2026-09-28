@@ -58,6 +58,12 @@ func TestPageProblemsDiagrams(t *testing.T) {
 		"a state line the counter cannot read": {goodPagePath, replaceOnce(t, goodPage+goodDiagram, "flowchart TD\n    A --> B",
 			"stateDiagram-v2\n    A --> B\n    state \"only text\""), "cannot read"},
 		"a second diagram is judged too": {goodPagePath, goodPage + goodDiagram + replaceOnce(t, goodDiagram, "flowchart TD", "graph TD"), `"graph TD" is not`},
+		"a text alternative is no node": {goodPagePath, replaceOnce(t, goodPage+goodDiagram, "flowchart TD\n",
+			"flowchart TD\n    accTitle: One step\n    accDescr: A leads to B.\n"), ""},
+		"a sequence diagram's text alternative": {goodPagePath, replaceOnce(t, goodPage+goodDiagram, "flowchart TD\n    A --> B",
+			"sequenceDiagram\n    accTitle: One message\n    accDescr: A asks B.\n    A->>B: one"), ""},
+		"an empty text alternative": {goodPagePath, replaceOnce(t, goodPage+goodDiagram, "flowchart TD\n",
+			"flowchart TD\n    accDescr:\n"), "accDescr: is empty"},
 	}
 	for _, name := range []string{"flowchart-16.md", "sequence-16.md", "state-16.md"} {
 		text := fixturePage(t, name)
