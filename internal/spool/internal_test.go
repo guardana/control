@@ -105,7 +105,11 @@ func TestFsyncIntervalSyncsOnTheTimerOnly(t *testing.T) {
 	t.Run("the tick", func(t *testing.T) {
 		var syncs atomic.Int64
 		s := open(t, 40*time.Millisecond, &syncs)
-		defer s.Close() //nolint:errcheck // the assertion is below
+		t.Cleanup(func() {
+			if err := s.Close(); err != nil {
+				t.Errorf("Close: %v", err)
+			}
+		})
 		if err := s.Append(context.Background(), sample(0)); err != nil {
 			t.Fatal(err)
 		}

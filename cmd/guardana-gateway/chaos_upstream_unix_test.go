@@ -63,8 +63,9 @@ func TestAStdioUpstreamThatDiesMidCallIsNeverASuccess(t *testing.T) {
 	events := collector.events(t)
 	validChains(t, events)
 	died := endedUnfinished(t, trailOfTool(t, events, toolWriteNote.Name, "n-2"), "the write in flight")
-	if died.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_UNKNOWN {
-		t.Errorf("the write in flight is closed as %v, want UNKNOWN: nobody knows whether it took effect", died.GetStatus())
+	if died.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_UNKNOWN || died.GetToolProtocolStatus() != "error" {
+		t.Errorf("the write in flight is closed as %v %q, want UNKNOWN \"error\": nobody knows whether it took effect",
+			died.GetStatus(), died.GetToolProtocolStatus())
 	}
 	after := endedUnfinished(t, trailOfTool(t, events, toolReadNote.Name, "n-3"), "the read after the death")
 	if after.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_UNKNOWN {
@@ -131,8 +132,8 @@ func TestAnHTTPUpstreamThatDropsTheCallIsNeverASuccess(t *testing.T) {
 			if last := next[len(next)-1].GetKind(); last != kCompleted {
 				t.Errorf("the next write's trail ends %v, want ACTION_COMPLETED", last)
 			}
-			if dropped.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_UNKNOWN {
-				t.Errorf("the dropped write is closed as %v %q, want UNKNOWN: nobody knows whether it took effect",
+			if dropped.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_UNKNOWN || dropped.GetToolProtocolStatus() != "error" {
+				t.Errorf("the dropped write is closed as %v %q, want UNKNOWN \"error\": nobody knows whether it took effect",
 					dropped.GetStatus(), dropped.GetToolProtocolStatus())
 			}
 		})

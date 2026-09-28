@@ -179,8 +179,8 @@ func TestACollectorThatIsGoneBlocksNoCallAndGetsEveryRecordBack(t *testing.T) {
 	if unack, _ := member(body, "spool", "unacknowledged").(float64); unack <= 0 {
 		t.Fatalf("the spool holds nothing unacknowledged with no collector: %v", member(body, "spool"))
 	}
-	if acked, _ := member(body, "exporter", "acknowledged").(float64); acked != 0 {
-		t.Fatalf("the exporter acknowledged %v record(s) with no collector", acked)
+	if acked, ok := member(body, "exporter", "acknowledged").(float64); !ok || acked != 0 {
+		t.Fatalf("the exporter reports %v acknowledged with no collector, want 0", member(body, "exporter", "acknowledged"))
 	}
 
 	collector := collectorBackAt(t, addr)

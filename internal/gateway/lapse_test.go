@@ -331,6 +331,7 @@ func expectAbortedLapse(t *testing.T, r *lapseRig, d gateway.Disposition, at tim
 func expectAbortRecord(t *testing.T, trail []*controlv1.Event, at time.Time) {
 	t.Helper()
 	if len(trail) != 6 {
+		t.Errorf("the trail holds %d events, want 6 ending in the abort record", len(trail))
 		return
 	}
 	aborted := trail[5].GetResult()
