@@ -1,0 +1,22 @@
+flowchart LR
+  accTitle: Compensated sum
+  accDescr: A group whose mean position ties an ungrouped node only when the sum is compensated.
+  P0
+  P1
+  P2
+  P3
+  P4
+  U
+  subgraph G [g]
+    M0
+    M1
+    M2
+  end
+  P2 --> M0
+  P1 --> M1
+  P3 --> M1
+  P4 --> M1
+  P0 --> M2
+  P1 --> M2
+  P3 --> M2
+  P2 --> U

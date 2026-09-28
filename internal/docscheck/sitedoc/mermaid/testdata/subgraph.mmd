@@ -1,0 +1,10 @@
+flowchart LR
+  accTitle: A subgraph
+  accDescr: Two sources in one group feed a target outside it.
+  subgraph IN [Inputs from outside the plane]
+    A[Proxy]
+    B[Ports]
+  end
+  A --> C[Decision]
+  B --> C
+  C --> D[(Evidence)]

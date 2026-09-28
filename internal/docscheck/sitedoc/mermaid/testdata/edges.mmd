@@ -1,0 +1,9 @@
+flowchart LR
+  accTitle: Every edge
+  accDescr: Solid, dotted and main edges, each with and without a label.
+  A[Start] --> B[Solid]
+  A -.-> C[Dotted]
+  A ==> D[Main]
+  B -->|plain| E[End]
+  C -.->|maybe| E
+  D ==>|always| E

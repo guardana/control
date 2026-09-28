@@ -1,0 +1,7 @@
+flowchart LR
+    accTitle: Where Guardana and Control sit in a system's life
+    accDescr: Guardana checks a build before its release. While the released agents run, Control decides their calls. After the release, Guardana compares what changed.
+    B[Build] --> G1["Guardana<br/>checks before release"]
+    G1 --> R[Release]
+    R --> C["Control<br/>decides while agents run"]
+    C --> G2["Guardana<br/>compares after release"]

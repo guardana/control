@@ -1,0 +1,15 @@
+flowchart TD
+  accTitle: Insertion order
+  accDescr: Nodes and groups are drawn in the order they were declared.
+  subgraph ZG [Zulu group]
+    Z[Zulu]
+    Y[Yankee]
+  end
+  subgraph AG [Alpha group]
+    M[Mike]
+    B[Bravo]
+  end
+  Q[Quebec] --> Z
+  Q --> M
+  C[Charlie] --> Y
+  C --> B

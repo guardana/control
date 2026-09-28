@@ -1,0 +1,12 @@
+flowchart TD
+  accTitle: Classes
+  accDescr: Each drawn class set inline and by a class line; classDef is ignored.
+  %% a comment line is skipped
+  classDef accent fill:#E6F4F2,stroke:#0B8F80
+  classDef loud fill:#f00
+  A[Inline accent]:::accent --> B[inline cmd]:::cmd --> C[Inline muted]:::muted
+  D[Accent by line] --> E[cmd by line] --> F[Muted by line]
+  G[Two classes]:::muted --> F
+  class D,G accent
+  class E cmd
+  class F muted;

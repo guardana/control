@@ -1,0 +1,12 @@
+flowchart LR
+    accTitle: How a tool call is decided today
+    accDescr: The enforcement point decides an agent's proposed call from the built-in policy engine, an external decision point that can only veto, and an approval provider when a person has to approve. An allowed call goes to the tool or API. Every decision is appended to the evidence, which is exported over OpenTelemetry.
+    AG[Agent] --> PEP[Enforcement point]
+    POL[Built-in policy engine] --> PEP
+    PDP[External PDP] -.->|can veto| PEP
+    APR[Approval provider] --> PEP
+    PEP -->|allowed call| TOOL[Tool or API]
+    PEP --> EV[(Append-only evidence)]
+    EV --> OTEL[OpenTelemetry export]
+    classDef accent fill:#E6F4F2,stroke:#0B8F80,color:#0F1115
+    class PEP accent

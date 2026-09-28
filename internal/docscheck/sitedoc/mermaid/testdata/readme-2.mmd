@@ -1,0 +1,33 @@
+flowchart TB
+    accTitle: Where Control is going
+    accDescr: Agents reach Control through a proxy, framework ports, and feeds of traces, logs and process events. The enforcement point decides each call, can pause or stop an agent, passes allowed calls to tools and APIs, and records evidence. A supervisor compares that evidence and the feeds with procedures and permissions, and reports through alerts, OpenTelemetry, metrics, a SIEM, and a run graph with a console.
+    AG[Agents]
+    subgraph IN[Inputs]
+        PX["Proxy: MCP today, HTTP tool APIs next"]
+        PT[Framework ports]
+        FD["Feeds: traces, logs, process events"]
+    end
+    PEP["Enforcement point: policy, approvals, pause, stop"]
+    TL[Tools and APIs]
+    EV[(Evidence)]
+    SV["Supervisor: procedures, deviations, access attempts, unfinished work"]
+    subgraph OUT[Outputs]
+        AL["Alerts: webhooks, chat"]
+        EX["OpenTelemetry, metrics, SIEM"]
+        GR[Run graph and console]
+    end
+    AG --> PX
+    AG --> PT
+    AG -.-> FD
+    PX --> PEP
+    PT --> PEP
+    PEP -->|allowed calls| TL
+    PEP --> EV
+    FD --> SV
+    EV --> SV
+    EV --> EX
+    SV --> AL
+    SV --> EX
+    SV --> GR
+    classDef accent fill:#E6F4F2,stroke:#0B8F80,color:#0F1115
+    class PEP,EV,SV accent

@@ -1,0 +1,9 @@
+flowchart LR
+  accTitle: Code points
+  accDescr: Widths count code points, not bytes.
+  subgraph G [Grüße · ünïcödé]
+    A[café · naïve 🚀]
+  end
+  A -->|→ ok ✓| B[héllo wörld]:::cmd
+  B --> C[ÉΣⒶ ǅ Ⅻ]
+  C --> D[#é; is no entity]
