@@ -24,8 +24,7 @@ with its reason and one exact-action approval within ten minutes. That is a
 target to measure, not a result already measured.
 
 A guide connects an existing MCP client and server, states what it covers and
-the identity it assumes, and ends in a local report. A tool whose definition or
-arguments hold fractional numbers can be classified and decided. Starter policy
+the identity it assumes, and ends in a local report. Starter policy
 packs come with scenarios, and `policy explain` names the rules that matched
 and the inputs that were missing. No setup step widens authority silently.
 

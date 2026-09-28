@@ -30,7 +30,10 @@ tree is a compatibility promise made to nobody, and
 [ADR-0009](../adr/0009-open-core-boundary.md) says a pluggable seam stays
 internal until its own decision promotes it. The second adapter is what shows
 what the two have in common; until then the shape may change with a minor
-release. That is what `stability: development` means here.
+release. That is what `stability: development` means here. An adapter is
+therefore written inside this repository: Go refuses to let another module
+import `internal/`, and an integration built elsewhere waits for the planned
+enforcement API ([backlog](../backlog.md), B10).
 
 There is no declared API version. An adapter is compiled into the binary, so the
 compiler is the check that fails loudly, and
