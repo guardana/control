@@ -3,10 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -92,13 +96,51 @@ func upstreams(cfg *gatewayconfig.Config) ([]adaptermcp.Upstream, error) {
 			// configuration: an upstream server is a program they chose to run,
 			// and nothing an agent sends reaches this line.
 			//nolint:gosec // G204: the command comes from the operator's configuration file, never from a request
-			transport = &mcp.CommandTransport{Command: exec.Command(filepath.Clean(path), up.Args...)}
+			cmd := exec.Command(filepath.Clean(path), up.Args...)
+			cmd.Env = upstreamEnv(up.Env, os.LookupEnv)
+			transport = &mcp.CommandTransport{Command: cmd}
 		}
 		out = append(out, adaptermcp.Upstream{
 			Name: up.Name, Transport: transport, TenantID: up.TenantID, Environment: up.Environment,
 		})
 	}
 	return out, nil
+}
+
+// upstreamEnv is a command upstream's whole environment: each variable in
+// gatewayconfig.BaseEnv or in listed that the plane has, with the plane's
+// value. It is never nil, since a nil environment is exec's signal to pass
+// the plane's whole one.
+func upstreamEnv(listed []string, lookup func(string) (string, bool)) []string {
+	env := []string{}
+	var seen []string
+	for _, name := range append(gatewayconfig.BaseEnv(), listed...) {
+		if slices.Contains(seen, name) {
+			continue
+		}
+		seen = append(seen, name)
+		if value, ok := lookup(name); ok {
+			env = append(env, name+"="+value)
+		}
+	}
+	return env
+}
+
+// printUpstream prints one upstream for doctor: where it is reached, then
+// each variable its command receives by name, never its value, marking one
+// this environment lacks, since the command would start without it.
+func printUpstream(w io.Writer, i int, up gatewayconfig.UpstreamConfig) {
+	where := gatewayconfig.ShowAddress(up.Endpoint)
+	if up.Endpoint == "" {
+		where = "command " + up.Command + " " + strings.Join(up.Args, " ")
+	}
+	writeLine(w, fmt.Sprintf("       %-28s %s -> %s", fmt.Sprintf("upstreams.%d", i), oneLine(up.Name), oneLine(where)))
+	for j, name := range up.Env {
+		if _, set := os.LookupEnv(name); !set {
+			name += " (not set here)"
+		}
+		writeLine(w, fmt.Sprintf("       %-28s %s", fmt.Sprintf("upstreams.%d.env.%d", i, j), oneLine(name)))
+	}
 }
 
 // overrides turns the operator's classifications into the manifest's.

@@ -23,7 +23,6 @@ var (
 	effectNames       = contractEffectNames()
 	trustZoneNames    = []string{"", "TRUSTED_INTERNAL", "PARTNER", "UNTRUSTED_EXTERNAL", "USER_CONTROLLED", "MODEL_GENERATED"}
 	sensitivityNames  = []string{"", "PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED", "SECRET"}
-	scalarSequenceKey = "args"
 )
 
 // contractEffectNames is every effect class the contract declares but the
@@ -157,6 +156,26 @@ var listFields = []listField{
 		func(c *Config) *[]string { return &c.PDP.InformationalContext }},
 }
 
+// upstreamListField is a key of one upstream entry whose value is a
+// sequence of scalars.
+type upstreamListField struct {
+	path  string
+	holds string
+	// scalar is what a refusal of the key written as one value says.
+	scalar string
+	get    func(*UpstreamConfig) *[]string
+}
+
+// upstreamListFields is every list key of one upstream entry.
+var upstreamListFields = []upstreamListField{
+	{"args", "one argument of an upstream's command", "takes a list of arguments, one item each",
+		func(u *UpstreamConfig) *[]string { return &u.Args }},
+	{"env", "the name of one variable of the plane's environment an upstream's command receives, beside " +
+		strings.Join(baseEnv, ", ") + "; no other variable reaches it, and its value is never printed",
+		"takes a list of variable names, one item each; an upstream's deployment label is the key environment",
+		func(u *UpstreamConfig) *[]string { return &u.Env }},
+}
+
 // mapField is a key whose leaf names are the operator's: each is a header,
 // and its value a credential a program never prints.
 type mapField struct {
@@ -214,16 +233,17 @@ type Collection struct {
 	Holds string
 }
 
-// Collections lists every list and map key: the top-level lists, the
-// arguments of an upstream's command, then the maps. It is read from the
+// Collections lists every list and map key: the top-level lists, the lists
+// of an upstream entry, then the maps. It is read from the
 // tables the loader binds, as Fields is.
 func Collections() []Collection {
 	var out []Collection
 	for _, l := range listFields {
 		out = appendCollection(out, l.path+"."+IndexPlaceholder, l.holds)
 	}
-	out = appendCollection(out, "upstreams."+IndexPlaceholder+"."+scalarSequenceKey+"."+IndexPlaceholder,
-		"one argument of an upstream's command")
+	for _, l := range upstreamListFields {
+		out = appendCollection(out, "upstreams."+IndexPlaceholder+"."+l.path+"."+IndexPlaceholder, l.holds)
+	}
 	for _, m := range mapFields {
 		out = appendCollection(out, m.prefix+NamePlaceholder, m.holds)
 	}

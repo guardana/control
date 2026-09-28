@@ -39,6 +39,15 @@ verify one.
 
 ### Changed
 
+- A stdio upstream no longer inherits the plane's environment. It gets
+  `PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR` and `USER`, each where the
+  plane has it, and the variables its new `upstreams.N.env` list names;
+  a name under `GUARDANA_CONTROL_` is refused, so the exporter's and the
+  decision point's header credentials are no longer handed to it. An
+  upstream that read any other inherited variable starts without it:
+  list each one it needs, and `doctor` marks a listed name the plane's
+  environment lacks
+  ([ADR-0028](docs/adr/0028-a-stdio-upstream-gets-only-the-environment-it-is-given.md)).
 - `export.allow_plaintext` admits a plaintext collector on a loopback IP
   literal only, as `pdp.allow_plaintext` already did and as
   [ADR-0020](docs/adr/0020-a-trail-and-counters-without-a-collector.md)

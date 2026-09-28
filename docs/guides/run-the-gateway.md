@@ -73,6 +73,13 @@ export:
 upstreams:
   - name: orders
     endpoint: http://127.0.0.1:9000/mcp   # a redirect it answers is not followed; the call fails
+  # A server the plane starts gets PATH, HOME, LANG, LC_ALL, TMPDIR and USER
+  # of the plane's environment and the variables its env list names, nothing
+  # else; a name under GUARDANA_CONTROL_ is refused.
+  # - name: files
+  #   command: /usr/local/bin/files-mcp
+  #   env:
+  #     - FILES_ROOT
 ```
 
 The listener in this build authenticates nobody, so every request on it is

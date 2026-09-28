@@ -40,6 +40,8 @@ upstreams:
       - orders
       - --decision-point
       - 127.0.0.1:18213
+    env:
+      - VICTIM_JOURNAL_DIR
     tenant_id: acme
     environment: dev
   - name: web
@@ -47,6 +49,8 @@ upstreams:
     args:
       - --serve
       - web
+    env:
+      - VICTIM_JOURNAL_DIR
     tenant_id: acme
     environment: dev
 

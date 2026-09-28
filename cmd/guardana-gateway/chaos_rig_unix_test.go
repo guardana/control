@@ -26,8 +26,8 @@ import (
 )
 
 // stdioUpstreamLog turns this test binary into the stdio upstream a chaos case
-// configures, and names the file it records into. It sits outside the
-// product's prefix, so the plane passes it to its child without reading it.
+// configures, and names the file it records into. The upstream's env list
+// names it, so the plane passes it to its child without reading it.
 const stdioUpstreamLog = "INLINE_STDIO_UPSTREAM_LOG"
 
 // chaosBundleID is the bundle every chaos plane serves.
@@ -231,7 +231,7 @@ func answerEvery(string, int) dropKind { return answerCall }
 // command with its arguments.
 type chaosUpstream struct {
 	name, endpoint, command string
-	args                    []string
+	args, env               []string
 }
 
 // classified is one tool the operator classifies, on the upstream that lists
@@ -265,7 +265,8 @@ func stdioHelper(t *testing.T, name, log string) chaosUpstream {
 	}
 	t.Setenv(stdioUpstreamLog, log)
 	return chaosUpstream{name: name, command: self,
-		args: []string{"-test.run=^TestHelperServesAStdioUpstream$", "-test.timeout=5m"}}
+		args: []string{"-test.run=^TestHelperServesAStdioUpstream$", "-test.timeout=5m"},
+		env:  []string{stdioUpstreamLog}}
 }
 
 func (s chaosSetup) config(t *testing.T) string {
@@ -309,6 +310,12 @@ upstreams:
 		fmt.Fprintf(&b, "    command: %q\n    args:\n", up.command)
 		for _, arg := range up.args {
 			fmt.Fprintf(&b, "      - %q\n", arg)
+		}
+		if len(up.env) > 0 {
+			b.WriteString("    env:\n")
+		}
+		for _, name := range up.env {
+			fmt.Fprintf(&b, "      - %s\n", name)
 		}
 	}
 	b.WriteString("overrides:\n")

@@ -39,7 +39,7 @@ outside the plane. They appear below as parties the plane has to deal with.
 | the signed policy and its key | any rule they like, on every plane that pins the key's public half |
 | the evidence | a record of something that did not happen, or no record of something that did |
 | the pause switch | calls that run although an operator stopped them, or every call stopped |
-| credentials a plane holds | the collector's and the decision point's header values, and whatever an upstream command finds in its environment |
+| credentials a plane holds | the collector's and the decision point's header values, and the variables an upstream's `env` list hands its command |
 
 ## Who it is meant to stop
 
@@ -57,7 +57,7 @@ flowchart TD
     subgraph Host["The plane's machine"]
         subgraph Own["One account: the plane's user"]
             Plane["Gateway process"]
-            Child["stdio upstream: a child with the plane's environment"]
+            Child["stdio upstream: a child given a fixed few variables and its env list"]
             Files["Approvals directory, pause file, hold journal, spool, trail file, key"]
             Page["Approvals page and commands"]
             Collect["collect"]
@@ -175,11 +175,18 @@ What it does not do:
   that was hostile from the start.
 - It cannot see what a server did with the bytes it was sent.
 - **A `stdio` upstream is a child process of the plane**: it runs as the
-  plane's account with the plane's whole environment. The command is built
-  with no environment of its own (`cmd/guardana-gateway/adapter.go`), so a
-  credential set through `GUARDANA_CONTROL_EXPORT_HEADERS_*` or
-  `GUARDANA_CONTROL_PDP_HEADERS_*` is readable by that server, and it can write
-  everything the plane's account can write (below).
+  plane's account and can read and write everything that account can
+  (below). The plane hands it only `PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`,
+  `USER` and the variables its `env` list names, and that list refuses any
+  name under `GUARDANA_CONTROL_`, so the plane does not pass the header
+  credentials (`cmd/guardana-gateway/adapter.go`;
+  `TestAStdioUpstreamGetsOnlyTheEnvironmentItIsGiven` in
+  `cmd/guardana-gateway/adapter_env_test.go`;
+  [ADR-0028](../adr/0028-a-stdio-upstream-gets-only-the-environment-it-is-given.md)).
+  A hostile server running as the plane's account can still read the plane's
+  environment on its own, on Linux from `/proc`, and the plane's
+  configuration file, so run a server you do not trust under another account
+  or over HTTP.
 - An HTTP upstream may be `http`; nothing requires TLS to it, and anyone on
   that path can read the arguments and the results and forge them.
 
@@ -257,7 +264,8 @@ What it does not do:
 
 The plane's account is the authority for everything on disk. **Any process
 running as that account can approve, reject, pause and lift a pause, sign a
-bundle with a key it can read, and rewrite the evidence.** That includes a
+bundle with a key it can read, read the plane's environment, its header
+credentials included, and rewrite the evidence.** That includes a
 `stdio` upstream, the page's starter, and a tool behind the plane that can
 write files ([ADR-0016](../adr/0016-approval-providers-and-the-lost-hold.md),
 [ADR-0019](../adr/0019-an-operator-can-pause-calls.md),

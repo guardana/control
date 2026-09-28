@@ -118,7 +118,7 @@ func (b *binder) set(path, value, where string) error {
 		}
 	}
 	if rest, ok := strings.CutPrefix(path, "upstreams."); ok {
-		return bindItem(&b.cfg.Upstreams, upstreamFields, rest, value, where, path, b.arg)
+		return bindItem(&b.cfg.Upstreams, upstreamFields, rest, value, where, path, b.upstreamItem)
 	}
 	if rest, ok := strings.CutPrefix(path, "overrides."); ok {
 		return bindItem(&b.cfg.Overrides, overrideFields, rest, value, where, path, nil)
@@ -143,18 +143,30 @@ func (b *binder) item(l listField, rest, value, where string) error {
 	return nil
 }
 
-// arg sets one element of an upstream's command arguments.
-func (b *binder) arg(u *UpstreamConfig, rest, value, where string) error {
-	index, _, follows := sequenceIndex(rest, len(u.Args))
-	if !follows {
-		return fmt.Errorf("%s: args takes a sequence, each index following the one before", where)
+// upstreamItem sets one element of a list of an upstream entry, and reports
+// whether tail names one or the list itself, which takes no single value.
+func (b *binder) upstreamItem(u *UpstreamConfig, path, tail, value, where string) (bool, error) {
+	for _, l := range upstreamListFields {
+		if tail == l.path {
+			return true, fmt.Errorf("%s: %s %s", where, path, l.scalar)
+		}
+		rest, ok := strings.CutPrefix(tail, l.path+".")
+		if !ok {
+			continue
+		}
+		items := l.get(u)
+		index, _, follows := sequenceIndex(rest, len(*items))
+		if !follows {
+			return true, fmt.Errorf("%s: %s takes a sequence, each index following the one before", where, l.path)
+		}
+		if index == len(*items) {
+			*items = append(*items, value)
+			return true, nil
+		}
+		(*items)[index] = value
+		return true, nil
 	}
-	if index == len(u.Args) {
-		u.Args = append(u.Args, value)
-		return nil
-	}
-	u.Args[index] = value
-	return nil
+	return false, nil
 }
 
 // sequenceIndex reads the index of an item of a sequence that holds n items
@@ -172,7 +184,7 @@ func sequenceIndex(s string, n int) (index int, spelled, follows bool) {
 // bindItem sets one key of one item of a sequence. The index has to follow the
 // items already read, so a gap in the file, or an environment variable naming
 // an item no file declared, is refused instead of creating an empty entry.
-func bindItem[T any](items *[]T, fields []field[T], rest, value, where, path string, extra func(*T, string, string, string) error) error {
+func bindItem[T any](items *[]T, fields []field[T], rest, value, where, path string, extra func(*T, string, string, string, string) (bool, error)) error {
 	head, tail, ok := strings.Cut(rest, ".")
 	index, spelled, follows := sequenceIndex(head, len(*items))
 	if !ok || !spelled {
@@ -189,8 +201,10 @@ func bindItem[T any](items *[]T, fields []field[T], rest, value, where, path str
 		*items = append(*items, item)
 	}
 	item := &(*items)[index]
-	if key, isExtra := strings.CutPrefix(tail, scalarSequenceKey+"."); isExtra && extra != nil {
-		return extra(item, key, value, where)
+	if extra != nil {
+		if handled, err := extra(item, path, tail, value, where); handled {
+			return err
+		}
 	}
 	for _, f := range fields {
 		if f.path == tail {
@@ -292,9 +306,11 @@ func (b *binder) envNames() map[string]string {
 			path := fmt.Sprintf("upstreams.%d.%s", i, f.path)
 			known[EnvName(path)] = path
 		}
-		for j := range b.cfg.Upstreams[i].Args {
-			path := fmt.Sprintf("upstreams.%d.args.%d", i, j)
-			known[EnvName(path)] = path
+		for _, l := range upstreamListFields {
+			for j := range *l.get(&b.cfg.Upstreams[i]) {
+				path := fmt.Sprintf("upstreams.%d.%s.%d", i, l.path, j)
+				known[EnvName(path)] = path
+			}
 		}
 	}
 	for i := range b.cfg.Overrides {

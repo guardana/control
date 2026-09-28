@@ -366,7 +366,8 @@ func (c *Config) checkShaping() error {
 }
 
 // checkUpstreams refuses an upstream that names neither a URL nor a command,
-// or both, and arguments without a command.
+// or both, arguments or variables without a command, and a variable a
+// command may not receive.
 func (c *Config) checkUpstreams() error {
 	if len(c.Upstreams) == 0 {
 		return fmt.Errorf("upstreams: no upstream; the gateway has nothing to serve")
@@ -381,6 +382,11 @@ func (c *Config) checkUpstreams() error {
 			return fmt.Errorf("%s: name either an endpoint or a command, not both and not neither", at[:len(at)-1])
 		case up.Command == "" && len(up.Args) > 0:
 			return fmt.Errorf("%sargs: arguments without a command", at)
+		case up.Command == "" && len(up.Env) > 0:
+			return fmt.Errorf("%senv: variables without a command; an HTTP upstream starts no process to pass them to", at)
+		}
+		if err := checkEnvNames(at+"env.", up.Env); err != nil {
+			return err
 		}
 		if up.Endpoint != "" && !httpURL(up.Endpoint) {
 			return notHTTP(at+"endpoint", up.Endpoint)

@@ -19,9 +19,9 @@ import (
 )
 
 // journalDirVariable names the directory each server appends its journal
-// to, one JSON line per call it received. A plane passes its own
-// environment to the upstreams it starts, so a test that starts the plane
-// reaches the journal through it.
+// to, one JSON line per call it received. demo.yaml lists it in each
+// upstream's env, so a test that starts the plane reaches the journal
+// through the plane's environment.
 const journalDirVariable = "VICTIM_JOURNAL_DIR"
 
 func main() {

@@ -103,11 +103,7 @@ func printSettings(w io.Writer, cfg *gatewayconfig.Config) {
 		writeLine(w, fmt.Sprintf("       %-28s %s", fmt.Sprintf("pdp.informational_context.%d", i), oneLine(name)))
 	}
 	for i, up := range cfg.Upstreams {
-		where := gatewayconfig.ShowAddress(up.Endpoint)
-		if up.Endpoint == "" {
-			where = "command " + up.Command + " " + strings.Join(up.Args, " ")
-		}
-		writeLine(w, fmt.Sprintf("       %-28s %s -> %s", fmt.Sprintf("upstreams.%d", i), oneLine(up.Name), oneLine(where)))
+		printUpstream(w, i, up)
 	}
 	for i, o := range cfg.Overrides {
 		writeLine(w, fmt.Sprintf("       %-28s %s/%s is %s on %s from %s, returns %s %s, fingerprint %s",

@@ -206,6 +206,7 @@ func TestCollectionsSpellTheListsAndMaps(t *testing.T) {
 		"listener.origins.N " + brand.Env("LISTENER_ORIGINS_N"),
 		"pdp.informational_context.N " + brand.Env("PDP_INFORMATIONAL_CONTEXT_N"),
 		"upstreams.N.args.N " + brand.Env("UPSTREAMS_N_ARGS_N"),
+		"upstreams.N.env.N " + brand.Env("UPSTREAMS_N_ENV_N"),
 		"export.headers.<name> " + brand.Env("EXPORT_HEADERS_<NAME>"),
 		"pdp.headers.<name> " + brand.Env("PDP_HEADERS_<NAME>"),
 	}

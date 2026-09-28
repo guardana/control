@@ -113,6 +113,7 @@ These keys hold a list or a map, one element per key:
 | `listener.origins.N` | `GUARDANA_CONTROL_LISTENER_ORIGINS_N` | one origin a browser may call the listener from |
 | `pdp.informational_context.N` | `GUARDANA_CONTROL_PDP_INFORMATIONAL_CONTEXT_N` | one context member an allowing answer of the decision point may carry |
 | `upstreams.N.args.N` | `GUARDANA_CONTROL_UPSTREAMS_N_ARGS_N` | one argument of an upstream's command |
+| `upstreams.N.env.N` | `GUARDANA_CONTROL_UPSTREAMS_N_ENV_N` | the name of one variable of the plane's environment an upstream's command receives, beside PATH, HOME, LANG, LC_ALL, TMPDIR, USER; no other variable reaches it, and its value is never printed |
 | `export.headers.<name>` | `GUARDANA_CONTROL_EXPORT_HEADERS_<NAME>` | one header the exporter sends; its value is a credential and is never printed |
 | `pdp.headers.<name>` | `GUARDANA_CONTROL_PDP_HEADERS_<NAME>` | one header every question to the decision point carries; its value is a credential and is never printed |
 

@@ -175,10 +175,13 @@ type UpstreamDefaults struct {
 // UpstreamConfig is one server the gateway calls as itself: over Streamable
 // HTTP when Endpoint is set, over a child process when Command is.
 type UpstreamConfig struct {
-	Name        string
-	Endpoint    string
-	Command     string
-	Args        []string
+	Name     string
+	Endpoint string
+	Command  string
+	Args     []string
+	// Env names the variables of the plane's environment a command
+	// receives, beside a fixed few; nothing else of it reaches the process.
+	Env         []string
 	TenantID    string
 	Environment string
 }
