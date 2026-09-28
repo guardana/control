@@ -244,9 +244,19 @@ func TestConcurrentRetriesOfALapsingApprovalRunAtMostOnce(t *testing.T) {
 	}
 }
 
+// waiting reports whether d holds the retry: under a new approval of its own,
+// or on the held approval still pending as this retry read it.
+func waiting(d gateway.Disposition, heldApprovalID string, codes []string) bool {
+	if d.Action != core.AwaitApproval || d.Pending == nil {
+		return false
+	}
+	return d.Pending.ApprovalID != heldApprovalID || slices.Equal(codes, []string{codeApprovalRequired})
+}
+
 // tally counts the retries that ran and those that closed the held trail as
-// expired. Every other answer must be a refusal as already used or a hold of
-// its own under a new approval; anything else fails.
+// expired. Every other answer must be a refusal as already used, a hold of
+// its own under a new approval, or the held approval still pending as a retry
+// read it while another retry was resuming it; anything else fails.
 func tally(t *testing.T, results []gateway.Disposition, heldApprovalID string) (executed, expired uint64) {
 	t.Helper()
 	for _, d := range results {
@@ -257,7 +267,7 @@ func tally(t *testing.T, results []gateway.Disposition, heldApprovalID string) (
 		case d.Action == core.Block && slices.Equal(codes, []string{codeApprovalExpired}):
 			expired++
 		case d.Action == core.Block && slices.Equal(codes, []string{codeApprovalAlreadyUsed}):
-		case d.Action == core.AwaitApproval && d.Pending != nil && d.Pending.ApprovalID != heldApprovalID:
+		case waiting(d, heldApprovalID, codes):
 		default:
 			t.Errorf("a retry answered %d with %v", d.Action, codes)
 		}
