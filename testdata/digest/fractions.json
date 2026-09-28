@@ -1,0 +1,32 @@
+{
+  "envelope": {
+    "schemaVersion": "1.0",
+    "requestId": "req-00000000-0000-4000-8000-000000000006",
+    "occurredAt": "2026-01-01T00:00:00Z",
+    "projectId": "proj-fixture",
+    "tenantId": "tenant-fixture",
+    "principal": {
+      "id": "user-fixture-1"
+    },
+    "action": {
+      "name": "sample_model",
+      "effect": "EFFECT_CLASS_READ"
+    },
+    "resource": {
+      "type": "model"
+    }
+  },
+  "authorized_args": {
+    "temperature": 0.70,
+    "tiny": 1E-7,
+    "smallest": 5e-324,
+    "micro": 1e-6,
+    "ratio": -1.5e-3,
+    "sum": 0.30000000000000004,
+    "whole": 2.0,
+    "zero": -0.0,
+    "steps": [1.5e-7, 12.5, 1e2]
+  },
+  "expected_digest": "sha256:59f297fc611d11e64031e2e159fd8e4395dfc1ce4b431f4eeeb873ed7b4c6323",
+  "expected_hash": "sha256:965bd81eaa81e33f2b1d02e96fba085f7b69f64696e0596f39e31a9837a03e55"
+}

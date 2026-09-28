@@ -59,6 +59,9 @@ can reproduce:
   named JSON pointer and a reason code, never silently rounded. Accepting floats
   later would only add inputs that are refused today, so it changes no digest
   that already exists and invalidates no stored approval.
+  [ADR-0029](0029-exact-fractions-in-the-canonical-form.md) replaces this rule:
+  a fraction a double holds exactly is accepted, and nothing accepted before
+  changes its bytes.
 - **A string that is not valid UTF-8 is refused**, and so is an **unpaired
   surrogate escape**. This one is not tidiness. Measured while implementing:
   `"\ud800"` keeps U+D800 in Node 24 and Python 3.9 and becomes U+FFFD in Go,
@@ -105,7 +108,10 @@ see [ADR-0002](0002-wire-contracts-and-versioning.md).
 
 Runnable today: `go test ./internal/canon/` checks the canonical form itself —
 key ordering by UTF-16 code unit, the escaping rules, the float and integer
-refusals, the surrogate rule — with a fuzz target and property tests.
+refusals, the surrogate rule — with a fuzz target and property tests. The
+number rules are now those of
+[ADR-0029](0029-exact-fractions-in-the-canonical-form.md), which names their
+tests.
 
 The digest, the domain tag and the golden fixtures in `testdata/digest/` are
 `implemented`, and the same package's tests compute the digest over every

@@ -9,10 +9,10 @@ languages are `planned` and will be checked against this directory.
 
 The rules below are the record in
 [ADR-0005](../../docs/adr/0005-canonical-action-digest.md),
-[ADR-0010](../../docs/adr/0010-digest-domain-separation.md) and
-[ADR-0011](../../docs/adr/0011-contract-corrections-before-publication.md).
-Where this page and those records disagree, the records win and this page is
-wrong.
+[ADR-0010](../../docs/adr/0010-digest-domain-separation.md),
+[ADR-0011](../../docs/adr/0011-contract-corrections-before-publication.md) and
+[ADR-0029](../../docs/adr/0029-exact-fractions-in-the-canonical-form.md).
+Where they disagree, the records win.
 
 ## The three domain tags
 
@@ -51,8 +51,7 @@ Keys are the protobuf JSON names, the lowerCamelCase form protojson emits.
 an absent map is `{}`, an absent repeated field is `[]`, an absent enum is its
 zero name: `EFFECT_CLASS_UNSPECIFIED` for `action.effect`,
 `TRUST_ZONE_UNSPECIFIED` for `destination.trustZone`. An absent message is all
-of its members at their zero values, never `null` and never `{}`. A member is
-never omitted and `null` never appears. This is the rule that stops an
+of its members at their zero values, never `{}`, and `null` never appears. This is the rule that stops an
 implementation building the object from protojson output, which omits empty
 scalars, from disagreeing with one reading the message.
 
@@ -95,19 +94,17 @@ round; sort on `key.encode("utf-16-be")` or an equivalent.
 RFC 8785, restricted so that a second implementation cannot silently differ.
 Refused, never approximated:
 
-- a number that is not an integer literal, including `1.0` and `1e3`
-- an integer outside +/-(2^53 - 1), where no IEEE-754 double is faithful
+- a number outside +/-(2^53 - 1), or not exactly a double's shortest decimal
+  (see Numbers)
 - a string or key that is not valid UTF-8
 - an unpaired surrogate escape such as `"\ud800"`, which three languages decode
   three different ways; a valid pair is fine
 - a duplicate object key, the one input that gives two documents one digest
 - two member names in one object that fold together, as the next section
   defines
-- more than 32 nested containers in the arguments document, counted from the
-  document's own root: `[]` is one container and `[[]]` two. The action object
-  that holds the document is not one of them, so a document of 32 is accepted
-  and sits 33 deep in the action; the rest of the action never nests more than
-  four deep
+- more than 32 nested containers in the arguments document, counted from its
+  own root (`[]` is one, `[[]]` two); a document of 32 sits 33 deep in the
+  action, whose other members never nest more than four deep
 - an arguments document that starts with a byte order mark, which most readers
   strip and this form does not
 - an arguments document of whitespace only: only an empty byte string is
@@ -116,6 +113,15 @@ Refused, never approximated:
   carries a field the implementation does not know. It may be a field a
   later minor version added to the set, and digesting without it would give
   two actions one digest, so it is refused, never digested without the field
+
+### Numbers
+
+A number is accepted when it is a finite double of magnitude at most
+2^53 - 1 whose shortest round-trip decimal, as `Number::toString` writes it,
+has exactly the literal's value: compare digit strings, not doubles. It is
+written that way, `-0` as `0`: `1.0` and `10e-1` become `1`, `0.10` becomes
+`0.1`, `1e-6` becomes `0.000001`. `4.9e-324`, `0.30000000000000001` and
+`1e-400` are refused; `numbers.json` lists more.
 
 ### Keys that fold together
 
@@ -130,16 +136,12 @@ arguments, and the `attributes` and `labels` maps.
 
 A consumer that matches member names without regard to case would otherwise
 read one value where the digest covers another. The rule defends a consumer
-that folds; it does not defend one that compares through case mapping, which
-equates U+0131 and `I`. Full case folding (status F, which equates U+00DF and
-`ss`) is a different relation. An object with the members U+00DF and `ss` is
-accepted, and so is one with U+0131 and `I`. Nor does the rule defend a
-consumer that ignores `_` or `-` when it matches names, as Go's
+that folds, not one that compares through case mapping (U+0131 and `I`) or
+applies full folding (status F: U+00DF and `ss`); objects with those pairs are
+accepted. Nor does it defend one that ignores `_` and `-`, as Go's
 `encoding/json/v2` does under `case:ignore`: `amount` and `a_mount` are both
-accepted as members of one object, so such a consumer keeps json/v2's
-duplicate-name refusal on. A later Unicode version can add mappings, so an
-implementation takes its table from 17.0.0, not from whatever its runtime
-ships.
+accepted, so such a consumer keeps json/v2's duplicate-name refusal on. A later Unicode version can add mappings, so an
+implementation takes its table from 17.0.0, not from its runtime.
 
 Strings are escaped as RFC 8785 section 3.2.2.2 requires: `\b \t \n \f \r \" \\`,
 lowercase `\u00hh` for the remaining C0 controls, and every other character
@@ -153,9 +155,8 @@ same key written as U+0065 U+0301 are two different members.
 canonicalized, not its bytes: whitespace and member order in the file do not
 change the digest. The document is canonicalized on its own and then placed in
 the action, which is why its depth is counted from its own root. Absent
-arguments (an empty byte string, and nothing else) are the empty object: a
-document of whitespace only is refused, and so is one that starts with a byte
-order mark. A document that is the literal `null` is refused, because `null` is
+arguments (an empty byte string, and nothing else; see the refusals above) are
+the empty object. A document that is the literal `null` is refused, because `null` is
 a second spelling of "no arguments" that would hash differently. A `null`
 **inside** the arguments is ordinary data and is kept, which `refund_prod`
 exercises with `"memo": null`.
@@ -199,9 +200,10 @@ the case of either input passes every digest fixture and fails this one.
 }
 ```
 
-To check an implementation: read `envelope` as protojson, read the raw bytes of
+To check an implementation: read `envelope` as protojson and the raw bytes of
 `authorized_args`, build the ten-member object above, canonicalize it, prepend
-the action tag, hash, and compare the whole string against `expected_digest`.
+the action tag, hash, and compare the whole string with `expected_digest`. A
+digest fixture may also carry `expected_hash`, its arguments hash.
 
 `arguments_hash.json` pins the arguments hash alone, so it has no envelope:
 
@@ -212,9 +214,9 @@ the action tag, hash, and compare the whole string against `expected_digest`.
 }
 ```
 
-To check it: read the raw bytes of `authorized_args`, canonicalize them as an
-arguments document, prepend the arguments tag, hash, and compare the whole
-string against `expected_hash`.
+To check it: canonicalize the raw bytes of `authorized_args` as an arguments
+document, prepend the arguments tag, hash, and compare the whole string with
+`expected_hash`.
 
 `binding.json` pins the approval binding, so it has no envelope either:
 
@@ -227,9 +229,9 @@ string against `expected_hash`.
 }
 ```
 
-To check it: bind `action_digest`, which is the `expected_digest` of the
-fixture `action_fixture` names, to `bundle_digest` under the formula above and
-compare the whole string against `expected_binding`.
+To check it: bind `action_digest` (the `expected_digest` of `action_fixture`)
+to `bundle_digest` under the formula above and compare the whole string with
+`expected_binding`.
 
 Every envelope here also passes this repository's contract validation, so a
 fixture is never an action that could not have been proposed.
@@ -245,16 +247,18 @@ fixture is never an action that could not have been proposed.
 | `escapes.json` | `sha256:4c12075d685dfd732ac18569a4c79ef58607355374c5b4ab7d8738eaa2b7f9a5` | what other encoders escape and this form does not: `/ < > & = '`, U+001F, U+007F, U+2028 and U+2029 in the arguments, beside the keys U+E000 and U+1F600; and three empty entries in the envelope, an attribute value, a label key and a scope, which are kept |
 | `arguments_hash.json` | `sha256:27fc04404826fca53b45f651f49d557521bf94c051b68707e0ca4522e8f0abd0` | the arguments hash of a document written with whitespace, member order and escapes the canonical form removes |
 | `binding.json` | `sha256:3105283da9f4d61d9fa9558a8375d0796bce39ee48cdb7fbdff8a4ee0f34b394` | the approval binding of the `refund_prod` digest to a placeholder bundle digest of 64 `1`s, which pins the separator and the tag |
+| `fractions.json` | `sha256:59f297fc611d11e64031e2e159fd8e4395dfc1ce4b431f4eeeb873ed7b4c6323` | fractions in the arguments; arguments hash `sha256:965bd81eaa81e33f2b1d02e96fba085f7b69f64696e0596f39e31a9837a03e55` |
+| `integral_spelled.json` | `refund_prod`'s | `refund_prod.json` with `1250.0`, `2e0` and `10e-1` for its integers |
+| `numbers.json` | none | literals and their canonical text, and refused literals |
 
 `refund_prod.json` carries one value written two ways: `escaped` holds
 `"caf\u00e9 \ud83d\ude00"` and `literal` holds the same two characters as
 literal UTF-8. The two must canonicalize to identical bytes. An implementation
 where they differ has an escape or surrogate bug that no other fixture shows.
 
-`arguments.canonicalHash` in these envelopes is an obvious placeholder, not the
-hash of the arguments beside it. The digest excludes it and these files pin the
-digest; a receiver comparing it would refuse the mismatch. `arguments_hash.json`
-pins the hash.
+`arguments.canonicalHash` in these envelopes is a placeholder, not the hash of
+the arguments beside it: the digest excludes it, a receiver comparing it would
+refuse the mismatch, and `arguments_hash.json` pins the hash.
 
 Each value was computed by the Go implementation and, before it was pinned, by
 an independent implementation written from this page alone, which is not

@@ -21,9 +21,11 @@ const (
 	// string, or a staleness budget no time.Duration can hold.
 	ErrTooLarge sentinel = "rules: over a bound"
 	// ErrNotStrictJSON is a document the canonical form refuses: among others a
-	// duplicate key, two keys that fold together, a float, an integer outside
-	// the JSON-safe range, invalid UTF-8 and nesting past its limit. It wraps
-	// the canonical form's own sentinel where there is one.
+	// duplicate key, two keys that fold together, an integer outside the
+	// JSON-safe range, invalid UTF-8 and nesting past its limit; and a number
+	// written with a fraction or an exponent, which this format refuses though
+	// the canonical form may not. It wraps the canonical form's own sentinel
+	// where there is one.
 	ErrNotStrictJSON sentinel = "rules: not strict JSON"
 	ErrWrongType     sentinel = "rules: wrong JSON type"
 	ErrUnknownKey    sentinel = "rules: a key this document format does not have"

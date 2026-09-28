@@ -55,6 +55,9 @@ func TestRewriteAppliesEachObligation(t *testing.T) {
 		{"redact with a long s", `{"\u017fsn":"x","a":1}`, []*controlv1.Obligation{obligation("redact_fields", false, "fields", "ssn")}, `{"a":1}`},
 		{"redact with a kelvin sign", `{"\u212aey":"x","a":1}`, []*controlv1.Obligation{obligation("redact_fields", false, "fields", "KEY")}, `{"a":1}`},
 		{"redact a name that is a prefix of another", `{"ssn":"x","ssnx":1}`, []*controlv1.Obligation{obligation("redact_fields", false, "fields", "SSN")}, `{"ssnx":1}`},
+		{"redact keeps fractions canonical", `{"ssn":"x","t":0.70,"u":1E-7,"v":[2.0,-0.0,5e-324],"w":{"x":1.5}}`, []*controlv1.Obligation{obligation("redact_fields", false, "fields", "ssn")}, `{"t":0.7,"u":1e-7,"v":[2,0,5e-324],"w":{"x":1.5}}`},
+		{"cap an amount written as an integral fraction", `{"amount":5000.0}`, []*controlv1.Obligation{obligation("cap_amount", false, "max", "1000")}, `{"amount":1000}`},
+		{"cap leaves a fraction beside the amount", `{"amount":5,"rate":0.25}`, []*controlv1.Obligation{obligation("cap_amount", false, "max", "1")}, `{"amount":1,"rate":0.25}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -117,7 +120,10 @@ func TestRewriteRefusesWhatItCannotApply(t *testing.T) {
 		{"redact leaving a member name in another script", `{"a":1,"ключ":2}`, obligation("redact_fields", false, "fields", "a")},
 		{"arguments that are an array", `[1]`, obligation("redact_fields", false, "fields", "a")},
 		{"arguments that are null", `null`, obligation("redact_fields", false, "fields", "a")},
-		{"arguments with a float", `{"amount":1.5}`, obligation("cap_amount", false, "max", "1")},
+		{"cap of a fractional amount", `{"amount":1.5}`, obligation("cap_amount", false, "max", "1")},
+		{"cap of a fractional amount below the limit", `{"amount":0.5}`, obligation("cap_amount", false, "max", "1")},
+		{"arguments with a number past a double", `{"amount":1,"n":1e400}`, obligation("cap_amount", false, "max", "1")},
+		{"arguments with an inexact fraction", `{"amount":1,"n":0.30000000000000001}`, obligation("redact_fields", false, "fields", "amount")},
 		{"arguments with a duplicate key", `{"amount":1,"amount":2}`, obligation("cap_amount", false, "max", "1")},
 		{"arguments that are not JSON", `{`, obligation("cap_amount", false, "max", "1")},
 	}
@@ -158,6 +164,8 @@ func FuzzRewrite(f *testing.F) {
 	f.Add([]byte(``), "x", "0")
 	f.Add([]byte(`{"amount":9007199254740991}`), "", "9007199254740990")
 	f.Add([]byte(`{"amount":1,"amount":2}`), "amount", "1")
+	f.Add([]byte(`{"amount":7.0,"t":0.70,"u":[1e-7,-0.0]}`), "ssn", "5")
+	f.Add([]byte(`{"amount":2.5}`), "x", "1")
 	f.Fuzz(func(t *testing.T, args []byte, fields, limit string) {
 		obs := []*controlv1.Obligation{
 			obligation("redact_fields", false, "fields", fields),

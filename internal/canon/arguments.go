@@ -30,10 +30,10 @@ type canonical []byte
 
 // authorizedArguments returns the canonical bytes of the authorized arguments:
 // the value the action digest holds under authorizedArguments, from the one
-// path every use of the arguments takes. A float, an oversized integer, a
-// duplicate key or an unpaired surrogate in a tool call is refused here rather
-// than hashed, and a JSON pointer in the refusal is relative to the arguments
-// document, not to the canonical action.
+// path every use of the arguments takes. A number no double holds exactly or
+// outside the JSON-safe range, a duplicate key or an unpaired surrogate in a
+// tool call is refused here rather than hashed, and a JSON pointer in the
+// refusal is relative to the arguments document, not to the canonical action.
 //
 // The document is canonicalized on its own, so its containers are counted from
 // its own root, as the parser counts them. Embedded as a value, it would count

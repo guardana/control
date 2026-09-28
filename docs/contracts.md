@@ -679,9 +679,11 @@ Ordering:
 The canonical form is RFC 8785, restricted so that a second implementation
 cannot silently differ. Refused, never approximated:
 
-- a number that is not an integer literal, `1.0` and `1e3` included
-- an integer outside plus or minus (2^53 - 1), where no IEEE-754 double is
-  faithful
+- a number whose value is outside plus or minus (2^53 - 1), where no
+  IEEE-754 double is faithful to an integer, `1e16` and `9007199254740992.0`
+  included
+- a number whose value is not exactly the shortest decimal of a double, as
+  below
 - a string or a key that is not valid UTF-8
 - an unpaired surrogate escape such as `"\ud800"`, which three languages
   decode three different ways; a valid pair is fine
@@ -689,6 +691,18 @@ cannot silently differ. Refused, never approximated:
 - two keys in one object that are equal under simple case folding, as below
 - more than 32 nested containers in the arguments document, counted from the
   document's own root; the action object that holds it is not one of them
+
+**Numbers.** A number is accepted when it reads as a finite double of at most
+2^53 - 1 in magnitude, and the exact decimal value of the literal equals that
+double's shortest round-trip decimal. It is written as ECMAScript's
+`Number::toString` writes the double (RFC 8785 section 3.2.2.3), negative zero
+as `0`. So `1.0`, `1e0` and `10e-1` are `1`, `0.10` is `0.1`, `1e-6` is
+`0.000001` and `1e-7` stays `1e-7`; `0.30000000000000001`, which reads as the
+double written `0.3`, and `1e-400`, which reads as zero, are refused. An integer
+literal inside the range is written as its digits, as it always was, so no
+digest of an input accepted before fractions were has changed.
+[ADR-0029](adr/0029-exact-fractions-in-the-canonical-form.md) records the rule;
+`testdata/digest/numbers.json` lists literals and what each is written as.
 
 **Keys that fold together.** Two member names in one object are refused when
 they are equal under simple case folding: `CaseFolding.txt` statuses C and S,
@@ -736,11 +750,17 @@ constant in `internal/canon` that is deliberately not `MaxArgumentsBytes` above
 even though the two values are equal: this call is the first place those bytes
 exist.
 
-The refusal of a float has a real cost and is not tidiness. A tool argument like
-`{"temperature": 0.7}` cannot be digested, so nothing that requires an approval
-can carry one. It is refused with a pointer, never rounded.
-[ADR-0005](adr/0005-canonical-action-digest.md) records why, and why accepting
-floats later would invalidate no digest that already exists.
+The gateway sends the agent's own bytes upstream when no obligation rewrites
+them, and those bytes may spell a number differently from the canonical form:
+`1.0` where the digest holds `1`. The digest binds a number's value, not its
+spelling, its scale or whether it was written as an integer, so an upstream
+that reads `1.0` as a float and `1` as an integer sees a difference the digest
+does not bind. A rewritten call is sent in the canonical form.
+
+A tool definition is fingerprinted under a looser form, which takes any finite
+number without a range or an exactness check and keeps member names that fold
+together; a definition authorizes nothing by its values. It is never the input
+of a digest or an arguments hash.
 
 **The arguments hash.** `arguments.canonical_hash` has its own tag and covers
 exactly the bytes the digest holds as `authorizedArguments`:

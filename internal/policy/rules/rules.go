@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
+	"strings"
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -143,8 +145,11 @@ const (
 // the canonical bytes of raw, or a refusal.
 //
 // The canonical form reads raw first and refuses what it refuses in any
-// document: a duplicate key, keys that fold together, a float, an integer
-// outside the JSON-safe range, invalid UTF-8. The model is then read from the
+// document: a duplicate key, keys that fold together, an integer outside the
+// JSON-safe range, invalid UTF-8. A number literal with a fraction or an
+// exponent is refused too, though the canonical form accepts an exact one: the
+// format holds integers only, and 7.0 would otherwise be signed as 7 without
+// the author having written 7. The model is then read from the
 // canonical bytes, so it holds exactly what the signed bytes say. Every
 // refusal is an *Error, and the one returned is the first in a fixed order:
 // the document, its bundle, then each rule in document order, each field in
@@ -157,6 +162,9 @@ func Parse(raw []byte) (*Document, []byte, error) {
 	if err != nil {
 		return nil, nil, at{}.refuse(notStrict(err))
 	}
+	if err := integerLiterals(raw); err != nil {
+		return nil, nil, at{}.refuse(notStrict(err))
+	}
 	tree, err := decode(canonical)
 	if err != nil {
 		return nil, nil, at{}.refuse(notStrict(err))
@@ -166,6 +174,26 @@ func Parse(raw []byte) (*Document, []byte, error) {
 		return nil, nil, err
 	}
 	return doc, canonical, nil
+}
+
+// integerLiterals refuses a number literal with a fraction or an exponent
+// anywhere in raw, which the canonical form has already read, so raw is one
+// well-formed value.
+func integerLiterals(raw []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if num, ok := tok.(json.Number); ok && strings.ContainsAny(num.String(), ".eE") {
+			return fmt.Errorf("%w: a number that is not an integer literal", canon.ErrUnsupportedValue)
+		}
+	}
 }
 
 // notStrict classifies a refusal of the canonical form or of the decoder

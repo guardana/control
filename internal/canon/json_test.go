@@ -39,6 +39,10 @@ func TestCanonicalizeScalars(t *testing.T) {
 		{"int negative", -1, "-1"},
 		{"int64", int64(1234567890), "1234567890"},
 		{"uint64", uint64(1234567890), "1234567890"},
+		{"json.Number integer", json.Number("1234567890"), "1234567890"},
+		{"json.Number fraction", json.Number("0.10"), "0.1"},
+		{"json.Number negative zero", json.Number("-0.0"), "0"},
+		{"json.Number below 1e-6", json.Number("0.00000015"), "1.5e-7"},
 		{"empty array", []any{}, "[]"},
 		{"empty object", map[string]any{}, "{}"},
 		{"array of scalars", []any{nil, true, "a", 1}, `[null,true,"a",1]`},
@@ -273,7 +277,20 @@ func TestCanonicalizeRejectsUnsupportedTypes(t *testing.T) {
 		{"nan", math.NaN()},
 		{"positive infinity", math.Inf(1)},
 		{"negative infinity", math.Inf(-1)},
-		{"json.Number", json.Number("1")},
+		{"json.Number with a leading plus", json.Number("+1")},
+		{"json.Number with a leading zero", json.Number("01")},
+		{"json.Number with a bare fraction", json.Number(".5")},
+		{"json.Number with a trailing point", json.Number("1.")},
+		{"json.Number in hex", json.Number("0x10")},
+		{"json.Number with an underscore", json.Number("1_000")},
+		{"json.Number with a space", json.Number(" 1")},
+		{"json.Number that is empty", json.Number("")},
+		{"json.Number NaN", json.Number("NaN")},
+		{"json.Number Infinity", json.Number("Infinity")},
+		{"json.Number with an empty exponent", json.Number("1e")},
+		{"json.Number over 2^53-1", json.Number("9007199254740992")},
+		{"json.Number past a double", json.Number("1e400")},
+		{"json.Number no double holds exactly", json.Number("4.9e-324")},
 		{"int8", int8(1)},
 		{"int32", int32(1)},
 		{"uint", uint(1)},
@@ -437,6 +454,16 @@ var canonicalizeJSONCases = []struct {
 	{"control characters are re-escaped", `"\u0000\u001F\u000B"`, `"\u0000\u001f\u000b"`},
 	{"named escapes are kept named", `"\b\t\n\f\r"`, `"\b\t\n\f\r"`},
 	{"negative zero is zero", "-0", "0"},
+	{"fraction", "1.5", "1.5"},
+	{"integral fraction", "1.0", "1"},
+	{"exponent", "1e3", "1000"},
+	{"upper case exponent", "1E3", "1000"},
+	{"negative exponent", "-1.5e-3", "-0.0015"},
+	{"zero point zero", "0.0", "0"},
+	{"negative zero point zero", "-0.0", "0"},
+	{"below 1e-6 the exponent form", "0.00000015", "1.5e-7"},
+	{"fraction in a nested object", `{"a":{"b":1.5}}`, `{"a":{"b":1.5}}`},
+	{"fraction in an array", `[1,2.5]`, `[1,2.5]`},
 	{"upper bound integer", "9007199254740991", "9007199254740991"},
 	{"lower bound integer", "-9007199254740991", "-9007199254740991"},
 	{"astral keys sort by code unit", "{\"\uFFFD\":0,\"\uE000\":1,\"\U0001F600\":2}", "{\"\U0001F600\":2,\"\uE000\":1,\"\uFFFD\":0}"},
@@ -468,17 +495,17 @@ var canonicalizeJSONRejections = []struct {
 	raw      string
 	sentinel error // nil means any error, for the parse failures
 }{
-	{"fraction", "1.5", ErrUnsupportedValue},
-	{"integral float", "1.0", ErrUnsupportedValue},
-	{"exponent", "1e3", ErrUnsupportedValue},
-	{"upper case exponent", "1E3", ErrUnsupportedValue},
-	{"negative exponent", "-1.5e-3", ErrUnsupportedValue},
-	{"zero point zero", "0.0", ErrUnsupportedValue},
+	{"fraction no double holds exactly", "0.30000000000000001", ErrUnsupportedValue},
+	{"integral fraction over 2^53-1", "9007199254740992.0", ErrUnsupportedValue},
+	{"exponent over 2^53-1", "1e16", ErrUnsupportedValue},
+	{"upper case exponent over 2^53-1", "1E16", ErrUnsupportedValue},
+	{"negative exponent below a double", "-1.5e-400", ErrUnsupportedValue},
+	{"below the smallest double's shortest decimal", "4.9e-324", ErrUnsupportedValue},
 	{"2^53", "9007199254740992", ErrUnsupportedValue},
 	{"-2^53", "-9007199254740992", ErrUnsupportedValue},
 	{"beyond int64", "123456789012345678901234567890", ErrUnsupportedValue},
-	{"float in a nested object", `{"a":{"b":1.5}}`, ErrUnsupportedValue},
-	{"float in an array", `[1,2.5]`, ErrUnsupportedValue},
+	{"inexact fraction in a nested object", `{"a":{"b":0.10000000000000001}}`, ErrUnsupportedValue},
+	{"number past a double in an array", `[1,2.5e400]`, ErrUnsupportedValue},
 	// encoding/json turns each of these into U+FFFD; JavaScript and Python keep
 	// the code unit, so the document has two canonical forms and is refused.
 	{"unpaired high surrogate escape", `"\ud800"`, ErrUnsupportedValue},
@@ -550,9 +577,10 @@ func TestCanonicalizeJSONNamesTheValue(t *testing.T) {
 		pointer string
 		reason  string
 	}{
-		{"float argument", `{"b":1,"args":{"temperature":0.7}}`, `at "/args/temperature"`, "not an integer literal"},
-		{"integral float", `{"a":[1.0]}`, `at "/a/0"`, "not an integer literal"},
-		{"exponent", `{"a":1e3}`, `at "/a"`, "not an integer literal"},
+		{"inexact fraction argument", `{"b":1,"args":{"temperature":0.70000000000000001}}`, `at "/args/temperature"`, "not exactly the shortest decimal of a double"},
+		{"integral fraction over 2^53-1", `{"a":[9007199254740992.0]}`, `at "/a/0"`, "outside the JSON-safe range"},
+		{"exponent past a double", `{"a":1e400}`, `at "/a"`, "outside the range of a double"},
+		{"exponent below a double", `{"a":1e-400}`, `at "/a"`, "outside the range of a double"},
 		{"oversized integer", `{"budgets":{"tokens":9007199254740992}}`, `at "/budgets/tokens"`, "outside the JSON-safe range"},
 		{"integer beyond int64", `[123456789012345678901234567890]`, `at "/0"`, "outside the JSON-safe range"},
 	}
@@ -586,6 +614,8 @@ func TestCanonicalizeIsIdempotent(t *testing.T) {
 		"a\tb\u00e9\U0001F600",
 		int64(safeMax),
 		int64(safeMin),
+		json.Number("0.7"),
+		json.Number("5e-324"),
 		[]any{},
 		map[string]any{},
 		map[string]any{"\uFFFD": 1, "\uE000": 2, "\U0001F600": 3, "a": []any{nil, "\x00", int64(0)}},
@@ -633,9 +663,9 @@ func TestRefusalIsDeterministic(t *testing.T) {
 	t.Run("parser names the first key in document order", func(t *testing.T) {
 		t.Parallel()
 		for range runs {
-			_, err := CanonicalizeJSON([]byte(`{"b":1.5,"a":2.5,"c":3.5}`))
+			_, err := CanonicalizeJSON([]byte(`{"b":1e400,"a":2e400,"c":3e400}`))
 			if err == nil {
-				t.Fatal("CanonicalizeJSON accepted an object of floats")
+				t.Fatal("CanonicalizeJSON accepted an object of numbers past a double")
 			}
 			if !strings.Contains(err.Error(), `at "/b"`) {
 				t.Fatalf("refusal %q does not name /b, the first key in document order", err)
@@ -688,9 +718,22 @@ func TestRefusalCarriesNoContent(t *testing.T) {
 			strings.Repeat("9", 64),
 		},
 		{
-			"float literal",
-			func() error { _, err := CanonicalizeJSON([]byte(`{"temperature":0.7}`)); return err },
+			"inexact fraction literal",
+			func() error {
+				_, err := CanonicalizeJSON([]byte(`{"temperature":0.70000000000000001}`))
+				return err
+			},
 			"0.7",
+		},
+		{
+			"long inexact fraction literal",
+			func() error { _, err := CanonicalizeJSON([]byte(`{"n":0.` + long + `}`)); return err },
+			strings.Repeat("9", 64),
+		},
+		{
+			"long exponent",
+			func() error { _, err := CanonicalizeJSON([]byte(`{"n":1e-` + long + `}`)); return err },
+			strings.Repeat("9", 64),
 		},
 		{
 			"duplicate key",

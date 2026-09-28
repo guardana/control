@@ -81,9 +81,9 @@ func rewrite(args []byte, obligations []*controlv1.Obligation) ([]byte, []*contr
 }
 
 // argumentObject reads args as the object the rewriting obligations work on.
-// The bytes go through canon first, so a duplicate key, a float or an
-// oversized integer is refused there with canon's own pointer, and what comes
-// back is a tree canon.Canonicalize takes.
+// The bytes go through canon first, so a duplicate key, a number canon
+// refuses or an oversized integer is refused there with canon's own pointer,
+// and what comes back is a tree canon.Canonicalize takes.
 func argumentObject(args []byte) (map[string]any, error) {
 	if len(args) == 0 {
 		return map[string]any{}, nil
@@ -109,12 +109,17 @@ func argumentObject(args []byte) (map[string]any, error) {
 	return doc, nil
 }
 
-// integers turns every json.Number in v into the int64 canon encodes. The
-// canonical form holds integer literals only, so a failure here is a defect,
-// not an input.
+// integers turns every integer in v into the int64 cap_amount compares, and
+// leaves every fraction the json.Number canon wrote, which canon.Canonicalize
+// writes back unchanged. canon writes an integer inside the JSON-safe range
+// as bare digits and a fraction always with a point or an exponent, so a
+// failure here is a defect, not an input.
 func integers(v any) (any, error) {
 	switch t := v.(type) {
 	case json.Number:
+		if strings.ContainsAny(t.String(), ".e") {
+			return t, nil
+		}
 		return strconv.ParseInt(t.String(), 10, 64)
 	case []any:
 		for i, item := range t {
@@ -190,8 +195,9 @@ func isASCII(s string) bool {
 }
 
 // capAmount lowers the integer member "field", "amount" unless named, to
-// "max" when it is above it. A member that is absent or not an integer cannot
-// be capped and is refused rather than passed through.
+// "max" when it is above it. A member that is absent or not an integer, a
+// fraction among them, cannot be capped and is refused rather than passed
+// through. 5000.0 is the integer 5000 by then, as it is to the digest.
 func capAmount(doc map[string]any, params map[string]string) error {
 	if err := onlyParams(params, "max", "field"); err != nil {
 		return err

@@ -2,6 +2,7 @@ package rules
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"slices"
@@ -26,6 +27,7 @@ func FuzzParse(f *testing.F) {
 		docWithRules(denyRuleJSON), exampleCanonical, everyFieldCanonical,
 		docWithWhen(`{"principal":{"attributes":{"Team":["a"],"team":["b"]}}}`),
 		docWithBundle(`{"id":"p","version":"1","serial":7.0,"maxStaleSeconds":1}`),
+		docWithWhen(`{"resource":{"labels":{"k":[0.5e1]}}}`),
 		docWithRules(`{"id":"r","effect":"ALLOW","obligations":[{"type":"read_only"}],"when":{"action":{"name":["x"]}}}`),
 		docWithWhen(`{"data":{"sensitivityAtLeast":"UNSPECIFIED"}}`),
 		docWithWhen(`{"action":{"name":["refund"]},"external":{"denies":true}}`),
@@ -47,13 +49,45 @@ func FuzzParse(f *testing.F) {
 }
 
 // checkStrictness: below the size bound, Parse refuses as not strict JSON
-// exactly what the canonical form refuses.
+// exactly what the canonical form refuses, and a document the canonical form
+// accepts that holds a number with a fraction or an exponent.
 func checkStrictness(t *testing.T, raw []byte, err error) {
 	t.Helper()
 	_, canonErr := canon.CanonicalizeJSON(raw)
-	if len(raw) <= 1<<20 && errors.Is(err, ErrNotStrictJSON) != (canonErr != nil) {
+	strict := canonErr == nil && !holdsNonInteger(t, raw)
+	if len(raw) <= 1<<20 && errors.Is(err, ErrNotStrictJSON) == strict {
 		t.Fatalf("Parse(%q) = %v, the canonical form says %v", raw, err, canonErr)
 	}
+}
+
+// holdsNonInteger decodes raw, which the canonical form accepted, into a tree
+// and reports whether any number in it was written with a fraction or an
+// exponent.
+func holdsNonInteger(t *testing.T, raw []byte) bool {
+	t.Helper()
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var tree any
+	if err := dec.Decode(&tree); err != nil {
+		t.Fatalf("the canonical form accepted %q, which does not decode: %v", raw, err)
+	}
+	var walk func(any) bool
+	walk = func(v any) bool {
+		switch x := v.(type) {
+		case json.Number:
+			return strings.ContainsAny(x.String(), ".eE")
+		case []any:
+			return slices.ContainsFunc(x, walk)
+		case map[string]any:
+			for _, item := range x {
+				if walk(item) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return walk(tree)
 }
 
 func checkRefusal(t *testing.T, raw []byte, model *Document, canonical []byte, err error) {

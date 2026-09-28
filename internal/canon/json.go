@@ -15,6 +15,7 @@ package canon
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -54,21 +55,44 @@ const (
 
 // Canonicalize returns the RFC 8785 canonical JSON encoding of v.
 //
-// Supported: nil, bool, string, int, int64, uint64, []any and map[string]any.
-// Every other type is ErrUnsupportedValue, including every float type, every
-// other integer width and json.Number; so is a string or an object key that is
-// not valid UTF-8. Nesting deeper than 32 containers is ErrTooDeep.
+// Supported: nil, bool, string, int, int64, uint64, json.Number, []any and
+// map[string]any. A json.Number is held to the rule a number literal in a
+// document is: an integer inside the JSON-safe range, or a fraction whose value
+// is exactly the shortest decimal of a double inside that range. Every other
+// type is ErrUnsupportedValue, including every float type, whose value is
+// already rounded and no longer says what was written, and every other integer
+// width; so is a string or an object key that is not valid UTF-8. Nesting
+// deeper than 32 containers is ErrTooDeep.
 func Canonicalize(v any) ([]byte, error) {
-	e := &encoder{}
+	return encode(v, actionForm)
+}
+
+func encode(v any, f form) ([]byte, error) {
+	e := &encoder{form: f}
 	if err := e.value(v, 0); err != nil {
 		return nil, err
 	}
 	return e.buf.Bytes(), nil
 }
 
+// form is the rule set a value is canonicalized under.
+type form int
+
+const (
+	// actionForm is the action digest's and the arguments hash's: exact
+	// numbers inside the JSON-safe range, member names that fold together
+	// refused.
+	actionForm form = iota
+	// definitionForm is a tool definition's, which is fingerprinted and never
+	// authorizes anything by its values: any finite double, and member names
+	// that fold together kept, since a schema may name both ID and id.
+	definitionForm
+)
+
 type encoder struct {
 	walker
-	buf bytes.Buffer
+	form form
+	buf  bytes.Buffer
 }
 
 // value writes v. depth is the number of containers enclosing it.
@@ -89,6 +113,8 @@ func (e *encoder) value(v any, depth int) error {
 		return e.writeSigned(t)
 	case uint64:
 		return e.writeUnsigned(t)
+	case json.Number:
+		return e.writeNumber(string(t))
 	case []any:
 		return e.array(t, depth)
 	case map[string]any:
@@ -143,7 +169,7 @@ func (e *encoder) object(m map[string]any, depth int) error {
 	// Here and not only in the parser: the attributes and labels of an envelope
 	// reach the canonical form as Go maps and never pass the parser.
 	keys := sortedKeys(m)
-	if later, earlier, found := foldedMember(keys); found {
+	if later, earlier, found := foldedMember(keys); found && e.form == actionForm {
 		return e.unsupported(foldsTogether(later, earlier))
 	}
 
@@ -256,6 +282,23 @@ func (e *encoder) writeSigned(n int64) error {
 	}
 	e.buf.WriteString(strconv.FormatInt(n, 10))
 	return nil
+}
+
+// writeNumber writes a number literal under the encoder's form.
+func (e *encoder) writeNumber(literal string) error {
+	text, refused := numberText(literal, e.form)
+	if refused != "" {
+		return e.unsupported(refused)
+	}
+	e.buf.WriteString(text)
+	return nil
+}
+
+func numberText(literal string, f form) (string, string) {
+	if f == definitionForm {
+		return definitionNumber(literal)
+	}
+	return actionNumber(literal)
 }
 
 // writeUnsigned formats from uint64, so no value wraps on its way to the check.

@@ -44,11 +44,12 @@ func pointerIn(t *testing.T, err error) string {
 	return p
 }
 
-// refusedUnder returns what both entry points say about a float nested under
-// the given member names, outermost first.
+// refusedUnder returns what both entry points say about a refused number
+// nested under the given member names, outermost first: a Go float, which
+// Canonicalize refuses by type, and a literal outside the range of a double.
 func refusedUnder(keys ...string) (encoded, parsed error) {
 	var v any = 1.5
-	doc := "1.5"
+	doc := "1e400"
 	for i := len(keys) - 1; i >= 0; i-- {
 		v = map[string]any{keys[i]: v}
 		doc = "{" + strconv.Quote(keys[i]) + ":" + doc + "}"
@@ -139,7 +140,7 @@ func TestLongKeyRefusalIsBounded(t *testing.T) {
 		refusalCap       = quotedPointerCap + 200
 	)
 	del := strings.Repeat("\x7f", 63)
-	delDoc := `{"` + del + `":{"` + del + `":{"` + del + `":{"` + del + `":0.5}}}}`
+	delDoc := `{"` + del + `":{"` + del + `":{"` + del + `":{"` + del + `":1e400}}}}`
 	// The 1 MiB document is over the digest's size bound, so only the parser
 	// sees its key.
 	cases := []struct {
@@ -148,9 +149,9 @@ func TestLongKeyRefusalIsBounded(t *testing.T) {
 		cut       bool
 		viaDigest bool
 	}{
-		{"a float under a 60 KB key", `{"alice@example.test/` + strings.Repeat("k", 60000) + `":0.5}`, true, true},
+		{"a number past the safe range under a 60 KB key", `{"alice@example.test/` + strings.Repeat("k", 60000) + `":1e400}`, true, true},
 		{"a duplicate under a 1 MiB key", `{"` + strings.Repeat("K", 1<<20) + `":{"a":1,"a":2}}`, true, false},
-		{"a float under 63 DEL bytes at four levels", delDoc, false, true},
+		{"a number past the safe range under 63 DEL bytes at four levels", delDoc, false, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

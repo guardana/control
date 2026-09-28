@@ -127,7 +127,7 @@ each definition. Nothing else classifies: a tool's own annotations are hints
 | `Fingerprint` | the whole definition through `internal/canon` | pinning the definition an override classified |
 | `Effect` | the operator's override | `action.effect`, so materiality and the fail-closed table |
 | `ResourceType` | the operator's override | `resource.type` |
-| `ResourceFrom` | the operator's override, a bounded JSON pointer | reading `resource.id` out of the arguments |
+| `ResourceFrom` | the operator's override, a bounded JSON pointer | reading `resource.id` out of the arguments: a string as written, a number as its canonical text, so `42.0` and `4.2e1` are `42` and a rule on a numeric id uses that text |
 | `TrustZone` | the operator's override | `destination.trust_zone`, which a policy's `destination` constraint and the `deny_external_sink` obligation read. What a tool's results contain is `returns.trust` and `returns.sensitivity`, which the run's flow state reads ([ADR-0021](../adr/0021-a-run-carries-what-it-took-in.md)) |
 | `Classified` | whether an override pins this fingerprint | an unclassified call is `ACTION_UNCLASSIFIED` outside `OBSERVE` |
 

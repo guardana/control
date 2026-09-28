@@ -35,7 +35,7 @@ does not. Nothing here is a security boundary yet.
 
 ### 1. Write a configuration
 
-Every path in the file resolves against the file's own directory. Every key has
+Every path in the file resolves against the file's directory. Every key has
 an environment variable under `GUARDANA_CONTROL_`, spelled as the key with its
 dots as underscores in capitals, and the variable wins, so a credential or a
 per-host path stays out of version control. A key the file names and this build
@@ -75,8 +75,8 @@ upstreams:
     endpoint: http://127.0.0.1:9000/mcp   # a redirect it answers is not followed; the call fails
 ```
 
-The listener in this build authenticates nobody, so the principal is the one
-you configure here and the same for every request on that listener. An
+The listener in this build authenticates nobody, so every request on it is
+made by the principal configured here. An
 end-user identity bound from a token is not in this build, whatever an approver
 claims when answering; [status.md](../status.md) is the inventory.
 
@@ -86,13 +86,13 @@ claims when answering; [status.md](../status.md) is the inventory.
 guardana-gateway doctor --config gateway.yaml
 ```
 
-`doctor` prints one line per check, then every bound and where it came from, so
-the defaults are read rather than assumed. It serves nothing, and it stops at
+`doctor` prints one line per check, then every bound and where it came from.
+It serves nothing, and it stops at
 the first check it cannot make. A tool no override classifies is printed with
-the fingerprint of its definition, which is what step 4 needs. It locks no
-approvals directory; that directory's lock and its permissions are checked when
-the plane starts. It does open the spool: it locks the evidence directory, cuts
-a torn tail and writes a probe file there.
+the fingerprint of its definition, which is what step 4 needs. It does not lock
+the approvals directory, whose lock and permissions the plane checks at start.
+It does open the spool: it locks the evidence directory, cuts a torn tail and
+writes a probe file.
 
 ### 3. Run in OBSERVE
 
@@ -100,9 +100,9 @@ a torn tail and writes a probe file there.
 guardana-gateway run --config gateway.yaml
 ```
 
-Point the agent at `http://127.0.0.1:8080` instead of the server. In `OBSERVE`
+Point the agent at `http://127.0.0.1:8080`, not the server. In `OBSERVE`
 every recordable call runs with the bytes the agent proposed and no obligation
-applied: it is how you learn which tools exist before classifying them.
+applied, which shows the tools that exist before you classify them.
 
 ### 4. Classify the tools
 
@@ -123,6 +123,10 @@ overrides:
 The fingerprint covers the whole definition: a tool whose description or
 schema changes is unclassified again until you look at it.
 
+A number at `resource_from` names the resource by its canonical text (`42.0`
+and `4.2e1` are `42`, `1e-7` stays `1e-7`), so a rule on a numeric id uses
+that text.
+
 ### 5. Read the health
 
 ```
@@ -138,13 +142,12 @@ executed, sink failures before and after an effect, unrecorded reads,
 mismatches, open and held) and `approvals` (the provider, whether a hold
 journal is kept, and what the last reconciliation closed and could not settle)
 and `pause`. A plane that takes no material call, or whose pause state is
-unknown, answers `503`. `GET /brand` answers what
-the product is called.
+unknown, answers `503`. `GET /brand` answers the product's name.
 
 ### 6. Move to ENFORCE
 
 Run `doctor` again with `GUARDANA_CONTROL_MODE=ENFORCE`: outside `OBSERVE` an
-unclassified tool is not a pass, so it shows whether the overrides are
+unclassified tool is not a pass, which shows whether the overrides are
 complete. Then change the mode and restart.
 
 | Mode | What the plane does with the kernel's decision |
@@ -216,11 +219,11 @@ guardana-control pause add --action tool --provider orders --name refund /srv/pa
 object says which rule stopped it:
 
 - `executed_args_mismatch`: something sent bytes that were not the authorized
-  ones. This stands until the process is restarted. Read the trail's
+  ones. It stands until a restart. Read the trail's
   `ACTION_FAILED` record before restarting; it names the digest of what was
   sent.
 - `evidence_unwritable`: a closing record could not be written. It lifts when an
-  append succeeds, so give the spool room, or let the collector drain it, and
+  append succeeds: give the spool room or let the collector drain it, and
   watch the depth. While a mismatch halt stands it reads `false`, because the
   pipeline reports one flag for both halts and a mismatch needs the restart
   either way; `pipeline.sink_failures_after_effect` counts what happened.
@@ -230,5 +233,5 @@ object says which rule stopped it:
 Set `mode: OBSERVE` and restart: no decision blocks a call and the trail
 keeps recording. Evidence that cannot be written still blocks a material call,
 in any mode. To stop enforcing altogether, point the agent back at the server and
-stop the gateway; the spool keeps what it holds, and the exporter drains it on
-the next run from the position the collector last acknowledged.
+stop the gateway; the spool keeps its records, and the exporter drains them on
+the next run from the collector's last acknowledgement.

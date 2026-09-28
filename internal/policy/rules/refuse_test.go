@@ -1,6 +1,8 @@
 package rules
 
 import (
+	"encoding/json"
+	"errors"
 	"testing"
 )
 
@@ -78,6 +80,9 @@ func TestBundleRefusals(t *testing.T) {
 		{"budget a boolean", b(`"id":"p","version":"1","serial":1,"maxStaleSeconds":true`), valid, refusal{ErrWrongType, "bundle.maxStaleSeconds", ""}},
 		{"serial a float", b(`"id":"p","version":"1","serial":7.0,"maxStaleSeconds":1`), b(`"id":"p","version":"1","serial":7,"maxStaleSeconds":1`), refusal{ErrNotStrictJSON, "", ""}},
 		{"serial with an exponent", b(`"id":"p","version":"1","serial":1e3,"maxStaleSeconds":1`), valid, refusal{ErrNotStrictJSON, "", ""}},
+		{"serial a fraction", b(`"id":"p","version":"1","serial":2.5,"maxStaleSeconds":1`), valid, refusal{ErrNotStrictJSON, "", ""}},
+		{"budget a float", b(`"id":"p","version":"1","serial":1,"maxStaleSeconds":2.0`), valid, refusal{ErrNotStrictJSON, "", ""}},
+		{"a float in a label value", docWithWhen(`{"resource":{"labels":{"k":["a",1E0]}}}`), valid, refusal{ErrNotStrictJSON, "", ""}},
 		{
 			"serial past the JSON-safe range",
 			b(`"id":"p","version":"1","serial":9007199254740992,"maxStaleSeconds":1`),
@@ -169,4 +174,20 @@ func TestKeysMatchExactly(t *testing.T) {
 		{"attribute keys that fold together", docWithWhen(`{"principal":{"attributes":{"Team":["a"],"team":["b"]}}}`), docWithWhen(`{"principal":{"attributes":{"Team":["a"],"tier":["b"]}}}`), refusal{ErrNotStrictJSON, "", ""}},
 		{"param keys that fold together", docWithRules(`{"id":"r","effect":"REQUIRE_APPROVAL","obligations":[{"type":"cap_amount","params":{"max":"1","MAX":"2"}}],"when":{"action":{"name":["x"]}}}`), valid, refusal{ErrNotStrictJSON, "", ""}},
 	})
+}
+
+// TestCountRefusesAFractionAsTheWrongType: Parse never hands count a fraction,
+// but were one to reach it, 2.5 is not an integer, which is a different
+// refusal from a number below one.
+func TestCountRefusesAFractionAsTheWrongType(t *testing.T) {
+	t.Parallel()
+	for _, literal := range []string{"2.5", "2.0", "1e3", "9223372036854775808"} {
+		_, err := count(json.Number(literal), at{}, 1<<40)
+		if !errors.Is(err, ErrWrongType) || errors.Is(err, ErrNotPositive) {
+			t.Errorf("count(%s) = %v, want ErrWrongType", literal, err)
+		}
+	}
+	if _, err := count(json.Number("0"), at{}, 1); !errors.Is(err, ErrNotPositive) {
+		t.Errorf("count(0) = %v, want ErrNotPositive", err)
+	}
 }

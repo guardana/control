@@ -165,7 +165,7 @@ func TestDigestStepRefusals(t *testing.T) {
 	}{
 		{"one byte over the arguments bound", readEnvelope(), argumentsOfSize(t, canon.MaxArgumentsBytes+1), codeLimitExceeded},
 		{"one level over the nesting bound", readEnvelope(), deepArguments(contract.MaxNesting + 1), codeLimitExceeded},
-		{"a float", readEnvelope(), []byte(`{"amount":1.5}`), codeInvalidFieldValue},
+		{"a number past the exact range", readEnvelope(), []byte(`{"amount":9007199254740992}`), codeInvalidFieldValue},
 		{"a duplicate key", readEnvelope(), []byte(`{"a":1,"a":2}`), codeInvalidFieldValue},
 		{"the literal null", readEnvelope(), []byte(`null`), codeInvalidFieldValue},
 		{"not JSON", readEnvelope(), []byte(`{`), codeInvalidFieldValue},

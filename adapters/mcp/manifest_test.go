@@ -1,7 +1,9 @@
 package mcp_test
 
 import (
+	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -56,7 +58,7 @@ func TestFingerprintCoversTheWholeDefinition(t *testing.T) {
 		}
 	}
 	x := base()
-	x.InputSchema = map[string]any{"type": "number", "minimum": 0.5}
+	x.InputSchema = json.RawMessage(`{"type":"number","minimum":1,"minimum":2}`)
 	if _, err := mcp.Fingerprint(x); err == nil {
 		t.Errorf("a schema the canonical form refuses got a fingerprint")
 	}
@@ -295,5 +297,61 @@ func checkManifest(t *testing.T, a *mcp.Adapter, listed *sdk.Tool, o mcp.Overrid
 		if e.Classified && (e.Effect != o.Effect || e.ResourceFrom != o.ResourceFrom) {
 			t.Fatalf("entry %+v does not carry the override", e)
 		}
+	}
+}
+
+// TestADenyOnAResourceIDHoldsForEverySpelling: a rule that denies the
+// resource 42 denies a call naming it as 42, 42.0 or 4.2e1, and not one naming
+// 43.0, on the real pipeline.
+func TestADenyOnAResourceIDHoldsForEverySpelling(t *testing.T) {
+	deny42 := `{"id":"deny-42","effect":"DENY","when":{"resource":{"id":["42"]}}}`
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{mode: modeEnforce, rules: []string{allowEverything, deny42}, overrides: func(v *victim, t *testing.T) []mcp.Override {
+		return []mcp.Override{{Upstream: "victim", Tool: "unlisted", Fingerprint: v.fingerprint(t, "unlisted"), Effect: effectRead, ResourceType: "file", ResourceFrom: "/n"}}
+	}})
+	agent := r.connect(t, "agent-a")
+	call := func(args string) *sdk.CallToolResult {
+		t.Helper()
+		res, err := agent.CallTool(ctxT(t), &sdk.CallToolParams{Name: "unlisted", Arguments: json.RawMessage(args)})
+		if err != nil {
+			t.Fatalf("%s: %v", args, err)
+		}
+		return res
+	}
+	for _, args := range []string{`{"n":42}`, `{"n":42.0}`, `{"n":4.2e1}`} {
+		if res := call(args); !res.IsError || !slices.Contains(codesOf(t, res), "RULE_DENY") {
+			t.Errorf("%s: %+v, want the deny rule's refusal", args, res.StructuredContent)
+		}
+	}
+	if n := r.victim.count("unlisted"); n != 0 {
+		t.Fatalf("the victim ran %d denied calls", n)
+	}
+	call(`{"n":43.0}`)
+	if n := r.victim.count("unlisted"); n != 1 {
+		t.Errorf("a call naming 43.0 reached the victim %d times, want once", n)
+	}
+}
+
+// TestARuleOnANumericIDUsesItsCanonicalText pins the other side: the id a call
+// names is the number's canonical text, so a rule written with another
+// spelling of a number, "42.0" or "1e2", names an id no call can carry. The
+// operator pages say so.
+func TestARuleOnANumericIDUsesItsCanonicalText(t *testing.T) {
+	spelled := `{"id":"deny-spelled","effect":"DENY","when":{"resource":{"id":["42.0","1e2"]}}}`
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{mode: modeEnforce, rules: []string{allowEverything, spelled}, overrides: func(v *victim, t *testing.T) []mcp.Override {
+		return []mcp.Override{{Upstream: "victim", Tool: "unlisted", Fingerprint: v.fingerprint(t, "unlisted"), Effect: effectRead, ResourceType: "file", ResourceFrom: "/n"}}
+	}})
+	agent := r.connect(t, "agent-a")
+	for i, args := range []string{`{"n":42.0}`, `{"n":1e2}`, `{"n":100}`} {
+		res, err := agent.CallTool(ctxT(t), &sdk.CallToolParams{Name: "unlisted", Arguments: json.RawMessage(args)})
+		if err != nil || res.IsError {
+			t.Fatalf("%s: %v %+v, want it to run: its id is the canonical text", args, err, res)
+		}
+		if n := r.victim.count("unlisted"); n != i+1 {
+			t.Fatalf("%s: the victim ran %d calls, want %d", args, n, i+1)
+		}
+	}
+	res, err := agent.CallTool(ctxT(t), &sdk.CallToolParams{Name: "unlisted", Arguments: json.RawMessage(`{"n":"42.0"}`)})
+	if err != nil || !res.IsError || !slices.Contains(codesOf(t, res), "RULE_DENY") {
+		t.Errorf(`the string "42.0": %v %+v, want the rule's refusal`, err, res)
 	}
 }

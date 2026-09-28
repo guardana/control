@@ -254,16 +254,20 @@ func params(v any, a at) (map[string]string, error) {
 	return out, nil
 }
 
-// count reads an integer above zero and at most limit. The canonical form
-// admits only integer literals inside the JSON-safe range, so the conversion
-// cannot fail on one; were it to, the value is refused all the same.
+// count reads an integer above zero and at most limit. Parse admits only
+// integer literals inside the JSON-safe range, so the conversion cannot fail
+// on one; were it to, the value is refused as the wrong type, not as a
+// number below one.
 func count(v any, a at, limit int64) (int64, error) {
 	num, ok := v.(json.Number)
 	if !ok {
 		return 0, a.refuse(fmt.Errorf("%w: want an integer", ErrWrongType))
 	}
 	n, err := num.Int64()
-	if err != nil || n <= 0 {
+	if err != nil {
+		return 0, a.refuse(fmt.Errorf("%w: want an integer", ErrWrongType))
+	}
+	if n <= 0 {
 		return 0, a.refuse(fmt.Errorf("%w: want 1 or more", ErrNotPositive))
 	}
 	if n > limit {

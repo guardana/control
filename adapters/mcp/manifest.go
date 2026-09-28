@@ -87,9 +87,11 @@ type Entry struct {
 
 // Fingerprint identifies a tool definition by all of it as the library types
 // it: name, title, description, input schema, output schema, annotations,
-// icons and _meta, canonicalized through internal/canon and hashed under a
-// domain tag. A definition the canonical form refuses, one with a float in a
-// schema for instance, has no fingerprint and so cannot be classified.
+// icons and _meta, canonicalized through canon.FingerprintJSON and hashed under
+// a domain tag. That form takes any finite number and member names that fold
+// together, which a schema holds and a definition authorizes nothing by; a
+// definition it still refuses, one with a duplicate key for instance, has no
+// fingerprint and so cannot be classified.
 func Fingerprint(t *mcp.Tool) (string, error) {
 	if t == nil {
 		return "", errors.New("mcp: no tool")
@@ -107,7 +109,7 @@ func Fingerprint(t *mcp.Tool) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("mcp: fingerprint: %w", err)
 	}
-	body, err := canon.CanonicalizeJSON(raw)
+	body, err := canon.FingerprintJSON(raw)
 	if err != nil {
 		return "", fmt.Errorf("mcp: fingerprint: %w", err)
 	}
@@ -142,9 +144,9 @@ func checkPointer(p string) error {
 }
 
 // resolvePointer reads the resource id at pointer p in the arguments: a
-// string as it stands, an integer as its decimal text, anything else as no
-// id. It decodes the document itself rather than through the canonical form,
-// which the digest applies later to the same bytes.
+// string as it stands, a number as the text the canonical form writes for it,
+// anything else as no id. It decodes the document itself rather than through
+// the canonical form, which the digest applies later to the same bytes.
 func resolvePointer(args []byte, p string) string {
 	if p == "" || len(args) == 0 {
 		return ""
@@ -182,13 +184,16 @@ func step(v any, tok string) (any, bool) {
 	return nil, false
 }
 
+// scalarText is a number's canonical text, so every spelling of one value,
+// 42 and 42.0 among them, names one resource. A number the canonical form
+// refuses names none; the digest refuses the call it is in.
 func scalarText(v any) string {
 	switch s := v.(type) {
 	case string:
 		return s
 	case json.Number:
-		if _, err := s.Int64(); err == nil {
-			return s.String()
+		if text, err := canon.CanonicalizeJSON([]byte(s.String())); err == nil {
+			return string(text)
 		}
 	}
 	return ""

@@ -47,6 +47,12 @@ verify one.
 
 ### Fixed
 
+- A tool whose definition holds a fractional number, such as
+  `"default": 0.7`, is fingerprinted and can be classified, and a call
+  whose arguments hold a fraction a double represents exactly is decided.
+  The digest binds a number's value, so `1.0` and `1` digest alike, and
+  every digest of arguments accepted before is unchanged
+  ([ADR-0029](docs/adr/0029-exact-fractions-in-the-canonical-form.md)).
 - A resumed call whose approval expired by the plane's clock before it
   was handed to the upstream is not sent: it is blocked with
   `APPROVAL_EXPIRED`, and the approval stays spent.

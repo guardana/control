@@ -213,7 +213,7 @@ func TestBindRefusesWhatTheDigestRefuses(t *testing.T) {
 	}{
 		{"no envelope", nil, g.args, canon.ErrMissingEnvelope},
 		{"arguments over the bound", g.env, oversize, canon.ErrArgumentsTooLarge},
-		{"a float in the arguments", g.env, []byte(`{"temperature":0.7}`), canon.ErrUnsupportedValue},
+		{"an inexact fraction in the arguments", g.env, []byte(`{"temperature":0.30000000000000001}`), canon.ErrUnsupportedValue},
 		{"arguments that are null", g.env, []byte(`null`), canon.ErrUnsupportedValue},
 		{"an effect this build cannot name", undeclared, g.args, canon.ErrUnsupportedValue},
 		{"a field this build does not know", unknown, g.args, canon.ErrUnsupportedValue},

@@ -8,7 +8,7 @@
   },
   "envelope": {
     "schemaVersion": "1.0",
-    "requestId": "req-float-argument",
+    "requestId": "req-integer-past-2-53",
     "projectId": "proj-1",
     "tenantId": "tenant-1",
     "environment": "prod",
@@ -18,7 +18,7 @@
     "action": {"name": "orders.read", "effect": "EFFECT_CLASS_READ", "provider": "orders"},
     "resource": {"type": "order", "id": "ord-1", "tenantId": "tenant-1", "environment": "prod"}
   },
-  "authorized_args": "{\"amount\": 1.5}",
+  "authorized_args": "{\"amount\": 9007199254740992}",
   "flow": {"untrusted": false, "floor": "PUBLIC"},
   "options": {"fail_open_read": true, "max_stale_seconds": 600, "applicable": []},
   "loaded_at": "2026-09-11T12:00:00Z",

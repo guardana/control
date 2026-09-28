@@ -67,7 +67,7 @@ func TestCloseRecordsAMismatchAndHaltsMaterialCalls(t *testing.T) {
 	// Bytes that cannot be digested at all are a mismatch too.
 	h = build(t, modeEnforce, snapshot(t, allowWrites))
 	d = h.admit(writeEnvelope(), []byte(`{}`))
-	if err := h.p.Close(context.Background(), d, []byte(`{"a": 1.5}`), result(controlv1.ResultStatus_RESULT_STATUS_SUCCESS)); !errors.Is(err, gateway.ErrExecutedArgsMismatch) {
+	if err := h.p.Close(context.Background(), d, []byte(`{"a": 1e400}`), result(controlv1.ResultStatus_RESULT_STATUS_SUCCESS)); !errors.Is(err, gateway.ErrExecutedArgsMismatch) {
 		t.Errorf("Close with bytes canon refuses = %v, want ErrExecutedArgsMismatch", err)
 	}
 }

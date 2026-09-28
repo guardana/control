@@ -133,7 +133,7 @@ func TestArgumentsHashOfAbsentArguments(t *testing.T) {
 func TestArgumentsHashRefusesWhatTheDigestRefuses(t *testing.T) {
 	env := &controlv1.ActionEnvelope{}
 	for _, doc := range []string{
-		`{"temperature":0.7}`, `{"n":9007199254740992}`, `{"amount":1,"amount":2}`,
+		`{"temperature":0.30000000000000001}`, `{"n":9007199254740992}`, `{"amount":1,"amount":2}`,
 		`{"amount":1,"AMOUNT":2}`, `{"s":"\ud800"}`, `null`, "{\"s\":\"\xff\"}", `{"a":1} {"b":2}`, `{`,
 		strings.Repeat("[", 33) + strings.Repeat("]", 33),
 		`{"a":"` + strings.Repeat("x", 65529) + `"}`,

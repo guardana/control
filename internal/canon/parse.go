@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
 )
@@ -17,9 +16,16 @@ import (
 //
 // It reads the token stream rather than unmarshalling, because three of the
 // things a digest cannot survive are invisible once a document has become a Go
-// value: a duplicate key (two documents, one canonical form), a number that
-// carried a fraction or an exponent, and nesting the encoder would refuse
-// anyway after the decoder had walked it.
+// value: a duplicate key (two documents, one canonical form), the literal a
+// number was written as, and nesting the encoder would refuse anyway after the
+// decoder had walked it.
+//
+// A number is accepted when it is an integer inside the JSON-safe range, or
+// when its value is exactly the shortest decimal of a double inside that
+// range; 1.0, 1e0 and 10e-1 are then one value with the text 1, and 0.1 and
+// 0.10 one value with the text 0.1. Any other number is refused rather than
+// rounded, so every implementation that reads the literal into a double
+// agrees on the value it covers.
 //
 // Input that is not valid UTF-8, and input carrying an unpaired surrogate
 // escape, are refused rather than decoded: encoding/json turns both into U+FFFD
@@ -33,11 +39,30 @@ func CanonicalizeJSON(raw []byte) ([]byte, error) {
 	return Canonicalize(v)
 }
 
+// FingerprintJSON is the canonical form of a definition that is identified
+// rather than authorized, such as a tool definition an upstream lists. It keeps
+// the sorting, escaping, UTF-8, duplicate-key and depth rules of
+// CanonicalizeJSON, writes every number as the finite double nearest to it with
+// no range bound and no exactness check, and keeps member names that fold
+// together. A document CanonicalizeJSON accepts has the same bytes under both.
+// It is never an input to an action digest or an arguments hash.
+func FingerprintJSON(raw []byte) ([]byte, error) {
+	v, err := parse(raw, definitionForm)
+	if err != nil {
+		return nil, err
+	}
+	return encode(v, definitionForm)
+}
+
 // parseJSON is CanonicalizeJSON without the encode: the value tree, with every
 // refusal the canonical form makes about a document already applied. The digest
 // embeds authorized arguments in a larger value, so it needs the tree rather
 // than the bytes.
 func parseJSON(raw []byte) (any, error) {
+	return parse(raw, actionForm)
+}
+
+func parse(raw []byte, f form) (any, error) {
 	if !utf8.Valid(raw) {
 		return nil, errors.New("canon: input is not valid UTF-8")
 	}
@@ -45,7 +70,7 @@ func parseJSON(raw []byte) (any, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
 
-	p := &parser{dec: dec}
+	p := &parser{dec: dec, form: f}
 	v, err := p.value(0)
 	if err != nil {
 		return nil, err
@@ -66,7 +91,8 @@ func parseJSON(raw []byte) (any, error) {
 // iteration, so the same document always names the same member.
 type parser struct {
 	walker
-	dec *json.Decoder
+	dec  *json.Decoder
+	form form
 }
 
 // value reads one value. depth is the number of containers enclosing it.
@@ -87,7 +113,7 @@ func (p *parser) value(depth int) (any, error) {
 		// document before this is reachable.
 		return nil, fmt.Errorf("canon: parse: unexpected %q", t)
 	case json.Number:
-		return p.integer(t)
+		return p.number(t)
 	default: // nil, bool, string
 		return tok, nil
 	}
@@ -135,7 +161,7 @@ func (p *parser) object(depth int) (map[string]any, error) {
 		// case, so keys that fold together are refused the same way, in the
 		// same document order.
 		fold := FoldKey(key)
-		if earlier, seen := folded[fold]; seen {
+		if earlier, seen := folded[fold]; seen && p.form == actionForm {
 			return nil, p.unsupported(foldsTogether(len(members), earlier))
 		}
 		folded[fold] = len(members)
@@ -171,19 +197,15 @@ func (p *parser) closing() error {
 	return nil
 }
 
-// integer accepts an integer literal only. 1.0 and 1e3 hold integral values but
-// arrive through a float everywhere else, and ADR-0005 refuses floats.
-func (p *parser) integer(num json.Number) (int64, error) {
-	literal := num.String()
-	if strings.ContainsAny(literal, ".eE") {
-		return 0, p.unsupported("number is not an integer literal")
+// number reads a number literal into its canonical text. It is checked here,
+// in document order, so a refusal names the first number the form refuses
+// rather than the first in key order.
+func (p *parser) number(num json.Number) (json.Number, error) {
+	text, refused := numberText(num.String(), p.form)
+	if refused != "" {
+		return "", p.unsupported(refused)
 	}
-	// The syntax is the decoder's; the only failure left is too long for int64.
-	i, err := strconv.ParseInt(literal, 10, 64)
-	if err != nil || i > maxSafeInteger || i < minSafeInteger {
-		return 0, p.unsupported(outsideRange)
-	}
-	return i, nil
+	return json.Number(text), nil
 }
 
 // unpairedSurrogate returns the offset of a \uD800-\uDFFF escape in raw that is

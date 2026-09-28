@@ -35,7 +35,7 @@ import (
 // SDK does not read Go packages.
 const fixtureDir = "../../testdata/digest"
 
-var fixtureNames = []string{"minimal", "refund_prod", "delegated", "mutated_amount", "escapes"}
+var fixtureNames = []string{"minimal", "refund_prod", "delegated", "mutated_amount", "escapes", "fractions"}
 
 // The tags are written out here rather than read from the package. A test that
 // reads a constant from the implementation cannot notice the implementation
@@ -74,6 +74,9 @@ type fixture struct {
 	Envelope       json.RawMessage `json:"envelope"`
 	AuthorizedArgs json.RawMessage `json:"authorized_args"`
 	ExpectedDigest string          `json:"expected_digest"`
+	// ExpectedHash, where a fixture carries one, is the arguments hash of
+	// authorized_args.
+	ExpectedHash string `json:"expected_hash"`
 }
 
 func loadFixture(t testing.TB, name string) fixture {
@@ -801,9 +804,11 @@ func TestArgumentsRefusals(t *testing.T) {
 		name, args, want string
 		sentinel         error
 	}{
-		{"float", `{"temperature":0.7}`, "not an integer literal", canon.ErrUnsupportedValue},
-		{"integral float", `{"n":1.0}`, "not an integer literal", canon.ErrUnsupportedValue},
-		{"exponent", `{"n":1e3}`, "not an integer literal", canon.ErrUnsupportedValue},
+		{"fraction no double holds exactly", `{"temperature":0.30000000000000001}`, "not exactly the shortest decimal", canon.ErrUnsupportedValue},
+		{"integral fraction over 2^53-1", `{"n":9007199254740992.0}`, "JSON-safe range", canon.ErrUnsupportedValue},
+		{"exponent over 2^53-1", `{"n":1e16}`, "JSON-safe range", canon.ErrUnsupportedValue},
+		{"exponent past a double", `{"n":1e400}`, "outside the range of a double", canon.ErrUnsupportedValue},
+		{"exponent below a double", `{"n":1e-400}`, "outside the range of a double", canon.ErrUnsupportedValue},
 		{"integer over 2^53-1", `{"n":9007199254740992}`, "JSON-safe range", canon.ErrUnsupportedValue},
 		{"integer under -(2^53-1)", `{"n":-9007199254740992}`, "JSON-safe range", canon.ErrUnsupportedValue},
 		{"duplicate key", `{"amount":1,"amount":1000000}`, "duplicate object key", canon.ErrUnsupportedValue},
@@ -889,7 +894,7 @@ func TestArgumentsAcceptsWhatTheRulesAllow(t *testing.T) {
 	for _, args := range []string{
 		`{}`, `[]`, `{"nested":{"null":null}}`, `{"n":9007199254740991}`,
 		`{"n":-9007199254740991}`, `{"pair":"😀"}`, `{"escaped backslash":"\\ud800"}`,
-		`"a top-level string"`, `42`, `true`,
+		`"a top-level string"`, `42`, `true`, `{"t":0.7}`, `{"n":1.0}`, `{"n":5e-324}`, `0.5`,
 	} {
 		if _, err := canon.DigestV1(env, []byte(args)); err != nil {
 			t.Errorf("DigestV1 refused %s: %v", args, err)
@@ -1277,7 +1282,7 @@ func TestEveryFixtureFileIsRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the fixture directory: %v", err)
 	}
-	known := []string{"arguments_hash.json", "binding.json"}
+	known := []string{"arguments_hash.json", "binding.json", "numbers.json", "integral_spelled.json"}
 	for _, name := range fixtureNames {
 		known = append(known, name+".json")
 	}
@@ -1348,7 +1353,7 @@ func TestNoStringIsNormalized(t *testing.T) {
 // its canonical form give the same answer.
 func FuzzDigestArguments(f *testing.F) {
 	for _, seed := range []string{
-		`{}`, `[]`, `null`, `0`, `""`, `{"a":1}`, `{"a":1,"a":2}`, `{"a":0.5}`,
+		`{}`, `[]`, `null`, `0`, `""`, `{"a":1}`, `{"a":1,"a":2}`, `{"a":0.5}`, `{"a":1e400}`, `{"a":0.10}`,
 		`{"a":"\ud800"}`, `{"a":"😀"}`, `{"a":9007199254740992}`,
 		`{"b":{"c":[true,false,null]}}`, ` { "a" : 1 } `, `{`,
 	} {
