@@ -78,10 +78,9 @@ runs as well. Their work shares the cores with the call, and `B/op` and
 `allocs/op` count the whole process: the exporter, the collector and the
 upstream included. A plane row minus `direct` is therefore what the plane
 adds in this arrangement, the pipeline, the spool, a second protocol hop and
-the exporter's share of the machine together, not the pipeline alone. The
-exporter reading each record back from the spool is most of the interval
-row's time and most of `B/op` on both plane rows; that cost is not the
-pipeline's.
+the exporter's share of the machine together, not the pipeline alone. Both
+plane rows include the exporter reading each record back from the spool, a
+cost that is not the pipeline's.
 
 | Outside the number | Because |
 | --- | --- |
