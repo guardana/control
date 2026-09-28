@@ -11,6 +11,16 @@ verify one.
 
 ## [Unreleased]
 
+## [0.2.0-alpha] - 2026-09-28
+
+The second release. It fixes how an approval's expiry is kept, how much
+of the plane a stdio upstream is handed, where a plaintext export may go,
+and how numbers and uncertain results are recorded. It adds an image of
+the gateway beside the archives, and pages that say what the plane
+protects, what it records and which failures it survives.
+[docs/status.md](docs/status.md) says what is `implemented` and what is
+`experimental`. Nothing here is a security boundary yet.
+
 ### Added
 
 - Reason code `APPROVAL_STATE_UNKNOWN` (44, `INDETERMINATE`): a lost hold
@@ -136,5 +146,6 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.1.0-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.2.0-alpha...HEAD
+[0.2.0-alpha]: https://github.com/guardana/control/releases/tag/v0.2.0-alpha
 [0.1.0-alpha]: https://github.com/guardana/control/releases/tag/v0.1.0-alpha
