@@ -10,16 +10,17 @@ import (
 )
 
 // Check refuses addr unless it is host:port whose host is a loopback IP
-// literal and whose port is a decimal number of at most 16 bits, spelled
-// without a sign or a leading zero. Port 0 is admitted: it asks the system
-// for a free port on the loopback. Every refusal names the loopback.
+// literal without a zone and whose port is a decimal number of at most 16
+// bits, spelled without a sign or a leading zero. Port 0 is admitted: it asks
+// the system for a free port on the loopback. Every refusal names the
+// loopback.
 func Check(addr string) error {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return fmt.Errorf("%s is not host:port with a loopback IP address, such as 127.0.0.1:4318", strconv.Quote(addr))
 	}
 	ip, err := netip.ParseAddr(host)
-	if err != nil || !ip.IsLoopback() {
+	if err != nil || !ip.IsLoopback() || ip.Zone() != "" {
 		return fmt.Errorf("%s is not a loopback IP address", strconv.Quote(host))
 	}
 	if n, err := strconv.ParseUint(port, 10, 16); err != nil || strconv.FormatUint(n, 10) != port {

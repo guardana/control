@@ -16,6 +16,7 @@ func TestCheckRefusesWhatIsNotALoopbackLiteral(t *testing.T) {
 		"localhost:0", "LOCALHOST:0", "ip6-localhost:0",
 		"127.0.0.1", "[::1]", "127.0.0.1:x", "127.0.0.1:", "127.0.0.1:65536",
 		"127.0.0.1:+80", "127.0.0.1:080", "127.0.0.1:-1", "", "127.0.0.1:80:80",
+		"[::1%0]:0", "[::01%0]:0", "[::1%lo0]:4318",
 	} {
 		err := Check(addr)
 		if err == nil {
@@ -57,6 +58,7 @@ func TestCheckURL(t *testing.T) {
 		"http://localhost:9/mcp", "http://orders.example/mcp", "http://0.0.0.0:9",
 		"http://user:sesame@192.0.2.1:3128/sesame?sesame", "ftp://127.0.0.1:21/sesame", "127.0.0.1:9",
 		"http:///sesame", "http://127.0.0.1:080/sesame", "http://127.0.0.1:65536/sesame", "http://%zz/sesame", "",
+		"http://[::1%25lo0]:4318/sesame",
 	} {
 		err := CheckURL(raw)
 		if err == nil {
