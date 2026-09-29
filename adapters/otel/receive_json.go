@@ -134,7 +134,7 @@ func hex4(raw []byte, at int) int {
 	if at+4 > len(raw) {
 		return -1
 	}
-	n, err := strconv.ParseUint(string(raw[at:at+4]), 16, 32)
+	n, err := strconv.ParseUint(string(raw[at:at+4]), 16, 16)
 	if err != nil {
 		return -1
 	}
