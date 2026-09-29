@@ -179,13 +179,22 @@ func makeRecipe(lines []string, target string) ([]string, error) {
 	return recipe, nil
 }
 
+// renderedFiles registers the docs-gen runs that write a file which is not a
+// docs page, each with the one script that writes it. The site test pins
+// what such a file holds.
+var renderedFiles = []genRun{
+	{"scripts/gen-site.go", "site/index.html"},
+}
+
 // recipeProblems is the other direction: every docs-gen run lands on a page
-// that names its script, in its frontmatter or through a claimed block.
+// that names its script, in its frontmatter or through a claimed block, or on
+// a registered rendered file.
 func recipeProblems(runs []genRun, pages []parsedPage, claims []blockClaim) []string {
 	var problems []string
 	for _, run := range runs {
 		i := slices.IndexFunc(pages, func(p parsedPage) bool { return p.path == run.page })
 		switch {
+		case slices.Contains(renderedFiles, run):
 		case i < 0:
 			problems = append(problems, fmt.Sprintf("%s runs %s -o %s, which is no page of the walk", docsGenTarget, run.script, run.page))
 		case pages[i].meta.Generated == run.script:

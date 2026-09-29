@@ -193,7 +193,8 @@ func TestRecipeProblems(t *testing.T) {
 	blocked := parsedPage{path: "docs/b.md", body: []byte("text\n<!-- generated: scripts/gen-b.go -->\nrows\n<!-- /generated -->\n")}
 	plain := parsedPage{path: "docs/c.md", body: []byte("text\n")}
 	pages := []parsedPage{rendered, blocked, plain}
-	if problems := recipeProblems([]genRun{{"scripts/gen-a.go", "docs/a.md"}, {"scripts/gen-b.go", "docs/b.md"}}, pages, claims); len(problems) != 0 {
+	correct := []genRun{{"scripts/gen-a.go", "docs/a.md"}, {"scripts/gen-b.go", "docs/b.md"}, {"scripts/gen-site.go", "site/index.html"}}
+	if problems := recipeProblems(correct, pages, claims); len(problems) != 0 {
 		t.Fatalf("a correct recipe reported %q", problems)
 	}
 	for name, c := range map[string]struct {
@@ -204,6 +205,8 @@ func TestRecipeProblems(t *testing.T) {
 		"a run landing on a page naming another":  {genRun{"scripts/gen-b.go", "docs/a.md"}, "the page does not name it"},
 		"a run landing on a plain page":           {genRun{"scripts/gen-a.go", "docs/c.md"}, "the page does not name it"},
 		"a run claimed for a page without marker": {genRun{"scripts/gen-b.go", "docs/c.md"}, "the page does not name it"},
+		"an unregistered rendered file":           {genRun{"scripts/gen-site.go", "site/other.html"}, "which is no page of the walk"},
+		"a registered file from another script":   {genRun{"scripts/gen-a.go", "site/index.html"}, "which is no page of the walk"},
 	} {
 		if problems := recipeProblems([]genRun{c.run}, pages, claims); !slices.ContainsFunc(problems, func(s string) bool { return strings.Contains(s, c.want) }) {
 			t.Errorf("%s: want a problem containing %q, got %q", name, c.want, problems)

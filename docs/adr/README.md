@@ -38,3 +38,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0027](0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md) | An approval's expiry holds until the call is handed out, and an unreadable lost hold is unknown |
 | [0028](0028-a-stdio-upstream-gets-only-the-environment-it-is-given.md) | A stdio upstream gets only the environment it is given |
 | [0029](0029-exact-fractions-in-the-canonical-form.md) | The canonical form accepts a fraction a double holds exactly, and a tool definition any finite number |
+| [0030](0030-a-static-website-drawn-from-the-repository.md) | A static website drawn from the repository |

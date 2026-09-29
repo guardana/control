@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🚦 Guardana Control
+# <img src="site/assets/control/mark.svg" height="30" alt=""> Guardana Control
 
 **Watch, decide, enforce and record the tool calls your AI agents make.**
 
@@ -42,12 +42,13 @@ verdicts:
 | --- | --- |
 | `ALLOW` | The action proceeds. |
 | `DENY` | The action is blocked. |
-| `REQUIRE_APPROVAL` | A person approves this exact action, or it does not run. |
+| `REQUIRE_APPROVAL` | This exact action runs only after an approval. |
 | `ALLOW_WITH_OBLIGATIONS` | The action proceeds under conditions that are enforced. |
 | `INDETERMINATE` | The decision could not be made. It is never an allow. |
 
-It enforces the verdict except in `OBSERVE`, and appends an evidence record
-unless the operator let a read run unrecorded. The record says who acted, on
+It enforces the verdict except in `OBSERVE`; `APPROVE` and a pause can be
+stricter. It appends an evidence record unless the operator let a read run
+unrecorded. The record says who acted, on
 whose behalf, on what, what was decided, which policy version decided it, and
 how the call ended, with a hash of the result rather than its content.
 Precedence between the verdicts and the fail-closed rules is in
@@ -167,13 +168,13 @@ between them would be an optional module
 
 ## Links
 
-- [Documentation index](docs/index.md)
+- [Documentation](docs/index.md)
 - [Contributing](CONTRIBUTING.md)
-- [Security policy](SECURITY.md)
+- [Security](SECURITY.md)
 - [Governance](GOVERNANCE.md)
 - [Roadmap](ROADMAP.md)
-- [Releases and how to verify one](RELEASING.md)
-- [Architecture decision records](docs/adr/README.md)
+- [Releases](RELEASING.md)
+- [Decision records](docs/adr/README.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [Trademarks](TRADEMARKS.md)
 - [License](LICENSE), Apache-2.0

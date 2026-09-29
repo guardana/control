@@ -200,6 +200,7 @@ docs-gen:
 	$(CD) $(GO) run scripts/gen-wire.go -o docs/reference/wire/event.md event.proto
 	$(CD) $(GO) run scripts/gen-wire.go -o docs/reference/wire/finding.md finding.proto
 	$(CD) $(GO) run scripts/gen-wire.go -o docs/reference/wire/result.md result.proto
+	$(CD) $(GO) run scripts/gen-site.go -o site/index.html
 
 check-brand:
 	$(CD) scripts/check-brand.sh

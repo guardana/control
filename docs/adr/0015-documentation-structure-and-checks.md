@@ -6,6 +6,10 @@ Date: 2026-09-20
 Builds on [ADR-0007](0007-repository-layout-and-dependency-rule.md) and
 [ADR-0008](0008-branching-and-release-policy.md).
 
+Amended by [ADR-0030](0030-a-static-website-drawn-from-the-repository.md): a
+landing page drawn from the README comes before the documentation site, which
+stays deferred.
+
 ## Context
 
 The pages under `docs/` were written one at a time as the code landed, each

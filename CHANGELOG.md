@@ -11,6 +11,13 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- A website for `control.guardana.dev` in `site/`: one static page with
+  no script and nothing loaded from another host, whose diagrams
+  `make docs-gen` draws from README's, and the project's mark in the
+  README header ([ADR-0030](docs/adr/0030-a-static-website-drawn-from-the-repository.md)).
+
 ## [0.2.0-alpha] - 2026-09-28
 
 The second release. It fixes how an approval's expiry is kept, how much

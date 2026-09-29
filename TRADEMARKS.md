@@ -2,7 +2,8 @@
 
 The marks claimed here are the product name "Guardana Control", the slug
 `guardana-control`, and the binary names `guardana-control` and
-`guardana-gateway`. There is no logo yet; if one is adopted, it is claimed on
+`guardana-gateway`. The logo, a shield holding a barrier
+([site/assets/control/mark.svg](site/assets/control/mark.svg)), is claimed on
 the same terms. The marks are held by the project's maintainer, Konrad Karauda,
 on behalf of the project.
 

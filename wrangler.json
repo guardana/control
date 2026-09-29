@@ -1,0 +1,10 @@
+{
+  "name": "guardana-control",
+  "compatibility_date": "2026-09-28",
+  "assets": {
+    "directory": "./site",
+    "html_handling": "auto-trailing-slash"
+  },
+  "workers_dev": false,
+  "preview_urls": false
+}

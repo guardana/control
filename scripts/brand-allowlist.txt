@@ -48,3 +48,8 @@ buf.gen.yaml
 .goreleaser.yaml
 scripts/brand-allowlist.txt
 scripts/github-bootstrap.sh
+# The landing page and its social card name the product in their text, and
+# the deploy file names the Worker after the slug; the rename rewrites all three.
+site/index.html
+scripts/og-card.html
+wrangler.json

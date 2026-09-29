@@ -3,6 +3,10 @@
 Status: accepted
 Date: 2026-09-25
 
+Amended by [ADR-0030](0030-a-static-website-drawn-from-the-repository.md): the
+website's visual system is a copy of Guardana's brand that Control owns from
+the day it was taken; nothing in the site or its checks reads Guardana.
+
 ## Context
 
 Two open-source projects share the Guardana name and organization.

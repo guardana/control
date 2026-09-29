@@ -58,9 +58,9 @@ page is wrong.
   v1.8.0 was released on 2026-09-14 as a copy of v1.8.0-pre.2, whose commit is
   dated 2026-09-04, and the module ships a security policy. Nothing else about
   the project's activity was checked.
-- Request path: yes. It parses every request from the agent and every answer
-  from an upstream before policy runs, so a version bump is read rather than
-  merged on a green gate. It is imported by `adapters/mcp` and by
+- Request path: yes. It parses every request from the agent before policy
+  runs and every answer from an upstream after an allowed call, so a version
+  bump is read rather than merged on a green gate. It is imported by `adapters/mcp` and by
   `cmd/guardana-gateway`, which builds the upstream transports; a test in
   `internal/gateway` refuses the import there.
 - What it links: the module pulls eight more into the binary that serves the
@@ -187,6 +187,37 @@ beside its version:
 
 None of these is a dependency of the product, and nothing in the tree imports
 any of them.
+
+## The website
+
+`site/` holds the website's static files ([ADR-0030](adr/0030-a-static-website-drawn-from-the-repository.md)).
+No binary or image of the product contains what it holds.
+
+### IBM Plex Sans and IBM Plex Mono
+
+- Problem it solves: the website's type, six WOFF2 files served from the site
+  itself, so the page loads nothing from another host.
+- Why not the system fonts: the page shares its visual system with Guardana's
+  site; the system font stacks stay the fallback in `tokens.css`.
+- Licence: SIL Open Font License 1.1, copyright IBM Corp., read from
+  `site/assets/brand/v1/fonts/OFL.txt`, which is served beside the fonts as the
+  licence asks of every copy.
+- Maintenance signal: `IBM/plex` is not archived and was last pushed on
+  2026-09-22.
+- Request path: no.
+
+### Brand v1, copied from Guardana
+
+- Problem it solves: the colour and type tokens, fonts and marks the two
+  projects' sites share, in `site/assets/brand/v1/`.
+- Why a copy: Control depends on nothing from Guardana
+  ([ADR-0024](adr/0024-control-and-guardana-are-independent.md)). The copy is
+  Control's own from the day it was taken; a test pins the digest of its
+  `SHA256SUMS`, and a change is a v2 at a new path, never an edit in place.
+- Licence: Apache-2.0, as Guardana's repository; the fonts as above. Guardana's
+  marks in the copy remain Guardana's.
+- Maintenance signal: none needed; nothing follows the original.
+- Request path: no.
 
 ## GitHub Actions used by the workflows
 
