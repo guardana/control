@@ -79,12 +79,18 @@ for bin in guardana-gateway guardana-control vulnerable-mcp-agent; do
 done
 
 # The runs below get a PATH with no Go on it and a home of their own, as a
-# user's machine without a toolchain would.
-path=/usr/bin:/bin
-if env -i PATH="${path}" bash -c 'command -v go' >/dev/null 2>&1; then
-  die "go is on ${path} here, so the run would not prove it needs none"
+# user's machine without a toolchain would. A runner may keep go in /usr/bin,
+# so the PATH is a directory of links to the system's commands but go's.
+path="${work}/path"
+mkdir -p "${path}" "${work}/home"
+for cmd in /usr/bin/* /bin/*; do
+  name="${cmd##*/}"
+  case "${name}" in go | gofmt) continue ;; esac
+  [[ -x "${cmd}" && ! -e "${path}/${name}" ]] && ln -s "${cmd}" "${path}/${name}"
+done
+if env -i PATH="${path}" /bin/sh -c 'command -v go' >/dev/null 2>&1; then
+  die "go is on the PATH the run gets, so it would not prove the demo needs none"
 fi
-mkdir -p "${work}/home"
 
 # With no arguments the gateway prints its name, its version and the product's
 # name in parentheses on its first line.
