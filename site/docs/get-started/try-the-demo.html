@@ -117,7 +117,7 @@ pause</strong> and the same call runs again.</p>
 <h2 id="6-read-the-trail-and-the-counters">6. Read the trail and the counters</h2>
 <p>The plane's evidence, the events of each call, went through its spool, a
 directory on disk, to the collector, which appends it to the trail file. Run
-the <code>trail_command</code> line:</p>
+the <code>trail_command</code> line, the program under <code>bin/</code>:</p>
 <pre><code>bin/guardana-gateway trail &lt;state&gt;/trail.jsonl
 </code></pre>
 <p>It prints one line per request, the kind of its last event, and whether its
@@ -174,7 +174,7 @@ one shows:</p>
 </tr>
 <tr>
 <td><code>fail-closed</code></td>
-<td>blocks an export <code>INDETERMINATE</code> with <code>PDP_TIMEOUT</code> when the decision point never answers</td>
+<td>blocks a call to <code>export_orders</code> <code>INDETERMINATE</code> with <code>PDP_TIMEOUT</code> when the decision point never answers</td>
 </tr>
 <tr>
 <td><code>pause</code></td>

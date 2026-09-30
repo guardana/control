@@ -104,7 +104,7 @@ unset, so a gap looks like a gap and never like an empty decision.</p>
 <tr>
 <td><code>ACTION_STARTED</code></td>
 <td>the call is handed to execution</td>
-<td>no payload; <code>execution_id</code> names the run, and the closing event carries it again</td>
+<td>no payload; <code>execution_id</code> names this execution, and the closing event carries it again</td>
 </tr>
 <tr>
 <td><code>ACTION_COMPLETED</code></td>
@@ -113,7 +113,7 @@ unset, so a gap looks like a gap and never like an empty decision.</p>
 </tr>
 <tr>
 <td><code>ACTION_FAILED</code></td>
-<td>the result failed, the bytes sent were not the authorized ones, or the adapter did not send</td>
+<td>the result was not a success, the bytes sent were not the authorized ones, or the adapter did not send</td>
 <td>the result; <code>tool_protocol_status: EXECUTED_ARGS_MISMATCH</code> on a mismatch; on an abort a <code>BLOCKED</code> result carrying the cause's code and no executed digest</td>
 </tr>
 <tr>
@@ -151,7 +151,7 @@ that error depends on whether the effect has happened:</p>
 </tr>
 <tr>
 <td>the same, for a read under <code>AllowReadsUnrecorded</code></td>
-<td>the read runs unrecorded and is counted, unless its trail is held: a read that holds or resumes is blocked like a material call; its closing event is not attempted either, and such a call is never held for an approval</td>
+<td>a read its decision and mode let run runs unrecorded and is counted, unless its trail is held: a read that holds or resumes is blocked like a material call; its closing event is not attempted either, and such a call is never held for an approval</td>
 </tr>
 <tr>
 <td><code>ACTION_COMPLETED</code>, <code>ACTION_FAILED</code></td>

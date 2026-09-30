@@ -40,22 +40,19 @@ and a fleet.</p>
 checks, and <a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a>
 records the order.</p>
 <h2 id="1-first-value-in-one-project">1. First value in one project</h2>
-<p>Done when a release carries a self-contained demo that needs no Go checkout,
-model key or collector, and a new user sees an allowed call, a blocked call
-with its reason and one exact-action approval within ten minutes. That is a
-target to measure, not a result already measured.</p>
+<p>Done when a new user sees an allowed call, a blocked call with its reason and
+one exact-action approval within ten minutes of downloading the release's demo
+archive. That is a target to measure, not a result already measured.</p>
 <p>A guide connects an existing MCP client and server, states what it covers and
 the identity it assumes, and ends in a local report. Starter policy
 packs come with scenarios, and <code>policy explain</code> names the rules that matched
 and the inputs that were missing. No setup step widens authority silently.</p>
 <h2 id="2-runs-and-evidence-other-tools-can-read">2. Runs and evidence other tools can read</h2>
 <p>Done when a run has an identity of its own, so two tasks of one agent never
-share flow state and a new client session cannot reset it, and when a
-versioned export and a bounded local query let another application rebuild an
-action, its decision, approval and result without importing <code>internal/</code> or
-parsing terminal output. Records keep their correlation, policy version,
-duplicates and gaps, and content capture stays off. An example in another
-repository builds a report and an alert from them.</p>
+share flow state and a new client session cannot reset it, and when an example
+in another repository builds a report and an alert from the evidence export,
+without importing <code>internal/</code> or parsing terminal output. Content capture stays
+off.</p>
 <h2 id="3-procedures-and-a-supervisor">3. Procedures and a supervisor</h2>
 <p>Done when a procedure is a versioned document a run names: its steps, their
 order, the steps without which it is not finished, the exceptions it allows

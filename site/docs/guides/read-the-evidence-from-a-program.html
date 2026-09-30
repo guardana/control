@@ -36,6 +36,12 @@ a trailer that says whether it reached the end
 (<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>).
 The format is <code>experimental</code>, and <a href="/docs/contracts#the-evidence-export">contracts.md</a>
 states it member by member.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>A trail file: the one <code>collect</code> writes, or the demo's <code>&lt;state&gt;/trail.jsonl</code>
+(<a href="/docs/get-started/try-the-demo">try the demo</a>).</li>
+<li>For step 3, a checkout of the repository and Go, to build the example.</li>
+</ul>
 <h2 id="steps">Steps</h2>
 <h3 id="1-export-the-file">1. Export the file</h3>
 <pre><code>guardana-gateway trail export trail.jsonl &gt; export.jsonl
@@ -53,8 +59,9 @@ refused, with no trailer written. An export with no trailer was cut short.</p>
 next export:</p>
 <pre><code>guardana-gateway trail export --after &#39;&lt;next_cursor&gt;&#39; trail.jsonl
 </code></pre>
-<p>A cursor from another file, from a file restored and written again since, or
-not at the end of a line is refused. When the trailer's <code>end_reached</code> is false,
+<p>A cursor is refused when the file's first line or the line it names has
+changed, or when its offset is not at the end of a line: another file, or one
+restored and written again since. A line changed elsewhere is not detected. When the trailer's <code>end_reached</code> is false,
 more remains: follow <code>next_cursor</code> until it is true. <code>--limit</code> bounds the
 records one export writes (1000 by default) and <code>--max-bytes</code> the bytes of
 whole lines it scans.</p>
@@ -70,9 +77,15 @@ guardana-gateway trail export trail.jsonl | bin/evidence-report
 <p>It exits 1 when any request's chain is broken or unfinished, when a call ran
 against its decision under an enforcing mode, when a result says the effect
 may have happened, or when the export held a gap, was cut or held no request:
-missing evidence is reported as unknown or open, never as completed.
+missing evidence is reported as unknown or open, never as completed. It does
+not read effect classes, so it cannot tell whether a material call ran
+without the approval <code>APPROVE</code> asks for, or under <code>LOCKDOWN</code>.
 Export the whole file, or one request at a time, to rebuild lifecycles; a
 filter on kinds cuts the links between a request's events.</p>
+<h2 id="verify">Verify</h2>
+<p>The export's last line is a <code>trailer</code> with <code>end_reached</code> true, and both
+commands exit 0. Any other status names what is missing: read the trailer's
+counts and the report's rows before trusting the rest.</p>
 <h2 id="what-it-does-not-see">What it does not see</h2>
 <ul>
 <li>A record the plane could not deliver stays in its spool's quarantine and

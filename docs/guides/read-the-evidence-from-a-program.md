@@ -19,6 +19,12 @@ a trailer that says whether it reached the end
 The format is `experimental`, and [contracts.md](../contracts.md#the-evidence-export)
 states it member by member.
 
+## Prerequisites
+
+- A trail file: the one `collect` writes, or the demo's `<state>/trail.jsonl`
+  ([try the demo](../get-started/try-the-demo.md)).
+- For step 3, a checkout of the repository and Go, to build the example.
+
 ## Steps
 
 ### 1. Export the file
@@ -45,8 +51,9 @@ next export:
 guardana-gateway trail export --after '<next_cursor>' trail.jsonl
 ```
 
-A cursor from another file, from a file restored and written again since, or
-not at the end of a line is refused. When the trailer's `end_reached` is false,
+A cursor is refused when the file's first line or the line it names has
+changed, or when its offset is not at the end of a line: another file, or one
+restored and written again since. A line changed elsewhere is not detected. When the trailer's `end_reached` is false,
 more remains: follow `next_cursor` until it is true. `--limit` bounds the
 records one export writes (1000 by default) and `--max-bytes` the bytes of
 whole lines it scans.
@@ -67,9 +74,17 @@ guardana-gateway trail export trail.jsonl | bin/evidence-report
 It exits 1 when any request's chain is broken or unfinished, when a call ran
 against its decision under an enforcing mode, when a result says the effect
 may have happened, or when the export held a gap, was cut or held no request:
-missing evidence is reported as unknown or open, never as completed.
+missing evidence is reported as unknown or open, never as completed. It does
+not read effect classes, so it cannot tell whether a material call ran
+without the approval `APPROVE` asks for, or under `LOCKDOWN`.
 Export the whole file, or one request at a time, to rebuild lifecycles; a
 filter on kinds cuts the links between a request's events.
+
+## Verify
+
+The export's last line is a `trailer` with `end_reached` true, and both
+commands exit 0. Any other status names what is missing: read the trailer's
+counts and the report's rows before trusting the rest.
 
 ## What it does not see
 

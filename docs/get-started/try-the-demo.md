@@ -139,7 +139,7 @@ pause** and the same call runs again.
 
 The plane's evidence, the events of each call, went through its spool, a
 directory on disk, to the collector, which appends it to the trail file. Run
-the `trail_command` line:
+the `trail_command` line, the program under `bin/`:
 
 ```
 bin/guardana-gateway trail <state>/trail.jsonl
@@ -189,7 +189,7 @@ one shows:
 | `deny` | blocks a refund with `RULE_DENY` before the orders server sees it |
 | `approval` | holds an update, and resumes it once approved |
 | `digest-invalidation` | holds anew an approved update retried with other arguments, then resumes the original |
-| `fail-closed` | blocks an export `INDETERMINATE` with `PDP_TIMEOUT` when the decision point never answers |
+| `fail-closed` | blocks a call to `export_orders` `INDETERMINATE` with `PDP_TIMEOUT` when the decision point never answers |
 | `pause` | blocks a read while the orders server is paused, runs it once the pause is lifted |
 | `toxic-flow` | after an untrusted page, blocks any mail, since `send_mail`'s destination is declared untrusted. Before an order is read the block is undetermined; after, its reason is `TOXIC_FLOW_SENSITIVE_TO_EXTERNAL` |
 

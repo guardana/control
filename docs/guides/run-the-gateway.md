@@ -216,7 +216,7 @@ guardana-control pause add --action tool --provider orders --name refund /srv/pa
 
 - `doctor` ends with `ok upstreams ... 0 unclassified` in the mode you will run.
 - A denied call comes back to the agent as a tool result with `isError: true`
-  and a `reason_code`, and the upstream never sees it.
+  and its `reason_codes`, and the upstream never sees it.
 - `/healthz` reports `"halted": false` and a spool depth that falls as the
   collector acknowledges records.
 

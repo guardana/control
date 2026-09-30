@@ -49,8 +49,8 @@ verdicts:
 It enforces the verdict except in `OBSERVE`; `APPROVE` and a pause can be
 stricter. Nothing runs unrecorded unless the operator let a read do so. The
 record says who acted, on
-whose behalf, on what, what was decided, which policy version decided it, and
-how the call ended, with a hash of the result rather than its content.
+whose behalf, on what, what was decided, which policy version decided it, how
+the call ended, and a hash of any answer it could encode, never its content.
 Precedence between the verdicts and the fail-closed rules is in
 [ADR-0012](docs/adr/0012-policy-kernel-semantics.md), the evidence and privacy
 defaults in [ADR-0004](docs/adr/0004-evidence-and-privacy-defaults.md).
@@ -78,14 +78,15 @@ flowchart LR
 
 The enforcement point is the only component this project adds to the request
 path. Evidence goes to a local spool before export, so decisions do not wait
-for the exporter. If the spool fills, the plane counts what it drops.
+for the exporter. If the spool fills, calls block, except a read the operator
+let run unrecorded, which is counted.
 
 ## Where it is going
 
 Everything beyond that path is `planned` and follows [ROADMAP.md](ROADMAP.md).
 A supervisor compares what agents do with their procedures and permissions,
-reports to the operator's alerting and logging, and can stop an agent. A
-packaged demo, run identity and readable evidence come first.
+reports to the operator's alerting and logging, and can stop an agent. Run
+identity comes next.
 
 ```mermaid
 flowchart TB

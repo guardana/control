@@ -167,7 +167,7 @@ destination:
 | --- | --- |
 | nothing untrusted | not a toxic flow; the rule does not match |
 | something untrusted, and a known result at or above the floor | `DENY` with the rule's reason |
-| something untrusted, and nothing known at the floor | `INDETERMINATE`, blocked |
+| something untrusted, and nothing known at the floor | `INDETERMINATE`, blocked where the mode enforces it |
 
 The floor chooses between the last two and does not change what runs: an
 untrusted web page and then an innocent mail is blocked as undetermined, and a

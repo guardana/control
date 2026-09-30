@@ -57,7 +57,8 @@ line still being written, reported in the trailer and read by the next export.
 offset right after a newline, and the SHA-256 of the line that ends there. An
 export after it checks that the byte before the offset is a newline and that
 the line ending there hashes as recorded, so a cursor from another file, from
-a file restored and appended since, or off a line boundary is refused. A file
+a file restored and appended since, or off a line boundary is refused. Only
+those two lines are compared; a line changed between them goes unseen. A file
 has an identity once its first line is whole; an empty one gives no cursor.
 Identity is content, not the path, so a renamed file can be read on.
 
@@ -97,8 +98,9 @@ mirrors `pkg/contract`'s for envelopes, and one table pins both.
 standard input with the generated package `api/gen/go/guardana/control/v1`
 alone, groups events by tenant, project and request, follows each request's
 `prev_event_id` links, and prints one row per request with its lifecycle:
-proposed, decided, held and answered, started, ended or blocked. A broken or
-unfinished lifecycle is unknown; a gap, a refusal or a missing trailer exits 1.
+proposed, decided, held and answered, started, ended or blocked. A broken
+lifecycle is unknown and an unfinished one open; either, a gap, a refusal or a
+missing trailer exits 1.
 A test pins that it imports nothing under `internal/`. The generated package
 follows the frozen proto (ADR-0002), which is the compatibility such a
 consumer relies on; one outside this module can generate its own from

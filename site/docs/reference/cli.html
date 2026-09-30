@@ -28,9 +28,9 @@
 <h1 id="command-line">Command line</h1>
 <p>Two binaries, built from the repository root with <code>go build ./cmd/&lt;name&gt;</code>;
 <a href="/docs/status">status.md</a> says what each does today. Each fenced block below
-is the help its binary prints on a usage error, byte for byte: the marker
-around it names the test that diffs the block against the binary's text, so
-a flag or a command that changes without this page fails the gate.</p>
+is the help its binary prints on a usage error, byte for byte; the test its
+marker names diffs it against the binary, so a flag or a command that changes
+without this page fails the gate.</p>
 <table>
 <thead>
 <tr>
@@ -49,7 +49,7 @@ a flag or a command that changes without this page fails the gate.</p>
 </tr>
 <tr>
 <td>2</td>
-<td>A usage error (stderr carries the help below or names the flag or argument), or a scenario that could not run.</td>
+<td>A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, or a trail export refused or cut short.</td>
 </tr>
 </tbody>
 </table>

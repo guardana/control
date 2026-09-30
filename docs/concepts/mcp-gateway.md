@@ -59,7 +59,10 @@ Sources: `adapters/mcp/middleware.go`, `internal/gateway/admit.go`,
 A blocked call stops in the pipeline: the disposition says block, the trail
 ends with `ACTION_BLOCKED` when the spool takes it, and is otherwise blocked as
 `EVIDENCE_UNAVAILABLE`, and the agent gets a tool result with `isError: true`
-carrying the reason codes. The server is never called.
+carrying the reason codes, or a JSON-RPC error carrying them for a resource
+read or a prompt. The server is never called. A call the adapter refuses after
+an allow, such as one it could not translate, is aborted, and its trail ends
+with `ACTION_FAILED`.
 
 ## The same call on each revision
 

@@ -28,7 +28,7 @@ records every decision and blocks only for its own causes.
 
 ## Security / compatibility impact
 
-A configuration without `mode` stops loading: `serve`, `doctor` and `dev` exit
+A configuration without `mode` stops loading: `run`, `doctor` and `dev` exit
 with the key named instead of starting a plane that stops nothing. That is a
 breaking change for such a file, which the `0.x` series allows and the
 changelog states. Every configuration in the repository already names its

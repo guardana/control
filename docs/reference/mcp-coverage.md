@@ -35,7 +35,7 @@ a child process over its standard input and output (`upstreams[].command`).
 | Method | What the gateway does | Decided |
 | --- | --- | --- |
 | `tools/list` | Answers from the manifest, shaped for the principal, with `cacheScope: private` and the operator's `ttlMs` | on an uncached `annotate` or `hide` list, one preview per classified tool one upstream serves, recording nothing |
-| `tools/call` | Translates to an `ActionEnvelope`, admits it, applies rewriting obligations, sends exactly the authorized bytes, closes the trail with the digest of what was sent | yes |
+| `tools/call` | Admits an `ActionEnvelope`; only if allowed, applies rewriting obligations, sends exactly the authorized bytes and closes the trail with their digest | yes |
 | `resources/read` | Translated as a `READ` of the URI. Routed only when one upstream is configured; with several the call is `ACTION_UNCLASSIFIED`, since nothing says which server holds the URI | yes |
 | `prompts/get` | Translated as a `READ` of the prompt, its arguments authorized as a canonical JSON object of strings. Routed as above | yes |
 | `resources/list`, `resources/templates/list`, `prompts/list` | Merged from every upstream, bounded, with the gateway's own `_meta` keys stripped and `cacheScope: private` | no: a listing names no action |

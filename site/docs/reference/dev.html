@@ -93,9 +93,9 @@ approvals, pause every call and run a scenario. The page's token reaches
 nothing but that one line: no argument, variable, file or log of dev's.</p>
 <p>The plane installs its bundle once. From <code>stale_at</code>, the smaller of the
 document's <code>maxStaleSeconds</code> and <code>policy.max_stale</code> after the start, every
-decision carries <code>POLICY_STALE</code> and the plane blocks the call as its mode
-blocks an undecided one, until dev is started again; nothing reloads the
-bundle.</p>
+decision that passes the input checks carries <code>POLICY_STALE</code>, and the plane
+treats the call as its mode and <code>policy.fail_open_read</code> treat an undecided
+one, until dev is started again; nothing reloads the bundle.</p>
 <p>The plane's own log, and the page's, go to stderr.</p>
 <h2 id="how-it-stops">How it stops</h2>
 <p>An interrupt, or any part stopping on its own, stops every part in order:

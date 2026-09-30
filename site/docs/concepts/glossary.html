@@ -38,14 +38,14 @@ for the same thing; the right column is where the code defines it.</p>
 </thead>
 <tbody>
 <tr>
-<td>action envelope</td>
-<td>the structured description of one proposed action: who, on behalf of whom, what, on which resource, in which context, with which effect class; the input every decision is made from</td>
-<td><code>ActionEnvelope</code> in <code>api/proto/guardana/control/v1/action_envelope.proto</code>, validated by <code>pkg/contract</code></td>
-</tr>
-<tr>
 <td>action digest</td>
 <td>the canonical digest of an envelope with its authorized arguments, <code>sha256:</code> and 64 lowercase hex digits; what a decision names, an approval binds to and the executed bytes are compared with</td>
 <td><code>canon.DigestV1</code> in <code>internal/canon/digest.go</code></td>
+</tr>
+<tr>
+<td>action envelope</td>
+<td>the structured description of one proposed action: who, on behalf of whom, what, on which resource, in which context, with which effect class; the input every decision is made from</td>
+<td><code>ActionEnvelope</code> in <code>api/proto/guardana/control/v1/action_envelope.proto</code>, validated by <code>pkg/contract</code></td>
 </tr>
 <tr>
 <td>approval binding</td>
@@ -78,6 +78,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>cmd/guardana-gateway/main.go</code>, wiring <code>Pipeline</code> in <code>internal/gateway/pipeline.go</code></td>
 </tr>
 <tr>
+<td>evidence export</td>
+<td>a trail file written in the versioned format <code>guardana.control.evidence-export</code>: a header, one record per event, gap or duplicate, and a trailer that says whether the file's end was reached</td>
+<td><code>trailfile.Export</code> in <code>internal/trailfile/export.go</code>, run by <code>guardana-gateway trail export</code></td>
+</tr>
+<tr>
 <td>evidence trail</td>
 <td>the chain of events under one request id, from <code>ACTION_PROPOSED</code> to the event that closes it, linked by <code>prev_event_id</code>; a request in flight or held has a prefix of one</td>
 <td><code>evidence.Builder</code> in <code>internal/evidence/event.go</code>, validated by <code>internal/evidence/chain.go</code></td>
@@ -88,6 +93,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>Builder.Started</code> in <code>internal/evidence/event.go</code>, kept by <code>internal/gateway/trails.go</code></td>
 </tr>
 <tr>
+<td>export cursor</td>
+<td>where an evidence export stopped: the digest of the file's first line, an offset after a newline and the digest of the line that ends there; refused on any other file or offset. Not the exporter's cursor in the spool</td>
+<td><code>cursor</code> in <code>internal/trailfile/cursor.go</code></td>
+</tr>
+<tr>
 <td>external decision point</td>
 <td>the organization's own policy engine, asked over AuthZEN about a call whose decision turns on its answer; the answer is an input a <code>DENY</code> rule reads, so it can veto and never grant, and its silence blocks in every mode that enforces</td>
 <td><code>gateway.DecisionPoint</code> in <code>internal/gateway/decisionpoint.go</code>, the answer as <code>core.External</code> in <code>internal/core/external.go</code>, the client in <code>adapters/authzen/</code></td>
@@ -96,6 +106,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td>fail-open read</td>
 <td>a read the kernel lets run although the policy's availability left it undecided, under the operator's explicit setting and recorded as <code>FAIL_OPEN_READ_CONFIGURED</code>; never a material call</td>
 <td><code>Options.FailOpenRead</code> in <code>internal/core/kernel.go</code>, the table in <code>internal/core/failclosed.go</code></td>
+</tr>
+<tr>
+<td>gap</td>
+<td>an export record for a line that is not one readable event of a major the build reads, or that reuses an event id with other content; an export holding one exits 1</td>
+<td><code>gapRecord</code> in <code>internal/trailfile/export_records.go</code></td>
 </tr>
 <tr>
 <td>held request</td>
@@ -124,18 +139,18 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>quarantine</td>
-<td>the spool's file for records a collector refused for good, appended to and never released, so the export cursor passes them without dropping them</td>
+<td>the spool's file for records a collector refused for good, appended to and never released, so the exporter's cursor passes them without dropping them</td>
 <td><code>Reader.Quarantine</code> in <code>internal/spool/quarantine.go</code></td>
-</tr>
-<tr>
-<td>record</td>
-<td>one event as the spool writes it to disk, a header and one JSON line, checksummed; the unit the spool appends, reads, acknowledges and quarantines</td>
-<td><code>internal/spool/frame.go</code></td>
 </tr>
 <tr>
 <td>reason code</td>
 <td>the identifier of the kind of failure or match a decision carries, from the registry; never derived from error text, and never read to decide</td>
 <td><code>internal/policy/reasons/</code>, listed in <a href="/docs/reference/reason-codes">reference/reason-codes</a></td>
+</tr>
+<tr>
+<td>record</td>
+<td>one event as the spool writes it to disk, a header and one JSON line, checksummed; the unit the spool appends, reads, acknowledges and quarantines</td>
+<td><code>internal/spool/frame.go</code></td>
 </tr>
 <tr>
 <td>snapshot</td>
@@ -146,6 +161,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td>spool</td>
 <td>the evidence sink that writes disk: an append-only, checksummed, bounded log an exporter drains and acknowledges</td>
 <td><code>spool.Spool</code> in <code>internal/spool/spool.go</code></td>
+</tr>
+<tr>
+<td>trail file</td>
+<td>the collector's append-only file of events, one per line in the protobuf JSON mapping, each event id once; what <code>trail</code> and <code>trail export</code> read</td>
+<td><code>trailfile.Writer</code> in <code>internal/trailfile/writer.go</code></td>
 </tr>
 <tr>
 <td>unrecorded read</td>

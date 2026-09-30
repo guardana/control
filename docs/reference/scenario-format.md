@@ -138,7 +138,7 @@ differs, `<id> step[<i>].<member>: want <x>, got <y>`; then `<id> passed`,
 
 | Exit | Means |
 | --- | --- |
-| 0 | Every step of every scenario compared every member. |
+| 0 | No member of any scenario differed. A step whose arguments canon could not hash says `args: not compared`, and that member was not checked. |
 | 1 | A member of some scenario differed. |
 | 2 | None differed, and some scenario could not run: no scenario, a file refused, a precondition, an answer naming no trail, a barrier past its bound, another client, a `guardana-control` missing or of another version, a trail file that is not the plane's. A gate treats 2 as a failure. |
 

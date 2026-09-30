@@ -88,16 +88,17 @@ read steers it. The others are a hostile or compromised MCP server, a decision
 point that is slow, wrong or hostile, another account on the plane's machine,
 the plane's own account, someone on the network, and a tampered release.</p>
 <h2 id="trust-boundaries">Trust boundaries</h2>
-<figure class="dg-text" id="diagram-1"><figcaption>Trust boundaries</figcaption><p>The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence. <a href="https://github.com/guardana/control/blob/main/docs/concepts/threat-model.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TD
+<figure class="dg-text" id="diagram-1"><figcaption>Trust boundaries</figcaption><p>The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files but for the spool&#39;s directory, whose mode is not judged; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence. <a href="https://github.com/guardana/control/blob/main/docs/concepts/threat-model.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TD
     accTitle: Trust boundaries
-    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
+    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files but for the spool&#39;s directory, whose mode is not judged; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
     Agent[&#34;Agent and its model&#34;] --&gt;|&#34;MCP, no credential&#34;| Plane
     Agent -.-&gt;|&#34;a path around the plane&#34;| Http
     subgraph Host[&#34;The plane&#39;s machine&#34;]
         subgraph Own[&#34;One account: the plane&#39;s user&#34;]
             Plane[&#34;Gateway process&#34;]
             Child[&#34;stdio upstream: a child given a fixed few variables and its env list&#34;]
-            Files[&#34;Approvals directory, pause file, hold journal, spool, trail file, key&#34;]
+            Files[&#34;Approvals directory, pause file, hold journal, trail file, key&#34;]
+            Spool[&#34;Spool&#34;]
             Page[&#34;Approvals page and commands&#34;]
             Collect[&#34;collect&#34;]
         end
@@ -105,9 +106,11 @@ the plane's own account, someone on the network, and a tampered release.</p>
     end
     Plane --&gt; Child
     Plane --&gt;|&#34;reads answers and pauses, writes evidence&#34;| Files
+    Plane --&gt;|&#34;writes evidence first&#34;| Spool
     Page --&gt;|&#34;writes answers and pauses&#34;| Files
     Browser[&#34;Browser&#34;] --&gt;|&#34;loopback, a token traded once&#34;| Page
     Other -.-&gt;|&#34;refused on owner and mode&#34;| Files
+    Other -.-&gt;|&#34;files 0600, directory not judged&#34;| Spool
     Other --&gt;|&#34;no credential&#34;| Collect
     Plane --&gt;|&#34;exactly the authorized bytes&#34;| Http[&#34;HTTP upstream&#34;]
     Plane --&gt;|&#34;identity, action, resource; never arguments&#34;| PDP[&#34;Decision point&#34;]

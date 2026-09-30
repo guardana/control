@@ -68,7 +68,7 @@ approval writers.</p>
 <p><strong>Presenting a run.</strong> The token is <code>&lt;run id&gt;.&lt;secret&gt;</code>. On an HTTP listener it
 travels in a header of its own, never in <code>Authorization</code>, which stays the
 authenticator's and the protocol's: who calls and which task are separate. A
-stdio plane reads it once from <code>serve --run-token-file</code>, a file whose owner and
+stdio plane reads it once from <code>run --run-token-file</code>, a file whose owner and
 mode are checked as a key's are (ADR-0018), and a token that does not resolve
 refuses the start. The plane finds the record by the id and compares the
 secret's hash once, in constant time. The record's tenant, principal and agent

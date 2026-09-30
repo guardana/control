@@ -236,7 +236,7 @@ guardana-control pause init /srv/pause/pause.json   # a relative path is read fr
 <ul>
 <li><code>doctor</code> ends with <code>ok upstreams ... 0 unclassified</code> in the mode you will run.</li>
 <li>A denied call comes back to the agent as a tool result with <code>isError: true</code>
-and a <code>reason_code</code>, and the upstream never sees it.</li>
+and its <code>reason_codes</code>, and the upstream never sees it.</li>
 <li><code>/healthz</code> reports <code>&quot;halted&quot;: false</code> and a spool depth that falls as the
 collector acknowledges records.</li>
 </ul>

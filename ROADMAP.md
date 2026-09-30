@@ -18,10 +18,9 @@ records the order.
 
 ## 1. First value in one project
 
-Done when a release carries a self-contained demo that needs no Go checkout,
-model key or collector, and a new user sees an allowed call, a blocked call
-with its reason and one exact-action approval within ten minutes. That is a
-target to measure, not a result already measured.
+Done when a new user sees an allowed call, a blocked call with its reason and
+one exact-action approval within ten minutes of downloading the release's demo
+archive. That is a target to measure, not a result already measured.
 
 A guide connects an existing MCP client and server, states what it covers and
 the identity it assumes, and ends in a local report. Starter policy
@@ -31,12 +30,10 @@ and the inputs that were missing. No setup step widens authority silently.
 ## 2. Runs and evidence other tools can read
 
 Done when a run has an identity of its own, so two tasks of one agent never
-share flow state and a new client session cannot reset it, and when a
-versioned export and a bounded local query let another application rebuild an
-action, its decision, approval and result without importing `internal/` or
-parsing terminal output. Records keep their correlation, policy version,
-duplicates and gaps, and content capture stays off. An example in another
-repository builds a report and an alert from them.
+share flow state and a new client session cannot reset it, and when an example
+in another repository builds a report and an alert from the evidence export,
+without importing `internal/` or parsing terminal output. Content capture stays
+off.
 
 ## 3. Procedures and a supervisor
 

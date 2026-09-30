@@ -9,9 +9,10 @@ Builds on [ADR-0011](0011-contract-corrections-before-publication.md),
 Amends [ADR-0013](0013-mcp-interception-approvals-and-modes.md) on what a retry
 has to equal to resume a held request.
 
-Amended by [ADR-0034](0034-a-run-the-operator-opens-has-an-identity-of-its-own.md):
-a run the operator opens, with a token, has an identity and a durable state of
-its own; a plane without a runs directory keeps the runs this record defines.
+Amended by [ADR-0034](0034-a-run-the-operator-opens-has-an-identity-of-its-own.md),
+which is `planned`: it decides that a run the operator opens, with a token, has
+an identity and a durable state of its own, and that a plane without a runs
+directory keeps the runs this record defines.
 
 ## Context
 

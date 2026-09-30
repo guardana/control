@@ -87,9 +87,9 @@ nothing but that one line: no argument, variable, file or log of dev's.
 
 The plane installs its bundle once. From `stale_at`, the smaller of the
 document's `maxStaleSeconds` and `policy.max_stale` after the start, every
-decision carries `POLICY_STALE` and the plane blocks the call as its mode
-blocks an undecided one, until dev is started again; nothing reloads the
-bundle.
+decision that passes the input checks carries `POLICY_STALE`, and the plane
+treats the call as its mode and `policy.fail_open_read` treat an undecided
+one, until dev is started again; nothing reloads the bundle.
 
 The plane's own log, and the page's, go to stderr.
 

@@ -86,7 +86,7 @@ a child process over its standard input and output (<code>upstreams[].command</c
 </tr>
 <tr>
 <td><code>tools/call</code></td>
-<td>Translates to an <code>ActionEnvelope</code>, admits it, applies rewriting obligations, sends exactly the authorized bytes, closes the trail with the digest of what was sent</td>
+<td>Admits an <code>ActionEnvelope</code>; only if allowed, applies rewriting obligations, sends exactly the authorized bytes and closes the trail with their digest</td>
 <td>yes</td>
 </tr>
 <tr>

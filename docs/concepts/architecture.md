@@ -32,7 +32,7 @@ flowchart LR
     OP -->|configuration, bundle, mode| GW
     AG -->|tools/call| GW
     GW -->|the calls it lets through| SRV
-    GW -->|held call| APR
+    GW -->|held call, as a record in the directory| APR
     APR -->|approval for one digest| GW
     BUNDLE -->|loaded once, verified| GW
     GW -->|evidence, OTLP logs| COL
@@ -159,7 +159,7 @@ sequenceDiagram
         Pipeline->>Core: Decide again with the answer
         Core-->>Pipeline: decision
     end
-    alt DENY or INDETERMINATE
+    alt DENY or INDETERMINATE, where the mode enforces it
         Pipeline-->>Adapter: blocked
         Adapter-->>Agent: refusal carrying the reason codes
     else REQUIRE_APPROVAL

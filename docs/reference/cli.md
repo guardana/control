@@ -9,15 +9,15 @@ covers: [cmd/guardana-control/**, cmd/guardana-gateway/**]
 
 Two binaries, built from the repository root with `go build ./cmd/<name>`;
 [status.md](../status.md) says what each does today. Each fenced block below
-is the help its binary prints on a usage error, byte for byte: the marker
-around it names the test that diffs the block against the binary's text, so
-a flag or a command that changes without this page fails the gate.
+is the help its binary prints on a usage error, byte for byte; the test its
+marker names diffs it against the binary, so a flag or a command that changes
+without this page fails the gate.
 
 | Exit status | Means |
 | --- | --- |
 | 0 | The command did what it was asked. |
 | 1 | The input was refused or a case failed: stderr says why, one line each; a scenario's report on stdout names what differed. |
-| 2 | A usage error (stderr carries the help below or names the flag or argument), or a scenario that could not run. |
+| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, or a trail export refused or cut short. |
 
 Without arguments either binary prints its version and one status line on
 stdout and exits 0.

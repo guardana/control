@@ -47,7 +47,7 @@ is outside it and talks to it over a protocol it does not own.</p>
     OP --&gt;|configuration, bundle, mode| GW
     AG --&gt;|tools/call| GW
     GW --&gt;|the calls it lets through| SRV
-    GW --&gt;|held call| APR
+    GW --&gt;|held call, as a record in the directory| APR
     APR --&gt;|approval for one digest| GW
     BUNDLE --&gt;|loaded once, verified| GW
     GW --&gt;|evidence, OTLP logs| COL
@@ -219,7 +219,7 @@ unrecorded.</p>
         Pipeline-&gt;&gt;Core: Decide again with the answer
         Core--&gt;&gt;Pipeline: decision
     end
-    alt DENY or INDETERMINATE
+    alt DENY or INDETERMINATE, where the mode enforces it
         Pipeline--&gt;&gt;Adapter: blocked
         Adapter--&gt;&gt;Agent: refusal carrying the reason codes
     else REQUIRE_APPROVAL

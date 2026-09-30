@@ -615,7 +615,9 @@ reads where a producer left a value out, as ADR-0011 and the comments in
   pass. `planned`.
 - `ENFORCEMENT_MODE_UNSPECIFIED` is refused as configuration (`implemented` in
   the gateway's `Requirements`); in evidence it means nothing is known to have
-  been enforced (`planned`: no reader of evidence reads it yet).
+  been enforced: the chain validator reads such a trail as broken
+  (`implemented`), and `examples/evidence-report` reports its request as
+  unknown.
 - An empty `Event.prev_event_digest` claims nothing; the hash chain that would
   fill it is `planned`.
 - An absent or malformed `schema_version` is refused, never read as the
@@ -1117,6 +1119,9 @@ when:
 - the line ending at the offset does not hash as recorded: a file restored and
   appended since.
 
+Only those two lines are compared: a line changed anywhere else is not seen by
+the cursor.
+
 A file has an identity once its first line is whole, and an empty file gives
 no cursor. The identity is content and not the path, so a renamed or rotated
 file is read on under its new name.
@@ -1143,7 +1148,9 @@ file is read on under its new name.
   that is not an event belongs to is unknown, and a conflict is one whichever
   of its two lines the filters pass. A filter cuts the
   `prev_event_id` links between a request's events, so a consumer rebuilding
-  lifecycles exports them unfiltered or by request.
+  lifecycles exports them unfiltered or by request. A filter is not a tenant
+  boundary: gaps, cursors and counts cover every line read, and an event id
+  another tenant's line took first shows as a conflict.
 
 ### Duplicates
 

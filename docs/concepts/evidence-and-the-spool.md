@@ -64,9 +64,9 @@ unset, so a gap looks like a gap and never like an empty decision.
 | `APPROVAL_REQUESTED` | the call is held for an approval | the approval the enforcement point minted: `approval_id`, `request_id`, the action digest, the bundle digest, `PENDING`, `requested_at`, `expires_at` |
 | `APPROVAL_DECIDED` | an approved retry resumes the held request, or a rejected one closes it | the approval as answered, with `approver_id` and its state |
 | `APPROVAL_EXPIRED` | nobody answered before `expires_at`, or the enforcement point could not keep the hold | the approval with state `EXPIRED` |
-| `ACTION_STARTED` | the call is handed to execution | no payload; `execution_id` names the run, and the closing event carries it again |
+| `ACTION_STARTED` | the call is handed to execution | no payload; `execution_id` names this execution, and the closing event carries it again |
 | `ACTION_COMPLETED` | the bytes sent were the authorized ones and the result succeeded | the result, with `executed_action_digest` equal to the decision's action digest |
-| `ACTION_FAILED` | the result failed, the bytes sent were not the authorized ones, or the adapter did not send | the result; `tool_protocol_status: EXECUTED_ARGS_MISMATCH` on a mismatch; on an abort a `BLOCKED` result carrying the cause's code and no executed digest |
+| `ACTION_FAILED` | the result was not a success, the bytes sent were not the authorized ones, or the adapter did not send | the result; `tool_protocol_status: EXECUTED_ARGS_MISMATCH` on a mismatch; on an abort a `BLOCKED` result carrying the cause's code and no executed digest |
 | `ACTION_BLOCKED` | the call was stopped | the decision that stopped it: the kernel's, or the enforcement point's own with `pdp_type: gateway` |
 | `POLICY_RELOADED` | a bundle is taken into use | the bundle reference; its content never enters the trail |
 | `FINDING_RAISED` | a detector reports after the fact | the finding; it annotates and never grants or denies |
@@ -80,7 +80,7 @@ that error depends on whether the effect has happened:
 | Event | If the sink refuses it |
 | --- | --- |
 | `ACTION_PROPOSED`, `POLICY_DECIDED`, `APPROVAL_REQUESTED`, `ACTION_STARTED`, `ACTION_BLOCKED` | the call blocks with `EVIDENCE_UNAVAILABLE` before anything runs; the block itself is not recorded, because the event that failed is the one that would record it, and where the trail was held, its journal entry stays for the next start to report |
-| the same, for a read under `AllowReadsUnrecorded` | the read runs unrecorded and is counted, unless its trail is held: a read that holds or resumes is blocked like a material call; its closing event is not attempted either, and such a call is never held for an approval |
+| the same, for a read under `AllowReadsUnrecorded` | a read its decision and mode let run runs unrecorded and is counted, unless its trail is held: a read that holds or resumes is blocked like a material call; its closing event is not attempted either, and such a call is never held for an approval |
 | `ACTION_COMPLETED`, `ACTION_FAILED` | the result is delivered anyway, the failure is counted, and the enforcement point takes no material call until an append succeeds |
 
 A request id whose trail is open in the enforcement point is refused before

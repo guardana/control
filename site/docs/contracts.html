@@ -725,7 +725,9 @@ happened, and neither is retried automatically. An absent
 pass. <code>planned</code>.</li>
 <li><code>ENFORCEMENT_MODE_UNSPECIFIED</code> is refused as configuration (<code>implemented</code> in
 the gateway's <code>Requirements</code>); in evidence it means nothing is known to have
-been enforced (<code>planned</code>: no reader of evidence reads it yet).</li>
+been enforced: the chain validator reads such a trail as broken
+(<code>implemented</code>), and <code>examples/evidence-report</code> reports its request as
+unknown.</li>
 <li>An empty <code>Event.prev_event_digest</code> claims nothing; the hash chain that would
 fill it is <code>planned</code>.</li>
 <li>An absent or malformed <code>schema_version</code> is refused, never read as the
@@ -1274,6 +1276,8 @@ holds no whole line;</li>
 <li>the line ending at the offset does not hash as recorded: a file restored and
 appended since.</li>
 </ul>
+<p>Only those two lines are compared: a line changed anywhere else is not seen by
+the cursor.</p>
 <p>A file has an identity once its first line is whole, and an empty file gives
 no cursor. The identity is content and not the path, so a renamed or rotated
 file is read on under its new name.</p>
@@ -1299,7 +1303,9 @@ empty value are refused. A gap is written whatever the filters: what a line
 that is not an event belongs to is unknown, and a conflict is one whichever
 of its two lines the filters pass. A filter cuts the
 <code>prev_event_id</code> links between a request's events, so a consumer rebuilding
-lifecycles exports them unfiltered or by request.</li>
+lifecycles exports them unfiltered or by request. A filter is not a tenant
+boundary: gaps, cursors and counts cover every line read, and an event id
+another tenant's line took first shows as a conflict.</li>
 </ul>
 <h3 id="duplicates">Duplicates</h3>
 <p>Detection covers the lines one export reads, from its cursor on, which
