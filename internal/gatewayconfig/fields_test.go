@@ -37,7 +37,7 @@ func TestFieldsSpellTheTable(t *testing.T) {
 		byPath[f.Path] = f
 	}
 	for _, want := range []Field{
-		{Path: "mode", Kind: "one of", Default: "OBSERVE", Required: true, Env: brand.Env("MODE"),
+		{Path: "mode", Kind: "one of", Required: true, Env: brand.Env("MODE"),
 			Values: []string{"OBSERVE", "SHADOW", "WARN", "APPROVE", "ENFORCE", "LOCKDOWN"}},
 		{Path: "evidence.max_bytes", Kind: "bytes, plain or with KiB, MiB, GiB", Default: "1GiB", Env: brand.Env("EVIDENCE_MAX_BYTES")},
 		{Path: "policy.fail_open_read", Kind: "true or false", Default: "false", Env: brand.Env("POLICY_FAIL_OPEN_READ")},

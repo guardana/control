@@ -47,7 +47,7 @@ func ModeNames() []string { return slices.Clone(modeNames) }
 // reference page and `doctor` print them. Nothing outside this table, the
 // two item tables, the lists and the maps below is a key at all.
 var configFields = []field[Config]{
-	enumField("mode", "OBSERVE", modeNames, true, func(c *Config) *string { return &c.ModeName }),
+	enumField("mode", "", modeNames, true, func(c *Config) *string { return &c.ModeName }),
 	stringField("project_id", "", true, func(c *Config) *string { return &c.ProjectID }),
 	stringField("tenant_id", "", true, func(c *Config) *string { return &c.TenantID }),
 	stringField("environment", "", false, func(c *Config) *string { return &c.Environment }),

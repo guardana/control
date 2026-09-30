@@ -33,7 +33,7 @@ Rendered from the field table in `internal/gatewayconfig`. Rebuild it with
 
 | Key | Variable | Kind | Default | Required | Values |
 | --- | --- | --- | --- | --- | --- |
-| `mode` | `GUARDANA_CONTROL_MODE` | one of | `OBSERVE` | yes | `OBSERVE`, `SHADOW`, `WARN`, `APPROVE`, `ENFORCE`, `LOCKDOWN` |
+| `mode` | `GUARDANA_CONTROL_MODE` | one of |  | yes | `OBSERVE`, `SHADOW`, `WARN`, `APPROVE`, `ENFORCE`, `LOCKDOWN` |
 | `project_id` | `GUARDANA_CONTROL_PROJECT_ID` | string |  | yes |  |
 | `tenant_id` | `GUARDANA_CONTROL_TENANT_ID` | string |  | yes |  |
 | `environment` | `GUARDANA_CONTROL_ENVIRONMENT` | string |  | no |  |

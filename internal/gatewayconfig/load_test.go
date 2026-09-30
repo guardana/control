@@ -442,3 +442,17 @@ func loadRecovering(t *testing.T, path string) (err error) {
 	_, err = Load(path, os.Environ())
 	return err
 }
+
+// A mode is never assumed: OBSERVE runs every call whatever the verdict, so a
+// document that names no mode would otherwise fail open without saying so.
+func TestAConfigurationNamingNoModeIsRefused(t *testing.T) {
+	_, err := Load(writeDocument(t, without(t, "mode: OBSERVE")), os.Environ())
+	if err == nil || !strings.Contains(err.Error(), "mode: no value, and it has no default") {
+		t.Fatalf("Load = %v, want the missing mode named", err)
+	}
+	path := writeDocument(t, without(t, "mode: OBSERVE"))
+	setEnv(t, "mode", "ENFORCE")
+	if cfg := load(t, path); cfg.ModeName != "ENFORCE" {
+		t.Errorf("mode from the variable = %q, want ENFORCE", cfg.ModeName)
+	}
+}

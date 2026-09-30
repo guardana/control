@@ -11,6 +11,13 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- `mode` has no default: a configuration that names no enforcement mode is
+  refused at load instead of starting a plane in `OBSERVE`, which stops nothing
+  its policy decides. Add `mode:` to a configuration that relied on the
+  default ([ADR-0032](docs/adr/0032-the-enforcement-mode-has-no-default.md)).
+
 ### Added
 
 - A website for `control.guardana.dev` in `site/`: one static page with

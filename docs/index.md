@@ -105,3 +105,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0029: The canonical form accepts a fraction a double holds exactly, and a tool definition any finite number](adr/0029-exact-fractions-in-the-canonical-form.md): accepted
 - [ADR-0030: A static website drawn from the repository](adr/0030-a-static-website-drawn-from-the-repository.md): accepted
 - [ADR-0031: The documentation is served on the website](adr/0031-the-documentation-is-served-on-the-website.md): accepted
+- [ADR-0032: The enforcement mode has no default](adr/0032-the-enforcement-mode-has-no-default.md): accepted

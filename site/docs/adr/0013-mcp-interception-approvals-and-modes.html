@@ -51,6 +51,8 @@ an approval's expiry is judged again by the plane's clock right before the
 resumed call is handed out, and a call whose approval expired by then is not
 sent, with the approval spent. The block answered for an expiry found after
 <code>ACTION_STARTED</code> carries a decision id that no record on its trail holds.</p>
+<p>Amended by <a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</a>: <code>mode</code> has
+no default; a configuration that names none is refused at load.</p>
 <h2 id="context">Context</h2>
 <p>The kernel decides and nothing calls it. The first protocol target is the Model
 Context Protocol, and its two live revisions are different protocols. <code>2026-07-28</code>

@@ -121,10 +121,12 @@ What the plane does today:
 
 What it does not do:
 
-- **The default mode is `OBSERVE`**, which records the decision and runs the
-  call whatever it says ([enforcement modes](enforcement-modes.md)). A plane
-  left at the default stops nothing its policy decides; only the plane's own
-  causes, a pause among them, still block.
+- **A plane in `OBSERVE` stops nothing its policy decides**: it records the
+  decision and runs the call whatever it says
+  ([enforcement modes](enforcement-modes.md)); only the plane's own causes, a
+  pause among them, still block. `mode` has no default, so a plane runs in
+  `OBSERVE` only when its configuration says so
+  ([ADR-0032](../adr/0032-the-enforcement-mode-has-no-default.md)).
 - It does not read what a call means. Policy decides on who calls, the
   action and its effect class, the resource, the destination, the data labels
   and the run's flow ([policy format](../reference/policy-format.md)). No

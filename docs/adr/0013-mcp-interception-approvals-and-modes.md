@@ -31,6 +31,9 @@ resumed call is handed out, and a call whose approval expired by then is not
 sent, with the approval spent. The block answered for an expiry found after
 `ACTION_STARTED` carries a decision id that no record on its trail holds.
 
+Amended by [ADR-0032](0032-the-enforcement-mode-has-no-default.md): `mode` has
+no default; a configuration that names none is refused at load.
+
 ## Context
 
 The kernel decides and nothing calls it. The first protocol target is the Model

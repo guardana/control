@@ -154,10 +154,12 @@ untrusted destinations (<code>internal/gateway/flow.go</code>;
 </ul>
 <p>What it does not do:</p>
 <ul>
-<li><strong>The default mode is <code>OBSERVE</code></strong>, which records the decision and runs the
-call whatever it says (<a href="/docs/concepts/enforcement-modes">enforcement modes</a>). A plane
-left at the default stops nothing its policy decides; only the plane's own
-causes, a pause among them, still block.</li>
+<li><strong>A plane in <code>OBSERVE</code> stops nothing its policy decides</strong>: it records the
+decision and runs the call whatever it says
+(<a href="/docs/concepts/enforcement-modes">enforcement modes</a>); only the plane's own causes, a
+pause among them, still block. <code>mode</code> has no default, so a plane runs in
+<code>OBSERVE</code> only when its configuration says so
+(<a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</a>).</li>
 <li>It does not read what a call means. Policy decides on who calls, the
 action and its effect class, the resource, the destination, the data labels
 and the run's flow (<a href="/docs/reference/policy-format">policy format</a>). No
