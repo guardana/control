@@ -52,7 +52,7 @@ func (p *Pipeline) Close(ctx context.Context, d Disposition, sent []byte, result
 		return mismatch
 	}
 	gen := p.counts.generation()
-	if err := p.cfg.Sink.Append(ctx, ex.closing(result, executed, matched)); err != nil {
+	if err := p.sinkAppend(ctx, ex.closing(result, executed, matched)); err != nil {
 		p.counts.sinkFailed(true)
 		if mismatch != nil {
 			return fmt.Errorf("%w: %w", mismatch, err)
@@ -165,7 +165,7 @@ func (p *Pipeline) abort(ctx context.Context, d Disposition, code string) error 
 	aborted.ToolProtocolStatus = code
 	aborted.EndedAt = timestampOf(p.cfg.Clock())
 	gen := p.counts.generation()
-	if err := p.cfg.Sink.Append(ctx, ex.trail.Failed(aborted)); err != nil {
+	if err := p.sinkAppend(ctx, ex.trail.Failed(aborted)); err != nil {
 		p.counts.sinkFailed(false)
 		return err
 	}

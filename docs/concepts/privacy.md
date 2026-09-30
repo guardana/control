@@ -63,7 +63,8 @@ approver typed them.
 
 `ACTION_STARTED` carries no payload. `ACTION_COMPLETED` and `ACTION_FAILED`
 carry the result: its status, when it started and ended, the protocol's own
-status (`ok`, `isError`, `timeout`, `error` or a JSON-RPC error code), a
+status (`ok`, `isError`, `timeout`, `error`, `unhashable` for a result that
+cannot be encoded, whose status is then `UNKNOWN`, or a JSON-RPC error code), a
 SHA-256 of the result's JSON encoding when there was one, and the digest of
 the bytes that were sent. Neither an error message from the upstream nor any
 part of the result is kept (`resultOf` in `adapters/mcp/answer.go`). An
@@ -80,7 +81,9 @@ can be recovered by hashing each guess and comparing.
 ADR-0004 lets an operator opt in to capturing content. This build has no
 setting for it: the MCP adapter builds the arguments message with the hash
 alone, the authorized envelope clears any preview
-(`internal/gateway/authorize.go`), and the result keeps no preview. Capture is off, and nothing turns it on.
+(`internal/gateway/authorize.go`), and the plane clears both previews and
+their profiles from every event it hands the sink, whatever an adapter set
+(`uncaptured` in `internal/gateway/trails.go`). Capture is off, and nothing turns it on.
 
 Hidden model reasoning is never stored at any setting. MCP does not carry it
 to the plane, no field of the contract holds it, and no adapter reads it.

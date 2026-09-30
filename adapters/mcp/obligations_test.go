@@ -63,7 +63,10 @@ func TestReadOnlyObligation(t *testing.T) {
 
 // TestRestrictResourcesObligation: the resource named by the call has to
 // be one of the ids or under the prefix; no parameter allows nothing, and
-// the prefix is literal.
+// the prefix is literal. Under the prefix, a segment or a byte a resolver
+// could read as leaving it refuses the call; an exact id stays text. NUL,
+// the other control characters, DEL and trailing white space are refused
+// already as an invalid identifier, before any obligation runs.
 func TestRestrictResourcesObligation(t *testing.T) {
 	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{})
 	agent := r.connect(t, "agent-a")
@@ -77,6 +80,38 @@ func TestRestrictResourcesObligation(t *testing.T) {
 		{"id outside", map[string]string{"ids": "/a,/b"}, "/c", false},
 		{"prefix", map[string]string{"prefix": "/srv/data/"}, "/srv/data/x", true},
 		{"prefix is literal", map[string]string{"prefix": "/srv/data/"}, "/srv/data-evil/x", false},
+		{"deeper path under the prefix", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a/b.c/..d", true},
+		{"dot-dot under the prefix", map[string]string{"prefix": "/srv/data/"}, "/srv/data/../../etc/passwd", false},
+		{"dot segment under the prefix", map[string]string{"prefix": "/srv/data/"}, "/srv/data/./x", false},
+		{"empty segment under the prefix", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a//x", false},
+		{"backslash under the prefix", map[string]string{"prefix": "/srv/data/"}, `/srv/data/..\..\etc\passwd`, false},
+		{"trailing dot-dot under the prefix", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a/..", false},
+		{"trailing slash under the prefix", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a/", true},
+		{"prefix without a slash", map[string]string{"prefix": "/srv/data"}, "/srv/data/x", true},
+		{"dot-dot after a prefix without a slash", map[string]string{"prefix": "/srv/data"}, "/srv/data/../x", false},
+		{"exact id is text", map[string]string{"ids": "/srv/data/../x"}, "/srv/data/../x", true},
+		{"id equal to the prefix", map[string]string{"prefix": "/srv/data/"}, "/srv/data/", true},
+		{"hyphen, underscore and tilde under the prefix", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a-b_c~d.txt", true},
+		{"url prefix", map[string]string{"prefix": "https://api.example/v1/users/"}, "https://api.example/v1/users/42", true},
+		{"encoded dot-dot", map[string]string{"prefix": "/srv/data/"}, "/srv/data/%2e%2e/%2e%2e/etc/passwd", false},
+		{"encoded slash", map[string]string{"prefix": "/srv/data/"}, "/srv/data/..%2f..%2fetc%2fpasswd", false},
+		{"encoded backslash", map[string]string{"prefix": "/srv/data/"}, "/srv/data/..%5c..%5cetc", false},
+		{"fullwidth dots", map[string]string{"prefix": "/srv/data/"}, "/srv/data/．．/．．/etc/passwd", false},
+		{"path parameter", map[string]string{"prefix": "/srv/data/"}, "/srv/data/..;/..;/etc/passwd", false},
+		{"nul after dot-dot", map[string]string{"prefix": "/srv/data/"}, "/srv/data/..\x00", false},
+		{"nul in a name", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a\x00b", false},
+		{"control character", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a\tb", false},
+		{"delete character", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a\x7fb", false},
+		{"dot-dot and a space", map[string]string{"prefix": "/srv/data/"}, "/srv/data/.. ", false},
+		{"dot-dot and a space mid-path", map[string]string{"prefix": "/srv/data/"}, "/srv/data/.. /etc/passwd", false},
+		{"space segment", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a/ /b", false},
+		{"space inside a name", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a b", true},
+		{"three dots", map[string]string{"prefix": "/srv/data/"}, "/srv/data/.../x", false},
+		{"file url encoded dot-dot", map[string]string{"prefix": "file:///srv/data/"}, "file:///srv/data/%2E%2E/%2E%2E/etc/passwd", false},
+		{"https url encoded dot-dot", map[string]string{"prefix": "https://api.example/v1/users/"}, "https://api.example/v1/users/%2e%2e/admin", false},
+		{"prefix ending in dot-dot", map[string]string{"prefix": "/srv/data/.."}, "/srv/data/../etc", false},
+		{"id equal to a prefix ending in dot-dot", map[string]string{"prefix": "/srv/data/.."}, "/srv/data/..", false},
+		{"percent in an exact id is text", map[string]string{"ids": "/srv/data/%2e%2e"}, "/srv/data/%2e%2e", true},
 		{"no parameter", nil, "/a", false},
 		{"empty ids", map[string]string{"ids": ""}, "", false},
 	}

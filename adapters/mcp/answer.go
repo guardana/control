@@ -290,10 +290,14 @@ func resultOf(d gateway.Disposition, started, ended time.Time, res any, err erro
 			out.Status = controlv1.ResultStatus_RESULT_STATUS_FAILURE
 			out.ToolProtocolStatus = "isError"
 		}
-		if b, merr := json.Marshal(res); merr == nil {
-			sum := sha256.Sum256(b)
-			out.ResultHash = "sha256:" + hex.EncodeToString(sum[:])
+		b, merr := json.Marshal(res)
+		if merr != nil {
+			out.Status = controlv1.ResultStatus_RESULT_STATUS_UNKNOWN
+			out.ToolProtocolStatus = "unhashable"
+			break
 		}
+		sum := sha256.Sum256(b)
+		out.ResultHash = "sha256:" + hex.EncodeToString(sum[:])
 	case errors.Is(err, context.DeadlineExceeded):
 		out.Status = controlv1.ResultStatus_RESULT_STATUS_TIMEOUT
 		out.ToolProtocolStatus = "timeout"

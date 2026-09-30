@@ -53,6 +53,18 @@ the changelog rendered under <code>control.guardana.dev/docs/</code> by
 they mean on GitHub, and a check that fails when a page and its rendering
 drift (<a href="/docs/adr/0031-the-documentation-is-served-on-the-website">ADR-0031</a>).</li>
 </ul>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li>A <code>restrict_resources</code> obligation with a <code>prefix</code> let a resource id such
+as <code>/srv/data/../../etc/passwd</code> or <code>/srv/data/%2e%2e/etc</code> through; under a
+prefix, an id holding a segment of dots, an empty segment, a backslash, a
+<code>%</code>, a <code>;</code> or a byte outside printable ASCII is now refused.</li>
+<li>The plane recorded whatever preview an adapter put on a call's arguments or
+its result; every event now reaches the sink without previews, as capture
+is off.</li>
+<li>A tool result that could not be encoded was recorded as a success with no
+hash; it is now <code>UNKNOWN</code>, with the protocol status <code>unhashable</code>.</li>
+</ul>
 <h2 id="020-alpha---2026-09-28"><a href="https://github.com/guardana/control/releases/tag/v0.2.0-alpha">0.2.0-alpha</a> - 2026-09-28</h2>
 <p>The second release. It fixes how an approval's expiry is kept, how much
 of the plane a stdio upstream is handed, where a plaintext export may go,
@@ -104,7 +116,7 @@ literal only, as <code>pdp.allow_plaintext</code> already did and as
 states. A plaintext endpoint on any other host, a name such as <code>localhost</code>
 included, is refused at start.</li>
 </ul>
-<h3 id="fixed">Fixed</h3>
+<h3 id="fixed-1">Fixed</h3>
 <ul>
 <li>A tool whose definition holds a fractional number, such as
 <code>&quot;default&quot;: 0.7</code>, is fingerprinted and can be classified, and a call

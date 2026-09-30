@@ -222,7 +222,7 @@ func (c *call) record(event *controlv1.Event) bool {
 		return true
 	}
 	gen := c.p.counts.generation()
-	if err := c.p.cfg.Sink.Append(c.ctx, event); err != nil {
+	if err := c.p.sinkAppend(c.ctx, event); err != nil {
 		c.p.counts.sinkFailed(false)
 		if c.material || c.held || !c.p.cfg.AllowReadsUnrecorded {
 			return false

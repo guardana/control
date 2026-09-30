@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,6 +127,27 @@ func TestAnErrorTheClientRaisesIsNoAnswer(t *testing.T) {
 		if got.GetStatus() != c.status || got.GetToolProtocolStatus() != c.proto {
 			t.Errorf("%s: %v %q, want %v %q", c.name, got.GetStatus(), got.GetToolProtocolStatus(), c.status, c.proto)
 		}
+	}
+}
+
+// TestAResultThatCannotBeEncodedIsUnknown: an answer with no encoding has no
+// hash, so nothing can say what it held; it is recorded UNKNOWN, not SUCCESS
+// or FAILURE, while an encodable answer keeps its status and hash.
+func TestAResultThatCannotBeEncodedIsUnknown(t *testing.T) {
+	now := time.Now()
+	for name, res := range map[string]any{
+		"a channel":               make(chan int),
+		"an infinite number":      &mcp.CallToolResult{StructuredContent: math.Inf(1)},
+		"an error with no number": &mcp.CallToolResult{IsError: true, StructuredContent: math.NaN()},
+	} {
+		got := resultOf(gateway.Disposition{}, now, now, res, nil)
+		if got.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_UNKNOWN || got.GetToolProtocolStatus() != "unhashable" || got.GetResultHash() != "" {
+			t.Errorf("%s: %v %q %q, want UNKNOWN \"unhashable\" and no hash", name, got.GetStatus(), got.GetToolProtocolStatus(), got.GetResultHash())
+		}
+	}
+	got := resultOf(gateway.Disposition{}, now, now, &mcp.CallToolResult{StructuredContent: 1.5}, nil)
+	if got.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_SUCCESS || got.GetToolProtocolStatus() != "ok" || !strings.HasPrefix(got.GetResultHash(), "sha256:") {
+		t.Errorf("an encodable answer: %v %q %q", got.GetStatus(), got.GetToolProtocolStatus(), got.GetResultHash())
 	}
 }
 

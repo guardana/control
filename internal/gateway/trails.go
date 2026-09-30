@@ -190,10 +190,30 @@ func (p *Pipeline) closeExpired(ctx context.Context, h *heldRequest, now time.Ti
 // append writes event and reports whether the sink took it.
 func (p *Pipeline) append(ctx context.Context, event *controlv1.Event) bool {
 	gen := p.counts.generation()
-	if err := p.cfg.Sink.Append(ctx, event); err != nil {
+	if err := p.sinkAppend(ctx, event); err != nil {
 		p.counts.sinkFailed(false)
 		return false
 	}
 	p.counts.appended(gen)
 	return true
+}
+
+// sinkAppend is the one way an event reaches the sink. Content capture has no
+// setting and is off (ADR-0004), so the previews an adapter put on the event,
+// and the profiles naming them, are not recorded.
+func (p *Pipeline) sinkAppend(ctx context.Context, event *controlv1.Event) error {
+	uncapture(event)
+	return p.cfg.Sink.Append(ctx, event)
+}
+
+// uncapture clears the previews on event in place. Every event reaching it
+// was built for this append around the Builder's own copy of its payload, so
+// no message an adapter holds changes. Neither preview is a digest input.
+func uncapture(event *controlv1.Event) {
+	if a := event.GetProposed().GetArguments(); a != nil {
+		a.RedactedPreview, a.RedactionProfile = "", ""
+	}
+	if r := event.GetResult(); r != nil {
+		r.RedactedResultPreview, r.RedactionProfile = "", ""
+	}
 }

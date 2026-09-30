@@ -102,7 +102,34 @@ func resourceAllowed(id string, params map[string]string) bool {
 		}
 	}
 	if prefix, ok := params[paramPrefix]; ok && prefix != "" && strings.HasPrefix(id, prefix) {
-		return true
+		return plainBelow(id[strings.LastIndex(prefix, "/")+1:])
 	}
 	return false
+}
+
+// plainBelow reports whether the path from the segment the prefix ends in
+// avoids every spelling this adapter knows a resolver to read as leaving it:
+// a percent escape, a `;` parameter, a backslash, a byte outside printable
+// ASCII, a segment of only dots and spaces, and an empty segment but a
+// trailing one. The upstream's own resolver is not consulted.
+func plainBelow(rest string) bool {
+	for i := 0; i < len(rest); i++ {
+		b := rest[i]
+		if b < 0x20 || b > 0x7e || b == '%' || b == ';' || b == '\\' {
+			return false
+		}
+	}
+	segments := strings.Split(rest, "/")
+	for i, s := range segments {
+		if s == "" {
+			if i != len(segments)-1 {
+				return false
+			}
+			continue
+		}
+		if strings.Trim(s, ". ") == "" {
+			return false
+		}
+	}
+	return true
 }

@@ -30,6 +30,18 @@ verify one.
   they mean on GitHub, and a check that fails when a page and its rendering
   drift ([ADR-0031](docs/adr/0031-the-documentation-is-served-on-the-website.md)).
 
+### Fixed
+
+- A `restrict_resources` obligation with a `prefix` let a resource id such
+  as `/srv/data/../../etc/passwd` or `/srv/data/%2e%2e/etc` through; under a
+  prefix, an id holding a segment of dots, an empty segment, a backslash, a
+  `%`, a `;` or a byte outside printable ASCII is now refused.
+- The plane recorded whatever preview an adapter put on a call's arguments or
+  its result; every event now reaches the sink without previews, as capture
+  is off.
+- A tool result that could not be encoded was recorded as a success with no
+  hash; it is now `UNKNOWN`, with the protocol status `unhashable`.
+
 ## [0.2.0-alpha] - 2026-09-28
 
 The second release. It fixes how an approval's expiry is kept, how much

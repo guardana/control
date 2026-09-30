@@ -105,7 +105,8 @@ and on an answer the <code>approver_id</code> and the optional <code>--reason</c
 approver typed them.</p>
 <p><code>ACTION_STARTED</code> carries no payload. <code>ACTION_COMPLETED</code> and <code>ACTION_FAILED</code>
 carry the result: its status, when it started and ended, the protocol's own
-status (<code>ok</code>, <code>isError</code>, <code>timeout</code>, <code>error</code> or a JSON-RPC error code), a
+status (<code>ok</code>, <code>isError</code>, <code>timeout</code>, <code>error</code>, <code>unhashable</code> for a result that
+cannot be encoded, whose status is then <code>UNKNOWN</code>, or a JSON-RPC error code), a
 SHA-256 of the result's JSON encoding when there was one, and the digest of
 the bytes that were sent. Neither an error message from the upstream nor any
 part of the result is kept (<code>resultOf</code> in <code>adapters/mcp/answer.go</code>). An
@@ -118,7 +119,9 @@ can be recovered by hashing each guess and comparing.</p>
 <p>ADR-0004 lets an operator opt in to capturing content. This build has no
 setting for it: the MCP adapter builds the arguments message with the hash
 alone, the authorized envelope clears any preview
-(<code>internal/gateway/authorize.go</code>), and the result keeps no preview. Capture is off, and nothing turns it on.</p>
+(<code>internal/gateway/authorize.go</code>), and the plane clears both previews and
+their profiles from every event it hands the sink, whatever an adapter set
+(<code>uncaptured</code> in <code>internal/gateway/trails.go</code>). Capture is off, and nothing turns it on.</p>
 <p>Hidden model reasoning is never stored at any setting. MCP does not carry it
 to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <h2 id="where-records-go-and-who-can-read-them">Where records go, and who can read them</h2>
