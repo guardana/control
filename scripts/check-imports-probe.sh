@@ -5,9 +5,11 @@
 # requires each mechanism to refuse it for the reasons that mechanism answers
 # for:
 #   check-imports.sh, layering_test.go  every planted import, os/exec reached
-#                                       through a helper package, and each file
-#                                       a guarded package holds that is not
-#                                       plain Go built on this platform
+#                                       through a helper package, each file a
+#                                       guarded package holds that is not plain
+#                                       Go built on this platform or that the
+#                                       foreign platform leaves out, and each Go
+#                                       file with a build constraint line
 #   layering_test.go                    each //nolint that excuses a guarded
 #                                       file from depguard or forbidigo
 #   golangci-lint, depguard             every planted import, and net/http in
@@ -56,6 +58,8 @@ adapter="${module}/adapters/probeadapter"
 helper="${module}/internal/probehelper"
 not_allowed="which the dependency rule does not allow"
 left_out="which build constraints leave out on this platform"
+foreign_out="which build constraints leave out on ${foreign_platform[0]}/${foreign_platform[1]}"
+constrained="holds a build constraint, so it may not build from the same files on every platform"
 
 # The packages of the guarded trees as the repository holds them, listed before
 # anything is planted, one "<directory> <package name>" line each; then the new
@@ -144,16 +148,23 @@ expect() {
 # expect_walker <mechanism> <line prefix>
 # The refusals the two go list walkers share, in their shared wording.
 expect_walker() {
-  local dir tree imp
+  local dir tree imp file
   for dir in "${lint_dirs[@]}"; do
     for imp in net os io/ioutil golang.org/x/sync/errgroup; do
       expect "$1" "$2${module}/${dir} imports ${imp}, ${not_allowed}"
     done
     expect "$1" "$2${module}/${dir} imports ${adapter}, a tree the dependency rule denies"
   done
+  # A machine that is not amd64 also leaves zz_probe_amd64.go out of its own
+  # listing; only the foreign refusal holds on every machine the gate runs on.
   for tree in "${guarded[@]}"; do
     expect "$1" "$2${module}/${tree}/ioprobe holds zz_probe_windows.go, ${left_out}"
     expect "$1" "$2${module}/${tree}/ioprobe holds zz_probe_other.go, ${left_out}"
+    expect "$1" "$2${module}/${tree}/ioprobe holds zz_probe_unix.go, ${foreign_out}"
+    expect "$1" "$2${module}/${tree}/ioprobe holds zz_probe_amd64.go, ${foreign_out}"
+    for file in zz_probe_other.go zz_probe_unix.go zz_probe_notplan9.go; do
+      expect "$1" "$2${tree}/ioprobe/${file} ${constrained}"
+    done
     expect "$1" "$2${module}/${tree}/ioprobe holds zz_probe_s390x.s, ${left_out}"
     expect "$1" "$2${module}/${tree}/ioprobe holds zz_probe.s, which is not plain Go (SFiles)"
   done
@@ -164,7 +175,7 @@ run check-imports.sh scripts/check-imports.sh
 expect_walker check-imports.sh "FAIL "
 
 run layering_test.go go test -count=1 \
-  -run '^(TestGuardedTreesImportOnlyAllowedPackages|TestGuardedTreesTakeNoInlineException)$' ./internal/core/
+  -run '^(TestGuardedTreesImportOnlyAllowedPackages|TestGuardedTreesTakeNoInlineException|TestGuardedFilesHoldNoBuildConstraint)$' ./internal/core/
 expect_walker layering_test.go ""
 for dir in "${lint_dirs[@]}"; do
   expect layering_test.go "${dir}/zz_probe.go:" "excuses a guarded file from forbidigo"
@@ -190,7 +201,8 @@ for dir in "${lint_dirs[@]}"; do
   for call in probeclock.Now probeclock.Since probeclock.Until probeclock.After \
     probeclock.AfterFunc probeclock.Tick probeclock.NewTicker probeclock.NewTimer \
     probeclock.Sleep timestamppb.Now context.WithTimeout context.WithDeadline \
-    fmt.Scanln probeclock.LoadLocation ed25519.GenerateKey; do
+    fmt.Scanln probeclock.LoadLocation probeclock.Local t.Local t.Zone t.ZoneBounds p.IsDST \
+    ed25519.GenerateKey; do
     expect forbidigo "${dir}/zz_probe_reads.go:" "use of \`${call}\` forbidden"
   done
 done

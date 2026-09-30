@@ -120,10 +120,12 @@ func TestRepositoryFallsBackToTheWalkForTheFileList(t *testing.T) {
 	}
 }
 
+// needGit fails a test that needs git where there is none: a skip would print
+// ok for a check that ran nothing.
 func needGit(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
-		t.Skipf("git is not on PATH: %v", err)
+		t.Fatalf("git is not on PATH, so this test cannot run: %v", err)
 	}
 }
 

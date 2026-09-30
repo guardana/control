@@ -100,3 +100,15 @@ refused_files=(
   SwigCXXFiles
   SysoFiles
 )
+
+# The platform, GOOS then GOARCH, for which every package held to the rule is
+# listed once more, for the files a name suffix (_GOOS, _GOARCH, _GOOS_GOARCH)
+# keeps to other platforms. It shares neither its GOOS nor its GOARCH with a
+# machine the gate runs on (darwin/arm64, linux/amd64), so a suffix one of
+# those compiles, _linux or _amd64, is left out of this listing. A constraint
+# line is not left to the listings: `//go:build !plan9` holds on every platform
+# listed, so check-imports.sh refuses the line itself.
+foreign_platform=(
+  windows
+  386
+)

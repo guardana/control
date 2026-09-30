@@ -45,6 +45,9 @@ var wantExclusions = []string{
 	`      - linters: [forbidigo]`,
 	`        text: "guarded tree: "`,
 	`        path-except: "^(internal/core|internal/policy|internal/canon|internal/evidence|pkg/contract)/"`,
+	`      - linters: [forbidigo]`,
+	"        text: \"use of `time.Local` forbidden\"",
+	`        path: "^internal/core/property_test\\.go$"`,
 }
 
 // What .golangci.yml may hold at its top level and under run. issues can
@@ -73,6 +76,7 @@ func TestAllThreeMechanismsAllowTheSameSet(t *testing.T) {
 		{ruleScript + ": denied", mustArray(t, script, "denied"), deniedInModule},
 		{ruleScript + ": generated", mustArray(t, script, "generated"), generatedInModule},
 		{ruleScript + ": refused_files", mustArray(t, script, "refused_files"), refusedFileLists},
+		{ruleScript + ": foreign_platform", mustArray(t, script, "foreign_platform"), foreignPlatform},
 		{lintConfig + ": depguard rule core, allow", core.allow, depguardAllow(modulePath)},
 		{lintConfig + ": depguard rule core, deny", core.deny, depguardDeny(modulePath)},
 		{lintConfig + ": depguard rule core-tests, deny", tests.deny, depguardDeny(modulePath)},

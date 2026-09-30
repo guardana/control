@@ -89,7 +89,8 @@ vet:
 	@$(RUN) \
 	gens=$$(. $(REPO_FILES); repo_files 'scripts/*.go'); \
 	if [[ -z "$$gens" ]]; then \
-	  echo "vet: SKIP generators, none under scripts/"; \
+	  echo "vet: no generator under scripts/, and the repository has them, so the search stopped working" >&2; \
+	  exit 1; \
 	else \
 	  for g in $$gens; do \
 	    $(GO) build -o /dev/null "$$g" || exit 1; \

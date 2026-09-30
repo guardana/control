@@ -8,7 +8,9 @@
 // platform. `go list` reports the build of the platform it runs on, so a file
 // behind a build constraint for another platform, or assembly that needs no
 // import at all, would pass every check on each machine the gate runs on. Both
-// are refused rather than walked once per platform.
+// are refused rather than walked once per platform: a file a listing leaves
+// out, natively or for foreignPlatform, any source that is not plain Go, and
+// any build constraint line, which is read as text.
 //
 // The three mechanisms carry the same lists and are edited independently, so
 // removing one does not remove the rule; layering_agreement_test.go fails when
@@ -24,6 +26,7 @@ package core_test
 import (
 	"errors"
 	"fmt"
+	"go/build/constraint"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -119,6 +122,14 @@ var (
 		"SwigCXXFiles",
 		"SysoFiles",
 	}
+
+	// The platform, GOOS then GOARCH, for which every package held to the rule
+	// is listed once more, for the files a name suffix (_GOOS, _GOARCH,
+	// _GOOS_GOARCH) keeps to other platforms. It shares neither its GOOS nor
+	// its GOARCH with a machine the gate runs on (darwin/arm64, linux/amd64),
+	// so a suffix one of those compiles, _linux or _amd64, is left out of this
+	// listing. Constraint lines are refused as text, not left to the listings.
+	foreignPlatform = []string{"windows", "386"}
 )
 
 // Refused whatever the lists above say, together with every package below
@@ -192,7 +203,7 @@ func TestGuardedTreesImportOnlyAllowedPackages(t *testing.T) {
 	modulePath, moduleDir := mainModule(t)
 
 	imports, files := 0, 0
-	examined := make(map[string]bool)
+	examined, foreign := make(map[string]bool), make(map[string]bool)
 	for _, tree := range guardedTrees {
 		for _, pkg := range treeListing(t, moduleDir, tree) {
 			// Two trees can reach the same package; it is judged once.
@@ -211,6 +222,7 @@ func TestGuardedTreesImportOnlyAllowedPackages(t *testing.T) {
 				t.Errorf("%s holds %s, %s", pkg.path, file.name, fileVerdict(file.list))
 			}
 		}
+		files += refuseForeignLeftOut(t, modulePath, moduleDir, tree, foreign)
 	}
 
 	// A run in which nothing was imported examined nothing and must not
@@ -254,6 +266,44 @@ func treeListing(t *testing.T, moduleDir, tree string) []listedPackage {
 	listing, err := parseListing(lines)
 	if err != nil {
 		t.Fatalf("go list %s: %v", pattern, err)
+	}
+	return listing
+}
+
+// refuseForeignLeftOut fails the test for each file that the foreign
+// platform's build of tree leaves out of a package held to the rule, judging
+// each package once across calls through seen, and returns how many it refused.
+func refuseForeignLeftOut(t *testing.T, modulePath, moduleDir, tree string, seen map[string]bool) int {
+	t.Helper()
+	refused := 0
+	for _, pkg := range foreignListing(t, moduleDir, tree) {
+		if seen[pkg.path] || !heldToRule(modulePath, pkg.path) {
+			continue
+		}
+		seen[pkg.path] = true
+		refused += len(pkg.files)
+		for _, file := range pkg.files {
+			t.Errorf("%s holds %s, which build constraints leave out on %s", pkg.path, file.name, strings.Join(foreignPlatform, "/"))
+		}
+	}
+	return refused
+}
+
+// foreignListing returns every package the foreign platform's non-test build
+// of tree reaches, each with the files that platform's name suffixes leave
+// out: the files the gate's own platforms alone compile.
+func foreignListing(t *testing.T, moduleDir, tree string) []listedPackage {
+	t.Helper()
+	pattern := "./" + tree + "/..."
+	env := []string{"GOOS=" + foreignPlatform[0], "GOARCH=" + foreignPlatform[1]}
+	lines := goListEnv(t, moduleDir, env, "-deps", "-f",
+		"{{.ImportPath}} |{{range .IgnoredGoFiles}} IgnoredGoFiles:{{.}}{{end}}{{range .IgnoredOtherFiles}} IgnoredOtherFiles:{{.}}{{end}}", pattern)
+	if len(lines) == 0 {
+		t.Fatalf("%s resolved to no package for %s, so the rule examined nothing there", pattern, strings.Join(foreignPlatform, "/"))
+	}
+	listing, err := parseListing(lines)
+	if err != nil {
+		t.Fatalf("go list %s for %s: %v", pattern, strings.Join(foreignPlatform, "/"), err)
 	}
 	return listing
 }
@@ -307,6 +357,113 @@ func parseListing(lines []string) ([]listedPackage, error) {
 		listing = append(listing, pkg)
 	}
 	return listing, nil
+}
+
+// TestGuardedFilesHoldNoBuildConstraint refuses a build constraint line in any
+// Go file of the guarded trees, tests included. A constraint every listed
+// platform satisfies, `//go:build !plan9` for one, leaves the file out of no
+// listing, yet a build for another platform compiles the package without it.
+func TestGuardedFilesHoldNoBuildConstraint(t *testing.T) {
+	_, moduleDir := mainModule(t)
+	repo := os.DirFS(moduleDir)
+	files := 0
+	for _, tree := range guardedTrees {
+		mustExist(t, moduleDir, tree)
+		for _, rel := range treeSources(t, repo, tree) {
+			files++
+			src, err := fs.ReadFile(repo, rel)
+			if err != nil {
+				t.Fatalf("reading %s: %v", rel, err)
+			}
+			if slices.ContainsFunc(strings.Split(string(src), "\n"), readsAsBuildConstraint) {
+				t.Errorf("%s holds a build constraint, so it may not build from the same files on every platform", rel)
+			}
+		}
+	}
+	if files == 0 {
+		t.Fatalf("none of %v holds a Go file outside testdata, so no build constraint was looked for", guardedTrees)
+	}
+	t.Logf("%d Go file(s) of the guarded trees read for build constraints", files)
+}
+
+// treeSources returns every Go file under tree outside testdata, as
+// module-relative slash paths. The directories are walked rather than listed
+// through go list, which drops a directory whose every file a constraint
+// leaves out.
+func treeSources(t *testing.T, repo fs.FS, tree string) []string {
+	t.Helper()
+	var files []string
+	err := fs.WalkDir(repo, tree, func(path string, entry fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return err
+		case entry.IsDir() && entry.Name() == "testdata":
+			return fs.SkipDir
+		case !entry.IsDir() && strings.HasSuffix(path, ".go"):
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking %s: %v", tree, err)
+	}
+	return files
+}
+
+// readsAsBuildConstraint reports whether go/build would read line as a build
+// constraint: after an optional byte order mark and leading space, "//go:build",
+// or "//" and "+build" with any space between. It is applied to every line of
+// a file, since a block comment can hide where the header go/build reads ends.
+// scripts/check-imports.sh matches the same lines.
+func readsAsBuildConstraint(line string) bool {
+	const space = " \t\n\v\f\r"
+	rest, ok := strings.CutPrefix(strings.TrimLeft(strings.TrimPrefix(line, "\uFEFF"), space), "//")
+	return ok && (strings.HasPrefix(rest, "go:build") || strings.HasPrefix(strings.TrimLeft(rest, space), "+build"))
+}
+
+func TestReadsAsBuildConstraint(t *testing.T) {
+	cases := map[string]bool{
+		"//go:build unix":          true,
+		"//go:build":               true,
+		"//go:build !plan9\r":      true,
+		"  //go:build amd64":       true,
+		"\t//go:build go1.20":      true,
+		"\uFEFF//go:build windows": true,
+		"\uFEFF \t//go:build unix": true,
+		"// +build linux":          true,
+		"//+build linux":           true,
+		"//\t  +build !race":       true,
+		"//go:buildx":              true,
+		"// go:build unix":         false,
+		"/* //go:build unix */":    false,
+		"// a //go:build line":     false,
+		"x := `//go:build`":        false,
+		"// build unix":            false,
+		"package x":                false,
+		"":                         false,
+	}
+	for line, want := range cases {
+		if got := readsAsBuildConstraint(line); got != want {
+			t.Errorf("readsAsBuildConstraint(%q) = %v, want %v", line, got, want)
+		}
+	}
+}
+
+// Every line go/build/constraint reads as a constraint, once go/build has
+// dropped a byte order mark and the space around it, is refused.
+func TestReadsAsBuildConstraintCoversGoBuild(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		line := rapid.SampledFrom([]string{"", "\uFEFF"}).Draw(t, "mark") +
+			rapid.StringMatching(`[ \t\r]{0,3}`).Draw(t, "indent") +
+			rapid.SampledFrom([]string{"//", "/", "/*", "#"}).Draw(t, "comment") +
+			rapid.StringMatching(`[ \t]{0,2}`).Draw(t, "gap") +
+			rapid.SampledFrom([]string{"go:build", "+build", "go:generate", "build", "go:buil"}).Draw(t, "directive") +
+			rapid.StringMatching(`[ \t!a-z0-9|&()]{0,8}`).Draw(t, "expression")
+		header := strings.TrimSpace(strings.TrimPrefix(line, "\uFEFF"))
+		if (constraint.IsGoBuild(header) || constraint.IsPlusBuild(header)) && !readsAsBuildConstraint(line) {
+			t.Fatalf("go/build reads %q as a build constraint and readsAsBuildConstraint does not", line)
+		}
+	})
 }
 
 // TestGuardedTreesTakeNoInlineException refuses a nolint directive in a
@@ -716,11 +873,20 @@ func mainModule(t *testing.T) (string, string) {
 // not run must not read like a clean tree.
 func goList(t *testing.T, dir string, args ...string) []string {
 	t.Helper()
+	return goListEnv(t, dir, nil, args...)
+}
+
+// goListEnv is goList with env added to the process's environment.
+func goListEnv(t *testing.T, dir string, env []string, args ...string) []string {
+	t.Helper()
 	// The program is the fixed string "go" and every argument originates in a
 	// literal in this file; gosec cannot see that through the variadic call.
 	//nolint:gosec // G204: no external input reaches this argument list.
 	cmd := exec.CommandContext(t.Context(), "go", append([]string{"list"}, args...)...)
 	cmd.Dir = dir
+	if env != nil {
+		cmd.Env = append(os.Environ(), env...)
+	}
 
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout

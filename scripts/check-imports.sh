@@ -9,14 +9,18 @@
 # trees would be a way around the rule. A package outside the module is judged
 # only as an import: the rule decides whether a guarded tree may use it at all.
 # A package that is examined may also hold no file in the go list fields
-# refused_files names. go list reports the build of one platform, so a file
-# that only another platform compiles, or assembly that needs no import, would
-# otherwise pass on every machine the gate runs on.
+# refused_files names, natively or as foreign_platform builds it. go list
+# reports the build of one platform, so a file that only another platform
+# compiles, or assembly that needs no import, would otherwise pass on every
+# machine the gate runs on. No Go file of a guarded tree, tests included, may
+# carry a build constraint line either: that is read as text, because a
+# constraint every listed platform satisfies leaves nothing out of a listing.
 #
 # This script and depguard (.golangci.yml) each cover a half the other misses:
 #   - here: the in-module packages the non-test build reaches, which depguard
-#     does not see because it reads only each guarded file's own imports, and
-#     the files of those packages that are not plain Go built on this platform;
+#     does not see because it reads only each guarded file's own imports, the
+#     files of those packages that are not plain Go built on every platform,
+#     and the build constraint lines of the guarded trees' Go files;
 #   - depguard: imports written in _test.go files, which `go list -deps`
 #     leaves out of the package's dependency set.
 set -euo pipefail
@@ -115,7 +119,19 @@ for field in "${refused_files[@]}"; do
   template+="{{range .${field}}} ${field}:{{.}}{{end}}"
 done
 
+foreign="${foreign_platform[0]}/${foreign_platform[1]}"
+foreign_template='{{.ImportPath}}{{range .IgnoredGoFiles}} {{.}}{{end}}{{range .IgnoredOtherFiles}} {{.}}{{end}}'
+
+# A line go/build would read as a build constraint: after an optional byte order
+# mark and leading space, "//go:build", or "//" and "+build" with any space
+# between. It is refused wherever it stands in the file, since a block comment
+# can hide where the header go/build reads ends. internal/core/layering_test.go
+# matches the same lines.
+constraint_line="^($(printf '\357\273\277'))?[[:space:]]*//(go:build|[[:space:]]*[+]build)"
+constrained="holds a build constraint, so it may not build from the same files on every platform"
+
 checked=0
+sources=0
 failures=0
 packages=""
 imports=""
@@ -142,6 +158,34 @@ for dir in "${guarded[@]}"; do
     printf 'FAIL %s: the guarded tree holds no Go file\n' "${pattern}" >&2
     failures=$((failures + 1))
     continue
+  fi
+
+  # Every Go file outside testdata, whether or not a listing names it: go list
+  # drops a directory whose every file a constraint leaves out.
+  files=()
+  while read -r file; do
+    if [[ "${file}" != */testdata/* ]]; then
+      files+=("${file}")
+    fi
+  done <<<"${gofiles}"
+  if [[ ${#files[@]} -eq 0 ]]; then
+    printf 'FAIL %s: the guarded tree holds no Go file outside testdata\n' "${pattern}" >&2
+    failures=$((failures + 1))
+  else
+    sources=$((sources + ${#files[@]}))
+    # grep exits 1 when no line matches and 2 when it could not read a file,
+    # which is a failure, never a clean tree.
+    rc=0
+    matched="$(LC_ALL=C grep -lE -- "${constraint_line}" "${files[@]}")" || rc=$?
+    if [[ ${rc} -gt 1 ]]; then
+      printf 'FAIL %s: grep could not read the Go files for build constraints\n' "${pattern}" >&2
+      failures=$((failures + 1))
+    fi
+    while read -r file; do
+      if [[ -n "${file}" ]]; then
+        refusals+="FAIL ${file} ${constrained}"$'\n'
+      fi
+    done <<<"${matched}"
   fi
 
   if ! listing="$(go list -deps -f "${template}" "${pattern}")"; then
@@ -184,6 +228,27 @@ for dir in "${guarded[@]}"; do
       failures=$((failures + 1))
     fi
   done <<<"${listing}"
+
+  # The same packages as the foreign platform builds them, for the files its
+  # name suffixes leave out: those are the files this platform alone compiles.
+  # A pattern that matches no package there prints a warning and exits 0.
+  if ! listing="$(GOOS="${foreign_platform[0]}" GOARCH="${foreign_platform[1]}" go list -deps -f "${foreign_template}" "${pattern}")"; then
+    printf 'FAIL %s: go list -deps for %s failed\n' "${pattern}" "${foreign}" >&2
+    failures=$((failures + 1))
+    continue
+  fi
+  if [[ -z "${listing}" ]]; then
+    printf 'FAIL %s: go list -deps for %s named no package\n' "${pattern}" "${foreign}" >&2
+    failures=$((failures + 1))
+    continue
+  fi
+  while read -r -a fields; do
+    [[ ${#fields[@]} -gt 0 ]] || continue
+    held "${fields[0]}" || continue
+    for ((i = 1; i < ${#fields[@]}; i++)); do
+      refusals+="FAIL ${fields[0]} holds ${fields[i]}, which build constraints leave out on ${foreign}"$'\n'
+    done
+  done <<<"${listing}"
 done
 
 # Two trees can reach the same package; each package and each refusal counts
@@ -198,8 +263,8 @@ if [[ ${nrefusals} -gt 0 ]]; then
   printf '%s' "${refusals}" | LC_ALL=C sort -u >&2
 fi
 
-printf 'check-imports: %d of %d tree(s) checked; %d package(s) of this module and %d import(s) examined; %d violation(s)\n' \
-  "${checked}" "${#guarded[@]}" "${npackages}" "${nimports}" "$((nrefusals + failures))"
+printf 'check-imports: %d of %d tree(s) checked; %d package(s) of this module and %d import(s) examined; %d Go file(s) read for build constraints; %d violation(s)\n' \
+  "${checked}" "${#guarded[@]}" "${npackages}" "${nimports}" "${sources}" "$((nrefusals + failures))"
 
 # A run that examined nothing reports that, never a pass.
 if [[ ${checked} -eq 0 ]]; then

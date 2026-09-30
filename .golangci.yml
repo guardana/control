@@ -46,12 +46,16 @@ linters:
         # below lifts them everywhere else. A decision is replayed from its
         # recorded inputs, and fmt, time, context, crypto/ed25519 and the
         # protobuf runtime are allowed there for what else they offer, not for
-        # these. Only reads a name reveals are caught: time.Unix(...).Format
-        # reads the local zone and passes, and the kernel's own tests hold it.
+        # these. Only reads a name reveals are caught: time.Local and the
+        # Time methods Local, Zone, ZoneBounds and IsDST are, while
+        # time.Unix(...).Format reads the local zone with no name and passes,
+        # and the kernel's own tests hold it. A method promoted through an
+        # embedded time.Time resolves to the embedding type's name and passes
+        # too.
         - pattern: '^(time\.(Now|Since|Until|After|AfterFunc|Tick|NewTicker|NewTimer|Sleep)|timestamppb\.Now|context\.With(Deadline|Timeout)(Cause)?)$'
           msg: "guarded tree: take the time from the injected clock"
-        - pattern: '^(fmt\.Scan(f|ln)?|time\.LoadLocation)$'
-          msg: "guarded tree: no I/O; this reads standard input or the zone database"
+        - pattern: '^(fmt\.Scan(f|ln)?|time\.(LoadLocation|Local|Time\.(Local|Zone|ZoneBounds|IsDST)))$'
+          msg: "guarded tree: no I/O; this reads standard input, the zone database or the local zone"
         - pattern: '^ed25519\.GenerateKey$'
           msg: "guarded tree: no randomness; derive a key with ed25519.NewKeyFromSeed"
     depguard:
@@ -171,6 +175,7 @@ linters:
             - "unicode/utf16$"
             - "unicode/utf8$"
             - "go/ast$"
+            - "go/build/constraint$"
             - "go/parser$"
             - "go/token$"
             - "go/types$"
@@ -223,6 +228,11 @@ linters:
       - linters: [forbidigo]
         text: "guarded tree: "
         path-except: "^(internal/core|internal/policy|internal/canon|internal/evidence|pkg/contract)/"
+      # The kernel's determinism property sets the process zone to prove that
+      # no decision reads it; that one test may name time.Local.
+      - linters: [forbidigo]
+        text: "use of `time.Local` forbidden"
+        path: "^internal/core/property_test\\.go$"
 formatters:
   enable:
     - gofmt

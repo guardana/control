@@ -59,6 +59,23 @@ func DependencyProbeInput() (string, *probeclock.Location, error) {
 	return line, zone, err
 }
 
+// DependencyProbeLocalZone reads the local zone by name, through the variable
+// and through the method that converts to it.
+func DependencyProbeLocalZone(t probeclock.Time) (*probeclock.Location, probeclock.Time) {
+	zone := probeclock.Local
+	return zone, t.Local()
+}
+
+// DependencyProbeZone reads the local zone through the methods that report a
+// time's zone, which for a time made by time.Unix is the local one; the last
+// through a pointer.
+func DependencyProbeZone(t probeclock.Time, p *probeclock.Time) (string, probeclock.Time, bool) {
+	name, _ := t.Zone()
+	start, _ := t.ZoneBounds()
+	dst := p.IsDST()
+	return name, start, dst
+}
+
 // DependencyProbeKey draws a key from the system's randomness, which
 // crypto/ed25519 reaches through crypto/rand when it is given no reader.
 func DependencyProbeKey() (ed25519.PublicKey, ed25519.PrivateKey, error) {
