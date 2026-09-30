@@ -5,10 +5,13 @@ version: 2
 
 project_name: guardana-control
 
+# Every binary is built under bin/: the demo archive keeps that directory, so a
+# release user types the commands a checkout's tutorial shows, and the product
+# archive strips it.
 builds:
   - id: guardana-control
     main: ./cmd/guardana-control
-    binary: guardana-control
+    binary: bin/guardana-control
     env: [CGO_ENABLED=0]
     goos: [linux, darwin]
     goarch: [amd64, arm64]
@@ -20,7 +23,7 @@ builds:
 
   - id: guardana-gateway
     main: ./cmd/guardana-gateway
-    binary: guardana-gateway
+    binary: bin/guardana-gateway
     env: [CGO_ENABLED=0]
     goos: [linux, darwin]
     goarch: [amd64, arm64]
@@ -28,11 +31,24 @@ builds:
     ldflags: ["-s -w -X main.version={{ .Version }}"]
     mod_timestamp: "{{ .CommitTimestamp }}"
 
+  # The demo's two victim servers, deliberately vulnerable, which only the demo
+  # archive carries.
+  - id: vulnerable-mcp-agent
+    main: ./examples/vulnerable-mcp-agent
+    binary: bin/vulnerable-mcp-agent
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: ["-s -w"]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
 archives:
   - id: default
     ids: [guardana-control, guardana-gateway]
     formats: [tar.gz]
     name_template: "guardana-control_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    strip_binary_directory: true
     # A tar entry records its file's time, owner and mode; fixing them keeps
     # the archive itself reproducible, not only the binaries inside it. The
     # order of the two binaries follows the order they finished building,
@@ -66,6 +82,35 @@ archives:
           group: root
           mode: 0644
           mtime: "{{ .CommitDate }}"
+
+  # Everything the tutorial needs without Go or a checkout, laid out as the
+  # repository lays it out, in one directory named after the archive. The
+  # product archive above never carries the victim. scripts/check-demo-archive.sh
+  # runs the demo from this archive before a release is published.
+  - id: demo
+    ids: [guardana-control, guardana-gateway, vulnerable-mcp-agent]
+    formats: [tar.gz]
+    name_template: "guardana-control-demo_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: true
+    builds_info:
+      owner: root
+      group: root
+      mtime: "{{ .CommitDate }}"
+    files:
+      - src: LICENSE
+        info: {owner: root, group: root, mode: 0644, mtime: "{{ .CommitDate }}"}
+      - src: NOTICE
+        info: {owner: root, group: root, mode: 0644, mtime: "{{ .CommitDate }}"}
+      - src: examples/vulnerable-mcp-agent/README.md
+        info: {owner: root, group: root, mode: 0644, mtime: "{{ .CommitDate }}"}
+      - src: examples/vulnerable-mcp-agent/demo.yaml
+        info: {owner: root, group: root, mode: 0644, mtime: "{{ .CommitDate }}"}
+      - src: examples/vulnerable-mcp-agent/policy.json
+        info: {owner: root, group: root, mode: 0644, mtime: "{{ .CommitDate }}"}
+      - src: examples/vulnerable-mcp-agent/call.sh
+        info: {owner: root, group: root, mode: 0755, mtime: "{{ .CommitDate }}"}
+      - src: examples/vulnerable-mcp-agent/scenarios/*.json
+        info: {owner: root, group: root, mode: 0644, mtime: "{{ .CommitDate }}"}
 
 # The gateway's image, built by ko from the build above without a Dockerfile.
 # A release pushes it under a staging tag and the workflow signs, attests and

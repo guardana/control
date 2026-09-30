@@ -87,19 +87,32 @@ type demoRun struct {
 	stdout, stderr string
 }
 
-// runDev runs dev over the demo with the scenario files given, the victims
-// journalling into journal, and waits at most two minutes for it.
-func runDev(t *testing.T, journal string, scenarios ...string) demoRun {
+// runDev runs dev over the demo with a silent decision point and the
+// scenario files given, the victims journalling into journal and the planes'
+// state under state, and waits at most two minutes for it.
+func runDev(t *testing.T, journal, state string, scenarios ...string) demoRun {
+	t.Helper()
+	return runDevWith(t, journal, append([]string{"--decision-point=silent", "--state", state}, scenarioArgs(scenarios)...)...)
+}
+
+func scenarioArgs(files []string) []string {
+	var out []string
+	for _, f := range files {
+		out = append(out, "--scenario", f)
+	}
+	return out
+}
+
+// runDevWith runs dev over the demo with the flags given after its
+// configuration and policy.
+func runDevWith(t *testing.T, journal string, flags ...string) demoRun {
 	t.Helper()
 	gateway, config := builtDemo(t)
 	policy, err := filepath.Abs("policy.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	args := []string{"dev", "--config", config, "--policy", policy, "--state", filepath.Join(t.TempDir(), "state")}
-	for _, s := range scenarios {
-		args = append(args, "--scenario", s)
-	}
+	args := append([]string{"dev", "--config", config, "--policy", policy}, flags...)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, gateway, args...) //nolint:gosec // G204: the binary this test built
@@ -117,9 +130,6 @@ func runDev(t *testing.T, journal string, scenarios ...string) demoRun {
 		run.code = exit.ExitCode()
 	default:
 		t.Fatalf("dev did not run: %v", err)
-	}
-	if strings.Contains(run.stdout, "its plane did not start") {
-		t.Fatalf("a plane did not start; another demo holding the decision point's port stops the orders victim:\n%s\n%s", run.stdout, run.stderr)
 	}
 	return run
 }
@@ -152,10 +162,6 @@ func journalled(t *testing.T, dir, name string) []string {
 		if err := json.Unmarshal(s.Bytes(), &e); err != nil {
 			t.Fatalf("%s journal line %q: %v", name, s.Text(), err)
 		}
-		if e.Asked != "" {
-			got = append(got, "asked "+e.Asked)
-			continue
-		}
 		got = append(got, e.Call+" "+string(e.Args))
 	}
 	return got
@@ -171,7 +177,7 @@ var demoScenarios = []struct {
 	{"deny.json", []string{`read_order {"id":"ord-1"}`}, nil},
 	{"approval.json", []string{`update_order {"id":"ord-1","status":"cancelled"}`}, nil},
 	{"digest-invalidation.json", []string{`update_order {"id":"ord-2","status":"shipped"}`}, nil},
-	{"fail-closed.json", []string{"asked /access/v1/evaluation", `read_order {"id":"ord-1"}`}, nil},
+	{"fail-closed.json", []string{`read_order {"id":"ord-1"}`}, nil},
 	{"pause.json", []string{`read_order {"id":"ord-1"}`}, nil},
 	{"toxic-flow.json", []string{`read_order {"id":"ord-1"}`}, []string{`fetch_page {"url":"https://shop.example.com/rates"}`}},
 }
@@ -179,15 +185,24 @@ var demoScenarios = []struct {
 // TestEveryDemoScenarioPassesOnItsOwnPlane runs dev once per scenario, as
 // the tutorial does, and requires it to pass and each victim to have
 // received exactly what the scenario let through: no refund, no export, no
-// mail, and an update only once it was approved.
+// mail, and an update only once it was approved. The export's trail records
+// the silent decision point's question as timed out, never as unreachable.
 func TestEveryDemoScenarioPassesOnItsOwnPlane(t *testing.T) {
 	builtDemo(t)
 	started := time.Now()
 	for _, s := range demoScenarios {
-		journal := t.TempDir()
-		run := runDev(t, journal, filepath.Join("scenarios", s.file))
+		journal, state := t.TempDir(), filepath.Join(t.TempDir(), "state")
+		run := runDev(t, journal, state, filepath.Join("scenarios", s.file))
 		if run.code != 0 || !strings.HasSuffix(run.stdout, "\n"+s.file+" passed\n") || strings.Contains(run.stdout, "could not run") {
 			t.Fatalf("%s: exit %d, want 0 and passed:\n%s\n%s", s.file, run.code, run.stdout, run.stderr)
+		}
+		trail, err := os.ReadFile(filepath.Join(state, "1-"+s.file, "trail.jsonl")) //nolint:gosec // G304: the test's own directory
+		if err != nil {
+			t.Fatalf("%s: the trail: %v", s.file, err)
+		}
+		timedOut := strings.Contains(string(trail), "PDP_TIMEOUT")
+		if timedOut != (s.file == "fail-closed.json") || strings.Contains(string(trail), "PDP_UNAVAILABLE") {
+			t.Errorf("%s: the trail names PDP_TIMEOUT: %v, PDP_UNAVAILABLE: %v", s.file, timedOut, strings.Contains(string(trail), "PDP_UNAVAILABLE"))
 		}
 		if got := journalled(t, journal, "orders"); !slices.Equal(got, s.orders) {
 			t.Errorf("%s: the orders victim received %q, want %q", s.file, got, s.orders)
@@ -214,7 +229,7 @@ var demoMutants = []demoMutant{
 	{"deny.json", `"codes": ["RULE_DENY"]}`, `"codes": ["RULE_DENY", "PAUSED"]}`, 1, 0, "answer.codes"},
 	{"approval.json", `, "ACTION_COMPLETED"]`, `]`, 1, 2, "trail.kinds"},
 	{"digest-invalidation.json", `"request": "new"`, `"request": "step[0]"`, 2, 2, "trail.request"},
-	{"fail-closed.json", `"RULE_UNDETERMINED", "PDP_TIMEOUT"], "obligations"`, `"RULE_UNDETERMINED"], "obligations"`, 1, 0, "decided.codes"},
+	{"fail-closed.json", `"RULE_UNDETERMINED", "PDP_TIMEOUT"], "obligations"`, `"RULE_UNDETERMINED", "PDP_UNAVAILABLE"], "obligations"`, 1, 0, "decided.codes"},
 	{"pause.json", `"kind": "result"`, `"kind": "error"`, 1, 3, "answer.kind"},
 	{"toxic-flow.json", `"verdict": "DENY"`, `"verdict": "INDETERMINATE"`, 1, 3, "decided.verdict"},
 }
@@ -253,7 +268,7 @@ func TestEveryDemoMutantIsCaught(t *testing.T) {
 	for _, m := range demoMutants {
 		files = append(files, m.write(t, dir))
 	}
-	run := runDev(t, t.TempDir(), files...)
+	run := runDev(t, t.TempDir(), filepath.Join(t.TempDir(), "state"), files...)
 	if run.code != 1 || strings.Contains(run.stdout, "could not run") {
 		t.Fatalf("exit %d, want 1 and every scenario run:\n%s\n%s", run.code, run.stdout, run.stderr)
 	}
@@ -270,5 +285,15 @@ func TestEveryDemoMutantIsCaught(t *testing.T) {
 			continue
 		}
 		t.Logf("caught: %s", diffs[0])
+	}
+}
+
+// TestTheDemoNeedsTheSilentDecisionPoint: the policy asks a decision point
+// and demo.yaml names none, so without --decision-point=silent the plane
+// refuses the bundle and the scenario cannot run.
+func TestTheDemoNeedsTheSilentDecisionPoint(t *testing.T) {
+	run := runDevWith(t, t.TempDir(), "--state", filepath.Join(t.TempDir(), "state"), "--scenario", filepath.Join("scenarios", "allow.json"))
+	if run.code != 2 || !strings.Contains(run.stdout, "allow.json could not run: its plane did not start: ") || !strings.Contains(run.stdout, "set pdp.identifier") {
+		t.Fatalf("exit %d, want 2 with the plane refusing a bundle that reads external:\n%s\n%s", run.code, run.stdout, run.stderr)
 	}
 }

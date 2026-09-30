@@ -53,7 +53,7 @@ func startInteractiveDev(t *testing.T) (*interactiveDev, map[string]string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(gateway, "dev", "--config", config, "--policy", policy, "--state", filepath.Join(t.TempDir(), "state")) //nolint:gosec // G204: the binary this test built
+	cmd := exec.Command(gateway, "dev", "--config", config, "--policy", policy, "--decision-point=silent", "--state", filepath.Join(t.TempDir(), "state")) //nolint:gosec // G204: the binary this test built
 	cmd.Env = environ()
 	stdout, stderr := &lockedBuffer{}, &lockedBuffer{}
 	cmd.Stdout, cmd.Stderr = stdout, stderr

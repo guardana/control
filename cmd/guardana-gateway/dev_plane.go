@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/guardana/control/internal/brand"
+	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/policykey"
 )
@@ -89,6 +90,9 @@ type devPlane struct {
 	done chan struct{}
 	ran  error
 	stop context.CancelFunc
+	// silent is the decision point's listener, which nothing ever accepts on,
+	// or nil.
+	silent net.Listener
 }
 
 // devInputs is what every plane of one dev run is made from.
@@ -96,6 +100,7 @@ type devInputs struct {
 	config   string
 	document []byte
 	control  sibling
+	silent   bool
 }
 
 // newKey draws the signing key, which is never written.
@@ -118,7 +123,11 @@ func checkDemo(in devInputs, dir string) error {
 		dir = filepath.Join(os.TempDir(), brand.Gateway+"-dev-"+rand.Text())
 	}
 	const unbound = "127.0.0.1:0"
-	_, err = resolveDemo(in.config, newLayer(devState{dir: dir}, key, unbound, unbound, unbound))
+	silent := ""
+	if in.silent {
+		silent = unbound
+	}
+	_, err = resolveDemo(in.config, newLayer(devState{dir: dir}, key, unbound, unbound, unbound, silent))
 	return err
 }
 
@@ -136,8 +145,11 @@ func checkSignable(document []byte) error {
 
 // startDevPlane lays out a new state under dir, signs the document into it
 // under a key that lives only here, binds the loopback for the collector, the
-// agents and the health answers, and starts the collector and then the plane
-// the way run starts one. Whatever it made is released when it refuses; the
+// agents, the health answers and a silent decision point when asked, and
+// starts the collector and then the plane the way run starts one. The silent
+// listener is never accepted on: the kernel completes a connection into its
+// backlog, the question is written and no answer ever comes, so the plane's
+// ask ends on its own deadline. Whatever it made is released when it refuses; the
 // directory stays, as the record of what was tried.
 func startDevPlane(ctx context.Context, in devInputs, dir string, log io.Writer) (*devPlane, error) {
 	st, err := makeState(dir)
@@ -156,12 +168,12 @@ func startDevPlane(ctx context.Context, in devInputs, dir string, log io.Writer)
 	if _, err := in.control.run(ctx, "pause", "init", st.path(statePause)); err != nil {
 		return nil, fmt.Errorf("creating the pause file: %w", err)
 	}
-	listeners, err := bindLoopback(ctx, 3)
+	listeners, err := bindLoopback(ctx, devListeners(in.silent))
 	if err != nil {
 		return nil, err
 	}
 	addr := func(i int) string { return listeners[i].Addr().String() }
-	d.cfg, err = resolveDemo(in.config, newLayer(st, key, addr(1), addr(2), addr(0)))
+	d.cfg, err = resolveDemo(in.config, newLayer(st, key, addr(1), addr(2), addr(0), d.takeSilent(listeners)))
 	if err == nil {
 		err = writeSettings(st.path(stateSettings), d.cfg)
 	}
@@ -172,7 +184,7 @@ func startDevPlane(ctx context.Context, in devInputs, dir string, log io.Writer)
 		return nil, errors.Join(err, closeAll(listeners[1:]))
 	}
 	if d.plane, err = startPlane(ctx, d.cfg, log); err != nil {
-		return nil, errors.Join(err, closeAll(listeners[1:]), d.coll.stop())
+		return nil, errors.Join(silentAdvice(err, in.silent), closeAll(listeners[1:]), d.coll.stop())
 	}
 	d.plane.settle(ctx, log)
 	runCtx, stop := context.WithCancel(ctx)
@@ -195,6 +207,25 @@ func startDevPlane(ctx context.Context, in devInputs, dir string, log io.Writer)
 		}
 	}()
 	return d, nil
+}
+
+// devListeners is how many listeners a dev plane takes: the collector's, the
+// agents', the health answers' and, when asked, a silent decision point's.
+func devListeners(silent bool) int {
+	if silent {
+		return 4
+	}
+	return 3
+}
+
+// takeSilent keeps the silent decision point's listener, the fourth, and
+// returns its address, or "" when there is none.
+func (d *devPlane) takeSilent(listeners []net.Listener) string {
+	if len(listeners) < 4 {
+		return ""
+	}
+	d.silent = listeners[3]
+	return d.silent.Addr().String()
 }
 
 // sign signs the document under key into the state's bundle file.
@@ -230,7 +261,8 @@ func closeAll(listeners []net.Listener) error {
 }
 
 // halt stops the plane's listeners and gives its exporter devDrain to ship
-// what the spool holds, then stops the collector and releases the plane. It
+// what the spool holds, then stops the collector, releases the plane and
+// closes the silent decision point. It
 // returns what is left unacknowledged in the spool, which the trail file
 // lacks, and whether a part had stopped with an error.
 func (d *devPlane) halt() (left int64, failed error) {
@@ -239,5 +271,19 @@ func (d *devPlane) halt() (left int64, failed error) {
 	failed = d.ran
 	st, err := d.plane.spool.Stats()
 	left = st.Unacknowledged
-	return left, errors.Join(failed, err, d.coll.stop(), d.plane.close())
+	var silent error
+	if d.silent != nil {
+		silent = d.silent.Close()
+	}
+	return left, errors.Join(failed, err, d.coll.stop(), d.plane.close(), silent)
+}
+
+// silentAdvice says what to change when the plane refuses the decision point
+// dev --decision-point=silent set: under the flag pdp.identifier is dev's, so
+// unsetting it, which the refusal suggests, is not the operator's to do.
+func silentAdvice(err error, silent bool) error {
+	if !silent || !errors.Is(err, gateway.ErrDecisionPointUnused) {
+		return err
+	}
+	return fmt.Errorf("%w; under --decision-point=silent dev sets pdp.identifier itself, so drop the flag for a policy that asks no decision point", err)
 }

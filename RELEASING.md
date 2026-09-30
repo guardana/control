@@ -30,20 +30,23 @@ a pre-release.
 
 ## What the workflow does
 
-1. Builds `guardana-control` and `guardana-gateway` for Linux and macOS on
-   amd64 and arm64, from the tagged commit, with the version set from the tag.
-2. Packs one `.tar.gz` per platform with both binaries, `LICENSE`, `NOTICE`,
-   `README.md` and `CHANGELOG.md`, writes a CycloneDX bill of materials for each
+1. Builds the two binaries and the demo's victim servers for Linux and macOS
+   on amd64 and arm64, from the tagged commit.
+2. Packs per platform one `.tar.gz` with the two binaries, `LICENSE`, `NOTICE`,
+   `README.md` and `CHANGELOG.md`, and one demo archive with all three under
+   `bin/` and the demo's files, writes a CycloneDX bill of materials for each
    archive and a `checksums.txt` with the SHA-256 of every file.
 3. Signs `checksums.txt` with cosign, keyless: the certificate names this
    workflow and the tag. The signature is `checksums.txt.sigstore.json`.
 4. Pushes the image `ghcr.io/guardana/control-gateway` under the staging tag
    `sha-<commit>`, for linux/amd64 and linux/arm64: `guardana-gateway` alone,
-   as a distroless base's nonroot user.
+   running as a nonroot user.
 5. Drafts the GitHub release with those files.
-6. Signs the image, and records build provenance for it and for every file of
+6. Runs the demo from the runner's demo archive with no Go on `PATH`; a
+   missing file or a failed scenario leaves the draft unpublished.
+7. Signs the image, and records build provenance for it and for every file of
    the release.
-7. Verifies all of it as a user would, tags the image with the version, then
+8. Verifies all of it as a user would, tags the image with the version, then
    publishes the draft with the image's digest in its notes.
 
 The workflow refuses a tag whose commit is not on `main`, and publishes the
@@ -52,17 +55,13 @@ drafts the release, there is no release; if it fails later, the draft stays
 unpublished. Delete the draft, if any, and the image's staging version, fix the
 cause and release the next version.
 
-GitHub makes a new package private. After the first push, a maintainer makes
-`control-gateway` public (Package settings, Change visibility) and links it to
-this repository if needed.
-
 ## A dry run
 
 Run the workflow by hand (Actions, Release, Run workflow). It builds the same
-archives under a `0.0.0-snapshot.<commit>` version, unsigned, and keeps them as a run
-artifact for seven days. It also runs the image for the runner's platform. It
-publishes nothing. `make release-snapshot` builds the same locally, and needs a
-running Docker daemon.
+archives as `0.0.0-snapshot.<commit>`, unsigned, keeps them seven days, runs the
+image and the demo for the runner's platform, and publishes nothing.
+`make release-snapshot`, then `make check-demo-archive`, do the same locally,
+with Docker running.
 
 ## A tag never moves
 
@@ -89,10 +88,10 @@ gh attestation verify guardana-control_0.1.0-alpha_linux_amd64.tar.gz \
   --source-ref refs/tags/v0.1.0-alpha --deny-self-hosted-runners
 ```
 
-On macOS use `shasum -a 256 --ignore-missing -c checksums.txt`. The first
-command says the archive is the one the checksum file names, the second that
-this repository's release workflow signed the checksum file for that tag, and
-the third that the archive was built by that workflow from that tag.
+On macOS use `shasum -a 256 --ignore-missing -c checksums.txt`. The commands
+say, in turn, that the archive is the one the checksum file names, that this
+repository's release workflow signed that file for that tag, and that the
+archive was built by that workflow from that tag.
 
 ## Checking the image
 

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,7 +14,6 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/guardana/control/adapters/authzen"
 	adaptermcp "github.com/guardana/control/adapters/mcp"
 )
 
@@ -188,57 +186,21 @@ func TestTheDemoClassifiesEveryToolByItsFingerprint(t *testing.T) {
 	}
 }
 
-// TestTheDecisionPointPublishesItsMetadataAndNeverDecides: the plane's own
-// client reads the metadata as agreeing with the address it was served on;
-// a question is journalled and gets no answer before the asker gives up.
-func TestTheDecisionPointPublishesItsMetadataAndNeverDecides(t *testing.T) {
-	t.Parallel()
-	for _, addr := range []string{"0.0.0.0:0", "localhost:0", "192.0.2.1:0"} {
-		if _, stop, err := serveDecisionPoint(addr, &journal{}); err == nil {
-			stop()
-			t.Errorf("the decision point took %s, which is not a loopback literal", addr)
-		}
-	}
-	j := &journal{}
-	dp, stop, err := serveDecisionPoint("127.0.0.1:0", j)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stop()
-	client, err := authzen.New(authzen.Options{Identifier: dp, AllowPlaintext: true, Timeout: time.Second, InFlight: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r := client.CheckDiscovery(context.Background()); r.Verdict != authzen.DiscoveryAgrees {
-		t.Fatalf("discovery %s: %s", r.Verdict, r.Detail)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, dp+evaluationPath, bytes.NewReader([]byte(`{}`)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	started := time.Now()
-	resp, err := http.DefaultClient.Do(req)
-	if err == nil {
-		_ = resp.Body.Close()
-		t.Fatalf("the decision point answered %d", resp.StatusCode)
-	}
-	if !errors.Is(err, context.DeadlineExceeded) || time.Since(started) < 250*time.Millisecond {
-		t.Fatalf("the question ended with %v after %v, want the asker's deadline", err, time.Since(started))
-	}
-	if got := j.received(); len(got) != 1 || got[0].Asked != evaluationPath {
-		t.Fatalf("the journal holds %+v, want the one question", got)
-	}
+// unconnectable is a transport that never connects.
+type unconnectable struct{}
+
+func (unconnectable) Connect(context.Context) (sdk.Connection, error) {
+	return nil, errors.New("this transport never connects")
 }
 
-// TestRunRefusesWhatItDoesNotServe: an unknown server, a missing one and a
-// stray argument are usage errors, before anything is served.
+// TestRunRefusesWhatItDoesNotServe: an unknown server, a missing one, a
+// stray argument and a decision point, which dev supplies and a victim never
+// serves, are usage errors, before anything is served.
 func TestRunRefusesWhatItDoesNotServe(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"--serve", "billing"}, {}, {"--serve", "web", "extra"}, {"--nope"}} {
+	for _, args := range [][]string{{"--serve", "billing"}, {}, {"--serve", "web", "extra"}, {"--nope"}, {"--serve", "orders", "--decision-point", "127.0.0.1:0"}} {
 		var stderr bytes.Buffer
-		if code := run(context.Background(), args, nil, "", &stderr); code != 2 || stderr.Len() == 0 {
+		if code := run(context.Background(), args, unconnectable{}, "", &stderr); code != 2 || stderr.Len() == 0 {
 			t.Errorf("run(%q) = %d, %q; want 2 and a reason", args, code, stderr.String())
 		}
 	}

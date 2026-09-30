@@ -14,12 +14,13 @@ trying the plane out, not for serving anyone
 ([ADR-0023](../adr/0023-a-local-page-answers-through-the-directory.md)).
 
 ```
-guardana-gateway dev --config <file> --policy <file> [--state <dir>] [--scenario <file>]...
+guardana-gateway dev --config <file> --policy <file> [--decision-point=silent] [--state <dir>] [--scenario <file>]...
 ```
 
-It needs `guardana-control` of the same version in the same directory as
-itself, as `go install ./cmd/...` puts them; it never looks one up on the
-search path. It builds the plane the way `run` does: no key and no branch
+It runs on Linux and macOS, and refuses first on a system without process
+groups. It needs `guardana-control` of the same version in the same directory
+as itself, as the demo archive and `go install ./cmd/...` put them; it never
+looks one up on the search path. It builds the plane the way `run` does: no key and no branch
 exists for dev alone.
 
 ## What it refuses
@@ -34,7 +35,8 @@ Before it creates or binds anything, dev refuses, with status 1:
 - a configuration that sets a key dev owns: `listener.address`,
   `health.address`, `policy.bundle_file`, `policy.key_id`,
   `policy.public_key`, `pause.file`, `evidence.dir`, `export.endpoint`,
-  `export.allow_plaintext` and every `approvals` key;
+  `export.allow_plaintext` and every `approvals` key, and with
+  `--decision-point=silent` every `pdp` key;
 - a `stdio` listener, and any address that is not an IP literal on the
   loopback, a host name included: its own listeners and collector, every
   `upstreams[].endpoint`, and `pdp.identifier`, `pdp.evaluation_endpoint`
@@ -61,7 +63,14 @@ cleared. The plane pins the public half.
 
 Dev binds `127.0.0.1` at ports the system picks, for the collector, the
 agents and the health answers, and hands the bound sockets to the plane, so
-no port is chosen and then taken by someone else. The agents' and the health
+no port is chosen and then taken by someone else. With
+`--decision-point=silent` it binds one more and never accepts on it: the
+plane's `pdp.identifier` names it, a question waits there unanswered until
+`pdp.timeout`, and a rule reading `external` is undetermined with
+`PDP_TIMEOUT`. Nothing in dev can answer a question, so nothing there can
+lift a veto. The flag needs a policy with a `DENY` rule that reads `external`,
+since a decision point no rule asks is refused. Without the flag, the
+configuration's own decision point, on the loopback, stands. The agents' and the health
 listeners take no credential, as `run`'s do: any account on the machine, and
 any tool behind the plane, can call tools as the listener's principal.
 

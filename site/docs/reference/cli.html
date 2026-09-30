@@ -191,7 +191,7 @@ partial line that no running <code>collect</code> holds, and when it holds more 
 (<a href="/docs/reference/scenario-format">scenario-format.md</a>); it exits 1 when one differed, and
 2, a failure too, when one could not run.</p>
 <p><code>dev</code>: <a href="/docs/reference/dev">dev.md</a>.</p>
-<pre><code>usage: guardana-gateway [run --config &lt;file&gt; | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --out &lt;file&gt; | trail &lt;file&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
+<pre><code>usage: guardana-gateway [run --config &lt;file&gt; | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --out &lt;file&gt; | trail &lt;file&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--decision-point=silent] [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
 
 run
   -config string
@@ -222,6 +222,8 @@ scenario
 dev
   -config string
     	the demo&#39;s configuration, without the keys dev sets
+  -decision-point silent
+    	silent makes the plane&#39;s decision point a loopback port dev binds and never answers, so every question times out; dev then owns every pdp key
   -policy string
     	the policy document dev signs in memory
   -scenario file

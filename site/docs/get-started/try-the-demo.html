@@ -36,27 +36,37 @@ loopback only. It is a demo, not a security boundary. What the demo holds is
 in <a href="https://github.com/guardana/control/blob/main/examples/vulnerable-mcp-agent/README.md">examples/vulnerable-mcp-agent</a>.</p>
 <h2 id="what-you-need">What you need</h2>
 <ul>
-<li>This repository and the Go version its <code>go.mod</code> names.</li>
-<li>A Unix-like system, <code>curl</code> and a browser.</li>
-<li>Port <code>127.0.0.1:18213</code> free: the orders server also listens there, as a
-decision point that never answers. If something else holds it, the orders server
-cannot start, and <code>dev</code> stops with an error that ends in <code>EOF</code>.</li>
+<li>Linux or macOS on amd64 or arm64, <code>curl</code> and a browser. No Go, model key
+or collector: <code>dev</code> runs its own.</li>
 </ul>
-<h2 id="1-build">1. Build</h2>
-<p>From the repository's root:</p>
+<h2 id="1-get-the-demo">1. Get the demo</h2>
+<p>Each release carries a demo archive per platform, beside the product's. From
+<a href="https://github.com/guardana/control/releases">the releases</a>, take
+<code>guardana-control-demo_&lt;version&gt;_&lt;os&gt;_&lt;arch&gt;.tar.gz</code>, <code>checksums.txt</code> and
+<code>checksums.txt.sigstore.json</code>,
+check it as <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows, and extract it:</p>
+<pre><code>tar -xzf guardana-control-demo_&lt;version&gt;_&lt;os&gt;_&lt;arch&gt;.tar.gz
+cd guardana-control-demo_&lt;version&gt;_&lt;os&gt;_&lt;arch&gt;
+</code></pre>
+<p>On macOS, fetch the files with <code>curl -LO</code>: a browser marks a download as
+quarantined, and macOS then refuses to run the binaries, which are not
+notarized.</p>
+<p>The directory is laid out as the repository is. <code>bin/</code> holds three programs:
+the gateway, <code>guardana-control</code>, the approvals tool, which <code>dev</code> needs beside
+the gateway, and <code>vulnerable-mcp-agent</code>, the two servers the demo's
+configuration starts. Every command below runs from this directory.</p>
+<p>From a checkout instead, with the Go version its <code>go.mod</code> names, build the
+same three into <code>bin/</code> from the repository's root:</p>
 <pre><code>go build -o bin/ ./cmd/guardana-gateway ./cmd/guardana-control ./examples/vulnerable-mcp-agent
 </code></pre>
-<p>This puts three programs in <code>bin/</code>: the gateway, <code>guardana-control</code>, the
-approvals tool, which <code>dev</code> needs beside the gateway, and
-<code>vulnerable-mcp-agent</code>, the two servers the demo's configuration starts from
-there.</p>
 <h2 id="2-start-the-plane">2. Start the plane</h2>
-<pre><code>bin/guardana-gateway dev --config examples/vulnerable-mcp-agent/demo.yaml --policy examples/vulnerable-mcp-agent/policy.json
+<pre><code>bin/guardana-gateway dev --decision-point=silent --config examples/vulnerable-mcp-agent/demo.yaml --policy examples/vulnerable-mcp-agent/policy.json
 </code></pre>
 <p><code>dev</code> signs the policy under a key that lives only in its memory, lays out a
 new state directory, and starts a collector, the plane and the approvals page
-(<a href="/docs/reference/dev">reference/dev.md</a>). The plane starts both servers as
-its upstreams. Once it is up it prints one <code>name: value</code> line per part,
+(<a href="/docs/reference/dev">reference/dev.md</a>). <code>--decision-point=silent</code> gives the
+plane a decision point that never answers, on a port <code>dev</code> binds itself. The
+plane starts both servers as its upstreams. Once it is up it prints one <code>name: value</code> line per part,
 among them:</p>
 <pre><code>mcp: http://127.0.0.1:&lt;port&gt;
 metrics: http://127.0.0.1:&lt;port&gt;/metrics
@@ -65,7 +75,7 @@ approvals: &lt;state&gt;/approvals
 trail: &lt;state&gt;/trail.jsonl
 trail_command: guardana-gateway trail &lt;state&gt;/trail.jsonl
 </code></pre>
-<p>Leave it running and open a second terminal in the repository's root. Put
+<p>Leave it running and open a second terminal in the same directory. Put
 the <code>mcp</code> address in a variable:</p>
 <pre><code>MCP=http://127.0.0.1:&lt;port&gt;
 </code></pre>
@@ -121,14 +131,13 @@ the pause stopped is under <code>code=&quot;PAUSED&quot;</code>
 (<a href="/docs/reference/metrics">reference/metrics</a>).</p>
 <p>Stop <code>dev</code> with Ctrl-C. It stops every part, gives the exporter a moment to
 ship what the spool holds, and says how much it did not. The state directory
-stays. Stop it before the next step: only one demo can hold the decision
-point's port.</p>
+stays.</p>
 <h2 id="7-run-the-scenarios">7. Run the scenarios</h2>
 <p>Each scenario is a JSON file of calls and operator steps, and for each call
 the answer, the decision and the trail the plane must produce
 (<a href="/docs/reference/scenario-format">reference/scenario-format.md</a>). With
 <code>--scenario</code>, <code>dev</code> runs each one on a plane of its own:</p>
-<pre><code>bin/guardana-gateway dev --config examples/vulnerable-mcp-agent/demo.yaml --policy examples/vulnerable-mcp-agent/policy.json \
+<pre><code>bin/guardana-gateway dev --decision-point=silent --config examples/vulnerable-mcp-agent/demo.yaml --policy examples/vulnerable-mcp-agent/policy.json \
   --scenario examples/vulnerable-mcp-agent/scenarios/allow.json \
   --scenario examples/vulnerable-mcp-agent/scenarios/deny.json \
   --scenario examples/vulnerable-mcp-agent/scenarios/approval.json \
@@ -184,7 +193,7 @@ declared untrusted and the mail's destination is too
 mail never reached the web server, give the servers a directory for their
 journals:</p>
 <pre><code>journal=$(mktemp -d)
-VICTIM_JOURNAL_DIR=&#34;$journal&#34; bin/guardana-gateway dev --config examples/vulnerable-mcp-agent/demo.yaml --policy examples/vulnerable-mcp-agent/policy.json --scenario examples/vulnerable-mcp-agent/scenarios/toxic-flow.json
+VICTIM_JOURNAL_DIR=&#34;$journal&#34; bin/guardana-gateway dev --decision-point=silent --config examples/vulnerable-mcp-agent/demo.yaml --policy examples/vulnerable-mcp-agent/policy.json --scenario examples/vulnerable-mcp-agent/scenarios/toxic-flow.json
 cat &#34;$journal/web.jsonl&#34;
 </code></pre>
 <p><code>web.jsonl</code> lists the <code>fetch_page</code> call and no <code>send_mail</code>.</p>
@@ -194,7 +203,7 @@ with its expected verdict changed; the file's name is the
 scenario's id, so keep it:</p>
 <pre><code>mutant=$(mktemp -d)
 sed &#39;s/&#34;verdict&#34;: &#34;ALLOW&#34;/&#34;verdict&#34;: &#34;DENY&#34;/&#39; examples/vulnerable-mcp-agent/scenarios/allow.json &gt; &#34;$mutant/allow.json&#34;
-bin/guardana-gateway dev --config examples/vulnerable-mcp-agent/demo.yaml --policy examples/vulnerable-mcp-agent/policy.json --scenario &#34;$mutant/allow.json&#34;
+bin/guardana-gateway dev --decision-point=silent --config examples/vulnerable-mcp-agent/demo.yaml --policy examples/vulnerable-mcp-agent/policy.json --scenario &#34;$mutant/allow.json&#34;
 echo $?
 </code></pre>
 <p>It prints <code>allow.json step[0].decided.verdict: want DENY, got ALLOW</code>, then

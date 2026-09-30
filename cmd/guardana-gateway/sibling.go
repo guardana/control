@@ -20,7 +20,8 @@ import (
 const maxSiblingOutput = 64 << 10
 
 // installBoth is what every refusal of a sibling says to do about it.
-const installBoth = "install both binaries from one tree, for instance with go install ./cmd/..."
+const installBoth = "take the binaries from one archive of one release, the demo archive or the release archive, " +
+	"and keep them in one directory, or build them from one tree with go install ./cmd/..."
 
 // sibling is another binary of this product that this one runs: found beside
 // this executable or named by the operator, never looked up on the search
@@ -117,6 +118,9 @@ func (s sibling) run(ctx context.Context, args ...string) (string, error) {
 	if err != nil {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
+			if killed, ok := killedBy(exit, filepath.Dir(s.path)); ok {
+				return "", fmt.Errorf("%s was killed by %s", name, killed)
+			}
 			line, _, _ := strings.Cut(strings.TrimSpace(stderr.b.String()), "\n")
 			return "", fmt.Errorf("%s exited %d: %s", name, exit.ExitCode(), line)
 		}

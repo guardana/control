@@ -40,6 +40,10 @@ verify one.</p>
 refused at load instead of starting a plane in <code>OBSERVE</code>, which stops nothing
 its policy decides. Add <code>mode:</code> to a configuration that relied on the
 default (<a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</a>).</li>
+<li>The demo's decision point no longer listens on the fixed port
+<code>127.0.0.1:18213</code>, so demos run side by side: start the demo with
+<code>dev --decision-point=silent</code>, which the old command lacks and now needs.
+<code>dev</code> refuses a system without process groups before it starts anything.</li>
 </ul>
 <h3 id="added">Added</h3>
 <ul>
@@ -52,6 +56,14 @@ the changelog rendered under <code>control.guardana.dev/docs/</code> by
 <code>make docs-gen</code>, with links, anchors and diagrams that mean there what
 they mean on GitHub, and a check that fails when a page and its rendering
 drift (<a href="/docs/adr/0031-the-documentation-is-served-on-the-website">ADR-0031</a>).</li>
+<li>A demo archive per platform, <code>guardana-control-demo_&lt;version&gt;_&lt;os&gt;_&lt;arch&gt;.tar.gz</code>,
+that runs the tutorial and every scenario without Go or a checkout; each
+release runs its scenarios from the linux/amd64 archive before it is
+published
+(<a href="/docs/adr/0033-a-demo-archive-a-release-user-runs-without-go">ADR-0033</a>).</li>
+<li><code>dev --decision-point=silent</code>: a decision point on a port <code>dev</code> binds and
+never answers, so a rule reading <code>external</code> is undetermined with
+<code>PDP_TIMEOUT</code>.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>

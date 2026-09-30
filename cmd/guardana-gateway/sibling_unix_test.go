@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +55,24 @@ func TestASiblingAnswersWithThisBinarysVersion(t *testing.T) {
 	t.Setenv("PATH", filepath.Dir(same)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	if _, err := findSibling(ctx, filepath.Base(same), "", 10*time.Second); err == nil || !strings.Contains(err.Error(), "go install ./cmd/...") {
 		t.Errorf("a sibling found on the search path: err = %v", err)
+	}
+}
+
+// TestAKilledSiblingIsNamedAsKilled: a sibling killed by a signal is
+// reported by that signal, and on macOS a SIGKILL names the quarantine.
+func TestAKilledSiblingIsNamedAsKilled(t *testing.T) {
+	killed := sibling{path: script(t, `kill -9 $$`), timeout: 5 * time.Second}
+	_, err := killed.run(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "was killed by killed") {
+		t.Fatalf("a killed sibling: err = %v", err)
+	}
+	quarantine := "xattr -dr com.apple.quarantine " + shellWord(filepath.Dir(killed.path))
+	if got := strings.Contains(err.Error(), quarantine); got != (runtime.GOOS == "darwin") {
+		t.Errorf("on %s the error %q names the quarantine: %v", runtime.GOOS, err, got)
+	}
+	terminated := sibling{path: script(t, `kill -TERM $$`), timeout: 5 * time.Second}
+	if _, err := terminated.run(context.Background()); err == nil || !strings.Contains(err.Error(), "was killed by terminated") || strings.Contains(err.Error(), "quarantine") {
+		t.Errorf("a terminated sibling: err = %v", err)
 	}
 }
 

@@ -1,8 +1,6 @@
 // Command vulnerable-mcp-agent serves one of the demo's two victim MCP
 // servers, orders or web, over standard input and output, the way a plane
-// starts an upstream it names by command. With --decision-point it also
-// answers as an AuthZEN decision point that publishes its metadata and never
-// answers a question.
+// starts an upstream it names by command.
 package main
 
 import (
@@ -37,7 +35,6 @@ func run(ctx context.Context, args []string, transport sdk.Transport, journalDir
 	flags := flag.NewFlagSet("vulnerable-mcp-agent", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	serve := flags.String("serve", "", "the server to serve: orders or web")
-	decisionPoint := flags.String("decision-point", "", "a loopback host:port to answer on as a decision point that never decides")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -52,14 +49,6 @@ func run(ctx context.Context, args []string, transport sdk.Transport, journalDir
 		return 1
 	}
 	defer func() { _ = j.close() }()
-	if *decisionPoint != "" {
-		_, stopDP, err := serveDecisionPoint(*decisionPoint, j)
-		if err != nil {
-			_, _ = fmt.Fprintln(stderr, "vulnerable-mcp-agent: --decision-point:", err)
-			return 1
-		}
-		defer stopDP()
-	}
 	err = newServer(*serve, tools, j).Run(ctx, transport)
 	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) {
 		_, _ = fmt.Fprintln(stderr, "vulnerable-mcp-agent:", err)

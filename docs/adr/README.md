@@ -41,3 +41,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0030](0030-a-static-website-drawn-from-the-repository.md) | A static website drawn from the repository |
 | [0031](0031-the-documentation-is-served-on-the-website.md) | The documentation is served on the website |
 | [0032](0032-the-enforcement-mode-has-no-default.md) | The enforcement mode has no default |
+| [0033](0033-a-demo-archive-a-release-user-runs-without-go.md) | A demo archive a release user runs without Go |

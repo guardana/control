@@ -1,7 +1,9 @@
 # The plane the demo runs. Every path resolves against this file's
-# directory; the victims are the binary built into bin/ at the repository's
-# root. The listener, the health address, the bundle, the key, the approvals,
-# the pause file, the spool and the collector are set by dev.
+# directory; the victims are the binary in bin/ two directories up, where a
+# checkout's build and the demo archive both put it. The listener, the health address, the bundle, the key, the approvals,
+# the pause file, the spool and the collector are set by dev. The policy asks
+# a decision point about exports, and this file names none: dev run with
+# --decision-point=silent supplies one that never answers.
 mode: ENFORCE
 project_id: demo
 tenant_id: acme
@@ -26,20 +28,12 @@ pause:
 export:
   linger: 5ms
 
-# A decision point that publishes its metadata and never answers, served by
-# the orders victim on this address.
-pdp:
-  identifier: http://127.0.0.1:18213
-  allow_plaintext: true
-
 upstreams:
   - name: orders
     command: ../../bin/vulnerable-mcp-agent
     args:
       - --serve
       - orders
-      - --decision-point
-      - 127.0.0.1:18213
     env:
       - VICTIM_JOURNAL_DIR
     tenant_id: acme

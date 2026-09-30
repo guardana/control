@@ -8,12 +8,10 @@ import (
 	"sync"
 )
 
-// entry is one thing a victim received: a tool call with its arguments, or a
-// question put to the decision point.
+// entry is one tool call a victim received, with its arguments.
 type entry struct {
-	Call  string          `json:"call,omitempty"`
-	Args  json.RawMessage `json:"args,omitempty"`
-	Asked string          `json:"asked,omitempty"`
+	Call string          `json:"call,omitempty"`
+	Args json.RawMessage `json:"args,omitempty"`
 }
 
 // journal keeps what a victim received, in memory and, when it was opened

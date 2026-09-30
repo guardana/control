@@ -56,3 +56,6 @@ wrangler.json
 # The documentation pages, which make docs-gen renders from docs/ and the root
 # pages, carry the name those sources carry; the rename rewrites them as well.
 site/docs/
+# The demo archive's check names the archive and the binaries as .goreleaser.yaml
+# builds them; the rename rewrites both files in one pass.
+scripts/check-demo-archive.sh

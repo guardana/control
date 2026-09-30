@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0033: A demo archive a release user runs without Go · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0033-a-demo-archive-a-release-user-runs-without-go"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0033-a-demo-archive-a-release-user-runs-without-go">ADR-0033: A demo archive a release user runs without Go</h1>
+<p>Status: accepted
+Date: 2026-09-30</p>
+<p>Builds on <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>,
+<a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>,
+<a href="/docs/adr/0022-scenarios-are-data">ADR-0022</a> and
+<a href="/docs/adr/0023-a-local-page-answers-through-the-directory">ADR-0023</a>.</p>
+<h2 id="context">Context</h2>
+<p>The demo needed a checkout and Go: its victim servers were built from
+<code>examples/</code>, its configuration named them by a path inside the repository, and
+no release carried either. Its decision point, a victim serving on the fixed
+port <code>127.0.0.1:18213</code>, made two demos on one machine collide and made the
+demo's tests fail under a second test run. <code>dev</code> builds only where process
+groups exist, and on any other system nothing said so before it misbehaved.</p>
+<h2 id="decision">Decision</h2>
+<ul>
+<li><strong>A demo archive beside the product's.</strong> Each release adds
+<code>guardana-control-demo_&lt;version&gt;_&lt;os&gt;_&lt;arch&gt;.tar.gz</code> for every platform the
+product archive has. It is wrapped in one directory, holds the gateway,
+<code>guardana-control</code> and the victim servers under <code>bin/</code>, and the demo's
+configuration, policy, scenarios, <code>call.sh</code> (mode <code>0755</code>) and README at their
+repository paths, so the tutorial's commands are the same in a checkout and
+in the archive. The product archive keeps its layout and never carries the
+victim, which is deliberately vulnerable. The image does not carry the demo:
+it would need the approver's binary in the plane's image.</li>
+<li><strong>A decision point that never answers, bound by dev.</strong> <code>dev --decision-point=silent</code> binds one more loopback listener, as it binds its
+others, and never accepts on it. The plane's question waits there until
+<code>pdp.timeout</code>, so a rule reading <code>external</code> is undetermined with
+<code>PDP_TIMEOUT</code>; no code in dev can answer, so none can lift a veto. With the
+flag dev owns every <code>pdp.</code> key; without it the demo file's own decision
+point on the loopback stands, as before. No port is fixed anywhere in the
+demo.</li>
+<li><strong>The archive is checked, not its configuration.</strong>
+<code>scripts/check-demo-archive.sh</code> extracts this machine's demo archive from
+goreleaser's <code>dist/</code>, requires every non-Go file of the demo the repository
+holds to be there and equal, and <code>call.sh</code> to be executable, and runs every
+scenario from it with no Go on <code>PATH</code>. <code>release.yml</code> runs it after the build
+and before anything is attested or published, and <code>make check-demo-archive</code>
+runs it after <code>make release-snapshot</code>.</li>
+<li><strong>An unsupported platform is refused first.</strong> <code>dev</code> refuses a system without
+process groups before it reads anything, naming it; a test pins the list to
+the build constraint that gives <code>dev</code> its process groups. Archives exist for
+Linux and macOS.</li>
+</ul>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>The product archive's contents do not change; its binaries are built under
+<code>bin/</code> and the directory is stripped. A release gains four archives and their
+bills of materials; <code>checksums.txt</code> names them, so the existing attestation
+and verification cover them, and the release's archive count goes from four
+to eight. The victim binary is signed and attested as a demo asset. The silent
+listener takes connections into its backlog and reads nothing, so another
+account can fill the backlog and no more. The binaries are not notarized for
+macOS: a browser download is quarantined and refused, which the tutorial
+says.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>The victim in the product archive.</strong> Every user of the product would
+download, verify and unpack a deliberately vulnerable server, and a <code>bin/</code>
+and an <code>examples/</code> would land wherever the archive is opened.</li>
+<li><strong>A decision point in dev that publishes its metadata and holds every
+question.</strong> A decision point embedded in the plane's binary, with held
+requests nobody bounds.</li>
+<li><strong>A port bound, released and handed to the victim.</strong> Another process could
+take it in between, and would then be asked.</li>
+<li><strong>A Go test reading <code>.goreleaser.yaml</code>.</strong> No parser for it exists here, and
+a copy of goreleaser's rules can agree with itself while the archive
+differs.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>The tutorial starts from a download; a checkout is the alternative. Two demos
+run side by side. The check runs on the real archive, so it does not run on a
+pull request: a missing asset is caught by the release dry run or at the tag,
+before anything is published.</p>
+<h2 id="validation">Validation</h2>
+<ul>
+<li><code>scripts/check-demo-archive.sh</code> over a snapshot: every demo file present,
+<code>call.sh</code> <code>0755</code>, all seven scenarios passed with no Go on <code>PATH</code>; over a
+copy with a scenario removed or <code>call.sh</code> at <code>0644</code>, it fails.</li>
+<li>A unit test dials the silent listener and reads nothing before a deadline;
+the demo's <code>fail-closed</code> scenario decides its export with <code>PDP_TIMEOUT</code>.</li>
+<li>Dev's tests keep a file-set loopback decision point working without the
+flag, and refuse a file-set <code>pdp.</code> key with it.</li>
+<li>The platform test compares <code>dev</code>'s list with the build constraint for every
+system <code>go tool dist list</code> names.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0033-a-demo-archive-a-release-user-runs-without-go.md">docs/adr/0033-a-demo-archive-a-release-user-runs-without-go.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

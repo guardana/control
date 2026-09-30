@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -14,9 +15,11 @@ import (
 	"github.com/guardana/control/internal/policykey"
 )
 
-// devSet is every key dev gives a value of its own. Every key under
-// approvals is dev's too, set or left at its default, so a demo that tunes
-// the store is refused rather than half obeyed.
+// devSet is every key dev gives a value of its own, and silentSet the keys it
+// adds for a silent decision point. Every key under approvals is dev's too,
+// set or left at its default, so a demo that tunes the store is refused
+// rather than half obeyed; so is every key under pdp with a silent decision
+// point.
 var devSet = []string{
 	"listener.address",
 	"health.address",
@@ -32,15 +35,17 @@ var devSet = []string{
 	"export.allow_plaintext",
 }
 
-// devOwned is devSet and every other key under approvals.
-func devOwned() []string {
-	owned := slices.Clone(devSet)
-	for _, f := range gatewayconfig.Fields() {
-		if strings.HasPrefix(f.Path, "approvals.") && !slices.Contains(owned, f.Path) {
-			owned = append(owned, f.Path)
-		}
+var silentSet = []string{
+	"pdp.identifier",
+	"pdp.allow_plaintext",
+}
+
+// ownedPrefixes is what dev owns beyond the keys the layer sets.
+func (l devLayer) ownedPrefixes() []string {
+	if _, silent := l["pdp.identifier"]; silent {
+		return []string{"approvals.", "pdp."}
 	}
-	return owned
+	return []string{"approvals."}
 }
 
 // refuseEnvironment names the first variable under the product's prefix. Dev
@@ -61,10 +66,11 @@ func refuseEnvironment(environ []string) error {
 type devLayer map[string]string
 
 // newLayer is dev's values for a plane whose state is under st, which
-// listens at listen and health and exports to collector, a host:port.
-func newLayer(st devState, key ed25519.PrivateKey, listen, health, collector string) devLayer {
+// listens at listen and health, exports to collector and, when silent is not
+// empty, asks the decision point there, each a host:port.
+func newLayer(st devState, key ed25519.PrivateKey, listen, health, collector, silent string) devLayer {
 	pub, _ := key.Public().(ed25519.PublicKey)
-	return devLayer{
+	l := devLayer{
 		"listener.address":           listen,
 		"health.address":             health,
 		"policy.bundle_file":         st.path(stateBundle),
@@ -78,14 +84,30 @@ func newLayer(st devState, key ed25519.PrivateKey, listen, health, collector str
 		"export.endpoint":            "http://" + collector + logsPath,
 		"export.allow_plaintext":     "true",
 	}
+	if silent != "" {
+		l["pdp.identifier"] = "http://" + silent
+		l["pdp.allow_plaintext"] = "true"
+	}
+	return l
+}
+
+// keys is every key the layer sets, in a fixed order.
+func (l devLayer) keys() []string {
+	var out []string
+	for _, key := range slices.Concat(devSet, silentSet) {
+		if _, ok := l[key]; ok {
+			out = append(out, key)
+		}
+	}
+	return out
 }
 
 // environ is the layer as variables, without the keys in except.
 func (l devLayer) environ(except ...string) []string {
 	out := make([]string, 0, len(l))
-	for _, key := range devSet {
-		if value, ok := l[key]; ok && !slices.Contains(except, key) {
-			out = append(out, brand.Env(gatewayconfig.EnvName(key))+"="+value)
+	for _, key := range l.keys() {
+		if !slices.Contains(except, key) {
+			out = append(out, brand.Env(gatewayconfig.EnvName(key))+"="+l[key])
 		}
 	}
 	return out
@@ -102,13 +124,16 @@ func resolveDemo(path string, l devLayer) (*gatewayconfig.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	sources := cfg.Sources()
-	for _, key := range devOwned() {
-		set := false
-		if slices.Contains(devSet, key) {
+	owned := slices.Collect(maps.Keys(cfg.Sources()))
+	slices.Sort(owned)
+	owned = slices.DeleteFunc(owned, func(key string) bool {
+		_, layered := l[key]
+		return layered || !slices.ContainsFunc(l.ownedPrefixes(), func(p string) bool { return strings.HasPrefix(key, p) })
+	})
+	for _, key := range slices.Concat(l.keys(), owned) {
+		set := true
+		if _, layered := l[key]; layered {
 			set = fileSets(path, l, key)
-		} else {
-			_, set = sources[key]
 		}
 		if set {
 			return nil, fmt.Errorf("%s: %s sets it, and dev owns it; remove it from the demo's configuration", key, path)
@@ -122,19 +147,34 @@ func resolveDemo(path string, l devLayer) (*gatewayconfig.Config, error) {
 
 // fileSets reports whether the file at path sets key, which the layer sets
 // too and so hides from the loaded configuration's sources. The file is
-// loaded without the layer's key: a load that stands names the key's source
-// if the file set it. A load that fails is loaded once more with the key's
-// default set through the layer, and a file that did not set the key fails
-// both with the same refusal, since both loads then hold the same values.
+// loaded without the layer's key, and then without every key the layer sets
+// in the key's group, which another key of it may need: a load that stands
+// names the key's source if the file set it. When both fail, the file is
+// loaded once more with the key's default set through the layer, and a file
+// that did not set the key fails that load and the first with the same
+// refusal, since both then hold the same values.
 func fileSets(path string, l devLayer, key string) bool {
-	without, err := gatewayconfig.Load(path, l.environ(key))
-	if err == nil {
-		_, set := without.Sources()[key]
-		return set
+	group, _, _ := strings.Cut(key, ".")
+	var sameGroup []string
+	for _, k := range l.keys() {
+		if strings.HasPrefix(k, group+".") {
+			sameGroup = append(sameGroup, k)
+		}
+	}
+	var first error
+	for _, except := range [][]string{{key}, sameGroup} {
+		without, err := gatewayconfig.Load(path, l.environ(except...))
+		if err == nil {
+			_, set := without.Sources()[key]
+			return set
+		}
+		if first == nil {
+			first = err
+		}
 	}
 	pinned := append(l.environ(key), brand.Env(gatewayconfig.EnvName(key))+"="+defaultOf(key))
 	_, again := gatewayconfig.Load(path, pinned)
-	return again == nil || again.Error() != err.Error()
+	return again == nil || again.Error() != first.Error()
 }
 
 func defaultOf(key string) string {

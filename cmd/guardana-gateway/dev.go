@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/guardana/control/internal/brand"
 )
 
-const devForm = "--config <file> --policy <file> [--state <dir>] [--scenario <file>]..."
+const devForm = "--config <file> --policy <file> [--decision-point=silent] [--state <dir>] [--scenario <file>]..."
 
 // fileList is a flag given once per file.
 type fileList []string
@@ -25,8 +26,30 @@ func (l *fileList) Set(v string) error {
 	return nil
 }
 
+// silentDecisionPoint is the one value --decision-point takes.
+const silentDecisionPoint = "silent"
+
+// decisionPointFlag is --decision-point, which refuses any value but silent.
+type decisionPointFlag struct{ value *string }
+
+func (f decisionPointFlag) String() string {
+	if f.value == nil {
+		return ""
+	}
+	return *f.value
+}
+
+func (f decisionPointFlag) Set(v string) error {
+	if v != silentDecisionPoint {
+		return fmt.Errorf("%q is not %s, the one value it takes", v, silentDecisionPoint)
+	}
+	*f.value = v
+	return nil
+}
+
 type devOptions struct {
 	config, policy, state string
+	decisionPoint         string
 	scenarios             fileList
 }
 
@@ -34,6 +57,8 @@ func declareDev(flags *flag.FlagSet) commandFunc {
 	var o devOptions
 	flags.StringVar(&o.config, "config", "", "the demo's configuration, without the keys dev sets")
 	flags.StringVar(&o.policy, "policy", "", "the policy document dev signs in memory")
+	flags.Var(decisionPointFlag{&o.decisionPoint}, "decision-point",
+		"`silent` makes the plane's decision point a loopback port dev binds and never answers, so every question times out; dev then owns every pdp key")
 	flags.StringVar(&o.state, "state", "", "a new directory for the plane's state; by default a temporary one")
 	flags.Var(&o.scenarios, "scenario", "a scenario `file` to run on a plane of its own; repeatable")
 	return func(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -52,12 +77,15 @@ func declareDev(flags *flag.FlagSet) commandFunc {
 	}
 }
 
-// dev refuses what it must before anything is created or bound: a variable
-// of the product's in its environment, an existing --state, a policy
+// dev refuses what it must before anything is created or bound: a platform
+// without process groups, a variable of the product's in its environment, an existing --state, a policy
 // document it cannot read or sign, a demo configuration that sets what dev
 // owns, and a sibling approver of another version. Then it runs the
 // scenarios, or one plane and its page.
 func dev(ctx context.Context, o devOptions, stdout, stderr io.Writer) int {
+	if err := refusePlatform(runtime.GOOS); err != nil {
+		return fail(stderr, "dev", err)
+	}
 	if err := refuseEnvironment(os.Environ()); err != nil {
 		return fail(stderr, "dev", err)
 	}
@@ -71,7 +99,7 @@ func dev(ctx context.Context, o devOptions, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(stderr, "dev", fmt.Errorf("--policy: %w", err))
 	}
-	in := devInputs{config: o.config, document: document}
+	in := devInputs{config: o.config, document: document, silent: o.decisionPoint == silentDecisionPoint}
 	if err := checkDemo(in, o.state); err != nil {
 		return fail(stderr, "dev", err)
 	}
@@ -150,7 +178,7 @@ func (d *devPlane) describe(stdout io.Writer, page string, o devOptions) {
 		{"trail_command", brand.Gateway + " trail " + shellWord(st.path(stateTrail))},
 		{"approvals_command", brand.CLI + " approvals list " + shellWord(st.path(stateApprovals))},
 		{"pause_command", brand.CLI + " pause add --global -- " + shellWord(st.path(statePause))},
-		{"scenario_command", brand.Gateway + " dev --config " + shellWord(o.config) + " --policy " + shellWord(o.policy) + " --scenario <file>"},
+		{"scenario_command", scenarioCommand(o)},
 	} {
 		writeLine(stdout, l[0]+": "+oneLine(l[1]))
 	}
@@ -161,6 +189,35 @@ func (d *devPlane) describe(stdout io.Writer, page string, o devOptions) {
 func (d *devPlane) reportLeft(stdout io.Writer, left int64) {
 	writeLine(stdout, fmt.Sprintf("unshipped: %d bytes the collector did not acknowledge are left in %s; the trail file lacks what they hold",
 		left, oneLine(d.state.path(stateSpool))))
+}
+
+// scenarioCommand is the command that runs a scenario on a plane made as
+// this one was.
+func scenarioCommand(o devOptions) string {
+	cmd := brand.Gateway + " dev --config " + shellWord(o.config) + " --policy " + shellWord(o.policy)
+	if o.decisionPoint != "" {
+		cmd += " --decision-point=" + shellWord(o.decisionPoint)
+	}
+	return cmd + " --scenario <file>"
+}
+
+// supported reports whether dev runs on goos: it starts the page in a
+// process group of its own, so the terminal's interrupt reaches dev alone,
+// and that needs the systems the unix build constraint names.
+func supported(goos string) bool {
+	switch goos {
+	case "aix", "android", "darwin", "dragonfly", "freebsd", "hurd", "illumos", "ios", "linux", "netbsd", "openbsd", "solaris":
+		return true
+	}
+	return false
+}
+
+// refusePlatform refuses a goos without process groups, by name.
+func refusePlatform(goos string) error {
+	if supported(goos) {
+		return nil
+	}
+	return fmt.Errorf("dev runs on Linux and macOS, and this is %s: dev starts its page in a process group of its own, which %s lacks", goos, goos)
 }
 
 // shellWord is s as one word of a POSIX shell.

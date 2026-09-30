@@ -54,7 +54,7 @@ GO_SRC := . $(REPO_FILES); repo_files '*.go' | { grep -v '^api/gen/' || true; }
 
 .PHONY: bootstrap fmt fmt-check vet lint test test-race fuzz-smoke security \
         proto proto-check proto-breaking docs-check docs-gen docs-impact tidy-check check-brand \
-        release-snapshot \
+        release-snapshot check-demo-archive \
         check-imports check-imports-probe check-sizes check-actions \
         check-shell quality-quick quality
 
@@ -212,6 +212,11 @@ check-brand:
 # the same from run to run.
 release-snapshot:
 	$(CD) goreleaser release --snapshot --clean --skip=sign --parallelism=1
+
+# Runs the demo from this machine's demo archive in dist/, as a release user
+# would, with no Go on PATH. It reads what release-snapshot built.
+check-demo-archive:
+	$(CD) scripts/check-demo-archive.sh dist
 
 check-imports:
 	$(CD) scripts/check-imports.sh

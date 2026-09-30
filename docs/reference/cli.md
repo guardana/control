@@ -182,7 +182,7 @@ partial line that no running `collect` holds, and when it holds more than
 
 <!-- generated: go test ./cmd/guardana-gateway -run TestCLIPage -->
 ```
-usage: guardana-gateway [run --config <file> | doctor --config <file> | collect --listen <addr> --out <file> | trail <file> | scenario run --config <file> --trail <file> [--control <file>] [--timeout <d>] <path>... | dev --config <file> --policy <file> [--state <dir>] [--scenario <file>]...]
+usage: guardana-gateway [run --config <file> | doctor --config <file> | collect --listen <addr> --out <file> | trail <file> | scenario run --config <file> --trail <file> [--control <file>] [--timeout <d>] <path>... | dev --config <file> --policy <file> [--decision-point=silent] [--state <dir>] [--scenario <file>]...]
 
 run
   -config string
@@ -213,6 +213,8 @@ scenario
 dev
   -config string
     	the demo's configuration, without the keys dev sets
+  -decision-point silent
+    	silent makes the plane's decision point a loopback port dev binds and never answers, so every question times out; dev then owns every pdp key
   -policy string
     	the policy document dev signs in memory
   -scenario file

@@ -17,6 +17,10 @@ verify one.
   refused at load instead of starting a plane in `OBSERVE`, which stops nothing
   its policy decides. Add `mode:` to a configuration that relied on the
   default ([ADR-0032](docs/adr/0032-the-enforcement-mode-has-no-default.md)).
+- The demo's decision point no longer listens on the fixed port
+  `127.0.0.1:18213`, so demos run side by side: start the demo with
+  `dev --decision-point=silent`, which the old command lacks and now needs.
+  `dev` refuses a system without process groups before it starts anything.
 
 ### Added
 
@@ -29,6 +33,14 @@ verify one.
   `make docs-gen`, with links, anchors and diagrams that mean there what
   they mean on GitHub, and a check that fails when a page and its rendering
   drift ([ADR-0031](docs/adr/0031-the-documentation-is-served-on-the-website.md)).
+- A demo archive per platform, `guardana-control-demo_<version>_<os>_<arch>.tar.gz`,
+  that runs the tutorial and every scenario without Go or a checkout; each
+  release runs its scenarios from the linux/amd64 archive before it is
+  published
+  ([ADR-0033](docs/adr/0033-a-demo-archive-a-release-user-runs-without-go.md)).
+- `dev --decision-point=silent`: a decision point on a port `dev` binds and
+  never answers, so a rule reading `external` is undetermined with
+  `PDP_TIMEOUT`.
 
 ### Fixed
 
