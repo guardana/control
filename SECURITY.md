@@ -27,12 +27,11 @@ Include, as far as you can:
 
 ## What to expect
 
-What the project intends, rather than what it can guarantee: an acknowledgement
-that a person has read your report, then a status update once the maintainers
-understand the issue. There is no response-time commitment and no repair
-deadline. One maintainer, no release cycle, and no paid time on this: promising
-a service level here would be the kind of claim the rest of this repository
-exists to avoid.
+A person acknowledges your report within 14 days of receiving it, and sends a
+status update once the maintainers understand the issue. The 14 days are for
+that first answer only: there is no repair deadline. One maintainer, no release
+cycle, and no paid time on this: promising more than the acknowledgement would
+be the kind of claim the rest of this repository exists to avoid.
 
 Disclosure is meant to be coordinated by agreement. Tell us if you have a date
 in mind and the maintainers will say whether they can work to it. Credit goes
