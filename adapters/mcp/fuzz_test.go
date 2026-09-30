@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,11 +27,6 @@ import (
 // sits outside this package because it is the gateway's corpus, seeded from
 // what both revisions send.
 const corpusDir = "../../testdata/gateway/fuzz"
-
-// upstreamMark is in every answer the victim's tools give and in nothing the
-// gateway says, so its presence in a response is an upstream answer that
-// reached the agent.
-const upstreamMark = " ran"
 
 // upstreamOperations is every name the victim records a call under: the tools
 // and the two read methods. served sums them, so an execution of any of them
@@ -96,6 +92,22 @@ func FuzzJSONRPCDecode(f *testing.F) {
 			t.Fatalf("the listener answered %d: %s", res.StatusCode, answer)
 		}
 	})
+}
+
+// TestAnAllowedAnswerCarriesTheUpstreamMark: the fuzz oracle looks for the
+// mark in what the agent gets, so an answer that did reach the agent must
+// carry it.
+func TestAnAllowedAnswerCarriesTheUpstreamMark(t *testing.T) {
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{})
+	r.pipe.decide = executeWith()
+	res, err := callTool(t, r.connect(t, "agent-a"), "read_file", map[string]any{"path": "/x"})
+	if err != nil || res.IsError || len(res.Content) != 1 {
+		t.Fatalf("an allowed call: %v %+v", err, res)
+	}
+	text, ok := res.Content[0].(*sdk.TextContent)
+	if !ok || !strings.Contains(text.Text, upstreamMark) {
+		t.Fatalf("the upstream's answer %+v lacks the mark %q", res.Content[0], upstreamMark)
+	}
 }
 
 // fuzzListener builds a plane over an in-process upstream whose policy has no

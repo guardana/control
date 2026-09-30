@@ -3,6 +3,7 @@ package mcp_test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -60,6 +61,11 @@ func objectSchema(props map[string]any) map[string]any {
 	return map[string]any{"type": "object", "properties": props}
 }
 
+// upstreamMark is in every answer the victim gives, and random per test binary,
+// so an agent cannot put it in a request for the gateway to echo back: its
+// presence in a response is an upstream answer that reached the agent.
+var upstreamMark = "upstream-" + rand.Text()
+
 func newVictim() *victim {
 	v := &victim{calls: map[string][]json.RawMessage{}, tools: map[string]*sdk.Tool{}}
 	v.server = sdk.NewServer(&sdk.Implementation{Name: "victim", Version: "0"}, nil)
@@ -79,7 +85,7 @@ func newVictim() *victim {
 	v.server.AddResource(&sdk.Resource{URI: "file:///r", Name: "r", MIMEType: "text/plain"}, func(_ context.Context, req *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
 		v.record("resources/read", nil)
 		v.recordParams(req.Params)
-		return &sdk.ReadResourceResult{Contents: []*sdk.ResourceContents{{URI: "file:///r", MIMEType: "text/plain", Text: "r"}}}, nil
+		return &sdk.ReadResourceResult{Contents: []*sdk.ResourceContents{{URI: "file:///r", MIMEType: "text/plain", Text: "r " + upstreamMark}}}, nil
 	})
 	v.server.AddPrompt(&sdk.Prompt{Name: "p", Arguments: []*sdk.PromptArgument{{Name: "q"}}}, func(_ context.Context, req *sdk.GetPromptRequest) (*sdk.GetPromptResult, error) {
 		v.record("prompts/get", nil)
@@ -87,7 +93,7 @@ func newVictim() *victim {
 		v.mu.Lock()
 		v.promptArgs = append(v.promptArgs, req.Params.Arguments)
 		v.mu.Unlock()
-		return &sdk.GetPromptResult{Messages: []*sdk.PromptMessage{{Role: "user", Content: &sdk.TextContent{Text: "p"}}}}, nil
+		return &sdk.GetPromptResult{Messages: []*sdk.PromptMessage{{Role: "user", Content: &sdk.TextContent{Text: "p " + upstreamMark}}}}, nil
 	})
 	return v
 }
@@ -102,7 +108,7 @@ func (v *victim) handler(name string) sdk.ToolHandler {
 			case <-time.After(2 * time.Second):
 			}
 		}
-		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: name + " ran"}}}, nil
+		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: name + " ran " + upstreamMark}}}, nil
 	}
 }
 
