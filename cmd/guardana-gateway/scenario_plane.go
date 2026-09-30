@@ -66,6 +66,7 @@ type planeState struct {
 	acknowledged   uint64
 	partial        uint64
 	pauseState     string
+	pauseCause     string
 	entries        int
 	// polls is the pause file's completed reads, or -1 where nothing reads it.
 	polls int64
@@ -91,6 +92,7 @@ type healthBody struct {
 	} `json:"exporter"`
 	Pause struct {
 		State   string `json:"state"`
+		Cause   string `json:"cause"`
 		Entries *int   `json:"entries"`
 		Polls   *struct {
 			Made *int64 `json:"made"`
@@ -127,7 +129,7 @@ func (r *runner) health(ctx context.Context) (planeState, error) {
 }
 
 func (b healthBody) state(status int) (planeState, error) {
-	s := planeState{status: status, mode: b.Mode, bundleID: b.Bundle.ID, digest: b.Bundle.Digest, pauseState: b.Pause.State, polls: -1}
+	s := planeState{status: status, mode: b.Mode, bundleID: b.Bundle.ID, digest: b.Bundle.Digest, pauseState: b.Pause.State, pauseCause: b.Pause.Cause, polls: -1}
 	missing := func(name string) (planeState, error) {
 		return planeState{}, fmt.Errorf("/healthz answered %d without %s", status, name)
 	}
@@ -153,16 +155,27 @@ func (b healthBody) state(status int) (planeState, error) {
 }
 
 // serving reads /healthz and refuses any answer but 200 from a plane that is
-// not halted.
+// not halted. A pause state unknown only because the plane's last read aged
+// past its bound is a read running late on a busy machine: it is read again
+// until the timeout, and any other cause is refused at once.
 func (r *runner) serving(ctx context.Context) (planeState, error) {
-	s, err := r.health(ctx)
-	switch {
-	case err != nil:
-		return planeState{}, err
-	case s.status != http.StatusOK || s.halted:
+	deadline := time.Now().Add(r.timeout)
+	for {
+		s, err := r.health(ctx)
+		switch {
+		case err != nil:
+			return planeState{}, err
+		case s.status == http.StatusOK && !s.halted:
+			return s, nil
+		case !s.halted && s.pauseState == pause.Unknown.String() && s.pauseCause == string(pause.CauseStale) &&
+			time.Now().Before(deadline):
+			if err := pauseFor(ctx, healthPoll); err != nil {
+				return planeState{}, err
+			}
+			continue
+		}
 		return planeState{}, fmt.Errorf("/healthz answered %d, halted %t, pause %s", s.status, s.halted, s.pauseState)
 	}
-	return s, nil
 }
 
 // drained waits until the spool holds nothing unacknowledged, which is when

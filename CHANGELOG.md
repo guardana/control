@@ -83,6 +83,10 @@ resumes by cursor, and the documentation on the website.
 - A pending call told the agent to retry after 0 seconds when
   `approvals.retry_after` was under a second; the hint now rounds up to whole
   seconds.
+- A scenario stopped as one that could not run when the plane's read of its
+  pause file ran late on a busy machine and `/healthz` briefly reported the
+  pause state stale; the runner now reads it again until its timeout, and any
+  other unknown cause still stops it.
 
 ## [0.2.0-alpha] - 2026-09-28
 

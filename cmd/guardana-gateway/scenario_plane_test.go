@@ -15,7 +15,7 @@ import (
 type healthDoc struct {
 	status                             int
 	unack, quarantined, partial, polls int
-	pauseState                         string
+	pauseState, cause                  string
 	entries                            int
 	omit                               string
 }
@@ -30,6 +30,9 @@ func (h healthDoc) body() string {
 	}
 	if h.polls < 0 {
 		parts["pause"] = fmt.Sprintf(`"pause":{"state":%q,"entries":%d}`, h.pauseState, h.entries)
+	}
+	if h.cause != "" {
+		parts["pause"] = strings.TrimSuffix(parts["pause"], "}") + fmt.Sprintf(`,"cause":%q}`, h.cause)
 	}
 	members := []string{`"mode":"APPROVE"`, `"bundle":{"id":"b","digest":"sha256:bb"}`}
 	for _, k := range []string{"halted", "pipeline", "spool", "exporter", "pause"} {
@@ -70,6 +73,24 @@ func TestHealthRefusesAnAnswerWithoutACounter(t *testing.T) {
 	r := scriptedPlane(t, healthDoc{pauseState: "disabled", polls: -1})
 	if s, err := r.health(context.Background()); err != nil || s.polls != -1 {
 		t.Errorf("a plane with no pause file: %+v, %v", s, err)
+	}
+}
+
+// TestServingWaitsOutALatePauseRead: a pause state that is unknown only
+// because the plane's last read aged past its bound is a read running late,
+// read again until the timeout; any other unknown cause is refused at once.
+func TestServingWaitsOutALatePauseRead(t *testing.T) {
+	stale := healthDoc{status: http.StatusServiceUnavailable, pauseState: "unknown", cause: "stale"}
+	lifted := healthDoc{pauseState: "clear"}
+	if s, err := scriptedPlane(t, stale, stale, lifted).serving(context.Background()); err != nil || s.pauseState != "clear" {
+		t.Errorf("a late read that catches up: %+v, %v", s, err)
+	}
+	if _, err := scriptedPlane(t, stale).serving(context.Background()); err == nil || !strings.Contains(err.Error(), "answered 503") {
+		t.Errorf("a read that never catches up: err = %v", err)
+	}
+	malformed := healthDoc{status: http.StatusServiceUnavailable, pauseState: "unknown", cause: "malformed"}
+	if _, err := scriptedPlane(t, malformed, lifted).serving(context.Background()); err == nil || !strings.Contains(err.Error(), "answered 503") {
+		t.Errorf("a pause file the plane cannot read was waited out: err = %v", err)
 	}
 }
 

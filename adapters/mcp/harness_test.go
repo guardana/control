@@ -53,6 +53,7 @@ type victim struct {
 
 	mu         sync.Mutex
 	calls      map[string][]json.RawMessage
+	replaced   map[string]sdk.ToolHandler
 	promptArgs []map[string]string
 	params     []sdk.Params
 }
@@ -67,7 +68,7 @@ func objectSchema(props map[string]any) map[string]any {
 var upstreamMark = "upstream-" + rand.Text()
 
 func newVictim() *victim {
-	v := &victim{calls: map[string][]json.RawMessage{}, tools: map[string]*sdk.Tool{}}
+	v := &victim{calls: map[string][]json.RawMessage{}, replaced: map[string]sdk.ToolHandler{}, tools: map[string]*sdk.Tool{}}
 	v.server = sdk.NewServer(&sdk.Implementation{Name: "victim", Version: "0"}, nil)
 	falseHint, trueHint := false, true
 	path := objectSchema(map[string]any{"path": map[string]any{"type": "string"}})
@@ -100,6 +101,12 @@ func newVictim() *victim {
 
 func (v *victim) handler(name string) sdk.ToolHandler {
 	return func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+		v.mu.Lock()
+		h := v.replaced[name]
+		v.mu.Unlock()
+		if h != nil {
+			return h(ctx, req)
+		}
 		v.record(name, req.Params.Arguments)
 		if name == "slow" {
 			select {

@@ -65,12 +65,13 @@ func wantTrail(t *testing.T, what string, meta map[string]any, recorded *control
 	}
 }
 
-// replaceTool swaps the victim's handler of name for h, keeping the
-// definition the manifest pinned.
+// replaceTool answers name with h from now on, keeping the definition the
+// manifest pinned. The tool list does not change, so a plane that lists the
+// tools again never finds this one missing.
 func replaceTool(r *rig, name string, h sdk.ToolHandler) {
-	def := *r.victim.tools[name]
-	r.victim.server.RemoveTools(name)
-	r.victim.server.AddTool(&def, h)
+	r.victim.mu.Lock()
+	r.victim.replaced[name] = h
+	r.victim.mu.Unlock()
 }
 
 // TestExecutionNamesThePlanesTrail: an upstream result carrying ids of its
