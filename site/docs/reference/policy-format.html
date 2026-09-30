@@ -253,7 +253,7 @@ with the values it may hold there. Every constraint of a rule has to hold.</p>
 <tr>
 <td><code>data</code></td>
 <td><code>sensitivityAtLeast</code></td>
-<td>Required in the group. A floor: <code>PUBLIC</code>, <code>INTERNAL</code>, <code>CONFIDENTIAL</code>, <code>RESTRICTED</code> or <code>SECRET</code>, compared with the envelope's own labels.</td>
+<td>Required in the group. A floor, <code>PUBLIC</code> to <code>SECRET</code>, compared with the envelope's own labels; <code>containsSecrets</code> meets every floor.</td>
 </tr>
 <tr>
 <td><code>flow</code></td>

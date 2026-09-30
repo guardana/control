@@ -584,7 +584,8 @@ reads where a producer left a value out, as ADR-0011 and the comments in
 - An `Approval` with no `expires_at` is expired, and both expiries are measured
   against the receiver's clock, never the producer's `occurred_at`.
   `APPROVAL_STATE_UNSPECIFIED` is not approved, and `APPROVED` with no
-  `approver_id` is refused. `planned`.
+  `approver_id` is refused. `implemented` in the gateway's resume
+  (`checkApproval`, `approvalFields`) and in the approvals store's `Consume`.
 - A `Decision` with no `expires_at` may not be reused, and
   `POLICY_FRESHNESS_UNSPECIFIED` is stale. `planned`.
 - An empty `pdp_instance` means the decision consulted no external decision
@@ -600,8 +601,9 @@ reads where a producer left a value out, as ADR-0011 and the comments in
   happened, and neither is retried automatically. An absent
   `executed_action_digest` means the comparison did not run, which is not a
   pass. `planned`.
-- `ENFORCEMENT_MODE_UNSPECIFIED` is refused as configuration; in evidence it
-  means nothing is known to have been enforced. `planned`.
+- `ENFORCEMENT_MODE_UNSPECIFIED` is refused as configuration (`implemented` in
+  the gateway's `Requirements`); in evidence it means nothing is known to have
+  been enforced (`planned`: no reader of evidence reads it yet).
 - An empty `Event.prev_event_digest` claims nothing; the hash chain that would
   fill it is `planned`.
 - An absent or malformed `schema_version` is refused, never read as the
@@ -843,8 +845,11 @@ semantics, and it is what makes invariant 6 in [AGENTS.md](../AGENTS.md) hold in
 time as well as in content: an approval covers one exact digest, once, and
 expires, never a similar action, a second run or a later one. An approval with no
 `expires_at` is expired. Expiry is measured against the receiver's clock before
-the held call runs, read when the retry is admitted and again after any ask of a
-decision point; never against the producer's `occurred_at`. `APPROVAL_STATE_UNSPECIFIED` is not approved, and
+the held call runs, read when the retry is admitted, again after any ask of a
+decision point, when the call is handed out and once more after
+`ACTION_STARTED` is appended
+([ADR-0027](adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md));
+never against the producer's `occurred_at`. `APPROVAL_STATE_UNSPECIFIED` is not approved, and
 `APPROVED` with no `approver_id` is refused. `Approval.multi_use` is false by
 default, and this build refuses an approval that sets it, so an approval is
 consumed by one execution.

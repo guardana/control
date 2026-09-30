@@ -132,7 +132,7 @@ named rather than hidden, and `doctor` and `/healthz` both say it out loud.
 | Kept by | What | Used for |
 | --- | --- | --- |
 | the pipeline, in memory | the held request: its identifiers, the approval it minted, the envelope, the decision `POLICY_DECIDED` recorded, the binding, where the trail stands, the expiry | what a retry is compared with, and what resumes; the store's answer is checked against it field by field |
-| the approval store | one record per held request, under its binding: the approval, the request id and what became of it, and never an envelope, a decision or a trail | whether an approver said yes, and consuming it once |
+| the approval store | the file store: one record per held request, under its binding, holding the approval, the request id and what became of it, and never an envelope, a decision or a trail; the memory store: the whole hold, envelope and decision included, in the plane's own memory | whether an approver said yes, and consuming it once |
 | the hold journal, where one is configured | one entry per hold: the trail's identifiers, where it stands, the binding, the approval and the expiry | closing the trail of a hold this plane lost to a restart |
 | the agent | `approval_id`, `action_digest`, `expires_at`, `retry_after` | retrying the same call after `retry_after` |
 

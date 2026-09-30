@@ -190,7 +190,7 @@ named rather than hidden, and <code>doctor</code> and <code>/healthz</code> both
 </tr>
 <tr>
 <td>the approval store</td>
-<td>one record per held request, under its binding: the approval, the request id and what became of it, and never an envelope, a decision or a trail</td>
+<td>the file store: one record per held request, under its binding, holding the approval, the request id and what became of it, and never an envelope, a decision or a trail; the memory store: the whole hold, envelope and decision included, in the plane's own memory</td>
 <td>whether an approver said yes, and consuming it once</td>
 </tr>
 <tr>

@@ -86,10 +86,8 @@ func providers() []provider {
 }
 
 // TestTheProvidersDecideAHeldCallAlike drives one scenario through both
-// approval stores at the wiring, where both are reachable. The stores are two
-// implementations of one interface, and a suite that exercised one of them
-// left a divergence in `Find` to be found by hand at a wiring; a divergence in
-// `Find`, `Consume` or `Resolve` now fails here.
+// approval stores at the wiring, where both are reachable: they implement one
+// interface, and a divergence in `Find`, `Consume` or `Resolve` fails here.
 func TestTheProvidersDecideAHeldCallAlike(t *testing.T) {
 	for _, p := range providers() {
 		t.Run(p.name, func(t *testing.T) {

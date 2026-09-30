@@ -12,7 +12,8 @@ covers: [cmd/guardana-gateway/**, adapters/mcp/**, internal/gateway/**, internal
 You have an agent that speaks the Model Context Protocol (MCP) to one or more
 servers, and you want every call it makes decided from policy, enforced before
 the server sees it, and recorded. Start in `OBSERVE`, which records every call and
-enforces nothing, and move to `ENFORCE` once the tools are classified.
+blocks only for the plane's own causes, and move to `ENFORCE` once the tools
+are classified.
 
 The gateway is `experimental`; [status.md](../status.md) says what runs and what
 does not. Nothing here is a security boundary yet.
@@ -40,8 +41,7 @@ an environment variable under `GUARDANA_CONTROL_`, spelled as the key with its
 dots as underscores in capitals, and the variable wins, so a credential or a
 per-host path stays out of version control. A key the file names and this build
 does not is refused, and so is a variable under that prefix that names no key.
-`doctor` prints every key, its value and where it came from, a credential
-excepted; [configuration.md](../reference/configuration.md) lists every key.
+[configuration.md](../reference/configuration.md) lists every key.
 
 ```yaml
 mode: OBSERVE
@@ -83,9 +83,8 @@ upstreams:
 ```
 
 The listener in this build authenticates nobody, so every request on it is
-made by the principal configured here. An
-end-user identity bound from a token is not in this build, whatever an approver
-claims when answering; [status.md](../status.md) is the inventory.
+made by the principal configured here; no end-user identity is bound from a
+token ([status.md](../status.md)).
 
 ### 2. Check the configuration before serving
 
@@ -93,7 +92,8 @@ claims when answering; [status.md](../status.md) is the inventory.
 guardana-gateway doctor --config gateway.yaml
 ```
 
-`doctor` prints one line per check, then every bound and where it came from.
+`doctor` checks the configuration, prints every key and its source, a
+credential excepted, then one line per other check.
 It serves nothing, and it stops at
 the first check it cannot make. A tool no override classifies is printed with
 the fingerprint of its definition, which is what step 4 needs. It does not lock
@@ -185,7 +185,7 @@ run, which the journal buys; `doctor` counts them
 
 | Key | What it costs |
 | --- | --- |
-| `evidence.max_bytes` | The unacknowledged bytes the spool may hold. Reached, an append fails, and a material call is blocked before its effect |
+| `evidence.max_bytes` | The bytes the spool may hold, its quarantine and the room kept for closing records included. Reached, a material call is blocked before its effect, and an oversized closing record fails after it |
 | `evidence.fsync: interval` | A power loss costs the records since the last sync; `evidence.fsync_interval` says how many seconds |
 | `evidence.on_unwritable: allow_reads` | A read whose trail the spool will not take runs unrecorded and counted, unless it retries a held call. A material call never does |
 | `policy.fail_open_read: true` | A read undecided only because the policy is unavailable runs if the rules would otherwise allow it. Off by default, and forced off under `LOCKDOWN` |

@@ -87,7 +87,7 @@ with the values it may hold there. Every constraint of a rule has to hold.
 | `resource` | `labels` | A map constraint over `resource.labels`. |
 | `destination` | `trustZone` | A list of `TRUSTED_INTERNAL`, `PARTNER`, `UNTRUSTED_EXTERNAL`, `USER_CONTROLLED`, `MODEL_GENERATED`. |
 | `destination` | `host` | A list of hosts, each in the one spelling the contract admits: lower case, no trailing dot, no Unicode. |
-| `data` | `sensitivityAtLeast` | Required in the group. A floor: `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED` or `SECRET`, compared with the envelope's own labels. |
+| `data` | `sensitivityAtLeast` | Required in the group. A floor, `PUBLIC` to `SECRET`, compared with the envelope's own labels; `containsSecrets` meets every floor. |
 | `flow` | `toxicAtLeast` | Required in the group. The same floor, compared with the run's flow. |
 | `delegation` | `scopes` | Required in the group. A list of identifiers a delegated call's effective scopes must include. Unknown for a call with no chain. |
 | `external` | `denies` | Required in the group, and only `true`. Holds when the external decision point denies the call. Legal on a `DENY` rule only. |

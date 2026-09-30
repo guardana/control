@@ -74,7 +74,7 @@ this:
 | Aim | Today |
 | --- | --- |
 | Setup for common agent stacks, a proxy for the rest | An MCP proxy only; no framework port and no proxy for other tool APIs |
-| Oversight of what agents do and the data they reach | Each tool call, resource read and prompt through one plane is decided and recorded; a call that bypasses the plane is not seen, and there is no view across planes |
+| Oversight of what agents do and the data they reach | Each tool call, resource read and prompt through one plane is decided, and none runs before its record is written unless the operator let a read run unrecorded; a call that bypasses the plane is not seen, and there is no view across planes |
 | Procedures, and deviations from them | Policy per call and one flow rule; no procedure an agent is held to |
 | Attempts to gain access | Each refusal is recorded with its reason codes and counted in `/metrics`; nothing reports a pattern of attempts |
 | Quality: finished, not degraded, nothing skipped | A result's status and hash only |

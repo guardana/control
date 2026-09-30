@@ -695,7 +695,8 @@ never one that established their absence. <code>implemented</code> in <code>Toxi
 <li>An <code>Approval</code> with no <code>expires_at</code> is expired, and both expiries are measured
 against the receiver's clock, never the producer's <code>occurred_at</code>.
 <code>APPROVAL_STATE_UNSPECIFIED</code> is not approved, and <code>APPROVED</code> with no
-<code>approver_id</code> is refused. <code>planned</code>.</li>
+<code>approver_id</code> is refused. <code>implemented</code> in the gateway's resume
+(<code>checkApproval</code>, <code>approvalFields</code>) and in the approvals store's <code>Consume</code>.</li>
 <li>A <code>Decision</code> with no <code>expires_at</code> may not be reused, and
 <code>POLICY_FRESHNESS_UNSPECIFIED</code> is stale. <code>planned</code>.</li>
 <li>An empty <code>pdp_instance</code> means the decision consulted no external decision
@@ -711,8 +712,9 @@ beside <code>redacted_result_preview</code> (<code>planned</code>).</li>
 happened, and neither is retried automatically. An absent
 <code>executed_action_digest</code> means the comparison did not run, which is not a
 pass. <code>planned</code>.</li>
-<li><code>ENFORCEMENT_MODE_UNSPECIFIED</code> is refused as configuration; in evidence it
-means nothing is known to have been enforced. <code>planned</code>.</li>
+<li><code>ENFORCEMENT_MODE_UNSPECIFIED</code> is refused as configuration (<code>implemented</code> in
+the gateway's <code>Requirements</code>); in evidence it means nothing is known to have
+been enforced (<code>planned</code>: no reader of evidence reads it yet).</li>
 <li>An empty <code>Event.prev_event_digest</code> claims nothing; the hash chain that would
 fill it is <code>planned</code>.</li>
 <li>An absent or malformed <code>schema_version</code> is refused, never read as the
@@ -983,8 +985,11 @@ semantics, and it is what makes invariant 6 in <a href="https://github.com/guard
 time as well as in content: an approval covers one exact digest, once, and
 expires, never a similar action, a second run or a later one. An approval with no
 <code>expires_at</code> is expired. Expiry is measured against the receiver's clock before
-the held call runs, read when the retry is admitted and again after any ask of a
-decision point; never against the producer's <code>occurred_at</code>. <code>APPROVAL_STATE_UNSPECIFIED</code> is not approved, and
+the held call runs, read when the retry is admitted, again after any ask of a
+decision point, when the call is handed out and once more after
+<code>ACTION_STARTED</code> is appended
+(<a href="/docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold">ADR-0027</a>);
+never against the producer's <code>occurred_at</code>. <code>APPROVAL_STATE_UNSPECIFIED</code> is not approved, and
 <code>APPROVED</code> with no <code>approver_id</code> is refused. <code>Approval.multi_use</code> is false by
 default, and this build refuses an approval that sets it, so an approval is
 consumed by one execution.</p>

@@ -47,8 +47,8 @@ verdicts:
 | `INDETERMINATE` | The decision could not be made. It is never an allow. |
 
 It enforces the verdict except in `OBSERVE`; `APPROVE` and a pause can be
-stricter. It appends an evidence record unless the operator let a read run
-unrecorded. The record says who acted, on
+stricter. Nothing runs unrecorded unless the operator let a read do so. The
+record says who acted, on
 whose behalf, on what, what was decided, which policy version decided it, and
 how the call ended, with a hash of the result rather than its content.
 Precedence between the verdicts and the fail-closed rules is in

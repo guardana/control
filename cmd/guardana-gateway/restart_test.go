@@ -416,7 +416,8 @@ func notResumed(events []*controlv1.Event) int {
 }
 
 // standingAtRequest counts the trails whose last event is a request for an
-// approval: the state a hold lost to a restart used to be left in for good.
+// approval: the state a hold lost to a restart stays in unless its trail is
+// closed.
 func standingAtRequest(events []*controlv1.Event) int {
 	n := 0
 	for _, trail := range byRequest(events) {

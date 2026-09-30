@@ -337,9 +337,12 @@ What it does not do:
 
 ## Evidence: what a trail proves
 
-Events are written to a spool before any effect, and a call whose event
-cannot be written is blocked, unless `evidence.on_unwritable: allow_reads`
-lets a read run unrecorded ([evidence](evidence-and-the-spool.md)). That makes the evidence exist before the effect; it does not make it
+The events before an effect are written to a spool first, and a call whose
+event cannot be written is blocked, unless `evidence.on_unwritable: allow_reads`
+lets a read run unrecorded ([evidence](evidence-and-the-spool.md)). The
+closing event is written after the effect: when the spool refuses it, the
+result still reaches the agent, the trail stays open, and every material call
+is blocked until an append succeeds again. That makes the evidence exist before the effect; it does not make it
 tamper-evident. No hash links the events, and no
 checkpoint is signed: `prev_event_digest` is left empty
 ([ADR-0004](../adr/0004-evidence-and-privacy-defaults.md)). `trail` checks

@@ -170,7 +170,7 @@ sequenceDiagram
         Agent->>Adapter: the same action again
         Adapter->>Pipeline: ActionEnvelope and the proposed arguments
         Pipeline->>Store: the requests still held under this binding
-        Store-->>Pipeline: the held request and the approval's state
+        Store-->>Pipeline: what it holds under the binding, and whether it was approved
         Pipeline-->>Adapter: allow the held request only, consuming the approval once
         Adapter->>Tool: call
         Tool-->>Adapter: result

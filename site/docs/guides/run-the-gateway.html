@@ -30,7 +30,8 @@
 <p>You have an agent that speaks the Model Context Protocol (MCP) to one or more
 servers, and you want every call it makes decided from policy, enforced before
 the server sees it, and recorded. Start in <code>OBSERVE</code>, which records every call and
-enforces nothing, and move to <code>ENFORCE</code> once the tools are classified.</p>
+blocks only for the plane's own causes, and move to <code>ENFORCE</code> once the tools
+are classified.</p>
 <p>The gateway is <code>experimental</code>; <a href="/docs/status">status.md</a> says what runs and what
 does not. Nothing here is a security boundary yet.</p>
 <h2 id="prerequisites">Prerequisites</h2>
@@ -54,8 +55,7 @@ an environment variable under <code>GUARDANA_CONTROL_</code>, spelled as the key
 dots as underscores in capitals, and the variable wins, so a credential or a
 per-host path stays out of version control. A key the file names and this build
 does not is refused, and so is a variable under that prefix that names no key.
-<code>doctor</code> prints every key, its value and where it came from, a credential
-excepted; <a href="/docs/reference/configuration">configuration.md</a> lists every key.</p>
+<a href="/docs/reference/configuration">configuration.md</a> lists every key.</p>
 <pre><code class="language-yaml">mode: OBSERVE
 project_id: orders
 tenant_id: acme
@@ -94,13 +94,13 @@ upstreams:
   #     - FILES_ROOT
 </code></pre>
 <p>The listener in this build authenticates nobody, so every request on it is
-made by the principal configured here. An
-end-user identity bound from a token is not in this build, whatever an approver
-claims when answering; <a href="/docs/status">status.md</a> is the inventory.</p>
+made by the principal configured here; no end-user identity is bound from a
+token (<a href="/docs/status">status.md</a>).</p>
 <h3 id="2-check-the-configuration-before-serving">2. Check the configuration before serving</h3>
 <pre><code>guardana-gateway doctor --config gateway.yaml
 </code></pre>
-<p><code>doctor</code> prints one line per check, then every bound and where it came from.
+<p><code>doctor</code> checks the configuration, prints every key and its source, a
+credential excepted, then one line per other check.
 It serves nothing, and it stops at
 the first check it cannot make. A tool no override classifies is printed with
 the fingerprint of its definition, which is what step 4 needs. It does not lock
@@ -200,7 +200,7 @@ run, which the journal buys; <code>doctor</code> counts them
 <tbody>
 <tr>
 <td><code>evidence.max_bytes</code></td>
-<td>The unacknowledged bytes the spool may hold. Reached, an append fails, and a material call is blocked before its effect</td>
+<td>The bytes the spool may hold, its quarantine and the room kept for closing records included. Reached, a material call is blocked before its effect, and an oversized closing record fails after it</td>
 </tr>
 <tr>
 <td><code>evidence.fsync: interval</code></td>

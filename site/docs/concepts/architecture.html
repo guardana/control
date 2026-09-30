@@ -230,7 +230,7 @@ unrecorded.</p>
         Agent-&gt;&gt;Adapter: the same action again
         Adapter-&gt;&gt;Pipeline: ActionEnvelope and the proposed arguments
         Pipeline-&gt;&gt;Store: the requests still held under this binding
-        Store--&gt;&gt;Pipeline: the held request and the approval&#39;s state
+        Store--&gt;&gt;Pipeline: what it holds under the binding, and whether it was approved
         Pipeline--&gt;&gt;Adapter: allow the held request only, consuming the approval once
         Adapter-&gt;&gt;Tool: call
         Tool--&gt;&gt;Adapter: result

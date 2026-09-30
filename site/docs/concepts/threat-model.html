@@ -359,9 +359,12 @@ directly (<a href="/docs/adr/0025-public-repository-merges-and-releases">ADR-002
 <li>A binary built from source with <code>go install</code> carries no signature.</li>
 </ul>
 <h2 id="evidence-what-a-trail-proves">Evidence: what a trail proves</h2>
-<p>Events are written to a spool before any effect, and a call whose event
-cannot be written is blocked, unless <code>evidence.on_unwritable: allow_reads</code>
-lets a read run unrecorded (<a href="/docs/concepts/evidence-and-the-spool">evidence</a>). That makes the evidence exist before the effect; it does not make it
+<p>The events before an effect are written to a spool first, and a call whose
+event cannot be written is blocked, unless <code>evidence.on_unwritable: allow_reads</code>
+lets a read run unrecorded (<a href="/docs/concepts/evidence-and-the-spool">evidence</a>). The
+closing event is written after the effect: when the spool refuses it, the
+result still reaches the agent, the trail stays open, and every material call
+is blocked until an append succeeds again. That makes the evidence exist before the effect; it does not make it
 tamper-evident. No hash links the events, and no
 checkpoint is signed: <code>prev_event_digest</code> is left empty
 (<a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>). <code>trail</code> checks
