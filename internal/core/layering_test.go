@@ -9,8 +9,8 @@
 // behind a build constraint for another platform, or assembly that needs no
 // import at all, would pass every check on each machine the gate runs on. Both
 // are refused rather than walked once per platform: a file a listing leaves
-// out, natively or for foreignPlatform, any source that is not plain Go, and
-// any build constraint line, which is read as text.
+// out, natively or for foreignPlatform, a file neither listing names, any
+// source that is not plain Go, and any build constraint line, read as text.
 //
 // The three mechanisms carry the same lists and are edited independently, so
 // removing one does not remove the rule; layering_agreement_test.go fails when

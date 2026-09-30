@@ -84,8 +84,11 @@ fmt-check:
 	fi; \
 	echo "fmt-check: $$(echo "$$files" | wc -l | tr -d ' ') file(s) clean (gofmt, goimports)"
 
+# The second vet compiles the non-unix side of the build constraints, which no
+# workflow runner and no release target builds.
 vet:
 	$(CD) $(GO) vet $(PKGS)
+	$(CD) GOOS=windows GOARCH=amd64 $(GO) vet $(PKGS)
 	@$(RUN) \
 	gens=$$(. $(REPO_FILES); repo_files 'scripts/*.go'); \
 	if [[ -z "$$gens" ]]; then \

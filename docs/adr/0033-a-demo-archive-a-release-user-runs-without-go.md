@@ -38,9 +38,11 @@ groups exist, and on any other system nothing said so before it misbehaved.
   demo.
 - **The archive is checked, not its configuration.**
   `scripts/check-demo-archive.sh` extracts this machine's demo archive from
-  goreleaser's `dist/`, requires every non-Go file of the demo the repository
-  holds to be there and equal, and `call.sh` to be executable, and runs every
-  scenario from it with no Go on `PATH`. `release.yml` runs it after the build
+  goreleaser's `dist/`, requires `dist/` to be built from the checkout's
+  `HEAD` and the archive's gateway to report the version `dist/` names, every
+  non-Go file of the demo the repository holds to be there and equal, and
+  `call.sh` to be executable, and runs every scenario from it with no Go on
+  `PATH`, each reporting its own passed line. `release.yml` runs it after the build
   and before anything is attested or published, and `make check-demo-archive`
   runs it after `make release-snapshot`.
 - **An unsupported platform is refused first.** `dev` refuses a system without

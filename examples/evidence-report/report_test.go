@@ -118,13 +118,20 @@ func TestReport(t *testing.T) {
 
 func trailerCases(r1 []string) []reportCase {
 	x := newExport("1.0").event(r1...)
+	cutTail := newExport("1.0").event(r1...).partialTail()
 	return []reportCase{
 		{name: "a trailer short of the file's end", in: x.cut() + x.trailerLine(false, 0) + "\n",
 			rows: []string{rowAllowed}, totals: oneCompleted + "gaps 0, duplicates 0, conflicting 0, refused 0; trailer end not reached",
 			code: 1, stderr: "end"},
-		{name: "a line still being written", in: x.cut() + x.trailerLine(true, 20) + "\n",
+		{name: "a line still being written", in: x.cut() + x.heldTrailerLine(true, 20, true) + "\n",
 			rows: []string{rowAllowed}, totals: oneCompleted + "gaps 0, duplicates 0, conflicting 0, refused 0; trailer 20 bytes still being written",
-			code: 1, stderr: "being written"},
+			code: 1, stderr: "the trailer says 20 bytes are still being written: export again once they end"},
+		{name: "a cut line no writer holds", in: cutTail.cut() + cutTail.trailerLine(true, 20) + "\n",
+			rows: []string{rowAllowed}, totals: oneCompleted + "gaps 1, duplicates 0, conflicting 0, refused 0; trailer 20 bytes cut, no writer holds them",
+			code: 1, stderr: "the trailer says the 20 bytes after the last newline are a cut line no writer holds: the file is damaged there"},
+		{name: "a trailer without writer_held", in: x.cut() + strings.Replace(x.trailerLine(true, 0), `"writer_held":false,`, "", 1) + "\n",
+			rows: []string{rowAllowed}, totals: oneCompleted + "gaps 0, duplicates 0, conflicting 0, refused 1; no trailer read, the export is not whole",
+			code: 1, stderr: "writer_held"},
 		{name: "a trailer counting other records", in: x.cut() + strings.Replace(x.trailerLine(true, 0), `"event":4`, `"event":5`, 1) + "\n",
 			rows: []string{rowAllowed}, totals: oneCompleted + "gaps 0, duplicates 0, conflicting 0, refused 1; no trailer read, the export is not whole",
 			code: 1, stderr: "counts"},
@@ -186,6 +193,9 @@ func eventCases(r1 []string) []reportCase {
 			rows:   []string{"t\tp\t-\trun-r1\tread_order\t-\t-\tno\t-\tunknown\tan event names no tenant, project or request"},
 			totals: "totals: requests 1, completed 0, failed 0, aborted 0, blocked 0, open 0, unknown 1; gaps 0, duplicates 0, conflicting 0, refused 0" + endReached,
 			code:   1, stderr: "not every request"},
+		{name: "a replacement character in a value is quoted", in: newExport("1.0").event(chain("r1", step{"ACTION_PROPOSED", proposed("read�order")}, allowed[1], allowed[2], allowed[3])...).whole(),
+			rows:   []string{"t\tp\tr1\trun-r1\t\"read�order\"\tALLOW\tRULE_ALLOW\tno\t-\tcompleted\t-"},
+			totals: oneCompleted + "gaps 0, duplicates 0, conflicting 0, refused 0" + endReached},
 	}
 }
 

@@ -99,7 +99,7 @@ func (x *export) readTrailer(b []byte, ms []member) {
 		x.refuse(why)
 		return
 	}
-	x.trailer = &trailerState{endReached: *r.EndReached, tailBytes: *r.TailBytes}
+	x.trailer = &trailerState{endReached: *r.EndReached, tailBytes: *r.TailBytes, writerHeld: *r.WriterHeld}
 }
 
 // trailerDefect names what keeps a trailer from saying where the export
@@ -112,6 +112,8 @@ func trailerDefect(r trailerRecord) string {
 		return "a trailer without a tail_bytes count"
 	case *r.TailBytes < 0:
 		return fmt.Sprintf("a trailer whose tail_bytes is %d", *r.TailBytes)
+	case r.WriterHeld == nil:
+		return "a trailer without writer_held"
 	case r.NextCursor != nil && !isCursor(*r.NextCursor):
 		return fmt.Sprintf("a trailer whose next_cursor %s is not a v1 cursor", safe(*r.NextCursor))
 	case !*r.EndReached && r.NextCursor == nil:

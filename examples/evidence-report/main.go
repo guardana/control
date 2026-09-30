@@ -15,7 +15,8 @@
 // chain validator allows, every event naming the same declared enforcement
 // mode, the verdict one the contract declares, and a run ending with a result
 // that says how it ended. Under a mode that enforces, the action ran only
-// after a verdict that let it or an approval answered yes.
+// after a verdict that let it, or after REQUIRE_APPROVAL and an approval
+// answered yes; an approval never lifts a DENY or an INDETERMINATE.
 //
 // What it cannot prove: that a record was not altered, since the link is an
 // ordering and not a digest; or that the plane recorded everything. A record
@@ -124,8 +125,10 @@ func (x *export) missing(t totals) []string {
 		out = append(out, "the export has no trailer read: it was cut short, and what it holds is not all there was")
 	case !x.trailer.endReached:
 		out = append(out, "the trailer says the file's end was not reached: export again after its next_cursor")
-	case x.trailer.tailBytes > 0:
+	case x.trailer.tailBytes > 0 && x.trailer.writerHeld:
 		out = append(out, fmt.Sprintf("the trailer says %d bytes are still being written: export again once they end", x.trailer.tailBytes))
+	case x.trailer.tailBytes > 0:
+		out = append(out, fmt.Sprintf("the trailer says the %d bytes after the last newline are a cut line no writer holds: the file is damaged there", x.trailer.tailBytes))
 	}
 	if t.open > 0 || t.unknown > 0 {
 		out = append(out, fmt.Sprintf("not every request's lifecycle is complete: %d open, %d unknown", t.open, t.unknown))
@@ -139,8 +142,10 @@ func (x *export) trailerState() string {
 		return "no trailer read, the export is not whole"
 	case !x.trailer.endReached:
 		return "trailer end not reached"
-	case x.trailer.tailBytes > 0:
+	case x.trailer.tailBytes > 0 && x.trailer.writerHeld:
 		return fmt.Sprintf("trailer %d bytes still being written", x.trailer.tailBytes)
+	case x.trailer.tailBytes > 0:
+		return fmt.Sprintf("trailer %d bytes cut, no writer holds them", x.trailer.tailBytes)
 	default:
 		return "trailer end reached"
 	}

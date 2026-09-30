@@ -97,18 +97,25 @@ func (w *walker) modeDefect(id string, mode controlv1.EnforcementMode) string {
 }
 
 // authorized holds a start to its decision: a verdict that lets the action
-// run or an approval answered yes, and never an approval answered no. Only a
-// mode that enforces nothing lets a start go against it, and the row says so.
+// run, or REQUIRE_APPROVAL and an approval answered yes, and never an
+// approval answered no. The plane asks for an approval only after
+// REQUIRE_APPROVAL or, under APPROVE, an allowed material call, so an
+// approval never lifts a DENY or an INDETERMINATE. Only a mode that enforces
+// nothing lets a start go against its decision, and the row says so.
 func (w *walker) authorized(id string) string {
+	verdict := "verdict " + strings.TrimPrefix(w.verdict.String(), "VERDICT_")
 	var after string
 	switch {
 	case w.answer == "rejected":
 		after = "its approval was rejected"
-	case w.answer != "approved" && w.verdict != controlv1.Verdict_VERDICT_ALLOW &&
-		w.verdict != controlv1.Verdict_VERDICT_ALLOW_WITH_OBLIGATIONS:
-		after = "verdict " + strings.TrimPrefix(w.verdict.String(), "VERDICT_") + " and no approval"
-	default:
+	case w.verdict == controlv1.Verdict_VERDICT_ALLOW, w.verdict == controlv1.Verdict_VERDICT_ALLOW_WITH_OBLIGATIONS:
 		return ""
+	case w.verdict == controlv1.Verdict_VERDICT_REQUIRE_APPROVAL && w.answer == "approved":
+		return ""
+	case w.answer == "approved":
+		after = verdict + ", which no approval lifts"
+	default:
+		after = verdict + " and no approval"
 	}
 	switch w.mode {
 	case controlv1.EnforcementMode_ENFORCEMENT_MODE_OBSERVE, controlv1.EnforcementMode_ENFORCEMENT_MODE_WARN:

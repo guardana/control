@@ -171,7 +171,7 @@ func pending(p *gateway.Pending) *mcp.CallToolResult {
 			keyApprovalID:   p.ApprovalID,
 			keyActionDigest: p.ActionDigest,
 			keyExpiresAt:    p.ExpiresAt.UTC().Format(time.RFC3339),
-			keyRetryAfter:   int64(p.RetryAfter / time.Second),
+			keyRetryAfter:   int64((p.RetryAfter + time.Second - 1) / time.Second),
 		},
 	}
 	out.Meta = mcp.Meta{metaKeyAnswer: answerPending}

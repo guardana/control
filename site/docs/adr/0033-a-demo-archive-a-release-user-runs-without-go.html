@@ -59,9 +59,11 @@ point on the loopback stands, as before. No port is fixed anywhere in the
 demo.</li>
 <li><strong>The archive is checked, not its configuration.</strong>
 <code>scripts/check-demo-archive.sh</code> extracts this machine's demo archive from
-goreleaser's <code>dist/</code>, requires every non-Go file of the demo the repository
-holds to be there and equal, and <code>call.sh</code> to be executable, and runs every
-scenario from it with no Go on <code>PATH</code>. <code>release.yml</code> runs it after the build
+goreleaser's <code>dist/</code>, requires <code>dist/</code> to be built from the checkout's
+<code>HEAD</code> and the archive's gateway to report the version <code>dist/</code> names, every
+non-Go file of the demo the repository holds to be there and equal, and
+<code>call.sh</code> to be executable, and runs every scenario from it with no Go on
+<code>PATH</code>, each reporting its own passed line. <code>release.yml</code> runs it after the build
 and before anything is attested or published, and <code>make check-demo-archive</code>
 runs it after <code>make release-snapshot</code>.</li>
 <li><strong>An unsupported platform is refused first.</strong> <code>dev</code> refuses a system without

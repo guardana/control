@@ -2,10 +2,12 @@
 # shellcheck source-path=SCRIPTDIR
 # Runs the demo the way a release user does: from this machine's demo archive
 # in a goreleaser dist/ directory, extracted outside any checkout, with no Go
-# on PATH. It fails unless the archive holds every file of the demo the
-# repository holds, call.sh is executable, and every scenario passes on the
-# archive's own binaries. It reads the archive goreleaser built, not a copy of
-# its configuration, so what it proves is what a tag would publish.
+# on PATH. It fails unless dist/ was built from the checkout's HEAD, the
+# archive's gateway reports the version dist/ names, the archive holds every
+# file of the demo the repository holds, call.sh is executable, and each
+# scenario reports its own passed line on the archive's own binaries. It reads
+# the archive goreleaser built, not a copy of its configuration, so what it
+# proves is what a tag would publish.
 #
 #   scripts/check-demo-archive.sh dist
 set -euo pipefail
@@ -34,6 +36,27 @@ case "$(uname -m)" in
   *) die "no demo archive is built for $(uname -m)" ;;
 esac
 
+# metadata.json is one line of JSON goreleaser writes. member prints the
+# string it gives a name, and refuses one absent, repeated or holding an
+# escape rather than decoding it.
+[[ -f "${dist}/metadata.json" ]] || die "${dist} holds no metadata.json to say what it was built from"
+meta="$(cat "${dist}/metadata.json")"
+member() {
+  local key="\"$1\":" re
+  re="${key}\"([^\"\\]*)\""
+  [[ "${meta}" =~ ${re} ]] || die "${dist}/metadata.json names no $1 as a plain string"
+  [[ "${meta#*"${key}"}" != *"${key}"* ]] || die "${dist}/metadata.json names $1 more than once"
+  printf '%s' "${BASH_REMATCH[1]}"
+}
+built="$(member commit)" || exit 1
+version="$(member version)" || exit 1
+[[ "${built}" =~ ^[0-9a-f]{40}$ ]] || die "${dist}/metadata.json names commit ${built}, not a full commit id"
+[[ "${version}" =~ ^[0-9A-Za-z][0-9A-Za-z.+_-]*$ ]] || die "${dist}/metadata.json names version ${version}, which is not one word"
+
+root="$(repo_root)"
+head="$(git -C "${root}" rev-parse --verify 'HEAD^{commit}')" || die "the checkout's HEAD could not be read"
+[[ "${built}" == "${head}" ]] || die "${dist} was built from ${built}, and the checkout is at ${head}"
+
 archives=()
 for f in "${dist}"/guardana-control-demo_*_"${goos}_${goarch}".tar.gz; do
   [[ -f "${f}" ]] && archives+=("${f}")
@@ -41,7 +64,6 @@ done
 [[ ${#archives[@]} -eq 1 ]] || die "want one demo archive for ${goos}/${goarch} in ${dist}, found ${#archives[@]}"
 archive="${archives[0]}"
 
-root="$(repo_root)"
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 # -p keeps each entry's mode as the archive holds it, so the mode check below
@@ -55,6 +77,22 @@ top="${work}/$(basename "${archive}" .tar.gz)"
 for bin in guardana-gateway guardana-control vulnerable-mcp-agent; do
   [[ -x "${top}/bin/${bin}" ]] || die "the archive holds no executable bin/${bin}"
 done
+
+# The runs below get a PATH with no Go on it and a home of their own, as a
+# user's machine without a toolchain would.
+path=/usr/bin:/bin
+if env -i PATH="${path}" bash -c 'command -v go' >/dev/null 2>&1; then
+  die "go is on ${path} here, so the run would not prove it needs none"
+fi
+mkdir -p "${work}/home"
+
+# With no arguments the gateway prints its name, its version and the product's
+# name in parentheses on its first line.
+said="$(cd "${work}" && env -i PATH="${path}" HOME="${work}/home" "${top}/bin/guardana-gateway")" ||
+  die "the archive's bin/guardana-gateway exited $? when asked its version"
+said="${said%%$'\n'*}"
+[[ "${said}" == "guardana-gateway ${version} ("*")" ]] ||
+  die "the archive's bin/guardana-gateway says \"${said}\", not version ${version}"
 
 # Every file of the demo the repository holds, but its Go sources, ships.
 demo=examples/vulnerable-mcp-agent
@@ -82,22 +120,21 @@ for s in "${scenarios[@]}"; do
   args+=(--scenario "${s}")
 done
 
-# The run gets a PATH with no Go on it and a home of its own, as a user's
-# machine without a toolchain would.
-path=/usr/bin:/bin
-if env -i PATH="${path}" bash -c 'command -v go' >/dev/null 2>&1; then
-  die "go is on ${path} here, so the run would not prove it needs none"
-fi
-mkdir -p "${work}/home"
 out="${work}/run.txt"
 rc=0
 (cd "${top}" && env -i PATH="${path}" HOME="${work}/home" \
   bin/guardana-gateway dev --decision-point=silent --state "${work}/state" \
   --config "${demo}/demo.yaml" --policy "${demo}/policy.json" "${args[@]}") >"${out}" 2>&1 || rc=$?
-passed="$(grep -c ' passed$' "${out}" || true)"
-if [[ ${rc} -ne 0 || "${passed}" -ne ${#scenarios[@]} ]]; then
+# dev names each scenario by its file's base name, and a scenario that passed
+# ends with one line saying so.
+passed=0
+for s in "${scenarios[@]}"; do
+  n="$(grep -Fxc "$(basename "${s}") passed" "${out}" || true)"
+  [[ "${n}" -eq 1 ]] && passed=$((passed + 1))
+done
+if [[ ${rc} -ne 0 || ${passed} -ne ${#scenarios[@]} ]]; then
   cat "${out}" >&2
-  die "dev exited ${rc} with ${passed} of ${#scenarios[@]} scenario(s) passed"
+  die "dev exited ${rc} with ${passed} of ${#scenarios[@]} scenario(s) reporting one passed line of their own"
 fi
-printf 'check-demo-archive: %s: %d file(s) of the demo present, %d scenario(s) passed with no Go on PATH\n' \
-  "$(basename "${archive}")" "${files}" "${passed}"
+printf 'check-demo-archive: %s: built from %s, version %s, %d file(s) of the demo present, %d scenario(s) passed with no Go on PATH\n' \
+  "$(basename "${archive}")" "${head}" "${version}" "${files}" "${passed}"

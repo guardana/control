@@ -145,6 +145,31 @@ func TestPendingIsAToolResult(t *testing.T) {
 	})
 }
 
+// TestPendingRetryAfterRoundsUp: the hint is whole seconds, and a fraction
+// rounds up, so a sub-second setting never tells the agent to retry at once.
+func TestPendingRetryAfterRoundsUp(t *testing.T) {
+	for _, tc := range []struct {
+		after time.Duration
+		want  float64
+	}{{500 * time.Millisecond, 1}, {1500 * time.Millisecond, 2}, {2 * time.Second, 2}} {
+		t.Run(tc.after.String(), func(t *testing.T) {
+			r := newRig(t, mcp.KindStatelessHTTP, rigOptions{})
+			r.pipe.decide = func(gateway.Admission) gateway.Disposition {
+				return gateway.Disposition{Action: core.AwaitApproval, Pending: &gateway.Pending{
+					ApprovalID: "apr-1", ActionDigest: "sha256:" + string(bytes.Repeat([]byte("a"), 64)), ExpiresAt: time.Now(), RetryAfter: tc.after,
+				}}
+			}
+			res, err := callTool(t, r.connect(t, "agent-a"), "transfer", map[string]any{"amount": 5, "account": "acc-1"})
+			if err != nil || !res.IsError {
+				t.Fatalf("pending on the wire: %v %+v", err, res)
+			}
+			if got := structured(t, res)["retry_after"]; got != tc.want {
+				t.Fatalf("retry_after %v for %v, want %v", got, tc.after, tc.want)
+			}
+		})
+	}
+}
+
 // TestMismatchNeverSends: a disposition whose digest is not the digest of
 // its bytes is refused before the send, answered as EXECUTED_ARGS_MISMATCH,
 // and aborted, never closed with bytes nothing sent.

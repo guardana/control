@@ -8,8 +8,10 @@
 #                                       through a helper package, each file a
 #                                       guarded package holds that is not plain
 #                                       Go built on this platform or that the
-#                                       foreign platform leaves out, and each Go
-#                                       file with a build constraint line
+#                                       foreign platform leaves out, each Go
+#                                       file with a build constraint line, and
+#                                       a package left out of every listing by
+#                                       its file's name
 #   layering_test.go                    each //nolint that excuses a guarded
 #                                       file from depguard or forbidigo
 #   golangci-lint, depguard             every planted import, and net/http in
@@ -22,9 +24,10 @@
 # The lint fixture goes into every package of every guarded tree, its package
 # clause rewritten, and into one new package per tree, which also takes the
 # platform fixture. An exclusion that spares a path, a file name or generated
-# code therefore loses a refusal wherever it lands. golangci-lint runs with the
-# configuration `make lint` names and every linter that configuration enables,
-# so what the probe proves is what `make lint` runs.
+# code therefore loses a refusal wherever it lands. A second new package per
+# tree holds only a file its name keeps to FreeBSD, so no listing names it.
+# golangci-lint runs with the configuration `make lint` names and every linter
+# that configuration enables, so what the probe proves is what `make lint` runs.
 #
 # A mechanism that fails without naming the reason, because the probe stopped
 # compiling for instance, has refused nothing, and the probe fails.
@@ -60,6 +63,7 @@ not_allowed="which the dependency rule does not allow"
 left_out="which build constraints leave out on this platform"
 foreign_out="which build constraints leave out on ${foreign_platform[0]}/${foreign_platform[1]}"
 constrained="holds a build constraint, so it may not build from the same files on every platform"
+unlisted="is named by no go list listing on"
 
 # The packages of the guarded trees as the repository holds them, listed before
 # anything is planted, one "<directory> <package name>" line each; then the new
@@ -102,6 +106,7 @@ while read -r dir name; do
 done <<<"${targets}"
 for tree in "${guarded[@]}"; do
   plant platform "${tree}/ioprobe" ioprobe
+  plant nameonly "${tree}/nameprobe" nameprobe
 done
 
 failures=0
@@ -167,6 +172,8 @@ expect_walker() {
     done
     expect "$1" "$2${module}/${tree}/ioprobe holds zz_probe_s390x.s, ${left_out}"
     expect "$1" "$2${module}/${tree}/ioprobe holds zz_probe.s, which is not plain Go (SFiles)"
+    expect "$1" "$2${tree}/nameprobe/zz_probe_freebsd.go ${unlisted} this platform"
+    expect "$1" "$2${tree}/nameprobe/zz_probe_freebsd.go ${unlisted} ${foreign_platform[0]}/${foreign_platform[1]}"
   done
   expect "$1" "$2${helper} imports os/exec, ${not_allowed}"
 }
@@ -175,7 +182,8 @@ run check-imports.sh scripts/check-imports.sh
 expect_walker check-imports.sh "FAIL "
 
 run layering_test.go go test -count=1 \
-  -run '^(TestGuardedTreesImportOnlyAllowedPackages|TestGuardedTreesTakeNoInlineException|TestGuardedFilesHoldNoBuildConstraint)$' ./internal/core/
+  -run '^(TestGuardedTreesImportOnlyAllowedPackages|TestGuardedTreesTakeNoInlineException|TestGuardedFilesHoldNoBuildConstraint|TestGuardedFilesAreNamedByEveryListing)$' \
+  ./internal/core/
 expect_walker layering_test.go ""
 for dir in "${lint_dirs[@]}"; do
   expect layering_test.go "${dir}/zz_probe.go:" "excuses a guarded file from forbidigo"

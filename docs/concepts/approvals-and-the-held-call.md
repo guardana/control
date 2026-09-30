@@ -246,7 +246,7 @@ only an approved, unconsumed record passes.
 | Setting | Bounds | Past it |
 | --- | --- | --- |
 | `ApprovalTTL` | how long a requested approval can be answered and consumed; `expires_at` is the hold's clock reading plus it | expired |
-| `RetryAfter` | what the agent is told to wait before retrying | nothing: a retry before an answer is told to retry again |
+| `RetryAfter` | what the agent is told to wait before retrying, in whole seconds rounded up | nothing: a retry before an answer is told to retry again |
 | `MaxHeld` | the requests held and not yet expired | the hold is refused with `EVIDENCE_UNAVAILABLE` |
 | `MaxOpen` | the executions handed out and not yet closed | the call, resumed or not, blocks with `EVIDENCE_UNAVAILABLE` |
 | `maxSweep` | the expired holds one call closes on its way in | the rest wait for the next call |

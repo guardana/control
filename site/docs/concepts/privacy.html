@@ -121,7 +121,10 @@ setting for it: the MCP adapter builds the arguments message with the hash
 alone, the authorized envelope clears any preview
 (<code>internal/gateway/authorize.go</code>), and the plane clears both previews and
 their profiles from every event it hands the sink, whatever an adapter set
-(<code>uncaptured</code> in <code>internal/gateway/trails.go</code>). Capture is off, and nothing turns it on.</p>
+(<code>uncapture</code> in <code>internal/gateway/trails.go</code>). Capture is off, and nothing turns it on.
+The collector that <code>collect</code> runs clears the same fields from every event it
+receives before its trail file holds it, so a previewed event another producer
+sends is not kept either (<code>adapters/otel/receiver.go</code>).</p>
 <p>Hidden model reasoning is never stored at any setting. MCP does not carry it
 to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <h2 id="where-records-go-and-who-can-read-them">Where records go, and who can read them</h2>
@@ -162,7 +165,7 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <tr>
 <td>the approvals page and <code>approvals list</code></td>
 <td>the projection, and the approval's state, ids, digests, expiry and approver; no arguments, no preview, no trail</td>
-<td>whoever holds the page's session, on <code>127.0.0.1</code> (<a href="/docs/reference/console">reference/console</a>)</td>
+<td>the page: whoever holds its session, on <code>127.0.0.1</code> (<a href="/docs/reference/console">reference/console</a>); <code>approvals list</code>: any account that can read the approvals directory</td>
 </tr>
 <tr>
 <td>the hold journal, <code>approvals.hold_journal_dir</code></td>

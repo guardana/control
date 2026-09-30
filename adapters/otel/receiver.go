@@ -42,7 +42,9 @@ type Sink interface {
 //     application/json in UTF-8, or that carries a content coding.
 //
 // No answer carries a body, and a log line names a refusal without quoting
-// the request.
+// the request. The previews of arguments and results, and the profiles naming
+// them, are cleared before the sink sees an event, whatever the sender's
+// capture setting was.
 func NewReceiver(sink Sink, log *slog.Logger) (http.Handler, error) {
 	if sink == nil {
 		return nil, ErrNoSink
@@ -90,6 +92,9 @@ func (h *receiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, http.StatusBadRequest, err)
 		return
 	}
+	for _, ev := range events {
+		uncapture(ev)
+	}
 	if len(events) > 0 {
 		err := h.sink.Append(r.Context(), events)
 		if errors.Is(err, ErrSinkRefused) {
@@ -104,6 +109,18 @@ func (h *receiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// uncapture clears the previews on ev in place, the fields the plane clears
+// before its own sink when capture is off. Neither is a digest input, and the
+// chain links events by id, so a trail checks the same without them.
+func uncapture(ev *controlv1.Event) {
+	if a := ev.GetProposed().GetArguments(); a != nil {
+		a.RedactedPreview, a.RedactionProfile = "", ""
+	}
+	if r := ev.GetResult(); r != nil {
+		r.RedactedResultPreview, r.RedactionProfile = "", ""
+	}
 }
 
 func (h *receiver) refuse(w http.ResponseWriter, status int, err error) {

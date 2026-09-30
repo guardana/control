@@ -109,13 +109,13 @@ func resourceAllowed(id string, params map[string]string) bool {
 
 // plainBelow reports whether the path from the segment the prefix ends in
 // avoids every spelling this adapter knows a resolver to read as leaving it:
-// a percent escape, a `;` parameter, a backslash, a byte outside printable
+// a percent escape, a `;` parameter, a `?` or `#`, which a URI resolver cuts
+// before it removes dot segments, a backslash, a byte outside printable
 // ASCII, a segment of only dots and spaces, and an empty segment but a
 // trailing one. The upstream's own resolver is not consulted.
 func plainBelow(rest string) bool {
 	for i := 0; i < len(rest); i++ {
-		b := rest[i]
-		if b < 0x20 || b > 0x7e || b == '%' || b == ';' || b == '\\' {
+		if !plainByte(rest[i]) {
 			return false
 		}
 	}
@@ -132,4 +132,14 @@ func plainBelow(rest string) bool {
 		}
 	}
 	return true
+}
+
+// plainByte reports whether b is printable ASCII that no resolver reads as
+// an escape, a parameter, a query, a fragment or a separator.
+func plainByte(b byte) bool {
+	switch b {
+	case '%', ';', '?', '#', '\\':
+		return false
+	}
+	return b >= 0x20 && b <= 0x7e
 }

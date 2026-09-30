@@ -63,6 +63,7 @@ type eventKey struct{ tenant, project, id string }
 type trailerState struct {
 	endReached bool
 	tailBytes  int64
+	writerHeld bool
 }
 
 // readExport reads an export to its end. The error is a refusal of the whole

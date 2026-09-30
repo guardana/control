@@ -15,12 +15,16 @@
 # machine the gate runs on. No Go file of a guarded tree, tests included, may
 # carry a build constraint line either: that is read as text, because a
 # constraint every listed platform satisfies leaves nothing out of a listing.
+# And every Go file of a guarded tree must be one go list names, natively and
+# for foreign_platform: a package whose only files a name suffix keeps to
+# another platform is in no listing at all, and neither are its imports.
 #
 # This script and depguard (.golangci.yml) each cover a half the other misses:
 #   - here: the in-module packages the non-test build reaches, which depguard
 #     does not see because it reads only each guarded file's own imports, the
 #     files of those packages that are not plain Go built on every platform,
-#     and the build constraint lines of the guarded trees' Go files;
+#     and the build constraint lines and listings of the guarded trees' Go
+#     files;
 #   - depguard: imports written in _test.go files, which `go list -deps`
 #     leaves out of the package's dependency set.
 set -euo pipefail
@@ -130,6 +134,30 @@ foreign_template='{{.ImportPath}}{{range .IgnoredGoFiles}} {{.}}{{end}}{{range .
 constraint_line="^($(printf '\357\273\277'))?[[:space:]]*//(go:build|[[:space:]]*[+]build)"
 constrained="holds a build constraint, so it may not build from the same files on every platform"
 
+# Every Go file of a package, the files it leaves out included, so that a file
+# no field names is one go list never reached.
+named_template='{{.ImportPath}}{{range .GoFiles}} {{.}}{{end}}{{range .CgoFiles}} {{.}}{{end}}{{range .TestGoFiles}} {{.}}{{end}}{{range .XTestGoFiles}} {{.}}{{end}}{{range .IgnoredGoFiles}} {{.}}{{end}}'
+
+# refuse_unnamed <named_template listing> <platform>
+# Adds a refusal for each file in `files` that the listing does not name. A
+# file a listing leaves out is refused by the file checks; one it does not name
+# is in a package no listing holds, or a file or directory go ignores.
+refuse_unnamed() {
+  local names=$'\n' file i
+  local -a fields
+  while read -r -a fields; do
+    [[ ${#fields[@]} -gt 0 && "${fields[0]}" == "${module}/"* ]] || continue
+    for ((i = 1; i < ${#fields[@]}; i++)); do
+      names+="${fields[0]#"${module}/"}/${fields[i]}"$'\n'
+    done
+  done <<<"$1"
+  for file in "${files[@]}"; do
+    if [[ "${names}" != *$'\n'"${file}"$'\n'* ]]; then
+      refusals+="FAIL ${file} is named by no go list listing on $2, so the rule never examines it"$'\n'
+    fi
+  done
+}
+
 checked=0
 sources=0
 failures=0
@@ -186,6 +214,21 @@ for dir in "${guarded[@]}"; do
         refusals+="FAIL ${file} ${constrained}"$'\n'
       fi
     done <<<"${matched}"
+
+    # A pattern that matches no package prints a warning and exits 0; every
+    # file is then unnamed and refused.
+    if listing="$(go list -f "${named_template}" "${pattern}")"; then
+      refuse_unnamed "${listing}" "this platform"
+    else
+      printf 'FAIL %s: go list failed\n' "${pattern}" >&2
+      failures=$((failures + 1))
+    fi
+    if listing="$(GOOS="${foreign_platform[0]}" GOARCH="${foreign_platform[1]}" go list -f "${named_template}" "${pattern}")"; then
+      refuse_unnamed "${listing}" "${foreign}"
+    else
+      printf 'FAIL %s: go list for %s failed\n' "${pattern}" "${foreign}" >&2
+      failures=$((failures + 1))
+    fi
   fi
 
   if ! listing="$(go list -deps -f "${template}" "${pattern}")"; then
@@ -263,7 +306,7 @@ if [[ ${nrefusals} -gt 0 ]]; then
   printf '%s' "${refusals}" | LC_ALL=C sort -u >&2
 fi
 
-printf 'check-imports: %d of %d tree(s) checked; %d package(s) of this module and %d import(s) examined; %d Go file(s) read for build constraints; %d violation(s)\n' \
+printf 'check-imports: %d of %d tree(s) checked; %d package(s) of this module and %d import(s) examined; %d Go file(s) read for build constraints and sought in both listings; %d violation(s)\n' \
   "${checked}" "${#guarded[@]}" "${npackages}" "${nimports}" "${sources}" "$((nrefusals + failures))"
 
 # A run that examined nothing reports that, never a pass.

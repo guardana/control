@@ -192,3 +192,99 @@ func TestNotResumedBesideAConsumedNameItCannotReadIsRefused(t *testing.T) {
 		})
 	}
 }
+
+// TestAnAnswerThePlaneConsumesBeforeTheReReadIsFiled: the plane, another
+// process that takes no lock the approver shares, reads the answer, spends it
+// and unlinks the held and answered names before the approver reads back. The
+// action ran on this very answer, so the approver is told it was filed.
+func TestAnAnswerThePlaneConsumesBeforeTheReReadIsFiled(t *testing.T) {
+	p, dir, h := heldOne(t)
+	var spent *controlv1.Approval
+	opt, arm := afterLink(t, func() {
+		a, err := p.Consume(t.Context(), h.Binding, "req-1", firstApproval, minted.Add(2*time.Minute))
+		if err != nil {
+			t.Errorf("consuming between the answer's link and its re-read: %v", err)
+		}
+		spent = a
+	})
+	a := openApprover(t, dir, opt)
+	arm()
+	if _, err := a.Answer(t.Context(), firstApproval, controlv1.ApprovalState_APPROVAL_STATE_APPROVED, "approver-1", "signed off", minted.Add(time.Minute)); err != nil {
+		t.Fatalf("answering while the plane consumes that answer = %v, want nil", err)
+	}
+	if spent.GetApproverId() != "approver-1" || spent.GetReason() != "signed off" {
+		t.Fatalf("the plane spent %v, not the answer filed", spent)
+	}
+	assertNames(t, dir, consumedName)
+}
+
+// TestAnAnswerBesideAConsumedRecordIsFiledOnlyWhenItIsThatAnswer: a consumed
+// record a crashed plane left beside the held name is the answer's own only
+// when it carries the same state, approver, reason and decided time. Any one
+// of them apart is another answer that an execution spent, and this one is
+// refused and taken back.
+func TestAnAnswerBesideAConsumedRecordIsFiledOnlyWhenItIsThatAnswer(t *testing.T) {
+	// resolvedRecord answers with answerAt: APPROVED by approver-1, "signed
+	// off", a minute after minting.
+	body := resolvedRecord(t, consumedName)
+	approved := controlv1.ApprovalState_APPROVAL_STATE_APPROVED
+	cases := []struct {
+		name     string
+		state    controlv1.ApprovalState
+		approver string
+		reason   string
+		at       time.Time
+		refused  bool
+	}{
+		{"the same answer", approved, "approver-1", "signed off", minted.Add(time.Minute), false},
+		{"another state", controlv1.ApprovalState_APPROVAL_STATE_REJECTED, "approver-1", "signed off", minted.Add(time.Minute), true},
+		{"another approver", approved, "approver-2", "signed off", minted.Add(time.Minute), true},
+		{"another reason", approved, "approver-1", "signed off twice", minted.Add(time.Minute), true},
+		{"another time", approved, "approver-1", "signed off", minted.Add(time.Minute + time.Nanosecond), true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, dir, _ := heldOne(t)
+			opt, arm := afterLink(t, func() { writeFile(t, dir, consumedName, body) })
+			a := openApprover(t, dir, opt)
+			arm()
+			_, err := a.Answer(t.Context(), firstApproval, c.state, c.approver, c.reason, c.at)
+			if !c.refused {
+				if err != nil {
+					t.Fatalf("answering beside the consumed record of the same answer = %v, want nil", err)
+				}
+				assertNames(t, dir, consumedName)
+				return
+			}
+			if !errors.Is(err, approvals.ErrApprovalConsumed) {
+				t.Fatalf("answering beside the consumed record of another answer = %v, want ErrApprovalConsumed", err)
+			}
+			assertNames(t, dir, heldName, consumedName)
+		})
+	}
+}
+
+// TestAnAnswerBesideAnUnreadableConsumedRecordIsRefused: a consumed record
+// that cannot be read back as a record says nothing about which answer was
+// spent, so the answer is refused and taken back, never reported filed.
+func TestAnAnswerBesideAnUnreadableConsumedRecordIsRefused(t *testing.T) {
+	body := resolvedRecord(t, consumedName)
+	cases := map[string][]byte{
+		"garbage":  []byte("not a record"),
+		"cut":      body[:len(body)/2],
+		"oversize": append(slices.Clone(body), make([]byte, approvals.DefaultMaxRecordBytes)...),
+	}
+	for name, planted := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, dir, _ := heldOne(t)
+			opt, arm := afterLink(t, func() { writeFile(t, dir, consumedName, planted) })
+			a := openApprover(t, dir, opt)
+			arm()
+			_, err := a.Answer(t.Context(), firstApproval, controlv1.ApprovalState_APPROVAL_STATE_APPROVED, "approver-1", "signed off", minted.Add(time.Minute))
+			if !errors.Is(err, approvals.ErrApprovalConsumed) {
+				t.Fatalf("answering beside an unreadable consumed record = %v, want ErrApprovalConsumed", err)
+			}
+			assertNames(t, dir, heldName, consumedName)
+		})
+	}
+}

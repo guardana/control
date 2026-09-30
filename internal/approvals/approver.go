@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -277,7 +278,8 @@ func (a *Approver) pending(approvalID string, decidedAt time.Time) (Record, erro
 // file writes the answered record and takes the held name away behind it. The
 // link is the compare-and-swap; the re-read after it is what stops an answer
 // standing beside a record the plane already resolved, which only a crash
-// between a plane's link and its unlink can leave.
+// between a plane's link and its unlink can leave, or a plane that spent this
+// very answer in between.
 func (a *Approver) file(rec Record, answer controlv1.ApprovalState, approverID, reason string, decidedAt time.Time) error {
 	answered := rec.clone()
 	answered.Approval.State = answer
@@ -299,8 +301,10 @@ func (a *Approver) file(rec Record, answer controlv1.ApprovalState, approverID, 
 	for _, resolved := range []state{stateConsumed, stateNotResumed} {
 		err := a.s.present(rec.ApprovalID + resolved.suffix())
 		switch {
+		case err == nil && resolved == stateConsumed:
+			return a.spent(answered)
 		case err == nil:
-			return errors.Join(refusalFor(resolved), a.s.remove(rec.ApprovalID+stateAnswered.suffix()))
+			return errors.Join(ErrResolved, a.s.remove(rec.ApprovalID+stateAnswered.suffix()))
 		case !errors.Is(err, fs.ErrNotExist):
 			return errors.Join(err, a.s.remove(rec.ApprovalID+stateAnswered.suffix()))
 		}
@@ -308,10 +312,29 @@ func (a *Approver) file(rec Record, answer controlv1.ApprovalState, approverID, 
 	return a.s.remove(rec.ApprovalID + stateHeld.suffix())
 }
 
-// refusalFor names the refusal a resolved state answers an approver with.
-func refusalFor(s state) error {
-	if s == stateConsumed {
-		return ErrApprovalConsumed
+// spent answers an answer linked while a consumed record of its approval is
+// there. A plane holds no lock the approver shares, so it can read the answer,
+// spend it and unlink the answered and held names before the re-read. Only a
+// consumed record carrying this answer means it was filed; any other refuses it
+// and takes it back. The names behind it are removed either way, and one the
+// plane unlinked first is no failure.
+func (a *Approver) spent(answered Record) error {
+	id := answered.ApprovalID
+	raw, err := a.s.readBounded(id+stateConsumed.suffix(), headerBytes+a.s.opts.maxRecordBytes)
+	var consumed Record
+	if err == nil {
+		consumed, err = a.s.decodeAt(id, stateConsumed, raw)
 	}
-	return ErrResolved
+	if err != nil || !sameAnswer(consumed.Approval, answered.Approval) {
+		return errors.Join(ErrApprovalConsumed, err, a.s.remove(id+stateAnswered.suffix()))
+	}
+	return errors.Join(a.s.remove(id+stateAnswered.suffix()), a.s.remove(id+stateHeld.suffix()))
+}
+
+// sameAnswer reports whether two approvals carry the same answer.
+func sameAnswer(x, y *controlv1.Approval) bool {
+	return x.GetState() == y.GetState() &&
+		x.GetApproverId() == y.GetApproverId() &&
+		x.GetReason() == y.GetReason() &&
+		proto.Equal(x.GetDecidedAt(), y.GetDecidedAt())
 }

@@ -198,7 +198,9 @@ func ExportFile(path string, q Query, w io.Writer) (Trailer, error) {
 
 // seenAt is where an event id this export read was first seen, written or
 // passed by, and the digest of that line. One is kept per distinct id among
-// the lines scanned, so the scan's bounds bound them.
+// the lines scanned: the byte bound limits them when the query gives one, and
+// otherwise only the file's length does, since a line the filters pass by
+// counts against no record limit.
 type seenAt struct {
 	offset int64
 	line   digest

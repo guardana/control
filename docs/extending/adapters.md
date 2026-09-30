@@ -99,7 +99,7 @@ reads:
 | Type | Parameters | What it does to a call |
 | --- | --- | --- |
 | `read_only` | none | refuses a call whose effect is material |
-| `restrict_resources` | `ids` (comma-separated exact ids), `prefix` (a literal prefix) | refuses a call whose resource id matches neither; ids compare as text and are never resolved as paths; under `prefix`, counted from the segment the prefix ends in, it also refuses what a resolver could read as leaving the prefix: a `%`, a `;`, a backslash, a byte outside printable ASCII, a segment of only dots and spaces (`.`, `..`, `...`, `.. `) and an empty segment other than a trailing one; end a prefix with `/`, since `/srv/data` also matches `/srv/database`; with neither parameter, nothing matches |
+| `restrict_resources` | `ids` (comma-separated exact ids), `prefix` (a literal prefix) | refuses a call whose resource id matches neither; ids compare as text and are never resolved as paths; under `prefix`, counted from the segment the prefix ends in, it also refuses what a resolver could read as leaving the prefix: a `%`, a `;`, a `?` or `#`, a backslash, a byte outside printable ASCII, a segment of only dots and spaces (`.`, `..`, `...`, `.. `) and an empty segment other than a trailing one; end a prefix with `/`, since `/srv/data` also matches `/srv/database`; with neither parameter, nothing matches |
 | `shorten_timeout` | `ms` (a positive integer) | bounds this call by the shortest timeout the obligations ask for |
 | `deny_external_sink` | none | refuses a call whose destination trust zone is untrusted |
 

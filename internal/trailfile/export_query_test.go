@@ -102,6 +102,22 @@ func TestTheLimitCountsEveryRecord(t *testing.T) {
 	}
 }
 
+// TestALinePassedByTakesNoRecord: with the limit spent, a line the filters
+// pass by is still read, so the end is reached and the cursor moves past it.
+func TestALinePassedByTakesNoRecord(t *testing.T) {
+	body := file(lineE1, lineE3)
+	q := query()
+	q.Limit, q.Requests = 1, []string{"r1"}
+	e := runExport(t, body, false, q)
+	equal(t, "limit 1, the second line passed by", e.shorts(), []string{"event@0"})
+	if e.trailer.EndReached == nil || !*e.trailer.EndReached || e.trailer.NextCursor != cursorAfter(body, 2) {
+		t.Errorf("export written:\n%swant a trailer with end_reached true and next_cursor after line 2", e.raw)
+	}
+	if !e.result.EndReached || e.result.NextCursor != cursorAfter(body, 2) || e.result.ScannedBytes != int64(len(body)) {
+		t.Errorf("trailer returned %+v, want the end reached after both lines", e.result)
+	}
+}
+
 // TestTheTailsGapTakesARecord: with no room left for the tail's gap the end
 // is not reached, and the next export reports it.
 func TestTheTailsGapTakesARecord(t *testing.T) {

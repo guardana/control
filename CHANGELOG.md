@@ -50,9 +50,10 @@ verify one.
 ### Fixed
 
 - A `restrict_resources` obligation with a `prefix` let a resource id such
-  as `/srv/data/../../etc/passwd` or `/srv/data/%2e%2e/etc` through; under a
-  prefix, an id holding a segment of dots, an empty segment, a backslash, a
-  `%`, a `;` or a byte outside printable ASCII is now refused.
+  as `/srv/data/../../etc/passwd`, `/srv/data/%2e%2e/etc` or
+  `https://api.example/pub/..?x` through; under a prefix, an id holding a
+  segment of dots, an empty segment, a backslash, a `%`, a `;`, a `?`, a `#`
+  or a byte outside printable ASCII is now refused.
 - The plane recorded whatever preview an adapter put on a call's arguments or
   its result; every event now reaches the sink without previews, as capture
   is off.
@@ -60,6 +61,15 @@ verify one.
   hash; it is now `UNKNOWN`, with the protocol status `unhashable`.
 - An approver's answer succeeded beside a consumed or not-resumed record it
   could not read; the store now refuses it and takes the answer back.
+- An approver whose answer the plane spent between the approver's write and
+  its check was told the approval had been consumed; it is now told the
+  answer was filed, and any other consumed record still refuses it.
+- The collector kept the argument and result previews another producer sent;
+  it now clears them before the trail file holds an event. A trail file that
+  already holds such an event reads a copy sent again as other content.
+- A pending call told the agent to retry after 0 seconds when
+  `approvals.retry_after` was under a second; the hint now rounds up to whole
+  seconds.
 
 ## [0.2.0-alpha] - 2026-09-28
 

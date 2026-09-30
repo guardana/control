@@ -122,11 +122,24 @@ func (x *exportText) cut() string { return strings.Join(x.lines, "\n") + "\n" }
 // someCursor is spelled as a v1 cursor is, and names no file.
 var someCursor = "v1:" + strings.Repeat("a", 64) + ":2100:" + strings.Repeat("b", 64)
 
-// trailerLine is the trailer the exporter would write after these records.
+// trailerLine is the trailer the exporter would write after these records
+// while no writer holds the file.
 func (x *exportText) trailerLine(endReached bool, tail int) string {
-	return fmt.Sprintf(`{"type":"trailer","next_cursor":"%s","end_reached":%t,"tail_bytes":%d,"writer_held":false,`+
+	return x.heldTrailerLine(endReached, tail, false)
+}
+
+func (x *exportText) heldTrailerLine(endReached bool, tail int, held bool) string {
+	return fmt.Sprintf(`{"type":"trailer","next_cursor":"%s","end_reached":%t,"tail_bytes":%d,"writer_held":%t,`+
 		`"counts":{"event":%d,"gap":%d,"duplicate":%d},"scanned_bytes":%d,"dedup_scope":"export"}`,
-		someCursor, endReached, tail, x.events, x.gaps, x.n, x.offset)
+		someCursor, endReached, tail, held, x.events, x.gaps, x.n, x.offset)
+}
+
+// partialTail is the gap the exporter writes for the bytes after the last
+// newline when no writer holds the file: no newline ends them, so no cursor.
+func (x *exportText) partialTail() *exportText {
+	x.lines = append(x.lines, fmt.Sprintf(`{"type":"gap","offset":%d,"reason":"partial_tail"}`, x.offset))
+	x.gaps++
+	return x
 }
 
 func (x *exportText) whole() string { return x.cut() + x.trailerLine(true, 0) + "\n" }

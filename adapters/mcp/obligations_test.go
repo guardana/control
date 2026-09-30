@@ -112,6 +112,11 @@ func TestRestrictResourcesObligation(t *testing.T) {
 		{"prefix ending in dot-dot", map[string]string{"prefix": "/srv/data/.."}, "/srv/data/../etc", false},
 		{"id equal to a prefix ending in dot-dot", map[string]string{"prefix": "/srv/data/.."}, "/srv/data/..", false},
 		{"percent in an exact id is text", map[string]string{"ids": "/srv/data/%2e%2e"}, "/srv/data/%2e%2e", true},
+		{"https dot-dot before a query", map[string]string{"prefix": "https://api.example/pub/"}, "https://api.example/pub/..?x", false},
+		{"https dot-dot before a fragment", map[string]string{"prefix": "https://api.example/pub/"}, "https://api.example/pub/..#x", false},
+		{"file url dot-dot before an empty query", map[string]string{"prefix": "file:///srv/data/"}, "file:///srv/data/..?", false},
+		{"query below the prefix", map[string]string{"prefix": "/srv/data/"}, "/srv/data/a?b", false},
+		{"query in an exact id is text", map[string]string{"ids": "https://api.example/pub/a?x"}, "https://api.example/pub/a?x", true},
 		{"no parameter", nil, "/a", false},
 		{"empty ids", map[string]string{"ids": ""}, "", false},
 	}

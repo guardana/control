@@ -83,7 +83,10 @@ setting for it: the MCP adapter builds the arguments message with the hash
 alone, the authorized envelope clears any preview
 (`internal/gateway/authorize.go`), and the plane clears both previews and
 their profiles from every event it hands the sink, whatever an adapter set
-(`uncaptured` in `internal/gateway/trails.go`). Capture is off, and nothing turns it on.
+(`uncapture` in `internal/gateway/trails.go`). Capture is off, and nothing turns it on.
+The collector that `collect` runs clears the same fields from every event it
+receives before its trail file holds it, so a previewed event another producer
+sends is not kept either (`adapters/otel/receiver.go`).
 
 Hidden model reasoning is never stored at any setting. MCP does not carry it
 to the plane, no field of the contract holds it, and no adapter reads it.
@@ -97,7 +100,7 @@ to the plane, no field of the contract holds it, and no adapter reads it.
 | the collector at `export.endpoint` | every event, as the body of one OTLP log record, with its ids, kind and mode as attributes | whoever runs that collector and wherever it sends them; `https`, or plaintext to a loopback IP literal under `export.allow_plaintext` |
 | a trail file written by `collect` | every event the collector accepted, at least once | the account that ran `collect`: a new file is `0600`, and an existing one is refused only when others may write it |
 | the approvals directory | per held call, the approval record and a projection: principal, agent, tool, upstream, resource type and id, effect class, rule ids, times | the plane's account: records are `0600`, and the directory is refused when others may write it |
-| the approvals page and `approvals list` | the projection, and the approval's state, ids, digests, expiry and approver; no arguments, no preview, no trail | whoever holds the page's session, on `127.0.0.1` ([reference/console](../reference/console.md)) |
+| the approvals page and `approvals list` | the projection, and the approval's state, ids, digests, expiry and approver; no arguments, no preview, no trail | the page: whoever holds its session, on `127.0.0.1` ([reference/console](../reference/console.md)); `approvals list`: any account that can read the approvals directory |
 | the hold journal, `approvals.hold_journal_dir` | per hold, the trail's ids, the binding, the approval and its expiry; no envelope and no decision | the plane's account: entries are `0600` |
 | the pause file | each entry's scope and its optional reason | the plane's account, and any account the file's and directory's modes let read it |
 | the decision point at `pdp.identifier` | the principal, the action, the resource with its id, the destination, the data labels and the ids; never the arguments, their hash or a digest | whoever runs it, and a proxy configured for it ([ADR-0017](../adr/0017-an-external-decision-point-can-veto.md)) |
