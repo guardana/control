@@ -179,6 +179,11 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td><code>examples/vulnerable-mcp-agent/</code>, <a href="/docs/get-started/try-the-demo">get-started/try-the-demo.md</a>, <a href="/docs/adr/0033-a-demo-archive-a-release-user-runs-without-go">ADR-0033</a>. One binary serves the orders or the web server over standard input and output; <code>demo.yaml</code> and <code>policy.json</code> are what <code>dev</code> takes, and <code>dev --decision-point=silent</code> gives the plane a decision point on a port it binds and never answers, so demos run side by side. Each release carries a demo archive per platform that runs without Go or a checkout, and <code>scripts/check-demo-archive.sh</code> runs every scenario from the linux/amd64 one before a release is published. Its test builds the binaries, runs each scenario on its own plane through <code>dev</code>, reads what each server received, and fails one mutant of each scenario on the member it changed</td>
 </tr>
 <tr>
+<td>Runs an operator opens, each with its own durable flow state</td>
+<td><code>planned</code></td>
+<td><code>internal/runs/</code>, <code>guardana-control runs</code>, <a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a></td>
+</tr>
+<tr>
 <td>Agent-to-agent (A2A) adapter</td>
 <td><code>planned</code></td>
 <td><code>adapters/</code></td>

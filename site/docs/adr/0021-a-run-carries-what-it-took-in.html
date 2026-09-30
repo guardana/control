@@ -33,6 +33,9 @@ Date: 2026-09-24</p>
 <a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>.
 Amends <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a> on what a retry
 has to equal to resume a held request.</p>
+<p>Amended by <a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>:
+a run the operator opens, with a token, has an identity and a durable state of
+its own; a plane without a runs directory keeps the runs this record defines.</p>
 <h2 id="context">Context</h2>
 <p>The contract's toxic-flow predicate answers whether a call moves data read
 under untrusted influence, at or above a floor, to a destination that is not

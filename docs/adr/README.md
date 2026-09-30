@@ -42,4 +42,5 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0031](0031-the-documentation-is-served-on-the-website.md) | The documentation is served on the website |
 | [0032](0032-the-enforcement-mode-has-no-default.md) | The enforcement mode has no default |
 | [0033](0033-a-demo-archive-a-release-user-runs-without-go.md) | A demo archive a release user runs without Go |
+| [0034](0034-a-run-the-operator-opens-has-an-identity-of-its-own.md) | A run the operator opens has an identity of its own |
 | [0035](0035-a-versioned-evidence-export-and-a-bounded-query.md) | A versioned evidence export and a bounded query |

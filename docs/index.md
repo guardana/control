@@ -108,4 +108,5 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0031: The documentation is served on the website](adr/0031-the-documentation-is-served-on-the-website.md): accepted
 - [ADR-0032: The enforcement mode has no default](adr/0032-the-enforcement-mode-has-no-default.md): accepted
 - [ADR-0033: A demo archive a release user runs without Go](adr/0033-a-demo-archive-a-release-user-runs-without-go.md): accepted
+- [ADR-0034: A run the operator opens has an identity of its own](adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md): accepted
 - [ADR-0035: A versioned evidence export and a bounded query](adr/0035-a-versioned-evidence-export-and-a-bounded-query.md): accepted
