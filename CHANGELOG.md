@@ -11,6 +11,19 @@ verify one.
 
 ## [Unreleased]
 
+## [0.3.0-alpha] - 2026-09-30
+
+A configuration must now name its enforcement mode: one that relied on the
+`OBSERVE` default no longer loads. The demo now starts with
+`dev --decision-point=silent` and needs a system with process groups. A
+resource prefix now refuses the dot segments, percent escapes, queries and
+fragments that let an id leave it; evidence no longer carries previews; and a
+result that cannot be hashed is recorded as `UNKNOWN`, not as a success. New
+are a demo archive that runs without Go, an evidence export another program
+resumes by cursor, and the documentation on the website.
+[docs/status.md](docs/status.md) says what is `implemented` and what is
+`experimental`. Nothing here is a security boundary yet.
+
 ### Changed
 
 - `mode` has no default: a configuration that names no enforcement mode is
@@ -206,6 +219,7 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.2.0-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.3.0-alpha...HEAD
+[0.3.0-alpha]: https://github.com/guardana/control/releases/tag/v0.3.0-alpha
 [0.2.0-alpha]: https://github.com/guardana/control/releases/tag/v0.2.0-alpha
 [0.1.0-alpha]: https://github.com/guardana/control/releases/tag/v0.1.0-alpha

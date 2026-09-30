@@ -33,7 +33,18 @@
 <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
-<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.2.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.3.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="030-alpha---2026-09-30"><a href="https://github.com/guardana/control/releases/tag/v0.3.0-alpha">0.3.0-alpha</a> - 2026-09-30</h2>
+<p>A configuration must now name its enforcement mode: one that relied on the
+<code>OBSERVE</code> default no longer loads. The demo now starts with
+<code>dev --decision-point=silent</code> and needs a system with process groups. A
+resource prefix now refuses the dot segments, percent escapes, queries and
+fragments that let an id leave it; evidence no longer carries previews; and a
+result that cannot be hashed is recorded as <code>UNKNOWN</code>, not as a success. New
+are a demo archive that runs without Go, an evidence export another program
+resumes by cursor, and the documentation on the website.
+<a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
+<code>experimental</code>. Nothing here is a security boundary yet.</p>
 <h3 id="changed">Changed</h3>
 <ul>
 <li><code>mode</code> has no default: a configuration that names no enforcement mode is
