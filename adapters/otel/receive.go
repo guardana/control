@@ -63,8 +63,9 @@ var severityNames = func() map[string]bool {
 // a word.
 //
 // Every log record's body is a string holding one evidence line, which decodes
-// as exactly one event under the evidence codec's own rules and bound, and
-// which the codec writes back within its bound. The attributes are read for
+// as exactly one event under the evidence codec's own rules and bound, carries
+// a schema_version evidence.CheckEventVersion admits, and which the codec
+// writes back within its bound. The attributes are read for
 // their shape and not their meaning: the body is the record.
 func ReadRequest(body []byte) ([]*controlv1.Event, error) {
 	if len(body) > MaxRequestBytes {
@@ -166,13 +167,18 @@ func (r *requestReader) logRecord(raw json.RawMessage) error {
 	return nil
 }
 
-// evidenceLine decodes line as the one event it has to be, and checks the
-// codec writes that event back within its bound: the file the records go to
-// holds the codec's line, and a record that fits as sent and not as written
-// would be refused there, after the request was accepted.
+// evidenceLine decodes line as the one event it has to be, of a version this
+// build reads, and checks the codec writes that event back within its bound:
+// the file the records go to holds the codec's line, and a record that fits as
+// sent and not as written would be refused there, after the request was
+// accepted. An event of another major is refused with the request, so its
+// sender quarantines it where an operator sees it.
 func (r *requestReader) evidenceLine(line string) (*controlv1.Event, error) {
 	events, err := evidence.DecodeJSONL(strings.NewReader(line+"\n"), 1)
 	if err != nil {
+		return nil, err
+	}
+	if err := evidence.CheckEventVersion(events[0]); err != nil {
 		return nil, err
 	}
 	r.line.Reset()

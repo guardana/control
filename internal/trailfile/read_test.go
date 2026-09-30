@@ -7,6 +7,7 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/pkg/contract"
 )
 
 func read(t *testing.T, body string, limit int) Report {
@@ -139,6 +140,28 @@ func TestEventsWithNoIdAreNotCollapsed(t *testing.T) {
 	expect(t, rep, want{"r", kindDecided, Failed})
 	if rep.Duplicates != 0 {
 		t.Errorf("%d duplicates collapsed among events with no id", rep.Duplicates)
+	}
+}
+
+// TestATrailHoldingAnEventOfAnotherMajorIsIndeterminate: an event this build
+// cannot read by its version leaves its trail unread either way, whatever
+// shape the chain has; a trail beside it keeps its own verdict.
+func TestATrailHoldingAnEventOfAnotherMajorIsIndeterminate(t *testing.T) {
+	good := chain("p1", "good", kindProposed, kindDecided, kindBlocked)
+	later := chain("p1", "later", kindProposed, kindDecided, kindBlocked)
+	later[1].SchemaVersion = "2.0"
+	unversioned := chain("p1", "unversioned", kindProposed, kindDecided, kindBlocked)
+	unversioned[2].SchemaVersion = ""
+	rep := read(t, lines(t, append(append(good, later...), unversioned...)...), DefaultMaxLines)
+	expect(t, rep,
+		want{"good", kindBlocked, Passed},
+		want{"later", kindBlocked, Indeterminate},
+		want{"unversioned", kindBlocked, Indeterminate},
+	)
+	for _, tr := range rep.Trails[1:] {
+		if !errors.Is(tr.Reason, contract.ErrUnsupportedSchema) {
+			t.Errorf("trail %s: reason %v, want ErrUnsupportedSchema", tr.RequestID, tr.Reason)
+		}
 	}
 }
 

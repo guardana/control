@@ -191,7 +191,7 @@ partial line that no running <code>collect</code> holds, and when it holds more 
 (<a href="/docs/reference/scenario-format">scenario-format.md</a>); it exits 1 when one differed, and
 2, a failure too, when one could not run.</p>
 <p><code>dev</code>: <a href="/docs/reference/dev">dev.md</a>.</p>
-<pre><code>usage: guardana-gateway [run --config &lt;file&gt; | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --out &lt;file&gt; | trail &lt;file&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--decision-point=silent] [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
+<pre><code>usage: guardana-gateway [run --config &lt;file&gt; | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --out &lt;file&gt; | trail [export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] [--request &lt;id&gt;]... [--run &lt;id&gt;]... [--tenant &lt;id&gt;]... [--project &lt;id&gt;]... [--kind &lt;kind&gt;]...] &lt;file&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--decision-point=silent] [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
 
 run
   -config string
@@ -208,6 +208,22 @@ collect
     	the trail file to append what arrives to
 
 trail
+  -after cursor
+    	trail export: start after the line this cursor, from an earlier export, names
+  -kind kind
+    	trail export: write the events of this kind, as the contract spells it; repeatable
+  -limit int
+    	trail export: the most records to write, every type counted; at most 100000 (default 1000)
+  -max-bytes int
+    	trail export: the most bytes of whole lines to read; 0 is no bound
+  -project id
+    	trail export: write the events of this project id; repeatable
+  -request id
+    	trail export: write the events of this request id; repeatable
+  -run id
+    	trail export: write the events of this run id; repeatable
+  -tenant id
+    	trail export: write the events of this tenant id; repeatable
 
 scenario
   -config string
@@ -240,6 +256,7 @@ dev
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
 <li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
 <li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>

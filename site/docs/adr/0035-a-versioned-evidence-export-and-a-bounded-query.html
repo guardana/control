@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0035: A versioned evidence export and a bounded query · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035: A versioned evidence export and a bounded query</h1>
+<p>Status: accepted
+Date: 2026-09-30</p>
+<p>Builds on <a href="/docs/adr/0002-wire-contracts-and-versioning">ADR-0002</a>,
+<a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>,
+<a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a> and
+<a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a>.</p>
+<h2 id="context">Context</h2>
+<p>The plane's evidence reaches a person as the collector's trail file, one
+<code>Event</code> per line in the protobuf JSON mapping, and as <code>guardana-gateway trail</code>,
+which prints a verdict per request for a person to read. A program that wants
+to report on what agents did has two ways today, both wrong: parse the
+terminal output, or read the trail file with <code>internal/</code> readers it cannot
+import. Neither says how to resume where the last read stopped, what a line
+that does not decode means, or whether what was read is all there was.</p>
+<p>The trail file is append-only, written by one collector under a lock, and
+holds each event id once; a record sent again after a crash is collapsed or
+refused (ADR-0020). Bytes after its last newline are a line still being
+written while a collector holds the file, and a torn tail is cut only after
+the last newline. A record the plane could not deliver sits in its spool's
+quarantine and never reaches the file. Events are decoded without a check of
+their schema major, and that decoder also feeds the spool, the collector's
+receiver and its index rebuild, and the scenario reader.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>One command exports a trail file.</strong> <code>guardana-gateway trail export &lt;file&gt;</code>
+writes JSON Lines to standard output, each line one JSON object whose <code>type</code>
+says what it is, under the format <code>guardana.control.evidence-export</code> version
+<code>&quot;1.0&quot;</code>, read by the MAJOR.MINOR rules of the wire contracts: a reader refuses
+an unknown major and an unknown <code>type</code>.</p>
+<ul>
+<li><code>header</code>: the format and version, the file as named, the source's identity
+and the query as understood: cursor, limit, byte bound, filters.</li>
+<li><code>event</code>: <code>offset</code>, where the line starts; <code>cursor</code>, where it ends; <code>event</code>,
+the file's line bytes as a JSON value, never decoded and encoded again.</li>
+<li><code>gap</code>: <code>offset</code>, <code>cursor</code> and a <code>reason</code>, for a whole line that is not one
+event of a major this build reads, or an event id seen earlier in this export
+with other content.</li>
+<li><code>duplicate</code>: <code>offset</code>, the event id and the offset it was first seen at,
+for a line repeating an earlier one of this export exactly.</li>
+<li><code>trailer</code>: <code>next_cursor</code>, whether the file's end was reached, the bytes after
+its last newline and whether a writer holds the file, the counts of records
+by type and of bytes scanned, and <code>dedup_scope: &quot;export&quot;</code>.</li>
+</ul>
+<p>The export reads up to the file's last newline only. Bytes after it are a gap
+only when no writer holds the file; while the collector holds it they are a
+line still being written, reported in the trailer and read by the next export.</p>
+<p><strong>A cursor that cannot land in other content.</strong> A cursor is
+<code>v1:&lt;first&gt;:&lt;offset&gt;:&lt;line&gt;</code>: the SHA-256 of the file's first line, the byte
+offset right after a newline, and the SHA-256 of the line that ends there. An
+export after it checks that the byte before the offset is a newline and that
+the line ending there hashes as recorded, so a cursor from another file, from
+a file restored and appended since, or off a line boundary is refused. A file
+has an identity once its first line is whole; an empty one gives no cursor.
+Identity is content, not the path, so a renamed file can be read on.</p>
+<p><strong>A bounded query.</strong> <code>--after &lt;cursor&gt;</code> starts after a line an earlier export
+returned; <code>--limit</code> bounds the records written, every type counted (1000 by
+default, 100 000 at most); <code>--max-bytes</code> bounds the bytes scanned;
+<code>--request</code>, <code>--run</code>, <code>--tenant</code>, <code>--project</code> and <code>--kind</code> filter, each
+repeatable, an event matching one value of every filter given, and an unknown
+kind is refused. A filter cuts the links between a request's events, so a
+consumer rebuilding lifecycles exports them unfiltered, or by request.</p>
+<p><strong>Duplicates across exports.</strong> Detection covers one export's records and says
+so. Across exports delivery is at least once: a consumer drops an event it has
+seen by tenant, project and event id, and reads one id with two different
+lines as a gap.</p>
+<p><strong>Missing evidence never reads as success.</strong> Exit 0: nothing refused and no
+gap. Exit 1: the export is whole, trailer included, and holds a gap or a
+conflicting duplicate; the records and the trailer are still there to read.
+Exit 2: refused, a bad cursor, an unreadable file or a usage error, and no
+trailer is written. An export without its trailer was cut short. A record the
+plane quarantined never reached the file. One missing from the middle or the
+end of a trail shows as a broken <code>prev_event_id</code> link or an unfinished trail,
+which a consumer reports as unknown or open, never as completed; a request
+whose first record was refused does not appear at all, and a record that
+follows a trail's last event, such as a finding, leaves the trail complete.</p>
+<p><strong>The schema major is checked apart from the codec.</strong> The decoder stays a
+codec, and <code>{}</code> still decodes as an event. A separate check refuses an absent
+or malformed <code>schema_version</code> and any major other than 1, and admits a higher
+minor. The trail reader, the export, the scenario reader and the collector's
+receiver call it; the receiver refusing it sends a newer plane's record to
+quarantine, loudly. The spool and the collector's open are unchanged. The rule
+mirrors <code>pkg/contract</code>'s for envelopes, and one table pins both.</p>
+<p><strong>An external consumer.</strong> <code>examples/evidence-report</code> reads an export on its
+standard input with the generated package <code>api/gen/go/guardana/control/v1</code>
+alone, groups events by tenant, project and request, follows each request's
+<code>prev_event_id</code> links, and prints one row per request with its lifecycle:
+proposed, decided, held and answered, started, ended or blocked. A broken or
+unfinished lifecycle is unknown; a gap, a refusal or a missing trailer exits 1.
+A test pins that it imports nothing under <code>internal/</code>. The generated package
+follows the frozen proto (ADR-0002), which is the compatibility such a
+consumer relies on; one outside this module can generate its own from
+<code>api/proto</code>.</p>
+<p>The format goes into <code>docs/contracts.md</code> under &quot;The evidence export&quot;, with
+goldens in <code>testdata/export/</code>.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>The export writes what the file holds, which holds no argument or result
+content (ADR-0004); nothing is joined across tenants or sent anywhere. The
+format is a public contract from its first release and changes only by a
+record. No wire contract changes. The receiver now refuses an event of a major
+it does not read, which only a plane of a later major sends.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>Export messages defined in proto</strong>, in a package of their own. Typed for
+every language, and more generated surface and a compatibility decision
+now, for a format JSON Lines carries.</li>
+<li><strong>Each export line the trail line itself.</strong> An <code>Event</code> has no field saying
+it is one, and a strict reader of events refuses a header.</li>
+<li><strong>A cursor by line number, or by offset alone.</strong> A line number needs a scan
+from the start; an offset alone can land in the middle of other content
+after a restore.</li>
+<li><strong>The check in the codec.</strong> It would break the spool's delivery and the
+collector's own open on a record they only carry.</li>
+<li><strong>An HTTP query endpoint on the plane.</strong> A listener with its own
+authentication, in the request path's process, for a need a file answers.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>A consumer depends on a documented format rather than on a terminal or on
+<code>internal/</code>. The collector's one file stays the store; its growth and rotation
+stay the operator's, and a rotated file is read on under its new name until
+its end.</p>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>Goldens for each record type; fixtures for a partial tail with and without
+a writer, an event of major 2, an unknown field, one id with other content,
+an exact repeat, and a cursor from another file, past the end, off a line
+boundary and after a changed line: each a gap or a refusal as above.</li>
+<li>A property: exports split at any cursor and limit, joined, equal one whole
+export.</li>
+<li>A table of exit codes; the version check's table shared with <code>pkg/contract</code>.</li>
+<li><code>examples/evidence-report</code> rebuilds a demo run's allow, deny and approval
+lifecycles from an export, reports a cut chain as unknown, and a
+<code>go list -deps</code> test finds no <code>internal/</code> package in it.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query.md">docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

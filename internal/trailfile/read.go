@@ -101,8 +101,10 @@ type seenLine struct {
 // that repeats, byte for byte, one read before under the same event id is
 // what a sender resending leaves, and is counted and dropped; one event id
 // carrying a different line is not, and the read is refused as ErrDamaged. An
-// event with no id is never collapsed, and its trail fails the check. Each
-// trail is checked in the order its links give, which need not be the file's.
+// event with no id is never collapsed, and its trail fails the check. An
+// event evidence.CheckEventVersion refuses leaves its trail Indeterminate, as
+// one of a kind this build cannot place does. Each trail is checked in the
+// order its links give, which need not be the file's.
 //
 // The verdict is the chain check's and no more: a trail that passed has the
 // shape of one, and nothing here detects a record altered to keep that shape.
@@ -114,6 +116,7 @@ func Read(r io.Reader, maxLines int) (Report, error) {
 	var rep Report
 	seen := map[string]seenLine{}
 	groups := map[scope][]*controlv1.Event{}
+	unread := map[scope]error{}
 	var order []scope
 	for number := 1; ; number++ {
 		line, err := reader.ReadSlice('\n')
@@ -122,7 +125,7 @@ func Read(r io.Reader, maxLines int) (Report, error) {
 			return Report{}, fmt.Errorf("line %d: %w: over %d bytes", number, evidence.ErrLineTooLong, evidence.MaxLineBytes)
 		case err == io.EOF: //nolint:errorlint // bufio returns io.EOF itself; a wrapped one is a failure
 			rep.Unread = int64(len(line))
-			rep.Trails = judge(order, groups)
+			rep.Trails = judge(order, groups, unread)
 			return rep, nil
 		case err != nil:
 			return Report{}, fmt.Errorf("line %d: %w", number, err)
@@ -153,10 +156,21 @@ func Read(r io.Reader, maxLines int) (Report, error) {
 			order = append(order, key)
 		}
 		groups[key] = append(groups[key], ev)
+		noteVersion(unread, key, number, ev)
 	}
 }
 
-func judge(order []scope, groups map[scope][]*controlv1.Event) []Trail {
+// noteVersion keeps the first refusal of an event's version in each trail.
+func noteVersion(unread map[scope]error, key scope, number int, ev *controlv1.Event) {
+	if err := evidence.CheckEventVersion(ev); err != nil && unread[key] == nil {
+		unread[key] = fmt.Errorf("line %d: %w", number, err)
+	}
+}
+
+// judge gives each trail its verdict. A trail holding an event of a version
+// this build does not read is Indeterminate before its chain is checked,
+// since the chain check would read that event's fields as this build's.
+func judge(order []scope, groups map[scope][]*controlv1.Event, unread map[scope]error) []Trail {
 	trails := make([]Trail, 0, len(order))
 	for _, key := range order {
 		events := linked(groups[key])
@@ -164,6 +178,8 @@ func judge(order []scope, groups map[scope][]*controlv1.Event) []Trail {
 			Events: len(events), Last: events[len(events)-1].GetKind()}
 		err := evidence.ValidateChain(events)
 		switch {
+		case unread[key] != nil:
+			tr.Verdict, tr.Reason = Indeterminate, unread[key]
 		case errors.Is(err, evidence.ErrChainIndeterminate):
 			tr.Verdict, tr.Reason = Indeterminate, err
 		case err != nil:

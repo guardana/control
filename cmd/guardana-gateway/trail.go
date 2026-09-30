@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/trailfile"
 )
 
@@ -19,14 +20,90 @@ const maxShownID = 64
 // links and the order, and a nil from it is not a verification.
 const shapeNote = "the check proves each chain's shape and not its integrity: a record altered to keep that shape passes it"
 
+const trailForm = "[export [--after <cursor>] [--limit <n>] [--max-bytes <n>] [--request <id>]... [--run <id>]... " +
+	"[--tenant <id>]... [--project <id>]... [--kind <kind>]...] <file>"
+
+// declareTrail declares the flags of trail export on the trail command's set,
+// so the help lists them; plain trail takes none of them.
 func declareTrail(flags *flag.FlagSet) commandFunc {
+	q := trailfile.Query{}
+	flags.StringVar(&q.After, "after", "", "trail export: start after the line this `cursor`, from an earlier export, names")
+	flags.IntVar(&q.Limit, "limit", trailfile.DefaultExportLimit, "trail export: the most records to write, every type counted; at most 100000")
+	flags.Int64Var(&q.MaxBytes, "max-bytes", 0, "trail export: the most bytes of whole lines to read; 0 is no bound")
+	var requests, runs, tenants, projects, kinds valueList
+	flags.Var(&requests, "request", "trail export: write the events of this request `id`; repeatable")
+	flags.Var(&runs, "run", "trail export: write the events of this run `id`; repeatable")
+	flags.Var(&tenants, "tenant", "trail export: write the events of this tenant `id`; repeatable")
+	flags.Var(&projects, "project", "trail export: write the events of this project `id`; repeatable")
+	flags.Var(&kinds, "kind", "trail export: write the events of this `kind`, as the contract spells it; repeatable")
 	return func(_ context.Context, args []string, stdout, stderr io.Writer) int {
-		if len(args) != 1 {
-			writeLine(stderr, flags.Name()+": name one trail file to read")
+		if len(args) == 0 || args[0] != "export" {
+			switch {
+			case flags.NFlag() > 0:
+				writeLine(stderr, flags.Name()+": its flags are trail export's: "+flags.Name()+" "+trailForm)
+				return exitUsage
+			case len(args) != 1:
+				writeLine(stderr, flags.Name()+": name one trail file to read")
+				return exitUsage
+			}
+			return trail(args[0], stdout, stderr)
+		}
+		path, ok := exportPath(flags, args[1:], stderr)
+		if !ok {
 			return exitUsage
 		}
-		return trail(args[0], stdout, stderr)
+		q.Requests, q.Runs, q.Tenants, q.Projects, q.Kinds = requests, runs, tenants, projects, kinds
+		return trailExport(path, q, stdout, stderr)
 	}
+}
+
+// exportPath parses trail export's flags on either side of its one file.
+func exportPath(flags *flag.FlagSet, args []string, stderr io.Writer) (string, bool) {
+	if err := flags.Parse(args); err != nil {
+		return "", false
+	}
+	if flags.NArg() == 0 {
+		writeLine(stderr, flags.Name()+" export: name one trail file to export")
+		return "", false
+	}
+	path := flags.Arg(0)
+	if err := flags.Parse(flags.Args()[1:]); err != nil {
+		return "", false
+	}
+	if flags.NArg() > 0 {
+		writeLine(stderr, flags.Name()+" export: name one trail file to export, not "+oneLine(flags.Arg(0))+" as well")
+		return "", false
+	}
+	return path, true
+}
+
+// trailExport writes the evidence export of one trail file to stdout. It
+// exits 0 when nothing was refused and the export holds no gap, 1 when the
+// export is whole, trailer included, and holds a gap, and 2 when it was
+// refused or cut short: a query or a cursor refused, a file that cannot be
+// read, or output that could not be written. A refused export writes no
+// trailer, and a reader without one knows the export is not whole.
+func trailExport(path string, q trailfile.Query, stdout, stderr io.Writer) int {
+	tr, err := trailfile.ExportFile(path, q, stdout)
+	if err != nil {
+		writeLine(stderr, brand.Gateway+": trail export: "+oneLine(err.Error()))
+		return exitUsage
+	}
+	if tr.Gaps > 0 {
+		return fail(stderr, "trail export", fmt.Errorf("%s: the export holds %d gap(s): lines that are not events this build reads, "+
+			"an event id with two contents, or a partial line no collector is writing", strconv.Quote(path), tr.Gaps))
+	}
+	return exitOK
+}
+
+// valueList is a flag given once per value.
+type valueList []string
+
+func (l *valueList) String() string { return strings.Join(*l, " ") }
+
+func (l *valueList) Set(v string) error {
+	*l = append(*l, v)
+	return nil
 }
 
 // trail reads a trail file up to its last newline and prints one line per

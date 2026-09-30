@@ -65,6 +65,8 @@ func (t trailRead) grewBesides(prev map[trailScope]int, request string) []string
 // readTrail reads the trail file once, up to its last newline, through the
 // trail reader, and groups and links its events the way that reader does. An
 // absent file holds nothing when absent is allowed and is refused otherwise.
+// An event of a version this build does not read refuses the read, since the
+// runner compares every event's fields as this build's.
 func readTrail(path string, absent bool) (trailRead, error) {
 	out := trailRead{scopes: map[string][]trailScope{}, trails: map[trailScope][]*controlv1.Event{}, verdict: map[trailScope]trailfile.Trail{}}
 	raw, err := trailBytes(path, absent)
@@ -86,6 +88,9 @@ func readTrail(path string, absent bool) (trailRead, error) {
 			return trailRead{}, fmt.Errorf("the trail file: %w", err)
 		}
 		ev := events[0]
+		if err := evidence.CheckEventVersion(ev); err != nil {
+			return trailRead{}, fmt.Errorf("the trail file: %w", err)
+		}
 		if id := ev.GetEventId(); id != "" {
 			if seen[id] {
 				continue

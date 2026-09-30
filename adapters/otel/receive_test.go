@@ -10,6 +10,7 @@ import (
 	"github.com/guardana/control/adapters/otel"
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/pkg/contract"
 )
 
 // bodyLine is one evidence line as the codec writes it, spelled here rather
@@ -225,5 +226,19 @@ func TestTheRequestBound(t *testing.T) {
 	over := at + " "
 	if _, err := otel.ReadRequest([]byte(over)); !errors.Is(err, otel.ErrRequestTooLarge) {
 		t.Errorf("a request one byte over the bound = %v, want ErrRequestTooLarge", err)
+	}
+}
+
+// TestAnEventOfAnotherMajorIsRefused: the receiver reads an event it would
+// keep, so one this build cannot read by its version is refused with the
+// request, and the sender quarantines it rather than the file holding it.
+func TestAnEventOfAnotherMajorIsRefused(t *testing.T) {
+	// Each version as it stands inside the body's JSON string.
+	for _, version := range []string{`\"2.0\"`, `\"1\"`, `\"\"`} {
+		req := variant(t, `\"schemaVersion\":\"1.0\"`, `\"schemaVersion\":`+version)
+		_, err := otel.ReadRequest([]byte(req))
+		if !errors.Is(err, otel.ErrRequest) || !errors.Is(err, contract.ErrUnsupportedSchema) {
+			t.Errorf("schemaVersion %s: ReadRequest = %v, want ErrRequest wrapping ErrUnsupportedSchema", version, err)
+		}
 	}
 }

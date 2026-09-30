@@ -1,0 +1,2 @@
+{"type":"header","format":"guardana.control.evidence-export","version":"1.0","file":"empty.trail","query":{"limit":1000}}
+{"type":"trailer","end_reached":true,"tail_bytes":0,"writer_held":false,"counts":{"event":0,"gap":0,"duplicate":0},"scanned_bytes":0,"dedup_scope":"export"}

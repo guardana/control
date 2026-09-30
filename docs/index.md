@@ -18,6 +18,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 ## Guides
 
 - [Let a decision point veto calls](guides/let-a-decision-point-veto.md): Point the gateway at an AuthZEN decision point, write the two rules that let it veto a scope, test what each answer does, and check the plane before it serves.
+- [Read the evidence from a program](guides/read-the-evidence-from-a-program.md): Export a trail file in the versioned format, resume where the last export stopped, and rebuild each call's lifecycle without importing the project's internals.
 - [Run the gateway in a container](guides/run-in-a-container.md): Run the release image of the gateway with Docker, with its evidence on a volume and its port reachable from the host alone.
 - [Run the gateway](guides/run-the-gateway.md): Start the MCP gateway in OBSERVE, read its health, classify the tools it sees, and move it to ENFORCE.
 - [Watch a plane without a collector](guides/watch-a-plane-without-a-collector.md): Run the collector the gateway binary ships, point a plane's export at it, and check each request's trail in the file it writes.
@@ -107,3 +108,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0031: The documentation is served on the website](adr/0031-the-documentation-is-served-on-the-website.md): accepted
 - [ADR-0032: The enforcement mode has no default](adr/0032-the-enforcement-mode-has-no-default.md): accepted
 - [ADR-0033: A demo archive a release user runs without Go](adr/0033-a-demo-archive-a-release-user-runs-without-go.md): accepted
+- [ADR-0035: A versioned evidence export and a bounded query](adr/0035-a-versioned-evidence-export-and-a-bounded-query.md): accepted

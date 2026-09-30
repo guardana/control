@@ -41,6 +41,11 @@ verify one.
 - `dev --decision-point=silent`: a decision point on a port `dev` binds and
   never answers, so a rule reading `external` is undetermined with
   `PDP_TIMEOUT`.
+- `guardana-gateway trail export`: a trail file in a versioned format another
+  program reads, with a cursor to resume from, a record for every line it
+  cannot read, and a trailer; `examples/evidence-report` rebuilds each call's
+  lifecycle from it without importing the project's internals
+  ([ADR-0035](docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query.md)).
 
 ### Fixed
 

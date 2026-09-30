@@ -35,6 +35,7 @@
   <url><loc>https://control.guardana.dev/docs/adr/0031-the-documentation-is-served-on-the-website</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0032-the-enforcement-mode-has-no-default</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0033-a-demo-archive-a-release-user-runs-without-go</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query</loc></url>
   <url><loc>https://control.guardana.dev/docs/backlog</loc></url>
   <url><loc>https://control.guardana.dev/docs/changelog</loc></url>
   <url><loc>https://control.guardana.dev/docs/concepts/approvals-and-the-held-call</loc></url>
@@ -51,6 +52,7 @@
   <url><loc>https://control.guardana.dev/docs/extending/adapters</loc></url>
   <url><loc>https://control.guardana.dev/docs/get-started/try-the-demo</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/let-a-decision-point-veto</loc></url>
+  <url><loc>https://control.guardana.dev/docs/guides/read-the-evidence-from-a-program</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/run-in-a-container</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/run-the-gateway</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/watch-a-plane-without-a-collector</loc></url>

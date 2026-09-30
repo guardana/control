@@ -64,6 +64,11 @@ published
 <li><code>dev --decision-point=silent</code>: a decision point on a port <code>dev</code> binds and
 never answers, so a rule reading <code>external</code> is undetermined with
 <code>PDP_TIMEOUT</code>.</li>
+<li><code>guardana-gateway trail export</code>: a trail file in a versioned format another
+program reads, with a cursor to resume from, a record for every line it
+cannot read, and a trailer; <code>examples/evidence-report</code> rebuilds each call's
+lifecycle from it without importing the project's internals
+(<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>).</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
@@ -218,6 +223,7 @@ independence of this project from Guardana
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
 <li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
 <li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>

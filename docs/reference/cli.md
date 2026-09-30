@@ -182,7 +182,7 @@ partial line that no running `collect` holds, and when it holds more than
 
 <!-- generated: go test ./cmd/guardana-gateway -run TestCLIPage -->
 ```
-usage: guardana-gateway [run --config <file> | doctor --config <file> | collect --listen <addr> --out <file> | trail <file> | scenario run --config <file> --trail <file> [--control <file>] [--timeout <d>] <path>... | dev --config <file> --policy <file> [--decision-point=silent] [--state <dir>] [--scenario <file>]...]
+usage: guardana-gateway [run --config <file> | doctor --config <file> | collect --listen <addr> --out <file> | trail [export [--after <cursor>] [--limit <n>] [--max-bytes <n>] [--request <id>]... [--run <id>]... [--tenant <id>]... [--project <id>]... [--kind <kind>]...] <file> | scenario run --config <file> --trail <file> [--control <file>] [--timeout <d>] <path>... | dev --config <file> --policy <file> [--decision-point=silent] [--state <dir>] [--scenario <file>]...]
 
 run
   -config string
@@ -199,6 +199,22 @@ collect
     	the trail file to append what arrives to
 
 trail
+  -after cursor
+    	trail export: start after the line this cursor, from an earlier export, names
+  -kind kind
+    	trail export: write the events of this kind, as the contract spells it; repeatable
+  -limit int
+    	trail export: the most records to write, every type counted; at most 100000 (default 1000)
+  -max-bytes int
+    	trail export: the most bytes of whole lines to read; 0 is no bound
+  -project id
+    	trail export: write the events of this project id; repeatable
+  -request id
+    	trail export: write the events of this request id; repeatable
+  -run id
+    	trail export: write the events of this run id; repeatable
+  -tenant id
+    	trail export: write the events of this tenant id; repeatable
 
 scenario
   -config string

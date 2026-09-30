@@ -2,7 +2,7 @@
 title: Wire contracts
 summary: What the v1 messages are versioned by, what a receiver refuses them for, and how the evidence events chain.
 type: spec
-covers: [api/proto/**, api/gen/go/**, pkg/contract/**, internal/canon/**, internal/evidence/chain.go, testdata/contracts/**, testdata/digest/**]
+covers: [api/proto/**, api/gen/go/**, pkg/contract/**, internal/canon/**, internal/evidence/chain.go, internal/evidence/version.go, internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, testdata/contracts/**, testdata/digest/**, testdata/export/**]
 stability: stable
 ---
 
@@ -93,6 +93,18 @@ carry rather than from a constant, so a build generated from a v2 contract
 refuses `1.x` without anyone editing a check. Refusing an unknown field and an
 undeclared enum number is the same walk, also `implemented`; see Decoding and
 validation below.
+
+An `Event` is held to the same rule by `evidence.CheckEventVersion`
+(`internal/evidence/version.go`), `implemented`, and apart from the codec:
+`DecodeJSONL` decodes an event whatever its version, `{}` included, because the
+spool and the collector's open carry records they do not judge. The readers
+that act on an event's fields call the check. The collector's receiver refuses
+the request with 400, so the sending plane splits it down to the one record and
+quarantines that; the trail reader leaves the request's trail `indeterminate`;
+the scenario runner refuses the file; the evidence export writes a gap.
+[testdata/contracts/schema_versions.json](../testdata/contracts/schema_versions.json)
+is one table of versions that the tests of both rules read, so the two cannot
+drift apart without a test failing.
 
 ## Limits
 
@@ -1029,3 +1041,135 @@ escapes, which decode to the same value. The codec holds the unknown-field rule
 in both directions: it refuses to read a line carrying a field this build
 cannot name, and it refuses to write an event carrying one anywhere in its tree
 rather than let protojson drop it silently.
+
+## The evidence export
+
+How a program reads a trail file without the terminal or `internal/`:
+`guardana-gateway trail export <file>` writes it to standard output as JSON
+Lines, `implemented` in `internal/trailfile/export.go`, `export_records.go` and
+`cursor.go`. [ADR-0035](adr/0035-a-versioned-evidence-export-and-a-bounded-query.md)
+records why. The goldens in [testdata/export/](../testdata/export/) are pairs of
+a trail file, `<name>.trail`, and its export, `<name>.jsonl`.
+
+### Format and version
+
+Each line is one JSON object whose `type` says what it is. The format is
+`guardana.control.evidence-export`, version `"1.0"`, both in the header, read
+by the MAJOR.MINOR rules of Schema versioning above: a reader MUST refuse an
+export of a major it does not read and a record of a `type` it does not know.
+The format is a public contract and changes only by a record.
+
+An export is one `header`, then the records of the lines it read in the file's
+order, each `event`, `gap` or `duplicate`, then one `trailer`. **An export
+without its trailer was cut short**, and a reader MUST NOT treat what it holds
+as all there was. **An export whose trailer says `end_reached: false` stopped
+before the end**: more remains, and a reader MUST export again after
+`next_cursor` before it treats the file as read.
+
+An offset is a byte offset into the file. A line is its bytes and its newline.
+
+| `type` | Members |
+| --- | --- |
+| `header` | `format`; `version`; `file`, the file as named; `source`, the SHA-256 of the file's first line in lowercase hex, absent while the file holds no whole line; `query`, the query as understood: `after` (absent when not given), `limit`, `max_bytes` (absent when there is no bound), and `request`, `run`, `tenant`, `project`, `kind`, each the values given in their order, absent when none |
+| `event` | `offset`, where the line starts; `cursor`, where it ends; `event`, the line's bytes without its newline and a carriage return right before it, as they stand in the file, never decoded and encoded again |
+| `gap` | `offset`; `cursor`, absent on the bytes after the last newline, which no newline ends; `reason` |
+| `duplicate` | `offset`; `event_id`; `first_offset`, where this export wrote the event first |
+| `trailer` | `next_cursor`, where the next export starts, absent while the file holds no whole line; `end_reached`; `tail_bytes`, the bytes after the last newline; `writer_held`; `counts`, with `event`, `gap` and `duplicate`; `scanned_bytes`, the bytes of the whole lines read; `dedup_scope`, `"export"` |
+
+A gap's `reason` is one of:
+
+| `reason` | The line |
+| --- | --- |
+| `malformed` | is not one `Event` under the codec's rules: not JSON, an unknown field, a blank line |
+| `too_long` | is longer than the codec's line bound, `evidence.MaxLineBytes` |
+| `unsupported_version` | is an event `evidence.CheckEventVersion` refuses |
+| `conflicting_event_id` | carries the event id of a line this export read before it, written or passed by the filters, with other content |
+| `carriage_return` | is an event holding a carriage return other than one right before its newline: JSON whitespace between its tokens, which a reader splitting on any line ending would cut the record at |
+| `partial_tail` | is the bytes after the last newline, and no writer holds the file |
+
+### What is read
+
+The export reads the file up to its last newline, at the length the file had
+when it was opened, and holds no lock. The bytes after the last newline are a
+line a collector is still writing while one holds the file: the trailer counts
+them, `writer_held` is `true`, and the next export reads them once they end.
+Whether a writer holds the file is asked only when such bytes exist. When none
+holds it they are a `partial_tail` gap. A gap takes a record like any other, so
+an export whose limit leaves no room for it ends with `end_reached` false and
+the next export writes it.
+
+`end_reached` is `true` when every whole line was read and the bytes after the
+last newline were reported.
+
+### The cursor
+
+A cursor is `v1:<first>:<offset>:<line>`: the SHA-256 of the file's first line,
+the offset right after a newline, and the SHA-256 of the line that ends there,
+each digest in 64 lowercase hex digits and the offset in decimal with no sign
+and no leading zero. An export after a cursor refuses it, and writes nothing,
+when:
+
+- it is not spelled so;
+- the file's first line does not hash as recorded: another file, or one that
+  holds no whole line;
+- the offset is past the file's last newline;
+- the byte before the offset is not a newline;
+- the line ending at the offset does not hash as recorded: a file restored and
+  appended since.
+
+A file has an identity once its first line is whole, and an empty file gives
+no cursor. The identity is content and not the path, so a renamed or rotated
+file is read on under its new name.
+
+### The query
+
+- `--after <cursor>` starts after the line the cursor names.
+- `--limit <n>` bounds the records written, every type counted: 1000 by
+  default, at least 1 and at most 100 000. The export stops before the record
+  past it and `next_cursor` names the last line it consumed.
+- `--max-bytes <n>` bounds `scanned_bytes`, the bytes of the whole lines the
+  export reads after the cursor; 0 is no bound. The export stops before the
+  line that would cross it. A first line longer than the bound can never be
+  read under it, and the export is refused. The bound is not on every byte the
+  export reads: the file's first line, the line the cursor names and the bytes
+  after the last newline are read to check them, whatever their length. The
+  export keeps one entry per event id among the lines it reads, so the bound
+  also bounds that memory.
+- `--request`, `--run`, `--tenant`, `--project` and `--kind` filter events,
+  each repeatable: an event is written when it matches one value of every
+  filter given. A kind is spelled as the contract names it,
+  `EVENT_KIND_POLICY_DECIDED`; an unknown kind, `EVENT_KIND_UNSPECIFIED` and an
+  empty value are refused. A gap is written whatever the filters: what a line
+  that is not an event belongs to is unknown, and a conflict is one whichever
+  of its two lines the filters pass. A filter cuts the
+  `prev_event_id` links between a request's events, so a consumer rebuilding
+  lifecycles exports them unfiltered or by request.
+
+### Duplicates
+
+Detection covers the lines one export reads, from its cursor on, which
+`dedup_scope: "export"` says; a line before the cursor is compared with
+nothing. Every event's id is compared, whether the filters pass it or not. A
+line repeating, byte for byte, an earlier line of this export is a `duplicate`
+when the filters pass it, and writes nothing when they do not; a line carrying
+an earlier line's event id with other content is a `conflicting_event_id` gap
+whatever the filters. An event with no id is never collapsed. Across
+exports delivery is at least once: a consumer drops an event it has seen by
+tenant, project and event id, and reads one id with two different lines as a
+gap.
+
+### Exit statuses
+
+| Status | Meaning |
+| --- | --- |
+| 0 | Nothing refused and no gap. |
+| 1 | The export is whole, trailer included, and holds a gap. The records and the trailer are there to read. |
+| 2 | Refused or cut short: a bad cursor or query, an unreadable file, a usage error, or output that could not be written. No trailer is written. |
+
+**Missing evidence never reads as success.** A record the plane quarantined
+never reached the file. One missing from the middle or the end of a trail shows
+as a broken `prev_event_id` link or an unfinished trail, which a consumer
+reports as unknown or open, never as completed. A request whose first record was
+refused does not appear at all, and a record that follows a trail's last event,
+such as a finding, leaves the trail complete: the export cannot show what the
+plane never delivered.

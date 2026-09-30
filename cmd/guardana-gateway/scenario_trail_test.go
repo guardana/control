@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +11,7 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/pkg/contract"
 )
 
 const (
@@ -104,5 +106,18 @@ func TestATrailFileThatCannotBeReadIsRefused(t *testing.T) {
 	}
 	if _, err := readTrail(large, true); err == nil || !strings.Contains(err.Error(), "is over") {
 		t.Errorf("a file past the bound: err = %v", err)
+	}
+}
+
+// TestATrailFileHoldingAnEventOfAnotherMajorIsRefused: the runner reads every
+// event's fields, so one it cannot read by its version refuses the whole read,
+// even on a request no step asks about.
+func TestATrailFileHoldingAnEventOfAnotherMajorIsRefused(t *testing.T) {
+	events := trailOf("r1", proposed, decided, blocked)
+	later := trailOf("r2", proposed)
+	later[0].SchemaVersion = "2.0"
+	_, err := readTrail(writeTrail(t, encoded(t, events[0], later[0], events[1], events[2])), false)
+	if !errors.Is(err, contract.ErrUnsupportedSchema) {
+		t.Errorf("readTrail = %v, want ErrUnsupportedSchema", err)
 	}
 }

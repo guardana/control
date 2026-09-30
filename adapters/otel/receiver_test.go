@@ -97,6 +97,8 @@ func TestTheReceiverAnswersAsTheProtocolSays(t *testing.T) {
 		"gzip":                            {encoding: "gzip", body: base(), status: http.StatusUnsupportedMediaType},
 		"a request it refuses":            {body: variant(t, `"resourceLogs"`, `"resource_logs"`), status: http.StatusBadRequest},
 		"a body that is not an event":     {body: requestWithBody(`"{}x"`), status: http.StatusBadRequest},
+		"an event of another major":       {body: variant(t, `\"schemaVersion\":\"1.0\"`, `\"schemaVersion\":\"2.0\"`), status: http.StatusBadRequest},
+		"an event with no version":        {body: variant(t, `,\"schemaVersion\":\"1.0\"`, ``), status: http.StatusBadRequest},
 		"a request over the bound":        {body: over, status: http.StatusRequestEntityTooLarge},
 		"a sink that fails":               {body: base(), failSink: true, status: http.StatusServiceUnavailable},
 	}

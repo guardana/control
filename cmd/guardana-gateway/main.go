@@ -121,7 +121,7 @@ var commands = []subcommand{
 	{"run", "--config <file>", configured(serve)},
 	{"doctor", "--config <file>", configured(doctor)},
 	{"collect", "--listen <addr> --out <file>", declareCollect},
-	{"trail", "<file>", declareTrail},
+	{"trail", trailForm, declareTrail},
 	{"scenario", scenarioForm, declareScenario},
 	{"dev", devForm, declareDev},
 }

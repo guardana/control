@@ -100,6 +100,17 @@ carry rather than from a constant, so a build generated from a v2 contract
 refuses <code>1.x</code> without anyone editing a check. Refusing an unknown field and an
 undeclared enum number is the same walk, also <code>implemented</code>; see Decoding and
 validation below.</p>
+<p>An <code>Event</code> is held to the same rule by <code>evidence.CheckEventVersion</code>
+(<code>internal/evidence/version.go</code>), <code>implemented</code>, and apart from the codec:
+<code>DecodeJSONL</code> decodes an event whatever its version, <code>{}</code> included, because the
+spool and the collector's open carry records they do not judge. The readers
+that act on an event's fields call the check. The collector's receiver refuses
+the request with 400, so the sending plane splits it down to the one record and
+quarantines that; the trail reader leaves the request's trail <code>indeterminate</code>;
+the scenario runner refuses the file; the evidence export writes a gap.
+<a href="https://github.com/guardana/control/blob/main/testdata/contracts/schema_versions.json">testdata/contracts/schema_versions.json</a>
+is one table of versions that the tests of both rules read, so the two cannot
+drift apart without a test failing.</p>
 <h2 id="limits">Limits</h2>
 <p>Bounds on a message nothing has authorized yet. Each caps work a caller can
 make a receiver do before any policy runs, so each is a memory or CPU bound
@@ -1152,6 +1163,185 @@ escapes, which decode to the same value. The codec holds the unknown-field rule
 in both directions: it refuses to read a line carrying a field this build
 cannot name, and it refuses to write an event carrying one anywhere in its tree
 rather than let protojson drop it silently.</p>
+<h2 id="the-evidence-export">The evidence export</h2>
+<p>How a program reads a trail file without the terminal or <code>internal/</code>:
+<code>guardana-gateway trail export &lt;file&gt;</code> writes it to standard output as JSON
+Lines, <code>implemented</code> in <code>internal/trailfile/export.go</code>, <code>export_records.go</code> and
+<code>cursor.go</code>. <a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>
+records why. The goldens in <a href="https://github.com/guardana/control/tree/main/testdata/export">testdata/export/</a> are pairs of
+a trail file, <code>&lt;name&gt;.trail</code>, and its export, <code>&lt;name&gt;.jsonl</code>.</p>
+<h3 id="format-and-version">Format and version</h3>
+<p>Each line is one JSON object whose <code>type</code> says what it is. The format is
+<code>guardana.control.evidence-export</code>, version <code>&quot;1.0&quot;</code>, both in the header, read
+by the MAJOR.MINOR rules of Schema versioning above: a reader MUST refuse an
+export of a major it does not read and a record of a <code>type</code> it does not know.
+The format is a public contract and changes only by a record.</p>
+<p>An export is one <code>header</code>, then the records of the lines it read in the file's
+order, each <code>event</code>, <code>gap</code> or <code>duplicate</code>, then one <code>trailer</code>. <strong>An export
+without its trailer was cut short</strong>, and a reader MUST NOT treat what it holds
+as all there was. <strong>An export whose trailer says <code>end_reached: false</code> stopped
+before the end</strong>: more remains, and a reader MUST export again after
+<code>next_cursor</code> before it treats the file as read.</p>
+<p>An offset is a byte offset into the file. A line is its bytes and its newline.</p>
+<table>
+<thead>
+<tr>
+<th><code>type</code></th>
+<th>Members</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>header</code></td>
+<td><code>format</code>; <code>version</code>; <code>file</code>, the file as named; <code>source</code>, the SHA-256 of the file's first line in lowercase hex, absent while the file holds no whole line; <code>query</code>, the query as understood: <code>after</code> (absent when not given), <code>limit</code>, <code>max_bytes</code> (absent when there is no bound), and <code>request</code>, <code>run</code>, <code>tenant</code>, <code>project</code>, <code>kind</code>, each the values given in their order, absent when none</td>
+</tr>
+<tr>
+<td><code>event</code></td>
+<td><code>offset</code>, where the line starts; <code>cursor</code>, where it ends; <code>event</code>, the line's bytes without its newline and a carriage return right before it, as they stand in the file, never decoded and encoded again</td>
+</tr>
+<tr>
+<td><code>gap</code></td>
+<td><code>offset</code>; <code>cursor</code>, absent on the bytes after the last newline, which no newline ends; <code>reason</code></td>
+</tr>
+<tr>
+<td><code>duplicate</code></td>
+<td><code>offset</code>; <code>event_id</code>; <code>first_offset</code>, where this export wrote the event first</td>
+</tr>
+<tr>
+<td><code>trailer</code></td>
+<td><code>next_cursor</code>, where the next export starts, absent while the file holds no whole line; <code>end_reached</code>; <code>tail_bytes</code>, the bytes after the last newline; <code>writer_held</code>; <code>counts</code>, with <code>event</code>, <code>gap</code> and <code>duplicate</code>; <code>scanned_bytes</code>, the bytes of the whole lines read; <code>dedup_scope</code>, <code>&quot;export&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p>A gap's <code>reason</code> is one of:</p>
+<table>
+<thead>
+<tr>
+<th><code>reason</code></th>
+<th>The line</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>malformed</code></td>
+<td>is not one <code>Event</code> under the codec's rules: not JSON, an unknown field, a blank line</td>
+</tr>
+<tr>
+<td><code>too_long</code></td>
+<td>is longer than the codec's line bound, <code>evidence.MaxLineBytes</code></td>
+</tr>
+<tr>
+<td><code>unsupported_version</code></td>
+<td>is an event <code>evidence.CheckEventVersion</code> refuses</td>
+</tr>
+<tr>
+<td><code>conflicting_event_id</code></td>
+<td>carries the event id of a line this export read before it, written or passed by the filters, with other content</td>
+</tr>
+<tr>
+<td><code>carriage_return</code></td>
+<td>is an event holding a carriage return other than one right before its newline: JSON whitespace between its tokens, which a reader splitting on any line ending would cut the record at</td>
+</tr>
+<tr>
+<td><code>partial_tail</code></td>
+<td>is the bytes after the last newline, and no writer holds the file</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-is-read">What is read</h3>
+<p>The export reads the file up to its last newline, at the length the file had
+when it was opened, and holds no lock. The bytes after the last newline are a
+line a collector is still writing while one holds the file: the trailer counts
+them, <code>writer_held</code> is <code>true</code>, and the next export reads them once they end.
+Whether a writer holds the file is asked only when such bytes exist. When none
+holds it they are a <code>partial_tail</code> gap. A gap takes a record like any other, so
+an export whose limit leaves no room for it ends with <code>end_reached</code> false and
+the next export writes it.</p>
+<p><code>end_reached</code> is <code>true</code> when every whole line was read and the bytes after the
+last newline were reported.</p>
+<h3 id="the-cursor">The cursor</h3>
+<p>A cursor is <code>v1:&lt;first&gt;:&lt;offset&gt;:&lt;line&gt;</code>: the SHA-256 of the file's first line,
+the offset right after a newline, and the SHA-256 of the line that ends there,
+each digest in 64 lowercase hex digits and the offset in decimal with no sign
+and no leading zero. An export after a cursor refuses it, and writes nothing,
+when:</p>
+<ul>
+<li>it is not spelled so;</li>
+<li>the file's first line does not hash as recorded: another file, or one that
+holds no whole line;</li>
+<li>the offset is past the file's last newline;</li>
+<li>the byte before the offset is not a newline;</li>
+<li>the line ending at the offset does not hash as recorded: a file restored and
+appended since.</li>
+</ul>
+<p>A file has an identity once its first line is whole, and an empty file gives
+no cursor. The identity is content and not the path, so a renamed or rotated
+file is read on under its new name.</p>
+<h3 id="the-query">The query</h3>
+<ul>
+<li><code>--after &lt;cursor&gt;</code> starts after the line the cursor names.</li>
+<li><code>--limit &lt;n&gt;</code> bounds the records written, every type counted: 1000 by
+default, at least 1 and at most 100 000. The export stops before the record
+past it and <code>next_cursor</code> names the last line it consumed.</li>
+<li><code>--max-bytes &lt;n&gt;</code> bounds <code>scanned_bytes</code>, the bytes of the whole lines the
+export reads after the cursor; 0 is no bound. The export stops before the
+line that would cross it. A first line longer than the bound can never be
+read under it, and the export is refused. The bound is not on every byte the
+export reads: the file's first line, the line the cursor names and the bytes
+after the last newline are read to check them, whatever their length. The
+export keeps one entry per event id among the lines it reads, so the bound
+also bounds that memory.</li>
+<li><code>--request</code>, <code>--run</code>, <code>--tenant</code>, <code>--project</code> and <code>--kind</code> filter events,
+each repeatable: an event is written when it matches one value of every
+filter given. A kind is spelled as the contract names it,
+<code>EVENT_KIND_POLICY_DECIDED</code>; an unknown kind, <code>EVENT_KIND_UNSPECIFIED</code> and an
+empty value are refused. A gap is written whatever the filters: what a line
+that is not an event belongs to is unknown, and a conflict is one whichever
+of its two lines the filters pass. A filter cuts the
+<code>prev_event_id</code> links between a request's events, so a consumer rebuilding
+lifecycles exports them unfiltered or by request.</li>
+</ul>
+<h3 id="duplicates">Duplicates</h3>
+<p>Detection covers the lines one export reads, from its cursor on, which
+<code>dedup_scope: &quot;export&quot;</code> says; a line before the cursor is compared with
+nothing. Every event's id is compared, whether the filters pass it or not. A
+line repeating, byte for byte, an earlier line of this export is a <code>duplicate</code>
+when the filters pass it, and writes nothing when they do not; a line carrying
+an earlier line's event id with other content is a <code>conflicting_event_id</code> gap
+whatever the filters. An event with no id is never collapsed. Across
+exports delivery is at least once: a consumer drops an event it has seen by
+tenant, project and event id, and reads one id with two different lines as a
+gap.</p>
+<h3 id="exit-statuses">Exit statuses</h3>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Nothing refused and no gap.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>The export is whole, trailer included, and holds a gap. The records and the trailer are there to read.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Refused or cut short: a bad cursor or query, an unreadable file, a usage error, or output that could not be written. No trailer is written.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Missing evidence never reads as success.</strong> A record the plane quarantined
+never reached the file. One missing from the middle or the end of a trail shows
+as a broken <code>prev_event_id</code> link or an unfinished trail, which a consumer
+reports as unknown or open, never as completed. A request whose first record was
+refused does not appear at all, and a record that follows a trail's last event,
+such as a finding, leaves the trail complete: the export cannot show what the
+plane never delivered.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/contracts.md">docs/contracts.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
 <nav class="side" aria-label="Documentation">
@@ -1161,6 +1351,7 @@ rather than let protojson drop it silently.</p>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
 <li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
 <li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
