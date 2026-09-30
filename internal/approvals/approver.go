@@ -294,9 +294,15 @@ func (a *Approver) file(rec Record, answer controlv1.ApprovalState, approverID, 
 		}
 		return err
 	}
+	// A resolved name that is there as anything but a record is not an absent
+	// one: the answer is taken back unless each name is known to be missing.
 	for _, resolved := range []state{stateConsumed, stateNotResumed} {
-		if _, err := a.s.readBounded(rec.ApprovalID+resolved.suffix(), headerBytes+a.s.opts.maxRecordBytes); err == nil {
+		err := a.s.present(rec.ApprovalID + resolved.suffix())
+		switch {
+		case err == nil:
 			return errors.Join(refusalFor(resolved), a.s.remove(rec.ApprovalID+stateAnswered.suffix()))
+		case !errors.Is(err, fs.ErrNotExist):
+			return errors.Join(err, a.s.remove(rec.ApprovalID+stateAnswered.suffix()))
 		}
 	}
 	return a.s.remove(rec.ApprovalID + stateHeld.suffix())

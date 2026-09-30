@@ -468,13 +468,27 @@ func TestTheConfigurationBoundsAreTheStoresOwn(t *testing.T) {
 	}
 }
 
-// TestAStoreRefusalIsTheGatewaysOwnVocabulary: the directory's refusals reach
-// the pipeline as the sentinels it names, and the store's own words travel
-// beside them so an operator reads which record refused.
-func TestAStoreRefusalIsTheGatewaysOwnVocabulary(t *testing.T) {
+// refusalRig is one approvals directory holding the lost request, with a
+// plane, an approver and the seam over the plane, all read at one clock.
+type refusalRig struct {
+	store    *approvals.Plane
+	approver *approvals.Approver
+	seam     *approvalStore
+	records  string
+	binding  approval.Binding
+	digest   string
+	now      time.Time
+}
+
+func openRefusalRig(t *testing.T) refusalRig {
+	t.Helper()
 	tr := newTree(t)
 	records, holds := tr.fileProvider(t)
 	binding := lostHold(t, records, holds, time.Now().Add(10*time.Minute))
+	digest, _, err := approval.Bind(readEnvelope(), []byte("{}"), fixtureBundleDigest)
+	if err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
 	store, err := approvals.OpenPlane(records)
 	if err != nil {
 		t.Fatalf("OpenPlane: %v", err)
@@ -484,30 +498,172 @@ func TestAStoreRefusalIsTheGatewaysOwnVocabulary(t *testing.T) {
 			t.Errorf("closing the store: %v", err)
 		}
 	})
-	seam := &approvalStore{plane: store}
+	approver, err := approvals.OpenApprover(records)
+	if err != nil {
+		t.Fatalf("OpenApprover: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := approver.Close(); err != nil {
+			t.Errorf("closing the approver: %v", err)
+		}
+	})
+	return refusalRig{
+		store: store, approver: approver, seam: &approvalStore{plane: store},
+		records: records, binding: binding, digest: string(digest), now: time.Now(),
+	}
+}
+
+// held is the hold of request req-<id> under approval apr-<id>.
+func (r refusalRig) held(id string, multiUse bool) gateway.Held {
+	return gateway.Held{
+		Approval: &controlv1.Approval{
+			ApprovalId:         "apr-" + id,
+			RequestId:          "req-" + id,
+			ActionDigest:       r.digest,
+			PolicyBundleDigest: fixtureBundleDigest,
+			State:              controlv1.ApprovalState_APPROVAL_STATE_PENDING,
+			RequestedAt:        timestamppb.New(r.now),
+			ExpiresAt:          timestamppb.New(r.now.Add(10 * time.Minute)),
+			MultiUse:           multiUse,
+		},
+		Binding:  r.binding,
+		Envelope: readEnvelope(),
+		Decision: &controlv1.Decision{RequestId: "req-" + id},
+	}
+}
+
+func (r refusalRig) hold(t *testing.T, id string, multiUse bool) {
+	t.Helper()
+	if err := r.seam.Hold(context.Background(), r.held(id, multiUse), r.now); err != nil {
+		t.Fatalf("holding req-%s: %v", id, err)
+	}
+}
+
+func (r refusalRig) answer(id string, state controlv1.ApprovalState, approverID string) error {
+	_, err := r.approver.Answer(context.Background(), "apr-"+id, state, approverID, "", r.now)
+	return err
+}
+
+func (r refusalRig) answered(t *testing.T, id string, state controlv1.ApprovalState, approverID string) {
+	t.Helper()
+	if err := r.answer(id, state, approverID); err != nil {
+		t.Fatalf("answering apr-%s: %v", id, err)
+	}
+}
+
+func (r refusalRig) consume(id string, at time.Time) error {
+	_, err := r.seam.Consume(context.Background(), r.binding, "req-"+id, "apr-"+id, at)
+	return err
+}
+
+const (
+	approvedState = controlv1.ApprovalState_APPROVAL_STATE_APPROVED
+	rejectedState = controlv1.ApprovalState_APPROVAL_STATE_REJECTED
+	pendingState  = controlv1.ApprovalState_APPROVAL_STATE_PENDING
+)
+
+// storeRefusals makes each refusal storeErrors translates with a real store.
+// The seam carries no answer, so the approver's two refusals, and the
+// resolution the seam refuses before the store is asked, are handed to the
+// translation directly.
+var storeRefusals = []struct {
+	store   approvals.Error
+	want    gateway.Error
+	refusal func(*testing.T, refusalRig) error
+}{
+	{approvals.ErrNoApproval, gateway.ErrNoApproval, func(_ *testing.T, r refusalRig) error {
+		return r.consume("nobody-held", r.now)
+	}},
+	{approvals.ErrApprovalConsumed, gateway.ErrApprovalConsumed, func(t *testing.T, r refusalRig) error {
+		r.hold(t, "consumed", false)
+		r.answered(t, "consumed", approvedState, "approver-1")
+		if err := r.consume("consumed", r.now); err != nil {
+			t.Fatalf("the first consume: %v", err)
+		}
+		return r.consume("consumed", r.now)
+	}},
+	{approvals.ErrApprovalExpired, gateway.ErrApprovalExpired, func(t *testing.T, r refusalRig) error {
+		r.hold(t, "expired", false)
+		return r.consume("expired", r.now.Add(10*time.Minute))
+	}},
+	{approvals.ErrApprovalRejected, gateway.ErrApprovalRejected, func(t *testing.T, r refusalRig) error {
+		r.hold(t, "rejected", false)
+		r.answered(t, "rejected", rejectedState, "")
+		return r.consume("rejected", r.now)
+	}},
+	{approvals.ErrMultiUse, gateway.ErrMultiUse, func(t *testing.T, r refusalRig) error {
+		r.hold(t, "multi", true)
+		return r.consume("multi", r.now)
+	}},
+	{approvals.ErrZeroTime, gateway.ErrZeroTime, func(_ *testing.T, r refusalRig) error {
+		return r.seam.Hold(context.Background(), gateway.Held{}, time.Time{})
+	}},
+	{approvals.ErrInvalidHold, gateway.ErrInvalidHold, func(_ *testing.T, r refusalRig) error {
+		return r.seam.Hold(context.Background(), gateway.Held{}, r.now)
+	}},
+	{approvals.ErrAlreadyHeld, gateway.ErrAlreadyHeld, func(t *testing.T, r refusalRig) error {
+		r.hold(t, "twice", false)
+		again := r.held("twice", false)
+		again.Approval.ApprovalId = "apr-twice-again"
+		return r.seam.Hold(context.Background(), again, r.now)
+	}},
+	{approvals.ErrApprovalAnswered, gateway.ErrApprovalAnswered, func(t *testing.T, r refusalRig) error {
+		r.hold(t, "answered", false)
+		r.answered(t, "answered", approvedState, "approver-1")
+		return storeError(r.answer("answered", approvedState, "approver-2"))
+	}},
+	{approvals.ErrApprovalAnswer, gateway.ErrApprovalAnswer, func(t *testing.T, r refusalRig) error {
+		r.hold(t, "pending", false)
+		return storeError(r.answer("pending", pendingState, "approver-1"))
+	}},
+	{approvals.ErrResolution, gateway.ErrResolution, func(_ *testing.T, r refusalRig) error {
+		return storeError(r.store.Resolve(context.Background(), r.binding, lostRequest, approvals.ResolutionConsumed, r.now))
+	}},
+}
+
+// TestAStoreRefusalIsTheGatewaysOwnVocabulary: the directory's refusals reach
+// the pipeline as the sentinels it names, and the store's own words travel
+// beside them so an operator reads which record refused. Every entry of the
+// translation has a case.
+func TestAStoreRefusalIsTheGatewaysOwnVocabulary(t *testing.T) {
+	r := openRefusalRig(t)
 	ctx := context.Background()
-	now := time.Now()
 
 	// Nobody has approved the held request, so consuming it is refused.
-	if _, err := seam.Consume(ctx, binding, lostRequest, lostApproval, now); !isGateway(err, gateway.ErrNoApproval) {
+	if _, err := r.seam.Consume(ctx, r.binding, lostRequest, lostApproval, r.now); !isGateway(err, gateway.ErrNoApproval) {
 		t.Errorf("consuming an unanswered record answered %v, want %v", err, gateway.ErrNoApproval)
 	}
 	// A record this plane never held is not a record it may speak for.
-	if err := seam.Resolve(ctx, binding, "req-nobody-held", gateway.ResolutionNotResumed, now); !isGateway(err, gateway.ErrNoApproval) {
+	if err := r.seam.Resolve(ctx, r.binding, "req-nobody-held", gateway.ResolutionNotResumed, r.now); !isGateway(err, gateway.ErrNoApproval) {
 		t.Errorf("resolving an unheld record answered %v, want %v", err, gateway.ErrNoApproval)
 	}
 	// Only the consuming path marks a record spent, whatever a caller asks.
-	if err := seam.Resolve(ctx, binding, lostRequest, gateway.ResolutionConsumed, now); !isGateway(err, gateway.ErrResolution) {
+	if err := r.seam.Resolve(ctx, r.binding, lostRequest, gateway.ResolutionConsumed, r.now); !isGateway(err, gateway.ErrResolution) {
 		t.Errorf("resolving a record consumed answered %v, want %v", err, gateway.ErrResolution)
 	}
-	if got := recordsUnder(t, records); !slices.Equal(got, []string{
+	if got := recordsUnder(t, r.records); !slices.Equal(got, []string{
 		lostApproval + ` pending APPROVAL_STATE_PENDING ""`,
 	}) {
 		t.Errorf("a refused call changed the record: %v", got)
 	}
-	// A clock that reads zero would pass every expiry.
-	if err := seam.Hold(ctx, gateway.Held{}, time.Time{}); !isGateway(err, gateway.ErrZeroTime) {
-		t.Errorf("a zero clock answered %v, want %v", err, gateway.ErrZeroTime)
+
+	covered := map[approvals.Error]bool{}
+	for _, c := range storeRefusals {
+		t.Run(string(c.want), func(t *testing.T) {
+			err := c.refusal(t, r)
+			if !errors.Is(err, c.want) {
+				t.Errorf("answered %v, want %v", err, c.want)
+			}
+			if !errors.Is(err, c.store) {
+				t.Errorf("answered %v, and the store's own %v did not travel beside it", err, c.store)
+			}
+		})
+		covered[c.store] = true
+	}
+	for from := range storeErrors {
+		if !covered[from] {
+			t.Errorf("no case makes the store refuse with %v", from)
+		}
 	}
 }
 

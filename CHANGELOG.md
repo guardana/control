@@ -41,6 +41,8 @@ verify one.
   is off.
 - A tool result that could not be encoded was recorded as a success with no
   hash; it is now `UNKNOWN`, with the protocol status `unhashable`.
+- An approver's answer succeeded beside a consumed or not-resumed record it
+  could not read; the store now refuses it and takes the answer back.
 
 ## [0.2.0-alpha] - 2026-09-28
 

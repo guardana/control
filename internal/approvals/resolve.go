@@ -307,8 +307,12 @@ func (p *Plane) resolve(rec Record, to Resolution) error {
 		return err
 	}
 	if next == stateNotResumed {
-		if _, err := p.s.readBounded(rec.ApprovalID+stateConsumed.suffix(), headerBytes+p.s.opts.maxRecordBytes); err == nil {
+		err := p.s.present(rec.ApprovalID + stateConsumed.suffix())
+		switch {
+		case err == nil:
 			return errors.Join(ErrApprovalConsumed, p.s.remove(rec.ApprovalID+stateNotResumed.suffix()))
+		case !errors.Is(err, fs.ErrNotExist):
+			return errors.Join(err, p.s.remove(rec.ApprovalID+stateNotResumed.suffix()))
 		}
 	}
 	return errors.Join(

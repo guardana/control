@@ -136,6 +136,24 @@ func TestConsumeRefusesAnApprovalIDItCannotName(t *testing.T) {
 	}
 }
 
+// TestConsumeRefusesAnApprovalNobodyClaimed: an APPROVED record with no
+// approver, written straight into the directory past Answer's own check, is a
+// grant nobody made. It is refused as no approval and nothing is spent.
+func TestConsumeRefusesAnApprovalNobodyClaimed(t *testing.T) {
+	p, dir, h := heldOne(t)
+	answerAt(t, dir, minted.Add(time.Minute))
+	writeFile(t, dir, answeredName, withApprovalField(t, readFile(t, dir, answeredName), "approverId", `""`))
+
+	got, err := p.Consume(t.Context(), h.Binding, "req-1", firstApproval, minted.Add(2*time.Minute))
+	if !errors.Is(err, approvals.ErrNoApproval) {
+		t.Fatalf("consuming an approval nobody claimed = %v, want ErrNoApproval", err)
+	}
+	if got != nil {
+		t.Fatalf("a refused consume handed back %v", got)
+	}
+	assertNames(t, dir, answeredName)
+}
+
 // TestAnAnswerIsStillReadBackFromTheRecordThePlaneMinted holds the ordinary
 // path against the check above: the plane mints, an approver answers, and the
 // plane spends its own record once.

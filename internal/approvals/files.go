@@ -39,6 +39,7 @@ func (s *store) commit(name string, body []byte) error {
 		}
 		return errors.Join(err, s.root.Remove(tmp))
 	}
+	s.step(stepLinked)
 	return errors.Join(s.root.Remove(tmp), s.syncDir())
 }
 
@@ -104,6 +105,21 @@ func (s *store) readBounded(name string, limit int) ([]byte, error) {
 		return nil, fmt.Errorf("%w: over %d bytes", ErrRecordTooLarge, limit)
 	}
 	return raw, nil
+}
+
+// present reports, without following a link at name, whether name is the
+// regular file this package writes: nil when it is, an error matching
+// fs.ErrNotExist when nothing is there, and ErrForeignFile when something
+// else is. A read follows a link, and takes one to a missing name for no name.
+func (s *store) present(name string) error {
+	info, err := s.root.Lstat(name)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%w: %q is not a regular file", ErrForeignFile, cause(name))
+	}
+	return nil
 }
 
 // listing is what one pass over the directory found: the approval ids, sorted,

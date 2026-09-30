@@ -8,11 +8,13 @@ import (
 )
 
 // The steps a test can act at: the directory judged at open, the plane's
-// lock taken, and a call's judge passed.
+// lock taken, a call's judge passed, and a name linked before anything reads
+// the directory again.
 const (
 	stepOpened = "opened"
 	stepLocked = "locked"
 	stepJudged = "judged"
+	stepLinked = "linked"
 )
 
 // withSteps runs f at each step, so a test can swap the directory under its

@@ -193,13 +193,24 @@ func (v *victim) overrides(t *testing.T) []mcp.Override {
 // test can make a reachable upstream answer something no client can read. The
 // manifest is read at Start, through the gate in its passing state.
 type upstreamGate struct {
+	mu      sync.RWMutex
 	next    http.Handler
 	garbage atomic.Bool
 }
 
+// wrap puts f around the handler while the server may be serving.
+func (g *upstreamGate) wrap(f func(http.Handler) http.Handler) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.next = f(g.next)
+}
+
 func (g *upstreamGate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !g.garbage.Load() {
-		g.next.ServeHTTP(w, r)
+		g.mu.RLock()
+		next := g.next
+		g.mu.RUnlock()
+		next.ServeHTTP(w, r)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
