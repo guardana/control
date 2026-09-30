@@ -20,7 +20,9 @@ repository, and a reader moving between the two should see one visual system.
 - The site is `site/` in this repository, served at `control.guardana.dev` by
   a Cloudflare Worker with static assets and no script, described by
   `wrangler.json` at the root: its name, the assets directory, how an address
-  maps to a file, and neither a `workers.dev` address nor preview addresses.
+  maps to a file, its one address as a Custom Domain, for which Cloudflare
+  creates the DNS record and the certificate at deploy, and neither a
+  `workers.dev` address nor preview addresses.
   Cloudflare's Git integration deploys it on every push to `main`. The file is
   strict JSON rather than JSONC, so a comment cannot hide a key from the check
   that reads it.

@@ -373,6 +373,10 @@ func wranglerConfig() map[string]any {
 			"directory":     "./site",
 			"html_handling": "auto-trailing-slash",
 		},
+		"routes": []any{map[string]any{
+			"pattern":       strings.TrimSuffix(strings.TrimPrefix(siteOrigin, "https://"), "/"),
+			"custom_domain": true,
+		}},
 		"workers_dev":  false,
 		"preview_urls": false,
 	}

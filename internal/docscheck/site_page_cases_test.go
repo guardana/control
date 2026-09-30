@@ -149,6 +149,7 @@ const goodWrangler = `{
   "name": "` + brand.Slug + `",
   "compatibility_date": "2026-09-28",
   "assets": {"directory": "./site", "html_handling": "auto-trailing-slash"},
+  "routes": [{"pattern": "control.guardana.dev", "custom_domain": true}],
   "workers_dev": false,
   "preview_urls": false
 }
@@ -168,6 +169,9 @@ func TestWranglerProblems(t *testing.T) {
 		"another name":            {`"` + brand.Slug + `"`, `"site"`, "name is site"},
 		"a value after the value": {"}\n", "}\n{}\n", "something follows"},
 		"not an object":           {goodWrangler, `[]`, "not an object"},
+		"a route, not a domain":   {`"custom_domain": true`, `"custom_domain": false`, "routes is"},
+		"a pattern with a path":   {`"pattern": "control.guardana.dev"`, `"pattern": "control.guardana.dev/*"`, "routes is"},
+		"no address":              {`"routes": [{"pattern": "control.guardana.dev", "custom_domain": true}],`, ``, "routes is <nil>"},
 	} {
 		wantProblem(t, name, wranglerProblems([]byte(strings.Replace(goodWrangler, c.from, c.to, 1))), c.want)
 	}
