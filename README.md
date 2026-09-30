@@ -7,6 +7,7 @@
 [![CI](https://github.com/guardana/control/actions/workflows/ci.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/ci.yml)
 [![Security](https://github.com/guardana/control/actions/workflows/security.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/security.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/guardana/control/badge)](https://scorecard.dev/viewer/?uri=github.com/guardana/control)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15118/badge)](https://www.bestpractices.dev/projects/15118)
 [![Release](https://img.shields.io/github/v/release/guardana/control?include_prereleases&sort=semver)](https://github.com/guardana/control/releases)
 [![Go 1.27](https://img.shields.io/badge/go-1.27-00ADD8.svg)](go.mod)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
@@ -43,7 +44,7 @@ verdicts:
 | `ALLOW` | The action proceeds. |
 | `DENY` | The action is blocked. |
 | `REQUIRE_APPROVAL` | This exact action runs only after an approval. |
-| `ALLOW_WITH_OBLIGATIONS` | The action proceeds under conditions that are enforced. |
+| `ALLOW_WITH_OBLIGATIONS` | The action proceeds under enforced conditions. |
 | `INDETERMINATE` | The decision could not be made. It is never an allow. |
 
 It enforces the verdict except in `OBSERVE`; `APPROVE` and a pause can be
@@ -51,7 +52,7 @@ stricter. Nothing runs unrecorded unless the operator let a read do so. The
 record says who acted, on
 whose behalf, on what, what was decided, which policy version decided it, how
 the call ended, and a hash of any answer it could encode, never its content.
-Precedence between the verdicts and the fail-closed rules is in
+Verdict precedence and the fail-closed rules are in
 [ADR-0012](docs/adr/0012-policy-kernel-semantics.md), the evidence and privacy
 defaults in [ADR-0004](docs/adr/0004-evidence-and-privacy-defaults.md).
 
