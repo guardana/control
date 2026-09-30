@@ -52,6 +52,8 @@ the plane's own account, someone on the network, and a tampered release.
 
 ```mermaid
 flowchart TD
+    accTitle: Trust boundaries
+    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane's machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
     Agent["Agent and its model"] -->|"MCP, no credential"| Plane
     Agent -.->|"a path around the plane"| Http
     subgraph Host["The plane's machine"]

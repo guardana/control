@@ -190,8 +190,29 @@ any of them.
 
 ## The website
 
-`site/` holds the website's static files ([ADR-0030](adr/0030-a-static-website-drawn-from-the-repository.md)).
-No binary or image of the product contains what it holds.
+`site/` holds the website's static files ([ADR-0030](adr/0030-a-static-website-drawn-from-the-repository.md)),
+and one Go module renders its documentation pages. No binary or image of the
+product contains what this section lists.
+
+### `github.com/yuin/goldmark` v1.8.6
+
+- Problem it solves: rendering the documentation's Markdown into the site's
+  pages under `site/docs/`, with the tables, strikethrough and bare links the
+  pages use as GitHub shows them
+  ([ADR-0031](adr/0031-the-documentation-is-served-on-the-website.md)). The
+  renderer in `internal/docscheck/sitedoc/docsite` walks its syntax tree to
+  rewrite links, set heading anchors and refuse raw HTML.
+- Why the standard library will not do: it has no Markdown parser, and
+  CommonMark's block and inline rules are too many to keep by hand beside the
+  pages they would have to agree with.
+- Licence: MIT, copyright Yusuke Inuzuka, read from the module's `LICENSE`.
+  The module has no dependency of its own.
+- Maintenance signal: v1.8.6 was published on 2026-09-03, read from the module
+  proxy in the session that added this entry. Nothing else about the project's
+  activity was checked.
+- Request path: no. Only `internal/docscheck` imports it, and `go list -deps`
+  over `cmd/`, `pkg/`, `adapters/` and `examples/` does not reach it, so no
+  binary or image of the product contains it.
 
 ### IBM Plex Sans and IBM Plex Mono
 

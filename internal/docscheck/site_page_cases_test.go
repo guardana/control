@@ -20,21 +20,23 @@ func mustParse(t *testing.T, page string) *xnode {
 }
 
 func TestSiteLinkProblems(t *testing.T) {
-	repo := fstest.MapFS{"docs/a.md": {Data: []byte("a")}, "docs/sub/b.md": {Data: []byte("b")}}
+	repo := fstest.MapFS{"docs/a.md": {Data: []byte("# A\n")}, "docs/sub/b.md": {Data: []byte("b")}, "cmd/x.go": {Data: []byte("package x\n")}}
 	blob := "https://" + brand.ModulePath + "/blob/main/"
 	tree := "https://" + brand.ModulePath + "/tree/main/"
 	site := map[string][]byte{
 		"index.html": []byte(`<html><body id="top"><a href="/">home</a><a href="#top">up</a><a href="/sub/#s">s</a>` +
-			`<a href="` + blob + `docs/a.md">a</a><a href="` + tree + `docs/sub">sub</a><a href="https://example.org/">x</a>` +
+			`<a href="` + blob + `docs/a.md">a</a><a href="` + blob + `docs/a.md#a">a</a><a href="` + tree + `docs/sub">sub</a><a href="https://example.org/">x</a>` +
+			`<a href="/page">page</a><a href="/sub">sub</a>` +
 			`<svg><path marker-end="url(#top)"/></svg><link rel="stylesheet" href="assets/a.css"/></body></html>`),
 		"sub/index.html":       []byte(`<html><body><p id="s">s</p><a href="../index.html#top">back</a></body></html>`),
+		"page.html":            []byte(`<html><body><a href="/">home</a></body></html>`),
 		"assets/a.css":         []byte(`@font-face{src:url("fonts/f.woff2")}`),
 		"assets/fonts/f.woff2": nil,
 	}
 	problems, resolved := linkProblems(site, repo)
 	wantNone(t, "a site whose links resolve", problems)
-	if resolved != 9 {
-		t.Errorf("resolved %d links, want 9 (the host link is not one)", resolved)
+	if resolved != 13 {
+		t.Errorf("resolved %d links, want 13 (the host link is not one)", resolved)
 	}
 	for name, c := range map[string]struct{ link, want string }{
 		"a missing file":            {`<a href="/nothing.html">x</a>`, "the site does not hold"},
@@ -46,6 +48,9 @@ func TestSiteLinkProblems(t *testing.T) {
 		"a blob of a directory":     {`<a href="` + blob + `docs/sub">x</a>`, "a blob link to a directory"},
 		"a tree of a file":          {`<a href="` + tree + `docs/a.md">x</a>`, "a tree link to a file"},
 		"an empty link":             {`<a href="">x</a>`, "an empty link"},
+		"a path with no page":       {`<a href="/nothing">x</a>`, "/nothing resolves to nothing, which the site does not hold"},
+		"a blob's missing heading":  {`<a href="` + blob + `docs/a.md#nowhere">x</a>`, "docs/a.md has no heading #nowhere"},
+		"a fragment into code":      {`<a href="` + blob + `cmd/x.go#L1">x</a>`, "a fragment into cmd/x.go, whose anchors cannot be checked"},
 	} {
 		files := maps.Clone(site)
 		files["index.html"] = []byte(strings.Replace(string(site["index.html"]), "</body>", c.link+"</body>", 1))

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0019: An operator can pause calls, and a pause the plane cannot read blocks · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0019-an-operator-can-pause-calls"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0019-an-operator-can-pause-calls-and-a-pause-the-plane-cannot-read-blocks">ADR-0019: An operator can pause calls, and a pause the plane cannot read blocks</h1>
+<p>Status: accepted
+Date: 2026-09-24</p>
+<p>Builds on <a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a>,
+<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>,
+<a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a> and
+<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>.
+Amends <a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>: the decision
+point is never asked about a call the plane blocks whatever it answers.</p>
+<h2 id="context">Context</h2>
+<p>The registry holds <code>PAUSED</code>, number 24, <code>DENY</code>, and nothing emits it. An
+operator who sees an agent misuse one tool can stop the plane, which stops
+every agent and every read, or change the mode, which takes a restart and has
+no scope. Neither is an emergency stop for one tool.</p>
+<p>The plane already blocks some calls whatever the policy says: a call nothing
+classifies outside <code>OBSERVE</code>, a material call while a halt stands, a material
+call under <code>LOCKDOWN</code>. Those blocks are applied after the kernel decides, and
+the kernel's first decision is followed by an ask to the decision point when
+its answer could change it. So a call the plane will block anyway can still
+send its identity, action, resource and destination to the decision point and
+wait for the answer. The backlog recorded that, and an incident in which the
+decision point itself is what the operator wants stopped is its worst case.</p>
+<p>The listener of this build authenticates nobody. The principal and the agent
+of every call are the ones configured for the listener, so a pause by
+principal or by agent would be the whole plane or nothing.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>Three scopes.</strong> <code>global</code>; <code>provider</code>, an upstream by its configured name;
+and <code>action</code>: a kind, a provider and, for a tool, the name the plane routes
+by. A resource or a prompt is paused by its provider only: the plane routes
+neither by name, so the name is the client's spelling, and an exact match on
+it could be sidestepped. A scope
+matches a call when every field it names equals the envelope's, and a field the
+envelope does not carry matches, as an absent input restricts under ADR-0012:
+a call nothing classifies carries no provider, so every entry pauses it. A
+scope reads nothing else the client wrote: not <code>_meta</code>, not client
+information, not the run context, not an argument. Principal, agent and tenant
+scopes are refused until a listener authenticates, because an entry that
+silently pauses nothing is the unsafe failure of an emergency control. An entry
+naming a provider this plane does not configure, or a tool its upstream does
+not list, pauses only the calls that carry no provider, and <code>doctor</code>,
+<code>/healthz</code> and a warning in the plane's log name it.</p>
+<p><strong>One file, written one way.</strong> A pause is an entry in one JSON document at
+<code>pause.file</code>: a <code>schema_version</code> and a list of entries, each an <code>id</code>, a
+<code>scope</code>, a <code>created_at</code> and a <code>reason</code>. It is read strictly: an unknown member,
+a duplicate id, an unknown scope, a name on a resource or prompt scope or a
+control character in a reason refuses the whole document, and its size and its
+entries are bounded. <code>created_at</code> and <code>reason</code> are for the operator and decide
+nothing. Only <code>internal/pause</code> writes the file, under an exclusive lock,
+through a temporary file, a sync, a rename and a sync of the directory, for
+<code>guardana-control pause init</code>, <code>add</code>, <code>remove</code> and <code>list</code> and for the dev page.
+Removing the last entry writes an empty list; nothing deletes the file. Its
+directory may not be, or be inside, the evidence, approvals or hold journal
+directory, whose locks would keep a writer out while a plane runs; directories
+are compared by identity, so a link or another spelling of one of them is
+refused too. Neither the file nor its directory may be a link, both must be
+owned by the plane's user and writable by nobody else, and the directory is
+judged on the handle the file is then read and written through, so a directory
+swapped in after the check is refused. The file opened must be the one judged
+no link, so a file swapped in between is refused too.</p>
+<p><strong>A snapshot per decision, taken before the clock.</strong> The plane reads the file
+every <code>pause.poll_interval</code>, one second by default, into an immutable snapshot.
+A call takes the snapshot when it starts, before it reads the clock, so a read
+published in between cannot look dated ahead; it takes it again after an ask to
+the decision point, which can outlast a snapshot's age, and everything decided
+after the ask, the rewrite path's second decision included, uses the second
+one. It takes it a last time right before each step that cannot be undone:
+before a resume consumes its approval, and before an execution's
+<code>ACTION_STARTED</code> is written. A state there that covers the call or cannot be
+read blocks it. The snapshot is in one of four states: disabled, clear, paused,
+or unknown with a cause. Its zero value is unknown, because a snapshot nobody
+read is not a clear one. A file that is missing, unreadable, a link, too widely
+writable, too large, owned by another user, malformed or of an unknown version
+is unknown with that cause, and so is a snapshot older than three poll
+intervals, or dated ahead, by the plane's clock, so a reader that stopped
+cannot leave an old answer standing. At start the same checks run once and a
+failure refuses the start, and the plane reads the file once more right before
+it listens, so a slow start never hands the first calls a stale snapshot.
+<code>pause.file</code> is optional: a plane without it is disabled and says so in
+<code>doctor</code> and <code>/healthz</code>, and the pipeline refuses a missing source, so the
+command hands it an explicit disabled one.</p>
+<p><strong>The plane's own causes come before any question leaves the plane.</strong> One pure
+function of the call and of the plane's state names every cause the plane has
+to block the call whatever the policy says. In order: a pause that covers it
+(<code>PAUSED</code>, <code>DENY</code>), the mismatch halt on a material call
+(<code>EXECUTED_ARGS_MISMATCH</code>, <code>DENY</code>), <code>LOCKDOWN</code> on a material call (<code>LOCKDOWN</code>,
+<code>DENY</code>), a pause state that cannot be read (<code>PAUSE_STATE_UNAVAILABLE</code>,
+<code>INDETERMINATE</code>), the evidence halt on a material call (<code>EVIDENCE_UNAVAILABLE</code>,
+<code>INDETERMINATE</code>), and a call nothing classifies outside <code>OBSERVE</code>
+(<code>ACTION_UNCLASSIFIED</code>, <code>INDETERMINATE</code>). When it names any cause, the kernel
+still decides and <code>POLICY_DECIDED</code> records that decision, but the decision
+point is not asked: the kernel decides with the answer &quot;not asked&quot;, so a veto
+rule that reads it is undetermined, and the decision carries no <code>PDP_</code> code and
+no <code>pdp_instance</code>. <code>ACTION_BLOCKED</code> carries the plane's decision, which lists
+every cause named, in that order; its verdict is <code>DENY</code> when any <code>DENY</code> cause
+applies, and its first code is the one the block counters count. The causes
+are named once before the ask. When there are none and the decision point is
+asked, they are named once more after it, under the second snapshot; any that
+appeared blocks the call, whose <code>POLICY_DECIDED</code> then holds the answer. A
+pause applies in every mode, <code>OBSERVE</code> included, and to every effect class.</p>
+<p><strong>A pause is blocked before the approval path.</strong> A paused retry of a held
+request is blocked on a trail of its own: nothing is held anew and no approval
+is consumed. A pause read in the last moment, after the approval was consumed
+and before the execution is handed out, closes the held trail as paused, and
+that approval is spent: until it expires, an identical call reads
+<code>APPROVAL_ALREADY_USED</code> although nothing ran, since a spent record is all the
+store can say. Otherwise the hold outlives the pause. Lifted before its
+approval expires, the next retry resumes the held request when its fresh
+decision equals the held one, as ADR-0013 requires. A pause closes no hold.</p>
+<p><strong>Nothing already running is cancelled.</strong> An execution handed out before the
+pause finishes: <code>Close</code> compares and records as always and the result is
+delivered. Cancelling it would turn an effect into an unknown one. A pause
+bites on every call not yet handed out when the plane read it, at most one
+poll interval after the write that set it.</p>
+<p><strong>A listing ignores pauses.</strong> <code>Preview</code>, which shapes <code>tools/list</code>, skips the
+pause: a paused tool stays listed, and a call to it reads <code>PAUSED</code>. The halts
+still apply there, as before.</p>
+<p><strong>What the evidence says.</strong> <code>PAUSED</code> keeps its number and verdict, and its
+summary becomes &quot;An operator paused calls in a scope this call falls in, so the
+enforcement point blocked it whatever the policy decided.&quot; No record has ever
+carried code 24, so no earlier record changes meaning.
+<code>PAUSE_STATE_UNAVAILABLE</code> is registry number 43, <code>INDETERMINATE</code>: &quot;The
+enforcement point could not read the operator's pause state, so it blocked the
+call rather than assume that nothing is paused.&quot; A fault is not an operator's
+act, and a trail must not say an operator paused a call a fault blocked;
+reusing <code>EVIDENCE_UNAVAILABLE</code> would make a pause file's fault and the spool's
+the same fact. The plane's decision names no entry: <code>policy_rule_ids</code> stays
+empty, because beside the bundle digest an entry's id would read as a rule of
+that bundle, and a bundle may hold a rule with the same id. The plane logs each
+change of its snapshot, the entry ids added and removed, at info. Setting or
+lifting a pause is not evidence: no event kind carries it.</p>
+<p><strong>What reports it.</strong> <code>doctor</code> runs the start checks without taking a lock and
+prints the path, the state, the number of entries and every entry that pauses
+only calls with no provider, never a reason. <code>/healthz</code> gains <code>pause</code>: the
+state, the entries, whether one is global, the entries that pause only calls
+with no provider (<code>unlisted_only</code>), the snapshot's age and an unknown state's
+cause. An unknown state is a problem and answers 503; an
+operator's pause answers 200. The counters count blocks by code, as before, and
+the polls, the failed polls by cause and the snapshot changes.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>A pause the plane cannot read blocks every call as <code>INDETERMINATE</code>, and nothing
+reads an unknown pause state as clear (invariants 4 and 5). Write access to the
+pause file is the authority to pause and to lift a pause, as write access to
+the approvals directory is the authority to approve (ADR-0016): any process
+that runs as the plane's user can empty the file, a stdio upstream the plane
+starts included. The ownership and permission checks keep other accounts out,
+not that one, so the pause commands run as the plane's user.</p>
+<p>The wire contract does not change. Code 43 is a registry change, as codes 39 to
+42 were, and code 24's summary changes. ADR-0017's rule that the ask follows
+the kernel in every mode narrows: the plane never asks about a call it blocks
+whatever the answer, so under <code>LOCKDOWN</code>, a halt or a pause the recorded kernel
+decision no longer holds the decision point's answer.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>One file per pause, created exclusively and unlinked to lift</strong>, as the
+approvals store keeps its records. No lock, but no atomic view across
+entries, a lift leaves no trace, and &quot;missing&quot; becomes a missing directory.</li>
+<li><strong>Pauses held in the plane and set through the control API.</strong> A restart
+forgets them unless they are written somewhere, which is this record again,
+and the emergency stop would need that API to be up.</li>
+<li><strong>A missing file read as nothing paused.</strong> Deleting it, or a typo in its
+path, lifts every pause silently.</li>
+<li><strong>An unreadable file recorded as <code>PAUSED</code>.</strong> The trail would say an operator
+paused a call that a fault blocked.</li>
+<li><strong>Principal, agent and tenant scopes now.</strong> On a listener that authenticates
+nobody each is the whole plane or nothing.</li>
+<li><strong>The entry's id in <code>policy_rule_ids</code>.</strong> It reads as a rule of the bundle the
+decision names. A reserved prefix the policy format refuses would make it
+unambiguous, at the cost of a policy format change; it waits for a reader
+that needs the entry.</li>
+<li><strong>Keeping the ask for calls the plane blocks</strong>, as ADR-0017 had it. The
+recorded decision stays whole, and a paused call sends its metadata out
+during the incident it was paused for.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>An operator stops one tool, one upstream or everything without a restart, from
+a command or from the dev page, and lifts it the same way. The plane gains a
+reader, an optional key group, <code>pause.file</code> and <code>pause.poll_interval</code>, and one
+more file for the operator to protect. A plane configured with a pause file
+blocks everything when that file breaks, which is the price of an emergency
+stop that deleting a file cannot defeat. A decision the plane mints may now
+list several causes.</p>
+<h2 id="declared-limits">Declared limits</h2>
+<ul>
+<li>A pause bites up to one poll interval after it is written, and never on an
+execution already handed out.</li>
+<li>The evidence says that a call was paused, not which entry paused it; the
+plane's log says which entries changed and when.</li>
+<li>Principal, agent and tenant cannot be paused until a listener authenticates.</li>
+<li>A hold outlives a pause and can resume after it is lifted, within its
+approval's lifetime.</li>
+<li>The pause file keeps no history of its own.</li>
+<li>The checks read the mode bits and the owner. On macOS an access control list
+can grant what the mode bits do not show, and the checks do not read it.</li>
+<li>A call a fault left without a provider, an unclassified one, is paused by
+every provider entry and recorded <code>PAUSED</code> first, because an absent field
+matches.</li>
+<li>A file holding its most entries refuses one more, a global one included: an
+entry is lifted first.</li>
+<li>A writer's rename that lands between a read's check of the file's name and
+its open makes that read unknown, so calls block until the next poll.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<p>The exit criteria of the change that brings this record:</p>
+<ul>
+<li>A pause at each scope blocks exactly its calls, in every mode, reads
+included; <code>POLICY_DECIDED</code> holds the kernel's decision and <code>ACTION_BLOCKED</code>
+the plane's with <code>PAUSED</code>. A provider pause blocks a call nothing classifies
+in <code>OBSERVE</code>.</li>
+<li>With a bundle that reads <code>external</code>, a paused call makes no call to a
+counting decision point, and its <code>POLICY_DECIDED</code> carries no <code>PDP_</code> code and
+an empty <code>pdp_instance</code>; a mutant that asks first turns the test red. The
+same holds under <code>LOCKDOWN</code> and each halt.</li>
+<li>A table over every pair of plane causes pins the listed codes, the verdict
+and the counted code.</li>
+<li>A held request and a paused retry: nothing is consumed; after the lift the
+next retry resumes and executes once.</li>
+<li>One case per unknown cause (missing, <code>0620</code>, <code>0602</code>, a link, a directory
+<code>0770</code>, the byte bound and one byte over, malformed, an unknown version, an
+unknown member, an unknown scope, a resource scope with a name, a snapshot
+three intervals old and one tick older, one dated ahead) blocks
+<code>INDETERMINATE</code> with code 43, and <code>/healthz</code> answers 503 naming the cause.</li>
+<li>A zero snapshot blocks as unknown, and the pipeline refuses a missing source.</li>
+<li>A source that answers differently on every read gives one state before an
+ask, one after it and one before the execution is handed out, the rewrite
+path deciding under the second; a pause written during the ask, during the
+approval store's search or during an evidence append before <code>ACTION_STARTED</code>
+bites that call, one written during that last append does not, and a
+resume it blocks before the consume consumes nothing.</li>
+<li>The file is read once more right before the plane listens, and a start
+slower than three poll intervals leaves the first calls a fresh snapshot.</li>
+<li>A file or directory owned by another user reads unknown; the writer refuses
+a directory another user owns.</li>
+<li>A link or another spelling of a locked directory is refused as the pause
+file's directory.</li>
+<li>An entry naming a provider the configuration lacks, or a tool no upstream
+lists, is named by <code>doctor</code>, <code>/healthz</code> and the log.</li>
+<li>The entry bound bites before the byte bound, with every field at its most
+expensive encoding.</li>
+<li><code>Preview</code> under a global pause answers what it answers under none.</li>
+<li>The loader refuses a pause file inside each of the three locked directories.</li>
+<li>The codes test holds <code>PAUSED</code> and code 43 to the gateway's literals and
+their verdicts, and no rule may name either.</li>
+<li>End to end: <code>guardana-control pause add</code> against a running plane blocks the
+next call within one interval, <code>pause remove</code> lets the one after through, and
+every trail validates.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0019-an-operator-can-pause-calls.md">docs/adr/0019-an-operator-can-pause-calls.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Approvals and the held request · Guardana Control</title>
+<meta name="description" content="What the enforcement point holds when a call needs an approval, what a retry must equal to resume it, and the ways a hold ends."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/concepts/approvals-and-the-held-call"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="approvals-and-the-held-request">Approvals and the held request</h1>
+<p>A call that needs an approval is answered at once with a pending state, and
+what the enforcement point holds is not the connection but the request: its
+envelope, its decision, the approval it minted and where its trail stands. A
+retry that is the same request again resumes it; the approval is consumed
+once, binds to one action digest under one bundle, and expires
+(<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>,
+<a href="/docs/adr/0011-contract-corrections-before-publication">ADR-0011</a>).</p>
+<p>Who may answer, and what becomes of a hold the plane loses, are
+<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>: an approver
+writes a file in the approvals directory, and a hold lost to a restart is
+closed on its own trail and never run, where the plane journals its holds.</p>
+<h2 id="one-held-request-end-to-end">One held request, end to end</h2>
+<figure class="dg-text" id="diagram-1"><figcaption>One held request, end to end</figcaption><p>The call is held and the agent told it is pending; an approver answers in the store; the agent&#39;s identical retry is decided again, consumes the approval once, and only the authorized bytes reach the upstream. <a href="https://github.com/guardana/control/blob/main/docs/concepts/approvals-and-the-held-call.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">sequenceDiagram
+    accTitle: One held request, end to end
+    accDescr: The call is held and the agent told it is pending; an approver answers in the store; the agent&#39;s identical retry is decided again, consumes the approval once, and only the authorized bytes reach the upstream.
+    participant Agent
+    participant Point as Enforcement point
+    participant Store as Approval store
+    participant Approver
+    participant Upstream
+    Agent-&gt;&gt;Point: the call
+    Note over Point: REQUIRE_APPROVAL, or an allowed material call under APPROVE
+    Point-&gt;&gt;Point: ACTION_PROPOSED, POLICY_DECIDED, APPROVAL_REQUESTED on the trail
+    Point-&gt;&gt;Store: Hold(the request, under its binding)
+    Point--&gt;&gt;Agent: pending, with approval_id, action_digest, expires_at and retry_after
+    Approver-&gt;&gt;Store: Answer(approval_id, APPROVED, approver_id)
+    Agent-&gt;&gt;Point: the same call again
+    Note over Point: decided again, matched to the hold on binding, labels, context and decision
+    Point-&gt;&gt;Store: Consume(binding, request_id)
+    Store--&gt;&gt;Point: the approval, once
+    Note over Point: checked field by field against the enforcement point&#39;s own record
+    Point-&gt;&gt;Point: APPROVAL_DECIDED, ACTION_STARTED on the held trail
+    Point-&gt;&gt;Upstream: exactly the authorized bytes
+    Upstream--&gt;&gt;Point: the result
+    Point-&gt;&gt;Point: ACTION_COMPLETED
+    Point--&gt;&gt;Agent: the result
+</code></pre></details></figure>
+<p>Sources: <code>internal/gateway/approve.go</code>, <code>internal/gateway/resume.go</code>,
+<code>internal/gateway/approvals.go</code>.</p>
+<p>The approver's step happens in another process. <code>approvals.provider: file</code>
+points the plane at a directory of records; the approval commands of the
+command line write the answer into it, and the plane reads it back and checks
+it field by field (<a href="/docs/reference/cli">reference/cli</a>,
+<a href="/docs/reference/configuration">reference/configuration</a>). Under
+<code>approvals.provider: memory</code> the records live in the process that holds them,
+nothing outside it answers, and a plane refuses to start in <code>APPROVE</code> with
+that provider, because holding every material call where nothing can answer
+is a total denial wearing a pending state. What the agent is told on the wire
+is on <a href="/docs/concepts/mcp-gateway">the MCP gateway</a> page.</p>
+<h2 id="who-may-approve">Who may approve</h2>
+<p><strong>Write access to the approvals directory is the approval authority.</strong> The
+records are files; whoever can write them can answer a held request.
+<code>approver_id</code> on an answer is an unauthenticated claim, recorded as given
+because an operator reading the evidence months later wants a name, and worth
+exactly what the directory's permissions are worth. Nothing in the plane
+treats it as an identity, and no authenticated provider exists yet. The
+directory is refused at open when a group or the world may write it, and each
+record is written <code>0600</code>.</p>
+<p>A writer of that directory chooses nothing else. A record answers about one
+approval id: it carries no trail, no position in one, no envelope and no
+decision, so a forged record cannot graft events onto a live or a finished
+trail. Beside each record sits a projection for a person to read, which the
+plane never reads back as truth.</p>
+<h2 id="a-hold-the-plane-loses">A hold the plane loses</h2>
+<p>A hold does not survive a restart, and the window between a request and an
+answer is now as long as a person takes, so a plane that dies holding a call
+is an ordinary event rather than a rare one. The plane therefore keeps its own
+journal of its own holds, in its own directory, under its own lock, written by
+no other process: <code>approvals.hold_journal_dir</code>. It is as trusted as the
+evidence, and for the same reason — whoever can write it can already write the
+evidence.</p>
+<p>An entry is recorded after <code>APPROVAL_REQUESTED</code> is appended and before the
+agent is told pending, and every append that moves that trail further is
+preceded by a flip out of <code>held</code>. So an entry that reads <code>held</code> proves the
+trail stands at its request for an approval and can still be closed. At its
+next start the plane reads the journal and closes each of those trails:</p>
+<table>
+<thead>
+<tr>
+<th>What the store says about the record</th>
+<th>On the trail</th>
+<th>Then</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>an approver approved it, and it passes the same field checks a live resume makes</td>
+<td><code>APPROVAL_DECIDED</code> with the answer, then <code>ACTION_BLOCKED</code> with <code>DENY</code> and <code>APPROVAL_NOT_RESUMED</code></td>
+<td>the record is resolved not resumed, never consumed</td>
+</tr>
+<tr>
+<td>an approver rejected it</td>
+<td><code>APPROVAL_DECIDED</code> with the answer, then <code>ACTION_BLOCKED</code> with <code>DENY</code> and <code>APPROVAL_REJECTED</code></td>
+<td>the same</td>
+</tr>
+<tr>
+<td>nobody answered, the record's expiry has passed, the store marks the record expired, or there is no record and the approval the plane minted has expired</td>
+<td><code>APPROVAL_EXPIRED</code>, then <code>ACTION_BLOCKED</code> with <code>DENY</code> and <code>APPROVAL_EXPIRED</code></td>
+<td>the same</td>
+</tr>
+<tr>
+<td>the store cannot be read, has no record before that expiry, or answers with a record the checks refuse, an approval with no approver, or a state no answer has</td>
+<td><code>APPROVAL_EXPIRED</code> with the plane's own approval, then <code>ACTION_BLOCKED</code> with <code>INDETERMINATE</code> and <code>APPROVAL_STATE_UNKNOWN</code></td>
+<td>the same</td>
+</tr>
+</tbody>
+</table>
+<p>The call is never run: it was answered pending long ago, and running the
+effect now serves nobody. The closing events carry the restarted plane's mode
+and state that the call was not run, not that this plane enforced anything.
+An approver whose answer arrives after a restart answers again, and the close
+says why.</p>
+<p>Three things that pass are reported rather than guessed at, and each is
+counted on <code>/healthz</code>:</p>
+<table>
+<thead>
+<tr>
+<th>What a pass met</th>
+<th>What it does</th>
+<th>Where it shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>an entry left <code>resuming</code> or <code>closing</code> by a plane that stopped mid-close</td>
+<td>nothing: what landed on that trail is not something this plane can say</td>
+<td><code>holds_unmeasured</code>, and <code>doctor</code> names it</td>
+</tr>
+<tr>
+<td>an entry that will not decode</td>
+<td>nothing, and the pass is not complete</td>
+<td><code>holds_unmeasured</code>, <code>reconcile_incomplete</code></td>
+</tr>
+<tr>
+<td><code>approvals.reconcile_max</code> entries read</td>
+<td>the pass stops and reports itself unmeasured rather than done</td>
+<td><code>reconcile_incomplete</code></td>
+</tr>
+</tbody>
+</table>
+<p>A running plane that cannot write a held trail's closing record leaves that
+trail open, keeps its request id reserved until the plane restarts so no other
+call writes under it, and counts it in <code>held_trails_left_open</code>; the next start
+reports its journal entry, where there is one.</p>
+<p><strong>A plane configured without <code>approvals.hold_journal_dir</code> does not close a hold
+it loses.</strong> That is the behaviour of a plane on the memory provider, it is
+named rather than hidden, and <code>doctor</code> and <code>/healthz</code> both say it out loud.</p>
+<h2 id="what-is-held-and-by-whom">What is held, and by whom</h2>
+<table>
+<thead>
+<tr>
+<th>Kept by</th>
+<th>What</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the pipeline, in memory</td>
+<td>the held request: its identifiers, the approval it minted, the envelope, the decision <code>POLICY_DECIDED</code> recorded, the binding, where the trail stands, the expiry</td>
+<td>what a retry is compared with, and what resumes; the store's answer is checked against it field by field</td>
+</tr>
+<tr>
+<td>the approval store</td>
+<td>one record per held request, under its binding: the approval, the request id and what became of it, and never an envelope, a decision or a trail</td>
+<td>whether an approver said yes, and consuming it once</td>
+</tr>
+<tr>
+<td>the hold journal, where one is configured</td>
+<td>one entry per hold: the trail's identifiers, where it stands, the binding, the approval and the expiry</td>
+<td>closing the trail of a hold this plane lost to a restart</td>
+</tr>
+<tr>
+<td>the agent</td>
+<td><code>approval_id</code>, <code>action_digest</code>, <code>expires_at</code>, <code>retry_after</code></td>
+<td>retrying the same call after <code>retry_after</code></td>
+</tr>
+</tbody>
+</table>
+<p>The store answers which of its records are still there and whether one was
+approved; it never defines what was held. A record the pipeline does not hold
+resumes nothing.</p>
+<h2 id="the-binding">The binding</h2>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Computed as</th>
+<th>Covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>action digest</td>
+<td><code>canon.DigestV1</code> of the authorized envelope with the authorized arguments</td>
+<td>project, tenant and environment; principal, agent, delegation, action, resource and destination; the authorized arguments. Not <code>schema_version</code>, the identifiers and timestamps, the data labels, the run context, or the <code>arguments</code> message itself, its <code>canonical_hash</code>, <code>redacted_preview</code>, <code>schema_ref</code> and <code>redaction_profile</code>, which the authorized bytes stand in for</td>
+</tr>
+<tr>
+<td>binding</td>
+<td><code>canon.ApprovalBinding</code> of the action digest and the bundle digest</td>
+<td>one action under one policy bundle: an approval is never replayed against changed parameters or a bundle the approver did not see</td>
+</tr>
+</tbody>
+</table>
+<p><code>approval.Bind</code> refuses what <code>canon.DigestV1</code> refuses and a bundle digest that
+is not <code>sha256:</code> and 64 lowercase hex digits, and hands out neither value on a
+refusal, so a caller can never store an approval against a digest beside a
+refused bundle.</p>
+<h2 id="what-a-retry-must-equal">What a retry must equal</h2>
+<p>The digest leaves out the identifiers and timestamps, which differ between
+attempts, and the arguments' hash and preview, since it covers the arguments
+themselves. The pipeline neither requires those to change nor compares them.
+What it compares:</p>
+<table>
+<thead>
+<tr>
+<th>Compared</th>
+<th>With</th>
+<th>If it differs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the binding</td>
+<td>the hold's: same action digest, same bundle digest</td>
+<td>a new request, held anew with a new approval</td>
+</tr>
+<tr>
+<td>the data labels and the run context without the plane's flow tags</td>
+<td>the held envelope's, the two fields the digest leaves out that an approval was given under</td>
+<td>a new request, held anew</td>
+</tr>
+<tr>
+<td>the fresh decision</td>
+<td>the held one, in verdict, action digest, rule ids and obligations, because the trail has room for one <code>POLICY_DECIDED</code></td>
+<td>held anew as a request of its own; a delegation that expired or a bundle that went stale in between is a block the kernel makes before any of this</td>
+</tr>
+<tr>
+<td>the approval the store answers</td>
+<td>the enforcement point's record: same <code>approval_id</code> and <code>request_id</code>, state <code>APPROVED</code> with an <code>approver_id</code>, not multi-use, expiry no later than the enforcement point minted and after now</td>
+<td>see the checks below</td>
+</tr>
+</tbody>
+</table>
+<p>Two requests that differ only in the labels or the context share a binding,
+so the store holds every request under a binding and the pipeline picks the
+one the retry equals, oldest first.</p>
+<h2 id="the-states-of-a-held-request">The states of a held request</h2>
+<figure class="dg-text" id="diagram-2"><figcaption>The states of a held request</figcaption><p>A held request runs once when an approved retry consumes its approval, or ends expired, rejected, refused or lost, and every path ends with its trail closed. <a href="https://github.com/guardana/control/blob/main/docs/concepts/approvals-and-the-held-call.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">stateDiagram-v2
+    accTitle: The states of a held request
+    accDescr: A held request runs once when an approved retry consumes its approval, or ends expired, rejected, refused or lost, and every path ends with its trail closed.
+    [*] --&gt; held: APPROVAL_REQUESTED written, the hold kept and stored
+    held --&gt; held: a retry before an answer is told the same approval_id again
+    held --&gt; running: an approved retry consumes the approval once, APPROVAL_DECIDED then ACTION_STARTED
+    held --&gt; expired: nobody answered before expires_at
+    held --&gt; rejected: a retry finds the approver said no
+    held --&gt; refused: the store would not keep the hold, or MaxHeld holds stand
+    held --&gt; lost: the plane stopped while the request was held
+    running --&gt; closed: ACTION_COMPLETED or ACTION_FAILED
+    lost --&gt; closed: the next start reads its journal entry and closes the trail
+    expired --&gt; closed: APPROVAL_EXPIRED, then ACTION_BLOCKED with APPROVAL_EXPIRED
+    rejected --&gt; closed: APPROVAL_DECIDED, then ACTION_BLOCKED with APPROVAL_REJECTED
+    refused --&gt; closed: APPROVAL_EXPIRED, then ACTION_BLOCKED with EVIDENCE_UNAVAILABLE
+    closed --&gt; [*]
+</code></pre></details></figure>
+<p>Sources: <code>internal/gateway/approve.go</code>, <code>internal/gateway/resume.go</code>,
+<code>internal/gateway/trails.go</code>, <code>internal/gateway/approvals.go</code>,
+<code>internal/gateway/reconcile.go</code>.</p>
+<table>
+<thead>
+<tr>
+<th>How the hold ends</th>
+<th>On the held trail</th>
+<th>The call that arrives gets</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>an approved retry</td>
+<td><code>APPROVAL_DECIDED</code>, <code>ACTION_STARTED</code>, then the closing event; the approval is consumed before the event is written, so two retries cannot both write it</td>
+<td>the upstream's result, sent with exactly the authorized bytes</td>
+</tr>
+<tr>
+<td>an approved retry whose approval expires before the call is handed out</td>
+<td><code>APPROVAL_DECIDED</code>, then <code>ACTION_BLOCKED</code> with <code>DENY</code>, <code>APPROVAL_EXPIRED</code>, or <code>ACTION_STARTED</code> and <code>ACTION_FAILED</code> naming it when the expiry passed during that append; the approval stays spent</td>
+<td><code>DENY</code>, <code>APPROVAL_EXPIRED</code>, and nothing is sent</td>
+</tr>
+<tr>
+<td>the next identical call after the held one ran</td>
+<td>its own trail: <code>ACTION_PROPOSED</code>, <code>POLICY_DECIDED</code>, <code>ACTION_BLOCKED</code></td>
+<td><code>DENY</code>, <code>APPROVAL_ALREADY_USED</code>: the approval was spent, which is not by itself a statement that the earlier call ran (<a href="/docs/reference/reason-codes">reference/reason-codes</a>)</td>
+</tr>
+<tr>
+<td>nobody answered before <code>expires_at</code></td>
+<td><code>APPROVAL_EXPIRED</code>, <code>ACTION_BLOCKED</code> with <code>DENY</code>, <code>APPROVAL_EXPIRED</code>; written by the next call that opens a trail, at most <code>maxSweep</code> holds per call, before the request id is freed</td>
+<td>a retry after the expiry is a new request with a new hold</td>
+</tr>
+<tr>
+<td>a retry finds the approver rejected it</td>
+<td><code>APPROVAL_DECIDED</code> with the answer, <code>ACTION_BLOCKED</code> with <code>DENY</code>, <code>APPROVAL_REJECTED</code>; a rejection nobody retries after is closed at the expiry like an unanswered hold</td>
+<td>that block</td>
+</tr>
+<tr>
+<td>the store would not keep the hold, or <code>MaxHeld</code> holds stand</td>
+<td><code>APPROVAL_EXPIRED</code>, <code>ACTION_BLOCKED</code> with <code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code>: the window the enforcement point opened is closed first, since the chain lets nothing else follow a request for approval</td>
+<td>that block</td>
+</tr>
+<tr>
+<td>the store cannot answer, or the hold was dropped or resumed between the lookup and the flip to running</td>
+<td>this call's own trail: <code>ACTION_PROPOSED</code>, <code>POLICY_DECIDED</code>, <code>ACTION_BLOCKED</code> with <code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code></td>
+<td>that block</td>
+</tr>
+<tr>
+<td>the trail cannot be written</td>
+<td>nothing more: the block is not recorded either</td>
+<td><code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td>the plane stopped while the request was held</td>
+<td>at its next start: <code>APPROVAL_DECIDED</code> with the answer and <code>ACTION_BLOCKED</code> with <code>APPROVAL_NOT_RESUMED</code> or <code>APPROVAL_REJECTED</code>, or <code>APPROVAL_EXPIRED</code> and <code>ACTION_BLOCKED</code> with <code>APPROVAL_EXPIRED</code> or <code>APPROVAL_STATE_UNKNOWN</code>; nothing at all where no journal is configured</td>
+<td>nothing: that connection was answered pending long ago, and a later identical call is held anew</td>
+</tr>
+</tbody>
+</table>
+<p>A consumed approval stays consumed when the upstream call then fails, because
+the effect may have happened; that failure is a new request.</p>
+<h2 id="what-is-checked-before-the-held-request-runs">What is checked before the held request runs</h2>
+<p>The enforcement point never trusts the store's answer. Every field an
+approval is honoured on is compared with the enforcement point's own record of
+the hold; the rest, <code>requested_at</code>, <code>decided_at</code>, <code>reason</code>, the value of
+<code>approver_id</code> and the schema version, are recorded as the store gave them:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>If it fails</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the answer exists, is <code>APPROVED</code>, names an <code>approver_id</code>, carries the held <code>approval_id</code> and <code>request_id</code>, and is not multi-use</td>
+<td><code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td>its action digest is the held one</td>
+<td><code>DENY</code>, <code>APPROVAL_DIGEST_MISMATCH</code></td>
+</tr>
+<tr>
+<td>its bundle digest is the held one</td>
+<td><code>DENY</code>, <code>APPROVAL_BUNDLE_MISMATCH</code></td>
+</tr>
+<tr>
+<td>its expiry is set and after now</td>
+<td><code>DENY</code>, <code>APPROVAL_EXPIRED</code></td>
+</tr>
+<tr>
+<td>its expiry is no later than the one the enforcement point minted</td>
+<td><code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td>the hold is still the one on its trail, flipped to running in one step under the enforcement point's lock</td>
+<td><code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Expiry is judged three times.</strong> The store's answer is checked when it is
+consumed; the expiry is checked again by the plane's clock with the pause
+state right before <code>ACTION_STARTED</code> is written, and once more right after it.
+A journal or a sink slow enough to let the approval expire in between cannot
+send the call: before <code>ACTION_STARTED</code> it is blocked with <code>DENY</code>,
+<code>APPROVAL_EXPIRED</code>; after it, the execution is aborted with <code>ACTION_FAILED</code>
+naming <code>APPROVAL_EXPIRED</code>. The approval stays spent. A pause read at the first
+of those moments is named instead, because the plane's own causes come first.
+The adapter's time after the hand-out is not covered
+(<a href="/docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold">ADR-0027</a>).</p>
+<p>An approval marked multi-use is left pending and counted: this enforcement
+point consumes once, and the store's <code>Consume</code> is one compare-and-swap that
+only an approved, unconsumed record passes.</p>
+<h2 id="bounds">Bounds</h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Bounds</th>
+<th>Past it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ApprovalTTL</code></td>
+<td>how long a requested approval can be answered and consumed; <code>expires_at</code> is the hold's clock reading plus it</td>
+<td>expired</td>
+</tr>
+<tr>
+<td><code>RetryAfter</code></td>
+<td>what the agent is told to wait before retrying</td>
+<td>nothing: a retry before an answer is told to retry again</td>
+</tr>
+<tr>
+<td><code>MaxHeld</code></td>
+<td>the requests held and not yet expired</td>
+<td>the hold is refused with <code>EVIDENCE_UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td><code>MaxOpen</code></td>
+<td>the executions handed out and not yet closed</td>
+<td>the call, resumed or not, blocks with <code>EVIDENCE_UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td><code>maxSweep</code></td>
+<td>the expired holds one call closes on its way in</td>
+<td>the rest wait for the next call</td>
+</tr>
+<tr>
+<td><code>approvals.max_records</code></td>
+<td>the records the approvals directory may hold, and the entries the journal may hold</td>
+<td>a hold is refused, and a listing says it is incomplete</td>
+</tr>
+<tr>
+<td><code>approvals.max_record_bytes</code></td>
+<td>one record's body, and one journal entry's</td>
+<td>the record or the entry is refused, in either direction</td>
+</tr>
+<tr>
+<td><code>approvals.reconcile_max</code></td>
+<td>the journal entries one start reads</td>
+<td>the pass stops and reports itself unmeasured</td>
+</tr>
+</tbody>
+</table>
+<p>Each of these has to be positive, or the plane refuses to start.</p>
+<h2 id="why">Why</h2>
+<ul>
+<li>An approval binds to one exact canonical action digest under one bundle
+and expires; it never covers a similar action, a retried one that differs,
+or a later one (invariant 6, ADR-0005, ADR-0011).</li>
+<li>The connection is never held: every client times out, and a timed-out call
+becomes a retry the approver never sees. The request is held instead, and a
+retry resumes it (ADR-0013).</li>
+<li>A retry resumes only under the decision the trail recorded, because a
+trail has room for one <code>POLICY_DECIDED</code>; a retry decided otherwise is a
+request of its own (ADR-0013, ADR-0014).</li>
+<li>The approval satisfies the kernel's <code>REQUIRE_APPROVAL</code> or the <code>APPROVE</code>
+mode's hold on an allowed call, and nothing else: never a <code>DENY</code> and never
+an <code>INDETERMINATE</code> (ADR-0013, invariant 4).</li>
+<li>The record of a hold is the enforcement point's own, so a hold does not
+survive a restart: a store record from before resumes nothing. A record the
+store proves an execution spent blocks the next call of that action under
+that bundle, and a record it cannot speak for proves nothing, so that call is
+held anew and counted. The block is by binding and not by request: a record
+the plane no longer holds carries no envelope, so a call differing only in
+its data labels or its run context cannot be told from the identical one and
+is blocked with it (ADR-0013, ADR-0016).</li>
+<li>A lost hold is closed and never resumed, because rehydrating it would need
+the envelope's data labels and run context on disk to compare a retry
+against, and would run an effect for a call answered pending long ago
+(ADR-0016).</li>
+<li>Consumption is one compare-and-swap in a store whose zero value approves
+nothing, and the enforcement point checks every field an approval is
+honoured on, so a store that lies cannot run a call the enforcement point
+did not hold (ADR-0013).</li>
+</ul>
+<h2 id="where-the-code-lives">Where the code lives</h2>
+<p><code>internal/gateway/approve.go</code> is the branch a call takes when it awaits an
+approval, the hold and its refusals, and <code>internal/gateway/resume.go</code> the retry
+that resumes it, with the checks of what the store answers;
+<code>internal/gateway/trails.go</code>
+keeps the enforcement point's own record of a hold, flips it to running and
+closes the expired ones; <code>internal/gateway/approvals.go</code> is the store
+interface and the in-memory store, <code>internal/gateway/reconcile.go</code> closes the
+holds a restart lost, <code>internal/approvals/</code> is the directory of records and
+<code>internal/holdjournal/</code> the plane's own journal; <code>internal/core/approval/</code>
+computes the binding from <code>internal/canon</code>. The pending state an agent is told is
+<code>gateway.Pending</code> in <code>internal/gateway/pipeline.go</code>, and its shape on the MCP
+wire is in <code>adapters/mcp/answer.go</code>.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/approvals-and-the-held-call.md">docs/concepts/approvals-and-the-held-call.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call" aria-current="page">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

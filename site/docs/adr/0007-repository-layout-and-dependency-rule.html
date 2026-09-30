@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0007: Repository layout and the dependency rule for the decision path · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0007-repository-layout-and-dependency-rule"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0007-repository-layout-and-the-dependency-rule-for-the-decision-path">ADR-0007: Repository layout and the dependency rule for the decision path</h1>
+<p>Status: accepted
+Date: 2026-09-09</p>
+<h2 id="context">Context</h2>
+<p>The part of the system that decides has to stay small enough for one person to
+audit. Left alone, a decision path grows an HTTP client, a database handle and a
+vendor SDK, and after that nobody can say what it depends on.</p>
+<h2 id="decision">Decision</h2>
+<p>Layout:</p>
+<ul>
+<li><code>internal/</code> holds everything that is not intentionally public.</li>
+<li>The public Go surface is exactly <code>pkg/contract</code>, <code>pkg/adapter</code>,
+<code>pkg/detector</code> and <code>pkg/policyprovider</code>.</li>
+<li>Protocol and framework code lives in <code>adapters/</code>, built-in detectors in
+<code>detectors/builtin/</code>.</li>
+<li>Contracts live in <code>api/proto</code>, generated code in <code>api/gen/go</code>.</li>
+</ul>
+<p>The dependency rule is an allowlist. A package in <code>internal/core</code>,
+<code>internal/policy</code>, <code>internal/canon</code>, <code>internal/evidence</code> or <code>pkg/contract</code> may
+import three kinds of package and nothing else: packages of this module outside
+<code>adapters/</code>, <code>internal/storage</code>, <code>internal/controlapi</code>, <code>internal/gateway</code> and
+<code>internal/ingest</code>; packages of <code>google.golang.org/protobuf</code>; and the standard
+library packages named in <code>scripts/lib/dependency-rule.sh</code>, among which is no
+network, file, process, system call, randomness, <code>unsafe</code> or plugin package.
+Every package of this module that a guarded tree reaches is held to the same
+rule, except the generated code under <code>api/gen</code>, which is accepted whole. In the
+same trees golangci-lint refuses by name the functions of allowed packages that
+read the clock, standard input, the zone database or the system's randomness.
+Only reads a name reveals are refused; the local zone behind
+<code>time.Unix(...).Format</code> passes, and the kernel's tests hold it. The same two
+checks refuse, in a guarded package, every file <code>go list</code> reports under
+<code>IgnoredGoFiles</code> or <code>IgnoredOtherFiles</code> and every non-Go source it compiles or
+links (<code>SFiles</code>, <code>CgoFiles</code>, <code>SysoFiles</code> and the rest), so the package builds
+from the same Go files on every platform and the gate on one platform speaks
+for all.
+Test files there may also import what a test needs to read fixtures, parse
+source and run the go command, and still no network, system call, randomness,
+<code>unsafe</code> or plugin package.</p>
+<p><code>internal/canon</code> and <code>internal/evidence</code> joined that list when they were
+created. Both compute over data that has not been authorized yet, so they
+belong to the set someone auditing a decision has to read.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>Someone auditing the decision path reads the decision path, not a transitive
+dependency graph. The rule sandboxes nothing: adapter and core run in one
+process, so a compromised adapter dependency can still affect the program. What
+the rule buys is that the set of code able to influence a decision stays small
+enough to read and to review, and that no module and no standard library package
+can enter that set without an edit to the rule itself, in the three places the
+agreement tests compare. The rule trusts each allowed package whole: what <code>fmt</code>
+or <code>crypto/ed25519</code> import in turn is not examined, and an interface a caller
+implements can still do I/O. Everything under <code>pkg/</code> is a compatibility promise,
+so keeping that list to four packages keeps the promise small.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>A flat layout with code review as the only guard. A reviewer sees the one line
+that adds an import, not the transitive graph it pulls into the decision path.</li>
+<li>A per-file lint exception for an import that is inconvenient once. The
+exception is invisible at the call site, so the next reader has no way to know
+the rule no longer holds there.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>Adapters may import core; the rule only constrains what core imports. Core that
+needs adapter behaviour declares an interface and the adapter implements it,
+which costs a little indirection. Adding a package to <code>pkg/</code> is a compatibility
+decision and needs its own record.</p>
+<h2 id="validation">Validation</h2>
+<p>Runnable today, and all in <code>make quality</code>: depguard in <code>.golangci.yml</code> through
+<code>make lint</code>, <code>scripts/check-imports.sh</code> through <code>make check-imports</code>,
+<code>internal/core/layering_test.go</code> through <code>make test</code>, and
+<code>scripts/check-imports-probe.sh</code> through <code>make check-imports-probe</code>. The probe
+plants, in every guarded tree of a copy of the repository, a package that dials
+an address read from the environment, reads a file and the clock, imports an
+adapter and an unlisted module, and reaches <code>os/exec</code> through a helper outside the
+guarded trees; it fails unless each mechanism refuses it for the reasons that
+mechanism covers. <code>make tidy-check</code> fails when <code>go.mod</code> or <code>go.sum</code> differ from
+what <code>go mod tidy</code> writes.</p>
+<p>The script and the test walk the dependency graph of every guarded tree and
+judge the direct imports of every package of this module they reach. A package
+from the layout that does not exist yet is reported as skipped and counted
+separately, never as a pass.</p>
+<p>The three mechanisms name the guarded trees and the allowed set separately, so
+they can drift apart. <code>TestAllThreeMechanismsAllowTheSameSet</code> and
+<code>TestAllThreeMechanismsGuardTheSameTrees</code> compare both across the three files and
+fail when any two disagree.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0007-repository-layout-and-dependency-rule.md">docs/adr/0007-repository-layout-and-dependency-rule.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

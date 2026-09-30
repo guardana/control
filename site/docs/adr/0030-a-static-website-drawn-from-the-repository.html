@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0030: A static website drawn from the repository · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0030-a-static-website-drawn-from-the-repository"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0030-a-static-website-drawn-from-the-repository">ADR-0030: A static website drawn from the repository</h1>
+<p>Status: accepted
+Date: 2026-09-28</p>
+<p>Builds on <a href="/docs/adr/0015-documentation-structure-and-checks">ADR-0015</a> and
+<a href="/docs/adr/0024-control-and-guardana-are-independent">ADR-0024</a>.</p>
+<p>Amended by <a href="/docs/adr/0031-the-documentation-is-served-on-the-website">ADR-0031</a>: the
+documentation is rendered into the site, and the landing page links to it
+there rather than on GitHub.</p>
+<h2 id="context">Context</h2>
+<p>The project had no page of its own outside GitHub. A landing page has to say
+what the plane does today and what is only planned, and a page kept by hand
+drifts from the tree it describes: a status label changes, a roadmap item
+ships, the architecture diagram moves on in the README and not on the page.
+The organization's other project serves its site as static files from its own
+repository, and a reader moving between the two should see one visual system.</p>
+<h2 id="decision">Decision</h2>
+<ul>
+<li>The site is <code>site/</code> in this repository, served at <code>control.guardana.dev</code> by
+a Cloudflare Worker with static assets and no script, described by
+<code>wrangler.json</code> at the root: its name, the assets directory, how an address
+maps to a file, its one address as a Custom Domain, for which Cloudflare
+creates the DNS record and the certificate at deploy, and neither a
+<code>workers.dev</code> address nor preview addresses.
+Cloudflare's Git integration deploys it on every push to <code>main</code>. The file is
+strict JSON rather than JSONC, so a comment cannot hide a key from the check
+that reads it.</li>
+<li>The page runs no script and loads nothing from another host. <code>site/_headers</code>
+sets a Content-Security-Policy with <code>default-src 'none'</code>, <code>script-src 'none'</code>, fonts, images and styles from the site only, and inline styles
+allowed, which the drawn diagrams carry. The fonts are served from the site.</li>
+<li>The page's diagrams are the README's first three Mermaid blocks.
+<code>make docs-gen</code> draws each into a marked slot of <code>site/index.html</code> as static
+SVG, light and dark, with a top-to-bottom drawing for narrow screens, through
+<code>internal/docscheck/sitedoc</code>. The drawer reads a subset of Mermaid flowcharts:
+every block carries <code>accTitle:</code> and <code>accDescr:</code>, its text alternative; there
+is no cycle and no two-way edge; a group's members share one level. A block
+over 15 nodes is refused before it is drawn.</li>
+<li>Each item in the page's &quot;today&quot; list names its row in <code>docs/status.md</code> and
+shows that row's label; each planned item names its id in <code>docs/backlog.md</code>.
+The hero's tagline is README's.</li>
+<li>The visual system is a copy of Guardana's brand v1 in
+<code>site/assets/brand/v1/</code>: tokens, IBM Plex fonts with their licence, and
+marks. From the day it was taken the copy is Control's own; a change is a v2
+at a new path, never an edit in place. Control's accent, mark and icon live in
+<code>site/assets/control/</code>, and the accent overrides the brand's colour tokens
+without touching the copy.</li>
+<li>The social card <code>site/og.png</code> is rendered by hand in a browser from
+<code>scripts/og-card.html</code>, which uses the site's fonts and mark.</li>
+</ul>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>The site holds no secret and runs no code in the browser. It can still claim
+something the tree lacks, or load something from another host. The checks
+below refuse a load from another host, and a status or roadmap item that no
+longer matches its source; the page's other sentences are held to the tree by
+review.</p>
+<p>Every push to <code>main</code> deploys, whatever CI says of it, so a commit that breaks
+the page is live until the next one. The site's checks run in the same gate as
+the code, and a red run on <code>main</code> is fixed before anything else lands
+(<a href="/docs/adr/0025-public-repository-merges-and-releases">ADR-0025</a>). The deploy command
+in Cloudflare names a pinned version of <code>wrangler</code>.</p>
+<p><code>scripts/rename-product.sh</code> rewrites the Worker's name with the rest of the
+tree. The next Cloudflare build then fails on the name it no longer knows until
+the Cloudflare project is renamed as well. A rename also changes the text of
+the drawn diagrams without redrawing them, so the slot check fails until
+<code>make docs-gen</code> runs.</p>
+<p>Nothing in the site, its drawer or its checks reads, runs or names Guardana's
+code; ADR-0024 is unchanged.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>A separate repository for the site. The page would drift from the code it
+describes, and a check comparing the two would have to span two
+repositories.</li>
+<li>GitHub Pages. It reads no <code>_headers</code> file, so the page could not send its
+Content-Security-Policy, and a deploy job would hold a write token.</li>
+<li>Mermaid's own renderer, with the SVG committed. It needs Node and a browser
+in the gate, and its output is neither styled by the site nor reproducible.</li>
+<li>Guardana's drawer, run from its repository. That would make Control's gate
+depend on Guardana, which ADR-0024 refuses.</li>
+<li>The documentation site now. ADR-0015's deferral stands: the landing page
+links to the pages on GitHub.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>A change to the architecture is one edit to a README block and one
+<code>make docs-gen</code>; the page follows. A change to a status label or a finished
+roadmap item fails the site check until the page follows as well. The drawer
+is a few hundred lines of Go the project now maintains; a Mermaid feature
+outside its subset cannot be used in a block the page draws.</p>
+<p>The page has one address, <code>control.guardana.dev</code>; the Worker answers on no
+other.</p>
+<h2 id="validation">Validation</h2>
+<p>Tests in <code>internal/docscheck/</code> run in <code>make test</code> and <code>make docs-check</code>, each
+with fixtures that make it fail:</p>
+<ul>
+<li>the site holds exactly the files its manifest pins, and the brand copy
+matches its <code>SHA256SUMS</code>, whose own digest is pinned;</li>
+<li>the slots are README blocks 1, 2 and 3 in order, and redrawing them gives the
+committed page;</li>
+<li>no page, stylesheet or SVG loads from another host, runs a script or carries
+an event handler, and <code>_headers</code> holds exactly the pinned policy;</li>
+<li>every local link and fragment resolves, and every link into this repository
+on GitHub names a file or directory the tree has;</li>
+<li>each status item's label equals its row's, each backlog id exists, and the
+page's and the card's tagline equal README's;</li>
+<li><code>wrangler.json</code> holds exactly the keys above, once each;</li>
+<li><code>internal/docscheck/sitedoc/mermaid</code> draws recorded inputs byte for byte and
+refuses each construct outside the subset, naming the line.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0030-a-static-website-drawn-from-the-repository.md">docs/adr/0030-a-static-website-drawn-from-the-repository.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MCP enforcement coverage · Guardana Control</title>
+<meta name="description" content="Per revision, transport and method, what the gateway enforces today and what it does not."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/mcp-coverage"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="mcp-enforcement-coverage">MCP enforcement coverage</h1>
+<p>What this build of the gateway does with each Model Context Protocol method, on
+each revision and transport. <a href="/docs/status">status.md</a> is the inventory;
+<a href="/docs/concepts/mcp-gateway">concepts/mcp-gateway</a> explains the mechanism, and
+<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a> records the
+decisions.</p>
+<h2 id="revisions-and-transports">Revisions and transports</h2>
+<table>
+<thead>
+<tr>
+<th>Listener</th>
+<th>Serves</th>
+<th>Identity per call comes from</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stateless_http</code></td>
+<td><code>2026-07-28</code></td>
+<td>the listener's configuration</td>
+<td>No session; every request carries its own protocol version and client claim in <code>_meta</code></td>
+</tr>
+<tr>
+<td><code>stateful_http</code></td>
+<td><code>2025-11-25</code> and older</td>
+<td>the listener's configuration</td>
+<td>A <code>2026-07-28</code> request is answered <code>-32022</code> with the versions the listener serves, so a client renegotiates</td>
+</tr>
+<tr>
+<td><code>stdio</code></td>
+<td>one agent over a pipe</td>
+<td>the listener's configuration</td>
+<td>Nothing authenticates a pipe</td>
+</tr>
+</tbody>
+</table>
+<p>An end-user identity taken from a request's credential is not in this build: the
+adapter takes an authenticator that establishes one, and no configuration key
+wires it, so every call on a listener is made by the principal the operator
+configured. <code>_meta.clientInfo</code> is recorded as a run-context tag and never reaches
+a field the digest covers.</p>
+<p>Upstream servers are reached over Streamable HTTP (<code>upstreams[].endpoint</code>) or as
+a child process over its standard input and output (<code>upstreams[].command</code>).</p>
+<h2 id="methods">Methods</h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>What the gateway does</th>
+<th>Decided</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tools/list</code></td>
+<td>Answers from the manifest, shaped for the principal, with <code>cacheScope: private</code> and the operator's <code>ttlMs</code></td>
+<td>on an uncached <code>annotate</code> or <code>hide</code> list, one preview per classified tool one upstream serves, recording nothing</td>
+</tr>
+<tr>
+<td><code>tools/call</code></td>
+<td>Translates to an <code>ActionEnvelope</code>, admits it, applies rewriting obligations, sends exactly the authorized bytes, closes the trail with the digest of what was sent</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>resources/read</code></td>
+<td>Translated as a <code>READ</code> of the URI. Routed only when one upstream is configured; with several the call is <code>ACTION_UNCLASSIFIED</code>, since nothing says which server holds the URI</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>prompts/get</code></td>
+<td>Translated as a <code>READ</code> of the prompt, its arguments authorized as a canonical JSON object of strings. Routed as above</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>resources/list</code>, <code>resources/templates/list</code>, <code>prompts/list</code></td>
+<td>Merged from every upstream, bounded, with the gateway's own <code>_meta</code> keys stripped and <code>cacheScope: private</code></td>
+<td>no: a listing names no action</td>
+</tr>
+<tr>
+<td>everything else</td>
+<td>Handled by the library's own server, which has no tool, resource or prompt registered, so nothing is forwarded</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-the-gateway-cannot-do">What the gateway cannot do</h2>
+<table>
+<thead>
+<tr>
+<th>Not covered</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Elicitation (<code>input_required</code>)</td>
+<td>The shape needs a handler registered per tool, which this interception does not have; <code>planned</code> with the approval providers (ADR-0013)</td>
+</tr>
+<tr>
+<td>The Tasks extension</td>
+<td>Not implemented by the library. A <code>resultType: &quot;task&quot;</code> result was seen to decode as a complete, empty, successful call when this was measured against the library; no test in this repository pins that, so it is a reason not to use the extension rather than a promise about it</td>
+</tr>
+<tr>
+<td><code>notifications/tools/list_changed</code> toward the agent</td>
+<td>The library emits it only for its own registry, and the gateway registers no tools, so the listener declares it does not send one and an agent refreshes when <code>list.ttl</code> runs out</td>
+</tr>
+<tr>
+<td>An upstream's own notifications and server-initiated requests, other than a changed tool list</td>
+<td>Only a changed tool list is handled, by refreshing the manifest; sampling, roots and progress from an upstream reach no agent</td>
+</tr>
+<tr>
+<td>Resuming a hold the plane lost</td>
+<td>A hold does not survive a restart. A plane that keeps a hold journal closes that trail when it comes back, with the approver's answer and <code>APPROVAL_NOT_RESUMED</code>, or as expired where nobody answered, and the call is never run; one configured without a journal leaves it standing. The agent asks again and an approver answers again (ADR-0016)</td>
+</tr>
+<tr>
+<td>Telling one approver from another</td>
+<td>Write access to the approvals directory is the approval authority, and <code>approver_id</code> on a record is a claim recorded as given. An authenticated provider would replace that authority, and none exists yet (ADR-0016)</td>
+</tr>
+<tr>
+<td>A client other than the library's own</td>
+<td>Not exercised; the conformance tests drive the reference implementation of both revisions</td>
+</tr>
+<tr>
+<td>A tool classified <code>SPAWN_OR_DELEGATE</code></td>
+<td>The contract requires a delegation chain for that class and the listener carries none, so every such call is refused as <code>REQUIRED_FIELD_ABSENT</code> before a rule or a decision point is read</td>
+</tr>
+<tr>
+<td>What a run read outside the gateway</td>
+<td>A run is the listener's principal and starts clean at each restart; on stdio the gateway ends with its client's connection, so a run lasts one connection there. The user's prompt, tool descriptions and tools not behind the gateway are not tracked, and a call carries no data label, so a <code>flow</code> rule blocks every untrusted destination after untrusted input. A <code>resources/read</code> and a <code>prompts/get</code> carry no declared result, so each leaves its run untrusted and unknown for the rest of the run (ADR-0021)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="list-shaping-under-each-mode">List shaping under each mode</h2>
+<p><code>list.shaping</code> only ever subtracts, and the configuration is refused at start
+when it is not <code>none</code> in a mode that does not enforce.</p>
+<table>
+<thead>
+<tr>
+<th>Shaping</th>
+<th><code>OBSERVE</code></th>
+<th><code>APPROVE</code>, <code>ENFORCE</code>, <code>LOCKDOWN</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none</code></td>
+<td>the upstream's list, <code>_meta</code> of the gateway's namespace stripped</td>
+<td>the same</td>
+</tr>
+<tr>
+<td><code>annotate</code></td>
+<td>refused at start</td>
+<td>each tool carries the verdict a call to it would get, under the gateway's <code>_meta</code> key</td>
+</tr>
+<tr>
+<td><code>hide</code></td>
+<td>refused at start</td>
+<td>a tool the preview denies, and every unclassified tool, is omitted</td>
+</tr>
+</tbody>
+</table>
+<p>A preview is one decision made with no arguments, so a tool whose
+<code>resource_from</code> reads the resource out of the arguments cannot be decided before
+the call exists. Such a tool stays in the list, and under <code>annotate</code> it is marked
+<code>DECIDED_PER_CALL</code> rather than allowed or denied. Under <code>hide</code> it stays too:
+shaping subtracts what policy denies, never what it could not decide.</p>
+<h2 id="the-two-codes-the-adapter-mints">The two codes the adapter mints</h2>
+<p>A <code>tools/call</code> answers a block and a pending state as a tool result with
+<code>isError: true</code>, which the model reads. A <code>resources/read</code> and a <code>prompts/get</code>
+have no such field, so there the same structured data travels as a JSON-RPC
+error, outside the range the protocol reserves and away from the code the library
+uses privately.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Means</th>
+<th>Data</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-31100</code></td>
+<td>the gateway blocked the call</td>
+<td><code>reason_codes</code>, <code>decision_id</code>, and <code>refused</code> with what the refusal said when the envelope itself could not be built</td>
+</tr>
+<tr>
+<td><code>-31101</code></td>
+<td>an approval is pending</td>
+<td><code>reason_code: APPROVAL_PENDING</code>, <code>approval_id</code>, <code>action_digest</code>, <code>expires_at</code>, <code>retry_after</code></td>
+</tr>
+</tbody>
+</table>
+<p>An upstream's own wire error passes through with its own code, and to a
+<code>tools/call</code> with its own message and data. Only <code>&lt;ns&gt;/answer</code> (<code>blocked</code> or
+<code>pending</code>, <code>&lt;ns&gt;</code> being the product's namespace) in an answer's <code>_meta</code> or in
+the error's <code>data</code> marks an answer the gateway made. The namespace is stripped
+from the same two places in everything an upstream sends, a result's <code>_meta</code>
+and the top level of a wire error's <code>data</code>, so an upstream cannot answer as the
+gateway.</p>
+<p>A <code>tools/call</code> answer the pipeline decided names its decision's trail with the
+strings <code>&lt;ns&gt;/request_id</code> and <code>&lt;ns&gt;/decision_id</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Answer</th>
+<th>Where the ids travel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a block, a pending state, the upstream's result</td>
+<td>the result's <code>_meta</code></td>
+</tr>
+<tr>
+<td>an upstream's wire error, <code>data</code> an object or absent</td>
+<td>the top level of <code>data</code></td>
+</tr>
+<tr>
+<td>an upstream's wire error, other <code>data</code></td>
+<td>nowhere; the data arrives as sent</td>
+</tr>
+</tbody>
+</table>
+<p>A retry told to wait again, or run, names the held request's trail; one refused
+on its own trail names that. The ids are added after the result is hashed,
+so the closing record's <code>result_hash</code> is the upstream's. Reads, prompts, lists
+and undecided answers carry neither.</p>
+<h2 id="reason-codes-in-the-gateways-answers">Reason codes in the gateway's answers</h2>
+<p>A decision the kernel made comes back as the kernel wrote it, so <code>reason_codes</code>
+carries whatever codes the kernel emits; <a href="/docs/reference/reason-codes">reference/reason-codes</a>
+has every code and its number. The codes below are the ones the enforcement
+point, the pipeline or this adapter, mints or answers on its own.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ACTION_UNCLASSIFIED</code></td>
+<td>no manifest entry classifies the operation; blocked outside <code>OBSERVE</code></td>
+</tr>
+<tr>
+<td><code>LOCKDOWN</code></td>
+<td>a material call under <code>LOCKDOWN</code></td>
+</tr>
+<tr>
+<td><code>PAUSED</code></td>
+<td>an operator's pause covers the call: <code>global</code>, its upstream, or its kind, upstream and name; in every mode, reads included, and never in a listing</td>
+</tr>
+<tr>
+<td><code>PAUSE_STATE_UNAVAILABLE</code></td>
+<td>the plane has a pause file and cannot read it, or its last read is older than three poll intervals or dated ahead; every call is blocked until a read succeeds</td>
+</tr>
+<tr>
+<td><code>EVIDENCE_UNAVAILABLE</code></td>
+<td>a record the decision depends on could not be written, kept or read back: the sink refused an event, a bound on held requests or open executions was reached, or the approval store or the hold journal could not answer, or answered with an approval that names another request, is not approved, or outlives the expiry the gateway minted</td>
+</tr>
+<tr>
+<td><code>APPROVAL_PENDING</code>, <code>APPROVAL_EXPIRED</code>, <code>APPROVAL_REJECTED</code>, <code>APPROVAL_ALREADY_USED</code></td>
+<td>the state of the approval this call waits on</td>
+</tr>
+<tr>
+<td><code>APPROVAL_NOT_RESUMED</code>, <code>APPROVAL_STATE_UNKNOWN</code></td>
+<td>a request this plane lost to a restart was granted, or its answer could not be read or trusted; it never ran</td>
+</tr>
+<tr>
+<td><code>APPROVAL_DIGEST_MISMATCH</code>, <code>APPROVAL_BUNDLE_MISMATCH</code></td>
+<td>an approval a store returned named another action or another policy bundle</td>
+</tr>
+<tr>
+<td><code>EXECUTED_ARGS_MISMATCH</code></td>
+<td>the bytes about to be sent, or the bytes sent, were not the authorized ones</td>
+</tr>
+<tr>
+<td><code>OBLIGATION_NOT_UNDERSTOOD</code></td>
+<td>an obligation the plane cannot apply, or whose parameters it cannot read</td>
+</tr>
+<tr>
+<td><code>INVALID_FIELD_VALUE</code>, <code>MALFORMED_INPUT</code></td>
+<td>the call could not be translated into a valid envelope; <code>INVALID_FIELD_VALUE</code> also when its request id names a trail still open in the gateway</td>
+</tr>
+<tr>
+<td><code>POLICY_UNAVAILABLE</code></td>
+<td>a block reached the adapter with a decision naming no cause; it answers with the kernel's own code for an absent policy rather than invent a second fail-closed answer</td>
+</tr>
+<tr>
+<td><code>REQUIRED_FIELD_ABSENT</code></td>
+<td>a <code>tools/list</code> on a listener whose authenticator established no end user</td>
+</tr>
+</tbody>
+</table>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/mcp-coverage.md">docs/reference/mcp-coverage.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage" aria-current="page">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

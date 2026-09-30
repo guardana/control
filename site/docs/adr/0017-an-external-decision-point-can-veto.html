@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0017: An external decision point can veto what the signed policy allows · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0017-an-external-decision-point-can-veto"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0017-an-external-decision-point-can-veto-what-the-signed-policy-allows">ADR-0017: An external decision point can veto what the signed policy allows</h1>
+<p>Status: accepted
+Date: 2026-09-23</p>
+<p>Builds on <a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>,
+<a href="/docs/adr/0011-contract-corrections-before-publication">ADR-0011</a>,
+<a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a>,
+<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a> and
+<a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a>.
+Amends <a href="/docs/adr/0003-policy-model-and-external-pdp">ADR-0003</a> on what an external
+decision point's answer may do.</p>
+<p>Amended by <a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>: the decision point
+is not asked about a call the plane has a cause of its own to block before the
+ask (a pause that covers it, an unreadable pause state, or <code>LOCKDOWN</code> or a halt
+on a material call), and such a call's recorded kernel decision holds no
+answer.</p>
+<h2 id="context">Context</h2>
+<p>ADR-0003 chose to reach an organization's own policy engine over the OpenID
+AuthZEN Authorization API 1.0 rather than embed one, and to treat its timeout as
+<code>INDETERMINATE</code>. ADR-0011 limited what this plane takes from it to <code>ALLOW</code>,
+<code>DENY</code> or <code>INDETERMINATE</code>: an AuthZEN decision is a boolean, any obligation
+rides in its context, and it names no policy version an approval could bind
+to.</p>
+<p>Neither record settles where the question is asked or what the answer may do.
+The kernel in <code>internal/core</code> performs no I/O and reads only the clock it is
+handed, so it cannot ask. Only the enforcement point may wait on a network, and
+only <code>adapters/</code> may speak a protocol (ADR-0007).</p>
+<p>AuthZEN 1.0 (final, 2026-01-11) evaluates over HTTPS <code>POST</code>, by default at
+<code>/access/v1/evaluation</code>, and answers <code>{&quot;decision&quot;: &lt;boolean&gt;, &quot;context&quot;: &lt;object&gt;}</code>; a denial is a <code>200</code>. A receiver MUST ignore members it does not
+know, and a decision point MUST return the request identifier a caller sends,
+for which the <code>X-Request-ID</code> header is the recommended carrier. The
+obligations draft puts duties in <code>context.obligations</code> and says a caller that
+cannot fulfil one MUST treat the answer as a denial.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>The answer is an input the signed policy reads, and it can only veto.</strong> The
+policy format <code>agent-policy/v1alpha1</code> gains one constraint, <code>external</code>, which
+holds when the external decision point denies the call. It is legal on a <code>DENY</code>
+rule and refused on every other effect when the document is compiled. Every
+grant comes from a signed local rule: the decision point can take one away and
+never give one. Letting it decide within a scope takes two rules, an <code>ALLOW</code>
+for the scope and a <code>DENY</code> for the same scope when the decision point denies.
+An approval still binds one action digest under one bundle digest (ADR-0005,
+ADR-0011), and <code>APPROVE</code> works unchanged.</p>
+<p><strong>The kernel stays the only decider.</strong> <code>core.Request</code> gains the answer beside
+<code>Flow</code>: a sealed value whose zero is &quot;not asked&quot;. Its states are allowed,
+denied, denied because the answer carried an obligation, and unanswered with
+one of three causes: a timeout, an unavailable decision point, or an answer
+this plane refuses. The kernel turns the state into the matcher's three-valued
+input and into its own reason codes; an adapter never spells a code. With the
+same request, bundle, answer, clock reading and id source, <code>Decide</code> returns
+the same decision, and the determinism property covers every state.</p>
+<p><strong>Silence is a cause in the request.</strong> An answer the kernel does not have
+leaves the veto rule undetermined, which is <code>INDETERMINATE</code> with a cause in the
+request, as every undetermined rule already is (ADR-0012). It blocks every
+effect class in every mode that enforces, and <code>fail_open_read</code>, which covers
+the bundle's availability only, never opens a read on it. A read survives an
+outage of the decision point only where the bundle does not route it there.
+<code>OBSERVE</code> enforces no decision, so there the call proceeds as any other does,
+with the <code>INDETERMINATE</code> decision on its trail.</p>
+<p><strong>The enforcement point asks only when the answer can change the decision.</strong>
+<code>internal/gateway</code> decides first without an answer. When the kernel reports
+that an undetermined rule reads <code>external</code> and that first decision is not
+already a <code>DENY</code>, which no answer can change, the gateway asks once, with a
+deadline, and decides again with the answer; that second decision is the one
+recorded. When the question cannot be asked, because the envelope names no
+resource id, it decides again with that unanswered state instead. Without the
+kernel's report no answer could change the verdict, so none is asked for.</p>
+<ul>
+<li>The rewrite path reuses the one answer: the question it would ask carries no
+arguments and is byte-identical.</li>
+<li>A retry on the resume path asks afresh, so a decision point that changed its
+mind between the hold and the retry blocks the held request.</li>
+<li><code>Preview</code>, which shapes a tool list, never asks: a listing names no resource,
+and a tool the answer governs is listed as decided per call.</li>
+<li>Asks in flight are bounded, and one past the bound is unanswered at once.</li>
+<li>The enforcement point refuses to start with a bundle that reads <code>external</code>
+and no decision point configured, and with a decision point no rule
+consults.</li>
+</ul>
+<p><strong>The seam is internal, and the protocol lives in <code>adapters/authzen</code>.</strong>
+<code>gateway.DecisionPoint</code> asks about one envelope and returns the kernel's input
+type with no error: whatever it cannot do is an unanswered state that names its
+cause. <code>adapters/authzen</code> implements it, imports <code>internal/core</code> for the type,
+and is the only tree that knows AuthZEN. <code>internal/gateway</code> imports no adapter,
+and a test already refuses that import. <code>pkg/</code> does not change (ADR-0009).</p>
+<p><strong>The question carries only what a policy can read.</strong> Mapping version 1:</p>
+<table>
+<thead>
+<tr>
+<th>AuthZEN</th>
+<th>From the envelope</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>subject</code></td>
+<td>the principal's type and id; its tenant, authentication strength and attributes as properties</td>
+</tr>
+<tr>
+<td><code>action</code></td>
+<td>the action's name; its kind, provider, protocol and effect class as properties</td>
+</tr>
+<tr>
+<td><code>resource</code></td>
+<td>the resource's type and id; its tenant, environment and labels as properties</td>
+</tr>
+<tr>
+<td><code>context</code></td>
+<td>the agent's id and framework; the destination's trust zone and host; the data labels; the envelope's project, tenant, environment and request id; <code>supported_obligations: []</code></td>
+</tr>
+</tbody>
+</table>
+<p>It never sends the argument bytes, their hash or preview, the run context,
+trace identifiers, the delegation chain or the model reference. A call whose
+envelope names no resource id is not asked about, and nothing stands in for
+the id. The request identifier travels as <code>X-Request-ID</code>, and an answer that
+does not return it in that header is refused.</p>
+<p><strong>The answer is read strictly where it could grant.</strong></p>
+<ul>
+<li>Its structure is always strict: status <code>200</code>, <code>Content-Type: application/json</code>, one bounded JSON document, exact member names each once,
+and <code>decision</code> a JSON boolean. Anything else is refused.</li>
+<li>An answer that passes those checks and says <code>false</code> is a denial whatever
+else it carries: nothing added to a denial makes it more permissive. This
+plane fulfils no obligation, and ignores any a denial carries.</li>
+<li>An answer that says <code>true</code> counts only when the top level is exactly
+<code>decision</code> and an optional <code>context</code>, the context holds only members the
+operator listed as informational (none by default), and
+<code>context.obligations</code> is absent or empty. A non-empty <code>obligations</code> is a
+denial, the obligations draft's own rule. Any other member is refused.</li>
+</ul>
+<p>This deviates on purpose from AuthZEN's &quot;MUST ignore unknown members&quot;, and only
+on an answer that would allow: a member this plane does not know may carry a
+duty.</p>
+<p><strong>The transport.</strong> It keeps the exporter's protections (ADR-0014): no redirect
+followed, bounded reads, header names and values checked, no credential in a
+log or in evidence. It adds two the exporter does not have. Plain HTTP needs a
+named risk setting and a loopback address, because a forged <code>true</code> removes a
+veto. No proxy is used unless one is configured, so an environment variable
+cannot send the question elsewhere. Discovery, <code>/.well-known/authzen-configuration</code>,
+is a <code>doctor</code> check and never a start precondition. The evaluation endpoint is
+configuration, and it must share the decision point identifier's scheme, host
+and port; <code>doctor</code> checks that the published metadata agrees. <code>signed_metadata</code>
+is not verified.</p>
+<p><strong>The decision names the answer.</strong> <code>pdp_type</code> stays <code>builtin</code>, because the
+verdict is the kernel's. <code>pdp_instance</code> holds the configured decision point
+identifier when the answer was consulted and is empty otherwise; the contract
+page states that meaning when the seam lands. <code>pdp_version</code> stays empty, since
+AuthZEN carries no version. <code>decision_latency_us</code> stays the kernel's own time,
+and the enforcement point counts the ask's latency. When the answer was
+consulted, the decision carries exactly one of the first five codes below,
+or <code>OBLIGATION_NOT_UNDERSTOOD</code> in place of one when the decision point said
+<code>true</code> and attached an obligation:</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Number</th>
+<th>Usual verdict</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PDP_TIMEOUT</code></td>
+<td>17</td>
+<td><code>INDETERMINATE</code></td>
+<td>no answer within the deadline</td>
+</tr>
+<tr>
+<td><code>PDP_UNAVAILABLE</code></td>
+<td>39</td>
+<td><code>INDETERMINATE</code></td>
+<td>no decision came back: a transport error, a status other than <code>200</code>, a redirect, the bound on asks in flight, or a question that could not be asked</td>
+</tr>
+<tr>
+<td><code>PDP_ANSWER_REFUSED</code></td>
+<td>40</td>
+<td><code>INDETERMINATE</code></td>
+<td>a <code>200</code> this plane will not read</td>
+</tr>
+<tr>
+<td><code>PDP_DENY</code></td>
+<td>41</td>
+<td><code>DENY</code></td>
+<td>the decision point denied the call</td>
+</tr>
+<tr>
+<td><code>PDP_ALLOW</code></td>
+<td>42</td>
+<td><code>ALLOW</code></td>
+<td>the decision point did not deny the call</td>
+</tr>
+<tr>
+<td><code>OBLIGATION_NOT_UNDERSTOOD</code></td>
+<td>29</td>
+<td><code>DENY</code></td>
+<td>the decision point said <code>true</code> and attached an obligation</td>
+</tr>
+</tbody>
+</table>
+<p>The numbers are fixed here, before any code takes one. The registry's summary
+of <code>OBLIGATION_NOT_UNDERSTOOD</code> widens to an obligation an external answer
+carries; the code still also marks a bundle obligation this plane cannot
+apply, beside <code>PDP_ALLOW</code> when the answer allowed. No rule may name a <code>PDP_</code>
+code as its reason, so a local denial never reads as the decision point's.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>The decision point cannot authorize a call the signed bundle does not allow. A
+compromised, misconfigured or forged answer can deny, leave a call undecided,
+which blocks it, or, by saying <code>true</code> falsely, remove the veto it would have
+made. Its silence never becomes an allow in any decision. The signed bundle
+remains the one statement of what may happen, and approvals keep binding to
+it. The wire contract does not change: <code>pdp_instance</code> gains a stated meaning,
+and four reason codes join the registry, a registry change and not a contract
+change. The policy format gains one constraint; a bundle that does not use it
+decides exactly as before.</p>
+<p>The enforcement point sends a remote party the identity, action, resource and
+destination of each call whose decision depends on the answer, never its
+content (invariant 9).</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>The answer as an input on any rule, with any value.</strong> A bundle could make
+the decision point its sole grantor, its silence would become <code>DENY NO_MATCHING_RULE</code> or <code>INDETERMINATE</code> depending on how the bundle is written,
+and list shaping would hide every tool the answer governs.</li>
+<li><strong>The answer instead of the bundle, for calls a configuration routes there.</strong>
+The routing table would be unsigned configuration deciding which calls
+escape the signed policy, and a routed decision has no bundle digest an
+approval can bind to.</li>
+<li><strong>The enforcement point asks instead of the kernel.</strong> It skips the kernel's
+own checks, which ADR-0012 runs whatever the policy says.</li>
+<li><strong>Silence as a cause in the policy's availability.</strong> A read the decision point
+would have vetoed would run on a local allow under <code>fail_open_read</code>: the
+alternative ADR-0012 already rejected.</li>
+<li><strong>Ask on every call.</strong> It sends every call's metadata to a party that governs
+only some of them.</li>
+<li><strong>Honour &quot;MUST ignore unknown members&quot; everywhere.</strong> Ignoring a member that
+carries a duty, on an answer that allows, would let an unapplied duty pass as
+permission.</li>
+<li><strong>Discovery at start.</strong> An outage of the decision point would stop the plane,
+including every call the bundle never routes there.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>An operator who wants the decision point to decide a scope writes that scope
+twice, once to allow and once to veto; the bundle stays the one place that says
+what may happen. The decision point's latency is added to every call whose
+decision depends on it, and its outages block exactly those calls. A decision
+point that decorates its allows with context members needs those members
+listed. The roadmap's &quot;instead of the built-in matcher&quot; becomes &quot;can veto what
+the signed policy allows&quot;. OPA, which has no AuthZEN endpoint, needs a shim or
+a native adapter of its own, which is later work.</p>
+<h2 id="declared-limits">Declared limits</h2>
+<ol>
+<li>The decision point never grants; a forged allow can remove its own veto.</li>
+<li>An approval binds the bundle digest, not the decision point's policy. A
+retry asks again and a changed answer blocks; a policy that changed and
+answers the same is invisible here.</li>
+<li>Silence blocks every effect class the bundle routes to the decision point in
+every mode that enforces; <code>fail_open_read</code> never opens a read on it.</li>
+<li>The decision point never sees arguments, their hash or a digest; its answer
+covers the call's identity, and the rewrite path reuses it.</li>
+<li><code>Preview</code> never asks, so a governed tool is listed as decided per call.</li>
+<li>The question carries what mapping version 1 lists and nothing else; the
+delegation chain is not sent, and a call with no resource id is not asked
+about.</li>
+<li>Strict on an allow, lenient on a denial: a stated deviation from AuthZEN.</li>
+<li>A decision point that does not return <code>X-Request-ID</code> is refused on every
+call.</li>
+<li><code>pdp_version</code> is empty, and <code>decision_latency_us</code> excludes the ask.</li>
+<li>No answer is cached and no batch evaluation is used; either would reuse a
+decision across calls and needs its own record.</li>
+<li>Discovery is checked by <code>doctor</code> only, and <code>signed_metadata</code> is not verified.</li>
+<li>No obligation is fulfilled, and the access-request and approval profile and
+the MCP binding are not implemented: a denial from the decision point
+cannot become a request for approval.</li>
+<li>The bound on asks in flight and the deadline both fail closed.</li>
+</ol>
+<h2 id="validation">Validation</h2>
+<p>Planned with the lanes that build it:</p>
+<ul>
+<li>The compiler refuses <code>external</code> on every effect but <code>DENY</code>, one boundary
+case per effect.</li>
+<li>Property: deciding with an allowing answer equals deciding with every
+<code>external</code> rule deleted, in verdict, action, rule ids and obligations, so the
+decision point never grants.</li>
+<li>The determinism property over every state of the answer, the zero value
+included.</li>
+<li>Property: when the kernel does not report the answer as needed, every state
+decides the same.</li>
+<li>For every unanswered cause and every effect class, with <code>fail_open_read</code> on
+and off, an enforcing mode blocks the call.</li>
+<li>The adapter against an in-process decision point, one case per refusal
+above, and a fuzz target on the answer's reader.</li>
+<li>A golden of mapping version 1, and a test that no field it never sends
+reaches the request bytes.</li>
+<li>End to end: a case per effect class and cause, a retry the decision point now
+denies, and a list shaping that asks nothing.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0017-an-external-decision-point-can-veto.md">docs/adr/0017-an-external-decision-point-can-veto.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

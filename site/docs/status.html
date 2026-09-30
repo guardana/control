@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Implementation status · Guardana Control</title>
+<meta name="description" content="What exists in this repository today, component by component, the one inventory every other page points to."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/status"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="implementation-status">Implementation status</h1>
+<p>What exists in this repository today, component by component. Every other
+document points here rather than keeping its own list, so this is the only
+inventory in the project and the one that has to be right.</p>
+<p>What the labels mean:</p>
+<ul>
+<li><code>implemented</code>: it exists and a command in this repository exercises it.</li>
+<li><code>experimental</code>: it exists and can still change without a major version.</li>
+<li><code>planned</code>: it is not built. <code>Where</code> names the path it will take, the record
+that defines it, or says that no path has been chosen yet. A path that
+already holds a package doc and a test holds nothing that decides.</li>
+</ul>
+<p>Nothing here is a security boundary. Do not deploy it as one.</p>
+<h2 id="components">Components</h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Status</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Go module and pinned toolchain</td>
+<td><code>implemented</code></td>
+<td><code>go.mod</code> (<code>go 1.27.1</code>), <code>scripts/bootstrap.sh</code></td>
+</tr>
+<tr>
+<td>Quality gate, including the documentation and dependency checks</td>
+<td><code>implemented</code></td>
+<td><code>Makefile</code>, <code>.golangci.yml</code>, <code>scripts/</code>, <code>internal/docscheck/</code>, <code>internal/core/layering_test.go</code>. The dependency rule is an allowlist over five trees, all examined; <code>make check-imports-probe</code> plants a violation in each and fails unless every mechanism refuses it. The documentation check judges every page's frontmatter, type, <code>covers</code>, budget and diagrams and pins every rendered page and block to its generator (<a href="/docs/adr/0015-documentation-structure-and-checks">ADR-0015</a>); <code>make docs-impact</code> names the pages a change makes suspect</td>
+</tr>
+<tr>
+<td>Brand indirection and one-command rename</td>
+<td><code>implemented</code></td>
+<td><code>internal/brand/</code>, <code>scripts/check-brand.sh</code>, <code>scripts/rename-product.sh</code></td>
+</tr>
+<tr>
+<td>Architecture decision records</td>
+<td><code>implemented</code></td>
+<td><code>docs/adr/</code></td>
+</tr>
+<tr>
+<td>Command line: <code>policy lint</code>, <code>policy test</code>, <code>policy keygen</code> and <code>policy sign</code></td>
+<td><code>implemented</code></td>
+<td><code>cmd/guardana-control/</code>, <a href="/docs/guides/write-and-test-a-policy">guides/write-and-test-a-policy.md</a>. The same binary holds the <code>approvals</code> commands and the <code>console</code> page in the approval providers row below, and the page's loopback listener is its one server; <code>policy explain</code> and <code>policy diff</code> are <code>planned</code></td>
+</tr>
+<tr>
+<td>Policy keys and signed bundle files</td>
+<td><code>implemented</code></td>
+<td><code>internal/policykey/</code> (the private key file and its reader, the public key line and its one parser, the derived key id, the bundle file), <code>internal/files/</code> (create without replacing, replace, bounded read of a regular file), <code>internal/keytext/</code> (the withholding and quoting both binaries and the approvals page print through, which reads no key), <a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>. <code>policy keygen</code> and <code>policy sign</code> write them and the gateway parses <code>policy.public_key</code> through the same package. Unix-like systems only; nothing stops a bundle with a lower serial from being loaded after a restart, and the approvals store, the hold journal and the spool still carry their own file code</td>
+</tr>
+<tr>
+<td>Continuous integration</td>
+<td><code>implemented</code></td>
+<td><code>.github/workflows/</code>: <code>ci.yml</code> runs <code>make quality</code> on Linux for every push to <code>main</code> and every pull request; <code>security.yml</code> runs CodeQL and the vulnerability, advisory and secret scans, <code>pull-request.yml</code> checks a pull request's title and sign-offs, <code>workflow-lint.yml</code> checks the workflows, and <code>scorecard.yml</code> scores the repository's supply chain</td>
+</tr>
+<tr>
+<td>Wire contracts, frozen at <code>1.0</code></td>
+<td><code>implemented</code></td>
+<td><code>api/proto/guardana/control/v1/</code> (8 files), generated Go in <code>api/gen/go/</code>. <code>make proto-check</code> regenerates and diffs; <code>buf breaking</code> runs against <code>main</code> in CI and in <code>make proto-breaking</code></td>
+</tr>
+<tr>
+<td>Bounded validation and strict decoding</td>
+<td><code>implemented</code></td>
+<td><code>pkg/contract/</code>. Unknown fields and undeclared enum numbers refused on both wire paths, inside map entries too, which <code>Decode</code> reads before the runtime parses them (<a href="/docs/adr/0002-wire-contracts-and-versioning">ADR-0002</a>)</td>
+</tr>
+<tr>
+<td>Effect materiality, sensitivity floors, toxic-flow predicate</td>
+<td><code>implemented</code></td>
+<td><code>pkg/contract/effect.go</code>, <code>labels.go</code>; the kernel's tenant rule and fail-closed table read materiality, the matcher reads the floors</td>
+</tr>
+<tr>
+<td>Reason-code registry and its generated reference</td>
+<td><code>implemented</code></td>
+<td><code>internal/policy/reasons/</code>, <a href="/docs/reference/reason-codes">reference/reason-codes.md</a>, which the registry generates. The kernel and the matcher emit codes as their own literals, each held to the registry by a test; nothing on the decision path imports the registry</td>
+</tr>
+<tr>
+<td>Evidence event chain, in memory</td>
+<td><code>implemented</code></td>
+<td><code>internal/evidence/</code>. Builder, chain validation and a JSONL codec. A <code>Sink</code> seam and a memory sink for tests; the package itself reads no clock and touches no file, and the spool that writes disk implements the seam from <code>internal/spool/</code></td>
+</tr>
+<tr>
+<td>Decision kernel: the fixed order, the fail-closed table, the delegation check</td>
+<td><code>implemented</code></td>
+<td><code>internal/core/</code>, <code>internal/core/delegation/</code>, <a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a>. <code>policy test</code> and 25 fixtures under <code>testdata/policy/fixtures/</code> exercise every verdict and cause, the external decision point's answers among them; a 10 000-case determinism property and <code>FuzzDecide</code> run in <code>make test</code> and <code>make fuzz-smoke</code>. <code>ENFORCE</code> only; the modes are the enforcement point's (<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>), and <code>internal/gateway/</code> calls <code>Decide</code> on every call it admits</td>
+</tr>
+<tr>
+<td>Canonical action digest</td>
+<td><code>implemented</code></td>
+<td><code>internal/canon/</code>, goldens in <code>testdata/digest/</code>, <a href="/docs/adr/0005-canonical-action-digest">ADR-0005</a> and <a href="/docs/adr/0010-digest-domain-separation">ADR-0010</a>. Cross-language parity is unproved until a second implementation exists</td>
+</tr>
+<tr>
+<td>Policy documents, signed bundles and the matcher</td>
+<td><code>implemented</code></td>
+<td><code>internal/policy/rules/</code> parses <code>agent-policy/v1alpha1</code> strictly, <code>internal/policy/bundle/</code> signs and verifies bundle bytes (Ed25519 over the DSSE PAE); <code>internal/policy/match/</code> evaluates three-valued; <code>internal/policy/</code> loads a bundle into a snapshot and installs it once, in order; <a href="/docs/adr/0003-policy-model-and-external-pdp">ADR-0003</a>, <a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a>. A holder pinned to the bundle id it serves refuses every other; a signed expiry and a serial that survives a restart are <code>planned</code></td>
+</tr>
+<tr>
+<td>External policy decision point (PDP) over AuthZEN, able to veto</td>
+<td><code>experimental</code></td>
+<td><a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>. The kernel takes the answer and the policy format reads it (<code>internal/core/</code>, <code>internal/policy/</code>); <code>adapters/authzen/</code> asks and reads the answer strictly; <code>internal/gateway/</code> asks only when the answer can change the decision; <code>cmd/guardana-gateway</code> configures it from the <code>pdp.</code> keys, checks its published metadata in <code>doctor</code> and counts the asks on <code>/healthz</code>. The end-to-end tests reach a decision point on the loopback over plaintext; TLS is exercised in the adapter's own tests, against the roots a test hands it, and the command has no setting for a private certificate authority</td>
+</tr>
+<tr>
+<td>Approval binding to one action digest and one bundle digest</td>
+<td><code>implemented</code></td>
+<td><code>internal/core/approval/</code> (<code>Bind</code>), golden in <code>testdata/digest/binding.json</code>. <code>internal/gateway/</code> holds a request for approval, keeps the record of what it minted itself, and consumes the approval exactly once on the retry (<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>). An approver outside the plane answers through the file provider below; a hold still does not survive a restart, and a plane that keeps a hold journal closes the trail of one it lost rather than leaving it open (<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>)</td>
+</tr>
+<tr>
+<td>Evidence spool</td>
+<td><code>experimental</code></td>
+<td><code>internal/spool/</code> (segmented log with CRC32C per record, fsync policy, a budget with a reservation per open trail, a quarantine for what a collector refuses, an exclusive directory lock, recovery that truncates only a torn tail and refuses damage), the <code>Sink</code> seam in <code>internal/evidence/</code> with a memory sink for tests, <a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a>. Its own tests and a crash-safety property cover it, and <code>cmd/guardana-gateway</code> wires it as the plane's sink</td>
+</tr>
+<tr>
+<td>OpenTelemetry export</td>
+<td><code>experimental</code></td>
+<td><code>adapters/otel/</code>, OTLP logs over HTTP in the protocol's JSON encoding on the standard library, pinned by a golden in <code>testdata/otlp/</code>, <a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a>. It acknowledges only the protocol's own answer read strictly, follows no redirect, needs the operator's word for a plaintext endpoint, retries everything else, quarantines what a collector refuses, and drains one run at a time; <code>cmd/guardana-gateway</code> runs it</td>
+</tr>
+<tr>
+<td>A collector and a trail file of the project's own</td>
+<td><code>experimental</code></td>
+<td><code>adapters/otel/</code> also reads what the exporter sends, strictly, and answers only after the records are synced; <code>internal/trailfile/</code> appends to a trail file under an exclusive lock, cuts a torn last line at open, and reads a file back with each trail's chain checked; <code>guardana-gateway collect</code> (loopback only) and <code>guardana-gateway trail</code>, <a href="/docs/guides/watch-a-plane-without-a-collector">guides/watch-a-plane-without-a-collector.md</a>, <a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a>. A trail file is at least once and never rotated, and its check proves each chain's shape, not its integrity</td>
+</tr>
+<tr>
+<td>Model Context Protocol (MCP) gateway</td>
+<td><code>experimental</code></td>
+<td><code>internal/gateway/</code> (the protocol-neutral pipeline: <code>Admit</code>, <code>Close</code>, <code>Abort</code>, <code>Preview</code>, the mode table with its start-time refusals, the executed-arguments digest, the plane-owned hold and its memory approval store), <code>adapters/mcp/</code> (stateless and stateful HTTP and stdio listeners, one upstream client per server, the manifest with fingerprints and the operator's overrides, <code>tools/call</code>, <code>tools/list</code> shaping, <code>resources/read</code> and <code>prompts/get</code>), <code>cmd/guardana-gateway/</code> (<code>run</code>, <code>doctor</code>, <code>collect</code> and <code>trail</code>, <code>GET /healthz</code>, <code>GET /metrics</code> in the Prometheus text format from <code>internal/metrics</code>, whose names <a href="/docs/reference/metrics">reference/metrics.md</a> is rendered from, and <code>GET /brand</code>), <code>internal/gatewayconfig/</code> (the configuration file, its <code>GUARDANA_CONTROL_*</code> variables and the field table <a href="/docs/reference/configuration">reference/configuration.md</a> is rendered from), <code>internal/pause/</code> and <code>pause init</code>, <code>add</code>, <code>remove</code> and <code>list</code> in <code>cmd/guardana-control/</code> (the operator's pause file, its strict reader, its writer under an exclusive lock, and the poller a plane decides every call under, <a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>), <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>, <a href="/docs/guides/run-the-gateway">guides/run-the-gateway.md</a>, <a href="/docs/reference/mcp-coverage">reference/mcp-coverage.md</a>. <code>OBSERVE</code>, <code>APPROVE</code>, <code>ENFORCE</code> and <code>LOCKDOWN</code> run and <code>SHADOW</code> and <code>WARN</code> are refused at start; no configuration key wires an authenticator, so no call binds an end user; a run is the listener's principal and agent, one per plane without an authenticator, and a policy's <code>flow</code> constraints read what the run's executions declared they return (<a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a>); after untrusted input a flow rule blocks every call to an untrusted destination; <code>APPROVE</code> needs an approval provider that can answer and is refused at start with the in-memory one; a pause bites up to one poll interval after it is written, never on an execution already running, and cannot name a principal, an agent or a tenant; elicitation and the Tasks extension are <code>planned</code></td>
+</tr>
+<tr>
+<td>Approval providers and the lost hold</td>
+<td><code>experimental</code></td>
+<td><code>internal/approvals/</code> (a directory of records an approver writes and the plane reads back, two openers kept apart by the compiler, <code>0600</code> records under an owner-only directory), <code>internal/holdjournal/</code> (the plane's own durable record of its own holds, under its own exclusive lock), the <code>HoldJournal</code> seam and the reconciliation in <code>internal/gateway/</code>, <code>approvals list</code>, <code>approve</code> and <code>reject</code> in <code>cmd/guardana-control/</code>, and <code>console</code>, a page on <code>127.0.0.1</code> that lists, approves, rejects and pauses through the same directory and pause file (<code>internal/console/</code>, <a href="/docs/reference/console">reference/console.md</a>, <a href="/docs/adr/0023-a-local-page-answers-through-the-directory">ADR-0023</a>), the <code>approvals.provider</code> keys in <code>internal/gatewayconfig/</code>, <a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>, <a href="/docs/concepts/approvals-and-the-held-call">concepts/approvals-and-the-held-call.md</a>. Write access to the approvals directory is the approval authority and <code>approver_id</code> is an unauthenticated claim; a plane configured with no hold journal directory does not close a lost hold; the page's printed token and the session it trades for are the only thing between it and another local account or a web page, and it cannot tell whether a plane reads its pause file; signed webhook callbacks are <code>planned</code></td>
+</tr>
+<tr>
+<td>Scenarios held against a live plane</td>
+<td><code>experimental</code></td>
+<td><code>internal/scenario/</code> reads <code>agent-scenario/v1alpha1</code> strictly; <code>guardana-gateway scenario run</code> (<code>cmd/guardana-gateway/</code>) calls a running plane as an MCP client, waits for its spool to drain, reads the trail file its collector writes and compares each call's answer, decision and trail, and answers approvals and pauses through the <code>guardana-control</code> beside it; <a href="/docs/reference/scenario-format">reference/scenario-format.md</a>, <a href="/docs/adr/0022-scenarios-are-data">ADR-0022</a>. It must be the plane's only client, a scenario must finish within the approval lifetime, and it trusts the trail file beyond the ids, the bundle digest and the mode it checks</td>
+</tr>
+<tr>
+<td>Dev mode: one command for a local plane and its page</td>
+<td><code>experimental</code></td>
+<td><code>guardana-gateway dev</code> (<code>cmd/guardana-gateway/dev*.go</code>) lays out a new state directory, signs the demo's document under a key that lives only in its memory, runs the collector and the plane in its own process on loopback ports it bound, and runs <code>guardana-control console</code> beside them; <code>--scenario</code> runs each scenario on a plane of its own. <code>internal/loopback/</code> is the one rule for a loopback IP literal, which <code>collect</code> uses too; <a href="/docs/reference/dev">reference/dev.md</a>, <a href="/docs/adr/0023-a-local-page-answers-through-the-directory">ADR-0023</a>. A plane serving a bundle file decides with <code>POLICY_STALE</code> every call that reaches the freshness check once the smaller of the document's and the operator's staleness budget has passed, until it is restarted</td>
+</tr>
+<tr>
+<td>Demo: two vulnerable MCP servers, their plane and seven scenarios</td>
+<td><code>experimental</code></td>
+<td><code>examples/vulnerable-mcp-agent/</code>, <a href="/docs/get-started/try-the-demo">get-started/try-the-demo.md</a>. One binary serves the orders or the web server over standard input and output, and a decision point on a fixed loopback port that never answers, so one demo runs at a time; <code>demo.yaml</code> and <code>policy.json</code> are what <code>dev</code> takes. Its test builds the binaries, runs each scenario on its own plane through <code>dev</code>, reads what each server received, and fails one mutant of each scenario on the member it changed</td>
+</tr>
+<tr>
+<td>Agent-to-agent (A2A) adapter</td>
+<td><code>planned</code></td>
+<td><code>adapters/</code></td>
+</tr>
+<tr>
+<td>Framework SDKs and thin clients</td>
+<td><code>planned</code></td>
+<td>separate repositories, <a href="/docs/roadmap">ROADMAP.md</a></td>
+</tr>
+<tr>
+<td>Control plane API</td>
+<td><code>planned</code></td>
+<td><code>internal/controlapi/</code>, <a href="/docs/adr/0009-open-core-boundary">ADR-0009</a></td>
+</tr>
+<tr>
+<td>Storage</td>
+<td><code>planned</code></td>
+<td><code>internal/storage/</code></td>
+</tr>
+<tr>
+<td>Ingest and normalizer</td>
+<td><code>planned</code></td>
+<td><code>internal/ingest/</code></td>
+</tr>
+<tr>
+<td>Graph API</td>
+<td><code>planned</code></td>
+<td>no path chosen yet, <a href="/docs/roadmap">ROADMAP.md</a></td>
+</tr>
+<tr>
+<td>Web UI</td>
+<td><code>planned</code></td>
+<td>no path chosen yet, <a href="/docs/roadmap">ROADMAP.md</a></td>
+</tr>
+<tr>
+<td>Detectors</td>
+<td><code>planned</code></td>
+<td><code>detectors/builtin/</code>, <code>pkg/detector</code></td>
+</tr>
+<tr>
+<td>Releases built, signed and attested from a tag</td>
+<td><code>experimental</code></td>
+<td><code>.goreleaser.yaml</code>, <code>.github/workflows/release.yml</code>, <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a>, <a href="/docs/adr/0025-public-repository-merges-and-releases">ADR-0025</a>. Archives for Linux and macOS on amd64 and arm64 with both binaries, a CycloneDX bill of materials per archive, <code>checksums.txt</code> signed without a stored key, and a build provenance attestation for every archive, all verified by the workflow before it publishes. Since <code>v0.2.0-alpha</code>, also an OCI image of the gateway, <code>ghcr.io/guardana/control-gateway</code>, for linux/amd64 and linux/arm64 on a distroless nonroot base, signed and attested by digest the same way, its digest named in the release notes (<a href="/docs/guides/run-in-a-container">guides/run-in-a-container.md</a>)</td>
+</tr>
+<tr>
+<td>Benchmarks</td>
+<td><code>implemented</code></td>
+<td><code>bench/</code>: envelope validation, the digest, <code>Decide</code> at 10, 100 and 1000 rules and with obligations, and one MCP tool call through the gateway against the same call made directly, with guard tests in <code>make test</code>. <code>scripts/bench.sh</code> keeps a run in the ignored <code>bench/results/local/</code>; <code>--publish</code> writes a tracked <code>bench/results/&lt;stamp&gt;-&lt;os&gt;-&lt;arch&gt;.txt</code> that names the machine</td>
+</tr>
+<tr>
+<td>Website for <code>control.guardana.dev</code></td>
+<td><code>experimental</code></td>
+<td><code>site/</code>, <code>wrangler.json</code>, <code>internal/docscheck/sitedoc/</code>, <a href="/docs/adr/0030-a-static-website-drawn-from-the-repository">ADR-0030</a>. One static landing page with no script, its diagrams drawn from README's, and every documentation page, record, the roadmap and the changelog rendered under <code>/docs/</code> (<a href="/docs/adr/0031-the-documentation-is-served-on-the-website">ADR-0031</a>), all written by <code>make docs-gen</code> and compared in <code>make docs-check</code>; served at <a href="https://control.guardana.dev">https://control.guardana.dev</a>, deployed from <code>main</code> on every push</td>
+</tr>
+</tbody>
+</table>
+<p><code>make quality</code> names every check that runs today. Read the <code>Makefile</code> for the
+exact set rather than a list in prose, which drifts.</p>
+<h2 id="what-it-supervises-today">What it supervises today</h2>
+<p>The project means to supervise an organization's AI agents
+(<a href="/docs/roadmap">ROADMAP.md</a>). Against that aim, the components above add up to
+this:</p>
+<table>
+<thead>
+<tr>
+<th>Aim</th>
+<th>Today</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Setup for common agent stacks, a proxy for the rest</td>
+<td>An MCP proxy only; no framework port and no proxy for other tool APIs</td>
+</tr>
+<tr>
+<td>Oversight of what agents do and the data they reach</td>
+<td>Each tool call, resource read and prompt through one plane is decided and recorded; a call that bypasses the plane is not seen, and there is no view across planes</td>
+</tr>
+<tr>
+<td>Procedures, and deviations from them</td>
+<td>Policy per call and one flow rule; no procedure an agent is held to</td>
+</tr>
+<tr>
+<td>Attempts to gain access</td>
+<td>Each refusal is recorded with its reason codes and counted in <code>/metrics</code>; nothing reports a pattern of attempts</td>
+</tr>
+<tr>
+<td>Quality: finished, not degraded, nothing skipped</td>
+<td>A result's status and hash only</td>
+</tr>
+<tr>
+<td>Running beside the agents, reporting deviations</td>
+<td>The plane writes evidence to a spool for export; no supervisor reads it yet</td>
+</tr>
+<tr>
+<td>Stopping an agent</td>
+<td>A pause of every call, of one upstream or of one tool, for calls not yet running; not of one agent, principal or run</td>
+</tr>
+<tr>
+<td>A run drawn as a graph</td>
+<td>None; <code>guardana-gateway trail</code> checks each trail's chain</td>
+</tr>
+</tbody>
+</table>
+<h2 id="open-source-and-what-may-be-commercial">Open source, and what may be commercial</h2>
+<p>Required by <a href="/docs/adr/0009-open-core-boundary">ADR-0009</a>. A security capability is
+never withheld from the open build, whatever its status above.</p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Licensing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Enforcement kernel</td>
+<td>Open, permanently</td>
+</tr>
+<tr>
+<td>Policy matcher</td>
+<td>Open, permanently</td>
+</tr>
+<tr>
+<td>Adapters</td>
+<td>Open, permanently</td>
+</tr>
+<tr>
+<td>Approvals</td>
+<td>Open, permanently</td>
+</tr>
+<tr>
+<td>Evidence</td>
+<td>Open, permanently</td>
+</tr>
+<tr>
+<td>Detectors</td>
+<td>Open, permanently</td>
+</tr>
+<tr>
+<td>Control API</td>
+<td>Open, permanently</td>
+</tr>
+<tr>
+<td>Self-hosted deployment</td>
+<td>Open, permanently</td>
+</tr>
+<tr>
+<td>Managed hosting</td>
+<td>May be commercial</td>
+</tr>
+<tr>
+<td>Curated policy and detector packs</td>
+<td>May be commercial</td>
+</tr>
+</tbody>
+</table>
+<p>This page is updated in the same change as the work it describes.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/status.md">docs/status.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status" aria-current="page">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

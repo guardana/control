@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Evidence and the spool · Guardana Control</title>
+<meta name="description" content="The trail every call leaves, the order its events may take, and how the spool keeps them on disk before an exporter sees them."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/concepts/evidence-and-the-spool"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="evidence-and-the-spool">Evidence and the spool</h1>
+<p>Every proposed action the enforcement point can name gets a trail of events
+under one request identifier: the proposal, the decision, an approval
+requested, decided or expired, the action started, and the action completed,
+failed or blocked. An event the sink refuses leaves the trail short, as the
+table below says; a call the enforcement point cannot name, because an
+identifier is invalid or its request id has a trail still open, is blocked and
+counted with nothing written. The chain
+validator refuses a trail whose events come in an order no run could have
+produced (<a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a>). The diagram
+is rendered from the validator's own step function
+(<code>internal/evidence/chain.go</code>): every edge it draws is one the validator
+takes, and nothing else moves a trail.</p>
+<figure class="dg-text" id="diagram-1"><figcaption>The evidence chain</figcaption><p>Each step a trail may take, as the validator takes it: proposed, decided, through an approval or not, and closed as blocked, completed or failed. <a href="https://github.com/guardana/control/blob/main/docs/concepts/evidence-and-the-spool.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">stateDiagram-v2
+    accTitle: The evidence chain
+    accDescr: Each step a trail may take, as the validator takes it: proposed, decided, through an approval or not, and closed as blocked, completed or failed.
+    [*] --&gt; proposed: ACTION_PROPOSED
+    proposed --&gt; decided: POLICY_DECIDED
+    decided --&gt; requested: APPROVAL_REQUESTED
+    decided --&gt; started: ACTION_STARTED
+    decided --&gt; closed: ACTION_BLOCKED
+    requested --&gt; approved: APPROVAL_DECIDED
+    requested --&gt; expired: APPROVAL_EXPIRED
+    approved --&gt; started: ACTION_STARTED
+    approved --&gt; closed: ACTION_BLOCKED
+    expired --&gt; requested: APPROVAL_REQUESTED
+    expired --&gt; closed: ACTION_BLOCKED
+    started --&gt; closed: ACTION_COMPLETED
+    started --&gt; closed: ACTION_FAILED
+</code></pre></details></figure>
+<p>Sources: <code>internal/evidence/chain.go</code>, <code>internal/evidence/chainsteps.go</code>.</p>
+<p><code>POLICY_RELOADED</code> leaves the trail where it is, from every state.
+<code>FINDING_RAISED</code> leaves the trail where it is, from every state but the start.
+A kind this version does not know is placed nowhere and read as indeterminate, never refused.</p>
+<h2 id="what-each-event-carries">What each event carries</h2>
+<p>Every event carries <code>event_id</code>, <code>kind</code>, the correlation identifiers
+(<code>request_id</code>, <code>project_id</code>, <code>tenant_id</code>, and <code>run_id</code> when the action belongs
+to a run), <code>occurred_at</code>,
+<code>schema_version</code>, the enforcement point's own <code>enforcement_mode</code> and
+<code>prev_event_id</code>, the link to the event before it on the same request. The
+payload is deep-copied into the event, and a nil payload leaves the arm
+unset, so a gap looks like a gap and never like an empty decision.</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Written when</th>
+<th>Payload</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ACTION_PROPOSED</code></td>
+<td>a call's trail opens</td>
+<td>the envelope as the adapter proposed it</td>
+</tr>
+<tr>
+<td><code>POLICY_DECIDED</code></td>
+<td>right after the proposal</td>
+<td>the kernel's decision: about the proposed envelope, or about the authorized one when a rewriting obligation changed the bytes</td>
+</tr>
+<tr>
+<td><code>APPROVAL_REQUESTED</code></td>
+<td>the call is held for an approval</td>
+<td>the approval the enforcement point minted: <code>approval_id</code>, <code>request_id</code>, the action digest, the bundle digest, <code>PENDING</code>, <code>requested_at</code>, <code>expires_at</code></td>
+</tr>
+<tr>
+<td><code>APPROVAL_DECIDED</code></td>
+<td>an approved retry resumes the held request, or a rejected one closes it</td>
+<td>the approval as answered, with <code>approver_id</code> and its state</td>
+</tr>
+<tr>
+<td><code>APPROVAL_EXPIRED</code></td>
+<td>nobody answered before <code>expires_at</code>, or the enforcement point could not keep the hold</td>
+<td>the approval with state <code>EXPIRED</code></td>
+</tr>
+<tr>
+<td><code>ACTION_STARTED</code></td>
+<td>the call is handed to execution</td>
+<td>no payload; <code>execution_id</code> names the run, and the closing event carries it again</td>
+</tr>
+<tr>
+<td><code>ACTION_COMPLETED</code></td>
+<td>the bytes sent were the authorized ones and the result succeeded</td>
+<td>the result, with <code>executed_action_digest</code> equal to the decision's action digest</td>
+</tr>
+<tr>
+<td><code>ACTION_FAILED</code></td>
+<td>the result failed, the bytes sent were not the authorized ones, or the adapter did not send</td>
+<td>the result; <code>tool_protocol_status: EXECUTED_ARGS_MISMATCH</code> on a mismatch; on an abort a <code>BLOCKED</code> result carrying the cause's code and no executed digest</td>
+</tr>
+<tr>
+<td><code>ACTION_BLOCKED</code></td>
+<td>the call was stopped</td>
+<td>the decision that stopped it: the kernel's, or the enforcement point's own with <code>pdp_type: gateway</code></td>
+</tr>
+<tr>
+<td><code>POLICY_RELOADED</code></td>
+<td>a bundle is taken into use</td>
+<td>the bundle reference; its content never enters the trail</td>
+</tr>
+<tr>
+<td><code>FINDING_RAISED</code></td>
+<td>a detector reports after the fact</td>
+<td>the finding; it annotates and never grants or denies</td>
+</tr>
+</tbody>
+</table>
+<h2 id="before-an-effect-and-after">Before an effect and after</h2>
+<p>A sink's <code>Append</code> returns only when the event is durable under its own
+policy, and an error means it is not. What the enforcement point does with
+that error depends on whether the effect has happened:</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>If the sink refuses it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ACTION_PROPOSED</code>, <code>POLICY_DECIDED</code>, <code>APPROVAL_REQUESTED</code>, <code>ACTION_STARTED</code>, <code>ACTION_BLOCKED</code></td>
+<td>the call blocks with <code>EVIDENCE_UNAVAILABLE</code> before anything runs; the block itself is not recorded, because the event that failed is the one that would record it, and where the trail was held, its journal entry stays for the next start to report</td>
+</tr>
+<tr>
+<td>the same, for a read under <code>AllowReadsUnrecorded</code></td>
+<td>the read runs unrecorded and is counted, unless its trail is held: a read that holds or resumes is blocked like a material call; its closing event is not attempted either, and such a call is never held for an approval</td>
+</tr>
+<tr>
+<td><code>ACTION_COMPLETED</code>, <code>ACTION_FAILED</code></td>
+<td>the result is delivered anyway, the failure is counted, and the enforcement point takes no material call until an append succeeds</td>
+</tr>
+</tbody>
+</table>
+<p>A request id whose trail is open in the enforcement point is refused before
+anything is written, because two trails under one id would interleave; a held
+request's trail is resumed from where it stood rather than started again.</p>
+<h2 id="the-spool">The spool</h2>
+<p>The spool is the sink that writes disk: an append-only, checksummed, bounded
+log that an exporter drains and acknowledges. Each event it takes becomes one
+record on disk, a header and one JSON line, and the spool, the reader and
+the exporter work in records from there.</p>
+<figure class="dg-text" id="diagram-2"><figcaption>The spool</figcaption><p>An event is appended within the byte budget or refused so the caller blocks; a started action reserves room for its closing record; segments roll at their size; the exporter sends batches from the acknowledged position, deletes what is acknowledged and quarantines what it cannot deliver. <a href="https://github.com/guardana/control/blob/main/docs/concepts/evidence-and-the-spool.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TD
+    accTitle: The spool
+    accDescr: An event is appended within the byte budget or refused so the caller blocks; a started action reserves room for its closing record; segments roll at their size; the exporter sends batches from the acknowledged position, deletes what is acknowledged and quarantines what it cannot deliver.
+    A[&#34;Append: one event, framed and checksummed&#34;] --&gt; B{&#34;Budget: bytes on disk, the quarantine included, plus the reservations, within MaxBytes?&#34;}
+    B --&gt;|no| F[&#34;ErrFull: the caller blocks the call it was recording&#34;]
+    B --&gt;|yes| W[&#34;Write at the end of the current segment, forced to disk per the fsync policy&#34;]
+    W --&gt;|ACTION_STARTED| R[&#34;Reserve ClosingReserve bytes for the trail, at most MaxOpenTrails of them&#34;]
+    W --&gt;|ACTION_COMPLETED or ACTION_FAILED of that trail| S[&#34;Spend the reservation: never refused on the budget for the bytes it covers&#34;]
+    W --&gt;|the segment would pass SegmentBytes| N[&#34;Roll: sync and close the segment, open the next&#34;]
+    W --&gt; X[&#34;Exporter: Next from the acknowledged position, one batch, POST to the collector&#34;]
+    X --&gt;|accepted| K[&#34;Ack the batch, in order: a segment acknowledged whole is deleted&#34;]
+    X --&gt;|refused three times running, dropped from an accepted request, or the encoder refuses it| Q[&#34;Quarantine: appended to a file the enforcement point never releases&#34;]
+    Q --&gt; K
+    X --&gt;|any other answer| X
+</code></pre></details></figure>
+<p>Sources: <code>internal/spool/append.go</code>, <code>internal/spool/segment.go</code>,
+<code>internal/spool/reader.go</code>, <code>internal/spool/quarantine.go</code>,
+<code>adapters/otel/exporter.go</code>, <code>adapters/otel/send.go</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>What happens</th>
+<th>Refused when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Append</td>
+<td>the event is encoded as one JSON line, framed and checksummed, written under one lock, and synced before <code>Append</code> returns under <code>FsyncEveryRecord</code>, the zero value; under <code>FsyncInterval</code> it is synced on a timer, and a power loss can take what was written since the last tick</td>
+<td><code>ErrFull</code> when the bytes on disk plus the reservations would pass <code>MaxBytes</code>; <code>ErrTrail</code> for an <code>ACTION_STARTED</code> that names no <code>request_id</code> or a trail that already holds a reservation; <code>ErrFull</code> for an <code>ACTION_STARTED</code> past <code>MaxOpenTrails</code></td>
+</tr>
+<tr>
+<td>Reserve</td>
+<td>an <code>ACTION_STARTED</code> reserves <code>ClosingReserve</code> bytes for its request and execution, so the closing record of an open trail has that much room whatever else fills the spool; the <code>ACTION_COMPLETED</code> or <code>ACTION_FAILED</code> naming both spends it, and only the bytes past it are checked against the budget, so a closing record larger than the reservation can still be refused</td>
+<td>a closing record naming another trail is an ordinary append, budget and all</td>
+</tr>
+<tr>
+<td>Roll</td>
+<td>a record that would take the segment past <code>SegmentBytes</code> closes it, synced, and opens the next, named by the sequence number of its first record; a record larger than a segment gets one of its own</td>
+<td>a segment file that already exists is <code>ErrCorrupt</code></td>
+</tr>
+<tr>
+<td>Deliver</td>
+<td>the exporter rewinds to the acknowledged position, takes a batch of up to <code>MaxBatch</code> records within <code>Linger</code>, keeps at most <code>InFlight</code> requests unacknowledged, and sends each event as one OTLP log record over HTTP</td>
+<td>a second <code>Run</code> on one exporter, which would let each run acknowledge what the other took</td>
+</tr>
+<tr>
+<td>Acknowledge</td>
+<td>batches are acknowledged in the order they were sent, once every record in one was accepted or quarantined; the first batch not delivered stops the cursor, and the next run sends it all again; <code>Ack</code> is bounded by what this reader delivered, so nothing is released that nobody exported</td>
+<td>a cursor before the acknowledged position, past what was delivered, or inside a record</td>
+</tr>
+<tr>
+<td>Retry</td>
+<td>any answer that is not an acceptance or a refusal of the records, a transport error, a redirect, an auth or throttling status, a server error, an answer that does not parse, is sent again with a backoff that doubles up to <code>MaxBackoff</code>, for as long as it takes</td>
+<td>never: a collector outage fills the spool and nothing else</td>
+</tr>
+<tr>
+<td>Quarantine</td>
+<td>a refusal of the records (<code>400</code>, <code>413</code>, <code>422</code>) splits a batch in halves; a single record refused <code>maxRefusals</code> times running, every record of an accepted request from which the collector reports dropping some, since its answer does not say which, and a record the encoder refuses go to the quarantine, so the cursor may pass them without dropping them; a record the quarantine's tail already holds is not written twice</td>
+<td><code>ErrFull</code> when what the quarantine took since the last acknowledgement would exceed what that acknowledgement releases: the quarantine's bytes count against the budget from then on and nothing releases them</td>
+</tr>
+<tr>
+<td>Open</td>
+<td>the directory is locked for this process, every segment and the quarantine are read and checked, a torn tail of the last segment is cut and counted as truncated</td>
+<td><code>ErrLocked</code> for a directory another spool holds; <code>ErrCorrupt</code> for a record that does not check anywhere but that tail, or a segment out of sequence, with nothing deleted; <code>ErrForeignFile</code> for a file that is not the spool's</td>
+</tr>
+<tr>
+<td>Break</td>
+<td>an I/O failure a repair cannot undo latches: the segment is cut back to its committed length when that works, and when it does not, every later operation fails with the same error</td>
+<td>a broken spool refuses everything, so a later append never lands behind a tail nobody can vouch for</td>
+</tr>
+</tbody>
+</table>
+<p><code>Stats</code> reports the segments, the bytes on disk, what is unacknowledged,
+reserved and quarantined, what was truncated and the oldest unacknowledged
+cursor; a spool nobody opened answers <code>ErrClosed</code> rather than the zero value,
+so an empty answer never reads as a healthy, empty spool.</p>
+<h2 id="why">Why</h2>
+<ul>
+<li>An event that cannot be written before an effect blocks the call it was
+recording, and one that cannot be written after an effect halts material
+calls rather than disappearing: under <code>FsyncEveryRecord</code> the evidence is on
+disk before an answer is given (ADR-0014, invariant 5).</li>
+<li>The trail is a chain under one request id with a step function the
+validator owns; the diagram is rendered from it so the page cannot say an
+order the validator does not take (ADR-0014).</li>
+<li>The enforcement point's <code>enforcement_mode</code> and <code>execution_id</code> on the event
+are never merged with the decision's or the result's own, so each field is
+one party's statement (ADR-0004).</li>
+<li>Payloads arrive redacted and the trail never lifts text out of one; capture
+is off by default and hidden reasoning is never stored (ADR-0004,
+invariant 9).</li>
+<li>The exporter never touches the request path: a collector outage fills the
+spool, a record refused for good goes to a quarantine the enforcement point
+never releases, and a log line names an answer by its length and digest
+rather than quoting a collector (ADR-0014).</li>
+<li>Every event carries the immutable correlation identifiers and the link to
+the event before it (invariant 10).</li>
+</ul>
+<h2 id="where-the-code-lives">Where the code lives</h2>
+<p><code>internal/evidence/</code> builds the events (<code>event.go</code>), resumes a trail
+(<code>resume.go</code>) and validates the chain (<code>chain.go</code>, <code>chainsteps.go</code>);
+<code>internal/spool/</code> writes them to disk (<code>append.go</code>, <code>segment.go</code>,
+<code>frame.go</code>), reads and acknowledges them (<code>reader.go</code>), quarantines them
+(<code>quarantine.go</code>) and recovers at <code>Open</code> (<code>load.go</code>); <code>adapters/otel/</code> exports
+them (<code>exporter.go</code>, <code>send.go</code>, <code>answer.go</code>).</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/evidence-and-the-spool.md">docs/concepts/evidence-and-the-spool.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool" aria-current="page">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

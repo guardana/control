@@ -30,7 +30,9 @@ func chainDiagram() ([]byte, error) {
 		return nil, fmt.Errorf("%w: the evidence package listed no chain step", ErrBlock)
 	}
 	var b strings.Builder
-	b.WriteString("```mermaid\nstateDiagram-v2\n")
+	b.WriteString("```mermaid\nstateDiagram-v2\n" +
+		"    accTitle: The evidence chain\n" +
+		"    accDescr: Each step a trail may take, as the validator takes it: proposed, decided, through an approval or not, and closed as blocked, completed or failed.\n")
 	stays := map[string][]string{}
 	var stayOrder []string
 	for _, s := range steps {

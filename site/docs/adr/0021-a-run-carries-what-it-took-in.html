@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0021: The plane keeps what each run took in, so a flow rule can fire · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0021-a-run-carries-what-it-took-in"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0021-the-plane-keeps-what-each-run-took-in-so-a-flow-rule-can-fire">ADR-0021: The plane keeps what each run took in, so a flow rule can fire</h1>
+<p>Status: accepted
+Date: 2026-09-24</p>
+<p>Builds on <a href="/docs/adr/0011-contract-corrections-before-publication">ADR-0011</a>,
+<a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a> and
+<a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>.
+Amends <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a> on what a retry
+has to equal to resume a held request.</p>
+<h2 id="context">Context</h2>
+<p>The contract's toxic-flow predicate answers whether a call moves data read
+under untrusted influence, at or above a floor, to a destination that is not
+trusted, and the policy format reads it as <code>when.flow.toxicAtLeast</code>. It needs a
+<code>FlowState</code> that the receiver computes and never decodes from a producer.
+Nothing computes one. The gateway hands the kernel the zero value, which the
+predicate refuses, so every flow rule is undetermined through the gateway, and
+the threat the foundation puts first, untrusted input carried to an external
+sink, cannot fire.</p>
+<p>Three facts shape any tracker here. The MCP adapter sets no data label on an
+envelope, and cannot: what a call carries is the model's text. The manifest's
+<code>trust_zone</code> says where a call sends data, not what its result contains, and a
+server trusted as a destination can return text an attacker wrote. And every
+boundary a client can draw, a session, a connection, a <code>_meta</code> value, is the
+client's to redraw: a client that initializes again gets a new session while
+the model keeps its context. The MCP library offers no public hook when a
+session ends, and a listener with no idle timeout never closes one.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>A run is the listener and its authenticated principal, on every transport.</strong>
+The pipeline keys a run by the principal the listener resolved (its tenant,
+type and id) and the agent the listener names, and mints the run's id the first
+time it sees that key. With no authenticator, which is every listener in this
+build, that is one run per plane process. A session, a connection and <code>_meta</code>
+never split a run: each is drawn by the client, and none resets what the model
+saw. A restart ends every run. The run's id is written as <code>Event.run_id</code> on
+every event of its trails. The envelope's <code>context.run_id</code> stays what the
+producer sent, empty through MCP, and never selects a run. No session id is
+recorded: on a listener that authenticates nobody it works as a bearer
+credential.</p>
+<p><strong>What a tool returns is declared apart from where a call sends.</strong> An override
+gains <code>returns.trust</code>, the trust zone of what the tool's results contain, and
+<code>returns.sensitivity</code>, the highest sensitivity they can hold. Both are
+restrictive when absent: no <code>returns.trust</code> is untrusted, as an unspecified
+zone is, and no <code>returns.sensitivity</code> is unknown. <code>trust_zone</code> keeps its one
+meaning, the destination. The adapter hands both to the pipeline beside the
+envelope, in fields whose zero values are the restrictive answers, and never
+sets <code>data.sensitivities</code> from either. A declared <code>PUBLIC</code> result copied into
+an envelope's labels would turn the predicate's unknown into a known part below
+the floor, and let a call through while the model holds whatever the user gave
+it.</p>
+<p><strong>The pipeline keeps the state.</strong> Per run, two values: <code>untrusted</code>, false at
+the start, and <code>max_read</code>, <code>PUBLIC</code> at the start. When the pipeline hands an
+execution out, under its own lock and before it returns, it sets <code>untrusted</code> if
+the call's result is not declared trusted, and raises <code>max_read</code> to the call's
+declared result sensitivity; an undeclared sensitivity makes <code>max_read</code> unknown
+for the rest of the run, and so does a sensitivity outside the scale this build
+names. Unknown absorbs because it is the only reading that
+stays sound once an envelope carries a label: after a known <code>INTERNAL</code> result
+and an undeclared one, a run read as <code>INTERNAL</code> would put a <code>CONFIDENTIAL</code>
+floor out of reach of data the run may hold. Every execution counts, a read
+that runs unrecorded under the risk setting and one the adapter later aborts
+included. A result reaches the model only after its execution was handed out,
+so no call whose arguments could carry that result is decided before the
+update, and no adapter call or evidence outcome sits between an effect and its
+taint. <code>Admission.Flow</code> goes: the pipeline alone computes the state.</p>
+<p><strong>A call reads its run's state once.</strong> It takes the state when it starts, with
+the policy snapshot, and uses it for every decision it makes, the second one on
+the rewrite path included. A call whose principal cannot be keyed, or whose key
+is past <code>flow.max_runs</code>, is decided with the state nobody computed, which the
+predicate refuses: its flow rules are undetermined, and it is counted. A call
+the pipeline can key but whose run it cannot name, because the id source gave
+nothing, is blocked with <code>EVIDENCE_UNAVAILABLE</code> in every mode, since running it
+would taint no run. A call handed in with a refusal mints no run and reads the
+one its principal has, except under <code>OBSERVE</code>, where it runs and so has to
+taint. The kernel's own checks come after the mint, so an envelope handed in
+unchecked and refused there still takes its principal's run; the MCP adapter
+checks every envelope before it hands it in. <code>flow.max_runs</code> is 64 by default;
+<code>/healthz</code> reports the runs and the calls decided uncomputed, and <code>doctor</code> each
+override's declared results. No run is evicted, because dropping one would wash
+its taint. <code>Preview</code> always uses the state nobody computed, because a list is
+cached per principal and outlives any state; a tool a flow rule governs is
+listed as decided per call, as before.</p>
+<p><strong>The trail says which state a decision used.</strong> Before it decides, the pipeline
+stamps the state on a copy of the envelope as run-context tags under a
+versioned prefix that names no product: <code>flow.v1.untrusted=</code> <code>true</code> or <code>false</code>
+with <code>flow.v1.max_read=</code> a sensitivity name or <code>UNKNOWN</code>, or
+<code>flow.v1.state=uncomputed</code>. <code>ACTION_PROPOSED</code> records that copy. An envelope
+whose producer already sent a tag whose ASCII-lower-cased form begins <code>flow.v</code>
+is blocked by the plane, in every mode, <code>OBSERVE</code> included, with
+<code>INVALID_FIELD_VALUE</code>, or with the code of a refusal the call already carried,
+and what is recorded is a copy with every such tag removed and
+<code>flow.v1.state=uncomputed</code> stamped, so no producer can forge the state a trail
+shows. A decision point asked about the call is asked about the stamped
+envelope; mapping version 1 sends no run context, so the question is the same.
+The tags sit outside the digest and the binding, as the whole run context does,
+and the matcher reads no run context, so the kernel stays deterministic: the
+tags are a function of the <code>Flow</code> input it already takes.</p>
+<p><strong>A retry resumes on its decision, not on the flow.</strong> ADR-0013 resumes a held
+request only for a retry equal to it on the data labels and the run context.
+That comparison now leaves out the tags under the flow prefix. The retry's
+fresh decision already reads the run's current state and has to equal the held
+one in verdict, rule ids, obligations and digest, so a flow that matters stops
+the resume, and a flow that does not cannot starve the approval of an agent
+that kept working. <code>docs/contracts.md</code> says so where it states what a retry
+must equal.</p>
+<p><strong>What a flow rule means through MCP.</strong> An MCP call carries no data label, so
+once a run has taken in anything untrusted, a <code>DENY</code> rule on
+<code>flow.toxicAtLeast</code> blocks every call of that run to an untrusted destination:
+a <code>DENY</code> with the rule's reason when the run is known to have read at or above
+the floor, <code>INDETERMINATE</code> otherwise. The floor chooses between the two and
+does not change what runs. The concept page and the demo show both in one run:
+after the untrusted read and before anything sensitive, an innocent call to an
+untrusted destination blocked as undetermined; after the sensitive read, the
+toxic flow denied, as every call to an untrusted destination then is.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>No frozen wire contract moves: <code>tags</code> is a repeated string whose content the
+contract leaves to the producer, the digest and the binding exclude the run
+context, and <code>Event.run_id</code> gets its first producer. <code>docs/contracts.md</code> gains
+the tag vocabulary and the narrowed retry rule, a contract statement changed
+with this record. A <code>FlowState</code> is now computed from validated envelopes and
+from the operator's declared classification of results, and the page and the
+type's comment say so.</p>
+<p>The state over-restricts and never under-restricts within what the plane sees:
+concurrent sessions of one principal share their taint, and a plane with a flow
+rule blocks every untrusted destination after its first untrusted result until
+it restarts. Nothing here grants: the state can only make a flow rule match or
+leave it undetermined.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>A run per session, per stdio connection or per stateless listener, its id
+minted by the adapter.</strong> A client that initializes again washes its taint;
+with no session-end hook the state leaks, and any client can fill the bound
+by opening sessions.</li>
+<li><strong>A run id from <code>_meta</code>.</strong> The client's claim, with the same washing.</li>
+<li><strong>The update at <code>Close</code>.</strong> Exact for calls running side by side, and sound
+only while every adapter closes every delivered result and the update comes
+before any evidence outcome.</li>
+<li><strong>The destination's zone read as the source of influence.</strong> It misses a
+trusted server returning an attacker's text, and trusting a partner as a
+destination would also trust everything it returns.</li>
+<li><strong>The state as a field of <code>Decision</code>.</strong> A wire change that every strict 1.0
+reader refuses.</li>
+<li><strong>No run state.</strong> Every flow rule undetermined: honest, and the demo's toxic
+flow could only ever read <code>INDETERMINATE</code>.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>A bundle's flow rules decide through the gateway for the first time. An
+operator declares <code>returns.trust</code> and <code>returns.sensitivity</code> for each tool that
+should not taint its run as untrusted and unknown. A plane with a flow rule
+turns strict after its first untrusted result, until it restarts, so a scenario
+that needs a clean run needs a fresh plane. Each recorded proposal carries two
+short tags more.</p>
+<h2 id="declared-limits">Declared limits</h2>
+<ul>
+<li>A run starts clean. The user's prompt, tools that do not pass through this
+plane and the tools' own descriptions are not tracked: the state is a lower
+bound on what the model saw, and it means something only when every tool
+sits behind the plane.</li>
+<li>One run per plane until a listener authenticates, and a restart ends it. On
+stdio the plane ends with its client's connection, so there a run lasts one
+connection, and a client that connects again starts a new plane and a clean
+run.</li>
+<li>A resource read and a prompt carry no declared result: each makes its run
+untrusted and its reading unknown for the rest of the run, and no key says
+otherwise.</li>
+<li>Once a run has read an undeclared sensitivity, a floor answers undetermined
+where the truth may be a denial. Both block; the evidence is weaker. The exact
+state, a known maximum beside the fact that an unknown was read, is a
+<code>pkg/contract</code> change for a record of its own.</li>
+<li>The stamped tags share the envelope's bound on tags with the producer's own;
+an envelope already at the bound is refused.</li>
+<li>Notifications and requests an upstream sends are not tracked as influence.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<p>The exit criteria of the change that brings this record:</p>
+<ul>
+<li>A key past the bound, and a call the pipeline cannot key, reach the kernel
+with the state nobody computed, and a flow rule is undetermined, never false.</li>
+<li>Two stateful sessions of one principal, a stateless listener, and a client's
+own session header under the library's debug setting all share one run; a
+session opened again keeps the taint.</li>
+<li>Taint at hand-out: a call admitted while an earlier one is still running sees
+the earlier one's taint, and an adapter that never closes and a sink that
+refuses every closing record still leave the run tainted.</li>
+<li>A property over random sequences of declared and undeclared results and every
+floor: the state never answers &quot;not toxic&quot; where the true maximum reaches the
+floor, and the non-absorbing mutant fails it once a label is present.</li>
+<li><code>trust_zone: PARTNER</code> with no <code>returns.trust</code> taints; a trusted
+<code>returns.trust</code> relaxes no destination.</li>
+<li>The adapter sets no <code>data.sensitivities</code>, over every override combination.</li>
+<li>Resume: a held request, a call in between that changes the flow, an approval
+and a retry: it resumes when the fresh decision equals the held one, and is
+held anew when a flow rule now matches.</li>
+<li>Tags: a producer's tag under the prefix is refused; the stamped tags pass
+chain validation and the JSONL codec; the determinism property gives the same
+verdicts, rules and codes with and without them.</li>
+<li><code>Preview</code> in a tainted run answers what it answers in a clean one.</li>
+<li>End to end, in one run: after an untrusted read, an innocent untrusted call
+blocked <code>INDETERMINATE</code>; after a sensitive read, the toxic flow denied with
+<code>TOXIC_FLOW_SENSITIVE_TO_EXTERNAL</code>; and no event carrying the session id.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0021-a-run-carries-what-it-took-in.md">docs/adr/0021-a-run-carries-what-it-took-in.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

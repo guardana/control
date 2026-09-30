@@ -8,7 +8,9 @@ Builds on [ADR-0007](0007-repository-layout-and-dependency-rule.md) and
 
 Amended by [ADR-0030](0030-a-static-website-drawn-from-the-repository.md): a
 landing page drawn from the README comes before the documentation site, which
-stays deferred.
+stays deferred; and by
+[ADR-0031](0031-the-documentation-is-served-on-the-website.md), which ends the
+deferral: the pages are rendered into the site.
 
 ## Context
 

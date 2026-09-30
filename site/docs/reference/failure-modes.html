@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Failure modes · Guardana Control</title>
+<meta name="description" content="What a plane does when its collector, spool, decision point, an upstream or its pause file fails, or it is killed holding calls, and the test for each."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/failure-modes"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="failure-modes">Failure modes</h1>
+<p>The plane is built to survive the eight failures below. Each row says
+whether the plane blocks the call, the reason code, what the agent gets,
+whether the plane recovers without an operator, and the test that makes the
+failure happen. The sections after the table say what the trail holds.</p>
+<p>The tests in the <code>chaos_</code> files of <code>cmd/guardana-gateway/</code> run the built
+binary as a process in <code>ENFORCE</code>, against listeners, files and a child
+process that really fail. Nothing here is a security boundary yet
+(<a href="/docs/status">status</a>).</p>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>The call</th>
+<th>Reason code</th>
+<th>The agent gets</th>
+<th>Recovers by itself</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Collector gone, then back</td>
+<td>runs</td>
+<td>none</td>
+<td>the upstream's answer</td>
+<td>yes</td>
+<td><code>TestACollectorThatIsGoneBlocksNoCallAndGetsEveryRecordBack</code></td>
+</tr>
+<tr>
+<td>Spool full</td>
+<td>blocked before its effect</td>
+<td><code>EVIDENCE_UNAVAILABLE</code></td>
+<td>a tool result with <code>isError: true</code> and the code</td>
+<td>yes, once the spool drains</td>
+<td><code>TestAFullSpoolBlocksCallsUntilTheCollectorDrainsIt</code></td>
+</tr>
+<tr>
+<td>Decision point silent</td>
+<td>blocked</td>
+<td><code>PDP_TIMEOUT</code></td>
+<td><code>isError</code> and the code</td>
+<td>yes, each call asks again</td>
+<td><code>TestAnAskPastTheConfiguredTimeoutIsATimeout</code>, <code>TestEveryEffectClassUnderEveryAnswer</code></td>
+</tr>
+<tr>
+<td>Decision point wrong or gone</td>
+<td>blocked</td>
+<td><code>PDP_ANSWER_REFUSED</code>, <code>PDP_UNAVAILABLE</code></td>
+<td><code>isError</code> and the code</td>
+<td>yes, each call asks again</td>
+<td><code>TestAWrongOrAbsentDecisionPointBlocksOnARunningPlane</code></td>
+</tr>
+<tr>
+<td><code>stdio</code> upstream dies mid-call</td>
+<td>sent once, never retried</td>
+<td>none</td>
+<td>a JSON-RPC error</td>
+<td>no: restart the plane</td>
+<td><code>TestAStdioUpstreamThatDiesMidCallIsNeverASuccess</code></td>
+</tr>
+<tr>
+<td>HTTP upstream drops the connection mid-call</td>
+<td>sent once, never retried</td>
+<td>none</td>
+<td>a JSON-RPC error</td>
+<td>yes, the next call is sent</td>
+<td><code>TestAnHTTPUpstreamThatDropsTheCallIsNeverASuccess</code></td>
+</tr>
+<tr>
+<td>Pause file unreadable</td>
+<td>blocked</td>
+<td><code>PAUSE_STATE_UNAVAILABLE</code></td>
+<td><code>isError</code> and the code</td>
+<td>yes, at the first read of a whole file</td>
+<td><code>TestAPauseFileSpoiledWhileThePlaneRunsBlocksEveryCall</code></td>
+</tr>
+<tr>
+<td>Plane killed with calls held</td>
+<td>never runs</td>
+<td><code>APPROVAL_NOT_RESUMED</code>, <code>APPROVAL_REJECTED</code>, <code>APPROVAL_EXPIRED</code> or <code>APPROVAL_STATE_UNKNOWN</code> on the closing record</td>
+<td><code>APPROVAL_PENDING</code>, before the kill</td>
+<td>at the next start, with a hold journal</td>
+<td><code>TestAnApproverOutsideThePlaneAnswersAndALostHoldIsClosed</code>, <code>TestTheLostHoldCodesTellTheFourAnswersApart</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>APPROVAL_NOT_RESUMED</code>, <code>APPROVAL_REJECTED</code> and <code>APPROVAL_EXPIRED</code> are
+<code>DENY</code>; every other code in the table, <code>APPROVAL_STATE_UNKNOWN</code> included, is
+<code>INDETERMINATE</code> (<a href="/docs/reference/reason-codes">reason codes</a>). A blocked <code>tools/call</code> is
+a tool result with <code>isError: true</code>; a blocked <code>resources/read</code> or
+<code>prompts/get</code>, whose results cannot say <code>isError</code>, is a JSON-RPC error with
+the adapter's code.</p>
+<h2 id="collector-gone-then-back">Collector gone, then back</h2>
+<p>The exporter resends with a backoff that grows to <code>export.max_backoff</code>, and
+every record stays in the spool: <code>/healthz</code> counts them in
+<code>spool.unacknowledged</code> and the failed sends in <code>exporter.retried_transport</code>.
+No call is blocked for it until the spool is full. When a collector answers
+at the endpoint again, every record it accepts arrives. A record it refuses
+again and again goes to <code>quarantine.log</code> in the spool. Delivery is at least
+once, so a collector tells copies apart by <code>event_id</code>.
+<code>TestCollectorOutageBlocksNoDecision</code> in <code>internal/gateway/e2e/</code> holds the
+same for a collector that answers <code>503</code>.</p>
+<h2 id="spool-full">Spool full</h2>
+<p>If a record would take the bytes on disk and the reservations past
+<code>evidence.max_bytes</code>, a call is blocked before anything runs. A read is
+blocked too, unless <code>evidence.on_unwritable</code> is <code>allow_reads</code>. The block is
+not recorded, because the record that would have held it is the one that
+failed. A call already running writes its closing record into the room its
+<code>ACTION_STARTED</code> reserved, up to the reserved size; bytes past it are
+checked like any record's (<code>TestAClosingRecordWritesOnAFullSpool</code>). Calls
+run again once the exporter has delivered and the spool has released what
+the collector accepted.</p>
+<h2 id="decision-point-silent-wrong-or-gone">Decision point silent, wrong or gone</h2>
+<p>The plane asks the decision point only when its answer would change a call's
+decision, so a failure blocks only calls a veto rule covers. Its trail ends
+<code>ACTION_BLOCKED</code> with the code, and nothing was started. An ask past
+<code>pdp.timeout</code> is <code>PDP_TIMEOUT</code>. An answer the plane cannot read as an allow
+or a deny is <code>PDP_ANSWER_REFUSED</code>: two <code>decision</code> members, even when they
+agree; a string for a boolean; a truncated or trailing document; an unknown
+member on an allow; or no decision at all. A decision point with nothing
+listening, a <code>500</code> answer, or an ask past <code>pdp.max_in_flight</code> is
+<code>PDP_UNAVAILABLE</code>. A well-formed <code>false</code> is <code>PDP_DENY</code>; a forged <code>true</code> is
+read as an allow (<a href="/docs/concepts/threat-model">threat model</a>).</p>
+<h2 id="an-upstream-that-dies-mid-call">An upstream that dies mid-call</h2>
+<p>The call was decided, started and sent, and the upstream took it; no answer
+came back. The agent gets a JSON-RPC error, never a result, and the plane
+does not send the call again. The trail ends <code>ACTION_FAILED</code>, never
+<code>ACTION_COMPLETED</code>.</p>
+<ul>
+<li>A <code>stdio</code> upstream is a child process. When it exits during a call, the
+result is <code>UNKNOWN</code> with <code>tool_protocol_status: error</code>. The plane does not
+start it again: every later call to it is decided, recorded as started,
+closed <code>ACTION_FAILED</code> with an <code>UNKNOWN</code> result and answered with an
+error, until the plane restarts. Calls to the other upstreams run.</li>
+<li>An HTTP upstream that closes the connection after reading the call, before
+or after its status line, is recorded <code>UNKNOWN</code> with
+<code>tool_protocol_status: error</code>: the outcome of that call is unknown. The
+next call to the same upstream is sent and answered.</li>
+</ul>
+<p>An upstream that answers nothing within <code>upstream.call_timeout</code> is closed
+with a <code>TIMEOUT</code> result (<code>TestUpstreamTimeoutIsRecordedAsOne</code>).</p>
+<h2 id="pause-file-unreadable">Pause file unreadable</h2>
+<p>At start, a pause file that is missing, garbled, too large, a link, a
+directory, or writable by the group or others stops the plane before it
+listens, naming <code>pause.file</code> and the cause
+(<code>TestAStartIsRefusedOnEveryUnknownCause</code>). While the plane runs, the reader
+takes the file once every <code>pause.poll_interval</code>. If a read meets one of
+those causes, or the file cannot be read, every call is blocked until a read
+finds a whole file again. A read older than three intervals is unknown as
+well. <code>/healthz</code> answers <code>503</code> with <code>pause.state: unknown</code> and the cause
+(<code>TestHealthAnswers503OnEveryUnknownState</code>), and the trail of each call ends
+<code>ACTION_BLOCKED</code> with the code.</p>
+<h2 id="plane-killed-with-calls-held">Plane killed with calls held</h2>
+<p>A held call's trail stands at <code>APPROVAL_REQUESTED</code> while no plane runs, and
+an approver can still answer its record. With <code>approvals.hold_journal_dir</code>
+set, the next <code>run</code> closes that trail. It records the answer, then
+<code>ACTION_BLOCKED</code> with <code>APPROVAL_NOT_RESUMED</code> for an approval,
+<code>APPROVAL_REJECTED</code> for a rejection, or <code>APPROVAL_EXPIRED</code> when nobody
+answered or the approval expired. When the store cannot be read, has lost a
+record whose approval has not expired, or answers with a record that fails
+its checks, an approval with no approver or a state no answer has, the block
+is <code>INDETERMINATE</code> with <code>APPROVAL_STATE_UNKNOWN</code>: the plane does not know what
+the approver said. A crash between journalling a hold and filing its record,
+followed by a restart before the expiry, closes that way too, because the
+plane cannot tell a record never filed from one deleted. The call never runs,
+and <code>run</code> prints <code>lost holds:</code> with the count it closed. The reconciliation is
+bounded, and what it cannot settle stays open: a journal it cannot read, or
+more entries than its bound, sets
+<code>guardana_control_pipeline_reconcile_incomplete</code> to 1, and an entry it
+cannot settle counts in <code>guardana_control_pipeline_holds_unmeasured_total</code>.
+Without a hold journal the trail is never closed, and <code>/healthz</code> says so
+under <code>approvals.limits</code>.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/failure-modes.md">docs/reference/failure-modes.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes" aria-current="page">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

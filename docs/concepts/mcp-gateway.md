@@ -19,6 +19,8 @@ one that was negotiated.
 
 ```mermaid
 sequenceDiagram
+    accTitle: One call, end to end
+    accDescr: The listener turns a tools/call into an envelope, the pipeline has the kernel decide and may ask a decision point, the opening events are written before anything runs, the listener sends exactly the authorized bytes, and the trail closes with the executed digest.
     participant Agent
     participant Listener as Listener (adapters/mcp)
     participant Plane as Pipeline (internal/gateway)
@@ -70,6 +72,8 @@ runs, and the middleware decides from the body, never from a header.
 
 ```mermaid
 sequenceDiagram
+    accTitle: A call on the stateless revision
+    accDescr: On 2026-07-28 the stateless handler checks the routing headers against the body before the adapter runs; the adapter hands the envelope to the pipeline and answers with the result, the reason codes or the pending state.
     participant Agent
     participant Library as Streamable HTTP handler, stateless
     participant Adapter as Middleware (adapters/mcp)
@@ -96,6 +100,8 @@ middleware does not answer.
 
 ```mermaid
 sequenceDiagram
+    accTitle: A call on the stateful revision
+    accDescr: A stateful listener answers a 2026-07-28 request with -32022; the client initializes on 2025-11-25 and calls on that session, and the adapter hands the envelope to the pipeline as on the other revision.
     participant Agent
     participant Library as Streamable HTTP handler, stateful
     participant Adapter as Middleware (adapters/mcp)

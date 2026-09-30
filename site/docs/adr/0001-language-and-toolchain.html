@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0001: Go, one pinned compiler version · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0001-language-and-toolchain"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0001-go-one-pinned-compiler-version">ADR-0001: Go, one pinned compiler version</h1>
+<p>Status: accepted
+Date: 2026-09-09</p>
+<h2 id="context">Context</h2>
+<p>An enforcement point sits in the request path of every consequential tool call.
+It has to ship as one artifact, start without a warm-up, and cost little memory
+next to an agent. It also has to build the same way on a contributor's machine
+and in CI, or a security fix in the compiler becomes invisible.</p>
+<h2 id="decision">Decision</h2>
+<p>Go, with the compiler version pinned to exactly <code>1.27.1</code> by the <code>go</code> directive
+in <code>go.mod</code>. That directive is the single source: <code>scripts/bootstrap.sh</code> reads
+the version out of it, and CI resolves the compiler from the same file with
+<code>go-version-file: go.mod</code>, so no workflow and no pin file repeats the version as
+a literal. There is no <code>toolchain</code> directive: <code>go mod tidy</code> removes one as redundant once the <code>go</code> directive already names the patch
+version.</p>
+<p>Reasons for Go: a single static binary in the request path, predictable latency
+with no runtime to warm, and a standard library that already covers most of what
+an enforcement point does.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>Pinning does not make two builds byte-identical; platform, build flags and
+dependency inputs still differ. What it buys is the same compiler behaviour and
+the same standard library everywhere, so a difference in results is not a
+difference in toolchain. Go patch releases carry security fixes, and one pinned
+version in one file makes taking them a reviewed edit rather than a silent
+drift. Memory safety removes a class of failure that code on the decision path
+cannot afford.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>Rust. Tighter control over allocation and latency, but a smaller pool of
+contributors for the protocol and adapter work this project needs most.</li>
+<li>A JVM or Node service. Startup time and memory cost that a sidecar next to
+every agent pays again on every restart.</li>
+<li>Go without a pin. Builds that differ between machines, and a compiler change
+nobody reviewed.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>Contributors need that exact Go version installed, and <code>scripts/bootstrap.sh</code>
+says so up front, naming the version it read from <code>go.mod</code>, instead of letting
+the build fail later in a confusing way. The pin is exact: a newer patch release
+is a mismatch and not an upgrade, so moving to it is a deliberate edit to
+<code>go.mod</code>.</p>
+<p>Garbage collection pauses have to be measured rather than assumed, so a latency
+claim waits for a benchmark that reports the tail and not an average. Any Go
+feature newer than the pin is unavailable until the pin moves.</p>
+<h2 id="validation">Validation</h2>
+<p>Runnable today: <code>scripts/bootstrap.sh</code>, which <code>make bootstrap</code> calls, parses the
+<code>go</code> directive out of <code>go.mod</code>, requires exactly one such directive rather than
+defaulting when it finds none, and exits non-zero when the installed compiler is
+not that exact version. <code>scripts/tool-versions.env</code> pins the binary tools only,
+so there is no second copy of the Go version to drift.</p>
+<p>Written but never run: <code>ci.yml</code> and <code>security.yml</code> in <code>.github/workflows/</code>
+resolve the compiler with <code>go-version-file: go.mod</code>. They are committed and
+SHA-pinned, and they have not executed, because the repository does not exist
+yet.</p>
+<p>Not built: a check that fails on a literal <code>go-version:</code> in a workflow, which
+would reintroduce a second source. Review is what keeps one out today.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0001-language-and-toolchain.md">docs/adr/0001-language-and-toolchain.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

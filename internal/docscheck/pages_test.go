@@ -102,7 +102,7 @@ func collectTree(fsys fs.FS, cfg docsconfig.Config) (docsTree, error) {
 	}
 	tree := docsTree{config: cfg, files: files}
 	for _, rel := range files {
-		if excluded(cfg, rel) {
+		if cfg.Excludes(rel) {
 			continue
 		}
 		data, err := fs.ReadFile(fsys, rel)
@@ -142,17 +142,6 @@ func walkFiles(fsys fs.FS) ([]string, error) {
 		return nil, fmt.Errorf("walking the repository: %w", err)
 	}
 	return found, nil
-}
-
-// excluded reports whether docs.json puts rel outside the documentation
-// system: an entry ending in a slash is a directory, any other an exact path.
-func excluded(cfg docsconfig.Config, rel string) bool {
-	for _, entry := range cfg.Excluded {
-		if strings.HasSuffix(entry, "/") && strings.HasPrefix(rel, entry) || rel == entry {
-			return true
-		}
-	}
-	return false
 }
 
 func isPage(rel string) bool {

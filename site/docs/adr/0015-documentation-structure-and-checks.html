@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0015: The documentation is a checked structure · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0015-documentation-structure-and-checks"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0015-the-documentation-is-a-checked-structure">ADR-0015: The documentation is a checked structure</h1>
+<p>Status: accepted
+Date: 2026-09-20</p>
+<p>Builds on <a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a> and
+<a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>.</p>
+<p>Amended by <a href="/docs/adr/0030-a-static-website-drawn-from-the-repository">ADR-0030</a>: a
+landing page drawn from the README comes before the documentation site, which
+stays deferred; and by
+<a href="/docs/adr/0031-the-documentation-is-served-on-the-website">ADR-0031</a>, which ends the
+deferral: the pages are rendered into the site.</p>
+<h2 id="context">Context</h2>
+<p>The pages under <code>docs/</code> were written one at a time as the code landed, each
+in its own shape, with no rule that tied a page to the code it described. A
+page could name a capability the tree did not hold, keep a number no test
+produced, or fall out of step with a package that moved, and every gate
+stayed green. The project law says a user-visible change carries its
+documentation in the same change, and <code>docs/status.md</code> is the one inventory;
+nothing enforced either beyond review. Two references were already rendered
+from the code and pinned by tests, which showed the shape that works: a
+renderer the gate compiles, called directly by its pin, never through a
+subprocess a shim could stand in for.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>Pages are typed and live where their type says.</strong> Every page under <code>docs/</code>
+but the records carries a frontmatter block with a title that equals its one
+H1, a summary, a type from a fixed set (tutorial, how-to, explanation,
+reference, spec, extending, project), the globs of the code whose change
+makes the page suspect (<code>covers</code>), and, for spec and extending pages only, a
+stability level. The type is the type <code>docs/docs.json</code> lists for the page's
+own directory, or that file's override for one page; a page in a directory
+the file does not list is refused rather than inheriting a parent's type.
+The block is a strict subset of YAML with one spelling, read and written by
+<code>internal/docscheck/frontmatter</code>, so a generator writes exactly what the
+check reads and a site generator reads the block as YAML.</p>
+<p><strong>Budgets are data, and a page over its budget is pinned to its count.</strong>
+<code>docs/docs.json</code> holds the words each type may hold, the two README budgets,
+the directories and their types, the paths that are frozen, the files
+outside the documentation, the code surfaces that need a page, and for each
+page over budget its exact word count as a ceiling: a count that may only
+fall, and whose rise is a visible edit to the file. Words are white-space
+tokens holding a letter or a digit, outside fenced and generated blocks.</p>
+<p><strong>Diagrams are Mermaid, bounded, and name their sources.</strong> A block is a
+flowchart, a sequence diagram or a state diagram of at most fifteen nodes,
+counted by a counter that fails on a line it cannot read rather than count
+fewer, and the first line after its fence is <code>Sources:</code> naming files that
+exist and fall inside the page's <code>covers</code>.</p>
+<p><strong>What can be rendered from the code is.</strong> The reason codes, the
+obligations, the gateway's configuration, the wire messages and the index
+are whole pages rendered by <code>scripts/gen-*.go</code> through renderers the gate
+compiles, lints and tests, each pinned by a test that calls the renderer
+directly and diffs the committed page; the page names its generator and the
+<code>docs-gen</code> recipe has to run that generator onto that page. The
+enforcement-mode table, the kernel's fail-closed table and the evidence
+chain's state diagram are blocks inside hand-written pages, rendered from
+listings the code exports and derived from its own functions (<code>Requirements</code>,
+<code>FailClosedRows</code>, <code>ChainSteps</code>), never from a second table; a block is
+claimed in a registry the check reads, and a marker nothing claims fails.
+The command-line page is pinned the same way from inside each command, which
+diffs its own help text against the page.</p>
+<p><strong>A change names the pages it makes suspect.</strong> <code>scripts/docs-impact.go</code>
+reads the changed paths of a range, a file or standard input and reports how
+many it read, the pages whose <code>covers</code> match, the changed documentable
+surfaces no page covers, the <code>covers</code> globs matching no file, and the changed
+paths under a frozen path, which are a contract change; a pull request pastes
+its output.
+Whatever git could not measure is NOT MEASURED and a failure, never &quot;no
+pages&quot;: an absent git, a shallow clone, or git answering for another
+repository, which it does for an export placed under one, so the tool holds
+git's top level to its working directory by real path.</p>
+<p><strong>The check is part of <code>make quality</code>.</strong> <code>internal/docscheck</code> judges every
+page on every run: the block, the type, the globs, the budgets, the
+directories that may not be empty, the diagrams, the generated pages and
+blocks, the links and the status labels it already judged. It walks the
+directory and never asks git, so an export without <code>.git</code> is judged the same
+as a work tree; a walk that finds fewer pages than exist is fatal.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>None on the wire, the digest or the decision path. The two listings the
+kernel and the evidence package export add no import and no effect, and the
+layering test judges them as before. The gateway's configuration reader and
+loader moved to <code>internal/gatewayconfig</code> unchanged so the configuration
+page could be rendered; every refusal they make is the one the command made.
+The documentation check reads the tree and nothing else.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>A YAML library for the frontmatter.</strong> A dependency in the gate for seven
+keys, and a reader that accepts what a strict block refuses.</li>
+<li><strong>A manifest file instead of frontmatter.</strong> Cleaner pages on GitHub and a
+second file to keep in step with every move.</li>
+<li><strong>A hand-kept table beside each switch for the rendered blocks.</strong> It would
+drift with every gate green; a listing that calls the function cannot.</li>
+<li><strong>A hidden <code>docs</code> subcommand in the gateway binary for its configuration
+page.</strong> An undocumented capability in a production binary; the move of the
+reader to a package costs nothing at run time.</li>
+<li><strong>Prose lint in the gate.</strong> Deferred: a house style for a linter is written
+after the pages exist in their shape, and a second model family reads the
+public prose until then.</li>
+<li><strong>The site now.</strong> It waits for the first public release; every page stays
+readable on GitHub until then.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>A page cannot be added without a type, a place, a budget and the code it
+covers; a diagram cannot be drawn without saying where it comes from; a
+rendered page cannot drift from its source; and a change to a covered path
+names the pages to reread. The cost is a stricter edit: a page over budget is
+split or pinned, a page in a new directory needs the directory listed first,
+and a generated page is regenerated, never edited. The tutorial and the
+threat model wait for the parts of the system they describe.</p>
+<h2 id="validation">Validation</h2>
+<p><code>internal/docscheck</code> and its packages: one fixture per rule, among them the
+sixteenth node per diagram type, a ceiling one word off either way, a
+<code>Sources:</code> path outside <code>covers</code>, a generator the recipe never runs, an
+unclaimed block; the frontmatter grammar's every refusal, a round-trip
+property and a fuzz target that found and now refuses a second spelling; the
+configuration's strict reader with a fuzz target; the pins going red on a
+changed default, a field added to a descriptor, a removed table row and a
+block the code no longer produces; <code>docs-impact</code> proved NOT MEASURED on an
+export entered through a symlink under another repository. Not verified: the
+checks against a tutorial or a spec page, which do not exist yet.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0015-documentation-structure-and-checks.md">docs/adr/0015-documentation-structure-and-checks.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

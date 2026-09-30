@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0016: An approver outside the plane answers, and a lost hold is closed · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0016-approval-providers-and-the-lost-hold"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0016-an-approver-outside-the-plane-answers-and-a-lost-hold-is-closed">ADR-0016: An approver outside the plane answers, and a lost hold is closed</h1>
+<p>Status: accepted
+Date: 2026-09-21</p>
+<p>Builds on <a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>,
+<a href="/docs/adr/0005-canonical-action-digest">ADR-0005</a>,
+<a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a> and
+<a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a>.
+Amends <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a> on what becomes
+of a hold the plane loses and on what may be said of a record it does not hold.</p>
+<p>Amended by <a href="/docs/adr/0023-a-local-page-answers-through-the-directory">ADR-0023</a>: both
+handles open the directory once and reach every file through it, and judge it
+again at every call, not only at <code>Open</code>, refusing one that changed since.</p>
+<p>Amended by <a href="/docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold">ADR-0027</a>: a
+lost hold whose answer the store cannot give, or gives in a form the checks
+refuse, is closed <code>INDETERMINATE</code> with <code>APPROVAL_STATE_UNKNOWN</code>, not
+<code>APPROVAL_EXPIRED</code>.</p>
+<h2 id="context">Context</h2>
+<p>ADR-0013 fixed what the gateway does with a pending state and with an approved
+one, and left who may approve, and how, to the approval providers: this is that
+deferred record. It settles two things at once, because the second is the price
+of the first — an approver outside the gateway process, and what becomes of a
+hold the plane loses while one is taking their time.</p>
+<p>Nothing outside a test can answer. The gateway builds its pipeline with
+<code>gateway.MemoryApprovals</code>, whose records live in the process that holds them,
+so <code>Answer</code> has no caller from outside; under the <code>APPROVE</code> mode every held
+call waits out <code>approvals.ttl</code> and is blocked. A mode the plane cannot serve is
+a total denial wearing the clothes of a pending one.</p>
+<p>A hold does not survive a restart. A plane that dies holding a call leaves that
+trail standing at <code>APPROVAL_REQUESTED</code> for good: nothing closes it, and nothing
+that reads the evidence later can tell an action that was refused from one that
+was simply abandoned. The moment an approver outside the process can answer,
+the window between the request and the answer stops being milliseconds and
+starts being as long as a person takes, so the case stops being rare.</p>
+<p>The repair that suggests itself — read the spool back, find the trails standing
+at a request for approval — does not work, and the reason is recorded here so
+that it is not designed again. <code>Reader.Ack</code> calls <code>release</code>
+(<code>internal/spool/reader.go</code>), and <code>release</code> deletes every segment that has been
+acknowledged whole, the segment being appended to included
+(<code>internal/spool/segment.go</code>). Against <code>export.linger</code> of 100ms and
+<code>approvals.ttl</code> of 15m (<code>internal/gatewayconfig/fields.go</code>), a collector that
+answers has taken a hold's <code>APPROVAL_REQUESTED</code> off disk within a fraction of a
+second — minutes before any crash. Such a scan finds orphans only in a plane
+whose exporter was already behind: it is empty exactly when the plane is
+healthy. The spool is an outbound queue, not a state store, and ADR-0014 means
+it that way.</p>
+<p>What authorizes a resumed call stays where ADR-0013 put it: the plane's own
+record of the hold — the envelope, the decision, the binding, the expiry and
+where the trail stands. A store answers whether an approver said yes, and
+nothing more.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>The approvals directory answers about one approval id and names nothing
+else.</strong> It never supplies a trail, a position in one, an envelope or a digest
+to write. A writer of that directory is an approver; it cannot choose what the
+plane records or where.</p>
+<p><strong>Write access to the approvals directory is the approval authority.</strong>
+<code>approver_id</code> on a record is an unauthenticated claim, kept because an operator
+reading the evidence wants a name, and worth exactly what the directory's
+permissions are worth. Nothing in the plane treats it as an identity. An
+authenticated provider would make <code>approver_id</code> mean something, and would
+replace the directory's permissions as the authority. None exists yet.</p>
+<p><strong>Two openers over one directory, and the compiler keeps them apart.</strong>
+<code>OpenPlane(dir)</code> has no <code>Answer</code> method and takes the plane's exclusive lock.
+<code>OpenApprover(dir)</code> has <code>Answer</code>, takes no plane lock, and reports it to its
+caller when the plane lock is free, so that <code>approvals approve</code> can tell an
+operator that no plane is running to consume what they are about to write.
+Where <code>flock</code> is unavailable both refuse to open, rather than fall back to a
+second locking path that nothing in this repository builds or tests: a lock in
+the request path is not a place for a branch that has never run.</p>
+<p><strong>One record, one file, one compare-and-swap by <code>link</code>.</strong> A record is written
+to a temporary name, fsynced, renamed, and the directory fsynced; a state
+transition is a <code>link</code> to the next name that fails with <code>EEXIST</code> when another
+writer won. Nothing in the request path waits on another process's lock.</p>
+<p><strong>The durable record is what the plane reads back; the approver's view is a
+projection the plane never trusts.</strong> The record carries <code>schema_version</code>, the
+binding, the request id, the <code>Approval</code> and its resolution — no envelope, no
+decision, no trail position. Beside it sits a named projection for a human:
+approval and request ids, both digests, principal, agent, action, resource,
+effect class, rule ids, requested and expiry. The projection never carries
+<code>redacted_preview</code>, <code>delegation[].reason</code> or any other free text, so a second
+human-readable copy does not widen what ADR-0004 and invariant 9 allow to be
+stored. <code>approvals list</code> prints the digest and says plainly that the readable
+fields are not bound to it: <code>approval.Bind</code> needs the authorized argument
+bytes, and no record holds them.</p>
+<p><strong>The plane keeps its own durable journal of its own holds.</strong> It lives in its
+own directory under the plane's exclusive lock, written by no other process:
+never inside the spool's directory, which the spool owns and locks, and never
+inside the approvals directory, which an approver can write. It is configured
+by <code>approvals.hold_journal_dir</code>, and <code>approvals.provider: file</code> requires it. A
+plane without it holds exactly as it does today and carries the declared limit
+below, which <code>doctor</code> and <code>/healthz</code> report rather than leave to be discovered.
+The journal is as trusted as the spool and for the same reason: whoever can
+write it can already write the evidence.</p>
+<p><strong>Three states and one write order make the journal's word provable.</strong> An entry
+is <code>held</code>, <code>resuming</code> or <code>closing</code>. It is recorded after <code>APPROVAL_REQUESTED</code>
+is appended and before the agent is told pending, and a failure to record
+refuses the hold down the existing refusal path. Every append that moves a
+trail's chain state past <code>APPROVAL_REQUESTED</code> is preceded by a flip out of
+<code>held</code>, and the entry is forgotten after the trail is closed. So <code>held</code> means
+the chain state stands at <code>APPROVAL_REQUESTED</code> and the trail can still be
+closed; <code>resuming</code>, <code>closing</code> and anything that will not decode mean the plane
+cannot say, and their trails are reported and left untouched. That turns a
+crash in the middle of a close from an invisible orphan into a counted one.</p>
+<p><strong>A lost hold is closed, never resumed.</strong> The agent's call was answered pending
+long ago, so running the effect now serves nobody, and ADR-0013's &quot;a hold does
+not survive a restart&quot; stands unchanged. The closings are ordinary events
+carrying a reason code. Where an answer is present and passes the same field
+checks a live resume makes, the plane appends <code>APPROVAL_DECIDED</code> with that
+answer, then <code>ACTION_BLOCKED</code> carrying <code>DENY</code> and <code>APPROVAL_NOT_RESUMED</code> when
+it was approved, or <code>APPROVAL_REJECTED</code> when it was refused. Where there is no
+answer, no answer the checks accept, or no store to ask, it appends
+<code>APPROVAL_EXPIRED</code>, then <code>ACTION_BLOCKED</code> carrying <code>DENY</code> and
+<code>APPROVAL_EXPIRED</code>. Both pairs are transitions the evidence chain already
+allows from a request for approval (<code>internal/evidence/chain.go</code>). The closing
+events carry the restarted plane's mode, and say that the call was never run
+rather than that this plane enforced anything.</p>
+<p><strong><code>APPROVAL_NOT_RESUMED</code> is registry number 38, <code>DENY</code>, emitted by the
+reconciliation and never by a live call.</strong> An approval that was granted, whose
+request is gone, is neither &quot;nobody answered&quot; nor evidence that could not be
+written, and saying either would be a lie an operator acts on.</p>
+<p><strong><code>APPROVAL_ALREADY_USED</code> is said of a record the store reports as spent, and
+of nothing else.</strong> Under the file provider &quot;spent&quot; is a file name, which is why
+the Security section below states what a writer of that directory can do with
+it. Consumption also happens before the checks that can still block, so today's
+code can write <code>APPROVAL_ALREADY_USED</code> for a call that never executed. Its
+registry summary therefore loses &quot;by an earlier execution&quot;, which the code
+cannot back. <code>Held</code> gains a <code>Resolution</code> — unspecified, pending, consumed, not
+resumed — whose zero value means the store cannot say, so the plane holds anew
+and counts. A <code>bool</code> would put that case on the unsafe side by accident.</p>
+<p><strong>The plane never consumes a record it does not hold.</strong> A store spends a record
+only for the approval id the plane minted and keeps in its own record of the
+hold: one filed under the same binding and request id carrying any other
+approval id is not the plane's to spend, and is left exactly as it was so the
+reconciliation can still resolve it. An empty approval id names no approval and
+is refused, never read as any approval will do. The reconciliation resolves an
+orphan's record to <code>not resumed</code>, so the next identical call is held anew
+rather than told that an action ran.</p>
+<p><strong>Reconciliation runs on <code>serve</code> and never on <code>doctor</code>.</strong> Both commands call
+the same <code>build</code>, so this is stated as a rule and tested as one: <code>doctor</code> opens
+the journal read-only and reports what it would close, writing no event and
+resolving no record.</p>
+<p><strong><code>APPROVE</code> with <code>approvals.provider: memory</code> is refused at start</strong>, as the
+mode table refuses a mode the adapter cannot serve.</p>
+<p><strong>Bounds and permissions.</strong> <code>approvals.max_records</code>,
+<code>approvals.max_record_bytes</code> and <code>approvals.reconcile_max</code> bound what a
+directory can make the plane do. A bound that bites leaves the reconciliation
+<strong>unmeasured</strong>: it reports how far it got and does not claim to have seen every
+hold. It never reports itself complete on a partial pass, and it never stops
+the plane from serving; what it did see reaches <code>/healthz</code> and the counters.
+<code>Open</code> refuses a group- or world-writable directory, records are <code>0600</code>, and
+<code>approver_id</code> and <code>reason</code> are bounded and refused for control characters
+before they reach an <code>Approval</code>.</p>
+<p><strong>Layering.</strong> <code>internal/approvals</code> and <code>internal/holdjournal</code> import only pure
+packages of this module — the generated contract, <code>internal/core/approval</code>,
+<code>internal/canon</code>, <code>internal/evidence</code> and <code>pkg/contract</code> — and never
+<code>internal/gateway</code>, no vendor library and nothing that serves.
+The seams are gateway interfaces, and the glue is a small file in
+<code>cmd/guardana-gateway</code>, the way the spool already implements <code>Sink</code>. The
+approver's binary links neither the pipeline nor evidence.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>No language model takes part in this path, nothing here matches on keywords,
+and <code>INDETERMINATE</code> is not collapsed into <code>ALLOW</code>: every closing is a <code>DENY</code> or
+an expiry. The approval binding is untouched — one digest, one bundle, one held
+request, consumed once — and the plane still compares the store's answer
+against its own record field by field before anything runs.</p>
+<p>A directory an attacker can write is an approval authority, which is why this
+record says so instead of letting <code>approver_id</code> imply an identity. What that
+attacker cannot do is choose a trail: the record has no field that names one,
+and every event the plane writes is linked from the plane's own record of the
+hold.</p>
+<p>What they can do is wider than granting, and is stated here rather than left to
+be found. A record's resolution is its file name, so one filed under the spent
+name is not distinguishable from one the plane spent; the plane then answers a
+later call of that action and bundle with a denial naming an approval that was
+never used, and writes that denial into the evidence. Two bounds limit it: the
+read path refuses a record whose expiry is further from its request than the
+plane could have minted, so a forged record cannot outlive a window, and the
+bound on records limits how many there can be. Within those bounds, a writer of
+the directory can deny a chosen action and can make the evidence misleading.
+They cannot make anything run.</p>
+<p>The directory may not be group- or world-writable, so the approver this
+implementation permits is a process running as the same user as the plane, and
+not a second account. &quot;An approver outside the gateway process&quot; is true of a
+process and false of a user; an authenticated provider is what would change
+that.</p>
+<p>The wire contract does not change. <code>reason_codes</code> is a repeated string, so
+adding code 38 to the registry is a registry change, not a wire change, and the
+public Go surface does not change. Code 31's summary changes; its number and
+verdict do not.</p>
+<p>Every failure here fails closed: a journal that cannot be written refuses the
+hold, a store that cannot answer blocks the call, an entry that will not decode
+is counted and its trail left alone, and a reconciliation that hits a bound
+reports itself unmeasured rather than complete.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>The approvals directory also naming the trail to close.</strong> An approver would
+then choose the identifiers and the link, so forged records could graft
+events onto live or finished trails, break their chain validation, and drive
+unbounded appends until <code>evidence.max_bytes</code> blocks every material call.</li>
+<li><strong>Reconstructing lost holds from the spool.</strong> Empty exactly when the plane is
+healthy, for the reason given in Context, and it would have cost a new read
+path and an amendment to ADR-0014 for nothing.</li>
+<li><strong>Pinning the spool's retention to the oldest open hold.</strong> One lost hold then
+holds the whole evidence budget for a TTL and can block every material call.</li>
+<li><strong>Rehydrating the hold and running it after the restart.</strong> It needs the
+envelope's data labels and run context on disk to compare a retry against,
+which widens what is stored for behaviour no operator asked for, and it runs
+an effect for a call that was answered pending long ago.</li>
+<li><strong>No journal, and the declared limit alone.</strong> Honest, and cheaper, and it
+leaves every restart under a slow approver with a trail that cannot be told
+apart from an abandoned one. Rejected deliberately, and the cost was weighed:
+a directory of small files written under the plane's own lock adds no
+database, no schema migration and no new dependency, which is the whole of
+what deferring the choice of a storage engine was meant to avoid.</li>
+<li><strong>A <code>bool</code> for consumed.</strong> Its zero value is the safe-looking answer to a
+question the store may not be able to answer.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>Once the change this record governs has landed, an approver outside the gateway
+answers a held request by writing a file, and the <code>APPROVE</code> mode becomes usable
+for the first time; <code>docs/status.md</code> stays the inventory of what is built. Two
+packages and two directories join what an operator has to back up, permission
+and monitor, and the second of them is a new durable artefact of the plane;
+<code>doctor</code> reports both so that neither is invisible.</p>
+<p>An approver whose answer arrives after a restart answers again, and the closing
+event says why. A hold interrupted in the middle of its close is reported and
+counted rather than silently reopened or silently lost.</p>
+<p><code>APPROVAL_ALREADY_USED</code> becomes a narrower claim than it is today, which is a
+behaviour change in the direction of what the code can prove. Reason code 38
+joins the registry and the reference page.</p>
+<h2 id="declared-limits">Declared limits</h2>
+<p>These are stated here, not discovered later.</p>
+<ul>
+<li>
+<p>An entry left <code>resuming</code> or <code>closing</code> by a crash is reported and its trail is
+left open: the plane cannot say what landed. One per interrupted close,
+counted, never guessed.</p>
+</li>
+<li>
+<p>A <code>FINDING_RAISED</code> on a held trail leaves the chain state at
+<code>APPROVAL_REQUESTED</code>, so no flip out of <code>held</code> is owed for it, but it does
+change the trail's last event, so the position the journal recorded goes
+stale and a close would link to the wrong event. Nothing writes findings
+today; this is revisited with the detector plane.</p>
+</li>
+<li>
+<p>A hold whose journal entry cannot be decoded is counted and its trail left
+alone, and the pass that met it reports itself unmeasured. Counted and
+unmeasured are two different meters: the first is how many such entries were
+seen, the second is that the pass cannot claim to have seen every hold.</p>
+</li>
+<li>
+<p>A plane configured without <code>approvals.hold_journal_dir</code> does not close a lost
+hold. That is today's behaviour, named rather than hidden.</p>
+</li>
+<li>
+<p>A writer of the approvals directory can file a record under the spent name
+and make the plane deny a chosen action and bundle, with evidence naming an
+approval that was never used. The expiry bound and the record bound limit how
+long and how many; nothing makes it impossible, because that directory is the
+approval authority.</p>
+</li>
+<li>
+<p><code>APPROVAL_ALREADY_USED</code> is decided by binding, not by request. A record the
+plane no longer holds carries no envelope, deliberately, so a call that
+differs from the spent one only in its data labels or its run context cannot
+be told apart and is blocked with it. Telling them apart would mean keeping
+the envelope on disk, which this record refuses for the same reason it
+refuses to rehydrate a hold.</p>
+</li>
+<li>
+<p>The approver is a process, not a second account: the directory may not be
+group- or world-writable, so an approver runs as the same user as the plane.</p>
+</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<p>Falsifiable by test, and these are the exit criteria of the change that brings
+this record:</p>
+<ul>
+<li>An approval given in one process resumes a held call in another; it is
+consumed once, and the next identical call reads <code>APPROVAL_ALREADY_USED</code>. An
+expired approval resumes nothing, and a store that lies on any field runs
+nothing.</li>
+<li>With a collector that accepts everything, so that every segment is
+acknowledged and unlinked, a plane killed while holding a call comes back and
+closes that trail, and <code>ValidateChain</code> passes over the exported events. This
+is the case the spool cannot serve.</li>
+<li>No <code>APPROVAL_ALREADY_USED</code> is written for an action that did not run, and an
+answer to a hold the plane lost is never spent.</li>
+<li>A hostile approvals record naming a live or finished trail changes no
+evidence.</li>
+<li><code>doctor</code> writes nothing: spool statistics and the approvals listing are
+identical across a run.</li>
+<li>A store double returning only an <code>Approval</code> and a <code>Binding</code> keeps the whole
+gateway suite green, which is what &quot;the store grants nothing&quot; means in code.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0016-approval-providers-and-the-lost-hold.md">docs/adr/0016-approval-providers-and-the-lost-hold.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

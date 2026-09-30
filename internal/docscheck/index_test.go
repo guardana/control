@@ -21,7 +21,7 @@ func TestIndexIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pages, records, err := indexdoc.Collect(fsys, func(rel string) bool { return excluded(cfg, rel) })
+	pages, records, err := indexdoc.Collect(fsys, cfg.Excludes)
 	if err != nil {
 		t.Fatal(err)
 	}

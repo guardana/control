@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Watch a plane without a collector · Guardana Control</title>
+<meta name="description" content="Run the collector the gateway binary ships, point a plane&#39;s export at it, and check each request&#39;s trail in the file it writes."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/guides/watch-a-plane-without-a-collector"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="watch-a-plane-without-a-collector">Watch a plane without a collector</h1>
+<h2 id="when-to-use-this">When to use this</h2>
+<p>A plane exports its evidence to an OpenTelemetry collector and will not start
+without one. On a first run, or on a small plane you watch yourself, you may
+have no collector. <code>guardana-gateway collect</code> is one: it takes what a plane
+exports over OTLP/HTTP and appends it to a file of evidence lines, and
+<code>guardana-gateway trail</code> reads that file back, one line per request. The plane
+itself does not change: it exports exactly as it would to any collector. Both
+commands are <code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>A plane you can run (<a href="/docs/guides/run-the-gateway">run-the-gateway.md</a>).</li>
+<li>A directory for the trail file that neither the group nor others may write.
+Events carry tenant and principal ids, so the file is created mode <code>0600</code>.</li>
+</ul>
+<h2 id="steps">Steps</h2>
+<h3 id="1-start-the-collector">1. Start the collector</h3>
+<pre><code class="language-sh">guardana-gateway collect --listen 127.0.0.1:4318 --out trail/plane.jsonl
+</code></pre>
+<p>It listens on a loopback IP address only, so <code>0.0.0.0</code>, another host and
+<code>localhost</code> are refused, and it prints the URL it listens on and the file it
+appends to. It runs until you stop it with Ctrl-C or <code>SIGTERM</code>, and answers
+the requests in flight before it exits. One collect holds a file at a time; a
+second one on the same file is refused.</p>
+<p><code>--out</code> names a trail file or a path where no file exists yet. A file that is
+not a trail, such as notes, is refused as damaged and left as it was. A last
+line with no newline is what a crash leaves of an append the plane was never
+told about, and collect removes it, but only when it can be the start of an
+evidence line. Anything else is refused and left as it was, a settings file
+of one line among them.</p>
+<p>While collect runs, do not remove, rename, replace, truncate or append to the
+file, and do not put a link in its place. The collector checks before and after
+each append that the path, not followed, still names the file it holds, at the
+length it left it. When not, it answers 503 to that request and every later
+one, each logged with what changed, until you start it again, and the plane
+keeps the records in its spool.</p>
+<h3 id="2-point-the-plane-at-it">2. Point the plane at it</h3>
+<p>In the plane's configuration:</p>
+<pre><code class="language-yaml">export:
+  endpoint: http://127.0.0.1:4318/v1/logs
+  allow_plaintext: true
+</code></pre>
+<p><code>allow_plaintext</code> is the named risk of an unencrypted endpoint; on the
+loopback nobody else is on the path. Start the plane with <code>run</code> as usual.</p>
+<h3 id="3-read-the-trail">3. Read the trail</h3>
+<pre><code class="language-sh">guardana-gateway trail trail/plane.jsonl
+</code></pre>
+<pre><code class="language-text">request=req-1 project=orders tenant=acme last=EVENT_KIND_ACTION_COMPLETED ok
+request=req-2 project=orders tenant=acme last=EVENT_KIND_APPROVAL_REQUESTED open
+trails 2: ok 1, open 1, failed 0, indeterminate 0; lines 7, repeated lines collapsed 0, bytes after the last newline 0
+the check proves each chain&#39;s shape and not its integrity: a record altered to keep that shape passes it
+</code></pre>
+<p>Each line is one request: its last event and the chain check's verdict.
+<code>ok</code> is a trail whose action closed, <code>open</code> one still in flight, held for an
+approval, or whose closing record has not arrived yet. <code>failed</code> and
+<code>indeterminate</code> carry the check's reason, and either makes <code>trail</code> exit 1, as
+does a file that holds no trail. An <code>open</code> trail does not: a plane still
+serving has trails open. You can run it while the collector writes: it reads
+up to the last whole line and counts the bytes after it. When no collect holds
+the file, those bytes are a line nobody is writing, and <code>trail</code> prints its
+report and exits 1 saying the file is damaged. <code>trail</code> reads at most 100,000
+lines, repeated ones included, and refuses a longer file with exit 1.</p>
+<h2 id="what-the-collector-promises">What the collector promises</h2>
+<ul>
+<li><strong>It answers only for what is on disk.</strong> Each request is appended and the
+file synced before the plane is told it was accepted, so the plane releases
+nothing the file does not hold. A request whose write fails is answered 503
+and sent again.</li>
+<li><strong>Stopping it blocks, it loses nothing.</strong> While the collector is down the
+plane keeps its evidence in its spool, and once the spool reaches
+<code>evidence.max_bytes</code> material calls are blocked with <code>EVIDENCE_UNAVAILABLE</code>.
+Start the collector again on the same file and everything arrives.</li>
+<li><strong>A record can arrive twice, and is written once.</strong> A crash between the sync
+and the answer makes the plane send it again. The collector keeps the event
+id of every line in the file and does not write an exact repeat again;
+<code>trail</code> still counts a repeat once, and refuses a file in which one event id
+carries two different lines.</li>
+<li><strong>A request it cannot read is refused with 400</strong>, and the plane quarantines
+the record it cannot deliver instead of retrying it for ever. So is a record
+whose event id the file already holds with other content, so the file stays
+one <code>trail</code> reads.</li>
+</ul>
+<h2 id="limits">Limits</h2>
+<ul>
+<li>The file is never rotated or pruned, and <code>trail</code> refuses it once it holds
+more than 100,000 lines, which a busy plane can reach and any local account
+that can reach the port can cause.</li>
+<li>The collector takes no credential: any local user who can reach the
+loopback port can write evidence into the trail, including a chain made up
+to pass the check.</li>
+<li><code>trail</code> checks each chain's shape: its links, its order and its identifiers.
+There is no hash chain yet, so a record changed to keep that shape passes.</li>
+<li>The collector reads what this repository's exporter sends and nothing more:
+a member OTLP defines that the exporter never writes is refused rather than
+ignored.</li>
+</ul>
+<p>Why it is built this way, and what it leaves out, is
+<a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a>.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/watch-a-plane-without-a-collector.md">docs/guides/watch-a-plane-without-a-collector.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector" aria-current="page">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

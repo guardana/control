@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0018: A policy key and a signed bundle each have one format on disk · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0018-keys-and-bundles-on-disk"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0018-a-policy-key-and-a-signed-bundle-each-have-one-format-on-disk">ADR-0018: A policy key and a signed bundle each have one format on disk</h1>
+<p>Status: accepted
+Date: 2026-09-24</p>
+<p>Builds on <a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>,
+<a href="/docs/adr/0011-contract-corrections-before-publication">ADR-0011</a> and
+<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>.</p>
+<h2 id="context">Context</h2>
+<p>ADR-0011 fixed how a bundle is signed: Ed25519 over DSSE's pre-authentication
+encoding of the canonical bytes, <code>signature_alg</code> a fixed string, and <code>key_id</code>
+an unauthenticated hint that selects a key the operator pinned. It did not fix
+how the key is held, how it is named, or how either reaches the plane, and no
+command made them: <code>policy.Sign</code> was reached by <code>policy test</code> alone, with a
+fixed key, while the run guide required a signed bundle without saying how to
+get one.</p>
+<p>The gateway already reads three things: a binary <code>PolicyBundle</code> file,
+<code>policy.key_id</code>, and <code>policy.public_key</code> as standard base64 of 32 bytes. Other
+programs will script the making of all three, a lab's setup and a pipeline
+among them, so the formats outlive the change that introduces them.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>Two commands, in the approver's binary.</strong> <code>guardana-control policy keygen --out &lt;dir&gt;</code> makes a key pair and <code>guardana-control policy sign --key &lt;file&gt; --out &lt;file&gt; &lt;document&gt;</code> makes a bundle. That binary still links neither the
+pipeline nor evidence (ADR-0016).</p>
+<p><strong>A key pair is a directory keygen creates.</strong> <code>--out</code> names a path that must
+not exist. keygen creates it <code>0700</code> and writes <code>signing.key</code> and <code>signing.pub</code>
+into it, each through a temporary file, a sync, a link that never replaces and
+a sync of the directory, and removes what it created when any step fails.
+Creating the directory is the one step that decides that no key is ever
+overwritten: an existing path is refused and nothing is written. After creating
+it, keygen opens the path without following a link or waiting on it and
+refuses anything but an empty directory the user owns, then works through that
+handle, so a link, a pipe or a directory that is not empty or not the user's,
+swapped in, receives nothing. An empty directory the user owns, swapped in,
+cannot be told from the one made and is taken.</p>
+<p><strong>The private key is one PKCS#8 block in PEM.</strong> The file holds exactly one
+block of type <code>PRIVATE KEY</code>, with no headers, nothing before it and only white
+space after it, whose payload is an Ed25519 key in PKCS#8 version 1: the
+encoding of RFC 8410's first example, and the one Go's standard library
+writes. The payload must re-encode to itself byte for byte, because the
+library's parser ignores bytes after the key, so a version 2 key that carries
+its public half is refused too. An OpenSSH key, an encrypted key, an EC or RSA
+key and a public key are each refused by name. The file is judged from the
+opened descriptor: a regular file, owned by the user running the command,
+within a size bound, with no permission bit for the group or for others, so
+<code>0400</code>, <code>0600</code> and <code>0700</code> are read and anything wider is refused.</p>
+<p><strong>The key reaches a process as a path and nothing else.</strong> Never a flag value,
+an environment variable or standard input. Every command of both binaries
+refuses an argument that holds a PEM marker, opening or closing, the start of
+the body line every key file of this format begins with, a line break or
+another control character, before anything parses or reads it, with a sentence
+that repeats none of it, because such an argument is key text in the place of a
+path. The gateway's configuration refuses the same text, at load and naming the
+key, in every setting that names a path: the bundle file, the approvals, hold
+journal and evidence directories, the pause file and an upstream's command.
+Whatever either binary prints from a setting, a file or the environment passes
+through one function that withholds a PEM block or marker and a base64 run
+holding the body line's start, and quotes a control, separator or format
+character, so no refusal, <code>doctor</code> line or listing repeats key text. No refusal
+quotes the key file or prints the <code>--key</code> value: a refusal about the key names
+the flag and the check that failed.</p>
+<p><strong>The public key is one line</strong>, standard base64 of the 32 raw bytes, which is
+what <code>policy.public_key</code> takes. The line as <code>signing.pub</code> holds it, with its one
+trailing newline, is taken too, and no other spelling. One package writes it
+and parses it for both binaries.</p>
+<p><strong>The key id is derived, never chosen.</strong> It is <code>ed25519-</code> followed by the first
+16 lowercase hex digits of SHA-256 over the 32 raw public key bytes. <code>sign</code>
+computes it from the key it signs with and takes no flag for it. The gateway
+still accepts any id it is configured with, so a configuration written before
+this record stays valid. Sixty-four bits is ample for a hint: a collision turns
+an unknown key into a signature that does not verify, never into a bundle that
+is accepted.</p>
+<p><strong>Sign never writes a bundle the loader refuses.</strong> It reads the document first
+and refuses one that does not parse before it opens the key. It then signs and
+loads the result under the key's own public half, and writes nothing when that
+load refuses. A plane may still refuse the bundle, because a plane also pins a
+bundle id, a key and a staleness budget. The bundle is written <code>0644</code>, because
+a bundle is public, through a temporary file and a rename; for one build, the
+same document and key give the same bytes. An <code>--out</code> that is the same file as
+the key or the document is refused, and an <code>--out</code> that exists is replaced only
+when it already holds a policy bundle, so no other file, another key included,
+is ever replaced.</p>
+<p><strong>Output a script can read.</strong> keygen prints exactly two lines, <code>key_id: &lt;id&gt;</code>
+and <code>public_key: &lt;line&gt;</code>, the two members the configuration's <code>policy</code> group
+needs. sign prints one <code>name: value</code> line each for <code>bundle_id</code>, <code>version</code>,
+<code>serial</code>, <code>digest</code>, <code>key_id</code> and <code>out</code>.</p>
+<p><strong>The gateway binary never reads a private key.</strong> Dev mode signs with a key it
+draws in memory and pins that key's public half, so nothing the gateway writes
+holds a private key.</p>
+<p><strong>A plane that pins another key says which.</strong> When the bundle's <code>key_id</code> is
+not the configured one, the refusal names both. Both are public, and this is
+the refusal a key rotation produces.</p>
+<p><strong>A platform without permission bits refuses.</strong> Where the mode of a key file
+cannot be read, both commands refuse with a line of their own rather than use a
+key whose exposure they cannot check.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>Whoever can read <code>signing.key</code> can sign a bundle every plane that pins its
+public half accepts: the file is the policy authority. The permission rule
+refuses a key file that another account owns or holds any permission on; it
+cannot protect a key from the account that owns it, and it does not try.</p>
+<p>No wire contract, digest, reason code or public Go package changes. <code>key_id</code>
+stays a hint that selects a key and is never trusted on its own. A bundle can
+still be rolled back across a restart, because the serial the holder checks
+lives for one process; <code>sign</code> does not compare an existing <code>--out</code> with the
+bundle it writes.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>A raw base64 seed as the private key file.</strong> It has the shape of the public
+line, 44 characters of base64, so it can be pasted into <code>policy.public_key</code>,
+which lives in a configuration file, a variable and <code>doctor</code>'s output.</li>
+<li><strong>An operator-chosen key id.</strong> A second spelling to keep in step between
+keygen, sign and the configuration, and an id that can be reused for another
+key.</li>
+<li><strong>keygen into an existing directory with two exclusive creates.</strong> A run that
+dies between them, or a directory already holding only the public file,
+leaves a private key whose public half nobody printed.</li>
+<li><strong>An encrypted private key.</strong> The standard library reads no encrypted PKCS#8,
+and a passphrase needs a way in that is not a flag or a variable; the
+permission rule is what this build offers.</li>
+<li><strong>The gateway signing at start from a private key file.</strong> It would put the
+policy authority's key on the host that runs the plane.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>An operator makes one key pair per policy authority and signs each document
+with it. A key mounted into a container needs mode <code>0400</code>, since the usual
+<code>0444</code> is refused. A rotation signs with the new key and changes
+<code>policy.key_id</code> and <code>policy.public_key</code> together, because a plane pins one key.
+The file handling these commands need lives in <code>internal/files</code>, which the
+approvals store, the hold journal and the spool can move onto later.</p>
+<h2 id="declared-limits">Declared limits</h2>
+<ul>
+<li>The permission check reads the mode bits and the owner. On macOS an access
+control list can grant what the mode bits do not show, and the check does not
+read it; on Linux a named entry raises the group bits, which the check
+refuses.</li>
+<li>A crash between keygen's two links leaves the private key alone, or a
+temporary file, inside the owner-only directory. The next keygen refuses the
+path, and the operator removes it.</li>
+<li>A failure to sync the directory after the rename is reported although the
+new bundle may already be in place.</li>
+<li>Only the <code>--key</code> value is never printed. Key text in another encoding, a raw
+seed or hex, or a key file's body line split or spaced so that no argument
+holds its whole start, given as the document or as <code>--out</code>, is named in a
+refusal or in <code>sign</code>'s output line.</li>
+<li>When keygen fails, its cleanup removes the directory at <code>--out</code> if that is an
+empty directory, which can be one swapped in after keygen made its own.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<p>Tests in <code>internal/policykey</code> and in the two commands: the DER prefix RFC 8410
+fixes for an Ed25519 PKCS#8 key and the key id, both as literal goldens; the
+permission table read through the descriptor; every PEM refusal; a fuzz target
+on the key reader whose refusals echo no eight-byte window of their input; no
+output of any path, success and every refusal including one reached after the
+key was parsed, holding the seed or the private key in any encoding, with the
+key's text given as <code>--key</code>, as the document and as any other argument among
+them; <code>--out</code> as the key or the document by a relative spelling and by a hard
+link, and an existing <code>--out</code> that is not a bundle, another key among them,
+left as it was; an <code>--out</code> reaching the key through a link and <code>..</code> refused;
+a refused document leaving <code>--out</code> unchanged; a link, a pipe or another
+directory swapped in after keygen created its own receiving no key; and a key
+pair and
+bundle made through the package starting a plane through the gateway's own
+reader, with <code>signing.pub</code> taken as it is, and failing under another key with
+both ids named.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0018-keys-and-bundles-on-disk.md">docs/adr/0018-keys-and-bundles-on-disk.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

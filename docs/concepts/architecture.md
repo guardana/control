@@ -19,6 +19,8 @@ is outside it and talks to it over a protocol it does not own.
 
 ```mermaid
 flowchart LR
+    accTitle: The system in context
+    accDescr: The agent's tool calls pass through the gateway process, which loads a signed bundle, sends held calls to an approver, asks a decision point that can only veto, forwards the calls it lets through and exports evidence to a collector.
     OP[Operator]
     AG["Agent, an MCP client"]
     APR[Approver]
@@ -55,6 +57,8 @@ call and a pause; the one thing it serves is the local approvals page.
 
 ```mermaid
 flowchart TB
+    accTitle: The containers
+    accDescr: Inside guardana-gateway the MCP adapter hands calls to the pipeline, which asks the decision kernel, records evidence through the spool and its exporter, and keeps holds in the approval store; guardana-control lints policy and answers approvals through the approvals directory.
     subgraph CLI["guardana-control"]
         LINT["policy lint, policy test"]
         APPR["approvals list, approve, reject"]
@@ -130,6 +134,8 @@ unrecorded.
 
 ```mermaid
 sequenceDiagram
+    accTitle: The request path
+    accDescr: The adapter hands a proposed action to the pipeline, whose kernel evaluates the policy snapshot and may take a decision point's answer; a denied or undetermined call is refused, a call that needs approval is held until an identical retry consumes it, an allowed call runs, and evidence is recorded as the sink accepts it.
     participant Agent
     participant Adapter
     participant Pipeline
@@ -247,6 +253,8 @@ plane.
 
 ```mermaid
 flowchart TB
+    accTitle: Where it is going
+    accDescr: A planned shape: agents reach tools through a proxy or framework ports and the enforcement point, feeds and evidence reach a supervisor, and alerts, exports and a run graph come out, with extensions added as adapters and documents.
     AG[Agents]
     subgraph IN[Inputs]
         PX["Proxy: MCP today, HTTP tool APIs next"]

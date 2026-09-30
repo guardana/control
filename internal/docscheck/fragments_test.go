@@ -7,38 +7,21 @@ import (
 	"path"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/guardana/control/internal/docscheck/anchor"
 )
 
-var (
-	atxHeading    = regexp.MustCompile(`^ {0,3}#{1,6}(?:[ \t]+(.*?))?[ \t]*$`)
-	closingHashes = regexp.MustCompile(`[ \t]+#+$`)
-	inlineLink    = regexp.MustCompile(`!?\[([^\]]*)\]\([^)]*\)`)
-	// What GitHub drops from a heading to make its anchor: everything but
-	// letters, marks, decimal digits, connector punctuation such as "_",
-	// spaces and hyphens.
-	notInAnchor = regexp.MustCompile(`[^\p{L}\p{M}\p{Nd}\p{Pc} -]`)
-)
-
-// headingAnchor spells the anchor GitHub gives a heading: link syntax reduced
-// to its text, lower case, the characters above dropped, each space turned
-// into a hyphen.
-func headingAnchor(text string) string {
-	text = closingHashes.ReplaceAllString(text, "")
-	text = inlineLink.ReplaceAllString(text, "$1")
-	text = notInAnchor.ReplaceAllString(strings.ToLower(text), "")
-	return strings.ReplaceAll(text, " ", "-")
-}
+var atxHeading = regexp.MustCompile(`^ {0,3}#{1,6}(?:[ \t]+(.*?))?[ \t]*$`)
 
 // anchorsIn returns the anchors a Markdown file offers: one per ATX heading
 // outside fenced code, a repeated heading numbered "-1", "-2" and on, as on
 // GitHub.
 func anchorsIn(lines []string) map[string]bool {
 	anchors := make(map[string]bool)
-	seen := make(map[string]int)
+	numbering := anchor.Numbering{}
 	fenced := false
 	for _, line := range lines {
 		if strings.HasPrefix(strings.TrimSpace(line), "```") {
@@ -49,13 +32,7 @@ func anchorsIn(lines []string) map[string]bool {
 		if fenced || m == nil {
 			continue
 		}
-		anchor := headingAnchor(m[1])
-		if n := seen[anchor]; n > 0 {
-			anchors[anchor+"-"+strconv.Itoa(n)] = true
-		} else {
-			anchors[anchor] = true
-		}
-		seen[anchor]++
+		anchors[numbering.Next(m[1])] = true
 	}
 	return anchors
 }
@@ -149,35 +126,11 @@ func (a *anchorIndex) fragmentProblem(file, fragment, target string) string {
 	return ""
 }
 
-// The expected anchors are written out as GitHub renders them, not computed.
-func TestHeadingAnchor(t *testing.T) {
-	cases := map[string]string{
-		"Refusals":                        "refusals",
-		"Layers and the dependency rule":  "layers-and-the-dependency-rule",
-		"Note 7 — aside — The rule":       "note-7--aside--the-rule",
-		"`make quality` runs the gate":    "make-quality-runs-the-gate",
-		"What is `INDETERMINATE`?":        "what-is-indeterminate",
-		"ADR-0007: Repository layout":     "adr-0007-repository-layout",
-		"A [linked](other.md) word":       "a-linked-word",
-		"snake_case stays":                "snake_case-stays",
-		"Ärger über Öl":                   "ärger-über-öl",
-		"1. Scope examined":               "1-scope-examined",
-		"Closing hashes ##":               "closing-hashes",
-		"C#":                              "c",
-		"Tabs, commas; and (parentheses)": "tabs-commas-and-parentheses",
-	}
-	for heading, want := range cases {
-		if got := headingAnchor(heading); got != want {
-			t.Errorf("headingAnchor(%q) = %q, want %q", heading, got, want)
-		}
-	}
-}
-
 func TestAnchorsNumberRepeatsAndSkipFences(t *testing.T) {
 	lines := strings.Split("# Title\n## Part\ntext\n## Part\n```\n## Fenced\n```\n### Part\n#NoSpace\n####### Seven\n", "\n")
 	var got []string
-	for anchor := range anchorsIn(lines) {
-		got = append(got, anchor)
+	for a := range anchorsIn(lines) {
+		got = append(got, a)
 	}
 	slices.Sort(got)
 	if want := []string{"part", "part-1", "part-2", "title"}; !slices.Equal(got, want) {

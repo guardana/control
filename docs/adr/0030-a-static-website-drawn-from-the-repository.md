@@ -6,6 +6,10 @@ Date: 2026-09-28
 Builds on [ADR-0015](0015-documentation-structure-and-checks.md) and
 [ADR-0024](0024-control-and-guardana-are-independent.md).
 
+Amended by [ADR-0031](0031-the-documentation-is-served-on-the-website.md): the
+documentation is rendered into the site, and the landing page links to it
+there rather than on GitHub.
+
 ## Context
 
 The project had no page of its own outside GitHub. A landing page has to say

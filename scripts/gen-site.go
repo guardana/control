@@ -1,13 +1,15 @@
 //go:build ignore
 
 // Command gen-site redraws the diagram slots of the site's landing page from
-// the README's Mermaid blocks.
+// the README's Mermaid blocks, and renders the documentation into site/docs/
+// with the sitemap.
 //
 //	go run scripts/gen-site.go -o site/index.html
 //
-// Everything it decides lives in internal/docscheck/sitedoc, where the gate
-// compiles, vets, lints and tests it. What is left here is argument handling,
-// two reads and one write of the same page.
+// Everything it decides lives in internal/docscheck/sitedoc and its docsite
+// package, where the gate compiles, vets, lints and tests it. What is left here
+// is argument handling, reads, and the writes: site/docs/ is removed and
+// written again whole, so a page whose source is gone goes with it.
 package main
 
 import (
@@ -15,9 +17,15 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
 
+	"github.com/guardana/control/internal/docscheck/docsconfig"
 	"github.com/guardana/control/internal/docscheck/sitedoc"
+	"github.com/guardana/control/internal/docscheck/sitedoc/docsite"
 )
+
+const config = "docs/docs.json"
 
 func main() {
 	out := flag.String("o", "", "the page whose slots are rewritten in place (required)")
@@ -43,8 +51,36 @@ func main() {
 	if err != nil {
 		fail(fmt.Errorf("%s: %w", *out, err))
 	}
+	data, err := os.ReadFile(config)
+	if err != nil {
+		fail(fmt.Errorf("reading %s: %w", config, err))
+	}
+	cfg, err := docsconfig.Parse(data)
+	if err != nil {
+		fail(err)
+	}
+	files, err := docsite.Build(os.DirFS("."), cfg.Excludes)
+	if err != nil {
+		fail(err)
+	}
 	if err := os.WriteFile(*out, rendered, 0o644); err != nil {
 		fail(fmt.Errorf("writing %s: %w", *out, err))
+	}
+	if err := os.RemoveAll(docsite.Dir); err != nil {
+		fail(fmt.Errorf("removing %s: %w", docsite.Dir, err))
+	}
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+			fail(err)
+		}
+		if err := os.WriteFile(name, files[name], 0o644); err != nil {
+			fail(fmt.Errorf("writing %s: %w", name, err))
+		}
 	}
 }
 

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>The MCP gateway · Guardana Control</title>
+<meta name="description" content="How a tools/call becomes a decision, an authorized set of bytes and a trail, before the server sees it."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/concepts/mcp-gateway"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="the-mcp-gateway">The MCP gateway</h1>
+<p>An agent's call to a Model Context Protocol server is where an agent stops
+talking and starts acting. The gateway sits in that gap: it translates the call
+into an <code>ActionEnvelope</code>, asks the kernel, does what the mode says, sends exactly
+the bytes that were authorized, and appends the trail that names the policy
+version behind the decision. Two revisions of the protocol are live and they are
+different protocols, so the gateway serves both and keys what it can do on the
+one that was negotiated.</p>
+<h2 id="one-call-end-to-end">One call, end to end</h2>
+<figure class="dg-text" id="diagram-1"><figcaption>One call, end to end</figcaption><p>The listener turns a tools/call into an envelope, the pipeline has the kernel decide and may ask a decision point, the opening events are written before anything runs, the listener sends exactly the authorized bytes, and the trail closes with the executed digest. <a href="https://github.com/guardana/control/blob/main/docs/concepts/mcp-gateway.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">sequenceDiagram
+    accTitle: One call, end to end
+    accDescr: The listener turns a tools/call into an envelope, the pipeline has the kernel decide and may ask a decision point, the opening events are written before anything runs, the listener sends exactly the authorized bytes, and the trail closes with the executed digest.
+    participant Agent
+    participant Listener as Listener (adapters/mcp)
+    participant Plane as Pipeline (internal/gateway)
+    participant Kernel as Kernel (internal/core)
+    participant Sink as Spool (internal/spool)
+    participant PDP as Decision point (adapters/authzen)
+    participant Server as MCP server
+
+    Agent-&gt;&gt;Listener: POST tools/call, Mcp-Method and Mcp-Name
+    Note over Listener: headers route, the body decides
+    Listener-&gt;&gt;Plane: Admit(envelope, proposed arguments)
+    Plane-&gt;&gt;Kernel: Decide(envelope, snapshot)
+    Kernel--&gt;&gt;Plane: verdict, rule ids, obligations
+    opt the plane has no cause of its own to block the call, and the decision turns on the answer and is not DENY
+        Plane-&gt;&gt;PDP: ask about the envelope, within pdp.timeout
+        PDP--&gt;&gt;Plane: an answer, or silence
+        Plane-&gt;&gt;Kernel: Decide again with the answer
+        Kernel--&gt;&gt;Plane: the decision that is recorded
+    end
+    Plane-&gt;&gt;Plane: apply rewriting obligations, decide the authorized envelope again
+    Plane-&gt;&gt;Sink: ACTION_PROPOSED, POLICY_DECIDED, ACTION_STARTED
+    Sink--&gt;&gt;Plane: durable, closing record reserved
+    Plane--&gt;&gt;Listener: Disposition: execute, authorized bytes and digest
+    Listener-&gt;&gt;Listener: digest the bytes about to go
+    Listener-&gt;&gt;Server: tools/call with exactly those bytes
+    Server--&gt;&gt;Listener: result
+    Listener-&gt;&gt;Plane: Close(disposition, bytes sent, result)
+    Plane-&gt;&gt;Sink: ACTION_COMPLETED with the executed digest
+    Listener--&gt;&gt;Agent: the upstream&#39;s result
+</code></pre></details></figure>
+<p>Sources: <code>adapters/mcp/middleware.go</code>, <code>internal/gateway/admit.go</code>,
+<code>internal/gateway/decisionpoint.go</code>, <code>adapters/authzen/client.go</code>,
+<code>internal/gateway/close.go</code>, <code>internal/spool/append.go</code>.</p>
+<p>A blocked call stops in the pipeline: the disposition says block, the trail
+ends with <code>ACTION_BLOCKED</code> when the spool takes it, and is otherwise blocked as
+<code>EVIDENCE_UNAVAILABLE</code>, and the agent gets a tool result with <code>isError: true</code>
+carrying the reason codes. The server is never called.</p>
+<h2 id="the-same-call-on-each-revision">The same call on each revision</h2>
+<p>The two revisions differ in what reaches the middleware and how. On
+<code>2026-07-28</code> a stateless listener takes every request on its own: the
+protocol version, the client's claim and its capabilities travel in each
+request's <code>_meta</code>, and the <code>Mcp-Method</code> and <code>Mcp-Name</code> headers route it. The
+library checks those headers against the body before anything of the adapter
+runs, and the middleware decides from the body, never from a header.</p>
+<figure class="dg-text" id="diagram-2"><figcaption>A call on the stateless revision</figcaption><p>On 2026-07-28 the stateless handler checks the routing headers against the body before the adapter runs; the adapter hands the envelope to the pipeline and answers with the result, the reason codes or the pending state. <a href="https://github.com/guardana/control/blob/main/docs/concepts/mcp-gateway.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">sequenceDiagram
+    accTitle: A call on the stateless revision
+    accDescr: On 2026-07-28 the stateless handler checks the routing headers against the body before the adapter runs; the adapter hands the envelope to the pipeline and answers with the result, the reason codes or the pending state.
+    participant Agent
+    participant Library as Streamable HTTP handler, stateless
+    participant Adapter as Middleware (adapters/mcp)
+    participant Plane as Pipeline (internal/gateway)
+    Agent-&gt;&gt;Library: POST tools/call with Mcp-Protocol-Version 2026-07-28, Mcp-Method, Mcp-Name and _meta
+    Note over Library: no session and no initialize, and a header that disagrees with the body is -32020 before the adapter runs
+    Library-&gt;&gt;Adapter: the parsed request
+    Note over Adapter: identity from the listener, clientInfo and the revision as run-context tags
+    Adapter-&gt;&gt;Plane: Admit(envelope, proposed arguments)
+    Plane--&gt;&gt;Adapter: disposition
+    Adapter--&gt;&gt;Agent: the result, or isError with the reason codes, or the pending state
+</code></pre></details></figure>
+<p>Sources: <code>adapters/mcp/listener.go</code>, <code>adapters/mcp/middleware.go</code>,
+<code>adapters/mcp/translate.go</code>.</p>
+<p>On <code>2025-11-25</code> a stateful listener serves a session: the agent initializes
+first, and every later request rides on that session. A <code>2026-07-28</code> request
+on this listener is answered <code>-32022</code> with the versions served, by the
+library and before the pipeline is asked anything, so a client renegotiates
+instead of losing the connection. <code>initialize</code> itself is not the
+middleware's: it goes to the library's own handler, like every method the
+middleware does not answer.</p>
+<figure class="dg-text" id="diagram-3"><figcaption>A call on the stateful revision</figcaption><p>A stateful listener answers a 2026-07-28 request with -32022; the client initializes on 2025-11-25 and calls on that session, and the adapter hands the envelope to the pipeline as on the other revision. <a href="https://github.com/guardana/control/blob/main/docs/concepts/mcp-gateway.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">sequenceDiagram
+    accTitle: A call on the stateful revision
+    accDescr: A stateful listener answers a 2026-07-28 request with -32022; the client initializes on 2025-11-25 and calls on that session, and the adapter hands the envelope to the pipeline as on the other revision.
+    participant Agent
+    participant Library as Streamable HTTP handler, stateful
+    participant Adapter as Middleware (adapters/mcp)
+    participant Plane as Pipeline (internal/gateway)
+    Agent-&gt;&gt;Library: a request on 2026-07-28
+    Library--&gt;&gt;Agent: -32022 with the versions served
+    Agent-&gt;&gt;Library: initialize on 2025-11-25
+    Library--&gt;&gt;Agent: the session
+    Agent-&gt;&gt;Library: POST tools/call on the session
+    Library-&gt;&gt;Adapter: the parsed request
+    Note over Adapter: identity from the listener, the negotiated revision as a run-context tag
+    Adapter-&gt;&gt;Plane: Admit(envelope, proposed arguments)
+    Plane--&gt;&gt;Adapter: disposition
+    Adapter--&gt;&gt;Agent: the result, or isError with the reason codes, or the pending state
+</code></pre></details></figure>
+<p>Sources: <code>adapters/mcp/listener.go</code>, <code>adapters/mcp/middleware.go</code>,
+<code>adapters/mcp/translate.go</code>.</p>
+<h2 id="what-the-manifest-holds">What the manifest holds</h2>
+<p>The manifest is what the upstream lists plus the operator's classification of
+each definition. Nothing else classifies: a tool's own annotations are hints
+(invariant 2).</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Comes from</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Upstream</code>, <code>Tool</code></td>
+<td>the upstream's <code>tools/list</code></td>
+<td>routing, and <code>action.name</code></td>
+</tr>
+<tr>
+<td><code>Fingerprint</code></td>
+<td>the whole definition through <code>internal/canon</code></td>
+<td>pinning the definition an override classified</td>
+</tr>
+<tr>
+<td><code>Effect</code></td>
+<td>the operator's override</td>
+<td><code>action.effect</code>, so materiality and the fail-closed table</td>
+</tr>
+<tr>
+<td><code>ResourceType</code></td>
+<td>the operator's override</td>
+<td><code>resource.type</code></td>
+</tr>
+<tr>
+<td><code>ResourceFrom</code></td>
+<td>the operator's override, a bounded JSON pointer</td>
+<td>reading <code>resource.id</code> out of the arguments: a string as written, a number as its canonical text, so <code>42.0</code> and <code>4.2e1</code> are <code>42</code> and a rule on a numeric id uses that text</td>
+</tr>
+<tr>
+<td><code>TrustZone</code></td>
+<td>the operator's override</td>
+<td><code>destination.trust_zone</code>, which a policy's <code>destination</code> constraint and the <code>deny_external_sink</code> obligation read. What a tool's results contain is <code>returns.trust</code> and <code>returns.sensitivity</code>, which the run's flow state reads (<a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a>)</td>
+</tr>
+<tr>
+<td><code>Classified</code></td>
+<td>whether an override pins this fingerprint</td>
+<td>an unclassified call is <code>ACTION_UNCLASSIFIED</code> outside <code>OBSERVE</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-the-modes-do">What the modes do</h2>
+<p>The kernel is <code>ENFORCE</code> only and decides every call the same way in every mode
+(ADR-0012). A mode changes what is done with the decision, and it never reaches
+an extension: the adapter translates, the sink writes, the policy holder serves a
+bundle, and none of them knows the mode.</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>The decision</th>
+<th>The call</th>
+<th>Built</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OBSERVE</code></td>
+<td>recorded</td>
+<td>runs, with the proposed bytes, unclassified included, unless a pause or a halt blocks it</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>APPROVE</code></td>
+<td>recorded</td>
+<td>an allowed material call is held for an approval</td>
+<td>yes; the <code>file</code> provider takes an approver's answer, and the plane refuses to start in <code>APPROVE</code> without it</td>
+</tr>
+<tr>
+<td><code>ENFORCE</code></td>
+<td>recorded</td>
+<td>blocked, rewritten, held or run, as decided</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>LOCKDOWN</code></td>
+<td>recorded, made for a material call without asking the decision point, with the plane's own <code>LOCKDOWN</code> decision on the block</td>
+<td>every material call blocked; a read enforced with fail-open reads off</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>SHADOW</code>, <code>WARN</code></td>
+<td>—</td>
+<td>—</td>
+<td>refused at start</td>
+</tr>
+</tbody>
+</table>
+<p>A mode the build does not enforce, and a mode needing a capability the adapter
+does not declare, are refused when the plane is built, not when a call arrives.</p>
+<h2 id="when-the-decision-point-is-asked">When the decision point is asked</h2>
+<p>A bundle that reads <code>external</code> needs a decision point, and a decision point
+needs a bundle that reads it: the plane refuses to start with either alone
+(<a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>). The pipeline
+decides first without an answer, and asks only when the kernel reports that
+its decision turns on the answer and that decision is not already <code>DENY</code>,
+which no answer changes. It asks once and records the second decision, so a
+call no veto rule covers is never sent anywhere.</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Asks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>an admitted call</td>
+<td>once, when the answer can change the decision</td>
+</tr>
+<tr>
+<td>the same call after a rewriting obligation</td>
+<td>no: the first answer is reused, since the question carries no arguments</td>
+</tr>
+<tr>
+<td>the retry that resumes a held request</td>
+<td>afresh, so a decision point that now denies blocks the held request</td>
+</tr>
+<tr>
+<td><code>Preview</code>, which shapes a tool list</td>
+<td>never: a listing names no resource, and a governed tool is listed as decided per call</td>
+</tr>
+<tr>
+<td>a call the plane blocks whatever the answer: a pause, an unreadable pause state, a halt or <code>LOCKDOWN</code> on a material call, an unclassified call outside <code>OBSERVE</code></td>
+<td>never: <code>POLICY_DECIDED</code> carries no <code>PDP_</code> code, and a veto rule that reads the answer is undetermined</td>
+</tr>
+<tr>
+<td>a call whose decision turns on the answer and whose envelope names no resource id</td>
+<td>nothing is sent, and the decision carries <code>PDP_UNAVAILABLE</code></td>
+</tr>
+</tbody>
+</table>
+<p>The question carries the call's principal, action, resource and destination,
+as mapping version 1 lists them, and never its arguments (invariant 9). The
+answer is read strictly where it could allow. An ask past <code>pdp.timeout</code>, or
+one past <code>pdp.max_in_flight</code> asks waiting, is silence, which blocks in every
+mode that enforces. The plane names its own causes to block a call before any
+question leaves it, and a call with one is never asked about
+(<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>). Any other call whose
+decision turns on the answer is asked about in every mode, <code>OBSERVE</code>
+included, since the kernel decides the same way in every mode and the mode
+acts only on the decision. After the ask the plane takes its pause state and
+clock again and names its causes once more, so a pause or a halt that comes
+while the ask waits still blocks the call.
+<code>/healthz</code> counts the asks by outcome and the time spent
+waiting on them; <code>decision_latency_us</code> stays the kernel's own time.</p>
+<h2 id="what-a-pending-approval-looks-like-on-the-wire">What a pending approval looks like on the wire</h2>
+<p><code>REQUIRE_APPROVAL</code> returns at once. The connection is not held; the request is.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>The answer</th>
+<th>Carries</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tools/call</code></td>
+<td>a tool result with <code>isError: true</code>, which the model reads</td>
+<td><code>reason_code: APPROVAL_PENDING</code>, <code>approval_id</code>, <code>action_digest</code>, <code>expires_at</code>, <code>retry_after</code></td>
+</tr>
+<tr>
+<td><code>resources/read</code>, <code>prompts/get</code></td>
+<td>JSON-RPC error <code>-31101</code>, because those results have no <code>isError</code></td>
+<td>the same structured data in the error's <code>data</code></td>
+</tr>
+</tbody>
+</table>
+<p>A retry that matches the binding, equals the held request on the data labels and
+on the run context without the plane's flow tags, and draws a fresh decision
+equal to the held one resumes that request: no second <code>ACTION_PROPOSED</code>, the kernel
+decides again as a gate, and the approval satisfies the wait and nothing else. A
+retry that differs in one of those fields is a new request with a new hold. A
+consumed approval answers <code>APPROVAL_ALREADY_USED</code>, an expired one
+<code>APPROVAL_EXPIRED</code>, a rejected one <code>APPROVAL_REJECTED</code>. The plane holds at most
+<code>approvals.max_held</code> requests and keeps at most <code>approvals.max_open</code> executions
+open; past either bound a call blocks with <code>EVIDENCE_UNAVAILABLE</code>.</p>
+<h2 id="what-the-closing-record-carries">What the closing record carries</h2>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Record</th>
+<th>Field that says what happened</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The bytes sent were the authorized ones and the result succeeded</td>
+<td><code>ACTION_COMPLETED</code></td>
+<td><code>executed_action_digest</code> equals the decision's action digest</td>
+</tr>
+<tr>
+<td>The result failed upstream</td>
+<td><code>ACTION_FAILED</code></td>
+<td>the upstream's status</td>
+</tr>
+<tr>
+<td>The bytes sent were not the authorized ones</td>
+<td><code>ACTION_FAILED</code></td>
+<td><code>tool_protocol_status: EXECUTED_ARGS_MISMATCH</code>, and the plane takes no further material call until it restarts</td>
+</tr>
+<tr>
+<td>The adapter did not send, because its own check, an obligation, routing or translation refused</td>
+<td><code>ACTION_FAILED</code></td>
+<td>the cause's own reason code; the comparison did not run</td>
+</tr>
+<tr>
+<td>The spool refused the closing record</td>
+<td>the result is delivered anyway</td>
+<td>counted, and material calls are refused until an append succeeds</td>
+</tr>
+</tbody>
+</table>
+<h2 id="why-it-works-this-way">Why it works this way</h2>
+<ul>
+<li>The pipeline is protocol-neutral and the protocol lives in the adapter, so a
+second protocol does not pull the pipeline apart (ADR-0013, ADR-0007).</li>
+<li>The interception is one receiving middleware and registers no tools, so the
+gateway never has to mirror an upstream's registry (ADR-0013).</li>
+<li>Headers route and never decide: a refusal made from a header cannot echo the
+request id, and the client reads a response without one as a broken transport
+(ADR-0013).</li>
+<li>The bytes that go upstream are the bytes that were decided about: with a
+rewriting obligation the kernel is asked again about the authorized envelope,
+so the decision's, the approval's and the executed digests are one action
+digest (ADR-0013, ADR-0005).</li>
+<li>An approval binds to one digest, one bundle and one held request, and is
+consumed once (ADR-0011, ADR-0013).</li>
+<li>A record that cannot be written before the effect blocks the call it was
+recording, and one that cannot be written after it halts material calls
+rather than disappearing (ADR-0014, invariant 5).</li>
+<li>A pending approval never holds the wire: every client times out, and a
+timed-out call becomes a retry the approver never sees (ADR-0013).</li>
+<li>The mode lives in the gateway and never in the kernel, so the same request
+decides the same way whatever the operator set (ADR-0012, ADR-0013).</li>
+<li>The decision point is asked only when its answer can change the decision, so
+a party that governs some calls never sees the others, and its outage
+blocks only the calls a rule routes to it (ADR-0017). A call the plane
+blocks whatever the answer is never sent to it (ADR-0019).</li>
+</ul>
+<h2 id="where-the-code-lives">Where the code lives</h2>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Listener, upstream client, manifest, translator, answers</td>
+<td><code>adapters/mcp/</code></td>
+</tr>
+<tr>
+<td>The pipeline: <code>Admit</code>, <code>Close</code>, <code>Abort</code>, <code>Preview</code>, the mode table, the approval store, the ask</td>
+<td><code>internal/gateway/</code></td>
+</tr>
+<tr>
+<td>The client that asks a decision point over AuthZEN</td>
+<td><code>adapters/authzen/</code></td>
+</tr>
+<tr>
+<td>The kernel's decision</td>
+<td><code>internal/core/</code></td>
+</tr>
+<tr>
+<td>The evidence records and their chain</td>
+<td><code>internal/evidence/</code></td>
+</tr>
+<tr>
+<td>The spool on disk and the OTLP export</td>
+<td><code>internal/spool/</code>, <code>adapters/otel/</code></td>
+</tr>
+<tr>
+<td>The command that wires one plane</td>
+<td><code>cmd/guardana-gateway/</code></td>
+</tr>
+</tbody>
+</table>
+<p>Per revision and per transport, what is enforced and what is not, is
+<a href="/docs/reference/mcp-coverage">reference/mcp-coverage</a>. How to run one is
+<a href="/docs/guides/run-the-gateway">guides/run-the-gateway</a>.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/mcp-gateway.md">docs/concepts/mcp-gateway.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway" aria-current="page">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

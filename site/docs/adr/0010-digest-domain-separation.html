@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0010: The digest domain tag is fixed and carries no product name · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0010-digest-domain-separation"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0010-the-digest-domain-tag-is-fixed-and-carries-no-product-name">ADR-0010: The digest domain tag is fixed and carries no product name</h1>
+<p>Status: accepted
+Date: 2026-09-09</p>
+<p>Amends <a href="/docs/adr/0005-canonical-action-digest">ADR-0005</a> and
+<a href="/docs/adr/0006-product-name-switch">ADR-0006</a>. Amended by
+<a href="/docs/adr/0011-contract-corrections-before-publication">ADR-0011</a>: the field set
+changed once under the same tag, because no digest under the earlier set was
+published.</p>
+<h2 id="context">Context</h2>
+<p>ADR-0005 defined the action digest as <code>sha256</code> over a domain-separation prefix
+followed by the canonical JSON of a fixed field set, and made that prefix
+contain the product slug. ADR-0006 accepted the consequence: a rename changes
+every digest, so it invalidates every stored approval and every shared fixture.</p>
+<p>That was affordable while no digest existed. This session computes the first
+golden fixtures, which are the contract the Python and TypeScript implementations
+will be checked against, so the prefix stops being a detail and becomes the
+thing every language has to agree on.</p>
+<p>There is also a failure the brand mechanism cannot see. <code>scripts/check-brand.sh</code>
+finds the product name as a literal. A golden fixture holds a hash, and a hash
+holds no literal, so a rename would silently invalidate every golden while the
+brand gate stayed green. That is a check reporting a pass over something it
+cannot examine.</p>
+<h2 id="decision">Decision</h2>
+<p>The domain tag is a fixed byte string chosen once, and no part of it is derived
+from anything a rename would rewrite:</p>
+<ul>
+<li>action digest: <code>agent-action-digest/v1\n</code></li>
+<li>approval binding: <code>agent-approval-binding/v1\n</code></li>
+</ul>
+<p>The approval binding had no tag at all before this record. It is the value an
+approval is actually stored and compared against, so it needs one at least as
+much as the action digest does.</p>
+<p>The tag ends with a newline. RFC 8785 escapes every control character, so a raw
+newline cannot occur inside the canonical body, which makes the boundary between
+tag and body unambiguous. The separator is a newline for that reason and not for
+readability.</p>
+<p>The <code>v1</code> in the tag separates versions of the canonical form itself: a v2 form
+that happened to produce identical bytes would still produce a different digest.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>A rename no longer invalidates a digest, an approval or a fixture. The
+<code>Slug</code> constant in <code>internal/brand</code> keeps every other job it had.</p>
+<p>Domain separation still buys what it is for. Two different purposes hashing with
+the same primitive get different tags, so a digest computed for one purpose can
+never be presented as a digest for another; and the version in the tag means a
+later canonical form cannot collide with this one.</p>
+<p>What is given up is that the tag no longer says which product produced a
+digest. A fixture whose bytes are inspected in isolation is no longer
+self-describing, which is why <code>testdata/digest/README.md</code> states the tag
+explicitly rather than leaving a reader to infer it.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>Keeping the slug in the tag and deciding the product name before the digest
+lands. It couples an unrelated decision to a technical one, and it leaves the
+brand gate unable to see a stale digest either way.</li>
+<li>An opaque random token as the tag. It is unforgeable by construction, and it
+is unreadable in forensic output. The precedents for fixing a tag per protocol
+version rather than per product, such as RFC 9380 domain separation tags, TLS
+1.3 label prefixes and SP 800-185 customization strings, all use readable
+strings.</li>
+<li>Deriving the tag from the proto package name. That name contains the product
+name too, so it is the same coupling by another route.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>The tag is now a constant that must never change. Changing it is not a rename,
+it is a new version of the canonical form, and it invalidates every stored
+approval, so it needs its own record and a new package version.</p>
+<p>Three statements that said the digest follows the brand are no longer true and
+are corrected in the same change: <code>internal/brand/brand.go</code>, ADR-0005 and
+ADR-0006.</p>
+<h2 id="validation">Validation</h2>
+<p>Runnable today: <code>go test ./internal/canon/</code> computes the digest over the golden
+fixtures in <code>testdata/digest/</code>, which pin the tag by construction, and
+<code>internal/brand/brand_test.go</code> no longer has a digest claim to pin.</p>
+<p><code>scripts/rename-product.sh</code> does not touch the tag. Proving that means running a
+rename against a scratch copy and confirming the goldens still pass, which is a
+step a maintainer takes rather than a gate that runs on every change.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0010-digest-domain-separation.md">docs/adr/0010-digest-domain-separation.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Writing an adapter · Guardana Control</title>
+<meta name="description" content="The internal seam a protocol adapter implements, the capabilities it declares, and the conformance each one owes."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/extending/adapters"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="writing-an-adapter">Writing an adapter</h1>
+<p>An adapter translates one protocol into the envelope the kernel decides about,
+and turns the plane's answer back into something that protocol can say. It holds
+no policy meaning: what a call means lives in the envelope it builds and in the
+policy (invariant 7). The MCP adapter in <code>adapters/mcp/</code> is the worked example
+and the only one today.</p>
+<h2 id="the-seam">The seam</h2>
+<p>The seam is internal, in <code>internal/gateway</code>:</p>
+<pre><code class="language-go">type Adapter interface {
+    Name() string                 // the protocol&#39;s name, for evidence and health
+    Capabilities() Capabilities   // fixed for the adapter&#39;s lifetime
+}
+</code></pre>
+<p>It is deliberately not <code>pkg/adapter</code>. A public package with one consumer in the
+tree is a compatibility promise made to nobody, and
+<a href="/docs/adr/0009-open-core-boundary">ADR-0009</a> says a pluggable seam stays
+internal until its own decision promotes it. The second adapter is what shows
+what the two have in common; until then the shape may change with a minor
+release. That is what <code>stability: development</code> means here. An adapter is
+therefore written inside this repository: Go refuses to let another module
+import <code>internal/</code>, and an integration built elsewhere waits for the planned
+enforcement API (<a href="/docs/backlog">backlog</a>, B10).</p>
+<p>There is no declared API version. An adapter is compiled into the binary, so the
+compiler is the check that fails loudly, and
+<a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a> forbids the
+run-time loading that would give a version string something to guard.</p>
+<h2 id="what-the-adapter-asks-the-plane">What the adapter asks the plane</h2>
+<p>The pipeline is the whole of what an adapter needs, and it answers rather than
+failing:</p>
+<table>
+<thead>
+<tr>
+<th>Call</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Admit(ctx, Admission) Disposition</code></td>
+<td>decide one proposed action. There is no error return: whatever the plane cannot do is a block that names its cause, and the zero <code>Disposition</code> blocks</td>
+</tr>
+<tr>
+<td><code>Close(ctx, disposition, sent, result) error</code></td>
+<td>the call ran; here are the bytes that went and what came back. An error means the record is not durable</td>
+</tr>
+<tr>
+<td><code>Abort(ctx, disposition, cause) error</code></td>
+<td>the call did not go, and the cause says why: the adapter's own pre-send check, an obligation it applies, a call it cannot route, a call its protocol cannot express</td>
+</tr>
+<tr>
+<td><code>Preview(ctx, Admission) *Decision</code></td>
+<td>what a call would be decided, recording and holding nothing. It is what shaping a listing asks</td>
+</tr>
+</tbody>
+</table>
+<p>An adapter that has an execution open closes or aborts it. An execution left
+open holds one of the plane's <code>MaxOpen</code> slots until the process ends.</p>
+<h2 id="the-capabilities-and-what-the-plane-does-with-each">The capabilities, and what the plane does with each</h2>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>The plane's use of it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ObserveRequest</code></td>
+<td>Needed by every mode: without seeing the call there is nothing to decide</td>
+</tr>
+<tr>
+<td><code>ObserveResult</code></td>
+<td>Needed by every mode: a trail with no closing record is an action nobody knows the end of</td>
+</tr>
+<tr>
+<td><code>Block</code></td>
+<td>Needed by <code>APPROVE</code>, <code>ENFORCE</code> and <code>LOCKDOWN</code>. An adapter without it never runs under a mode that enforces</td>
+</tr>
+<tr>
+<td><code>Authenticates</code></td>
+<td>The adapter's listener establishes an end user before a call is translated</td>
+</tr>
+<tr>
+<td><code>BindEndUser</code></td>
+<td>The adapter carries that identity into the envelope's principal. Declared without <code>Authenticates</code>, it is refused at start: without authentication there is no user, only a claim</td>
+</tr>
+<tr>
+<td><code>SeeDelegation</code></td>
+<td>The adapter can read a delegation chain out of the call</td>
+</tr>
+<tr>
+<td><code>SeeResourceIDs</code></td>
+<td>The adapter can name the resource a call touches</td>
+</tr>
+<tr>
+<td><code>Obligations</code></td>
+<td>The obligation types the adapter applies itself, by name from the catalogue. The plane's own rewriting types plus these are the kernel's applicable set; an obligation outside the union is a <code>DENY</code> with <code>OBLIGATION_NOT_UNDERSTOOD</code></td>
+</tr>
+</tbody>
+</table>
+<p>A capability is a promise to the plane, so the plane checks it at start and never
+per call: the mode table maps every declared enforcement mode to what it needs,
+<code>UNSPECIFIED</code> is refused as configuration, and a mode the adapter cannot serve
+stops the plane from being built. A refusal at start is the alternative to an
+adapter that observes while the operator believes it enforces.</p>
+<h2 id="lifecycle">Lifecycle</h2>
+<ol>
+<li><strong>Configure.</strong> The adapter's own <code>New</code> refuses everything it can refuse
+before anything runs: a transport it does not serve, an identity that claims
+what only a credential may say, two upstreams with one name, an incomplete
+classification.</li>
+<li><strong>Build the plane.</strong> <code>gateway.New</code> takes the adapter, reads its capabilities
+once, checks them against the mode and builds the kernel with the applicable
+obligations derived from them.</li>
+<li><strong>Start.</strong> The adapter connects what it talks to and reads what it needs to
+classify calls. An upstream it cannot reach fails the start rather than
+serving without it.</li>
+<li><strong>Serve.</strong> Per call: translate, <code>Admit</code>, apply what the disposition says,
+send, <code>Close</code> or <code>Abort</code>.</li>
+<li><strong>Close.</strong> Disconnect, and let the plane's own seams close after it.</li>
+</ol>
+<h2 id="applying-an-obligation">Applying an obligation</h2>
+<p>An adapter applies only the obligation types it declared, and each one it
+declares needs a conformance test. The MCP adapter's four, with the parameters it
+reads:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Parameters</th>
+<th>What it does to a call</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_only</code></td>
+<td>none</td>
+<td>refuses a call whose effect is material</td>
+</tr>
+<tr>
+<td><code>restrict_resources</code></td>
+<td><code>ids</code> (comma-separated exact ids), <code>prefix</code> (a literal prefix)</td>
+<td>refuses a call whose resource id matches neither; with neither parameter, nothing matches</td>
+</tr>
+<tr>
+<td><code>shorten_timeout</code></td>
+<td><code>ms</code> (a positive integer)</td>
+<td>bounds this call by the shortest timeout the obligations ask for</td>
+</tr>
+<tr>
+<td><code>deny_external_sink</code></td>
+<td>none</td>
+<td>refuses a call whose destination trust zone is untrusted</td>
+</tr>
+</tbody>
+</table>
+<p>An obligation marked advisory that the adapter cannot satisfy is skipped and
+the call proceeds, and nothing records the skip; a non-advisory one stops it,
+and the closing record says the obligation refused it. The plane applies the rewriting types (<code>redact_fields</code>,
+<code>cap_amount</code>) itself, before the decision that is recorded, because they change
+the bytes the digest covers.</p>
+<h2 id="the-bytes-are-not-the-adapters-to-choose">The bytes are not the adapter's to choose</h2>
+<p><code>Disposition.AuthorizedArgs</code> are the bytes to send and <code>AuthorizedDigest</code> is
+their <code>ArgumentsHashV1</code>. An adapter digests what it is about to send, compares,
+and aborts rather than sending on a mismatch. After the call it hands <code>Close</code> the
+bytes it sent, and the plane digests them again against its own record. An
+adapter that sends anything else is the failure this check exists to catch, and
+it stops the plane for material calls until it restarts.</p>
+<h2 id="conformance">Conformance</h2>
+<p>A declared capability that no test exercises is a documented capability that does
+not exist, so each one is exercised against an in-process server of the
+protocol, in the adapter's own package:</p>
+<table>
+<thead>
+<tr>
+<th>Declared</th>
+<th>What the test has to show</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ObserveRequest</code></td>
+<td>the envelope the plane was asked about carries what the call said</td>
+</tr>
+<tr>
+<td><code>ObserveResult</code></td>
+<td>the closing record carries the upstream's outcome</td>
+</tr>
+<tr>
+<td><code>Block</code></td>
+<td>the upstream is never called for a blocked call</td>
+</tr>
+<tr>
+<td><code>Authenticates</code>, <code>BindEndUser</code></td>
+<td>the principal is the credential's user, and a request with no user is refused</td>
+</tr>
+<tr>
+<td><code>SeeDelegation</code></td>
+<td>the chain in the call reaches the envelope</td>
+</tr>
+<tr>
+<td><code>SeeResourceIDs</code></td>
+<td>the resource id in the envelope is the one the call names</td>
+</tr>
+<tr>
+<td>each obligation type</td>
+<td>a call the obligation refuses does not reach the upstream, and one it permits does</td>
+</tr>
+</tbody>
+</table>
+<p>Beyond the capabilities, an adapter that is worth trusting also has an
+adversarial test per answer it makes itself: an upstream that tries to answer in
+the gateway's name, a result larger than its bound, a call that cannot be routed.</p>
+<h2 id="a-minimal-adapter">A minimal adapter</h2>
+<pre><code class="language-go">type Echo struct{}
+
+func (Echo) Name() string { return &#34;echo&#34; }
+
+func (Echo) Capabilities() gateway.Capabilities {
+    return gateway.Capabilities{ObserveRequest: true, ObserveResult: true, Block: true}
+}
+
+func (e Echo) Handle(ctx context.Context, p *gateway.Pipeline, in Request) Response {
+    d := p.Admit(ctx, gateway.Admission{Envelope: translate(in), Arguments: in.Body})
+    if d.Action != core.Execute &amp;&amp; d.Action != core.ExecuteWithObligations {
+        return refusal(d) // a block, or a pending state, as this protocol says it
+    }
+    sent := d.AuthorizedArgs
+    result, err := send(ctx, sent)
+    if err := p.Close(ctx, d, sent, resultOf(result, err)); err != nil {
+        // the record is not durable: deliver the result, count it, and let the
+        // plane stop taking material calls
+    }
+    return response(result)
+}
+</code></pre>
+<p>What the plane does with this adapter, and what an operator configures, is
+<a href="/docs/guides/run-the-gateway">guides/run-the-gateway</a>;
+<a href="/docs/concepts/mcp-gateway">concepts/mcp-gateway</a> is the mechanism it plugs into.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/extending/adapters.md">docs/extending/adapters.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters" aria-current="page">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

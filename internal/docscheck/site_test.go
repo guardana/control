@@ -4,13 +4,16 @@ package docscheck
 import (
 	"bytes"
 	"io/fs"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/guardana/control/internal/brand"
+	"github.com/guardana/control/internal/docscheck/docsconfig"
 	"github.com/guardana/control/internal/docscheck/sitedoc"
+	"github.com/guardana/control/internal/docscheck/sitedoc/docsite"
 )
 
 const (
@@ -21,9 +24,13 @@ const (
 	brandV1Digest = "6d177eb80cb233c8fce3b613f11788f548ca0cbfc7bd573e2fada5debcb64e4c"
 	brandV1Files  = 10
 	minSiteLinks  = 20
+	// minDocsPages is a floor under the rendered set: a render that found
+	// no page would otherwise compare nothing with nothing.
+	minDocsPages = 60
 )
 
-// siteManifest is every file under site/.
+// siteManifest is every file under site/ that no generator writes; the
+// documentation pages and the sitemap are what docsite.Build writes.
 var siteManifest = []string{
 	".assetsignore",
 	"_headers",
@@ -39,6 +46,7 @@ var siteManifest = []string{
 	"assets/brand/v1/mark.svg",
 	"assets/brand/v1/tokens.css",
 	"assets/control/control.css",
+	"assets/control/docs.css",
 	"assets/control/icon.svg",
 	"assets/control/mark-dark.svg",
 	"assets/control/mark.svg",
@@ -78,8 +86,62 @@ func report(t *testing.T, what string, problems []string) {
 	}
 }
 
+// docsFiles renders the documentation as `make docs-gen` does, keyed by the
+// path under site/.
+func docsFiles(t *testing.T) map[string][]byte {
+	t.Helper()
+	fsys := repoFS(t)
+	data, err := fs.ReadFile(fsys, "docs/docs.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := docsconfig.Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	built, err := docsite.Build(fsys, cfg.Excludes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := make(map[string][]byte, len(built))
+	for name, data := range built {
+		files[strings.TrimPrefix(name, siteDir+"/")] = data
+	}
+	if len(files) < minDocsPages {
+		t.Fatalf("the renderer wrote %d files, fewer than the %d pages that exist", len(files), minDocsPages)
+	}
+	return files
+}
+
 func TestSiteHoldsThePinnedManifest(t *testing.T) {
-	report(t, siteDir, manifestProblems(loadSite(t), siteManifest))
+	want := slices.Clone(siteManifest)
+	for name := range docsFiles(t) {
+		if !slices.Contains(want, name) {
+			want = append(want, name)
+		}
+	}
+	report(t, siteDir, manifestProblems(loadSite(t), want))
+}
+
+// Every documentation page and the sitemap are what the renderer writes from
+// the Markdown now, and site/docs/ holds nothing it does not write.
+func TestDocsPagesAreRendered(t *testing.T) {
+	want := docsFiles(t)
+	site := loadSite(t)
+	for _, name := range sortedKeys(want) {
+		got, ok := site[name]
+		switch {
+		case !ok:
+			t.Errorf("%s/%s is missing; run `make docs-gen`", siteDir, name)
+		case !bytes.Equal(got, want[name]):
+			t.Errorf("%s/%s lags its source; run `make docs-gen`\n%s", siteDir, name, firstDifferingLine(want[name], got))
+		}
+	}
+	for _, name := range sortedKeys(site) {
+		if _, ok := want[name]; !ok && strings.HasPrefix(name, "docs/") {
+			t.Errorf("%s/%s is rendered from no page; run `make docs-gen`", siteDir, name)
+		}
+	}
 }
 
 func TestBrandFilesMatchThePinnedSums(t *testing.T) {
@@ -140,6 +202,21 @@ func TestSiteLoadsNothingFromAnotherHost(t *testing.T) {
 	report(t, siteDir+"/_headers", headerProblems(data))
 }
 
+// Every page holds each id once, so a fragment or a drawing's reference lands
+// on the one element it names.
+func TestSitePagesHoldEachIDOnce(t *testing.T) {
+	pages := 0
+	for name, data := range loadSite(t) {
+		if path.Ext(name) == ".html" {
+			pages++
+			report(t, name, idProblems(loadPage(t, data)))
+		}
+	}
+	if pages < minDocsPages {
+		t.Errorf("read %d pages, want at least %d", pages, minDocsPages)
+	}
+}
+
 func TestSiteLinksResolve(t *testing.T) {
 	problems, resolved := linkProblems(loadSite(t), repoFS(t))
 	report(t, siteDir, problems)
@@ -185,25 +262,35 @@ func TestWranglerConfigIsExact(t *testing.T) {
 
 var sitemapLoc = regexp.MustCompile(`<loc>([^<]*)</loc>`)
 
-// The page names its one address as canonical, the sitemap lists it alone,
-// and robots.txt points at the sitemap.
+// Each page names the address it is served at, under the site's one origin,
+// as canonical; the sitemap lists exactly those; robots.txt points at the
+// sitemap.
 func TestSiteNamesItsOneAddress(t *testing.T) {
 	files := loadSite(t)
-	var canonical []string
-	loadPage(t, files["index.html"]).walk(func(n *xnode) {
-		if n.name == "link" && n.attrs["rel"] == "canonical" {
-			canonical = append(canonical, n.attrs["href"])
+	var want []string
+	for _, name := range sortedKeys(files) {
+		if path.Ext(name) != ".html" {
+			continue
 		}
-	})
-	if !slices.Equal(canonical, []string{siteOrigin}) {
-		t.Errorf("canonical links = %q, want [%s]", canonical, siteOrigin)
+		address := siteOrigin + strings.TrimSuffix(strings.TrimSuffix(name, ".html"), "index")
+		var canonical []string
+		loadPage(t, files[name]).walk(func(n *xnode) {
+			if n.name == "link" && n.attrs["rel"] == "canonical" {
+				canonical = append(canonical, n.attrs["href"])
+			}
+		})
+		if !slices.Equal(canonical, []string{address}) {
+			t.Errorf("%s: canonical links = %q, want [%s]", name, canonical, address)
+		}
+		want = append(want, address)
 	}
+	slices.Sort(want)
 	var locs []string
 	for _, m := range sitemapLoc.FindAllStringSubmatch(string(files["sitemap.xml"]), -1) {
 		locs = append(locs, m[1])
 	}
-	if !slices.Equal(locs, []string{siteOrigin}) {
-		t.Errorf("sitemap locations = %q, want [%s]", locs, siteOrigin)
+	if len(want) < minDocsPages || !slices.Equal(locs, want) {
+		t.Errorf("sitemap locations = %q, want the %d page addresses %q", locs, len(want), want)
 	}
 	if !strings.Contains(string(files["robots.txt"]), "\nSitemap: "+siteOrigin+"sitemap.xml\n") {
 		t.Errorf("robots.txt does not name %ssitemap.xml", siteOrigin)

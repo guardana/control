@@ -24,6 +24,8 @@ closed on its own trail and never run, where the plane journals its holds.
 
 ```mermaid
 sequenceDiagram
+    accTitle: One held request, end to end
+    accDescr: The call is held and the agent told it is pending; an approver answers in the store; the agent's identical retry is decided again, consumes the approval once, and only the authorized bytes reach the upstream.
     participant Agent
     participant Point as Enforcement point
     participant Store as Approval store
@@ -172,6 +174,8 @@ one the retry equals, oldest first.
 
 ```mermaid
 stateDiagram-v2
+    accTitle: The states of a held request
+    accDescr: A held request runs once when an approved retry consumes its approval, or ends expired, rejected, refused or lost, and every path ends with its trail closed.
     [*] --> held: APPROVAL_REQUESTED written, the hold kept and stored
     held --> held: a retry before an answer is told the same approval_id again
     held --> running: an approved retry consumes the approval once, APPROVAL_DECIDED then ACTION_STARTED

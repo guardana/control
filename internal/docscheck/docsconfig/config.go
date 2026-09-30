@@ -43,6 +43,17 @@ type Config struct {
 	Surfaces []string `json:"surfaces"`
 }
 
+// Excludes reports whether rel, a repository path, is one Excluded names: the
+// path itself, or a path under a directory it names with a trailing slash.
+func (c Config) Excludes(rel string) bool {
+	for _, prefix := range c.Excluded {
+		if rel == prefix || strings.HasSuffix(prefix, "/") && strings.HasPrefix(rel, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // Readme is the word budget of README.md files.
 type Readme struct {
 	Root   int `json:"root"`

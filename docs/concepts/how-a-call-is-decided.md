@@ -19,6 +19,8 @@ listed in the decision, in order, once each.
 
 ```mermaid
 flowchart TD
+    accTitle: The order of a decision
+    accDescr: A refused or mismatched request is INDETERMINATE; otherwise the delegation chain, the tenants, the snapshot and its freshness, the rules and the obligations are read in turn; any DENY wins, any cause makes the verdict INDETERMINATE, and the action follows from the verdict.
     A["Request: the envelope, the authorized arguments, a decoder's refusal if any"] --> B{"Refused, by the decoder or by Validate?"}
     B -->|yes| R["INDETERMINATE with a cause in the request"]
     B -->|no| C{"Action digest and arguments hash computed, and the hash the envelope carries matches?"}

@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Enforcement modes · Guardana Control</title>
+<meta name="description" content="What each mode does with the kernel&#39;s decision, what it needs from an adapter, and which modes this build runs."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/concepts/enforcement-modes"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="enforcement-modes">Enforcement modes</h1>
+<p>The kernel decides every call, the same way in every mode but <code>LOCKDOWN</code>,
+which builds it with fail-open reads off. A mode is what the
+enforcement point does with that decision: <code>OBSERVE</code> records it and lets the
+call through, <code>APPROVE</code> holds an allowed material call for an approver,
+<code>ENFORCE</code> does what the decision says, and <code>LOCKDOWN</code> blocks every material
+call whatever the decision said and runs a read as <code>ENFORCE</code> would with
+fail-open reads off (<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>).
+The kernel's decision is recorded untouched whatever the mode did with it.</p>
+<h2 id="where-the-mode-is-applied">Where the mode is applied</h2>
+<figure class="dg-text" id="diagram-1"><figcaption>Where the mode is applied</figcaption><p>A call the enforcement point blocks for its own causes is blocked in every mode; otherwise OBSERVE executes the proposed bytes, APPROVE holds an allowed material call, ENFORCE applies the kernel&#39;s action, and the trail is written before anything runs. <a href="https://github.com/guardana/control/blob/main/docs/concepts/enforcement-modes.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TD
+    accTitle: Where the mode is applied
+    accDescr: A call the enforcement point blocks for its own causes is blocked in every mode; otherwise OBSERVE executes the proposed bytes, APPROVE holds an allowed material call, ENFORCE applies the kernel&#39;s action, and the trail is written before anything runs.
+    K[&#34;The kernel&#39;s decision and its action, for the proposed bytes&#34;] --&gt; P{&#34;Blocked by the enforcement point itself?&#34;}
+    P --&gt;|a pause, an unreadable pause state, a halt or LOCKDOWN on a material call, or a call nothing classifies outside OBSERVE| B[&#34;Block, with a decision the enforcement point minted listing every cause&#34;]
+    P --&gt;|no| M{&#34;Mode&#34;}
+    M --&gt;|OBSERVE| X[&#34;Execute the proposed bytes, whatever the verdict&#34;]
+    M --&gt;|APPROVE, allowed material call| A[&#34;AwaitApproval&#34;]
+    M --&gt;|ENFORCE, and every case above that did not match| D[&#34;The kernel&#39;s action, as it is&#34;]
+    X --&gt; W[&#34;Write the trail, then run or block as the action says&#34;]
+    D --&gt; W
+    A --&gt; H[&#34;Hold the request&#34;]
+</code></pre></details></figure>
+<p>Sources: <code>internal/gateway/admit.go</code>, <code>internal/gateway/pipeline.go</code>.</p>
+<p>The mode is applied in <code>applyMode</code>, after the kernel decided and before
+anything is written. It is also read where the kernel is built, where
+<code>OBSERVE</code> skips the rewriting obligations, and where <code>OBSERVE</code> takes a call
+nothing classifies. It changes the action and never the decision:
+<code>POLICY_DECIDED</code> carries the kernel's decision, and a block the mode made
+carries a decision the enforcement point minted, with <code>pdp_type: gateway</code> and
+the block's code. Under <code>LOCKDOWN</code> the pipeline builds its kernel with
+fail-open reads off, so a read is enforced by the kernel's own table and no
+reason code is ever read to decide.</p>
+<h2 id="what-each-mode-does-with-each-verdict">What each mode does with each verdict</h2>
+<p>The kernel's action per verdict is fixed (<code>DENY</code> blocks, <code>REQUIRE_APPROVAL</code>
+awaits an approval, <code>ALLOW_WITH_OBLIGATIONS</code> runs with its obligations, <code>ALLOW</code>
+runs, <code>INDETERMINATE</code> goes to the fail-closed table, see
+<a href="/docs/concepts/how-a-call-is-decided">how a call is decided</a>). The mode acts on that:</p>
+<table>
+<thead>
+<tr>
+<th>Verdict</th>
+<th><code>OBSERVE</code></th>
+<th><code>APPROVE</code></th>
+<th><code>ENFORCE</code></th>
+<th><code>LOCKDOWN</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ALLOW</code></td>
+<td>runs, with the proposed bytes</td>
+<td>a read runs; a material call is held</td>
+<td>runs</td>
+<td>a read runs; a material call is blocked with <code>LOCKDOWN</code></td>
+</tr>
+<tr>
+<td><code>ALLOW_WITH_OBLIGATIONS</code></td>
+<td>runs, with the proposed bytes and nothing rewritten or applied</td>
+<td>a read runs with its obligations; a material call is held, and its obligations apply when it resumes</td>
+<td>runs with its obligations applied</td>
+<td>a read runs with its obligations; a material call is blocked with <code>LOCKDOWN</code></td>
+</tr>
+<tr>
+<td><code>REQUIRE_APPROVAL</code></td>
+<td>runs, with the proposed bytes</td>
+<td>held</td>
+<td>held</td>
+<td>a read is held; a material call is blocked with <code>LOCKDOWN</code></td>
+</tr>
+<tr>
+<td><code>DENY</code></td>
+<td>runs, with the proposed bytes</td>
+<td>blocked</td>
+<td>blocked</td>
+<td>blocked; a material call with the enforcement point's <code>LOCKDOWN</code> decision on the block, a read with the kernel's</td>
+</tr>
+<tr>
+<td><code>INDETERMINATE</code></td>
+<td>runs, with the proposed bytes</td>
+<td>the fail-closed table</td>
+<td>the fail-closed table</td>
+<td>a material call is blocked with <code>LOCKDOWN</code>; a read goes to the fail-closed table with fail-open reads off, so it blocks</td>
+</tr>
+</tbody>
+</table>
+<p><code>OBSERVE</code> enforces nothing the decision says, so it executes the proposed
+bytes without applying a rewriting obligation, and it takes a call nothing
+classifies; it is how an operator learns which tools exist before classifying
+them. What the enforcement point refuses on its own account, in the table
+below, it refuses in <code>OBSERVE</code> too: it writes the trail first, and an event the
+sink will not take blocks the call, unless the read is let through unrecorded
+under the explicit evidence setting.</p>
+<h2 id="what-the-enforcement-point-blocks-in-every-mode">What the enforcement point blocks in every mode</h2>
+<p>These come before the mode, or from the trail, and no mode relieves them:</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Verdict on the block</th>
+<th>Code</th>
+<th>Until</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a call an operator's pause covers, in every mode</td>
+<td><code>DENY</code></td>
+<td><code>PAUSED</code></td>
+<td>the operator removes the entry</td>
+</tr>
+<tr>
+<td>every call, while a configured pause file cannot be read</td>
+<td><code>INDETERMINATE</code></td>
+<td><code>PAUSE_STATE_UNAVAILABLE</code></td>
+<td>a read succeeds</td>
+</tr>
+<tr>
+<td>a call nothing classifies, in every mode but <code>OBSERVE</code></td>
+<td><code>INDETERMINATE</code></td>
+<td><code>ACTION_UNCLASSIFIED</code></td>
+<td>the operator classifies it</td>
+</tr>
+<tr>
+<td>a material call after an execution ran with bytes that were not authorized</td>
+<td><code>DENY</code></td>
+<td><code>EXECUTED_ARGS_MISMATCH</code></td>
+<td>the enforcement point restarts</td>
+</tr>
+<tr>
+<td>a material call after a closing event the sink refused</td>
+<td><code>INDETERMINATE</code></td>
+<td><code>EVIDENCE_UNAVAILABLE</code></td>
+<td>an append succeeds</td>
+</tr>
+<tr>
+<td>a request id whose trail is still open in this enforcement point, unless the call resumes that trail</td>
+<td><code>INDETERMINATE</code></td>
+<td><code>INVALID_FIELD_VALUE</code></td>
+<td>that trail closes</td>
+</tr>
+<tr>
+<td>an event the sink will not take before the effect, for a material call, or for a read without <code>AllowReadsUnrecorded</code></td>
+<td><code>INDETERMINATE</code></td>
+<td><code>EVIDENCE_UNAVAILABLE</code></td>
+<td>the sink takes events again</td>
+</tr>
+<tr>
+<td>an execution past <code>MaxOpen</code>, or a hold past <code>MaxHeld</code></td>
+<td><code>INDETERMINATE</code></td>
+<td><code>EVIDENCE_UNAVAILABLE</code></td>
+<td>an execution closes, or a hold ends</td>
+</tr>
+</tbody>
+</table>
+<p>When a call has more than one of the first five causes, or one of them and
+<code>LOCKDOWN</code> on a material call, the decision on the block lists every one, in
+this order: <code>PAUSED</code>, <code>EXECUTED_ARGS_MISMATCH</code>, <code>LOCKDOWN</code>,
+<code>PAUSE_STATE_UNAVAILABLE</code>, <code>EVIDENCE_UNAVAILABLE</code>, <code>ACTION_UNCLASSIFIED</code>. Its
+verdict is <code>DENY</code> when any of them denies, and its first code is the one the
+block counters count. The kernel still decides such a
+call, and <code>POLICY_DECIDED</code> records that decision, but an external decision
+point is not asked: the question would leave the plane for nothing, during
+the incident the pause or the halt stands for
+(<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>). The plane names
+these causes once, before any question leaves it, and blocks on them whatever
+changes after. With none it asks, then takes the pause state and its clock
+again and names the causes once more, so a pause or a halt that comes while
+the ask waits blocks that call. The pause state alone is taken once more
+right before each step that cannot be undone, as the next section says.</p>
+<h2 id="pausing-calls">Pausing calls</h2>
+<p>An operator stops one tool, one upstream or everything without a restart by
+writing an entry into the pause file <code>pause.file</code> names, with
+<code>guardana-control pause add</code>, and lifts it with <code>pause remove</code>. An entry has
+one of three scopes:</p>
+<ul>
+<li><code>global</code>: every call.</li>
+<li><code>provider</code>: every call to one upstream, by its configured name.</li>
+<li><code>action</code>: a kind (<code>tool</code>, <code>prompt</code> or <code>resource</code>), an upstream and, for a
+tool, the name the plane routes by. A prompt and a resource are paused by
+their upstream only: the plane routes either by its upstream alone, so its
+name or URI is the client's to spell and an exact match could be
+sidestepped. The format refuses a name on either.</li>
+</ul>
+<p>A field the call does not carry matches, as an absent input restricts: a call
+nothing routes to an upstream is covered by every provider entry, and by an
+action entry of its kind and, for a tool, its name. No scope reads anything
+else the client wrote. A pause sits above every mode: it blocks in <code>OBSERVE</code>,
+reads included, and whatever the policy decided. A file holds at most 64
+entries; a full one refuses another, a global one included, until an entry is
+removed.</p>
+<p>An entry naming an upstream the configuration lacks, or a tool its upstream
+does not list, pauses only calls that carry no provider, which are calls to
+names no upstream lists. <code>doctor</code>, the <code>unlisted_only</code> member of <code>/healthz</code>'s
+<code>pause</code> and the plane's log name every such entry; a tool is judged once the
+upstreams have answered. The log names them at warn at start and with each
+change of the file.</p>
+<p>The plane reads the file every <code>pause.poll_interval</code> into a snapshot, and once
+more before it listens, since a slow start can outlast the first read. A call
+takes the snapshot, then reads the clock it judges the snapshot's age by, and
+decides under it; when the decision point is asked it takes both again after
+the ask and decides everything after the ask, the rewritten call's second
+decision included, under that one. It takes both once more right before a
+resume consumes an approval and before an execution is handed out, since the
+approvals store or a sink that syncs can outlast a snapshot; a state that
+covers the call or cannot be read blocks it there. A file that is missing, a
+link, writable by the group or others, in a directory they may write or whose
+own name is a link, owned, or in a directory owned, by another account than
+the plane's, too large, malformed or of an
+unknown version, and a snapshot older than three intervals or dated ahead of
+the plane's clock, are all an unknown state: every call is blocked with
+<code>PAUSE_STATE_UNAVAILABLE</code> and <code>/healthz</code> answers 503 naming the cause. The
+same checks at start refuse the start, and the commands refuse a directory
+another account owns, so run them as the plane's user. Deleting the file
+therefore blocks everything; it never lifts a pause. A plane without
+<code>pause.file</code> is disabled and says so.</p>
+<p>The file's directory may not be, or sit inside, the spool's, the approvals
+store's or the hold journal's, which a running plane locks. The check compares
+the directories by identity as well as by path, so a link to one of them, or
+a spelling in another case on a volume that ignores case, is refused too.</p>
+<p>A pause bites on every call not yet handed out for execution when the plane
+reads it. Nothing already running is cancelled: an execution handed out before
+it finishes and is recorded, since cancelling it would turn an effect into an
+unknown one. A paused retry of a held request is blocked on a trail of its
+own, holds nothing anew and consumes nothing, and that holds for a pause read
+while the approvals store looks the hold up; the hold outlives the pause and
+resumes on the next retry after the lift if its approval has not expired. A
+pause read after the approval was consumed, while its record is written, closes
+the held trail with the block, and the approval is spent. A listing
+ignores pauses: a paused tool stays listed, and a call to it reads <code>PAUSED</code>.</p>
+<h2 id="what-a-mode-needs-from-an-adapter">What a mode needs from an adapter</h2>
+<p>A mode needs capabilities from the adapter that serves it, and the
+enforcement point refuses to start when the configured mode needs one the
+adapter does not declare, or names a mode this build does not enforce. The
+table is rendered from the mode table in <code>internal/gateway/mode.go</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Needs from the adapter</th>
+<th>In this build</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>UNSPECIFIED</code></td>
+<td>nothing: refused as configuration</td>
+<td>refused at start</td>
+</tr>
+<tr>
+<td><code>OBSERVE</code></td>
+<td>observe the request, observe the result</td>
+<td>runs</td>
+</tr>
+<tr>
+<td><code>SHADOW</code></td>
+<td>observe the request, observe the result, block</td>
+<td>planned: refused at start</td>
+</tr>
+<tr>
+<td><code>WARN</code></td>
+<td>observe the request, observe the result</td>
+<td>planned: refused at start</td>
+</tr>
+<tr>
+<td><code>APPROVE</code></td>
+<td>observe the request, observe the result, block</td>
+<td>runs</td>
+</tr>
+<tr>
+<td><code>ENFORCE</code></td>
+<td>observe the request, observe the result, block</td>
+<td>runs</td>
+</tr>
+<tr>
+<td><code>LOCKDOWN</code></td>
+<td>observe the request, observe the result, block</td>
+<td>runs</td>
+</tr>
+<tr>
+<td>a number no build declares</td>
+<td>nothing: refused as configuration</td>
+<td>refused at start</td>
+</tr>
+</tbody>
+</table>
+<p><code>observe the request</code> and <code>observe the result</code> are the adapter seeing a call
+before the upstream does and seeing what the upstream answered; <code>block</code> is the
+adapter being able to stop a call from reaching the upstream. An adapter also
+declares the obligation types it applies to the bytes it sends, which join the
+kernel's applicable set, and whether it authenticates an end user, without
+which it may not bind one.</p>
+<h2 id="list-shaping-under-each-mode">List shaping under each mode</h2>
+<p>A <code>tools/list</code> is shaped by the same pipeline a call is decided by: for a list
+it does not hold cached, under <code>annotate</code> or <code>hide</code>, <code>Preview</code> runs the
+decision step and the mode step for a call with no arguments to each tool the
+manifest classifies and one upstream serves, and records, holds and executes
+nothing. Shaping only ever
+subtracts, and is the adapter's configuration, <code>list.shaping</code>; the
+configuration refuses <code>annotate</code> and <code>hide</code> in a mode that does not enforce
+(<a href="/docs/reference/mcp-coverage">reference/mcp-coverage</a>).</p>
+<table>
+<thead>
+<tr>
+<th>Shaping</th>
+<th>What the agent sees</th>
+<th>What the mode changes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none</code></td>
+<td>the upstream's list</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td><code>annotate</code></td>
+<td>each classified tool marked with the verdict of its preview under the enum's own name, <code>VERDICT_ALLOW</code> or <code>VERDICT_DENY</code> for instance; <code>DECIDED_PER_CALL</code> when the preview could not decide without arguments; <code>ACTION_UNCLASSIFIED</code> on a tool nobody classified</td>
+<td>under <code>LOCKDOWN</code> a material tool is marked <code>VERDICT_DENY</code>, the enforcement point's own; under <code>APPROVE</code> the mark is the kernel's verdict, because the mode changes the action and not the decision, so an allowed material tool is marked <code>VERDICT_ALLOW</code> and held when called</td>
+</tr>
+<tr>
+<td><code>hide</code></td>
+<td>a tool the preview denies, and every unclassified tool, is omitted; a tool the preview cannot decide stays</td>
+<td>under <code>LOCKDOWN</code> every material tool is omitted</td>
+</tr>
+</tbody>
+</table>
+<h2 id="why">Why</h2>
+<ul>
+<li>The mode lives in the enforcement point, after the decision, and the
+kernel builds <code>ENFORCE</code> only, so the same request decides the same way
+whatever the operator set, and the evidence says what was decided and what
+was done with it, separately (ADR-0012, ADR-0013).</li>
+<li>A mode never reaches an extension: the adapter translates, the sink writes,
+the policy holder serves a bundle, and none of them knows the mode
+(ADR-0013, invariant 7).</li>
+<li><code>LOCKDOWN</code> is implemented by building the kernel with fail-open reads off
+and by the enforcement point's own <code>DENY</code>, never by reading a reason code
+(ADR-0013).</li>
+<li><code>APPROVE</code> turns an allowed material call into a pending state and never
+relieves a <code>DENY</code> or an <code>INDETERMINATE</code>, so a mode meant to add a human
+cannot take one away (ADR-0013).</li>
+<li>A mode is refused at start, not when a call arrives, when the build does
+not enforce it or the adapter cannot serve it (ADR-0013).</li>
+</ul>
+<h2 id="where-the-code-lives">Where the code lives</h2>
+<p><code>internal/gateway/mode.go</code> holds the table and its refusals,
+<code>internal/gateway/adapter.go</code> the capabilities an adapter declares,
+<code>internal/gateway/pipeline.go</code> builds the kernel the mode needs and the
+<code>Preview</code> a listing uses, <code>internal/gateway/admit.go</code> applies the mode after
+the decision, <code>internal/gateway/pause.go</code> names the enforcement point's own
+causes, <code>internal/pause</code> reads and writes the pause file, and
+<code>adapters/mcp/list.go</code> shapes a <code>tools/list</code> from the preview.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/enforcement-modes.md">docs/concepts/enforcement-modes.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes" aria-current="page">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

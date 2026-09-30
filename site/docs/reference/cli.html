@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Command line · Guardana Control</title>
+<meta name="description" content="The two binaries, what each prints as its help, and the exit statuses they share."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/cli"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="command-line">Command line</h1>
+<p>Two binaries, built from the repository root with <code>go build ./cmd/&lt;name&gt;</code>;
+<a href="/docs/status">status.md</a> says what each does today. Each fenced block below
+is the help its binary prints on a usage error, byte for byte: the marker
+around it names the test that diffs the block against the binary's text, so
+a flag or a command that changes without this page fails the gate.</p>
+<table>
+<thead>
+<tr>
+<th>Exit status</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>The command did what it was asked.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>The input was refused or a case failed: stderr says why, one line each; a scenario's report on stdout names what differed.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>A usage error (stderr carries the help below or names the flag or argument), or a scenario that could not run.</td>
+</tr>
+</tbody>
+</table>
+<p>Without arguments either binary prints its version and one status line on
+stdout and exits 0.</p>
+<p>Every command of either binary refuses an argument holding a PEM marker, the
+start of a key file's body line, a line break or another control character
+before it reads a flag, with one line that does not repeat the argument and
+status 2: such an argument is key text where a path belongs, or text that
+would break the line reporting it. Only the body line's unbroken start is
+matched, so a spaced or partial one passes. Key text read from a setting, a
+file, the environment or a request is printed as <code>[key text withheld]</code>,
+keeping the rest, logs included.
+A message holding a control character, a line or paragraph separator, a
+format character or bytes that are not UTF-8 is printed as a quoted Go string.</p>
+<h2 id="guardana-control">guardana-control</h2>
+<p><code>policy lint</code> and <code>policy test</code> read a document without a plane, and
+<code>policy keygen</code> and <code>policy sign</code> make the key and the signed bundle a plane
+loads: <a href="/docs/guides/write-and-test-a-policy">guides/write-and-test-a-policy.md</a>
+is their page. The <code>approvals</code> commands read and answer the records under an
+approvals directory, from outside the gateway process.</p>
+<p><code>policy keygen</code> creates the directory <code>--out</code> names, mode <code>0700</code>, and refuses a
+path that exists. Into it go <code>signing.key</code>, the private key as one PKCS#8 PEM
+block, mode <code>0600</code>, and <code>signing.pub</code>, the public key as one line of standard
+base64 and a newline, which <code>policy.public_key</code> takes as it is. It prints exactly two lines, <code>key_id: &lt;id&gt;</code> and <code>public_key: &lt;line&gt;</code>,
+the two members the gateway's <code>policy</code> group takes. The id is <code>ed25519-</code> and
+the first 16 hex digits of SHA-256 over the public key's 32 bytes; nothing
+lets an operator choose it.</p>
+<p><code>policy sign</code> prints one <code>name: value</code> line each for <code>bundle_id</code>, <code>version</code>,
+<code>serial</code>, <code>digest</code>, <code>key_id</code> and <code>out</code>, and writes the bundle mode <code>0644</code>,
+replacing an earlier bundle at <code>--out</code>. It writes nothing when it refuses: a
+document that does not parse, refused before the key is opened; a key file
+another account owns, one on which the group or others have any permission,
+one that is not a regular file, and one that is not exactly one unencrypted
+Ed25519 key in PKCS#8, with an OpenSSH, encrypted, EC, RSA or public key each
+named; an <code>--out</code> that is the key or the document by any spelling or link, and
+one that exists and is not a policy bundle, so no other file, another key
+included, is replaced; and a bundle the loader would refuse. <code>--out</code> is
+cleaned as text before anything reads it, so <code>a/link/../x</code> names <code>a/x</code>
+whatever <code>a/link</code> points at. When syncing the directory fails after the
+rename, <code>sign</code> reports the failure although the new bundle may already be in
+place.</p>
+<p>The key reaches the command only as a path. No refusal quotes the key file or prints
+the <code>--key</code> value: a refusal about the key names the flag and the check that
+failed. Both commands refuse
+on a platform without permission bits
+(<a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>).</p>
+<p>Write access to that directory is the approval authority. <code>--approver-id</code> is
+an unauthenticated claim: it is recorded beside the answer so that whoever
+reads the evidence later has a name, and nothing checks it against anything.
+Both answering commands require it, because an answer nobody claims tells a
+reader nothing; flags come before the directory and the approval id.</p>
+<p><code>approvals list</code> prints, for each record, what the plane wrote — its state,
+its resolution and both digests — and beside it the readable fields of the
+projection the plane wrote at hold time. Those readable fields are not bound
+to the action digest beside them: the binding is over the authorized argument
+bytes, which no record holds, so a person reading a listing cannot check one
+against the other. The listing says so above the records. A listing the store
+reports incomplete exits 1 and names what it could not read, because what it
+shows is then neither the whole directory nor an empty one.</p>
+<p><code>approvals approve</code> and <code>approvals reject</code> write the answer whether or not a
+plane is running, and exit 0 either way, because the record is on disk and
+the next plane to start reads it. Where no plane holds the directory they say
+so on stderr: nothing waits for the answer and the held call will not run,
+since a hold does not survive the plane stopping; the answer is written all
+the same, and a plane that keeps a hold journal records it on that call's
+trail as too late to resume it. Writing nothing there would close that trail as one nobody answered,
+which is false about a person who did decide.</p>
+<p>Both commands refuse, writing nothing, an approval id that is not there, one
+an approver answered already, one the plane consumed, one the plane closed
+without resuming, one past its expiry, and an approver id or a reason over
+its bound — each on its own line, naming what to do about it.</p>
+<p>The <code>pause</code> commands write and read the pause file a plane names in
+<code>pause.file</code> (<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>), and
+<a href="/docs/concepts/enforcement-modes">concepts/enforcement-modes.md</a> says what a
+pause does to a call. <code>pause init</code> creates the file, pausing nothing, and
+refuses a name that is taken. <code>pause add</code> takes exactly one scope: <code>--global</code>,
+every call; <code>--provider &lt;p&gt;</code>, every call to that upstream by its configured
+name; or <code>--action &lt;k&gt;</code> with <code>--provider &lt;p&gt;</code>, where <code>&lt;k&gt;</code> is <code>tool</code>, <code>prompt</code>
+or <code>resource</code> and a tool also takes <code>--name &lt;n&gt;</code>, the name the plane routes
+by. A prompt or a resource takes no name, since the plane routes it by its
+upstream alone. <code>&lt;f&gt;</code> is the pause file, a relative path read from the working
+directory. It prints
+the id it drew for the entry and nothing else, and <code>pause remove &lt;file&gt; &lt;id&gt;</code>
+takes that id; removing the last entry leaves a file that pauses nothing,
+because a missing file blocks every call. <code>pause list</code> prints one line per
+entry, its reason included, or <code>no entries</code>.</p>
+<p>Write access to the pause file is the authority to pause and to lift a pause,
+as write access to the approvals directory is the authority to approve: any
+process running as the plane's user can empty the file, so run the commands
+as that user. They refuse, writing nothing, a file or a directory the group or
+others may write or another account owns, a link, a file the plane would
+refuse to read, a second scope or none, a name, a reason or a scope the file
+cannot hold, and a 65th entry, each on one line that does not repeat the
+value. A writer waits up to ten seconds for another writer's lock; a
+running plane takes none. A pause blocks every call not yet handed out for
+execution when the plane reads it, within one <code>pause.poll_interval</code>; it cancels
+nothing already running,
+and a hold outlives it: a held request whose retry was paused resumes after
+the lift if its approval has not expired.</p>
+<p><code>console</code> serves a page that answers approvals and writes pauses:
+<a href="/docs/reference/console">console.md</a>.</p>
+<pre><code>usage:
+  guardana-control policy lint &lt;file&gt;
+  guardana-control policy test &lt;dir&gt;
+  guardana-control policy keygen --out &lt;dir&gt;
+  guardana-control policy sign --key &lt;file&gt; --out &lt;file&gt; &lt;document&gt;
+  guardana-control approvals list &lt;dir&gt;
+  guardana-control approvals approve --approver-id &lt;id&gt; [--reason &lt;text&gt;] &lt;dir&gt; &lt;approval-id&gt;
+  guardana-control approvals reject --approver-id &lt;id&gt; [--reason &lt;text&gt;] &lt;dir&gt; &lt;approval-id&gt;
+  guardana-control pause init &lt;file&gt;
+  guardana-control pause add --provider &lt;p&gt; [--action &lt;k&gt; [--name &lt;n&gt;]]|--global [--reason &lt;r&gt;] &lt;f&gt;
+  guardana-control pause remove &lt;file&gt; &lt;id&gt;
+  guardana-control pause list &lt;file&gt;
+  guardana-control console --approvals &lt;dir&gt; [--pause &lt;f&gt;] --approver-id &lt;id&gt; [--until-stdin-closes]
+
+Write access to the approvals directory is the approval authority:
+--approver-id is a claim recorded as given, never an identity.
+Write access to the pause file is the authority to pause a call and to lift a pause.
+</code></pre>
+<h2 id="guardana-gateway">guardana-gateway</h2>
+<p><code>run</code> serves one plane from a configuration file and <code>doctor</code> checks that
+file without serving: <a href="/docs/guides/run-the-gateway">guides/run-the-gateway.md</a>
+is their page and <a href="/docs/reference/configuration">configuration.md</a> lists every key.
+<code>--config</code> is required: no default location is searched. A key naming a file or a
+directory refuses key text, naming the key and not the value.</p>
+<p><code>collect</code> and <code>trail</code> read no configuration:
+<a href="/docs/guides/watch-a-plane-without-a-collector">guides/watch-a-plane-without-a-collector.md</a>
+is their page. <code>collect</code> listens on a loopback IP address only and appends
+what a plane exports to one file until stopped; <code>--out</code> names a trail
+file or a new path, and any other file is refused and left as it was. A last
+line with no newline is removed only when it can be the start of an evidence
+line, so a file of one line that cannot, such as a settings file, is refused
+too. <code>trail</code> prints one line per request and exits 1 when a chain fails,
+cannot be read either way, or the file holds no trail, when the file ends in a
+partial line that no running <code>collect</code> holds, and when it holds more than
+100,000 lines.</p>
+<p><code>scenario run</code> holds a running plane to scenario files
+(<a href="/docs/reference/scenario-format">scenario-format.md</a>); it exits 1 when one differed, and
+2, a failure too, when one could not run.</p>
+<p><code>dev</code>: <a href="/docs/reference/dev">dev.md</a>.</p>
+<pre><code>usage: guardana-gateway [run --config &lt;file&gt; | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --out &lt;file&gt; | trail &lt;file&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
+
+run
+  -config string
+    	the configuration file to read
+
+doctor
+  -config string
+    	the configuration file to read
+
+collect
+  -listen string
+    	the loopback address to listen on, host:port; port 0 takes a free one
+  -out string
+    	the trail file to append what arrives to
+
+trail
+
+scenario
+  -config string
+    	the plane&#39;s configuration, which names its listener, its /healthz, its approvals directory and its pause file
+  -control string
+    	the guardana-control that answers approvals and pauses; by default the one beside this binary
+  -timeout duration
+    	the bound on each wait: the spool&#39;s drain, a pause read, a run of guardana-control, and a call past the upstream&#39;s own timeout (default 10s)
+  -trail string
+    	the trail file the plane&#39;s collector writes
+
+dev
+  -config string
+    	the demo&#39;s configuration, without the keys dev sets
+  -policy string
+    	the policy document dev signs in memory
+  -scenario file
+    	a scenario file to run on a plane of its own; repeatable
+  -state string
+    	a new directory for the plane&#39;s state; by default a temporary one
+</code></pre>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/cli.md">docs/reference/cli.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli" aria-current="page">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

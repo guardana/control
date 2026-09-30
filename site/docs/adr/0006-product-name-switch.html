@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0006: The product name is a working name and can be switched · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0006-product-name-switch"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0006-the-product-name-is-a-working-name-and-can-be-switched">ADR-0006: The product name is a working name and can be switched</h1>
+<p>Status: accepted
+Date: 2026-09-09</p>
+<p>Amended by <a href="/docs/adr/0025-public-repository-merges-and-releases">ADR-0025</a>: the
+first release fixes the name; renaming after it needs a record of its own.</p>
+<p>The name was decided on 2026-09-10: Guardana Control, <code>guardana/control</code>, and
+the tree was renamed with the script below. The record stays because the
+mechanisms do: a rename before the first tagged release is still cheap, and
+after it is not.</p>
+<h2 id="context">Context</h2>
+<p>The name was a working name when this record was written. A name in this project
+is not only a title: it is the Go module path, the proto package,
+the binary names, the environment prefix, the telemetry namespace and part of
+the action digest. Spread by hand across the tree, that becomes unrenameable.</p>
+<h2 id="decision">Decision</h2>
+<p>Two mechanisms, because Go code and everything else need different handling:</p>
+<ul>
+<li>Go code reads the name, slug, module path, proto package, telemetry namespace
+and environment prefix from one file, <code>internal/brand/brand.go</code>.</li>
+<li>Outside Go code a brand literal is allowed only in the files on the
+allowlist. <code>scripts/check-brand.sh</code> fails the quality gate when one appears
+anywhere else.</li>
+<li><code>scripts/rename-product.sh</code> rewrites both in one command: the brand file, the
+module path, the proto package, the binaries and the documentation.</li>
+<li>The name decision was due before <code>v0.1.0</code>, and was made before anything was
+published.</li>
+</ul>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>A rename does not change the action digest. It used to: the domain-separation
+prefix contained the product slug, so a rename would have invalidated every
+stored approval and every shared fixture, and the brand gate could not have seen
+it, because a golden fixture holds a hash and a hash holds no literal. The
+prefix is now fixed and name-free, see
+<a href="/docs/adr/0010-digest-domain-separation">ADR-0010</a>.</p>
+<p>After the first tagged release the module path and the proto package are public
+contracts, and changing them breaks every importer, see
+<a href="/docs/adr/0002-wire-contracts-and-versioning">ADR-0002</a>. That is what a rename still
+costs.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>Waiting for the final name before writing code. Blocks the whole project on a
+decision that does not need to be made yet.</li>
+<li>Hard-coding the name and renaming later by search and replace. It misses
+generated code, fixtures and the digest prefix, and nothing proves it worked.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>Brand strings are allowed only in the files on the allowlist, which is a small
+constant cost on every contribution. <code>internal/brand/brand_test.go</code> pins the
+current defaults, so a real rename updates that test in the same change.
+Renaming after the first tagged release or the first external importer stays
+expensive whatever the script does: the script buys time, it does not make the
+decision free.</p>
+<h2 id="validation">Validation</h2>
+<p>Runnable today: <code>go test ./internal/brand/</code> pins the current defaults and
+compares <code>ModulePath</code> with the module directive in <code>go.mod</code> and <code>ProtoPackage</code>
+with the <code>package</code> line of every <code>.proto</code> file, and <code>scripts/check-brand.sh</code>
+runs in <code>make quality</code> and fails on a brand literal outside the allowlist.
+<code>scripts/rename-product.sh</code> refuses to start while <code>go.mod</code> and <code>ModulePath</code>
+disagree, and compares <code>go.mod</code> with the requested module again after its pass.</p>
+<p>The script was run once, for the rename to Guardana Control: first on a scratch
+copy, where the full gate stayed green and the four digest goldens stayed
+byte-identical, then on the tree. It is a step a maintainer takes, not a gate
+that runs on every change.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0006-product-name-switch.md">docs/adr/0006-product-name-switch.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

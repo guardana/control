@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Benchmarks · Guardana Control</title>
+<meta name="description" content="What three calls on the authorization path and one tool call through the gateway cost on one machine, how they are measured, and what the numbers are not."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/benchmarks"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="benchmarks">Benchmarks</h1>
+<p>What three calls on the authorization path and one tool call through the
+gateway cost, measured on one machine. These are measurements, not thresholds
+or gate conditions. How to run and publish them is in
+<a href="https://github.com/guardana/control/blob/main/bench/README.md">bench/README.md</a>.</p>
+<h2 id="what-is-measured">What is measured</h2>
+<p>Three functions, all <code>implemented</code>, and the <code>experimental</code> gateway around
+them (<a href="/docs/status">status.md</a> is the inventory):</p>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>Function</th>
+<th>Input</th>
+<th>Outside the number</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BenchmarkValidateEnvelope</code></td>
+<td><code>contract.Validate</code></td>
+<td>An envelope already parsed</td>
+<td>The parse; <code>Decode</code> and <code>DecodeJSON</code> bound the bytes before parsing, so the codec cost and the contract's own checks are two costs and are not added together</td>
+</tr>
+<tr>
+<td><code>BenchmarkDigestV1</code></td>
+<td><code>canon.DigestV1</code></td>
+<td>The same envelope plus its authorized arguments: field extraction, the canonical JSON encoding of the action, one SHA-256 over the domain tag and those bytes</td>
+<td>Nothing; the digest is the whole call</td>
+</tr>
+<tr>
+<td><code>BenchmarkDecide</code></td>
+<td><code>core.Decide</code></td>
+<td>One READ against a loaded snapshot: admission, digest, delegation and tenant checks, freshness, the evaluation of every rule and the decision's fields</td>
+<td>Signing and loading the bundle; the clock is the real one, because the latency field is part of what a decision costs</td>
+</tr>
+<tr>
+<td><code>BenchmarkGatewayRoundTrip</code></td>
+<td>One MCP <code>tools/call</code></td>
+<td>Through the plane, and straight to the upstream as the baseline</td>
+<td>See <a href="#the-round-trip">the round trip</a></td>
+</tr>
+</tbody>
+</table>
+<p><code>BenchmarkDecide</code> runs four documents, in <code>bench/policy_test.go</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Row</th>
+<th>Document</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rules=10</code>, <code>rules=100</code>, <code>rules=1000</code></td>
+<td>Every second rule matches the envelope and the rest fail on the action name</td>
+<td><code>ALLOW</code></td>
+</tr>
+<tr>
+<td><code>obligations=100</code></td>
+<td>100 rules that all match, with two distinct obligations each, so the decision carries a union of 200, which the kernel clones</td>
+<td><code>ALLOW_WITH_OBLIGATIONS</code></td>
+</tr>
+</tbody>
+</table>
+<p>The obligation union is bounded only by the document, which is why it has its
+own row. The inputs of the first two benchmarks are the four golden fixtures
+in <a href="https://github.com/guardana/control/blob/main/testdata/digest/README.md">testdata/digest</a>; both read the same
+envelopes, so the two numbers can be read against each other.</p>
+<table>
+<thead>
+<tr>
+<th>Fixture</th>
+<th>Envelope, encoded</th>
+<th>Authorized arguments</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>minimal</code></td>
+<td>126 B</td>
+<td>2 B</td>
+</tr>
+<tr>
+<td><code>refund_prod</code></td>
+<td>857 B</td>
+<td>345 B</td>
+</tr>
+<tr>
+<td><code>delegated</code></td>
+<td>695 B</td>
+<td>90 B</td>
+</tr>
+<tr>
+<td><code>mutated_amount</code></td>
+<td>857 B</td>
+<td>347 B</td>
+</tr>
+</tbody>
+</table>
+<p>Each input is checked before it is timed: all three functions return early
+when they refuse their input, so a fixture that stopped validating, or a
+snapshot that went stale against the real clock, would be reported as fast
+work rather than as a failure. <code>TestBenchmarkedPathSucceeds</code>,
+<code>TestBenchmarkedDecideSucceeds</code> and <code>TestBenchmarkedRoundTripSucceeds</code> are
+those checks and they run under <code>go test ./bench/</code>. <code>BenchmarkDecide</code> and
+<code>BenchmarkGatewayRoundTrip</code> report, beside the mean <code>go test</code> computes, the median and the 99th percentile of the per-call durations as
+<code>p50-ns/op</code> and <code>p99-ns/op</code> through <code>ReportMetric</code>: the mean of a path with a
+slow tail says nothing about the tail.</p>
+<h2 id="the-round-trip">The round trip</h2>
+<p><code>BenchmarkGatewayRoundTrip</code> has three rows, one call at a time:</p>
+<table>
+<thead>
+<tr>
+<th>Row</th>
+<th>The call</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>direct</code></td>
+<td>An agent's client calls the upstream's one tool</td>
+</tr>
+<tr>
+<td><code>plane/fsync=every_record</code></td>
+<td>The same call through the plane, with the spool forcing each record to disk, the gateway's default</td>
+</tr>
+<tr>
+<td><code>plane/fsync=interval_100ms</code></td>
+<td>The same, with the spool forcing records to disk on a 100 ms timer</td>
+</tr>
+</tbody>
+</table>
+<p>Through the plane the call enters the MCP adapter's stdio listener, is
+classified as a <code>READ</code>, decided in <code>ENFORCE</code> against a signed bundle of one
+rule, sent upstream, and leaves four records in a spool on a temporary
+directory: proposed, decided, started and completed. All four are appended
+before the answer reaches the agent, which the guard test checks.</p>
+<p>The exporter runs throughout, with the gateway's defaults: it reads each
+record back from the spool, sends up to 128 in one request or waits up to 100 ms
+for more, encodes them as OTLP/JSON, posts them over loopback HTTP to a collector
+in the same process that reads the body and accepts it, and acknowledges each
+accepted batch to the spool. Under <code>fsync=interval_100ms</code> the spool's timer
+runs as well. Their work shares the cores with the call, and <code>B/op</code> and
+<code>allocs/op</code> count the whole process: the exporter, the collector and the
+upstream included. A plane row minus <code>direct</code> is therefore what the plane
+adds in this arrangement, the pipeline, the spool, a second protocol hop and
+the exporter's share of the machine together, not the pipeline alone. Both
+plane rows include the exporter reading each record back from the spool, a
+cost that is not the pipeline's.</p>
+<table>
+<thead>
+<tr>
+<th>Outside the number</th>
+<th>Because</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A network beyond loopback, and TLS</td>
+<td>The agent and upstream legs are in-process pipes. The collector runs in this process and is reached over plaintext loopback TCP, so that path and the collector's HTTP server are inside the number</td>
+</tr>
+<tr>
+<td>A real upstream</td>
+<td>The upstream answers at once from memory</td>
+</tr>
+<tr>
+<td>A real collector</td>
+<td>The collector here accepts every request without decoding it</td>
+</tr>
+<tr>
+<td>Approvals, obligations and an external decision point</td>
+<td>One rule allows the call</td>
+</tr>
+<tr>
+<td>Concurrent calls</td>
+<td>One call is in flight at a time</td>
+</tr>
+</tbody>
+</table>
+<p>No published run carries this benchmark yet.</p>
+<h2 id="the-machine">The machine</h2>
+<p>One run of <code>scripts/bench.sh</code> with <code>COUNT=5 BENCHTIME=1s</code>. Its results file
+was not published, so no file in the repository stands behind the tables
+below; the next published run replaces them and is linked here.</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU</td>
+<td>Apple M5, 10 cores</td>
+</tr>
+<tr>
+<td>OS</td>
+<td>Darwin 25.6.0 arm64 (macOS 26.6.2)</td>
+</tr>
+<tr>
+<td>Go</td>
+<td>go1.27.1 darwin/arm64</td>
+</tr>
+<tr>
+<td>Load</td>
+<td>5.66 over the minute it started, 15.92 over five</td>
+</tr>
+</tbody>
+</table>
+<p>The machine was not idle: other work was running on it throughout, which is
+what the load averages record.</p>
+<h2 id="validate-and-digestv1">Validate and DigestV1</h2>
+<p>Nanoseconds per operation are the lowest, median and highest of the five
+repetitions, to show the spread. Allocation counts and bytes were identical in
+all five.</p>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>ns/op low</th>
+<th>Median</th>
+<th>High</th>
+<th>B/op</th>
+<th>allocs/op</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BenchmarkValidateEnvelope/minimal</code></td>
+<td>1847</td>
+<td>1890</td>
+<td>1941</td>
+<td>1232</td>
+<td>16</td>
+</tr>
+<tr>
+<td><code>BenchmarkValidateEnvelope/refund_prod</code></td>
+<td>8451</td>
+<td>8519</td>
+<td>8597</td>
+<td>3912</td>
+<td>134</td>
+</tr>
+<tr>
+<td><code>BenchmarkValidateEnvelope/delegated</code></td>
+<td>6168</td>
+<td>6195</td>
+<td>6311</td>
+<td>2416</td>
+<td>67</td>
+</tr>
+<tr>
+<td><code>BenchmarkValidateEnvelope/mutated_amount</code></td>
+<td>8413</td>
+<td>8445</td>
+<td>8461</td>
+<td>3912</td>
+<td>134</td>
+</tr>
+<tr>
+<td><code>BenchmarkDigestV1/minimal</code></td>
+<td>6998</td>
+<td>7068</td>
+<td>7409</td>
+<td>9630</td>
+<td>124</td>
+</tr>
+<tr>
+<td><code>BenchmarkDigestV1/refund_prod</code></td>
+<td>15910</td>
+<td>16254</td>
+<td>17172</td>
+<td>21047</td>
+<td>308</td>
+</tr>
+<tr>
+<td><code>BenchmarkDigestV1/delegated</code></td>
+<td>12234</td>
+<td>13155</td>
+<td>14149</td>
+<td>16117</td>
+<td>228</td>
+</tr>
+<tr>
+<td><code>BenchmarkDigestV1/mutated_amount</code></td>
+<td>17039</td>
+<td>17224</td>
+<td>19945</td>
+<td>21047</td>
+<td>308</td>
+</tr>
+</tbody>
+</table>
+<p>Read the spread before the numbers. <code>refund_prod</code> and <code>mutated_amount</code> carry
+the same envelope and differ only in one argument value, so both functions do
+the same work on both: identical allocations, and for the digest two more
+bytes of input. <code>BenchmarkDigestV1</code> puts them at medians of 16254 and 17224
+and highs of 17172 and 19945: 6% apart at the median and 16% at the high, for
+two rows that do the same work. A difference of that size between two other
+rows in this run is within the variation it shows for identical work.</p>
+<p>Both functions allocate more than the message they read. The digest builds a
+Go map of the action, sorts every object key as UTF-16 code units and encodes
+the whole thing before hashing it, which is where its 124 to 308 allocations
+come from. Nothing has been tuned; no profile has been taken.</p>
+<h2 id="decide">Decide</h2>
+<p><code>ns/op</code> is the mean over the repetition, lowest, middle and highest of the
+five; <code>p50</code> and <code>p99</code> are the per-call percentiles, middle repetition of the
+five, with the highest p99 in parentheses. Allocation counts were identical in
+all five; B/op differed by one byte between repetitions on three rows, which
+is the rounding of a per-operation average.</p>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>ns/op low</th>
+<th>Median</th>
+<th>High</th>
+<th>p50 ns</th>
+<th>p99 ns (highest)</th>
+<th>B/op</th>
+<th>allocs/op</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BenchmarkDecide/rules=10</code></td>
+<td>11162</td>
+<td>11233</td>
+<td>12430</td>
+<td>9792</td>
+<td>58791 (68750)</td>
+<td>12421</td>
+<td>165</td>
+</tr>
+<tr>
+<td><code>BenchmarkDecide/rules=100</code></td>
+<td>12459</td>
+<td>12630</td>
+<td>13316</td>
+<td>10875</td>
+<td>66750 (73459)</td>
+<td>14941</td>
+<td>168</td>
+</tr>
+<tr>
+<td><code>BenchmarkDecide/rules=1000</code></td>
+<td>23958</td>
+<td>24239</td>
+<td>26087</td>
+<td>20292</td>
+<td>108166 (119791)</td>
+<td>37838</td>
+<td>171</td>
+</tr>
+<tr>
+<td><code>BenchmarkDecide/obligations=100</code></td>
+<td>83757</td>
+<td>84698</td>
+<td>89340</td>
+<td>65125</td>
+<td>252334 (297291)</td>
+<td>210137</td>
+<td>1787</td>
+</tr>
+</tbody>
+</table>
+<p>In the middle repetition the p99 is 5.3 to 6.1 times the p50 on the three
+rules rows and 3.9 times on the obligations row, and it includes the scheduler
+and the other work on the host as well as the code. Compare medians rather than
+tails.</p>
+<p>Ten rules to a thousand doubles the median: the fixed cost of a decision, the
+clone of the envelope, the digest and the decision's fields, is most of the
+ten-rule number, and a rule costs on the order of ten nanoseconds to evaluate. The
+allocation count barely moves with the rules, because the matched-rule list is
+the only thing that grows. The obligations row is a different shape: two
+hundred obligations cloned onto the decision are eleven times the allocations
+and fourteen times the bytes of the hundred-rule document without them.</p>
+<h2 id="what-these-numbers-are-not">What these numbers are not</h2>
+<table>
+<thead>
+<tr>
+<th>Not</th>
+<th>Because</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A target or a service level</td>
+<td>Comparing a later run against these is only meaningful on the same machine in the same state.</td>
+</tr>
+<tr>
+<td>A gate</td>
+<td><code>make quality</code> fails on no duration, and a build that failed on one would be reporting on the host rather than on the change.</td>
+</tr>
+<tr>
+<td>A deployment's latency</td>
+<td>The round trip runs in one process, with no network, TLS, real upstream or collector.</td>
+</tr>
+</tbody>
+</table>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/benchmarks.md">docs/reference/benchmarks.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks" aria-current="page">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

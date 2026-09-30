@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Delivery backlog · Guardana Control</title>
+<meta name="description" content="Planned work ordered by user value, with dependencies and observable acceptance checks."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/backlog"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="delivery-backlog">Delivery backlog</h1>
+<p>All tasks below are <code>planned</code>, including verification tasks. They name work to
+do, not capabilities to claim. <a href="/docs/status">status.md</a> is the implementation
+inventory; <a href="/docs/roadmap">ROADMAP.md</a> owns milestone order. Architectural changes
+need accepted records before implementation. An owner and an issue can be added
+when a task is picked up; no task is assigned by this document.</p>
+<p>The private session backlog contains historical findings, some already fixed.
+Reproduce one in the current code before calling it a defect.
+This backlog covers roadmap work, not every session note. Keep stable task identifiers when work moves to an
+issue. Completion requires code, documentation and the applicable checks.</p>
+<h2 id="entry-gate-and-trust-work">Entry gate and trust work</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Work</th>
+<th>Depends on</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B00</td>
+<td>Establish a reproducible baseline</td>
+<td>none</td>
+<td>Full <code>make quality</code> and CI on the exact candidate commit pass; platform, tool versions, skips and failures are recorded. A partial target run cannot satisfy this task</td>
+</tr>
+<tr>
+<td>B01</td>
+<td>Reconcile stale planning and public claims</td>
+<td>none</td>
+<td>Every promoted defect has current code evidence; planned Go packages are distinguished from available ones; only the public roadmap schedules delivery.</td>
+</tr>
+<tr>
+<td>B03</td>
+<td>Make policy freshness usable and restart-safe</td>
+<td>B00</td>
+<td>Accepted ADR and tests cover atomic refresh, invalid replacement, last-known-good bounds, signed expiry, persisted serial floor and clock rollback. Unavailable policy still fails closed; rereading a file alone does not prove it is the latest policy</td>
+</tr>
+</tbody>
+</table>
+<p>B03 runs before shared use, independently of the usability work. Do not
+wait for a fleet to address it.</p>
+<h2 id="milestone-1-one-useful-local-project">Milestone 1: one useful local project</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Work</th>
+<th>Depends on</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B05</td>
+<td>Package a complete offline demo</td>
+<td>B00</td>
+<td>A release user runs allow, deny and approval scenarios without Go, a checkout, a model key or a collector service. All referenced demo assets ship. Ports are allocated safely; unsupported platforms fail explicitly</td>
+</tr>
+<tr>
+<td>B06</td>
+<td>Connect an existing MCP setup</td>
+<td>B05</td>
+<td>Copyable client/server instructions and a local profile work with an independently maintained server. Classification remains operator-owned; missing classification and unsupported methods are visible. At least three new users attempt the guide; time and help are recorded</td>
+</tr>
+<tr>
+<td>B07</td>
+<td>Explain decisions and ship tested starter packs</td>
+<td>B00</td>
+<td><code>policy explain</code> exposes matched rule ids, missing inputs, mode and policy digest with bounded output; read-only and approval-for-writes packs include allow/deny/unknown scenarios. Their assumptions and coverage are documented</td>
+</tr>
+</tbody>
+</table>
+<h2 id="milestone-2-runs-and-evidence-other-tools-can-read">Milestone 2: runs and evidence other tools can read</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Work</th>
+<th>Depends on</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B02</td>
+<td>Define identity and run ownership</td>
+<td>B01</td>
+<td>Accepted ADR covers authenticated versus local identity, two simultaneous runs, parent context, reconnect and restart. Forged ids and reconnects cannot erase flow state; the current ADR-0021 semantics change only through that record</td>
+</tr>
+<tr>
+<td>B08</td>
+<td>Specify and expose evidence consumption</td>
+<td>B00, B01</td>
+<td>Accepted API ADR defines a versioned export and bounded query, scope, cursor/retention, duplicate ids, provenance and gaps. An external consumer joins the full lifecycle using public contracts, without terminal scraping or <code>internal/</code> imports. Malformed records and missing evidence cannot become success</td>
+</tr>
+<tr>
+<td>B09</td>
+<td>Build a custom report and alert example</td>
+<td>B08</td>
+<td>A consumer outside this module reports actions and reasons and emits a local alert. Fixtures cover duplicate delivery, gaps and consumer outage. It requires no extra service and records no raw payload by default</td>
+</tr>
+</tbody>
+</table>
+<p>The existing event wire format is reused where sufficient. A query response or
+delivery wrapper has its own version; do not quietly add unknown fields to a
+strict v1 decoder. Observed framework telemetry and plane-recorded enforcement
+evidence must remain distinguishable. OTLP logs and traces need separate,
+tested destination mappings.</p>
+<h2 id="milestone-3-procedures-and-a-supervisor">Milestone 3: procedures and a supervisor</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Work</th>
+<th>Depends on</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B15</td>
+<td>Add procedure supervision over one run</td>
+<td>B02, B08</td>
+<td>Versioned procedures bind to runs; initial reports cover out-of-order and skipped required steps, failed-step continuation, repeated denial and deadline. The expected/observed view cites evidence and marks gaps unknown. Findings never grant authority, add no latency to a decision and change no verdict; an automated stop requires explicit authorization</td>
+</tr>
+</tbody>
+</table>
+<h2 id="milestone-4-integrations-without-a-fork">Milestone 4: integrations without a fork</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Work</th>
+<th>Depends on</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B10</td>
+<td>Specify and build the enforcement API</td>
+<td>B00, B02</td>
+<td>ADR defines admit/complete/abort, scoped opaque handles, expiry, authorized bytes, pending/resume, duplicate requests and abandoned executions. Authenticated scope is receiver-owned. Timeout after a possible effect produces an uncertain result and no automatic retry. A test distinguishes a cooperating client from an enforcement boundary</td>
+</tr>
+<tr>
+<td>B11</td>
+<td>Ship Python and one framework port</td>
+<td>B10</td>
+<td>A custom-tool wrapper and one adopter-selected framework integration run externally. Conformance covers block-before-send, rewritten bytes, pending approval, concurrent resume, unknown obligation, timeout, cancellation and completion. Publish covered and bypassing tool paths; digest parity precedes client-side hashes</td>
+</tr>
+<tr>
+<td>B12</td>
+<td>Expose asynchronous extensions and add TypeScript</td>
+<td>B08, B09; B11 for enforcement client</td>
+<td>External detector/alert example has stable id/version, evidence refs and confirmed/suspected/unknown cases. Queue bounds, lag and failures are visible and cannot affect authorization. TypeScript passes the same client fixtures. Promote a Go seam only with its own ADR and two consumers; no runtime plugin loading</td>
+</tr>
+</tbody>
+</table>
+<p>LangGraph and the OpenAI Agents SDK are candidates, not simultaneous delivery
+requirements. Select the first port with adopters and test the framework's
+resume behavior. Transport retries may not replay a material tool execution.
+Custom policy-provider work preserves ADR-0017's veto-only semantics.</p>
+<h2 id="milestone-5-a-small-team">Milestone 5: a small team</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Work</th>
+<th>Depends on</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B13</td>
+<td>Authenticate operators and scope authority</td>
+<td>B02, B03, B08, B10</td>
+<td>Reader/operator/admin capabilities are receiver-enforced; approval authority comes from authentication. Cross-project reads and operations are refused; a pause names its actual run/agent/principal scope. Two users and overlapping runs pass adversarial tests. MCP upstream credentials remain separate from inbound credentials</td>
+</tr>
+<tr>
+<td>B14</td>
+<td>Add retention and recovery</td>
+<td>B08</td>
+<td>Rotation, disk budget, cursor expiry, duplicates, interrupted export and backup/restore are tested. A restored process cannot reuse spent approval authority or forget its rollback floor. Read-only inspection cannot mutate recovery state without saying so</td>
+</tr>
+</tbody>
+</table>
+<h2 id="milestone-6-a-fleet-and-wider-protocols">Milestone 6: a fleet and wider protocols</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Work</th>
+<th>Depends on</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B16</td>
+<td>Add fleet operations and protocol breadth from demand</td>
+<td>B13, B14, B15</td>
+<td>Independent deployments demonstrate need; design covers tenant isolation, signed distribution, authenticated APIs and tested recovery. New HTTP/A2A adapters pass conformance. HA and additional stores have reproducible benchmarks before scale claims</td>
+</tr>
+</tbody>
+</table>
+<h2 id="adoption-checkpoints">Adoption checkpoints</h2>
+<p>Targets are hypotheses, not reported achievements: first demo value in ten
+minutes; three new users completing onboarding; two custom evidence consumers;
+one external framework port; one small team running overlapping tasks. Record
+failures and assistance as well as time. Prioritize observed blockers before
+adding frameworks or a detector catalogue. Do not collect adoption telemetry
+from installations: use voluntary sessions and feedback, consistent with the
+no-phone-home decision.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/backlog.md">docs/backlog.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog" aria-current="page">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

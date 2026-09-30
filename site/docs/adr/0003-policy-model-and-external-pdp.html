@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0003: Structured predicates, deny-overrides, external PDP over AuthZEN · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0003-policy-model-and-external-pdp"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0003-structured-predicates-deny-overrides-external-pdp-over-authzen">ADR-0003: Structured predicates, deny-overrides, external PDP over AuthZEN</h1>
+<p>Status: accepted
+Date: 2026-09-09</p>
+<p>Amended by <a href="/docs/adr/0011-contract-corrections-before-publication">ADR-0011</a>: a
+fail-open read keeps its <code>INDETERMINATE</code> verdict, and an external decision point
+returns <code>ALLOW</code>, <code>DENY</code> or <code>INDETERMINATE</code> only. Amended by
+<a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a>, which fixes the fail-closed mapping
+this record left open and narrows fail-open reads to the policy's
+availability. Amended by
+<a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>: an external decision
+point's answer is an input the signed policy reads, it can only veto, and its
+silence is a cause in the request.</p>
+<h2 id="context">Context</h2>
+<p>A decision runs in front of a tool call, so it has to be cheap, reproducible and
+readable by whoever audits it later. Rules that can execute arbitrary code are
+none of those. The project also has to work with the policy engine an
+organization already runs, without shipping that engine inside the binary.</p>
+<h2 id="decision">Decision</h2>
+<ul>
+<li>The built-in matcher evaluates structured predicates only: identity, action,
+resource, context, effect class and bounds. No regular expressions and no
+scripting in the decision path.</li>
+<li>Precedence is deny-overrides. <code>DENY</code> beats <code>INDETERMINATE</code>, which beats
+<code>REQUIRE_APPROVAL</code>, which beats <code>ALLOW_WITH_OBLIGATIONS</code>, which beats <code>ALLOW</code>.</li>
+<li>When no rule matches, the verdict is <code>DENY</code> with reason <code>NO_MATCHING_RULE</code>.
+There is no implicit allow.</li>
+<li>Malformed or unknown security-relevant input is <code>INDETERMINATE</code>. A fail-closed
+table decides what <code>INDETERMINATE</code> enforces for each effect class: it blocks
+the action for every class with a material effect, and a read-only class may
+be allowed and recorded only where the operator has explicitly turned that on,
+with that setting visible in the decision evidence. The exact mapping is
+<a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a>'s.</li>
+<li>External policy engines are reached over the OpenID AuthZEN Authorization API
+1.0 request shape (<a href="https://openid.net/wg/authzen/specifications/">https://openid.net/wg/authzen/specifications/</a>) instead of
+being embedded, which keeps the hot-path binary small. A PDP timeout is
+<code>INDETERMINATE</code>, not an allow.</li>
+</ul>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p><code>INDETERMINATE</code> is not an allow, and no adapter gets to collapse it into one:
+what it enforces comes from the fail-closed table, not from the caller. Keeping
+regular expressions out of the decision path is not about evaluation cost: Go's
+regexp engine is linear-time and does not backtrack. It is about review. A
+structured predicate can be read by someone who did not write it, indexed, and
+explained back in the decision it produced, and a policy author cannot express
+something subtly wider than they intended. Keeping scripts out removes a
+code-execution surface on top of that, in the one place the system trusts.
+AuthZEN 1.0 is a published request shape, so an external engine integrates
+against a documented contract rather than a private one.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>Embedding a policy language such as Rego or CEL. Expressive, but it puts an
+evaluator with its own failure modes and its own supply chain into every
+enforcement point, and a rule stops being reviewable by reading it.</li>
+<li>Regular expressions for resource matching. Familiar, and a rule that looks
+narrow can match far more than its author meant, with nothing in the rule to
+show a reviewer that it does.</li>
+<li>Allow on evaluation error, or a default allow when nothing matches. The usual
+shortcut, and the one that turns an outage or a typo into an authorization.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>Some policies cannot be expressed by the built-in matcher and have to be written
+as explicit predicates or delegated to an external PDP. The fail-closed table
+means a policy-source outage blocks actions with material effect; that
+availability cost is the point of the decision, and the table is what keeps it
+predictable. Adding a verdict or changing precedence is a wire change, so it
+needs a new package version and its own record, see
+<a href="/docs/adr/0002-wire-contracts-and-versioning">ADR-0002</a>.</p>
+<h2 id="validation">Validation</h2>
+<p>Nothing in this record is runnable today. The matcher, the precedence table and
+the fail-closed table are planned and land together, with fixtures covering all
+five verdicts.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0003-policy-model-and-external-pdp.md">docs/adr/0003-policy-model-and-external-pdp.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

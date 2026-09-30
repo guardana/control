@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0011: Corrections to the v1 contract before it is first published · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0011-contract-corrections-before-publication"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0011-corrections-to-the-v1-contract-before-it-is-first-published">ADR-0011: Corrections to the v1 contract before it is first published</h1>
+<p>Status: accepted
+Date: 2026-09-10</p>
+<p>Amends <a href="/docs/adr/0002-wire-contracts-and-versioning">ADR-0002</a>,
+<a href="/docs/adr/0003-policy-model-and-external-pdp">ADR-0003</a>,
+<a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>,
+<a href="/docs/adr/0005-canonical-action-digest">ADR-0005</a> and
+<a href="/docs/adr/0010-digest-domain-separation">ADR-0010</a>.</p>
+<h2 id="context">Context</h2>
+<p>The v1 contract was frozen by ADR-0002, which made every breaking change after
+it a failure. A review of the whole repository before the policy kernel was
+built found places where the frozen text contradicts itself,
+where absence is more permissive than presence, and one where an approval
+covers two actions an operator would call different.</p>
+<p>None of it has been published. The public history of this repository starts
+from a single commit taken after this record, so no v1 message, digest or
+approval exists anywhere a correction could break. A correction now costs this
+record. After publication the same correction is a new major version.</p>
+<h2 id="decision">Decision</h2>
+<p>The corrections below are made once, together. The commit that lands them is
+the baseline <code>buf breaking</code> compares against, and from it on a breaking finding
+is a failure again, as ADR-0002 says. Two of them hold only because the history
+is squashed, and say so.</p>
+<p><strong>The name.</strong> The proto package is <code>guardana.control.v1</code> (ADR-0006). No message
+changes on the wire, because v1 has no service and no <code>Any</code>; either, added
+later, would put the package name on the wire.</p>
+<p><strong>The action digest covers where the action happens.</strong> The canonical action has
+ten members: the seven of ADR-0005, and <code>projectId</code>, <code>tenantId</code> and
+<code>environment</code>, the envelope's own values as top-level strings, <code>&quot;&quot;</code> when absent.
+They were left out as fields that two attempts at one action differ in, which is
+false for all three. Without them an approval granted in one project, tenant or
+environment matches the identical action in another, and an approved staging
+deletion matches a production one whenever the resource's own environment is
+empty.</p>
+<p>The tag stays <code>agent-action-digest/v1</code>. That overrides, once, ADR-0005's &quot;a
+field added to the digest input needs its own record and a new package version&quot;
+and ADR-0010's &quot;the <code>v1</code> in the tag separates versions of the canonical form&quot;.
+It is honest only because no digest under the seven-member form will ever be
+published: the goldens that used it exist only in the local history, which is
+squashed away. Publishing that history would first require a <code>v2</code> tag.</p>
+<p><strong>Keys that fold together are refused.</strong> Two member names in one object equal
+under simple case folding (CaseFolding.txt, statuses C and S, Unicode 17.0.0,
+compared code point by code point) are refused like a duplicate, in every object
+of the canonical action. A consumer that folds case, as Go's <code>encoding/json</code>
+does for U+017F and U+212A as well as for ASCII, would otherwise read one value
+where the digest covers another. It does not defend a consumer that compares
+through case mapping, where U+0131 and <code>I</code> are equal.</p>
+<p><strong>The arguments hash has a formula.</strong> <code>arguments.canonical_hash</code> is <code>&quot;sha256:&quot;</code>
+and the lowercase hex of sha256 over <code>agent-arguments-hash/v1\n</code> followed by the
+canonical form of the authorized arguments, <code>{}</code> when there are none. The
+receiver, which holds the arguments, compares it and refuses a mismatch;
+<code>Validate</code>, which does not, checks its shape. Every producer of <code>EXECUTE</code> and
+<code>TRANSACT</code> therefore implements the canonical form, and until a second
+implementation is proved against the goldens only a Go producer can.</p>
+<p><strong>The policy bundle names its inputs.</strong> The signature is Ed25519 over DSSE's
+pre-authentication encoding of <code>application/vnd.agent-policy+json</code> and the
+decoded bytes of <code>canonical</code>. <code>signature_alg</code> is the fixed string
+<code>ed25519-dsse</code>; it selects nothing, and any other value is refused. <code>key_id</code> is
+an unauthenticated hint that selects a key the operator pinned; an unknown one
+is refused. The bundle digest is <code>&quot;sha256:&quot;</code> and the lowercase hex of sha256 over
+those bytes, which must equal their own canonical form, so that one policy has
+one digest. Every field outside <code>canonical</code> must equal what the signed document
+says. The document's format is recorded with the policy kernel.</p>
+<p><strong>An unknown sensitivity is unknown.</strong> A check that denies at or above a floor
+answers yes when a known part of what the call carries is at or above it: what
+the run read, a declared label, or <code>contains_secrets</code>. Otherwise it refuses to
+answer when any part is unknown, and the kernel records that as
+<code>INDETERMINATE</code>. Otherwise it answers no. A check that allows at or below a
+ceiling never passes an unknown.</p>
+<p><strong>Obligations bind whenever the call proceeds</strong>: under
+<code>ALLOW_WITH_OBLIGATIONS</code>, and under <code>REQUIRE_APPROVAL</code> once approved.
+<code>ALLOW_WITH_OBLIGATIONS</code> with no obligation is never produced. A receiver that
+cannot apply a non-advisory obligation denies with <code>OBLIGATION_NOT_UNDERSTOOD</code>,
+and no fail-open setting relieves that denial.</p>
+<p><strong>Approvals follow one model, the held call.</strong> An approval is honoured only in
+the trail of the request it was requested for: <code>request_id</code> must equal the
+envelope's, and the binding must match. A call submitted again as a new request
+needs a new approval, which is why data labels and the run context can stay out
+of the digest. An approval with no <code>expires_at</code> is expired. Expiry of an approval
+or a delegation hop is measured against the receiver's clock when deciding, and
+again before execution (<code>planned</code>), never against the producer's <code>occurred_at</code>.
+<code>APPROVAL_STATE_UNSPECIFIED</code> is not approved, and <code>APPROVED</code> with no
+<code>approver_id</code> is refused.</p>
+<p><strong>An external decision point</strong> returns <code>ALLOW</code>, <code>DENY</code> or <code>INDETERMINATE</code> and
+nothing else in v1. An AuthZEN 1.0 decision is a boolean: it carries no
+obligations, and there is no policy digest an approval could bind to.</p>
+<p><strong>A fail-open read keeps its verdict.</strong> The verdict of a read nothing evaluated
+stays <code>INDETERMINATE</code>, and only what is enforced changes; its reason code is
+documented with <code>INDETERMINATE</code>, not <code>ALLOW</code>, the collapse invariant 4 forbids.
+When a read may fail open is recorded with the kernel's fail-closed table.</p>
+<p><strong>Three fields are declared now</strong>, so that filling them later is not a field
+every 1.0 reader refuses:</p>
+<ul>
+<li><code>Event.prev_event_digest</code>, number 31, where the reservation stood. Empty, and
+read by nothing, until the hash chain lands (<code>planned</code>); an empty link claims
+nothing.</li>
+<li><code>ActionResult.redaction_profile</code>, number 14, with the meaning
+<code>Arguments.redaction_profile</code> has. Empty means no redaction ran, which is right
+only when there is no preview; the check that pairs them is <code>planned</code> for the
+result path.</li>
+<li><code>Decision.decided_at</code>, number 18, by the receiver's clock.</li>
+</ul>
+<p><strong>The contract states what the zero values mean</strong>, on the contracts page and in
+one line per enforcement mode: <code>ENFORCEMENT_MODE_UNSPECIFIED</code> is refused as
+configuration and, in evidence, means that nothing is known to have been
+enforced.</p>
+<p><strong>Validation refuses more</strong>, in <code>pkg/contract</code>:</p>
+<ul>
+<li>in every string of the envelope and every map key and value: White_Space at
+either end, a space separator other than U+0020 anywhere, a code point in Cc,
+Cf, Zl or Zp, a Default_Ignorable_Code_Point, and invalid UTF-8, per Unicode
+17.0.0. A reader cannot tell U+00A0 or U+3000 from a space, so two identifiers
+that look alike would be two. The two free-text fields,
+<code>arguments.redacted_preview</code> and <code>delegation[].reason</code>, are held only to valid
+UTF-8 and to the control-character rule, with tab, line feed and carriage
+return allowed;</li>
+<li>in every map, a key whose first nine code points fold to <code>reserved.</code>, so
+<code>Reserved.x</code> is refused as <code>reserved.x</code> is, and so is a key spelled with
+U+017F; and two keys that fold together;</li>
+<li><code>TRANSACT</code> and <code>IDENTITY_OR_ACCESS</code> without both <code>principal.tenant_id</code> and
+<code>resource.tenant_id</code>; <code>WRITE</code>, <code>DELETE</code> and <code>CONFIGURE</code> without
+<code>resource.environment</code>, besides the envelope's <code>environment</code>, which stays
+required;</li>
+<li>a delegation chain that does not start at <code>principal.id</code> and end at
+<code>agent.id</code>, a hop with no <code>expires_at</code>, and a hop that expires before it was
+issued;</li>
+<li>a redacted preview that names no redaction profile;</li>
+<li>a <code>destination.host</code> that holds a byte outside <code>[a-z0-9.:-]</code>, starts or ends
+with a dot, or has an empty label. A host that holds a colon must be an IPv6
+literal: at least two colons, and nothing but <code>[0-9a-f:.]</code>. Letter case, a
+trailing dot, a port and a Unicode name are then not second spellings of one
+host, and an internationalized name arrives as A-labels. IP-literal
+spellings are not normalized, so a DENY keyed on one is only as strong as
+the producer's spelling;</li>
+<li><code>SENSITIVITY_UNSPECIFIED</code> as an element of <code>data.sensitivities</code>;</li>
+<li>on the binary path, a second occurrence of a field that is not repeated; two
+entries of one map whose keys the runtime reads as one key, where an entry
+with no key, or with its key on the wrong wire type, reads as the empty key;
+and an enum number outside int32 when its varint is read as a
+two's-complement int64. The JSON path refuses all three already;</li>
+<li>inside a map entry, any field other than the key and the value, and either
+of those on a wire type other than its own. The runtime would discard it
+before any walk could see it. A map entry has two fields by definition, so
+this closes the one exception ADR-0002 recorded to &quot;unknown fields are
+refused&quot;.</li>
+</ul>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>Every correction narrows what is accepted or makes a stated guarantee true,
+with two exceptions that widen and are stated here. The three new fields are
+accepted where the frozen 1.0 refused them; no reader exists. Expiry moves from a
+producer-set anchor to the receiver's clock, so a slow receiver clock lengthens
+an approval's life; <code>occurred_at</code> could be back-dated, which is worse.</p>
+<p>The cost is that the frozen contract moved once more than ADR-0002 said it
+would. This record is where that is written down, and the gate restarts behind
+it.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>Fix only the semantics, in the kernel.</strong> Most of the validation items could
+live there. The digest scope, the folded keys, the three fields and the frozen
+comments cannot: each is fixed by the contract, and every later implementation
+would have to rediscover the kernel's exceptions.</li>
+<li><strong>A <code>v2</code> package now.</strong> A second package before the first has one user is
+version churn with nothing on the other side of it.</li>
+<li><strong><code>agent-action-digest/v2</code>.</strong> Just as safe, and it implies a v1 that someone
+could hold.</li>
+<li><strong>Folding ASCII only.</strong> Simpler to specify, and Go's own decoder folds beyond
+ASCII.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>The four digest goldens change once; a fifth pins the escaping rules and a sixth
+the arguments hash, each computed by two implementations. <code>docs/contracts.md</code>
+states every rule above. ADR-0002, ADR-0003, ADR-0004, ADR-0005 and ADR-0010
+carry a line pointing here.</p>
+<h2 id="validation">Validation</h2>
+<p><code>buf breaking</code> from the commit that lands this record against the commit
+before it reports the removed reservation of <code>Event</code> field 31 and its name,
+and nothing else.</p>
+<p>Planned with the policy kernel, each a test that fails when its correction is
+undone: the digest over envelopes that differ only in project, tenant or
+environment; the folded-key refusal, in the canonical form and in <code>Validate</code>;
+the unknown sensitivity, including an unknown run state beside a declared
+<code>PUBLIC</code>; the arguments hash, computed twice; each validation refusal above,
+with a boundary case.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0011-contract-corrections-before-publication.md">docs/adr/0011-contract-corrections-before-publication.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

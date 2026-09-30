@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Reason codes · Guardana Control</title>
+<meta name="description" content="Every reason code a decision may carry, with its number and the verdict it usually accompanies."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/reason-codes"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="reason-codes">Reason codes</h1>
+<p>A reason code is the machine-readable answer to why a call received the
+verdict it did, and it travels in <code>Decision.reason_codes</code> and in the
+evidence record. The verdict column records the verdict a code normally
+accompanies, and it is documentation: a verdict comes from the matcher and
+from deny-overrides precedence
+(<a href="/docs/adr/0003-policy-model-and-external-pdp">ADR-0003</a>), never from the
+code attached to it afterwards.</p>
+<p>A decision may carry several codes, and the column does not compose: where
+there is more than one, the verdict is the one deny-overrides precedence
+reaches and not anything read off a single row. What is built and what is
+not is in <a href="/docs/status">status.md</a>.</p>
+<p>Rendered from the table in <code>internal/policy/reasons/codes.go</code>. Rebuild it
+with <code>make docs-gen</code>; an edit made here does not survive the next run.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Number</th>
+<th>Usual verdict</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NO_MATCHING_RULE</code></td>
+<td>1</td>
+<td><code>DENY</code></td>
+<td>No rule in the policy bundle matches this call, and the matcher has no implicit allow.</td>
+</tr>
+<tr>
+<td><code>RULE_ALLOW</code></td>
+<td>2</td>
+<td><code>ALLOW</code></td>
+<td>A rule in the policy bundle matches this call and allows it.</td>
+</tr>
+<tr>
+<td><code>RULE_DENY</code></td>
+<td>3</td>
+<td><code>DENY</code></td>
+<td>A rule in the policy bundle matches this call and denies it.</td>
+</tr>
+<tr>
+<td><code>APPROVAL_REQUIRED</code></td>
+<td>4</td>
+<td><code>REQUIRE_APPROVAL</code></td>
+<td>A rule matches this call and requires an approval bound to its action digest before it runs.</td>
+</tr>
+<tr>
+<td><code>OBLIGATIONS_ATTACHED</code></td>
+<td>5</td>
+<td><code>ALLOW_WITH_OBLIGATIONS</code></td>
+<td>A rule allows this call only if the obligations carried on the decision are applied to it.</td>
+</tr>
+<tr>
+<td><code>TENANT_MISMATCH</code></td>
+<td>6</td>
+<td><code>DENY</code></td>
+<td>The principal's tenant is not the tenant that owns the resource the call names.</td>
+</tr>
+<tr>
+<td><code>ENVIRONMENT_BOUNDARY</code></td>
+<td>7</td>
+<td><code>DENY</code></td>
+<td>The resource named is in an environment the policy does not let this principal reach.</td>
+</tr>
+<tr>
+<td><code>OUT_OF_SCOPE_ACTION</code></td>
+<td>8</td>
+<td><code>DENY</code></td>
+<td>The action falls outside the set of actions this principal is authorized to propose.</td>
+</tr>
+<tr>
+<td><code>DELEGATION_EXCEEDS_PARENT</code></td>
+<td>9</td>
+<td><code>DENY</code></td>
+<td>The delegation claims more authority than the delegation it was derived from.</td>
+</tr>
+<tr>
+<td><code>DELEGATION_CYCLE</code></td>
+<td>10</td>
+<td><code>DENY</code></td>
+<td>The delegation chain returns to a party it already passed through, which would launder back authority an earlier hop narrowed.</td>
+</tr>
+<tr>
+<td><code>DELEGATION_EXPIRED</code></td>
+<td>11</td>
+<td><code>DENY</code></td>
+<td>The delegation this call relies on had expired, by this receiver's clock, when it was checked.</td>
+</tr>
+<tr>
+<td><code>APPROVAL_DIGEST_MISMATCH</code></td>
+<td>12</td>
+<td><code>DENY</code></td>
+<td>The approval presented names a different canonical action digest than the call it accompanies.</td>
+</tr>
+<tr>
+<td><code>APPROVAL_EXPIRED</code></td>
+<td>13</td>
+<td><code>DENY</code></td>
+<td>The approval presented had expired, by this receiver's clock, when it was checked.</td>
+</tr>
+<tr>
+<td><code>APPROVAL_PENDING</code></td>
+<td>14</td>
+<td><code>REQUIRE_APPROVAL</code></td>
+<td>An approval for this exact action digest is open and no approver has answered it yet.</td>
+</tr>
+<tr>
+<td><code>POLICY_STALE</code></td>
+<td>15</td>
+<td><code>INDETERMINATE</code></td>
+<td>The policy bundle is past the staleness budget in force for this call, and a bundle that does not say when it was loaded is past it too.</td>
+</tr>
+<tr>
+<td><code>POLICY_UNAVAILABLE</code></td>
+<td>16</td>
+<td><code>INDETERMINATE</code></td>
+<td>No policy bundle is available for this call, so nothing evaluated it.</td>
+</tr>
+<tr>
+<td><code>PDP_TIMEOUT</code></td>
+<td>17</td>
+<td><code>INDETERMINATE</code></td>
+<td>The external policy decision point does not answer within the deadline set for this call.</td>
+</tr>
+<tr>
+<td><code>MALFORMED_INPUT</code></td>
+<td>18</td>
+<td><code>INDETERMINATE</code></td>
+<td>The request could not be read as this contract at all, which is answered with a decision rather than a transport error.</td>
+</tr>
+<tr>
+<td><code>UNSUPPORTED_SCHEMA</code></td>
+<td>19</td>
+<td><code>INDETERMINATE</code></td>
+<td>The request names a schema version, a field or an enum number this receiver does not have, which is answered with a decision rather than a transport error.</td>
+</tr>
+<tr>
+<td><code>EXECUTED_ARGS_MISMATCH</code></td>
+<td>20</td>
+<td><code>DENY</code></td>
+<td>The arguments about to be sent upstream differ from the arguments the decision was made about.</td>
+</tr>
+<tr>
+<td><code>TOXIC_FLOW_SENSITIVE_TO_EXTERNAL</code></td>
+<td>21</td>
+<td><code>DENY</code></td>
+<td>The call moves data the producer did not establish as public into a destination it did not establish as trusted.</td>
+</tr>
+<tr>
+<td><code>IDEMPOTENCY_REQUIRED</code></td>
+<td>22</td>
+<td><code>DENY</code></td>
+<td>The call has an effect that cannot be safely repeated and nothing in the request distinguishes it from a repeat.</td>
+</tr>
+<tr>
+<td><code>SELF_ADMINISTRATION</code></td>
+<td>23</td>
+<td><code>DENY</code></td>
+<td>The call targets the enforcement plane's own policy, approvals or evidence.</td>
+</tr>
+<tr>
+<td><code>PAUSED</code></td>
+<td>24</td>
+<td><code>DENY</code></td>
+<td>An operator paused calls in a scope this call falls in, so the enforcement point blocked it whatever the policy decided.</td>
+</tr>
+<tr>
+<td><code>FAIL_OPEN_READ_CONFIGURED</code></td>
+<td>25</td>
+<td><code>INDETERMINATE</code></td>
+<td>This read was not evaluated and keeps its verdict, and it runs only because an operator turned on fail-open for read-only calls, which changes the enforcement and never the verdict.</td>
+</tr>
+<tr>
+<td><code>REQUIRED_FIELD_ABSENT</code></td>
+<td>26</td>
+<td><code>INDETERMINATE</code></td>
+<td>A field this contract requires is absent, and an absent field is never read as the permissive answer.</td>
+</tr>
+<tr>
+<td><code>LIMIT_EXCEEDED</code></td>
+<td>27</td>
+<td><code>INDETERMINATE</code></td>
+<td>A field on the request is larger than the limit this contract sets for it.</td>
+</tr>
+<tr>
+<td><code>INVALID_FIELD_VALUE</code></td>
+<td>28</td>
+<td><code>INDETERMINATE</code></td>
+<td>A field on the request is present and within its limit, and its value breaks a rule the contract states.</td>
+</tr>
+<tr>
+<td><code>OBLIGATION_NOT_UNDERSTOOD</code></td>
+<td>29</td>
+<td><code>DENY</code></td>
+<td>The call comes with an obligation this enforcement point cannot apply, attached by a policy rule that did not mark it advisory or by an external decision point's answer.</td>
+</tr>
+<tr>
+<td><code>APPROVAL_REJECTED</code></td>
+<td>30</td>
+<td><code>DENY</code></td>
+<td>An approver answered the request for this action digest and refused it.</td>
+</tr>
+<tr>
+<td><code>APPROVAL_ALREADY_USED</code></td>
+<td>31</td>
+<td><code>DENY</code></td>
+<td>The approval presented was already spent on an earlier call of this request and was not issued as multi-use, and a spent approval does not by itself say that the earlier call ran.</td>
+</tr>
+<tr>
+<td><code>APPROVAL_BUNDLE_MISMATCH</code></td>
+<td>32</td>
+<td><code>DENY</code></td>
+<td>The approval presented was issued under a different policy bundle than the one deciding this call.</td>
+</tr>
+<tr>
+<td><code>RULE_UNDETERMINED</code></td>
+<td>33</td>
+<td><code>INDETERMINATE</code></td>
+<td>A rule that would restrict this call cannot be evaluated against it, because a field or a fact it constrains is absent or unknown.</td>
+</tr>
+<tr>
+<td><code>TENANT_UNDETERMINED</code></td>
+<td>34</td>
+<td><code>INDETERMINATE</code></td>
+<td>The request names a tenant on only one side of the cross-tenant comparison, so whether this call crosses tenants cannot be established.</td>
+</tr>
+<tr>
+<td><code>LOCKDOWN</code></td>
+<td>35</td>
+<td><code>DENY</code></td>
+<td>The enforcement point is in LOCKDOWN, which blocks every call with a material effect whatever the policy decided.</td>
+</tr>
+<tr>
+<td><code>EVIDENCE_UNAVAILABLE</code></td>
+<td>36</td>
+<td><code>INDETERMINATE</code></td>
+<td>The enforcement point could not write, keep or read back a record the decision depends on, so the call was not allowed to proceed.</td>
+</tr>
+<tr>
+<td><code>ACTION_UNCLASSIFIED</code></td>
+<td>37</td>
+<td><code>INDETERMINATE</code></td>
+<td>The enforcement point's manifest holds no entry for the operation this call names, so no effect class can be given to it.</td>
+</tr>
+<tr>
+<td><code>APPROVAL_NOT_RESUMED</code></td>
+<td>38</td>
+<td><code>DENY</code></td>
+<td>An approver granted this action and the request it was granted for no longer exists, so the call was never run and the enforcement point closed its record instead.</td>
+</tr>
+<tr>
+<td><code>PDP_UNAVAILABLE</code></td>
+<td>39</td>
+<td><code>INDETERMINATE</code></td>
+<td>No decision came back from the external decision point for this call, because it could not be asked or reached or replied with something other than a decision.</td>
+</tr>
+<tr>
+<td><code>PDP_ANSWER_REFUSED</code></td>
+<td>40</td>
+<td><code>INDETERMINATE</code></td>
+<td>The external decision point replied about this call, and this enforcement point refused to read the reply as a decision.</td>
+</tr>
+<tr>
+<td><code>PDP_DENY</code></td>
+<td>41</td>
+<td><code>DENY</code></td>
+<td>The decision consulted the external decision point and it denied this call; the verdict is still INDETERMINATE when a rule stays undetermined.</td>
+</tr>
+<tr>
+<td><code>PDP_ALLOW</code></td>
+<td>42</td>
+<td><code>ALLOW</code></td>
+<td>The decision consulted the external decision point and it did not deny this call; the verdict is still INDETERMINATE when a rule stays undetermined.</td>
+</tr>
+<tr>
+<td><code>PAUSE_STATE_UNAVAILABLE</code></td>
+<td>43</td>
+<td><code>INDETERMINATE</code></td>
+<td>The enforcement point could not read the operator's pause state, so it blocked the call rather than assume that nothing is paused.</td>
+</tr>
+<tr>
+<td><code>APPROVAL_STATE_UNKNOWN</code></td>
+<td>44</td>
+<td><code>INDETERMINATE</code></td>
+<td>The enforcement point could not read or trust the approver's answer for a lost hold, so the call was never run.</td>
+</tr>
+</tbody>
+</table>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/reason-codes.md">docs/reference/reason-codes.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes" aria-current="page">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

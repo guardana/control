@@ -132,3 +132,21 @@ func FuzzParse(f *testing.F) {
 		}
 	})
 }
+
+func TestExcludesNamesAPathOrADirectory(t *testing.T) {
+	c := docsconfig.Config{Excluded: []string{"docs/plans/", "CHANGELOG.md"}}
+	for rel, want := range map[string]bool{
+		"docs/plans/a.md":    true,
+		"docs/plans/x/b.md":  true,
+		"CHANGELOG.md":       true,
+		"docs/plans":         false,
+		"docs/plansx/a.md":   false,
+		"docs/CHANGELOG.md":  false,
+		"CHANGELOG.md.bak":   false,
+		"docs/concepts/a.md": false,
+	} {
+		if got := c.Excludes(rel); got != want {
+			t.Errorf("Excludes(%q) = %v, want %v", rel, got, want)
+		}
+	}
+}

@@ -53,3 +53,6 @@ scripts/github-bootstrap.sh
 site/index.html
 scripts/og-card.html
 wrangler.json
+# The documentation pages, which make docs-gen renders from docs/ and the root
+# pages, carry the name those sources carry; the rename rewrites them as well.
+site/docs/

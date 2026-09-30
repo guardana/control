@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>The approvals page · Guardana Control</title>
+<meta name="description" content="What guardana-control console serves, what it prints, what it refuses and what it cannot tell you."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/console"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="the-approvals-page">The approvals page</h1>
+<p><code>guardana-control console</code> serves a page in your browser that lists the
+calls held for an approval and answers them, and, with <code>--pause</code>, shows,
+adds and lifts pauses. It writes exactly what the <code>approvals</code> and <code>pause</code>
+commands write (<a href="/docs/reference/cli">cli.md</a>), and it adds no authority: it runs as
+whoever starts it, and anyone who can write the approvals directory or the
+pause file can already do everything the page does.</p>
+<pre><code>guardana-control console --approvals &lt;dir&gt; [--pause &lt;f&gt;] --approver-id &lt;id&gt; [--until-stdin-closes]
+</code></pre>
+<p>Every answer carries <code>--approver-id</code>. It is the starter's claim, recorded as
+given; the page has no field that changes it, and nothing authenticates it.
+An id the approvals store would refuse, an empty one included, is refused
+before the page starts.</p>
+<h2 id="what-it-prints">What it prints</h2>
+<p>It listens on <code>127.0.0.1</code> at a port the system picks and prints exactly one
+line on stdout:</p>
+<pre><code>page: http://127.0.0.1:&lt;port&gt;/#t=&lt;token&gt;
+</code></pre>
+<p>The token is 32 random bytes in base64url, in the link's fragment, which a
+browser never sends to a server. It is good for one trade, within ten minutes
+of the start: the page's script sends it once to <code>/api/session</code> and receives
+a session token of the same strength, which the tab keeps and sends in a
+header with every other request. After the trade, or after ten minutes, the
+printed token is refused; the ten minutes are counted on the wall clock as
+well, so a machine that slept through them does not extend them. The link
+stays in the browser's history and may be kept in its session files, but what
+it carries is spent. The session belongs to the tab that traded it and to a
+copy of that tab, which a browser makes when a tab is duplicated. A tab that
+lost its session, and any other tab, says to start the console command again
+and open the link it prints. Nothing else is printed on stdout; diagnostics go to
+stderr.</p>
+<p>It serves until interrupted. With <code>--until-stdin-closes</code> it also stops when
+its standard input ends, which lets the process that started it stop it by
+closing a pipe. Either way it exits 0.</p>
+<h2 id="what-it-refuses">What it refuses</h2>
+<ul>
+<li>A request under any host name but <code>127.0.0.1:&lt;port&gt;</code>, so a name that
+resolves to the loopback reaches nothing: 403.</li>
+<li>A trade at <code>/api/session</code> without the printed token, or once it was traded
+or is ten minutes old: 401. Any other request to the page's API without the
+session token: 401.</li>
+<li>A request the browser says came from another origin or another site: 403.</li>
+<li>A write whose body is not <code>application/json</code>: 415; one over 4 KiB: 413; one
+that is not valid UTF-8, with a <code>\u</code> escape of half a UTF-16 pair that no
+other half completes, with a member the write does not take, a member name
+spelled in another case, a member named twice, or anything after the
+object: 400.</li>
+<li>An answer whose <code>action_digest</code> is not the record's: 409, and nothing is
+written. The digest compared is the record's, never the one its projection
+names.</li>
+<li>An answer to an id the store cannot hold, or to a record the listing names
+among its problems, a record file the page cannot open included: 409, in
+the store's own sentence, or for a record the one its problem carries.</li>
+<li>An answer, and the listing, once the approvals directory changed since the
+page opened it: another directory at its name, another owner, or a group or
+world write bit. An answer is refused with 409 and the listing fails, both
+in the store's own sentence. A plane that finds its directory changed
+refuses it the same way. The page reaches every file through the directory
+it opened, never through its name, so a directory put at the name between
+that check and a read or a write is never read or written.</li>
+<li>Any path but the page, its script and its stylesheet, all built into the
+binary: 404. It opens no file by a name a request chose.</li>
+</ul>
+<p>Every answer, a refusal included, forbids framing, caching and referrers,
+cuts the page off from any window that opened it, and allows the page's own
+script and stylesheet only, with no inline script.</p>
+<h2 id="how-an-answer-is-made">How an answer is made</h2>
+<p>Approve and Reject each take two clicks. The first opens a confirmation in
+the card that names the tool, the upstream and the first 12 hex digits of the
+action digest; the second sends the answer with that digest, and the page
+files it only for the record that carries it. A plane consumes the answer
+when the agent retries the call.</p>
+<p>Cards keep their place. They are ordered by the time their call was held, a
+new one goes after all of them, and none is removed while the page is open: a
+card whose call was answered, consumed or closed says so, and one whose
+record left the directory says that it did. The answer buttons wait one
+second after any change to the list.</p>
+<h2 id="what-it-shows">What it shows</h2>
+<p>What <code>approvals list</code> and <code>pause list</code> show, and no more: no arguments, no
+preview, no trail. The readable fields of a held call come from a projection
+and are not bound to the action digest beside them, and the page says so.
+Every value from a record, its projection or the pause file is withheld and
+quoted as the commands print it: key text becomes <code>[key text withheld]</code>, and
+a value holding a control, format, bidirectional, line or paragraph separator
+character is shown quoted. The page's script also quotes a replaced byte, so
+it shows at least what the command line quotes. Every value is set as text,
+never as markup.</p>
+<p>The words claim no more than the records. An approved call can resume on the
+agent's retry before the approval expires; the page never says it ran. A
+listing that is not the whole directory is a warning, never an empty list. A
+record whose resolution the store cannot give reads &quot;cannot say&quot;, and a
+listing that failed cannot say whether a plane holds the directory. A pause
+file that cannot be read is shown as one under which a plane blocks every
+call. A refusal from the store or the pause file is shown in its own words.</p>
+<h2 id="what-it-cannot-tell-you">What it cannot tell you</h2>
+<ul>
+<li>Whether a plane reads the pause file it writes.</li>
+<li>Whether the readable fields match the call the approval binds.</li>
+<li>Anything about a process running as the same user, which can write the
+directory and the file without the page.</li>
+</ul>
+<p>The page's JSON is private to its own script and carries no version: it is
+not an interface to build on.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/console.md">docs/reference/console.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console" aria-current="page">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

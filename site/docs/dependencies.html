@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Dependencies · Guardana Control</title>
+<meta name="description" content="Every direct dependency and pinned tool of the module, why the standard library will not do, its licence and whether it sits in the request path."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/dependencies"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="dependencies">Dependencies</h1>
+<p>A new direct dependency needs an entry on this page in the same change that
+adds it, stating the problem it solves, why the standard library will not do,
+its licence, a maintenance signal, and whether it sits in the request path. A
+dependency in the request path gets a stricter review than one in tooling,
+because it joins the set of code that has to be audited before a verdict can
+be trusted.</p>
+<p><code>go.mod</code> is the source of truth. Where this page and <code>go.mod</code> disagree, this
+page is wrong.</p>
+<h2 id="in-the-request-path">In the request path</h2>
+<h3 id="googlegolangorgprotobuf-v13612"><code>google.golang.org/protobuf</code> v1.36.12</h3>
+<ul>
+<li>Problem it solves: encoding, decoding and validating the wire contracts. The
+generated Go under <code>api/gen/go/</code> is built against this runtime, and the JSON
+representation goes through <code>protojson</code> with unknown fields rejected, see
+<a href="/docs/adr/0002-wire-contracts-and-versioning">ADR-0002</a>.</li>
+<li>Why the standard library will not do: <code>encoding/json</code> carries no schema, no
+generated types, no breaking-change gate, and no rule for a field the
+receiver does not know. Quietly dropping a field the producer believed was
+security-relevant is the failure the contract exists to prevent.</li>
+<li>Licence: BSD-3-Clause, with a separate patent grant file, both in the module.</li>
+<li>Maintenance signal: it is the reference Go implementation of Protobuf,
+developed in <code>protocolbuffers/protobuf-go</code> alongside the format itself.</li>
+<li>Request path: yes. It parses input that has not been authorized yet, so a
+version bump is read rather than merged on a green gate.</li>
+</ul>
+<h3 id="githubcommodelcontextprotocolgo-sdk-v180"><code>github.com/modelcontextprotocol/go-sdk</code> v1.8.0</h3>
+<ul>
+<li>Problem it solves: speaking the Model Context Protocol on both sides of the
+gateway, at both live revisions: the Streamable HTTP listener toward the
+agent, stateless for <code>2026-07-28</code> and stateful for <code>2025-11-25</code> and older,
+the stdio listener, and the client toward each upstream server. The
+receiving middleware it exposes is the one interception point of
+<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>.</li>
+<li>Why the standard library will not do: the protocol is JSON-RPC over three
+transports with per-revision negotiation, session handling, routing-header
+checks and result shapes that changed between revisions. Reimplementing two
+revisions of that and keeping them in step is what the module's authors do;
+it is the reference Go implementation of the protocol.</li>
+<li>Licence: read from the module's <code>LICENSE</code> file. The project is moving from
+MIT to Apache-2.0: contributions whose authors consented are Apache-2.0,
+contributions whose authors have not yet consented stay MIT, and the file
+carries both texts. The Go source files themselves still carry an MIT-style
+header. Both licences are permissive and compatible with this project's.</li>
+<li>Maintenance signal: the module is published from
+<code>modelcontextprotocol/go-sdk</code>, the organisation that publishes the protocol;
+v1.8.0 was released on 2026-09-14 as a copy of v1.8.0-pre.2, whose commit is
+dated 2026-09-04, and the module ships a security policy. Nothing else about
+the project's activity was checked.</li>
+<li>Request path: yes. It parses every request from the agent before policy
+runs and every answer from an upstream after an allowed call, so a version
+bump is read rather than merged on a green gate. It is imported by <code>adapters/mcp</code> and by
+<code>cmd/guardana-gateway</code>, which builds the upstream transports; a test in
+<code>internal/gateway</code> refuses the import there.</li>
+<li>What it links: the module pulls eight more into the binary that serves the
+adapter, none of them imported by this repository's own code. Each licence
+below was read in the module cache of the version <code>go.mod</code> pins:
+<code>github.com/google/jsonschema-go</code> v0.4.3 (MIT), which validates tool schemas;
+<code>github.com/segmentio/encoding</code> v0.5.4 (MIT) and <code>github.com/segmentio/asm</code>
+v1.1.3 (MIT), its JSON encoder and that encoder's assembly kernels;
+<code>github.com/yosida95/uritemplate/v3</code> v3.0.2 (BSD-3-Clause, the text in its
+<code>LICENSE</code> file), which expands resource templates; <code>golang.org/x/oauth2</code>
+v0.35.0, <code>golang.org/x/sync</code> v0.23.0, <code>golang.org/x/sys</code> v0.48.0 and
+<code>golang.org/x/time</code> v0.15.0 (all BSD-3-Clause), for the bearer-token
+middleware, the transports' concurrency helpers, system calls and its rate
+limiter. They sit in the request path with the module that brings them, and a
+bump to any of them is read the same way.</li>
+</ul>
+<p>Beside those, code that ships imports only protobuf; <code>go list -deps ./adapters/mcp</code> names the set above and nothing more. The test-only entry below
+is the only other module this repository imports itself. There is no database
+driver and no logging library in the tree. The dependency rule of
+<a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a> admits no module
+but protobuf, and no standard library package it does not name, into the part
+that decides; a new one there means an edit to that rule. The MCP module is
+imported outside that part, by the adapter and by the gateway's command.</p>
+<h3 id="gcriodistrolessstatic-debian12nonroot"><code>gcr.io/distroless/static-debian12:nonroot</code></h3>
+<ul>
+<li>Problem it solves: the base of the gateway's container image. It gives the
+binary CA certificates to check its upstreams', decision point's and
+collector's TLS certificates, a <code>nonroot</code> user (65532) to run as, <code>/tmp</code>,
+and the time zone database. <code>.goreleaser.yaml</code> names it by the digest of its
+multi-platform index, read from the registry, so a tag the upstream moves
+cannot change what ships.</li>
+<li>Why not <code>scratch</code>: the Go binary needs no C library, but <code>scratch</code> holds no
+CA certificates and no user entry, so the image would have to carry and
+refresh both itself.</li>
+<li>Licence: the build definitions in <code>GoogleContainerTools/distroless</code> are
+Apache-2.0. The image holds five Debian 12 packages, their licences read from
+each <code>/usr/share/doc/&lt;package&gt;/copyright</code> in the image: <code>base-files</code> 12.4+deb12u15
+(GPL-2+), <code>ca-certificates</code> 20250419~deb12u1 (GPL-2+ and MPL-2.0),
+<code>media-types</code> 10.0.0 (public information, no restriction stated), <code>netbase</code>
+6.4 (GPL-2) and <code>tzdata</code> 2026b-0+deb12u1 (public domain). They are data
+files and are not linked with the gateway; their source is Debian's.</li>
+<li>Maintenance signal: the repository is published by Google's container tools
+organisation, is not archived, and its last commit is dated 2026-09-24. The
+images are rebuilt from Debian's updates, which is why the digest is bumped
+by hand rather than followed.</li>
+<li>Request path: yes. It is the filesystem the gateway runs on, so a digest
+bump is read, as a dependency bump is, rather than merged on a green gate.</li>
+</ul>
+<h2 id="test-only">Test-only</h2>
+<p>Imported by <code>_test.go</code> files. <code>go build ./...</code> does not link them, so none of
+them reaches a released artifact.</p>
+<h3 id="pgregorynetrapid-v130"><code>pgregory.net/rapid</code> v1.3.0</h3>
+<ul>
+<li>Problem it solves: property tests for the canonical JSON serializer and the
+action digest. A canonicalizer is a total function over a very large input
+space, and the inputs that break it are the ones nobody thought to write
+down. <code>rapid</code> generates them, and when one fails it shrinks the failure to
+the smallest input that still fails, which is what makes a property failure
+something a person can act on.</li>
+<li>Why the standard library will not do: <code>testing/quick</code> generates values but
+does not shrink, so a failure arrives as a random deep tree rather than the
+two-key object that actually breaks the ordering rule. Go's native fuzzing is
+used here too and covers byte inputs; it does not build typed trees of the
+shape the canonicalizer takes.</li>
+<li>Licence: <strong>MPL-2.0</strong>. File-level copyleft: modifying one of its source files
+would keep that file under MPL, while using the library unmodified does not
+affect this project's Apache-2.0 licensing. It is never linked into a
+released artifact.</li>
+<li>Maintenance signal: v1.3.0, published 2026-03-30, read from pkg.go.dev in the
+session that added this entry. Nothing else about the project's activity was
+checked, so this line says less than the entries above it.</li>
+<li>Request path: no.</li>
+</ul>
+<h2 id="developer-tooling">Developer tooling</h2>
+<p>Pinned as <code>tool</code> directives in <code>go.mod</code>, so they arrive with <code>go mod download</code>
+at the version the module records. None of them is linked into a shipped
+binary and none is in the request path.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Module</th>
+<th>Used by</th>
+<th>Licence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>protoc-gen-go</code></td>
+<td><code>google.golang.org/protobuf</code></td>
+<td><code>make proto</code>, <code>make proto-check</code></td>
+<td>BSD-3-Clause</td>
+</tr>
+<tr>
+<td><code>goimports</code></td>
+<td><code>golang.org/x/tools</code></td>
+<td><code>make fmt</code>, <code>make fmt-check</code></td>
+<td>BSD-3-Clause</td>
+</tr>
+<tr>
+<td><code>govulncheck</code></td>
+<td><code>golang.org/x/vuln</code></td>
+<td><code>make security</code></td>
+<td>BSD-3-Clause</td>
+</tr>
+</tbody>
+</table>
+<p>Every other module in <code>go.mod</code> is marked <code>// indirect</code> and arrives through
+those three or through the MCP module: <code>golang.org/x/mod</code>, <code>golang.org/x/sync</code>,
+<code>golang.org/x/sys</code>, <code>golang.org/x/telemetry</code>, <code>golang.org/x/tools</code> and
+<code>golang.org/x/vuln</code> through the tools; <code>github.com/google/jsonschema-go</code>,
+<code>github.com/segmentio/asm</code>, <code>github.com/segmentio/encoding</code>,
+<code>github.com/yosida95/uritemplate/v3</code>, <code>golang.org/x/oauth2</code> and
+<code>golang.org/x/time</code> through the MCP module, and those six are linked into the
+gateway with it. No code in this repository imports them.</p>
+<h2 id="tools-that-are-not-go-modules">Tools that are not Go modules</h2>
+<p><code>golangci-lint</code>, <code>buf</code>, <code>actionlint</code>, <code>zizmor</code>, <code>gitleaks</code>, <code>osv-scanner</code>,
+<code>shellcheck</code>, <code>syft</code>, <code>goreleaser</code> and <code>cosign</code> are pinned in
+<code>scripts/tool-versions.env</code> and checked by <code>make bootstrap</code>, which fails on a
+version mismatch rather than continuing. The Go compiler is pinned separately,
+by the <code>go</code> directive in <code>go.mod</code>, see
+<a href="/docs/adr/0001-language-and-toolchain">ADR-0001</a>.</p>
+<p>All but <code>goreleaser</code>, <code>syft</code> and <code>cosign</code> run targets of the gate. Those three
+build a release, in <code>.github/workflows/release.yml</code> and in
+<code>make release-snapshot</code>, and CI checks each download against the digest pinned
+beside its version:</p>
+<ul>
+<li><code>goreleaser</code> (MIT) builds the two binaries for Linux and macOS, packs one
+archive per platform, writes <code>checksums.txt</code>, builds and pushes the
+gateway's image with the <code>ko</code> library it links (Apache-2.0), and drafts the
+GitHub release, from <code>.goreleaser.yaml</code>. <code>ko</code> adds no download of its own;
+what it fetches is the base image above. Doing that by hand in the workflow
+would be a long script that nothing else tests.</li>
+<li><code>syft</code> (Apache-2.0) writes a CycloneDX bill of materials for each archive,
+from the module information Go records in each binary.</li>
+<li><code>cosign</code> (Apache-2.0) signs <code>checksums.txt</code> and the image's digest without a
+key, with a certificate for the release workflow's identity, and verifies
+both signatures before the release is published.</li>
+</ul>
+<p>None of these is a dependency of the product, and nothing in the tree imports
+any of them.</p>
+<h2 id="the-website">The website</h2>
+<p><code>site/</code> holds the website's static files (<a href="/docs/adr/0030-a-static-website-drawn-from-the-repository">ADR-0030</a>),
+and one Go module renders its documentation pages. No binary or image of the
+product contains what this section lists.</p>
+<h3 id="githubcomyuingoldmark-v186"><code>github.com/yuin/goldmark</code> v1.8.6</h3>
+<ul>
+<li>Problem it solves: rendering the documentation's Markdown into the site's
+pages under <code>site/docs/</code>, with the tables, strikethrough and bare links the
+pages use as GitHub shows them
+(<a href="/docs/adr/0031-the-documentation-is-served-on-the-website">ADR-0031</a>). The
+renderer in <code>internal/docscheck/sitedoc/docsite</code> walks its syntax tree to
+rewrite links, set heading anchors and refuse raw HTML.</li>
+<li>Why the standard library will not do: it has no Markdown parser, and
+CommonMark's block and inline rules are too many to keep by hand beside the
+pages they would have to agree with.</li>
+<li>Licence: MIT, copyright Yusuke Inuzuka, read from the module's <code>LICENSE</code>.
+The module has no dependency of its own.</li>
+<li>Maintenance signal: v1.8.6 was published on 2026-09-03, read from the module
+proxy in the session that added this entry. Nothing else about the project's
+activity was checked.</li>
+<li>Request path: no. Only <code>internal/docscheck</code> imports it, and <code>go list -deps</code>
+over <code>cmd/</code>, <code>pkg/</code>, <code>adapters/</code> and <code>examples/</code> does not reach it, so no
+binary or image of the product contains it.</li>
+</ul>
+<h3 id="ibm-plex-sans-and-ibm-plex-mono">IBM Plex Sans and IBM Plex Mono</h3>
+<ul>
+<li>Problem it solves: the website's type, six WOFF2 files served from the site
+itself, so the page loads nothing from another host.</li>
+<li>Why not the system fonts: the page shares its visual system with Guardana's
+site; the system font stacks stay the fallback in <code>tokens.css</code>.</li>
+<li>Licence: SIL Open Font License 1.1, copyright IBM Corp., read from
+<code>site/assets/brand/v1/fonts/OFL.txt</code>, which is served beside the fonts as the
+licence asks of every copy.</li>
+<li>Maintenance signal: <code>IBM/plex</code> is not archived and was last pushed on
+2026-09-22.</li>
+<li>Request path: no.</li>
+</ul>
+<h3 id="brand-v1-copied-from-guardana">Brand v1, copied from Guardana</h3>
+<ul>
+<li>Problem it solves: the colour and type tokens, fonts and marks the two
+projects' sites share, in <code>site/assets/brand/v1/</code>.</li>
+<li>Why a copy: Control depends on nothing from Guardana
+(<a href="/docs/adr/0024-control-and-guardana-are-independent">ADR-0024</a>). The copy is
+Control's own from the day it was taken; a test pins the digest of its
+<code>SHA256SUMS</code>, and a change is a v2 at a new path, never an edit in place.</li>
+<li>Licence: Apache-2.0, as Guardana's repository; the fonts as above. Guardana's
+marks in the copy remain Guardana's.</li>
+<li>Maintenance signal: none needed; nothing follows the original.</li>
+<li>Request path: no.</li>
+</ul>
+<h2 id="github-actions-used-by-the-workflows">GitHub Actions used by the workflows</h2>
+<p>An action runs inside the workflows that decide whether a change may merge, so
+it is a dependency of the release and review path even though it never ships.
+Each is pinned to a commit SHA with the version in a trailing comment;
+<code>make check-actions</code> fails on a reference that is not, and <code>zizmor</code> and
+<code>actionlint</code> read the same files. None of them is in the request path.</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Why it is here</th>
+<th>Licence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>actions/checkout</code></td>
+<td>Fetches the tree every job works on</td>
+<td>MIT</td>
+</tr>
+<tr>
+<td><code>actions/setup-go</code></td>
+<td>Installs the compiler named by <code>go-version-file: go.mod</code></td>
+<td>MIT</td>
+</tr>
+<tr>
+<td><code>bufbuild/buf-action</code></td>
+<td>Installs the pinned <code>buf</code>, with <code>setup_only</code>; <code>make proto-check</code> and the breaking-change step drive it. It replaced the archived <code>bufbuild/buf-setup-action</code></td>
+<td>Apache-2.0</td>
+</tr>
+<tr>
+<td><code>golangci/golangci-lint-action</code></td>
+<td>Installs the pinned linter, with <code>install-only</code>; <code>make lint</code> runs it</td>
+<td>MIT</td>
+</tr>
+<tr>
+<td><code>github/codeql-action</code></td>
+<td>CodeQL static analysis, and the SARIF upload that publishes the supply-chain score to code scanning</td>
+<td>MIT</td>
+</tr>
+<tr>
+<td><code>actions/dependency-review-action</code></td>
+<td>Blocks a pull request that adds a vulnerable dependency</td>
+<td>MIT</td>
+</tr>
+<tr>
+<td><code>ossf/scorecard-action</code></td>
+<td>Scores the repository's own supply-chain settings</td>
+<td>Apache-2.0</td>
+</tr>
+<tr>
+<td><code>actions/upload-artifact</code></td>
+<td>Keeps the raw supply-chain result that code scanning would trim, and the dry run's release build</td>
+<td>MIT</td>
+</tr>
+<tr>
+<td><code>actions/attest-build-provenance</code></td>
+<td>Records signed build provenance for every release asset and for the image before the release is published</td>
+<td>MIT</td>
+</tr>
+</tbody>
+</table>
+<p>Licences were read from each action's repository metadata, not from a scanner.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/dependencies.md">docs/dependencies.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies" aria-current="page">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

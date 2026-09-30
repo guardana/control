@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>finding.proto · Guardana Control</title>
+<meta name="description" content="The messages and enums of finding.proto as the compiled descriptor declares them, each field with its number, cardinality and type."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/wire/finding"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="findingproto">finding.proto</h1>
+<p>What <code>finding.proto</code> of package <code>guardana.control.v1</code> puts on the wire: every message with its
+fields and every enum with its values, as the compiled descriptor declares them. The
+descriptor carries no comments, so what a field means, when it is set and what a reader
+does with a number it does not know is on <a href="/docs/contracts">the wire contract</a>.</p>
+<p>Rendered from the descriptor compiled from <code>api/proto/guardana/control/v1/finding.proto</code>. Rebuild it with
+<code>make docs-gen</code>; an edit made here does not survive the next run.</p>
+<h2 id="messages">Messages</h2>
+<h3 id="finding">Finding</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Number</th>
+<th>Cardinality</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>finding_id</code></td>
+<td>1</td>
+<td>optional</td>
+<td><code>string</code></td>
+</tr>
+<tr>
+<td><code>rule_id</code></td>
+<td>2</td>
+<td>optional</td>
+<td><code>string</code></td>
+</tr>
+<tr>
+<td><code>rule_version</code></td>
+<td>3</td>
+<td>optional</td>
+<td><code>string</code></td>
+</tr>
+<tr>
+<td><code>severity</code></td>
+<td>4</td>
+<td>optional</td>
+<td><a href="#findingseverity"><code>FindingSeverity</code></a></td>
+</tr>
+<tr>
+<td><code>verdict</code></td>
+<td>5</td>
+<td>optional</td>
+<td><a href="#findingverdict"><code>FindingVerdict</code></a></td>
+</tr>
+<tr>
+<td><code>request_id</code></td>
+<td>6</td>
+<td>optional</td>
+<td><code>string</code></td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td>7</td>
+<td>optional</td>
+<td><code>string</code></td>
+</tr>
+<tr>
+<td><code>evidence_refs</code></td>
+<td>8</td>
+<td>repeated</td>
+<td><code>string</code></td>
+</tr>
+<tr>
+<td><code>framework_mappings</code></td>
+<td>9</td>
+<td>repeated</td>
+<td><code>string</code></td>
+</tr>
+<tr>
+<td><code>recommended_action</code></td>
+<td>10</td>
+<td>optional</td>
+<td><code>string</code></td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>12</td>
+<td>optional</td>
+<td><a href="#findingsource"><code>FindingSource</code></a></td>
+</tr>
+<tr>
+<td><code>confidence_permille</code></td>
+<td>11</td>
+<td>optional, presence tracked</td>
+<td><code>uint32</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="enums">Enums</h2>
+<h3 id="findingverdict">FindingVerdict</h3>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Number</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FINDING_VERDICT_UNSPECIFIED</code></td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>FINDING_VERDICT_CONFIRMED</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>FINDING_VERDICT_SUSPECTED</code></td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>FINDING_VERDICT_INDETERMINATE</code></td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+<h3 id="findingseverity">FindingSeverity</h3>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Number</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FINDING_SEVERITY_UNSPECIFIED</code></td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>FINDING_SEVERITY_INFO</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>FINDING_SEVERITY_LOW</code></td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>FINDING_SEVERITY_MEDIUM</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td><code>FINDING_SEVERITY_HIGH</code></td>
+<td>4</td>
+</tr>
+<tr>
+<td><code>FINDING_SEVERITY_CRITICAL</code></td>
+<td>5</td>
+</tr>
+</tbody>
+</table>
+<h3 id="findingsource">FindingSource</h3>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Number</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FINDING_SOURCE_UNSPECIFIED</code></td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>FINDING_SOURCE_DETERMINISTIC</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>FINDING_SOURCE_HEURISTIC</code></td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>FINDING_SOURCE_MODEL</code></td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/wire/finding.md">docs/reference/wire/finding.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding" aria-current="page">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Architecture · Guardana Control</title>
+<meta name="description" content="The system in context, its containers, the request path from a proposed action to a decision and its evidence, the dependency rule, and where it is going."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/concepts/architecture"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="architecture">Architecture</h1>
+<p>What to hold in your head before reading the code. The gateway that decides
+and enforces is <code>experimental</code>, and nothing here is a security boundary yet.
+What exists, component by component, is in <a href="/docs/status">status.md</a>, and
+that page is the only inventory.</p>
+<h2 id="the-system-in-context">The system in context</h2>
+<p>One process sits between an agent and the servers it calls. Everything else
+is outside it and talks to it over a protocol it does not own.</p>
+<figure class="dg-text" id="diagram-1"><figcaption>The system in context</figcaption><p>The agent&#39;s tool calls pass through the gateway process, which loads a signed bundle, sends held calls to an approver, asks a decision point that can only veto, forwards the calls it lets through and exports evidence to a collector. <a href="https://github.com/guardana/control/blob/main/docs/concepts/architecture.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart LR
+    accTitle: The system in context
+    accDescr: The agent&#39;s tool calls pass through the gateway process, which loads a signed bundle, sends held calls to an approver, asks a decision point that can only veto, forwards the calls it lets through and exports evidence to a collector.
+    OP[Operator]
+    AG[&#34;Agent, an MCP client&#34;]
+    APR[Approver]
+    GW[&#34;Gateway process&#34;]
+    SRV[&#34;MCP servers, the tools&#34;]
+    BUNDLE[&#34;Signed policy bundle&#34;]
+    COL[&#34;OpenTelemetry collector&#34;]
+    PDP[&#34;Decision point, the organization&#39;s own, over AuthZEN&#34;]
+    OP --&gt;|configuration, bundle, mode| GW
+    AG --&gt;|tools/call| GW
+    GW --&gt;|the calls it lets through| SRV
+    GW --&gt;|held call| APR
+    APR --&gt;|approval for one digest| GW
+    BUNDLE --&gt;|loaded once, verified| GW
+    GW --&gt;|evidence, OTLP logs| COL
+    GW --&gt;|a call a veto rule routes there| PDP
+    PDP --&gt;|an answer that can only veto| GW
+</code></pre></details></figure>
+<p>Sources: <code>cmd/guardana-gateway/serve.go</code>, <code>adapters/mcp/listener.go</code>,
+<code>internal/gateway/approvals.go</code>, <code>adapters/otel/exporter.go</code>,
+<code>adapters/authzen/client.go</code>.</p>
+<p>The gateway is the only component this project adds to the request path.
+Guardana, a separate verifier project, is not part of this system: the gateway
+neither calls it nor needs it
+(<a href="/docs/adr/0024-control-and-guardana-are-independent">ADR-0024</a>).</p>
+<h2 id="the-containers">The containers</h2>
+<p>Two binaries. <code>guardana-gateway</code> runs the plane; <code>guardana-control</code> is the
+author's tool for a policy document and its key, and the operator's for a held
+call and a pause; the one thing it serves is the local approvals page.</p>
+<figure class="dg-text" id="diagram-2"><figcaption>The containers</figcaption><p>Inside guardana-gateway the MCP adapter hands calls to the pipeline, which asks the decision kernel, records evidence through the spool and its exporter, and keeps holds in the approval store; guardana-control lints policy and answers approvals through the approvals directory. <a href="https://github.com/guardana/control/blob/main/docs/concepts/architecture.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TB
+    accTitle: The containers
+    accDescr: Inside guardana-gateway the MCP adapter hands calls to the pipeline, which asks the decision kernel, records evidence through the spool and its exporter, and keeps holds in the approval store; guardana-control lints policy and answers approvals through the approvals directory.
+    subgraph CLI[&#34;guardana-control&#34;]
+        LINT[&#34;policy lint, policy test&#34;]
+        APPR[&#34;approvals list, approve, reject&#34;]
+    end
+    subgraph PLANE[&#34;guardana-gateway&#34;]
+        MCP[&#34;MCP adapter&#34;]
+        PIPE[&#34;Pipeline: admit, hold, close&#34;]
+        CORE[&#34;Decision kernel&#34;]
+        POL[&#34;Policy snapshot and matcher&#34;]
+        CANON[&#34;Canonical action digest&#34;]
+        EV[&#34;Evidence chain&#34;]
+        SPOOL[&#34;Spool on disk&#34;]
+        OTEL[&#34;OTLP exporter&#34;]
+        HOLD[&#34;Approval store, hold journal&#34;]
+    end
+    AG[Agent] --&gt; MCP
+    MCP --&gt; PIPE
+    PIPE --&gt; CORE
+    CORE --&gt; POL
+    CORE --&gt; CANON
+    PIPE --&gt; EV
+    PIPE --&gt; HOLD
+    EV --&gt; SPOOL
+    SPOOL --&gt; OTEL
+    MCP --&gt; SRV[&#34;MCP server&#34;]
+    OTEL --&gt; COL[Collector]
+    LINT --&gt; POL
+    APPR --&gt; DIR[(&#34;Approvals directory&#34;)]
+    HOLD --&gt; DIR
+</code></pre></details></figure>
+<p>Sources: <code>cmd/guardana-gateway/build.go</code>, <code>cmd/guardana-control/main.go</code>,
+<code>adapters/mcp/pipeline.go</code>, <code>internal/gateway/pipeline.go</code>,
+<code>internal/core/decide.go</code>, <code>internal/policy/load.go</code>,
+<code>internal/canon/digest.go</code>, <code>internal/evidence/chain.go</code>,
+<code>internal/spool/append.go</code>, <code>adapters/otel/exporter.go</code>,
+<code>internal/approvals/plane.go</code>, <code>internal/holdjournal/journal.go</code>,
+<code>cmd/guardana-control/approvals.go</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Container</th>
+<th>Path</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MCP adapter</td>
+<td><code>adapters/mcp/</code></td>
+<td>Listens toward the agent, speaks to each upstream server, translates a call into an envelope and shapes every answer the agent sees.</td>
+</tr>
+<tr>
+<td>Pipeline</td>
+<td><code>internal/gateway/</code></td>
+<td>Protocol-neutral: admits an envelope, asks the kernel and, when the decision turns on it, the external decision point, applies the enforcement mode, holds a call for approval, writes the trail.</td>
+</tr>
+<tr>
+<td>Decision kernel</td>
+<td><code>internal/core/</code></td>
+<td>The fixed order of checks, the fail-closed table and the delegation check; <code>Decide</code> once per admitted call, again with the external decision point's answer when the decision turns on it, and again when a rewriting obligation changes the arguments.</td>
+</tr>
+<tr>
+<td>Policy</td>
+<td><code>internal/policy/</code></td>
+<td>Parses a document, verifies a bundle's signature, holds one snapshot and matches three-valued.</td>
+</tr>
+<tr>
+<td>Canonical digest</td>
+<td><code>internal/canon/</code></td>
+<td>The one digest an approval binds to.</td>
+</tr>
+<tr>
+<td>Evidence chain</td>
+<td><code>internal/evidence/</code></td>
+<td>The event chain in memory and the <code>Sink</code> seam the spool implements.</td>
+</tr>
+<tr>
+<td>Spool</td>
+<td><code>internal/spool/</code></td>
+<td>The segmented log on disk with a budget, a quarantine and recovery.</td>
+</tr>
+<tr>
+<td>AuthZEN client</td>
+<td><code>adapters/authzen/</code></td>
+<td>Asks the organization's decision point about one call whose decision turns on its answer, and reads the answer strictly; the answer can only veto.</td>
+</tr>
+<tr>
+<td>OTLP exporter</td>
+<td><code>adapters/otel/</code></td>
+<td>Drains the spool to a collector and acknowledges only the protocol's own answer.</td>
+</tr>
+<tr>
+<td>Approval store</td>
+<td><code>internal/approvals/</code></td>
+<td>Reads and checks the records in the directory an approver answers in; the pipeline compares an answer with its own record of the hold.</td>
+</tr>
+<tr>
+<td>Hold journal</td>
+<td><code>internal/holdjournal/</code></td>
+<td>The plane's own durable record of its holds, so the next start closes the trail of one it lost.</td>
+</tr>
+<tr>
+<td>Commands</td>
+<td><code>cmd/guardana-control/</code></td>
+<td>The <code>policy</code>, <code>approvals</code> and <code>pause</code> commands and the <code>console</code> page, without a plane.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-request-path">The request path</h2>
+<p>An adapter receives a proposed action from an agent and normalises it into an
+<code>ActionEnvelope</code>: the project, tenant and environment it belongs to; the
+principal, the agent and the delegation chain; the action, which carries its
+own effect class; the resource and the destination; the argument hash together
+with the data labels that say whether those arguments hold secrets; the run
+context; and the correlation identifiers that tie the sequence together. The
+core validates the envelope and classifies the action by effect. A policy
+snapshot is evaluated against it and produces a <code>Decision</code>: reason codes,
+obligations, the digest of the policy bundle that decided, and one of five
+verdicts: <code>ALLOW</code>, <code>DENY</code>, <code>REQUIRE_APPROVAL</code>, <code>ALLOW_WITH_OBLIGATIONS</code> and
+<code>INDETERMINATE</code>, spelled <code>VERDICT_ALLOW</code> and so on in the wire contract. The
+pipeline in <code>internal/gateway/</code> applies the enforcement mode and holds a call
+that needs an approval; the adapter enforces what the pipeline hands back.
+The pipeline records every step on the call's trail, and a call it cannot
+record before the effect is blocked, unless it is a read the operator let run
+unrecorded.</p>
+<figure class="dg-text" id="diagram-3"><figcaption>The request path</figcaption><p>The adapter hands a proposed action to the pipeline, whose kernel evaluates the policy snapshot and may take a decision point&#39;s answer; a denied or undetermined call is refused, a call that needs approval is held until an identical retry consumes it, an allowed call runs, and evidence is recorded as the sink accepts it. <a href="https://github.com/guardana/control/blob/main/docs/concepts/architecture.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">sequenceDiagram
+    accTitle: The request path
+    accDescr: The adapter hands a proposed action to the pipeline, whose kernel evaluates the policy snapshot and may take a decision point&#39;s answer; a denied or undetermined call is refused, a call that needs approval is held until an identical retry consumes it, an allowed call runs, and evidence is recorded as the sink accepts it.
+    participant Agent
+    participant Adapter
+    participant Pipeline
+    participant Core
+    participant Policy
+    participant PDP as Decision point
+    participant Store
+    participant Approver
+    participant Tool
+    participant Evidence
+    Agent-&gt;&gt;Adapter: proposed action
+    Adapter-&gt;&gt;Pipeline: ActionEnvelope and the proposed arguments
+    Pipeline-&gt;&gt;Core: Decide
+    Core-&gt;&gt;Core: validate, classify effect, compute action digest
+    Core-&gt;&gt;Policy: evaluate against the policy snapshot
+    Policy--&gt;&gt;Core: verdict, reason codes, obligations, bundle digest
+    Core--&gt;&gt;Pipeline: decision
+    opt the decision turns on the decision point&#39;s answer and is not DENY
+        Pipeline-&gt;&gt;PDP: ask, with a deadline
+        PDP--&gt;&gt;Pipeline: an answer, or silence
+        Pipeline-&gt;&gt;Core: Decide again with the answer
+        Core--&gt;&gt;Pipeline: decision
+    end
+    alt DENY or INDETERMINATE
+        Pipeline--&gt;&gt;Adapter: blocked
+        Adapter--&gt;&gt;Agent: refusal carrying the reason codes
+    else REQUIRE_APPROVAL
+        Pipeline-&gt;&gt;Store: hold this request under its binding, with an expiry
+        Pipeline--&gt;&gt;Adapter: pending, with the approval id
+        Adapter--&gt;&gt;Agent: pending
+        Approver-&gt;&gt;Store: approve or reject the held request
+        Agent-&gt;&gt;Adapter: the same action again
+        Adapter-&gt;&gt;Pipeline: ActionEnvelope and the proposed arguments
+        Pipeline-&gt;&gt;Store: the requests still held under this binding
+        Store--&gt;&gt;Pipeline: the held request and the approval&#39;s state
+        Pipeline--&gt;&gt;Adapter: allow the held request only, consuming the approval once
+        Adapter-&gt;&gt;Tool: call
+        Tool--&gt;&gt;Adapter: result
+    else ALLOW or ALLOW_WITH_OBLIGATIONS
+        Pipeline--&gt;&gt;Adapter: allow, with obligations to enforce
+        Adapter-&gt;&gt;Tool: call
+        Tool--&gt;&gt;Adapter: result
+    end
+    Pipeline-&gt;&gt;Evidence: decision, hold, approval and result, as the sink accepts them
+</code></pre></details></figure>
+<p>Sources: <code>internal/gateway/admit.go</code>, <code>internal/gateway/approve.go</code>,
+<code>internal/gateway/resume.go</code>, <code>internal/gateway/approvals.go</code>,
+<code>internal/core/decide.go</code>, <code>internal/core/failclosed.go</code>,
+<code>internal/evidence/chain.go</code>.</p>
+<p>Three properties the branches carry:</p>
+<ul>
+<li><code>INDETERMINATE</code> is not a quiet allow. A fail-closed table decides what it
+enforces for each effect class, see <a href="/docs/adr/0003-policy-model-and-external-pdp">ADR-0003</a>.</li>
+<li>An approval binds one canonical action digest together with the policy bundle
+digest, and it expires, see <a href="/docs/adr/0005-canonical-action-digest">ADR-0005</a>.
+A retry that equals the held request resumes it once; a similar action, a
+later one or a run after it is a different action.</li>
+<li>An external decision point can only veto: its answer is an input a <code>DENY</code>
+rule reads, and its silence blocks, see
+<a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>.</li>
+<li>The blocked branch produces evidence too, naming the policy version that
+decided it, or that none was available, see
+<a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>.</li>
+</ul>
+<h2 id="layers-and-the-dependency-rule">Layers and the dependency rule</h2>
+<p>From the outside in:</p>
+<ul>
+<li>Adapters (<code>adapters/</code>) speak one protocol or framework and translate. They
+carry no policy meaning.</li>
+<li>The public Go surface is exactly <code>pkg/contract</code>, <code>pkg/adapter</code>,
+<code>pkg/detector</code> and <code>pkg/policyprovider</code>. It is what an out-of-tree adapter,
+detector or policy provider compiles against. Adding a fifth package is a
+compatibility decision and needs its own record.</li>
+<li>The core (<code>internal/core</code>, <code>internal/policy</code>) validates, classifies, matches
+and decides.</li>
+<li>Everything the decision does not need sits outside it: storage, the control
+API, the gateway, ingest.</li>
+</ul>
+<p>The dependency rule is an allowlist, <code>implemented</code> in the gate. A package in
+<code>internal/core</code>, <code>internal/policy</code>, <code>internal/canon</code>, <code>internal/evidence</code> or
+<code>pkg/contract</code> may import packages of this module outside <code>adapters/</code>,
+<code>internal/storage</code>, <code>internal/controlapi</code>, <code>internal/gateway</code> and
+<code>internal/ingest</code>; packages of <code>google.golang.org/protobuf</code>; and a named set of
+standard library packages that holds no network, file, process, system call,
+randomness, <code>unsafe</code> or plugin package; the functions in it that read the
+clock, standard input, the zone database or the system's randomness are
+refused by name where a name reveals the read; the local zone behind
+<code>time.Unix(...).Format</code> is not. A package in those trees builds from the same
+Go files on every platform: a file build constraints leave out on the machine
+the gate runs on, and any source that is not plain Go, is refused. Every
+package of this module those trees reach is held to the same list, generated
+code excepted. The rule runs one way: an adapter may import the core, and core
+that needs adapter behaviour declares an interface for the adapter to
+implement.</p>
+<p>The rule sandboxes nothing. Adapter and core run in one process, so a
+compromised adapter dependency can still affect the program, and each allowed
+package is trusted whole. What the rule buys is that the set of code able to
+influence a verdict stays small enough for one person to read, and that no new
+module or standard library package enters that set without an edit to the rule
+itself, which the gate checks. See
+<a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>.</p>
+<h2 id="where-it-is-going">Where it is going</h2>
+<p>Everything in this section is <code>planned</code>, in the order
+<a href="/docs/roadmap">ROADMAP.md</a> gives. The request path above stays how the
+plane stops a call. New inputs also observe agents that do not use the proxy.
+A supervisor compares what agents do with their procedures and permissions and
+reports to the operator's alerting and logging. Seams let others extend the
+plane.</p>
+<figure class="dg-text" id="diagram-4"><figcaption>Where it is going</figcaption><p>A planned shape: agents reach tools through a proxy or framework ports and the enforcement point, feeds and evidence reach a supervisor, and alerts, exports and a run graph come out, with extensions added as adapters and documents. <a href="https://github.com/guardana/control/blob/main/docs/concepts/architecture.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TB
+    accTitle: Where it is going
+    accDescr: A planned shape: agents reach tools through a proxy or framework ports and the enforcement point, feeds and evidence reach a supervisor, and alerts, exports and a run graph come out, with extensions added as adapters and documents.
+    AG[Agents]
+    subgraph IN[Inputs]
+        PX[&#34;Proxy: MCP today, HTTP tool APIs next&#34;]
+        PT[&#34;Framework ports over one API&#34;]
+        FD[&#34;Feeds: traces, logs, process events&#34;]
+    end
+    subgraph CTL[Guardana Control]
+        PEP[&#34;Enforcement point: policy, approvals, pause&#34;]
+        SV[&#34;Supervisor: procedures, deviations, access attempts, unfinished work&#34;]
+        EV[(Evidence)]
+    end
+    subgraph OUT[Outputs]
+        AL[&#34;Alerts: webhooks, chat&#34;]
+        EX[&#34;OpenTelemetry, metrics, SIEM&#34;]
+        GR[Run graph and console]
+    end
+    TL[Tools and APIs]
+    XT[&#34;Extend: adapters, detectors, policy providers; policies, scenarios, procedures as documents&#34;]
+    AG --&gt; PX
+    AG --&gt; PT
+    AG -.-&gt; FD
+    PX --&gt; PEP
+    PT --&gt; PEP
+    PEP --&gt;|allowed calls| TL
+    FD --&gt; SV
+    PEP --&gt; EV
+    EV --&gt; SV
+    SV --&gt; AL
+    EV --&gt; EX
+    SV --&gt; GR
+    GR --&gt;|stop an agent| PEP
+    XT -.-&gt; CTL
+</code></pre></details></figure>
+<p>Sources: <code>ROADMAP.md</code>, <code>internal/policy/rules/document.go</code>, <code>internal/scenario/doc.go</code>,
+<code>adapters/authzen/client.go</code>.</p>
+<ul>
+<li><strong>Inputs.</strong> The proxy stops a call before it runs. A framework port stops a
+call from inside the agent, through one language-neutral API built on the
+published contract. A feed brings in the traces, logs and process events an
+agent's runtime records, also for agents that never route a call through the
+plane. What a feed cannot see is reported as unknown, never as clean.</li>
+<li><strong>Supervisor.</strong> It reads the evidence and the feeds beside the request path,
+compares each run with the procedure it follows, and reports deviations,
+access attempts and unfinished work. It adds no latency to a decision and
+never changes a verdict; stopping an agent goes through the decision kernel,
+with the operator's permission.</li>
+<li><strong>Outputs.</strong> Reports reach the tools an operator already watches: webhooks
+and chat for alerts, OpenTelemetry and metrics, and an export a SIEM reads.
+The run graph shows the expected and the observed steps side by side.</li>
+<li><strong>Extensions.</strong> Policies are documents a team writes and tests today, and so
+are scenarios (<code>experimental</code>); procedures will be too. The planned public
+seams, <code>pkg/adapter</code>, <code>pkg/detector</code> and <code>pkg/policyprovider</code>, will let others
+add a port, a detector or a decision source without forking. An external
+decision point can already veto over AuthZEN (<code>experimental</code>).
+<a href="/docs/extending/adapters">extending/adapters.md</a> is the first guide.</li>
+</ul>
+<h2 id="what-is-deliberately-not-here">What is deliberately not here</h2>
+<ul>
+<li>No language model in the decision path. A model may suggest, summarise or
+annotate; it never grants authority.</li>
+<li>No detector that can change a verdict. A detector reports, the policy
+decides.</li>
+<li>No adapter that decides policy. An adapter translates and enforces what it
+is told.</li>
+<li>No regular expressions and no scripting in the matcher, so a rule can be read
+and audited by someone who did not write it.</li>
+</ul>
+<h2 id="where-things-live">Where things live</h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Holds</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api/proto/guardana/control/v1/</code></td>
+<td>Protobuf contracts, the source of truth, frozen at <code>1.0</code></td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>api/gen/go/</code></td>
+<td>Generated Go, committed so a consumer needs no plugin chain</td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>testdata/contracts/</code></td>
+<td>Fixtures the round-trip tests read</td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>internal/contract/</code></td>
+<td>The round-trip tests over those fixtures</td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>pkg/contract/</code></td>
+<td>Bounded validation and strict decoding of the contracts</td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>internal/canon/</code></td>
+<td>The canonical action digest an approval binds to</td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>internal/evidence/</code></td>
+<td>The evidence event chain, in memory</td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>internal/policy/reasons/</code></td>
+<td>The reason-code registry</td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>internal/core/</code></td>
+<td>The decision kernel, <a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a></td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>internal/gateway/</code></td>
+<td>The protocol-neutral enforcement pipeline, <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a></td>
+<td><code>experimental</code></td>
+</tr>
+<tr>
+<td><code>internal/spool/</code></td>
+<td>The evidence spool on disk, <a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a></td>
+<td><code>experimental</code></td>
+</tr>
+<tr>
+<td><code>internal/gatewayconfig/</code></td>
+<td>The gateway's configuration: its fields, the file reader and the loader</td>
+<td><code>experimental</code></td>
+</tr>
+<tr>
+<td><code>internal/brand/</code></td>
+<td>The product name every other package reads</td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>internal/approvals/</code>, <code>internal/holdjournal/</code></td>
+<td>The file approval provider and the plane's hold journal, <a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a></td>
+<td><code>experimental</code></td>
+</tr>
+<tr>
+<td><code>cmd/guardana-control/</code></td>
+<td>The policy and approval commands</td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>cmd/guardana-gateway/</code></td>
+<td>The plane: <code>run</code>, <code>doctor</code>, <code>collect</code>, <code>trail</code>, <code>scenario</code> and <code>dev</code></td>
+<td><code>experimental</code></td>
+</tr>
+<tr>
+<td><code>Makefile</code>, <code>scripts/</code>, <code>.golangci.yml</code></td>
+<td>The one quality gate</td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>internal/docscheck/</code></td>
+<td>The documentation gate, run by <code>make docs-check</code></td>
+<td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>internal/</code>, everything else</td>
+<td>What is not intentionally public</td>
+<td><code>planned</code></td>
+</tr>
+<tr>
+<td><code>pkg/</code>, the other three packages</td>
+<td>The rest of the public Go surface</td>
+<td><code>planned</code></td>
+</tr>
+<tr>
+<td><code>adapters/mcp/</code>, <code>adapters/otel/</code></td>
+<td>The MCP adapter and the OTLP exporter</td>
+<td><code>experimental</code></td>
+</tr>
+<tr>
+<td><code>adapters/</code>, the rest</td>
+<td>Other protocol and framework adapters</td>
+<td><code>planned</code></td>
+</tr>
+<tr>
+<td><code>detectors/builtin/</code></td>
+<td>Built-in detectors</td>
+<td><code>planned</code></td>
+</tr>
+</tbody>
+</table>
+<p>Per component, including what is planned elsewhere, see <a href="/docs/status">status.md</a>.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/architecture.md">docs/concepts/architecture.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture" aria-current="page">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

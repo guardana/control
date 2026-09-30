@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0012: How the built-in policy kernel decides · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0012-policy-kernel-semantics"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0012-how-the-built-in-policy-kernel-decides">ADR-0012: How the built-in policy kernel decides</h1>
+<p>Status: accepted
+Date: 2026-09-11</p>
+<p>Amends <a href="/docs/adr/0003-policy-model-and-external-pdp">ADR-0003</a>.</p>
+<h2 id="context">Context</h2>
+<p>ADR-0003 chose structured predicates and deny-overrides, and left the exact
+fail-closed mapping open. ADR-0011 settled what the wire says. What is
+left is how the kernel turns a validated envelope and a policy bundle into one of
+five verdicts, and what it enforces for each, precisely enough that a second
+implementation, or a reviewer, reaches the same decision from the same inputs.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>A policy is a signed JSON document, <code>agent-policy/v1alpha1</code>.</strong> Each rule has an
+id, an effect (<code>ALLOW</code>, <code>DENY</code>, <code>REQUIRE_APPROVAL</code> or <code>ALLOW_WITH_OBLIGATIONS</code>)
+and constraints on the principal, the agent, the action, the resource, the
+destination, the data, the run's flow and the delegation. A constraint lists
+values; a value matches by exact equality, and a list means any of them. Every
+constraint of a rule has to hold. There are no regular expressions, prefixes or
+scripts, and keys match exactly, case included. The document carries its bundle
+id, version, a serial and the author's staleness budget, and no creation time.
+The bytes that are signed are the restricted canonical form of the author's own
+bytes. The kernel reads JSON only: typed YAML decoding reads <code>on</code> as true and
+<code>10.5</code> as <code>10</code> without a word, and a policy is the wrong place to learn that.</p>
+<p><strong>A constraint is true, false or unknown.</strong> It is unknown when the field it reads
+is absent, or when the flow of the run cannot be established. A data sensitivity
+constraint reads the envelope's own labels: it is unknown when the envelope
+carries no label and does not assert secrets. A rule is false if any constraint
+is false, else unknown if any is unknown. An unknown <code>ALLOW</code> rule does not match.
+An unknown rule of any other effect makes the decision <code>INDETERMINATE</code>, because
+otherwise a request that leaves out the field a restrictive rule reads would slip
+past it onto a broader allow.</p>
+<p><strong>Deny-overrides, as a table.</strong> A matched <code>DENY</code>, or a denial the kernel makes on
+its own, wins. Then <code>INDETERMINATE</code>, whatever caused it; then <code>REQUIRE_APPROVAL</code>,
+<code>ALLOW_WITH_OBLIGATIONS</code>, <code>ALLOW</code>. Nothing matched is <code>DENY</code>,
+<code>NO_MATCHING_RULE</code>. Obligations come from every matched <code>ALLOW_WITH_OBLIGATIONS</code>
+and <code>REQUIRE_APPROVAL</code> rule, in document order, two being the same when their
+type, parameters and advisory flag are, and each kept once, so a broader rule
+never sheds them.</p>
+<p><strong>The kernel's own checks run whatever the policy says, and before it.</strong> A
+delegation hop whose expiry is at or before the receiver's clock, a party that
+appears twice in a chain, and a hop that claims more than its parent are each
+<code>DENY</code>. A principal and a resource that name different tenants are <code>DENY</code>; a
+material call that names a tenant on one side only is <code>INDETERMINATE</code>. They run
+before the bundle is consulted, so a missing bundle relaxes the policy and never
+the kernel's own checks.</p>
+<p><strong>What each verdict enforces.</strong> <code>DENY</code> blocks. <code>REQUIRE_APPROVAL</code> waits for an
+approval. <code>ALLOW_WITH_OBLIGATIONS</code> runs with its obligations applied. <code>ALLOW</code>
+runs. For <code>INDETERMINATE</code>, a cause in the request, a refusal, an argument that
+cannot be digested, a hash that does not match, an unknown rule or a one-sided
+tenant, blocks the call whatever its effect. A cause in the policy's
+availability, no bundle or one past its staleness budget, blocks every call but a
+read. A read runs exactly when the operator has turned fail-open reads on and
+either there is no bundle at all or the policy, with what it could not decide
+left out, allows it: an <code>ALLOW</code> matched and nothing more restrictive did. A read
+that no rule allowed is blocked, because there is no implicit allow. When a read
+runs this way, the decision carries <code>FAIL_OPEN_READ_CONFIGURED</code> as its last reason
+code, which is how the setting stays visible in the evidence, and the verdict
+stays <code>INDETERMINATE</code> (ADR-0011). A denial for an obligation the enforcement
+point cannot apply is never relieved by the setting. This narrows ADR-0003,
+which let the setting apply to any read the kernel could not decide.</p>
+<p><strong>The order is fixed, and stops only where nothing more can be known.</strong> A refused
+request, an argument that cannot be digested and a hash that does not match end
+the decision: nothing is evaluated against input the kernel refused. Then the
+kernel's own checks; then the bundle, whose staleness is recorded while
+evaluation continues, so a stale bundle's <code>DENY</code> is still a <code>DENY</code>. Every cause
+found is listed in the decision, in order, once each. A matched rule contributes
+its reason, in document order; any undeterminable rule contributes
+<code>RULE_UNDETERMINED</code> once; <code>NO_MATCHING_RULE</code> appears when no rule matched and
+none was undeterminable. Reason codes come from the kind of failure, never from
+error text.</p>
+<p><strong>A bundle is trusted only after every check.</strong> The signature names a key the
+operator pinned; the signed document must be its own canonical form and must
+agree with every field outside it; a field this build does not know, on the
+bundle or its reference, is refused; and a creation time outside the document is
+refused because none is signed. A lower serial for the same bundle, or the same
+serial with different content, is refused. A bundle is fresh while the time since
+it was last confirmed current is within the smaller of the author's budget and
+the operator's; a bundle confirmed later than the receiver's clock reads is
+stale. What that protection covers is stated rather than implied: it holds per
+bundle id and per process, since a restart accepts any serial, and &quot;confirmed
+current&quot; means delivered again, since a signature proves who wrote a bundle, not
+that it is still the latest. It does not cover a bundle of another id: any
+bundle ever signed under a pinned key whose id this process has not seen
+replaces the running policy at any serial, and the serial rule sees a new id.
+That is a substitution, not a rollback, and a holder pinned to the bundle id it
+serves, refusing every other, is <code>planned</code> beside a signed expiry and a serial
+that survives a restart.</p>
+<p><strong>The kernel builds <code>ENFORCE</code> only.</strong> The other modes are <code>planned</code> in the
+gateway (<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>), and a
+kernel refuses to start in one of them rather than behave as another.</p>
+<p><strong>Nothing that decides reads a reason code's documented verdict.</strong> The packages on
+the decision path do not import the registry; they carry the identifiers they
+emit, and tests hold each one to the registry.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>Every rule above fails closed, and the ones that cost availability say so: an
+adapter that leaves out a field a restrictive rule reads gets blocks until it
+sends the field, and a one-sided tenant blocks a material call. Both are visible
+in the decision, with the rule or the check behind them, rather than a silent
+allow. The one cost of failing open is stated too: with fail-open reads on and
+no bundle, a read that names a tenant on one side only runs, because the tenant
+check covers material calls only.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>Treat a restrictive rule over an absent field as matched.</strong> Stricter for a
+<code>DENY</code>, and it turns a denial on an optional field into a denial of every call
+that lacks it, and an approval rule into an approval nobody asked for.</li>
+<li><strong>Fail-open for any undecided read.</strong> It lets a read that one rule sends for
+approval run with no approval whenever another rule cannot be evaluated, and a
+read no rule allows run at all.</li>
+<li><strong>Stop at a missing bundle.</strong> Simpler, and it lets fail-open reads skip the
+tenant and delegation checks, which need no policy.</li>
+<li><strong>YAML as the policy source.</strong> Familiar, and its typed decoding accepts values
+a policy must refuse. A YAML front end in the command line, walking the parse
+tree and refusing what the canonical parser refuses, is possible later.</li>
+<li><strong>JSON Schema inside the kernel.</strong> It carries regular expressions and a second
+schema to keep in step. The strict parse does the job; a schema for editors is
+<code>planned</code>.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>Adapters have to send the fields the policies they run under read. The decision
+names the rule or the check behind every block, which is what makes that cost
+debuggable. Evidence sinks, content capture and the other modes are <code>planned</code>
+with the gateway (<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>,
+<a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a>).</p>
+<h2 id="validation">Validation</h2>
+<p>Planned with the kernel: fixtures for all five verdicts and one <code>INDETERMINATE</code>
+per cause; a test of the fail-closed table crossing every cause with a read and
+a material call, fail-open on and off; a property over ten thousand requests
+that the same request and bundle give an identical decision, against a
+separately loaded bundle; a table of every refusal against every effect class;
+the benchmark at 10, 100 and 1000 rules.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0012-policy-kernel-semantics.md">docs/adr/0012-policy-kernel-semantics.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

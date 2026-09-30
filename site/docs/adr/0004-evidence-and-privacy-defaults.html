@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0004: Evidence defaults to metadata; content capture is opt-in · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0004-evidence-and-privacy-defaults"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0004-evidence-defaults-to-metadata-content-capture-is-opt-in">ADR-0004: Evidence defaults to metadata; content capture is opt-in</h1>
+<p>Status: accepted
+Date: 2026-09-09</p>
+<p>Amended by <a href="/docs/adr/0011-contract-corrections-before-publication">ADR-0011</a>: a result
+names its redaction profile as the arguments do, and <code>Event</code> field 31 is declared
+for the digest link.</p>
+<h2 id="context">Context</h2>
+<p>The evidence record is what makes a decision reviewable months later. It is also
+the place where prompts, tool arguments and model output would leak if the
+default were wrong. A default that captures everything turns an audit log into
+the most sensitive store an operator runs.</p>
+<h2 id="decision">Decision</h2>
+<p>Two different rules, and the record states both because they are often confused:</p>
+<ul>
+<li>Prompt and tool content capture is off by default and opt-in. An operator can
+turn it on. The default record is metadata plus hashes.</li>
+<li>Hidden model reasoning is never recorded, at any setting. There is no opt-in
+for it.</li>
+</ul>
+<p>The rest:</p>
+<ul>
+<li>Redaction runs before anything is persisted or exported, never on read.</li>
+<li>Evidence is append-only. Tamper evidence, meaning a hash chain over records
+and signed checkpoints, is planned.</li>
+<li>Records are written to a local spool first and exported from there.</li>
+</ul>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>Content that was never written cannot leak from a backup, an export or a support
+bundle, and reasoning is never written at any setting. Redacting before
+persistence means a bug in a read path cannot expose raw content, because the
+raw content is not there.</p>
+<p>Append-only is a write discipline, not tamper evidence. It stops the running
+system from rewriting a record; it does not let a reader prove that nothing was
+changed underneath it. That proof needs the hash chain and the signed
+checkpoints, which are planned, and until those exist the record must not be
+described as tamper-evident.</p>
+<p>The spool keeps the exporter off the request path, so an exporter outage does
+not block a decision. It does not make loss impossible. What it buys is that
+loss becomes bounded and visible: the spool has a size, and its depth and its
+drops are counted, instead of a decision disappearing silently.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>Capture on by default with redaction applied on read. Convenient for
+debugging, and one bug exposes content that was already stored.</li>
+<li>Synchronous export. The exporter becomes part of the request path, and its
+outage becomes either an availability incident or a reason to stop enforcing.</li>
+<li>Recording model reasoning for debuggability. It is the least controlled text
+in the system and the hardest to redact.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>An operator who needs full content has to turn it on deliberately and own the
+retention. The spool needs a disk budget, and what happens when it fills is part
+of that decision rather than an afterthought. Reconstructing a decision from
+metadata and hashes alone is harder than reading a transcript, which is the
+trade being made.</p>
+<h2 id="validation">Validation</h2>
+<p>Nothing in this record is runnable today. The capture setting and the redaction
+it applies are planned, with the spool, its counters and the exporter; the hash
+chain and the signed checkpoints are planned after them.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0004-evidence-and-privacy-defaults.md">docs/adr/0004-evidence-and-privacy-defaults.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0014: Evidence goes to a local spool first, and the spool decides what blocks · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0014-evidence-spool-and-sinks"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0014-evidence-goes-to-a-local-spool-first-and-the-spool-decides-what-blocks">ADR-0014: Evidence goes to a local spool first, and the spool decides what blocks</h1>
+<p>Status: accepted
+Date: 2026-09-19</p>
+<p>Builds on <a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>,
+<a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a> and
+<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>.</p>
+<h2 id="context">Context</h2>
+<p>ADR-0004 puts every record in a local spool first and exports from there, so
+that an exporter outage never reaches the request path and the loss an outage
+can cause is bounded and visible. <code>internal/evidence</code> builds and validates the
+records, and it is a guarded tree: it reads no clock and touches no file or
+network. So the interface through which evidence is written is declared there,
+and the thing that writes disk lives outside it. Invariant 5 says an action with
+material effect fails closed when the evidence it needs is unavailable, unless
+an explicit risk setting says otherwise; invariant 11 says a non-idempotent
+effect is never retried automatically. What &quot;unavailable&quot; means for a spool on
+a disk with a budget, before an effect and after one, is what this record
+settles.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>One interface, declared beside the records.</strong> <code>internal/evidence.Sink</code> has
+one method: append one event, and return only when the event is durable under
+the sink's own policy. An error from it means the event is not durable, and
+nothing that returns a decision to an agent may treat that error as a success.
+<code>MemorySink</code> keeps events in memory for tests; a gateway configured with no sink
+refuses to start.</p>
+<p><strong>The spool is our own segmented log, in <code>internal/spool</code>.</strong> A record is one
+event in the JSONL encoding <code>internal/evidence</code> already defines, so a segment is
+readable by the reader that already exists, framed with its length and a
+CRC32C over the line. Segments are append-only files named by the sequence
+number of their first record, rolled at a byte size, and bounded in total by
+<code>max_bytes</code>. The fsync policy is <code>every_record</code> by default; <code>interval</code> is an
+explicit risk setting that names how many seconds of records a power loss may
+cost. A reader holds a cursor, a segment and an offset, and acknowledges what it
+has delivered; a segment acknowledged whole is deleted, and bytes not yet
+acknowledged are what count against the budget.</p>
+<p><strong>Every record in the spool is evidence, and none is dropped.</strong> When the budget
+is reached and no segment can be released, an append fails. What happens next
+depends on whether the effect has happened yet. Before it, for
+<code>ACTION_PROPOSED</code>, <code>POLICY_DECIDED</code> and <code>ACTION_STARTED</code>, the gateway blocks
+the call it was recording, answers the agent with <code>EVIDENCE_UNAVAILABLE</code>, and
+counts the block, because the one record that could not be written is the
+record of that block. After it, for <code>ACTION_COMPLETED</code> and <code>ACTION_FAILED</code>, a
+block is impossible and an error would invite the retry invariant 11 forbids,
+so the spool reserves the closing record's bytes when it appends
+<code>ACTION_STARTED</code>, an allowance named by the request and the execution that
+opened it, so a closing record spends only its own trail's reservation and
+<code>MaxOpenTrails</code> bounds how much of the budget open trails can lock away; it
+spends that reservation when the trail closes: a closing record within its
+reservation is never refused on the budget, and only the bytes beyond it are
+budgeted like any other record. When a closing append does fail, the gateway
+delivers the upstream's result, never hiding that an effect happened, counts
+the failure, and refuses every further material call until an append succeeds
+again. <code>evidence.on_unwritable: allow_reads</code> is the explicit risk setting of
+invariant 5: under it a read proceeds unrecorded, counted, and a material call
+never does. A record with no call behind it, <code>FINDING_RAISED</code> or
+<code>POLICY_RELOADED</code>, has nothing to block; a failed append there is an error its
+producer reports and counts. The gateway's own telemetry, counters, health and
+spans, never enters the spool; it has a bounded queue of its own and drops with
+a counter when that is full. One process at a time owns a spool directory,
+because two would interleave their records into one segment: opening a
+directory another spool holds is refused.</p>
+<p><strong>A torn write ends the log, it does not corrupt it, and damage is never
+mistaken for a tear.</strong> A tear can only be the last thing written: a segment is
+synced before the log rolls to the next one, so an unfinished record can sit
+only at the end of the last segment or of the quarantine file. There, the
+record that does not check is where that file ends; the bytes after it are
+discarded and counted, and the next append starts clean. Under <code>FsyncInterval</code>
+the records since the last tick are not yet on disk, so a power loss can
+persist a later one and not an earlier one: there the first record of the last
+file that does not check ends it and what follows is a tear too, because
+refusing to start would punish a loss the operator's own setting accepted. The
+strict rule that follows holds under <code>FsyncEveryRecord</code>. A record that does not
+check anywhere else, a record that checks after one that does not, an empty
+segment before the last, or a sequence number outside the range the log can
+name, is damage to evidence the spool reported durable: <code>Open</code> refuses with a
+corruption error naming the segment and the byte, and changes nothing on disk,
+so an operator decides what happens to it. The property that pins the first
+half: cut a spool at any byte, reopen it, and every record before the cut
+replays intact while nothing after it does. The second half is pinned by a
+flipped bit in an earlier segment.</p>
+<p><strong>The exporter drains the spool and never touches the request path.</strong> The
+exporter in <code>adapters/otel</code> reads from the acknowledged position, sends each
+event to an OpenTelemetry collector as one OTLP log record over HTTP in the
+protocol's JSON encoding, with the event's identifiers as attributes and the
+JSONL line as the body, and acknowledges only what the collector accepted: a
+200 or 202 whose body is empty, or is the protocol's own answer read strictly,
+every member once, in either spelling but not both, nothing unknown in it and
+no count larger than the batch. Anything else is not an answer. One run drains
+a reader at a time, and a reader acknowledges only as far as it delivered, so a
+second run cannot release what the first is still retrying. The endpoint is
+https unless the operator names the risk of a plaintext one, because an
+unauthenticated peer's empty 200 would otherwise release evidence and the
+collector's credential would travel in the clear. It follows no redirect,
+because a redirect would carry the evidence and the operator's credentials to a
+host nobody configured, and a 3xx is an answer that did not accept. Everything
+else, any other status, a body it cannot read, a timeout, a refused connection,
+is retried with backoff and a bound on what is in flight, and a stopped run
+begins again where the collector last acknowledged, so a record is never
+released because a run ended mid-flight. Records a collector refuses as invalid
+are found by halving the batch and are quarantined one by one, as is a record
+the encoder cannot encode and a batch the collector says it partly dropped: the
+quarantine is a file of the spool's own, framed and checksummed like a segment,
+counted in the stats and against the budget, never deleted or rewritten by the
+plane, and the cursor passes a record only once it is there. The quarantine
+takes no more than the acknowledgement it precedes releases, and holds one copy
+of a record, so a run cut short between quarantining and acknowledging cannot
+write a second. It is written on the standard library: the request is one JSON
+document in the protobuf JSON mapping of <code>ExportLogsServiceRequest</code>, and a
+golden produced once from the protocol's own generated types, outside this tree
+and described beside the golden, pins the encoding. The OpenTelemetry SDK's log
+exporter would bring fourteen direct and twelve indirect modules into the
+binary that sits in the request path, for batching and retry that are a hundred
+lines here. A collector outage fills the spool, up to its budget, and then the
+spool's rule above applies; the depth and the oldest unacknowledged record are
+in the spool's stats and in the gateway's health answer, so an outage is
+visible long before it blocks. The exporter carries no content the record does
+not: capture is off by default and the record is metadata (ADR-0004); its
+endpoint's credentials never reach a log line.</p>
+<p><strong>A refusal's pointer is kept as canon renders it.</strong> A refusal names where in
+the envelope it failed as an RFC 6901 pointer of member names, bounded and cut
+as <code>internal/canon</code> does it, and evidence keeps that pointer whole: a refusal a
+reader cannot locate is worth nothing. A member name is where a value sat, not
+the value, so the pointer is metadata. A key a producer supplied in a map is a
+name too, and it appears in a pointer; the evidence page says so, so a producer
+keeps content out of keys.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>The spool is the point where &quot;fail closed on unavailable evidence&quot; becomes
+concrete: a full disk blocks material calls before their effect with a reason
+the agent and the operator both see, never after it, and the only way a read
+proceeds without a record is a setting whose name says what it risks. A record
+is durable before a decision is answered, so an answer the agent saw is an
+answer the evidence holds, at the fsync policy's granularity; a result the
+agent saw after an I/O failure is one the gateway counted and stopped the plane
+on. The exporter's failure modes are bounded by the budget and cannot reach the
+kernel, and it adds no module to the tree. Nothing here changes the wire
+contract; <code>EVIDENCE_UNAVAILABLE</code> is a registry code (ADR-0013).</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>An embedded store or a write-ahead-log library.</strong> Each adds a dependency
+in the request path, with a format of its own to audit and to keep readable
+when the library moves. The log here is a few hundred lines over a codec the
+tree already has.</li>
+<li><strong>Dropping evidence when the spool is full.</strong> It turns a full disk into an
+unrecorded action, which is the failure the evidence exists to prevent.</li>
+<li><strong>Blocking on a closing record too.</strong> The effect has happened; an error for
+it is a lie to the agent and an invitation to retry a non-idempotent call.</li>
+<li><strong>Exporting from the request path with a timeout.</strong> Every collector hiccup
+then costs latency on the decision, and a timeout that trips is an outage
+shaped like a slow call.</li>
+<li><strong>The OpenTelemetry SDK's exporter.</strong> Correct and maintained, and a
+dependency tree of that size in the request-path binary is what the
+dependency page exists to keep out when a hundred lines will do. OTLP over
+gRPC, which it would also bring, is <code>planned</code> only if a collector that takes
+no HTTP appears.</li>
+<li><strong>Writing the spool in <code>internal/evidence</code>.</strong> It would put file I/O in a
+guarded tree; the interface goes there and the implementation does not.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>An operator gives the spool a disk budget and an fsync policy, and watches its
+depth. Evidence throughput is bounded by <code>every_record</code> fsync on the spool's
+disk; the interval policy trades that for a stated loss window. The per-trail
+reservation means the budget an operator sets is not all available to opening
+records; the stats say how much is reserved. The exporter speaks OTLP over HTTP
+in JSON and nothing else.</p>
+<h2 id="validation">Validation</h2>
+<p>The spool's own tests: the cut-at-any-byte property, over as many cases as the gate's default; a
+flipped bit in an
+earlier segment refusing <code>Open</code> with nothing deleted; the budget at the byte where a reservation
+no longer fits; a closing record spending its reservation and its excess budgeted; the fsync
+policy and the directory sync observed through the file seam, one sync per roll; acknowledgement
+releasing whole segments only, and never past what a reader delivered; a second spool on one
+directory refused; a broken spool answering its stats with the error and waking its readers.
+The exporter's: nothing acknowledged but the protocol's own answer, with ten bodies that are not
+it; no redirect followed, and the second host seeing no request; every other answer retried, per
+class; a record the collector refuses three times, one the encoder cannot encode, and a batch the
+collector partly dropped, each in the quarantine before the cursor passes it; a stopped run
+sending again what it had taken; the request bytes against the golden; headers refused at
+construction and credentials absent from every log line.</p>
+<p>Shown with the gateway, by the suite beside it: a full spool blocking a
+material call with <code>EVIDENCE_UNAVAILABLE</code> before its effect and letting a read
+through only under the risk setting; a closing record still written while the
+budget is reached; a sink that refuses a closing record halting material calls
+until an append succeeds; and a collector outage blocking no decision, with
+everything delivered when it returns.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0014-evidence-spool-and-sinks.md">docs/adr/0014-evidence-spool-and-sinks.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

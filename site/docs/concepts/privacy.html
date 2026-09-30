@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Privacy · Guardana Control</title>
+<meta name="description" content="What the plane records about a call, where each record goes and who can read it, how long it stays, and that nothing goes to the project."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/concepts/privacy"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="privacy">Privacy</h1>
+<p>The plane records what a call was about, not what it said. A tool call's
+arguments and its result are recorded as hashes; the one piece of argument
+text that can enter a record is a resource id the operator told the plane to
+read out of them. A resource read's URI and a prompt's name are recorded as
+the agent sent them. Nothing turns content capture on in this build, and hidden
+model reasoning is never stored
+(<a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>, invariant 9).
+What the plane defends against is on the <a href="/docs/concepts/threat-model">threat model</a>
+page.</p>
+<h2 id="what-an-evidence-event-holds">What an evidence event holds</h2>
+<p>Every call the plane can name leaves a trail of events
+(<a href="/docs/concepts/evidence-and-the-spool">evidence</a>), with two exceptions: a read the
+operator lets run unrecorded when the spool cannot take its events
+(<code>evidence.on_unwritable: allow_reads</code>), and a call refused because its
+request id already has an open trail. The MCP adapter and the pipeline fill them as below
+(<code>adapters/mcp/translate.go</code>, <code>adapters/mcp/answer.go</code>,
+<code>internal/evidence/event.go</code>).</p>
+<p>Every event carries <code>event_id</code>, <code>kind</code>, <code>request_id</code>, <code>project_id</code>,
+<code>tenant_id</code>, <code>occurred_at</code>, <code>schema_version</code>, the plane's <code>enforcement_mode</code>,
+<code>prev_event_id</code> and, where the call belongs to a run, <code>run_id</code>, an id the
+plane mints. <code>execution_id</code> is on the events of a call handed to execution.
+<code>prev_event_digest</code> is left empty.</p>
+<p><code>ACTION_PROPOSED</code> carries the envelope:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>What this plane puts there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>request_id</code>, <code>occurred_at</code>, <code>project_id</code>, <code>tenant_id</code>, <code>environment</code></td>
+<td>an id the plane mints, the clock, and the configuration</td>
+</tr>
+<tr>
+<td><code>principal</code></td>
+<td><code>id</code>, <code>type</code> and <code>tenant_id</code> from <code>listener.principal</code>; no end user, since no key wires an authenticator</td>
+</tr>
+<tr>
+<td><code>agent</code></td>
+<td><code>id</code>, <code>framework</code> and <code>version</code> from <code>listener.agent</code></td>
+</tr>
+<tr>
+<td><code>action</code></td>
+<td><code>kind</code> (<code>tool</code>, <code>resource</code> or <code>prompt</code>), <code>name</code> (the tool's name, the resource's URI or the prompt's name), <code>protocol</code> <code>mcp</code>, the effect class, and <code>provider</code>, the upstream's name</td>
+</tr>
+<tr>
+<td><code>resource</code></td>
+<td>the override's <code>type</code>, and <code>id</code>: the value at the override's <code>resource_from</code> pointer into the arguments, the URI of a <code>resources/read</code>, or the name of a <code>prompts/get</code>; the upstream's <code>tenant_id</code> and <code>environment</code></td>
+</tr>
+<tr>
+<td><code>destination</code></td>
+<td>the override's trust zone, when it names one</td>
+</tr>
+<tr>
+<td><code>arguments</code></td>
+<td><code>canonical_hash</code> only: a SHA-256 of the canonical arguments</td>
+</tr>
+<tr>
+<td><code>context.tags</code></td>
+<td><code>mcp.client=</code> with the name and version the client reported, <code>mcp.protocol_version=</code>, and the plane's flow tags: whether the run took in untrusted content, and the highest sensitivity it read, or <code>flow.v1.state=uncomputed</code> when the plane kept no run state for the call</td>
+</tr>
+</tbody>
+</table>
+<p>Left empty by this plane: <code>trace_id</code>, <code>span_id</code>, <code>principal.authn_strength</code>
+and <code>attributes</code>, <code>agent.instance_id</code> and <code>model_ref</code>, <code>delegation</code>,
+<code>resource.labels</code>, <code>destination.host</code>, <code>data</code>, <code>arguments.redacted_preview</code>,
+<code>schema_ref</code> and <code>redaction_profile</code>, and every other <code>context</code> field.</p>
+<p><code>POLICY_DECIDED</code> and <code>ACTION_BLOCKED</code> carry a decision: the verdict, the
+reason codes, the ids of the rules that matched, the obligations as the
+policy wrote them, the action digest, the bundle digest, timings, and, when a
+decision point was asked, its identifier.</p>
+<p><code>APPROVAL_REQUESTED</code>, <code>APPROVAL_DECIDED</code> and <code>APPROVAL_EXPIRED</code> carry the
+approval: its ids, the action digest, the bundle digest, its state and times,
+and on an answer the <code>approver_id</code> and the optional <code>--reason</code> exactly as the
+approver typed them.</p>
+<p><code>ACTION_STARTED</code> carries no payload. <code>ACTION_COMPLETED</code> and <code>ACTION_FAILED</code>
+carry the result: its status, when it started and ended, the protocol's own
+status (<code>ok</code>, <code>isError</code>, <code>timeout</code>, <code>error</code> or a JSON-RPC error code), a
+SHA-256 of the result's JSON encoding when there was one, and the digest of
+the bytes that were sent. Neither an error message from the upstream nor any
+part of the result is kept (<code>resultOf</code> in <code>adapters/mcp/answer.go</code>). An
+<code>ACTION_FAILED</code> for a call that was never sent carries the status <code>BLOCKED</code>
+and the code that stopped it, and no digest of sent bytes.</p>
+<p>This plane writes no <code>POLICY_RELOADED</code> and no <code>FINDING_RAISED</code>.</p>
+<p>A hash is not anonymity. Arguments or a result with few possible values, such as a month or a yes,
+can be recovered by hashing each guess and comparing.</p>
+<h2 id="capture-and-reasoning">Capture and reasoning</h2>
+<p>ADR-0004 lets an operator opt in to capturing content. This build has no
+setting for it: the MCP adapter builds the arguments message with the hash
+alone, the authorized envelope clears any preview
+(<code>internal/gateway/authorize.go</code>), and the result keeps no preview. Capture is off, and nothing turns it on.</p>
+<p>Hidden model reasoning is never stored at any setting. MCP does not carry it
+to the plane, no field of the contract holds it, and no adapter reads it.</p>
+<h2 id="where-records-go-and-who-can-read-them">Where records go, and who can read them</h2>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>What</th>
+<th>Who can read it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the plane's memory</td>
+<td>a held request, its envelope and its decision; the run state of each principal</td>
+<td>the plane's process: a held request until its hold ends, a run's state until the plane stops</td>
+</tr>
+<tr>
+<td>the spool, <code>evidence.dir</code></td>
+<td>every event, one framed JSON line each, until a collector accepts it or it is moved to <code>quarantine.log</code></td>
+<td>the plane's account: new files are <code>0600</code>; the spool judges neither its directory's mode nor an existing file's</td>
+</tr>
+<tr>
+<td>the collector at <code>export.endpoint</code></td>
+<td>every event, as the body of one OTLP log record, with its ids, kind and mode as attributes</td>
+<td>whoever runs that collector and wherever it sends them; <code>https</code>, or plaintext to a loopback IP literal under <code>export.allow_plaintext</code></td>
+</tr>
+<tr>
+<td>a trail file written by <code>collect</code></td>
+<td>every event the collector accepted, at least once</td>
+<td>the account that ran <code>collect</code>: a new file is <code>0600</code>, and an existing one is refused only when others may write it</td>
+</tr>
+<tr>
+<td>the approvals directory</td>
+<td>per held call, the approval record and a projection: principal, agent, tool, upstream, resource type and id, effect class, rule ids, times</td>
+<td>the plane's account: records are <code>0600</code>, and the directory is refused when others may write it</td>
+</tr>
+<tr>
+<td>the approvals page and <code>approvals list</code></td>
+<td>the projection, and the approval's state, ids, digests, expiry and approver; no arguments, no preview, no trail</td>
+<td>whoever holds the page's session, on <code>127.0.0.1</code> (<a href="/docs/reference/console">reference/console</a>)</td>
+</tr>
+<tr>
+<td>the hold journal, <code>approvals.hold_journal_dir</code></td>
+<td>per hold, the trail's ids, the binding, the approval and its expiry; no envelope and no decision</td>
+<td>the plane's account: entries are <code>0600</code></td>
+</tr>
+<tr>
+<td>the pause file</td>
+<td>each entry's scope and its optional reason</td>
+<td>the plane's account, and any account the file's and directory's modes let read it</td>
+</tr>
+<tr>
+<td>the decision point at <code>pdp.identifier</code></td>
+<td>the principal, the action, the resource with its id, the destination, the data labels and the ids; never the arguments, their hash or a digest</td>
+<td>whoever runs it, and a proxy configured for it (<a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>)</td>
+</tr>
+<tr>
+<td><code>/metrics</code> and <code>/healthz</code></td>
+<td>counts and states; <code>/healthz</code> also the mode, the bundle's id, version, digest and serial, and the ids of pause entries that match no listed tool. No metric label carries an identifier, a digest or a reason (<a href="/docs/reference/metrics">reference/metrics</a>)</td>
+<td>anyone who reaches <code>health.address</code>, which takes no credential</td>
+</tr>
+<tr>
+<td>the plane's log, on stderr</td>
+<td>messages with ids such as <code>request_id</code>, <code>execution_id</code> and an upstream's name, and error text; header values are never printed</td>
+<td>wherever the operator sends stderr</td>
+</tr>
+</tbody>
+</table>
+<p>The upstream server receives the authorized arguments, as it would without
+the plane. A plane in <code>OBSERVE</code> sends the proposed ones.</p>
+<h2 id="how-long-records-stay">How long records stay</h2>
+<table>
+<thead>
+<tr>
+<th>Record</th>
+<th>Removed when</th>
+<th>What the operator does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a spool segment</td>
+<td>every record in it is accepted by the collector or moved to <code>quarantine.log</code></td>
+<td>nothing; <code>evidence.max_bytes</code> bounds what waits</td>
+</tr>
+<tr>
+<td><code>quarantine.log</code> in the spool</td>
+<td>never: the plane does not remove it, and its bytes count against the budget</td>
+<td>decide what to keep; nothing in this build prunes it</td>
+</tr>
+<tr>
+<td>the trail file</td>
+<td>never: it is not rotated or pruned, and <code>trail</code> reads at most 100,000 events</td>
+<td>stop <code>collect</code>, move the file, start <code>collect</code> again; a file moved under a running collector stops it taking records</td>
+</tr>
+<tr>
+<td>an approval record and its projection</td>
+<td>at a plane's start, once its approval has expired, whether it was consumed or not</td>
+<td>nothing removes them while a plane runs; a directory left to grow refuses holds at <code>approvals.max_records</code></td>
+</tr>
+<tr>
+<td>a hold journal entry</td>
+<td>when its trail can take nothing more</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>a pause entry</td>
+<td>when an operator removes it; the file keeps no history</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>the collector's copy, the log</td>
+<td>as the operator's systems keep them</td>
+<td>the operator's retention</td>
+</tr>
+<tr>
+<td>a <code>dev</code> state directory</td>
+<td>never: it is left behind when <code>dev</code> stops</td>
+<td>delete it</td>
+</tr>
+</tbody>
+</table>
+<p>No command finds or deletes the records about one person. A plane without
+an authenticator records one configured principal for every call, so a
+person's identity enters a record through what the operator configured, what
+an approver or an operator typed, or what a call names: a resource id, a URI,
+a tool or prompt name, the client's reported name.</p>
+<h2 id="nothing-goes-to-the-project">Nothing goes to the project</h2>
+<p>The binaries connect only to addresses the operator configures: the upstreams,
+the collector, the decision point and its proxy, and, for <code>scenario run</code>, the
+plane it tests. No address of the project or its authors is built into them,
+and they send no usage data, crash report or update check.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/privacy.md">docs/concepts/privacy.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy" aria-current="page">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

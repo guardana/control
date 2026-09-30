@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0027: An approval&#39;s expiry holds until the call is handed out, and an unreadable lost hold is unknown · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0027-an-approvals-expiry-holds-until-the-call-is-handed-out-and-an-unreadable-lost-hold-is-unknown">ADR-0027: An approval's expiry holds until the call is handed out, and an unreadable lost hold is unknown</h1>
+<p>Status: accepted
+Date: 2026-09-27</p>
+<p>Builds on <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>,
+<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a> and
+<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>.
+Amends <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a> on the moment
+an approval's expiry is judged and on the decision id of one block's answer,
+and
+<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a> on the code a lost
+hold is closed with when the plane cannot read or trust the answer.</p>
+<h2 id="context">Context</h2>
+<p>A resume consumes its approval, checks the store's answer field by field, its
+expiry included, and only then writes the journal flip, <code>APPROVAL_DECIDED</code>
+and <code>ACTION_STARTED</code> before the call is handed to the adapter. The last step
+takes the pause state and the clock again, and never looked at the approval's
+expiry. A slow journal or a slow sink could therefore let an approval expire
+between its consumption and the hand-out, and the call ran on an approval that
+had expired by the plane's own clock at the moment it was sent. Invariant 6
+says an approval expires; an expiry that stops counting once the record is
+consumed is a weaker promise than the one written there.</p>
+<p>The reconciliation of a lost hold closed three different situations with the
+same <code>DENY</code> and <code>APPROVAL_EXPIRED</code>: nobody answered, the store could not be
+read, and the store answered with a record that fails the checks a live resume
+makes. Only the first is an expiry. The other two mean the plane does not know
+what the approver said, and a trail that states an expiry there tells an
+operator something nobody established.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>The expiry is judged again, twice, before the call is handed out.</strong> The
+expiry compared is the one on the approval the store answered, which is never
+later than the one the plane minted.</p>
+<ul>
+<li>Right before a resumed call's <code>ACTION_STARTED</code> is written, with the pause
+state taken for the last time and the clock read with it: at or past the
+expiry the held trail is closed with <code>ACTION_BLOCKED</code> carrying the plane's
+own <code>DENY</code> and <code>APPROVAL_EXPIRED</code>, after <code>APPROVAL_DECIDED</code>. A pause read at
+that moment is named instead, because the plane's own causes are checked
+first (ADR-0019).</li>
+<li>Right after <code>ACTION_STARTED</code> is appended, with the clock read once more: at
+or past the expiry, or on a zero reading, the execution is closed the way an
+adapter aborts what it did not send, <code>ACTION_FAILED</code> with a <code>BLOCKED</code> result
+whose <code>tool_protocol_status</code> is <code>APPROVAL_EXPIRED</code>, no executed digest and
+that reading as its end, and the call gets the plane's <code>DENY</code> with
+<code>APPROVAL_EXPIRED</code>, decided at that reading. The chain has no place for a
+decision after <code>ACTION_STARTED</code>, so the decision id of this one answer is on
+no record; the trail names the execution it closes. If the sink refuses that
+record, nothing is handed out either: the call is blocked with
+<code>EVIDENCE_UNAVAILABLE</code>, and the trail left open at <code>ACTION_STARTED</code> keeps its
+request id reserved and its journal entry, and is counted in
+<code>held_trails_left_open</code>, as any held trail a refused record leaves open.</li>
+</ul>
+<p>In both cases nothing is sent and the approval stays spent; it is never handed
+back to be used again. A trail that closes takes its journal entry with it.
+Both closings are transitions the chain already allows.</p>
+<p>What this covers is the plane's own time up to the hand-out, journal, sink and
+lock included. The adapter's time after the hand-out, until its request
+reaches the upstream, is not measured by the plane and not covered.</p>
+<p><strong>A lost hold's record is the one the plane minted, by request id and
+approval id together</strong>, as <code>Consume</code> names it: a sibling filed under the same
+request id with another approval id is not read, so it cannot relabel the
+answer.</p>
+<p><strong>A lost hold whose answer cannot be read or trusted is <code>INDETERMINATE</code>.</strong>
+<code>APPROVAL_STATE_UNKNOWN</code>, registry number 44, verdict <code>INDETERMINATE</code>, is the
+code of the close when the store cannot be read, when it answers with a record
+the field checks refuse or with an answer no approver gives, and when it has no
+record for the hold while the approval the plane minted has not expired. The
+window is still closed with <code>APPROVAL_EXPIRED</code> carrying the plane's own
+approval, because nothing but an answer or an expiry may follow a request for
+approval in the chain, and the plane records nothing a store said that it did
+not check. <code>APPROVAL_EXPIRED</code> stays for nobody answered, for a record whose own
+expiry has passed, and for no record once the plane's minted expiry has passed
+by its clock, since a store drops what expired. A plane that crashed between
+journalling a hold and filing its record, and restarts before the expiry,
+closes that hold as unknown, because a record never filed cannot be told from
+one deleted. A rejection keeps
+<code>APPROVAL_REJECTED</code> and a grant <code>APPROVAL_NOT_RESUMED</code>. The call never runs
+under any of them.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>The plane no longer hands out a call whose approval has expired by its clock
+at the last reading it takes, the one after <code>ACTION_STARTED</code> is appended,
+whatever the journal or the sink cost before it. A call handed out a moment
+before the expiry can still reach the upstream after it: the adapter's time
+is outside the plane's check. The price is that an approval consumed just
+before its expiry can be spent without running, exactly as a pause read in
+the same place already spends one.</p>
+<p><code>APPROVAL_STATE_UNKNOWN</code> is a new code, and a consumer reading lost-hold
+closings sees <code>INDETERMINATE</code> where it used to see <code>DENY</code>. No wire message
+changes. No rule may name the code: a rule's reasons are an allowlist per
+effect that does not hold it.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>Judge the expiry only at consumption, as before.</strong> Rejected: the time
+between consumption and hand-out is unbounded by anything the approver
+controls, so the expiry the approver saw would not be the one enforced.</li>
+<li><strong>Put the expiry back into the store's hands, unconsumed.</strong> Rejected: a
+consumed approval that returns to be used again is the replay invariant 6
+forbids, and two retries could both run it.</li>
+<li><strong>List the expiry beside a pause as one more of the plane's causes.</strong>
+Rejected for now: the causes are a function of the plane's state that every
+call shares, and the expiry is a property of one resumed call's approval.</li>
+<li><strong>Keep <code>APPROVAL_EXPIRED</code> for an unreadable answer.</strong> Rejected: it states
+an expiry nobody observed, and an operator acts on the difference between
+&quot;nobody answered&quot; and &quot;the plane could not tell&quot;.</li>
+<li><strong>Close an unreadable lost hold as <code>EVIDENCE_UNAVAILABLE</code>.</strong> Rejected: that
+code says a record could not be written or kept, and the operator's question
+here is what the approver said.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>The resume path gains one comparison at hand-out. The reconciliation returns a
+verdict beside its code. The reason-code reference gains a row, and the pages
+on approvals and failure modes say where expiry is judged and what an unknown
+close means.</p>
+<h2 id="validation">Validation</h2>
+<ul>
+<li><code>internal/gateway/lapse_test.go</code>: with a controlled clock, a slow journal, a
+slow <code>APPROVAL_DECIDED</code> append and a slow <code>ACTION_STARTED</code> append each move
+the clock to the expiry, and nothing is sent; one tick earlier the same
+resume runs. The store's shorter expiry is the one judged. A zero reading and
+a refused abort record send nothing. A pause in the same window, and sixteen
+identical retries at once, send nothing past the expiry and at most one call
+before it.</li>
+<li><code>internal/gateway/reconcile_test.go</code>: a store that fails, one that answers
+garbage, one that answers an expired record and one that answers a rejection
+close a lost hold four different ways; a missing record a tick before and at
+the plane's expiry closes as unknown and as expired; a sibling record under
+another approval id changes nothing; every close resolves the record once.</li>
+<li><code>internal/policy/reasons/registry_test.go</code> pins number 44, its verdict and
+its summary.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md">docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

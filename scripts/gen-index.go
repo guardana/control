@@ -14,7 +14,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/guardana/control/internal/docscheck/docsconfig"
 	"github.com/guardana/control/internal/docscheck/indexdoc"
@@ -36,15 +35,7 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	excluded := func(rel string) bool {
-		for _, prefix := range cfg.Excluded {
-			if rel == prefix || strings.HasSuffix(prefix, "/") && strings.HasPrefix(rel, prefix) {
-				return true
-			}
-		}
-		return false
-	}
-	pages, records, err := indexdoc.Collect(os.DirFS("."), excluded)
+	pages, records, err := indexdoc.Collect(os.DirFS("."), cfg.Excludes)
 	if err != nil {
 		fail(err)
 	}

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Threat model · Guardana Control</title>
+<meta name="description" content="What the plane protects, from whom, what it does about each attacker today with the code and the test behind it, and where it stops."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/concepts/threat-model"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="threat-model">Threat model</h1>
+<p>Nothing in this repository is a security boundary yet
+(<a href="/docs/status">status</a>, <a href="https://github.com/guardana/control/blob/main/SECURITY.md">SECURITY.md</a>). This page says
+what the plane is built to protect, from whom, what it does about each of them
+today, and where it stops. Each defence names the code that makes it and,
+where one exists, the test that exercises it. The inventory of
+what exists is <a href="/docs/status">status</a>; this page keeps no list of its own.</p>
+<h2 id="what-is-in-scope">What is in scope</h2>
+<ul>
+<li>The MCP gateway, <code>guardana-gateway run</code>, and <code>dev</code>, which runs one on the
+loopback (<a href="/docs/reference/dev">reference/dev</a>).</li>
+<li>The approvals commands and the local page, <code>guardana-control approvals</code> and
+<code>console</code> (<a href="/docs/reference/console">reference/console</a>).</li>
+<li><code>guardana-gateway collect</code> and the trail file it writes, and <code>trail</code>, which
+reads one.</li>
+<li>The policy key, <code>policy keygen</code>, <code>policy sign</code> and the signed bundle a plane
+loads.</li>
+<li>The release archives and what proves where they came from
+(<a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a>).</li>
+</ul>
+<p>The agent, its model, the MCP servers and a collector someone else runs are
+outside the plane. They appear below as parties the plane has to deal with.</p>
+<h2 id="what-is-protected">What is protected</h2>
+<table>
+<thead>
+<tr>
+<th>Asset</th>
+<th>What an attacker gains by it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the decision on a call</td>
+<td>a call that runs although its policy blocks it, or one blocked although it may run</td>
+</tr>
+<tr>
+<td>an approval and its binding</td>
+<td>one approved action run with other arguments, under another bundle, twice, or after it expired (<a href="/docs/concepts/approvals-and-the-held-call">approvals</a>)</td>
+</tr>
+<tr>
+<td>the signed policy and its key</td>
+<td>any rule they like, on every plane that pins the key's public half</td>
+</tr>
+<tr>
+<td>the evidence</td>
+<td>a record of something that did not happen, or no record of something that did</td>
+</tr>
+<tr>
+<td>the pause switch</td>
+<td>calls that run although an operator stopped them, or every call stopped</td>
+</tr>
+<tr>
+<td>credentials a plane holds</td>
+<td>the collector's and the decision point's header values, and the variables an upstream's <code>env</code> list hands its command</td>
+</tr>
+</tbody>
+</table>
+<h2 id="who-it-is-meant-to-stop">Who it is meant to stop</h2>
+<p>The main attacker is <strong>the agent itself</strong>, when it is wrong or when content it
+read steers it. The others are a hostile or compromised MCP server, a decision
+point that is slow, wrong or hostile, another account on the plane's machine,
+the plane's own account, someone on the network, and a tampered release.</p>
+<h2 id="trust-boundaries">Trust boundaries</h2>
+<figure class="dg-text" id="diagram-1"><figcaption>Trust boundaries</figcaption><p>The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence. <a href="https://github.com/guardana/control/blob/main/docs/concepts/threat-model.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TD
+    accTitle: Trust boundaries
+    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
+    Agent[&#34;Agent and its model&#34;] --&gt;|&#34;MCP, no credential&#34;| Plane
+    Agent -.-&gt;|&#34;a path around the plane&#34;| Http
+    subgraph Host[&#34;The plane&#39;s machine&#34;]
+        subgraph Own[&#34;One account: the plane&#39;s user&#34;]
+            Plane[&#34;Gateway process&#34;]
+            Child[&#34;stdio upstream: a child given a fixed few variables and its env list&#34;]
+            Files[&#34;Approvals directory, pause file, hold journal, spool, trail file, key&#34;]
+            Page[&#34;Approvals page and commands&#34;]
+            Collect[&#34;collect&#34;]
+        end
+        Other[&#34;Another local account&#34;]
+    end
+    Plane --&gt; Child
+    Plane --&gt;|&#34;reads answers and pauses, writes evidence&#34;| Files
+    Page --&gt;|&#34;writes answers and pauses&#34;| Files
+    Browser[&#34;Browser&#34;] --&gt;|&#34;loopback, a token traded once&#34;| Page
+    Other -.-&gt;|&#34;refused on owner and mode&#34;| Files
+    Other --&gt;|&#34;no credential&#34;| Collect
+    Plane --&gt;|&#34;exactly the authorized bytes&#34;| Http[&#34;HTTP upstream&#34;]
+    Plane --&gt;|&#34;identity, action, resource; never arguments&#34;| PDP[&#34;Decision point&#34;]
+    Plane --&gt;|&#34;OTLP: https, or plaintext on the loopback if allowed&#34;| Collector[&#34;A collector&#34;]
+</code></pre></details></figure>
+<p>Sources: <code>adapters/mcp/listener.go</code>, <code>cmd/guardana-gateway/adapter.go</code>,
+<code>internal/approvals/dirid.go</code>, <code>internal/pause/snapshot.go</code>,
+<code>internal/console/console.go</code>, <code>cmd/guardana-gateway/collect.go</code>,
+<code>adapters/authzen/mapping.go</code>.</p>
+<p>The boxes are the boundaries. A dotted line is either a path that goes around
+the plane or a write that the file checks refuse. The account is the strongest boundary this
+build has: the approvals directory, the pause file, the hold journal, the
+trail file and the key are each refused when the group or the world may write
+them, and the pause file and the key also when another account owns them.
+Inside that account nothing is separated from anything.</p>
+<h2 id="an-agent-that-is-wrong-or-steered">An agent that is wrong or steered</h2>
+<p>What the plane does today:</p>
+<ul>
+<li>Every <code>tools/call</code>, <code>resources/read</code> and <code>prompts/get</code> that reaches the plane
+is decided before the upstream sees it, and a blocked call never reaches it
+(<code>adapters/mcp/middleware.go</code>; <code>TestBlockNeverReachesUpstream</code> in
+<code>adapters/mcp/call_test.go</code>).</li>
+<li>A tool no operator classified is blocked with <code>ACTION_UNCLASSIFIED</code> in every
+mode but <code>OBSERVE</code>. Classification is the operator's override pinned to the
+tool definition's fingerprint; the tool's own annotations never classify
+(<code>adapters/mcp/manifest.go</code>; <code>TestOverrideMustPinTheFingerprint</code>).</li>
+<li>The upstream receives exactly the bytes that were authorized. A disposition
+whose digest does not match its bytes is never sent, and a mismatch halts
+material calls until the plane restarts (<code>internal/gateway/close.go</code>;
+<code>TestMismatchNeverSends</code>, <code>TestCloseRecordsAMismatchAndHaltsMaterialCalls</code>).</li>
+<li>An approval runs one call, with the bytes and bundle it was given for, once,
+before it expires (<code>internal/gateway/resume.go</code>;
+<code>TestConcurrentIdenticalRetriesExecuteOnce</code>).</li>
+<li>The agent cannot name itself. The principal and the agent are the
+listener's configuration; the client's <code>_meta.clientInfo</code> becomes a tag the
+digest leaves out (<code>adapters/mcp/translate.go</code>;
+<code>TestClientInfoNeverReachesTheDigest</code>). A tag under the plane's flow prefix
+is refused (<code>internal/gateway/flow.go</code>; <code>TestAProducersFlowTagIsRefused</code>).</li>
+<li>After a run took in untrusted content, a policy's <code>flow</code> rule blocks calls to
+untrusted destinations (<code>internal/gateway/flow.go</code>;
+<code>TestTheToxicFlowIsDeniedAcrossSessions</code> in <code>internal/gateway/e2e/</code>).</li>
+<li>An operator can pause every call, one upstream or one tool
+(<code>internal/gateway/pause.go</code>; <code>TestAPauseAtEachScopeBlocksExactlyItsCalls</code>).</li>
+</ul>
+<p>What it does not do:</p>
+<ul>
+<li><strong>The default mode is <code>OBSERVE</code></strong>, which records the decision and runs the
+call whatever it says (<a href="/docs/concepts/enforcement-modes">enforcement modes</a>). A plane
+left at the default stops nothing its policy decides; only the plane's own
+causes, a pause among them, still block.</li>
+<li>It does not read what a call means. Policy decides on who calls, the
+action and its effect class, the resource, the destination, the data labels
+and the run's flow (<a href="/docs/reference/policy-format">policy format</a>). No
+constraint reads the arguments, which enter as a hash, except the one value
+an override's <code>resource_from</code> points at. A harmful call that a rule allows
+runs.</li>
+<li>It does not see a call that does not pass through it. An agent, or a tool
+behind the plane, that can reach an upstream directly, or run code, goes
+around it. Which network paths and credentials an agent holds is the
+operator's to arrange.</li>
+<li>It does not know who the end user is. No configuration key wires an
+authenticator, so every call on a listener is the one configured principal
+(<a href="/docs/reference/mcp-coverage">MCP coverage</a>), and a pause cannot name a
+principal, an agent or a tenant.</li>
+<li>The flow state is a lower bound: a run starts clean, and the user's prompt,
+the tools' descriptions and tools outside the plane are not tracked
+(<a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a>).</li>
+<li>A pause takes effect up to one poll interval after it is written, and never
+stops a call already running (<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>).</li>
+</ul>
+<h2 id="a-hostile-or-compromised-mcp-server">A hostile or compromised MCP server</h2>
+<p>What the plane does today:</p>
+<ul>
+<li>A server that changes a tool's definition changes its fingerprint, and the
+tool is unclassified again until the operator looks
+(<code>adapters/mcp/manifest.go</code>; <code>TestFingerprintCoversTheWholeDefinition</code>).</li>
+<li>A server cannot answer as the plane: the plane's marker is stripped from
+what a server sends, so its answer never reads as the plane's pending or
+block (<code>adapters/mcp/answer.go</code>; <code>TestUpstreamCannotAnswerAsTheGateway</code>,
+<code>TestUpstreamCannotForgeABlockedRead</code>).</li>
+<li>A result nobody declared trusted makes its run untrusted, so a flow rule can
+fire on the next call (<code>adapters/mcp/translate.go</code>;
+<code>TestWhatNoOverrideClassifiesReturnsTheRestrictiveAnswer</code>).</li>
+<li>A server's lists are bounded and timed out, a call is bounded by
+<code>upstream.call_timeout</code>, and an HTTP server's redirect is not followed
+(<code>TestUpstreamListIsBounded</code>, <code>TestUpstreamListIsTimedOut</code>,
+<code>TestAnUpstreamRedirectIsNotFollowed</code>).</li>
+<li>A server's sampling, roots and progress requests reach no agent
+(<a href="/docs/reference/mcp-coverage">MCP coverage</a>).</li>
+</ul>
+<p>What it does not do:</p>
+<ul>
+<li><strong>It does not look inside a result.</strong> Whatever a server returns, injected
+instructions included, reaches the agent unchanged, but for the plane's own
+<code>_meta</code> keys. The plane records a hash of it.</li>
+<li>A tool the agent is shown comes with its description as the server wrote
+it. List shaping can hide denied and unclassified tools, never rewrite a
+description, and the fingerprint catches a definition that changes, not one
+that was hostile from the start.</li>
+<li>It cannot see what a server did with the bytes it was sent.</li>
+<li><strong>A <code>stdio</code> upstream is a child process of the plane</strong>: it runs as the
+plane's account and can read and write everything that account can
+(below). The plane hands it only <code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code>,
+<code>USER</code> and the variables its <code>env</code> list names, and that list refuses any
+name under <code>GUARDANA_CONTROL_</code>, so the plane does not pass the header
+credentials (<code>cmd/guardana-gateway/adapter.go</code>;
+<code>TestAStdioUpstreamGetsOnlyTheEnvironmentItIsGiven</code> in
+<code>cmd/guardana-gateway/adapter_env_test.go</code>;
+<a href="/docs/adr/0028-a-stdio-upstream-gets-only-the-environment-it-is-given">ADR-0028</a>).
+A hostile server running as the plane's account can still read the plane's
+environment on its own, on Linux from <code>/proc</code>, and the plane's
+configuration file, so run a server you do not trust under another account
+or over HTTP.</li>
+<li>An HTTP upstream may be <code>http</code>; nothing requires TLS to it, and anyone on
+that path can read the arguments and the results and forge them.</li>
+</ul>
+<h2 id="a-decision-point-that-is-slow-wrong-or-hostile">A decision point that is slow, wrong or hostile</h2>
+<p>The decision point can only veto what the signed bundle allows
+(<a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>).</p>
+<p>What the plane does today:</p>
+<ul>
+<li>It never grants. Whatever the decision point answers, the kernel allows no
+more than the same bundle would with every veto rule deleted (<code>internal/core/</code>;
+<code>TestTheAnswerNeverGrants</code> in <code>internal/core/external_property_test.go</code>).</li>
+<li>Silence blocks. A timeout, an error, an answer that does not parse and a
+full in-flight bound each leave the call undecided, which blocks in every
+mode that enforces (<code>TestSilenceBlocksEveryEffectClass</code>,
+<code>TestSilenceBlocksEveryEffectClassUnderEnforce</code>, <code>TestDeadline</code>,
+<code>TestInFlightBound</code>).</li>
+<li>It is told the identity, the action, the resource and the destination, never
+the arguments, their hash or a digest (<code>adapters/authzen/mapping.go</code>;
+<code>TestNeverSent</code>).</li>
+<li>Plaintext is allowed only under <code>pdp.allow_plaintext</code> and on a loopback IP
+literal, and a proxy set in the environment is not used
+(<code>TestPlaintextOnTheLoopback</code>, <code>TestProxyFromTheEnvironmentIsNotUsed</code>).</li>
+</ul>
+<p>What it does not do:</p>
+<ul>
+<li>A forged or mistaken <code>true</code> removes the veto it would have made.</li>
+<li>A hostile decision point can deny everything it is asked about.</li>
+<li>An approval binds the bundle digest, not the decision point's policy. That
+policy can change unseen.</li>
+<li>The resource id is sent, and where an override's <code>resource_from</code> reads it
+out of the arguments, that is argument content.</li>
+</ul>
+<h2 id="another-local-account">Another local account</h2>
+<p>What the plane does today:</p>
+<ul>
+<li>The approvals directory is refused when the group or the world may write
+it. It is judged again at every call, and a change of owner or of directory
+is refused too; each record is <code>0600</code> (<code>internal/approvals/dirid.go</code>;
+<code>TestADirectoryOthersMayWriteIsRefused</code>,
+<code>TestADirectoryLoosenedAfterOpenIsRefusedByBothHandles</code>).</li>
+<li>A pause file or its directory owned by another account, or writable by the
+group or the world, is an unknown pause state, and the plane blocks every
+call (<code>internal/pause/snapshot.go</code>;
+<code>TestAPauseFileOwnedByAnotherAccountIsUnknown</code>).</li>
+<li>The hold journal's directory is refused when the group or the world may
+write it (<code>internal/holdjournal/journal.go</code>).</li>
+<li>A private key file another account owns or has any permission on is
+refused (<code>internal/policykey/private.go</code>; <code>TestReadPrivateModeTable</code>).</li>
+<li>The trail file is created <code>0600</code>, and an existing one the group or the
+world may write is refused (<code>internal/trailfile/writer.go</code>;
+<code>TestOpenCreatesAFileOnlyItsOwnerMayRead</code>,
+<code>TestOpenRefusesWhatAnotherCouldWrite</code>).</li>
+<li>The approvals page listens on <code>127.0.0.1</code> only, answers only its exact
+<code>Host</code>, and needs a session traded once from a printed token; each refusal
+leaves the record pending (<code>internal/console/</code>;
+<code>TestEveryRefusalLeavesTheRecordPending</code>,
+<code>TestThePrintedTokenIsTradedOnce</code>).</li>
+</ul>
+<p>What it does not do:</p>
+<ul>
+<li><strong>The MCP listener and the health listener take no credential.</strong> Any account
+that can reach them calls tools as the listener's principal and reads the
+counters. Both default to <code>127.0.0.1</code>, which every local account can reach.</li>
+<li><strong><code>collect</code> takes no credential.</strong> Any account that reaches its port can
+append events to the trail, forged chains among them
+(<a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a>).</li>
+<li>The spool writes its files <code>0600</code>, but does not judge its directory's mode.</li>
+<li>The checks read the owner and the mode bits. On macOS an access control list
+can grant what the mode bits do not show, and the checks do not read it.</li>
+</ul>
+<h2 id="the-same-local-account">The same local account</h2>
+<p>The plane's account is the authority for everything on disk. <strong>Any process
+running as that account can approve, reject, pause and lift a pause, sign a
+bundle with a key it can read, read the plane's environment, its header
+credentials included, and rewrite the evidence.</strong> That includes a
+<code>stdio</code> upstream, the page's starter, and a tool behind the plane that can
+write files (<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>,
+<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>,
+<a href="/docs/adr/0023-a-local-page-answers-through-the-directory">ADR-0023</a>).
+<code>approver_id</code> is a claim recorded as given.</p>
+<p>What bounds it:</p>
+<ul>
+<li>A record in the approvals directory carries no trail, envelope or decision,
+so a forged record cannot graft events onto a trail. The plane checks every
+field of an answer against its own record of the hold
+(<code>internal/gateway/resume.go</code>; <code>TestThePipelineNeverTrustsTheStoresApproval</code>
+in <code>internal/gateway/store_test.go</code>).</li>
+<li>A writer of that directory can still deny a chosen action and bundle, and
+leave evidence naming an approval that was never used (ADR-0016).</li>
+<li>The gateway binary holds none of the approver's code and no private-key
+parser, so the process that serves agents cannot answer an approval or read
+a signing key itself (<code>cmd/guardana-gateway/symbols_test.go</code>).</li>
+</ul>
+<p>When the agent, its tools, the plane and the approver run as one account, as
+<code>dev</code> does, the account boundary separates none of them.</p>
+<h2 id="someone-on-the-network">Someone on the network</h2>
+<p>What the plane does today:</p>
+<ul>
+<li>The export endpoint has to be <code>https</code>, or a loopback IP literal under
+<code>export.allow_plaintext</code>, and no redirect is followed
+(<code>adapters/otel/options.go</code>; <code>TestAPlaintextCollectorNeedsTheRiskSetting</code>,
+<code>TestAPlaintextCollectorIsOnTheLoopback</code>, <code>TestARedirectIsNeverFollowed</code>).</li>
+<li>A browser origin the operator did not list is refused, a loopback origin
+included, and a loopback origin is admitted only while the listener is on the
+loopback (<code>adapters/mcp/listener.go</code>, <code>internal/gatewayconfig/check.go</code>;
+<code>TestOriginIsValidated</code>).</li>
+<li><code>collect</code> listens on a loopback address only (<code>internal/loopback/</code>;
+<code>TestCollectListensOnTheLoopbackOnly</code>), and <code>dev</code> binds and reaches loopback
+IP literals only (<code>TestDevAddressesAreLoopbackLiterals</code>).</li>
+</ul>
+<p>What it does not do:</p>
+<ul>
+<li><strong>The MCP listener serves plain HTTP with no authentication.</strong> Bound to
+anything but the loopback, it lets anyone who reaches it call tools as the
+configured principal. There is no TLS setting on it.</li>
+<li>The health listener is the same: plain HTTP, no credential, wherever
+<code>health.address</code> puts it.</li>
+<li>A plaintext export stays on the host, unprotected there: an account that
+can capture loopback traffic reads the headers and the events, and one that
+holds the collector's port first receives them and can answer with the
+acceptance that releases a record from the spool.</li>
+</ul>
+<h2 id="a-tampered-release">A tampered release</h2>
+<p>What the project does today: the release workflow builds the archives from a
+tag on <code>main</code>, writes a bill of materials for each, signs <code>checksums.txt</code>
+without a stored key, attests the build provenance of every archive, and
+verifies all three before it publishes (<a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a>).
+The three commands under &quot;Checking a download&quot; let a user make the same
+checks.</p>
+<p>What it does not do:</p>
+<ul>
+<li>A user who does not run those commands gets none of it.</li>
+<li>The checks prove which workflow built the archive from which commit, not
+that the commit was reviewed. The repository admin may push to <code>main</code>
+directly (<a href="/docs/adr/0025-public-repository-merges-and-releases">ADR-0025</a>).</li>
+<li>A binary built from source with <code>go install</code> carries no signature.</li>
+</ul>
+<h2 id="evidence-what-a-trail-proves">Evidence: what a trail proves</h2>
+<p>Events are written to a spool before any effect, and a call whose event
+cannot be written is blocked, unless <code>evidence.on_unwritable: allow_reads</code>
+lets a read run unrecorded (<a href="/docs/concepts/evidence-and-the-spool">evidence</a>). That makes the evidence exist before the effect; it does not make it
+tamper-evident. No hash links the events, and no
+checkpoint is signed: <code>prev_event_digest</code> is left empty
+(<a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>). <code>trail</code> checks
+that each chain has a shape a run could produce. It does not prove nobody
+changed it: the plane's account can rewrite the file, bytes rewritten in place
+at the same size are not detected, and any local account can post events to
+<code>collect</code>. What a record holds is on the <a href="/docs/concepts/privacy">privacy</a> page.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/threat-model.md">docs/concepts/threat-model.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model" aria-current="page">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

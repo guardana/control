@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0023: A local page answers through the directory · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0023-a-local-page-answers-through-the-directory"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0023-a-local-page-answers-through-the-directory">ADR-0023: A local page answers through the directory</h1>
+<p>Status: accepted
+Date: 2026-09-24</p>
+<p>Builds on <a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>,
+<a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>,
+<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>,
+<a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a>,
+<a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a> and
+<a href="/docs/adr/0022-scenarios-are-data">ADR-0022</a>.
+Amends <a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>: a handle
+judges its directory at every call, not only when it opens.</p>
+<p>Amended on the reviews of its first implementation: the printed token is good
+for one trade, an answer is bound to the digest the approver confirmed, the
+store reaches every file through the directory it opened, and the page withholds
+and quotes what it shows as the command line does. The paragraphs below say it.</p>
+<h2 id="context">Context</h2>
+<p>A stranger's first plane should start with one command, and a call held for an
+approval should be answerable without learning a command line. The approvals
+directory and the pause file already carry the authority: whoever can write
+them, as the plane's own user, can approve, reject and pause (ADR-0016,
+ADR-0019). What is missing is a surface a person uses in a browser and the one
+command that lays out a plane for it.</p>
+<p>A page is a listening surface, and a browser on the same machine is reachable
+by every site the operator visits. A web page can post to a loopback port, can
+rebind a name to <code>127.0.0.1</code>, and can frame what it cannot read. Cookies are not
+isolated by port, so any other server on the loopback that the operator's
+browser visits receives them. Another local account can reach the port. An
+agent's own tool, a fetch behind the plane, can reach it too. And what the page
+shows comes partly from the agent: a resource id is the agent's text.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>The page is an approver process.</strong> <code>guardana-control console</code> serves it, from
+the approver's binary, through <code>internal/approvals</code> and <code>internal/pause</code>, as the
+<code>approvals</code> and <code>pause</code> commands write. It adds no authority. The plane's binary
+gains no path that answers an approval, writes a pause or reads a private key,
+and a check on the built binary says so. The page's package links no key reader,
+no pipeline, no evidence, no spool, no journal, no trail and no process
+launcher, and serves only files embedded in the binary.</p>
+<p><strong>A printed token good for one trade.</strong> The page binds an ephemeral port on
+<code>127.0.0.1</code> and prints one line: its address with a 256-bit token in the URL's
+fragment, which a browser never sends. The token is in no argument,
+environment variable, file or log of the command, but the browser keeps the
+link in its history and session files, so the token is worth one thing: the
+page's script trades it once, at <code>/api/session</code> and within ten minutes of the
+start on the wall clock and the monotonic one, for a session token of the same
+strength. The session token lives in the
+tab's session storage and goes as a header on every later request, compared in
+constant time. After the trade, or ten minutes after the start, the printed
+token opens nothing. A request whose <code>Host</code> is not exactly the bound address is
+refused, so a rebound name reaches nothing. Every request to its API needs an
+<code>Origin</code> and a <code>Sec-Fetch-Site</code> that are same-origin when the browser sends
+them, and a write needs a JSON body. Every answer forbids framing, caching and
+referrers, and the content security policy allows the page's own script only,
+with no inline script.</p>
+<p><strong>The page shows what the listing shows, and renders it as text.</strong> It shows what
+<code>approvals list</code> and <code>pause list</code> show, including that the readable fields are
+not bound to the digest; no arguments, no preview, no trail. Every value is set
+as text, never as markup, and withheld and quoted as the command line prints
+it, through a package that reads no key.
+The server makes every sentence the page says of a record, a listing or a pause
+file, and the script only places them. Its words claim no more than the data:
+an approved call can resume on the agent's retry before its expiry, when the
+retry is the same call and nothing blocks it, and is never &quot;ran&quot;; an incomplete
+listing is a banner, never
+an empty list; a pause file that cannot be read says the plane blocks every
+call.</p>
+<p><strong>An answer names the call it answers.</strong> Cards stand in the order their calls
+were held, so a new hold never moves a button under the pointer, and no card
+leaves the page while it is open. Answer buttons wait one second after any
+change to the list. An answer takes two clicks, the second naming the tool,
+the upstream and the first 12 hex digits of the action digest, and the answer
+carries that digest: the page files it only for the record whose digest it is.</p>
+<p><strong>The directory is the one opened.</strong> Both handles of the approvals store open
+the directory once, as an <code>os.Root</code>, and reach every file through it, the
+plane's lock and the approver's probe of it included. At the start of every
+call they judge that opened directory again (the same owner, no write bit for
+the group or the world) and refuse a name that no longer names it, with its own
+sentence, which the page shows and on which the plane blocks the call as on any
+refusal of its store. A directory put at the name is never read or written.</p>
+<p><strong><code>approver_id</code> is the starter's claim.</strong> It is a flag of <code>console</code>, not a form
+field and not the account running it, which is the plane's account for every
+approver and would only look authenticated.</p>
+<p><strong>Dev lays out a plane and supervises it.</strong> <code>guardana-gateway dev</code> takes the
+demo's configuration and policy document and creates a fresh directory that
+holds everything the plane writes. It signs the bundle with a key that exists
+only in its memory, starts the collector and the plane in its own process on
+loopback addresses it bound itself, and starts the page beside it at its own
+version, over a pipe whose end stops the page. It refuses the plane's
+environment variables, a configuration that sets what dev owns, and any
+address it binds or reaches that is not an IP literal on the loopback: its
+listeners and collector, every upstream endpoint, and the decision point's
+identifier, evaluation endpoint and proxy. It builds the plane the way
+<code>serve</code> does: no setting and no branch exists for dev alone. When any part
+stops it stops them all, in the order that lets the trail drain. With
+<code>--scenario</code>, each scenario runs on a plane of its own with no page.</p>
+<p>The page's JSON is private to the page and carries no version: it is not a
+contract.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>No wire contract or setting changes. The approval projection gained the
+upstream (<code>provider</code>) under the same version before any release, so a reader of
+an earlier build refuses a new projection as one it cannot decode. The page is reachable only
+with a session traded from its printed token, only from this machine, only by
+the tab that traded it and a copy of that tab. It
+does not protect against a process of the plane's own user, which can already
+write the directory and the file; a tool behind the plane that can write files
+is such a process.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>The page in the plane's process.</strong> It would link the approver's write path
+into the plane and make the plane its own approver.</li>
+<li><strong>A cookie and a token per form.</strong> It needs no script, and it leaks to every
+other loopback port the browser visits.</li>
+<li><strong>The token in every request's query.</strong> It leaks to logs, history and
+referrers.</li>
+<li><strong>No page; dev prints <code>approvals approve</code> lines.</strong> Smallest, and it misses
+the goal.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>A stranger answers a held call in a browser. The approver's binary serves HTTP
+on the loopback. The gateway's binary signs a bundle in memory and starts a
+sibling process.</p>
+<h2 id="declared-limits">Declared limits</h2>
+<ul>
+<li>A second tab needs a new link: the console has to be started again.</li>
+<li>The script's one-second wait, its kept cards and its two-click confirmation
+are checked in a browser, not by the gate.</li>
+<li>The page cannot tell whether a plane reads the pause file it writes.</li>
+<li>The fields the page shows are not bound to the digest the approval binds.</li>
+<li>A dev plane goes stale when its policy budget passes, and dev says when.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>The page's package reaches the approvals and pause packages and none of the
+refused ones; it opens no file by path and serves no directory.</li>
+<li>The gateway's built binary holds none of the approver's answer, the pause
+writers or a private-key reader, and holds the in-memory signer.</li>
+<li>Each refusal with the input at which it bites: a foreign <code>Host</code>, a write
+without the token, a cross-origin <code>Origin</code>, a same-site fetch, a body that is
+not JSON, a read without the token, a path outside the embedded files; every
+answer forbids framing.</li>
+<li>A second trade of the printed token, the printed token on any other request,
+and a trade ten minutes after the start are refused.</li>
+<li>An answer whose digest is not the record's, a member spelled in another case,
+and a body that is not UTF-8 are refused, and the record stays pending.</li>
+<li>A directory loosened, or swapped for a link to another store, under an open
+handle is refused by the page and by the plane's handle; one swapped in
+between a call's judge and its file operations is never read or written: the
+answer lands in the opened directory, and the plane neither finds nor spends
+the other store's approval.</li>
+<li>Key text in a projection field or a pause reason is withheld, a lone surrogate
+escape is refused and nothing is written, and a trade whose wall clock is past
+ten minutes is refused though the monotonic clock is not.</li>
+<li>A resource id holding markup or U+202E is shown inert and quoted.</li>
+<li>The token is in no process argument, environment, file or log of dev.</li>
+<li>Dev refuses a plane variable in its environment before anything binds, a
+configuration setting a key dev owns, and an existing state directory;
+killing the page stops dev, and killing dev stops the page.</li>
+<li>A held call answered through the page resumes on its retry; with a pause in
+scope, the retry is blocked and the approval is not spent.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0023-a-local-page-answers-through-the-directory.md">docs/adr/0023-a-local-page-answers-through-the-directory.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

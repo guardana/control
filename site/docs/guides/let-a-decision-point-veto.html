@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Let a decision point veto calls · Guardana Control</title>
+<meta name="description" content="Point the gateway at an AuthZEN decision point, write the two rules that let it veto a scope, test what each answer does, and check the plane before it serves."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/guides/let-a-decision-point-veto"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="let-a-decision-point-veto-calls">Let a decision point veto calls</h1>
+<h2 id="when-to-use-this">When to use this</h2>
+<p>Your organization already decides access in a policy engine of its own, and
+some of the calls an agent makes should pass that engine too. The gateway can
+ask a decision point that speaks the OpenID AuthZEN Authorization API 1.0
+about those calls. Its answer can only veto: every grant still comes from a
+rule in your signed bundle, and while the decision point is silent, the calls
+it governs are blocked in every mode that enforces; <code>OBSERVE</code> records the
+silence and runs them
+(<a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>). This is
+<code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>A gateway you can run (<a href="/docs/guides/run-the-gateway">run-the-gateway.md</a>) and a
+policy you can test (<a href="/docs/guides/write-and-test-a-policy">write-and-test-a-policy.md</a>).</li>
+<li>A decision point that answers <code>POST</code> at its access evaluation endpoint, by
+default <code>/access/v1/evaluation</code> under its identifier, and returns the
+<code>X-Request-ID</code> header it was sent. An answer without that echo is refused,
+so every call it governs is blocked.</li>
+<li>Its identifier, the <code>policy_decision_point</code> its metadata names: an <code>https</code>
+URL with no user, query or fragment. Never put a credential in it, since
+every decision that consulted the answer records it. A credential goes in a
+header, in step 3.</li>
+<li>Tools whose calls name a resource id. A call with no resource id is never
+sent to the decision point, so one a veto rule covers is blocked.</li>
+</ul>
+<h2 id="steps">Steps</h2>
+<h3 id="1-write-the-two-rules">1. Write the two rules</h3>
+<p>The decision point decides a scope only where the bundle allows it and lets
+the decision point veto it. Write both rules over the same scope:</p>
+<pre><code class="language-json">{&#34;id&#34;: &#34;refunds&#34;, &#34;effect&#34;: &#34;ALLOW&#34;, &#34;when&#34;: {&#34;action&#34;: {&#34;name&#34;: [&#34;refund&#34;]}}},
+{&#34;id&#34;: &#34;refunds-vetoed&#34;, &#34;effect&#34;: &#34;DENY&#34;, &#34;when&#34;: {&#34;action&#34;: {&#34;name&#34;: [&#34;refund&#34;]}, &#34;external&#34;: {&#34;denies&#34;: true}}}
+</code></pre>
+<p><code>external</code> is legal on a <code>DENY</code> rule only, and <code>policy lint</code> refuses it
+anywhere else. A call no rule reading <code>external</code> covers is never sent
+anywhere.</p>
+<h3 id="2-test-what-each-answer-does">2. Test what each answer does</h3>
+<p>A <code>policy test</code> case names the answer the kernel is handed in <code>external</code>:
+<code>allowed</code>, <code>denied</code>, <code>denied_with_obligations</code>, <code>timeout</code>, <code>unavailable</code> or
+<code>answer_refused</code>. Write one case for an allowing answer and one for silence
+at least. For a read under the two rules of step 1, with <code>fail_open_read</code>
+on, a timeout still blocks:</p>
+<pre><code class="language-json">&#34;external&#34;: &#34;timeout&#34;,
+&#34;expect&#34;: {&#34;verdict&#34;: &#34;INDETERMINATE&#34;, &#34;action&#34;: &#34;Block&#34;, &#34;reason_codes&#34;: [&#34;RULE_ALLOW&#34;, &#34;RULE_UNDETERMINED&#34;, &#34;PDP_TIMEOUT&#34;]}
+</code></pre>
+<p><code>fail_open_read</code> covers the bundle's availability, never the decision
+point's. An allowing answer decides as if the veto rule were not there,
+<code>ALLOW</code> with <code>RULE_ALLOW</code> and <code>PDP_ALLOW</code>. What each answer sets is in
+<a href="/docs/reference/policy-format">policy-format.md</a>.</p>
+<h3 id="3-configure-the-decision-point">3. Configure the decision point</h3>
+<pre><code class="language-yaml">pdp:
+  identifier: https://pdp.example.com
+  timeout: 100ms         # silence past it blocks the call
+  max_in_flight: 16      # an ask past it is silence at once
+</code></pre>
+<p>Set the credential from the environment, never in the file:
+<code>GUARDANA_CONTROL_PDP_HEADERS_AUTHORIZATION</code> sends an <code>Authorization</code> header
+on every question, and <code>doctor</code> never prints its value. The other keys:</p>
+<ul>
+<li><code>evaluation_endpoint</code>, when it is not the default path. It must share the
+identifier's scheme, host and port.</li>
+<li><code>allow_plaintext</code>, for a decision point over <code>http</code> on a loopback address,
+and nowhere else.</li>
+<li><code>proxy</code>, to send the questions through a proxy. Without it none is used,
+whatever the environment says.</li>
+<li><code>informational_context</code>, the context members an allowing answer may carry.
+None by default: any other member makes an allow unreadable, and the call
+is blocked.</li>
+</ul>
+<p><code>timeout</code> covers connecting too: the first ask on a new connection pays for
+the handshake, so a decision point on another host may need more than the
+default. Every key and its variable are on
+<a href="/docs/reference/configuration">configuration.md</a>. The plane refuses to start
+with a bundle that reads <code>external</code> and no <code>pdp.identifier</code>, and with a
+<code>pdp.identifier</code> no rule reads; the message says which to change. Starting
+never contacts the decision point. Its certificate is verified against the
+system's roots; there is no setting for a private certificate authority.</p>
+<h3 id="4-check-it-with-doctor">4. Check it with doctor</h3>
+<pre><code>guardana-gateway doctor --config gateway.yaml
+</code></pre>
+<p>The last line is <code>pdp</code>. <code>doctor</code> reads the decision point's published
+metadata, <code>/.well-known/authzen-configuration</code>, and compares it with your
+identifier and evaluation endpoint: <code>ok</code> when it agrees, <code>fail</code> when it does
+not, <code>unknown</code> when it cannot be read. Only <code>doctor</code> reads it, and the plane
+starts whatever it says. <code>doctor</code> sends no question and no credential, so <code>ok</code>
+does not mean the decision point accepts your credential. A setting the client
+refuses, such as an <code>http</code> identifier without <code>allow_plaintext</code>, fails the
+<code>seams</code> line before it.</p>
+<h3 id="5-watch-the-asks">5. Watch the asks</h3>
+<p><code>/healthz</code> carries <code>pipeline.asks</code>: <code>made</code>, then how each ask came back
+(<code>allowed</code>, <code>denied</code>, <code>denied_obligations</code>, <code>timed_out</code>, <code>unavailable</code>,
+<code>answer_refused</code>), and <code>wait_us</code>, the time spent waiting on them. A rise in
+<code>timed_out</code> or <code>unavailable</code> is asks left unanswered, and outside <code>OBSERVE</code>
+each one blocked its call. A decision that consulted the answer names the
+decision point in <code>pdp_instance</code> and carries one of the codes on
+<a href="/docs/reference/reason-codes">reason-codes.md</a>.</p>
+<h2 id="verify">Verify</h2>
+<ul>
+<li><code>policy test</code> passes one case per answer you rely on, silence among them.</li>
+<li><code>doctor</code> ends with <code>ok</code> on its <code>pdp</code> line.</li>
+<li>A call the veto covers raises <code>pipeline.asks.made</code> and <code>allowed</code> or <code>denied</code>,
+which shows the decision point took your credential; a call it does not
+cover leaves the counters where they were.</li>
+</ul>
+<h2 id="what-the-decision-point-sees">What the decision point sees</h2>
+<p>The question carries the principal, the action, the resource and the
+destination, as mapping version 1 in ADR-0017 lists them. It never carries
+the call's arguments, their hash, the run context or the delegation chain.</p>
+<h2 id="roll-back">Roll back</h2>
+<p>Remove the <code>external</code> rules from the bundle and the <code>pdp.</code> keys from the
+configuration together, since the plane refuses either without the other.
+Without the rules, the bundle decides as it did before.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/let-a-decision-point-veto.md">docs/guides/let-a-decision-point-veto.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto" aria-current="page">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

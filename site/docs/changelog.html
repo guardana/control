@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Changelog · Guardana Control</title>
+<meta name="description" content="What each release changed, and what is unreleased on main."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/changelog"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="changelog">Changelog</h1>
+<p>Notable changes to this project are recorded here. The format follows
+<a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>, and the project uses
+<a href="https://semver.org/spec/v2.0.0.html">semantic versioning</a>.</p>
+<p>The <code>0.x</code> series carries no compatibility promise between minor versions; see
+<a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
+signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
+verify one.</p>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.2.0-alpha...HEAD">Unreleased</a></h2>
+<h3 id="added">Added</h3>
+<ul>
+<li>A website for <code>control.guardana.dev</code> in <code>site/</code>: one static page with
+no script and nothing loaded from another host, whose diagrams
+<code>make docs-gen</code> draws from README's, and the project's mark in the
+README header (<a href="/docs/adr/0030-a-static-website-drawn-from-the-repository">ADR-0030</a>).</li>
+<li>The documentation on the website: every page, record, the roadmap and
+the changelog rendered under <code>control.guardana.dev/docs/</code> by
+<code>make docs-gen</code>, with links, anchors and diagrams that mean there what
+they mean on GitHub, and a check that fails when a page and its rendering
+drift (<a href="/docs/adr/0031-the-documentation-is-served-on-the-website">ADR-0031</a>).</li>
+</ul>
+<h2 id="020-alpha---2026-09-28"><a href="https://github.com/guardana/control/releases/tag/v0.2.0-alpha">0.2.0-alpha</a> - 2026-09-28</h2>
+<p>The second release. It fixes how an approval's expiry is kept, how much
+of the plane a stdio upstream is handed, where a plaintext export may go,
+and how numbers and uncertain results are recorded. It adds an image of
+the gateway beside the archives, and pages that say what the plane
+protects, what it records and which failures it survives.
+<a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
+<code>experimental</code>. Nothing here is a security boundary yet.</p>
+<h3 id="added-1">Added</h3>
+<ul>
+<li>Reason code <code>APPROVAL_STATE_UNKNOWN</code> (44, <code>INDETERMINATE</code>): a lost hold
+whose approval the plane could not read or trust closes with it, where
+it closed as <code>APPROVAL_EXPIRED</code> before
+(<a href="/docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold">ADR-0027</a>).</li>
+<li>A benchmark of the gateway round trip, and <code>scripts/bench.sh --publish</code>,
+which records a run from a clean tree, with its hardware and Go
+settings, in a tracked file under <code>bench/results/</code>
+(<a href="/docs/reference/benchmarks">docs/reference/benchmarks.md</a>).</li>
+<li>Each release is to publish <code>ghcr.io/guardana/control-gateway:&lt;version&gt;</code>
+for linux/amd64 and linux/arm64, signed keyless and with build
+provenance, its digest named in the release notes;
+<a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> says how to check it and
+<a href="/docs/guides/run-in-a-container">docs/guides/run-in-a-container.md</a>
+how to run it.</li>
+<li>A page of the failures the plane is built to survive: the collector, the
+spool, the decision point, an upstream dying mid-call, the pause file
+and a restart with calls held, each with a test that runs the built
+binary against a real failure
+(<a href="/docs/reference/failure-modes">docs/reference/failure-modes.md</a>).</li>
+<li>A threat model and a privacy page: what the plane protects, from whom
+and where it stops; what a record holds, where it goes and how long it
+stays (<a href="/docs/concepts/threat-model">docs/concepts/threat-model.md</a>,
+<a href="/docs/concepts/privacy">docs/concepts/privacy.md</a>).</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li>A stdio upstream no longer inherits the plane's environment. It gets
+<code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code>, each where the
+plane has it, and the variables its new <code>upstreams.N.env</code> list names;
+a name under <code>GUARDANA_CONTROL_</code> is refused, so the exporter's and the
+decision point's header credentials are no longer handed to it. An
+upstream that read any other inherited variable starts without it:
+list each one it needs, and <code>doctor</code> marks a listed name the plane's
+environment lacks
+(<a href="/docs/adr/0028-a-stdio-upstream-gets-only-the-environment-it-is-given">ADR-0028</a>).</li>
+<li><code>export.allow_plaintext</code> admits a plaintext collector on a loopback IP
+literal only, as <code>pdp.allow_plaintext</code> already did and as
+<a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a>
+states. A plaintext endpoint on any other host, a name such as <code>localhost</code>
+included, is refused at start.</li>
+</ul>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li>A tool whose definition holds a fractional number, such as
+<code>&quot;default&quot;: 0.7</code>, is fingerprinted and can be classified, and a call
+whose arguments hold a fraction a double represents exactly is decided.
+The digest binds a number's value, so <code>1.0</code> and <code>1</code> digest alike, and
+every digest of arguments accepted before is unchanged
+(<a href="/docs/adr/0029-exact-fractions-in-the-canonical-form">ADR-0029</a>).</li>
+<li>A resumed call whose approval expired by the plane's clock before it
+was handed to the upstream is not sent: it is blocked with
+<code>APPROVAL_EXPIRED</code>, and the approval stays spent.</li>
+<li>A call whose answer the gateway could not read, or could not complete
+over HTTP (a malformed answer, a connection the upstream closed after
+reading the call, a 429 or 5xx status), is recorded with an <code>UNKNOWN</code>
+result rather than as the upstream's failure: whether it took effect
+is unknown.</li>
+<li>A decision point's answer that reaches the gateway after the call's
+deadline is a timeout (<code>PDP_TIMEOUT</code>), whatever its status and headers.
+Such an answer could be read as refused or as unavailable instead.</li>
+</ul>
+<h2 id="010-alpha---2026-09-25"><a href="https://github.com/guardana/control/releases/tag/v0.1.0-alpha">0.1.0-alpha</a> - 2026-09-25</h2>
+<p>The first public release. <a href="/docs/status">docs/status.md</a> says what is
+<code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
+yet.</p>
+<h3 id="added-2">Added</h3>
+<ul>
+<li>Wire contracts, frozen at <code>1.0</code>: eight protobuf files for the action
+envelope, the decision, approvals, results, events, findings, policy bundles
+and the shared types, with the generated Go. <code>pkg/contract</code> decodes them
+strictly, refusing unknown fields and undeclared enum numbers, and validates
+an envelope within stated bounds
+(<a href="/docs/adr/0002-wire-contracts-and-versioning">ADR-0002</a>).</li>
+<li>A canonical form for an action and the digest built on it, with golden
+fixtures (<a href="/docs/adr/0005-canonical-action-digest">ADR-0005</a>,
+<a href="/docs/adr/0010-digest-domain-separation">ADR-0010</a>).</li>
+<li>Policy documents in <code>agent-policy/v1alpha1</code>, read as strict JSON; bundles
+signed with Ed25519 over the DSSE pre-authentication encoding; a three-valued
+matcher where <code>DENY</code> overrides; and the decision kernel with its fixed order
+and fail-closed table, under which <code>INDETERMINATE</code> never allows a material
+call (<a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a>).</li>
+<li><code>guardana-control</code>: <code>policy lint</code>, <code>test</code>, <code>keygen</code> and <code>sign</code>; <code>approvals list</code>, <code>approve</code> and <code>reject</code>; <code>pause init</code>, <code>add</code>, <code>remove</code> and <code>list</code>; and
+<code>console</code>, a page on the loopback that answers held calls and pauses
+(<a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>,
+<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>,
+<a href="/docs/adr/0023-a-local-page-answers-through-the-directory">ADR-0023</a>).</li>
+<li><code>guardana-gateway</code>, an MCP gateway that decides each call before it reaches
+the server: <code>run</code> and <code>doctor</code>; the enforcement modes; approvals bound to one
+action digest and consumed once; obligations; a check that the executed
+arguments are the authorized ones; evidence kept in a local spool and exported
+over OTLP (<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>,
+<a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a>,
+<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>).</li>
+<li>An external AuthZEN decision point that can veto what the signed policy
+allows, and never grant
+(<a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>).</li>
+<li><code>guardana-gateway collect</code> and <code>trail</code>, a trail file without a third-party
+collector, and <code>GET /metrics</code> in the Prometheus text format
+(<a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a>).</li>
+<li>Run flow: the plane records whether a run took in untrusted input, so a
+policy's flow rule can block a later send to an untrusted destination
+(<a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a>).</li>
+<li><code>guardana-gateway scenario run</code>, which holds a live plane to
+<code>agent-scenario/v1alpha1</code> files, and <code>guardana-gateway dev</code>, one command for
+a local plane with its collector and approvals page
+(<a href="/docs/adr/0022-scenarios-are-data">ADR-0022</a>,
+<a href="/docs/adr/0023-a-local-page-answers-through-the-directory">ADR-0023</a>).</li>
+<li>A demo, <code>examples/vulnerable-mcp-agent</code>, with seven scenarios, and
+<a href="/docs/get-started/try-the-demo">its tutorial</a>.</li>
+<li>One quality gate, <code>make quality</code>, which CI runs on every push to <code>main</code> and
+every pull request, and a documentation structure the gate checks
+(<a href="/docs/adr/0015-documentation-structure-and-checks">ADR-0015</a>).</li>
+<li>Release archives for Linux and macOS on amd64 and arm64, with a CycloneDX
+bill of materials per archive, signed checksums and build provenance
+(<a href="/docs/adr/0025-public-repository-merges-and-releases">ADR-0025</a>).</li>
+<li>Governance: DCO sign-off, Conventional Commits, a security policy, a code of
+conduct, trademark terms and 25 architecture decision records, among them the
+independence of this project from Guardana
+(<a href="/docs/adr/0024-control-and-guardana-are-independent">ADR-0024</a>).</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/CHANGELOG.md">CHANGELOG.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog" aria-current="page">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

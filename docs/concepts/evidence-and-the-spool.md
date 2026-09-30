@@ -23,6 +23,8 @@ takes, and nothing else moves a trail.
 <!-- generated: scripts/gen-diagrams.go -->
 ```mermaid
 stateDiagram-v2
+    accTitle: The evidence chain
+    accDescr: Each step a trail may take, as the validator takes it: proposed, decided, through an approval or not, and closed as blocked, completed or failed.
     [*] --> proposed: ACTION_PROPOSED
     proposed --> decided: POLICY_DECIDED
     decided --> requested: APPROVAL_REQUESTED
@@ -94,6 +96,8 @@ the exporter work in records from there.
 
 ```mermaid
 flowchart TD
+    accTitle: The spool
+    accDescr: An event is appended within the byte budget or refused so the caller blocks; a started action reserves room for its closing record; segments roll at their size; the exporter sends batches from the acknowledged position, deletes what is acknowledged and quarantines what it cannot deliver.
     A["Append: one event, framed and checksummed"] --> B{"Budget: bytes on disk, the quarantine included, plus the reservations, within MaxBytes?"}
     B -->|no| F["ErrFull: the caller blocks the call it was recording"]
     B -->|yes| W["Write at the end of the current segment, forced to disk per the fsync policy"]

@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>How a call is decided · Guardana Control</title>
+<meta name="description" content="From a proposed action to one of five verdicts and the action enforced for it, including what happens when the kernel cannot decide."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/concepts/how-a-call-is-decided"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="how-a-call-is-decided">How a call is decided</h1>
+<p>The kernel takes a validated envelope and a policy snapshot and answers with
+one of five verdicts, in a fixed order that stops only where nothing more can
+be known: a refused request, an argument that cannot be digested or a hash
+that does not match end the decision; then the kernel's own checks on the
+delegation chain and the tenants; then the bundle, deny-overrides
+(<a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a>). Every cause found is
+listed in the decision, in order, once each.</p>
+<h2 id="the-order">The order</h2>
+<figure class="dg-text" id="diagram-1"><figcaption>The order of a decision</figcaption><p>A refused or mismatched request is INDETERMINATE; otherwise the delegation chain, the tenants, the snapshot and its freshness, the rules and the obligations are read in turn; any DENY wins, any cause makes the verdict INDETERMINATE, and the action follows from the verdict. <a href="https://github.com/guardana/control/blob/main/docs/concepts/how-a-call-is-decided.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TD
+    accTitle: The order of a decision
+    accDescr: A refused or mismatched request is INDETERMINATE; otherwise the delegation chain, the tenants, the snapshot and its freshness, the rules and the obligations are read in turn; any DENY wins, any cause makes the verdict INDETERMINATE, and the action follows from the verdict.
+    A[&#34;Request: the envelope, the authorized arguments, a decoder&#39;s refusal if any&#34;] --&gt; B{&#34;Refused, by the decoder or by Validate?&#34;}
+    B --&gt;|yes| R[&#34;INDETERMINATE with a cause in the request&#34;]
+    B --&gt;|no| C{&#34;Action digest and arguments hash computed, and the hash the envelope carries matches?&#34;}
+    C --&gt;|no| R
+    C --&gt;|yes| D[&#34;Delegation chain: an expired hop, a party twice or a hop past its parent is DENY&#34;]
+    D --&gt; E[&#34;Tenants: two named and different is DENY, one named on a material class is a cause in the request&#34;]
+    E --&gt; F{&#34;A snapshot?&#34;}
+    F --&gt;|no| U[&#34;POLICY_UNAVAILABLE, a cause in the policy&#39;s availability&#34;]
+    F --&gt;|yes| G[&#34;Freshness: a stale snapshot is a cause in availability, and evaluation goes on&#34;]
+    G --&gt; H[&#34;Rules, three-valued: matched, unknown or none; an external decision point&#39;s answer is one input&#34;]
+    H --&gt; I[&#34;A non-advisory obligation nobody here applies is DENY&#34;]
+    I --&gt; V{&#34;Verdict: any DENY wins, then any cause is INDETERMINATE, then what the rules concluded&#34;}
+    R --&gt; T[&#34;Action: fixed for the four determinate verdicts, the fail-closed table for INDETERMINATE&#34;]
+    U --&gt; T
+    V --&gt; T
+</code></pre></details></figure>
+<p>Sources: <code>internal/core/decide.go</code>, <code>internal/core/delegation/delegation.go</code>,
+<code>internal/core/external.go</code>, <code>internal/policy/match/combine.go</code>.</p>
+<p><code>Decide</code> has no error return: whatever the kernel cannot do becomes an
+<code>INDETERMINATE</code> decision with a reason code, and a kernel nobody built answers
+<code>INDETERMINATE</code>, <code>POLICY_UNAVAILABLE</code> and blocks (<code>internal/core/kernel.go</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>What stops the call, and how</th>
+<th>Code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Refusal</td>
+<td>the decoder's refusal, or <code>contract.Validate</code> on a clone of the envelope; the decision ends here</td>
+<td><code>UNSUPPORTED_SCHEMA</code>, <code>REQUIRED_FIELD_ABSENT</code>, <code>LIMIT_EXCEEDED</code>, <code>INVALID_FIELD_VALUE</code>, <code>MALFORMED_INPUT</code>, by the refusal's sentinel</td>
+</tr>
+<tr>
+<td>Digest</td>
+<td><code>canon.DigestV1</code> over the envelope and the authorized arguments refuses; the decision ends here</td>
+<td><code>LIMIT_EXCEEDED</code> for the size bound and the depth bound, else <code>INVALID_FIELD_VALUE</code></td>
+</tr>
+<tr>
+<td>Hash</td>
+<td>the envelope carries <code>arguments.canonical_hash</code> and it is not <code>canon.ArgumentsHashV1</code> of the arguments; the decision ends here</td>
+<td><code>INVALID_FIELD_VALUE</code></td>
+</tr>
+<tr>
+<td>Delegation</td>
+<td><code>delegation.Check</code> refuses the chain: a <code>DENY</code> of the kernel's own, and the rules then see no delegation at all</td>
+<td><code>DELEGATION_EXPIRED</code>, <code>DELEGATION_CYCLE</code>, <code>DELEGATION_EXCEEDS_PARENT</code></td>
+</tr>
+<tr>
+<td>Tenants</td>
+<td>principal and resource name different tenants: <code>DENY</code>; one side names a tenant and the other does not, on a material class: a cause in the request</td>
+<td><code>TENANT_MISMATCH</code>, <code>TENANT_UNDETERMINED</code></td>
+</tr>
+<tr>
+<td>Snapshot</td>
+<td>none handed in: a cause in the policy's availability, and nothing is evaluated</td>
+<td><code>POLICY_UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td>Freshness</td>
+<td>the snapshot's age is negative or over the smaller of the author's and the operator's budget: a cause in availability; evaluation continues, so a stale <code>DENY</code> is still a <code>DENY</code></td>
+<td><code>POLICY_STALE</code></td>
+</tr>
+<tr>
+<td>Rules</td>
+<td>every rule is true, false or unknown; an unknown <code>ALLOW</code> does not match, an unknown rule of any other effect makes the verdict <code>INDETERMINATE</code> with a cause in the request unless a <code>DENY</code> matched; nothing matched is <code>DENY</code></td>
+<td>each matched rule's reason, then <code>RULE_UNDETERMINED</code>, or <code>NO_MATCHING_RULE</code></td>
+</tr>
+<tr>
+<td>External answer</td>
+<td>where no other constraint of a <code>DENY</code> rule reading <code>external</code> is false, the rule holds when the answer denies, is false when it allows, and is unknown when the request carries silence or no answer; a decision whose rules turned on the answer names it by one code</td>
+<td><code>PDP_DENY</code>, <code>PDP_ALLOW</code>, <code>PDP_TIMEOUT</code>, <code>PDP_UNAVAILABLE</code>, <code>PDP_ANSWER_REFUSED</code>, or <code>OBLIGATION_NOT_UNDERSTOOD</code> for an allow that attached an obligation</td>
+</tr>
+<tr>
+<td>Obligations</td>
+<td>a matched obligation that is not advisory and whose type this enforcement point cannot apply is <code>DENY</code></td>
+<td><code>OBLIGATION_NOT_UNDERSTOOD</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-each-verdict-enforces">What each verdict enforces</h2>
+<table>
+<thead>
+<tr>
+<th>Verdict</th>
+<th>Enforced as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DENY</code></td>
+<td><code>Block</code></td>
+</tr>
+<tr>
+<td><code>REQUIRE_APPROVAL</code></td>
+<td><code>AwaitApproval</code>: the call waits for an approval bound to its exact digest</td>
+</tr>
+<tr>
+<td><code>ALLOW_WITH_OBLIGATIONS</code></td>
+<td><code>ExecuteWithObligations</code>: the call runs only with its obligations applied</td>
+</tr>
+<tr>
+<td><code>ALLOW</code></td>
+<td><code>Execute</code></td>
+</tr>
+<tr>
+<td><code>INDETERMINATE</code>, and any value that is no verdict</td>
+<td>the fail-closed table below</td>
+</tr>
+</tbody>
+</table>
+<p>The zero value of the action is <code>Block</code>, so an action nobody set blocks
+(<code>internal/core/kernel.go</code>). Obligations travel only on <code>REQUIRE_APPROVAL</code> and
+<code>ALLOW_WITH_OBLIGATIONS</code>, the two verdicts under which a call proceeds under
+conditions; a <code>DENY</code> names the obligation it could not apply by its code and
+carries none.</p>
+<h2 id="when-the-kernel-cannot-decide">When the kernel cannot decide</h2>
+<p><code>INDETERMINATE</code> is never <code>ALLOW</code>. What is enforced for it is the fail-closed
+table below, rendered from the kernel's own rule over every effect class,
+every cause and every setting (<code>internal/core/failclosed.go</code>): a material
+call blocks under every cause; a read runs only when the operator has turned
+fail-open reads on and the only causes are in the policy's availability.</p>
+<table>
+<thead>
+<tr>
+<th>Effect class</th>
+<th>a cause in the request</th>
+<th>the policy available</th>
+<th>fail-open reads on</th>
+<th>a snapshot present</th>
+<th>the determinate verdict</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>UNSPECIFIED</code>, <code>WRITE</code>, <code>DELETE</code>, <code>EXECUTE</code>, <code>COMMUNICATE</code>, <code>TRANSACT</code>, <code>IDENTITY_OR_ACCESS</code>, <code>CONFIGURE</code>, <code>SPAWN_OR_DELEGATE</code>, a number no build declares</td>
+<td>any</td>
+<td>any</td>
+<td>any</td>
+<td>any</td>
+<td>any</td>
+<td>blocks</td>
+</tr>
+<tr>
+<td><code>READ</code></td>
+<td>no</td>
+<td>no</td>
+<td>any</td>
+<td>any</td>
+<td>any</td>
+<td>blocks</td>
+</tr>
+<tr>
+<td><code>READ</code></td>
+<td>no</td>
+<td>yes</td>
+<td>no</td>
+<td>any</td>
+<td>any</td>
+<td>blocks</td>
+</tr>
+<tr>
+<td><code>READ</code></td>
+<td>no</td>
+<td>yes</td>
+<td>yes</td>
+<td>no</td>
+<td>any</td>
+<td>runs, recorded as a fail-open read</td>
+</tr>
+<tr>
+<td><code>READ</code></td>
+<td>no</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>UNSPECIFIED</code> or <code>DENY</code> or <code>REQUIRE_APPROVAL</code> or <code>ALLOW_WITH_OBLIGATIONS</code> or <code>INDETERMINATE</code></td>
+<td>blocks</td>
+</tr>
+<tr>
+<td><code>READ</code></td>
+<td>no</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>ALLOW</code></td>
+<td>runs, recorded as a fail-open read</td>
+</tr>
+<tr>
+<td><code>READ</code></td>
+<td>yes</td>
+<td>any</td>
+<td>any</td>
+<td>any</td>
+<td>any</td>
+<td>blocks</td>
+</tr>
+</tbody>
+</table>
+<p>The two kinds of cause are what the table reads, never a reason code:</p>
+<table>
+<thead>
+<tr>
+<th>Cause</th>
+<th>Kind</th>
+<th>Why the table treats it so</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a refusal, an argument that cannot be digested, a hash that does not match, a one-sided tenant on a material class, an unknown rule, a veto an external decision point left unanswered among them</td>
+<td>in the request</td>
+<td>the request itself is what could not be read; no setting relieves it</td>
+</tr>
+<tr>
+<td>no snapshot, a snapshot past its budget</td>
+<td>in the policy's availability</td>
+<td>the request is sound and the policy is what is missing; a read may run under the operator's explicit setting</td>
+</tr>
+</tbody>
+</table>
+<p>&quot;The determinate verdict&quot; is what the rules that could be decided concluded
+with the unknown ones left out (<code>match.Result.Determinate</code>): a read runs under
+fail-open only when an <code>ALLOW</code> matched and nothing more restrictive did, because
+there is no implicit allow. Whether a snapshot is present is read from the
+pointer, not from <code>POLICY_UNAVAILABLE</code>, so a program nobody compiled, which
+answers that code from a snapshot that exists, opens no read. When a read runs
+this way the decision carries <code>FAIL_OPEN_READ_CONFIGURED</code> as its last code and
+its verdict stays <code>INDETERMINATE</code>.</p>
+<h2 id="an-external-decision-points-answer">An external decision point's answer</h2>
+<p>A bundle can let the organization's own decision point veto what the bundle
+allows (<a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>). The
+kernel never asks. The enforcement point hands the answer in with the
+request, and the kernel reads it as the input of <code>external</code>, the constraint
+only a <code>DENY</code> rule may carry. The decision point can take a grant away and
+never give one: with an allowing answer the bundle decides as if every rule
+reading <code>external</code> were deleted.</p>
+<table>
+<thead>
+<tr>
+<th>Answer handed in</th>
+<th><code>external</code> reads</th>
+<th>Code on the decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none: not asked</td>
+<td>unknown</td>
+<td>none</td>
+</tr>
+<tr>
+<td>allowed</td>
+<td>false</td>
+<td><code>PDP_ALLOW</code></td>
+</tr>
+<tr>
+<td>denied</td>
+<td>true</td>
+<td><code>PDP_DENY</code></td>
+</tr>
+<tr>
+<td>allowed with an obligation this plane cannot fulfil</td>
+<td>true</td>
+<td><code>OBLIGATION_NOT_UNDERSTOOD</code></td>
+</tr>
+<tr>
+<td>no answer within the deadline</td>
+<td>unknown</td>
+<td><code>PDP_TIMEOUT</code></td>
+</tr>
+<tr>
+<td>no decision came back</td>
+<td>unknown</td>
+<td><code>PDP_UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td>a reply the enforcement point refused to read</td>
+<td>unknown</td>
+<td><code>PDP_ANSWER_REFUSED</code></td>
+</tr>
+</tbody>
+</table>
+<p>Silence leaves the veto undetermined, which is a cause in the request:
+<code>INDETERMINATE</code>, blocking every effect class, and <code>fail_open_read</code>, which
+covers the bundle's availability only, never opens a read on it. The code is
+added, and <code>pdp_instance</code> names the configured decision point, only when a
+rule's value turned on the answer. The kernel also reports whether its
+decision turns on the answer at all, the same for every answer, so the
+enforcement point asks only when the answer can matter
+(<a href="/docs/concepts/mcp-gateway#when-the-decision-point-is-asked">the MCP gateway</a>).</p>
+<h2 id="what-a-flow-rule-means-through-mcp">What a flow rule means through MCP</h2>
+<p>A rule on <code>flow.toxicAtLeast</code> asks whether a call carries data the run read
+under untrusted influence, at or above a floor, to a destination nobody trusts.
+The gateway keeps what each run took in (ADR-0021). A run is the listener's
+principal and agent: sessions, connections and anything a client sends never
+split it, so a client that connects again over HTTP keeps the run it had. On
+stdio the gateway ends with its client's connection, so there a run lasts one
+connection. A restart ends every run, and a run starts clean.</p>
+<p>Each call counts once it is handed to execution, before its result can reach
+the model. What its result contains is the operator's declaration on the tool:
+<code>returns.trust</code>, untrusted when absent, and <code>returns.sensitivity</code>, unknown when
+absent. <code>trust_zone</code> says only where a call sends data. An unknown read leaves
+the run's reading unknown for the rest of the run. A resource read and a prompt
+carry no declaration, since an override names a tool, so each makes its run
+untrusted and its reading unknown for the rest of the run. A call whose run the
+gateway cannot give an id is blocked with <code>EVIDENCE_UNAVAILABLE</code>, since what it
+returned would taint nothing.</p>
+<p>An MCP call carries no data label, so once a run has taken in anything
+untrusted, a <code>DENY</code> flow rule blocks every call of that run to an untrusted
+destination:</p>
+<table>
+<thead>
+<tr>
+<th>The run read</th>
+<th>The call to an untrusted destination</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>nothing untrusted</td>
+<td>not a toxic flow; the rule does not match</td>
+</tr>
+<tr>
+<td>something untrusted, and a known result at or above the floor</td>
+<td><code>DENY</code> with the rule's reason</td>
+</tr>
+<tr>
+<td>something untrusted, and nothing known at the floor</td>
+<td><code>INDETERMINATE</code>, blocked</td>
+</tr>
+</tbody>
+</table>
+<p>The floor chooses between the last two and does not change what runs: an
+untrusted web page and then an innocent mail is blocked as undetermined, and a
+confidential file read after the page turns the same mail into the denied
+toxic flow. The state is a lower bound on what the model saw. The user's prompt,
+tool descriptions and tools that do not pass through this gateway are not
+tracked, so the rule means something only when every tool sits behind it. Each
+recorded proposal names the state its decision used, in the tags that
+<a href="/docs/contracts#the-flow-tags">the contracts page</a> lists; a listing is shaped
+with no run's state, so a tool a flow rule governs is listed as decided per
+call.</p>
+<h2 id="what-the-decision-carries">What the decision carries</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reason_codes</code></td>
+<td>every cause found, in step order, once each</td>
+</tr>
+<tr>
+<td><code>policy_rule_ids</code></td>
+<td>the matched rules in document order, then the rules whose match was unknown, an unknown <code>ALLOW</code> left out</td>
+</tr>
+<tr>
+<td><code>obligations</code></td>
+<td>the matched rules' obligations, each kept once, on the two verdicts that carry any</td>
+</tr>
+<tr>
+<td><code>action_digest</code></td>
+<td><code>canon.DigestV1</code> of the envelope with the authorized arguments; empty when the digest was refused</td>
+</tr>
+<tr>
+<td><code>policy_bundle_digest</code>, <code>policy_loaded_at</code>, <code>policy_freshness</code></td>
+<td>the snapshot's; <code>STALE</code> whenever the snapshot is stale or absent, on a refused request too</td>
+</tr>
+<tr>
+<td><code>enforcement_mode</code></td>
+<td><code>ENFORCE</code>, always: the kernel knows no other mode</td>
+</tr>
+<tr>
+<td><code>pdp_type</code></td>
+<td><code>builtin</code>, also when an external answer was consulted: the verdict is the kernel's</td>
+</tr>
+<tr>
+<td><code>pdp_instance</code></td>
+<td>the configured decision point's identifier when a rule's value turned on its answer, empty otherwise</td>
+</tr>
+<tr>
+<td><code>decision_latency_us</code></td>
+<td>the second clock reading less the first, and nothing else reads the clock</td>
+</tr>
+</tbody>
+</table>
+<h2 id="why">Why</h2>
+<ul>
+<li>Deny-overrides with <code>INDETERMINATE</code> ahead of every allow, and no implicit
+allow, so a request that leaves out the field a restrictive rule reads
+cannot slip past it onto a broader rule (ADR-0012, ADR-0003).</li>
+<li>The kernel's own checks run before the bundle and whatever it says, so a
+missing bundle leaves the policy's rules unevaluated, which is
+<code>INDETERMINATE</code>, and never the delegation or tenant rules (ADR-0012).</li>
+<li>A refused request is never evaluated: nothing is decided about input the
+kernel could not read (ADR-0012).</li>
+<li>The fail-closed table narrows the read exception to the policy's
+availability, under an explicit setting, with the setting visible in the
+evidence (ADR-0012, ADR-0011, invariant 5).</li>
+<li>The decision names the action digest of what it decided, which is what an
+approval binds to and what the executed bytes are compared with
+(ADR-0005, ADR-0011).</li>
+<li>An external decision point's answer is an input a <code>DENY</code> rule reads, never
+a verdict: a forged, late or missing answer can block a call or lift its
+own veto, and never grant what the signed bundle does not (ADR-0017).</li>
+<li>Nothing on the decision path reads a reason code's documented verdict; the
+codes are literals the tests hold to the registry (ADR-0012).</li>
+</ul>
+<h2 id="where-the-code-lives">Where the code lives</h2>
+<p><code>internal/core/decide.go</code> runs the order, <code>internal/core/kernel.go</code> builds a
+kernel and maps the verdicts to actions with <code>internal/core/failclosed.go</code>,
+which is the table; <code>internal/core/external.go</code> reads an external answer into its constraint and
+its code; <code>internal/core/delegation/</code> checks a chain;
+<code>internal/policy/match/</code> compiles a document and evaluates it three-valued;
+<code>internal/gateway/flow.go</code> keeps each run's flow state and stamps it on the
+record.
+The codes are listed in <a href="/docs/reference/reason-codes">reference/reason-codes</a>.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/how-a-call-is-decided.md">docs/concepts/how-a-call-is-decided.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided" aria-current="page">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

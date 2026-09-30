@@ -874,6 +874,8 @@ is where the request has got to:
 
 ```mermaid
 stateDiagram-v2
+    accTitle: The event chain
+    accDescr: A trail is proposed, then decided, then either passes through an approval request with its decision or expiry or goes straight on, and ends blocked, or started and then completed or failed.
     [*] --> Proposed: ACTION_PROPOSED
     Proposed --> Decided: POLICY_DECIDED
     Decided --> ApprovalRequested: APPROVAL_REQUESTED

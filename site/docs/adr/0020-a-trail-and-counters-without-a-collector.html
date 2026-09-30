@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0020: A plane&#39;s trail can land in a local file, and its counters in /metrics · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0020-a-trail-and-counters-without-a-collector"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0020-a-planes-trail-can-land-in-a-local-file-and-its-counters-in-metrics">ADR-0020: A plane's trail can land in a local file, and its counters in /metrics</h1>
+<p>Status: accepted
+Date: 2026-09-24</p>
+<p>Builds on <a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>,
+<a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a> and
+<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>.</p>
+<h2 id="context">Context</h2>
+<p>A plane exports its evidence to an OpenTelemetry collector over OTLP/HTTP, and
+<code>export.endpoint</code> is required: a plane whose spool nobody drains fills its
+budget and then blocks material calls (ADR-0014). The spool is an outbound
+queue, not a store: a segment acknowledged whole is deleted, so a healthy plane
+holds almost none of its own trail (ADR-0016). A stranger trying the plane for
+the first time has no collector, and nothing in this tree reads a trail back or
+checks its chain outside the tests. The plane's counters reach <code>/healthz</code> as
+JSON, which no metrics system scrapes.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>The plane is unchanged.</strong> It still requires a collector and exports to it as
+ADR-0014 says. What changes is that this repository ships one.</p>
+<p><strong>A collector of its own, as strict as the exporter.</strong> <code>adapters/otel</code> gains
+the receiving side of the one protocol it speaks: an <code>ExportLogsServiceRequest</code>
+in the protobuf JSON mapping over HTTP, read strictly: each member once in its
+JSON name, nothing unknown, an enum by name or by number, bounded. That is a
+deviation from OTLP, whose receivers ignore members they do not know: this
+receiver has one sender, and a member it does not know is a sender it does not
+know. Every log record's body must be one JSONL line that decodes as exactly
+one evidence event; a body holding a line break, or one that is not an event,
+refuses the request with 400, which the exporter answers by halving the batch
+and quarantining the record it cannot deliver (ADR-0014). A request over the
+bound is answered 413. The encoder's golden request, decoded by the receiver,
+gives back the golden's events.</p>
+<p><strong>It acknowledges only what is on disk.</strong> The collector appends each accepted
+record to one trail file and syncs the file before it answers 200 with an empty
+body, which the exporter accepts and OTLP's own encoded answer would only
+restate, so the plane never releases a record the file does not hold. A write
+or a sync that fails answers 503: the exporter retries, the spool fills, and at
+its budget material calls block with <code>EVIDENCE_UNAVAILABLE</code>, as ADR-0014
+already says. One process writes a trail file, under an exclusive lock; the
+file is <code>0600</code> in a directory the group and others cannot write, because events
+carry tenant and principal identifiers; an existing file is refused when the
+group or others can write it. At open, a last line cut by a crash is removed,
+when it can be the start of a line the codec writes: nothing unsynced was
+acknowledged, so the spool sends it again. The writer
+keeps an index of the event ids the file holds, rebuilt at open: a record sent
+again after a crash between the sync and the acknowledgement is not written
+twice, and an id that arrives with other content refuses the request (400), so
+no event id carries two lines. Before each write and after each sync the writer
+checks that its path, not followed, still names the regular file it holds, at
+the size it left it; a file removed, renamed, replaced, cut or extended under
+it, or a link put in its place, fails the writer for good and every later
+request is answered 503, so nothing is acknowledged into a file nobody can
+reach. Bytes rewritten in place, at the same size, are not detected. Open
+refuses, and leaves as it was, a file whose whole lines are not events or
+whose tail cannot be the start of one.</p>
+<p><strong>Two commands, experimental.</strong> <code>guardana-gateway collect --listen &lt;addr&gt; --out &lt;file&gt;</code> runs the collector alone, on a loopback address only, since the plane
+reaches a plaintext collector only on the loopback and only when the operator
+says so (<code>export.allow_plaintext</code>). Dev mode runs the same collector in-process
+on an ephemeral loopback port. <code>guardana-gateway trail &lt;file&gt;</code> reads a trail
+file up to its last newline, within a bound per line and on the number of
+events, collapses exact duplicates by event id, refuses one id carrying two
+different lines as damage, groups the events by tenant, project and request,
+runs the chain check on each trail in the order of its links, and prints one
+line per trail: its request, its last event, and whether the chain check
+passed, failed, could not be made, or the trail is still open. Bytes after the
+last newline are a record being written when a collector holds the file, and
+damage, exit 1, when none does. It exits 1 when any trail fails. The chain
+check proves shape, not integrity, as the contract says, and the line says so.
+Both commands live in the gateway's binary: the approver's binary may not link
+evidence (ADR-0016).</p>
+<p><strong><code>/metrics</code> beside <code>/healthz</code>.</strong> The health listener answers <code>GET /metrics</code> in
+the Prometheus text exposition format, version 0.0.4, written on the standard
+library: every counter and gauge the pipeline's statistics hold, the pause
+reader's, the spool's, the exporter's and the adapter's, under a prefix the
+product's name derives, each with a line of help taken from the code. A block
+code or a pause cause outside its closed set is counted under <code>other</code>, so no
+count is dropped and no label carries an identifier. A spool that cannot answer
+sets a flag and leaves out only the spool's metrics, rather than writing them
+as zero. A reading the text cannot carry truthfully, a counter below zero, a
+pause state outside the four or counts outside a closed set that sum past a
+counter's range, answers 503 for the whole scrape. A reference page
+lists them, rendered from the same table and pinned by a test, so a counter
+added to the code without a name, or a name the page lacks, fails the gate. No
+client library joins the request path's binary.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>Nothing in the decision path, the spool or the exporter changes, and no rule of
+ADR-0014 is relaxed: an acknowledgement still means the record is durable
+somewhere else, and a collector that cannot write still makes the plane block
+material calls at its budget. The collector listens on the loopback only and
+takes no credential. The trail file holds what the evidence holds, metadata by
+default (ADR-0004), and is readable by its owner only. <code>/metrics</code> carries counts
+and states, never an identifier, a digest or a reason; it is served on the
+health listener, which binds where the operator configures it.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>A setting under which nothing is exported and the spool keeps every
+record.</strong> The budget then blocks material calls once it is full, or it has to
+be lifted, which is an unbounded disk; and a reader of a spool another
+process holds would read the live segment's last frame one way while <code>Open</code>
+reads it as a tear, which makes the spool the state store ADR-0016 rules out.</li>
+<li><strong>A file export kind in the plane.</strong> It works with no collector at all, and
+makes a permanent configuration surface in the request path's binary: an
+export interface where one exporter is enough, a conditionally required
+endpoint, and a file with no rotation that a production plane would be asked
+to support.</li>
+<li><strong>Requiring a third-party collector.</strong> Correct, and the stranger's first run
+then starts with installing and configuring one.</li>
+<li><strong>A Prometheus client library.</strong> Maintained and correct, and a dependency in
+the request path's binary for a text format of a few dozen lines.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>A stranger's first run gets a whole trail from one command, and the demo
+exercises the real export path. A served plane may use <code>collect</code> where a
+collector would otherwise be a first install. Metric names become something a
+dashboard depends on; while they are experimental a change is listed in the
+changelog.</p>
+<h2 id="declared-limits">Declared limits</h2>
+<ul>
+<li>A trail file is never rotated or pruned, and its index grows with it. <code>trail</code>
+reads at most 100,000 events and refuses a longer file, which a busy plane
+reaches on its own.</li>
+<li><code>collect</code> takes no credential: any local account that can reach the loopback
+port can write events into the trail, forged chains among them, and enough of
+them to pass <code>trail</code>'s bound; none can make one event id carry two lines.</li>
+<li><code>collect</code> listens on the loopback only and writes one file.</li>
+<li><code>trail</code> checks each chain's shape, not its integrity: there is no hash chain
+yet.</li>
+<li>The metric names are experimental until the first release.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<p>The exit criteria of the change that brings this record:</p>
+<ul>
+<li>The receiver: a fuzz target; one refusal test each for a body holding a line
+break, a body that is not an event, an unknown member and a request over the
+bound; the encoder's golden decoded back to its events.</li>
+<li>The trail file: a failed sync answers 503 and the exporter's cursor does not
+pass the record; a file cut at every byte of its last line reopens cut back to
+the last newline, and the record the spool sends again appears once; a tail
+that cannot start an evidence line, a one-line settings file among them, is
+refused and left byte for byte.</li>
+<li>The reader: a duplicate collapses, one id with two lines is refused, a
+partial last line is not read, an open trail is reported open.</li>
+<li>End to end: a plane exporting to the collector, one call of each outcome, and
+<code>trail</code> passing every chain; the collector stopped, the spool growing and a
+material call blocked at the budget; the collector back, and every record
+arriving once.</li>
+<li><code>/metrics</code>: every field of the statistics appears, checked over the structs
+so a new one cannot be missed; the text parses under a strict reader of the
+format; a broken spool leaves out only its own metrics and sets its flag; a
+code outside the registry is counted under <code>other</code>; the rendered page is
+current.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0020-a-trail-and-counters-without-a-collector.md">docs/adr/0020-a-trail-and-counters-without-a-collector.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

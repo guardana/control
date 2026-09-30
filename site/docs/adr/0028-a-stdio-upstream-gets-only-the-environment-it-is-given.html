@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0028: A stdio upstream gets only the environment it is given · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0028-a-stdio-upstream-gets-only-the-environment-it-is-given"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0028-a-stdio-upstream-gets-only-the-environment-it-is-given">ADR-0028: A stdio upstream gets only the environment it is given</h1>
+<p>Status: accepted
+Date: 2026-09-27</p>
+<p>Builds on <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>.</p>
+<h2 id="context">Context</h2>
+<p>An upstream configured with <code>command</code> is a child process of the plane. The
+plane built that command with no environment of its own, so the child
+inherited the plane's whole environment. The plane reads its configuration
+from variables under <code>GUARDANA_CONTROL_</code>, and an operator is told to keep
+credentials there: the exporter's headers under
+<code>GUARDANA_CONTROL_EXPORT_HEADERS_*</code> and the decision point's under
+<code>GUARDANA_CONTROL_PDP_HEADERS_*</code>. Every stdio upstream could read them, and
+every other variable of the plane's shell besides. An upstream server is a
+program the operator chose to run, but it is not the plane, and nothing it
+does needs the plane's credentials.</p>
+<h2 id="decision">Decision</h2>
+<p>A command upstream receives exactly:</p>
+<ul>
+<li><code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code>, each only when the
+plane has it, with the plane's value;</li>
+<li>the variables its <code>upstreams.N.env</code> list names, each only when the plane has
+it, with the plane's value.</li>
+</ul>
+<p>The plane passes nothing else of its environment. A plane that has none of
+these variables gives the child an empty environment, never its own.</p>
+<p>The configuration refuses, at start and naming the item's key:</p>
+<ul>
+<li>a name under <code>GUARDANA_CONTROL_</code>, compared without case, since the plane's
+configuration and credentials never reach an upstream through this list;</li>
+<li>a name that is not a portable variable name: an ASCII letter or <code>_</code> first,
+then ASCII letters, digits and <code>_</code>. The refusal never repeats such an item,
+since a pasted <code>NAME=value</code> carries the value; an item holding <code>=</code> is told
+to list the name only;</li>
+<li>an <code>env</code> list on an upstream with an <code>endpoint</code>, which starts no process and
+would pass nothing.</li>
+</ul>
+<p><code>doctor</code> prints each listed name under its key, never a value, and marks a
+name the environment it runs in does not have.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>The plane no longer hands a stdio upstream its credentials or the rest of its
+environment. It does not stop the upstream taking them: the child runs as the
+plane's account, and a hostile server can still read the plane's environment
+on its own (on Linux from <code>/proc/&lt;pid&gt;/environ</code>) and the plane's
+configuration file. This record narrows what the plane passes, not what the
+child can reach; a server the operator does not trust runs under another
+account or over HTTP.</p>
+<p>This breaks an upstream that relied on inheriting a variable outside the
+fixed six: it now starts without it. The fix is one line per variable in the
+upstream's <code>env</code> list. An HTTP upstream is unchanged.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>Pass the whole environment minus the plane's prefix. Every other variable of
+the operator's shell would still reach every upstream, and a credential of
+another program sitting in that shell is no safer than the plane's own.</li>
+<li>A map of names to values in the configuration file. It would put values,
+often credentials, into a file meant for version control; naming the
+variable keeps the value where the operator already keeps it.</li>
+<li>Allow a name under the plane's prefix when the operator lists it. The plane
+reads every such variable as its own configuration and refuses one that
+names no key, so the only names the list could pass are the plane's own
+settings and credentials.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>An operator lists what each server needs, which is also a record of what it
+gets. A server that needs its own credential reads it from a variable the
+operator names. The six fixed names cover finding programs, a home directory,
+the locale and a temporary directory; a server that needs more says so by
+failing, and the list fixes it.</p>
+<h2 id="validation">Validation</h2>
+<ul>
+<li><code>TestAStdioUpstreamGetsOnlyTheEnvironmentItIsGiven</code> and
+<code>TestAStdioUpstreamOfAnEmptyEnvironmentInheritsNothing</code> in
+<code>cmd/guardana-gateway/adapter_env_test.go</code> start a real child through the
+transport the plane builds and read back its environment: no header
+credential, no unrelated variable, the listed one and the fixed ones with
+the plane's values, and nothing at all from a plane that has none of them.</li>
+<li><code>TestAnEnvNameThePlaneOwnsOrNoProcessTakesIsRefused</code>,
+<code>TestAnHTTPUpstreamTakesNoEnvList</code>, <code>TestAnEnvIndexIsSpelledOnce</code> and
+<code>TestAnEnvWrittenAsOneValueSaysItTakesAList</code> in
+<code>internal/gatewayconfig/env_test.go</code> hold each refusal at the input where
+removing the rule changes the result, from the file and from a variable,
+and hold a pasted value out of the refusal.</li>
+<li><code>TestDoctorPrintsAnUpstreamsEnvNamesNeverValues</code> holds <code>doctor</code> to names.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0028-a-stdio-upstream-gets-only-the-environment-it-is-given.md">docs/adr/0028-a-stdio-upstream-gets-only-the-environment-it-is-given.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

@@ -17,6 +17,11 @@ verify one.
   no script and nothing loaded from another host, whose diagrams
   `make docs-gen` draws from README's, and the project's mark in the
   README header ([ADR-0030](docs/adr/0030-a-static-website-drawn-from-the-repository.md)).
+- The documentation on the website: every page, record, the roadmap and
+  the changelog rendered under `control.guardana.dev/docs/` by
+  `make docs-gen`, with links, anchors and diagrams that mean there what
+  they mean on GitHub, and a check that fails when a page and its rendering
+  drift ([ADR-0031](docs/adr/0031-the-documentation-is-served-on-the-website.md)).
 
 ## [0.2.0-alpha] - 2026-09-28
 

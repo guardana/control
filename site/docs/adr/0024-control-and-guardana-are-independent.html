@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0024: Guardana Control and Guardana are independent · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0024-control-and-guardana-are-independent"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0024-guardana-control-and-guardana-are-independent">ADR-0024: Guardana Control and Guardana are independent</h1>
+<p>Status: accepted
+Date: 2026-09-25</p>
+<p>Amended by <a href="/docs/adr/0030-a-static-website-drawn-from-the-repository">ADR-0030</a>: the
+website's visual system is a copy of Guardana's brand that Control owns from
+the day it was taken; nothing in the site or its checks reads Guardana.</p>
+<h2 id="context">Context</h2>
+<p>Two open-source projects share the Guardana name and organization.
+<a href="https://github.com/guardana/guardana">Guardana</a> verifies: it scans artifacts,
+probes deployed systems and reads recorded traces, and it never sits in a
+request path. Guardana Control sits in the request path and decides each call.</p>
+<p>Early plans tied the two together: a trace format Guardana reads as a milestone
+of this project, a converter from Guardana's contract files to policies, a CI
+recipe that ran Guardana against this project's demo, and pages saying the two
+share the wire contract and its fixtures. None of that was built, and Guardana
+does not name this project anywhere. Left in the plans and the pages, it would
+make Control look incomplete without Guardana, and it would let one project's
+release wait on the other's.</p>
+<h2 id="decision">Decision</h2>
+<ul>
+<li>Each project is complete on its own. Control builds, tests, runs and releases
+with no Guardana installed, configured or reachable, and loses nothing when
+Guardana is absent.</li>
+<li>Control depends on nothing from Guardana: no module, no binary, no service,
+no schema version and no fixture, in the product, its tests, the gate or the
+workflows.</li>
+<li>The two work together only through formats each one publishes for anyone.
+Here those are the v1 wire contracts, the OTLP log records and the trail
+file. Each project may describe the other and link to it.</li>
+<li>A bridge to Guardana is an optional module. That covers an exporter writing
+Control's evidence in a format Guardana reads, and a converter from a
+Guardana contract to a Control policy. Such a module is off unless an
+operator configures it, lives in its own package under <code>adapters/</code>, stays off
+the decision path and is imported by nothing else. Removing it changes
+nothing else in the tree.</li>
+<li>No release, milestone or roadmap item of either project waits on the other.
+Their versions are independent.</li>
+</ul>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>A bridge is an adapter and translates, as every adapter does
+(<a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>). It adds no
+verdict, and a policy it produces is signed and loaded like any other. No
+guarantee this project makes depends on a verifier having run.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>One product in two halves, sharing a schema repository. That couples two
+release trains in two languages and makes each half incomplete by definition.</li>
+<li>A bridge in the core, or on by default. It breaks invariant 8 and the layering
+rule of ADR-0007, and adds an optional tool to what has to be audited.</li>
+<li>Shared fixtures as a release condition. A change in Guardana could then fail
+this project's gate.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>The roadmap keeps the bridge as a separate, optional item. The pages mention
+Guardana as a related project and never as a prerequisite. Once a bridge is
+built, someone who runs both projects can configure it; someone who runs one
+needs nothing from the other.</p>
+<h2 id="validation">Validation</h2>
+<p>The workflows install no Guardana package and call no Guardana binary, and they
+run the whole gate on a fresh runner, so a test that needed Guardana would fail
+there. <code>go.mod</code> requires no Guardana module. Review covers the rest: a change
+that makes Control need Guardana is refused under this record.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0024-control-and-guardana-are-independent.md">docs/adr/0024-control-and-guardana-are-independent.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

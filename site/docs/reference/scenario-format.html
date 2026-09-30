@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Scenario format · Guardana Control</title>
+<meta name="description" content="Every member of an agent-scenario/v1alpha1 document, how scenario run holds a live plane to one, and what it exits with."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/scenario-format"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="scenario-format">Scenario format</h1>
+<p>A scenario is one JSON file of tool calls and operator actions, and for each
+call the answer, the decision and the trail a live plane must show.
+<code>guardana-gateway scenario run</code> holds a running plane to it. The reader is
+<code>internal/scenario</code>; the decision behind the format is
+<a href="/docs/adr/0022-scenarios-are-data">ADR-0022</a>. Both are <code>experimental</code>.</p>
+<h2 id="the-document">The document</h2>
+<p>The file name is the scenario's id and must match
+<code>[a-z0-9][a-z0-9-]{0,63}.json</code>. The document is at most 1 MiB, nests at most
+64 deep, and is strict JSON: a duplicate member, an unknown member, <code>null</code>
+anywhere, bytes that are not UTF-8, an escaped lone surrogate and anything
+after the document are refused. <code>kind</code> is checked before any other member,
+wherever it stands. Any change to the format is a new <code>kind</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Required</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kind</code></td>
+<td>yes</td>
+<td><code>agent-scenario/v1alpha1</code>, exactly.</td>
+</tr>
+<tr>
+<td><code>about</code></td>
+<td>yes</td>
+<td>1 to 200 bytes, no control characters.</td>
+</tr>
+<tr>
+<td><code>plane</code></td>
+<td>yes</td>
+<td><code>mode</code>, one of the plane's modes; <code>bundle.id</code>; optionally <code>bundle.digest</code>, <code>sha256:</code> and 64 lower-case hex digits.</td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td>no</td>
+<td><code>fresh</code>, the default, or <code>continues</code>.</td>
+</tr>
+<tr>
+<td><code>steps</code></td>
+<td>yes</td>
+<td>1 to 256 steps, each an object holding exactly one of <code>call</code>, <code>approve</code>, <code>reject</code>, <code>pause</code>, <code>unpause</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>At least one call step must expect an event: a scenario whose trails may all
+be empty examines nothing. <code>n</code> in a step reference counts from zero and
+always names an earlier step.</p>
+<h3 id="call"><code>call</code></h3>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tool</code></td>
+<td>The tool's name, as the plane routes it.</td>
+</tr>
+<tr>
+<td><code>args</code></td>
+<td>An object, sent as written, numbers included.</td>
+</tr>
+<tr>
+<td><code>answer</code></td>
+<td><code>kind</code>: <code>result</code>, <code>error</code>, <code>blocked</code> or <code>pending</code>; <code>codes</code>: the reason codes of a block, <code>[&quot;APPROVAL_PENDING&quot;]</code> for a pending answer, <code>[]</code> otherwise.</td>
+</tr>
+<tr>
+<td><code>decided</code></td>
+<td><code>&quot;none&quot;</code>, or <code>verdict</code> (<code>ALLOW</code>, <code>DENY</code>, ...), <code>codes</code> and <code>obligations</code>, each obligation <code>type</code>, <code>params</code> (an object) and <code>advisory</code>.</td>
+</tr>
+<tr>
+<td><code>trail</code></td>
+<td><code>request</code>: <code>new</code>, or <code>step[n]</code> for the held request of the pending call step <code>n</code>; <code>kinds</code>: the event kinds that request's trail holds, without the <code>EVENT_KIND_</code> prefix.</td>
+</tr>
+</tbody>
+</table>
+<p>Every list compares exactly and in order, and holds at most 64 items. A code
+must be in the reason registry, an obligation type in the catalogue, and a
+kind named, when the file loads.</p>
+<p>A string value in <code>args</code> may hold <code>${step[n].output}</code>, where <code>n</code> is an
+earlier call step expected to answer <code>result</code>. At run time that answer must
+hold exactly one text item of at most 64 KiB, or the step cannot run; nothing
+is cut. Substitution is one pass, left to right, and the text put in is
+never read again. A <code>${</code> that is not a well-formed reference is refused, so a
+literal <code>${</code> cannot be sent, and a reference in a member name is refused.</p>
+<h3 id="operator-steps">Operator steps</h3>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Members</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>approve</code>, <code>reject</code></td>
+<td><code>step</code>, the pending call step to answer, once; <code>approver</code>, an identifier of at most 128 bytes; <code>reason</code>, optional, at most 1024 bytes.</td>
+</tr>
+<tr>
+<td><code>pause</code></td>
+<td><code>global: true</code>; or <code>provider</code>; or <code>provider</code> and <code>action</code> (<code>tool</code>, <code>prompt</code>, <code>resource</code>), with <code>name</code> for a tool. <code>reason</code> is optional, at most 474 bytes, which leaves room for the runner's marker.</td>
+</tr>
+<tr>
+<td><code>unpause</code></td>
+<td><code>step</code>, an earlier pause step, once.</td>
+</tr>
+</tbody>
+</table>
+<p>These values reach <code>guardana-control</code>'s command line, so key text in any of
+them is refused when the file loads.</p>
+<h2 id="running-scenarios">Running scenarios</h2>
+<pre><code>guardana-gateway scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;...
+</code></pre>
+<p><code>--config</code> is the plane's own configuration. The listener, <code>/healthz</code>, the
+approvals directory and the pause file come from it and nowhere else; the
+listener must speak HTTP and <code>health.address</code> must be set. <code>--trail</code> is the
+file the plane's collector writes. Paths run in the order given, a
+directory's <code>*.json</code> files in name order, and every file is read before the
+first one runs. <code>--timeout</code>, 10s by default, bounds each wait.</p>
+<p>Before its first step a scenario needs <code>/healthz</code> to answer 200 with the
+mode and bundle it names, nothing paused and no halt. Then the runner waits
+for the spool to drain, notes the requests the trail file already holds, and
+connects to the listener as an MCP client.</p>
+<p>For each call step the runner:</p>
+<ol>
+<li>sends the arguments and reads the answer's kind only from the
+<code>guardana.control/answer</code> marker and whether it is an error, and its
+request and decision ids only from the result's <code>_meta</code> or the error's
+data;</li>
+<li>polls <code>/healthz</code> until the spool holds nothing unacknowledged, and
+requires the spool's quarantined records and the records the exporter
+reports dropped unchanged since the scenario began;</li>
+<li>requires the plane to have admitted exactly one call per call step so far;</li>
+<li>reads the trail file once, finds the trail the answer names, and compares
+every member. <code>new</code> is a request neither in the file before the scenario
+nor named by an earlier step; <code>step[n]</code> is step <code>n</code>'s request. An event
+on any other trail since the last read, one an earlier step judged
+included, differs on <code>trail.others</code>.</li>
+</ol>
+<p>It also holds each trail to the plane: every event carries the plane's mode,
+every <code>POLICY_DECIDED</code> the bundle digest <code>/healthz</code> reported, and, where the
+trail records a decision, the answer's decision id is one of them. A pending
+answer's approval id must be the one the trail's last <code>APPROVAL_REQUESTED</code>
+names, or the step differs on <code>answer.approval_id</code> and no operator step
+answers it. The first call's
+<code>ACTION_PROPOSED</code> must carry <code>flow.v1.untrusted=false</code> and
+<code>flow.v1.max_read=PUBLIC</code> unless <code>run</code> is <code>continues</code>. Where canon can hash
+the arguments sent, the trail's first <code>ACTION_PROPOSED</code> must carry that hash,
+which for <code>step[n]</code> is the held call's, or the step differs on <code>args</code>. Where
+canon cannot, as for an integer past 2^53-1, the step prints
+<code>&lt;id&gt; step[&lt;i&gt;].args: not compared:</code> with canon's reason, and compares every
+other member. The runner prints the principal and agent that first proposal names.</p>
+<p>An operator step runs <code>guardana-control approvals approve|reject</code> or
+<code>pause add|remove</code>: the binary named by <code>--control</code>, a bare name meaning the
+file in the working directory, or the one beside <code>guardana-gateway</code>, never
+one found on the search path, and only one that reports the same version.
+Two builds that both report <code>dev</code> pass that check whatever tree they come
+from. After a pause or an unpause the runner waits for two more completed
+reads of the pause file and the state it wrote. The runner ends each pause
+step's reason with a marker drawn for that add, <code>[scenario &lt;random&gt;]</code>; the
+reader refuses a reason with no room for it under the pause file's bound. A
+<code>pause add</code> that fails has its entry removed, found through <code>pause list</code> as
+the one new entry with the step's scope and that marker. When no new entry
+or more than one carries both, nothing is removed and the step names every
+new entry, since any of them may be an operator's. A scenario ends at the
+first step that differs or cannot run, and every pause entry it added is
+removed either way, after an interrupt too.</p>
+<h2 id="output-and-exits">Output and exits</h2>
+<p>One line per step, <code>&lt;id&gt; step[&lt;i&gt;] &lt;kind&gt;: ok</code>, or one line per member that
+differs, <code>&lt;id&gt; step[&lt;i&gt;].&lt;member&gt;: want &lt;x&gt;, got &lt;y&gt;</code>; then <code>&lt;id&gt; passed</code>,
+<code>&lt;id&gt; failed</code> or <code>&lt;id&gt; could not run: &lt;why&gt;</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Exit</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Every step of every scenario compared every member.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>A member of some scenario differed.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>None differed, and some scenario could not run: no scenario, a file refused, a precondition, an answer naming no trail, a barrier past its bound, another client, a <code>guardana-control</code> missing or of another version, a trail file that is not the plane's. A gate treats 2 as a failure.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="example">Example</h2>
+<pre><code class="language-json">{
+  &#34;kind&#34;: &#34;agent-scenario/v1alpha1&#34;,
+  &#34;about&#34;: &#34;An update is held, approved, and the retry runs on the held trail.&#34;,
+  &#34;plane&#34;: {&#34;mode&#34;: &#34;APPROVE&#34;, &#34;bundle&#34;: {&#34;id&#34;: &#34;scenario-fixture&#34;}},
+  &#34;steps&#34;: [
+    {&#34;call&#34;: {
+      &#34;tool&#34;: &#34;update_order&#34;,
+      &#34;args&#34;: {&#34;id&#34;: &#34;ord-10&#34;},
+      &#34;answer&#34;: {&#34;kind&#34;: &#34;pending&#34;, &#34;codes&#34;: [&#34;APPROVAL_PENDING&#34;]},
+      &#34;decided&#34;: {&#34;verdict&#34;: &#34;ALLOW&#34;, &#34;codes&#34;: [&#34;RULE_ALLOW&#34;], &#34;obligations&#34;: []},
+      &#34;trail&#34;: {&#34;request&#34;: &#34;new&#34;, &#34;kinds&#34;: [&#34;ACTION_PROPOSED&#34;, &#34;POLICY_DECIDED&#34;, &#34;APPROVAL_REQUESTED&#34;]}
+    }},
+    {&#34;approve&#34;: {&#34;step&#34;: 0, &#34;approver&#34;: &#34;alice&#34;}},
+    {&#34;call&#34;: {
+      &#34;tool&#34;: &#34;update_order&#34;,
+      &#34;args&#34;: {&#34;id&#34;: &#34;ord-10&#34;},
+      &#34;answer&#34;: {&#34;kind&#34;: &#34;result&#34;, &#34;codes&#34;: []},
+      &#34;decided&#34;: {&#34;verdict&#34;: &#34;ALLOW&#34;, &#34;codes&#34;: [&#34;RULE_ALLOW&#34;], &#34;obligations&#34;: []},
+      &#34;trail&#34;: {&#34;request&#34;: &#34;step[0]&#34;, &#34;kinds&#34;: [&#34;ACTION_PROPOSED&#34;, &#34;POLICY_DECIDED&#34;,
+        &#34;APPROVAL_REQUESTED&#34;, &#34;APPROVAL_DECIDED&#34;, &#34;ACTION_STARTED&#34;, &#34;ACTION_COMPLETED&#34;]}
+    }}
+  ]
+}
+</code></pre>
+<p>The runner needs to be the plane's only client, and a scenario must finish
+within the plane's approval lifetime. It trusts the trail file to be the
+plane's beyond the ids, the digest and the mode it checks.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/scenario-format.md">docs/reference/scenario-format.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/scenario-format" aria-current="page">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

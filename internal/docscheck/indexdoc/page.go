@@ -43,6 +43,9 @@ var sections = map[string]string{
 	"spec": "Specification", "extending": "Extending", "project": "Project",
 }
 
+// Section is the heading the index lists a page of type typ under.
+func Section(typ string) string { return sections[typ] }
+
 // Collect reads every page under docs/ but the records and the index itself,
 // and every record, from fsys, which is rooted at the repository. A page that
 // does not parse is a refusal, never a page left out.

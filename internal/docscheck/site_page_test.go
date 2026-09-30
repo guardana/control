@@ -104,8 +104,8 @@ func resolveLink(site map[string][]byte, docs map[string]*xnode, repo fs.FS, fro
 	if dest == "" && fragment == "" {
 		return "an empty link", true
 	}
-	file := sitePath(from, dest)
-	if _, ok := site[file]; !ok {
+	file, ok := served(site, sitePath(from, dest))
+	if !ok {
 		return fmt.Sprintf("%s resolves to %s, which the site does not hold", target, file), true
 	}
 	if fragment != "" {
@@ -121,16 +121,27 @@ func resolveLink(site map[string][]byte, docs map[string]*xnode, repo fs.FS, fro
 // on its host, and says whether target was one.
 func repoLinkProblem(repo fs.FS, target string) (string, bool) {
 	for _, kind := range []string{"blob", "tree"} {
-		rel, ok := strings.CutPrefix(target, "https://"+brand.ModulePath+"/"+kind+"/main/")
+		rest, ok := strings.CutPrefix(target, "https://"+brand.ModulePath+"/"+kind+"/main/")
 		if !ok {
 			continue
 		}
+		rel, fragment, _ := strings.Cut(rest, "#")
 		info, err := fs.Stat(repo, rel)
 		switch {
 		case err != nil:
 			return fmt.Sprintf("%s names %q, which is not in the repository", target, rel), true
 		case info.IsDir() != (kind == "tree"):
 			return fmt.Sprintf("%s: a %s link to a %s", target, kind, map[bool]string{true: "directory", false: "file"}[info.IsDir()]), true
+		case fragment != "" && path.Ext(rel) != ".md":
+			return fmt.Sprintf("%s: a fragment into %s, whose anchors cannot be checked", target, rel), true
+		case fragment != "":
+			anchors, err := newAnchorIndex(repo).anchors(rel)
+			if err != nil {
+				return fmt.Sprintf("%s: %v", target, err), true
+			}
+			if !anchors[fragment] {
+				return fmt.Sprintf("%s: %s has no heading #%s", target, rel, fragment), true
+			}
 		}
 		return "", true
 	}
@@ -152,6 +163,24 @@ func sitePath(from, dest string) string {
 		file += "index.html"
 	}
 	return path.Clean(file)
+}
+
+// served is the file the host answers a path with: the file itself, or, for
+// a path with no extension, the page of that name or the directory's
+// index.html, as `auto-trailing-slash` serves them.
+func served(site map[string][]byte, file string) (string, bool) {
+	if _, ok := site[file]; ok {
+		return file, true
+	}
+	if path.Ext(file) != "" {
+		return file, false
+	}
+	for _, candidate := range []string{file + ".html", file + "/index.html"} {
+		if _, ok := site[candidate]; ok {
+			return candidate, true
+		}
+	}
+	return file, false
 }
 
 // idProblems refuses an empty or repeated id: a fragment or a drawing's
