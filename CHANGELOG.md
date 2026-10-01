@@ -11,7 +11,7 @@ verify one.
 
 ## [Unreleased]
 
-## [0.3.0-alpha] - 2026-09-30
+## [0.3.0-alpha] - 2026-10-01
 
 A configuration must now name its enforcement mode: one that relied on the
 `OBSERVE` default no longer loads. The demo now starts with
