@@ -11,6 +11,16 @@ verify one.
 
 ## [Unreleased]
 
+## [0.4.0-alpha] - 2026-10-01
+
+An operator can now open runs for an agent, and a plane with `runs.dir`
+accepts a call only under a run token that resolves: two runs of one agent
+keep their flow state apart, and a run's flow state survives a restart. A
+plane without `runs.dir` behaves as before. A stdio plane no longer writes its
+start lines into the protocol stream.
+[docs/status.md](docs/status.md) says what is `implemented` and what is
+`experimental`. Nothing here is a security boundary yet.
+
 ### Added
 
 - Runs an operator opens
@@ -19,14 +29,20 @@ verify one.
   `runs.dir` on the plane, under which every call needs a run token, in the
   `Run-Token` header on HTTP or from `run --run-token-file` on stdio. Two
   runs of one agent keep their flow state apart, a run opened under a parent
-  shares its root's state, the state survives a restart, and a held call
-  resumes only from its own run. A refused token is a 401 or the JSON-RPC
-  error `-31102`, counted by cause. A plane without `runs.dir` is unchanged.
+  shares the flow state of the parent's top-level run, the state survives a
+  restart, and a held call resumes only from its own run. A refused token is
+  answered with HTTP 401 or the JSON-RPC error `-31102`, and the refusals are
+  counted by cause. A plane without `runs.dir` is unchanged.
+
+### Changed
+
+- The release job waits for a maintainer to approve it in the `release`
+  environment before it builds; [RELEASING.md](RELEASING.md) has the step.
 
 ### Fixed
 
-- A plane with a stdio listener wrote its start lines, the mode and the lost
-  holds among them, to standard output, which is the agent's protocol stream,
+- A plane with a stdio listener wrote its start lines, the mode and the count
+  of held calls lost to a restart among them, to standard output, which is the agent's protocol stream,
   so a client's first read failed; they now go to standard error.
 
 ## [0.3.0-alpha] - 2026-10-01
@@ -241,7 +257,8 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.3.0-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.4.0-alpha...HEAD
+[0.4.0-alpha]: https://github.com/guardana/control/releases/tag/v0.4.0-alpha
 [0.3.0-alpha]: https://github.com/guardana/control/releases/tag/v0.3.0-alpha
 [0.2.0-alpha]: https://github.com/guardana/control/releases/tag/v0.2.0-alpha
 [0.1.0-alpha]: https://github.com/guardana/control/releases/tag/v0.1.0-alpha

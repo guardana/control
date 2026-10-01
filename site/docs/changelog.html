@@ -33,7 +33,15 @@
 <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
-<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.3.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.4.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="040-alpha---2026-10-01"><a href="https://github.com/guardana/control/releases/tag/v0.4.0-alpha">0.4.0-alpha</a> - 2026-10-01</h2>
+<p>An operator can now open runs for an agent, and a plane with <code>runs.dir</code>
+accepts a call only under a run token that resolves: two runs of one agent
+keep their flow state apart, and a run's flow state survives a restart. A
+plane without <code>runs.dir</code> behaves as before. A stdio plane no longer writes its
+start lines into the protocol stream.
+<a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
+<code>experimental</code>. Nothing here is a security boundary yet.</p>
 <h3 id="added">Added</h3>
 <ul>
 <li>Runs an operator opens
@@ -42,14 +50,20 @@ verify one.</p>
 <code>runs.dir</code> on the plane, under which every call needs a run token, in the
 <code>Run-Token</code> header on HTTP or from <code>run --run-token-file</code> on stdio. Two
 runs of one agent keep their flow state apart, a run opened under a parent
-shares its root's state, the state survives a restart, and a held call
-resumes only from its own run. A refused token is a 401 or the JSON-RPC
-error <code>-31102</code>, counted by cause. A plane without <code>runs.dir</code> is unchanged.</li>
+shares the flow state of the parent's top-level run, the state survives a
+restart, and a held call resumes only from its own run. A refused token is
+answered with HTTP 401 or the JSON-RPC error <code>-31102</code>, and the refusals are
+counted by cause. A plane without <code>runs.dir</code> is unchanged.</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li>The release job waits for a maintainer to approve it in the <code>release</code>
+environment before it builds; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> has the step.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
-<li>A plane with a stdio listener wrote its start lines, the mode and the lost
-holds among them, to standard output, which is the agent's protocol stream,
+<li>A plane with a stdio listener wrote its start lines, the mode and the count
+of held calls lost to a restart among them, to standard output, which is the agent's protocol stream,
 so a client's first read failed; they now go to standard error.</li>
 </ul>
 <h2 id="030-alpha---2026-10-01"><a href="https://github.com/guardana/control/releases/tag/v0.3.0-alpha">0.3.0-alpha</a> - 2026-10-01</h2>
@@ -63,7 +77,7 @@ are a demo archive that runs without Go, an evidence export another program
 resumes by cursor, and the documentation on the website.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="changed">Changed</h3>
+<h3 id="changed-1">Changed</h3>
 <ul>
 <li><code>mode</code> has no default: a configuration that names no enforcement mode is
 refused at load instead of starting a plane in <code>OBSERVE</code>, which stops nothing
@@ -161,7 +175,7 @@ and where it stops; what a record holds, where it goes and how long it
 stays (<a href="/docs/concepts/threat-model">docs/concepts/threat-model.md</a>,
 <a href="/docs/concepts/privacy">docs/concepts/privacy.md</a>).</li>
 </ul>
-<h3 id="changed-1">Changed</h3>
+<h3 id="changed-2">Changed</h3>
 <ul>
 <li>A stdio upstream no longer inherits the plane's environment. It gets
 <code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code>, each where the
