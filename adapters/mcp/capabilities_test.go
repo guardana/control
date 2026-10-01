@@ -29,6 +29,7 @@ var provenBy = map[string][]string{
 	"Authenticates":  {"TestAuthenticatedListenerBindsTheUser", "TestAuthenticatorWithoutUserBlocks"},
 	"BindEndUser":    {"TestAuthenticatedListenerBindsTheUser", "TestUnauthenticatedListenerDeclaresNoBinding"},
 	"SeeResourceIDs": {"TestResourceFromReadsTheResourceID"},
+	"PresentsRuns":   {"TestRunTokenReachesTheAdmission", "TestRefusedRunTokenIsA401BeforeTheLibrary", "TestStdioResolvesEveryMessage"},
 
 	"read_only":          {"TestReadOnlyObligation"},
 	"restrict_resources": {"TestRestrictResourcesObligation"},
@@ -37,8 +38,9 @@ var provenBy = map[string][]string{
 }
 
 // TestEveryDeclaredCapabilityIsProven holds the table above to what the
-// adapter declares, on a listener that authenticates and on one that does not,
-// so the capabilities only the first declares are covered too.
+// adapter declares, on a listener that authenticates, on one that does not and
+// on one that resolves runs, so the capabilities only some declare are covered
+// too.
 func TestEveryDeclaredCapabilityIsProven(t *testing.T) {
 	declared := declaredCapabilities(t)
 	if len(declared) == 0 {
@@ -70,8 +72,9 @@ func TestEveryDeclaredCapabilityIsProven(t *testing.T) {
 func declaredCapabilities(t *testing.T) []string {
 	t.Helper()
 	var out []string
-	for _, auth := range []func(http.Handler) http.Handler{nil, func(next http.Handler) http.Handler { return next }} {
-		caps := adapterFor(t, auth).Capabilities()
+	passThrough := func(next http.Handler) http.Handler { return next }
+	for _, o := range []rigOptions{{}, {auth: passThrough}, {runs: &fakeRuns{}}} {
+		caps := adapterFor(t, o).Capabilities()
 		value := reflect.ValueOf(caps)
 		for i := range value.NumField() {
 			field := value.Type().Field(i)
@@ -90,13 +93,13 @@ func declaredCapabilities(t *testing.T) []string {
 
 // adapterFor builds an adapter that is never started: Capabilities is fixed at
 // New, and what it declares is what the pipeline is refused or accepted on.
-func adapterFor(t *testing.T, auth func(http.Handler) http.Handler) *mcp.Adapter {
+func adapterFor(t *testing.T, o rigOptions) *mcp.Adapter {
 	t.Helper()
 	v := newVictim()
 	// Nothing is started, so the upstream transport is never connected;
 	// Capabilities is fixed at New.
 	upstream, _ := sdk.NewInMemoryTransports()
-	a, err := mcp.New(newConfig(t, v, mcp.KindStatelessHTTP, upstream, rigOptions{auth: auth}))
+	a, err := mcp.New(newConfig(t, v, mcp.KindStatelessHTTP, upstream, o))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

@@ -56,7 +56,8 @@ edit made here does not survive the next run.
 | `guardana_control_pipeline_held_requests` | gauge |  | `Pipeline.Held` | Requests held for an approval that has not expired. |
 | `guardana_control_pipeline_halted` | gauge |  | `Pipeline.Halted` | 1 when a halt stops material calls: a closing record could not be written and no append has succeeded since, or an execution sent bytes that were not authorized. Calls are still blocked for other causes while it reads 0. |
 | `guardana_control_pipeline_flow_uncomputed_total` | counter |  | `Pipeline.FlowUncomputed` | Calls decided with a flow state nobody computed, so a flow rule is undetermined for each. |
-| `guardana_control_pipeline_runs` | gauge |  | `Pipeline.Runs` | Runs the pipeline keeps a flow state for. |
+| `guardana_control_pipeline_runs` | gauge |  | `Pipeline.Runs` | Local runs the pipeline keeps a flow state for in memory. |
+| `guardana_control_pipeline_run_state_failures_total` | counter |  | `Pipeline.RunStateFailures` | Reads and raises of an opened run's root state that failed, each of which blocked its call. |
 | `guardana_control_pdp_asks_total` | counter |  | `Pipeline.Asks.Made` | Asks of the external decision point, the sum of the six outcomes. |
 | `guardana_control_pdp_asks_allowed_total` | counter |  | `Pipeline.Asks.Allowed` | Asks the decision point answered with an allow. |
 | `guardana_control_pdp_asks_denied_total` | counter |  | `Pipeline.Asks.Denied` | Asks the decision point answered with a deny. |
@@ -69,6 +70,8 @@ edit made here does not survive the next run.
 | `guardana_control_adapter_blocked_total` | counter |  | `Adapter.Blocked` | Calls the adapter answered as blocked, including executions it did not send. |
 | `guardana_control_adapter_sent_total` | counter |  | `Adapter.Sent` | Calls the adapter sent upstream. |
 | `guardana_control_adapter_close_failures_total` | counter |  | `Adapter.CloseFailures` | Closing or aborting records the pipeline could not write. |
+| `guardana_control_adapter_runs_refused_at_request_total` | counter | `cause` | `Adapter.RunsRefusedAtRequest` | HTTP requests answered 401 before the library read them, because their run token did not resolve, by cause. |
+| `guardana_control_adapter_runs_refused_at_message_total` | counter | `cause` | `Adapter.RunsRefusedAtMessage` | Messages refused with -31102, admitting nothing, because their run token did not resolve, by cause. |
 | `guardana_control_adapter_refresh_failures_total` | counter |  | `Adapter.RefreshFailures` | Tool list reads that failed, each dropping that upstream's entries. |
 | `guardana_control_pause_polls_total` | counter |  | `Pause.Polls` | Reads of the pause file, the first included. |
 | `guardana_control_pause_poll_failures_total` | counter | `cause` | `Pause.Failed` | Reads of the pause file whose state was unknown, by cause; a cause the reader does not declare is counted under other. |

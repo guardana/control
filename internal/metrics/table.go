@@ -3,11 +3,13 @@ package metrics
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math/bits"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/pause"
 	"github.com/guardana/control/internal/policy/reasons"
 )
@@ -75,8 +77,11 @@ var table = []Metric{
 		"Calls decided with a flow state nobody computed, so a flow rule is undetermined for each.",
 		func(r Reading) uint64 { return r.Pipeline.FlowUncomputed }),
 	level("pipeline_runs", "Pipeline.Runs",
-		"Runs the pipeline keeps a flow state for.",
+		"Local runs the pipeline keeps a flow state for in memory.",
 		func(r Reading) int64 { return int64(r.Pipeline.Runs) }),
+	count("pipeline_run_state_failures_total", "Pipeline.RunStateFailures",
+		"Reads and raises of an opened run's root state that failed, each of which blocked its call.",
+		func(r Reading) uint64 { return r.Pipeline.RunStateFailures }),
 	count("pdp_asks_total", "Pipeline.Asks.Made",
 		"Asks of the external decision point, the sum of the six outcomes.",
 		func(r Reading) uint64 { return r.Pipeline.Asks.Made }),
@@ -118,6 +123,12 @@ var table = []Metric{
 	signed("adapter_close_failures_total", "Adapter.CloseFailures",
 		"Closing or aborting records the pipeline could not write.",
 		func(r Reading) int64 { return r.Adapter.CloseFailures }),
+	labelled(Counter, "adapter_runs_refused_at_request_total", "cause", "Adapter.RunsRefusedAtRequest",
+		"HTTP requests answered 401 before the library read them, because their run token did not resolve, by cause.",
+		func(r Reading) ([]sample, error) { return runSamples(r.Adapter.RunsRefusedAtRequest) }),
+	labelled(Counter, "adapter_runs_refused_at_message_total", "cause", "Adapter.RunsRefusedAtMessage",
+		"Messages refused with -31102, admitting nothing, because their run token did not resolve, by cause.",
+		func(r Reading) ([]sample, error) { return runSamples(r.Adapter.RunsRefusedAtMessage) }),
 	signed("adapter_refresh_failures_total", "Adapter.RefreshFailures",
 		"Tool list reads that failed, each dropping that upstream's entries.",
 		func(r Reading) int64 { return r.Adapter.RefreshFailures }),
@@ -266,6 +277,25 @@ func blockSamples(blocks map[string]uint64) ([]sample, error) {
 		_, ok := reasons.Lookup(code)
 		return ok
 	})
+}
+
+// runSamples writes the count of every run refusal cause counted at least
+// once, in their order, and the sum of any other key last, labelled Other.
+func runSamples(counts map[gateway.RunCause]uint64) ([]sample, error) {
+	causes := gateway.RunCauses()
+	out := make([]sample, 0, len(causes)+1)
+	for _, cause := range causes {
+		if n := counts[cause]; n > 0 {
+			out = append(out, sample{string(cause), strconv.FormatUint(n, 10)})
+		}
+	}
+	others := maps.Clone(counts)
+	maps.DeleteFunc(others, func(c gateway.RunCause, _ uint64) bool { return slices.Contains(causes, c) })
+	rest, err := closedSamples(others, func(gateway.RunCause) bool { return false })
+	if err != nil {
+		return nil, err
+	}
+	return append(out, rest...), nil
 }
 
 func causeSamples(failed map[pause.Cause]uint64) ([]sample, error) {

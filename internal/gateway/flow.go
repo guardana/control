@@ -28,6 +28,7 @@ const (
 	tagMaxRead     = flowTagPrefix + "max_read="
 	tagReadUnknown = flowTagPrefix + "max_read=UNKNOWN"
 	tagUncomputed  = flowTagPrefix + "state=uncomputed"
+	tagRoot        = flowTagPrefix + "root="
 )
 
 // runKey names a run: the principal as the listener resolved it and the agent
@@ -46,33 +47,67 @@ type run struct {
 	maxRead   controlv1.Sensitivity
 }
 
+// flowKind is how a call stands toward a run. The zero value is the state
+// nobody computed, with no run.
+type flowKind int
+
+const (
+	flowUncomputed flowKind = iota
+	// flowUnnamed: the call's local run was to be minted and the id source
+	// gave it no name, so an execution would taint nothing its next call reads.
+	flowUnnamed
+	// flowLocal: a run of ADR-0021, kept in the pipeline's memory.
+	flowLocal
+	// flowOpened: a run the operator opened, whose root's state was read.
+	flowOpened
+	// flowUnavailable: the call needs an opened run and has none the plane
+	// can vouch for, or its root's state could not be read.
+	flowUnavailable
+)
+
 // flow is a call's view of its run, taken once when the call starts: the run
 // its execution taints, and the state every decision of the call is made
-// under. The zero value is the state nobody computed, with no run.
+// under.
 type flow struct {
-	run   *run
+	kind   flowKind
+	run    *run
+	opened *OpenedRun
+	// read is the opened root's state as the call read it, which a raise
+	// compares with what the call's result brings in.
+	read  RunState
 	state contract.FlowState
-	// unnamed: the call's run was to be minted and the id source gave it no
-	// name, so an execution would taint nothing its next call reads.
-	unnamed bool
 }
 
 func (f flow) runID() string {
-	if f.run == nil {
-		return ""
+	switch f.kind {
+	case flowLocal:
+		return f.run.id
+	case flowOpened, flowUnavailable:
+		if f.opened != nil {
+			return f.opened.ID
+		}
 	}
-	return f.run.id
+	return ""
 }
 
-// tags renders the state as the run-context tags a recorded envelope carries.
+// tags renders the state as the run-context tags a recorded envelope carries;
+// an opened run also names the root whose state was used.
 func (f flow) tags() []string {
-	if f.run == nil {
-		return []string{tagUncomputed}
+	switch f.kind {
+	case flowLocal:
+		return []string{
+			tagUntrusted + strconv.FormatBool(f.state.UntrustedInfluence),
+			readTag(f.state.MaxSensitivityRead),
+		}
+	case flowOpened:
+		return []string{
+			tagUntrusted + strconv.FormatBool(f.state.UntrustedInfluence),
+			readTag(f.state.MaxSensitivityRead),
+			tagRoot + f.opened.Root,
+		}
+	case flowUncomputed, flowUnnamed, flowUnavailable:
 	}
-	return []string{
-		tagUntrusted + strconv.FormatBool(f.state.UntrustedInfluence),
-		readTag(f.state.MaxSensitivityRead),
-	}
+	return []string{tagUncomputed}
 }
 
 // readTag names a reading by the contract's name without its prefix, as a
@@ -103,7 +138,7 @@ func keyOf(env *controlv1.ActionEnvelope) (runKey, bool) {
 // marked unnamed. Every one of them is counted.
 func (p *Pipeline) flowOf(env *controlv1.ActionEnvelope, mint bool) flow {
 	f := p.lookupRun(env, mint)
-	if f.run == nil {
+	if f.kind != flowLocal {
 		p.uncomputed()
 	}
 	return f
@@ -127,12 +162,12 @@ func (p *Pipeline) lookupRun(env *controlv1.ActionEnvelope, mint bool) flow {
 		}
 		id := p.cfg.NewID()
 		if id == "" {
-			return flow{unnamed: true}
+			return flow{kind: flowUnnamed}
 		}
 		r = &run{id: id, maxRead: controlv1.Sensitivity_SENSITIVITY_PUBLIC}
 		p.runs[key] = r
 	}
-	return flow{run: r, state: contract.NewFlowState(r.untrusted, r.maxRead)}
+	return flow{kind: flowLocal, run: r, state: contract.NewFlowState(r.untrusted, r.maxRead)}
 }
 
 // took records in f's run what a result brings in. The pipeline calls it when
@@ -140,7 +175,7 @@ func (p *Pipeline) lookupRun(env *controlv1.ActionEnvelope, mint bool) flow {
 // result is decided after it, and no closing and no evidence outcome can skip
 // it.
 func (p *Pipeline) took(f flow, trust controlv1.TrustZone, read controlv1.Sensitivity) {
-	if f.run == nil {
+	if f.kind != flowLocal {
 		return
 	}
 	p.mu.Lock()
@@ -169,9 +204,12 @@ func joinRead(current, read controlv1.Sensitivity) controlv1.Sensitivity {
 // needs its run to take in what it returns.
 func (c *call) takeFlow() {
 	c.refuseFlowTags()
-	if c.forged {
+	switch {
+	case c.forged:
 		c.p.uncomputed()
-	} else {
+	case c.p.cfg.Runs != nil || c.in.Run != nil:
+		c.flow = c.p.openedFlow(c.ctx, c.in)
+	default:
 		c.flow = c.p.flowOf(c.in.Envelope, c.in.Refusal == nil || c.p.cfg.Mode == modeObserve)
 	}
 	c.stampFlow()
@@ -213,18 +251,20 @@ func (c *call) stampFlow() {
 	c.in.Envelope = out
 }
 
-// refuseFlow blocks two calls in every mode: one whose producer sent a tag
+// refuseFlow blocks three calls in every mode: one whose producer sent a tag
 // under the reserved prefix, whose record would otherwise carry a state the
-// plane never computed, and one whose run the id source could not name,
-// whose execution would leave no taint for the next call of its principal.
-// A forged call reaches the kernel with a refusal, the producer's own or the
-// tag's, so the block keeps the code the kernel gave that refusal.
+// plane never computed; one whose run the id source could not name, whose
+// execution would leave no taint for the next call of its principal; and one
+// that needs an opened run the plane cannot vouch for, or whose root's state
+// it cannot read (ADR-0034). A forged call reaches the kernel with a refusal,
+// the producer's own or the tag's, so the block keeps the code the kernel
+// gave that refusal.
 func (c *call) refuseFlow() {
 	switch {
 	case c.action == core.Block:
 	case c.forged:
 		c.decide(verdictIndeterminate, c.kernel.GetReasonCodes()...)
-	case c.flow.unnamed:
+	case c.flow.kind == flowUnnamed, c.flow.kind == flowUnavailable:
 		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
 	}
 }

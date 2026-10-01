@@ -19,6 +19,12 @@ import (
 // which of its records are still there, and the pipeline's own record says what
 // was held. Whatever the store cannot answer blocks the call on its own trail.
 func (c *call) approve(snap *policy.Snapshot) Disposition {
+	if c.runLapsed() {
+		// A hold under a run that expired is one no retry can reach, since the
+		// listener refuses its token.
+		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
+		return c.freshBlock()
+	}
 	_, binding, err := approval.Bind(c.env, c.args, approval.BundleDigest(snap.Ref().GetDigest()))
 	if err != nil {
 		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
@@ -38,6 +44,9 @@ func (c *call) approve(snap *policy.Snapshot) Disposition {
 		switch own := holds[held.Approval.GetRequestId()]; {
 		case own == nil:
 			unheld = append(unheld, held)
+		case c.p.cfg.Runs != nil && own.ids.RunID != c.flow.runID():
+			// Held under another opened run: this call neither resumes it nor
+			// learns from it that the approval was spent (ADR-0034).
 		case sameHeldRequest(own.envelope, c.in.Envelope):
 			matches = append(matches, own)
 		}

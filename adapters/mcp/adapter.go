@@ -69,6 +69,13 @@ type Listener struct {
 	// AuthnStrength is recorded on a principal the Authenticator bound.
 	AuthnStrength string
 	Identity      Identity
+	// Runs resolves the run token at every request and every message
+	// (ADR-0034): the RunTokenHeader on HTTP, RunToken on stdio. Nil serves
+	// local runs.
+	Runs gateway.RunResolver
+	// RunToken is a stdio listener's token, read from the operator's file;
+	// set exactly when Runs is, and on stdio only.
+	RunToken string
 }
 
 // Upstream is one server the gateway calls as itself.
@@ -117,6 +124,12 @@ type Stats struct {
 	// RefreshFailures counts tools/list reads that failed, each of which
 	// dropped that upstream's entries.
 	RefreshFailures int64
+	// RunsRefusedAtRequest counts run tokens the HTTP listener refused before
+	// the library read the request; RunsRefusedAtMessage counts those refused
+	// at a message, on HTTP or stdio. A request refused at the first never
+	// reaches the second.
+	RunsRefusedAtRequest RunRefusals
+	RunsRefusedAtMessage RunRefusals
 }
 
 // Adapter is the MCP adapter as the pipeline sees it and as the agent
@@ -135,13 +148,15 @@ type Adapter struct {
 	lists     *listCache
 
 	admitted, blocked, sent, closeFailures, refreshFailures atomic.Int64
+	refusedAtRequest, refusedAtMessage                      *runCounter
 }
 
 var _ gateway.Adapter = (*Adapter)(nil)
 
 // New checks cfg once and returns an adapter that is not yet connected to
 // anything: Start connects it. It refuses a listener kind it does not serve,
-// an authenticator on stdio, a listener without an identity, an upstream
+// an authenticator on stdio, a listener without an identity, a run token
+// source that does not fit the listener, an upstream
 // without a name or a transport, two upstreams with one name, an override
 // that names no known upstream or is incomplete, a shaping it does not know,
 // and a nil clock or id source.
@@ -149,7 +164,10 @@ func New(cfg Config) (*Adapter, error) {
 	if err := checkConfig(cfg); err != nil {
 		return nil, err
 	}
-	a := &Adapter{cfg: cfg, manifest: newManifest(cfg.Overrides), lists: newListCache(cfg.ListTTL), logger: cfg.Logger}
+	a := &Adapter{
+		cfg: cfg, manifest: newManifest(cfg.Overrides), lists: newListCache(cfg.ListTTL), logger: cfg.Logger,
+		refusedAtRequest: newRunCounter(), refusedAtMessage: newRunCounter(),
+	}
 	if a.logger == nil {
 		a.logger = slog.New(slog.DiscardHandler)
 	}
@@ -205,6 +223,9 @@ func checkListener(l Listener) error {
 	}
 	if l.Identity.Principal == nil || l.Identity.Agent == nil {
 		return ErrIdentity
+	}
+	if err := checkRunsSource(l); err != nil {
+		return err
 	}
 	if l.Authenticator == nil {
 		return nil
@@ -265,6 +286,7 @@ func (a *Adapter) Capabilities() gateway.Capabilities {
 		Block:          true,
 		Authenticates:  authenticates,
 		BindEndUser:    authenticates,
+		PresentsRuns:   a.cfg.Listener.Runs != nil,
 		SeeResourceIDs: true,
 		Obligations:    AppliedObligations(),
 	}
@@ -352,6 +374,7 @@ func (a *Adapter) Stats() Stats {
 	return Stats{
 		Admitted: a.admitted.Load(), Blocked: a.blocked.Load(), Sent: a.sent.Load(),
 		CloseFailures: a.closeFailures.Load(), RefreshFailures: a.refreshFailures.Load(),
+		RunsRefusedAtRequest: a.refusedAtRequest.snapshot(), RunsRefusedAtMessage: a.refusedAtMessage.snapshot(),
 	}
 }
 

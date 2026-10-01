@@ -23,6 +23,10 @@ type Capabilities struct {
 	// BindEndUser: the adapter carries an authenticated end-user identity into
 	// the envelope's principal.
 	BindEndUser bool
+	// PresentsRuns: the adapter resolves a run token on every call, through
+	// the runs directory the plane is configured with, and hands the run it
+	// resolved in Admission.Run (ADR-0034).
+	PresentsRuns bool
 	// SeeDelegation: the adapter can read a delegation chain from the call.
 	SeeDelegation bool
 	// SeeResourceIDs: the adapter can name the resource a call touches.

@@ -357,16 +357,20 @@ func TestReadsAreForwardedAsReads(t *testing.T) {
 	})
 }
 
-// TestOwnCodesAreOutsideTheReservedRange: the adapter's two JSON-RPC codes
-// sit outside what the protocol reserves and away from the library's own.
+// TestOwnCodesAreOutsideTheReservedRange: the adapter's JSON-RPC codes sit
+// outside what the protocol reserves, away from the library's own and apart
+// from each other.
 func TestOwnCodesAreOutsideTheReservedRange(t *testing.T) {
-	for name, code := range map[string]int64{"CodeBlocked": mcp.CodeBlocked, "CodePending": mcp.CodePending} {
+	codes := map[string]int64{"CodeBlocked": mcp.CodeBlocked, "CodePending": mcp.CodePending, "CodeRunRefused": mcp.CodeRunRefused}
+	seen := map[int64]string{}
+	for name, code := range codes {
 		if code >= -32768 && code <= -32000 || code == -31001 {
 			t.Errorf("%s %d is in a reserved range", name, code)
 		}
-	}
-	if mcp.CodePending == mcp.CodeBlocked {
-		t.Errorf("the two codes are one")
+		if other, ok := seen[code]; ok {
+			t.Errorf("%s and %s are one code", name, other)
+		}
+		seen[code] = name
 	}
 }
 

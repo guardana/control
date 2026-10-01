@@ -11,8 +11,9 @@ import (
 )
 
 // Handler returns the agent-facing HTTP handler of a stateless or stateful
-// listener: origin check, then the authenticator if any, then the library's
-// Streamable HTTP handler over the adapter's server. The library refuses a
+// listener: origin check, then the authenticator if any, then the run token
+// check if the listener resolves runs, then the library's Streamable HTTP
+// handler over the adapter's server. The library refuses a
 // request whose Mcp-Method or Mcp-Name disagrees with the body (-32020) and,
 // on a stateful listener, a 2026-07-28 request (-32022) before anything of
 // the adapter's runs.
@@ -28,6 +29,9 @@ func (a *Adapter) Handler() (http.Handler, error) {
 	var h http.Handler = mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return a.server }, &mcp.StreamableHTTPOptions{
 		Stateless: stateless,
 	})
+	if a.cfg.Listener.Runs != nil {
+		h = a.runsCheck(h)
+	}
 	if auth := a.cfg.Listener.Authenticator; auth != nil {
 		h = auth(h)
 	}

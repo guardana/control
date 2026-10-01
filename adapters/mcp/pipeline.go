@@ -54,6 +54,10 @@ const (
 	ErrNoIDSource Error = "mcp: no id source"
 	// ErrListTimeout is a negative bound on reading an upstream's list.
 	ErrListTimeout Error = "mcp: the list timeout cannot be negative"
+	// ErrRunsSource is a run token source that does not fit the listener: a
+	// token without a resolver, a token on HTTP, where the header is the only
+	// source, or a stdio resolver with no token to resolve.
+	ErrRunsSource Error = "mcp: the run token source does not fit the listener"
 )
 
 // Start's refusals.

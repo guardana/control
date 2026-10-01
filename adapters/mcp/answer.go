@@ -19,12 +19,16 @@ import (
 )
 
 // The JSON-RPC error codes a blocked or pending resources/read or
-// prompts/get carries, because those results have no isError of their own.
-// They sit outside the range the protocol reserves and away from the code
-// the library uses privately (ADR-0013).
+// prompts/get carries, because those results have no isError of their own,
+// and the one any message carries whose run token was refused. They sit
+// outside the range the protocol reserves and away from the code the library
+// uses privately (ADR-0013).
 const (
 	CodeBlocked int64 = -31100
 	CodePending int64 = -31101
+	// CodeRunRefused answers every refused run token alike, with one fixed
+	// message: the agent learns nothing about which runs exist or why.
+	CodeRunRefused int64 = -31102
 )
 
 // The keys of a block's and a pending state's structured content.

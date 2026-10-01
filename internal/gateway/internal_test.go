@@ -175,3 +175,11 @@ func TestSameDecisionHoldsEveryFieldAnApprovalWasGivenFor(t *testing.T) {
 		t.Errorf("a decision nobody made resumes a hold")
 	}
 }
+
+// SetRunStateWait makes d the bound on a raise's wait for its root's lock
+// until the returned function restores it.
+func SetRunStateWait(d time.Duration) (restore func()) {
+	saved := runStateWait
+	runStateWait = d
+	return func() { runStateWait = saved }
+}

@@ -80,10 +80,14 @@ type Stats struct {
 	// FlowUncomputed counts calls decided with the flow state nobody
 	// computed, because the pipeline could not key or name their run, their
 	// key was past MaxRuns, they carried a refusal outside OBSERVE before
-	// their principal had a run, or their producer sent a flow tag; a flow
-	// rule is undetermined for each of them.
+	// their principal had a run, or their producer sent a flow tag, and
+	// calls blocked for want of an opened run the plane could vouch for; a
+	// flow rule is undetermined for each of them.
 	FlowUncomputed uint64
-	// Runs is the runs the pipeline keeps a flow state for.
+	// RunStateFailures counts reads and raises of an opened run's root state
+	// that failed, each of which blocked its call.
+	RunStateFailures uint64
+	// Runs is the local runs the pipeline keeps a flow state for.
 	Runs int
 	// Asks is what the plane asked the external decision point and what came
 	// back. decision_latency_us on a decision is the kernel's alone.

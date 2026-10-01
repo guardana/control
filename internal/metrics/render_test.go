@@ -156,8 +156,11 @@ func readingWith(t *testing.T, l leaf, v uint64, code string) (r Reading, key, r
 		field.Set(reflect.ValueOf(v).Convert(field.Type()))
 	case reflect.Map:
 		key = string(pause.CauseStale)
-		if l.path == "Pipeline.Blocks" {
+		switch l.path {
+		case "Pipeline.Blocks":
 			key = code
+		case "Adapter.RunsRefusedAtRequest", "Adapter.RunsRefusedAtMessage":
+			key = string(gateway.RunClosed)
 		}
 		m := reflect.MakeMap(field.Type())
 		m.SetMapIndex(reflect.ValueOf(key).Convert(field.Type().Key()), reflect.ValueOf(v))
@@ -324,7 +327,10 @@ func TestNamesFollowTheConventions(t *testing.T) {
 		if m.Help == "" || strings.ContainsAny(m.Help, "\n\\|`") {
 			t.Errorf("%s: help %q is empty or not one plain line", m.Name, m.Help)
 		}
-		wantLabel := map[string]string{"Pipeline.Blocks": "code", "Pause.Failed": "cause", "PauseState": "state"}[m.Reads]
+		wantLabel := map[string]string{
+			"Pipeline.Blocks": "code", "Pause.Failed": "cause", "PauseState": "state",
+			"Adapter.RunsRefusedAtRequest": "cause", "Adapter.RunsRefusedAtMessage": "cause",
+		}[m.Reads]
 		if m.Label != wantLabel {
 			t.Errorf("%s reads %s and has label %q, want %q", m.Name, m.Reads, m.Label, wantLabel)
 		}

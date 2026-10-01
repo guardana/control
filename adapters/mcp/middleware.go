@@ -46,24 +46,33 @@ type outcome struct {
 
 // middleware is the one interception point (ADR-0013): it runs after the
 // library parsed the body and checked the routing headers against it, so
-// the verdict is made from the body and never from a header.
+// the verdict is made from the body and never from a header. Every message
+// the library receives passes here, initialize and ping included, and on a
+// listener with runs each is refused unless its run token resolves.
 func (a *Adapter) middleware(next mcp.MethodHandler) mcp.MethodHandler {
 	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		run, err := a.messageRun(ctx, req)
+		if err != nil {
+			return nil, err
+		}
 		switch method {
 		case methodListTools:
 			return a.listTools(ctx, req)
 		case methodCallTool:
 			r := req.(*mcp.CallToolRequest)
 			c := a.toolCall(r)
+			c.admission.Run = run
 			return a.callTool(ctx, c, toolSender(r.Params.Name))
 		case methodReadResource:
 			r := req.(*mcp.ReadResourceRequest)
 			c := a.read(req, kindResource, r.Params.URI, []byte(noArguments), nil)
+			c.admission.Run = run
 			return a.readThrough(ctx, c, resourceSender(r.Params.URI))
 		case methodGetPrompt:
 			r := req.(*mcp.GetPromptRequest)
 			args, err := promptArguments(r.Params.Arguments)
 			c := a.read(req, kindPrompt, r.Params.Name, args, err)
+			c.admission.Run = run
 			return a.readThrough(ctx, c, promptSender(r.Params.Name))
 		case methodListResources, methodListTemplates, methodListPrompts:
 			return a.forwardList(ctx, method)

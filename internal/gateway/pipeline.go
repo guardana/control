@@ -66,6 +66,10 @@ type Config struct {
 	Sink evidence.Sink
 	// Approvals holds requests and consumes approvals.
 	Approvals ApprovalStore
+	// Runs is the runs directory, set exactly when the adapter presents runs.
+	// Without it every run is local (ADR-0021); with it every call needs an
+	// opened run (ADR-0034).
+	Runs Runs
 	// Journal is the plane's own durable record of its own holds. It is
 	// optional: without one the plane holds and resumes as it otherwise
 	// would and closes no hold it loses to a restart, which Stats reports
@@ -122,6 +126,9 @@ type Admission struct {
 	// ResultSensitivity is the highest sensitivity the call's result can
 	// hold, as the operator declared it; the zero value is unknown.
 	ResultSensitivity controlv1.Sensitivity
+	// Run is the opened run the listener resolved for this call; nil on a
+	// plane without a runs directory.
+	Run *OpenedRun
 }
 
 // Disposition is what the plane does about an admission. The zero value
@@ -202,8 +209,9 @@ type openTrail struct {
 
 // New checks cfg once and returns a pipeline, or refuses the configuration:
 // a mode this build does not know or enforce, an adapter that lacks what the
-// mode needs, an end-user binding on a listener that authenticates nobody, a
-// nil policy source, pause source, sink, approval store, clock or id source,
+// mode needs, an end-user binding on a listener that authenticates nobody,
+// runs presented without a runs directory or a runs directory nobody presents
+// runs to, a nil policy source, pause source, sink, approval store, clock or id source,
 // an id source that returns an empty id or one id twice, a lifetime, retry
 // interval or bound that is not positive, a decision point the current policy
 // does not read or a policy that reads one none is configured for, a decision point
@@ -235,6 +243,24 @@ func checkConfig(cfg Config) error {
 	if err := checkAdapter(cfg.Mode, cfg.Adapter); err != nil {
 		return err
 	}
+	if err := checkRuns(cfg); err != nil {
+		return err
+	}
+	if err := checkSources(cfg); err != nil {
+		return err
+	}
+	if err := checkBounds(cfg); err != nil {
+		return err
+	}
+	if first, second := cfg.NewID(), cfg.NewID(); first == "" || second == "" || first == second {
+		return ErrIDSource
+	}
+	return nil
+}
+
+// checkSources refuses a nil policy source, pause source, sink, approval
+// store, clock or id source.
+func checkSources(cfg Config) error {
 	switch {
 	case cfg.Policy == nil:
 		return ErrNoPolicy
@@ -248,12 +274,6 @@ func checkConfig(cfg Config) error {
 		return ErrNoClock
 	case cfg.NewID == nil:
 		return ErrNoIDSource
-	}
-	if err := checkBounds(cfg); err != nil {
-		return err
-	}
-	if first, second := cfg.NewID(), cfg.NewID(); first == "" || second == "" || first == second {
-		return ErrIDSource
 	}
 	return nil
 }

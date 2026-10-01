@@ -26,6 +26,9 @@ const (
 	// listener that authenticates nobody: there is no user to bind, only a
 	// claim.
 	ErrUnauthenticatedBinding Error = "gateway: the listener authenticates nobody, so no end user can be bound"
+	// ErrRunsMismatch is a runs directory without an adapter that presents
+	// runs, or an adapter that presents runs without a runs directory.
+	ErrRunsMismatch Error = "gateway: the runs directory and the adapter's runs disagree"
 	// ErrNoPolicy is a nil policy source.
 	ErrNoPolicy Error = "gateway: no policy source"
 	// ErrNoPause is a nil pause source: a plane with no pause file is handed

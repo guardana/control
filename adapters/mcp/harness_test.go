@@ -349,6 +349,13 @@ type rigOptions struct {
 	overrides   func(*victim, *testing.T) []mcp.Override
 	timeout     time.Duration
 	listTimeout time.Duration
+	// runs and runToken configure the listener's run resolver and a stdio
+	// listener's token; headers go on every request an HTTP agent sends; a
+	// nil clock is time.Now.
+	runs     gateway.RunResolver
+	runToken string
+	headers  http.Header
+	clock    func() time.Time
 }
 
 // identity is what an unauthenticated listener calls for. An authenticated
@@ -371,8 +378,15 @@ func newConfig(t *testing.T, v *victim, kind mcp.Kind, upstream sdk.Transport, o
 	if o.overrides != nil {
 		overrides = o.overrides(v, t)
 	}
+	clock := o.clock
+	if clock == nil {
+		clock = time.Now
+	}
 	return mcp.Config{
-		Listener:    mcp.Listener{Kind: kind, Authenticator: o.auth, AuthnStrength: "bearer", Identity: identity(o.auth != nil)},
+		Listener: mcp.Listener{
+			Kind: kind, Authenticator: o.auth, AuthnStrength: "bearer", Identity: identity(o.auth != nil),
+			Runs: o.runs, RunToken: o.runToken,
+		},
 		Upstreams:   []mcp.Upstream{{Name: "victim", Transport: upstream, TenantID: "t1", Environment: "prod"}},
 		Overrides:   overrides,
 		Shaping:     o.shaping,
@@ -380,7 +394,7 @@ func newConfig(t *testing.T, v *victim, kind mcp.Kind, upstream sdk.Transport, o
 		CallTimeout: o.timeout,
 		ListTimeout: o.listTimeout,
 		ProjectID:   "p1", TenantID: "t1", Environment: "prod",
-		Clock: time.Now,
+		Clock: clock,
 		NewID: func() string { return "id-" + strconv.FormatInt(n.Add(1), 10) },
 	}
 }
@@ -488,9 +502,12 @@ func newRigOver(t *testing.T, v *victim, kind mcp.Kind, o rigOptions) *rig {
 	r.url = serveHTTP(t, h)
 	r.connect = func(t *testing.T, clientName string) *sdk.ClientSession {
 		t.Helper()
-		var headers http.Header
+		headers := o.headers.Clone()
 		if o.auth != nil {
-			headers = http.Header{"Authorization": {"Bearer alice-token"}}
+			if headers == nil {
+				headers = http.Header{}
+			}
+			headers.Set("Authorization", "Bearer alice-token")
 		}
 		return connectHTTP(t, r.url, clientName, r.version, headers)
 	}
