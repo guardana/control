@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Keep two tasks apart · Guardana Control</title>
+<meta name="description" content="Open a run per task in a runs directory, point a plane at it, and give each agent its token, so what one task took in never decides another&#39;s calls."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/guides/keep-two-tasks-apart"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="keep-two-tasks-apart">Keep two tasks apart</h1>
+<h2 id="when-to-use-this">When to use this</h2>
+<p>A plane remembers what each run took in, so a <code>flow</code> rule can block a call
+that carries untrusted data somewhere it should not go. Without a runs
+directory a run is the listener's principal and agent: two tasks of one agent
+share what they took in, and a restart, or a new stdio process, forgets it.
+When your orchestrator knows that two tasks are separate, open a run for each.
+Each task's flow state is then its own, kept on disk, and survives a restart
+(<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>).
+This is <code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>A plane you can run (<a href="/docs/guides/run-the-gateway">run-the-gateway.md</a>) and the
+<code>guardana-control</code> binary beside it, run as the same user.</li>
+<li>An orchestrator, or a person, who starts each task and can hand it a token:
+an MCP client that sends an extra HTTP header, or the command that starts a
+stdio plane.</li>
+</ul>
+<h2 id="steps">Steps</h2>
+<h3 id="1-make-the-runs-directory">1. Make the runs directory</h3>
+<pre><code>mkdir -m 700 /var/lib/guardana/runs
+</code></pre>
+<p>It must be yours and writable by nobody else, and apart from the spool, the
+approvals directory, the hold journal and the pause file's directory. The
+first <code>runs open</code> makes it a runs directory; a plane refuses it before that.</p>
+<h3 id="2-open-a-run-per-task">2. Open a run per task</h3>
+<pre><code>guardana-control runs open --tenant acme --principal-type service \
+  --principal agent-runner --agent orders-assistant --ttl 8h /var/lib/guardana/runs
+</code></pre>
+<p>The identity is your listener's: <code>tenant_id</code>, <code>listener.principal.type</code>,
+<code>listener.principal.id</code> and <code>listener.agent.id</code>. The command prints <code>run_id</code>,
+<code>root</code>, <code>expires_at</code> and <code>token</code>; the token is printed this once. A task that
+spawns another opens the child with <code>--parent &lt;run id&gt;</code>, so the two share what
+they take in (<a href="/docs/reference/runs">reference/runs.md</a>).</p>
+<h3 id="3-point-the-plane-at-it">3. Point the plane at it</h3>
+<pre><code class="language-yaml">runs:
+  dir: /var/lib/guardana/runs
+</code></pre>
+<p>Every call then needs a run. Remove <code>flow.max_runs</code> if you set it: it bounds
+the runs a plane keeps in memory, and this plane keeps none.</p>
+<h3 id="4-hand-each-task-its-token">4. Hand each task its token</h3>
+<p>Over HTTP, configure the agent's MCP client to send the header on every
+request:</p>
+<pre><code>Run-Token: &lt;token&gt;
+</code></pre>
+<p>Over stdio, write the token to a file only you can read, and start the plane
+with it:</p>
+<pre><code>umask 077 &amp;&amp; printf &#39;%s\n&#39; &#39;&lt;token&gt;&#39; &gt; task-1.token
+guardana-gateway run --config gateway.yaml --run-token-file task-1.token
+</code></pre>
+<p>A plane started again with the same token reaches the same state.</p>
+<h3 id="5-close-a-run-when-its-task-ends">5. Close a run when its task ends</h3>
+<pre><code>guardana-control runs close /var/lib/guardana/runs &lt;run id&gt;
+</code></pre>
+<p>Its token is refused from the next request on. <code>runs list</code> shows every run
+and whether it is open, closed or expired.</p>
+<h2 id="verify">Verify</h2>
+<ul>
+<li><code>doctor</code>'s <code>runs</code> line is <code>ok</code> and says <code>opened in /var/lib/guardana/runs</code>.</li>
+<li>A request with no token, a closed run's or another agent's is answered
+<code>401</code>, and <code>/healthz</code> counts it under <code>runs.refused_at_request</code>.</li>
+<li>After one task reads something untrusted, a call of another task to an
+untrusted destination is decided as before, and its <code>ACTION_PROPOSED</code>
+carries <code>flow.v1.root=</code> with its own root.</li>
+</ul>
+<h2 id="limits">Limits</h2>
+<ul>
+<li>A token acts as its run until it expires or is closed; keep it as you keep a
+credential. A call that passed the listener before a close still runs.</li>
+<li>Data two runs exchange outside <code>--parent</code>, such as two sibling tasks an
+orchestrator bridges, is not seen.</li>
+<li><code>dev</code> and scenarios serve local runs only.</li>
+</ul>
+<h2 id="roll-back">Roll back</h2>
+<p>Remove <code>runs.dir</code> and restart. Runs are local again, one per principal and
+agent, and start clean; the directory is left as it is.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/keep-two-tasks-apart.md">docs/guides/keep-two-tasks-apart.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/keep-two-tasks-apart" aria-current="page">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

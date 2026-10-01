@@ -278,6 +278,10 @@ Each of these has to be positive, or the plane refuses to start.
   the plane no longer holds carries no envelope, so a call differing only in
   its data labels or its run context cannot be told from the identical one and
   is blocked with it (ADR-0013, ADR-0016).
+- On a plane with `runs.dir`, a hold belongs to the run it was held under: a
+  retry from another run of the same principal and agent is held anew. The
+  binding names no run, so once the approval is spent the same action from
+  any run is blocked as already used (ADR-0034).
 - A lost hold is closed and never resumed, because rehydrating it would need
   the envelope's data labels and run context on disk to compare a retry
   against, and would run an effect for a call answered pending long ago

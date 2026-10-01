@@ -339,6 +339,11 @@ principal and agent: sessions, connections and anything a client sends never
 split it, so a client that connects again over HTTP keeps the run it had. On
 stdio the gateway ends with its client's connection, so there a run lasts one
 connection. A restart ends every run, and a run starts clean.</p>
+<p>With <code>runs.dir</code>, a run is one the operator opened instead
+(<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>):
+every call presents its token, two tasks of one agent are two runs, and the
+state belongs to the root run, on disk, so a restart or a new stdio process
+keeps it (<a href="/docs/guides/keep-two-tasks-apart">guides/keep-two-tasks-apart.md</a>).</p>
 <p>Each call counts once it is handed to execution, before its result can reach
 the model. What its result contains is the operator's declaration on the tool:
 <code>returns.trust</code>, untrusted when absent, and <code>returns.sensitivity</code>, unknown when
@@ -469,6 +474,7 @@ The codes are listed in <a href="/docs/reference/reason-codes">reference/reason-
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
 <li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
 <li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
@@ -499,6 +505,7 @@ The codes are listed in <a href="/docs/reference/reason-codes">reference/reason-
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>

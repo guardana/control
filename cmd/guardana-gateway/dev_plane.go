@@ -183,7 +183,7 @@ func startDevPlane(ctx context.Context, in devInputs, dir string, log io.Writer)
 	if d.coll, err = startCollector(listeners[0], st.path(stateTrail), log); err != nil {
 		return nil, errors.Join(err, closeAll(listeners[1:]))
 	}
-	if d.plane, err = startPlane(ctx, d.cfg, log); err != nil {
+	if d.plane, err = startPlane(ctx, d.cfg, log, ""); err != nil {
 		return nil, errors.Join(silentAdvice(err, in.silent), closeAll(listeners[1:]), d.coll.stop())
 	}
 	d.plane.settle(ctx, log)

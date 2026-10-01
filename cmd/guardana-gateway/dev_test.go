@@ -144,6 +144,7 @@ var ownedKeys = [][2]string{
 	{"approvals.provider", "file"},
 	{"approvals.dir", "records"},
 	{"approvals.hold_journal_dir", "holds"},
+	{"runs.dir", "runs"},
 	{"approvals.ttl", "1m"},
 	{"approvals.retry_after", "1s"},
 	{"approvals.max_held", "3"},

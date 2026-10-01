@@ -21,6 +21,15 @@ import (
 	"github.com/guardana/control/pkg/contract"
 )
 
+// listenerTenant is the tenant of the listener's principal: its own, or the
+// plane's.
+func listenerTenant(cfg *gatewayconfig.Config) string {
+	if cfg.Listener.PrincipalTenant != "" {
+		return cfg.Listener.PrincipalTenant
+	}
+	return cfg.TenantID
+}
+
 // adapterConfig translates the configuration into the adapter's, which is
 // where every MCP-side refusal is made.
 func adapterConfig(cfg *gatewayconfig.Config, logger *slog.Logger) (adaptermcp.Config, error) {
@@ -32,10 +41,7 @@ func adapterConfig(cfg *gatewayconfig.Config, logger *slog.Logger) (adaptermcp.C
 	shapings := map[string]adaptermcp.Shaping{
 		"none": adaptermcp.ShapeNone, "annotate": adaptermcp.ShapeAnnotate, "hide": adaptermcp.ShapeHide,
 	}
-	tenant := cfg.Listener.PrincipalTenant
-	if tenant == "" {
-		tenant = cfg.TenantID
-	}
+	tenant := listenerTenant(cfg)
 	upstreams, err := upstreams(cfg)
 	if err != nil {
 		return adaptermcp.Config{}, err

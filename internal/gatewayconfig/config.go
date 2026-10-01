@@ -28,6 +28,7 @@ type Config struct {
 	PDP       PDPConfig
 	Approvals ApprovalsConfig
 	Pause     PauseConfig
+	Runs      RunsConfig
 	Flow      FlowConfig
 	Evidence  EvidenceConfig
 	Export    ExportConfig

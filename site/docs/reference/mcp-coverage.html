@@ -138,7 +138,7 @@ a child process over its standard input and output (<code>upstreams[].command</c
 </tr>
 <tr>
 <td>Resuming a hold the plane lost</td>
-<td>A hold does not survive a restart. A plane that keeps a hold journal closes that trail when it comes back, with the approver's answer and <code>APPROVAL_NOT_RESUMED</code>, or as expired where nobody answered, and the call is never run; one configured without a journal leaves it standing. The agent asks again and an approver answers again (ADR-0016)</td>
+<td>A hold does not survive a restart, and its call never runs. With a hold journal the next start closes its trail, with the approver's answer and <code>APPROVAL_NOT_RESUMED</code> or as expired, or counts it left open; without one it stays open. The agent and the approver start over (ADR-0016)</td>
 </tr>
 <tr>
 <td>Telling one approver from another</td>
@@ -154,7 +154,7 @@ a child process over its standard input and output (<code>upstreams[].command</c
 </tr>
 <tr>
 <td>What a run read outside the gateway</td>
-<td>A run is the listener's principal and starts clean at each restart; on stdio the gateway ends with its client's connection, so a run lasts one connection there. The user's prompt, tool descriptions and tools not behind the gateway are not tracked, and a call carries no data label, so a <code>flow</code> rule blocks every untrusted destination after untrusted input. A <code>resources/read</code> and a <code>prompts/get</code> carry no declared result, so each leaves its run untrusted and unknown for the rest of the run (ADR-0021)</td>
+<td>A run, without <code>runs.dir</code>, is the listener's principal and starts clean at each restart; on stdio the gateway ends with its client's connection, so a run lasts one connection there. The user's prompt, tool descriptions and tools not behind the gateway are not tracked, and a call carries no data label, so a <code>flow</code> rule blocks every untrusted destination after untrusted input. A <code>resources/read</code> and a <code>prompts/get</code> carry no declared result, so each leaves its run untrusted and unknown for the rest of the run (ADR-0021)</td>
 </tr>
 </tbody>
 </table>
@@ -285,7 +285,7 @@ point, the pipeline or this adapter, mints or answers on its own.</p>
 </tr>
 <tr>
 <td><code>EVIDENCE_UNAVAILABLE</code></td>
-<td>a record the decision depends on could not be written, kept or read back: the sink refused an event, a bound on held requests or open executions was reached, or the approval store or the hold journal could not answer, or answered with an approval that names another request, is not approved, or outlives the expiry the gateway minted</td>
+<td>a record the decision depends on could not be written, kept or read back: the sink refused an event, a bound on held requests or open executions was reached, or the approval store or the hold journal could not answer, or answered with an approval that names another request, is not approved, or outlives the expiry the gateway minted; or, under <code>runs.dir</code>, its run (<a href="/docs/reference/runs#what-a-plane-does-with-a-token">runs.md</a>)</td>
 </tr>
 <tr>
 <td><code>APPROVAL_PENDING</code>, <code>APPROVAL_EXPIRED</code>, <code>APPROVAL_REJECTED</code>, <code>APPROVAL_ALREADY_USED</code></td>
@@ -329,6 +329,7 @@ point, the pipeline or this adapter, mints or answers on its own.</p>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
 <li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
 <li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
@@ -359,6 +360,7 @@ point, the pipeline or this adapter, mints or answers on its own.</p>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>

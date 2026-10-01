@@ -300,7 +300,7 @@ func TestRunRefusesADecisionPointAndABundleThatDisagree(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			tr := c.tree(t)
 			var stdout, stderr bytes.Buffer
-			if status := serve(context.Background(), tr.config, &stdout, &stderr); status != exitFail {
+			if status := serve(context.Background(), tr.config, "", &stdout, &stderr); status != exitFail {
 				t.Fatalf("run answered %d; it must refuse to start", status)
 			}
 			for _, want := range c.wants {

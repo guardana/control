@@ -59,7 +59,7 @@ func TestRunStartsWithAPrintableLine(t *testing.T) {
 	defer cancel()
 	var stdout, stderr syncBuffer
 	done := make(chan int, 1)
-	go func() { done <- serve(ctx, tr.config, &stdout, &stderr) }()
+	go func() { done <- serve(ctx, tr.config, "", &stdout, &stderr) }()
 	line := waitFor(t, &stdout, ": mode OBSERVE, bundle ")
 	want := ": mode OBSERVE, bundle [key text withheld], evidence in " + strconv.Quote(evidence)
 	if !strings.HasSuffix(line, want) {

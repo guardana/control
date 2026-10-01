@@ -17,6 +17,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 
 ## Guides
 
+- [Keep two tasks apart](guides/keep-two-tasks-apart.md): Open a run per task in a runs directory, point a plane at it, and give each agent its token, so what one task took in never decides another's calls.
 - [Let a decision point veto calls](guides/let-a-decision-point-veto.md): Point the gateway at an AuthZEN decision point, write the two rules that let it veto a scope, test what each answer does, and check the plane before it serves.
 - [Read the evidence from a program](guides/read-the-evidence-from-a-program.md): Export a trail file in the versioned format, resume where the last export stopped, and rebuild each call's lifecycle without importing the project's internals.
 - [Run the gateway in a container](guides/run-in-a-container.md): Run the release image of the gateway with Docker, with its evidence on a volume and its port reachable from the host alone.
@@ -49,6 +50,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [Obligations](reference/obligations.md): The catalogue of obligation types a policy rule may name, and what the tree does with one.
 - [Policy document format](reference/policy-format.md): Every member of an agent-policy/v1alpha1 document, the values each admits, the bounds, and the members of a policy test case.
 - [Reason codes](reference/reason-codes.md): Every reason code a decision may carry, with its number and the verdict it usually accompanies.
+- [Runs](reference/runs.md): The runs directory, what runs open, close and list print and refuse, and what a plane with runs.dir does with a token.
 - [Scenario format](reference/scenario-format.md): Every member of an agent-scenario/v1alpha1 document, how scenario run holds a live plane to one, and what it exits with.
 - [action_envelope.proto](reference/wire/action_envelope.md): The messages and enums of action_envelope.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
 - [approval.proto](reference/wire/approval.md): The messages and enums of approval.proto as the compiled descriptor declares them, each field with its number, cardinality and type.

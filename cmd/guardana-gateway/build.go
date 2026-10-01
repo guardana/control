@@ -25,6 +25,7 @@ import (
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policykey"
+	"github.com/guardana/control/internal/runs"
 	"github.com/guardana/control/internal/spool"
 )
 
@@ -59,6 +60,10 @@ type plane struct {
 	// poller reads the operator's pause file, and is nil where none is
 	// configured: the pipeline is then handed the disabled source.
 	poller *pause.Poller
+	// runsDir is the runs directory a serving plane opened, nil where runs
+	// are local; runToken is a stdio plane's one token.
+	runsDir  *runs.Plane
+	runToken string
 	// listed is set once the upstreams answered and the manifest holds what
 	// they list, so a pause entry's tool can be judged against it.
 	listed  atomic.Bool
@@ -89,7 +94,7 @@ const (
 // build wires the plane from cfg. It connects no upstream and binds no
 // address: everything that can be refused is refused here, before anything
 // serves.
-func build(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time, r role) (*plane, error) {
+func build(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time, r role, tokenPath string) (*plane, error) {
 	holder, err := installedPolicy(cfg, now)
 	if err != nil {
 		return nil, err
@@ -101,7 +106,7 @@ func build(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time, r role
 	if p.spool, err = openSpool(cfg); err != nil {
 		return nil, err
 	}
-	if err := p.open(r); err != nil {
+	if err := p.open(r, tokenPath); err != nil {
 		return nil, errors.Join(err, p.close())
 	}
 	return p, nil
@@ -111,11 +116,19 @@ func build(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time, r role
 // seams over them. Nothing here reconciles anything, whatever the role: a
 // reconciliation writes evidence and resolves records, and `run` is the one
 // command that calls for it (ADR-0016).
-func (p *plane) open(r role) error {
+//
+// An inspecting plane opens no runs directory and serves local runs; doctor
+// examines the directory on its own.
+func (p *plane) open(r role, tokenPath string) error {
 	if r == roleInspect {
 		p.store = &gateway.MemoryApprovals{}
 		return p.wire()
 	}
+	dir, token, err := openRuns(p.cfg, tokenPath)
+	if err != nil {
+		return err
+	}
+	p.runsDir, p.runToken = dir, token
 	store, records, err := openApprovals(p.cfg)
 	if err != nil {
 		return err
@@ -135,6 +148,10 @@ func (p *plane) wire() error {
 	adapterConfig, err := adapterConfig(p.cfg, p.logger)
 	if err != nil {
 		return err
+	}
+	if p.runsDir != nil {
+		adapterConfig.Listener.Runs = runsDir{p.runsDir}
+		adapterConfig.Listener.RunToken = p.runToken
 	}
 	adapter, err := adaptermcp.New(adapterConfig)
 	if err != nil {
@@ -200,6 +217,9 @@ func (p *plane) pipelineConfig(adapter *adaptermcp.Adapter, mode controlv1.Enfor
 		MaxRuns:              p.cfg.Flow.MaxRuns,
 		AllowReadsUnrecorded: p.cfg.Evidence.OnUnwritable == "allow_reads",
 	}
+	if p.runsDir != nil {
+		c.Runs = runsDir{p.runsDir}
+	}
 	withDecisionPoint(&c, pdp, p.cfg.PDP.Timeout)
 	return c
 }
@@ -255,6 +275,9 @@ func (p *plane) close() error {
 	}
 	if p.records != nil {
 		errs = append(errs, p.records.Close())
+	}
+	if p.runsDir != nil {
+		errs = append(errs, p.runsDir.Close())
 	}
 	return errors.Join(errs...)
 }

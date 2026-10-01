@@ -29,8 +29,11 @@ type healthAnswer struct {
 	// Approvals is where a held request is kept, whether this plane keeps a
 	// durable record of its own holds, and what its reconciliation settled.
 	Approvals map[string]any `json:"approvals"`
-	Spool     map[string]any `json:"spool"`
-	Exporter  map[string]any `json:"exporter"`
+	// Runs says whether runs are local or opened by the operator, and what
+	// the listener refused and the pipeline could not read or raise.
+	Runs     map[string]any `json:"runs"`
+	Spool    map[string]any `json:"spool"`
+	Exporter map[string]any `json:"exporter"`
 	// Pause is the operator's pause state as a call admitted now would be
 	// decided under it.
 	Pause    pauseAnswer `json:"pause"`
@@ -150,6 +153,7 @@ func (p *plane) health(src gateway.PauseSource, clock func() time.Time) (healthA
 		},
 		Pipeline:  pipelineCounters(stats, p.adapter.Stats()),
 		Approvals: approvalCounters(p.cfg.Approvals.Provider, stats),
+		Runs:      runCounters(p.runsDir != nil, stats, p.adapter.Stats()),
 		Exporter:  exporterCounters(p.exporter.Stats()),
 	}
 	if snap := p.holder.Current(); snap != nil {
@@ -226,6 +230,21 @@ func pipelineCounters(s gateway.Stats, adapter adaptermcp.Stats) map[string]any 
 		"admitted": adapter.Admitted, "blocked": adapter.Blocked, "sent": adapter.Sent,
 		"close_failures": adapter.CloseFailures, "refresh_failures": adapter.RefreshFailures,
 		"asks": askCounters(s.Asks),
+	}
+}
+
+// runCounters says where the plane's runs come from. Local runs live in
+// memory, so a new process starts clean; opened runs are counted where the
+// listener refused a token, by cause, and where a root's state failed.
+func runCounters(opened bool, s gateway.Stats, adapter adaptermcp.Stats) map[string]any {
+	if !opened {
+		return map[string]any{"kind": "local", "kept": s.Runs}
+	}
+	return map[string]any{
+		"kind":               "opened",
+		"refused_at_request": adapter.RunsRefusedAtRequest,
+		"refused_at_message": adapter.RunsRefusedAtMessage,
+		"state_failures":     s.RunStateFailures,
 	}
 }
 

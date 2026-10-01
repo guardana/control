@@ -134,7 +134,7 @@ func (tr tree) load(t *testing.T) *gatewayconfig.Config {
 // connecting an upstream or binding an address.
 func (tr tree) plane(t *testing.T) *plane {
 	t.Helper()
-	p, err := build(tr.load(t), slog.New(slog.DiscardHandler), time.Now(), roleServe)
+	p, err := build(tr.load(t), slog.New(slog.DiscardHandler), time.Now(), roleServe, "")
 	if err != nil {
 		t.Fatalf("build refused a configuration this test builds as valid: %v", err)
 	}

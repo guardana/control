@@ -53,7 +53,7 @@ func TestHelperServesAPlane(t *testing.T) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if status := serve(ctx, path, os.Stdout, os.Stderr); status != exitOK {
+	if status := serve(ctx, path, "", os.Stdout, os.Stderr); status != exitOK {
 		t.Fatalf("the plane answered %d", status)
 	}
 }

@@ -103,7 +103,10 @@ func lead() string {
 		"provider needs `approvals.dir` and `approvals.hold_journal_dir`, and that journal\n" +
 		"directory may be neither the spool's nor the approvals directory, nor inside either;\n" +
 		"and `APPROVE` needs the `file` provider, since nothing outside the process answers a\n" +
-		"request held in memory. Every `pdp.` key is refused while `pdp.identifier` is empty,\n" +
+		"request held in memory. `runs.dir` may not be, hold or sit inside the spool, the\n" +
+		"approvals directory, the hold journal or the pause file's directory, needs a\n" +
+		"`listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a\n" +
+		"plane keeps in memory. Every `pdp.` key is refused while `pdp.identifier` is empty,\n" +
 		"since it would apply to no decision point, and the identifier is written into every\n" +
 		"decision that consulted the decision point, so a credential goes in `pdp.headers`,\n" +
 		"never in it. Directories are compared as paths and not as what they\n" +

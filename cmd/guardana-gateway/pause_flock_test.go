@@ -91,7 +91,7 @@ func TestABundleThatIsANamedPipeIsRefusedAtOnce(t *testing.T) {
 	done := make(chan string, 1)
 	go func() {
 		var stdout, stderr bytes.Buffer
-		serve(context.Background(), tr.config, &stdout, &stderr)
+		serve(context.Background(), tr.config, "", &stdout, &stderr)
 		done <- stderr.String()
 	}()
 	select {

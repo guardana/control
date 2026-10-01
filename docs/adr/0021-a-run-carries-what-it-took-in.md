@@ -9,10 +9,10 @@ Builds on [ADR-0011](0011-contract-corrections-before-publication.md),
 Amends [ADR-0013](0013-mcp-interception-approvals-and-modes.md) on what a retry
 has to equal to resume a held request.
 
-Amended by [ADR-0034](0034-a-run-the-operator-opens-has-an-identity-of-its-own.md),
-which is `planned`: it decides that a run the operator opens, with a token, has
-an identity and a durable state of its own, and that a plane without a runs
-directory keeps the runs this record defines.
+Amended by [ADR-0034](0034-a-run-the-operator-opens-has-an-identity-of-its-own.md):
+a run the operator opens, with a token, has an identity and a durable state of
+its own, and a plane without a runs directory keeps the runs this record
+defines.
 
 ## Context
 
@@ -178,10 +178,14 @@ short tags more.
   plane and the tools' own descriptions are not tracked: the state is a lower
   bound on what the model saw, and it means something only when every tool
   sits behind the plane.
-- One run per plane until a listener authenticates, and a restart ends it. On
-  stdio the plane ends with its client's connection, so there a run lasts one
-  connection, and a client that connects again starts a new plane and a clean
-  run.
+- Without a runs directory: one run per plane until a listener
+  authenticates, and a restart ends it. On stdio the plane ends with its
+  client's connection, so there a run lasts one connection, and a client that
+  connects again starts a new plane and a clean run.
+- With one (ADR-0034): a run is one the operator opened, and its root's state
+  outlives the process. Data two runs exchange outside a declared parent, such
+  as two siblings an orchestrator bridges, is not seen; and a run closed after
+  its call passed the listener still runs that call.
 - A resource read and a prompt carry no declared result: each makes its run
   untrusted and its reading unknown for the rest of the run, and no key says
   otherwise.

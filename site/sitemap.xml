@@ -52,6 +52,7 @@
   <url><loc>https://control.guardana.dev/docs/dependencies</loc></url>
   <url><loc>https://control.guardana.dev/docs/extending/adapters</loc></url>
   <url><loc>https://control.guardana.dev/docs/get-started/try-the-demo</loc></url>
+  <url><loc>https://control.guardana.dev/docs/guides/keep-two-tasks-apart</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/let-a-decision-point-veto</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/read-the-evidence-from-a-program</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/run-in-a-container</loc></url>
@@ -69,6 +70,7 @@
   <url><loc>https://control.guardana.dev/docs/reference/obligations</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/policy-format</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/reason-codes</loc></url>
+  <url><loc>https://control.guardana.dev/docs/reference/runs</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/scenario-format</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/wire/action_envelope</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/wire/approval</loc></url>

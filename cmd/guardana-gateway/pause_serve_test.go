@@ -72,7 +72,7 @@ func serveInProcess(t *testing.T, tr tree) (*sdk.ClientSession, *syncBuffer) {
 	ctx, stop := context.WithCancel(context.Background())
 	stdout, stderr := &syncBuffer{}, &syncBuffer{}
 	status := make(chan int, 1)
-	go func() { status <- serve(ctx, tr.config, stdout, stderr) }()
+	go func() { status <- serve(ctx, tr.config, "", stdout, stderr) }()
 	t.Cleanup(func() {
 		stop()
 		select {

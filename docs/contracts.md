@@ -2,7 +2,7 @@
 title: Wire contracts
 summary: What the v1 messages are versioned by, what a receiver refuses them for, and how the evidence events chain.
 type: spec
-covers: [api/proto/**, api/gen/go/**, pkg/contract/**, internal/canon/**, internal/evidence/chain.go, internal/evidence/version.go, internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, testdata/contracts/**, testdata/digest/**, testdata/export/**]
+covers: [api/proto/**, api/gen/go/**, pkg/contract/**, internal/canon/**, internal/evidence/chain.go, internal/evidence/version.go, internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, internal/runs/record.go, internal/runs/state.go, testdata/contracts/**, testdata/digest/**, testdata/export/**]
 stability: stable
 ---
 
@@ -844,14 +844,17 @@ the envelope that `ACTION_PROPOSED` carries, under the prefix `flow.v1.`:
 | `flow.v1.untrusted=true` or `=false` | whether the run took in anything untrusted before this call |
 | `flow.v1.max_read=<name>` | the highest sensitivity the run read, as a policy spells it (`PUBLIC` to `SECRET`), or `UNKNOWN` once it read something undeclared |
 | `flow.v1.state=uncomputed` | the call was decided with the state nobody computed, which leaves every flow rule undetermined |
+| `flow.v1.root=<run id>` | on a plane with a runs directory, the root run whose state the first two describe ([ADR-0034](adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md)) |
 
-A decision carries either the first two or the third. The prefix is the
+A decision carries the first two, the first two and the root under an opened
+run, or the third alone. The prefix is the
 gateway's own, and so is every tag whose ASCII-lowercased form starts with
 `flow.v`: an envelope whose producer sent one is refused in every mode, with
 `INVALID_FIELD_VALUE` unless a refusal it already carried names its own code.
 Its `ACTION_PROPOSED` records a copy without those tags, stamped
 `flow.v1.state=uncomputed`, so no producer can forge the record. The tags
-count against `MaxLabels` with the producer's own, and stay outside the digest
+count against `MaxLabels` with the producer's own, so under an opened run a
+producer has one tag fewer, and stay outside the digest
 and the binding like the rest of the run context.
 
 Expiry is not part of the binding. It is `Approval.expires_at`, with its own
@@ -884,8 +887,9 @@ Whether a sequence of events is one coherent account of one request.
 
 Events chain per `request_id`, within one project and one tenant. `run_id`
 groups requests and is not the chain. The gateway writes there the run it
-minted for the listener's principal and agent, never the envelope's own
-`context.run_id`. Eleven kinds are declared, plus
+minted for the listener's principal and agent, or, on a plane with a runs
+directory, the run the operator opened and the call's token named; never the
+envelope's own `context.run_id`. Eleven kinds are declared, plus
 `EVENT_KIND_UNSPECIFIED`.
 
 Nine of the eleven are the sequence. Each edge is one event kind, and each node
@@ -1180,3 +1184,38 @@ reports as unknown or open, never as completed. A request whose first record was
 refused does not appear at all, and a record that follows a trail's last event,
 such as a finding, leaves the trail complete: the export cannot show what the
 plane never delivered.
+
+## The runs directory
+
+What a run record and a root's state hold, for a program that reads them
+beside the evidence export: `Event.run_id` names a record, and the record names
+the root whose state a call was decided under. `experimental`, in
+`internal/runs/` ([ADR-0034](adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md)).
+Only `guardana-control runs` writes a record, and a plane writes only a root's
+state.
+
+Both files are one JSON object of `schema_version` major `1`. Every key is
+required, none has a default, a key given twice or one this build cannot name
+is refused, and another major is refused. Times are RFC 3339 in UTC. A file is
+always replaced whole, never edited in place.
+
+| `<id>.run.json` key | Meaning |
+| --- | --- |
+| `schema_version` | `1.0` |
+| `run_id` | `run-` and 32 lower-case hex digits; the file's own name |
+| `tenant_id`, `principal_type`, `principal_id`, `agent_id` | who the run is for; a token resolves only for this identity |
+| `root` | the run whose state this run shares: its own id, or its parent's root |
+| `parent` | the run it was opened under, or empty |
+| `opened_at`, `expires_at` | its lifetime, at least one minute and at most 720 hours |
+| `closed_at` | when the operator closed it, or empty while open |
+| `secret_sha256` | the hex SHA-256 of the token's secret; the secret itself is never stored |
+
+| `<root>.state.json` key | Meaning |
+| --- | --- |
+| `schema_version` | `1.0` |
+| `root` | the root run's id; the file's own name |
+| `untrusted` | whether any run sharing this root took in anything untrusted |
+| `max_read` | the highest sensitivity read, as a policy spells it, or `UNKNOWN` once anything undeclared was read |
+
+A state only rises: `untrusted` never goes back to `false`, and `max_read`
+never falls, `UNKNOWN` included.

@@ -28,10 +28,18 @@
 <h1 id="adr-0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034: A run the operator opens has an identity of its own</h1>
 <p>Status: accepted
 Date: 2026-09-30</p>
-<p>Amends <a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a> on what a run is.
-Builds on <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>,
+<p>Amends <a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a> on what a run is.</p>
+<p>Builds on <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>,
 <a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a> and
 <a href="/docs/adr/0023-a-local-page-answers-through-the-directory">ADR-0023</a>.</p>
+<p>Amended when it was built, three points the text below leaves open. A 401
+carries <code>WWW-Authenticate: Run-Token</code> and one body whatever the cause. An
+approval's binding names no run, so once an approval is consumed the same
+action from any run of that principal and agent is refused as already used;
+a retry from another run is held anew only while the first hold stands. A
+call's run is judged expired once more, by the plane's clock, right before
+the call is handed out; a run closed after its call passed the listener is
+not seen there, and that call runs.</p>
 <h2 id="context">Context</h2>
 <p>ADR-0021 keys a run by the listener and the principal and agent it resolves.
 With no authenticator, which is every listener in this build, that is one run
@@ -160,6 +168,7 @@ finding no run-record writer in the plane.</p>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
 <li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
 <li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
@@ -190,6 +199,7 @@ finding no run-record writer in the plane.</p>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>

@@ -1,9 +1,9 @@
 // Command line entry point for the product. Without arguments it answers with
 // the version and the status line; the `policy` commands (lint, test, keygen
-// and sign), the `approvals` commands, the `pause` commands and `console`, the
-// page that answers approvals and writes pauses, are the commands with
-// behaviour, and docs/guides/write-and-test-a-policy.md and
-// docs/reference/cli.md are their pages.
+// and sign), the `approvals` commands, the `pause` commands, the `runs`
+// commands and `console`, the page that answers approvals and writes pauses,
+// are the commands with behaviour, and docs/guides/write-and-test-a-policy.md
+// and docs/reference/cli.md are their pages.
 package main
 
 import (
@@ -24,7 +24,7 @@ import (
 // cannot back up.
 var version = "dev"
 
-const statusLine = "the policy, approvals, pause and console commands are implemented; the rest is in docs/status.md"
+const statusLine = "the policy, approvals, pause, runs and console commands are implemented; the rest is in docs/status.md"
 
 // Exit statuses. A usage error is neither a pass nor a refusal of the input,
 // so it has the third status the Go flag package uses for one.
@@ -109,6 +109,9 @@ var commands = []subcommand{
 	{"pause", "add", pauseAddForm, pauseAddFlagSet, pauseAddCommand},
 	{"pause", "remove", pauseRemoveForm, pauseRemoveFlagSet, pauseRemoveCommand},
 	{"pause", "list", "<file>", nil, pauseListCommand},
+	{"runs", "open", runsOpenForm, runsOpenFlagSet, runsOpenCommand},
+	{"runs", "close", runsCloseForm, runsCloseFlagSet, runsCloseCommand},
+	{"runs", "list", "<dir>", nil, runsListCommand},
 	{"console", "", consoleForm, consoleFlagSet, consoleCommand},
 }
 
@@ -122,7 +125,8 @@ func printVersion(stdout, stderr io.Writer) int {
 }
 
 // helpText is what usage prints: one line per listed command, then what an
-// operator has to know before answering an approval or pausing a call at all.
+// operator has to know before answering an approval, pausing a call or opening
+// a run at all.
 // docs/reference/cli.md holds the same text and a test diffs the two.
 func helpText() string {
 	var b strings.Builder
@@ -130,7 +134,7 @@ func helpText() string {
 	for _, c := range commands {
 		b.WriteString("  " + brand.CLI + " " + c.words() + " " + c.arguments + "\n")
 	}
-	b.WriteString("\n" + approvalAuthority + "\n" + pauseAuthority + "\n")
+	b.WriteString("\n" + approvalAuthority + "\n" + pauseAuthority + "\n" + runsAuthority + "\n")
 	return b.String()
 }
 

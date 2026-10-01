@@ -68,7 +68,7 @@ func TestRunRefusesEveryConfigurationASeamRefuses(t *testing.T) {
 			tr := newTree(t)
 			setEnv(t, c.env[0], c.env[1])
 			var stdout, stderr bytes.Buffer
-			if status := serve(context.Background(), tr.config, &stdout, &stderr); status != exitFail {
+			if status := serve(context.Background(), tr.config, "", &stdout, &stderr); status != exitFail {
 				t.Fatalf("run answered %d for %s; it must refuse to start", status, c.name)
 			}
 			if stdout.Len() != 0 {
@@ -92,7 +92,7 @@ func TestRunRefusesABundleThatIsNotOne(t *testing.T) {
 	}
 	setEnv(t, "policy.bundle_file", junk)
 	var stdout, stderr bytes.Buffer
-	if status := serve(context.Background(), tr.config, &stdout, &stderr); status != exitFail {
+	if status := serve(context.Background(), tr.config, "", &stdout, &stderr); status != exitFail {
 		t.Fatalf("run started on a file that is not a bundle (status %d)", status)
 	}
 	if !strings.Contains(stderr.String(), "policy.bundle_file") {
@@ -107,7 +107,7 @@ func TestBuildTakesTheSpoolDirectoryForItself(t *testing.T) {
 	tr := newTree(t)
 	tr.plane(t)
 	var stdout, stderr bytes.Buffer
-	if status := serve(context.Background(), tr.config, &stdout, &stderr); status != exitFail {
+	if status := serve(context.Background(), tr.config, "", &stdout, &stderr); status != exitFail {
 		t.Fatalf("a second plane started on the same spool directory (status %d)", status)
 	}
 	if !strings.Contains(stderr.String(), "evidence") {
@@ -122,7 +122,7 @@ func TestAFailedBuildLeavesNothingBehind(t *testing.T) {
 	tr := newTree(t)
 	setEnv(t, "approvals.max_held", "0")
 	var stdout, stderr bytes.Buffer
-	if status := serve(context.Background(), tr.config, &stdout, &stderr); status != exitFail {
+	if status := serve(context.Background(), tr.config, "", &stdout, &stderr); status != exitFail {
 		t.Fatalf("run started with no bound on held requests (status %d)", status)
 	}
 	os.Unsetenv(brand.Env(gatewayconfig.EnvName("approvals.max_held"))) //nolint:errcheck // the value is restored by t.Setenv either way
@@ -141,7 +141,7 @@ func TestRunServesAndStopsWithItsContext(t *testing.T) {
 	defer cancel()
 	var stdout, stderr syncBuffer
 	done := make(chan int, 1)
-	go func() { done <- serve(ctx, tr.config, &stdout, &stderr) }()
+	go func() { done <- serve(ctx, tr.config, "", &stdout, &stderr) }()
 
 	line := waitFor(t, &stdout, "answering /healthz, /metrics and /brand on ")
 	address := strings.TrimSpace(strings.TrimPrefix(line, "answering /healthz, /metrics and /brand on "))
@@ -177,7 +177,7 @@ func TestAPlaintextCollectorNeedsTheKey(t *testing.T) {
 	tr := newTree(t)
 	setEnv(t, "export.allow_plaintext", "false")
 	var stdout, stderr bytes.Buffer
-	if status := serve(context.Background(), tr.config, &stdout, &stderr); status != exitFail {
+	if status := serve(context.Background(), tr.config, "", &stdout, &stderr); status != exitFail {
 		t.Fatalf("a plaintext collector was accepted with no key (status %d)", status)
 	}
 	if !strings.Contains(stderr.String(), "plaintext") {

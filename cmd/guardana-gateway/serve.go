@@ -27,20 +27,26 @@ const readHeaderTimeout = 10 * time.Second
 // serve builds the plane and serves it until ctx ends. Nothing is bound and
 // nothing is connected until every seam is built: a configuration the pipeline,
 // the adapter or the spool refuses is printed and nothing starts.
-func serve(ctx context.Context, path string, stdout, stderr io.Writer) int {
+func serve(ctx context.Context, path, tokenPath string, stdout, stderr io.Writer) int {
 	cfg, err := gatewayconfig.Load(path, os.Environ())
 	if err != nil {
 		return fail(stderr, "run", err)
 	}
-	p, err := startPlane(ctx, cfg, stderr)
+	p, err := startPlane(ctx, cfg, stderr, tokenPath)
 	if err != nil {
 		return fail(stderr, "run", err)
 	}
 	defer p.closeReporting(stderr, "run")
-	writeLine(stdout, fmt.Sprintf("%s %s: mode %s, bundle %s, evidence in %s",
+	// A stdio listener speaks the protocol on standard output, so what the
+	// plane says about itself goes to standard error there.
+	report := stdout
+	if cfg.Listener.Kind == "stdio" {
+		report = stderr
+	}
+	writeLine(report, fmt.Sprintf("%s %s: mode %s, bundle %s, evidence in %s",
 		brand.Gateway, version, cfg.ModeName, oneLine(cfg.Policy.BundleID), oneLine(cfg.Resolve(cfg.Evidence.Dir))))
-	p.settle(ctx, stdout)
-	if err := p.run(ctx, stdout, listenTCP, 0); err != nil {
+	p.settle(ctx, report)
+	if err := p.run(ctx, report, listenTCP, 0); err != nil {
 		return fail(stderr, "run", err)
 	}
 	return exitOK
@@ -49,8 +55,8 @@ func serve(ctx context.Context, path string, stdout, stderr io.Writer) int {
 // startPlane builds the serving plane from cfg and connects its upstreams,
 // which is everything a plane does before it binds. A plane it cannot start
 // is released before the refusal returns.
-func startPlane(ctx context.Context, cfg *gatewayconfig.Config, stderr io.Writer) (*plane, error) {
-	p, err := build(cfg, newLogger(cfg.LogLevel, stderr), time.Now(), roleServe)
+func startPlane(ctx context.Context, cfg *gatewayconfig.Config, stderr io.Writer, tokenPath string) (*plane, error) {
+	p, err := build(cfg, newLogger(cfg.LogLevel, stderr), time.Now(), roleServe, tokenPath)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,104 @@
+---
+title: Runs
+summary: The runs directory, what runs open, close and list print and refuse, and what a plane with runs.dir does with a token.
+type: reference
+covers: [cmd/guardana-control/runs.go, internal/runs/**, cmd/guardana-gateway/runs.go, adapters/mcp/runs.go]
+---
+
+# Runs
+
+A run is one task of an agent, with its own flow state. Without `runs.dir` a
+plane keeps one run per principal and agent in memory (ADR-0021). With it,
+every call needs a run the operator opened in that directory, and a run's flow
+state is kept on disk
+([ADR-0034](../adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md)).
+It is `experimental`; [status.md](../status.md) is the inventory, and
+[contracts.md](../contracts.md#the-runs-directory) gives the file formats.
+
+## The directory
+
+The directory must be the operator's and writable by nobody else: one another
+user owns, a group- or world-writable one, one holding a link or a file that is
+not the directory's, and one changed since it was opened are refused. A link
+to it is followed; what it names is judged. `runs open` makes an empty
+directory a runs directory; a plane never does. Write access to it is the
+authority to open and to close a run, so keep it beside the approvals
+directory and back it up with it.
+
+A plane reads a record by its id and writes only a root run's state, under
+that root's own lock file, and takes no lock on the directory, so several
+planes may share one. The `guardana-gateway` binary holds no code that writes
+a record.
+
+## runs open
+
+```
+guardana-control runs open --tenant acme --principal-type service --principal agent-runner --agent orders-assistant --ttl 8h <dir>
+```
+
+Every flag but `--parent` is required. `--tenant`, `--principal-type`,
+`--principal` and `--agent` must be what the plane's listener resolves:
+`tenant_id` (or `listener.principal.tenant_id`), `listener.principal.type`,
+`listener.principal.id` and `listener.agent.id`. A token presented for any
+other identity is refused. `--ttl` is a duration from `1m` to `720h`, with no
+default.
+
+`--parent <run id>` opens the run under an open run of the same tenant. The
+two then share the parent's root and its flow state, because data moves
+between a parent and the runs it spawned in ways the plane does not see.
+Closing a parent closes none of its children.
+
+It prints four lines:
+
+```
+run_id: run-1fc2d3dc0e76763df08dbc2eb4cc6bdb
+root: run-1fc2d3dc0e76763df08dbc2eb4cc6bdb
+expires_at: 2026-10-01T20:20:27.423572Z
+token: run-1fc2d3dc0e76763df08dbc2eb4cc6bdb.<the secret, 43 characters>
+```
+
+The token is the run id, a dot and a secret. The directory keeps only the
+secret's SHA-256, so this is the token's one copy; a lost token leaves a run
+to close and another to open.
+
+## runs close and runs list
+
+`runs close <dir> <run-id>` prints `closed <run-id>`. A closed run, an unknown
+one and a malformed id each exit 1. A closed run's token is refused at the
+next request or message, and a call that passed the listener before the close
+still runs.
+
+`runs list <dir>` prints one run a line: its id, `open`, `closed` or `expired`
+by this machine's clock, then `root`, `tenant_id`, `principal_type`,
+`principal_id`, `agent_id`, `opened_at` and `expires_at`, each followed by its
+value. It prints no token and no hash. Past 1000 runs it stops, says so on
+stderr and exits 1.
+
+No command repeats a token, or a value given as a run id that is not one.
+
+## What a plane does with a token
+
+| Listener | Where the token comes from | A token that does not resolve |
+| --- | --- | --- |
+| `stateless_http`, `stateful_http` | the `Run-Token` header of every request, on every method | `401` with `WWW-Authenticate: Run-Token` and one body whatever the cause, before the protocol library reads the request |
+| `stdio` | `run --run-token-file <file>`, read once at start; the file must be this user's and readable by nobody else | refuses the start |
+
+Every message is judged again, so a run closed or expired while a session or a
+process serves it is refused with the JSON-RPC error `-31102`, and nothing is
+admitted. `_meta`, any other header and the envelope's `context.run_id` never
+select a run. Refusals are counted by cause, `missing`, `malformed`,
+`unknown`, `identity`, `closed`, `expired` and `unreadable`, in
+[metrics.md](metrics.md) and under `runs` on `/healthz`.
+
+A call reads its root's state once and is decided under it; what its result
+brings in is written to the root before `ACTION_STARTED`. A state the plane
+cannot read or write, or whose lock another holder keeps too long, blocks the
+call with `EVIDENCE_UNAVAILABLE` in every mode, `OBSERVE` included. A held call resumes only from the run it was held
+under. `ACTION_PROPOSED` names the root in the tag `flow.v1.root=`.
+
+A stateful HTTP session is bound to its principal and agent, not to a run:
+each call in it is judged under the token it presents, but a token of another
+run of the same principal and agent can read the session's stream or end it by
+its id.
+
+`dev` and `scenario run` serve local runs only; `dev` refuses `runs.dir`.

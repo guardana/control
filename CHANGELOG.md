@@ -11,6 +11,24 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- Runs an operator opens
+  ([ADR-0034](docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md)):
+  `guardana-control runs open`, `close` and `list` over a runs directory, and
+  `runs.dir` on the plane, under which every call needs a run token, in the
+  `Run-Token` header on HTTP or from `run --run-token-file` on stdio. Two
+  runs of one agent keep their flow state apart, a run opened under a parent
+  shares its root's state, the state survives a restart, and a held call
+  resumes only from its own run. A refused token is a 401 or the JSON-RPC
+  error `-31102`, counted by cause. A plane without `runs.dir` is unchanged.
+
+### Fixed
+
+- A plane with a stdio listener wrote its start lines, the mode and the lost
+  holds among them, to standard output, which is the agent's protocol stream,
+  so a client's first read failed; they now go to standard error.
+
 ## [0.3.0-alpha] - 2026-10-01
 
 A configuration must now name its enforcement mode: one that relied on the

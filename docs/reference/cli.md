@@ -73,26 +73,23 @@ on a platform without permission bits
 Write access to that directory is the approval authority. `--approver-id` is
 an unauthenticated claim: it is recorded beside the answer so that whoever
 reads the evidence later has a name, and nothing checks it against anything.
-Both answering commands require it, because an answer nobody claims tells a
-reader nothing; flags come before the directory and the approval id.
+Both answering commands require it; flags come before the directory and the approval id.
 
 `approvals list` prints, for each record, what the plane wrote — its state,
 its resolution and both digests — and beside it the readable fields of the
 projection the plane wrote at hold time. Those readable fields are not bound
-to the action digest beside them: the binding is over the authorized argument
-bytes, which no record holds, so a person reading a listing cannot check one
-against the other. The listing says so above the records. A listing the store
+to the action digest beside them, since the binding is over argument bytes no
+record holds; the listing says so above the records. A listing the store
 reports incomplete exits 1 and names what it could not read, because what it
 shows is then neither the whole directory nor an empty one.
 
 `approvals approve` and `approvals reject` write the answer whether or not a
-plane is running, and exit 0 either way, because the record is on disk and
-the next plane to start reads it. Where no plane holds the directory they say
+plane is running, and exit 0 either way: the record is on disk for the next
+plane to read. Where no plane holds the directory they say
 so on stderr: nothing waits for the answer and the held call will not run,
 since a hold does not survive the plane stopping; the answer is written all
 the same, and a plane that keeps a hold journal records it on that call's
-trail as too late to resume it. Writing nothing there would close that trail as one nobody answered,
-which is false about a person who did decide.
+trail as too late to resume it.
 
 Both commands refuse, writing nothing, an approval id that is not there, one
 an approver answered already, one the plane consumed, one the plane closed
@@ -107,17 +104,15 @@ refuses a name that is taken. `pause add` takes exactly one scope: `--global`,
 every call; `--provider <p>`, every call to that upstream by its configured
 name; or `--action <k>` with `--provider <p>`, where `<k>` is `tool`, `prompt`
 or `resource` and a tool also takes `--name <n>`, the name the plane routes
-by. A prompt or a resource takes no name, since the plane routes it by its
-upstream alone. `<f>` is the pause file, a relative path read from the working
+by. A prompt or a resource takes no name. `<f>` is the pause file, a relative path read from the working
 directory. It prints
 the id it drew for the entry and nothing else, and `pause remove <file> <id>`
 takes that id; removing the last entry leaves a file that pauses nothing,
 because a missing file blocks every call. `pause list` prints one line per
 entry, its reason included, or `no entries`.
 
-Write access to the pause file is the authority to pause and to lift a pause,
-as write access to the approvals directory is the authority to approve: any
-process running as the plane's user can empty the file, so run the commands
+Write access to the pause file is the authority to pause and to lift a pause:
+any process running as the plane's user can empty the file, so run the commands
 as that user. They refuse, writing nothing, a file or a directory the group or
 others may write or another account owns, a link, a file the plane would
 refuse to read, a second scope or none, a name, a reason or a scope the file
@@ -128,6 +123,9 @@ execution when the plane reads it, within one `pause.poll_interval`; it cancels
 nothing already running,
 and a hold outlives it: a held request whose retry was paused resumes after
 the lift if its approval has not expired.
+
+The `runs` commands open, close and list the runs a plane with `runs.dir`
+serves: [runs.md](runs.md).
 
 `console` serves a page that answers approvals and writes pauses:
 [console.md](console.md).
@@ -146,11 +144,16 @@ usage:
   guardana-control pause add --provider <p> [--action <k> [--name <n>]]|--global [--reason <r>] <f>
   guardana-control pause remove <file> <id>
   guardana-control pause list <file>
+  guardana-control runs open --tenant --principal-type --principal --agent --ttl [--parent] <dir>
+  guardana-control runs close <dir> <run-id>
+  guardana-control runs list <dir>
   guardana-control console --approvals <dir> [--pause <f>] --approver-id <id> [--until-stdin-closes]
 
 Write access to the approvals directory is the approval authority:
 --approver-id is a claim recorded as given, never an identity.
 Write access to the pause file is the authority to pause a call and to lift a pause.
+Write access to the runs directory is the authority to open and to close a run;
+a token acts as its run until it expires or is closed, and runs open prints it once.
 ```
 <!-- /generated -->
 
@@ -182,11 +185,13 @@ partial line that no running `collect` holds, and when it holds more than
 
 <!-- generated: go test ./cmd/guardana-gateway -run TestCLIPage -->
 ```
-usage: guardana-gateway [run --config <file> | doctor --config <file> | collect --listen <addr> --out <file> | trail [export [--after <cursor>] [--limit <n>] [--max-bytes <n>] [--request <id>]... [--run <id>]... [--tenant <id>]... [--project <id>]... [--kind <kind>]...] <file> | scenario run --config <file> --trail <file> [--control <file>] [--timeout <d>] <path>... | dev --config <file> --policy <file> [--decision-point=silent] [--state <dir>] [--scenario <file>]...]
+usage: guardana-gateway [run --config <file> [--run-token-file <file>] | doctor --config <file> | collect --listen <addr> --out <file> | trail [export [--after <cursor>] [--limit <n>] [--max-bytes <n>] [--request <id>]... [--run <id>]... [--tenant <id>]... [--project <id>]... [--kind <kind>]...] <file> | scenario run --config <file> --trail <file> [--control <file>] [--timeout <d>] <path>... | dev --config <file> --policy <file> [--decision-point=silent] [--state <dir>] [--scenario <file>]...]
 
 run
   -config string
     	the configuration file to read
+  -run-token-file string
+    	a stdio plane with runs.dir: the file holding the token of the one run it serves
 
 doctor
   -config string

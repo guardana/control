@@ -427,7 +427,7 @@ func TestRunClosesTheHoldsItLostAndPrunesAfterwards(t *testing.T) {
 	defer cancel()
 	var stdout, stderr syncBuffer
 	done := make(chan int, 1)
-	go func() { done <- serve(ctx, tr.config, &stdout, &stderr) }()
+	go func() { done <- serve(ctx, tr.config, "", &stdout, &stderr) }()
 	line := waitFor(t, &stdout, "lost holds:")
 	if !strings.Contains(line, "1 closed") || !strings.Contains(line, "the pass read every entry") {
 		t.Errorf("the reconciliation reported %q", line)

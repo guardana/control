@@ -20,7 +20,10 @@ under the `interval` policy and refused under `every_record`; the `file` approva
 provider needs `approvals.dir` and `approvals.hold_journal_dir`, and that journal
 directory may be neither the spool's nor the approvals directory, nor inside either;
 and `APPROVE` needs the `file` provider, since nothing outside the process answers a
-request held in memory. Every `pdp.` key is refused while `pdp.identifier` is empty,
+request held in memory. `runs.dir` may not be, hold or sit inside the spool, the
+approvals directory, the hold journal or the pause file's directory, needs a
+`listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a
+plane keeps in memory. Every `pdp.` key is refused while `pdp.identifier` is empty,
 since it would apply to no decision point, and the identifier is written into every
 decision that consulted the decision point, so a credential goes in `pdp.headers`,
 never in it. Directories are compared as paths and not as what they
@@ -71,6 +74,7 @@ Rendered from the field table in `internal/gatewayconfig`. Rebuild it with
 | `approvals.reconcile_max` | `GUARDANA_CONTROL_APPROVALS_RECONCILE_MAX` | integer | `256` | no |  |
 | `pause.file` | `GUARDANA_CONTROL_PAUSE_FILE` | string |  | no |  |
 | `pause.poll_interval` | `GUARDANA_CONTROL_PAUSE_POLL_INTERVAL` | duration | `1s` | no |  |
+| `runs.dir` | `GUARDANA_CONTROL_RUNS_DIR` | string |  | no |  |
 | `flow.max_runs` | `GUARDANA_CONTROL_FLOW_MAX_RUNS` | integer | `64` | no |  |
 | `evidence.dir` | `GUARDANA_CONTROL_EVIDENCE_DIR` | string |  | yes |  |
 | `evidence.max_bytes` | `GUARDANA_CONTROL_EVIDENCE_MAX_BYTES` | bytes, plain or with KiB, MiB, GiB | `1GiB` | no |  |

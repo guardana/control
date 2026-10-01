@@ -4,9 +4,19 @@ Status: accepted
 Date: 2026-09-30
 
 Amends [ADR-0021](0021-a-run-carries-what-it-took-in.md) on what a run is.
+
 Builds on [ADR-0013](0013-mcp-interception-approvals-and-modes.md),
 [ADR-0018](0018-keys-and-bundles-on-disk.md) and
 [ADR-0023](0023-a-local-page-answers-through-the-directory.md).
+
+Amended when it was built, three points the text below leaves open. A 401
+carries `WWW-Authenticate: Run-Token` and one body whatever the cause. An
+approval's binding names no run, so once an approval is consumed the same
+action from any run of that principal and agent is refused as already used;
+a retry from another run is held anew only while the first hold stands. A
+call's run is judged expired once more, by the plane's clock, right before
+the call is handed out; a run closed after its call passed the listener is
+not seen there, and that call runs.
 
 ## Context
 

@@ -149,6 +149,12 @@ split it, so a client that connects again over HTTP keeps the run it had. On
 stdio the gateway ends with its client's connection, so there a run lasts one
 connection. A restart ends every run, and a run starts clean.
 
+With `runs.dir`, a run is one the operator opened instead
+([ADR-0034](../adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md)):
+every call presents its token, two tasks of one agent are two runs, and the
+state belongs to the root run, on disk, so a restart or a new stdio process
+keeps it ([guides/keep-two-tasks-apart.md](../guides/keep-two-tasks-apart.md)).
+
 Each call counts once it is handed to execution, before its result can reach
 the model. What its result contains is the operator's declaration on the tool:
 `returns.trust`, untrusted when absent, and `returns.sensitivity`, unknown when

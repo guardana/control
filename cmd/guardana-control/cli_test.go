@@ -127,7 +127,12 @@ var ownRefusal = map[string]func(missing string) []string{
 	"pause add":         func(m string) []string { return []string{"--global", m} },
 	"pause remove":      func(m string) []string { return []string{m, "P1"} },
 	"pause list":        func(m string) []string { return []string{m} },
-	"console":           func(m string) []string { return []string{"--approvals", m, "--approver-id", "someone"} },
+	"runs open": func(m string) []string {
+		return append(openFlags(who, "1h"), m)
+	},
+	"runs close": func(m string) []string { return []string{m, "run-" + strings.Repeat("0", 32)} },
+	"runs list":  func(m string) []string { return []string{m} },
+	"console":    func(m string) []string { return []string{"--approvals", m, "--approver-id", "someone"} },
 }
 
 // TestEveryListedCommandDispatches: the list the help prints is the list run
@@ -180,7 +185,7 @@ func unlistedInvocations(missing string) [][]string {
 			out = append(out, []string{c.group, c.name}, []string{c.group, c.name, missing, missing})
 		}
 	}
-	return append(out, []string{"explain"}, []string{"policy"}, []string{"approvals"}, []string{"pause"})
+	return append(out, []string{"explain"}, []string{"policy"}, []string{"approvals"}, []string{"pause"}, []string{"runs"})
 }
 
 // TestHelpNamesEveryCommand: the help opens with one line per listed command,
@@ -209,6 +214,7 @@ func TestHelpNamesEveryCommand(t *testing.T) {
 	for _, authority := range []string{
 		"Write access to the approvals directory is the approval authority",
 		"Write access to the pause file is the authority to pause a call and to lift a pause.",
+		"Write access to the runs directory is the authority to open and to close a run",
 	} {
 		if !strings.Contains(helpText(), authority) {
 			t.Errorf("the help does not say %q", authority)

@@ -37,6 +37,7 @@ ok      configuration <tree>/doctor.yaml parses, 19 key(s) set, the rest at thei
        approvals.reconcile_max      256                      (default)
        pause.file                                            (default)
        pause.poll_interval          1s                       (default)
+       runs.dir                                              (default)
        flow.max_runs                64                       (default)
        evidence.dir                 spool                    (<tree>/doctor.yaml:26)
        evidence.max_bytes           1073741824               (default)
@@ -64,6 +65,7 @@ ok      policy        bundle gateway-fixture version 2026-09-20.1 serial 1 verif
 ok      evidence      <tree>/spool locks and is writable; 0 segment(s), 0 byte(s) unacknowledged, 0 reserved, 0 quarantined; on_unwritable block
 ok      approvals     held requests are kept in process memory under the memory provider: nothing outside this process answers one, and a hold lost to a restart is never closed
 ok      pause         disabled: pause.file is not set, so no call can be paused without a restart
+ok      runs          local: one run per principal and agent, kept in memory, so a new process starts clean (ADR-0021)
 ok      export        OTLP/HTTP JSON logs to http://127.0.0.1:4318/v1/logs, 0 header(s), at most 128 record(s) per request, 4 in flight
 ok      seams         the mcp adapter declares observe_request, observe_result, block, see_resource_ids, which covers what OBSERVE needs; at most 128 held and 256 open, an approval lasts 15m0s and a retry is asked for after 30s
 unknown upstreams     not every upstream answered: <reason>

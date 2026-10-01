@@ -87,6 +87,16 @@ func configured(command func(ctx context.Context, path string, stdout, stderr io
 	}
 }
 
+// declareRun is run's flags: the configuration, as for every configured
+// command, and the token file a stdio plane with a runs directory serves its
+// one run under.
+func declareRun(flags *flag.FlagSet) commandFunc {
+	tokenPath := flags.String("run-token-file", "", "a stdio plane with runs.dir: the file holding the token of the one run it serves")
+	return configured(func(ctx context.Context, path string, stdout, stderr io.Writer) int {
+		return serve(ctx, path, *tokenPath, stdout, stderr)
+	})(flags)
+}
+
 func printVersion(stdout, stderr io.Writer) int {
 	if _, err := fmt.Fprintf(stdout, "%s %s (%s)\n%s\n", brand.Gateway, version, brand.Name, statusLine); err != nil {
 		// A failed write to stdout is reported on stderr and by the exit
@@ -118,7 +128,7 @@ type commandFunc func(ctx context.Context, args []string, stdout, stderr io.Writ
 // commands is the one listing: the usage line, the help and the dispatch are
 // all rendered from it, in this order.
 var commands = []subcommand{
-	{"run", "--config <file>", configured(serve)},
+	{"run", "--config <file> [--run-token-file <file>]", declareRun},
 	{"doctor", "--config <file>", configured(doctor)},
 	{"collect", "--listen <addr> --out <file>", declareCollect},
 	{"trail", trailForm, declareTrail},

@@ -100,24 +100,21 @@ on a platform without permission bits
 <p>Write access to that directory is the approval authority. <code>--approver-id</code> is
 an unauthenticated claim: it is recorded beside the answer so that whoever
 reads the evidence later has a name, and nothing checks it against anything.
-Both answering commands require it, because an answer nobody claims tells a
-reader nothing; flags come before the directory and the approval id.</p>
+Both answering commands require it; flags come before the directory and the approval id.</p>
 <p><code>approvals list</code> prints, for each record, what the plane wrote — its state,
 its resolution and both digests — and beside it the readable fields of the
 projection the plane wrote at hold time. Those readable fields are not bound
-to the action digest beside them: the binding is over the authorized argument
-bytes, which no record holds, so a person reading a listing cannot check one
-against the other. The listing says so above the records. A listing the store
+to the action digest beside them, since the binding is over argument bytes no
+record holds; the listing says so above the records. A listing the store
 reports incomplete exits 1 and names what it could not read, because what it
 shows is then neither the whole directory nor an empty one.</p>
 <p><code>approvals approve</code> and <code>approvals reject</code> write the answer whether or not a
-plane is running, and exit 0 either way, because the record is on disk and
-the next plane to start reads it. Where no plane holds the directory they say
+plane is running, and exit 0 either way: the record is on disk for the next
+plane to read. Where no plane holds the directory they say
 so on stderr: nothing waits for the answer and the held call will not run,
 since a hold does not survive the plane stopping; the answer is written all
 the same, and a plane that keeps a hold journal records it on that call's
-trail as too late to resume it. Writing nothing there would close that trail as one nobody answered,
-which is false about a person who did decide.</p>
+trail as too late to resume it.</p>
 <p>Both commands refuse, writing nothing, an approval id that is not there, one
 an approver answered already, one the plane consumed, one the plane closed
 without resuming, one past its expiry, and an approver id or a reason over
@@ -130,16 +127,14 @@ refuses a name that is taken. <code>pause add</code> takes exactly one scope: <c
 every call; <code>--provider &lt;p&gt;</code>, every call to that upstream by its configured
 name; or <code>--action &lt;k&gt;</code> with <code>--provider &lt;p&gt;</code>, where <code>&lt;k&gt;</code> is <code>tool</code>, <code>prompt</code>
 or <code>resource</code> and a tool also takes <code>--name &lt;n&gt;</code>, the name the plane routes
-by. A prompt or a resource takes no name, since the plane routes it by its
-upstream alone. <code>&lt;f&gt;</code> is the pause file, a relative path read from the working
+by. A prompt or a resource takes no name. <code>&lt;f&gt;</code> is the pause file, a relative path read from the working
 directory. It prints
 the id it drew for the entry and nothing else, and <code>pause remove &lt;file&gt; &lt;id&gt;</code>
 takes that id; removing the last entry leaves a file that pauses nothing,
 because a missing file blocks every call. <code>pause list</code> prints one line per
 entry, its reason included, or <code>no entries</code>.</p>
-<p>Write access to the pause file is the authority to pause and to lift a pause,
-as write access to the approvals directory is the authority to approve: any
-process running as the plane's user can empty the file, so run the commands
+<p>Write access to the pause file is the authority to pause and to lift a pause:
+any process running as the plane's user can empty the file, so run the commands
 as that user. They refuse, writing nothing, a file or a directory the group or
 others may write or another account owns, a link, a file the plane would
 refuse to read, a second scope or none, a name, a reason or a scope the file
@@ -150,6 +145,8 @@ execution when the plane reads it, within one <code>pause.poll_interval</code>; 
 nothing already running,
 and a hold outlives it: a held request whose retry was paused resumes after
 the lift if its approval has not expired.</p>
+<p>The <code>runs</code> commands open, close and list the runs a plane with <code>runs.dir</code>
+serves: <a href="/docs/reference/runs">runs.md</a>.</p>
 <p><code>console</code> serves a page that answers approvals and writes pauses:
 <a href="/docs/reference/console">console.md</a>.</p>
 <pre><code>usage:
@@ -164,11 +161,16 @@ the lift if its approval has not expired.</p>
   guardana-control pause add --provider &lt;p&gt; [--action &lt;k&gt; [--name &lt;n&gt;]]|--global [--reason &lt;r&gt;] &lt;f&gt;
   guardana-control pause remove &lt;file&gt; &lt;id&gt;
   guardana-control pause list &lt;file&gt;
+  guardana-control runs open --tenant --principal-type --principal --agent --ttl [--parent] &lt;dir&gt;
+  guardana-control runs close &lt;dir&gt; &lt;run-id&gt;
+  guardana-control runs list &lt;dir&gt;
   guardana-control console --approvals &lt;dir&gt; [--pause &lt;f&gt;] --approver-id &lt;id&gt; [--until-stdin-closes]
 
 Write access to the approvals directory is the approval authority:
 --approver-id is a claim recorded as given, never an identity.
 Write access to the pause file is the authority to pause a call and to lift a pause.
+Write access to the runs directory is the authority to open and to close a run;
+a token acts as its run until it expires or is closed, and runs open prints it once.
 </code></pre>
 <h2 id="guardana-gateway">guardana-gateway</h2>
 <p><code>run</code> serves one plane from a configuration file and <code>doctor</code> checks that
@@ -191,11 +193,13 @@ partial line that no running <code>collect</code> holds, and when it holds more 
 (<a href="/docs/reference/scenario-format">scenario-format.md</a>); it exits 1 when one differed, and
 2, a failure too, when one could not run.</p>
 <p><code>dev</code>: <a href="/docs/reference/dev">dev.md</a>.</p>
-<pre><code>usage: guardana-gateway [run --config &lt;file&gt; | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --out &lt;file&gt; | trail [export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] [--request &lt;id&gt;]... [--run &lt;id&gt;]... [--tenant &lt;id&gt;]... [--project &lt;id&gt;]... [--kind &lt;kind&gt;]...] &lt;file&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--decision-point=silent] [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
+<pre><code>usage: guardana-gateway [run --config &lt;file&gt; [--run-token-file &lt;file&gt;] | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --out &lt;file&gt; | trail [export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] [--request &lt;id&gt;]... [--run &lt;id&gt;]... [--tenant &lt;id&gt;]... [--project &lt;id&gt;]... [--kind &lt;kind&gt;]...] &lt;file&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--decision-point=silent] [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
 
 run
   -config string
     	the configuration file to read
+  -run-token-file string
+    	a stdio plane with runs.dir: the file holding the token of the one run it serves
 
 doctor
   -config string
@@ -255,6 +259,7 @@ dev
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
 <li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
 <li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
@@ -285,6 +290,7 @@ dev
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>

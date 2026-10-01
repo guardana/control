@@ -176,7 +176,7 @@ func TestAStartIsRefusedOnEveryUnknownCause(t *testing.T) {
 			path := tr.withPauseFile(t, pauseClear, time.Second)
 			c.apply(t, path)
 			var stdout, stderr bytes.Buffer
-			if status := serve(context.Background(), tr.config, &stdout, &stderr); status != exitFail {
+			if status := serve(context.Background(), tr.config, "", &stdout, &stderr); status != exitFail {
 				t.Fatalf("run answered %d on a pause file that is %s", status, c.name)
 			}
 			if stdout.Len() != 0 {

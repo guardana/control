@@ -983,15 +983,21 @@ the envelope that <code>ACTION_PROPOSED</code> carries, under the prefix <code>f
 <td><code>flow.v1.state=uncomputed</code></td>
 <td>the call was decided with the state nobody computed, which leaves every flow rule undetermined</td>
 </tr>
+<tr>
+<td><code>flow.v1.root=&lt;run id&gt;</code></td>
+<td>on a plane with a runs directory, the root run whose state the first two describe (<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>)</td>
+</tr>
 </tbody>
 </table>
-<p>A decision carries either the first two or the third. The prefix is the
+<p>A decision carries the first two, the first two and the root under an opened
+run, or the third alone. The prefix is the
 gateway's own, and so is every tag whose ASCII-lowercased form starts with
 <code>flow.v</code>: an envelope whose producer sent one is refused in every mode, with
 <code>INVALID_FIELD_VALUE</code> unless a refusal it already carried names its own code.
 Its <code>ACTION_PROPOSED</code> records a copy without those tags, stamped
 <code>flow.v1.state=uncomputed</code>, so no producer can forge the record. The tags
-count against <code>MaxLabels</code> with the producer's own, and stay outside the digest
+count against <code>MaxLabels</code> with the producer's own, so under an opened run a
+producer has one tag fewer, and stay outside the digest
 and the binding like the rest of the run context.</p>
 <p>Expiry is not part of the binding. It is <code>Approval.expires_at</code>, with its own
 semantics, and it is what makes invariant 6 in <a href="https://github.com/guardana/control/blob/main/AGENTS.md">AGENTS.md</a> hold in
@@ -1019,8 +1025,9 @@ is not an approval, or outlives the expiry the gateway minted.</p>
 <p>Whether a sequence of events is one coherent account of one request.</p>
 <p>Events chain per <code>request_id</code>, within one project and one tenant. <code>run_id</code>
 groups requests and is not the chain. The gateway writes there the run it
-minted for the listener's principal and agent, never the envelope's own
-<code>context.run_id</code>. Eleven kinds are declared, plus
+minted for the listener's principal and agent, or, on a plane with a runs
+directory, the run the operator opened and the call's token named; never the
+envelope's own <code>context.run_id</code>. Eleven kinds are declared, plus
 <code>EVENT_KIND_UNSPECIFIED</code>.</p>
 <p>Nine of the eleven are the sequence. Each edge is one event kind, and each node
 is where the request has got to:</p>
@@ -1348,6 +1355,87 @@ reports as unknown or open, never as completed. A request whose first record was
 refused does not appear at all, and a record that follows a trail's last event,
 such as a finding, leaves the trail complete: the export cannot show what the
 plane never delivered.</p>
+<h2 id="the-runs-directory">The runs directory</h2>
+<p>What a run record and a root's state hold, for a program that reads them
+beside the evidence export: <code>Event.run_id</code> names a record, and the record names
+the root whose state a call was decided under. <code>experimental</code>, in
+<code>internal/runs/</code> (<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>).
+Only <code>guardana-control runs</code> writes a record, and a plane writes only a root's
+state.</p>
+<p>Both files are one JSON object of <code>schema_version</code> major <code>1</code>. Every key is
+required, none has a default, a key given twice or one this build cannot name
+is refused, and another major is refused. Times are RFC 3339 in UTC. A file is
+always replaced whole, never edited in place.</p>
+<table>
+<thead>
+<tr>
+<th><code>&lt;id&gt;.run.json</code> key</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schema_version</code></td>
+<td><code>1.0</code></td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td><code>run-</code> and 32 lower-case hex digits; the file's own name</td>
+</tr>
+<tr>
+<td><code>tenant_id</code>, <code>principal_type</code>, <code>principal_id</code>, <code>agent_id</code></td>
+<td>who the run is for; a token resolves only for this identity</td>
+</tr>
+<tr>
+<td><code>root</code></td>
+<td>the run whose state this run shares: its own id, or its parent's root</td>
+</tr>
+<tr>
+<td><code>parent</code></td>
+<td>the run it was opened under, or empty</td>
+</tr>
+<tr>
+<td><code>opened_at</code>, <code>expires_at</code></td>
+<td>its lifetime, at least one minute and at most 720 hours</td>
+</tr>
+<tr>
+<td><code>closed_at</code></td>
+<td>when the operator closed it, or empty while open</td>
+</tr>
+<tr>
+<td><code>secret_sha256</code></td>
+<td>the hex SHA-256 of the token's secret; the secret itself is never stored</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th><code>&lt;root&gt;.state.json</code> key</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schema_version</code></td>
+<td><code>1.0</code></td>
+</tr>
+<tr>
+<td><code>root</code></td>
+<td>the root run's id; the file's own name</td>
+</tr>
+<tr>
+<td><code>untrusted</code></td>
+<td>whether any run sharing this root took in anything untrusted</td>
+</tr>
+<tr>
+<td><code>max_read</code></td>
+<td>the highest sensitivity read, as a policy spells it, or <code>UNKNOWN</code> once anything undeclared was read</td>
+</tr>
+</tbody>
+</table>
+<p>A state only rises: <code>untrusted</code> never goes back to <code>false</code>, and <code>max_read</code>
+never falls, <code>UNKNOWN</code> included.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/contracts.md">docs/contracts.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
 <nav class="side" aria-label="Documentation">
@@ -1356,6 +1444,7 @@ plane never delivered.</p>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
 <li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
 <li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
@@ -1386,6 +1475,7 @@ plane never delivered.</p>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>

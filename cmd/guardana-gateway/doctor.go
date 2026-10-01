@@ -46,7 +46,7 @@ func doctor(ctx context.Context, path string, stdout, stderr io.Writer) int {
 	d := &examination{cfg: cfg, out: stdout}
 	defer d.close()
 	for _, check := range []func(context.Context) (string, string, string){
-		d.mode, d.policy, d.evidence, d.approvals, d.pauseFile, d.export, d.seams, d.upstreams, d.pdp,
+		d.mode, d.policy, d.evidence, d.approvals, d.pauseFile, d.runs, d.export, d.seams, d.upstreams, d.pdp,
 	} {
 		verdict, name, found := check(ctx)
 		report(stdout, verdict, name, found)
@@ -315,7 +315,7 @@ func (d *examination) export(context.Context) (string, string, string) {
 // created. It is where the pipeline's own refusals are made, the adapter's
 // declared capabilities against the mode among them.
 func (d *examination) seams(context.Context) (string, string, string) {
-	p, err := build(d.cfg, slog.New(slog.DiscardHandler), time.Now(), roleInspect)
+	p, err := build(d.cfg, slog.New(slog.DiscardHandler), time.Now(), roleInspect, "")
 	if err != nil {
 		return verdictFail, "seams", err.Error()
 	}

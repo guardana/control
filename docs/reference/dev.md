@@ -35,8 +35,9 @@ Before it creates or binds anything, dev refuses, with status 1:
 - a configuration that sets a key dev owns: `listener.address`,
   `health.address`, `policy.bundle_file`, `policy.key_id`,
   `policy.public_key`, `pause.file`, `evidence.dir`, `export.endpoint`,
-  `export.allow_plaintext` and every `approvals` key, and with
-  `--decision-point=silent` every `pdp` key;
+  `export.allow_plaintext`, every `approvals` key and every `runs` key, since
+  dev serves local runs only, and with `--decision-point=silent` every `pdp`
+  key;
 - a `stdio` listener, and any address that is not an IP literal on the
   loopback, a host name included: its own listeners and collector, every
   `upstreams[].endpoint`, and `pdp.identifier`, `pdp.evaluation_endpoint`

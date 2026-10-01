@@ -147,8 +147,8 @@ and what a torn write discarded), `exporter` (acknowledged, quarantined, refused
 and the retries by class) and `pipeline` (blocks by reason code, pending,
 executed, sink failures before and after an effect, unrecorded reads,
 mismatches, open and held) and `approvals` (the provider, whether a hold
-journal is kept, and what the last reconciliation closed and could not settle)
-and `pause`. A plane that takes no material call, or whose pause state is
+journal is kept, and what the last reconciliation closed and could not settle),
+`pause` and `runs` (local or opened, and refusals). A plane that takes no material call, or whose pause state is
 unknown, answers `503`. `GET /brand` answers the product's name.
 
 ### 6. Move to ENFORCE

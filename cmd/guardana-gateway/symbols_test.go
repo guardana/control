@@ -12,7 +12,8 @@ import (
 )
 
 // The symbols the gateway's built binary must not hold, and those it must.
-// It keeps no code that answers an approval, writes the pause file or reads,
+// It keeps no code that answers an approval, opens or closes a run, writes
+// the pause file or reads,
 // parses or writes a private key: those are the approver's, run as another
 // binary. It signs a bundle in memory for dev, so the signer is there. A name matches a symbol that is
 // the name or starts with it and a dot, so a type's name covers its methods
@@ -20,6 +21,12 @@ import (
 var (
 	gatewayRefuses = []string{
 		brand.ModulePath + "/internal/approvals.(*Approver)",
+		// Opening, closing and listing a run, and the record encoder with
+		// them, are the operator's (ADR-0034).
+		brand.ModulePath + "/internal/runs.(*Admin)",
+		brand.ModulePath + "/internal/runs.OpenAdmin",
+		brand.ModulePath + "/internal/runs.(*dir).writeMarker",
+		brand.ModulePath + "/internal/runs.(*dir).lockDir",
 		brand.ModulePath + "/internal/pause.Init",
 		brand.ModulePath + "/internal/pause.Add",
 		brand.ModulePath + "/internal/pause.Remove",
@@ -32,6 +39,7 @@ var (
 	}
 	gatewayHolds = []string{
 		brand.ModulePath + "/internal/approvals.(*Plane)",
+		brand.ModulePath + "/internal/runs.(*Plane)",
 		brand.ModulePath + "/internal/policykey.SignBundle",
 	}
 	// The standard library's private-key parsers, under the names a program

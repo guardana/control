@@ -43,9 +43,9 @@ var silentSet = []string{
 // ownedPrefixes is what dev owns beyond the keys the layer sets.
 func (l devLayer) ownedPrefixes() []string {
 	if _, silent := l["pdp.identifier"]; silent {
-		return []string{"approvals.", "pdp."}
+		return []string{"approvals.", "runs.", "pdp."}
 	}
-	return []string{"approvals."}
+	return []string{"approvals.", "runs."}
 }
 
 // refuseEnvironment names the first variable under the product's prefix. Dev

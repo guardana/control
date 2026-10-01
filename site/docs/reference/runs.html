@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Runs · Guardana Control</title>
+<meta name="description" content="The runs directory, what runs open, close and list print and refuse, and what a plane with runs.dir does with a token."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/runs"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="runs">Runs</h1>
+<p>A run is one task of an agent, with its own flow state. Without <code>runs.dir</code> a
+plane keeps one run per principal and agent in memory (ADR-0021). With it,
+every call needs a run the operator opened in that directory, and a run's flow
+state is kept on disk
+(<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>).
+It is <code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory, and
+<a href="/docs/contracts#the-runs-directory">contracts.md</a> gives the file formats.</p>
+<h2 id="the-directory">The directory</h2>
+<p>The directory must be the operator's and writable by nobody else: one another
+user owns, a group- or world-writable one, one holding a link or a file that is
+not the directory's, and one changed since it was opened are refused. A link
+to it is followed; what it names is judged. <code>runs open</code> makes an empty
+directory a runs directory; a plane never does. Write access to it is the
+authority to open and to close a run, so keep it beside the approvals
+directory and back it up with it.</p>
+<p>A plane reads a record by its id and writes only a root run's state, under
+that root's own lock file, and takes no lock on the directory, so several
+planes may share one. The <code>guardana-gateway</code> binary holds no code that writes
+a record.</p>
+<h2 id="runs-open">runs open</h2>
+<pre><code>guardana-control runs open --tenant acme --principal-type service --principal agent-runner --agent orders-assistant --ttl 8h &lt;dir&gt;
+</code></pre>
+<p>Every flag but <code>--parent</code> is required. <code>--tenant</code>, <code>--principal-type</code>,
+<code>--principal</code> and <code>--agent</code> must be what the plane's listener resolves:
+<code>tenant_id</code> (or <code>listener.principal.tenant_id</code>), <code>listener.principal.type</code>,
+<code>listener.principal.id</code> and <code>listener.agent.id</code>. A token presented for any
+other identity is refused. <code>--ttl</code> is a duration from <code>1m</code> to <code>720h</code>, with no
+default.</p>
+<p><code>--parent &lt;run id&gt;</code> opens the run under an open run of the same tenant. The
+two then share the parent's root and its flow state, because data moves
+between a parent and the runs it spawned in ways the plane does not see.
+Closing a parent closes none of its children.</p>
+<p>It prints four lines:</p>
+<pre><code>run_id: run-1fc2d3dc0e76763df08dbc2eb4cc6bdb
+root: run-1fc2d3dc0e76763df08dbc2eb4cc6bdb
+expires_at: 2026-10-01T20:20:27.423572Z
+token: run-1fc2d3dc0e76763df08dbc2eb4cc6bdb.&lt;the secret, 43 characters&gt;
+</code></pre>
+<p>The token is the run id, a dot and a secret. The directory keeps only the
+secret's SHA-256, so this is the token's one copy; a lost token leaves a run
+to close and another to open.</p>
+<h2 id="runs-close-and-runs-list">runs close and runs list</h2>
+<p><code>runs close &lt;dir&gt; &lt;run-id&gt;</code> prints <code>closed &lt;run-id&gt;</code>. A closed run, an unknown
+one and a malformed id each exit 1. A closed run's token is refused at the
+next request or message, and a call that passed the listener before the close
+still runs.</p>
+<p><code>runs list &lt;dir&gt;</code> prints one run a line: its id, <code>open</code>, <code>closed</code> or <code>expired</code>
+by this machine's clock, then <code>root</code>, <code>tenant_id</code>, <code>principal_type</code>,
+<code>principal_id</code>, <code>agent_id</code>, <code>opened_at</code> and <code>expires_at</code>, each followed by its
+value. It prints no token and no hash. Past 1000 runs it stops, says so on
+stderr and exits 1.</p>
+<p>No command repeats a token, or a value given as a run id that is not one.</p>
+<h2 id="what-a-plane-does-with-a-token">What a plane does with a token</h2>
+<table>
+<thead>
+<tr>
+<th>Listener</th>
+<th>Where the token comes from</th>
+<th>A token that does not resolve</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stateless_http</code>, <code>stateful_http</code></td>
+<td>the <code>Run-Token</code> header of every request, on every method</td>
+<td><code>401</code> with <code>WWW-Authenticate: Run-Token</code> and one body whatever the cause, before the protocol library reads the request</td>
+</tr>
+<tr>
+<td><code>stdio</code></td>
+<td><code>run --run-token-file &lt;file&gt;</code>, read once at start; the file must be this user's and readable by nobody else</td>
+<td>refuses the start</td>
+</tr>
+</tbody>
+</table>
+<p>Every message is judged again, so a run closed or expired while a session or a
+process serves it is refused with the JSON-RPC error <code>-31102</code>, and nothing is
+admitted. <code>_meta</code>, any other header and the envelope's <code>context.run_id</code> never
+select a run. Refusals are counted by cause, <code>missing</code>, <code>malformed</code>,
+<code>unknown</code>, <code>identity</code>, <code>closed</code>, <code>expired</code> and <code>unreadable</code>, in
+<a href="/docs/reference/metrics">metrics.md</a> and under <code>runs</code> on <code>/healthz</code>.</p>
+<p>A call reads its root's state once and is decided under it; what its result
+brings in is written to the root before <code>ACTION_STARTED</code>. A state the plane
+cannot read or write, or whose lock another holder keeps too long, blocks the
+call with <code>EVIDENCE_UNAVAILABLE</code> in every mode, <code>OBSERVE</code> included. A held call resumes only from the run it was held
+under. <code>ACTION_PROPOSED</code> names the root in the tag <code>flow.v1.root=</code>.</p>
+<p>A stateful HTTP session is bound to its principal and agent, not to a run:
+each call in it is judged under the token it presents, but a token of another
+run of the same principal and agent can read the session's stream or end it by
+its id.</p>
+<p><code>dev</code> and <code>scenario run</code> serve local runs only; <code>dev</code> refuses <code>runs.dir</code>.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/runs.md">docs/reference/runs.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs" aria-current="page">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>
