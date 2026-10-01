@@ -9,14 +9,15 @@ laptop.
 
 A maintainer with the maintain or admin role on `guardana/control`. The
 repository refuses a `v*` tag pushed by anyone else, and the release job runs
-in the `release` environment, which admits only `v*` tags.
+in the `release` environment, which admits only `v*` tags, each after a
+maintainer's approval.
 
 ## Cutting a release
 
 1. Give the version its section in `CHANGELOG.md`, with the date:
    `## [0.1.0-alpha] - 2026-09-25`. The workflow publishes that section as the
    release notes and fails if it is missing, undated or empty.
-   `scripts/release-notes.sh v0.1.0-alpha` prints what it will publish.
+   `scripts/release-notes.sh v0.1.0-alpha` prints it.
 2. Commit that on `main`, and let CI finish green on the commit.
 3. Tag the commit and push the tag:
 
@@ -24,6 +25,8 @@ in the `release` environment, which admits only `v*` tags.
    git tag -a v0.1.0-alpha -m "Guardana Control 0.1.0-alpha"
    git push origin v0.1.0-alpha
    ```
+
+4. Approve the waiting run: the tag's Release run, Review deployments.
 
 A version with a pre-release part, such as `-alpha` or `-rc.1`, is published as
 a pre-release.
@@ -39,8 +42,8 @@ a pre-release.
 3. Signs `checksums.txt` with cosign, keyless: the certificate names this
    workflow and the tag. The signature is `checksums.txt.sigstore.json`.
 4. Pushes the image `ghcr.io/guardana/control-gateway` under the staging tag
-   `sha-<commit>`, for linux/amd64 and linux/arm64: `guardana-gateway` alone,
-   running as a nonroot user.
+   `sha-<commit>`, for linux/amd64 and linux/arm64, `guardana-gateway` alone as
+   a nonroot user.
 5. Drafts the GitHub release with those files.
 6. Runs the demo from the runner's demo archive with no Go on `PATH`; a
    missing file or a failed scenario leaves the draft unpublished.
@@ -50,10 +53,9 @@ a pre-release.
    publishes the draft with the image's digest in its notes.
 
 The workflow refuses a tag whose commit is not on `main`, and publishes the
-draft only when it holds exactly the files it verified. If it fails before it
-drafts the release, there is no release; if it fails later, the draft stays
-unpublished. Delete the draft, if any, and the image's staging version, fix the
-cause and release the next version.
+draft only when it holds exactly the files it verified. A failure leaves no
+release, or an unpublished draft: delete the draft and the image's staging
+version, fix the cause and release the next version.
 
 ## A dry run
 

@@ -32,6 +32,9 @@ Date: 2026-09-25</p>
 pushes to <code>main</code> directly, only the maintain role merges, and a release is an
 immutable tag that CI builds, signs and attests. Amends
 <a href="/docs/adr/0006-product-name-switch">ADR-0006</a>: the first release fixes the name.</p>
+<p>Amended after <code>v0.3.0-alpha</code>: the <code>release</code> environment also requires the
+<code>maintainers</code> team's approval before the release job runs; one maintainer may
+approve their own tag, and the admin may bypass the wait.</p>
 <h2 id="context">Context</h2>
 <p>ADR-0008 set the rules before the repository existed. Every change would reach
 <code>main</code> through a pull request with one approving review, code-owner review on

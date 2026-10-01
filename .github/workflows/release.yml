@@ -110,9 +110,10 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    # The environment admits only tags matching v*. The token's scopes come
-    # from this file at the tagged commit, so the gate is the tag itself: only
-    # the admin and the maintain role can create one.
+    # The environment admits only tags matching v* and waits for a
+    # maintainer's approval. The token's scopes come from this file at the
+    # tagged commit, so the gate is the tag itself: only the admin and the
+    # maintain role can create one.
     environment: release
     permissions:
       contents: write # Build and draft: goreleaser creates the draft and uploads its assets; Publish: gh releases it

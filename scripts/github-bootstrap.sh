@@ -337,6 +337,11 @@ ensure_team() {
 
 ensure_team maintainers maintain \
   "Maintainers of guardana/control: merge reviewed pull requests and cut releases; see GOVERNANCE.md."
+MAINTAINERS_TEAM_ID="$(gh api "orgs/${OWNER}/teams/maintainers" --jq .id)"
+if [[ ! "${MAINTAINERS_TEAM_ID}" =~ ^[0-9]+$ ]]; then
+  printf 'github-bootstrap: no numeric id for the maintainers team\n' >&2
+  exit 1
+fi
 # Write access, because a code owner without it is ignored.
 ensure_team security-maintainers push \
   "Code owners of the paths in guardana/control that carry authorization meaning."
@@ -483,9 +488,16 @@ apply_ruleset "main: pull requests" <<JSON
 }
 JSON
 
-# The release job deploys to this environment, and only a v* tag may.
-run_json PUT "repos/${REPO}/environments/release" <<'JSON'
-{ "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true } }
+# The release job deploys to this environment, only from a v* tag, and waits
+# for a maintainer to approve it. One maintainer may approve their own tag, and
+# the admin may bypass the wait.
+run_json PUT "repos/${REPO}/environments/release" <<JSON
+{
+  "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true },
+  "reviewers": [ { "type": "Team", "id": ${MAINTAINERS_TEAM_ID} } ],
+  "prevent_self_review": false,
+  "can_admins_bypass": true
+}
 JSON
 # Any other policy on the environment would let another ref deploy to it, so
 # every policy but the one for v* tags is removed.

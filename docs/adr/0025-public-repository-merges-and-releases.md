@@ -8,6 +8,10 @@ pushes to `main` directly, only the maintain role merges, and a release is an
 immutable tag that CI builds, signs and attests. Amends
 [ADR-0006](0006-product-name-switch.md): the first release fixes the name.
 
+Amended after `v0.3.0-alpha`: the `release` environment also requires the
+`maintainers` team's approval before the release job runs; one maintainer may
+approve their own tag, and the admin may bypass the wait.
+
 ## Context
 
 ADR-0008 set the rules before the repository existed. Every change would reach
