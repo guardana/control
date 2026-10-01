@@ -14,8 +14,6 @@ need accepted records before implementation. An owner and an issue can be added
 when a task is picked up; no task is assigned by this document. A delivered
 task leaves this page, and status.md records what it built.
 
-The private session backlog contains historical findings, some already fixed.
-Reproduce one in the current code before calling it a defect.
 This backlog covers roadmap work, not every session note. Keep stable task identifiers when work moves to an
 issue. Completion requires code, documentation and the applicable checks.
 
@@ -24,7 +22,6 @@ issue. Completion requires code, documentation and the applicable checks.
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
 | B00 | Establish a reproducible baseline | none | Full `make quality` and CI on the exact candidate commit pass; platform, tool versions, skips and failures are recorded. A partial target run cannot satisfy this task |
-| B01 | Reconcile stale planning and public claims | none | Every promoted defect has current code evidence; planned Go packages are distinguished from available ones; only the public roadmap schedules delivery. |
 | B03 | Make policy freshness usable and restart-safe | B00 | Accepted ADR and tests cover atomic refresh, invalid replacement, last-known-good bounds, signed expiry, persisted serial floor and clock rollback. Unavailable policy still fails closed; rereading a file alone does not prove it is the latest policy |
 
 B03 runs before shared use, independently of the usability work. Do not
@@ -41,7 +38,7 @@ wait for a fleet to address it.
 
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
-| B02 | Define identity and run ownership | B01 | Accepted ADR covers authenticated versus local identity, two simultaneous runs, parent context, reconnect and restart. Forged ids and reconnects cannot erase flow state; the current ADR-0021 semantics change only through that record |
+| B02 | Build the runs an operator opens | none | [ADR-0034](adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md) is accepted; its code is next. `runs open`, `close` and `list`, the run token on HTTP and stdio, the root's durable flow state and holds per run, with the record's adversarial tests: forged, closed, expired and other principals' tokens refused with no trail; a new session or process with the same token reaching the same state; two runs of one agent kept apart; a restart keeping it. ADR-0021's limits, contracts.md and status.md change with the code |
 | B09 | Build a custom report and alert example | none | A consumer outside this module reports actions and reasons and emits a local alert. Fixtures cover duplicate delivery, gaps and consumer outage. It requires no extra service and records no raw payload by default |
 
 The existing event wire format is reused where sufficient. A query response or

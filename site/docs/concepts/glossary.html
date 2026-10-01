@@ -79,7 +79,7 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>evidence export</td>
-<td>a trail file written in the versioned format <code>guardana.control.evidence-export</code>: a header, one record per event, gap or duplicate, and a trailer that says whether the file's end was reached</td>
+<td>a trail file's events written to standard output in the versioned format <code>guardana.control.evidence-export</code>: a header, one record per event, gap or duplicate, and a trailer that says whether the file's end was reached</td>
 <td><code>trailfile.Export</code> in <code>internal/trailfile/export.go</code>, run by <code>guardana-gateway trail export</code></td>
 </tr>
 <tr>
@@ -94,7 +94,7 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>export cursor</td>
-<td>where an evidence export stopped: the digest of the file's first line, an offset after a newline and the digest of the line that ends there; refused on any other file or offset. Not the exporter's cursor in the spool</td>
+<td>where an evidence export stopped: the digest of the file's first line, an offset after a newline and the digest of the line that ends there; refused when the file's first line or the line ending at the offset differs. Not the exporter's cursor in the spool</td>
 <td><code>cursor</code> in <code>internal/trailfile/cursor.go</code></td>
 </tr>
 <tr>

@@ -3,6 +3,11 @@
 Status: accepted
 Date: 2026-09-09
 
+Amended by [ADR-0026](0026-first-value-and-external-extension-paths.md): of the
+four public packages only `pkg/contract` exists. The other three are reserved
+names, and a Go seam is promoted only through its own record after two
+consumers have used it.
+
 ## Context
 
 The part of the system that decides has to stay small enough for one person to

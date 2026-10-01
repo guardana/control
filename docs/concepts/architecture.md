@@ -110,7 +110,7 @@ Sources: `cmd/guardana-gateway/build.go`, `cmd/guardana-control/main.go`,
 | AuthZEN client | `adapters/authzen/` | Asks the organization's decision point about one call whose decision turns on its answer, and reads the answer strictly; the answer can only veto. |
 | OTLP exporter | `adapters/otel/` | Drains the spool to a collector and acknowledges only the protocol's own answer. |
 | Approval store | `internal/approvals/` | Reads and checks the records in the directory an approver answers in; the pipeline compares an answer with its own record of the hold. |
-| Hold journal | `internal/holdjournal/` | The plane's own durable record of its holds, so the next start closes the trail of one it lost. |
+| Hold journal | `internal/holdjournal/` | The plane's own durable record of its holds, so the next start closes the trail of one it lost, or counts it left open. |
 | Commands | `cmd/guardana-control/` | The `policy`, `approvals` and `pause` commands and the `console` page, without a plane. |
 
 ## The request path
@@ -187,7 +187,7 @@ Sources: `internal/gateway/admit.go`, `internal/gateway/approve.go`,
 `internal/core/decide.go`, `internal/core/failclosed.go`,
 `internal/evidence/chain.go`.
 
-Three properties the branches carry:
+Four properties the branches carry:
 
 - `INDETERMINATE` is not a quiet allow. A fail-closed table decides what it
   enforces for each effect class, see [ADR-0003](../adr/0003-policy-model-and-external-pdp.md).
@@ -208,10 +208,11 @@ From the outside in:
 
 - Adapters (`adapters/`) speak one protocol or framework and translate. They
   carry no policy meaning.
-- The public Go surface is exactly `pkg/contract`, `pkg/adapter`,
-  `pkg/detector` and `pkg/policyprovider`. It is what an out-of-tree adapter,
-  detector or policy provider compiles against. Adding a fifth package is a
-  compatibility decision and needs its own record.
+- The public Go surface is `pkg/contract`. `pkg/adapter`, `pkg/detector` and
+  `pkg/policyprovider` are reserved names for what an out-of-tree adapter,
+  detector or policy provider would compile against; none exists yet. Adding
+  to the surface is a compatibility decision and needs its own record
+  ([ADR-0026](../adr/0026-first-value-and-external-extension-paths.md)).
 - The core (`internal/core`, `internal/policy`) validates, classifies, matches
   and decides.
 - Everything the decision does not need sits outside it: storage, the control
@@ -341,13 +342,14 @@ Sources: `ROADMAP.md`, `internal/policy/rules/document.go`, `internal/scenario/d
 | `internal/gatewayconfig/` | The gateway's configuration: its fields, the file reader and the loader | `experimental` |
 | `internal/brand/` | The product name every other package reads | `implemented` |
 | `internal/approvals/`, `internal/holdjournal/` | The file approval provider and the plane's hold journal, [ADR-0016](../adr/0016-approval-providers-and-the-lost-hold.md) | `experimental` |
-| `cmd/guardana-control/` | The policy and approval commands | `implemented` |
+| `cmd/guardana-control/` | The `policy` commands | `implemented` |
+| `cmd/guardana-control/` | The `approvals` and `pause` commands and the `console` page | `experimental` |
 | `cmd/guardana-gateway/` | The plane: `run`, `doctor`, `collect`, `trail`, `scenario` and `dev` | `experimental` |
 | `Makefile`, `scripts/`, `.golangci.yml` | The one quality gate | `implemented` |
 | `internal/docscheck/` | The documentation gate, run by `make docs-check` | `implemented` |
-| `internal/`, everything else | What is not intentionally public | `planned` |
+| `internal/`, everything else | What is not intentionally public | as [status.md](../status.md) labels each component |
 | `pkg/`, the other three packages | The rest of the public Go surface | `planned` |
-| `adapters/mcp/`, `adapters/otel/` | The MCP adapter and the OTLP exporter | `experimental` |
+| `adapters/mcp/`, `adapters/otel/`, `adapters/authzen/` | The MCP adapter, the OTLP exporter and collector, and the AuthZEN client | `experimental` |
 | `adapters/`, the rest | Other protocol and framework adapters | `planned` |
 | `detectors/builtin/` | Built-in detectors | `planned` |
 

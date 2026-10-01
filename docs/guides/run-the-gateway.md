@@ -20,7 +20,7 @@ does not. Nothing here is a security boundary yet.
 
 ## Prerequisites
 
-- This repository, built: `go build ./cmd/guardana-gateway`.
+- `guardana-gateway` from a release archive, or built: `go build ./cmd/guardana-gateway`.
 - A signed policy bundle and the two lines `policy keygen` printed for the key
   that signed it ([write-and-test-a-policy.md](write-and-test-a-policy.md)).
 - A directory for the evidence spool, on a disk with room for its budget; the
@@ -108,8 +108,8 @@ guardana-gateway run --config gateway.yaml
 ```
 
 Point the agent at `http://127.0.0.1:8080`, not the server. In `OBSERVE`
-every recordable call runs with the bytes the agent proposed and no obligation
-applied, which shows the tools that exist before you classify them.
+calls run as proposed, which shows the tools that exist before you classify
+them.
 
 ### 4. Classify the tools
 
@@ -159,7 +159,7 @@ complete. Then change the mode and restart.
 
 | Mode | What the plane does with the kernel's decision |
 | --- | --- |
-| `OBSERVE` | Records; executes every recordable call, unclassified included, unless a pause or halt blocks it; applies no obligation |
+| `OBSERVE` | Records; executes every recordable call one upstream lists, unclassified included, unless a pause or halt blocks it; applies no obligation |
 | `APPROVE` | Enforces, and holds an allowed material call for an approval. It needs `approvals.provider: file`: nothing outside the process answers a hold kept in memory |
 | `ENFORCE` | Enforces the decision: blocks a `DENY` and an `INDETERMINATE`, applies the obligations, holds what needs an approval |
 | `LOCKDOWN` | Blocks every material call whatever the policy said, recording a decision; enforces a read with fail-open reads off |
@@ -177,8 +177,8 @@ approvals:
 An approver answers with the approval commands
 ([reference/cli.md](../reference/cli.md)). Write access to `approvals.dir` is
 the approval authority, and `--approver-id` is a claim, never authenticated. A
-hold lost to a restart is closed on its trail at the next start and never
-run, which the journal buys; `doctor` counts them
+hold lost to a restart never runs; the journal lets the next start close its
+trail or count it left open; `doctor` counts them
 ([concepts/approvals-and-the-held-call.md](../concepts/approvals-and-the-held-call.md)).
 
 ### 8. Set the evidence rules on purpose
@@ -186,7 +186,7 @@ run, which the journal buys; `doctor` counts them
 | Key | What it costs |
 | --- | --- |
 | `evidence.max_bytes` | The bytes the spool may hold, its quarantine and the room kept for closing records included. Reached, a material call is blocked before its effect, and an oversized closing record fails after it |
-| `evidence.fsync: interval` | A power loss costs the records since the last sync; `evidence.fsync_interval` says how many seconds |
+| `evidence.fsync: interval` | A power loss costs the records since the last sync, every `evidence.fsync_interval`, a duration such as `5s` |
 | `evidence.on_unwritable: allow_reads` | A read whose trail the spool will not take runs unrecorded and counted, unless it retries a held call. A material call never does |
 | `policy.fail_open_read: true` | A read undecided only because the policy is unavailable runs if the rules would otherwise allow it. Off by default, and forced off under `LOCKDOWN` |
 | `policy.max_stale` | Past it, or the bundle's own `maxStaleSeconds`, calls get `POLICY_STALE` until a restart |
@@ -214,7 +214,7 @@ guardana-control pause add --action tool --provider orders --name refund /srv/pa
 
 ## Verify
 
-- `doctor` ends with `ok upstreams ... 0 unclassified` in the mode you will run.
+- `doctor` prints `ok upstreams ... 0 unclassified` in the mode you will run.
 - A denied call comes back to the agent as a tool result with `isError: true`
   and its `reason_codes`, and the upstream never sees it.
 - `/healthz` reports `"halted": false` and a spool depth that falls as the

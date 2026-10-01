@@ -28,7 +28,7 @@
 <h1 id="watch-a-plane-without-a-collector">Watch a plane without a collector</h1>
 <h2 id="when-to-use-this">When to use this</h2>
 <p>A plane exports its evidence to an OpenTelemetry collector and will not start
-without one. On a first run, or on a small plane you watch yourself, you may
+without <code>export.endpoint</code>. On a first run, or on a small plane you watch yourself, you may
 have no collector. <code>guardana-gateway collect</code> is one: it takes what a plane
 exports over OTLP/HTTP and appends it to a file of evidence lines, and
 <code>guardana-gateway trail</code> reads that file back, one line per request. The plane

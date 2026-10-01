@@ -86,7 +86,7 @@ a project this size would not apply one honestly.
 ## Licensing posture
 
 Everything in this repository is Apache-2.0, including every security
-capability. Two parts of that are meant to be permanent, because the project
+capability, except the website's fonts, which keep their own licence. Two parts of that are meant to be permanent, because the project
 has no point without them: code already released under Apache-2.0 cannot be
 withdrawn from the people who have it, and a security capability is not moved
 behind a paid tier. What may become commercial is hosting and curated content.

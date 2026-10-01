@@ -9,9 +9,9 @@
   "exempt_types": ["spec", "project"],
   "readme": {"root": 600, "folder": 300},
   "ceilings": {
-    "AGENTS.md": 1035,
+    "AGENTS.md": 1030,
     "CONTRIBUTING.md": 791,
-    "GOVERNANCE.md": 669,
+    "GOVERNANCE.md": 678,
     "ROADMAP.md": 765,
     "testdata/digest/README.md": 1966
   },

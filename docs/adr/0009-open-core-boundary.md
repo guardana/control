@@ -3,6 +3,10 @@
 Status: accepted
 Date: 2026-09-09
 
+Amended by [ADR-0030](0030-a-static-website-drawn-from-the-repository.md): the
+website's IBM Plex fonts under `site/assets/brand/v1/fonts/` are third-party
+files under the SIL Open Font License 1.1, which ships beside them.
+
 ## Context
 
 The project has to be complete and safe as a self-hosted open-source

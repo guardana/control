@@ -36,7 +36,7 @@ are classified.</p>
 does not. Nothing here is a security boundary yet.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <ul>
-<li>This repository, built: <code>go build ./cmd/guardana-gateway</code>.</li>
+<li><code>guardana-gateway</code> from a release archive, or built: <code>go build ./cmd/guardana-gateway</code>.</li>
 <li>A signed policy bundle and the two lines <code>policy keygen</code> printed for the key
 that signed it (<a href="/docs/guides/write-and-test-a-policy">write-and-test-a-policy.md</a>).</li>
 <li>A directory for the evidence spool, on a disk with room for its budget; the
@@ -111,8 +111,8 @@ writes a probe file.</p>
 <pre><code>guardana-gateway run --config gateway.yaml
 </code></pre>
 <p>Point the agent at <code>http://127.0.0.1:8080</code>, not the server. In <code>OBSERVE</code>
-every recordable call runs with the bytes the agent proposed and no obligation
-applied, which shows the tools that exist before you classify them.</p>
+calls run as proposed, which shows the tools that exist before you classify
+them.</p>
 <h3 id="4-classify-the-tools">4. Classify the tools</h3>
 <p>A call to a tool the manifest does not classify is blocked with
 <code>ACTION_UNCLASSIFIED</code> in every mode but <code>OBSERVE</code>, so classify each one the
@@ -157,7 +157,7 @@ complete. Then change the mode and restart.</p>
 <tbody>
 <tr>
 <td><code>OBSERVE</code></td>
-<td>Records; executes every recordable call, unclassified included, unless a pause or halt blocks it; applies no obligation</td>
+<td>Records; executes every recordable call one upstream lists, unclassified included, unless a pause or halt blocks it; applies no obligation</td>
 </tr>
 <tr>
 <td><code>APPROVE</code></td>
@@ -186,8 +186,8 @@ complete. Then change the mode and restart.</p>
 <p>An approver answers with the approval commands
 (<a href="/docs/reference/cli">reference/cli.md</a>). Write access to <code>approvals.dir</code> is
 the approval authority, and <code>--approver-id</code> is a claim, never authenticated. A
-hold lost to a restart is closed on its trail at the next start and never
-run, which the journal buys; <code>doctor</code> counts them
+hold lost to a restart never runs; the journal lets the next start close its
+trail or count it left open; <code>doctor</code> counts them
 (<a href="/docs/concepts/approvals-and-the-held-call">concepts/approvals-and-the-held-call.md</a>).</p>
 <h3 id="8-set-the-evidence-rules-on-purpose">8. Set the evidence rules on purpose</h3>
 <table>
@@ -204,7 +204,7 @@ run, which the journal buys; <code>doctor</code> counts them
 </tr>
 <tr>
 <td><code>evidence.fsync: interval</code></td>
-<td>A power loss costs the records since the last sync; <code>evidence.fsync_interval</code> says how many seconds</td>
+<td>A power loss costs the records since the last sync, every <code>evidence.fsync_interval</code>, a duration such as <code>5s</code></td>
 </tr>
 <tr>
 <td><code>evidence.on_unwritable: allow_reads</code></td>
@@ -234,7 +234,7 @@ guardana-control pause init /srv/pause/pause.json   # a relative path is read fr
 (<a href="/docs/concepts/enforcement-modes#pausing-calls">more</a>).</p>
 <h2 id="verify">Verify</h2>
 <ul>
-<li><code>doctor</code> ends with <code>ok upstreams ... 0 unclassified</code> in the mode you will run.</li>
+<li><code>doctor</code> prints <code>ok upstreams ... 0 unclassified</code> in the mode you will run.</li>
 <li>A denied call comes back to the agent as a tool result with <code>isError: true</code>
 and its <code>reason_codes</code>, and the upstream never sees it.</li>
 <li><code>/healthz</code> reports <code>&quot;halted&quot;: false</code> and a spool depth that falls as the

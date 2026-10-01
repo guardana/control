@@ -1048,7 +1048,7 @@ rather than let protojson drop it silently.
 
 How a program reads a trail file without the terminal or `internal/`:
 `guardana-gateway trail export <file>` writes it to standard output as JSON
-Lines, `implemented` in `internal/trailfile/export.go`, `export_records.go` and
+Lines, `experimental`, in `internal/trailfile/export.go`, `export_records.go` and
 `cursor.go`. [ADR-0035](adr/0035-a-versioned-evidence-export-and-a-bounded-query.md)
 records why. The goldens in [testdata/export/](../testdata/export/) are pairs of
 a trail file, `<name>.trail`, and its export, `<name>.jsonl`.

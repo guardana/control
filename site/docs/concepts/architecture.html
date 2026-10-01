@@ -167,7 +167,7 @@ call and a pause; the one thing it serves is the local approvals page.</p>
 <tr>
 <td>Hold journal</td>
 <td><code>internal/holdjournal/</code></td>
-<td>The plane's own durable record of its holds, so the next start closes the trail of one it lost.</td>
+<td>The plane's own durable record of its holds, so the next start closes the trail of one it lost, or counts it left open.</td>
 </tr>
 <tr>
 <td>Commands</td>
@@ -245,7 +245,7 @@ unrecorded.</p>
 <code>internal/gateway/resume.go</code>, <code>internal/gateway/approvals.go</code>,
 <code>internal/core/decide.go</code>, <code>internal/core/failclosed.go</code>,
 <code>internal/evidence/chain.go</code>.</p>
-<p>Three properties the branches carry:</p>
+<p>Four properties the branches carry:</p>
 <ul>
 <li><code>INDETERMINATE</code> is not a quiet allow. A fail-closed table decides what it
 enforces for each effect class, see <a href="/docs/adr/0003-policy-model-and-external-pdp">ADR-0003</a>.</li>
@@ -265,10 +265,11 @@ decided it, or that none was available, see
 <ul>
 <li>Adapters (<code>adapters/</code>) speak one protocol or framework and translate. They
 carry no policy meaning.</li>
-<li>The public Go surface is exactly <code>pkg/contract</code>, <code>pkg/adapter</code>,
-<code>pkg/detector</code> and <code>pkg/policyprovider</code>. It is what an out-of-tree adapter,
-detector or policy provider compiles against. Adding a fifth package is a
-compatibility decision and needs its own record.</li>
+<li>The public Go surface is <code>pkg/contract</code>. <code>pkg/adapter</code>, <code>pkg/detector</code> and
+<code>pkg/policyprovider</code> are reserved names for what an out-of-tree adapter,
+detector or policy provider would compile against; none exists yet. Adding
+to the surface is a compatibility decision and needs its own record
+(<a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a>).</li>
 <li>The core (<code>internal/core</code>, <code>internal/policy</code>) validates, classifies, matches
 and decides.</li>
 <li>Everything the decision does not need sits outside it: storage, the control
@@ -456,8 +457,13 @@ and audited by someone who did not write it.</li>
 </tr>
 <tr>
 <td><code>cmd/guardana-control/</code></td>
-<td>The policy and approval commands</td>
+<td>The <code>policy</code> commands</td>
 <td><code>implemented</code></td>
+</tr>
+<tr>
+<td><code>cmd/guardana-control/</code></td>
+<td>The <code>approvals</code> and <code>pause</code> commands and the <code>console</code> page</td>
+<td><code>experimental</code></td>
 </tr>
 <tr>
 <td><code>cmd/guardana-gateway/</code></td>
@@ -477,7 +483,7 @@ and audited by someone who did not write it.</li>
 <tr>
 <td><code>internal/</code>, everything else</td>
 <td>What is not intentionally public</td>
-<td><code>planned</code></td>
+<td>as <a href="/docs/status">status.md</a> labels each component</td>
 </tr>
 <tr>
 <td><code>pkg/</code>, the other three packages</td>
@@ -485,8 +491,8 @@ and audited by someone who did not write it.</li>
 <td><code>planned</code></td>
 </tr>
 <tr>
-<td><code>adapters/mcp/</code>, <code>adapters/otel/</code></td>
-<td>The MCP adapter and the OTLP exporter</td>
+<td><code>adapters/mcp/</code>, <code>adapters/otel/</code>, <code>adapters/authzen/</code></td>
+<td>The MCP adapter, the OTLP exporter and collector, and the AuthZEN client</td>
 <td><code>experimental</code></td>
 </tr>
 <tr>

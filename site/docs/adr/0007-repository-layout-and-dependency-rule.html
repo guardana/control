@@ -28,6 +28,10 @@
 <h1 id="adr-0007-repository-layout-and-the-dependency-rule-for-the-decision-path">ADR-0007: Repository layout and the dependency rule for the decision path</h1>
 <p>Status: accepted
 Date: 2026-09-09</p>
+<p>Amended by <a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a>: of the
+four public packages only <code>pkg/contract</code> exists. The other three are reserved
+names, and a Go seam is promoted only through its own record after two
+consumers have used it.</p>
 <h2 id="context">Context</h2>
 <p>The part of the system that decides has to stay small enough for one person to
 audit. Left alone, a decision path grows an HTTP client, a database handle and a

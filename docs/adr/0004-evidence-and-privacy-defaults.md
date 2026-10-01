@@ -7,6 +7,11 @@ Amended by [ADR-0011](0011-contract-corrections-before-publication.md): a result
 names its redaction profile as the arguments do, and `Event` field 31 is declared
 for the digest link.
 
+Since [ADR-0014](0014-evidence-spool-and-sinks.md), the spool, its counters
+and the exporter exist, and the Validation below is out of date for them; the
+capture setting, the redaction, the hash chain and the signed checkpoints are
+still planned.
+
 ## Context
 
 The evidence record is what makes a decision reviewable months later. It is also

@@ -56,9 +56,9 @@ whoever trusts it later.
 
 ## Commands
 
-- `make bootstrap` checks every tool the gate needs against the version pinned
-  in `scripts/tool-versions.env`, installs a missing one where it can, and
-  fails on a mismatch instead of carrying on.
+- `make bootstrap` checks Go against `go.mod` and every other tool against
+  `scripts/tool-versions.env`, installs a missing one where it can, and fails
+  on a mismatch instead of carrying on.
 - `make quality-quick` runs formatting, `go vet`, the tests and the import
   check. Use it while working.
 - `make quality` runs the whole gate. The `Makefile` names every target it
@@ -74,11 +74,10 @@ A change is not finished until `make quality` is green.
 ## Layout
 
 - `internal/` holds what is not intentionally public.
-- The public Go surface is exactly `pkg/contract`, `pkg/adapter`,
-  `pkg/detector` and `pkg/policyprovider`; adding to it is a compatibility
-  decision and needs its own record.
-- Protocol and framework code lives in `adapters/`, built-in detectors in
-  `detectors/builtin/`, demos in `examples/`.
+- The public Go surface is `pkg/contract`; `pkg/adapter`, `pkg/detector` and
+  `pkg/policyprovider` are reserved. Adding to it is a compatibility decision
+  and needs its own record.
+- Protocol and framework code lives in `adapters/`, demos in `examples/`.
 - Contracts live in `api/proto`, generated Go in `api/gen/go`.
 - `internal/core`, `internal/policy`, `internal/canon`, `internal/evidence` and
   `pkg/contract` import only packages of this module outside `adapters/`,

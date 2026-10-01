@@ -149,7 +149,7 @@ bundle, and none of them knows the mode.
 
 | Mode | The decision | The call | Built |
 | --- | --- | --- | --- |
-| `OBSERVE` | recorded | runs, with the proposed bytes, unclassified included, unless a pause or a halt blocks it | yes |
+| `OBSERVE` | recorded | runs, with the proposed bytes, unclassified included when one upstream lists it, unless a pause or a halt blocks it | yes |
 | `APPROVE` | recorded | an allowed material call is held for an approval | yes; the `file` provider takes an approver's answer, and the plane refuses to start in `APPROVE` without it |
 | `ENFORCE` | recorded | blocked, rewritten, held or run, as decided | yes |
 | `LOCKDOWN` | recorded, made for a material call without asking the decision point, with the plane's own `LOCKDOWN` decision on the block | every material call blocked; a read enforced with fail-open reads off | yes |
