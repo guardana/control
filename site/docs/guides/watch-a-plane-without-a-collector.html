@@ -46,8 +46,8 @@ Events carry tenant and principal ids, so the file is created mode <code>0600</c
 </code></pre>
 <p>It listens on a loopback IP address only, so <code>0.0.0.0</code>, another host and
 <code>localhost</code> are refused, and it prints the URL it listens on and the file it
-appends to. It runs until you stop it with Ctrl-C or <code>SIGTERM</code>, and answers
-the requests in flight before it exits. One collect holds a file at a time; a
+appends to. It runs until you stop it with Ctrl-C or <code>SIGTERM</code>, and waits up to ten
+seconds for the requests in flight before it exits. One collect holds a file at a time; a
 second one on the same file is refused.</p>
 <p><code>--out</code> names a trail file or a path where no file exists yet. A file that is
 not a trail, such as notes, is refused as damaged and left as it was. A last

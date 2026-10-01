@@ -30,7 +30,7 @@ request id already has an open trail. The MCP adapter and the pipeline fill them
 Every event carries `event_id`, `kind`, `request_id`, `project_id`,
 `tenant_id`, `occurred_at`, `schema_version`, the plane's `enforcement_mode`,
 `prev_event_id` and, where the call belongs to a run, `run_id`, an id the
-plane mints. `execution_id` is on the events of a call handed to execution.
+plane mints or, under `runs.dir`, the id of the run the operator opened. `execution_id` is on the events of a call handed to execution.
 `prev_event_digest` is left empty.
 
 `ACTION_PROPOSED` carries the envelope:
@@ -95,7 +95,8 @@ to the plane, no field of the contract holds it, and no adapter reads it.
 
 | Where | What | Who can read it |
 | --- | --- | --- |
-| the plane's memory | a held request, its envelope and its decision; the run state of each principal | the plane's process: a held request until its hold ends, a run's state until the plane stops |
+| the plane's memory | a held request, its envelope and its decision; without `runs.dir`, the run state of each principal | the plane's process: a held request until its hold ends, a run's state until the plane stops |
+| the runs directory, `runs.dir` | each run's record, its tenant, principal, agent, lifetime and the SHA-256 of its token's secret, and each root run's flow state | the operator's account, in a directory only it may write, until the operator removes them |
 | the spool, `evidence.dir` | every event, one framed JSON line each, until a collector accepts it or it is moved to `quarantine.log` | the plane's account: new files are `0600`; the spool judges neither its directory's mode nor an existing file's |
 | the collector at `export.endpoint` | every event, as the body of one OTLP log record, with its ids, kind and mode as attributes | whoever runs that collector and wherever it sends them; `https`, or plaintext to a loopback IP literal under `export.allow_plaintext` |
 | a trail file written by `collect` | every event the collector accepted, at least once | the account that ran `collect`: a new file is `0600`, and an existing one is refused only when others may write it |

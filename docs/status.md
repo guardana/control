@@ -78,7 +78,7 @@ this:
 | Setup for common agent stacks, a proxy for the rest | An MCP proxy only; no framework port and no proxy for other tool APIs |
 | Oversight of what agents do and the data they reach | Each tool call, resource read and prompt through one plane is decided, and none runs before its record is written unless the operator let a read run unrecorded; a call that bypasses the plane is not seen, and there is no view across planes |
 | Procedures, and deviations from them | Policy per call and one flow rule; no procedure an agent is held to |
-| Attempts to gain access | Each refusal is recorded with its reason codes and counted in `/metrics`; nothing reports a pattern of attempts |
+| Attempts to gain access | Each refusal the pipeline decides is recorded with its reason codes and counted in `/metrics`; a request the listener refuses for its origin or its run token is not recorded, and only run token refusals are counted; nothing reports a pattern of attempts |
 | Quality: finished, not degraded, nothing skipped | A result's status and hash only |
 | Running beside the agents, reporting deviations | The plane writes evidence to a spool for export; no supervisor reads it yet |
 | Stopping an agent | A pause of every call, of one upstream or of one tool, for calls not yet running; not of one agent, principal or run |

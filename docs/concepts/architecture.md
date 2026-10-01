@@ -111,7 +111,7 @@ Sources: `cmd/guardana-gateway/build.go`, `cmd/guardana-control/main.go`,
 | OTLP exporter | `adapters/otel/` | Drains the spool to a collector and acknowledges only the protocol's own answer. |
 | Approval store | `internal/approvals/` | Reads and checks the records in the directory an approver answers in; the pipeline compares an answer with its own record of the hold. |
 | Hold journal | `internal/holdjournal/` | The plane's own durable record of its holds, so the next start closes the trail of one it lost, or counts it left open. |
-| Commands | `cmd/guardana-control/` | The `policy`, `approvals` and `pause` commands and the `console` page, without a plane. |
+| Commands | `cmd/guardana-control/` | The `policy`, `approvals`, `pause` and `runs` commands and the `console` page, without a plane. |
 
 ## The request path
 

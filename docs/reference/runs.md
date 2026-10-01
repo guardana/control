@@ -8,7 +8,8 @@ covers: [cmd/guardana-control/runs.go, internal/runs/**, cmd/guardana-gateway/ru
 # Runs
 
 A run is one task of an agent, with its own flow state. Without `runs.dir` a
-plane keeps one run per principal and agent in memory (ADR-0021). With it,
+plane keeps one run per principal and agent in memory, up to `flow.max_runs`
+(ADR-0021). With it,
 every call needs a run the operator opened in that directory, and a run's flow
 state is kept on disk
 ([ADR-0034](../adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md)).
@@ -80,7 +81,7 @@ No command repeats a token, or a value given as a run id that is not one.
 
 | Listener | Where the token comes from | A token that does not resolve |
 | --- | --- | --- |
-| `stateless_http`, `stateful_http` | the `Run-Token` header of every request, on every method | `401` with `WWW-Authenticate: Run-Token` and one body whatever the cause, before the protocol library reads the request |
+| `stateless_http`, `stateful_http` | the `Run-Token` header of every request, on every method | `401` with `WWW-Authenticate: Run-Token` and one body whatever the cause, before the protocol library reads the request; the origin check and an authenticator answer first |
 | `stdio` | `run --run-token-file <file>`, read once at start; the file must be this user's and readable by nobody else | refuses the start |
 
 Every message is judged again, so a run closed or expired while a session or a

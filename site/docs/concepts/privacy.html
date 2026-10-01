@@ -46,7 +46,7 @@ request id already has an open trail. The MCP adapter and the pipeline fill them
 <p>Every event carries <code>event_id</code>, <code>kind</code>, <code>request_id</code>, <code>project_id</code>,
 <code>tenant_id</code>, <code>occurred_at</code>, <code>schema_version</code>, the plane's <code>enforcement_mode</code>,
 <code>prev_event_id</code> and, where the call belongs to a run, <code>run_id</code>, an id the
-plane mints. <code>execution_id</code> is on the events of a call handed to execution.
+plane mints or, under <code>runs.dir</code>, the id of the run the operator opened. <code>execution_id</code> is on the events of a call handed to execution.
 <code>prev_event_digest</code> is left empty.</p>
 <p><code>ACTION_PROPOSED</code> carries the envelope:</p>
 <table>
@@ -139,8 +139,13 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <tbody>
 <tr>
 <td>the plane's memory</td>
-<td>a held request, its envelope and its decision; the run state of each principal</td>
+<td>a held request, its envelope and its decision; without <code>runs.dir</code>, the run state of each principal</td>
 <td>the plane's process: a held request until its hold ends, a run's state until the plane stops</td>
+</tr>
+<tr>
+<td>the runs directory, <code>runs.dir</code></td>
+<td>each run's record, its tenant, principal, agent, lifetime and the SHA-256 of its token's secret, and each root run's flow state</td>
+<td>the operator's account, in a directory only it may write, until the operator removes them</td>
 </tr>
 <tr>
 <td>the spool, <code>evidence.dir</code></td>

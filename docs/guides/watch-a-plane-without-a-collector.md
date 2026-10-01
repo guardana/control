@@ -33,8 +33,8 @@ guardana-gateway collect --listen 127.0.0.1:4318 --out trail/plane.jsonl
 
 It listens on a loopback IP address only, so `0.0.0.0`, another host and
 `localhost` are refused, and it prints the URL it listens on and the file it
-appends to. It runs until you stop it with Ctrl-C or `SIGTERM`, and answers
-the requests in flight before it exits. One collect holds a file at a time; a
+appends to. It runs until you stop it with Ctrl-C or `SIGTERM`, and waits up to ten
+seconds for the requests in flight before it exits. One collect holds a file at a time; a
 second one on the same file is refused.
 
 `--out` names a trail file or a path where no file exists yet. A file that is

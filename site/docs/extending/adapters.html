@@ -112,6 +112,10 @@ open holds one of the plane's <code>MaxOpen</code> slots until the process ends.
 <td>The adapter carries that identity into the envelope's principal. Declared without <code>Authenticates</code>, it is refused at start: without authentication there is no user, only a claim</td>
 </tr>
 <tr>
+<td><code>PresentsRuns</code></td>
+<td>The adapter resolves a run token on every call and hands the run in. Declared exactly when the plane has a runs directory, or the plane is refused at start (ADR-0034)</td>
+</tr>
+<tr>
 <td><code>SeeDelegation</code></td>
 <td>The adapter can read a delegation chain out of the call</td>
 </tr>

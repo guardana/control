@@ -37,8 +37,9 @@ name its digest.
    - The collector at an `https` endpoint. A plaintext export is admitted only
      to a loopback IP literal, which here is the container itself.
    - The pause file and the approvals and hold journal directories, if you
-     use them, on volumes owned by 65532. The plane refuses them when another
-     account owns them or when the group or others may write them.
+     use them, on volumes owned by 65532. The plane refuses them when the
+     group or others may write them, and the pause file when another account
+     owns it.
 2. Run it by digest, with the port published on the host's loopback only:
 
    ```

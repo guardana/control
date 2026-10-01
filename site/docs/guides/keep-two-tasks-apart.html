@@ -93,7 +93,7 @@ carries <code>flow.v1.root=</code> with its own root.</li>
 <h2 id="limits">Limits</h2>
 <ul>
 <li>A token acts as its run until it expires or is closed; keep it as you keep a
-credential. A call that passed the listener before a close still runs.</li>
+credential. A call already admitted when the run is closed still runs.</li>
 <li>Data two runs exchange outside <code>--parent</code>, such as two sibling tasks an
 orchestrator bridges, is not seen.</li>
 <li><code>dev</code> and scenarios serve local runs only.</li>

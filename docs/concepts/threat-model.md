@@ -72,7 +72,7 @@ flowchart TD
     Plane -->|"writes evidence first"| Spool
     Page -->|"writes answers and pauses"| Files
     Browser["Browser"] -->|"loopback, a token traded once"| Page
-    Other -.->|"refused on owner and mode"| Files
+    Other -.->|"refused on mode, keys and pause file on owner"| Files
     Other -.->|"files 0600, directory not judged"| Spool
     Other -->|"no credential"| Collect
     Plane -->|"exactly the authorized bytes"| Http["HTTP upstream"]

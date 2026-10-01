@@ -98,12 +98,6 @@ wait for a fleet to address it.</p>
 </thead>
 <tbody>
 <tr>
-<td>B02</td>
-<td>Build the runs an operator opens</td>
-<td>none</td>
-<td><a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a> is accepted; its code is next. <code>runs open</code>, <code>close</code> and <code>list</code>, the run token on HTTP and stdio, the root's durable flow state and holds per run, with the record's adversarial tests: forged, closed, expired and other principals' tokens refused with no trail; a new session or process with the same token reaching the same state; two runs of one agent kept apart; a restart keeping it. ADR-0021's limits, contracts.md and status.md change with the code</td>
-</tr>
-<tr>
 <td>B09</td>
 <td>Build a custom report and alert example</td>
 <td>none</td>
@@ -130,7 +124,7 @@ tested destination mappings.</p>
 <tr>
 <td>B15</td>
 <td>Add procedure supervision over one run</td>
-<td>B02</td>
+<td>none</td>
 <td>Versioned procedures bind to runs; initial reports cover out-of-order and skipped required steps, failed-step continuation, repeated denial and deadline. The expected/observed view cites evidence and marks gaps unknown. Findings never grant authority, add no latency to a decision and change no verdict; an automated stop requires explicit authorization</td>
 </tr>
 </tbody>
@@ -149,7 +143,7 @@ tested destination mappings.</p>
 <tr>
 <td>B10</td>
 <td>Specify and build the enforcement API</td>
-<td>B00, B02</td>
+<td>B00</td>
 <td>ADR defines admit/complete/abort, scoped opaque handles, expiry, authorized bytes, pending/resume, duplicate requests and abandoned executions. Authenticated scope is receiver-owned. Timeout after a possible effect produces an uncertain result and no automatic retry. A test distinguishes a cooperating client from an enforcement boundary</td>
 </tr>
 <tr>
@@ -184,7 +178,7 @@ Custom policy-provider work preserves ADR-0017's veto-only semantics.</p>
 <tr>
 <td>B13</td>
 <td>Authenticate operators and scope authority</td>
-<td>B02, B03, B10</td>
+<td>B03, B10</td>
 <td>Reader/operator/admin capabilities are receiver-enforced; approval authority comes from authentication. Cross-project reads and operations are refused; a pause names its actual run/agent/principal scope. Two users and overlapping runs pass adversarial tests. MCP upstream credentials remain separate from inbound credentials</td>
 </tr>
 <tr>

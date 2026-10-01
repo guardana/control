@@ -101,7 +101,7 @@ and whether it is open, closed or expired.
 ## Limits
 
 - A token acts as its run until it expires or is closed; keep it as you keep a
-  credential. A call that passed the listener before a close still runs.
+  credential. A call already admitted when the run is closed still runs.
 - Data two runs exchange outside `--parent`, such as two sibling tasks an
   orchestrator bridges, is not seen.
 - `dev` and scenarios serve local runs only.

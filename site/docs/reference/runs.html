@@ -27,7 +27,8 @@
 <main id="main" class="prose">
 <h1 id="runs">Runs</h1>
 <p>A run is one task of an agent, with its own flow state. Without <code>runs.dir</code> a
-plane keeps one run per principal and agent in memory (ADR-0021). With it,
+plane keeps one run per principal and agent in memory, up to <code>flow.max_runs</code>
+(ADR-0021). With it,
 every call needs a run the operator opened in that directory, and a run's flow
 state is kept on disk
 (<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>).
@@ -91,7 +92,7 @@ stderr and exits 1.</p>
 <tr>
 <td><code>stateless_http</code>, <code>stateful_http</code></td>
 <td>the <code>Run-Token</code> header of every request, on every method</td>
-<td><code>401</code> with <code>WWW-Authenticate: Run-Token</code> and one body whatever the cause, before the protocol library reads the request</td>
+<td><code>401</code> with <code>WWW-Authenticate: Run-Token</code> and one body whatever the cause, before the protocol library reads the request; the origin check and an authenticator answer first</td>
 </tr>
 <tr>
 <td><code>stdio</code></td>

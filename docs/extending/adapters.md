@@ -64,6 +64,7 @@ open holds one of the plane's `MaxOpen` slots until the process ends.
 | `Block` | Needed by `APPROVE`, `ENFORCE` and `LOCKDOWN`. An adapter without it never runs under a mode that enforces |
 | `Authenticates` | The adapter's listener establishes an end user before a call is translated |
 | `BindEndUser` | The adapter carries that identity into the envelope's principal. Declared without `Authenticates`, it is refused at start: without authentication there is no user, only a claim |
+| `PresentsRuns` | The adapter resolves a run token on every call and hands the run in. Declared exactly when the plane has a runs directory, or the plane is refused at start (ADR-0034) |
 | `SeeDelegation` | The adapter can read a delegation chain out of the call |
 | `SeeResourceIDs` | The adapter can name the resource a call touches |
 | `Obligations` | The obligation types the adapter applies itself, by name from the catalogue. The plane's own rewriting types plus these are the kernel's applicable set; an obligation outside the union is a `DENY` with `OBLIGATION_NOT_UNDERSTOOD` |

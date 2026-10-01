@@ -38,7 +38,6 @@ wait for a fleet to address it.
 
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
-| B02 | Build the runs an operator opens | none | [ADR-0034](adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md) is accepted; its code is next. `runs open`, `close` and `list`, the run token on HTTP and stdio, the root's durable flow state and holds per run, with the record's adversarial tests: forged, closed, expired and other principals' tokens refused with no trail; a new session or process with the same token reaching the same state; two runs of one agent kept apart; a restart keeping it. ADR-0021's limits, contracts.md and status.md change with the code |
 | B09 | Build a custom report and alert example | none | A consumer outside this module reports actions and reasons and emits a local alert. Fixtures cover duplicate delivery, gaps and consumer outage. It requires no extra service and records no raw payload by default |
 
 The existing event wire format is reused where sufficient. A query response or
@@ -51,13 +50,13 @@ tested destination mappings.
 
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
-| B15 | Add procedure supervision over one run | B02 | Versioned procedures bind to runs; initial reports cover out-of-order and skipped required steps, failed-step continuation, repeated denial and deadline. The expected/observed view cites evidence and marks gaps unknown. Findings never grant authority, add no latency to a decision and change no verdict; an automated stop requires explicit authorization |
+| B15 | Add procedure supervision over one run | none | Versioned procedures bind to runs; initial reports cover out-of-order and skipped required steps, failed-step continuation, repeated denial and deadline. The expected/observed view cites evidence and marks gaps unknown. Findings never grant authority, add no latency to a decision and change no verdict; an automated stop requires explicit authorization |
 
 ## Milestone 4: integrations without a fork
 
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
-| B10 | Specify and build the enforcement API | B00, B02 | ADR defines admit/complete/abort, scoped opaque handles, expiry, authorized bytes, pending/resume, duplicate requests and abandoned executions. Authenticated scope is receiver-owned. Timeout after a possible effect produces an uncertain result and no automatic retry. A test distinguishes a cooperating client from an enforcement boundary |
+| B10 | Specify and build the enforcement API | B00 | ADR defines admit/complete/abort, scoped opaque handles, expiry, authorized bytes, pending/resume, duplicate requests and abandoned executions. Authenticated scope is receiver-owned. Timeout after a possible effect produces an uncertain result and no automatic retry. A test distinguishes a cooperating client from an enforcement boundary |
 | B11 | Ship Python and one framework port | B10 | A custom-tool wrapper and one adopter-selected framework integration run externally. Conformance covers block-before-send, rewritten bytes, pending approval, concurrent resume, unknown obligation, timeout, cancellation and completion. Publish covered and bypassing tool paths; digest parity precedes client-side hashes |
 | B12 | Expose asynchronous extensions and add TypeScript | B09; B11 for enforcement client | External detector/alert example has stable id/version, evidence refs and confirmed/suspected/unknown cases. Queue bounds, lag and failures are visible and cannot affect authorization. TypeScript passes the same client fixtures. Promote a Go seam only with its own ADR and two consumers; no runtime plugin loading |
 
@@ -70,7 +69,7 @@ Custom policy-provider work preserves ADR-0017's veto-only semantics.
 
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
-| B13 | Authenticate operators and scope authority | B02, B03, B10 | Reader/operator/admin capabilities are receiver-enforced; approval authority comes from authentication. Cross-project reads and operations are refused; a pause names its actual run/agent/principal scope. Two users and overlapping runs pass adversarial tests. MCP upstream credentials remain separate from inbound credentials |
+| B13 | Authenticate operators and scope authority | B03, B10 | Reader/operator/admin capabilities are receiver-enforced; approval authority comes from authentication. Cross-project reads and operations are refused; a pause names its actual run/agent/principal scope. Two users and overlapping runs pass adversarial tests. MCP upstream credentials remain separate from inbound credentials |
 | B14 | Add retention and recovery | none | Rotation, disk budget, cursor expiry, duplicates, interrupted export and backup/restore are tested. A restored process cannot reuse spent approval authority or forget its rollback floor. Read-only inspection cannot mutate recovery state without saying so |
 
 ## Milestone 6: a fleet and wider protocols

@@ -16,7 +16,7 @@ without this page fails the gate.
 | Exit status | Means |
 | --- | --- |
 | 0 | The command did what it was asked. |
-| 1 | The input was refused or a case failed: stderr says why, one line each; a scenario's report on stdout names what differed. |
+| 1 | The input was refused or a case failed: stderr says why, one line each; `policy test` and a scenario report on stdout what failed. |
 | 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, or a trail export refused or cut short. |
 
 Without arguments either binary prints its version and one status line on
