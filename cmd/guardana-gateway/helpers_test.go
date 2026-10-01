@@ -187,6 +187,11 @@ func (tr tree) output(raw string) string {
 	return strings.Join(lines, "\n")
 }
 
+// childWait bounds a test's wait on a child process it starts. A loaded
+// machine can take seconds to start one, and a test that does not hang never
+// waits this long, so the bound only decides when a hang is reported.
+const childWait = time.Minute
+
 // golden compares what a command wrote with the committed shape. A golden that
 // does not exist is a failure, never a file the test writes for itself.
 func golden(t *testing.T, name, got string) {

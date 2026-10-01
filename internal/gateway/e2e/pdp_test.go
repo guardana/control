@@ -38,8 +38,11 @@ const (
 // by a margin no scheduling delay closes.
 const staleBy = 11 * time.Minute
 
-// askTimeout bounds one ask, in the pipeline and in the client.
-const askTimeout = 200 * time.Millisecond
+// askTimeout bounds one ask, in the pipeline and in the client. A loaded
+// machine running the race detector can take hundreds of milliseconds to
+// answer on the loopback, so a bound much shorter turns an answer into a
+// timeout; the silent decision point waits it out in full.
+const askTimeout = 2 * time.Second
 
 // What the AuthZEN double answers. answerObligations is a true that holds an
 // obligation, which the plane cannot fulfil.

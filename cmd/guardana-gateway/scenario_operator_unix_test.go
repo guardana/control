@@ -25,7 +25,7 @@ func loggingControl(t *testing.T, log, body string) sibling {
 	path := script(t, `echo "$@" >> `+log+`
 if [ $# -eq 0 ]; then echo "`+brand.Name+` `+version+`"; exit 0; fi
 `+body)
-	s, err := findSibling(context.Background(), brand.CLI, path, 5*time.Second)
+	s, err := findSibling(context.Background(), brand.CLI, path, childWait)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func failedAdd(ctx context.Context, t *testing.T, dir string, ps *scenario.Pause
 	if err := os.WriteFile(state, []byte(oldEntry), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	r := &runner{control: pauseControl(t, log, state, add), plane: planeTarget{pauseFile: "/pause.json"}, timeout: 5 * time.Second}
+	r := &runner{control: pauseControl(t, log, state, add), plane: planeTarget{pauseFile: "/pause.json"}, timeout: childWait}
 	p := &play{r: r, added: map[int]string{}}
 	err = p.pause(ctx, 0, ps)
 	file, readErr := os.ReadFile(state) //nolint:gosec // G304: a file under the test's own directory
@@ -254,7 +254,7 @@ func TestAPauseReasonLeavesRoomForTheMarker(t *testing.T) {
 	}{{pause.MaxReasonBytes - overhead, true}, {pause.MaxReasonBytes - overhead + 1, false}} {
 		dir := t.TempDir()
 		log, state := filepath.Join(dir, "log"), filepath.Join(dir, "entries")
-		r := &runner{control: pauseControl(t, log, state, `exit 1`), plane: planeTarget{pauseFile: "/pause.json"}, timeout: 5 * time.Second}
+		r := &runner{control: pauseControl(t, log, state, `exit 1`), plane: planeTarget{pauseFile: "/pause.json"}, timeout: childWait}
 		p := &play{r: r, added: map[int]string{}}
 		err := p.pause(context.Background(), 0, &scenario.Pause{Scope: pause.Scope{Kind: pause.ScopeGlobal}, Reason: strings.Repeat("r", c.size)})
 		ran, _ := os.ReadFile(log) //nolint:gosec // G304: a file under the test's own directory

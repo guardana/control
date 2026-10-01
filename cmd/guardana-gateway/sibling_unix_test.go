@@ -31,7 +31,7 @@ func script(t *testing.T, body string) string {
 func TestASiblingAnswersWithThisBinarysVersion(t *testing.T) {
 	ctx := context.Background()
 	same := script(t, `echo "`+brand.Name+` `+version+`"; echo "a status line"`)
-	if s, err := findSibling(ctx, brand.CLI, same, 10*time.Second); err != nil || s.path != same {
+	if s, err := findSibling(ctx, brand.CLI, same, childWait); err != nil || s.path != same {
 		t.Fatalf("a sibling of this version: %+v, %v", s, err)
 	}
 	for _, c := range []struct {
@@ -45,7 +45,7 @@ func TestASiblingAnswersWithThisBinarysVersion(t *testing.T) {
 		{"nothing there", filepath.Join(t.TempDir(), "absent"), "go install ./cmd/..."},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if _, err := findSibling(ctx, brand.CLI, c.path, 10*time.Second); err == nil || !strings.Contains(err.Error(), c.says) {
+			if _, err := findSibling(ctx, brand.CLI, c.path, childWait); err == nil || !strings.Contains(err.Error(), c.says) {
 				t.Errorf("err = %v, want one saying %q", err, c.says)
 			}
 		})
@@ -53,7 +53,7 @@ func TestASiblingAnswersWithThisBinarysVersion(t *testing.T) {
 	// Beside this test binary there is no such command, and the search path
 	// is not read even when it holds one.
 	t.Setenv("PATH", filepath.Dir(same)+string(os.PathListSeparator)+os.Getenv("PATH"))
-	if _, err := findSibling(ctx, filepath.Base(same), "", 10*time.Second); err == nil || !strings.Contains(err.Error(), "go install ./cmd/...") {
+	if _, err := findSibling(ctx, filepath.Base(same), "", childWait); err == nil || !strings.Contains(err.Error(), "go install ./cmd/...") {
 		t.Errorf("a sibling found on the search path: err = %v", err)
 	}
 }
@@ -61,7 +61,7 @@ func TestASiblingAnswersWithThisBinarysVersion(t *testing.T) {
 // TestAKilledSiblingIsNamedAsKilled: a sibling killed by a signal is
 // reported by that signal, and on macOS a SIGKILL names the quarantine.
 func TestAKilledSiblingIsNamedAsKilled(t *testing.T) {
-	killed := sibling{path: script(t, `kill -9 $$`), timeout: 5 * time.Second}
+	killed := sibling{path: script(t, `kill -9 $$`), timeout: childWait}
 	_, err := killed.run(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "was killed by killed") {
 		t.Fatalf("a killed sibling: err = %v", err)
@@ -70,7 +70,7 @@ func TestAKilledSiblingIsNamedAsKilled(t *testing.T) {
 	if got := strings.Contains(err.Error(), quarantine); got != (runtime.GOOS == "darwin") {
 		t.Errorf("on %s the error %q names the quarantine: %v", runtime.GOOS, err, got)
 	}
-	terminated := sibling{path: script(t, `kill -TERM $$`), timeout: 5 * time.Second}
+	terminated := sibling{path: script(t, `kill -TERM $$`), timeout: childWait}
 	if _, err := terminated.run(context.Background()); err == nil || !strings.Contains(err.Error(), "was killed by terminated") || strings.Contains(err.Error(), "quarantine") {
 		t.Errorf("a terminated sibling: err = %v", err)
 	}
@@ -83,7 +83,7 @@ func TestASiblingIsBounded(t *testing.T) {
 	if _, err := slow.run(context.Background()); err == nil || !strings.Contains(err.Error(), "did not finish within 100ms") {
 		t.Errorf("a slow sibling: err = %v", err)
 	}
-	loud := sibling{path: script(t, `head -c 200000 /dev/zero`), timeout: 5 * time.Second}
+	loud := sibling{path: script(t, `head -c 200000 /dev/zero`), timeout: childWait}
 	out, err := loud.run(context.Background())
 	if err != nil || len(out) != maxSiblingOutput {
 		t.Errorf("a loud sibling: %d bytes, %v; want %d", len(out), err, maxSiblingOutput)
@@ -104,7 +104,7 @@ func TestABareControlNameRunsTheFileItNames(t *testing.T) {
 	}
 	t.Chdir(cwd)
 	t.Setenv("PATH", onPath+string(os.PathListSeparator)+os.Getenv("PATH"))
-	s, err := findSibling(context.Background(), brand.CLI, brand.CLI, 5*time.Second)
+	s, err := findSibling(context.Background(), brand.CLI, brand.CLI, childWait)
 	if err != nil {
 		t.Fatalf("findSibling: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestAControlPathIsResolvedByTheKernel(t *testing.T) {
 			if err := os.Remove(log); err != nil && !os.IsNotExist(err) {
 				t.Fatal(err)
 			}
-			s, err := findSibling(context.Background(), brand.CLI, named, 5*time.Second)
+			s, err := findSibling(context.Background(), brand.CLI, named, childWait)
 			if err != nil {
 				t.Fatalf("findSibling: %v", err)
 			}

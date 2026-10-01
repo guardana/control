@@ -44,7 +44,7 @@ func TestASilentDecisionPointTakesAQuestionAndNeverAnswers(t *testing.T) {
 	t.Parallel()
 	_, controlBin := builtBinaries(t)
 	ctx := context.Background()
-	control, err := findSibling(ctx, brand.CLI, controlBin, 10*time.Second)
+	control, err := findSibling(ctx, brand.CLI, controlBin, childWait)
 	if err != nil {
 		t.Fatal(err)
 	}
