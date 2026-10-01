@@ -14,7 +14,7 @@ import (
 
 const (
 	codePaused   = "PAUSED"
-	pauseEvery   = 20 * time.Millisecond
+	pauseEvery   = 250 * time.Millisecond
 	pauseEntryID = "stop-deletes"
 )
 

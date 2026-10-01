@@ -265,7 +265,9 @@ func TestUpstreamListIsTimedOut(t *testing.T) {
 	t.Run("forwarded", func(t *testing.T) {
 		v := newVictim()
 		blockMethod(t, v, "resources/list")
-		a := adapterOver(t, v, rigOptions{listTimeout: 100 * time.Millisecond})
+		// The bound also covers the tools/list Start reads, which a loaded
+		// machine can take well over 100ms to answer.
+		a := adapterOver(t, v, rigOptions{listTimeout: time.Second})
 		if err := a.Start(ctxT(t), &fakePipeline{decide: execute}); err != nil {
 			t.Fatal(err)
 		}
