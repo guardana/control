@@ -82,7 +82,8 @@ Signed-off-by: Your Name <you@example.com>
 ```
 
 Pull requests are squash-merged, so the title becomes the commit on `main`. A
-workflow checks the title and the sign-off of each commit that adds a change.
+workflow checks the title and the sign-off of each commit that adds a change,
+except one Dependabot wrote in a pull request it opened.
 
 ## Shape of a pull request
 

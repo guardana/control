@@ -162,8 +162,10 @@ absent. `trust_zone` says only where a call sends data. An unknown read leaves
 the run's reading unknown for the rest of the run. A resource read and a prompt
 carry no declaration, since an override names a tool, so each makes its run
 untrusted and its reading unknown for the rest of the run. A call whose run the
-gateway cannot give an id is blocked with `EVIDENCE_UNAVAILABLE`, since what it
-returned would taint nothing.
+id source cannot name is blocked with `EVIDENCE_UNAVAILABLE`, since what it
+returned would taint nothing. Past `flow.max_runs` runs, a new principal's
+call gets no run: its flow is uncomputed, which a flow rule reads as unknown,
+and what it returns taints nothing.
 
 An MCP call carries no data label, so once a run has taken in anything
 untrusted, a `DENY` flow rule blocks every call of that run to an untrusted

@@ -76,7 +76,6 @@ overrides:
     fingerprint: sha256:a60469806dda55fd911857c35fef33a10dfc5075180babb351a363a505b6d973
     effect: READ
     resource_type: file
-    resource_from: /paths
     trust_zone: TRUSTED_INTERNAL
   - upstream: files
     tool: list_directory

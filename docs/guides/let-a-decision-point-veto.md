@@ -106,7 +106,7 @@ system's roots; there is no setting for a private certificate authority.
 guardana-gateway doctor --config gateway.yaml
 ```
 
-The last line is `pdp`. `doctor` reads the decision point's published
+With every earlier check `ok`, the last line is `pdp`. `doctor` reads the decision point's published
 metadata, `/.well-known/authzen-configuration`, and compares it with your
 identifier and evaluation endpoint: `ok` when it agrees, `fail` when it does
 not, `unknown` when it cannot be read. Only `doctor` reads it, and the plane

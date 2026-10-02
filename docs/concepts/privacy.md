@@ -41,7 +41,7 @@ plane mints or, under `runs.dir`, the id of the run the operator opened. `execut
 | `principal` | `id`, `type` and `tenant_id` from `listener.principal`; no end user, since no key wires an authenticator |
 | `agent` | `id`, `framework` and `version` from `listener.agent` |
 | `action` | `kind` (`tool`, `resource` or `prompt`), `name` (the tool's name, the resource's URI or the prompt's name), `protocol` `mcp`, the effect class, and `provider`, the upstream's name |
-| `resource` | the override's `type`, and `id`: the value at the override's `resource_from` pointer into the arguments, the URI of a `resources/read`, or the name of a `prompts/get`; the upstream's `tenant_id` and `environment` |
+| `resource` | the override's `type`, and `id`: the string or number at the override's `resource_from` pointer into the arguments, none for another value, the URI of a `resources/read`, or the name of a `prompts/get`; the upstream's `tenant_id` and `environment` |
 | `destination` | the override's trust zone, when it names one |
 | `arguments` | `canonical_hash` only: a SHA-256 of the canonical arguments |
 | `context.tags` | `mcp.client=` with the name and version the client reported, `mcp.protocol_version=`, and the plane's flow tags: whether the run took in untrusted content, and the highest sensitivity it read, or `flow.v1.state=uncomputed` when the plane kept no run state for the call |

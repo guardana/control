@@ -316,7 +316,7 @@ one the retry equals, oldest first.</p>
 <tr>
 <td>the next identical call after the held one ran</td>
 <td>its own trail: <code>ACTION_PROPOSED</code>, <code>POLICY_DECIDED</code>, <code>ACTION_BLOCKED</code></td>
-<td><code>DENY</code>, <code>APPROVAL_ALREADY_USED</code>: the approval was spent, which is not by itself a statement that the earlier call ran (<a href="/docs/reference/reason-codes">reference/reason-codes</a>)</td>
+<td><code>DENY</code>, <code>APPROVAL_ALREADY_USED</code>: the approval was spent, which is not by itself a statement that the earlier call ran (<a href="/docs/reference/reason-codes">reference/reason-codes</a>); once the spent approval has expired, the same call is held anew</td>
 </tr>
 <tr>
 <td>nobody answered before <code>expires_at</code></td>

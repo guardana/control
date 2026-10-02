@@ -110,7 +110,7 @@ select a run. Refusals are counted by cause, <code>missing</code>, <code>malform
 <p>A call reads its root's state once and is decided under it; what its result
 brings in is written to the root before <code>ACTION_STARTED</code>. A state the plane
 cannot read or write, or whose lock another holder keeps too long, blocks the
-call with <code>EVIDENCE_UNAVAILABLE</code> in every mode, <code>OBSERVE</code> included. A held call resumes only from the run it was held
+call in every mode, <code>OBSERVE</code> included, with <code>EVIDENCE_UNAVAILABLE</code> unless a decision already blocked it. A held call resumes only from the run it was held
 under. <code>ACTION_PROPOSED</code> names the root in the tag <code>flow.v1.root=</code>.</p>
 <p>A stateful HTTP session is bound to its principal and agent, not to a run:
 each call in it is judged under the token it presents, but a token of another

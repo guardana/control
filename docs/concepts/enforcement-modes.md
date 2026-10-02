@@ -23,7 +23,7 @@ flowchart TD
     accTitle: Where the mode is applied
     accDescr: A call the enforcement point blocks for its own causes is blocked in every mode; otherwise OBSERVE executes the proposed bytes, APPROVE holds an allowed material call, ENFORCE applies the kernel's action, and the trail is written before anything runs.
     K["The kernel's decision and its action, for the proposed bytes"] --> P{"Blocked by the enforcement point itself?"}
-    P -->|a pause, an unreadable pause state, a halt or LOCKDOWN on a material call, or a call nothing classifies outside OBSERVE| B["Block, with a decision the enforcement point minted listing every cause"]
+    P -->|a pause, an unreadable pause state, a halt or LOCKDOWN on a material call, a call nothing classifies outside OBSERVE, arguments it cannot hash, or a run state or evidence it cannot keep| B["Block, with a decision the enforcement point minted listing every cause"]
     P -->|no| M{"Mode"}
     M -->|OBSERVE| X["Execute the proposed bytes, whatever the verdict"]
     M -->|APPROVE, allowed material call| A["AwaitApproval"]

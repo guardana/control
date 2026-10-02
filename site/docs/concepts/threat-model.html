@@ -195,7 +195,9 @@ block (<code>adapters/mcp/answer.go</code>; <code>TestUpstreamCannotAnswerAsTheG
 <code>TestUpstreamCannotForgeABlockedRead</code>).</li>
 <li>A result nobody declared trusted makes its run untrusted, so a flow rule can
 fire on the next call (<code>adapters/mcp/translate.go</code>;
-<code>TestWhatNoOverrideClassifiesReturnsTheRestrictiveAnswer</code>).</li>
+<code>TestWhatNoOverrideClassifiesReturnsTheRestrictiveAnswer</code>). Past
+<code>flow.max_runs</code> runs a new principal's calls have no run: a flow rule reads
+their flow as unknown, and what they return taints nothing.</li>
 <li>A server's lists are bounded and timed out, a call is bounded by
 <code>upstream.call_timeout</code>, and an HTTP server's redirect is not followed
 (<code>TestUpstreamListIsBounded</code>, <code>TestUpstreamListIsTimedOut</code>,

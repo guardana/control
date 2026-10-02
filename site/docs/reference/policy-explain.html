@@ -80,7 +80,7 @@ the call is blocked before anyone is asked.</p>
 </tr>
 <tr>
 <td><code>enforcement_mode</code></td>
-<td>The decision's own mode, always <code>ENFORCE</code>. A plane's mode acts on the decision after it is made, and this command does not know it: under <code>OBSERVE</code> a blocked call runs and is recorded (<a href="/docs/concepts/enforcement-modes">enforcement modes</a>).</td>
+<td>The decision's own mode, always <code>ENFORCE</code>. A plane's mode acts on the decision after it is made, and this command does not know it: under <code>OBSERVE</code> a call the kernel blocked runs and is recorded, unless the plane blocks it for a cause of its own (<a href="/docs/concepts/enforcement-modes">enforcement modes</a>).</td>
 </tr>
 <tr>
 <td><code>bundle</code></td>

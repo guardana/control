@@ -10,7 +10,7 @@
   "readme": {"root": 600, "folder": 300},
   "ceilings": {
     "AGENTS.md": 1030,
-    "CONTRIBUTING.md": 791,
+    "CONTRIBUTING.md": 801,
     "GOVERNANCE.md": 678,
     "ROADMAP.md": 765,
     "testdata/digest/README.md": 1966

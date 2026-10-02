@@ -86,7 +86,7 @@ a child process over its standard input and output (<code>upstreams[].command</c
 </tr>
 <tr>
 <td><code>tools/call</code></td>
-<td>Admits an <code>ActionEnvelope</code>; only if allowed, applies rewriting obligations, sends exactly the authorized bytes and closes the trail with their digest</td>
+<td>Admits an <code>ActionEnvelope</code>; only if the mode lets it run, applies rewriting obligations, none under <code>OBSERVE</code>, sends exactly the authorized bytes and closes the trail with their digest</td>
 <td>yes</td>
 </tr>
 <tr>
@@ -190,7 +190,7 @@ when it is not <code>none</code> in a mode that does not enforce.</p>
 <p>A preview is one decision made with no arguments, so a tool whose
 <code>resource_from</code> reads the resource out of the arguments cannot be decided before
 the call exists. Such a tool stays in the list, and under <code>annotate</code> it is marked
-<code>DECIDED_PER_CALL</code> rather than allowed or denied. Under <code>hide</code> it stays too:
+<code>DECIDED_PER_CALL</code>, unless a rule denies it without its arguments. Under <code>hide</code> it stays too:
 shaping subtracts what policy denies, never what it could not decide.</p>
 <h2 id="the-two-codes-the-adapter-mints">The two codes the adapter mints</h2>
 <p>A <code>tools/call</code> answers a block and a pending state as a tool result with
@@ -255,10 +255,9 @@ on its own trail names that. The ids are added after the result is hashed,
 so the closing record's <code>result_hash</code> is the upstream's. Reads, prompts, lists
 and undecided answers carry neither.</p>
 <h2 id="reason-codes-in-the-gateways-answers">Reason codes in the gateway's answers</h2>
-<p>A decision the kernel made comes back as the kernel wrote it, so <code>reason_codes</code>
-carries whatever codes the kernel emits; <a href="/docs/reference/reason-codes">reference/reason-codes</a>
-has every code and its number. The codes below are the ones the enforcement
-point, the pipeline or this adapter, mints or answers on its own.</p>
+<p>A decision the kernel made comes back as the kernel wrote it;
+<a href="/docs/reference/reason-codes">reference/reason-codes</a> has every code and its number. The codes below are the ones the enforcement
+point mints or answers on its own.</p>
 <table>
 <thead>
 <tr>

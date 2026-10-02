@@ -52,6 +52,7 @@ stricter. Nothing runs unrecorded unless the operator let a read do so. The
 record says who acted, on
 whose behalf, on what, what was decided, which policy version decided it, how
 the call ended, and a hash of any answer it could encode, never its content.
+Who acted is the configured principal; nothing authenticates callers yet.
 Verdict precedence and the fail-closed rules are in
 [ADR-0012](docs/adr/0012-policy-kernel-semantics.md), the evidence and privacy
 defaults in [ADR-0004](docs/adr/0004-evidence-and-privacy-defaults.md).
@@ -86,8 +87,7 @@ let run unrecorded, which is counted.
 
 Everything beyond that path is `planned` and follows [ROADMAP.md](ROADMAP.md).
 A supervisor compares what agents do with their procedures and permissions,
-reports to the operator's alerting and logging, and can stop an agent. Run
-identity comes next.
+reports to the operator's alerting and logging, and can stop an agent.
 
 ```mermaid
 flowchart TB
@@ -164,8 +164,7 @@ flowchart LR
 ```
 
 The two are independent: neither needs the other to build, run or be useful.
-They can work together through the formats each one publishes; a bridge
-between them would be an optional module
+They can work together through the formats each one publishes
 ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
 ## Links

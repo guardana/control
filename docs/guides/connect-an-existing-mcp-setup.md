@@ -21,7 +21,9 @@ and the MCP inspector's command line as the client. The plane is
 
 ## Prerequisites
 
-- `guardana-gateway` and `guardana-control` from a release archive.
+- `guardana-gateway` and `guardana-control` from a release archive, and a
+  checkout of this repository for the profile and the policy pack, which the
+  archives do not carry.
 - Node.js with `npm`, for this server; another server needs whatever it runs on.
 - A client that connects to a server by URL over Streamable HTTP, protocol
   `2025-11-25` or older. A client that only starts servers as commands can
@@ -120,7 +122,7 @@ clients:
 ```
 
 A client that can only start servers as commands starts the plane instead,
-with `listener.kind: stdio` in the profile:
+with `listener.kind: stdio` and no `listener.address` in the profile:
 
 ```json
 {

@@ -34,7 +34,8 @@ fixture, a stale snapshot or a blocked call would be reported as fast work.
   usable CPUs, Go version, the Go environment variables and the load average,
   because a duration without them says nothing.
 - The round trip runs the real exporter against a collector in the same
-  process, so its numbers include the exporter's work.
+  process while it is timed and checks delivery after the timer stops, so its
+  numbers include the exporter's work but not the wait for acknowledgements.
 - No gate fails on a duration: it would be reporting on the host rather than
   on the change.
 - `BenchmarkDecide` and the round trip read the real clock; on a busy machine

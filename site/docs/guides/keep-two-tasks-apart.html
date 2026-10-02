@@ -84,8 +84,10 @@ and whether it is open, closed or expired.</p>
 <h2 id="verify">Verify</h2>
 <ul>
 <li><code>doctor</code>'s <code>runs</code> line is <code>ok</code> and says <code>opened in /var/lib/guardana/runs</code>.</li>
-<li>A request with no token, a closed run's or another agent's is answered
-<code>401</code>, and <code>/healthz</code> counts it under <code>runs.refused_at_request</code>.</li>
+<li>Over HTTP a request with no token, a closed run's or another agent's is
+answered <code>401</code>, and <code>/healthz</code> counts it under <code>runs.refused_at_request</code>;
+over stdio a refused token is answered <code>-31102</code> and counted under
+<code>runs.refused_at_message</code>.</li>
 <li>After one task reads something untrusted, a call of another task to an
 untrusted destination is decided as before, and its <code>ACTION_PROPOSED</code>
 carries <code>flow.v1.root=</code> with its own root.</li>

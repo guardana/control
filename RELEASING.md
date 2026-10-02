@@ -1,7 +1,6 @@
 # Releasing
 
-How a version of Guardana Control is cut, and how anyone checks what was
-published. A release is built, signed and published by
+How a version is cut, and how anyone checks what was published. A release is built, signed and published by
 `.github/workflows/release.yml` and nowhere else; nothing is uploaded from a
 laptop.
 
@@ -10,7 +9,7 @@ laptop.
 A maintainer with the maintain or admin role on `guardana/control`. The
 repository refuses a `v*` tag pushed by anyone else, and the release job runs
 in the `release` environment, which admits only `v*` tags, each after a
-maintainer's approval.
+maintainer's approval or the admin's bypass.
 
 ## Cutting a release
 

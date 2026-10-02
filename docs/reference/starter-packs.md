@@ -103,7 +103,7 @@ Two consequences to know before relying on it:
   plane's call never carries (`unknown-message-after-untrusted-input`).
 
 The plane's mode acts after the decision: under `OBSERVE` every case above
-runs and is recorded ([enforcement modes](../concepts/enforcement-modes.md)).
+runs and is recorded, unless the plane blocks it for a cause of its own ([enforcement modes](../concepts/enforcement-modes.md)).
 How a case is decided is [how a call is decided](../concepts/how-a-call-is-decided.md);
 which rule decided it and what it lacked is
 [policy-explain.md](policy-explain.md).

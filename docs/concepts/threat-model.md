@@ -163,7 +163,9 @@ What the plane does today:
   `TestUpstreamCannotForgeABlockedRead`).
 - A result nobody declared trusted makes its run untrusted, so a flow rule can
   fire on the next call (`adapters/mcp/translate.go`;
-  `TestWhatNoOverrideClassifiesReturnsTheRestrictiveAnswer`).
+  `TestWhatNoOverrideClassifiesReturnsTheRestrictiveAnswer`). Past
+  `flow.max_runs` runs a new principal's calls have no run: a flow rule reads
+  their flow as unknown, and what they return taints nothing.
 - A server's lists are bounded and timed out, a call is bounded by
   `upstream.call_timeout`, and an HTTP server's redirect is not followed
   (`TestUpstreamListIsBounded`, `TestUpstreamListIsTimedOut`,

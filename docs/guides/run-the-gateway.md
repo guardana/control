@@ -40,7 +40,8 @@ Every path in the file resolves against the file's directory. Every key has
 an environment variable under `GUARDANA_CONTROL_`, spelled as the key with its
 dots as underscores in capitals, and the variable wins, so a credential or a
 per-host path stays out of version control. A key the file names and this build
-does not is refused, and so is a variable under that prefix that names no key.
+does not is refused, and so is a variable under that prefix that names no key
+or adds a list entry.
 [configuration.md](../reference/configuration.md) lists every key.
 
 ```yaml
@@ -149,7 +150,7 @@ executed, sink failures before and after an effect, unrecorded reads,
 mismatches, open and held) and `approvals` (the provider, whether a hold
 journal is kept, and what the last reconciliation closed and could not settle),
 `pause` and `runs` (local or opened, and refusals). A plane that takes no material call, or whose pause state is
-unknown, answers `503`. `GET /brand` answers the product's name.
+unknown, answers `503`.
 
 ### 6. Move to ENFORCE
 

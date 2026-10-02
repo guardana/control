@@ -35,7 +35,7 @@ a child process over its standard input and output (`upstreams[].command`).
 | Method | What the gateway does | Decided |
 | --- | --- | --- |
 | `tools/list` | Answers from the manifest, shaped for the principal, with `cacheScope: private` and the operator's `ttlMs` | on an uncached `annotate` or `hide` list, one preview per classified tool one upstream serves, recording nothing |
-| `tools/call` | Admits an `ActionEnvelope`; only if allowed, applies rewriting obligations, sends exactly the authorized bytes and closes the trail with their digest | yes |
+| `tools/call` | Admits an `ActionEnvelope`; only if the mode lets it run, applies rewriting obligations, none under `OBSERVE`, sends exactly the authorized bytes and closes the trail with their digest | yes |
 | `resources/read` | Translated as a `READ` of the URI. Routed only when one upstream is configured; with several the call is `ACTION_UNCLASSIFIED`, since nothing says which server holds the URI | yes |
 | `prompts/get` | Translated as a `READ` of the prompt, its arguments authorized as a canonical JSON object of strings. Routed as above | yes |
 | `resources/list`, `resources/templates/list`, `prompts/list` | Merged from every upstream, bounded, with the gateway's own `_meta` keys stripped and `cacheScope: private` | no: a listing names no action |
@@ -69,7 +69,7 @@ when it is not `none` in a mode that does not enforce.
 A preview is one decision made with no arguments, so a tool whose
 `resource_from` reads the resource out of the arguments cannot be decided before
 the call exists. Such a tool stays in the list, and under `annotate` it is marked
-`DECIDED_PER_CALL` rather than allowed or denied. Under `hide` it stays too:
+`DECIDED_PER_CALL`, unless a rule denies it without its arguments. Under `hide` it stays too:
 shaping subtracts what policy denies, never what it could not decide.
 
 ## The two codes the adapter mints
@@ -109,10 +109,9 @@ and undecided answers carry neither.
 
 ## Reason codes in the gateway's answers
 
-A decision the kernel made comes back as the kernel wrote it, so `reason_codes`
-carries whatever codes the kernel emits; [reference/reason-codes](reason-codes.md)
-has every code and its number. The codes below are the ones the enforcement
-point, the pipeline or this adapter, mints or answers on its own.
+A decision the kernel made comes back as the kernel wrote it;
+[reference/reason-codes](reason-codes.md) has every code and its number. The codes below are the ones the enforcement
+point mints or answers on its own.
 
 | Code | When |
 | --- | --- |

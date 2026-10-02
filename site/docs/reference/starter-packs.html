@@ -205,7 +205,7 @@ optional field. The toxic-flow rule also reads <code>data.sensitivities</code>, 
 plane's call never carries (<code>unknown-message-after-untrusted-input</code>).</li>
 </ul>
 <p>The plane's mode acts after the decision: under <code>OBSERVE</code> every case above
-runs and is recorded (<a href="/docs/concepts/enforcement-modes">enforcement modes</a>).
+runs and is recorded, unless the plane blocks it for a cause of its own (<a href="/docs/concepts/enforcement-modes">enforcement modes</a>).
 How a case is decided is <a href="/docs/concepts/how-a-call-is-decided">how a call is decided</a>;
 which rule decided it and what it lacked is
 <a href="/docs/reference/policy-explain">policy-explain.md</a>.</p>

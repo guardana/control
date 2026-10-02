@@ -54,7 +54,7 @@ the call is blocked before anyone is asked.
 | --- | --- |
 | `verdict` | The decision's verdict. |
 | `kernel_action` | What the kernel asks the enforcement point to do: `Block`, `Execute`, `ExecuteWithObligations` or `AwaitApproval`. |
-| `enforcement_mode` | The decision's own mode, always `ENFORCE`. A plane's mode acts on the decision after it is made, and this command does not know it: under `OBSERVE` a blocked call runs and is recorded ([enforcement modes](../concepts/enforcement-modes.md)). |
+| `enforcement_mode` | The decision's own mode, always `ENFORCE`. A plane's mode acts on the decision after it is made, and this command does not know it: under `OBSERVE` a call the kernel blocked runs and is recorded, unless the plane blocks it for a cause of its own ([enforcement modes](../concepts/enforcement-modes.md)). |
 | `bundle` | The bundle's id and version, quoted. |
 | `policy_digest` | The digest the decision names. |
 | `freshness` | `FRESH`, or `STALE` when the policy is older than the smaller of the document's and the options' budgets, or was loaded after the decision time. |

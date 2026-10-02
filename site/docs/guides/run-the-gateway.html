@@ -54,7 +54,8 @@ journal. Neither may be the spool's or inside the other.</li>
 an environment variable under <code>GUARDANA_CONTROL_</code>, spelled as the key with its
 dots as underscores in capitals, and the variable wins, so a credential or a
 per-host path stays out of version control. A key the file names and this build
-does not is refused, and so is a variable under that prefix that names no key.
+does not is refused, and so is a variable under that prefix that names no key
+or adds a list entry.
 <a href="/docs/reference/configuration">configuration.md</a> lists every key.</p>
 <pre><code class="language-yaml">mode: OBSERVE
 project_id: orders
@@ -142,7 +143,7 @@ executed, sink failures before and after an effect, unrecorded reads,
 mismatches, open and held) and <code>approvals</code> (the provider, whether a hold
 journal is kept, and what the last reconciliation closed and could not settle),
 <code>pause</code> and <code>runs</code> (local or opened, and refusals). A plane that takes no material call, or whose pause state is
-unknown, answers <code>503</code>. <code>GET /brand</code> answers the product's name.</p>
+unknown, answers <code>503</code>.</p>
 <h3 id="6-move-to-enforce">6. Move to ENFORCE</h3>
 <p>Run <code>doctor</code> again with <code>GUARDANA_CONTROL_MODE=ENFORCE</code>: outside <code>OBSERVE</code> an
 unclassified tool is not a pass, which shows whether the overrides are

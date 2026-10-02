@@ -38,7 +38,9 @@ and the MCP inspector's command line as the client. The plane is
 (<a href="/docs/status">status.md</a>).</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <ul>
-<li><code>guardana-gateway</code> and <code>guardana-control</code> from a release archive.</li>
+<li><code>guardana-gateway</code> and <code>guardana-control</code> from a release archive, and a
+checkout of this repository for the profile and the policy pack, which the
+archives do not carry.</li>
 <li>Node.js with <code>npm</code>, for this server; another server needs whatever it runs on.</li>
 <li>A client that connects to a server by URL over Streamable HTTP, protocol
 <code>2025-11-25</code> or older. A client that only starts servers as commands can
@@ -107,7 +109,7 @@ clients:</p>
 }
 </code></pre>
 <p>A client that can only start servers as commands starts the plane instead,
-with <code>listener.kind: stdio</code> in the profile:</p>
+with <code>listener.kind: stdio</code> and no <code>listener.address</code> in the profile:</p>
 <pre><code class="language-json">{
   &#34;mcpServers&#34;: {
     &#34;files&#34;: {

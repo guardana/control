@@ -77,7 +77,8 @@ approvals directory and the pause file come from it and nowhere else; the
 listener must speak HTTP and `health.address` must be set. `--trail` is the
 file the plane's collector writes. Paths run in the order given, a
 directory's `*.json` files in name order, and every file is read before the
-first one runs. `--timeout`, 10s by default, bounds each wait.
+first one runs. `--timeout`, 10s by default, bounds each wait; a call may take the upstream's
+call timeout on top of it.
 
 Before its first step a scenario needs `/healthz` to answer 200 with the
 mode and bundle it names, nothing paused and no halt. Then the runner waits

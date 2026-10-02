@@ -204,8 +204,8 @@ build a release, in <code>.github/workflows/release.yml</code> and in
 <code>make release-snapshot</code>, and CI checks each download against the digest pinned
 beside its version:</p>
 <ul>
-<li><code>goreleaser</code> (MIT) builds the two binaries for Linux and macOS, packs one
-archive per platform, writes <code>checksums.txt</code>, builds and pushes the
+<li><code>goreleaser</code> (MIT) builds the two binaries and the demo's servers for Linux
+and macOS, packs a product archive and a demo archive per platform, writes <code>checksums.txt</code>, builds and pushes the
 gateway's image with the <code>ko</code> library it links (Apache-2.0), and drafts the
 GitHub release, from <code>.goreleaser.yaml</code>. <code>ko</code> adds no download of its own;
 what it fetches is the base image above. Doing that by hand in the workflow
