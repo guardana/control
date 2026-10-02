@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -74,8 +75,7 @@ func unmarked(res *sdk.CallToolResult, callErr error) (answered, map[string]any,
 		}
 		a.kind = scenario.AnswerResult
 		a.output, a.noOutput = outputOf(res)
-		body, _ := res.StructuredContent.(map[string]any)
-		return a, map[string]any(res.Meta), body, nil
+		return a, map[string]any(res.Meta), planeFields(res.Meta), nil
 	}
 	var werr *jsonrpc.Error
 	if !errors.As(callErr, &werr) {
@@ -89,6 +89,21 @@ func unmarked(res *sdk.CallToolResult, callErr error) (answered, map[string]any,
 	}
 	a.kind = scenario.AnswerError
 	return a, data, data, nil
+}
+
+// planeFields are a result's _meta members under the plane's namespace, the
+// namespace taken off. The plane strips that namespace from what an upstream
+// sends, so a block's and a pending state's fields are read from here, which
+// every tool's answer carries, and not from structured content, which a tool
+// declaring an output schema does not get.
+func planeFields(meta sdk.Meta) map[string]any {
+	out := map[string]any{}
+	for k, v := range meta {
+		if rest, ok := strings.CutPrefix(k, brand.OTelNamespace+"/"); ok {
+			out[rest] = v
+		}
+	}
+	return out
 }
 
 // marked reads an answer the plane made itself, by its marker.

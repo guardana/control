@@ -544,11 +544,13 @@ func structured(t *testing.T, res *sdk.CallToolResult) map[string]any {
 	return m
 }
 
+// codesOf reads a block's codes from _meta, where every answer the plane
+// makes carries them, whatever the tool declares.
 func codesOf(t *testing.T, res *sdk.CallToolResult) []string {
 	t.Helper()
-	raw, ok := structured(t, res)["reason_codes"].([]any)
+	raw, ok := res.Meta[metaReasonCodes].([]any)
 	if !ok {
-		t.Fatalf("no reason_codes in %v", res.StructuredContent)
+		t.Fatalf("no reason_codes in %v", res.Meta)
 	}
 	var out []string
 	for _, c := range raw {

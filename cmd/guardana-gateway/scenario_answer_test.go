@@ -35,7 +35,8 @@ func text(s ...string) []sdk.Content {
 // TestClassifyReadsTheMarkerAndTheTrail holds each kind of answer to what the
 // runner reads from it.
 func TestClassifyReadsTheMarkerAndTheTrail(t *testing.T) {
-	marker := brand.OTelNamespace + "/answer"
+	ns := brand.OTelNamespace + "/"
+	marker := ns + "answer"
 	for _, c := range []struct {
 		name string
 		res  *sdk.CallToolResult
@@ -52,11 +53,11 @@ func TestClassifyReadsTheMarkerAndTheTrail(t *testing.T) {
 			nil, answered{kind: scenario.AnswerResult, codes: []string{}, requestID: "r1", decisionID: "d1", noOutput: "the result holds 2 content items, not one"}},
 		{"an upstream's error result", &sdk.CallToolResult{Meta: named(nil), Content: text("no"), IsError: true},
 			nil, answered{kind: scenario.AnswerResult, codes: []string{}, requestID: "r1", decisionID: "d1", noOutput: "the result is an error"}},
-		{"a block", &sdk.CallToolResult{Meta: named(map[string]any{marker: "blocked"}), IsError: true, Content: text("RULE_DENY"),
-			StructuredContent: map[string]any{"reason_codes": []any{"RULE_DENY", "NO_MATCHING_RULE"}}},
+		{"a block", &sdk.CallToolResult{Meta: named(map[string]any{marker: "blocked", ns + "reason_codes": []any{"RULE_DENY", "NO_MATCHING_RULE"}}),
+			IsError: true, Content: text("RULE_DENY")},
 			nil, answered{kind: scenario.AnswerBlocked, codes: []string{"RULE_DENY", "NO_MATCHING_RULE"}, requestID: "r1", decisionID: "d1", noOutput: "the answer is blocked"}},
-		{"a pending answer", &sdk.CallToolResult{Meta: named(map[string]any{marker: "pending"}), IsError: true,
-			StructuredContent: map[string]any{"reason_code": "APPROVAL_PENDING", "approval_id": "a1"}},
+		{"a pending answer", &sdk.CallToolResult{Meta: named(map[string]any{marker: "pending", ns + "reason_code": "APPROVAL_PENDING", ns + "approval_id": "a1"}),
+			IsError: true, StructuredContent: map[string]any{"reason_code": "SOMETHING_ELSE", "approval_id": "a2"}},
 			nil, answered{kind: scenario.AnswerPending, codes: []string{"APPROVAL_PENDING"}, requestID: "r1", decisionID: "d1", approvalID: "a1", noOutput: "the answer is pending"}},
 		{"an upstream's wire error", nil, &jsonrpc.Error{Code: -32000, Message: "down",
 			Data: json.RawMessage(`{"` + brand.OTelNamespace + `/request_id":"r1","` + brand.OTelNamespace + `/decision_id":"d1","why":"x"}`)},
@@ -74,7 +75,8 @@ func TestClassifyReadsTheMarkerAndTheTrail(t *testing.T) {
 // TestClassifyRefusesWhatNamesNoTrail: an answer that names no trail, carries
 // a marker the runner cannot read, or is no answer at all cannot be compared.
 func TestClassifyRefusesWhatNamesNoTrail(t *testing.T) {
-	marker := brand.OTelNamespace + "/answer"
+	ns := brand.OTelNamespace + "/"
+	marker := ns + "answer"
 	ids := `"` + brand.OTelNamespace + `/request_id":"r1","` + brand.OTelNamespace + `/decision_id":"d1"`
 	for _, c := range []struct {
 		name string
@@ -90,10 +92,12 @@ func TestClassifyRefusesWhatNamesNoTrail(t *testing.T) {
 		{"ids in a content item only", &sdk.CallToolResult{Content: text(`{"` + brand.OTelNamespace + `/request_id":"r1"}`)}, nil, "names no trail"},
 		{"an unknown marker", &sdk.CallToolResult{Meta: named(map[string]any{marker: "held"})}, nil, "does not know"},
 		{"a block without its codes", &sdk.CallToolResult{Meta: named(map[string]any{marker: "blocked"}), StructuredContent: map[string]any{}}, nil, "no list of reason codes"},
-		{"a block with a code that is not text", &sdk.CallToolResult{Meta: named(map[string]any{marker: "blocked"}),
-			StructuredContent: map[string]any{"reason_codes": []any{1.0}}}, nil, "no list of reason codes"},
-		{"a pending answer without its approval", &sdk.CallToolResult{Meta: named(map[string]any{marker: "pending"}),
-			StructuredContent: map[string]any{"reason_code": "APPROVAL_PENDING"}}, nil, "no approval id"},
+		{"a block with a code that is not text", &sdk.CallToolResult{Meta: named(map[string]any{marker: "blocked", ns + "reason_codes": []any{1.0}})},
+			nil, "no list of reason codes"},
+		{"a block whose codes are in the structured content only", &sdk.CallToolResult{Meta: named(map[string]any{marker: "blocked"}),
+			StructuredContent: map[string]any{"reason_codes": []any{"RULE_DENY"}}}, nil, "no list of reason codes"},
+		{"a pending answer without its approval", &sdk.CallToolResult{Meta: named(map[string]any{marker: "pending", ns + "reason_code": "APPROVAL_PENDING"})},
+			nil, "no approval id"},
 		{"error data that is a string", nil, &jsonrpc.Error{Code: -32000, Message: "down", Data: json.RawMessage(`"str"`)}, "not an object"},
 		{"error data that is null", nil, &jsonrpc.Error{Code: -32000, Message: "down", Data: json.RawMessage(`null`)}, "not an object"},
 		{"error with no data", nil, &jsonrpc.Error{Code: -32000, Message: "down"}, "names no trail"},

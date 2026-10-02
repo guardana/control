@@ -88,7 +88,7 @@ For each call step the runner:
 
 1. sends the arguments and reads the answer's kind only from the
    `guardana.control/answer` marker and whether it is an error, and its
-   request and decision ids only from the result's `_meta` or the error's
+   codes, approval and ids only from the result's `_meta` or the error's
    data;
 2. polls `/healthz` until the spool holds nothing unacknowledged, and
    requires the spool's quarantined records and the records the exporter

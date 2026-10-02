@@ -182,6 +182,31 @@ func pending(p *gateway.Pending) *mcp.CallToolResult {
 	return out
 }
 
+// forTool fits a block or a pending state to the tool it answers. Its fields
+// also go into _meta under the namespace, the decision id excepted, which
+// named writes. Its structured content stays only for a tool the plane knows
+// declares no output schema: a client checks structured content against the
+// schema the tool listed, which the plane's fields never meet, and would
+// refuse the answer before the model read it. A name no upstream routes may
+// still be listed with a schema, so it keeps none either.
+func forTool(r *mcp.CallToolResult, tool *mcp.Tool) *mcp.CallToolResult {
+	sc, _ := r.StructuredContent.(map[string]any)
+	meta := make(mcp.Meta, len(r.Meta)+len(sc))
+	for k, v := range r.Meta {
+		meta[k] = v
+	}
+	for k, v := range sc {
+		if k != keyDecisionID {
+			meta[brandMeta+k] = v
+		}
+	}
+	r.Meta = meta
+	if tool == nil || tool.OutputSchema != nil {
+		r.StructuredContent = nil
+	}
+	return r
+}
+
 // blockedError is the block for a method whose result cannot say isError.
 func blockedError(d *controlv1.Decision, extra map[string]any) error {
 	return &jsonrpc.Error{Code: CodeBlocked, Message: "blocked by policy", Data: dataOf(blocked(d, extra), answerBlocked)}

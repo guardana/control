@@ -75,10 +75,11 @@ shaping subtracts what policy denies, never what it could not decide.
 ## The two codes the adapter mints
 
 A `tools/call` answers a block and a pending state as a tool result with
-`isError: true`, which the model reads. A `resources/read` and a `prompts/get`
-have no such field, so there the same structured data travels as a JSON-RPC
-error, outside the range the protocol reserves and away from the code the library
-uses privately.
+`isError: true`, the fields below in its `_meta` under `<ns>/`, and as
+structured content only for a tool known to declare no output schema, since
+a client checks it against one. A `resources/read` and a
+`prompts/get` have no `isError`, so there the fields travel as a JSON-RPC
+error, outside the protocol's reserved range and the library's private code.
 
 | Code | Means | Data |
 | --- | --- | --- |
@@ -89,9 +90,8 @@ An upstream's own wire error passes through with its own code, and to a
 `tools/call` with its own message and data. Only `<ns>/answer` (`blocked` or
 `pending`, `<ns>` being the product's namespace) in an answer's `_meta` or in
 the error's `data` marks an answer the gateway made. The namespace is stripped
-from the same two places in everything an upstream sends, a result's `_meta`
-and the top level of a wire error's `data`, so an upstream cannot answer as the
-gateway.
+from both places in everything an upstream sends, so an upstream cannot answer
+as the gateway.
 
 A `tools/call` answer the pipeline decided names its decision's trail with the
 strings `<ns>/request_id` and `<ns>/decision_id`:

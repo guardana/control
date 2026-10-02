@@ -27,6 +27,15 @@ verify one.
   a page that says what each assumes about the plane and leaves unguarded
   ([reference/starter-packs.md](docs/reference/starter-packs.md)).
 
+### Fixed
+
+- A `tools/call` the plane blocked or held for a tool that declares an output
+  schema reached the agent as a schema error from any client that checks
+  structured content, the MCP project's own TypeScript client among them,
+  instead of `APPROVAL_PENDING` or the block's codes. The plane's fields now
+  travel in the result's `_meta` under its namespace, and as structured
+  content only for a tool the plane knows declares no output schema.
+
 ## [0.4.0-alpha] - 2026-10-01
 
 An operator can now open runs for an agent, and a plane with `runs.dir`

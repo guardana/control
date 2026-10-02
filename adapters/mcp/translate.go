@@ -40,6 +40,14 @@ type call struct {
 	requestID string
 }
 
+// tool is the definition the call names, nil when no upstream lists it.
+func (c *call) tool() *mcp.Tool {
+	if c.entry == nil {
+		return nil
+	}
+	return c.entry.Tool
+}
+
 // code is the registry code the refusal names, or the kernel's own fallback
 // for a refusal that names none.
 func (c *call) code() string {

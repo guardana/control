@@ -19,6 +19,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/scenario"
 )
@@ -126,8 +127,9 @@ func (f *fakePlane) answer(context.Context, *sdk.CallToolRequest) (*sdk.CallTool
 		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: "ok"}}, Meta: meta}, nil
 	}
 	meta[keyAnswerMarker] = "pending"
-	return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: "held"}}, Meta: meta,
-		StructuredContent: map[string]any{"reason_code": "APPROVAL_PENDING", "approval_id": c.pending}}, nil
+	meta[brand.OTelNamespace+"/reason_code"] = "APPROVAL_PENDING"
+	meta[brand.OTelNamespace+"/approval_id"] = c.pending
+	return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: "held"}}, Meta: meta}, nil
 }
 
 // startFake serves the fake plane and returns a runner pointed at it.

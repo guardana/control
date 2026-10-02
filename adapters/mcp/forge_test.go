@@ -20,6 +20,9 @@ import (
 // metaAnswer is the key the gateway marks its own answers with.
 var metaAnswer = brand.OTelNamespace + "/answer"
 
+// metaReasonCodes is the key a block's codes travel under in _meta.
+var metaReasonCodes = brand.OTelNamespace + "/reason_codes"
+
 // TestUpstreamCannotAnswerAsTheGateway: an upstream result shaped like the
 // gateway's pending answer reaches the agent without the marker, while the
 // gateway's own block and pending answers carry it.

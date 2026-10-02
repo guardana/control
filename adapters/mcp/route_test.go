@@ -136,6 +136,11 @@ func assertSharedNameIsUnroutable(t *testing.T, agent *sdk.ClientSession, pipe *
 	if err != nil || !res.IsError || codesOf(t, res)[0] != "ACTION_UNCLASSIFIED" {
 		t.Fatalf("a shared name: %v %+v", err, res)
 	}
+	// Each upstream may list the name with a schema of its own, and the
+	// plane cannot tell which one the agent holds.
+	if res.StructuredContent != nil {
+		t.Errorf("a shared name's block carries structured content %v", res.StructuredContent)
+	}
 	if first.count("read_file")+second.count("read_file") != 0 {
 		t.Fatalf("a call on a shared name reached an upstream")
 	}

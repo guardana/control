@@ -194,10 +194,11 @@ the call exists. Such a tool stays in the list, and under <code>annotate</code> 
 shaping subtracts what policy denies, never what it could not decide.</p>
 <h2 id="the-two-codes-the-adapter-mints">The two codes the adapter mints</h2>
 <p>A <code>tools/call</code> answers a block and a pending state as a tool result with
-<code>isError: true</code>, which the model reads. A <code>resources/read</code> and a <code>prompts/get</code>
-have no such field, so there the same structured data travels as a JSON-RPC
-error, outside the range the protocol reserves and away from the code the library
-uses privately.</p>
+<code>isError: true</code>, the fields below in its <code>_meta</code> under <code>&lt;ns&gt;/</code>, and as
+structured content only for a tool known to declare no output schema, since
+a client checks it against one. A <code>resources/read</code> and a
+<code>prompts/get</code> have no <code>isError</code>, so there the fields travel as a JSON-RPC
+error, outside the protocol's reserved range and the library's private code.</p>
 <table>
 <thead>
 <tr>
@@ -223,9 +224,8 @@ uses privately.</p>
 <code>tools/call</code> with its own message and data. Only <code>&lt;ns&gt;/answer</code> (<code>blocked</code> or
 <code>pending</code>, <code>&lt;ns&gt;</code> being the product's namespace) in an answer's <code>_meta</code> or in
 the error's <code>data</code> marks an answer the gateway made. The namespace is stripped
-from the same two places in everything an upstream sends, a result's <code>_meta</code>
-and the top level of a wire error's <code>data</code>, so an upstream cannot answer as the
-gateway.</p>
+from both places in everything an upstream sends, so an upstream cannot answer
+as the gateway.</p>
 <p>A <code>tools/call</code> answer the pipeline decided names its decision's trail with the
 strings <code>&lt;ns&gt;/request_id</code> and <code>&lt;ns&gt;/decision_id</code>:</p>
 <table>

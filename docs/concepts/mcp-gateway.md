@@ -198,7 +198,7 @@ waiting on them; `decision_latency_us` stays the kernel's own time.
 
 | Method | The answer | Carries |
 | --- | --- | --- |
-| `tools/call` | a tool result with `isError: true`, which the model reads | `reason_code: APPROVAL_PENDING`, `approval_id`, `action_digest`, `expires_at`, `retry_after` |
+| `tools/call` | a tool result with `isError: true`, which the model reads | `reason_code: APPROVAL_PENDING`, `approval_id`, `action_digest`, `expires_at`, `retry_after`, in `_meta` under the plane's namespace, and as structured content only for a tool known to declare no output schema |
 | `resources/read`, `prompts/get` | JSON-RPC error `-31101`, because those results have no `isError` | the same structured data in the error's `data` |
 
 A retry that matches the binding, equals the held request on the data labels and

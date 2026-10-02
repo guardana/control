@@ -297,7 +297,7 @@ waiting on them; <code>decision_latency_us</code> stays the kernel's own time.</
 <tr>
 <td><code>tools/call</code></td>
 <td>a tool result with <code>isError: true</code>, which the model reads</td>
-<td><code>reason_code: APPROVAL_PENDING</code>, <code>approval_id</code>, <code>action_digest</code>, <code>expires_at</code>, <code>retry_after</code></td>
+<td><code>reason_code: APPROVAL_PENDING</code>, <code>approval_id</code>, <code>action_digest</code>, <code>expires_at</code>, <code>retry_after</code>, in <code>_meta</code> under the plane's namespace, and as structured content only for a tool known to declare no output schema</td>
 </tr>
 <tr>
 <td><code>resources/read</code>, <code>prompts/get</code></td>
