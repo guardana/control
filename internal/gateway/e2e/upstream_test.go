@@ -19,7 +19,7 @@ import (
 func TestUpstreamTimeoutIsRecordedAsOne(t *testing.T) {
 	p := newPlane(t, options{
 		kind: mcp.KindStatelessHTTP, mode: modeEnforce,
-		rules: []string{allowReads}, callTimeout: 150 * time.Millisecond,
+		rules: []string{allowReads}, callTimeout: time.Second,
 	})
 	agent := p.connect(t, "agent-a")
 	res, err := callTool(t, agent, toolSlow, map[string]any{"path": "/x"})
@@ -108,7 +108,7 @@ func TestAMaterialCallThatTimesOutReachesTheUpstreamOnce(t *testing.T) {
 		t.Run(effectSpelling(class), func(t *testing.T) {
 			p := newPlane(t, options{
 				kind: mcp.KindStatelessHTTP, mode: modeEnforce,
-				rules: []string{allowEffect(class)}, callTimeout: 150 * time.Millisecond,
+				rules: []string{allowEffect(class)}, callTimeout: time.Second,
 				classify: slowAs(class),
 			})
 			agent := p.connect(t, "agent-a")

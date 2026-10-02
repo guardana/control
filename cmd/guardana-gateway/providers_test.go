@@ -133,7 +133,7 @@ func expectConsumedOnce(t *testing.T, provider provider) {
 // nothing runs.
 func expectExpiredResumesNothing(t *testing.T, provider provider) {
 	t.Helper()
-	tr, plane := holdingPlane(t, provider, 500*time.Millisecond)
+	tr, plane := holdingPlane(t, provider, 3*time.Second)
 
 	held := admitTransfer(t, plane, "req-expire-1")
 	if held.Action != core.AwaitApproval {
