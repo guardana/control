@@ -63,8 +63,13 @@ whole lines it scans.
 `examples/evidence-report` reads an export on its standard input with the
 generated package `api/gen/go/guardana/control/v1` alone, groups the events by
 tenant, project and request, follows each request's `prev_event_id` links and
-prints one row per request: its decision, whether it was held and how the
-approval ended, and how the call ended.
+prints one row per request: the kernel's decision, the block, whether it was
+held and how the approval ended, and how the call ended.
+
+The `block` column is the decision on the request's `ACTION_BLOCKED`, beside
+the kernel's and never in its place: `=` when its `decision_id` is the
+kernel's, otherwise the block's own verdict and codes, such as `DENY PAUSED`
+for a call paused after an allow; `-` when nothing was blocked.
 
 ```
 go build -o bin/ ./examples/evidence-report

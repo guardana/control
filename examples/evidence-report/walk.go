@@ -158,8 +158,8 @@ func payloadDefect(ev *controlv1.Event, running string) string {
 		if ev.GetProposed().GetAction() == nil {
 			return fmt.Sprintf("event %s is ACTION_PROPOSED and names no action", id)
 		}
-	case controlv1.EventKind_EVENT_KIND_POLICY_DECIDED:
-		return decisionDefect(id, ev.GetDecision())
+	case controlv1.EventKind_EVENT_KIND_POLICY_DECIDED, controlv1.EventKind_EVENT_KIND_ACTION_BLOCKED:
+		return decisionDefect(id, ev.GetKind(), ev.GetDecision())
 	case controlv1.EventKind_EVENT_KIND_APPROVAL_DECIDED:
 		if answer(ev.GetApproval().GetState()) == "unknown" {
 			return fmt.Sprintf("event %s decides the approval as %s", id, ev.GetApproval().GetState())
@@ -176,12 +176,14 @@ func payloadDefect(ev *controlv1.Event, running string) string {
 	return ""
 }
 
-func decisionDefect(id string, d *controlv1.Decision) string {
+// decisionDefect names a decision event, the kernel's POLICY_DECIDED or the
+// ACTION_BLOCKED that carries the block's own, without a declared verdict.
+func decisionDefect(id string, kind controlv1.EventKind, d *controlv1.Decision) string {
 	switch {
 	case d == nil:
-		return fmt.Sprintf("event %s is POLICY_DECIDED and carries no decision", id)
+		return fmt.Sprintf("event %s is %s and carries no decision", id, kindName(kind))
 	case d.GetVerdict() == controlv1.Verdict_VERDICT_UNSPECIFIED:
-		return fmt.Sprintf("event %s is POLICY_DECIDED and decides no verdict", id)
+		return fmt.Sprintf("event %s is %s and decides no verdict", id, kindName(kind))
 	case !declared(d.GetVerdict()):
 		return fmt.Sprintf("event %s decides verdict %d, which this reader does not declare", id, int32(d.GetVerdict()))
 	}

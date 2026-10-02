@@ -39,6 +39,11 @@ func decided(verdict string, codes ...string) string {
 	return `,"decision":{"verdict":"VERDICT_` + verdict + `","reasonCodes":["` + strings.Join(codes, `","`) + `"]}`
 }
 
+// decidedAs is a decision that names its decision_id.
+func decidedAs(id, verdict string, codes ...string) string {
+	return `,"decision":{"decisionId":"` + id + `","verdict":"VERDICT_` + verdict + `","reasonCodes":["` + strings.Join(codes, `","`) + `"]}`
+}
+
 func approval(state string) string { return `,"approval":{"state":"APPROVAL_STATE_` + state + `"}` }
 
 func execution(id string) string { return `,"executionId":"` + id + `"` }
@@ -51,25 +56,25 @@ func ended(id, status string) string {
 var (
 	allowed = []step{{"ACTION_PROPOSED", proposed("read_order")}, {"POLICY_DECIDED", decided("ALLOW", "RULE_ALLOW")},
 		{"ACTION_STARTED", execution("x1")}, {"ACTION_COMPLETED", ended("x1", "SUCCESS")}}
-	denied = []step{{"ACTION_PROPOSED", proposed("refund")}, {"POLICY_DECIDED", decided("DENY", "RULE_DENY")},
-		{"ACTION_BLOCKED", decided("DENY", "RULE_DENY")}}
+	denied = []step{{"ACTION_PROPOSED", proposed("refund")}, {"POLICY_DECIDED", decidedAs("k1", "DENY", "RULE_DENY")},
+		{"ACTION_BLOCKED", decidedAs("k1", "DENY", "RULE_DENY")}}
 	approved = []step{{"ACTION_PROPOSED", proposed("update_order")},
 		{"POLICY_DECIDED", decided("REQUIRE_APPROVAL", "APPROVAL_REQUIRED")},
 		{"APPROVAL_REQUESTED", approval("PENDING")}, {"APPROVAL_DECIDED", approval("APPROVED")},
 		{"ACTION_STARTED", execution("x2")}, {"ACTION_COMPLETED", ended("x2", "SUCCESS")}}
 	rejected = []step{{"ACTION_PROPOSED", proposed("update_order")},
-		{"POLICY_DECIDED", decided("REQUIRE_APPROVAL", "APPROVAL_REQUIRED")},
+		{"POLICY_DECIDED", decidedAs("k1", "REQUIRE_APPROVAL", "APPROVAL_REQUIRED")},
 		{"APPROVAL_REQUESTED", approval("PENDING")}, {"APPROVAL_DECIDED", approval("REJECTED")},
-		{"ACTION_BLOCKED", decided("REQUIRE_APPROVAL", "APPROVAL_REQUIRED")}}
+		{"ACTION_BLOCKED", decidedAs("e1", "DENY", "APPROVAL_REJECTED")}}
 	expired = []step{{"ACTION_PROPOSED", proposed("update_order")},
-		{"POLICY_DECIDED", decided("REQUIRE_APPROVAL", "APPROVAL_REQUIRED")},
+		{"POLICY_DECIDED", decidedAs("k1", "REQUIRE_APPROVAL", "APPROVAL_REQUIRED")},
 		{"APPROVAL_REQUESTED", approval("PENDING")}, {"APPROVAL_EXPIRED", approval("EXPIRED")},
-		{"ACTION_BLOCKED", decided("REQUIRE_APPROVAL", "APPROVAL_REQUIRED")}}
+		{"ACTION_BLOCKED", decidedAs("e1", "DENY", "APPROVAL_EXPIRED")}}
 	failed = []step{{"ACTION_PROPOSED", proposed("export_orders")}, {"POLICY_DECIDED", decided("ALLOW", "RULE_ALLOW")},
 		{"ACTION_STARTED", execution("x3")}, {"ACTION_FAILED", ended("x3", "FAILURE")}}
 	undetermined = []step{{"ACTION_PROPOSED", proposed("export_orders")},
-		{"POLICY_DECIDED", decided("INDETERMINATE", "RULE_UNDETERMINED", "PDP_TIMEOUT")},
-		{"ACTION_BLOCKED", decided("INDETERMINATE", "RULE_UNDETERMINED", "PDP_TIMEOUT")}}
+		{"POLICY_DECIDED", decidedAs("k1", "INDETERMINATE", "RULE_UNDETERMINED", "PDP_TIMEOUT")},
+		{"ACTION_BLOCKED", decidedAs("k1", "INDETERMINATE", "RULE_UNDETERMINED", "PDP_TIMEOUT")}}
 	held = []step{{"ACTION_PROPOSED", proposed("update_order")},
 		{"POLICY_DECIDED", decided("REQUIRE_APPROVAL", "APPROVAL_REQUIRED")},
 		{"APPROVAL_REQUESTED", approval("PENDING")}}
@@ -165,7 +170,7 @@ func report(t *testing.T, in string, args ...string) outcome {
 	return outcome{code: code, stdout: stdout.String(), stderr: stderr.String()}
 }
 
-const columns = "tenant\tproject\trequest\trun\taction\tverdict\treasons\theld\tapproval\tend\tnote"
+const columns = "tenant\tproject\trequest\trun\taction\tverdict\treasons\tblock\theld\tapproval\tend\tnote"
 
 // table splits stdout into its rows and its totals line, and fails when the
 // column line does not lead it.

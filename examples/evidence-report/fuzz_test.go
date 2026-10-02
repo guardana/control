@@ -43,10 +43,10 @@ func successHolds(t *testing.T, got outcome) {
 	rows, totals := table(t, got.stdout)
 	for _, r := range rows {
 		cells := strings.Split(r, "\t")
-		if len(cells) != 11 {
+		if len(cells) != 12 {
 			t.Fatalf("a row of %d cells: %q", len(cells), r)
 		}
-		if end := cells[9]; end != endCompleted && end != endFailed && end != endAborted && end != endBlocked {
+		if end := cells[10]; end != endCompleted && end != endFailed && end != endAborted && end != endBlocked {
 			t.Fatalf("exit 0 with a request that ended %q: %q", end, r)
 		}
 	}

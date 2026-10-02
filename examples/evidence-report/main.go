@@ -1,7 +1,7 @@
 // Command evidence-report reads an evidence export on standard input and
 // prints one row per request with its lifecycle: the action proposed, the
-// verdict and reason codes decided, whether it was held and how the approval
-// ended, and how the action ended.
+// verdict and reason codes decided, the decision that blocked it beside them,
+// whether it was held and how the approval ended, and how the action ended.
 //
 // It is the export's external consumer: it reads the format that
 // docs/contracts.md names "The evidence export" and decodes each event with
@@ -13,10 +13,11 @@
 // blocked has one unbroken prev_event_id chain in this export, from the event
 // that proposed an action to the one that ended it, in steps the plane's
 // chain validator allows, every event naming the same declared enforcement
-// mode, the verdict one the contract declares, and a run ending with a result
-// that says how it ended. Under a mode that enforces, the action ran only
-// after a verdict that let it, or after REQUIRE_APPROVAL and an approval
-// answered yes; an approval never lifts a DENY or an INDETERMINATE.
+// mode, every decision's verdict one the contract declares, and a run ending
+// with a result that says how it ended. Under a mode that enforces, the
+// action ran only after a verdict that let it, or after REQUIRE_APPROVAL and
+// an approval answered yes; an approval never lifts a DENY or an
+// INDETERMINATE.
 //
 // What it cannot prove: that a record was not altered, since the link is an
 // ordering and not a digest; or that the plane recorded everything. A record
@@ -60,7 +61,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	rows := x.lifecycles()
 	var t totals
-	lines := []string{"tenant\tproject\trequest\trun\taction\tverdict\treasons\theld\tapproval\tend\tnote"}
+	lines := []string{"tenant\tproject\trequest\trun\taction\tverdict\treasons\tblock\theld\tapproval\tend\tnote"}
 	for _, r := range rows {
 		t.add(r)
 		lines = append(lines, r.String())

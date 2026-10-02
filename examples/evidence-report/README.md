@@ -1,29 +1,31 @@
 # An evidence report from the export
 
-A program outside the plane that reports what agents did. It reads an
-export on standard input, follows each request's `prev_event_id` links and
-prints a row per request: the action, the verdict and reason
-codes, whether the call was held and how the approval ended, and how the
-action ended, then totals. Of this module's packages it
-imports only the wire contract's generated one, which a test pins.
+A program outside the plane that reads an export on standard input, follows
+each request's `prev_event_id` links and prints a row per request, then
+totals: the action, the kernel's verdict and reason codes, the block, whether
+the call was held, and how its approval and action ended. Of this module's
+packages it imports only the wire contract's generated one, which a test pins.
 [Read the evidence from a program](../../docs/guides/read-the-evidence-from-a-program.md)
 shows it in use.
+
+`block` is the decision `ACTION_BLOCKED` carries, never in place of the
+kernel's: `=` when its `decision_id` is the kernel's, else the block's own
+verdict and codes, as `DENY PAUSED`; `-` if none.
 
 ```
 go build -o bin/evidence-report ./examples/evidence-report
 <gateway> trail export <state>/trail.jsonl | bin/evidence-report
 ```
 
-It exits 0 only when at least one request was read, each ended on an unbroken
-chain the plane's chain validator allows, and the export was whole: trailer
-read, end reached, no gap, conflicting or refused record, every record
-strictly formed. A request stopped before it started is `blocked`; one that started is
-`completed` only on a successful result, `aborted` when its result says
-nothing was sent; `failed` on a failure or a timeout; any other
-result is `unknown`, since the effect may have happened. Under a mode that
-enforces, an action that ran after a verdict other than an allow is `unknown`
-unless the verdict was `REQUIRE_APPROVAL` and the approval was answered yes.
-Anything unknown, open or missing exits 1; a usage error exits 2.
+It exits 0 only when it read a request, each ended on an unbroken chain the
+plane's validator allows, and the export was whole: trailer read, end
+reached, no gap, conflicting or refused record, every record strictly formed.
+A request stopped before starting is `blocked`; one that started is
+`completed` only on success, `aborted` when nothing was sent, `failed` on a
+failure or timeout, otherwise `unknown`: the effect may have happened. Under
+an enforcing mode, a run after any verdict but an allow is `unknown`, unless
+`REQUIRE_APPROVAL` was answered yes. Anything unknown, open or missing exits
+1; a usage error exits 2.
 
 ## What it cannot see
 
@@ -31,7 +33,7 @@ Anything unknown, open or missing exits 1; a usage error exits 2.
   shows as `unknown` or `open`, after a trail's end it leaves the row
   complete, and a request whose first record was refused does not appear.
 - `prev_event_id` orders records; it does not show one altered.
-- It does not read effect classes, so under `APPROVE` or `LOCKDOWN` a
-  material run is not told from a read.
+- It reads no effect class, so under `APPROVE` or `LOCKDOWN` a material run
+  is not told from a read.
 - An export cut by `--after`, `--limit` or `--kind` can split a request.
   Export the whole file, or by request.

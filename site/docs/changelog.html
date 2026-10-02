@@ -36,6 +36,10 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.5.0-alpha...HEAD">Unreleased</a></h2>
 <h3 id="changed">Changed</h3>
 <ul>
+<li><code>examples/evidence-report</code> prints a <code>block</code> column after <code>reasons</code>: the
+decision on the request's <code>ACTION_BLOCKED</code>, <code>=</code> when it is the kernel's, so a
+call the plane blocked itself, paused or unclassified, shows why. Every later
+column moves one to the right.</li>
 <li>The release workflow refuses a tag whose commit has no successful CI and
 Security run. Its dry run takes the version the tag will carry, makes the
 same check and prints that version's release notes.</li>

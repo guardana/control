@@ -13,6 +13,10 @@ verify one.
 
 ### Changed
 
+- `examples/evidence-report` prints a `block` column after `reasons`: the
+  decision on the request's `ACTION_BLOCKED`, `=` when it is the kernel's, so a
+  call the plane blocked itself, paused or unclassified, shows why. Every later
+  column moves one to the right.
 - The release workflow refuses a tag whose commit has no successful CI and
   Security run. Its dry run takes the version the tag will carry, makes the
   same check and prints that version's release notes.

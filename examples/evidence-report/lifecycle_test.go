@@ -126,7 +126,7 @@ func TestLifecycleGrammar(t *testing.T) {
 			kind := strings.TrimPrefix(string(kinds.ByNumber(controlv1.EventKind(k).Number()).Name()), "EVENT_KIND_")
 			allowed := grammar[p.state][k-1] == 'y'
 			t.Run(p.state+"/"+kind, func(t *testing.T) {
-				note := oneRow(t, then(p.steps, step{kind, appended[kind]}))[10]
+				note := oneRow(t, then(p.steps, step{kind, appended[kind]}))[11]
 				switch {
 				case !allowed && note != kind+" cannot follow "+prev:
 					t.Errorf("%s after %s: note %q, want it refused", kind, p.state, note)
@@ -187,12 +187,12 @@ func TestLifecycleShapes(t *testing.T) {
 		step{"ACTION_STARTED", execution("x2")}, step{"ACTION_COMPLETED", ended("x2", "SUCCESS")})
 	cases := []reportCase{
 		unknownOne("two events that follow each other beside the chain", newExport("1.0").event(cycle...).whole(),
-			"t\tp\tr1\trun-r1\tread_order\tALLOW\tRULE_ALLOW\tno\t-\tunknown\t2 of the request's events are not on the chain from r1-1"),
+			"t\tp\tr1\trun-r1\tread_order\tALLOW\tRULE_ALLOW\t-\tno\t-\tunknown\t2 of the request's events are not on the chain from r1-1"),
 		unknownOne("a start that names no execution", whole("r1", allowed[0], allowed[1], step{"ACTION_STARTED", ""},
 			step{"ACTION_COMPLETED", `,"result":{"status":"RESULT_STATUS_SUCCESS"}`}),
-			"t\tp\tr1\trun-r1\tread_order\tALLOW\tRULE_ALLOW\tno\t-\tunknown\tevent r1-3 is ACTION_STARTED and names no execution"),
+			"t\tp\tr1\trun-r1\tread_order\tALLOW\tRULE_ALLOW\t-\tno\t-\tunknown\tevent r1-3 is ACTION_STARTED and names no execution"),
 		{name: "an expired window asked again, answered and run", in: whole("r5", again...),
-			rows:   []string{"t\tp\tr5\trun-r5\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\tyes\tapproved\tcompleted\t-"},
+			rows:   []string{"t\tp\tr5\trun-r5\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\t-\tyes\tapproved\tcompleted\t-"},
 			totals: "totals: requests 1, completed 1, failed 0, aborted 0, blocked 0, open 0, unknown 0; gaps 0, duplicates 0, conflicting 0, refused 0" + endReached},
 	}
 	for _, tc := range cases {
@@ -211,21 +211,21 @@ func TestPayloads(t *testing.T) {
 	}
 	cases := []reportCase{
 		unknownOne("an empty decision", withDecision(`{}`),
-			"t\tp\tr1\trun-r1\tread_order\tUNSPECIFIED\t-\tno\t-\tunknown\tevent r1-2 is POLICY_DECIDED and decides no verdict"),
+			"t\tp\tr1\trun-r1\tread_order\tUNSPECIFIED\t-\t-\tno\t-\tunknown\tevent r1-2 is POLICY_DECIDED and decides no verdict"),
 		unknownOne("an unspecified verdict", withDecision(`{"verdict":"VERDICT_UNSPECIFIED","reasonCodes":["RULE_ALLOW"]}`),
-			"t\tp\tr1\trun-r1\tread_order\tUNSPECIFIED\tRULE_ALLOW\tno\t-\tunknown\tevent r1-2 is POLICY_DECIDED and decides no verdict"),
+			"t\tp\tr1\trun-r1\tread_order\tUNSPECIFIED\tRULE_ALLOW\t-\tno\t-\tunknown\tevent r1-2 is POLICY_DECIDED and decides no verdict"),
 		unknownOne("a verdict the contract does not declare", withDecision(`{"verdict":99,"reasonCodes":["RULE_ALLOW"]}`),
-			"t\tp\tr1\trun-r1\tread_order\t99\tRULE_ALLOW\tno\t-\tunknown\tevent r1-2 decides verdict 99, which this reader does not declare"),
+			"t\tp\tr1\trun-r1\tread_order\t99\tRULE_ALLOW\t-\tno\t-\tunknown\tevent r1-2 decides verdict 99, which this reader does not declare"),
 		unknownOne("a proposal with no payload", whole("r1", step{"ACTION_PROPOSED", ""}, allowed[1], allowed[2], allowed[3]),
-			"t\tp\tr1\trun-r1\t-\tALLOW\tRULE_ALLOW\tno\t-\tunknown\tevent r1-1 is ACTION_PROPOSED and names no action"),
+			"t\tp\tr1\trun-r1\t-\tALLOW\tRULE_ALLOW\t-\tno\t-\tunknown\tevent r1-1 is ACTION_PROPOSED and names no action"),
 		unknownOne("a proposal with no action", whole("r1", step{"ACTION_PROPOSED", `,"proposed":{}`}, allowed[1], allowed[2], allowed[3]),
-			"t\tp\tr1\trun-r1\t-\tALLOW\tRULE_ALLOW\tno\t-\tunknown\tevent r1-1 is ACTION_PROPOSED and names no action"),
+			"t\tp\tr1\trun-r1\t-\tALLOW\tRULE_ALLOW\t-\tno\t-\tunknown\tevent r1-1 is ACTION_PROPOSED and names no action"),
 		unknownOne("an answer with no state", answered(`,"approval":{}`),
-			"t\tp\tr3\trun-r3\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\tyes\tunknown\tunknown\tevent r3-4 decides the approval as APPROVAL_STATE_UNSPECIFIED"),
+			"t\tp\tr3\trun-r3\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\t-\tyes\tunknown\tunknown\tevent r3-4 decides the approval as APPROVAL_STATE_UNSPECIFIED"),
 		unknownOne("an answer with no approval", answered(""),
-			"t\tp\tr3\trun-r3\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\tyes\tunknown\tunknown\tevent r3-4 decides the approval as APPROVAL_STATE_UNSPECIFIED"),
+			"t\tp\tr3\trun-r3\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\t-\tyes\tunknown\tunknown\tevent r3-4 decides the approval as APPROVAL_STATE_UNSPECIFIED"),
 		unknownOne("an answer the contract does not declare", answered(`,"approval":{"state":99}`),
-			"t\tp\tr3\trun-r3\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\tyes\tunknown\tunknown\tevent r3-4 decides the approval as 99"),
+			"t\tp\tr3\trun-r3\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\t-\tyes\tunknown\tunknown\tevent r3-4 decides the approval as 99"),
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) { check(t, tc) })
@@ -245,7 +245,7 @@ func TestResults(t *testing.T) {
 		return fmt.Sprintf("totals: requests 1, completed %d, failed %d, aborted %d, blocked 0, open 0, unknown %d; "+
 			"gaps 0, duplicates 0, conflicting 0, refused 0"+endReached, counts["completed"], counts["failed"], counts["aborted"], counts["unknown"])
 	}
-	row := "t\tp\tr1\trun-r1\tread_order\tALLOW\tRULE_ALLOW\tno\t-\t"
+	row := "t\tp\tr1\trun-r1\tread_order\tALLOW\tRULE_ALLOW\t-\tno\t-\t"
 	mayHave := func(kind, status string) reportCase {
 		return unknownOne(kind+" "+status, closed(kind, ended("x1", status)),
 			row+"unknown\tevent r1-4 is "+kind+" with result RESULT_STATUS_"+status+": the effect may have happened")
@@ -303,25 +303,25 @@ func TestEnforcement(t *testing.T) {
 	against := func(name, mode, verdict string) reportCase {
 		short := strings.TrimPrefix(mode, "ENFORCEMENT_MODE_")
 		return unknownOne(name, inModeWhole(mode, ran(verdict)),
-			"t\tp\tr2\trun-r2\trefund\t"+verdict+"\tRULE_X\tno\t-\tunknown\tevent r2-3 starts the action under "+short+
+			"t\tp\tr2\trun-r2\trefund\t"+verdict+"\tRULE_X\t-\tno\t-\tunknown\tevent r2-3 starts the action under "+short+
 				" after verdict "+verdict+" and no approval: it ran against its decision")
 	}
 	observed := func(mode, verdict string) reportCase {
 		short := strings.TrimPrefix(mode, "ENFORCEMENT_MODE_")
 		return reportCase{name: verdict + " run under " + short, in: inModeWhole(mode, ran(verdict)),
-			rows: []string{"t\tp\tr2\trun-r2\trefund\t" + verdict + "\tRULE_X\tno\t-\tcompleted\tran under " + short +
+			rows: []string{"t\tp\tr2\trun-r2\trefund\t" + verdict + "\tRULE_X\t-\tno\t-\tcompleted\tran under " + short +
 				", which enforces nothing, after verdict " + verdict + " and no approval"},
 			totals: "totals: requests 1, completed 1, failed 0, aborted 0, blocked 0, open 0, unknown 0; gaps 0, duplicates 0, conflicting 0, refused 0" + endReached}
 	}
 	unlifted := func(name, mode, verdict string) reportCase {
 		short := strings.TrimPrefix(mode, "ENFORCEMENT_MODE_")
 		return unknownOne(name, inModeWhole(mode, approvedRan(verdict)),
-			"t\tp\tr2\trun-r2\trefund\t"+verdict+"\tRULE_X\tyes\tapproved\tunknown\tevent r2-5 starts the action under "+short+
+			"t\tp\tr2\trun-r2\trefund\t"+verdict+"\tRULE_X\t-\tyes\tapproved\tunknown\tevent r2-5 starts the action under "+short+
 				" after verdict "+verdict+", which no approval lifts: it ran against its decision")
 	}
 	lifted := func(name, mode, verdict string) reportCase {
 		return reportCase{name: name, in: inModeWhole(mode, approvedRan(verdict)),
-			rows:   []string{"t\tp\tr2\trun-r2\trefund\t" + verdict + "\tRULE_X\tyes\tapproved\tcompleted\t-"},
+			rows:   []string{"t\tp\tr2\trun-r2\trefund\t" + verdict + "\tRULE_X\t-\tyes\tapproved\tcompleted\t-"},
 			totals: "totals: requests 1, completed 1, failed 0, aborted 0, blocked 0, open 0, unknown 0; gaps 0, duplicates 0, conflicting 0, refused 0" + endReached}
 	}
 	drop := func(events []string, i int) []string {
@@ -335,7 +335,7 @@ func TestEnforcement(t *testing.T) {
 		return out
 	}
 	r1 := chain("r1", allowed...)
-	allowRow := "t\tp\tr1\trun-r1\tread_order\tALLOW\tRULE_ALLOW\tno\t-\tunknown\t"
+	allowRow := "t\tp\tr1\trun-r1\tread_order\tALLOW\tRULE_ALLOW\t-\tno\t-\tunknown\t"
 	cases := []reportCase{
 		against("a denied action run under ENFORCE", "ENFORCEMENT_MODE_ENFORCE", "DENY"),
 		against("an undetermined action run under ENFORCE", "ENFORCEMENT_MODE_ENFORCE", "INDETERMINATE"),
@@ -344,10 +344,10 @@ func TestEnforcement(t *testing.T) {
 		against("a denied action run under LOCKDOWN", "ENFORCEMENT_MODE_LOCKDOWN", "DENY"),
 		against("a denied action run under SHADOW", "ENFORCEMENT_MODE_SHADOW", "DENY"),
 		unknownOne("an action run after its approval was rejected", inModeWhole("ENFORCEMENT_MODE_ENFORCE", rejectedRan),
-			"t\tp\tr2\trun-r2\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\tyes\trejected\tunknown\t"+
+			"t\tp\tr2\trun-r2\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\t-\tyes\trejected\tunknown\t"+
 				"event r2-5 starts the action under ENFORCE after its approval was rejected: it ran against its decision"),
 		unknownOne("an allowed action run after its approval was rejected", inModeWhole("ENFORCEMENT_MODE_APPROVE", allowRejectedRan),
-			"t\tp\tr2\trun-r2\tread_order\tALLOW\tRULE_ALLOW\tyes\trejected\tunknown\t"+
+			"t\tp\tr2\trun-r2\tread_order\tALLOW\tRULE_ALLOW\t-\tyes\trejected\tunknown\t"+
 				"event r2-5 starts the action under APPROVE after its approval was rejected: it ran against its decision"),
 		unlifted("a denied action approved and run under ENFORCE", "ENFORCEMENT_MODE_ENFORCE", "DENY"),
 		unlifted("an undetermined action approved and run under ENFORCE", "ENFORCEMENT_MODE_ENFORCE", "INDETERMINATE"),
@@ -355,7 +355,7 @@ func TestEnforcement(t *testing.T) {
 		lifted("an action approved as its verdict asked and run", "ENFORCEMENT_MODE_ENFORCE", "REQUIRE_APPROVAL"),
 		lifted("an allowed action APPROVE held, approved and run", "ENFORCEMENT_MODE_APPROVE", "ALLOW"),
 		{name: "a denied action approved and run under OBSERVE", in: inModeWhole("ENFORCEMENT_MODE_OBSERVE", approvedRan("DENY")),
-			rows: []string{"t\tp\tr2\trun-r2\trefund\tDENY\tRULE_X\tyes\tapproved\tcompleted\t" +
+			rows: []string{"t\tp\tr2\trun-r2\trefund\tDENY\tRULE_X\t-\tyes\tapproved\tcompleted\t" +
 				"ran under OBSERVE, which enforces nothing, after verdict DENY, which no approval lifts"},
 			totals: "totals: requests 1, completed 1, failed 0, aborted 0, blocked 0, open 0, unknown 0; gaps 0, duplicates 0, conflicting 0, refused 0" + endReached},
 		observed("ENFORCEMENT_MODE_OBSERVE", "DENY"),

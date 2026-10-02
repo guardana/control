@@ -22,12 +22,12 @@ func demoExport(t *testing.T) string {
 }
 
 const (
-	demoRead    = "acme\tdemo\tTAFPANRXBE74OUOC6GPEUWIPHB\tCKP6ZFVISD6LOWS66ZAYKVCII6\tread_order\tALLOW\tRULE_ALLOW\tno\t-\tcompleted\t-"
-	demoRefund  = "acme\tdemo\t4KRA7XRIJZW5BOEYZ6VTI3556R\tNK5CWP266UNRKT75ZF5EN6NHZ6\trefund\tDENY\tRULE_DENY\tno\t-\tblocked\t-"
-	demoRead2   = "acme\tdemo\tCYFGYVUOILRYVTK7DSA35IAM7B\tNK5CWP266UNRKT75ZF5EN6NHZ6\tread_order\tALLOW\tRULE_ALLOW\tno\t-\tcompleted\t-"
-	demoUpdate  = "acme\tdemo\tX6UOSKZEM2VGIJQBNZWDBGDTAK\tUJ5UZ5EISEH5ER3ICMSG3MXL36\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\tyes\tapproved\tcompleted\t-"
-	demoExportR = "acme\tdemo\t2FT4PE3Q56YYEI22XOEUWFULBM\tZGUPQ7TZRQRODSCDE3FTKTW2JY\texport_orders\tINDETERMINATE\tRULE_ALLOW,RULE_UNDETERMINED,PDP_TIMEOUT\tno\t-\tblocked\t-"
-	demoRead3   = "acme\tdemo\tZV64JFN5NNHDSCTPQPVEXIC4Z4\tZGUPQ7TZRQRODSCDE3FTKTW2JY\tread_order\tALLOW\tRULE_ALLOW\tno\t-\tcompleted\t-"
+	demoRead    = "acme\tdemo\tTAFPANRXBE74OUOC6GPEUWIPHB\tCKP6ZFVISD6LOWS66ZAYKVCII6\tread_order\tALLOW\tRULE_ALLOW\t-\tno\t-\tcompleted\t-"
+	demoRefund  = "acme\tdemo\t4KRA7XRIJZW5BOEYZ6VTI3556R\tNK5CWP266UNRKT75ZF5EN6NHZ6\trefund\tDENY\tRULE_DENY\t=\tno\t-\tblocked\t-"
+	demoRead2   = "acme\tdemo\tCYFGYVUOILRYVTK7DSA35IAM7B\tNK5CWP266UNRKT75ZF5EN6NHZ6\tread_order\tALLOW\tRULE_ALLOW\t-\tno\t-\tcompleted\t-"
+	demoUpdate  = "acme\tdemo\tX6UOSKZEM2VGIJQBNZWDBGDTAK\tUJ5UZ5EISEH5ER3ICMSG3MXL36\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\t-\tyes\tapproved\tcompleted\t-"
+	demoExportR = "acme\tdemo\t2FT4PE3Q56YYEI22XOEUWFULBM\tZGUPQ7TZRQRODSCDE3FTKTW2JY\texport_orders\tINDETERMINATE\tRULE_ALLOW,RULE_UNDETERMINED,PDP_TIMEOUT\t=\tno\t-\tblocked\t-"
+	demoRead3   = "acme\tdemo\tZV64JFN5NNHDSCTPQPVEXIC4Z4\tZGUPQ7TZRQRODSCDE3FTKTW2JY\tread_order\tALLOW\tRULE_ALLOW\t-\tno\t-\tcompleted\t-"
 )
 
 func TestDemoExport(t *testing.T) {
@@ -107,13 +107,13 @@ func TestDemoExportMissingEvent(t *testing.T) {
 	cases := []reportCase{
 		{name: "the approval's answer", in: withoutEvent(t, "KYS2M627UE5VUQ3K5YENIRSRUJ"),
 			rows: []string{demoRead, demoRefund, demoRead2,
-				"acme\tdemo\tX6UOSKZEM2VGIJQBNZWDBGDTAK\tUJ5UZ5EISEH5ER3ICMSG3MXL36\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\tyes\tpending\tunknown\t" +
+				"acme\tdemo\tX6UOSKZEM2VGIJQBNZWDBGDTAK\tUJ5UZ5EISEH5ER3ICMSG3MXL36\tupdate_order\tREQUIRE_APPROVAL\tAPPROVAL_REQUIRED\t-\tyes\tpending\tunknown\t" +
 					"event 6TQ6IH26Z6XYWW73XM3FIPBNJF follows KYS2M627UE5VUQ3K5YENIRSRUJ, which this export does not hold",
 				demoExportR, demoRead3},
 			totals: "totals: requests 6, completed 3, failed 0, aborted 0, blocked 2, open 0, unknown 1; gaps 0, duplicates 0, conflicting 0, refused 0" + endReached,
 			code:   1, stderr: "not every request"},
 		{name: "the action's end", in: withoutEvent(t, "N6C4KYP5HWIXN5IV4HX46WNENQ"),
-			rows: []string{"acme\tdemo\tTAFPANRXBE74OUOC6GPEUWIPHB\tCKP6ZFVISD6LOWS66ZAYKVCII6\tread_order\tALLOW\tRULE_ALLOW\tno\t-\topen\t" + notEnded,
+			rows: []string{"acme\tdemo\tTAFPANRXBE74OUOC6GPEUWIPHB\tCKP6ZFVISD6LOWS66ZAYKVCII6\tread_order\tALLOW\tRULE_ALLOW\t-\tno\t-\topen\t" + notEnded,
 				demoRefund, demoRead2, demoUpdate, demoExportR, demoRead3},
 			totals: "totals: requests 6, completed 3, failed 0, aborted 0, blocked 2, open 1, unknown 0; gaps 0, duplicates 0, conflicting 0, refused 0" + endReached,
 			code:   1, stderr: "not every request"},

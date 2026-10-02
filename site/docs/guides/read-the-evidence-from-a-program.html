@@ -69,8 +69,12 @@ whole lines it scans.</p>
 <p><code>examples/evidence-report</code> reads an export on its standard input with the
 generated package <code>api/gen/go/guardana/control/v1</code> alone, groups the events by
 tenant, project and request, follows each request's <code>prev_event_id</code> links and
-prints one row per request: its decision, whether it was held and how the
-approval ended, and how the call ended.</p>
+prints one row per request: the kernel's decision, the block, whether it was
+held and how the approval ended, and how the call ended.</p>
+<p>The <code>block</code> column is the decision on the request's <code>ACTION_BLOCKED</code>, beside
+the kernel's and never in its place: <code>=</code> when its <code>decision_id</code> is the
+kernel's, otherwise the block's own verdict and codes, such as <code>DENY PAUSED</code>
+for a call paused after an allow; <code>-</code> when nothing was blocked.</p>
 <pre><code>go build -o bin/ ./examples/evidence-report
 guardana-gateway trail export trail.jsonl | bin/evidence-report
 </code></pre>
