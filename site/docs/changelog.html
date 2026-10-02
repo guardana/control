@@ -62,10 +62,11 @@ structured content, the MCP project's own TypeScript client among them,
 instead of <code>APPROVAL_PENDING</code> or the block's codes. The plane's own answers
 now carry their fields in the result's <code>_meta</code> under its namespace and no
 structured content.</li>
-<li>A configuration file whose <code>export.headers</code> or <code>pdp.headers</code> value the
-reader refused (a flow character, an unknown escape, an unclosed quote)
-printed that value, a credential, in <code>doctor</code>'s and <code>run</code>'s refusal. The
-refusal now names the key and the reason only.</li>
+<li>A configuration value the reader refused (a flow character, an unknown
+escape, an unclosed quote) was printed in <code>doctor</code>'s and <code>run</code>'s refusal,
+credentials included: an <code>export.headers</code> or <code>pdp.headers</code> value, the
+<code>pdp.proxy</code>, an endpoint with userinfo. Those are now named without the
+value.</li>
 <li>The evidence spool took a directory other accounts could write, or another
 account owned, and appended through a link put at a segment's name. It now
 refuses both, as the approvals, runs and pause directories do, and opens

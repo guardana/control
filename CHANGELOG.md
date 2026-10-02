@@ -39,10 +39,11 @@ verify one.
   instead of `APPROVAL_PENDING` or the block's codes. The plane's own answers
   now carry their fields in the result's `_meta` under its namespace and no
   structured content.
-- A configuration file whose `export.headers` or `pdp.headers` value the
-  reader refused (a flow character, an unknown escape, an unclosed quote)
-  printed that value, a credential, in `doctor`'s and `run`'s refusal. The
-  refusal now names the key and the reason only.
+- A configuration value the reader refused (a flow character, an unknown
+  escape, an unclosed quote) was printed in `doctor`'s and `run`'s refusal,
+  credentials included: an `export.headers` or `pdp.headers` value, the
+  `pdp.proxy`, an endpoint with userinfo. Those are now named without the
+  value.
 - The evidence spool took a directory other accounts could write, or another
   account owned, and appended through a link put at a segment's name. It now
   refuses both, as the approvals, runs and pause directories do, and opens

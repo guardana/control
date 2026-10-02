@@ -67,7 +67,9 @@ func (p *Pipeline) drop(handle string) {
 
 // reserve opens the trail of requestID, or reports that one is open already.
 func (p *Pipeline) reserve(ctx context.Context, requestID string, now time.Time) bool {
-	p.sweep(ctx, now)
+	// The holds swept are other requests', so this caller's cancellation must
+	// not leave their trails open.
+	p.sweep(context.WithoutCancel(ctx), now)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if _, open := p.trails[requestID]; open {

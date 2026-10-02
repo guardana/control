@@ -116,7 +116,7 @@ func (p *parser) mapping(indent int, prefix string) ([]entry, error) {
 			return nil, p.errorf(p.at, "expected a key followed by a colon")
 		}
 		key = strings.TrimSpace(key)
-		if err := checkKey(key); err != nil {
+		if err := checkKey(key, shown(prefix, key)); err != nil {
 			return nil, p.errorf(p.at, "%v", err)
 		}
 		p.at++
@@ -203,9 +203,9 @@ func opensMapping(item string) bool {
 
 // checkKey refuses what this subset does not read, before it is silently
 // taken for a key.
-func checkKey(key string) error {
+func checkKey(key, shown string) error {
 	if strings.ContainsAny(key, "&*{}[]|>'\"") {
-		return fmt.Errorf("%s: anchors, tags, quoted keys and flow collections are not read here", quoteValue(key))
+		return fmt.Errorf("%s: anchors, tags, quoted keys and flow collections are not read here", shown)
 	}
 	return nil
 }
@@ -255,11 +255,42 @@ func scalar(raw string) (string, error) {
 	return "", fmt.Errorf("the value ends without a closing quote")
 }
 
-// shown is a value as a refusal names it: quoted, or, under a key whose value
-// is a credential, not at all.
+// shown is a value as a refusal names it: under a header map or a credential
+// key not at all, under an address key only while it carries nothing that
+// could hold a credential, and quoted otherwise. A refused value is often
+// half-written YAML, so it is judged by the key it was meant for.
 func shown(path, raw string) string {
 	if strings.HasPrefix(path, HeadersPrefix) || strings.HasPrefix(path, PDPHeadersPrefix) {
 		return NotPrinted
 	}
+	credential, address := flagsOf(path)
+	switch {
+	case credential:
+		return NotPrinted
+	case address:
+		if withheld := ShowAddress(raw); withheld != raw {
+			return withheld
+		}
+	}
 	return quoteValue(raw)
+}
+
+// flagsOf reports whether the key at path is a credential or an address; an
+// entry's key is looked up by its name after the index.
+func flagsOf(path string) (credential, address bool) {
+	for _, f := range configFields {
+		if f.path == path {
+			return f.credential, f.address
+		}
+	}
+	if rest, ok := strings.CutPrefix(path, "upstreams."); ok {
+		if _, name, ok := strings.Cut(rest, "."); ok {
+			for _, f := range upstreamFields {
+				if f.path == name {
+					return f.credential, f.address
+				}
+			}
+		}
+	}
+	return false, false
 }

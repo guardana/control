@@ -125,6 +125,27 @@ func TestAHeaderValueIsNeverInARefusal(t *testing.T) {
 	}
 }
 
+// TestACredentialIsNeverInARefusal: a refused value under a credential key,
+// an address carrying userinfo, or text a header value left on a line of its
+// own is named without the secret it holds.
+func TestACredentialIsNeverInARefusal(t *testing.T) {
+	const secret = "hunter2"
+	for name, document := range map[string]string{
+		"a single-quoted proxy":          "pdp:\n  proxy: 'http://user:" + secret + "@proxy:3128'\n",
+		"an endpoint with userinfo":      "export:\n  endpoint: 'http://user:" + secret + "@collector:4318'\n",
+		"an upstream endpoint":           "upstreams:\n  - name: a\n    endpoint: 'https://user:" + secret + "@up/mcp'\n",
+		"a header value on its own line": "export:\n  headers:\n    Authorization:\n      'Bearer " + secret + ":x'\n",
+	} {
+		_, err := parseYAML(document)
+		if err == nil {
+			t.Fatalf("%s: the reader accepted it", name)
+		}
+		if strings.Contains(err.Error(), secret) {
+			t.Errorf("%s: the refusal is %q", name, err.Error())
+		}
+	}
+}
+
 // TestACommentCannotHideInAValue: a '#' inside a quoted value is part of the
 // value, and a '#' after a space is a comment. Getting this wrong would cut an
 // endpoint or a token in half without saying so.
