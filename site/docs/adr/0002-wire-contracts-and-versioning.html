@@ -30,6 +30,10 @@
 Date: 2026-09-09</p>
 <p>Amended by <a href="/docs/adr/0011-contract-corrections-before-publication">ADR-0011</a>, which
 corrects the frozen contract once more, before it is first published.</p>
+<p>Amended in 0.5.0-alpha: <code>buf breaking</code> compares against the latest release
+tag, in CI on every push and pull request and in <code>make proto-breaking</code>. Against
+<code>main</code> it compared nothing after a push to <code>main</code>, where <code>main</code> is the tree
+being checked.</p>
 <h2 id="context">Context</h2>
 <p>Adapters, SDKs and external policy engines exchange the same messages. Without
 one source of truth each side drifts, and a field that carried security meaning

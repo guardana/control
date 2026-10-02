@@ -113,8 +113,6 @@ jobs:
 
   proto-breaking:
     name: Wire contract compatibility
-    # Only a pull request has a proposed change to compare against main.
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -122,6 +120,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The release tags are what the contract is compared against.
+          fetch-depth: 0
 
       - name: Load pinned tool versions
         run: |
@@ -137,11 +137,9 @@ jobs:
           checksum: ${{ env.BUF_SHA256 }}
           setup_only: true
 
-      - name: Compare the wire contract against main
+      - name: Compare the wire contract against the latest release
         # No continue-on-error: a check that cannot fail is not a check. The
-        # published contract is what main holds, so main is what to compare to.
-        # Read from the run's own context rather than written out, so a fork
-        # compares against its own main and not this project's.
-        env:
-          AGAINST: ${{ github.server_url }}/${{ github.repository }}.git#branch=main
-        run: buf breaking --against "$AGAINST"
+        # published contract is the latest release's, and on a push to main
+        # main is the tree being checked, so the release tag is what to compare
+        # to. The script refuses rather than passes when there is none.
+        run: scripts/proto-breaking.sh

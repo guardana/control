@@ -6,6 +6,11 @@ Date: 2026-09-09
 Amended by [ADR-0011](0011-contract-corrections-before-publication.md), which
 corrects the frozen contract once more, before it is first published.
 
+Amended in 0.5.0-alpha: `buf breaking` compares against the latest release
+tag, in CI on every push and pull request and in `make proto-breaking`. Against
+`main` it compared nothing after a push to `main`, where `main` is the tree
+being checked.
+
 ## Context
 
 Adapters, SDKs and external policy engines exchange the same messages. Without
