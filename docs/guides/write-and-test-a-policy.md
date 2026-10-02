@@ -108,12 +108,11 @@ ok   obligated-read.json: ALLOW_WITH_OBLIGATIONS ExecuteWithObligations [OBLIGAT
 ok   stale-read.json: INDETERMINATE Block [POLICY_STALE RULE_ALLOW]
 ```
 
-Every `*.json` file of the directory runs as a case, in name order; other files
-are not read and subdirectories are not entered. For each case the document is
-signed in memory with a key derived from a fixed seed, loaded at `loaded_at`,
-the envelope is decoded the way a receiver decodes JSON, and the kernel decides
-at `decided_at`. The fixed key is not what a case tests: it is there so that a
-run needs no key from the user.
+Every `*.json` file runs as a case, in name order; other files and
+subdirectories are not read. Each document is signed in memory with a
+fixed key, so a run needs none from you, and loaded at `loaded_at`; the
+envelope is decoded as a receiver decodes JSON, and the kernel decides at
+`decided_at`.
 
 ### 5. Make a key and sign the document
 
@@ -122,9 +121,9 @@ $ go run ./cmd/guardana-control policy keygen --out keys
 key_id: ed25519-<16 hex digits>
 public_key: <44 characters of base64>
 $ go run ./cmd/guardana-control policy sign --key keys/signing.key --out orders.bundle policy.json
-bundle_id: orders-policy
-version: 2026-09-24.1
-serial: 3
+bundle_id: payments
+version: 2026-09-10.1
+serial: 7
 digest: sha256:<64 hex digits>
 key_id: ed25519-<16 hex digits>
 out: orders.bundle
@@ -146,6 +145,31 @@ would refuse. The bundle is public and written with mode `0644`, replacing an
 earlier bundle at `--out`; any other file there is refused and left as it
 was. Give each new version a higher `serial`. What the files hold and why is
 [ADR-0018](../adr/0018-keys-and-bundles-on-disk.md).
+
+### 6. Vouch that the bundle is current
+
+```
+$ go run ./cmd/guardana-control policy keygen --out freshness
+key_id: ed25519-<16 hex digits>
+public_key: <44 characters of base64>
+$ go run ./cmd/guardana-control policy state init --kind signer --bundle-id payments signer-floors
+bundle_id: payments
+floor: no serial
+$ go run ./cmd/guardana-control policy renew --key freshness/signing.key --bundle orders.bundle \
+    --bundle-public-key keys/signing.pub --floor signer-floors --out orders.statement
+bundle_id: payments
+serial: 7
+digest: sha256:<64 hex digits>
+issued_at: <YYYY-MM-DDTHH:MM:SSZ>
+```
+
+`--bundle-id` is your bundle's `id`, `payments` in the example. The freshness
+key is a second pair: keep its lines for the plane's freshness key, never over
+the `policy` lines of step 5. Give `--bundle` the authority's own copy, not the
+one a plane is served, and keep floor and freshness key with the signer.
+`renew` refuses a bundle below its floor; rerun it before the budget runs out.
+No plane reads a statement yet; a plane will need one
+([ADR-0038](../adr/0038-a-signed-freshness-statement-and-a-serial-floor.md)).
 
 ## Verify
 

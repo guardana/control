@@ -22,6 +22,9 @@ func TestAFlagRefusalQuotesWhatBreaksALine(t *testing.T) {
 			{"approvals", "reject", "--x" + r + "y"},
 			{"policy", "keygen", "--x" + r + "y"},
 			{"policy", "sign", "--x" + r + "y"},
+			{"policy", "renew", "--x" + r + "y"},
+			{"policy", "state", "init", "--x" + r + "y"},
+			{"policy", "state", "reset", "--x" + r + "y"},
 			{"console", "--x" + r + "y"},
 		} {
 			var stdout, stderr bytes.Buffer

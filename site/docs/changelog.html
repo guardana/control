@@ -44,6 +44,13 @@ block of the plane's own, an expired approval and its own bound. A repeated
 delivery, a crash and an outage neither lose nor repeat an alert, and it
 prints no field outside an allowlist
 (<a href="/docs/guides/read-the-evidence-from-a-program">guide</a>).</li>
+<li><code>guardana-control policy renew</code> verifies a bundle under its public key,
+raises a signer's serial floor and writes a signed freshness statement for
+the bundle; it refuses a bundle below that floor
+(<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>).</li>
+<li><code>guardana-control policy state init</code> makes a floor directory and a bundle
+id's floor, never replacing one, and <code>policy state reset</code> lowers a floor,
+recording the reason and the value it replaced.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>

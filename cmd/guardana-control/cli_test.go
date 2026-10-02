@@ -116,11 +116,20 @@ func TestHelpBlockRefusesWhatItCannotFind(t *testing.T) {
 // listed command with no entry here is one this test does not exercise, and it
 // refuses to start rather than pass over it.
 var ownRefusal = map[string]func(missing string) []string{
-	"policy lint":       func(m string) []string { return []string{m} },
-	"policy test":       func(m string) []string { return []string{m} },
-	"policy explain":    func(m string) []string { return []string{m} },
-	"policy keygen":     func(m string) []string { return []string{"--out", filepath.Dir(m)} },
-	"policy sign":       func(m string) []string { return []string{"--key", m, "--out", m + ".bundle", m} },
+	"policy lint":    func(m string) []string { return []string{m} },
+	"policy test":    func(m string) []string { return []string{m} },
+	"policy explain": func(m string) []string { return []string{m} },
+	"policy keygen":  func(m string) []string { return []string{"--out", filepath.Dir(m)} },
+	"policy sign":    func(m string) []string { return []string{"--key", m, "--out", m + ".bundle", m} },
+	"policy renew": func(m string) []string {
+		return []string{"--key", m, "--bundle", m, "--bundle-public-key", m, "--floor", m, "--out", filepath.Join(m, "s")}
+	},
+	"policy state init": func(m string) []string {
+		return []string{"--kind", "signer", "--bundle-id", "orders-policy", filepath.Join(m, "floors")}
+	},
+	"policy state reset": func(m string) []string {
+		return []string{"--kind", "signer", "--bundle-id", "orders-policy", "--empty", "--reason", "r", m}
+	},
 	"approvals list":    func(m string) []string { return []string{m} },
 	"approvals approve": func(m string) []string { return []string{"--approver-id", "someone", m, "AP1"} },
 	"approvals reject":  func(m string) []string { return []string{"--approver-id", "someone", m, "AP1"} },
@@ -166,9 +175,10 @@ func TestEveryListedCommandDispatches(t *testing.T) {
 }
 
 // unlistedInvocations builds the calls that name no listed command: a name
-// misspelled by its case or its last letter, a group that is not one, and a
-// listed command given the wrong number of bare arguments. A command reached
-// by its group alone is misspelled in that word.
+// misspelled in its last word by its case or its last letter, a group that is
+// not one, a name cut short, and a listed command given the wrong number of
+// bare arguments. A command reached by its group alone is misspelled in that
+// word.
 func unlistedInvocations(missing string) [][]string {
 	var out [][]string
 	for _, c := range commands {
@@ -178,15 +188,19 @@ func unlistedInvocations(missing string) [][]string {
 			}
 			continue
 		}
-		for _, name := range []string{strings.ToUpper(c.name), c.name[:len(c.name)-1]} {
-			out = append(out, []string{c.group, name}, []string{c.group, name, missing})
+		words := strings.Fields(c.words())
+		last := words[len(words)-1]
+		for _, name := range []string{strings.ToUpper(last), last[:len(last)-1]} {
+			misspelled := append(slices.Clone(words[:len(words)-1]), name)
+			out = append(out, misspelled, append(misspelled, missing))
 		}
-		out = append(out, []string{strings.ToUpper(c.group), c.name, missing})
+		out = append(out, append(append([]string{strings.ToUpper(c.group)}, words[1:]...), missing))
 		if c.flags == nil {
-			out = append(out, []string{c.group, c.name}, []string{c.group, c.name, missing, missing})
+			out = append(out, words, append(slices.Clone(words), missing, missing))
 		}
 	}
-	return append(out, []string{"explain"}, []string{"policy"}, []string{"approvals"}, []string{"pause"}, []string{"runs"})
+	return append(out, []string{"explain"}, []string{"policy"}, []string{"approvals"}, []string{"pause"}, []string{"runs"},
+		[]string{"policy", "state"}, []string{"policy", "state", missing})
 }
 
 // TestHelpNamesEveryCommand: the help opens with one line per listed command,
@@ -198,8 +212,12 @@ func TestHelpNamesEveryCommand(t *testing.T) {
 		t.Fatalf("the help does not open with a usage line and one form per command: %q", helpText())
 	}
 	prefix := "  " + brand.CLI + " "
+	forms := formLines(lines[1:])
+	if len(forms) != len(commands) {
+		t.Fatalf("the help holds %d forms for %d commands: %q", len(forms), len(commands), forms)
+	}
 	for i, c := range commands {
-		line := lines[i+1]
+		line := forms[i]
 		words, want := strings.Fields(strings.TrimPrefix(line, prefix)), strings.Fields(c.words())
 		if !strings.HasPrefix(line, prefix) || len(words) <= len(want) || !slices.Equal(words[:len(want)], want) {
 			t.Errorf("form %q does not name %s", line, c.words())
@@ -216,10 +234,41 @@ func TestHelpNamesEveryCommand(t *testing.T) {
 		"Write access to the approvals directory is the approval authority",
 		"Write access to the pause file is the authority to pause a call and to lift a pause.",
 		"Write access to the runs directory is the authority to open and to close a run",
+		"Write access to a floor directory is the authority to lower its floors;\npolicy state reset is the one way that records why.",
 	} {
 		if !strings.Contains(helpText(), authority) {
 			t.Errorf("the help does not say %q", authority)
 		}
+	}
+}
+
+// formContinues is how a form too wide for one line starts its next one:
+// indented past the binary's name, so it never reads as a command of its own.
+const formContinues = "      "
+
+// formLines is the first line of each form in the usage block, which ends at
+// the first empty line. A line indented as formContinues continues the form
+// above it.
+func formLines(lines []string) []string {
+	var forms []string
+	for _, line := range lines {
+		if line == "" {
+			break
+		}
+		if !strings.HasPrefix(line, formContinues) || len(forms) == 0 {
+			forms = append(forms, line)
+		}
+	}
+	return forms
+}
+
+func TestFormLinesJoinsAContinuation(t *testing.T) {
+	got := formLines([]string{"  x a --b", formContinues + "--c <d>", "  x e", "", "  x f"})
+	if want := []string{"  x a --b", "  x e"}; !slices.Equal(got, want) {
+		t.Errorf("formLines = %q, want %q", got, want)
+	}
+	if got := formLines([]string{formContinues + "--c"}); len(got) != 1 {
+		t.Errorf("a continuation with no form above it is not counted: %q", got)
 	}
 }
 

@@ -41,6 +41,12 @@ loads: [guides/write-and-test-a-policy.md](../guides/write-and-test-a-policy.md)
 is their page. The `approvals` commands read and answer the records under an
 approvals directory, from outside the gateway process.
 
+`policy renew` takes the freshness key, the bundle, its public key, a
+signer's floor and the statement to write; it verifies the bundle, raises the
+floor, then writes the statement. `policy state init` and `reset` make and
+lower floors
+([ADR-0038](../adr/0038-a-signed-freshness-statement-and-a-serial-floor.md)).
+
 `policy keygen` creates the directory `--out` names, mode `0700`, and refuses a
 path that exists. Into it go `signing.key`, the private key as one PKCS#8 PEM
 block, mode `0600`, and `signing.pub`, the public key as one line of standard
@@ -138,6 +144,10 @@ usage:
   guardana-control policy explain <case>
   guardana-control policy keygen --out <dir>
   guardana-control policy sign --key <file> --out <file> <document>
+  guardana-control policy renew --key --bundle --bundle-public-key --floor --out
+  guardana-control policy state init --kind plane|signer --bundle-id <id> <dir>
+  guardana-control policy state reset --kind plane|signer --bundle-id <id> --reason <text>
+      (--empty | --serial <n> --digest <d> --issued-at <t>) <dir>
   guardana-control approvals list <dir>
   guardana-control approvals approve --approver-id <id> [--reason <text>] <dir> <approval-id>
   guardana-control approvals reject --approver-id <id> [--reason <text>] <dir> <approval-id>
@@ -155,6 +165,8 @@ Write access to the approvals directory is the approval authority:
 Write access to the pause file is the authority to pause a call and to lift a pause.
 Write access to the runs directory is the authority to open and to close a run;
 a token acts as its run until it expires or is closed, and runs open prints it once.
+Write access to a floor directory is the authority to lower its floors;
+policy state reset is the one way that records why.
 ```
 <!-- /generated -->
 

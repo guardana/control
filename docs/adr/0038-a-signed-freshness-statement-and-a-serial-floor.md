@@ -33,7 +33,8 @@ key online, which ADR-0018 keeps the policy key from being.
 at a signed time.** A statement is a DSSE JSON envelope with payload type
 `application/vnd.agent-policy-freshness+json` and exactly one signature. It is
 signed by the freshness key the plane pins, `policy.freshness_key_id` and
-`policy.freshness_public_key`, which may be the bundle's key and need not be.
+`policy.freshness_public_key`, which is never the bundle's key: the plane's
+configuration and `renew` each refuse one key named in both roles.
 The envelope is decoded outside the guarded trees; the policy package receives
 its payload type, payload and signature as bytes, refuses another payload
 type, and verifies over the pre-authentication encoding of the fixed type, so
@@ -246,7 +247,9 @@ wherever the freshness key lives.
 - A plane's floor directory refused by `renew`, and a signer's by a plane.
 - `/healthz` stays `halted` when halted and unconfirmed; `/metrics` reports
   the freshness state and the seconds left.
-- `renew` refuses a bundle below its floor and one that does not verify.
+- `renew` refuses a bundle below its floor, one that does not verify, and the
+  same key given as the freshness key and the bundle's; so does the plane's
+  configuration.
 - The plane's binary holds no floor initialiser or lowerer.
 - A dev scenario that runs past the budget stays fresh, with the same verdicts
   and bundle digest.

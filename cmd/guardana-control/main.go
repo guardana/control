@@ -1,6 +1,6 @@
 // Command line entry point for the product. Without arguments it answers with
 // the version and the status line; the `policy` commands (lint, test,
-// explain, keygen and sign), the `approvals` commands, the `pause` commands, the `runs`
+// explain, keygen, sign, renew and state), the `approvals` commands, the `pause` commands, the `runs`
 // commands and `console`, the page that answers approvals and writes pauses,
 // are the commands with behaviour, and docs/guides/write-and-test-a-policy.md
 // and docs/reference/cli.md are their pages.
@@ -89,10 +89,8 @@ func (c subcommand) words() string {
 
 // reachedBy reports whether args begin with the command's words.
 func (c subcommand) reachedBy(args []string) bool {
-	if c.name == "" {
-		return len(args) >= 1 && args[0] == c.group
-	}
-	return len(args) >= 2 && args[0] == c.group && args[1] == c.name
+	words := strings.Fields(c.words())
+	return len(args) >= len(words) && slices.Equal(args[:len(words)], words)
 }
 
 // commands is the one listing: the help and the dispatch are both rendered
@@ -103,6 +101,9 @@ var commands = []subcommand{
 	{"policy", "explain", "<case>", nil, func(args []string, stdout, stderr io.Writer) int { return policyExplain(args[0], stdout, stderr) }},
 	{"policy", "keygen", keygenForm, keygenFlagSet, keygenCommand},
 	{"policy", "sign", signForm, signFlagSet, signCommand},
+	{"policy", "renew", renewForm, renewFlagSet, renewCommand},
+	{"policy", "state init", stateInitForm, stateInitFlagSet, stateInitCommand},
+	{"policy", "state reset", stateResetForm, stateResetFlagSet, stateResetCommand},
 	{"approvals", "list", "<dir>", nil, func(args []string, stdout, stderr io.Writer) int { return approvalsList(args[0], stdout, stderr) }},
 	{"approvals", "approve", answerForm, answerFlagSet, approveCommand},
 	{"approvals", "reject", answerForm, answerFlagSet, rejectCommand},
@@ -125,9 +126,9 @@ func printVersion(stdout, stderr io.Writer) int {
 	return exitOK
 }
 
-// helpText is what usage prints: one line per listed command, then what an
-// operator has to know before answering an approval, pausing a call or opening
-// a run at all.
+// helpText is what usage prints: one form per listed command, then what an
+// operator has to know before answering an approval, pausing a call, opening
+// a run or lowering a floor at all.
 // docs/reference/cli.md holds the same text and a test diffs the two.
 func helpText() string {
 	var b strings.Builder
@@ -135,7 +136,7 @@ func helpText() string {
 	for _, c := range commands {
 		b.WriteString("  " + brand.CLI + " " + c.words() + " " + c.arguments + "\n")
 	}
-	b.WriteString("\n" + approvalAuthority + "\n" + pauseAuthority + "\n" + runsAuthority + "\n")
+	b.WriteString("\n" + approvalAuthority + "\n" + pauseAuthority + "\n" + runsAuthority + "\n" + floorAuthority + "\n")
 	return b.String()
 }
 

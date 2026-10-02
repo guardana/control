@@ -131,7 +131,7 @@ already holds a package doc and a test holds nothing that decides.</li>
 <tr>
 <td>Policy serial floor on disk</td>
 <td><code>experimental</code></td>
-<td><code>internal/policystate/</code>. One strict-JSON file per bundle id in an owner-only directory whose marker names a plane's or a signer's kind; raised under the directory's lock against the file's value; <code>Init</code> and <code>Reset</code> are the operator's, and the gateway binary holds neither (<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>). No plane or command uses it yet</td>
+<td><code>internal/policystate/</code>. One strict-JSON file per bundle id in an owner-only directory whose marker names a plane's or a signer's kind; raised under the directory's lock against the file's value; <code>Init</code> and <code>Reset</code> are the operator's, and the gateway binary holds neither (<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>). The commands use it (<code>policy renew</code>, <code>policy state init</code> and <code>reset</code>); no plane does yet</td>
 </tr>
 <tr>
 <td>External policy decision point (PDP) over AuthZEN, able to veto</td>

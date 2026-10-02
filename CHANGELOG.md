@@ -21,6 +21,13 @@ verify one.
   delivery, a crash and an outage neither lose nor repeat an alert, and it
   prints no field outside an allowlist
   ([guide](docs/guides/read-the-evidence-from-a-program.md)).
+- `guardana-control policy renew` verifies a bundle under its public key,
+  raises a signer's serial floor and writes a signed freshness statement for
+  the bundle; it refuses a bundle below that floor
+  ([ADR-0038](docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor.md)).
+- `guardana-control policy state init` makes a floor directory and a bundle
+  id's floor, never replacing one, and `policy state reset` lowers a floor,
+  recording the reason and the value it replaced.
 
 ### Changed
 

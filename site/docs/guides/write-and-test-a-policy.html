@@ -109,20 +109,19 @@ ok   deny-unmatched-write.json: DENY Block [NO_MATCHING_RULE]
 ok   obligated-read.json: ALLOW_WITH_OBLIGATIONS ExecuteWithObligations [OBLIGATIONS_ATTACHED]
 ok   stale-read.json: INDETERMINATE Block [POLICY_STALE RULE_ALLOW]
 </code></pre>
-<p>Every <code>*.json</code> file of the directory runs as a case, in name order; other files
-are not read and subdirectories are not entered. For each case the document is
-signed in memory with a key derived from a fixed seed, loaded at <code>loaded_at</code>,
-the envelope is decoded the way a receiver decodes JSON, and the kernel decides
-at <code>decided_at</code>. The fixed key is not what a case tests: it is there so that a
-run needs no key from the user.</p>
+<p>Every <code>*.json</code> file runs as a case, in name order; other files and
+subdirectories are not read. Each document is signed in memory with a
+fixed key, so a run needs none from you, and loaded at <code>loaded_at</code>; the
+envelope is decoded as a receiver decodes JSON, and the kernel decides at
+<code>decided_at</code>.</p>
 <h3 id="5-make-a-key-and-sign-the-document">5. Make a key and sign the document</h3>
 <pre><code>$ go run ./cmd/guardana-control policy keygen --out keys
 key_id: ed25519-&lt;16 hex digits&gt;
 public_key: &lt;44 characters of base64&gt;
 $ go run ./cmd/guardana-control policy sign --key keys/signing.key --out orders.bundle policy.json
-bundle_id: orders-policy
-version: 2026-09-24.1
-serial: 3
+bundle_id: payments
+version: 2026-09-10.1
+serial: 7
 digest: sha256:&lt;64 hex digits&gt;
 key_id: ed25519-&lt;16 hex digits&gt;
 out: orders.bundle
@@ -142,6 +141,27 @@ would refuse. The bundle is public and written with mode <code>0644</code>, repl
 earlier bundle at <code>--out</code>; any other file there is refused and left as it
 was. Give each new version a higher <code>serial</code>. What the files hold and why is
 <a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>.</p>
+<h3 id="6-vouch-that-the-bundle-is-current">6. Vouch that the bundle is current</h3>
+<pre><code>$ go run ./cmd/guardana-control policy keygen --out freshness
+key_id: ed25519-&lt;16 hex digits&gt;
+public_key: &lt;44 characters of base64&gt;
+$ go run ./cmd/guardana-control policy state init --kind signer --bundle-id payments signer-floors
+bundle_id: payments
+floor: no serial
+$ go run ./cmd/guardana-control policy renew --key freshness/signing.key --bundle orders.bundle \
+    --bundle-public-key keys/signing.pub --floor signer-floors --out orders.statement
+bundle_id: payments
+serial: 7
+digest: sha256:&lt;64 hex digits&gt;
+issued_at: &lt;YYYY-MM-DDTHH:MM:SSZ&gt;
+</code></pre>
+<p><code>--bundle-id</code> is your bundle's <code>id</code>, <code>payments</code> in the example. The freshness
+key is a second pair: keep its lines for the plane's freshness key, never over
+the <code>policy</code> lines of step 5. Give <code>--bundle</code> the authority's own copy, not the
+one a plane is served, and keep floor and freshness key with the signer.
+<code>renew</code> refuses a bundle below its floor; rerun it before the budget runs out.
+No plane reads a statement yet; a plane will need one
+(<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>).</p>
 <h2 id="verify">Verify</h2>
 <ul>
 <li><code>policy lint</code> exits 0 and prints nothing.</li>

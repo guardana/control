@@ -71,6 +71,11 @@ format character or bytes that are not UTF-8 is printed as a quoted Go string.</
 loads: <a href="/docs/guides/write-and-test-a-policy">guides/write-and-test-a-policy.md</a>
 is their page. The <code>approvals</code> commands read and answer the records under an
 approvals directory, from outside the gateway process.</p>
+<p><code>policy renew</code> takes the freshness key, the bundle, its public key, a
+signer's floor and the statement to write; it verifies the bundle, raises the
+floor, then writes the statement. <code>policy state init</code> and <code>reset</code> make and
+lower floors
+(<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>).</p>
 <p><code>policy keygen</code> creates the directory <code>--out</code> names, mode <code>0700</code>, and refuses a
 path that exists. Into it go <code>signing.key</code>, the private key as one PKCS#8 PEM
 block, mode <code>0600</code>, and <code>signing.pub</code>, the public key as one line of standard
@@ -155,6 +160,10 @@ serves: <a href="/docs/reference/runs">runs.md</a>.</p>
   guardana-control policy explain &lt;case&gt;
   guardana-control policy keygen --out &lt;dir&gt;
   guardana-control policy sign --key &lt;file&gt; --out &lt;file&gt; &lt;document&gt;
+  guardana-control policy renew --key --bundle --bundle-public-key --floor --out
+  guardana-control policy state init --kind plane|signer --bundle-id &lt;id&gt; &lt;dir&gt;
+  guardana-control policy state reset --kind plane|signer --bundle-id &lt;id&gt; --reason &lt;text&gt;
+      (--empty | --serial &lt;n&gt; --digest &lt;d&gt; --issued-at &lt;t&gt;) &lt;dir&gt;
   guardana-control approvals list &lt;dir&gt;
   guardana-control approvals approve --approver-id &lt;id&gt; [--reason &lt;text&gt;] &lt;dir&gt; &lt;approval-id&gt;
   guardana-control approvals reject --approver-id &lt;id&gt; [--reason &lt;text&gt;] &lt;dir&gt; &lt;approval-id&gt;
@@ -172,6 +181,8 @@ Write access to the approvals directory is the approval authority:
 Write access to the pause file is the authority to pause a call and to lift a pause.
 Write access to the runs directory is the authority to open and to close a run;
 a token acts as its run until it expires or is closed, and runs open prints it once.
+Write access to a floor directory is the authority to lower its floors;
+policy state reset is the one way that records why.
 </code></pre>
 <h2 id="guardana-gateway">guardana-gateway</h2>
 <p><code>run</code> serves one plane from a configuration file and <code>doctor</code> checks that
