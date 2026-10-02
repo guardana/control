@@ -62,7 +62,7 @@ func TestAnEvidenceDirectoryAnotherAccountOwnsIsRefused(t *testing.T) {
 // is never made.
 func TestALinkAtTheFirstSegmentIsNeverWrittenThrough(t *testing.T) {
 	dir, victim := t.TempDir(), filepath.Join(t.TempDir(), "victim")
-	if err := os.Symlink(victim, segmentPath(dir, 1)); err != nil {
+	if err := os.Symlink(victim, firstSegmentPath(dir)); err != nil {
 		t.Fatal(err)
 	}
 	s, err := openIn(dir)
@@ -122,7 +122,7 @@ func oneSegment(t *testing.T, dir string) (string, []byte) {
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
-	seg := segmentPath(dir, 1)
+	seg := firstSegmentPath(dir)
 	body, err := os.ReadFile(seg) //nolint:gosec // G304: the test's own spool
 	if err != nil {
 		t.Fatal(err)
@@ -131,27 +131,55 @@ func oneSegment(t *testing.T, dir string) (string, []byte) {
 }
 
 // TestTheSegmentOpenRefusesALink: what Open checked can be swapped for a link
-// before an append reopens it, so the open itself refuses one, whether its
-// target exists or not.
+// before an append or a read reopens it, so the open refuses one, whether its
+// target exists or not. The link stays inside the directory, which the root
+// would follow, and the segment is given its target's own identity, so only
+// the refusal of the link itself can tell them apart.
 func TestTheSegmentOpenRefusesALink(t *testing.T) {
 	dir := t.TempDir()
-	victim := filepath.Join(dir, "victim")
-	link := filepath.Join(dir, "link")
-	if err := os.Symlink(victim, link); err != nil {
+	if err := os.Symlink("victim", filepath.Join(dir, "link")); err != nil {
 		t.Fatal(err)
 	}
-	if f, err := openOSFile(link); err == nil {
-		_ = f.Close()
-		t.Error("a dangling link was opened")
+	dangling, err := os.Lstat(filepath.Join(dir, "link"))
+	if err != nil {
+		t.Fatal(err)
 	}
+	if appendErr, readErr := openBoth(t, dir, dangling); appendErr == nil || readErr == nil {
+		t.Errorf("a dangling link: append %v, read %v; want both refused", appendErr, readErr)
+	}
+	victim := filepath.Join(dir, "victim")
 	if err := os.WriteFile(victim, []byte("kept"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if f, err := openOSFile(link); err == nil {
-		_ = f.Close()
-		t.Error("a link to a file was opened")
+	target, err := os.Lstat(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if appendErr, readErr := openBoth(t, dir, target); appendErr == nil || readErr == nil {
+		t.Errorf("a link to a file: append %v, read %v; want both refused", appendErr, readErr)
 	}
 	if body, err := os.ReadFile(victim); err != nil || string(body) != "kept" { //nolint:gosec // G304: the test's own file
 		t.Errorf("the target holds %q: %v", body, err)
 	}
+}
+
+// openBoth opens "link" in dir as a segment known to be info, for append and
+// for read, closes what opened, and returns what each open answered.
+func openBoth(t *testing.T, dir string, info fs.FileInfo) (appendErr, readErr error) {
+	t.Helper()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close() //nolint:errcheck // read only
+	s := &Spool{root: root, opts: Options{openFile: openOSFile, openRead: openOSRead}}
+	seg := segment{seq: 1, name: "link", info: info}
+	if appendErr = s.openSegment(&seg); appendErr == nil {
+		_ = seg.file.Close()
+	}
+	f, _, readErr := s.openForRead(seg.name, seg.what(), seg.info)
+	if readErr == nil {
+		_ = f.Close()
+	}
+	return appendErr, readErr
 }

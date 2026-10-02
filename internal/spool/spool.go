@@ -104,10 +104,12 @@ type Options struct {
 	// budget. Zero means DefaultClosingReserve; it has to be at most MaxBytes.
 	ClosingReserve int64
 
-	// openFile and syncDir are the seams a test observes the writes and the
-	// directory syncs through; nil means the operating system's.
-	openFile func(path string) (segmentFile, error)
-	syncDir  func(dir string) error
+	// openFile, openRead and syncDir are the seams a test observes the writes,
+	// the reads and the directory syncs through; nil means the operating
+	// system's.
+	openFile func(root *os.Root, name string, flag int) (segmentFile, error)
+	openRead func(root *os.Root, name string, flag int) (*os.File, error)
+	syncDir  func(root *os.Root) error
 }
 
 // Cursor names a position in the log: a segment by the sequence number of its
@@ -149,6 +151,10 @@ type Spool struct {
 	// broken latches an I/O failure that left the log in a state a later
 	// append could make worse; every operation after it fails with it.
 	broken error
+	// root is the directory as Open checked and locked it. Every file is
+	// reached through it, never through Dir, which may name another directory
+	// by then.
+	root *os.Root
 	// unlock releases the directory lock Open took.
 	unlock func() error
 
@@ -196,16 +202,25 @@ func Open(opts Options) (*Spool, error) {
 	if opts.openFile == nil {
 		opts.openFile = openOSFile
 	}
+	if opts.openRead == nil {
+		opts.openRead = openOSRead
+	}
 	if opts.syncDir == nil {
 		opts.syncDir = syncDir
 	}
-	unlock, err := lockDir(opts.Dir)
+	root, err := openSpoolDir(opts.Dir)
 	if err != nil {
 		return nil, err
 	}
+	locked, err := lockDir(root, opts.Dir)
+	if err != nil {
+		return nil, errors.Join(err, root.Close())
+	}
+	unlock := func() error { return errors.Join(locked(), root.Close()) }
 	s := &Spool{
 		opts:     opts,
 		open:     true,
+		root:     root,
 		unlock:   unlock,
 		reserved: map[trail]int64{},
 		notify:   make(chan struct{}),
@@ -230,23 +245,42 @@ const writableByOthers fs.FileMode = 0o022
 var effectiveUID = os.Geteuid
 
 func (o Options) check() error {
-	info, err := os.Stat(o.Dir)
-	switch {
-	case err != nil:
-		return fmt.Errorf("%w: dir: %w", ErrInvalidOptions, err)
-	case !info.IsDir():
-		return fmt.Errorf("%w: %q is not a directory", ErrInvalidOptions, o.Dir)
-	}
-	if err := files.CheckDir(o.Dir, writableByOthers); err != nil {
-		return fmt.Errorf("%w: dir: %w", ErrInvalidOptions, err)
-	}
-	if err := files.CheckOwnedBy(info, effectiveUID()); err != nil {
-		return fmt.Errorf("%w: dir: %w", ErrInvalidOptions, err)
-	}
 	if err := o.checkBounds(); err != nil {
 		return err
 	}
 	return o.checkFsync()
+}
+
+// openSpoolDir opens dir as a root and refuses it unless it is a directory of
+// this process's account that no other account may write. The checks read the
+// opened directory, so the one judged is the one every file is reached through.
+func openSpoolDir(dir string) (*os.Root, error) {
+	// The trailing "." fails on anything but a directory rather than wait on a
+	// named pipe put at dir.
+	root, err := os.OpenRoot(dir + string(os.PathSeparator) + ".")
+	if err != nil {
+		return nil, fmt.Errorf("%w: dir: %w", ErrInvalidOptions, err)
+	}
+	info, err := root.Stat(".")
+	if err == nil {
+		err = checkSpoolDir(info)
+	}
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("%w: dir: %w", ErrInvalidOptions, err), root.Close())
+	}
+	return root, nil
+}
+
+func checkSpoolDir(info fs.FileInfo) error {
+	switch {
+	case !info.IsDir():
+		return files.ErrNotDirectory
+	case !files.PermissionBits:
+		return files.ErrNoPermissionBits
+	case info.Mode().Perm()&writableByOthers != 0:
+		return fmt.Errorf("%w: mode %04o", files.ErrMode, info.Mode().Perm())
+	}
+	return files.CheckOwnedBy(info, effectiveUID())
 }
 
 func (o Options) checkBounds() error {

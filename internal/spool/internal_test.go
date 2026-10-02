@@ -35,9 +35,14 @@ func (f *countingFile) Sync() error {
 	return f.File.Sync()
 }
 
-func countingOpener(syncs *atomic.Int64, failOn func() error) func(string) (segmentFile, error) {
-	return func(path string) (segmentFile, error) {
-		f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600) //nolint:gosec // G304: the spool's own segment path
+// firstSegmentPath is where the spool keeps its first segment under dir.
+func firstSegmentPath(dir string) string {
+	return filepath.Join(dir, segmentFileName(1))
+}
+
+func countingOpener(syncs *atomic.Int64, failOn func() error) func(*os.Root, string, int) (segmentFile, error) {
+	return func(root *os.Root, name string, flag int) (segmentFile, error) {
+		f, err := root.OpenFile(name, flag, 0o600)
 		if err != nil {
 			return nil, err
 		}
@@ -270,9 +275,9 @@ func TestARollSyncsTheRetiredSegmentAndTheDirectory(t *testing.T) {
 		Dir: t.TempDir(), MaxBytes: 1 << 20, SegmentBytes: 1,
 		Fsync: FsyncInterval, Interval: time.Hour,
 		openFile: countingOpener(&fileSyncs, nil),
-		syncDir: func(dir string) error {
+		syncDir: func(root *os.Root) error {
 			dirSyncs.Add(1)
-			return syncDir(dir)
+			return syncDir(root)
 		},
 	})
 	if err != nil {
@@ -493,4 +498,103 @@ func spoolWithDelivered(t *testing.T, dir string, n int, failOn func() error) (*
 		}
 	}
 	return s, r
+}
+
+// failingClose is the file seam with Close made to fail while fail is set.
+type failingClose struct {
+	segmentFile
+	fail *atomic.Bool
+}
+
+func (f failingClose) Close() error {
+	err := f.segmentFile.Close()
+	if f.fail.Load() {
+		return errors.Join(err, errors.New("close failed"))
+	}
+	return err
+}
+
+// TestAQuarantineCloseThatFailsBreaksTheSpool: the records are synced when the
+// close fails, so they are on disk without being counted, and nothing after
+// may land behind them.
+func TestAQuarantineCloseThatFailsBreaksTheSpool(t *testing.T) {
+	var fail atomic.Bool
+	s, err := Open(Options{Dir: t.TempDir(), MaxBytes: 1 << 20, SegmentBytes: 1 << 16, openFile: func(root *os.Root, name string, flag int) (segmentFile, error) {
+		f, err := openOSFile(root, name, flag)
+		if err != nil {
+			return nil, err
+		}
+		return failingClose{segmentFile: f, fail: &fail}, nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close() //nolint:errcheck // the close is made to fail
+	if err := s.Append(context.Background(), sample(1)); err != nil {
+		t.Fatal(err)
+	}
+	r, err := s.Reader(Cursor{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := r.Next(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	fail.Store(true)
+	if _, err := r.Quarantine([]*controlv1.Event{sample(0)}); err == nil {
+		t.Fatal("Quarantine reported a failed close as success")
+	}
+	fail.Store(false)
+	if err := s.Append(context.Background(), sample(2)); err == nil {
+		t.Error("Append after a failed quarantine close went through")
+	}
+}
+
+// TestAQuarantineWhoseEntrySyncFailedIsSyncedByTheNextAppend: the file stays
+// after the failed sync, so the next append does not create it, yet its
+// directory entry is still not known to be on disk.
+func TestAQuarantineWhoseEntrySyncFailedIsSyncedByTheNextAppend(t *testing.T) {
+	var syncs, dirSyncs atomic.Int64
+	var fail atomic.Bool
+	s, err := Open(Options{
+		Dir: t.TempDir(), MaxBytes: 1 << 20, SegmentBytes: 1 << 16,
+		openFile: countingOpener(&syncs, nil),
+		syncDir: func(root *os.Root) error {
+			dirSyncs.Add(1)
+			if fail.Load() {
+				return errors.New("directory sync failed")
+			}
+			return syncDir(root)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close() //nolint:errcheck // the assertions are below
+	for i := 1; i <= 2; i++ {
+		if err := s.Append(context.Background(), sample(i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := s.Reader(Cursor{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, _, err := r.Next(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fail.Store(true)
+	if _, err := r.Quarantine([]*controlv1.Event{sample(1)}); err == nil {
+		t.Fatal("Quarantine reported a failed directory sync as success")
+	}
+	fail.Store(false)
+	before := dirSyncs.Load()
+	if _, err := r.Quarantine([]*controlv1.Event{sample(2)}); err != nil {
+		t.Fatal(err)
+	}
+	if got := dirSyncs.Load() - before; got != 1 {
+		t.Errorf("the append after a failed entry sync made %d directory syncs, want 1", got)
+	}
 }

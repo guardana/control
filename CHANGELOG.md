@@ -43,6 +43,15 @@ verify one.
   directory; they refuse it, and only `runs open` makes one. A temporary file
   left by a crash while `runs open` made the directory no longer makes every
   later command and plane refuse it.
+- The evidence spool now refuses a segment or its quarantine log that is a
+  link, has a second name or was replaced since the spool listed or created
+  it, for appends, reads and truncation alike. A named pipe at a segment's
+  name is refused rather than waited on.
+- The evidence spool reaches every file through the directory it checked and
+  locked at start, so a directory renamed or replaced under `evidence.dir`
+  receives no segment. Refusing a segment with a second name, it gives the
+  device and inode, so `find -inum` finds the other name. A quarantine log
+  whose directory entry could not be synced is synced by the next append to it.
 
 ## [0.5.0-alpha] - 2026-10-02
 

@@ -124,8 +124,18 @@ Sources: `internal/spool/append.go`, `internal/spool/segment.go`,
 | Acknowledge | batches are acknowledged in the order they were sent, once every record in one was accepted or quarantined; the first batch not delivered stops the cursor, and the next run sends it all again; `Ack` is bounded by what this reader delivered, so nothing is released that nobody exported | a cursor before the acknowledged position, past what was delivered, or inside a record |
 | Retry | any answer that is not an acceptance or a refusal of the records, a transport error, a redirect, an auth or throttling status, a server error, an answer that does not parse, is sent again with a backoff that doubles up to `MaxBackoff`, for as long as it takes | never: a collector outage fills the spool and nothing else |
 | Quarantine | a refusal of the records (`400`, `413`, `422`) splits a batch in halves; a single record refused `maxRefusals` times running, every record of an accepted request from which the collector reports dropping some, since its answer does not say which, and a record the encoder refuses go to the quarantine, so the cursor may pass them without dropping them; a record the quarantine's tail already holds is not written twice | `ErrFull` when what the quarantine took since the last acknowledgement would exceed what that acknowledgement releases: the quarantine's bytes count against the budget from then on and nothing releases them |
-| Open | the directory is locked for this process, every segment and the quarantine are read and checked, a torn tail of the last segment is cut and counted as truncated | `ErrLocked` for a directory another spool holds; `ErrCorrupt` for a record that does not check anywhere but that tail, or a segment out of sequence, with nothing deleted; `ErrForeignFile` for a file that is not the spool's |
+| Open | the directory is locked for this process, every segment and the quarantine are read and checked, a torn tail of the last segment is cut and counted as truncated | `ErrLocked` for a directory another spool holds; `ErrCorrupt` for a record that does not check anywhere but that tail, or a segment out of sequence, with nothing deleted; `ErrForeignFile` for a file that is not the spool's, a segment or quarantine with a second name among them |
 | Break | an I/O failure a repair cannot undo latches: the segment is cut back to its committed length when that works, and when it does not, every later operation fails with the same error | a broken spool refuses everything, so a later append never lands behind a tail nobody can vouch for |
+
+Every open of a segment or of the quarantine, to append, to read or to cut a
+torn tail, refuses a symbolic link at its name and does not wait on a named
+pipe there. It refuses with `ErrForeignFile` a file that is not regular, has a
+second name, or is not the file the directory listing or the create found, and
+a cut goes through the descriptor so judged; a second name is reported with
+the file's device and inode. Every file is reached through the directory Open
+checked and locked, never through its path again, so a directory renamed or
+replaced under that path receives nothing. A reader refused stays where it
+is, so the exporter stops rather than skip the segment.
 
 `Stats` reports the segments, the bytes on disk, what is unacknowledged,
 reserved and quarantined, what was truncated and the oldest unacknowledged

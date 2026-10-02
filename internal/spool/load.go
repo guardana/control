@@ -7,8 +7,9 @@ import (
 	"io"
 	"math"
 	"os"
-	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 )
 
 // load reads the directory in two passes. The first only reads: it scans every
@@ -50,30 +51,59 @@ func (s *Spool) load() error {
 	return nil
 }
 
-// listSegments names every segment under Dir in log order: ReadDir sorts by
-// name and the names are zero-padded. The quarantine and the lock file are
-// the spool's too; anything else there is refused.
+// listSegments names every segment in the spool's directory in log order: the
+// entries are sorted by name and the names are zero-padded. The quarantine and the lock file are
+// the spool's too; anything else there is refused. Each segment and the
+// quarantine keep the file their entry names, which every later open has to
+// find again.
 func (s *Spool) listSegments() error {
-	entries, err := os.ReadDir(s.opts.Dir)
+	entries, err := s.readDir()
 	if err != nil {
 		return fmt.Errorf("spool: %w", err)
 	}
 	for _, entry := range entries {
 		name := entry.Name()
-		if (name == quarantineName || (lockFile != "" && name == lockFile)) && entry.Type().IsRegular() {
-			continue
-		}
 		m := segmentName.FindStringSubmatch(name)
-		if m == nil || !entry.Type().IsRegular() {
+		switch {
+		case !entry.Type().IsRegular():
+			return fmt.Errorf("%w: %q", ErrForeignFile, name)
+		case name == quarantineName:
+			info, err := s.root.Lstat(name)
+			if err != nil {
+				return fmt.Errorf("spool: %w", err)
+			}
+			s.quarantine.info, s.quarantine.synced = info, true
+			continue
+		case lockFile != "" && name == lockFile:
+			continue
+		case m == nil:
 			return fmt.Errorf("%w: %q", ErrForeignFile, name)
 		}
 		seq, err := strconv.ParseUint(m[1], 10, 64)
 		if err != nil {
 			return fmt.Errorf("%w: %q", ErrForeignFile, name)
 		}
-		s.segments = append(s.segments, &segment{seq: seq, path: filepath.Join(s.opts.Dir, name)})
+		info, err := s.root.Lstat(name)
+		if err != nil {
+			return fmt.Errorf("spool: %w", err)
+		}
+		s.segments = append(s.segments, &segment{seq: seq, name: name, info: info})
 	}
 	return nil
+}
+
+// readDir lists the spool's directory through its root, sorted by name.
+func (s *Spool) readDir() ([]os.DirEntry, error) {
+	d, err := s.root.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	entries, err := d.ReadDir(-1)
+	if err = errors.Join(err, d.Close()); err != nil {
+		return nil, err
+	}
+	slices.SortFunc(entries, func(a, b os.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+	return entries, nil
 }
 
 // scanSegment counts seg's records that check and returns the file's size.
@@ -84,15 +114,11 @@ func (s *Spool) listSegments() error {
 // and under FsyncEveryRecord, where every record before it was forced to
 // disk, a record that checks after it is corruption instead.
 func (s *Spool) scanSegment(seg *segment, last bool) (int64, error) {
-	f, err := os.Open(seg.path)
+	f, info, err := s.openForRead(seg.name, seg.what(), seg.info)
 	if err != nil {
-		return 0, fmt.Errorf("spool: %w", err)
+		return 0, err
 	}
 	defer f.Close() //nolint:errcheck // read only; nothing to lose on close
-	info, err := f.Stat()
-	if err != nil {
-		return 0, fmt.Errorf("spool: %w", err)
-	}
 	found, err := scan(bufio.NewReaderSize(f, 1<<16))
 	if err != nil {
 		return 0, fmt.Errorf("spool: %w", err)
@@ -152,13 +178,13 @@ func (s *Spool) checkSequence() error {
 func (s *Spool) cutTail(last *segment, size int64) error {
 	switch {
 	case last.records == 0:
-		if err := os.Remove(last.path); err != nil {
+		if err := s.root.Remove(last.name); err != nil {
 			return fmt.Errorf("spool: %w", err)
 		}
 		s.segments = s.segments[:len(s.segments)-1]
 	case last.size < size:
-		if err := os.Truncate(last.path, last.size); err != nil {
-			return fmt.Errorf("spool: %w", err)
+		if err := s.cutBack(last.name, last.what(), last.info, last.size); err != nil {
+			return err
 		}
 	default:
 		return nil

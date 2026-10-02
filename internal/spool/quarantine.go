@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
-	"path/filepath"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/evidence"
@@ -26,12 +24,19 @@ const quarantineTailRecords = 256
 
 // quarantine is what the quarantine file holds: the records that check, the
 // offset just past the last of them, and the identifiers of its last records.
+// info is the file the listing or the create found, nil while there is none,
+// and synced whether its directory entry is known to be on disk.
 type quarantine struct {
 	records int
 	size    int64
 	tail    []string
 	held    map[string]int
+	info    fs.FileInfo
+	synced  bool
 }
+
+// quarantineWhat names the quarantine in a refusal.
+const quarantineWhat = "the quarantine"
 
 func (q *quarantine) remember(id string) {
 	if q.held == nil {
@@ -56,19 +61,15 @@ func (q *quarantine) holds(id string) bool { return q.held[id] > 0 }
 // the caller cuts it; a record that does not check with one that checks after
 // it is corruption of records the spool reported durable.
 func (s *Spool) loadQuarantine() (int64, error) {
-	path := filepath.Join(s.opts.Dir, quarantineName)
-	f, err := os.Open(path) //nolint:gosec // G304: the spool's own file under the directory checked at Open
-	if errors.Is(err, fs.ErrNotExist) {
+	known := s.quarantine.info
+	if known == nil {
 		return 0, nil
 	}
+	f, info, err := s.openForRead(quarantineName, quarantineWhat, known)
 	if err != nil {
-		return 0, fmt.Errorf("spool: %w", err)
+		return 0, err
 	}
 	defer f.Close() //nolint:errcheck // read only; nothing to lose on close
-	info, err := f.Stat()
-	if err != nil {
-		return 0, fmt.Errorf("spool: %w", err)
-	}
 	found, err := scan(bufio.NewReaderSize(f, 1<<16))
 	if err != nil {
 		return 0, fmt.Errorf("spool: %w", err)
@@ -80,7 +81,7 @@ func (s *Spool) loadQuarantine() (int64, error) {
 			return 0, fmt.Errorf("%w: the quarantine: %w", ErrCorrupt, err)
 		}
 	}
-	s.quarantine = quarantine{records: found.records, size: found.good}
+	s.quarantine = quarantine{records: found.records, size: found.good, info: known, synced: s.quarantine.synced}
 	if err := s.loadQuarantineTail(f, found); err != nil {
 		return 0, err
 	}
@@ -125,8 +126,8 @@ func (s *Spool) cutQuarantineTail(size int64) error {
 	if size == s.quarantine.size {
 		return nil
 	}
-	if err := os.Truncate(filepath.Join(s.opts.Dir, quarantineName), s.quarantine.size); err != nil {
-		return fmt.Errorf("spool: %w", err)
+	if err := s.cutBack(quarantineName, quarantineWhat, s.quarantine.info, s.quarantine.size); err != nil {
+		return err
 	}
 	s.truncated += size - s.quarantine.size
 	return nil
@@ -195,34 +196,35 @@ func named(events []*controlv1.Event, id string) bool {
 }
 
 // appendQuarantine writes framed records at the quarantine's end and syncs
-// them, and the directory when it may have created the file. On a failure the
-// file is cut back to what it held, and when that fails the spool is broken: a
-// later append could land behind a record nobody can vouch for.
+// them, and the directory until its entry for the file is known to be on disk. On a failure the file is
+// cut back to what it held through the same descriptor, and when that fails
+// the spool is broken: a later append could land behind a record nobody can
+// vouch for. A close that fails after the sync breaks it too, since the
+// records are then on disk and no longer counted.
 func (s *Spool) appendQuarantine(records []byte, written []*controlv1.Event) error {
-	path := filepath.Join(s.opts.Dir, quarantineName)
-	_, statErr := os.Stat(path)
-	// Unless the file is known to have been there, the append may be creating
-	// it, and a directory entry nobody synced can lose records the spool is
-	// about to report durable.
-	created := statErr != nil
-	f, err := s.opts.openFile(path)
+	f, info, err := s.openForAppend(quarantineName, quarantineWhat, s.quarantine.info)
 	if err != nil {
-		return fmt.Errorf("spool: quarantine: %w", err)
+		return err
 	}
+	s.quarantine.info = info
 	_, err = f.Write(records)
 	if err == nil {
 		err = f.Sync()
 	}
-	err = errors.Join(err, f.Close())
-	if err == nil && created {
-		err = s.opts.syncDir(s.opts.Dir)
+	if err == nil && !s.quarantine.synced {
+		err = s.opts.syncDir(s.root)
+		s.quarantine.synced = err == nil
 	}
 	if err != nil {
-		if cut := os.Truncate(path, s.quarantine.size); cut != nil {
+		if cut := errors.Join(f.Truncate(s.quarantine.size), f.Close()); cut != nil {
 			s.breakWith(fmt.Errorf("spool: quarantine: repair after %w: %w", err, cut))
 			return s.broken
 		}
 		return fmt.Errorf("spool: quarantine: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		s.breakWith(fmt.Errorf("spool: quarantine: closing: %w", err))
+		return s.broken
 	}
 	for _, event := range written {
 		s.quarantine.records++

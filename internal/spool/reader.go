@@ -91,9 +91,9 @@ func (s *Spool) checkCursor(c, low, high Cursor) (Cursor, error) {
 	if seg == nil || cc.Offset == seg.size {
 		return cc, nil
 	}
-	f, err := os.Open(seg.path)
+	f, _, err := s.openForRead(seg.name, seg.what(), seg.info)
 	if err != nil {
-		return Cursor{}, fmt.Errorf("spool: %w", err)
+		return Cursor{}, err
 	}
 	defer f.Close() //nolint:errcheck // read only; nothing to lose on close
 	if _, _, err := readRecord(f, cc.Offset, seg.size); err != nil {
@@ -166,9 +166,9 @@ func (r *Reader) deliver(seg *segment, end int64) (*controlv1.Event, Cursor, err
 		r.file = nil
 	}
 	if r.file == nil {
-		f, err := os.Open(seg.path)
+		f, _, err := r.s.openForRead(seg.name, seg.what(), seg.info)
 		if err != nil {
-			return nil, Cursor{}, fmt.Errorf("spool: %w", err)
+			return nil, Cursor{}, err
 		}
 		r.file, r.fileSeq = f, seg.seq
 	}

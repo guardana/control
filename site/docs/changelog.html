@@ -66,6 +66,15 @@ same check and prints that version's release notes.</li>
 directory; they refuse it, and only <code>runs open</code> makes one. A temporary file
 left by a crash while <code>runs open</code> made the directory no longer makes every
 later command and plane refuse it.</li>
+<li>The evidence spool now refuses a segment or its quarantine log that is a
+link, has a second name or was replaced since the spool listed or created
+it, for appends, reads and truncation alike. A named pipe at a segment's
+name is refused rather than waited on.</li>
+<li>The evidence spool reaches every file through the directory it checked and
+locked at start, so a directory renamed or replaced under <code>evidence.dir</code>
+receives no segment. Refusing a segment with a second name, it gives the
+device and inode, so <code>find -inum</code> finds the other name. A quarantine log
+whose directory entry could not be synced is synced by the next append to it.</li>
 </ul>
 <h2 id="050-alpha---2026-10-02"><a href="https://github.com/guardana/control/releases/tag/v0.5.0-alpha">0.5.0-alpha</a> - 2026-10-02</h2>
 <p>An author can now see why a call got its decision: <code>policy explain</code> names the

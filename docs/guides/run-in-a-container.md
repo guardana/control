@@ -21,7 +21,10 @@ name its digest.
 - The image's digest from the release notes, checked with the commands in
   [RELEASING.md](../../RELEASING.md#checking-the-image).
 - A directory for the evidence spool, owned by user 65532 and writable by no
-  one else.
+  one else. Under Kubernetes the plane refuses an `emptyDir`, which is mode
+  0777, and a volume that `fsGroup` makes group-writable; give the directory
+  owner 65532 and mode 0700 before the gateway starts, from an init container
+  for example.
 
 ## Steps
 

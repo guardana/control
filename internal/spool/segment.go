@@ -3,45 +3,49 @@ package spool
 import (
 	"errors"
 	"fmt"
-	"io"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"regexp"
 )
-
-// segmentFile is what the spool writes through: an appending file that can be
-// forced to disk. The operating system's file is the one outside tests.
-type segmentFile interface {
-	io.Writer
-	Sync() error
-	Close() error
-}
 
 // A segment is named by the sequence number of its first record, zero-padded
 // so the directory lists it in log order.
 var segmentName = regexp.MustCompile(`^([0-9]{20})\.seg$`)
 
-func segmentPath(dir string, seq uint64) string {
-	return filepath.Join(dir, fmt.Sprintf("%020d.seg", seq))
+func segmentFileName(seq uint64) string {
+	return fmt.Sprintf("%020d.seg", seq)
 }
 
 // segment is one file of the log. size is the committed length: bytes before
 // it are whole records readers may deliver, bytes at or past it are not part
 // of the log.
 type segment struct {
-	seq     uint64
-	path    string
+	seq uint64
+	// name is the file's name in the spool's directory.
+	name    string
 	size    int64
 	records int
+	// info is the file the listing or the create found at name; every later
+	// open has to find that same file. It is set before readers can see the
+	// segment and never changes.
+	info fs.FileInfo
 	// file is non-nil while the segment is open for append.
 	file segmentFile
 }
 
-// openOSFile opens path for append, creating it. The mode keeps the evidence
-// to the process's own user, and a link at path is refused rather than
-// written through.
-func openOSFile(path string) (segmentFile, error) {
-	return os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE|noFollow, 0o600) //nolint:gosec // G304: the path is the spool's own, built from a sequence number
+func (seg *segment) what() string { return fmt.Sprintf("segment %d", seg.seq) }
+
+// openSegment opens seg to append to it.
+func (s *Spool) openSegment(seg *segment) error {
+	f, info, err := s.openForAppend(seg.name, seg.what(), seg.info)
+	if err != nil {
+		return err
+	}
+	if seg.info == nil {
+		seg.info = info
+	}
+	seg.file = f
+	return nil
 }
 
 // write puts one framed record at the end of the current segment, rolling to
@@ -81,25 +85,19 @@ func (s *Spool) ensureSegment(size int64) error {
 	}
 	if n := len(s.segments); n > 0 && s.segments[n-1].size+size <= s.opts.SegmentBytes {
 		last := s.segments[n-1]
-		f, err := s.opts.openFile(last.path)
-		if err != nil {
-			return fmt.Errorf("spool: %w", err)
+		if err := s.openSegment(last); err != nil {
+			return err
 		}
-		last.file, s.cur = f, last
+		s.cur = last
 		return nil
 	}
-	seg := &segment{seq: s.nextSeq, path: segmentPath(s.opts.Dir, s.nextSeq)}
-	if _, err := os.Lstat(seg.path); err == nil {
-		return fmt.Errorf("%w: segment %d already exists", ErrCorrupt, seg.seq)
+	seg := &segment{seq: s.nextSeq, name: segmentFileName(s.nextSeq)}
+	if err := s.openSegment(seg); err != nil {
+		return err
 	}
-	f, err := s.opts.openFile(seg.path)
-	if err != nil {
-		return fmt.Errorf("spool: %w", err)
+	if err := s.opts.syncDir(s.root); err != nil {
+		return errors.Join(fmt.Errorf("spool: %w", err), seg.file.Close(), s.root.Remove(seg.name))
 	}
-	if err := s.opts.syncDir(s.opts.Dir); err != nil {
-		return errors.Join(fmt.Errorf("spool: %w", err), f.Close(), os.Remove(seg.path))
-	}
-	seg.file = f
 	s.segments = append(s.segments, seg)
 	s.cur = seg
 	return nil
@@ -118,15 +116,16 @@ func (s *Spool) retire() error {
 	return nil
 }
 
-// repair follows a failed write or sync: the segment is closed and cut back
-// to its committed length. When that cut fails, the log has a tail nobody can
-// vouch for and the spool refuses everything from then on.
+// repair follows a failed write or sync: the segment is cut back to its
+// committed length through the descriptor the write went to, and closed. When
+// that cut fails, the log has a tail nobody can vouch for and the spool
+// refuses everything from then on.
 func (s *Spool) repair(cause error) error {
 	seg := s.cur
 	s.cur = nil
-	err := errors.Join(seg.file.Close(), os.Truncate(seg.path, seg.size))
+	err := errors.Join(seg.file.Truncate(seg.size), seg.file.Close())
 	if err == nil && seg.size == 0 {
-		err = os.Remove(seg.path)
+		err = s.root.Remove(seg.name)
 		s.segments = s.segments[:len(s.segments)-1]
 	}
 	if err != nil {
@@ -152,7 +151,7 @@ func (s *Spool) release() error {
 				return err
 			}
 		}
-		if err := os.Remove(seg.path); err != nil {
+		if err := s.root.Remove(seg.name); err != nil {
 			s.breakWith(fmt.Errorf("spool: releasing a segment: %w", err))
 			return s.broken
 		}
@@ -250,10 +249,10 @@ func (s *Spool) resolve(c Cursor) (Cursor, error) {
 	return s.settle(c), nil
 }
 
-// syncDir forces a directory entry to disk, so a segment created before a
+// syncDir forces the directory's entries to disk, so a file created before a
 // power loss is found after it.
-func syncDir(dir string) error {
-	d, err := os.Open(dir) //nolint:gosec // G304: the operator's spool directory, checked at Open
+func syncDir(root *os.Root) error {
+	d, err := root.Open(".")
 	if err != nil {
 		return err
 	}
