@@ -71,7 +71,27 @@ jobs:
       - name: Run govulncheck
         # The tool directive in go.mod pins the version, so there is nothing to
         # install and nothing to keep in step with scripts/tool-versions.env.
-        run: go tool govulncheck ./...
+        # ./... stops at a nested go.mod, so every module is scanned in turn,
+        # from the list `make security` uses.
+        env:
+          GOWORK: "off"
+        run: |
+          . scripts/lib/go-modules.sh
+          modules="$(go_modules)"
+          n=0
+          # Line by line from fd 3, so no glob in a name is expanded and no
+          # command reading its standard input swallows the modules after it.
+          while IFS= read -r dir <&3; do
+            [ -n "${dir}" ] || continue
+            echo "govulncheck: module ${dir}"
+            go tool govulncheck -C "${dir}" ./...
+            n=$((n + 1))
+          done 3<<<"${modules}"
+          if [ "${n}" -eq 0 ]; then
+            echo "govulncheck: no Go module listed; refusing to report a pass" >&2
+            exit 1
+          fi
+          echo "govulncheck: ${n} module(s)"
 
   osv-scanner:
     name: Dependency advisories

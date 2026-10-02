@@ -42,6 +42,35 @@ endif
 # find otherwise.
 REPO_FILES := scripts/lib/repo-files.sh
 
+# A developer's untracked go.work would make the go command resolve and cover
+# modules differently here than in CI, which has none.
+export GOWORK := off
+
+# Every Go module the repository holds, the root first.
+GO_MODULES := . scripts/lib/go-modules.sh; go_modules
+
+# $(call each_module,command,label) runs the command once per Go module, from
+# the root with the shell variable dir naming the module's directory and pkgs
+# the packages to cover there, and stops at the first module that fails, naming
+# it. ./... stops at a nested go.mod, so a command run once from the root would
+# pass without looking at that module. PKGS narrows the root module only. The
+# list is read from fd 3 so that a command reading its standard input cannot
+# swallow the modules after it.
+define each_module
+@$(RUN) \
+mods=$$($(GO_MODULES)); \
+n=0; \
+while IFS= read -r dir <&3; do \
+  [[ -n "$$dir" ]] || continue; \
+  if [[ "$$dir" == . ]]; then pkgs="$(PKGS)"; else pkgs=./...; fi; \
+  echo "$(2): module $$dir"; \
+  { $(1); } || { echo "$(2): FAIL in module $$dir" >&2; exit 1; }; \
+  n=$$((n + 1)); \
+done 3<<<"$$mods"; \
+if [[ $$n -eq 0 ]]; then echo "$(2): no Go module listed; refusing to report a pass" >&2; exit 1; fi; \
+echo "$(2): $$n module(s)"
+endef
+
 # Hand-written Go. Generated code under api/gen/ is never reformatted.
 GO_SRC := . $(REPO_FILES); repo_files '*.go' | { grep -v '^api/gen/' || true; }
 
@@ -55,7 +84,7 @@ GO_SRC := . $(REPO_FILES); repo_files '*.go' | { grep -v '^api/gen/' || true; }
 .PHONY: bootstrap fmt fmt-check vet lint test test-race fuzz-smoke security \
         proto proto-check proto-breaking docs-check docs-gen docs-impact tidy-check check-brand \
         release-snapshot check-demo-archive \
-        check-imports check-imports-probe check-sizes check-actions \
+        check-imports check-imports-probe check-modules-probe check-sizes check-actions \
         check-shell quality-quick quality
 
 bootstrap:
@@ -87,8 +116,7 @@ fmt-check:
 # The second vet compiles the non-unix side of the build constraints, which no
 # workflow runner and no release target builds.
 vet:
-	$(CD) $(GO) vet $(PKGS)
-	$(CD) GOOS=windows GOARCH=amd64 $(GO) vet $(PKGS)
+	$(call each_module,$(GO) -C "$$dir" vet $$pkgs && GOOS=windows GOARCH=amd64 $(GO) -C "$$dir" vet $$pkgs,vet)
 	@$(RUN) \
 	gens=$$(. $(REPO_FILES); repo_files 'scripts/*.go'); \
 	if [[ -z "$$gens" ]]; then \
@@ -104,15 +132,15 @@ vet:
 # The configuration is named, not discovered: golangci-lint prefers a
 # .golangci.yaml, .golangci.toml or .golangci.json beside .golangci.yml, so a
 # file dropped at the root would replace the one the security maintainers own
-# and the agreement tests read.
+# and the agreement tests read. A nested module is linted with the same file.
 lint:
-	$(CD) golangci-lint run --config .golangci.yml ./...
+	$(call each_module,(cd -- "$$dir" && golangci-lint run --config "$$REPO_ROOT/.golangci.yml" ./...),lint)
 
 test:
-	$(CD) $(GO) test -count=1 -shuffle=on $(PKGS)
+	$(call each_module,$(GO) -C "$$dir" test -count=1 -shuffle=on $$pkgs,test)
 
 test-race:
-	$(CD) $(GO) test -count=1 -race $(PKGS)
+	$(call each_module,$(GO) -C "$$dir" test -count=1 -race $$pkgs,test-race)
 
 fuzz-smoke:
 	$(CD) scripts/fuzz-smoke.sh $(FUZZTIME)
@@ -125,8 +153,11 @@ fuzz-smoke:
 # actionlint reads an empty configuration instead of .github/actionlint.yaml,
 # and the shellcheck it runs over each run: block reads no rc file; zizmor
 # loads no zizmor.yml and honours no "zizmor: ignore" comment.
+#
+# govulncheck runs from the root, whose go.mod pins it, and changes into each
+# module with its own -C.
 security:
-	$(CD) $(GO) tool govulncheck ./...
+	$(call each_module,$(GO) tool govulncheck -C "$$dir" ./...,govulncheck)
 	$(CD) scripts/scan-repo-files.sh
 	@$(RUN) \
 	workflows=$$(. $(REPO_FILES); repo_files '.github/workflows/*.yml' '.github/workflows/*.yaml'); \
@@ -230,12 +261,18 @@ check-imports:
 check-imports-probe:
 	$(CD) scripts/check-imports-probe.sh
 
+# The negative control of the targets that loop over every Go module: plants a
+# defect in a nested module of a staged tree and fails unless each target
+# refuses it, and unless each passes once the module is clean.
+check-modules-probe:
+	$(CD) scripts/check-modules-probe.sh
+
 # go.mod and go.sum exactly as `go mod tidy` would write them, so a module a
 # change starts importing, or stops needing, shows up here and not in review.
 # The pass line is part of the command it reports on, so a recipe that ignored
 # the command's failure would lose the line with it.
 tidy-check:
-	$(CD) $(GO) mod tidy -diff && echo "tidy-check: go.mod and go.sum are tidy"
+	$(call each_module,$(GO) -C "$$dir" mod tidy -diff && echo "tidy-check: go.mod and go.sum are tidy",tidy-check)
 
 check-sizes:
 	$(CD) scripts/check-file-sizes.sh
@@ -251,6 +288,6 @@ check-shell:
 quality-quick: fmt-check vet test check-imports
 
 quality: fmt-check vet lint test test-race fuzz-smoke security proto-check \
-         docs-check tidy-check check-imports check-imports-probe check-brand \
+         docs-check tidy-check check-imports check-imports-probe check-modules-probe check-brand \
          check-sizes check-actions check-shell
 	@echo "quality: green"
