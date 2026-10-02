@@ -116,3 +116,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0034: A run the operator opens has an identity of its own](adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md): accepted
 - [ADR-0035: A versioned evidence export and a bounded query](adr/0035-a-versioned-evidence-export-and-a-bounded-query.md): accepted
 - [ADR-0036: `policy explain` reads the kernel's own evaluation](adr/0036-policy-explain-reads-the-kernels-own-evaluation.md): accepted
+- [ADR-0037: An evidence consumer in a module of its own](adr/0037-an-evidence-consumer-in-a-module-of-its-own.md): accepted

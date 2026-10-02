@@ -79,7 +79,10 @@ page is wrong.
 
 Beside those, code that ships imports only protobuf; `go list -deps
 ./adapters/mcp` names the set above and nothing more. The test-only entry below
-is the only other module this repository imports itself. There is no database
+is the only other module this repository imports itself. `examples/evidence-report`
+is a module of its own that requires this one through a `replace`, so it reaches
+protobuf and nothing else, and ships in no binary
+([ADR-0037](adr/0037-an-evidence-consumer-in-a-module-of-its-own.md)). There is no database
 driver and no logging library in the tree. The dependency rule of
 [ADR-0007](adr/0007-repository-layout-and-dependency-rule.md) admits no module
 but protobuf, and no standard library package it does not name, into the part

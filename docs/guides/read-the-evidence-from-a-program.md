@@ -72,7 +72,7 @@ kernel's, otherwise the block's own verdict and codes, such as `DENY PAUSED`
 for a call paused after an allow; `-` when nothing was blocked.
 
 ```
-go build -o bin/ ./examples/evidence-report
+go -C examples/evidence-report build -o "$PWD/bin/" .
 guardana-gateway trail export trail.jsonl | bin/evidence-report
 ```
 

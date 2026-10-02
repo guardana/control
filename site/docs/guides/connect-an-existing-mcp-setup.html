@@ -136,8 +136,8 @@ it is blocked with <code>APPROVAL_ALREADY_USED</code>; an approval covers one ex
 guardana-gateway trail export trail.jsonl | bin/evidence-report
 </code></pre>
 <p><code>trail</code> checks that each request's events form an unbroken chain.
-<code>evidence-report</code>, built from
-<a href="https://github.com/guardana/control/tree/main/examples/evidence-report">examples/evidence-report</a> with Go, prints a
+<code>evidence-report</code>, built at the repository's root with
+<code>go -C examples/evidence-report build -o ~/files-plane/bin/ .</code>, prints a
 row per request: the tool, the verdict and codes, whether it was held and how
 the approval ended, and how the call ended
 (<a href="/docs/guides/read-the-evidence-from-a-program">read-the-evidence-from-a-program.md</a>).</p>

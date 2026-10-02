@@ -1,0 +1,46 @@
+{
+  "line_bound_bytes": 786432,
+  "chain": {
+    "states": [
+      "the start of a trail",
+      "ACTION_PROPOSED",
+      "POLICY_DECIDED",
+      "APPROVAL_REQUESTED",
+      "a decided approval",
+      "an approval window nobody answered",
+      "ACTION_STARTED",
+      "a closed action"
+    ],
+    "edges": [
+      {"from": "the start of a trail", "kind": "EVENT_KIND_ACTION_PROPOSED", "to": "ACTION_PROPOSED"},
+      {"from": "the start of a trail", "kind": "EVENT_KIND_POLICY_RELOADED", "to": "the start of a trail"},
+      {"from": "ACTION_PROPOSED", "kind": "EVENT_KIND_POLICY_DECIDED", "to": "POLICY_DECIDED"},
+      {"from": "ACTION_PROPOSED", "kind": "EVENT_KIND_FINDING_RAISED", "to": "ACTION_PROPOSED"},
+      {"from": "ACTION_PROPOSED", "kind": "EVENT_KIND_POLICY_RELOADED", "to": "ACTION_PROPOSED"},
+      {"from": "POLICY_DECIDED", "kind": "EVENT_KIND_APPROVAL_REQUESTED", "to": "APPROVAL_REQUESTED"},
+      {"from": "POLICY_DECIDED", "kind": "EVENT_KIND_ACTION_STARTED", "to": "ACTION_STARTED"},
+      {"from": "POLICY_DECIDED", "kind": "EVENT_KIND_ACTION_BLOCKED", "to": "a closed action"},
+      {"from": "POLICY_DECIDED", "kind": "EVENT_KIND_FINDING_RAISED", "to": "POLICY_DECIDED"},
+      {"from": "POLICY_DECIDED", "kind": "EVENT_KIND_POLICY_RELOADED", "to": "POLICY_DECIDED"},
+      {"from": "APPROVAL_REQUESTED", "kind": "EVENT_KIND_APPROVAL_DECIDED", "to": "a decided approval"},
+      {"from": "APPROVAL_REQUESTED", "kind": "EVENT_KIND_APPROVAL_EXPIRED", "to": "an approval window nobody answered"},
+      {"from": "APPROVAL_REQUESTED", "kind": "EVENT_KIND_FINDING_RAISED", "to": "APPROVAL_REQUESTED"},
+      {"from": "APPROVAL_REQUESTED", "kind": "EVENT_KIND_POLICY_RELOADED", "to": "APPROVAL_REQUESTED"},
+      {"from": "a decided approval", "kind": "EVENT_KIND_ACTION_STARTED", "to": "ACTION_STARTED"},
+      {"from": "a decided approval", "kind": "EVENT_KIND_ACTION_BLOCKED", "to": "a closed action"},
+      {"from": "a decided approval", "kind": "EVENT_KIND_FINDING_RAISED", "to": "a decided approval"},
+      {"from": "a decided approval", "kind": "EVENT_KIND_POLICY_RELOADED", "to": "a decided approval"},
+      {"from": "an approval window nobody answered", "kind": "EVENT_KIND_APPROVAL_REQUESTED", "to": "APPROVAL_REQUESTED"},
+      {"from": "an approval window nobody answered", "kind": "EVENT_KIND_ACTION_BLOCKED", "to": "a closed action"},
+      {"from": "an approval window nobody answered", "kind": "EVENT_KIND_FINDING_RAISED", "to": "an approval window nobody answered"},
+      {"from": "an approval window nobody answered", "kind": "EVENT_KIND_POLICY_RELOADED", "to": "an approval window nobody answered"},
+      {"from": "ACTION_STARTED", "kind": "EVENT_KIND_ACTION_COMPLETED", "to": "a closed action"},
+      {"from": "ACTION_STARTED", "kind": "EVENT_KIND_ACTION_FAILED", "to": "a closed action"},
+      {"from": "ACTION_STARTED", "kind": "EVENT_KIND_FINDING_RAISED", "to": "ACTION_STARTED"},
+      {"from": "ACTION_STARTED", "kind": "EVENT_KIND_POLICY_RELOADED", "to": "ACTION_STARTED"},
+      {"from": "a closed action", "kind": "EVENT_KIND_FINDING_RAISED", "to": "a closed action"},
+      {"from": "a closed action", "kind": "EVENT_KIND_POLICY_RELOADED", "to": "a closed action"}
+    ],
+    "unplaceable_kind": 12
+  }
+}

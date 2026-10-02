@@ -2,28 +2,14 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
-	"github.com/guardana/control/internal/evidence"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
-
-// grammar is the lifecycle as a table typed here: for each stage, named as
-// the plane's chain validator names its state, which kinds may follow it,
-// one character per kind in the contract's order from ACTION_PROPOSED (1) to
-// POLICY_RELOADED (11), y for yes.
-var grammar = map[string]string{
-	"the start of a trail":               "y.........y",
-	"ACTION_PROPOSED":                    ".y.......yy",
-	"POLICY_DECIDED":                     "..y.y..y.yy",
-	"APPROVAL_REQUESTED":                 "...y....yyy",
-	"a decided approval":                 "....y..y.yy",
-	"an approval window nobody answered": "..y....y.yy",
-	"ACTION_STARTED":                     ".....yy..yy",
-	"a closed action":                    ".........yy",
-}
 
 // stagePrefixes reaches each stage with a request typed here, in the order
 // of the reader's stages.
@@ -57,57 +43,83 @@ var appended = map[string]string{
 	"POLICY_RELOADED":    "",
 }
 
-// TestLifecycleGrammarIsTheValidators holds the table above to the chain the
-// plane validates, edge for edge, and the reader's own steps to both.
-func TestLifecycleGrammarIsTheValidators(t *testing.T) {
+// chainEdge is one step of testdata/plane.json's chain: a state and a kind.
+type chainEdge struct{ from, kind string }
+
+// planeChain reads testdata/plane.json's chain: the steps taken, each with
+// the state it moves to, and the kind number no build declares. It fails on
+// a state or kind the file names that this reader does not know, so every
+// step listed is one the checks below consult.
+func planeChain(t *testing.T) (map[chainEdge]string, int32) {
+	t.Helper()
+	chain := readPlane(t).Chain
+	var states []string
+	for _, p := range stagePrefixes {
+		states = append(states, p.state)
+	}
+	if !slices.Equal(chain.States, states) {
+		t.Fatalf("testdata/plane.json names states\n%q\nthis reader's stages are\n%q", chain.States, states)
+	}
+	taken := map[chainEdge]string{}
+	for _, e := range chain.Edges {
+		_, declared := controlv1.EventKind_value[e.Kind]
+		switch {
+		case !declared || e.Kind == controlv1.EventKind_EVENT_KIND_UNSPECIFIED.String():
+			t.Fatalf("testdata/plane.json names kind %q, which the contract does not declare", e.Kind)
+		case !slices.Contains(states, e.From) || !slices.Contains(states, e.To):
+			t.Fatalf("testdata/plane.json steps from %q to %q, a state this reader does not name", e.From, e.To)
+		case taken[chainEdge{e.From, e.Kind}] != "":
+			t.Fatalf("testdata/plane.json lists %s after %s twice", e.Kind, e.From)
+		}
+		taken[chainEdge{e.From, e.Kind}] = e.To
+	}
+	return taken, chain.UnplaceableKind
+}
+
+// TestLifecycleGrammarIsThePlanes holds the reader's steps to the plane's
+// chain, edge for edge: every stage and every kind the contract declares,
+// whether the step is taken and the stage it moves to, and the kind number no
+// build declares, which the reader must not place.
+func TestLifecycleGrammarIsThePlanes(t *testing.T) {
+	taken, unplaceable := planeChain(t)
 	stageOf := map[string]stage{}
 	for i, p := range stagePrefixes {
 		stageOf[p.state] = stage(i)
 	}
-	checked := 0
-	for _, s := range evidence.ChainSteps() {
-		row, ok := grammar[s.From]
-		switch {
-		case !ok:
-			t.Fatalf("the validator names state %q, which this table does not", s.From)
-		case !s.Declared:
-			if _, placed := steps[s.Kind]; placed || !s.Unplaceable {
-				t.Errorf("kind %d after %s: placed by the reader %t, by the validator %t; want neither", int32(s.Kind), s.From, placed, !s.Unplaceable)
-			}
-		case int(s.Kind) > len(row):
-			t.Errorf("%s is not a column of this table", s.Kind)
-		default:
-			checked++
-			agrees(t, s, row[s.Kind-1] == 'y', stageOf)
+	kinds := controlv1.EventKind(0).Descriptor().Values()
+	for _, p := range stagePrefixes {
+		for k := 1; k < kinds.Len(); k++ {
+			kind := controlv1.EventKind(kinds.Get(k).Number())
+			to, allowed := taken[chainEdge{p.state, kind.String()}]
+			agrees(t, p.state, kind, allowed, to, stageOf)
 		}
 	}
-	kinds := controlv1.EventKind(0).Descriptor().Values().Len() - 1
-	if want := len(grammar) * kinds; checked != want {
-		t.Fatalf("%d declared steps checked, want %d: the listing examined less than every stage and kind", checked, want)
+	if kinds.ByNumber(protoreflect.EnumNumber(unplaceable)) != nil {
+		t.Errorf("testdata/plane.json names kind %d as one no build declares; the contract declares it", unplaceable)
+	}
+	if _, placed := steps[controlv1.EventKind(unplaceable)]; placed {
+		t.Errorf("the reader places kind %d, which no build declares", unplaceable)
 	}
 }
 
-// agrees holds one of the validator's steps to the table and to the reader's
-// steps: whether it is taken, and the stage it moves to.
-func agrees(t *testing.T, s evidence.ChainStep, want bool, stageOf map[string]stage) {
+// agrees holds the reader's step for kind after the stage from to the
+// plane's: whether it is taken, and the stage it moves to.
+func agrees(t *testing.T, from string, kind controlv1.EventKind, allowed bool, to string, stageOf map[string]stage) {
 	t.Helper()
-	if s.Allowed != want {
-		t.Errorf("%s after %s: the validator says %t, this table %t", kindName(s.Kind), s.From, s.Allowed, want)
-	}
-	mine, placed := steps[s.Kind]
+	mine, placed := steps[kind]
 	if !placed {
-		t.Errorf("%s: the reader cannot place a kind the contract declares", s.Kind)
+		t.Errorf("%s: the reader cannot place a kind the contract declares", kind)
 		return
 	}
-	if taken := follows(stageOf[s.From], mine.from); taken != s.Allowed {
-		t.Errorf("%s after %s: the reader says %t, the validator %t", kindName(s.Kind), s.From, taken, s.Allowed)
+	if taken := follows(stageOf[from], mine.from); taken != allowed {
+		t.Errorf("%s after %s: the reader says %t, the plane %t", kindName(kind), from, taken, allowed)
 	}
-	to := mine.to
-	if to == unchanged {
-		to = stageOf[s.From]
+	next := mine.to
+	if next == unchanged {
+		next = stageOf[from]
 	}
-	if s.Allowed && to != stageOf[s.To] {
-		t.Errorf("%s after %s: the reader moves to stage %d, the validator to %s", kindName(s.Kind), s.From, to, s.To)
+	if allowed && next != stageOf[to] {
+		t.Errorf("%s after %s: the reader moves to stage %d, the plane to %s", kindName(kind), from, next, to)
 	}
 }
 
@@ -115,8 +127,8 @@ func agrees(t *testing.T, s evidence.ChainStep, want bool, stageOf map[string]st
 // each step the table allows is taken, and each other one is refused as the
 // step it is.
 func TestLifecycleGrammar(t *testing.T) {
+	taken, undeclared := planeChain(t)
 	kinds := controlv1.EventKind(0).Descriptor().Values()
-	undeclared := int(kinds.Get(kinds.Len()-1).Number()) + 1
 	for _, p := range stagePrefixes {
 		prev := "the start of the request"
 		if len(p.steps) > 0 {
@@ -124,7 +136,7 @@ func TestLifecycleGrammar(t *testing.T) {
 		}
 		for k := 1; k < kinds.Len(); k++ {
 			kind := strings.TrimPrefix(string(kinds.ByNumber(controlv1.EventKind(k).Number()).Name()), "EVENT_KIND_")
-			allowed := grammar[p.state][k-1] == 'y'
+			_, allowed := taken[chainEdge{p.state, "EVENT_KIND_" + kind}]
 			t.Run(p.state+"/"+kind, func(t *testing.T) {
 				note := oneRow(t, then(p.steps, step{kind, appended[kind]}))[11]
 				switch {
@@ -135,7 +147,7 @@ func TestLifecycleGrammar(t *testing.T) {
 				}
 			})
 		}
-		t.Run(p.state+"/undeclared", func(t *testing.T) { cannotPlace(t, p.steps, undeclared) })
+		t.Run(p.state+"/undeclared", func(t *testing.T) { cannotPlace(t, p.steps, int(undeclared)) })
 	}
 }
 

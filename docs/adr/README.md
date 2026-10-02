@@ -45,3 +45,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0034](0034-a-run-the-operator-opens-has-an-identity-of-its-own.md) | A run the operator opens has an identity of its own |
 | [0035](0035-a-versioned-evidence-export-and-a-bounded-query.md) | A versioned evidence export and a bounded query |
 | [0036](0036-policy-explain-reads-the-kernels-own-evaluation.md) | `policy explain` reads the kernel's own evaluation |
+| [0037](0037-an-evidence-consumer-in-a-module-of-its-own.md) | An evidence consumer in a module of its own |

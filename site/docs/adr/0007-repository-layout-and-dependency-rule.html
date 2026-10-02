@@ -32,6 +32,9 @@ Date: 2026-09-09</p>
 four public packages only <code>pkg/contract</code> exists. The other three are reserved
 names, and a Go seam is promoted only through its own record after two
 consumers have used it.</p>
+<p>Amended by <a href="/docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own">ADR-0037</a>:
+<code>examples/evidence-report</code> is a module of its own, and the gate runs over every
+module.</p>
 <h2 id="context">Context</h2>
 <p>The part of the system that decides has to stay small enough for one person to
 audit. Left alone, a decision path grows an HTTP client, a database handle and a

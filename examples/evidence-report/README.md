@@ -3,8 +3,8 @@
 A program outside the plane that reads an export on standard input, follows
 each request's `prev_event_id` links and prints a row per request, then
 totals: the action, the kernel's verdict and reason codes, the block, whether
-the call was held, and how its approval and action ended. Of this module's
-packages it imports only the wire contract's generated one, which a test pins.
+the call was held, and how its approval and action ended. A module of its
+own, it imports only the generated wire contract, as a test pins.
 [Read the evidence from a program](../../docs/guides/read-the-evidence-from-a-program.md)
 shows it in use.
 
@@ -13,7 +13,7 @@ kernel's: `=` when its `decision_id` is the kernel's, else the block's own
 verdict and codes, as `DENY PAUSED`; `-` if none.
 
 ```
-go build -o bin/evidence-report ./examples/evidence-report
+go -C examples/evidence-report build -o "$PWD/bin/" .
 <gateway> trail export <state>/trail.jsonl | bin/evidence-report
 ```
 

@@ -8,6 +8,10 @@ Builds on [ADR-0002](0002-wire-contracts-and-versioning.md),
 [ADR-0014](0014-evidence-spool-and-sinks.md) and
 [ADR-0020](0020-a-trail-and-counters-without-a-collector.md).
 
+Amended by [ADR-0037](0037-an-evidence-consumer-in-a-module-of-its-own.md):
+the external consumer is a module of its own, checked against the chain
+grammar and the exporter through committed data rather than imports.
+
 ## Context
 
 The plane's evidence reaches a person as the collector's trail file, one

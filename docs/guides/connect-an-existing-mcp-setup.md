@@ -161,8 +161,8 @@ guardana-gateway trail export trail.jsonl | bin/evidence-report
 ```
 
 `trail` checks that each request's events form an unbroken chain.
-`evidence-report`, built from
-[examples/evidence-report](../../examples/evidence-report) with Go, prints a
+`evidence-report`, built at the repository's root with
+`go -C examples/evidence-report build -o ~/files-plane/bin/ .`, prints a
 row per request: the tool, the verdict and codes, whether it was held and how
 the approval ended, and how the call ended
 ([read-the-evidence-from-a-program.md](read-the-evidence-from-a-program.md)).

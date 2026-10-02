@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0037: An evidence consumer in a module of its own · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0037-an-evidence-consumer-in-a-module-of-its-own">ADR-0037: An evidence consumer in a module of its own</h1>
+<p>Status: accepted
+Date: 2026-10-02</p>
+<p>Builds on <a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>,
+<a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a> and
+<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>.</p>
+<h2 id="context">Context</h2>
+<p>ADR-0035 made <code>examples/evidence-report</code> the export's external consumer: it
+decodes events with the generated wire contract alone, and a test pins that it
+imports nothing under <code>internal/</code>. It is still a package of this module. Its
+tests import <code>internal/evidence</code> and <code>internal/trailfile</code> to hold it to the
+plane's chain grammar and to the exporter's bytes, and its dependency test
+takes &quot;this module&quot; from its own listing, so it proves less than a program
+outside the module would face. Milestone 2 asks for a consumer outside this
+module that reports, raises a local alert, and survives duplicate delivery,
+gaps and an outage of its own.</p>
+<p>The gate runs <code>./...</code> from the root. A nested <code>go.mod</code> ends that pattern, so
+vet, lint, the tests, govulncheck and the tidy check would pass a nested module
+without reading it, and the fuzz smoke test would fail on it.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>The example is a module of its own.</strong> <code>examples/evidence-report</code> has its own
+<code>go.mod</code> under the path <code>example.com/evidence-report</code>, which no package of this
+module's path shares, so the compiler refuses an <code>internal/</code> import from it. It
+requires <code>github.com/guardana/control</code> through <code>replace =&gt; ../..</code>, so it builds
+offline against the tree it ships in; a program copied out drops the replace
+and requires a release. It imports the generated contract package and nothing
+else of this module, and a test derives the forbidden prefix from the contract
+package's own module, so a <code>pkg/</code> import fails it too. No <code>go.work</code> is tracked,
+and the gate sets <code>GOWORK=off</code>.</p>
+<p><strong>The gate covers every module.</strong> Every target that runs Go over packages
+(vet, lint, test, the race test, govulncheck, the tidy check, the fuzz smoke
+test) runs once per <code>go.mod</code> the repository lists and says how many it
+covered; a module path the shell could misread, or a <code>go.mod</code> spelled in
+another case, is refused. A probe plants a defect in a nested module of a
+staged copy and fails unless every one of those targets but govulncheck turns
+red on it and passes without it; govulncheck would need a known vulnerability
+and the network.</p>
+<p><strong>Facts it cannot import are data.</strong> The chain grammar, the line bound and
+the exporter's bytes for the example's fixtures are committed under the
+example's <code>testdata/</code>. The example's tests read them, and tests of this
+module check them against <code>internal/evidence</code> and the real exporter, so a
+change on either side fails a test.</p>
+<p>No wire contract, export format, <code>pkg/</code> surface or dependency of a shipped
+binary changes.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>The example ships in no binary. Its module depends on protobuf only, pinned to
+the root's version. Dependabot watches both modules, and a root bump the
+example's module does not follow fails the gate there, so the two move
+together.
+The tests that check the example's data belong to this module, whose module
+zip leaves the example out, so they fail when run from the module cache, where
+the example's files are absent; <code>go test all</code> in a program that requires this
+module does not reach them. They are this repository's checks, and fail rather
+than pass over files they cannot find.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>Keep the example in this module.</strong> It proves nothing about a program that
+cannot import <code>internal/</code>.</li>
+<li><strong>A new module beside it.</strong> A second reader of the same format, and the next
+fix lands twice.</li>
+<li><strong>Require the published release instead of the replace.</strong> What a stranger
+gets, but a cold gate then needs the network, and a contract change waits
+for a release before its consumer can follow.</li>
+<li><strong>Its own generated copy of the contract.</strong> A second generated tree no
+check compares with <code>api/proto</code>.</li>
+<li><strong>A tracked <code>go.work</code>.</strong> It would change how the root resolves its
+dependencies and reach the release build.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>A module added later is covered by the gate without a change to it. A
+contributor builds the example with <code>go -C examples/evidence-report build</code>.</p>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>The probe: a planted vet error, failing test, gosec finding and untidy
+requirement in a nested module each turn their target red; a clean one
+passes.</li>
+<li>The example's dependency test fails on a planted <code>pkg/contract</code> import in a
+copy.</li>
+<li>Tests of this module fail when the example's grammar, line bound or fixture
+bytes differ from <code>internal/evidence</code> and the exporter.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own.md">docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

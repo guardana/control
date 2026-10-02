@@ -75,7 +75,7 @@ held and how the approval ended, and how the call ended.</p>
 the kernel's and never in its place: <code>=</code> when its <code>decision_id</code> is the
 kernel's, otherwise the block's own verdict and codes, such as <code>DENY PAUSED</code>
 for a call paused after an allow; <code>-</code> when nothing was blocked.</p>
-<pre><code>go build -o bin/ ./examples/evidence-report
+<pre><code>go -C examples/evidence-report build -o &#34;$PWD/bin/&#34; .
 guardana-gateway trail export trail.jsonl | bin/evidence-report
 </code></pre>
 <p>It exits 1 when any request's chain is broken or unfinished, when a call ran

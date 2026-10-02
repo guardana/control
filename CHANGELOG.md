@@ -17,6 +17,11 @@ verify one.
   decision on the request's `ACTION_BLOCKED`, `=` when it is the kernel's, so a
   call the plane blocked itself, paused or unclassified, shows why. Every later
   column moves one to the right.
+- `examples/evidence-report` is a Go module of its own, `example.com/evidence-report`,
+  which reaches this repository's generated wire contract and nothing else of it;
+  build it with `go -C examples/evidence-report build -o "$PWD/bin/" .`
+  ([ADR-0037](docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own.md)). Every
+  Go target of the gate runs once per module.
 - The release workflow refuses a tag whose commit has no successful CI and
   Security run. Its dry run takes the version the tag will carry, makes the
   same check and prints that version's release notes.

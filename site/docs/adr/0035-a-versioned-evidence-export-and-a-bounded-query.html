@@ -32,6 +32,9 @@ Date: 2026-09-30</p>
 <a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>,
 <a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a> and
 <a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a>.</p>
+<p>Amended by <a href="/docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own">ADR-0037</a>:
+the external consumer is a module of its own, checked against the chain
+grammar and the exporter through committed data rather than imports.</p>
 <h2 id="context">Context</h2>
 <p>The plane's evidence reaches a person as the collector's trail file, one
 <code>Event</code> per line in the protobuf JSON mapping, and as <code>guardana-gateway trail</code>,

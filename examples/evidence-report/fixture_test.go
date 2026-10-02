@@ -3,15 +3,18 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/guardana/control/internal/trailfile"
 )
 
-// demoExport is testdata/demo.jsonl, the export of testdata/demo.trail that
-// TestDemoExportIsTheExporters holds to the exporter's bytes.
+// demoExport is testdata/demo.jsonl, the export of testdata/demo.trail as
+// testdata/exports.json names it. demo.trail is a recording: the trail files
+// the demo's dev command wrote for its allow, deny, approval and fail-closed
+// scenarios, one after another in that order. This module cannot import the
+// exporter, so the main module's TestConsumerFixturesAreTheExporters holds
+// the export to the exporter's bytes.
 func demoExport(t *testing.T) string {
 	t.Helper()
 	b, err := os.ReadFile("testdata/demo.jsonl")
@@ -19,6 +22,45 @@ func demoExport(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// planeFacts is testdata/plane.json: what this reader holds itself to and
+// cannot import, the plane's chain of events and its longest line. The main
+// module's TestConsumerChainIsTheValidators and
+// TestConsumerLineBoundIsTheDecoders hold the file to the plane.
+type planeFacts struct {
+	LineBoundBytes int `json:"line_bound_bytes"`
+	Chain          struct {
+		States []string `json:"states"`
+		Edges  []struct {
+			From string `json:"from"`
+			Kind string `json:"kind"`
+			To   string `json:"to"`
+		} `json:"edges"`
+		UnplaceableKind int32 `json:"unplaceable_kind"`
+	} `json:"chain"`
+}
+
+func readPlane(t *testing.T) planeFacts {
+	t.Helper()
+	b, err := os.ReadFile("testdata/plane.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	var p planeFacts
+	if err := dec.Decode(&p); err != nil {
+		t.Fatalf("testdata/plane.json: %v", err)
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		t.Fatal("testdata/plane.json holds more than one JSON value")
+	}
+	if p.LineBoundBytes <= 0 || len(p.Chain.States) == 0 || len(p.Chain.Edges) == 0 {
+		t.Fatalf("testdata/plane.json bounds a line at %d bytes and names %d states and %d edges: a check against it would examine nothing",
+			p.LineBoundBytes, len(p.Chain.States), len(p.Chain.Edges))
+	}
+	return p
 }
 
 const (
@@ -34,38 +76,6 @@ func TestDemoExport(t *testing.T) {
 	check(t, reportCase{in: demoExport(t),
 		rows:   []string{demoRead, demoRefund, demoRead2, demoUpdate, demoExportR, demoRead3},
 		totals: "totals: requests 6, completed 4, failed 0, aborted 0, blocked 2, open 0, unknown 0; gaps 0, duplicates 0, conflicting 0, refused 0" + endReached})
-}
-
-// TestDemoExportIsTheExporters exports testdata/demo.trail with the library
-// the gateway's trail export runs, named as the file in testdata/, and holds
-// testdata/demo.jsonl to its bytes. demo.trail is a recording and is not
-// regenerated here: the trail files the demo's dev command wrote for its
-// allow, deny, approval and fail-closed scenarios, one after another in that
-// order.
-func TestDemoExportIsTheExporters(t *testing.T) {
-	f, err := os.Open("testdata/demo.trail")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = f.Close() }()
-	info, err := f.Stat()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out bytes.Buffer
-	src := trailfile.Source{Name: "demo.trail", R: f, Size: info.Size()}
-	if _, err := trailfile.Export(src, trailfile.Query{Limit: trailfile.DefaultExportLimit}, &out); err != nil {
-		t.Fatal(err)
-	}
-	got, want := strings.Split(out.String(), "\n"), strings.Split(demoExport(t), "\n")
-	for i := 0; i < len(got) || i < len(want); i++ {
-		switch {
-		case i >= len(got) || i >= len(want):
-			t.Fatalf("the exporter wrote %d lines and testdata/demo.jsonl holds %d", len(got), len(want))
-		case got[i] != want[i]:
-			t.Fatalf("line %d: the exporter wrote\n%s\ntestdata/demo.jsonl holds\n%s", i+1, got[i], want[i])
-		}
-	}
 }
 
 // TestDemoExportFormat holds the format this reader derives to the one the

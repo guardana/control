@@ -1,0 +1,5 @@
+{
+  "exports": [
+    {"trail": "demo.trail", "export": "demo.jsonl"}
+  ]
+}

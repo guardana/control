@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/guardana/control/internal/evidence"
 )
 
 const (
@@ -235,8 +233,9 @@ func TestUsage(t *testing.T) {
 
 // TestRecordBound pins the longest record read: one byte over it is refused,
 // and the trailer it held is not read. The bound holds the exporter's longest
-// event record: a line of evidence.MaxLineBytes in the framing the exporter
-// wrote around a demo event, its two offsets at the most digits an int64 has.
+// event record: a line of the plane's longest, as testdata/plane.json gives
+// it, in the framing the exporter wrote around a demo event, its two offsets
+// at the most digits an int64 has.
 func TestRecordBound(t *testing.T) {
 	var first struct {
 		Offset int64           `json:"offset"`
@@ -253,7 +252,7 @@ func TestRecordBound(t *testing.T) {
 	}
 	digits := len(strconv.FormatInt(math.MaxInt64, 10))
 	framing := len(record) - len(first.Event) - len(strconv.FormatInt(first.Offset, 10)) - len(cursor[2])
-	if longest := framing + 2*digits + evidence.MaxLineBytes; maxRecordBytes < longest {
+	if longest := framing + 2*digits + readPlane(t).LineBoundBytes; maxRecordBytes < longest {
 		t.Fatalf("the bound is %d bytes and the exporter's longest event record %d", maxRecordBytes, longest)
 	}
 
