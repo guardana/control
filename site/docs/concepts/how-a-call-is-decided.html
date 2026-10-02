@@ -84,7 +84,7 @@ listed in the decision, in order, once each.</p>
 </tr>
 <tr>
 <td>Delegation</td>
-<td><code>delegation.Check</code> refuses the chain: a <code>DENY</code> of the kernel's own, and the rules then see no delegation at all</td>
+<td><code>delegation.Check</code> refuses the chain: a <code>DENY</code> of the kernel's own, and the rules then see no delegation at all. Nothing signs a hop: a chain's scopes are what the envelope's producer states, so a rule that grants on <code>delegation.scopes</code> trusts that producer; the MCP listener sends no chain</td>
 <td><code>DELEGATION_EXPIRED</code>, <code>DELEGATION_CYCLE</code>, <code>DELEGATION_EXCEEDS_PARENT</code></td>
 </tr>
 <tr>

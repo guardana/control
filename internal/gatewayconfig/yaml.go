@@ -135,7 +135,7 @@ func (p *parser) value(path string, indent int, inline string, number int) ([]en
 	if inline != "" {
 		scalar, err := scalar(inline)
 		if err != nil {
-			return nil, fmt.Errorf("line %d: %s: %w", number, path, err)
+			return nil, fmt.Errorf("line %d: %s: %s: %w", number, path, shown(path, inline), err)
 		}
 		return []entry{{path: path, value: scalar, line: number}}, nil
 	}
@@ -184,7 +184,7 @@ func (p *parser) sequence(path string, indent int) ([]entry, error) {
 		default:
 			value, err := scalar(rest)
 			if err != nil {
-				return nil, p.errorf(p.at, "%s: %v", item, err)
+				return nil, p.errorf(p.at, "%s: %s: %v", item, shown(item, rest), err)
 			}
 			out = append(out, entry{path: item, value: value, line: cur.number})
 			p.at++
@@ -211,11 +211,17 @@ func checkKey(key string) error {
 }
 
 // scalar reads one value: double-quoted with the four escapes below, or
-// plain. A plain value keeps its inner spaces and carries no structure.
+// plain. A plain value keeps its inner spaces and carries no structure. A
+// refusal gives the reason alone; shown names the value for the caller.
 func scalar(raw string) (string, error) {
 	if !strings.HasPrefix(raw, `"`) {
-		if strings.ContainsAny(raw, "&*{}[]|>") {
-			return "", fmt.Errorf("%s: anchors, tags and flow collections are not read here", quoteValue(raw))
+		switch {
+		case strings.ContainsAny(raw, "&*{}[]|>"):
+			return "", fmt.Errorf("anchors, tags and flow collections are not read here")
+		case strings.HasPrefix(raw, "!"), strings.HasPrefix(raw, "'"):
+			// Kept as text, a tag or a single-quoted value would reach the
+			// configuration with its marks, as a tenant id no run matches.
+			return "", fmt.Errorf("tags and single quotes are not read here; quote a value with double quotes")
 		}
 		return raw, nil
 	}
@@ -224,13 +230,13 @@ func scalar(raw string) (string, error) {
 		switch raw[i] {
 		case '"':
 			if i != len(raw)-1 {
-				return "", fmt.Errorf("%s: text after the closing quote", quoteValue(raw))
+				return "", fmt.Errorf("text after the closing quote")
 			}
 			return out.String(), nil
 		case '\\':
 			i++
 			if i >= len(raw) {
-				return "", fmt.Errorf("%s: the value ends inside an escape", quoteValue(raw))
+				return "", fmt.Errorf("the value ends inside an escape")
 			}
 			switch raw[i] {
 			case '"', '\\':
@@ -240,11 +246,20 @@ func scalar(raw string) (string, error) {
 			case 't':
 				out.WriteByte('\t')
 			default:
-				return "", fmt.Errorf(`%s: \%c is not an escape this reader knows`, quoteValue(raw), raw[i])
+				return "", fmt.Errorf(`\%c is not an escape this reader knows`, raw[i])
 			}
 		default:
 			out.WriteByte(raw[i])
 		}
 	}
-	return "", fmt.Errorf("%s: the value ends without a closing quote", quoteValue(raw))
+	return "", fmt.Errorf("the value ends without a closing quote")
+}
+
+// shown is a value as a refusal names it: quoted, or, under a key whose value
+// is a credential, not at all.
+func shown(path, raw string) string {
+	if strings.HasPrefix(path, HeadersPrefix) || strings.HasPrefix(path, PDPHeadersPrefix) {
+		return NotPrinted
+	}
+	return quoteValue(raw)
 }

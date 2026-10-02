@@ -23,8 +23,8 @@ does not. Nothing here is a security boundary yet.
 - `guardana-gateway` from a release archive, or built: `go build ./cmd/guardana-gateway`.
 - A signed policy bundle and the two lines `policy keygen` printed for the key
   that signed it ([write-and-test-a-policy.md](write-and-test-a-policy.md)).
-- A directory for the evidence spool, on a disk with room for its budget; the
-  gateway does not create it.
+- A directory for the evidence spool, owned by the plane's account,
+  writable by no one else, with room for its budget.
 - An OpenTelemetry collector that takes OTLP/HTTP logs in JSON. The endpoint is
   required: evidence nobody drains fills the budget, and material calls then
   block.

@@ -39,8 +39,8 @@ does not. Nothing here is a security boundary yet.</p>
 <li><code>guardana-gateway</code> from a release archive, or built: <code>go build ./cmd/guardana-gateway</code>.</li>
 <li>A signed policy bundle and the two lines <code>policy keygen</code> printed for the key
 that signed it (<a href="/docs/guides/write-and-test-a-policy">write-and-test-a-policy.md</a>).</li>
-<li>A directory for the evidence spool, on a disk with room for its budget; the
-gateway does not create it.</li>
+<li>A directory for the evidence spool, owned by the plane's account,
+writable by no one else, with room for its budget.</li>
 <li>An OpenTelemetry collector that takes OTLP/HTTP logs in JSON. The endpoint is
 required: evidence nobody drains fills the budget, and material calls then
 block.</li>

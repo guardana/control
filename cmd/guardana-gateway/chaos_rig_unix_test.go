@@ -436,8 +436,7 @@ func blockedWith(t *testing.T, res *sdk.CallToolResult, err error, code, what st
 	if err != nil {
 		t.Fatalf("%s: the plane answered an error instead of a block: %v", what, err)
 	}
-	body, _ := res.StructuredContent.(map[string]any)
-	codes, _ := body["reason_codes"].([]any)
+	codes, _ := planeFields(res.Meta)["reason_codes"].([]any)
 	if !res.IsError || !slices.Contains(codes, any(code)) {
 		t.Fatalf("%s: the plane answered %+v, want a block carrying %s", what, res, code)
 	}

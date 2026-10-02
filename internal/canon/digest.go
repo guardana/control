@@ -71,7 +71,7 @@ var (
 // is refused rather than skipped.
 func CanonicalAction(env *controlv1.ActionEnvelope, authorizedArgs []byte) (map[string]any, error) {
 	if env == nil {
-		return nil, ErrMissingEnvelope
+		return nil, fmt.Errorf("%w", ErrMissingEnvelope)
 	}
 	if err := refuseUnknownFields(env); err != nil {
 		return nil, err

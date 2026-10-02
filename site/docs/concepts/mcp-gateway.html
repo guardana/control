@@ -107,7 +107,9 @@ on this listener is answered <code>-32022</code> with the versions served, by th
 library and before the pipeline is asked anything, so a client renegotiates
 instead of losing the connection. <code>initialize</code> itself is not the
 middleware's: it goes to the library's own handler, like every method the
-middleware does not answer.</p>
+middleware does not answer. A session idle for 30 minutes ends, so sessions a
+client opens and abandons do not hold the plane's memory; the client
+initializes again.</p>
 <figure class="dg-text" id="diagram-3"><figcaption>A call on the stateful revision</figcaption><p>A stateful listener answers a 2026-07-28 request with -32022; the client initializes on 2025-11-25 and calls on that session, and the adapter hands the envelope to the pipeline as on the other revision. <a href="https://github.com/guardana/control/blob/main/docs/concepts/mcp-gateway.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">sequenceDiagram
     accTitle: A call on the stateful revision
     accDescr: A stateful listener answers a 2026-07-28 request with -32022; the client initializes on 2025-11-25 and calls on that session, and the adapter hands the envelope to the pipeline as on the other revision.
@@ -297,7 +299,7 @@ waiting on them; <code>decision_latency_us</code> stays the kernel's own time.</
 <tr>
 <td><code>tools/call</code></td>
 <td>a tool result with <code>isError: true</code>, which the model reads</td>
-<td><code>reason_code: APPROVAL_PENDING</code>, <code>approval_id</code>, <code>action_digest</code>, <code>expires_at</code>, <code>retry_after</code>, in <code>_meta</code> under the plane's namespace, and as structured content only for a tool known to declare no output schema</td>
+<td><code>reason_code: APPROVAL_PENDING</code>, <code>approval_id</code>, <code>action_digest</code>, <code>expires_at</code>, <code>retry_after</code>, in <code>_meta</code> under the plane's namespace, never as structured content</td>
 </tr>
 <tr>
 <td><code>resources/read</code>, <code>prompts/get</code></td>

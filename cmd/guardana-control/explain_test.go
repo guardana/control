@@ -231,3 +231,40 @@ func TestPolicyExplainRefusesWhatItCannotRead(t *testing.T) {
 		}
 	}
 }
+
+// TestPolicyExplainNamesTheKernelsOwnFindings: the lines about what the
+// kernel found before the policy, each written out, for the input that makes
+// it say something other than its default.
+func TestPolicyExplainNamesTheKernelsOwnFindings(t *testing.T) {
+	hop := func(expires string) string {
+		return `"delegation":[{"from":"user-1","to":"agent-1","scopes":["orders"],"issuedAt":"2026-09-11T11:00:00Z","expiresAt":"` + expires + `"}],`
+	}
+	withHop := func(expires string) parts {
+		p := base()
+		p.envelope = strings.Replace(readEnvelope, `"principal":`, hop(expires)+`"principal":`, 1)
+		return p
+	}
+	write := base()
+	write.document = `{"apiVersion":"agent-policy/v1alpha1","bundle":{"id":"orders","version":"1","serial":1,"maxStaleSeconds":300},"rules":[{"id":"allow-writes","effect":"ALLOW","when":{"action":{"effect":["WRITE"]}}}]}`
+	write.envelope = strings.Replace(strings.Replace(readEnvelope, `"EFFECT_CLASS_READ"`, `"EFFECT_CLASS_WRITE"`, 1),
+		`"id":"ord-1","tenantId":"tenant-1"`, `"id":"ord-1"`, 1)
+	asked := base()
+	asked.external = `"denied"`
+	for name, tc := range map[string]struct {
+		p    parts
+		line string
+	}{
+		"a chain that passed":         {withHop("2026-09-11T13:00:00Z"), "delegation: passed"},
+		"a chain that expired":        {withHop("2026-09-11T11:30:00Z"), "delegation: refused DELEGATION_EXPIRED"},
+		"a write naming one tenant":   {write, "tenant_unstated: resource.tenant_id"},
+		"an answer the case names":    {asked, "external: denied"},
+		"no chain, no answer, a read": {base(), "delegation: absent"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, lines := explainOf(t, withoutExpect(tc.p))
+			if !slices.Contains(lines, tc.line) {
+				t.Errorf("lines %q, want %q among them", lines, tc.line)
+			}
+		})
+	}
+}

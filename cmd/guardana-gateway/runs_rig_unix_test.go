@@ -313,8 +313,7 @@ func expectRan(t *testing.T, what string, res *sdk.CallToolResult) {
 // expectToxic fails unless the call was blocked by the flow rule.
 func expectToxic(t *testing.T, what string, res *sdk.CallToolResult) {
 	t.Helper()
-	body, _ := res.StructuredContent.(map[string]any)
-	codes, _ := body["reason_codes"].([]any)
+	codes, _ := planeFields(res.Meta)["reason_codes"].([]any)
 	for _, c := range codes {
 		if c == codeToxicFlow && res.IsError {
 			return

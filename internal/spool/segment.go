@@ -38,9 +38,10 @@ type segment struct {
 }
 
 // openOSFile opens path for append, creating it. The mode keeps the evidence
-// to the process's own user.
+// to the process's own user, and a link at path is refused rather than
+// written through.
 func openOSFile(path string) (segmentFile, error) {
-	return os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600) //nolint:gosec // G304: the path is the spool's own, built from a sequence number
+	return os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE|noFollow, 0o600) //nolint:gosec // G304: the path is the spool's own, built from a sequence number
 }
 
 // write puts one framed record at the end of the current segment, rolling to
@@ -88,7 +89,7 @@ func (s *Spool) ensureSegment(size int64) error {
 		return nil
 	}
 	seg := &segment{seq: s.nextSeq, path: segmentPath(s.opts.Dir, s.nextSeq)}
-	if _, err := os.Stat(seg.path); err == nil {
+	if _, err := os.Lstat(seg.path); err == nil {
 		return fmt.Errorf("%w: segment %d already exists", ErrCorrupt, seg.seq)
 	}
 	f, err := s.opts.openFile(seg.path)

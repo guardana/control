@@ -78,6 +78,9 @@ func TestTheReaderRefusesWhatItDoesNotUnderstand(t *testing.T) {
 		{"an escape this reader does not know", `mode: "a\qb"` + "\n", "not an escape"},
 		{"a value that never closes its quote", `mode: "OBSERVE` + "\n", "without a closing quote"},
 		{"a sequence item indented past its siblings", "origins:\n  - a\n      - b\n", "expected a sequence item under origins"},
+		{"a tag", "tenant_id: !!str acme\n", "tags and single quotes"},
+		{"a single-quoted value", "tenant_id: 'acme'\n", "tags and single quotes"},
+		{"a single-quoted sequence item", "origins:\n  - 'http://localhost:5173'\n", "tags and single quotes"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := parseYAML(c.document)
@@ -91,6 +94,34 @@ func TestTheReaderRefusesWhatItDoesNotUnderstand(t *testing.T) {
 				t.Errorf("the refusal does not start with the line it is about: %q", err.Error())
 			}
 		})
+	}
+}
+
+// TestAHeaderValueIsNeverInARefusal: a header's value is a credential, so a
+// refusal of it names the key and the reason and never the value, under
+// either map, for every refusal the reader makes of a value.
+func TestAHeaderValueIsNeverInARefusal(t *testing.T) {
+	const secret = "s3cr3t-T0KEN"
+	for _, prefix := range []string{"export:\n  headers:\n    Authorization: ", "pdp:\n  headers:\n    Authorization: "} {
+		for name, value := range map[string]string{
+			"flow characters":      "Bearer " + secret + "&more",
+			"text after the quote": `"Bearer ` + secret + `" and more`,
+			"an unknown escape":    `"Bearer ` + secret + `\q"`,
+			"an unclosed quote":    `"Bearer ` + secret,
+			"a single quote":       "'Bearer " + secret + "'",
+		} {
+			_, err := parseYAML(prefix + value + "\n")
+			if err == nil {
+				t.Fatalf("%s: the reader accepted %q", name, value)
+			}
+			if strings.Contains(err.Error(), secret) || !strings.Contains(err.Error(), NotPrinted) {
+				t.Errorf("%s: the refusal is %q", name, err.Error())
+			}
+		}
+	}
+	_, err := parseYAML("project_id: \"orders\" and " + secret + "\n")
+	if err == nil || !strings.Contains(err.Error(), secret) {
+		t.Errorf("a value under another key is named in its refusal: %v", err)
 	}
 }
 

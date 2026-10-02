@@ -150,9 +150,8 @@ machine that reaches <code>127.0.0.1:8080</code> acts as that principal.</li>
 when one upstream is configured; sampling, roots, elicitation and the
 server's own progress never reach the client
 (<a href="/docs/reference/mcp-coverage">reference/mcp-coverage.md</a>).</li>
-<li>A block or a pending state carries its fields in <code>_meta</code>, and as structured
-content only for a tool that declares no output schema: a client checks
-structured content against that schema.</li>
+<li>A block or a pending state carries its fields in <code>_meta</code> and no structured
+content, which a client would check against the tool's output schema.</li>
 </ul>
 <h2 id="verify">Verify</h2>
 <ul>

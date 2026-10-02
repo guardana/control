@@ -138,9 +138,9 @@ func (a *Adapter) callTool(ctx context.Context, c call, send sender) (mcp.Result
 	case err != nil:
 		return nil, err
 	case o.pending != nil:
-		return named(forTool(pending(o.pending), c.tool()), o.decision), nil
+		return named(inMeta(pending(o.pending)), o.decision), nil
 	case o.blocked:
-		return named(forTool(blocked(o.decision, o.extra), c.tool()), o.decision), nil
+		return named(inMeta(blocked(o.decision, o.extra)), o.decision), nil
 	case o.err != nil:
 		return nil, namedError(o.err, o.decision)
 	}

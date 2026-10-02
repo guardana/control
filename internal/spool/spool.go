@@ -3,11 +3,13 @@ package spool
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/internal/files"
 )
 
 // Error is a refusal by the spool, matched with errors.Is. They are constants,
@@ -219,6 +221,14 @@ func Open(opts Options) (*Spool, error) {
 	return s, nil
 }
 
+// writableByOthers are the permission bits that let another account plant a
+// file or a link among the segments, which the spool would then ship as
+// evidence or write through.
+const writableByOthers fs.FileMode = 0o022
+
+// effectiveUID is the account the evidence directory has to belong to.
+var effectiveUID = os.Geteuid
+
 func (o Options) check() error {
 	info, err := os.Stat(o.Dir)
 	switch {
@@ -226,6 +236,12 @@ func (o Options) check() error {
 		return fmt.Errorf("%w: dir: %w", ErrInvalidOptions, err)
 	case !info.IsDir():
 		return fmt.Errorf("%w: %q is not a directory", ErrInvalidOptions, o.Dir)
+	}
+	if err := files.CheckDir(o.Dir, writableByOthers); err != nil {
+		return fmt.Errorf("%w: dir: %w", ErrInvalidOptions, err)
+	}
+	if err := files.CheckOwnedBy(info, effectiveUID()); err != nil {
+		return fmt.Errorf("%w: dir: %w", ErrInvalidOptions, err)
 	}
 	if err := o.checkBounds(); err != nil {
 		return err

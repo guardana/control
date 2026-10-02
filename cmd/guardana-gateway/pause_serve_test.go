@@ -47,8 +47,7 @@ func TestAPauseBitesOnAServingPlaneAndLifts(t *testing.T) {
 	}
 	waitForChange(t, stderr, changes+1, "added=[stop-read-order]")
 	res := callReadOrder(t, agent)
-	body, _ := res.StructuredContent.(map[string]any)
-	if codes, _ := body["reason_codes"].([]any); !res.IsError || len(codes) != 1 || codes[0] != "PAUSED" {
+	if codes, _ := planeFields(res.Meta)["reason_codes"].([]any); !res.IsError || len(codes) != 1 || codes[0] != "PAUSED" {
 		t.Fatalf("a paused call came back as %+v", res)
 	}
 

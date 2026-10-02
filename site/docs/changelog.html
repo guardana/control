@@ -59,9 +59,28 @@ classifies its 14 tools and holds every write for approval
 <li>A <code>tools/call</code> the plane blocked or held for a tool that declares an output
 schema reached the agent as a schema error from any client that checks
 structured content, the MCP project's own TypeScript client among them,
-instead of <code>APPROVAL_PENDING</code> or the block's codes. The plane's fields now
-travel in the result's <code>_meta</code> under its namespace, and as structured
-content only for a tool the plane knows declares no output schema.</li>
+instead of <code>APPROVAL_PENDING</code> or the block's codes. The plane's own answers
+now carry their fields in the result's <code>_meta</code> under its namespace and no
+structured content.</li>
+<li>A configuration file whose <code>export.headers</code> or <code>pdp.headers</code> value the
+reader refused (a flow character, an unknown escape, an unclosed quote)
+printed that value, a credential, in <code>doctor</code>'s and <code>run</code>'s refusal. The
+refusal now names the key and the reason only.</li>
+<li>The evidence spool took a directory other accounts could write, or another
+account owned, and appended through a link put at a segment's name. It now
+refuses both, as the approvals, runs and pause directories do, and opens
+every segment without following a link.</li>
+<li>The configuration reader kept a tag (<code>!!str x</code>) or a single-quoted value
+(<code>'acme'</code>) as text, marks included, so a tenant id written <code>'acme'</code> matched
+no run and no rule. Both are now refused; quote a value with double quotes.</li>
+<li>A call the agent cancelled after the plane handed it out lost its closing
+record: the trail stopped at <code>ACTION_STARTED</code>, material calls halted, and the
+spool kept the call's reservation, so enough cancelled calls blocked every
+call until a restart. The closing record is now written whatever the agent
+does.</li>
+<li>A stateful HTTP session was never ended, so sessions a client opened and
+abandoned held the plane's memory until it stopped. A session idle for 30
+minutes now ends.</li>
 </ul>
 <h2 id="040-alpha---2026-10-01"><a href="https://github.com/guardana/control/releases/tag/v0.4.0-alpha">0.4.0-alpha</a> - 2026-10-01</h2>
 <p>An operator can now open runs for an agent, and a plane with <code>runs.dir</code>

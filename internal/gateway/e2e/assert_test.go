@@ -3,12 +3,14 @@ package e2e_test
 import (
 	"io"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/canon"
 	"github.com/guardana/control/internal/evidence"
 )
@@ -70,11 +72,18 @@ func allowed(t *testing.T, cs *sdk.ClientSession, name string, args map[string]a
 	return res
 }
 
+// structured is a plane answer's fields, read from _meta under the
+// namespace, which is the one place the plane puts them.
 func structured(t *testing.T, res *sdk.CallToolResult) map[string]any {
 	t.Helper()
-	m, ok := res.StructuredContent.(map[string]any)
-	if !ok {
-		t.Fatalf("structuredContent is %T, want an object: %+v", res.StructuredContent, res)
+	m := map[string]any{}
+	for k, v := range res.Meta {
+		if rest, ok := strings.CutPrefix(k, brand.OTelNamespace+"/"); ok {
+			m[rest] = v
+		}
+	}
+	if len(m) == 0 {
+		t.Fatalf("no field of the plane's in _meta: %+v", res)
 	}
 	return m
 }
@@ -84,7 +93,7 @@ func codesOf(t *testing.T, res *sdk.CallToolResult) []string {
 	t.Helper()
 	raw, ok := structured(t, res)["reason_codes"].([]any)
 	if !ok {
-		t.Fatalf("no reason_codes in %v", res.StructuredContent)
+		t.Fatalf("no reason_codes in %v", res.Meta)
 	}
 	out := make([]string, 0, len(raw))
 	for _, c := range raw {

@@ -176,9 +176,8 @@ the approval ended, and how the call ended
   when one upstream is configured; sampling, roots, elicitation and the
   server's own progress never reach the client
   ([reference/mcp-coverage.md](../reference/mcp-coverage.md)).
-- A block or a pending state carries its fields in `_meta`, and as structured
-  content only for a tool that declares no output schema: a client checks
-  structured content against that schema.
+- A block or a pending state carries its fields in `_meta` and no structured
+  content, which a client would check against the tool's output schema.
 
 ## Verify
 

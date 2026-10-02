@@ -35,10 +35,10 @@ Amended by [ADR-0032](0032-the-enforcement-mode-has-no-default.md): `mode` has
 no default; a configuration that names none is refused at load.
 
 Amended in 0.5.0-alpha: the fields of a `tools/call` block and pending state
-travel in the result's `_meta` under the namespace, and as structured content
-only for a tool the plane knows declares no output schema. A client checks
-structured content against the schema a tool listed, which those fields never
-meet, so the structured content below is no longer on every answer.
+travel in the result's `_meta` under the namespace and never as structured
+content. A client checks structured content against the schema a tool listed,
+perhaps in an earlier listing, which those fields never meet, so the
+structured content below is no longer on any answer.
 
 ## Context
 

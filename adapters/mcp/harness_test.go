@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -356,6 +357,8 @@ type rigOptions struct {
 	runToken string
 	headers  http.Header
 	clock    func() time.Time
+	// sessionIdle bounds a stateful session's idle time; zero is the default.
+	sessionIdle time.Duration
 }
 
 // identity is what an unauthenticated listener calls for. An authenticated
@@ -385,7 +388,7 @@ func newConfig(t *testing.T, v *victim, kind mcp.Kind, upstream sdk.Transport, o
 	return mcp.Config{
 		Listener: mcp.Listener{
 			Kind: kind, Authenticator: o.auth, AuthnStrength: "bearer", Identity: identity(o.auth != nil),
-			Runs: o.runs, RunToken: o.runToken,
+			Runs: o.runs, RunToken: o.runToken, SessionIdle: o.sessionIdle,
 		},
 		Upstreams:   []mcp.Upstream{{Name: "victim", Transport: upstream, TenantID: "t1", Environment: "prod"}},
 		Overrides:   overrides,
@@ -535,11 +538,18 @@ func callTool(t *testing.T, cs *sdk.ClientSession, name string, args map[string]
 	return cs.CallTool(ctxT(t), &sdk.CallToolParams{Name: name, Arguments: args})
 }
 
+// structured is a plane answer's fields, read from _meta under the
+// namespace, which is the one place the plane puts them.
 func structured(t *testing.T, res *sdk.CallToolResult) map[string]any {
 	t.Helper()
-	m, ok := res.StructuredContent.(map[string]any)
-	if !ok {
-		t.Fatalf("structuredContent is %T, want object: %+v", res.StructuredContent, res)
+	m := map[string]any{}
+	for k, v := range res.Meta {
+		if rest, ok := strings.CutPrefix(k, strings.TrimSuffix(metaAnswer, "answer")); ok {
+			m[rest] = v
+		}
+	}
+	if len(m) == 0 {
+		t.Fatalf("no field of the plane's in _meta: %+v", res)
 	}
 	return m
 }

@@ -76,7 +76,14 @@ type Listener struct {
 	// RunToken is a stdio listener's token, read from the operator's file;
 	// set exactly when Runs is, and on stdio only.
 	RunToken string
+	// SessionIdle ends a stateful HTTP session that has been idle this long;
+	// zero is DefaultSessionIdle. Without a bound, sessions a client opens and
+	// abandons hold their memory until the plane stops.
+	SessionIdle time.Duration
 }
+
+// DefaultSessionIdle is how long a stateful HTTP session may sit idle.
+const DefaultSessionIdle = 30 * time.Minute
 
 // Upstream is one server the gateway calls as itself.
 type Upstream struct {

@@ -13,13 +13,12 @@ import (
 	"github.com/guardana/control/internal/gateway"
 )
 
-// TestThePlanesAnswerFitsTheToolsOutputSchema: a client checks a result's
-// structured content against the output schema the tool declared, and the
-// plane's block and pending fields meet no tool's schema. For a tool that
-// declares one, the plane's answer carries no structured content; for one
-// that declares none it carries them there too. Either way the fields are in
-// _meta under the plane's namespace.
-func TestThePlanesAnswerFitsTheToolsOutputSchema(t *testing.T) {
+// TestThePlanesAnswerCarriesNoStructuredContent: a client checks a result's
+// structured content against the output schema the tool listed, perhaps in an
+// earlier listing, and the plane's block and pending fields meet no tool's
+// schema. Whatever the tool declares, the plane's answer carries its fields in
+// _meta under the namespace and no structured content.
+func TestThePlanesAnswerCarriesNoStructuredContent(t *testing.T) {
 	for name, declared := range map[string]bool{"declared": true, "none": false} {
 		t.Run(name, func(t *testing.T) {
 			v := newVictim()
@@ -39,7 +38,7 @@ func TestThePlanesAnswerFitsTheToolsOutputSchema(t *testing.T) {
 			if err != nil || !res.IsError {
 				t.Fatalf("block on the wire: %v %+v", err, res)
 			}
-			assertPlaneFields(t, res, declared, "reason_codes", []any{"RULE_DENY"})
+			assertPlaneFields(t, res, "reason_codes", []any{"RULE_DENY"})
 
 			r.pipe.decide = func(gateway.Admission) gateway.Disposition {
 				return gateway.Disposition{Action: core.AwaitApproval, Pending: &gateway.Pending{
@@ -50,8 +49,8 @@ func TestThePlanesAnswerFitsTheToolsOutputSchema(t *testing.T) {
 			if err != nil || !res.IsError {
 				t.Fatalf("pending on the wire: %v %+v", err, res)
 			}
-			assertPlaneFields(t, res, declared, "approval_id", "apr-1")
-			assertPlaneFields(t, res, declared, "reason_code", "APPROVAL_PENDING")
+			assertPlaneFields(t, res, "approval_id", "apr-1")
+			assertPlaneFields(t, res, "reason_code", "APPROVAL_PENDING")
 			if n := v.count("transfer"); n != 0 {
 				t.Fatalf("victim ran %d times", n)
 			}
@@ -59,19 +58,13 @@ func TestThePlanesAnswerFitsTheToolsOutputSchema(t *testing.T) {
 	}
 }
 
-func assertPlaneFields(t *testing.T, res *sdk.CallToolResult, declared bool, key string, want any) {
+func assertPlaneFields(t *testing.T, res *sdk.CallToolResult, key string, want any) {
 	t.Helper()
-	got := res.Meta[brand.OTelNamespace+"/"+key]
-	if !same(got, want) {
+	if got := res.Meta[brand.OTelNamespace+"/"+key]; !same(got, want) {
 		t.Errorf("_meta %s = %v, want %v", key, got, want)
 	}
-	switch {
-	case declared && res.StructuredContent != nil:
-		t.Errorf("a tool with an output schema got structured content %v", res.StructuredContent)
-	case !declared:
-		if sc, _ := res.StructuredContent.(map[string]any); !same(sc[key], want) {
-			t.Errorf("structured content %s = %v, want %v", key, sc[key], want)
-		}
+	if res.StructuredContent != nil {
+		t.Errorf("the plane's answer carries structured content %v", res.StructuredContent)
 	}
 }
 

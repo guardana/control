@@ -298,8 +298,8 @@ func callTransfer(t *testing.T, cs *sdk.ClientSession, tag string) *sdk.CallTool
 // what an approver is given to answer.
 func pendingApproval(t *testing.T, res *sdk.CallToolResult) string {
 	t.Helper()
-	body, ok := res.StructuredContent.(map[string]any)
-	if !ok || !res.IsError {
+	body := planeFields(res.Meta)
+	if len(body) == 0 || !res.IsError {
 		t.Fatalf("a held call came back as %+v", res)
 	}
 	id, _ := body["approval_id"].(string)

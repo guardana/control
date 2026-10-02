@@ -99,9 +99,6 @@ type answer struct {
 		Content []struct {
 			Text string `json:"text"`
 		} `json:"content"`
-		Structured struct {
-			ApprovalID string `json:"approval_id"`
-		} `json:"structuredContent"`
 	} `json:"result"`
 }
 
@@ -139,11 +136,11 @@ func TestTheTutorialsCallsBehaveAsItSays(t *testing.T) {
 	}
 	update := `{"id":"ord-1","status":"cancelled"}`
 	held := callScript(t, v["mcp"], "update_order", update)
-	if held.meta("answer") != "pending" || held.Result.Structured.ApprovalID == "" || held.meta("request_id") == "" {
+	if held.meta("answer") != "pending" || held.meta("approval_id") == "" || held.meta("request_id") == "" {
 		t.Fatalf("the update answered %+v, want pending with an approval id", held)
 	}
 	gateway, _ := builtDemo(t)
-	approve(t, filepath.Join(filepath.Dir(gateway), brand.CLI), v["approvals"], held.Result.Structured.ApprovalID)
+	approve(t, filepath.Join(filepath.Dir(gateway), brand.CLI), v["approvals"], held.meta("approval_id"))
 	resumed := callScript(t, v["mcp"], "update_order", update)
 	if resumed.Result.IsError || resumed.meta("answer") != "" || resumed.meta("request_id") != held.meta("request_id") {
 		t.Fatalf("the retry answered %+v, want a result on request %s", resumed, held.meta("request_id"))

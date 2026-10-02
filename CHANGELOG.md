@@ -36,9 +36,28 @@ verify one.
 - A `tools/call` the plane blocked or held for a tool that declares an output
   schema reached the agent as a schema error from any client that checks
   structured content, the MCP project's own TypeScript client among them,
-  instead of `APPROVAL_PENDING` or the block's codes. The plane's fields now
-  travel in the result's `_meta` under its namespace, and as structured
-  content only for a tool the plane knows declares no output schema.
+  instead of `APPROVAL_PENDING` or the block's codes. The plane's own answers
+  now carry their fields in the result's `_meta` under its namespace and no
+  structured content.
+- A configuration file whose `export.headers` or `pdp.headers` value the
+  reader refused (a flow character, an unknown escape, an unclosed quote)
+  printed that value, a credential, in `doctor`'s and `run`'s refusal. The
+  refusal now names the key and the reason only.
+- The evidence spool took a directory other accounts could write, or another
+  account owned, and appended through a link put at a segment's name. It now
+  refuses both, as the approvals, runs and pause directories do, and opens
+  every segment without following a link.
+- The configuration reader kept a tag (`!!str x`) or a single-quoted value
+  (`'acme'`) as text, marks included, so a tenant id written `'acme'` matched
+  no run and no rule. Both are now refused; quote a value with double quotes.
+- A call the agent cancelled after the plane handed it out lost its closing
+  record: the trail stopped at `ACTION_STARTED`, material calls halted, and the
+  spool kept the call's reservation, so enough cancelled calls blocked every
+  call until a restart. The closing record is now written whatever the agent
+  does.
+- A stateful HTTP session was never ended, so sessions a client opened and
+  abandoned held the plane's memory until it stopped. A session idle for 30
+  minutes now ends.
 
 ## [0.4.0-alpha] - 2026-10-01
 

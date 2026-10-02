@@ -28,6 +28,10 @@ func (p *Pipeline) Close(ctx context.Context, d Disposition, sent []byte, result
 	if p == nil || p.kernel == nil {
 		return ErrUnbuilt
 	}
+	// The call was handed out, so its trail is closed whatever the agent does:
+	// a request cancelled since must not leave the trail open, its reservation
+	// unspent and material calls halted.
+	ctx = context.WithoutCancel(ctx)
 	if sent == nil {
 		return p.closeUnsent(ctx, d)
 	}
@@ -152,6 +156,7 @@ func (p *Pipeline) Abort(ctx context.Context, d Disposition, cause AbortCause) e
 // abort consumes the execution d names and records that nothing was sent:
 // ACTION_FAILED whose result is BLOCKED, carries code and no executed digest.
 func (p *Pipeline) abort(ctx context.Context, d Disposition, code string) error {
+	ctx = context.WithoutCancel(ctx)
 	ex := p.take(d.handle)
 	if ex == nil {
 		return ErrNotMinted

@@ -194,9 +194,8 @@ the call exists. Such a tool stays in the list, and under <code>annotate</code> 
 shaping subtracts what policy denies, never what it could not decide.</p>
 <h2 id="the-two-codes-the-adapter-mints">The two codes the adapter mints</h2>
 <p>A <code>tools/call</code> answers a block and a pending state as a tool result with
-<code>isError: true</code>, the fields below in its <code>_meta</code> under <code>&lt;ns&gt;/</code>, and as
-structured content only for a tool known to declare no output schema, since
-a client checks it against one. A <code>resources/read</code> and a
+<code>isError: true</code>, the fields below in its <code>_meta</code> under <code>&lt;ns&gt;/</code> and no
+structured content, which a client checks against the tool's output schema. A <code>resources/read</code> and a
 <code>prompts/get</code> have no <code>isError</code>, so there the fields travel as a JSON-RPC
 error, outside the protocol's reserved range and the library's private code.</p>
 <table>

@@ -47,8 +47,8 @@ func TestAFirstCallAfterASlowStartIsDecidedUnderAFreshRead(t *testing.T) {
 	tr.withPauseFile(t, pauseClear, servePoll)
 	agent, _ := serveInProcess(t, tr)
 	res := callReadOrder(t, agent)
-	if body, _ := res.StructuredContent.(map[string]any); res.IsError {
-		t.Errorf("the first call under a clear, readable pause file was refused: %v", body["reason_codes"])
+	if res.IsError {
+		t.Errorf("the first call under a clear, readable pause file was refused: %v", planeFields(res.Meta)["reason_codes"])
 	}
 }
 

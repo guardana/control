@@ -26,8 +26,13 @@ func (a *Adapter) Handler() (http.Handler, error) {
 	default:
 		return nil, fmt.Errorf("%w: kind %d serves no HTTP", ErrListener, a.cfg.Listener.Kind)
 	}
+	idle := a.cfg.Listener.SessionIdle
+	if idle <= 0 {
+		idle = DefaultSessionIdle
+	}
 	var h http.Handler = mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return a.server }, &mcp.StreamableHTTPOptions{
-		Stateless: stateless,
+		Stateless:      stateless,
+		SessionTimeout: idle,
 	})
 	if a.cfg.Listener.Runs != nil {
 		h = a.runsCheck(h)

@@ -75,9 +75,8 @@ shaping subtracts what policy denies, never what it could not decide.
 ## The two codes the adapter mints
 
 A `tools/call` answers a block and a pending state as a tool result with
-`isError: true`, the fields below in its `_meta` under `<ns>/`, and as
-structured content only for a tool known to declare no output schema, since
-a client checks it against one. A `resources/read` and a
+`isError: true`, the fields below in its `_meta` under `<ns>/` and no
+structured content, which a client checks against the tool's output schema. A `resources/read` and a
 `prompts/get` have no `isError`, so there the fields travel as a JSON-RPC
 error, outside the protocol's reserved range and the library's private code.
 

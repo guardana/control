@@ -1387,3 +1387,15 @@ func FuzzDigestArguments(f *testing.F) {
 		}
 	})
 }
+
+// TestNoEnvelopeIsRefusedWhateverTheSentinelHolds: the refusal of a nil
+// envelope is a non-nil error even with the sentinel variable set to nil, so
+// no assignment elsewhere in a binary turns it into a digest of nothing.
+func TestNoEnvelopeIsRefusedWhateverTheSentinelHolds(t *testing.T) {
+	saved := canon.ErrMissingEnvelope
+	t.Cleanup(func() { canon.ErrMissingEnvelope = saved })
+	canon.ErrMissingEnvelope = nil
+	if digest, err := canon.DigestV1(nil, nil); err == nil || digest != "" {
+		t.Fatalf("DigestV1(nil) = %q, %v; want a refusal", digest, err)
+	}
+}
