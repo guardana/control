@@ -26,7 +26,7 @@ type walker struct {
 // walk follows a linked chain through the lifecycle and says how it ended,
 // or why it cannot say.
 func walk(chain []*controlv1.Event) (string, string) {
-	w := walker{prevKind: "the start of the request", mode: chain[0].GetEnforcementMode(), end: endOpen}
+	w := walker{prevKind: startOfRequest, mode: chain[0].GetEnforcementMode(), end: endOpen}
 	for _, ev := range chain {
 		if note := w.take(ev); note != "" {
 			return endUnknown, note

@@ -927,6 +927,14 @@ would show an execution on an approval that never came. What an expired window
 may be followed by is `ACTION_BLOCKED`, or another `APPROVAL_REQUESTED`: asking
 again is not a defect in the trail.
 
+An `ACTION_BLOCKED` carries the decision that stopped the call. When the
+kernel's own block is enforced, that is the kernel's decision, with the
+`decision_id` of the request's `POLICY_DECIDED`; otherwise it is one the plane
+makes with a `decision_id` of its own, for example for a pause, an
+unclassified tool, an approval rejected, expired or already used, a lost or
+refused hold, or a cause the plane adds over the kernel's verdict. A reader tells the two apart by the
+id, never by the codes, which a plane's decision may repeat.
+
 The other two kinds are not edges, because neither is caused by this request
 progressing:
 

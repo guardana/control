@@ -1,0 +1,7 @@
+{"eventId":"G1","kind":"EVENT_KIND_ACTION_PROPOSED","requestId":"G","runId":"run-G","projectId":"demo","tenantId":"acme","occurredAt":"2026-10-02T10:00:29Z","schemaVersion":"1.0","enforcementMode":"ENFORCEMENT_MODE_ENFORCE","proposed":{"action":{"kind":"tool_call","name":"read_order","protocol":"mcp"}}}
+{"eventId":
+{"eventId":"G2","kind":"EVENT_KIND_POLICY_DECIDED","requestId":"G","runId":"run-G","projectId":"demo","tenantId":"acme","occurredAt":"2026-10-02T10:00:30Z","schemaVersion":"1.0","enforcementMode":"ENFORCEMENT_MODE_ENFORCE","decision":{"decisionId":"kG","verdict":"VERDICT_ALLOW","reasonCodes":["RULE_ALLOW"]},"prevEventId":"G1"}
+{"eventId":"V1","kind":"EVENT_KIND_ACTION_PROPOSED","requestId":"V","runId":"run-V","projectId":"demo","tenantId":"acme","occurredAt":"2026-10-02T10:00:31Z","schemaVersion":"2.0","enforcementMode":"ENFORCEMENT_MODE_ENFORCE","proposed":{"action":{"kind":"tool_call","name":"read_order","protocol":"mcp"}}}
+{"eventId":"G3","kind":"EVENT_KIND_ACTION_STARTED","requestId":"G","runId":"run-G","projectId":"demo","tenantId":"acme","occurredAt":"2026-10-02T10:00:32Z","schemaVersion":"1.0","enforcementMode":"ENFORCEMENT_MODE_ENFORCE","executionId":"xG","prevEventId":"G2"}
+{"eventId":"G4","kind":"EVENT_KIND_ACTION_COMPLETED","requestId":"G","runId":"run-G","projectId":"demo","tenantId":"acme","occurredAt":"2026-10-02T10:00:33Z","schemaVersion":"1.0","enforcementMode":"ENFORCEMENT_MODE_ENFORCE","executionId":"xG","result":{"executionId":"xG","status":"RESULT_STATUS_SUCCESS"},"prevEventId":"G3"}
+{"eventId":"G5"

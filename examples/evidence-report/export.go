@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -40,9 +41,14 @@ type export struct {
 	byKey    map[eventKey]*event
 	atOffset map[int64]*event
 	trailer  *trailerState
+	header   header
+	// gapRecords are the gap records in the file's order.
+	gapRecords []gapRecord
 
 	gaps, duplicates, conflicting, refused int
 	problems                               []string
+	// firstRefusal says where and why the first record was refused.
+	firstRefusal string
 
 	// The records read by type, which the trailer's counts have to match.
 	seenEvents, seenGaps, seenDuplicates int
@@ -54,13 +60,21 @@ type export struct {
 type event struct {
 	ev          *controlv1.Event
 	raw         []byte
+	offset      int64
+	cursor      string
 	conflicting bool
+}
+
+type gapRecord struct {
+	offset         int64
+	cursor, reason string
 }
 
 // eventKey is how a consumer tells events apart across a tenant's projects.
 type eventKey struct{ tenant, project, id string }
 
 type trailerState struct {
+	nextCursor string
 	endReached bool
 	tailBytes  int64
 	writerHeld bool
@@ -78,10 +92,11 @@ func readExport(r io.Reader) (*export, error) {
 	case err != nil:
 		return nil, fmt.Errorf("the header could not be read: %w", err)
 	}
-	if err := checkHeader(first); err != nil {
+	h, err := checkHeader(first)
+	if err != nil {
 		return nil, err
 	}
-	x := &export{byKey: map[eventKey]*event{}, atOffset: map[int64]*event{}, line: 1, lastOffset: -1}
+	x := &export{byKey: map[eventKey]*event{}, atOffset: map[int64]*event{}, header: h, line: 1, lastOffset: -1}
 	x.readRecords(br)
 	return x, nil
 }
@@ -138,7 +153,11 @@ func nextLine(r *bufio.Reader) (rawLine, error) {
 
 func (x *export) refuse(why string) {
 	x.refused++
-	x.problems = append(x.problems, fmt.Sprintf("line %d: %s", x.line, why))
+	p := fmt.Sprintf("line %d: %s", x.line, why)
+	if x.firstRefusal == "" {
+		x.firstRefusal = p
+	}
+	x.problems = append(x.problems, p)
 }
 
 func (x *export) record(l rawLine) {
@@ -198,7 +217,7 @@ func (x *export) held(typ string) bool {
 		x.refuse("a second header")
 		return false
 	default:
-		x.refuse(fmt.Sprintf("record type %q, which this reader does not know", typ))
+		x.refuse("a record of a type this reader does not know")
 		return false
 	}
 	return true
@@ -213,7 +232,7 @@ func recordType(ms []member) (string, error) {
 	}
 	for _, m := range ms {
 		if strings.EqualFold(m.name, "type") && m.name != "type" {
-			return "", fmt.Errorf("a record whose member %q differs from %q only in case", m.name, "type")
+			return "", fmt.Errorf("a record whose member differs from %q only in case", "type")
 		}
 	}
 	return "", errors.New("a record that is not a JSON object naming its type")
@@ -237,7 +256,7 @@ func (x *export) event(b []byte) {
 		Event  json.RawMessage `json:"event"`
 	}
 	if err := json.Unmarshal(b, &r); err != nil {
-		x.refuse("an event record that does not decode: " + err.Error())
+		x.refuse("an event record whose members are of another type")
 		return
 	}
 	if r.Offset == nil || r.Cursor == nil || *r.Cursor == "" || len(r.Event) == 0 || string(r.Event) == "null" {
@@ -249,21 +268,20 @@ func (x *export) event(b []byte) {
 	}
 	ev := &controlv1.Event{}
 	if err := protojson.Unmarshal(r.Event, ev); err != nil {
-		x.refuse("an event the contract does not read: " + err.Error())
+		x.refuse("an event the contract does not read")
 		return
 	}
 	if major, ok := majorOf(ev.GetSchemaVersion()); !ok || strconv.FormatUint(major, 10) != eventMajor {
-		x.refuse(fmt.Sprintf("event %s has schema_version %q, and this reader reads major %s",
-			safe(ev.GetEventId()), ev.GetSchemaVersion(), eventMajor))
+		x.refuse(fmt.Sprintf("event %s has a schema_version of another major than %s, which this reader reads", safe(ev.GetEventId()), eventMajor))
 		return
 	}
-	x.add(*r.Offset, r.Event, ev)
+	x.add(*r.Offset, *r.Cursor, r.Event, ev)
 }
 
 // add keeps an event once. The same line twice is a duplicate; one id with
 // two lines is a conflict, and every request holding either is unknown.
-func (x *export) add(offset int64, raw []byte, ev *controlv1.Event) {
-	e := &event{ev: ev, raw: raw}
+func (x *export) add(offset int64, cursor string, raw []byte, ev *controlv1.Event) {
+	e := &event{ev: ev, raw: raw, offset: offset, cursor: cursor}
 	k := eventKey{ev.GetTenantId(), ev.GetProjectId(), ev.GetEventId()}
 	if first, seen := x.byKey[k]; seen && k.id != "" {
 		if bytes.Equal(first.raw, raw) {
@@ -283,6 +301,7 @@ func (x *export) add(offset int64, raw []byte, ev *controlv1.Event) {
 func (x *export) gap(b []byte) {
 	var r struct {
 		Offset *int64  `json:"offset"`
+		Cursor *string `json:"cursor"`
 		Reason *string `json:"reason"`
 	}
 	if err := json.Unmarshal(b, &r); err != nil || r.Offset == nil || r.Reason == nil {
@@ -292,8 +311,17 @@ func (x *export) gap(b []byte) {
 	if !x.inOrder(*r.Offset) {
 		return
 	}
+	g := gapRecord{offset: *r.Offset, reason: *r.Reason}
+	if r.Cursor != nil {
+		g.cursor = *r.Cursor
+	}
+	x.gapRecords = append(x.gapRecords, g)
 	x.gaps++
-	x.problems = append(x.problems, fmt.Sprintf("line %d: a gap at offset %d: %s", x.line, *r.Offset, safe(*r.Reason)))
+	reason := "a reason this reader does not know"
+	if slices.Contains(gapReasons, *r.Reason) {
+		reason = *r.Reason
+	}
+	x.problems = append(x.problems, fmt.Sprintf("line %d: a gap at offset %d: %s", x.line, *r.Offset, reason))
 }
 
 // duplicate accepts a duplicate only of an event this export wrote at the

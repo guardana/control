@@ -34,6 +34,17 @@
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.5.0-alpha...HEAD">Unreleased</a></h2>
+<h3 id="added">Added</h3>
+<ul>
+<li><code>examples/evidence-report -state &lt;dir&gt;</code> follows a trail one export after
+another and raises local alerts: a JSON line each, appended to
+<code>&lt;dir&gt;/alerts.jsonl</code> and repeated on standard error, for a gap, a
+conflicting event, a lifecycle it cannot finish, an undetermined verdict, a
+block of the plane's own, an expired approval and its own bound. A repeated
+delivery, a crash and an outage neither lose nor repeat an alert, and it
+prints no field outside an allowlist
+(<a href="/docs/guides/read-the-evidence-from-a-program">guide</a>).</li>
+</ul>
 <h3 id="changed">Changed</h3>
 <ul>
 <li><code>examples/evidence-report</code> prints a <code>block</code> column after <code>reasons</code>: the
@@ -68,7 +79,7 @@ refusal printed a header credential; and some MCP clients refused the plane's
 answers as schema errors. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added">Added</h3>
+<h3 id="added-1">Added</h3>
 <ul>
 <li><code>guardana-control policy explain &lt;case&gt;</code> decides one case as <code>policy test</code>
 does and says how: the decision's verdict, action, mode, policy digest and
@@ -128,7 +139,7 @@ plane without <code>runs.dir</code> behaves as before. A stdio plane no longer w
 start lines into the protocol stream.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 <ul>
 <li>Runs an operator opens
 (<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>):
@@ -174,7 +185,7 @@ default (<a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</
 <code>dev --decision-point=silent</code>, which the old command lacks and now needs.
 <code>dev</code> refuses a system without process groups before it starts anything.</li>
 </ul>
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 <ul>
 <li>A website for <code>control.guardana.dev</code> in <code>site/</code>: one static page with
 no script and nothing loaded from another host, whose diagrams
@@ -235,7 +246,7 @@ the gateway beside the archives, and pages that say what the plane
 protects, what it records and which failures it survives.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 <ul>
 <li>Reason code <code>APPROVAL_STATE_UNKNOWN</code> (44, <code>INDETERMINATE</code>): a lost hold
 whose approval the plane could not read or trust closes with it, where
@@ -302,7 +313,7 @@ Such an answer could be read as refused or as unavailable instead.</li>
 <p>The first public release. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added-4">Added</h3>
+<h3 id="added-5">Added</h3>
 <ul>
 <li>Wire contracts, frozen at <code>1.0</code>: eight protobuf files for the action
 envelope, the decision, approvals, results, events, findings, policy bundles

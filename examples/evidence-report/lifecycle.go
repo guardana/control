@@ -43,17 +43,21 @@ func (r row) String() string {
 }
 
 // safe keeps a value from the export on one cell of one row: empty is "-",
-// and a value holding a control character or invalid UTF-8 is quoted.
+// and a value holding a control, format or separator character, or invalid
+// UTF-8, is quoted. A format character such as U+202E reorders what a
+// terminal shows, and U+2028 ends a line in some readers.
 func safe(s string) string {
 	if s == "" {
 		return "-"
 	}
-	for _, c := range s {
-		if unicode.IsControl(c) || c == utf8.RuneError {
-			return strconv.Quote(s)
-		}
+	if strings.ContainsFunc(s, unprintable) {
+		return strconv.Quote(s)
 	}
 	return s
+}
+
+func unprintable(c rune) bool {
+	return unicode.IsControl(c) || c == utf8.RuneError || unicode.In(c, unicode.Cf, unicode.Zl, unicode.Zp)
 }
 
 // lifecycles groups the events by request, in the order each request first
@@ -98,50 +102,87 @@ func lifecycle(k requestKey, events []*event) row {
 // decision that blocked it and its approval, the last approval event deciding
 // how the approval ended.
 func (r *row) describe(events []*controlv1.Event) {
-	r.run = events[0].GetRunId()
-	var kernel, block *controlv1.Decision
-	blocked := false
+	d := description{run: events[0].GetRunId()}
 	for _, ev := range events {
-		switch ev.GetKind() {
-		case controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED:
-			if r.action == "" {
-				r.action = ev.GetProposed().GetAction().GetName()
-			}
-		case controlv1.EventKind_EVENT_KIND_POLICY_DECIDED:
-			if d := ev.GetDecision(); d != nil && kernel == nil {
-				kernel = d
-				r.verdict, r.reasons = verdictName(d), strings.Join(d.GetReasonCodes(), ",")
-			}
-		case controlv1.EventKind_EVENT_KIND_ACTION_BLOCKED:
-			if !blocked {
-				blocked, block = true, ev.GetDecision()
-			}
-		case controlv1.EventKind_EVENT_KIND_APPROVAL_REQUESTED:
-			r.held, r.approval = true, "pending"
-		case controlv1.EventKind_EVENT_KIND_APPROVAL_DECIDED:
-			r.approval = answer(ev.GetApproval().GetState())
-		case controlv1.EventKind_EVENT_KIND_APPROVAL_EXPIRED:
-			r.approval = "expired"
-		}
+		d.add(ev)
 	}
-	r.block = blockCell(kernel, block)
+	d.fill(r)
+}
+
+// description is what a request's events say about it, read one event at a
+// time: the first action proposed, the kernel's first decision, the first
+// block and the approval.
+type description struct {
+	run, action string
+	kernel      *decisionFacts
+	// blocked is an ACTION_BLOCKED read, and block its decision, nil when it
+	// carried none.
+	blocked  bool
+	block    *decisionFacts
+	held     bool
+	approval string
+}
+
+// decisionFacts is what a row says of a decision: its id, its verdict
+// without the VERDICT_ prefix, and its reason codes.
+type decisionFacts struct {
+	id, verdict string
+	codes       []string
+}
+
+func factsOf(d *controlv1.Decision) *decisionFacts {
+	if d == nil {
+		return nil
+	}
+	return &decisionFacts{id: d.GetDecisionId(), verdict: verdictName(d), codes: d.GetReasonCodes()}
+}
+
+func (d *description) add(ev *controlv1.Event) {
+	switch ev.GetKind() {
+	case controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED:
+		if d.action == "" {
+			d.action = ev.GetProposed().GetAction().GetName()
+		}
+	case controlv1.EventKind_EVENT_KIND_POLICY_DECIDED:
+		if dec := ev.GetDecision(); dec != nil && d.kernel == nil {
+			d.kernel = factsOf(dec)
+		}
+	case controlv1.EventKind_EVENT_KIND_ACTION_BLOCKED:
+		if !d.blocked {
+			d.blocked, d.block = true, factsOf(ev.GetDecision())
+		}
+	case controlv1.EventKind_EVENT_KIND_APPROVAL_REQUESTED:
+		d.held, d.approval = true, "pending"
+	case controlv1.EventKind_EVENT_KIND_APPROVAL_DECIDED:
+		d.approval = answer(ev.GetApproval().GetState())
+	case controlv1.EventKind_EVENT_KIND_APPROVAL_EXPIRED:
+		d.approval = "expired"
+	}
+}
+
+func (d *description) fill(r *row) {
+	r.run, r.action, r.held, r.approval = d.run, d.action, d.held, d.approval
+	if d.kernel != nil {
+		r.verdict, r.reasons = d.kernel.verdict, strings.Join(d.kernel.codes, ",")
+	}
+	r.block = blockCell(d.kernel, d.block)
 }
 
 // blockCell names the decision a block carries. The plane blocks with the
 // kernel's decision or with one of its own, and only the decision_id tells
 // them apart: two decisions may give the same verdict and codes.
-func blockCell(kernel, block *controlv1.Decision) string {
+func blockCell(kernel, block *decisionFacts) string {
 	switch {
 	case block == nil:
 		return ""
-	case block.GetDecisionId() != "" && block.GetDecisionId() == kernel.GetDecisionId():
+	case block.id != "" && kernel != nil && block.id == kernel.id:
 		return "="
 	}
-	codes := strings.Join(block.GetReasonCodes(), ",")
+	codes := strings.Join(block.codes, ",")
 	if codes == "" {
 		codes = "-"
 	}
-	return verdictName(block) + " " + codes
+	return block.verdict + " " + codes
 }
 
 func verdictName(d *controlv1.Decision) string {

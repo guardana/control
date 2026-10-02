@@ -50,6 +50,19 @@ example's `testdata/`. The example's tests read them, and tests of this
 module check them against `internal/evidence` and the real exporter, so a
 change on either side fails a test.
 
+**Alerts are local and resumable.** With a state directory the example reads
+one export after another. It refuses, leaving its state as it was, an export
+whose header names another source or another starting cursor, or any filter,
+and one cut short. It drops an event seen before by tenant, project and event
+id within a bounded window, and raises `conflicting_event` for one id with two
+different lines. It raises alerts from a closed set, each one JSON line
+appended to a log and repeated on standard error, and prints the report's rows
+for the requests that ended. The log is written and synced before the cursor
+is saved, and an alert already in the log is not raised again, so a crash
+between the two loses nothing and repeats nothing. It runs no command, opens no
+connection, reads no clock of its own and prints no field outside an allowlist
+of identifiers, kinds, verdicts and codes.
+
 No wire contract, export format, `pkg/` surface or dependency of a shipped
 binary changes.
 
@@ -93,3 +106,7 @@ contributor builds the example with `go -C examples/evidence-report build`.
   copy.
 - Tests of this module fail when the example's grammar, line bound or fixture
   bytes differ from `internal/evidence` and the exporter.
+- Fixtures for an exact repeat, the same export twice, one id with two lines,
+  each kind of gap, a cut export, and an outage with a crash between the alert
+  log and the cursor, after which every alert is in the log once; a privacy
+  test finds no field outside the allowlist in any output or file.

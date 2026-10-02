@@ -1,0 +1,3 @@
+{"type":"header","format":"guardana.control.evidence-export","version":"1.0","file":"gaps.trail","source":"84e72ed562caecb9f90bea851beaa26eb947ad6bca1fa520becc800e3ce4cb4a","query":{"after":"v1:84e72ed562caecb9f90bea851beaa26eb947ad6bca1fa520becc800e3ce4cb4a:1540:23641b885651d0ec1a7bd0f04381147935ec362682a01024e3f97d25d76e5a8b","limit":1000}}
+{"type":"gap","offset":1540,"reason":"partial_tail"}
+{"type":"trailer","next_cursor":"v1:84e72ed562caecb9f90bea851beaa26eb947ad6bca1fa520becc800e3ce4cb4a:1540:23641b885651d0ec1a7bd0f04381147935ec362682a01024e3f97d25d76e5a8b","end_reached":true,"tail_bytes":15,"writer_held":false,"counts":{"event":0,"gap":1,"duplicate":0},"scanned_bytes":0,"dedup_scope":"export"}

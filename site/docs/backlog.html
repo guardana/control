@@ -81,24 +81,8 @@ wait for a fleet to address it.</p>
 </tbody>
 </table>
 <h2 id="milestone-2-runs-and-evidence-other-tools-can-read">Milestone 2: runs and evidence other tools can read</h2>
-<table>
-<thead>
-<tr>
-<th>ID</th>
-<th>Work</th>
-<th>Depends on</th>
-<th>Acceptance</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>B09</td>
-<td>Build a custom report and alert example</td>
-<td>none</td>
-<td>A consumer outside this module reports actions and reasons and emits a local alert. Fixtures cover duplicate delivery, gaps and consumer outage. It requires no extra service and records no raw payload by default</td>
-</tr>
-</tbody>
-</table>
+<p>No task is open here: B09, the report and alert example, is delivered, and
+<a href="/docs/status">status.md</a> records it.</p>
 <p>The existing event wire format is reused where sufficient. A query response or
 delivery wrapper has its own version; do not quietly add unknown fields to a
 strict v1 decoder. Observed framework telemetry and plane-recorded enforcement

@@ -34,26 +34,80 @@
 // read, the file's end was reached, and no gap, conflicting event or refused
 // record was seen. It exits 1 when anything is missing, unknown or cut, or
 // the export is refused, and 2 on a usage error.
+//
+// With -state DIR it follows one trail from export to export instead: -init
+// makes the directory, -cursor prints the cursor the next export starts
+// after, and each run reads the export after it. It prints the rows of the
+// requests that ended in that export, and appends each new alert, one JSON
+// line of this example's own experimental format, to DIR/alerts.jsonl and to
+// standard error. It exits 0 with no new alert, 1 with one or more, and 2
+// when it refuses the export or the state, which it then leaves as it was.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 )
 
 func main() {
+	if len(os.Args) > 1 {
+		// A reader gone from stdout is then an error the state mode reports
+		// after its alerts are logged, not a signal that ends it before.
+		signal.Ignore(syscall.SIGPIPE)
+	}
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
 const name = "evidence-report"
 
+const usage = "usage: " + name + " < export.jsonl, or " + name + " -state DIR [-init | -cursor] [< export.jsonl]; " +
+	"without -state it reads one export on standard input and takes no argument"
+
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if len(args) > 0 {
-		say(stderr, "usage: "+name+" < export.jsonl; it reads an evidence export on standard input and takes no argument")
+	if len(args) == 0 {
+		return reportOnce(stdin, stdout, stderr)
+	}
+	o, ok := parseState(args)
+	if !ok {
+		say(stderr, usage)
 		return 2
 	}
+	switch {
+	case o.init:
+		return initState(o.dir, stderr)
+	case o.cursor:
+		return printCursor(o.dir, stdout, stderr)
+	}
+	return follow(o.dir, stdin, stdout, stderr)
+}
+
+// stateArgs is a state mode's command line: -state DIR, and -init or -cursor
+// at most.
+type stateArgs struct {
+	dir          string
+	init, cursor bool
+}
+
+func parseState(args []string) (stateArgs, bool) {
+	flags := flag.NewFlagSet(name, flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var o stateArgs
+	flags.StringVar(&o.dir, "state", "", "")
+	flags.BoolVar(&o.init, "init", false, "")
+	flags.BoolVar(&o.cursor, "cursor", false, "")
+	if err := flags.Parse(args); err != nil || flags.NArg() > 0 || o.dir == "" || (o.init && o.cursor) {
+		return stateArgs{}, false
+	}
+	return o, true
+}
+
+// reportOnce reads one export and prints its report.
+func reportOnce(stdin io.Reader, stdout, stderr io.Writer) int {
 	x, err := readExport(stdin)
 	if err != nil {
 		say(stderr, "the export is refused: "+err.Error())

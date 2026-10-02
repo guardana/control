@@ -11,6 +11,17 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- `examples/evidence-report -state <dir>` follows a trail one export after
+  another and raises local alerts: a JSON line each, appended to
+  `<dir>/alerts.jsonl` and repeated on standard error, for a gap, a
+  conflicting event, a lifecycle it cannot finish, an undetermined verdict, a
+  block of the plane's own, an expired approval and its own bound. A repeated
+  delivery, a crash and an outage neither lose nor repeat an alert, and it
+  prints no field outside an allowlist
+  ([guide](docs/guides/read-the-evidence-from-a-program.md)).
+
 ### Changed
 
 - `examples/evidence-report` prints a `block` column after `reasons`: the

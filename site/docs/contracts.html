@@ -1058,6 +1058,13 @@ answered&quot; is not authorization and a trail that let the action run after it
 would show an execution on an approval that never came. What an expired window
 may be followed by is <code>ACTION_BLOCKED</code>, or another <code>APPROVAL_REQUESTED</code>: asking
 again is not a defect in the trail.</p>
+<p>An <code>ACTION_BLOCKED</code> carries the decision that stopped the call. When the
+kernel's own block is enforced, that is the kernel's decision, with the
+<code>decision_id</code> of the request's <code>POLICY_DECIDED</code>; otherwise it is one the plane
+makes with a <code>decision_id</code> of its own, for example for a pause, an
+unclassified tool, an approval rejected, expired or already used, a lost or
+refused hold, or a cause the plane adds over the kernel's verdict. A reader tells the two apart by the
+id, never by the codes, which a plane's decision may repeat.</p>
 <p>The other two kinds are not edges, because neither is caused by this request
 progressing:</p>
 <ul>

@@ -35,9 +35,8 @@ wait for a fleet to address it.
 
 ## Milestone 2: runs and evidence other tools can read
 
-| ID | Work | Depends on | Acceptance |
-| --- | --- | --- | --- |
-| B09 | Build a custom report and alert example | none | A consumer outside this module reports actions and reasons and emits a local alert. Fixtures cover duplicate delivery, gaps and consumer outage. It requires no extra service and records no raw payload by default |
+No task is open here: B09, the report and alert example, is delivered, and
+[status.md](status.md) records it.
 
 The existing event wire format is reused where sufficient. A query response or
 delivery wrapper has its own version; do not quietly add unknown fields to a

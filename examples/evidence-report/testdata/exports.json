@@ -1,5 +1,20 @@
 {
   "exports": [
-    {"trail": "demo.trail", "export": "demo.jsonl"}
+    {"trail": "demo.trail", "export": "demo.jsonl"},
+    {"trail": "outage-a.trail", "export": "outage-1.jsonl"},
+    {"trail": "outage.trail", "export": "outage-2.jsonl", "query": {"after": "v1:0f31fcdcef01fd4eadcfc3afc5296240223172c978aa93a412205c25db73d1ec:2159:04cf94c6fd2a4df2da6fb110a3fd382cd53f158e9aa869ea60cf3eddbc725e16", "limit": 4}},
+    {"trail": "outage.trail", "export": "outage-3.jsonl", "query": {"after": "v1:0f31fcdcef01fd4eadcfc3afc5296240223172c978aa93a412205c25db73d1ec:3215:64461bc7df53e5ca4f5afb19272acb344340b10d797e3368c01139591881c9a7", "limit": 4}},
+    {"trail": "outage.trail", "export": "outage-4.jsonl", "query": {"after": "v1:0f31fcdcef01fd4eadcfc3afc5296240223172c978aa93a412205c25db73d1ec:4500:b491ca35083164a4bbf1cb4cd2aa51e0934d32137850a25ec00e3bbb631cc370", "limit": 4}},
+    {"trail": "outage.trail", "export": "outage-5.jsonl", "query": {"after": "v1:0f31fcdcef01fd4eadcfc3afc5296240223172c978aa93a412205c25db73d1ec:5738:d2fba45b0a83cee3fbb57c00bd3c3a3dcd1195956decacb2256e3fd0c30b204c", "limit": 4}},
+    {"trail": "outage.trail", "export": "outage.jsonl"},
+    {"trail": "repeat.trail", "export": "repeat.jsonl"},
+    {"trail": "conflict.trail", "export": "conflict.jsonl"},
+    {"trail": "conflict.trail", "export": "conflict-1.jsonl", "query": {"limit": 2}},
+    {"trail": "conflict.trail", "export": "conflict-2.jsonl", "query": {"after": "v1:3cd4f852726ed6aa0ee7d0110a62da7f29c7ff501c8817107150332dfec020ab:634:656ac821454f134436f562da7f497a36449b4d8fea7de1e85d0d55d4543747e1"}},
+    {"trail": "gaps.trail", "export": "gaps.jsonl"},
+    {"trail": "missing.trail", "export": "missing.jsonl"},
+    {"trail": "fork.trail", "export": "fork.jsonl"},
+    {"trail": "gaps.trail", "export": "gaps-2.jsonl", "query": {"after": "v1:84e72ed562caecb9f90bea851beaa26eb947ad6bca1fa520becc800e3ce4cb4a:1540:23641b885651d0ec1a7bd0f04381147935ec362682a01024e3f97d25d76e5a8b"}},
+    {"trail": "gaps-grown.trail", "export": "gaps-grown.jsonl"}
   ]
 }

@@ -8,45 +8,72 @@ import (
 	"strings"
 )
 
-func checkHeader(l rawLine) error {
+// header is what the header says about where the export came from and what
+// it was asked for.
+type header struct {
+	source, after string
+	// filtered is a query that names any filter, which cuts the links
+	// between a request's events.
+	filtered bool
+}
+
+func checkHeader(l rawLine) (header, error) {
 	if l.tooLong || l.unterminated {
-		return errors.New("the first record is not a whole header")
+		return header{}, errors.New("the first record is not a whole header")
 	}
 	if err := strictHeader(l.b); err != nil {
-		return err
+		return header{}, err
 	}
 	var h struct {
-		Type    string  `json:"type"`
-		Format  *string `json:"format"`
-		Version *string `json:"version"`
-		File    *string `json:"file"`
-		Source  *string `json:"source"`
-		Query   *struct {
-			After                               *string
-			Limit                               *int
-			MaxBytes                            *int64 `json:"max_bytes"`
-			Request, Run, Tenant, Project, Kind []string
-		} `json:"query"`
+		Type    string       `json:"type"`
+		Format  *string      `json:"format"`
+		Version *string      `json:"version"`
+		File    *string      `json:"file"`
+		Source  *string      `json:"source"`
+		Query   *headerQuery `json:"query"`
 	}
 	if err := json.Unmarshal(l.b, &h); err != nil {
-		return fmt.Errorf("the first record is not a header: %w", err)
+		return header{}, errors.New("the first record is not a header: a member is of another type")
 	}
 	switch {
 	case h.Type != "header":
-		return fmt.Errorf("the first record is %q, not the header", h.Type)
+		return header{}, errors.New("the first record is not the header")
 	case h.Format == nil || *h.Format != exportFormat:
-		return fmt.Errorf("the header names format %s, and this reader reads %s", quoted(h.Format), exportFormat)
+		return header{}, fmt.Errorf("the header names another format than %s, which this reader reads", exportFormat)
 	case h.Version == nil:
-		return errors.New("the header names no version")
+		return header{}, errors.New("the header names no version")
 	}
 	major, ok := majorOf(*h.Version)
 	switch {
 	case !ok:
-		return fmt.Errorf("version %q is not MAJOR.MINOR", *h.Version)
+		return header{}, errors.New("the header's version is not MAJOR.MINOR")
 	case major != exportMajor:
-		return fmt.Errorf("version %q is of major %d, and this reader reads major %d", *h.Version, major, exportMajor)
+		return header{}, fmt.Errorf("the header's version is of major %d, and this reader reads major %d", major, exportMajor)
 	}
-	return nil
+	return h.Query.facts(h.Source), nil
+}
+
+type headerQuery struct {
+	After                               *string
+	Limit                               *int
+	MaxBytes                            *int64 `json:"max_bytes"`
+	Request, Run, Tenant, Project, Kind []string
+}
+
+// facts is what a state follows of the header: the file's identity, the
+// cursor the export starts after, and whether it names a filter.
+func (q *headerQuery) facts(source *string) header {
+	var h header
+	if source != nil {
+		h.source = *source
+	}
+	if q != nil {
+		if q.After != nil {
+			h.after = *q.After
+		}
+		h.filtered = q.Request != nil || q.Run != nil || q.Tenant != nil || q.Project != nil || q.Kind != nil
+	}
+	return h
 }
 
 // majorOf reads MAJOR.MINOR as the wire contracts spell a version: two
@@ -56,13 +83,6 @@ func majorOf(version string) (uint64, bool) {
 	m, errMajor := strconv.ParseUint(major, 10, 32)
 	_, errMinor := strconv.ParseUint(minor, 10, 32)
 	return m, ok && errMajor == nil && errMinor == nil
-}
-
-func quoted(s *string) string {
-	if s == nil {
-		return "none"
-	}
-	return strconv.Quote(*s)
 }
 
 type trailerRecord struct {
@@ -88,7 +108,7 @@ func (x *export) readTrailer(b []byte, ms []member) {
 	}
 	var r trailerRecord
 	if err := json.Unmarshal(b, &r); err != nil {
-		x.refuse("a trailer that does not decode: " + err.Error())
+		x.refuse("a trailer whose members are of another type")
 		return
 	}
 	if why := trailerDefect(r); why != "" {
@@ -100,6 +120,9 @@ func (x *export) readTrailer(b []byte, ms []member) {
 		return
 	}
 	x.trailer = &trailerState{endReached: *r.EndReached, tailBytes: *r.TailBytes, writerHeld: *r.WriterHeld}
+	if r.NextCursor != nil {
+		x.trailer.nextCursor = *r.NextCursor
+	}
 }
 
 // trailerDefect names what keeps a trailer from saying where the export
@@ -115,7 +138,7 @@ func trailerDefect(r trailerRecord) string {
 	case r.WriterHeld == nil:
 		return "a trailer without writer_held"
 	case r.NextCursor != nil && !isCursor(*r.NextCursor):
-		return fmt.Sprintf("a trailer whose next_cursor %s is not a v1 cursor", safe(*r.NextCursor))
+		return "a trailer whose next_cursor is not a v1 cursor"
 	case !*r.EndReached && r.NextCursor == nil:
 		return "a trailer that stops before the file's end and names no next_cursor"
 	}

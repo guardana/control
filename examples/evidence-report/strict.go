@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -24,6 +25,19 @@ var (
 	countMembers = []string{"event", "gap", "duplicate"}
 )
 
+// vocabulary is every member name this program reads. A diagnostic names a
+// member only from it: any other name came from the input, which a message
+// never repeats.
+var vocabulary = func() map[string]bool {
+	v := map[string]bool{}
+	for _, names := range append([][]string{queryMembers, countMembers}, slices.Collect(maps.Values(recordMembers))...) {
+		for _, n := range names {
+			v[n] = true
+		}
+	}
+	return v
+}()
+
 type member struct {
 	name  string
 	value json.RawMessage
@@ -37,26 +51,30 @@ func object(b []byte) ([]member, error) {
 	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
 		return nil, errors.New("not a JSON object")
 	}
+	malformed := errors.New("not one well-formed JSON object")
 	var ms []member
 	seen := map[string]bool{}
 	for dec.More() {
 		tok, err := dec.Token()
 		if err != nil {
-			return nil, err
+			return nil, malformed
 		}
 		name, _ := tok.(string)
 		var value json.RawMessage
 		if err := dec.Decode(&value); err != nil {
-			return nil, err
+			return nil, malformed
 		}
-		if seen[name] {
+		switch {
+		case seen[name] && vocabulary[name]:
 			return nil, fmt.Errorf("member %q appears twice", name)
+		case seen[name]:
+			return nil, errors.New("a member the contract does not name appears twice")
 		}
 		seen[name] = true
 		ms = append(ms, member{name, value})
 	}
 	if _, err := dec.Token(); err != nil {
-		return nil, err
+		return nil, malformed
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		return nil, errors.New("more follows the object")
@@ -73,10 +91,13 @@ func only(ms []member, known []string) error {
 		}
 		for _, k := range known {
 			if strings.EqualFold(k, m.name) {
-				return fmt.Errorf("member %q differs from %q only in case", m.name, k)
+				return fmt.Errorf("a member differs from %q only in case", k)
 			}
 		}
-		return fmt.Errorf("member %q is not one the contract names", m.name)
+		if vocabulary[m.name] {
+			return fmt.Errorf("member %q is not one this record has", m.name)
+		}
+		return errors.New("a member the contract does not name")
 	}
 	return nil
 }
