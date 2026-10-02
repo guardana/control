@@ -5,6 +5,11 @@ on:
     tags: ["v*"]
   # A dry run: builds the snapshot a tag would build and publishes nothing.
   workflow_dispatch:
+    inputs:
+      version:
+        description: The tag the release would carry, such as v1.2.3-alpha; its CHANGELOG section must be dated and non-empty
+        required: true
+        type: string
 
 # Read-only by default. A job that needs more says so at job level, with the
 # step that needs it named in a comment.
@@ -28,6 +33,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read # Check the gate: reads CI's and Security's runs of this commit
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,6 +43,22 @@ jobs:
           # goreleaser reads the tags to name the version it builds.
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Check the gate
+        # The same check the tag's run makes, so a dry run that passes says
+        # the release would get past it.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/check-gate-runs.sh "${GITHUB_SHA}"
+
+      - name: Check the release notes
+        # The notes the tag's run would publish, shown in the run's summary.
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          notes="${RUNNER_TEMP}/notes.md"
+          scripts/release-notes.sh "${VERSION}" >"${notes}"
+          cat "${notes}" >>"${GITHUB_STEP_SUMMARY}"
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -121,6 +145,7 @@ jobs:
       attestations: write # Attest: stores the provenance attestations
       packages: write # Build and draft: ko pushes the image; Sign the image and Attest the image: push the signature and the provenance beside it
       artifact-metadata: write # Attest the image: records which registry holds the image, the organization's linked artifacts
+      actions: read # Check the gate: reads CI's and Security's runs of the tagged commit
     env:
       # The repository .goreleaser.yaml's kos section pushes to.
       IMAGE: ghcr.io/guardana/control-gateway
@@ -140,6 +165,13 @@ jobs:
             echo "the tagged commit ${GITHUB_SHA} is not on main" >&2
             exit 1
           fi
+
+      - name: Check the gate
+        # A tag on a commit whose CI or Security run failed, or never ran,
+        # would publish what nobody verified.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/check-gate-runs.sh "${GITHUB_SHA}"
 
       - name: Check that the tag names an image tag
         # The version becomes the image's tag, whose grammar is narrower than

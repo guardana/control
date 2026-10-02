@@ -1,8 +1,8 @@
 # Releasing
 
-How a version is cut, and how anyone checks what was published. A release is built, signed and published by
-`.github/workflows/release.yml` and nowhere else; nothing is uploaded from a
-laptop.
+How a version is cut, and how anyone checks what was published.
+`.github/workflows/release.yml` builds, signs and publishes every release;
+nothing is uploaded from a laptop.
 
 ## Who may release
 
@@ -17,7 +17,7 @@ maintainer's approval or the admin's bypass.
    `## [0.1.0-alpha] - 2026-09-25`. The workflow publishes that section as the
    release notes and fails if it is missing, undated or empty.
    `scripts/release-notes.sh v0.1.0-alpha` prints it.
-2. Commit that on `main`, and let CI finish green on the commit.
+2. Commit that on `main`, and let CI and Security finish green on it.
 3. Tag the commit and push the tag:
 
    ```sh
@@ -27,8 +27,7 @@ maintainer's approval or the admin's bypass.
 
 4. Approve the waiting run: the tag's Release run, Review deployments.
 
-A version with a pre-release part, such as `-alpha` or `-rc.1`, is published as
-a pre-release.
+A version with a pre-release part (`-alpha`, `-rc.1`) is a pre-release.
 
 ## What the workflow does
 
@@ -40,7 +39,7 @@ a pre-release.
    archive and a `checksums.txt` with the SHA-256 of every file.
 3. Signs `checksums.txt` with cosign, keyless: the certificate names this
    workflow and the tag. The signature is `checksums.txt.sigstore.json`.
-4. Pushes the image `ghcr.io/guardana/control-gateway` under the staging tag
+4. Pushes the image `ghcr.io/guardana/control-gateway` as the staging tag
    `sha-<commit>`, for linux/amd64 and linux/arm64, `guardana-gateway` alone as
    a nonroot user.
 5. Drafts the GitHub release with those files.
@@ -51,16 +50,18 @@ a pre-release.
 8. Verifies all of it as a user would, tags the image with the version, then
    publishes the draft with the image's digest in its notes.
 
-The workflow refuses a tag whose commit is not on `main`, and publishes the
-draft only when it holds exactly the files it verified. A failure leaves no
-release, or an unpublished draft: delete the draft and the image's staging
-version, fix the cause and release the next version.
+The workflow refuses a tag whose commit is not on `main` or lacks a green CI
+and Security run, and publishes the draft only when it holds exactly the files
+it verified. A failure leaves no release, or an unpublished draft: delete the
+draft and the image's staging version, fix the cause, release the next
+version.
 
 ## A dry run
 
-Run the workflow by hand (Actions, Release, Run workflow). It builds the same
-archives as `0.0.0-snapshot.<commit>`, unsigned, keeps them seven days, runs the
-image and the demo for the runner's platform, and publishes nothing.
+Run the workflow by hand with the tag the release will carry. It makes the
+same gate check, prints that version's notes, builds the archives as
+`0.0.0-snapshot.<commit>`, unsigned, for seven days, runs the image and the
+demo for the runner's platform, and publishes nothing.
 `make release-snapshot`, then `make check-demo-archive`, do the same locally,
 with Docker running.
 
@@ -89,10 +90,10 @@ gh attestation verify guardana-control_0.1.0-alpha_linux_amd64.tar.gz \
   --source-ref refs/tags/v0.1.0-alpha --deny-self-hosted-runners
 ```
 
-On macOS use `shasum -a 256 --ignore-missing -c checksums.txt`. The commands
-say, in turn, that the archive is the one the checksum file names, that this
-repository's release workflow signed that file for that tag, and that the
-archive was built by that workflow from that tag.
+On macOS use `shasum -a 256 --ignore-missing -c checksums.txt`. In turn: the
+archive is the one the checksum file names, this repository's release workflow
+signed that file for that tag, and that workflow built the archive from that
+tag.
 
 ## Checking the image
 

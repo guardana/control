@@ -11,6 +11,12 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- The release workflow refuses a tag whose commit has no successful CI and
+  Security run. Its dry run takes the version the tag will carry, makes the
+  same check and prints that version's release notes.
+
 ### Fixed
 
 - `runs list` and `runs close` no longer make an empty directory a runs
