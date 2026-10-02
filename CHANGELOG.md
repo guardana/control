@@ -11,6 +11,20 @@ verify one.
 
 ## [Unreleased]
 
+## [0.5.0-alpha] - 2026-10-02
+
+An author can now see why a call got its decision: `policy explain` names the
+rules that matched and the fields a rule could not read. Two starter policy
+packs, read-only and approval-for-writes, come with cases that show what they
+decide. A guide puts the plane between an MCP client and a server already in
+use. An audit before the release fixed defects, among them: a call the agent
+cancelled could lose its closing record, and enough of them blocked every later
+call; other accounts could write the evidence directory; a configuration
+refusal printed a header credential; and some MCP clients refused the plane's
+answers as schema errors. [docs/status.md](docs/status.md) says what is
+`implemented` and what is `experimental`. Nothing here is a security boundary
+yet.
+
 ### Added
 
 - `guardana-control policy explain <case>` decides one case as `policy test`
@@ -309,7 +323,8 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.4.0-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.5.0-alpha...HEAD
+[0.5.0-alpha]: https://github.com/guardana/control/releases/tag/v0.5.0-alpha
 [0.4.0-alpha]: https://github.com/guardana/control/releases/tag/v0.4.0-alpha
 [0.3.0-alpha]: https://github.com/guardana/control/releases/tag/v0.3.0-alpha
 [0.2.0-alpha]: https://github.com/guardana/control/releases/tag/v0.2.0-alpha

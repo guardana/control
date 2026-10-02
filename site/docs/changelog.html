@@ -33,7 +33,19 @@
 <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
-<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.4.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.5.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="050-alpha---2026-10-02"><a href="https://github.com/guardana/control/releases/tag/v0.5.0-alpha">0.5.0-alpha</a> - 2026-10-02</h2>
+<p>An author can now see why a call got its decision: <code>policy explain</code> names the
+rules that matched and the fields a rule could not read. Two starter policy
+packs, read-only and approval-for-writes, come with cases that show what they
+decide. A guide puts the plane between an MCP client and a server already in
+use. An audit before the release fixed defects, among them: a call the agent
+cancelled could lose its closing record, and enough of them blocked every later
+call; other accounts could write the evidence directory; a configuration
+refusal printed a header credential; and some MCP clients refused the plane's
+answers as schema errors. <a href="/docs/status">docs/status.md</a> says what is
+<code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
+yet.</p>
 <h3 id="added">Added</h3>
 <ul>
 <li><code>guardana-control policy explain &lt;case&gt;</code> decides one case as <code>policy test</code>
