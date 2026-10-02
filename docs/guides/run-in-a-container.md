@@ -48,8 +48,8 @@ name its digest.
      ghcr.io/guardana/control-gateway@sha256:<digest> run --config /etc/gateway/gateway.yaml
    ```
 
-   The listener takes no credential, so anyone who reaches the port calls tools
-   as the configured principal. If you publish it beyond the host's loopback,
+   The listener takes no credential but a run token under `runs.dir`, so
+   anyone who reaches the port calls tools as the configured principal. If you publish it beyond the host's loopback,
    put something that authenticates callers in front of it.
 
 ## Verify

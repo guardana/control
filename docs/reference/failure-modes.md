@@ -20,7 +20,7 @@ process that really fail. Nothing here is a security boundary yet
 | Failure | The call | Reason code | The agent gets | Recovers by itself | Test |
 | --- | --- | --- | --- | --- | --- |
 | Collector gone, then back | runs | none | the upstream's answer | yes | `TestACollectorThatIsGoneBlocksNoCallAndGetsEveryRecordBack` |
-| Spool full | blocked before its effect | `EVIDENCE_UNAVAILABLE` | a tool result with `isError: true` and the code | yes, once the spool drains | `TestAFullSpoolBlocksCallsUntilTheCollectorDrainsIt` |
+| Spool full | blocked before its effect | `EVIDENCE_UNAVAILABLE` | a tool result with `isError: true` and the code | yes, once draining frees the budget; quarantined records count until the operator removes them | `TestAFullSpoolBlocksCallsUntilTheCollectorDrainsIt` |
 | Decision point silent | blocked | `PDP_TIMEOUT` | `isError` and the code | yes, each call asks again | `TestAnAskPastTheConfiguredTimeoutIsATimeout`, `TestEveryEffectClassUnderEveryAnswer` |
 | Decision point wrong or gone | blocked | `PDP_ANSWER_REFUSED`, `PDP_UNAVAILABLE` | `isError` and the code | yes, each call asks again | `TestAWrongOrAbsentDecisionPointBlocksOnARunningPlane` |
 | `stdio` upstream dies mid-call | sent once, never retried | none | a JSON-RPC error | no: restart the plane | `TestAStdioUpstreamThatDiesMidCallIsNeverASuccess` |

@@ -140,7 +140,8 @@ func TestRestrictResourcesObligation(t *testing.T) {
 
 // TestShortenTimeoutObligation: the upstream call gets the obligation's
 // deadline; a tool that outlives it is cut off and closed as TIMEOUT. A
-// missing or non-positive ms refuses the call.
+// missing or non-positive ms refuses the call, and so does one past what a
+// duration holds, which would wrap to no bound or to a bound nobody wrote.
 func TestShortenTimeoutObligation(t *testing.T) {
 	forEachKind(t, rigOptions{}, func(t *testing.T, r *rig) {
 		r.pipe.decide = executeWith(obligation("shorten_timeout", map[string]string{"ms": "100"}))
@@ -158,7 +159,7 @@ func TestShortenTimeoutObligation(t *testing.T) {
 		if len(closes) != 1 || closes[0].result.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_TIMEOUT {
 			t.Fatalf("Close calls %+v", closes)
 		}
-		for _, params := range []map[string]string{nil, {"ms": "0"}, {"ms": "-5"}, {"ms": "soon"}} {
+		for _, params := range []map[string]string{nil, {"ms": "0"}, {"ms": "-5"}, {"ms": "soon"}, {"ms": "9223372036855"}, {"ms": "18446744073710"}} {
 			r.pipe.decide = executeWith(obligation("shorten_timeout", params))
 			res, err := callTool(t, agent, "read_file", map[string]any{"path": "/x"})
 			assertRefused(t, r, res, err, "read_file")

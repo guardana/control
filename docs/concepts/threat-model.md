@@ -54,7 +54,7 @@ the plane's own account, someone on the network, and a tampered release.
 flowchart TD
     accTitle: Trust boundaries
     accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane's machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files but for the spool's directory, whose mode is not judged; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
-    Agent["Agent and its model"] -->|"MCP, no credential"| Plane
+    Agent["Agent and its model"] -->|"MCP; a run token under runs.dir"| Plane
     Agent -.->|"a path around the plane"| Http
     subgraph Host["The plane's machine"]
         subgraph Own["One account: the plane's user"]
@@ -73,7 +73,7 @@ flowchart TD
     Page -->|"writes answers and pauses"| Files
     Browser["Browser"] -->|"loopback, a token traded once"| Page
     Other -.->|"refused on mode, keys and pause file on owner"| Files
-    Other -.->|"files 0600, directory not judged"| Spool
+    Other -.->|"files 0600, directory owner and mode checked"| Spool
     Other -->|"no credential"| Collect
     Plane -->|"exactly the authorized bytes"| Http["HTTP upstream"]
     Plane -->|"identity, action, resource; never arguments"| PDP["Decision point"]
@@ -259,13 +259,15 @@ What the plane does today:
 
 What it does not do:
 
-- **The MCP listener and the health listener take no credential.** Any account
-  that can reach them calls tools as the listener's principal and reads the
+- **The MCP listener and the health listener take no credential**, but for a
+  run token under `runs.dir`. Any account that can reach them calls tools as
+  the listener's principal, under any run whose token it holds, and reads the
   counters. Both default to `127.0.0.1`, which every local account can reach.
 - **`collect` takes no credential.** Any account that reaches its port can
   append events to the trail, forged chains among them
   ([ADR-0020](../adr/0020-a-trail-and-counters-without-a-collector.md)).
-- The spool writes its files `0600`, but does not judge its directory's mode.
+- The spool writes its files `0600` and refuses a directory another account
+  owns or that others can write.
 - The checks read the owner and the mode bits. On macOS an access control list
   can grant what the mode bits do not show, and the checks do not read it.
 
@@ -317,7 +319,7 @@ What it does not do:
 
 - **The MCP listener serves plain HTTP with no authentication.** Bound to
   anything but the loopback, it lets anyone who reaches it call tools as the
-  configured principal. There is no TLS setting on it.
+  configured principal, under `runs.dir` with a run token they hold. There is no TLS setting on it.
 - The health listener is the same: plain HTTP, no credential, wherever
   `health.address` puts it.
 - A plaintext export stays on the host, unprotected there: an account that

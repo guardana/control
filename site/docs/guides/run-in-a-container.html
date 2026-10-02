@@ -68,8 +68,8 @@ owns it.</li>
   -v &#34;$PWD/conf:/etc/gateway:ro&#34; -v &#34;$PWD/spool:/var/lib/guardana/spool&#34; \
   ghcr.io/guardana/control-gateway@sha256:&lt;digest&gt; run --config /etc/gateway/gateway.yaml
 </code></pre>
-<p>The listener takes no credential, so anyone who reaches the port calls tools
-as the configured principal. If you publish it beyond the host's loopback,
+<p>The listener takes no credential but a run token under <code>runs.dir</code>, so
+anyone who reaches the port calls tools as the configured principal. If you publish it beyond the host's loopback,
 put something that authenticates callers in front of it.</p>
 </li>
 </ol>

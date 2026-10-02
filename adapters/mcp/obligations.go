@@ -3,6 +3,7 @@ package mcp
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -77,11 +78,16 @@ func applyOne(c *call, o *controlv1.Obligation, out *applied) error {
 	return nil
 }
 
-// shorten reads ms as a positive integer and keeps the shortest timeout.
+// shorten reads ms as a positive integer and keeps the shortest timeout. A
+// value past what a duration holds is refused: multiplied, it would wrap to
+// no bound or to one nobody wrote.
 func shorten(params map[string]string, out *applied) error {
 	ms, err := strconv.ParseInt(params[paramMS], 10, 64)
 	if err != nil || ms <= 0 {
 		return fmt.Errorf("%s is not a positive integer", paramMS)
+	}
+	if ms > int64(math.MaxInt64/time.Millisecond) {
+		return fmt.Errorf("%s is longer than a duration holds", paramMS)
 	}
 	d := time.Duration(ms) * time.Millisecond
 	if out.timeout == 0 || d < out.timeout {

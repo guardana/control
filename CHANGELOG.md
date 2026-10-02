@@ -59,6 +59,9 @@ verify one.
 - A stateful HTTP session was never ended, so sessions a client opened and
   abandoned held the plane's memory until it stopped. A session idle for 30
   minutes now ends.
+- A `shorten_timeout` obligation whose `ms` a duration cannot hold wrapped
+  when converted, and the call ran with no bound or with one nobody wrote. It
+  is now refused like a non-positive `ms`.
 
 ## [0.4.0-alpha] - 2026-10-01
 

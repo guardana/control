@@ -59,7 +59,7 @@ process that really fail. Nothing here is a security boundary yet
 <td>blocked before its effect</td>
 <td><code>EVIDENCE_UNAVAILABLE</code></td>
 <td>a tool result with <code>isError: true</code> and the code</td>
-<td>yes, once the spool drains</td>
+<td>yes, once draining frees the budget; quarantined records count until the operator removes them</td>
 <td><code>TestAFullSpoolBlocksCallsUntilTheCollectorDrainsIt</code></td>
 </tr>
 <tr>

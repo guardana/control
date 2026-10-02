@@ -231,8 +231,9 @@ open; past either bound a call blocks with `EVIDENCE_UNAVAILABLE`.
   gateway never has to mirror an upstream's registry (ADR-0013).
 - Headers route and never decide a verdict: a refusal made from a header cannot
   echo the request id, and the client reads a response without one as a broken
-  transport (ADR-0013). The one header that refuses a request is `Run-Token`,
-  with `401` before any message is read (ADR-0034).
+  transport (ADR-0013). Two headers refuse a request before any message is
+  read: an `Origin` outside `listener.origins` with `403`, and under
+  `runs.dir` a `Run-Token` that does not resolve with `401` (ADR-0034).
 - The bytes that go upstream are the bytes that were decided about: with a
   rewriting obligation the kernel is asked again about the authorized envelope,
   so the decision's, the approval's and the executed digests are one action

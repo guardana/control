@@ -362,8 +362,9 @@ second protocol does not pull the pipeline apart (ADR-0013, ADR-0007).</li>
 gateway never has to mirror an upstream's registry (ADR-0013).</li>
 <li>Headers route and never decide a verdict: a refusal made from a header cannot
 echo the request id, and the client reads a response without one as a broken
-transport (ADR-0013). The one header that refuses a request is <code>Run-Token</code>,
-with <code>401</code> before any message is read (ADR-0034).</li>
+transport (ADR-0013). Two headers refuse a request before any message is
+read: an <code>Origin</code> outside <code>listener.origins</code> with <code>403</code>, and under
+<code>runs.dir</code> a <code>Run-Token</code> that does not resolve with <code>401</code> (ADR-0034).</li>
 <li>The bytes that go upstream are the bytes that were decided about: with a
 rewriting obligation the kernel is asked again about the authorized envelope,
 so the decision's, the approval's and the executed digests are one action

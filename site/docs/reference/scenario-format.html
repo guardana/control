@@ -155,7 +155,8 @@ call timeout on top of it.</p>
 <p>Before its first step a scenario needs <code>/healthz</code> to answer 200 with the
 mode and bundle it names, nothing paused and no halt. Then the runner waits
 for the spool to drain, notes the requests the trail file already holds, and
-connects to the listener as an MCP client.</p>
+connects to the listener as an MCP client. It sends no run token, so a plane
+with <code>runs.dir</code> refuses it.</p>
 <p>For each call step the runner:</p>
 <ol>
 <li>sends the arguments and reads the answer's kind only from the
