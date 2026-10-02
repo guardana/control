@@ -115,6 +115,33 @@ func TestRunsRefuseADirectoryThatIsNotOne(t *testing.T) {
 	}
 }
 
+// TestOnlyRunsOpenMakesAnEmptyDirectoryARunsDirectory: close and list refuse
+// an empty directory and leave it empty; open makes it one, and so it does
+// with a directory holding only what a crash left while the marker was being
+// created.
+func TestOnlyRunsOpenMakesAnEmptyDirectoryARunsDirectory(t *testing.T) {
+	dir := runsDir(t)
+	for _, args := range [][]string{{"runs", "list", dir}, {"runs", "close", dir, childID(1)}} {
+		code, stdout, stderr := invoke(t, args...)
+		if line := oneStderrLine(t, stderr); code != exitFail || stdout != "" || !strings.Contains(line, "the directory is not a runs directory") {
+			t.Errorf("runs %s on an empty directory: exit %d, stdout %q, stderr %q; want 1, not a runs directory", args[1], code, stdout, line)
+		}
+		if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+			t.Fatalf("runs %s wrote into an empty directory: %v, %v", args[1], entries, err)
+		}
+	}
+	openRun(t, dir, who, "1h")
+
+	crashed := runsDir(t)
+	if err := os.WriteFile(filepath.Join(crashed, ".tmp-ABCDEFGHIJKLMNOPQRSTUVWXYZ"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	openRun(t, crashed, who, "1h")
+	if code, _, stderr := invoke(t, "runs", "list", crashed); code != exitOK {
+		t.Errorf("runs list after a crash leftover: exit %d, %q", code, stderr)
+	}
+}
+
 // expectEveryCommandRefuses holds open, close and list on dir to one failure
 // line under the command's own name, saying want.
 func expectEveryCommandRefuses(t *testing.T, dir, want string) {

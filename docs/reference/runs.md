@@ -22,9 +22,10 @@ The directory must be the operator's and writable by nobody else: one another
 user owns, a group- or world-writable one, one holding a link or a file that is
 not the directory's, and one changed since it was opened are refused. A link
 to it is followed; what it names is judged. `runs open` makes an empty
-directory a runs directory; a plane never does. Write access to it is the
-authority to open and to close a run, so keep it beside the approvals
-directory and back it up with it.
+directory a runs directory; `runs close`, `runs list` and a plane refuse one.
+A temporary file a crash left while the directory was being made is ignored.
+Write access to it is the authority to open and to close a run, so keep it
+beside the approvals directory and back it up with it.
 
 A plane reads a record by its id and writes only a root run's state, under
 that root's own lock file, and takes no lock on the directory, so several

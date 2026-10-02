@@ -321,8 +321,15 @@ func TestRunsCloseRefusals(t *testing.T) {
 // opening time being the expiry less the lifetime asked for.
 func TestRunsListPrintsEachField(t *testing.T) {
 	dir := runsDir(t)
+	a, err := runs.InitAdmin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if code, stdout, stderr := invoke(t, "runs", "list", dir); code != exitOK || stdout != "no runs\n" || stderr != "" {
-		t.Errorf("an empty directory lists as %d, %q, %q", code, stdout, stderr)
+		t.Errorf("a runs directory with no run lists as %d, %q, %q", code, stdout, stderr)
 	}
 	o := openRun(t, dir, who, "3h")
 	expires, err := time.Parse(time.RFC3339Nano, o.expiresAt)

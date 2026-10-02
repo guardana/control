@@ -13,8 +13,102 @@ import (
 	"github.com/guardana/control/internal/runs"
 )
 
+// leftover is a name internal/files gives a temporary file: what a crash
+// while the marker was being created leaves behind.
+const leftover = ".tmp-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func TestALeftoverOfTheMarkersWriteIsNotForeign(t *testing.T) {
+	dir, a, _ := setup(t)
+	openRoot(t, a)
+	writeFile(t, filepath.Join(dir, leftover), []byte(`{"schema_version":"1.0","kind":"runs"}`+"\n"))
+	if l, err := a.List(t.Context(), 10); err != nil || len(l.Records) != 1 || !l.Complete {
+		t.Errorf("List beside a leftover: %+v, %v; want the one run", l, err)
+	}
+	if _, err := runs.OpenAdmin(dir); err != nil {
+		t.Errorf("OpenAdmin beside a leftover: %v", err)
+	}
+	if _, err := runs.OpenPlane(dir); err != nil {
+		t.Errorf("OpenPlane beside a leftover: %v", err)
+	}
+}
+
+func TestInitAdminMakesOnlyAnEmptyDirectoryARunsDirectory(t *testing.T) {
+	for name, plant := range map[string]func(t *testing.T, dir string){
+		"a directory under a leftover's name": func(t *testing.T, dir string) {
+			if err := os.Mkdir(filepath.Join(dir, leftover), 0o700); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"a foreign file beside a leftover": func(t *testing.T, dir string) {
+			writeFile(t, filepath.Join(dir, leftover), nil)
+			writeFile(t, filepath.Join(dir, "notes.txt"), nil)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := newDir(t)
+			plant(t, dir)
+			if _, err := runs.InitAdmin(dir); !errors.Is(err, runs.ErrNotRunsDir) {
+				t.Errorf("InitAdmin: %v, want ErrNotRunsDir", err)
+			}
+			if _, err := os.Lstat(filepath.Join(dir, "runs.meta")); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("InitAdmin wrote the marker: %v", err)
+			}
+		})
+	}
+}
+
+func TestOpenAdminWritesNothing(t *testing.T) {
+	for name, plant := range map[string]func(t *testing.T, dir string){
+		"an empty directory":    func(*testing.T, string) {},
+		"only a leftover in it": func(t *testing.T, dir string) { writeFile(t, filepath.Join(dir, leftover), nil) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := newDir(t)
+			plant(t, dir)
+			before, err := os.ReadDir(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := runs.OpenAdmin(dir); !errors.Is(err, runs.ErrNotRunsDir) {
+				t.Errorf("OpenAdmin: %v, want ErrNotRunsDir", err)
+			}
+			if after, err := os.ReadDir(dir); err != nil || len(after) != len(before) {
+				t.Errorf("OpenAdmin left %v, %v; want the %d entries it found", after, err, len(before))
+			}
+		})
+	}
+}
+
+func TestANonRegularEntryUnderALeftoversNameIsForeign(t *testing.T) {
+	for name, plant := range map[string]func(string) error{
+		"a directory": func(p string) error { return os.Mkdir(p, 0o700) },
+		"a pipe":      func(p string) error { return syscall.Mkfifo(p, 0o600) },
+		"a link":      func(p string) error { return os.Symlink("runs.meta", p) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir, a, _ := setup(t)
+			openRoot(t, a)
+			if err := plant(filepath.Join(dir, leftover)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := a.List(t.Context(), 10); !errors.Is(err, runs.ErrForeignFile) {
+				t.Errorf("List: %v", err)
+			}
+			if _, err := runs.OpenAdmin(dir); !errors.Is(err, runs.ErrForeignFile) {
+				t.Errorf("OpenAdmin: %v", err)
+			}
+			if _, err := runs.OpenPlane(dir); !errors.Is(err, runs.ErrForeignFile) {
+				t.Errorf("OpenPlane: %v", err)
+			}
+		})
+	}
+}
+
 func TestAForeignNameRefusesTheDirectory(t *testing.T) {
-	for _, name := range []string{"notes.txt", "run-abc.run.json", ".hidden", "RUN-00000000000000000000000000000000.lock", "run-00000000000000000000000000000000.state.bak"} {
+	for _, name := range []string{
+		"notes.txt", "run-abc.run.json", ".hidden", "RUN-00000000000000000000000000000000.lock", "run-00000000000000000000000000000000.state.bak",
+		".tmp-ABC", ".tmp-abcdefghijklmnopqrstuvwxyz", leftover + "A", "x" + leftover,
+	} {
 		t.Run(name, func(t *testing.T) {
 			dir, a, _ := setup(t)
 			openRoot(t, a)

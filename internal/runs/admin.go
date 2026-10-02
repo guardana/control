@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"time"
+
+	"github.com/guardana/control/internal/files"
 )
 
 // Admin is the operator's handle on a runs directory. It opens, closes and
@@ -18,26 +20,37 @@ type Admin struct {
 	d *dir
 }
 
-// OpenAdmin opens dir for the operator. An empty directory becomes a runs
-// directory. It refuses a group- or world-writable directory with
-// ErrPermissions, a directory that is not a runs directory with
-// ErrNotRunsDir, and one holding a file this package does not write with
-// ErrForeignFile.
+// OpenAdmin opens dir for the operator and writes nothing to it. It refuses a
+// group- or world-writable directory with ErrPermissions, a directory that is
+// not a runs directory, an empty one among them, with ErrNotRunsDir, and one
+// holding a file this package does not write with ErrForeignFile.
 func OpenAdmin(dir string) (*Admin, error) {
+	return openAdmin(dir, false)
+}
+
+// InitAdmin is OpenAdmin, except that an empty directory becomes a runs
+// directory first; so does one holding only what a crash left while its
+// marker was being created.
+func InitAdmin(dir string) (*Admin, error) {
+	return openAdmin(dir, true)
+}
+
+func openAdmin(dir string, initialise bool) (*Admin, error) {
 	d, err := openDir(dir)
 	if err != nil {
 		return nil, err
 	}
 	a := &Admin{d: d}
-	if err := a.init(); err != nil {
+	if err := a.init(initialise); err != nil {
 		return nil, errors.Join(err, d.close())
 	}
 	return a, nil
 }
 
-// init makes an empty directory a runs directory, under the directory's lock,
-// and otherwise judges what it holds as a plane does.
-func (a *Admin) init() error {
+// init judges what the directory holds as a plane does, under the
+// directory's lock; asked to, it first makes an empty directory a runs
+// directory.
+func (a *Admin) init(initialise bool) error {
 	unlock, err := a.d.lockDir(context.Background())
 	if err != nil {
 		return err
@@ -46,10 +59,21 @@ func (a *Admin) init() error {
 	if err != nil {
 		return errors.Join(fmt.Errorf("%w: %w", ErrNotRunsDir, err), unlock())
 	}
-	if len(entries) == 0 {
+	if initialise && onlyLeftovers(entries) {
 		return errors.Join(a.d.writeMarker(), unlock())
 	}
 	return errors.Join(a.d.judgeContents(entries), unlock())
+}
+
+// onlyLeftovers reports whether entries hold nothing but regular files under
+// a temporary name of internal/files, none at all included.
+func onlyLeftovers(entries []os.DirEntry) bool {
+	for _, e := range entries {
+		if !e.Type().IsRegular() || !files.IsTemp(e.Name()) {
+			return false
+		}
+	}
+	return true
 }
 
 // Close releases the handle. A later call answers ErrClosed.

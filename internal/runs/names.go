@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+
+	"github.com/guardana/control/internal/files"
 )
 
 const (
@@ -39,10 +41,14 @@ const (
 )
 
 // classify says what a name under the directory is, and for a record the run
-// id it holds.
+// id it holds. A temporary name of internal/files is what a crash while the
+// marker was created leaves, and nothing reads it.
 func classify(name string) (kind, string) {
 	if name == markerFile {
 		return kindMarker, ""
+	}
+	if files.IsTemp(name) {
+		return kindOther, ""
 	}
 	for _, s := range suffixes {
 		if id, ok := strings.CutSuffix(name, s); ok && checkRunID(id) == nil {

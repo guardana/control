@@ -24,7 +24,9 @@ var (
 		// Opening, closing and listing a run, and the record encoder with
 		// them, are the operator's (ADR-0034).
 		brand.ModulePath + "/internal/runs.(*Admin)",
-		brand.ModulePath + "/internal/runs.OpenAdmin",
+		// OpenAdmin and InitAdmin are inlined where they are called; the
+		// body they wrap is what a binary holds.
+		brand.ModulePath + "/internal/runs.openAdmin",
 		brand.ModulePath + "/internal/runs.(*dir).writeMarker",
 		brand.ModulePath + "/internal/runs.(*dir).lockDir",
 		brand.ModulePath + "/internal/pause.Init",

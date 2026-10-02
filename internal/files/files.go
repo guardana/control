@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strings"
 )
 
 // Error is a refusal by this package, matched with errors.Is. They are
@@ -43,9 +44,29 @@ const (
 	ErrNoDirOpen Error = "files: this platform cannot open a directory without following a link"
 )
 
-// tmpPrefix starts every temporary name this package makes. The random rest
-// keeps two writers in one directory apart.
-const tmpPrefix = ".tmp-"
+// tmpPrefix starts every temporary name this package makes. The random rest,
+// rand.Text's 26 characters of the standard base32 alphabet, keeps two
+// writers in one directory apart.
+const (
+	tmpPrefix  = ".tmp-"
+	tmpRandLen = 26
+)
+
+// IsTemp reports whether name has the shape of a temporary file this
+// package's writers make, which a crash before the file was named or removed
+// leaves behind.
+func IsTemp(name string) bool {
+	r, ok := strings.CutPrefix(name, tmpPrefix)
+	if !ok || len(r) != tmpRandLen {
+		return false
+	}
+	for i := range len(r) {
+		if c := r[i]; (c < 'A' || c > 'Z') && (c < '2' || c > '7') {
+			return false
+		}
+	}
+	return true
+}
 
 // CreateNoReplace writes body under dir/name with mode perm, and refuses with
 // ErrExists when the name is taken. It is CreateNoReplaceIn through a handle

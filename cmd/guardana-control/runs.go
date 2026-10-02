@@ -87,7 +87,7 @@ func runsOpenCommand(args []string, stdout, stderr io.Writer) int {
 			return usageError(stderr, runsOpenName, "--"+name+" is missing; every flag but --parent is required")
 		}
 	}
-	admin, err := runs.OpenAdmin(flags.Arg(0))
+	admin, err := runs.InitAdmin(flags.Arg(0))
 	if err != nil {
 		return fail(stderr, runsOpenName, err)
 	}

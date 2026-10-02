@@ -39,9 +39,10 @@ It is <code>experimental</code>; <a href="/docs/status">status.md</a> is the inv
 user owns, a group- or world-writable one, one holding a link or a file that is
 not the directory's, and one changed since it was opened are refused. A link
 to it is followed; what it names is judged. <code>runs open</code> makes an empty
-directory a runs directory; a plane never does. Write access to it is the
-authority to open and to close a run, so keep it beside the approvals
-directory and back it up with it.</p>
+directory a runs directory; <code>runs close</code>, <code>runs list</code> and a plane refuse one.
+A temporary file a crash left while the directory was being made is ignored.
+Write access to it is the authority to open and to close a run, so keep it
+beside the approvals directory and back it up with it.</p>
 <p>A plane reads a record by its id and writes only a root run's state, under
 that root's own lock file, and takes no lock on the directory, so several
 planes may share one. The <code>guardana-gateway</code> binary holds no code that writes

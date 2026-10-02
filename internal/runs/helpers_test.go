@@ -29,9 +29,9 @@ func newDir(t *testing.T) string {
 
 func openAdmin(t *testing.T, dir string) *runs.Admin {
 	t.Helper()
-	a, err := runs.OpenAdmin(dir)
+	a, err := runs.InitAdmin(dir)
 	if err != nil {
-		t.Fatalf("OpenAdmin(%s): %v", dir, err)
+		t.Fatalf("InitAdmin(%s): %v", dir, err)
 	}
 	t.Cleanup(func() { _ = a.Close() })
 	return a

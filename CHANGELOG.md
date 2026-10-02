@@ -11,6 +11,13 @@ verify one.
 
 ## [Unreleased]
 
+### Fixed
+
+- `runs list` and `runs close` no longer make an empty directory a runs
+  directory; they refuse it, and only `runs open` makes one. A temporary file
+  left by a crash while `runs open` made the directory no longer makes every
+  later command and plane refuse it.
+
 ## [0.5.0-alpha] - 2026-10-02
 
 An author can now see why a call got its decision: `policy explain` names the

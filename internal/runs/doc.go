@@ -4,7 +4,9 @@
 //
 // Two handles open one directory and the compiler keeps them apart. OpenAdmin
 // is the operator's: it opens, closes and lists runs, each under the
-// directory's exclusive lock, and it is the only code that encodes a record.
+// directory's exclusive lock, and it is the only code that encodes a record;
+// InitAdmin opens it the same way after making an empty directory a runs
+// directory.
 // OpenPlane is the plane's: it resolves a token, reads a root's state and
 // raises it under the root's own lock file; it takes no directory lock, so
 // planes side by side share one directory, and it never creates, rewrites or
@@ -23,6 +25,7 @@
 //	<root>.state.json  a root run's flow state
 //	<root>.state.tmp   a state being replaced, only under the root's lock
 //	<root>.lock        the root's lock file, created at opening
+//	.tmp-<26 base32>   what a crash while the marker was created leaves; never read
 //
 // An id is "run-" and 32 lower-case hex digits. Any other name, and any entry
 // that is not a regular file whatever its name, is foreign and refuses the
