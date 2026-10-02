@@ -63,6 +63,13 @@ func renderBody(p *page, pages map[string]*page, fsys fs.FS) ([]byte, error) {
 	if err := errors.Join(rw.errs...); err != nil {
 		return nil, err
 	}
+	// A character reference becomes its character only here, so the source
+	// check above cannot see one XHTML forbids.
+	for _, r := range out.String() {
+		if forbidden(r) {
+			return nil, fmt.Errorf("a character reference renders %U, which XHTML cannot carry", r)
+		}
+	}
 	return out.Bytes(), nil
 }
 
@@ -77,11 +84,16 @@ func xmlText(p *page) error {
 		switch {
 		case r == '\n':
 			line++
-		case r < 0x20 && r != '\t' && r != '\r', r == 0xFFFE, r == 0xFFFF:
+		case forbidden(r):
 			return fmt.Errorf("line %d: the character %U, which XHTML cannot carry", line, r)
 		}
 	}
 	return nil
+}
+
+// forbidden reports whether XML 1.0 refuses r in a document.
+func forbidden(r rune) bool {
+	return r < 0x20 && r != '\t' && r != '\n' && r != '\r' || r == 0xFFFE || r == 0xFFFF
 }
 
 // rewriter gives each heading the anchor GitHub gives it, points each link at
