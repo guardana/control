@@ -120,6 +120,7 @@ jobs:
       id-token: write # Build and draft, Sign the image: cosign signs keyless; Attest: signs the provenance
       attestations: write # Attest: stores the provenance attestations
       packages: write # Build and draft: ko pushes the image; Sign the image and Attest the image: push the signature and the provenance beside it
+      artifact-metadata: write # Attest the image: records which registry holds the image, the organization's linked artifacts
     env:
       # The repository .goreleaser.yaml's kos section pushes to.
       IMAGE: ghcr.io/guardana/control-gateway
