@@ -1,0 +1,149 @@
+# A plane between an MCP client and the MCP project's reference filesystem
+# server, @modelcontextprotocol/server-filesystem 2026.8.31, whose tool
+# definitions the fingerprints below were taken from. The plane runs on its
+# own and starts the server; the client connects to the listener by URL. Paths
+# resolve against this file's directory; the server's argument, the directory
+# it may touch, is passed as written. docs/guides/connect-an-existing-mcp-setup.md
+# is the page.
+mode: ENFORCE
+project_id: files
+tenant_id: local
+environment: dev
+
+listener:
+  kind: stateful_http           # 2025-11-25 and older; stdio when the client starts the plane
+  address: 127.0.0.1:8080
+  principal:
+    id: me
+  agent:
+    id: my-client
+
+policy:
+  bundle_id: starter-approval-for-writes
+  bundle_file: policy.bundle
+  key_id: KEY_ID_FROM_KEYGEN
+  public_key: PUBLIC_KEY_FROM_KEYGEN
+
+approvals:
+  provider: file
+  dir: approvals
+  hold_journal_dir: holds
+
+evidence:
+  dir: spool
+  fsync: every_record
+  on_unwritable: block
+
+export:
+  endpoint: http://127.0.0.1:4318/v1/logs
+  allow_plaintext: true
+
+list:
+  shaping: none
+
+upstreams:
+  - name: files
+    command: node_modules/.bin/mcp-server-filesystem
+    args:
+      - /absolute/path/to/the/directory/to/share
+    tenant_id: local
+    environment: dev
+
+overrides:
+  - upstream: files
+    tool: read_file
+    fingerprint: sha256:bfb193c39b149e81ae956f28b3f12b99bb30e69ad5d5745f26950501b1dcd455
+    effect: READ
+    resource_type: file
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: read_text_file
+    fingerprint: sha256:adf85a2d0241bd9b4bb2035403297d9df915ec33760a28e8e766de47804dd461
+    effect: READ
+    resource_type: file
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: read_media_file
+    fingerprint: sha256:54a63f7e97aa729389f3486860984a60410375237073b6bea507ccaa5ff8e82f
+    effect: READ
+    resource_type: file
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: read_multiple_files
+    fingerprint: sha256:a60469806dda55fd911857c35fef33a10dfc5075180babb351a363a505b6d973
+    effect: READ
+    resource_type: file
+    resource_from: /paths
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: list_directory
+    fingerprint: sha256:c203288fd063ff40a531f335d326db833d4a7f6e7d90b248d4ae90aa07f11432
+    effect: READ
+    resource_type: directory
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: list_directory_with_sizes
+    fingerprint: sha256:facfb13a0c4c83c95729b6841bc15db9b32eaec573e19b29a08e17e391fd11ec
+    effect: READ
+    resource_type: directory
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: directory_tree
+    fingerprint: sha256:63ff7055edceefbbeac2e7457ed1ebb506442b082ec355429b3aeb90dd109aef
+    effect: READ
+    resource_type: directory
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: search_files
+    fingerprint: sha256:628d5e0576860477dc73955521877302d9e8f79de15ed01ecd43d719e1a27244
+    effect: READ
+    resource_type: directory
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: get_file_info
+    fingerprint: sha256:7034e363bea7fb074231c8b5772f748f9b6a4c6bcbddd09b8954f97139ebdc63
+    effect: READ
+    resource_type: file
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: list_allowed_directories
+    fingerprint: sha256:07e9f28e7488e0855ed080d7a1225881d06434cca42d6b9e3fa3606921dca542
+    effect: READ
+    resource_type: directory
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: write_file
+    fingerprint: sha256:800d0663a354396d40bdfc2b271b64bd2f0eb13ecf41d2b2606b8a33280a35b1
+    effect: WRITE
+    resource_type: file
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: edit_file
+    fingerprint: sha256:4b953bb8f38f47ace7a8b48092671849127c2c85878cae10118182f790bee766
+    effect: WRITE
+    resource_type: file
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: create_directory
+    fingerprint: sha256:db0c9c3bce7a3cd6c97924581df7dcf7f9969b9e40cfbfd889dfda2f04cfb527
+    effect: WRITE
+    resource_type: directory
+    resource_from: /path
+    trust_zone: TRUSTED_INTERNAL
+  - upstream: files
+    tool: move_file
+    fingerprint: sha256:ff8813d53a1a90caab665a7be0351b7cafcd5e6e2ae4633f78c4296edae7c6a9
+    effect: WRITE
+    resource_type: file
+    resource_from: /source
+    trust_zone: TRUSTED_INTERNAL

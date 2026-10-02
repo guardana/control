@@ -26,6 +26,10 @@ verify one.
   approval-for-writes, each a document with allow, deny and unknown cases, and
   a page that says what each assumes about the plane and leaves unguarded
   ([reference/starter-packs.md](docs/reference/starter-packs.md)).
+- A guide that puts the plane between an MCP client and a server already in
+  use, and a profile for the MCP project's reference filesystem server that
+  classifies its 14 tools and holds every write for approval
+  ([guides/connect-an-existing-mcp-setup.md](docs/guides/connect-an-existing-mcp-setup.md)).
 
 ### Fixed
 
