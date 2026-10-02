@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -38,6 +39,15 @@ var (
 		// WriteKeyPair is inlined where it is called; the body it wraps is
 		// what a binary holds.
 		brand.ModulePath + "/internal/policykey.writeKeyPair",
+	}
+	// Making a floor directory, giving a bundle id its floor file and lowering
+	// a floor are the operator's (ADR-0038). Init and Reset are the bodies
+	// that do it; writeMarker and onlyLeftovers are called by Init alone.
+	floorWriters = []string{
+		brand.ModulePath + "/internal/policystate.Init",
+		brand.ModulePath + "/internal/policystate.Reset",
+		brand.ModulePath + "/internal/policystate.(*dir).writeMarker",
+		brand.ModulePath + "/internal/policystate.onlyLeftovers",
 	}
 	gatewayHolds = []string{
 		brand.ModulePath + "/internal/approvals.(*Plane)",
@@ -124,6 +134,37 @@ func TestTheGatewayBinaryHoldsNoApproversCode(t *testing.T) {
 	if problems := judgeSymbols(nil, gatewayRefuses, gatewayHolds); len(problems) != len(gatewayHolds) {
 		t.Errorf("an empty listing reads as %q", problems)
 	}
+}
+
+// TestTheGatewayBinaryHoldsNoFloorWriter: the gateway holds none of the code
+// that makes a floor file or lowers a floor, and the floor store's own test
+// binary, which calls each of them, holds every one, so each name is one a
+// listing shows.
+func TestTheGatewayBinaryHoldsNoFloorWriter(t *testing.T) {
+	t.Parallel()
+	gatewayBin, _ := builtBinaries(t)
+	if problems := judgeSymbols(symbolsOf(t, gatewayBin), floorWriters, nil); len(problems) > 0 {
+		t.Errorf("the gateway binary:\n%s", strings.Join(problems, "\n"))
+	}
+	probe := filepath.Join(t.TempDir(), "policystate.test")
+	cmd := exec.Command("go", "test", "-c", "-o", probe, "./internal/policystate") //nolint:gosec // G204: the go tool on this tree
+	cmd.Dir = moduleRoot(t)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("building the floor store's test binary: %v\n%s", err, out)
+	}
+	if problems := judgeSymbols(symbolsOf(t, probe), nil, floorWriters); len(problems) > 0 {
+		t.Errorf("the floor store's test binary, which calls every one:\n%s", strings.Join(problems, "\n"))
+	}
+}
+
+// moduleRoot is the directory of this tree's go.mod.
+func moduleRoot(t *testing.T) string {
+	t.Helper()
+	_, self, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot resolve this file's own path")
+	}
+	return filepath.Dir(filepath.Dir(filepath.Dir(self)))
 }
 
 // judgeSymbols names every refused name the listing holds and every held

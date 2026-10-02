@@ -84,21 +84,21 @@ digest and the document format do not change; <code>POLICY_STALE</code>'s summar
 widened to name an unconfirmed snapshot.</p>
 <p><strong>The floor lives on disk.</strong> <code>policy.state_dir</code> is a directory the operator
 owns, <code>0700</code>, with a marker, holding one strict-JSON file per bundle id, named
-by the hex SHA-256 of the id: <code>schema_version</code>, <code>bundle_id</code>, <code>serial</code>,
-<code>digest</code>, <code>issued_at</code>, <code>latest_issued_at</code>, <code>reset_reason</code>, <code>reset_from</code>, mode
-<code>0600</code>, replaced whole and synced. A directory serves the planes of one policy
+by the hex SHA-256 of the id: <code>schema_version</code>, <code>bundle_id</code>, <code>serial</code>, <code>digest</code>,
+<code>issued_at</code>, <code>latest_issued_at</code>, <code>reset_reason</code>, <code>reset_from</code>, mode <code>0600</code>,
+replaced whole and synced. A directory serves the planes of one policy
 authority, and its marker names its kind, a plane's or a signer's; each side
 refuses the other's. <code>guardana-control policy state init --kind plane|signer --bundle-id &lt;id&gt; &lt;dir&gt;</code> creates the directory and marker when absent and that
-id's file holding no serial yet, and refuses a file that exists, so it is
-never a second way to lower a floor. Only
+id's file holding no serial yet, and refuses a file that exists and an id the
+directory has held before, so it is never a second way to lower a floor. Only
 <code>guardana-control policy state reset</code> lowers one, writing the reason and the
 prior value into the file. The plane never creates or lowers a floor, and its
-binary links no code that does: the floor's store sits outside the guarded
-trees behind an interface the policy package declares (invariant 8), and the
-plane raises a floor only upward, under an exclusive lock and against the
-file's value rather than its memory, before it publishes the snapshot that
-raised it; a raise that fails refuses that install, and a floor another plane
-raised past a renewal refuses that renewal.</p>
+binary links no code that does: the floor's store sits outside the guarded trees
+behind an interface the policy package declares (invariant 8), and the plane
+raises a floor only upward, under an exclusive lock and against the file's value
+rather than its memory, before it publishes the snapshot that raised it; a raise
+that fails refuses that install, and a floor another plane raised past a renewal
+refuses that renewal.</p>
 <p><strong>Start.</strong> The plane refuses to start without <code>policy.statement_file</code>,
 <code>policy.state_dir</code>, the freshness key, a marker and the pinned id's floor file;
 <code>policy.statement_file</code> has no default and no setting keeps freshness counted
@@ -183,10 +183,10 @@ machine rolls the floor back with the bundle; a <code>state_dir</code> that does
 survive a restart protects nothing; an account that can write the state
 directory can lower the floor; a statement dated ahead is a valid confirmation
 once its time arrives, so a signer never dates one ahead; a reset made while a
-plane runs is logged at its next start; a signer whose clock runs ahead of a
-plane's makes a restart onto a new bundle fail until the plane's clock catches
-up. A plane whose renewal stops fails closed, stale, at the end of its budget;
-the way to tighten policy at once stays the pause file (ADR-0019).</p>
+plane runs is logged at its next start, the last one only; a signer whose clock
+runs ahead of a plane's makes a restart onto a new bundle fail until the plane's
+clock catches up. A plane whose renewal stops fails closed, stale, at the end of
+its budget; the way to tighten policy at once stays the pause file (ADR-0019).</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
 <ul>
 <li><strong>The times in the policy document.</strong> One file, but every renewal a new
@@ -229,7 +229,8 @@ serial issued before the floor's is accepted and keeps the latest
 bundle without its statement each refuse the start naming both; a removed
 floor file and an empty volume each refuse it; an unconfirmed start runs and
 blocks material calls.</li>
-<li><code>init</code> refuses an existing directory or file; <code>reset</code> records its reason and
+<li><code>init</code> refuses an existing floor file, an id the directory has held and a
+directory of the other kind; <code>reset</code> records its reason and
 prior value; a raise that fails refuses the install; a crash mid-replace
 leaves the old floor or the new.</li>
 <li>Two planes raising one floor never lower it.</li>

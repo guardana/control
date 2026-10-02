@@ -1,0 +1,87 @@
+package policystate
+
+// Error is a refusal by this package, matched with errors.Is. They are
+// constants, so no other code in the binary can reassign one and turn a
+// refusal into a pass.
+type Error string
+
+// Error returns the refusal's text.
+func (e Error) Error() string { return string(e) }
+
+// The vocabulary of the directory.
+const (
+	// ErrClosed is a call on a store nobody opened, or one closed. The zero
+	// Store answers it.
+	ErrClosed Error = "policystate: the directory is not open"
+	// ErrNoLock is a platform with no file lock. Nothing opens a directory
+	// there, since two writers of one floor could not be kept apart.
+	ErrNoLock Error = "policystate: this platform has no file lock"
+	// ErrKind is a kind that is neither KindPlane nor KindSigner.
+	ErrKind Error = "policystate: not a kind of floor directory"
+	// ErrWrongKind is a directory whose marker names the other kind: a
+	// plane's floors are not a signer's, and the reverse.
+	ErrWrongKind Error = "policystate: the directory is the other kind's"
+	// ErrNotStateDir is a path that is not a floor directory: missing, not a
+	// directory, a link, holding no marker, or one this build cannot read.
+	ErrNotStateDir Error = "policystate: not a floor directory"
+	// ErrPermissions is a directory or a file whose mode gives its group or
+	// the world any access.
+	ErrPermissions Error = "policystate: the mode gives the group or the world access"
+	// ErrOwner is a directory or a file this user does not own: its floor
+	// would be another account's word.
+	ErrOwner Error = "policystate: not owned by this user"
+	// ErrDirectoryChanged is a directory that is no longer the one the store
+	// opened: another directory at its name, another owner, or a mode that
+	// gives the group or the world access. Every call judges it first.
+	ErrDirectoryChanged Error = "policystate: the directory changed since it was opened"
+	// ErrForeignFile is a name under the directory this package does not
+	// write, and any entry that is not a regular file whatever its name.
+	ErrForeignFile Error = "policystate: a file under the directory is not the directory's"
+	// ErrTooLarge is a file over the bound every read holds it to.
+	ErrTooLarge Error = "policystate: the file is larger than the bound allows"
+)
+
+// The vocabulary of a floor file.
+const (
+	// ErrNoFloor is a bundle id the directory holds no floor file for. It is
+	// never read as a floor with no serial: a removed file is not a first
+	// start.
+	ErrNoFloor Error = "policystate: no floor file for the bundle id"
+	// ErrMalformed is a file that is not one strict JSON object, or one whose
+	// member holds a value of the wrong type or form.
+	ErrMalformed Error = "policystate: the file is malformed"
+	// ErrUnknownField is a member the format does not have.
+	ErrUnknownField Error = "policystate: the file holds a member the format does not have"
+	// ErrMissingField is a member the format requires that the file lacks.
+	// No member has a default.
+	ErrMissingField Error = "policystate: the file lacks a member the format requires"
+	// ErrDuplicateField is a member named twice, which a reader could take
+	// either way.
+	ErrDuplicateField Error = "policystate: the file names a member twice"
+	// ErrSchemaVersion is a schema version whose major this build does not
+	// read.
+	ErrSchemaVersion Error = "policystate: the schema version is not one this build reads"
+	// ErrUnwritable is a record or a marker the writer would write as bytes
+	// the reader refuses or reads otherwise; nothing is written.
+	ErrUnwritable Error = "policystate: the record would not read back as itself"
+	// ErrNameMismatch is a floor file whose bundle_id is not the id its name
+	// is the hash of.
+	ErrNameMismatch Error = "policystate: the file's name is not the hash of the bundle id it holds"
+)
+
+// The vocabulary of the operator's side.
+const (
+	// ErrExists is Init for a bundle id that has a floor file already. Init
+	// never replaces one, so it is never a second way to lower a floor.
+	ErrExists Error = "policystate: the bundle id has a floor file already"
+	// ErrTooManyBundleIDs is Init of an id past MaxBundleIDs, or a marker
+	// listing more.
+	ErrTooManyBundleIDs Error = "policystate: the directory lists as many bundle ids as it may"
+	// ErrFloorRemoved is Init of an id the marker lists whose file is gone:
+	// making it again would lower the floor with no record, so only Reset
+	// gives it a floor again.
+	ErrFloorRemoved Error = "policystate: the bundle id's floor file was removed; only Reset may give it one again"
+	// ErrReason is a reset with an empty reason, one over MaxReasonBytes, or
+	// one holding a character a log line should not carry.
+	ErrReason Error = "policystate: the reset reason is empty, too long or refused"
+)

@@ -67,22 +67,22 @@ widened to name an unconfirmed snapshot.
 
 **The floor lives on disk.** `policy.state_dir` is a directory the operator
 owns, `0700`, with a marker, holding one strict-JSON file per bundle id, named
-by the hex SHA-256 of the id: `schema_version`, `bundle_id`, `serial`,
-`digest`, `issued_at`, `latest_issued_at`, `reset_reason`, `reset_from`, mode
-`0600`, replaced whole and synced. A directory serves the planes of one policy
+by the hex SHA-256 of the id: `schema_version`, `bundle_id`, `serial`, `digest`,
+`issued_at`, `latest_issued_at`, `reset_reason`, `reset_from`, mode `0600`,
+replaced whole and synced. A directory serves the planes of one policy
 authority, and its marker names its kind, a plane's or a signer's; each side
 refuses the other's. `guardana-control policy state init --kind plane|signer
 --bundle-id <id> <dir>` creates the directory and marker when absent and that
-id's file holding no serial yet, and refuses a file that exists, so it is
-never a second way to lower a floor. Only
+id's file holding no serial yet, and refuses a file that exists and an id the
+directory has held before, so it is never a second way to lower a floor. Only
 `guardana-control policy state reset` lowers one, writing the reason and the
 prior value into the file. The plane never creates or lowers a floor, and its
-binary links no code that does: the floor's store sits outside the guarded
-trees behind an interface the policy package declares (invariant 8), and the
-plane raises a floor only upward, under an exclusive lock and against the
-file's value rather than its memory, before it publishes the snapshot that
-raised it; a raise that fails refuses that install, and a floor another plane
-raised past a renewal refuses that renewal.
+binary links no code that does: the floor's store sits outside the guarded trees
+behind an interface the policy package declares (invariant 8), and the plane
+raises a floor only upward, under an exclusive lock and against the file's value
+rather than its memory, before it publishes the snapshot that raised it; a raise
+that fails refuses that install, and a floor another plane raised past a renewal
+refuses that renewal.
 
 **Start.** The plane refuses to start without `policy.statement_file`,
 `policy.state_dir`, the freshness key, a marker and the pinned id's floor file;
@@ -177,10 +177,10 @@ machine rolls the floor back with the bundle; a `state_dir` that does not
 survive a restart protects nothing; an account that can write the state
 directory can lower the floor; a statement dated ahead is a valid confirmation
 once its time arrives, so a signer never dates one ahead; a reset made while a
-plane runs is logged at its next start; a signer whose clock runs ahead of a
-plane's makes a restart onto a new bundle fail until the plane's clock catches
-up. A plane whose renewal stops fails closed, stale, at the end of its budget;
-the way to tighten policy at once stays the pause file (ADR-0019).
+plane runs is logged at its next start, the last one only; a signer whose clock
+runs ahead of a plane's makes a restart onto a new bundle fail until the plane's
+clock catches up. A plane whose renewal stops fails closed, stale, at the end of
+its budget; the way to tighten policy at once stays the pause file (ADR-0019).
 
 ## Alternatives considered
 
@@ -226,7 +226,8 @@ wherever the freshness key lives.
   bundle without its statement each refuse the start naming both; a removed
   floor file and an empty volume each refuse it; an unconfirmed start runs and
   blocks material calls.
-- `init` refuses an existing directory or file; `reset` records its reason and
+- `init` refuses an existing floor file, an id the directory has held and a
+  directory of the other kind; `reset` records its reason and
   prior value; a raise that fails refuses the install; a crash mid-replace
   leaves the old floor or the new.
 - Two planes raising one floor never lower it.

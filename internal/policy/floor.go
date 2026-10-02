@@ -31,13 +31,17 @@ func EmptyFloor(bundleID string) (Floor, error) {
 	return Floor{bundleID: bundleID}, nil
 }
 
+// maxSerial is the largest serial a statement can carry: its body is
+// canonical JSON, which holds an integer to the JSON-safe range.
+const maxSerial = 1<<53 - 1
+
 // NewFloor is a floor holding a serial, as a store reads it back. It refuses,
 // with ErrFloorInvalid, values no accepted statement could have left.
 func NewFloor(bundleID string, serial int64, digest string, issuedAt, latestIssuedAt time.Time) (Floor, error) {
 	switch {
 	case !isBundleID(bundleID):
 		return Floor{}, fmt.Errorf("%w: the bundle id", ErrFloorInvalid)
-	case serial < 1:
+	case serial < 1 || serial > maxSerial:
 		return Floor{}, fmt.Errorf("%w: the serial", ErrFloorInvalid)
 	case !canon.ValidDigest(digest):
 		return Floor{}, fmt.Errorf("%w: the digest", ErrFloorInvalid)
@@ -158,8 +162,11 @@ type FloorStore interface {
 	// Raise holds the store's exclusive lock while it reads the floor stored
 	// for st's bundle id, computes stored.Raise(st, now), writes the result
 	// durably when it differs from what is stored, and returns it. When
-	// stored.Raise refuses, or the read or the write fails, Raise returns that
-	// error and the stored floor is unchanged. It never lowers a floor.
+	// stored.Raise refuses or the read fails, Raise returns that error and the
+	// stored floor is unchanged. When the write fails, Raise returns that
+	// error and the stored floor may be the raised one: a failed Raise never
+	// lowers a floor and may have raised it, so a caller publishes nothing on
+	// an error.
 	Raise(ctx context.Context, st Statement, now time.Time) (Floor, error)
 }
 

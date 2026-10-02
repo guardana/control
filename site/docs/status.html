@@ -129,6 +129,11 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td><code>internal/policy/rules/</code> parses <code>agent-policy/v1alpha1</code> strictly, <code>internal/policy/bundle/</code> signs and verifies bundle bytes (Ed25519 over the DSSE PAE); <code>internal/policy/match/</code> evaluates three-valued; <code>internal/policy/</code> loads a bundle into a snapshot and installs it once, in order; <a href="/docs/adr/0003-policy-model-and-external-pdp">ADR-0003</a>, <a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a>. A holder pinned to the bundle id it serves refuses every other; a signed expiry and a serial that survives a restart are <code>planned</code></td>
 </tr>
 <tr>
+<td>Policy serial floor on disk</td>
+<td><code>experimental</code></td>
+<td><code>internal/policystate/</code>. One strict-JSON file per bundle id in an owner-only directory whose marker names a plane's or a signer's kind; raised under the directory's lock against the file's value; <code>Init</code> and <code>Reset</code> are the operator's, and the gateway binary holds neither (<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>). No plane or command uses it yet</td>
+</tr>
+<tr>
 <td>External policy decision point (PDP) over AuthZEN, able to veto</td>
 <td><code>experimental</code></td>
 <td><a href="/docs/adr/0017-an-external-decision-point-can-veto">ADR-0017</a>. The kernel takes the answer and the policy format reads it (<code>internal/core/</code>, <code>internal/policy/</code>); <code>adapters/authzen/</code> asks and reads the answer strictly; <code>internal/gateway/</code> asks only when the answer can change the decision; <code>cmd/guardana-gateway</code> configures it from the <code>pdp.</code> keys, checks its published metadata in <code>doctor</code> and counts the asks on <code>/healthz</code>. The end-to-end tests reach a decision point on the loopback over plaintext; TLS is exercised in the adapter's own tests, against the roots a test hands it, and the command has no setting for a private certificate authority</td>
