@@ -299,9 +299,20 @@ func loadChecks() []error {
 }
 
 // sentinels are every refusal the package names: Load's, then Sign's and
-// Install's own.
+// Install's own, then the statement's and the floor's.
 func sentinels() []error {
-	return append(loadChecks(), policy.ErrSigningKey, policy.ErrRollback, policy.ErrSerialReused, policy.ErrBundlePin)
+	all := append(loadChecks(), policy.ErrSigningKey, policy.ErrRollback, policy.ErrSerialReused, policy.ErrBundlePin)
+	all = append(all, statementSentinels()...)
+	return append(all, floorSentinels()...)
+}
+
+// floorSentinels are the floor's and the confirming holder's refusals.
+func floorSentinels() []error {
+	return []error{
+		policy.ErrFloorInvalid, policy.ErrFloorBundle, policy.ErrStatementFuture, policy.ErrClockBehindFloor,
+		policy.ErrBelowFloor, policy.ErrFloorSerialReused, policy.ErrAboveFloorUnbound, policy.ErrStatementMissing,
+		policy.ErrStatementUnbound, policy.ErrFloorRaise, policy.ErrNoFloorStore, policy.ErrStatementOnly,
+	}
 }
 
 // expectOnly fails unless err is the refusal want, and none of the others.

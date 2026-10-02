@@ -5,6 +5,11 @@ Date: 2026-09-11
 
 Amends [ADR-0003](0003-policy-model-and-external-pdp.md).
 
+Amended by [ADR-0038](0038-a-signed-freshness-statement-and-a-serial-floor.md),
+which decides that a bundle is confirmed current by a signed freshness
+statement, never by being read again, and that the serial floor outlives the
+process; [status.md](../status.md) says how much of it a plane does today.
+
 ## Context
 
 ADR-0003 chose structured predicates and deny-overrides, and left the exact

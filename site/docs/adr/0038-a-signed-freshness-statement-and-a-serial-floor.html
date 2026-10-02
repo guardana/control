@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0038: A signed freshness statement and a serial floor that outlives the process · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0038-a-signed-freshness-statement-and-a-serial-floor-that-outlives-the-process">ADR-0038: A signed freshness statement and a serial floor that outlives the process</h1>
+<p>Status: accepted
+Date: 2026-10-02</p>
+<p>Amends <a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a> and
+<a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>. Builds on
+<a href="/docs/adr/0010-digest-domain-separation">ADR-0010</a>,
+<a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</a> and
+<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>.</p>
+<h2 id="context">Context</h2>
+<p>A plane reads its bundle once, at start. Installing the same bundle again
+moves its confirmation to the caller's clock, so &quot;confirmed current&quot; means
+&quot;read again&quot;, which proves nothing about whether it is still the latest
+policy. The staleness budget counts from that reading, so every plane turns
+<code>POLICY_STALE</code> some minutes after it starts and stays so until it is
+restarted. The rule that refuses a lower serial lives in memory: after a
+restart any serial ever signed under the pinned key is taken.</p>
+<p>A signature proves who wrote a bundle. Freshness needs a second, signed
+fact: that the bundle was current at a stated time. Putting that time in the
+policy document would give every renewal a new digest and serial, so every
+pending approval, bound to the bundle's digest, would fail. Putting it in the
+protobuf bundle would add an unsigned field, since the signature covers the
+document's canonical bytes alone. And a renewal every few minutes needs its
+key online, which ADR-0018 keeps the policy key from being.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>A bundle says who wrote a policy; a freshness statement says it was current
+at a signed time.</strong> A statement is a DSSE JSON envelope with payload type
+<code>application/vnd.agent-policy-freshness+json</code> and exactly one signature. It is
+signed by the freshness key the plane pins, <code>policy.freshness_key_id</code> and
+<code>policy.freshness_public_key</code>, which may be the bundle's key and need not be.
+The envelope is decoded outside the guarded trees; the policy package receives
+its payload type, payload and signature as bytes, refuses another payload
+type, and verifies over the pre-authentication encoding of the fixed type, so
+a statement's signature never verifies as a bundle's or the reverse. <code>keyid</code>
+selects a pinned key and is never trusted alone. The envelope refuses an
+unknown or repeated key and reads standard base64 only. The body is strict JSON,
+<code>{&quot;kind&quot;:&quot;agent-policy-freshness/v1alpha1&quot;,&quot;bundleId&quot;,&quot;serial&quot;,&quot;digest&quot;,&quot;issuedAt&quot;}</code>:
+another kind, an unknown or repeated key, or a file over 4 KiB is refused, and
+<code>issuedAt</code> has one spelling, <code>YYYY-MM-DDTHH:MM:SSZ</code>.</p>
+<p><strong>Statements are ordered, and the floor records the newest.</strong> Statements for
+one bundle id are ordered by serial, then by <code>issuedAt</code>. The floor holds the
+newest accepted statement's bundle id, serial, digest and <code>issuedAt</code>, and the
+latest <code>issuedAt</code> any accepted statement carried; every accepted statement
+raises it, a renewal included. A statement at or below the
+floor's (serial, <code>issuedAt</code>), other than the floor's own, is refused, as is one
+that names the floor's serial with another digest. Only a statement-confirmed
+install raises the floor.</p>
+<p><strong>A snapshot is confirmed only by a statement.</strong> Its confirmation is the
+<code>issuedAt</code> of the accepted statement bound to the installed bundle by id,
+serial and digest; installing a bundle never moves it. It expires at that time
+plus the smaller of the document's <code>maxStaleSeconds</code> and <code>policy.max_stale</code>. A
+snapshot with no accepted statement is unconfirmed: its decisions carry the
+zero time as <code>policy_loaded_at</code>, and the kernel decides every call that reaches
+the freshness check <code>POLICY_STALE</code>, as it does for an old confirmation, so a
+material call is blocked and a read runs only under <code>policy.fail_open_read</code>.
+The kernel, the reason codes' identifiers and numbers, the wire contract, the
+digest and the document format do not change; <code>POLICY_STALE</code>'s summary is
+widened to name an unconfirmed snapshot.</p>
+<p><strong>The floor lives on disk.</strong> <code>policy.state_dir</code> is a directory the operator
+owns, <code>0700</code>, with a marker, holding one strict-JSON file per bundle id, named
+by the hex SHA-256 of the id: <code>schema_version</code>, <code>bundle_id</code>, <code>serial</code>,
+<code>digest</code>, <code>issued_at</code>, <code>latest_issued_at</code>, <code>reset_reason</code>, <code>reset_from</code>, mode
+<code>0600</code>, replaced whole and synced. A directory serves the planes of one policy
+authority, and its marker names its kind, a plane's or a signer's; each side
+refuses the other's. <code>guardana-control policy state init --kind plane|signer --bundle-id &lt;id&gt; &lt;dir&gt;</code> creates the directory and marker when absent and that
+id's file holding no serial yet, and refuses a file that exists, so it is
+never a second way to lower a floor. Only
+<code>guardana-control policy state reset</code> lowers one, writing the reason and the
+prior value into the file. The plane never creates or lowers a floor, and its
+binary links no code that does: the floor's store sits outside the guarded
+trees behind an interface the policy package declares (invariant 8), and the
+plane raises a floor only upward, under an exclusive lock and against the
+file's value rather than its memory, before it publishes the snapshot that
+raised it; a raise that fails refuses that install, and a floor another plane
+raised past a renewal refuses that renewal.</p>
+<p><strong>Start.</strong> The plane refuses to start without <code>policy.statement_file</code>,
+<code>policy.state_dir</code>, the freshness key, a marker and the pinned id's floor file;
+<code>policy.statement_file</code> has no default and no setting keeps freshness counted
+from the start (ADR-0032's rule for the mode). With the floor holding no serial
+yet, the bundle on disk is installed, confirmed if a statement is bound to it,
+unconfirmed if not. With a floor, a bundle of a lower serial, or of the floor's
+serial with another digest, refuses the start naming both; a bundle of a higher
+serial is installed only with a statement bound to it, and refuses the start
+without one, since the bundle file alone may not choose the policy that governs
+fail-open reads; the floor's own bundle starts confirmed by its statement or
+unconfirmed. A higher bundle whose statement cannot be accepted yet, dated after
+the plane's clock or with the clock behind the floor's latest <code>issuedAt</code>,
+refuses the start as one without its statement does; the floor's own bundle in
+that case starts unconfirmed. A start that is unconfirmed or expired is not
+refused: the plane runs and blocks material calls until a statement arrives.</p>
+<p><strong>Refresh.</strong> Every <code>policy.poll_interval</code> the plane reads both files again. It
+may keep the verdicts that no clock or state changes, the parse, the signature
+and the digest, for bytes it has judged; the time, floor and pairing checks run
+at every poll. The interval is at least one second and must be shorter than
+<code>policy.max_stale</code>, and a bundle whose effective budget is not longer than the
+interval is refused. A new bundle whose statement still names the old one is
+awaiting its statement, and a statement naming a bundle not yet on disk is
+awaiting its bundle; each is counted apart and tried again at the next poll, and
+the current snapshot stays. An operator deploys the statement before the bundle,
+so a plane started in between finds the floor's own bundle without its statement
+and starts unconfirmed rather than refused. A torn, unsigned, wrong-key,
+wrong-id, lower, same-serial other-digest, future-dated, at-or-below-the-floor
+or expired replacement is refused: the last good snapshot stays, the refusal is
+logged and counted by cause, and the confirmation does not move.</p>
+<p><strong>The clock.</strong> A clock that reads before the confirmation is stale, as today. A
+statement dated after the plane's clock is refused until the clock reaches it.
+The plane keeps a mark: the highest offset it has seen between its wall clock
+and its monotonic clock, lowered by 100 parts per million of the monotonic
+time since it was seen, so ordinary drift passes. While the wall clock stands
+more than one second below the mark, in one step or many, the snapshot is
+unconfirmed and no statement is accepted, the floor's own included. A clock
+set back so extends freshness by at most one poll interval, one second and
+that drift, however many statements arrive meanwhile; a clock corrected back
+after running ahead leaves the plane stale until the mark comes down to it or
+the plane restarts. The kernel stays deterministic: the refresher holds both
+readings and only confirms or unconfirms.</p>
+<p><strong>What says so.</strong> <code>/healthz</code> carries <code>policy.freshness</code>, <code>confirmed</code>,
+<code>unconfirmed</code> or <code>expired</code>, with the confirmation and expiry times; a plane
+that is not confirmed reports <code>&quot;status&quot;:&quot;degraded&quot;</code> with HTTP 200, never <code>ok</code>
+and never the 503 a halted plane gives, since a restart cannot fix it. Halted
+wins over degraded, and an unconfirmed snapshot is never one of the problems
+that halt a plane. <code>/metrics</code> carries the freshness state and the seconds left
+before expiry, so an alert can fire before the budget runs out, and the
+scenario runner refuses a plane that is not confirmed.
+<code>guardana-gateway doctor</code> reads the floor without raising it, and its policy
+line fails for a missing, expired, future-dated or unbound statement and for a
+bundle below or beside the floor.</p>
+<p><strong>Commands.</strong> <code>guardana-control policy renew --key &lt;freshness key&gt; --bundle &lt;file&gt; --bundle-public-key &lt;file&gt; --floor &lt;dir&gt; --out &lt;file&gt;</code> verifies the
+bundle under the bundle's key, refuses to vouch for a bundle below its own
+floor, a directory <code>policy state init --kind signer</code> makes, raises it, and
+writes a statement printing <code>bundle_id</code>, <code>serial</code>, <code>digest</code> and <code>issued_at</code>.
+The bundle it reads must be the authority's own copy, not the one a plane is
+served, and its floor directory is a signer's. <code>renew</code> is the only command that
+writes a statement: <code>policy sign</code> writes a bundle and nothing else. <code>renew</code>
+replaces an output only when it is absent or already holds a freshness
+statement, refuses a path holding a key or a bundle, and writes by rename, so a
+reader sees the old file or the new.</p>
+<p><strong>Dev.</strong> <code>dev</code> initialises the floor in its own state directory through the
+<code>guardana-control</code> beside it, draws a freshness key apart from its bundle key,
+drops the bundle key once the bundle is signed as today, holds only the
+freshness key for the session, never writes either, and renews the statement
+every third of the budget through the same files. A renewal changes
+no digest, so scenarios keep their verdicts and bundle digest.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>Every plane configuration needs <code>policy.statement_file</code>, <code>policy.state_dir</code>,
+<code>policy.poll_interval</code> and the freshness key, and an initialised floor, before
+it starts: a configuration from an earlier release is refused with the
+missing key named. With a freshness key apart from the bundle key, the policy
+key can stay offline and a renewal job holds only a key that can vouch for
+bundles the authority signed.</p>
+<p>What it does not protect, stated rather than implied: while a floor holds no
+serial yet, the bundle on disk chooses the policy that governs fail-open reads,
+unconfirmed, until the first statement; a plane restarted with its clock set
+back to within the budget of the floor's statement is confirmed by it again,
+which only a trusted time source would prevent; a restore of the volume or
+machine rolls the floor back with the bundle; a <code>state_dir</code> that does not
+survive a restart protects nothing; an account that can write the state
+directory can lower the floor; a statement dated ahead is a valid confirmation
+once its time arrives, so a signer never dates one ahead; a reset made while a
+plane runs is logged at its next start; a signer whose clock runs ahead of a
+plane's makes a restart onto a new bundle fail until the plane's clock catches
+up. A plane whose renewal stops fails closed, stale, at the end of its budget;
+the way to tighten policy at once stays the pause file (ADR-0019).</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>The times in the policy document.</strong> One file, but every renewal a new
+digest and serial, which ends every pending approval, and <code>sign</code> would
+rewrite the author's bytes.</li>
+<li><strong>A new protobuf wrapper carrying a signed time.</strong> One file, but an addition
+to the frozen contract, a new bundle file format and a re-sign for every
+operator.</li>
+<li><strong>The bundle's key signs statements.</strong> No new key, but the policy key online
+for every renewal, and a second configuration break when the two separate.</li>
+<li><strong>Keep freshness counted from the start, behind a risk setting.</strong> It keeps
+the property this record removes.</li>
+<li><strong>Let the plane create an empty floor.</strong> A removed floor would read as a
+first start, and the rollback it guards against would pass.</li>
+<li><strong>Refuse to start without a valid statement.</strong> No plane could then run in
+its blocking state while a renewal is fixed.</li>
+<li><strong>A policy-reload event in the trail.</strong> The evidence contract scopes every
+event to a request; a reload shows in each decision's bundle digest, in logs
+and in counters, and a renewal in <code>policy_loaded_at</code>.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>ADR-0012's &quot;confirmed current means delivered again&quot; and &quot;per process&quot;, and
+ADR-0018's rollback across a restart, no longer hold. An operator renews
+statements on a schedule shorter than the budget less one poll interval, from
+wherever the freshness key lives.</p>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>Installing the same digest twice leaves the confirmation where it was.</li>
+<li>A statement verifies under its payload type only, and a bundle's signature
+never verifies as a statement's, or the reverse.</li>
+<li>The body: another kind, an unknown or repeated key, another spelling of
+<code>issuedAt</code> and an oversized file are each refused.</li>
+<li>A table of every refused replacement: the last good snapshot kept, the
+confirmation unmoved, the counter by cause; an unpaired bundle awaits its
+statement and is installed when it arrives.</li>
+<li>Ordering: a renewal raises the floor's <code>issuedAt</code>; a statement for a higher
+serial issued before the floor's is accepted and keeps the latest
+<code>issuedAt</code>; one at or below the floor is refused.</li>
+<li>Start: a lower bundle, the floor's serial with another digest, and a higher
+bundle without its statement each refuse the start naming both; a removed
+floor file and an empty volume each refuse it; an unconfirmed start runs and
+blocks material calls.</li>
+<li><code>init</code> refuses an existing directory or file; <code>reset</code> records its reason and
+prior value; a raise that fails refuses the install; a crash mid-replace
+leaves the old floor or the new.</li>
+<li>Two planes raising one floor never lower it.</li>
+<li>A wall clock moved back over a second unconfirms the snapshot; under a
+second it does not; a clock earlier than the floor's latest <code>issuedAt</code> at
+start leaves the floor's own bundle unconfirmed.</li>
+<li><code>/healthz</code> reports <code>degraded</code> and the freshness state; <code>doctor</code> fails each
+listed case and leaves the floor's bytes and time unchanged.</li>
+<li>The poll interval and the budget: an interval not shorter than the budget is
+refused at load or at install.</li>
+<li>A statement first seen dated ahead is accepted, its bytes unchanged, once
+the clock reaches its time; a floor raise that failed is tried again.</li>
+<li>Steps of 0.9 s back, repeated past one second in all, unconfirm, and a
+newer statement is not accepted until the clock is back within the mark;
+drift under 100 parts per million unconfirms nothing.</li>
+<li>A plane's floor directory refused by <code>renew</code>, and a signer's by a plane.</li>
+<li><code>/healthz</code> stays <code>halted</code> when halted and unconfirmed; <code>/metrics</code> reports
+the freshness state and the seconds left.</li>
+<li><code>renew</code> refuses a bundle below its floor and one that does not verify.</li>
+<li>The plane's binary holds no floor initialiser or lowerer.</li>
+<li>A dev scenario that runs past the budget stays fresh, with the same verdicts
+and bundle digest.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor.md">docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

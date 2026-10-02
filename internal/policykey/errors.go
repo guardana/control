@@ -49,3 +49,26 @@ const (
 	ErrKeyText Error = "policykey: an argument holds a PEM marker, a key file's body line, a line break or another control character, " +
 		"which no argument takes; the argument is not repeated here"
 )
+
+// The statement file's refusals (ADR-0038). None quotes the file.
+const (
+	// ErrStatementFileTooLarge is a statement file over MaxStatementFileBytes.
+	ErrStatementFileTooLarge Error = "policykey: the statement file is over its bound"
+	// ErrStatementEnvelope is a statement file that is not one strict JSON
+	// object of the DSSE envelope's shape: a syntax error, trailing data,
+	// invalid UTF-8, an unpaired surrogate or a value of the wrong type.
+	ErrStatementEnvelope Error = "policykey: the statement file is not a DSSE envelope in strict JSON"
+	// ErrStatementEnvelopeMember is an envelope or signature member the DSSE
+	// envelope does not have, or one it requires and the file lacks.
+	ErrStatementEnvelopeMember Error = "policykey: the statement file holds a member the envelope does not have, or lacks one it requires"
+	// ErrStatementEnvelopeRepeated is an envelope or signature member named
+	// twice.
+	ErrStatementEnvelopeRepeated Error = "policykey: the statement file names a member twice"
+	// ErrStatementBase64 is a payload or sig that is not standard base64 in
+	// the one spelling it encodes back to.
+	ErrStatementBase64 Error = "policykey: a payload or sig is not standard base64"
+	// ErrStatementOut is a statement output path that holds something other
+	// than a freshness statement: a key, a bundle, a link, a directory or any
+	// other file. Only a statement is ever replaced.
+	ErrStatementOut Error = "policykey: the path holds something other than a freshness statement, which is the only file a statement replaces"
+)

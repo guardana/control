@@ -29,6 +29,10 @@
 <p>Status: accepted
 Date: 2026-09-11</p>
 <p>Amends <a href="/docs/adr/0003-policy-model-and-external-pdp">ADR-0003</a>.</p>
+<p>Amended by <a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>,
+which decides that a bundle is confirmed current by a signed freshness
+statement, never by being read again, and that the serial floor outlives the
+process; <a href="/docs/status">status.md</a> says how much of it a plane does today.</p>
 <h2 id="context">Context</h2>
 <p>ADR-0003 chose structured predicates and deny-overrides, and left the exact
 fail-closed mapping open. ADR-0011 settled what the wire says. What is

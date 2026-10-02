@@ -33,8 +33,10 @@ func (s *Snapshot) Ref() *controlv1.PolicyBundleRef {
 	return proto.CloneOf(s.ref)
 }
 
-// ConfirmedAt is when the bundle was last confirmed current: the time handed
-// to the Load, or the Install, that made this snapshot.
+// ConfirmedAt is when the bundle was last confirmed current. On a snapshot a
+// statement confirmed it is that statement's issuedAt, and on an unconfirmed
+// one the zero time, which the kernel decides stale; on one Load or Install
+// made it is the time handed to them.
 func (s *Snapshot) ConfirmedAt() time.Time {
 	if s == nil {
 		return time.Time{}

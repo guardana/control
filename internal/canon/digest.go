@@ -165,7 +165,7 @@ func ApprovalBinding(actionDigest, bundleDigest string) (string, error) {
 		{"action", actionDigest},
 		{"bundle", bundleDigest},
 	} {
-		if !validDigest(input.value) {
+		if !ValidDigest(input.value) {
 			return "", fmt.Errorf("%w: the %s digest is not %s and %d lowercase hex digits",
 				ErrMalformedDigest, input.name, digestPrefix, digestHexLen)
 		}
@@ -228,7 +228,9 @@ func enumName(names map[int32]string, number int32, pointer string) (string, err
 	return name, nil
 }
 
-func validDigest(digest string) bool {
+// ValidDigest reports whether digest is "sha256:" and 64 lowercase hex
+// digits, the one spelling a digest of this package or a bundle's takes.
+func ValidDigest(digest string) bool {
 	hexPart, ok := strings.CutPrefix(digest, digestPrefix)
 	if !ok || len(hexPart) != digestHexLen {
 		return false

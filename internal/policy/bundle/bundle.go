@@ -16,6 +16,11 @@ const (
 	// It carries no product name, for ADR-0010's reason.
 	PayloadType = "application/vnd.agent-policy+json"
 
+	// StatementPayloadType is the DSSE payload type a freshness statement is
+	// signed under (ADR-0038). It differs from PayloadType, so a signature
+	// made for one never verifies as the other's.
+	StatementPayloadType = "application/vnd.agent-policy-freshness+json"
+
 	// SignatureAlg is the only value PolicyBundle.signature_alg may hold. It
 	// selects nothing.
 	SignatureAlg = "ed25519-dsse"
@@ -76,9 +81,15 @@ func Digest(canonical []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// SignBytes signs the pre-authentication encoding of canonical. It refuses a
-// key of the wrong size, and a key whose public half is not its seed's.
+// SignBytes signs the pre-authentication encoding of canonical under
+// PayloadType. It refuses a key of the wrong size, and a key whose public half
+// is not its seed's.
 func SignBytes(canonical []byte, key ed25519.PrivateKey) ([]byte, error) {
+	return SignBytesAs(PayloadType, canonical, key)
+}
+
+// SignBytesAs is SignBytes under payloadType.
+func SignBytesAs(payloadType string, canonical []byte, key ed25519.PrivateKey) ([]byte, error) {
 	if len(key) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("%w: a private key of %d bytes, want %d", ErrKeySize, len(key), ed25519.PrivateKeySize)
 	}
@@ -91,7 +102,7 @@ func SignBytes(canonical []byte, key ed25519.PrivateKey) ([]byte, error) {
 	if subtle.ConstantTimeCompare(derived, key) != 1 {
 		return nil, ErrKeyPair
 	}
-	return ed25519.Sign(derived, PAE(PayloadType, canonical)), nil
+	return ed25519.Sign(derived, PAE(payloadType, canonical)), nil
 }
 
 // VerifyBytes verifies a signature over the pre-authentication encoding of
@@ -102,6 +113,12 @@ func SignBytes(canonical []byte, key ed25519.PrivateKey) ([]byte, error) {
 // the curve is refused as ErrSignature: the library refuses it inside Verify
 // without saying which of the two it refused.
 func VerifyBytes(canonical, signature []byte, keyID string, keys Keyring) error {
+	return VerifyBytesAs(PayloadType, canonical, signature, keyID, keys)
+}
+
+// VerifyBytesAs is VerifyBytes under payloadType: a signature made under
+// another type never verifies here.
+func VerifyBytesAs(payloadType string, canonical, signature []byte, keyID string, keys Keyring) error {
 	key, ok := keys[keyID]
 	if !ok || keyID == "" {
 		return ErrUnknownKey
@@ -116,7 +133,7 @@ func VerifyBytes(canonical, signature []byte, keyID string, keys Keyring) error 
 	if smallOrder(pub) {
 		return ErrWeakKey
 	}
-	if !ed25519.Verify(pub[:], PAE(PayloadType, canonical), signature) {
+	if !ed25519.Verify(pub[:], PAE(payloadType, canonical), signature) {
 		return ErrSignature
 	}
 	return nil

@@ -39,6 +39,7 @@
   <url><loc>https://control.guardana.dev/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0036-policy-explain-reads-the-kernels-own-evaluation</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor</loc></url>
   <url><loc>https://control.guardana.dev/docs/backlog</loc></url>
   <url><loc>https://control.guardana.dev/docs/changelog</loc></url>
   <url><loc>https://control.guardana.dev/docs/concepts/approvals-and-the-held-call</loc></url>

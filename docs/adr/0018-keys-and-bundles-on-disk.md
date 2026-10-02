@@ -7,6 +7,11 @@ Builds on [ADR-0007](0007-repository-layout-and-dependency-rule.md),
 [ADR-0011](0011-contract-corrections-before-publication.md) and
 [ADR-0016](0016-approval-providers-and-the-lost-hold.md).
 
+Amended by [ADR-0038](0038-a-signed-freshness-statement-and-a-serial-floor.md),
+which decides that a serial floor on disk stops a rollback across a restart and
+that a freshness key signs the statements that keep a bundle current;
+[status.md](../status.md) says how much of it a plane does today.
+
 ## Context
 
 ADR-0011 fixed how a bundle is signed: Ed25519 over DSSE's pre-authentication
