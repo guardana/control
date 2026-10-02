@@ -104,6 +104,13 @@ func (p *Program) ReadsExternal() bool {
 // Evaluate decides one envelope against the program. It has no error to
 // return: an input it cannot read makes a constraint unknown, never false.
 func (p *Program) Evaluate(env *controlv1.ActionEnvelope, in Inputs) Result {
+	return p.evaluate(env, in, nil)
+}
+
+// evaluate is the one evaluation Evaluate and Explain share, so that an
+// explanation never describes a result the decision path did not reach. A
+// rule's trace is taken after its value and changes nothing the tally reads.
+func (p *Program) evaluate(env *controlv1.ActionEnvelope, in Inputs, traces *[]RuleTrace) Result {
 	if p == nil || !p.compiled {
 		return unavailable()
 	}
@@ -112,6 +119,9 @@ func (p *Program) Evaluate(env *controlv1.ActionEnvelope, in Inputs) Result {
 		r := &p.rules[i]
 		v, turns := r.holds(env, &in)
 		t.record(r, v, turns)
+		if traces != nil {
+			*traces = append(*traces, r.trace(env, &in, v))
+		}
 	}
 	return t.result()
 }

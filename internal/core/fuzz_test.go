@@ -24,7 +24,7 @@ import (
 // was needed, one that is no answer or a denial blocks and never allows. The
 // envelope goes in both ways, as the strict decoder's result with its refusal
 // beside it and as the decoded message alone, which makes Decide validate it
-// itself.
+// itself. Explain has to decide each exactly as Decide does.
 func FuzzDecide(f *testing.F) {
 	for _, c := range readFixtures(f) {
 		f.Add(c.envelope, []byte(c.args), c.document, c.flow.UntrustedInfluence, int32(c.flow.MaxSensitivityRead),
@@ -57,6 +57,10 @@ func FuzzDecide(f *testing.F) {
 			second := k.Decide(context.Background(), req, snap)
 			if first.Action != second.Action || !proto.Equal(first.Decision, second.Decision) {
 				t.Fatalf("decided differently: %v then %v", first, second)
+			}
+			explained, _ := k.Explain(context.Background(), req, snap)
+			if first.Action != explained.Action || first.NeedsExternal != explained.NeedsExternal || !proto.Equal(first.Decision, explained.Decision) {
+				t.Fatalf("Explain decided otherwise: %v, and Decide %v", explained, first)
 			}
 		}
 	})

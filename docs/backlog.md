@@ -32,7 +32,6 @@ wait for a fleet to address it.
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
 | B06 | Connect an existing MCP setup | none | Copyable client/server instructions and a local profile work with an independently maintained server. Classification remains operator-owned; missing classification and unsupported methods are visible. At least three new users attempt the guide; time and help are recorded |
-| B07 | Explain decisions and ship tested starter packs | B00 | `policy explain` exposes matched rule ids, missing inputs, mode and policy digest with bounded output; read-only and approval-for-writes packs include allow/deny/unknown scenarios. Their assumptions and coverage are documented |
 
 ## Milestone 2: runs and evidence other tools can read
 

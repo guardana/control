@@ -29,7 +29,10 @@ type testCase struct {
 	loadedAt       time.Time
 	decidedAt      time.Time
 	external       core.External
-	expect         outcome
+	// externalName is the external member as the case spells it.
+	externalName string
+	expect       outcome
+	hasExpect    bool
 }
 
 // outcome is what a case expects, and what a decision gave.
@@ -50,8 +53,19 @@ var actions = map[string]core.EnforcementAction{
 // readCase reads one case strictly: every member but external present, each
 // spelled exactly, none the format does not have, none twice, nothing after
 // the object. A refusal names the member it is about.
-func readCase(raw []byte) (*testCase, error) {
-	m, err := object(raw, "", []string{"external"}, "document", "envelope", "authorized_args", "flow", "options", "loaded_at", "decided_at", "expect")
+func readCase(raw []byte) (*testCase, error) { return readCaseExpecting(raw, true) }
+
+// readCaseExpecting is readCase with expect optional when expectRequired is
+// false, as `policy explain` reads a case.
+func readCaseExpecting(raw []byte, expectRequired bool) (*testCase, error) {
+	required := []string{"document", "envelope", "authorized_args", "flow", "options", "loaded_at", "decided_at"}
+	optional := []string{"external"}
+	if expectRequired {
+		required = append(required, "expect")
+	} else {
+		optional = append(optional, "expect")
+	}
+	m, err := object(raw, "", optional, required...)
 	if err != nil {
 		return nil, err
 	}
@@ -64,8 +78,10 @@ func readCase(raw []byte) (*testCase, error) {
 	c.options = r.options(m["options"])
 	c.loadedAt = r.time(m, "", "loaded_at")
 	c.decidedAt = r.time(m, "", "decided_at")
-	c.external = r.external(m, "external")
-	c.expect = r.expect(m["expect"])
+	c.external, c.externalName = r.external(m, "external")
+	if _, stated := m["expect"]; stated {
+		c.expect, c.hasExpect = r.expect(m["expect"]), true
+	}
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -291,20 +307,24 @@ var externals = map[string]core.External{
 	"answer_refused":          core.ExternalAnswerRefused(),
 }
 
-func (r *reader) external(m map[string]json.RawMessage, key string) core.External {
+// external reads the answer and its name, "not asked" when the case states
+// none. A name outside externals is refused, so the name is never the case's
+// free text.
+func (r *reader) external(m map[string]json.RawMessage, key string) (core.External, string) {
 	if _, stated := m[key]; !stated {
-		return core.External{}
+		return core.External{}, "not asked"
 	}
 	var name string
 	if err := json.Unmarshal(m[key], &name); err != nil {
 		r.refuse("", key, errors.New("want a string"))
-		return core.External{}
+		return core.External{}, ""
 	}
 	e, known := externals[name]
 	if !known {
 		r.refuse("", key, errors.New("want allowed, denied, denied_with_obligations, timeout, unavailable or answer_refused"))
+		return core.External{}, ""
 	}
-	return e
+	return e, name
 }
 
 // enumNumber finds a value by its name without the prefix, spelled exactly.

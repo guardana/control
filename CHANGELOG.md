@@ -11,6 +11,22 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- `guardana-control policy explain <case>` decides one case as `policy test`
+  does and says how: the decision's verdict, action, mode, policy digest and
+  codes, what the kernel found before the policy, and a line per rule, matched,
+  undetermined with the field it could not read and the input that field
+  lacked, or not matched on the fields that failed. It reads the kernel's own
+  evaluation, so it never describes a decision the kernel would not make for
+  the same case
+  ([ADR-0036](docs/adr/0036-policy-explain-reads-the-kernels-own-evaluation.md),
+  [reference/policy-explain.md](docs/reference/policy-explain.md)).
+- Two starter policy packs under `examples/starter-packs/`, read-only and
+  approval-for-writes, each a document with allow, deny and unknown cases, and
+  a page that says what each assumes about the plane and leaves unguarded
+  ([reference/starter-packs.md](docs/reference/starter-packs.md)).
+
 ## [0.4.0-alpha] - 2026-10-01
 
 An operator can now open runs for an agent, and a plane with `runs.dir`

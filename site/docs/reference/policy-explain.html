@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Policy explain · Guardana Control</title>
+<meta name="description" content="What `guardana-control policy explain` reads, every line it prints, which rule decided and which input a rule could not read, and its bounds."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/policy-explain"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="policy-explain">Policy explain</h1>
+<p><code>guardana-control policy explain &lt;case&gt;</code> decides one case the way <code>policy test</code>
+does and prints how: the decision, what the kernel found before the policy,
+and how each rule read the call. It is <code>implemented</code>. Why it reads the kernel's
+own evaluation, and nothing beside it, is
+<a href="/docs/adr/0036-policy-explain-reads-the-kernels-own-evaluation">ADR-0036</a>.</p>
+<h2 id="what-it-reads">What it reads</h2>
+<p>One case file in the format of
+<a href="/docs/reference/policy-format#a-test-case">policy-format.md</a>, with <code>expect</code> optional. The
+document is signed in memory, loaded at <code>loaded_at</code> and decided at
+<code>decided_at</code>, exactly as <code>policy test</code> decides it, and the decision printed is
+the one <code>policy test</code> compares. When the case has <code>expect</code>, the last line says
+whether the decision met it.</p>
+<pre><code>$ guardana-control policy explain examples/starter-packs/approval-for-writes/cases/unknown-message-after-untrusted-input.json
+verdict: INDETERMINATE
+kernel_action: Block
+enforcement_mode: ENFORCE
+bundle: &#34;starter-approval-for-writes&#34; &#34;1&#34;
+policy_digest: sha256:&lt;64 hex digits&gt;
+freshness: FRESH
+reason_codes: APPROVAL_REQUIRED RULE_UNDETERMINED
+refused: no
+tenant_unstated: none
+delegation: absent
+external: not asked
+rules: 4 read; 1 matched, 1 undetermined, 0 allow undetermined, 2 not matched
+rule &#34;writes-need-approval&#34; REQUIRE_APPROVAL matched
+rule &#34;no-sensitive-messages-out&#34; DENY undetermined: when.flow.toxicAtLeast needs data.sensitivities
+rule &#34;no-deletes-in-prod&#34; DENY not matched: when.action.effect
+rule &#34;allow-reads&#34; ALLOW not matched: when.action.effect
+expect: met
+</code></pre>
+<p>The message would be held for approval, but one rule could not be told: the
+run took in untrusted content, the destination is untrusted, and nothing says
+how sensitive the message is. An undetermined <code>DENY</code> outranks the approval, so
+the call is blocked before anyone is asked.</p>
+<h2 id="the-lines">The lines</h2>
+<table>
+<thead>
+<tr>
+<th>Line</th>
+<th>Says</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>verdict</code></td>
+<td>The decision's verdict.</td>
+</tr>
+<tr>
+<td><code>kernel_action</code></td>
+<td>What the kernel asks the enforcement point to do: <code>Block</code>, <code>Execute</code>, <code>ExecuteWithObligations</code> or <code>AwaitApproval</code>.</td>
+</tr>
+<tr>
+<td><code>enforcement_mode</code></td>
+<td>The decision's own mode, always <code>ENFORCE</code>. A plane's mode acts on the decision after it is made, and this command does not know it: under <code>OBSERVE</code> a blocked call runs and is recorded (<a href="/docs/concepts/enforcement-modes">enforcement modes</a>).</td>
+</tr>
+<tr>
+<td><code>bundle</code></td>
+<td>The bundle's id and version, quoted.</td>
+</tr>
+<tr>
+<td><code>policy_digest</code></td>
+<td>The digest the decision names.</td>
+</tr>
+<tr>
+<td><code>freshness</code></td>
+<td><code>FRESH</code>, or <code>STALE</code> when the policy is older than the smaller of the document's and the options' budgets, or was loaded after the decision time.</td>
+</tr>
+<tr>
+<td><code>reason_codes</code></td>
+<td>The decision's codes, in order (<a href="/docs/reference/reason-codes">reason codes</a>).</td>
+</tr>
+<tr>
+<td><code>refused</code></td>
+<td><code>no</code>; the envelope field whose refusal stopped the decision before the policy; or <code>yes, naming no field</code> when the refusal is about the message as a whole or its arguments, which the codes tell apart. The refusal's own message is never printed: it can quote the input.</td>
+</tr>
+<tr>
+<td><code>tenant_unstated</code></td>
+<td><code>none</code>, or the tenant field a material call left out while the other side named one (<code>TENANT_UNDETERMINED</code>).</td>
+</tr>
+<tr>
+<td><code>delegation</code></td>
+<td><code>absent</code>, <code>passed</code>, <code>refused</code> with the code, or <code>not checked</code> when the request was refused first.</td>
+</tr>
+<tr>
+<td><code>external</code></td>
+<td>The decision point's answer as the case names it, or <code>not asked</code>.</td>
+</tr>
+<tr>
+<td><code>rules</code></td>
+<td>How many rules were read and how they fell, or why none was read.</td>
+</tr>
+<tr>
+<td><code>rule</code></td>
+<td>One line per rule, below.</td>
+</tr>
+<tr>
+<td><code>rules_not_listed</code></td>
+<td>How many rules the bound left out.</td>
+</tr>
+<tr>
+<td><code>expect</code></td>
+<td><code>met</code>, or <code>not met, want ...</code> in the spelling of <code>policy test</code>. Only when the case has <code>expect</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="a-rules-line">A rule's line</h2>
+<p>The rules are listed in four groups, those that decided first, each group in
+document order:</p>
+<table>
+<thead>
+<tr>
+<th>Line</th>
+<th>The rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rule &quot;&lt;id&gt;&quot; &lt;EFFECT&gt; matched</code></td>
+<td>Every constraint held.</td>
+</tr>
+<tr>
+<td><code>rule &quot;&lt;id&gt;&quot; &lt;EFFECT&gt; undetermined: &lt;field&gt; needs &lt;input&gt;; ...</code></td>
+<td>A <code>DENY</code>, <code>REQUIRE_APPROVAL</code> or <code>ALLOW_WITH_OBLIGATIONS</code> rule no constraint failed and one could not read: the decision is <code>INDETERMINATE</code> unless a <code>DENY</code> decides it.</td>
+</tr>
+<tr>
+<td><code>rule &quot;&lt;id&gt;&quot; ALLOW undetermined, no effect: &lt;field&gt; needs &lt;input&gt;</code></td>
+<td>An <code>ALLOW</code> rule left undetermined, which is no match: it allows nothing.</td>
+</tr>
+<tr>
+<td><code>rule &quot;&lt;id&gt;&quot; &lt;EFFECT&gt; not matched: &lt;field&gt;; ...</code></td>
+<td>The constraints that did not hold.</td>
+</tr>
+</tbody>
+</table>
+<p><code>&lt;field&gt;</code> is the document's spelling, <code>when.resource.environment</code>; <code>&lt;input&gt;</code> is
+what the call or the run lacked, in the envelope's wire spelling:</p>
+<table>
+<thead>
+<tr>
+<th>Constraint</th>
+<th>Needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a field of <code>principal</code>, <code>agent</code>, <code>action</code>, <code>resource</code> or <code>destination</code></td>
+<td>that field, <code>resource.environment</code>; a map key as <code>resource.labels[&quot;tier&quot;]</code></td>
+</tr>
+<tr>
+<td><code>data.sensitivityAtLeast</code></td>
+<td><code>data.sensitivities</code></td>
+</tr>
+<tr>
+<td><code>flow.toxicAtLeast</code></td>
+<td><code>flow</code> when the run was not tracked; else <code>flow.max_sensitivity_read</code>, <code>data.sensitivities</code> or both, whichever is unknown</td>
+</tr>
+<tr>
+<td><code>delegation.scopes</code></td>
+<td><code>delegation</code>: the call carried no chain, or the chain was refused (then the decision is already <code>DENY</code>)</td>
+</tr>
+<tr>
+<td><code>external.denies</code></td>
+<td><code>external</code>: the decision point gave no answer</td>
+</tr>
+</tbody>
+</table>
+<p>An enum this build does not declare, or a sensitivity off the scale, is
+refused before any rule is read, and no rule line says it was missing.</p>
+<h2 id="bounds">Bounds</h2>
+<p>At most 32 rule lines, the rest counted on <code>rules_not_listed</code>, and at most 8
+constraints on one line, then <code>and &lt;n&gt; more</code>. Every line is one line: a control
+character makes it a quoted Go string, and key text is withheld
+(<a href="/docs/reference/cli">cli.md</a>).</p>
+<h2 id="exit-status">Exit status</h2>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Explained; the decision met <code>expect</code>, or the case has none.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>The case could not be read or decided (one line on stderr), or the decision did not meet <code>expect</code> (the whole explanation, then <code>expect: not met</code>).</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Usage: no case, or more than one.</td>
+</tr>
+</tbody>
+</table>
+<p>The output carries no version and may change between releases. A script reads
+<code>policy test</code>, whose line is stable.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/policy-explain.md">docs/reference/policy-explain.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-explain" aria-current="page">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

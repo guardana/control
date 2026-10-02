@@ -72,3 +72,12 @@ func (s *Snapshot) Evaluate(env *controlv1.ActionEnvelope, in match.Inputs) matc
 	}
 	return program.Evaluate(env, in)
 }
+
+// Explain evaluates as Evaluate does and also says how each rule read the call.
+func (s *Snapshot) Explain(env *controlv1.ActionEnvelope, in match.Inputs) (match.Result, []match.RuleTrace) {
+	var program *match.Program
+	if s != nil {
+		program = s.program
+	}
+	return program.Explain(env, in)
+}

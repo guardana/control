@@ -1,0 +1,72 @@
+{
+  "apiVersion": "agent-policy/v1alpha1",
+  "bundle": {
+    "id": "starter-approval-for-writes",
+    "version": "1",
+    "serial": 1,
+    "maxStaleSeconds": 3600
+  },
+  "rules": [
+    {
+      "id": "no-deletes-in-prod",
+      "effect": "DENY",
+      "reason": "ENVIRONMENT_BOUNDARY",
+      "when": {
+        "action": {
+          "effect": [
+            "DELETE"
+          ]
+        },
+        "resource": {
+          "environment": [
+            "prod"
+          ]
+        }
+      }
+    },
+    {
+      "id": "no-sensitive-messages-out",
+      "effect": "DENY",
+      "reason": "TOXIC_FLOW_SENSITIVE_TO_EXTERNAL",
+      "when": {
+        "action": {
+          "effect": [
+            "COMMUNICATE"
+          ]
+        },
+        "flow": {
+          "toxicAtLeast": "CONFIDENTIAL"
+        }
+      }
+    },
+    {
+      "id": "allow-reads",
+      "effect": "ALLOW",
+      "when": {
+        "action": {
+          "effect": [
+            "READ"
+          ]
+        }
+      }
+    },
+    {
+      "id": "writes-need-approval",
+      "effect": "REQUIRE_APPROVAL",
+      "when": {
+        "action": {
+          "effect": [
+            "WRITE",
+            "DELETE",
+            "EXECUTE",
+            "COMMUNICATE",
+            "TRANSACT",
+            "IDENTITY_OR_ACCESS",
+            "CONFIGURE",
+            "SPAWN_OR_DELEGATE"
+          ]
+        }
+      }
+    }
+  ]
+}

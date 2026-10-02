@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Starter policy packs · Guardana Control</title>
+<meta name="description" content="The read-only and approval-for-writes packs, what each decides, what it assumes about the plane, the cases that prove it, and what it leaves unguarded."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/starter-packs"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="starter-policy-packs">Starter policy packs</h1>
+<p>Two policy documents to start from, each with the cases that prove what it
+decides. They are <code>experimental</code>: a later release may change a rule. Each
+pack is a directory under
+<a href="https://github.com/guardana/control/tree/main/examples/starter-packs">examples/starter-packs</a>: <code>policy.json</code>, the
+document, and <code>cases/</code>, one <a href="/docs/reference/policy-format#a-test-case">policy test</a> case
+per decision it relies on, allow, deny and unknown among them. A test in
+<code>cmd/guardana-control</code> runs every case and holds each case's document to the
+pack's <code>policy.json</code>.</p>
+<pre><code>$ guardana-control policy test examples/starter-packs/read-only/cases
+$ guardana-control policy explain examples/starter-packs/read-only/cases/unknown-unclassified.json
+</code></pre>
+<p>To use one, copy <code>policy.json</code>, give the bundle your own <code>id</code>, <code>version</code> and
+<code>serial</code>, then lint, test and sign it as
+<a href="/docs/guides/write-and-test-a-policy">write-and-test-a-policy.md</a> says.</p>
+<h2 id="read-only">read-only</h2>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Effect</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>allow-reads</code></td>
+<td><code>ALLOW</code></td>
+<td>the action's effect class is <code>READ</code></td>
+</tr>
+</tbody>
+</table>
+<p>Every other call matches no rule, and no rule matched is <code>DENY</code> with
+<code>NO_MATCHING_RULE</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>allow-read</code></td>
+<td><code>ALLOW Execute [RULE_ALLOW]</code></td>
+</tr>
+<tr>
+<td><code>deny-write</code>, <code>deny-message</code>, <code>deny-transact</code></td>
+<td><code>DENY Block [NO_MATCHING_RULE]</code></td>
+</tr>
+<tr>
+<td><code>unknown-unclassified</code>: the call names no effect class</td>
+<td><code>INDETERMINATE Block [REQUIRED_FIELD_ABSENT]</code></td>
+</tr>
+<tr>
+<td><code>unknown-stale-read</code>: the policy is older than its budget</td>
+<td><code>INDETERMINATE Block [POLICY_STALE RULE_ALLOW]</code></td>
+</tr>
+<tr>
+<td><code>stale-read-fail-open</code>: the same, with <code>fail_open_read</code></td>
+<td><code>INDETERMINATE Execute [POLICY_STALE RULE_ALLOW FAIL_OPEN_READ_CONFIGURED]</code></td>
+</tr>
+</tbody>
+</table>
+<p>Left unguarded: what a read carries out in its arguments. A read of an
+untrusted page whose address holds data the agent read earlier is still a
+read. The pack has no toxic-flow rule because a plane's calls carry no data
+label: after the run's first untrusted result, every later call to an
+untrusted destination, reads included, would be undetermined and blocked, or
+denied once something sensitive was read. Add
+one, as the approval-for-writes pack does for messages, if that is the
+trade you want.</p>
+<h2 id="approval-for-writes">approval-for-writes</h2>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Effect</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>no-deletes-in-prod</code></td>
+<td><code>DENY</code>, <code>ENVIRONMENT_BOUNDARY</code></td>
+<td>effect <code>DELETE</code> and <code>resource.environment</code> is <code>prod</code></td>
+</tr>
+<tr>
+<td><code>no-sensitive-messages-out</code></td>
+<td><code>DENY</code>, <code>TOXIC_FLOW_SENSITIVE_TO_EXTERNAL</code></td>
+<td>effect <code>COMMUNICATE</code> and the flow is toxic at <code>CONFIDENTIAL</code></td>
+</tr>
+<tr>
+<td><code>allow-reads</code></td>
+<td><code>ALLOW</code></td>
+<td>effect <code>READ</code></td>
+</tr>
+<tr>
+<td><code>writes-need-approval</code></td>
+<td><code>REQUIRE_APPROVAL</code></td>
+<td>every other effect class: <code>WRITE</code>, <code>DELETE</code>, <code>EXECUTE</code>, <code>COMMUNICATE</code>, <code>TRANSACT</code>, <code>IDENTITY_OR_ACCESS</code>, <code>CONFIGURE</code>, <code>SPAWN_OR_DELEGATE</code></td>
+</tr>
+</tbody>
+</table>
+<p>A test holds <code>writes-need-approval</code> to every effect class the contract
+declares but <code>READ</code>, so a class added later fails it until the pack names it.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>allow-read</code></td>
+<td><code>ALLOW Execute [RULE_ALLOW]</code></td>
+</tr>
+<tr>
+<td><code>approve-write</code>, <code>approve-delete-staging</code></td>
+<td><code>REQUIRE_APPROVAL AwaitApproval [APPROVAL_REQUIRED]</code></td>
+</tr>
+<tr>
+<td><code>deny-delete-prod</code></td>
+<td><code>DENY Block [ENVIRONMENT_BOUNDARY APPROVAL_REQUIRED]</code></td>
+</tr>
+<tr>
+<td><code>approve-delete-production</code>: the environment is spelled <code>production</code></td>
+<td><code>REQUIRE_APPROVAL AwaitApproval [APPROVAL_REQUIRED]</code></td>
+</tr>
+<tr>
+<td><code>approve-message-internal</code>: a message to a trusted destination after untrusted input</td>
+<td><code>REQUIRE_APPROVAL AwaitApproval [APPROVAL_REQUIRED]</code></td>
+</tr>
+<tr>
+<td><code>deny-message-after-sensitive-read</code>: untrusted input, a confidential read, an untrusted destination</td>
+<td><code>DENY Block [TOXIC_FLOW_SENSITIVE_TO_EXTERNAL APPROVAL_REQUIRED]</code></td>
+</tr>
+<tr>
+<td><code>unknown-message-after-untrusted-input</code>: the same with nothing confidential read</td>
+<td><code>INDETERMINATE Block [APPROVAL_REQUIRED RULE_UNDETERMINED]</code></td>
+</tr>
+<tr>
+<td><code>unknown-write-tenant-unstated</code>: the resource names no tenant</td>
+<td><code>INDETERMINATE Block [TENANT_UNDETERMINED APPROVAL_REQUIRED]</code></td>
+</tr>
+<tr>
+<td><code>unknown-unclassified</code></td>
+<td><code>INDETERMINATE Block [REQUIRED_FIELD_ABSENT]</code></td>
+</tr>
+</tbody>
+</table>
+<p>Two consequences to know before relying on it:</p>
+<ul>
+<li>After the run took in untrusted content, a message to an untrusted
+destination is blocked, never put to an approver: undetermined while nothing
+confidential was read, denied after. An undetermined <code>DENY</code> outranks
+<code>REQUIRE_APPROVAL</code>, and a plane's calls carry no data label to settle it.</li>
+<li><code>prod</code> is matched as written. An upstream whose <code>environment</code> is
+<code>production</code> gets its deletes held for approval, not denied. Name every
+spelling your upstreams use, or one per environment.</li>
+</ul>
+<h2 id="what-both-assume">What both assume</h2>
+<ul>
+<li>Every tool is classified: an override names its effect class. A call nothing
+classifies is blocked by the plane outside <code>OBSERVE</code>, and the kernel refuses
+an envelope without an effect class (<code>unknown-unclassified</code>).</li>
+<li>Each upstream states its <code>environment</code> and <code>tenant_id</code>, which the plane puts
+on the resource; the contract requires the environment of a write, a delete
+and a configuration change. A material call that names a tenant on one side
+only, the principal's or the resource's, is <code>INDETERMINATE</code>
+(<code>unknown-write-tenant-unstated</code>).</li>
+<li>A tool that sends a message (<code>COMMUNICATE</code>) has a <code>trust_zone</code> in its
+override: the contract requires a destination for that class.</li>
+<li>Each rule but the toxic-flow one reads only fields the contract requires
+for the classes it names, so no call is undetermined for want of an
+optional field. The toxic-flow rule also reads <code>data.sensitivities</code>, which a
+plane's call never carries (<code>unknown-message-after-untrusted-input</code>).</li>
+</ul>
+<p>The plane's mode acts after the decision: under <code>OBSERVE</code> every case above
+runs and is recorded (<a href="/docs/concepts/enforcement-modes">enforcement modes</a>).
+How a case is decided is <a href="/docs/concepts/how-a-call-is-decided">how a call is decided</a>;
+which rule decided it and what it lacked is
+<a href="/docs/reference/policy-explain">policy-explain.md</a>.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/starter-packs.md">docs/reference/starter-packs.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs" aria-current="page">Starter policy packs</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

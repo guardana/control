@@ -35,7 +35,7 @@ format character or bytes that are not UTF-8 is printed as a quoted Go string.
 
 ## guardana-control
 
-`policy lint` and `policy test` read a document without a plane, and
+`policy lint`, `policy test` and `policy explain` ([policy-explain.md](policy-explain.md)) read a document without a plane, and
 `policy keygen` and `policy sign` make the key and the signed bundle a plane
 loads: [guides/write-and-test-a-policy.md](../guides/write-and-test-a-policy.md)
 is their page. The `approvals` commands read and answer the records under an
@@ -135,6 +135,7 @@ serves: [runs.md](runs.md).
 usage:
   guardana-control policy lint <file>
   guardana-control policy test <dir>
+  guardana-control policy explain <case>
   guardana-control policy keygen --out <dir>
   guardana-control policy sign --key <file> --out <file> <document>
   guardana-control approvals list <dir>

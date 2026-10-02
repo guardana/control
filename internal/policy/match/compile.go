@@ -55,6 +55,9 @@ type rule struct {
 	reason      string
 	obligations []obligation
 	constraints []constraint
+	// parts names each constraint for Explain, index for index; nothing on
+	// the decision path reads it.
+	parts []part
 	// external is whether the rule also reads the external answer, which
 	// holds is the only one to read, so that it can tell whether the rule's
 	// value turns on it.
@@ -95,7 +98,10 @@ func compileRule(i int, r *rules.Rule) (rule, error) {
 	case w.external && r.Effect != controlv1.Verdict_VERDICT_DENY:
 		return refuse("when.external", errExternalEffect)
 	}
-	return rule{id: r.ID, effect: r.Effect, reason: reason, obligations: obligations, constraints: w.constraints, external: w.external}, nil
+	return rule{
+		id: r.ID, effect: r.Effect, reason: reason, obligations: obligations,
+		constraints: w.constraints, parts: w.parts, external: w.external,
+	}, nil
 }
 
 // compileObligations holds each effect to what it may carry. The union takes

@@ -1,6 +1,6 @@
 // Command line entry point for the product. Without arguments it answers with
-// the version and the status line; the `policy` commands (lint, test, keygen
-// and sign), the `approvals` commands, the `pause` commands, the `runs`
+// the version and the status line; the `policy` commands (lint, test,
+// explain, keygen and sign), the `approvals` commands, the `pause` commands, the `runs`
 // commands and `console`, the page that answers approvals and writes pauses,
 // are the commands with behaviour, and docs/guides/write-and-test-a-policy.md
 // and docs/reference/cli.md are their pages.
@@ -100,6 +100,7 @@ func (c subcommand) reachedBy(args []string) bool {
 var commands = []subcommand{
 	{"policy", "lint", "<file>", nil, func(args []string, _, stderr io.Writer) int { return lint(args[0], stderr) }},
 	{"policy", "test", "<dir>", nil, func(args []string, stdout, stderr io.Writer) int { return policyTest(args[0], stdout, stderr) }},
+	{"policy", "explain", "<case>", nil, func(args []string, stdout, stderr io.Writer) int { return policyExplain(args[0], stdout, stderr) }},
 	{"policy", "keygen", keygenForm, keygenFlagSet, keygenCommand},
 	{"policy", "sign", signForm, signFlagSet, signCommand},
 	{"approvals", "list", "<dir>", nil, func(args []string, stdout, stderr io.Writer) int { return approvalsList(args[0], stdout, stderr) }},

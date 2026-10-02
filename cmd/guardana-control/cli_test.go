@@ -118,6 +118,7 @@ func TestHelpBlockRefusesWhatItCannotFind(t *testing.T) {
 var ownRefusal = map[string]func(missing string) []string{
 	"policy lint":       func(m string) []string { return []string{m} },
 	"policy test":       func(m string) []string { return []string{m} },
+	"policy explain":    func(m string) []string { return []string{m} },
 	"policy keygen":     func(m string) []string { return []string{"--out", filepath.Dir(m)} },
 	"policy sign":       func(m string) []string { return []string{"--key", m, "--out", m + ".bundle", m} },
 	"approvals list":    func(m string) []string { return []string{m} },

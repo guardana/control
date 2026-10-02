@@ -37,6 +37,7 @@
   <url><loc>https://control.guardana.dev/docs/adr/0033-a-demo-archive-a-release-user-runs-without-go</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0036-policy-explain-reads-the-kernels-own-evaluation</loc></url>
   <url><loc>https://control.guardana.dev/docs/backlog</loc></url>
   <url><loc>https://control.guardana.dev/docs/changelog</loc></url>
   <url><loc>https://control.guardana.dev/docs/concepts/approvals-and-the-held-call</loc></url>
@@ -68,10 +69,12 @@
   <url><loc>https://control.guardana.dev/docs/reference/mcp-coverage</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/metrics</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/obligations</loc></url>
+  <url><loc>https://control.guardana.dev/docs/reference/policy-explain</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/policy-format</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/reason-codes</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/runs</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/scenario-format</loc></url>
+  <url><loc>https://control.guardana.dev/docs/reference/starter-packs</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/wire/action_envelope</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/wire/approval</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/wire/bundle</loc></url>

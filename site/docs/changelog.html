@@ -34,6 +34,22 @@
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.4.0-alpha...HEAD">Unreleased</a></h2>
+<h3 id="added">Added</h3>
+<ul>
+<li><code>guardana-control policy explain &lt;case&gt;</code> decides one case as <code>policy test</code>
+does and says how: the decision's verdict, action, mode, policy digest and
+codes, what the kernel found before the policy, and a line per rule, matched,
+undetermined with the field it could not read and the input that field
+lacked, or not matched on the fields that failed. It reads the kernel's own
+evaluation, so it never describes a decision the kernel would not make for
+the same case
+(<a href="/docs/adr/0036-policy-explain-reads-the-kernels-own-evaluation">ADR-0036</a>,
+<a href="/docs/reference/policy-explain">reference/policy-explain.md</a>).</li>
+<li>Two starter policy packs under <code>examples/starter-packs/</code>, read-only and
+approval-for-writes, each a document with allow, deny and unknown cases, and
+a page that says what each assumes about the plane and leaves unguarded
+(<a href="/docs/reference/starter-packs">reference/starter-packs.md</a>).</li>
+</ul>
 <h2 id="040-alpha---2026-10-01"><a href="https://github.com/guardana/control/releases/tag/v0.4.0-alpha">0.4.0-alpha</a> - 2026-10-01</h2>
 <p>An operator can now open runs for an agent, and a plane with <code>runs.dir</code>
 accepts a call only under a run token that resolves: two runs of one agent
@@ -42,7 +58,7 @@ plane without <code>runs.dir</code> behaves as before. A stdio plane no longer w
 start lines into the protocol stream.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added">Added</h3>
+<h3 id="added-1">Added</h3>
 <ul>
 <li>Runs an operator opens
 (<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>):
@@ -88,7 +104,7 @@ default (<a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</
 <code>dev --decision-point=silent</code>, which the old command lacks and now needs.
 <code>dev</code> refuses a system without process groups before it starts anything.</li>
 </ul>
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 <ul>
 <li>A website for <code>control.guardana.dev</code> in <code>site/</code>: one static page with
 no script and nothing loaded from another host, whose diagrams
@@ -149,7 +165,7 @@ the gateway beside the archives, and pages that say what the plane
 protects, what it records and which failures it survives.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 <ul>
 <li>Reason code <code>APPROVAL_STATE_UNKNOWN</code> (44, <code>INDETERMINATE</code>): a lost hold
 whose approval the plane could not read or trust closes with it, where
@@ -216,7 +232,7 @@ Such an answer could be read as refused or as unavailable instead.</li>
 <p>The first public release. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 <ul>
 <li>Wire contracts, frozen at <code>1.0</code>: eight protobuf files for the action
 envelope, the decision, approvals, results, events, findings, policy bundles
@@ -308,10 +324,12 @@ independence of this project from Guardana
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

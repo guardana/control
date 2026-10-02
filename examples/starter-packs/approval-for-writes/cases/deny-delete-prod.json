@@ -1,0 +1,120 @@
+{
+  "document": {
+    "apiVersion": "agent-policy/v1alpha1",
+    "bundle": {
+      "id": "starter-approval-for-writes",
+      "version": "1",
+      "serial": 1,
+      "maxStaleSeconds": 3600
+    },
+    "rules": [
+      {
+        "id": "no-deletes-in-prod",
+        "effect": "DENY",
+        "reason": "ENVIRONMENT_BOUNDARY",
+        "when": {
+          "action": {
+            "effect": [
+              "DELETE"
+            ]
+          },
+          "resource": {
+            "environment": [
+              "prod"
+            ]
+          }
+        }
+      },
+      {
+        "id": "no-sensitive-messages-out",
+        "effect": "DENY",
+        "reason": "TOXIC_FLOW_SENSITIVE_TO_EXTERNAL",
+        "when": {
+          "action": {
+            "effect": [
+              "COMMUNICATE"
+            ]
+          },
+          "flow": {
+            "toxicAtLeast": "CONFIDENTIAL"
+          }
+        }
+      },
+      {
+        "id": "allow-reads",
+        "effect": "ALLOW",
+        "when": {
+          "action": {
+            "effect": [
+              "READ"
+            ]
+          }
+        }
+      },
+      {
+        "id": "writes-need-approval",
+        "effect": "REQUIRE_APPROVAL",
+        "when": {
+          "action": {
+            "effect": [
+              "WRITE",
+              "DELETE",
+              "EXECUTE",
+              "COMMUNICATE",
+              "TRANSACT",
+              "IDENTITY_OR_ACCESS",
+              "CONFIGURE",
+              "SPAWN_OR_DELEGATE"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "envelope": {
+    "schemaVersion": "1.0",
+    "requestId": "req-delete-prod",
+    "projectId": "proj-1",
+    "tenantId": "tenant-1",
+    "environment": "prod",
+    "occurredAt": "2026-09-11T11:59:00Z",
+    "principal": {
+      "id": "user-1",
+      "tenantId": "tenant-1"
+    },
+    "agent": {
+      "id": "agent-1"
+    },
+    "action": {
+      "name": "orders.delete",
+      "effect": "EFFECT_CLASS_DELETE",
+      "provider": "orders"
+    },
+    "resource": {
+      "type": "order",
+      "id": "ord-1",
+      "tenantId": "tenant-1",
+      "environment": "prod"
+    }
+  },
+  "authorized_args": "",
+  "flow": {
+    "untrusted": false,
+    "floor": "PUBLIC"
+  },
+  "options": {
+    "fail_open_read": false,
+    "max_stale_seconds": 3600,
+    "applicable": []
+  },
+  "loaded_at": "2026-09-11T12:00:00Z",
+  "decided_at": "2026-09-11T12:00:00Z",
+  "expect": {
+    "verdict": "DENY",
+    "action": "Block",
+    "reason_codes": [
+      "ENVIRONMENT_BOUNDARY",
+      "APPROVAL_REQUIRED"
+    ]
+  }
+}

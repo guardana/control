@@ -44,3 +44,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0033](0033-a-demo-archive-a-release-user-runs-without-go.md) | A demo archive a release user runs without Go |
 | [0034](0034-a-run-the-operator-opens-has-an-identity-of-its-own.md) | A run the operator opens has an identity of its own |
 | [0035](0035-a-versioned-evidence-export-and-a-bounded-query.md) | A versioned evidence export and a bounded query |
+| [0036](0036-policy-explain-reads-the-kernels-own-evaluation.md) | `policy explain` reads the kernel's own evaluation |

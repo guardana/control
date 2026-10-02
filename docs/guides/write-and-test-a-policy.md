@@ -40,7 +40,8 @@ is in [reference/cli.md](../reference/cli.md).
 ### 1. Write the document
 
 Start from
-[testdata/policy/documents/example.json](../../testdata/policy/documents/example.json).
+[testdata/policy/documents/example.json](../../testdata/policy/documents/example.json),
+or from a starter pack with its cases ([reference/starter-packs.md](../reference/starter-packs.md)).
 Give the bundle an `id`, a `version` and a `serial`, and set `maxStaleSeconds`
 to how long a plane may keep deciding on this document after its loader last
 confirmed it. Then write the rules, each with an `id`, an `effect` and a
@@ -158,6 +159,8 @@ was. Give each new version a higher `serial`. What the files hold and why is
   is never a pass.
 - The line a passing case prints spells the decision the way `expect` does,
   so the member to change in a failing case can be read off its line.
+  `policy explain <case>` says which rule decided it and which input a rule
+  lacked ([reference/policy-explain.md](../reference/policy-explain.md)).
 - `policy sign` exits 0 and prints the `key_id` `keygen` printed. A plane
   started with a key other than the one that signed the bundle refuses it and
   names both ids.

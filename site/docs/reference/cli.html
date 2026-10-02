@@ -66,7 +66,7 @@ keeping the rest, logs included.
 A message holding a control character, a line or paragraph separator, a
 format character or bytes that are not UTF-8 is printed as a quoted Go string.</p>
 <h2 id="guardana-control">guardana-control</h2>
-<p><code>policy lint</code> and <code>policy test</code> read a document without a plane, and
+<p><code>policy lint</code>, <code>policy test</code> and <code>policy explain</code> (<a href="/docs/reference/policy-explain">policy-explain.md</a>) read a document without a plane, and
 <code>policy keygen</code> and <code>policy sign</code> make the key and the signed bundle a plane
 loads: <a href="/docs/guides/write-and-test-a-policy">guides/write-and-test-a-policy.md</a>
 is their page. The <code>approvals</code> commands read and answer the records under an
@@ -152,6 +152,7 @@ serves: <a href="/docs/reference/runs">runs.md</a>.</p>
 <pre><code>usage:
   guardana-control policy lint &lt;file&gt;
   guardana-control policy test &lt;dir&gt;
+  guardana-control policy explain &lt;case&gt;
   guardana-control policy keygen --out &lt;dir&gt;
   guardana-control policy sign --key &lt;file&gt; --out &lt;file&gt; &lt;document&gt;
   guardana-control approvals list &lt;dir&gt;
@@ -288,10 +289,12 @@ dev
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

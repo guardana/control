@@ -1,0 +1,22 @@
+{
+  "apiVersion": "agent-policy/v1alpha1",
+  "bundle": {
+    "id": "starter-read-only",
+    "version": "1",
+    "serial": 1,
+    "maxStaleSeconds": 3600
+  },
+  "rules": [
+    {
+      "id": "allow-reads",
+      "effect": "ALLOW",
+      "when": {
+        "action": {
+          "effect": [
+            "READ"
+          ]
+        }
+      }
+    }
+  ]
+}

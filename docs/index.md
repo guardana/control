@@ -48,10 +48,12 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [MCP enforcement coverage](reference/mcp-coverage.md): Per revision, transport and method, what the gateway enforces today and what it does not.
 - [Metrics](reference/metrics.md): Every metric a plane answers on /metrics, with its type, its label, the statistic it reads and what it counts.
 - [Obligations](reference/obligations.md): The catalogue of obligation types a policy rule may name, and what the tree does with one.
+- [Policy explain](reference/policy-explain.md): What `guardana-control policy explain` reads, every line it prints, which rule decided and which input a rule could not read, and its bounds.
 - [Policy document format](reference/policy-format.md): Every member of an agent-policy/v1alpha1 document, the values each admits, the bounds, and the members of a policy test case.
 - [Reason codes](reference/reason-codes.md): Every reason code a decision may carry, with its number and the verdict it usually accompanies.
 - [Runs](reference/runs.md): The runs directory, what runs open, close and list print and refuse, and what a plane with runs.dir does with a token.
 - [Scenario format](reference/scenario-format.md): Every member of an agent-scenario/v1alpha1 document, how scenario run holds a live plane to one, and what it exits with.
+- [Starter policy packs](reference/starter-packs.md): The read-only and approval-for-writes packs, what each decides, what it assumes about the plane, the cases that prove it, and what it leaves unguarded.
 - [action_envelope.proto](reference/wire/action_envelope.md): The messages and enums of action_envelope.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
 - [approval.proto](reference/wire/approval.md): The messages and enums of approval.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
 - [bundle.proto](reference/wire/bundle.md): The messages and enums of bundle.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
@@ -112,3 +114,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0033: A demo archive a release user runs without Go](adr/0033-a-demo-archive-a-release-user-runs-without-go.md): accepted
 - [ADR-0034: A run the operator opens has an identity of its own](adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own.md): accepted
 - [ADR-0035: A versioned evidence export and a bounded query](adr/0035-a-versioned-evidence-export-and-a-bounded-query.md): accepted
+- [ADR-0036: `policy explain` reads the kernel's own evaluation](adr/0036-policy-explain-reads-the-kernels-own-evaluation.md): accepted

@@ -166,10 +166,16 @@ type Outcome struct {
 // A kernel nobody built, nil or the zero value, has no clock and no id
 // source; it decides INDETERMINATE and Block rather than crash.
 func (k *Kernel) Decide(_ context.Context, req Request, snap *policy.Snapshot) Outcome {
+	return k.decide(req, snap, nil)
+}
+
+// decide is the one decision Decide and Explain share; e is nil in Decide.
+func (k *Kernel) decide(req Request, snap *policy.Snapshot, e *Explanation) Outcome {
 	if k == nil || k.clock == nil || k.newID == nil {
 		return unbuilt()
 	}
 	d := newDecision(k, req, snap)
+	d.explain = e
 	d.run(k)
 	return d.outcome(k)
 }

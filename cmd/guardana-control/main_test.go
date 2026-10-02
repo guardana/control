@@ -57,17 +57,19 @@ func TestNoArgumentsPrintsTheVersion(t *testing.T) {
 // help on stderr and nothing at all on stdout.
 func TestUsageErrorsExitTwoWithTheHelp(t *testing.T) {
 	for name, args := range map[string][]string{
-		"unknown command":       {"serve"},
-		"group alone":           {"policy"},
-		"policy unknown":        {"policy", "explain", "x.json"},
-		"lint without a file":   {"policy", "lint"},
-		"lint with two files":   {"policy", "lint", "a.json", "b.json"},
-		"test without a dir":    {"policy", "test"},
-		"lint with a bare flag": {"policy", "lint", "-h", "x.json"},
-		"approvals alone":       {"approvals"},
-		"approvals unknown":     {"approvals", "explain", "dir"},
-		"list without a dir":    {"approvals", "list"},
-		"list with two dirs":    {"approvals", "list", "a", "b"},
+		"unknown command":        {"serve"},
+		"group alone":            {"policy"},
+		"policy unknown":         {"policy", "diff", "x.json"},
+		"explain without a case": {"policy", "explain"},
+		"explain with two cases": {"policy", "explain", "a.json", "b.json"},
+		"lint without a file":    {"policy", "lint"},
+		"lint with two files":    {"policy", "lint", "a.json", "b.json"},
+		"test without a dir":     {"policy", "test"},
+		"lint with a bare flag":  {"policy", "lint", "-h", "x.json"},
+		"approvals alone":        {"approvals"},
+		"approvals unknown":      {"approvals", "explain", "dir"},
+		"list without a dir":     {"approvals", "list"},
+		"list with two dirs":     {"approvals", "list", "a", "b"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			code, stdout, stderr := invoke(t, args...)

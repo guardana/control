@@ -35,6 +35,8 @@ type decision struct {
 	// consulted, whether there was an answer for it to turn on.
 	needsExternal bool
 	consulted     bool
+	// explain is nil in Decide and filled in by Explain.
+	explain *Explanation
 }
 
 func newDecision(k *Kernel, req Request, snap *policy.Snapshot) *decision {
@@ -81,28 +83,36 @@ func (d *decision) admit() bool {
 		refusal = contract.Validate(d.env)
 	}
 	if refusal != nil {
-		return d.refuse(refusalCode(refusal))
+		field := ""
+		if d.explain != nil {
+			field = refusedField(refusal)
+		}
+		return d.refuse(refusalCode(refusal), field)
 	}
 	digest, err := canon.DigestV1(d.env, d.req.AuthorizedArgs)
 	if err != nil {
-		return d.refuse(digestCode(err))
+		return d.refuse(digestCode(err), "")
 	}
 	if sent := d.env.GetArguments().GetCanonicalHash(); sent != "" {
 		held, err := canon.ArgumentsHashV1(d.req.AuthorizedArgs)
 		if err != nil {
-			return d.refuse(digestCode(err))
+			return d.refuse(digestCode(err), "")
 		}
 		if held != sent {
-			return d.refuse(codeInvalidFieldValue)
+			return d.refuse(codeInvalidFieldValue, "arguments.canonical_hash")
 		}
 	}
 	d.digest = digest
 	return true
 }
 
-func (d *decision) refuse(code string) bool {
+// refuse stops the decision; field is what an explanation names, if anything.
+func (d *decision) refuse(code, field string) bool {
 	d.add(code)
 	d.causes.input = true
+	if d.explain != nil {
+		d.explain.Refusal = &Refusal{Field: field}
+	}
 	return false
 }
 
@@ -139,13 +149,27 @@ func (d *decision) checkDelegation() {
 	if err != nil {
 		d.denied = true
 		var refused *delegation.Error
+		code := ""
 		if errors.As(err, &refused) {
-			d.add(refused.Code)
+			code = refused.Code
+			d.add(code)
 		}
+		d.explainDelegation(DelegationRefused, code)
 		return
 	}
 	d.inputs.Delegated = effective.Delegated
 	d.inputs.Scopes = effective.Scopes
+	if effective.Delegated {
+		d.explainDelegation(DelegationPassed, "")
+	} else {
+		d.explainDelegation(DelegationAbsent, "")
+	}
+}
+
+func (d *decision) explainDelegation(state DelegationState, code string) {
+	if d.explain != nil {
+		d.explain.Delegation = Delegation{State: state, Code: code}
+	}
 }
 
 // checkTenant is step 4: two tenants named and different is DENY on any
@@ -159,6 +183,12 @@ func (d *decision) checkTenant() {
 	case (principal == "") != (resource == "") && contract.IsMaterial(d.env.GetAction().GetEffect()):
 		d.add(codeTenantUndetermined)
 		d.causes.input = true
+		if d.explain != nil {
+			d.explain.TenantUnstated = "resource.tenant_id"
+			if principal == "" {
+				d.explain.TenantUnstated = "principal.tenant_id"
+			}
+		}
 	}
 }
 
@@ -189,7 +219,11 @@ func (d *decision) checkFreshness() {
 func (d *decision) evaluate(applicable map[string]bool) {
 	d.inputs.Flow = d.req.Flow
 	d.inputs.External = d.req.External.input()
-	d.result = d.snap.Evaluate(d.env, d.inputs)
+	if d.explain != nil {
+		d.result, d.explain.Rules = d.snap.Explain(d.env, d.inputs)
+	} else {
+		d.result = d.snap.Evaluate(d.env, d.inputs)
+	}
 	d.causes.determinate = d.result.Determinate
 	for _, code := range d.result.ReasonCodes {
 		d.add(code)

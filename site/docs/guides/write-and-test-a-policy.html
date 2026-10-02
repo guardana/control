@@ -54,7 +54,8 @@ bits cannot be read. Loading the bundle into a plane is
 <h2 id="steps">Steps</h2>
 <h3 id="1-write-the-document">1. Write the document</h3>
 <p>Start from
-<a href="https://github.com/guardana/control/blob/main/testdata/policy/documents/example.json">testdata/policy/documents/example.json</a>.
+<a href="https://github.com/guardana/control/blob/main/testdata/policy/documents/example.json">testdata/policy/documents/example.json</a>,
+or from a starter pack with its cases (<a href="/docs/reference/starter-packs">reference/starter-packs.md</a>).
 Give the bundle an <code>id</code>, a <code>version</code> and a <code>serial</code>, and set <code>maxStaleSeconds</code>
 to how long a plane may keep deciding on this document after its loader last
 confirmed it. Then write the rules, each with an <code>id</code>, an <code>effect</code> and a
@@ -152,7 +153,9 @@ document does not sign or its options are refused by the kernel, is
 the directory holds no case, and when it cannot be read; an empty directory
 is never a pass.</li>
 <li>The line a passing case prints spells the decision the way <code>expect</code> does,
-so the member to change in a failing case can be read off its line.</li>
+so the member to change in a failing case can be read off its line.
+<code>policy explain &lt;case&gt;</code> says which rule decided it and which input a rule
+lacked (<a href="/docs/reference/policy-explain">reference/policy-explain.md</a>).</li>
 <li><code>policy sign</code> exits 0 and prints the <code>key_id</code> <code>keygen</code> printed. A plane
 started with a key other than the one that signed the bundle refuses it and
 names both ids.</li>
@@ -204,10 +207,12 @@ that stops passing is the review's first question.</p>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

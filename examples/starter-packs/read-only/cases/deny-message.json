@@ -1,0 +1,71 @@
+{
+  "document": {
+    "apiVersion": "agent-policy/v1alpha1",
+    "bundle": {
+      "id": "starter-read-only",
+      "version": "1",
+      "serial": 1,
+      "maxStaleSeconds": 3600
+    },
+    "rules": [
+      {
+        "id": "allow-reads",
+        "effect": "ALLOW",
+        "when": {
+          "action": {
+            "effect": [
+              "READ"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "envelope": {
+    "schemaVersion": "1.0",
+    "requestId": "req-deny-message",
+    "projectId": "proj-1",
+    "tenantId": "tenant-1",
+    "environment": "prod",
+    "occurredAt": "2026-09-11T11:59:00Z",
+    "principal": {
+      "id": "user-1",
+      "tenantId": "tenant-1"
+    },
+    "agent": {
+      "id": "agent-1"
+    },
+    "action": {
+      "name": "mail.send",
+      "effect": "EFFECT_CLASS_COMMUNICATE",
+      "provider": "mail"
+    },
+    "resource": {
+      "type": "mailbox",
+      "id": "outbox",
+      "tenantId": "tenant-1"
+    },
+    "destination": {
+      "trustZone": "TRUST_ZONE_TRUSTED_INTERNAL"
+    }
+  },
+  "authorized_args": "",
+  "flow": {
+    "untrusted": false,
+    "floor": "PUBLIC"
+  },
+  "options": {
+    "fail_open_read": false,
+    "max_stale_seconds": 3600,
+    "applicable": []
+  },
+  "loaded_at": "2026-09-11T12:00:00Z",
+  "decided_at": "2026-09-11T12:00:00Z",
+  "expect": {
+    "verdict": "DENY",
+    "action": "Block",
+    "reason_codes": [
+      "NO_MATCHING_RULE"
+    ]
+  }
+}

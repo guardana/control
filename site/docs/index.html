@@ -65,10 +65,12 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a>: Per revision, transport and method, what the gateway enforces today and what it does not.</li>
 <li><a href="/docs/reference/metrics">Metrics</a>: Every metric a plane answers on /metrics, with its type, its label, the statistic it reads and what it counts.</li>
 <li><a href="/docs/reference/obligations">Obligations</a>: The catalogue of obligation types a policy rule may name, and what the tree does with one.</li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a>: What <code>guardana-control policy explain</code> reads, every line it prints, which rule decided and which input a rule could not read, and its bounds.</li>
 <li><a href="/docs/reference/policy-format">Policy document format</a>: Every member of an agent-policy/v1alpha1 document, the values each admits, the bounds, and the members of a policy test case.</li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a>: Every reason code a decision may carry, with its number and the verdict it usually accompanies.</li>
 <li><a href="/docs/reference/runs">Runs</a>: The runs directory, what runs open, close and list print and refuse, and what a plane with runs.dir does with a token.</li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a>: Every member of an agent-scenario/v1alpha1 document, how scenario run holds a live plane to one, and what it exits with.</li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a>: The read-only and approval-for-writes packs, what each decides, what it assumes about the plane, the cases that prove it, and what it leaves unguarded.</li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a>: The messages and enums of action_envelope.proto as the compiled descriptor declares them, each field with its number, cardinality and type.</li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a>: The messages and enums of approval.proto as the compiled descriptor declares them, each field with its number, cardinality and type.</li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a>: The messages and enums of bundle.proto as the compiled descriptor declares them, each field with its number, cardinality and type.</li>
@@ -129,6 +131,7 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/adr/0033-a-demo-archive-a-release-user-runs-without-go">ADR-0033: A demo archive a release user runs without Go</a>: accepted</li>
 <li><a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034: A run the operator opens has an identity of its own</a>: accepted</li>
 <li><a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035: A versioned evidence export and a bounded query</a>: accepted</li>
+<li><a href="/docs/adr/0036-policy-explain-reads-the-kernels-own-evaluation">ADR-0036: <code>policy explain</code> reads the kernel's own evaluation</a>: accepted</li>
 </ul>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/index.md">docs/index.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
@@ -167,10 +170,12 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

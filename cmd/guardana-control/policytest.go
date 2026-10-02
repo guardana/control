@@ -8,11 +8,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
-	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/bundle"
@@ -97,7 +95,7 @@ func runCase(path string) (string, bool) {
 	if err != nil {
 		return oneLine(err.Error()), false
 	}
-	if got.verdict != c.expect.verdict || got.action != c.expect.action || !slices.Equal(got.codes, c.expect.codes) {
+	if !got.equal(c.expect) {
 		return oneLine(fmt.Sprintf("got %s, want %s", got, c.expect)), false
 	}
 	return got.String(), true
@@ -108,50 +106,76 @@ func runCase(path string) (string, bool) {
 // decoder a receiver would use, and what that decoder refuses is handed to
 // the kernel as its refusal rather than stopping the case.
 func decide(c *testCase) (outcome, error) {
+	p, err := prepare(c)
+	if err != nil {
+		return outcome{}, err
+	}
+	out := p.kernel.Decide(context.Background(), p.request, p.snap)
+	if out.Decision == nil {
+		return outcome{}, errors.New("the kernel returned no decision")
+	}
+	return outcome{verdict: out.Decision.GetVerdict(), action: out.Action, codes: out.Decision.GetReasonCodes()}, nil
+}
+
+// explainCase is decide through Kernel.Explain, which decides as Decide does.
+func explainCase(c *testCase) (explained, error) {
+	p, err := prepare(c)
+	if err != nil {
+		return explained{}, err
+	}
+	out, why := p.kernel.Explain(context.Background(), p.request, p.snap)
+	if out.Decision == nil {
+		return explained{}, errors.New("the kernel returned no decision")
+	}
+	ref := p.snap.Ref()
+	return explained{
+		outcome:  outcome{verdict: out.Decision.GetVerdict(), action: out.Action, codes: out.Decision.GetReasonCodes()},
+		decision: out.Decision,
+		bundleID: ref.GetBundleId(),
+		version:  ref.GetVersion(),
+		why:      why,
+	}, nil
+}
+
+// prepared is a case ready to decide: its kernel, its request and its
+// snapshot.
+type prepared struct {
+	kernel  *core.Kernel
+	request core.Request
+	snap    *policy.Snapshot
+}
+
+func prepare(c *testCase) (prepared, error) {
 	key := ed25519.NewKeyFromSeed([]byte(signingSeed))
 	signed, err := policy.Sign(c.document, key, signingKeyID)
 	if err != nil {
-		return outcome{}, err
+		return prepared{}, err
 	}
 	keys := bundle.Keyring{signingKeyID: key.Public().(ed25519.PublicKey)}
 	snap, err := policy.Load(signed, keys, c.loadedAt)
 	if err != nil {
-		return outcome{}, err
+		return prepared{}, err
 	}
 	kernel, err := core.New(c.options, func() time.Time { return c.decidedAt }, func() string { return "policy-test" })
 	if err != nil {
-		return outcome{}, err
+		return prepared{}, err
 	}
 	env, refusal := contract.DecodeJSON(c.envelope)
-	out := kernel.Decide(context.Background(), core.Request{
-		Envelope:       env,
-		Refusal:        refusal,
-		AuthorizedArgs: c.authorizedArgs,
-		Flow:           c.flow,
-		External:       c.external,
-	}, snap)
-	if out.Decision == nil {
-		return outcome{}, errors.New("the kernel returned no decision")
-	}
-	return outcome{
-		verdict: out.Decision.GetVerdict(),
-		action:  out.Action,
-		codes:   out.Decision.GetReasonCodes(),
+	return prepared{
+		kernel: kernel,
+		request: core.Request{
+			Envelope:       env,
+			Refusal:        refusal,
+			AuthorizedArgs: c.authorizedArgs,
+			Flow:           c.flow,
+			External:       c.external,
+		},
+		snap: snap,
 	}, nil
 }
 
 // String spells an outcome the way a case's expect member does, so a line
 // and the member an author would write to make it pass read the same.
 func (o outcome) String() string {
-	verdict := strings.TrimPrefix(controlv1.Verdict_name[int32(o.verdict)], "VERDICT_")
-	if verdict == "" {
-		verdict = fmt.Sprintf("VERDICT(%d)", o.verdict)
-	}
-	action := fmt.Sprintf("EnforcementAction(%d)", o.action)
-	for name, a := range actions {
-		if a == o.action {
-			action = name
-		}
-	}
-	return fmt.Sprintf("%s %s [%s]", verdict, action, strings.Join(o.codes, " "))
+	return fmt.Sprintf("%s %s [%s]", verdictName(o.verdict), actionName(o.action), strings.Join(o.codes, " "))
 }
