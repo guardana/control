@@ -46,8 +46,9 @@ name its digest.
      owns. A volume that does not outlive the container protects nothing: a
      floor made anew at each start takes any older bundle.
    - The bundle and the statement can stay in the read-only configuration
-     directory. Renew the statement on the host; the plane reads it again
-     every `policy.poll_interval`.
+     directory. Run `renew` where the freshness key lives, not in the
+     container, and copy the statement into that directory; the plane
+     reads it again every `policy.poll_interval`.
    - The pause file and the approvals and hold journal directories, if you
      use them, on volumes owned by 65532. The plane refuses them when the
      group or others may write them, and the pause file when another account

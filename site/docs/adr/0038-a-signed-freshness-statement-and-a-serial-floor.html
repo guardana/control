@@ -78,8 +78,9 @@ serial and digest; installing a bundle never moves it. It expires at that time
 plus the smaller of the document's <code>maxStaleSeconds</code> and <code>policy.max_stale</code>. A
 snapshot with no accepted statement is unconfirmed: its decisions carry the
 zero time as <code>policy_loaded_at</code>, and the kernel decides every call that reaches
-the freshness check <code>POLICY_STALE</code>, as it does for an old confirmation, so a
-material call is blocked and a read runs only under <code>policy.fail_open_read</code>.
+the freshness check <code>POLICY_STALE</code>, as it does for an old confirmation, so
+outside <code>OBSERVE</code> a material call is blocked and a read runs only under
+<code>policy.fail_open_read</code>.
 The kernel, the reason codes' identifiers and numbers, the wire contract, the
 digest and the document format do not change; <code>POLICY_STALE</code>'s summary is
 widened to name an unconfirmed snapshot.</p>
@@ -167,7 +168,8 @@ reader sees the old file or the new.</p>
 <code>guardana-control</code> beside it, draws a freshness key apart from its bundle key,
 drops the bundle key once the bundle is signed as today, holds only the
 freshness key for the session, never writes either, and renews the statement
-every third of the budget through the same files. A renewal changes
+every third of the budget, or every budget less twice the poll interval when
+that is sooner, through the same files. A renewal changes
 no digest, so scenarios keep their verdicts and bundle digest.</p>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>Every plane configuration needs <code>policy.statement_file</code>, <code>policy.state_dir</code>,
@@ -213,8 +215,8 @@ and in counters, and a renewal in <code>policy_loaded_at</code>.</li>
 <h2 id="consequences">Consequences</h2>
 <p>ADR-0012's &quot;confirmed current means delivered again&quot; and &quot;per process&quot;, and
 ADR-0018's rollback across a restart, no longer hold. An operator renews
-statements on a schedule shorter than the budget less one poll interval, from
-wherever the freshness key lives.</p>
+statements on a schedule shorter than the budget less twice the poll interval,
+from wherever the freshness key lives.</p>
 <h2 id="validation">Validation</h2>
 <ul>
 <li>Installing the same digest twice leaves the confirmation where it was.</li>

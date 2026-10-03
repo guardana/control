@@ -106,7 +106,7 @@ agent needs, as <a href="/docs/guides/run-the-gateway">run-the-gateway.md</a> sh
 <p>It listens for agents on <code>127.0.0.1:8080</code> and answers <code>/healthz</code> and
 <code>/metrics</code> on <code>127.0.0.1:8081</code>. The statement confirms the policy for
 <code>policy.max_stale</code>, ten minutes unless you set it; rerun the <code>renew</code> line
-before that, less one <code>policy.poll_interval</code>, or every call is blocked with
+before that, less twice <code>policy.poll_interval</code>, or every call is blocked with
 <code>POLICY_STALE</code> and <code>/healthz</code> says <code>&quot;status&quot;:&quot;degraded&quot;</code>.</p>
 <h3 id="7-point-the-client-at-the-plane">7. Point the client at the plane</h3>
 <p>Replace the server's entry in the client's configuration with the plane's

@@ -115,7 +115,7 @@ guardana-gateway run --config plane.yaml
 It listens for agents on `127.0.0.1:8080` and answers `/healthz` and
 `/metrics` on `127.0.0.1:8081`. The statement confirms the policy for
 `policy.max_stale`, ten minutes unless you set it; rerun the `renew` line
-before that, less one `policy.poll_interval`, or every call is blocked with
+before that, less twice `policy.poll_interval`, or every call is blocked with
 `POLICY_STALE` and `/healthz` says `"status":"degraded"`.
 
 ### 7. Point the client at the plane

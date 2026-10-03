@@ -117,7 +117,7 @@ A statement confirms its bundle from its `issued_at` for the smaller of
 plane starts, but every call is `POLICY_STALE`: outside `OBSERVE` a material
 call is blocked, and a read runs only under `policy.fail_open_read`. Rerun
 `renew` and copy the statement on a schedule shorter than that budget less
-one poll interval.
+twice the poll interval.
 
 ### 3. Check the configuration before serving
 

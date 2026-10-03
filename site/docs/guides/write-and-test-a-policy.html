@@ -114,7 +114,8 @@ fixed key, so a run needs none from you, and loaded at <code>loaded_at</code>; t
 envelope is decoded as a receiver decodes JSON, and the kernel decides at
 <code>decided_at</code>.</p>
 <h3 id="5-make-a-key-and-sign-the-document">5. Make a key and sign the document</h3>
-<pre><code>$ go run ./cmd/guardana-control policy keygen --out keys
+<pre><code>$ cp testdata/policy/documents/example.json policy.json
+$ go run ./cmd/guardana-control policy keygen --out keys
 key_id: ed25519-&lt;16 hex digits&gt;
 public_key: &lt;44 characters of base64&gt;
 $ go run ./cmd/guardana-control policy sign --key keys/signing.key --out orders.bundle policy.json

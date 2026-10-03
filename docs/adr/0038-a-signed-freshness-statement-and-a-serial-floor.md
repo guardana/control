@@ -60,8 +60,9 @@ serial and digest; installing a bundle never moves it. It expires at that time
 plus the smaller of the document's `maxStaleSeconds` and `policy.max_stale`. A
 snapshot with no accepted statement is unconfirmed: its decisions carry the
 zero time as `policy_loaded_at`, and the kernel decides every call that reaches
-the freshness check `POLICY_STALE`, as it does for an old confirmation, so a
-material call is blocked and a read runs only under `policy.fail_open_read`.
+the freshness check `POLICY_STALE`, as it does for an old confirmation, so
+outside `OBSERVE` a material call is blocked and a read runs only under
+`policy.fail_open_read`.
 The kernel, the reason codes' identifiers and numbers, the wire contract, the
 digest and the document format do not change; `POLICY_STALE`'s summary is
 widened to name an unconfirmed snapshot.
@@ -158,7 +159,8 @@ reader sees the old file or the new.
 `guardana-control` beside it, draws a freshness key apart from its bundle key,
 drops the bundle key once the bundle is signed as today, holds only the
 freshness key for the session, never writes either, and renews the statement
-every third of the budget through the same files. A renewal changes
+every third of the budget, or every budget less twice the poll interval when
+that is sooner, through the same files. A renewal changes
 no digest, so scenarios keep their verdicts and bundle digest.
 
 ## Security / compatibility impact
@@ -209,8 +211,8 @@ the pause file (ADR-0019).
 
 ADR-0012's "confirmed current means delivered again" and "per process", and
 ADR-0018's rollback across a restart, no longer hold. An operator renews
-statements on a schedule shorter than the budget less one poll interval, from
-wherever the freshness key lives.
+statements on a schedule shorter than the budget less twice the poll interval,
+from wherever the freshness key lives.
 
 ## Validation
 

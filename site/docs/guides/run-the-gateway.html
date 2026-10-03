@@ -119,7 +119,7 @@ made by the principal configured here (<a href="/docs/status">status.md</a>).</p
 plane starts, but every call is <code>POLICY_STALE</code>: outside <code>OBSERVE</code> a material
 call is blocked, and a read runs only under <code>policy.fail_open_read</code>. Rerun
 <code>renew</code> and copy the statement on a schedule shorter than that budget less
-one poll interval.</p>
+twice the poll interval.</p>
 <h3 id="3-check-the-configuration-before-serving">3. Check the configuration before serving</h3>
 <pre><code>guardana-gateway doctor --config gateway.yaml
 </code></pre>

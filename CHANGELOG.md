@@ -76,7 +76,8 @@ verify one.
   confirmation. Without a statement in its budget it decides every call
   `POLICY_STALE`, from the start or once the budget runs out, until a renewal
   arrives; a restart no longer resets the budget. A wall clock set back more
-  than a second withdraws the confirmation until it is back.
+  than a second withdraws the confirmation until it is back and a statement
+  issued after the withdrawal arrives.
 - A plane's serial floor is kept on disk: a start onto a bundle below it, at
   its serial with another digest, or above it without a statement is refused,
   naming both serials.

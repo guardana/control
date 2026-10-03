@@ -116,6 +116,7 @@ envelope is decoded as a receiver decodes JSON, and the kernel decides at
 ### 5. Make a key and sign the document
 
 ```
+$ cp testdata/policy/documents/example.json policy.json
 $ go run ./cmd/guardana-control policy keygen --out keys
 key_id: ed25519-<16 hex digits>
 public_key: <44 characters of base64>
