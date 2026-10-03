@@ -19,6 +19,10 @@
 #                           discovered its configuration would pass
 #               tidy-check  a direct requirement marked indirect
 #               fuzz-smoke  a fuzz target whose seed fails
+#               fuzz-smoke  a fuzz target in a file a build constraint
+#                           leaves out, which go test passes unfuzzed
+#               fuzz-smoke  a fuzz target whose seed fails, with a comment
+#                           between func and its name, alone in its package
 #   refused   every target refuses, through the module list, a tree whose
 #             root holds no go.mod, a module directory named with a glob
 #             (examples/n[x], beside an examples/nx a glob would match), and
@@ -340,6 +344,41 @@ run fail fuzz-smoke planted
 expect "probe-fuzz-planted"
 expect "fuzz-smoke: FuzzProbePlanted failed" "./${nested}/testdata/fuzz/FuzzProbePlanted/"
 rm -rf "${copy}/${nested}/zz_fuzz_test.go" "${copy}/${nested}/testdata/fuzz"
+
+plant zz_fuzz_constrained_test.go <<'EOF'
+//go:build ignore
+
+package nested
+
+import "testing"
+
+func FuzzProbeConstrained(f *testing.F) {
+	f.Add(1)
+	f.Fuzz(func(t *testing.T, _ int) {})
+}
+EOF
+run fail fuzz-smoke "planted, left out by a build constraint"
+expect "fuzz-smoke: ./${nested} FuzzProbeConstrained is not compiled on"
+expect "fuzz-smoke: 1 of 3 target(s) not compiled on"
+rm -f "${copy:?}/${nested:?}/zz_fuzz_constrained_test.go"
+
+mkdir -p "${copy}/${nested}/hidden"
+plant hidden/hidden_test.go <<'EOF'
+package hidden
+
+import "testing"
+
+func /* a comment before the name */ FuzzProbeHidden(f *testing.F) {
+	f.Add(1)
+	f.Fuzz(func(t *testing.T, _ int) {
+		t.Fatal("probe-fuzz-hidden")
+	})
+}
+EOF
+run fail fuzz-smoke "planted, a comment before the name"
+expect "probe-fuzz-hidden"
+expect "fuzz-smoke: FuzzProbeHidden failed" "./${nested}/hidden/testdata/fuzz/FuzzProbeHidden/"
+rm -rf "${copy:?}/${nested:?}/hidden"
 
 gate=(vet test test-race lint tidy-check fuzz-smoke)
 

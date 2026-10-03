@@ -140,9 +140,12 @@ build it with <code>go -C examples/evidence-report build -o &quot;$PWD/bin/&quot
 Go target of the gate runs once per module.</p>
 </li>
 <li>
-<p>The release workflow refuses a tag whose commit has no successful CI and
-Security run. Its dry run takes the version the tag will carry, makes the
-same check and prints that version's release notes.</p>
+<p>The release workflow refuses a tag whose commit is not main's head or an
+ancestor of it, or has no successful CI and Security run started by a push
+to <code>main</code> of exactly that commit; a pull request run, a run on a tag named
+<code>main</code>, or a listing longer than one page never counts as that run. Its dry
+run takes the version the tag will carry, makes the same check and prints
+that version's release notes.</p>
 </li>
 </ul>
 <h3 id="fixed">Fixed</h3>

@@ -101,9 +101,12 @@ verify one.
   build it with `go -C examples/evidence-report build -o "$PWD/bin/" .`
   ([ADR-0037](docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own.md)). Every
   Go target of the gate runs once per module.
-- The release workflow refuses a tag whose commit has no successful CI and
-  Security run. Its dry run takes the version the tag will carry, makes the
-  same check and prints that version's release notes.
+- The release workflow refuses a tag whose commit is not main's head or an
+  ancestor of it, or has no successful CI and Security run started by a push
+  to `main` of exactly that commit; a pull request run, a run on a tag named
+  `main`, or a listing longer than one page never counts as that run. Its dry
+  run takes the version the tag will carry, makes the same check and prints
+  that version's release notes.
 
 ### Fixed
 

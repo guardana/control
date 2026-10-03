@@ -10,7 +10,8 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    # Both Go modules of the repository; a new module needs its line here.
+    # Every Go module scripts/lib/go-modules.sh lists, no more and no less;
+    # TestDependabotUpdatesEveryGoModule in internal/docscheck holds it.
     directories:
       - "/"
       - "/examples/evidence-report"

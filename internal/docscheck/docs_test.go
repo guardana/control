@@ -43,6 +43,12 @@ var (
 // the gate would examine some other tree and report a pass over nothing.
 func repoFS(t *testing.T) fs.FS {
 	t.Helper()
+	return os.DirFS(repoRoot(t))
+}
+
+// repoRoot is the directory repoFS reads, for a test that runs a script there.
+func repoRoot(t *testing.T) string {
+	t.Helper()
 	_, self, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("cannot resolve this file's own path; refusing to fall back on the working directory")
@@ -51,7 +57,7 @@ func repoFS(t *testing.T) fs.FS {
 	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
 		t.Fatalf("repository root %q holds no go.mod: %v", root, err)
 	}
-	return os.DirFS(root)
+	return root
 }
 
 // markdownFiles returns every Markdown file as a repository-relative slash

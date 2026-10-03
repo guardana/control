@@ -37,19 +37,22 @@ while IFS= read -r dir; do
   modules+=("${dir}")
 done <<<"${listed}"
 
-# Each entry is "<module directory> <package relative to it> <function>". A
-# package builds only from inside its own module, so each target runs from the
-# directory of the nearest go.mod above it. repo_files rejects paths with
-# whitespace, so a space is a safe separator.
-targets=()
+# A package is searched when one of its test files holds "Fuzz" anywhere: a
+# fuzz target's name starts with it, and a Go identifier is spelled out in the
+# source, so no target escapes the search however its declaration is written.
+# Each package is "<module directory> <package relative to it>": a package
+# builds only from inside its own module, so each runs from the directory of
+# the nearest go.mod above it. repo_files rejects paths with whitespace, so a
+# space is a safe separator. Each declared entry adds the name a line-anchored
+# search reads in the source.
+packages=""
+declared=()
 while IFS= read -r file; do
   [[ -n "${file}" ]] || continue
   case "${file}" in
     api/gen/*|testdata/*|*/testdata/*) continue ;;
   esac
-
-  names="$(sed -n 's/^func \(Fuzz[A-Za-z0-9_]*\)(.*/\1/p' "${file}")"
-  [[ -n "${names}" ]] || continue
+  grep -qF -- Fuzz "${file}" || continue
 
   if [[ "${file}" == */* ]]; then
     filedir="${file%/*}"
@@ -77,12 +80,47 @@ while IFS= read -r file; do
   else
     pkg="./${rel}"
   fi
+  grep -Fxq -- "${mod} ${pkg}" <<<"${packages}" || packages+="${mod} ${pkg}"$'\n'
 
+  names="$(sed -n 's/^func \(Fuzz[A-Za-z0-9_]*\)(.*/\1/p' "${file}")"
   while IFS= read -r name; do
     [[ -n "${name}" ]] || continue
-    targets+=("${mod} ${pkg} ${name}")
+    declared+=("${mod} ${pkg} ${name}")
   done <<<"${names}"
 done <<<"${files}"
+
+# shown_package <module directory> <package relative to it>
+# The package as a path from the repository root.
+shown_package() {
+  if [[ "$1" == "." ]]; then
+    printf '%s\n' "$2"
+  elif [[ "$2" == "." ]]; then
+    printf './%s\n' "$1"
+  else
+    printf './%s/%s\n' "$1" "${2#./}"
+  fi
+}
+
+# The targets run are the ones each package's test binary lists on this
+# platform, never the ones read from the source: a declaration that a
+# line-anchored search misses would otherwise compile and never fuzz.
+targets=()
+compiled=""
+while read -r mod pkg; do
+  [[ -n "${mod}" ]] || continue
+  if ! listing="$(go -C "${mod}" test "${pkg}" -list '^Fuzz')"; then
+    printf 'fuzz-smoke: could not list the fuzz targets of %s\n%s\n' "$(shown_package "${mod}" "${pkg}")" "${listing}" >&2
+    exit 1
+  fi
+  while IFS= read -r line; do
+    case "${line}" in
+      Fuzz*)
+        targets+=("${mod} ${pkg} ${line}")
+        compiled+="${mod} ${pkg} ${line}"$'\n'
+        ;;
+    esac
+  done <<<"${listing}"
+done <<<"${packages}"
 
 # bash 3.2 raises "unbound variable" under `set -u` when "${targets[@]}" is
 # expanded while empty, so return before the loop rather than inside it.
@@ -94,16 +132,29 @@ if [[ ${#targets[@]} -eq 0 ]]; then
   exit 1
 fi
 
+# The source search ignores build constraints, and go test passes a -fuzz
+# pattern that matches no compiled target with a warning and exit status 0. So
+# a target declared in the source and missing from the listing is refused, not
+# left out quietly. Comparing with the compiled list does not depend on the
+# wording of that warning.
+platform="$(go env GOOS)/$(go env GOARCH)"
+missing=0
+for target in ${declared[@]+"${declared[@]}"}; do
+  if ! grep -Fxq -- "${target}" <<<"${compiled}"; then
+    read -r mod pkg name <<<"${target}"
+    printf 'fuzz-smoke: %s %s is not compiled on %s, so it would not fuzz; a build constraint or a file name leaves it out\n' \
+      "$(shown_package "${mod}" "${pkg}")" "${name}" "${platform}" >&2
+    missing=$((missing + 1))
+  fi
+done
+if [[ ${missing} -ne 0 ]]; then
+  printf 'fuzz-smoke: %d of %d target(s) not compiled on %s; refusing to count them as run\n' "${missing}" "${#declared[@]}" "${platform}" >&2
+  exit 1
+fi
+
 for target in "${targets[@]}"; do
   read -r mod pkg name <<<"${target}"
-  # The package as a path from the repository root, for the lines below.
-  if [[ "${mod}" == "." ]]; then
-    shown="${pkg}"
-  elif [[ "${pkg}" == "." ]]; then
-    shown="./${mod}"
-  else
-    shown="./${mod}/${pkg#./}"
-  fi
+  shown="$(shown_package "${mod}" "${pkg}")"
   printf 'fuzz-smoke: %s %s for %s\n' "${shown}" "${name}" "${duration}"
   if ! go -C "${mod}" test "${pkg}" -run '^$' -fuzz "^${name}\$" -fuzztime "${duration}"; then
     printf 'fuzz-smoke: %s failed; the minimized input is now in the working tree at %s/testdata/fuzz/%s/ - keep it as a regression seed or delete it\n' \
