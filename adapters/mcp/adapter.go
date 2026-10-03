@@ -80,10 +80,16 @@ type Listener struct {
 	// zero is DefaultSessionIdle. Without a bound, sessions a client opens and
 	// abandons hold their memory until the plane stops.
 	SessionIdle time.Duration
+	// BodyTimeout bounds how long an HTTP request may take over sending its
+	// body; zero is DefaultBodyTimeout.
+	BodyTimeout time.Duration
 }
 
 // DefaultSessionIdle is how long a stateful HTTP session may sit idle.
 const DefaultSessionIdle = 30 * time.Minute
+
+// DefaultBodyTimeout is how long an HTTP request may take over its body.
+const DefaultBodyTimeout = 30 * time.Second
 
 // Upstream is one server the gateway calls as itself.
 type Upstream struct {

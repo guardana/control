@@ -14,7 +14,8 @@ underscore, sets that key and wins over the file. A key the table does not decla
 refused rather than ignored, and a required key with no default has to be set by the
 file or by a variable. A key with a default is never without a value, so `yes` under
 Required matters only where the default is empty. Some requirements depend on another
-key and are not in the table: an HTTP listener needs `listener.address`; an upstream
+key and are not in the table: an HTTP listener needs `listener.address`, and only a
+`stateful_http` listener takes `listener.session_idle`, from one minute to a day; an upstream
 needs exactly one of `endpoint` and `command`; `evidence.fsync_interval` is needed
 under the `interval` policy and refused under `every_record`; the `file` approval
 provider needs `approvals.dir` and `approvals.hold_journal_dir`, and that journal
@@ -43,6 +44,7 @@ Rendered from the field table in `internal/gatewayconfig`. Rebuild it with
 | `log.level` | `GUARDANA_CONTROL_LOG_LEVEL` | one of | `info` | no | `debug`, `info`, `warn`, `error` |
 | `listener.kind` | `GUARDANA_CONTROL_LISTENER_KIND` | one of | `stateless_http` | yes | `stateless_http`, `stateful_http`, `stdio` |
 | `listener.address` | `GUARDANA_CONTROL_LISTENER_ADDRESS` | string | `127.0.0.1:8080` | no |  |
+| `listener.session_idle` | `GUARDANA_CONTROL_LISTENER_SESSION_IDLE` | duration | `30m` | no |  |
 | `listener.principal.id` | `GUARDANA_CONTROL_LISTENER_PRINCIPAL_ID` | string |  | yes |  |
 | `listener.principal.type` | `GUARDANA_CONTROL_LISTENER_PRINCIPAL_TYPE` | string | `service` | no |  |
 | `listener.principal.tenant_id` | `GUARDANA_CONTROL_LISTENER_PRINCIPAL_TENANT_ID` | string |  | no |  |

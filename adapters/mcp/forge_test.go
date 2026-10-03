@@ -101,6 +101,30 @@ func TestUpstreamCannotForgeABlockedRead(t *testing.T) {
 	}
 }
 
+// TestStrippedErrorDataKeepsNumbersExact: a resources/read error whose data
+// loses a key under the namespace keeps every other member as the upstream
+// wrote it, an integer past 2^53 and a decimal past float64 precision
+// included.
+func TestStrippedErrorDataKeepsNumbersExact(t *testing.T) {
+	r := newRig(t, mcp.KindStdio, rigOptions{})
+	r.victim.server.AddResource(&sdk.Resource{URI: "file:///f", Name: "f"}, func(context.Context, *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
+		return nil, &jsonrpc.Error{
+			Code:    -32000,
+			Message: "upstream says no",
+			Data:    json.RawMessage(`{"` + metaAnswer + `":"blocked","big":9007199254740993,"dec":0.10000000000000000000000000001,"nested":{"n":-9007199254740993}}`),
+		}
+	})
+	_, err := r.connect(t, "agent-a").ReadResource(ctxT(t), &sdk.ReadResourceParams{URI: "file:///f"})
+	var werr *jsonrpc.Error
+	if !errors.As(err, &werr) || werr.Code != -32000 {
+		t.Fatalf("the upstream's error did not travel: %v", err)
+	}
+	want := `{"big":9007199254740993,"dec":0.10000000000000000000000000001,"nested":{"n":-9007199254740993}}`
+	if string(werr.Data) != want {
+		t.Errorf("data %s, want %s", werr.Data, want)
+	}
+}
+
 // TestUpstreamMetaUnderTheNamespaceIsStrippedFromLists: a listed tool whose
 // _meta claims the gateway's namespace loses those keys, in every shaping,
 // and the manifest keeps the definition it fingerprinted.

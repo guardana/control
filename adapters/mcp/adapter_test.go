@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -200,8 +199,12 @@ func TestOriginIsValidated(t *testing.T) {
 		{"http://localhost.evil.example", http.StatusForbidden},
 		{"localhost", http.StatusForbidden},
 	}
+	url := serveHTTP(t, h)
 	for _, tc := range cases {
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(listBody(1))))
+		req, err := http.NewRequestWithContext(ctxT(t), http.MethodPost, url, bytes.NewReader([]byte(listBody(1))))
+		if err != nil {
+			t.Fatal(err)
+		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json, text/event-stream")
 		req.Header.Set("Mcp-Protocol-Version", v20260728)
@@ -209,10 +212,17 @@ func TestOriginIsValidated(t *testing.T) {
 		if tc.origin != "" {
 			req.Header.Set("Origin", tc.origin)
 		}
-		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, req)
-		if rec.Code != tc.status {
-			t.Errorf("Origin %q: HTTP %d, want %d: %s", tc.origin, rec.Code, tc.status, rec.Body.String())
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("Origin %q: %v", tc.origin, err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if err != nil {
+			t.Fatalf("Origin %q: reading the answer: %v", tc.origin, err)
+		}
+		if resp.StatusCode != tc.status {
+			t.Errorf("Origin %q: HTTP %d, want %d: %s", tc.origin, resp.StatusCode, tc.status, body)
 		}
 	}
 }

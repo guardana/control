@@ -57,6 +57,7 @@ type ListenerConfig struct {
 	AgentID         string
 	AgentFramework  string
 	AgentVersion    string
+	SessionIdle     time.Duration
 }
 
 // HealthConfig is the plane's own answers.
@@ -66,7 +67,7 @@ type HealthConfig struct {
 
 // PolicyConfig pins the bundle the plane serves and the key it verifies with,
 // the freshness statement that confirms it and the key that signs that, and
-// the directory that keeps its serial floor (ADR-0038).
+// the directory that keeps its serial floor.
 type PolicyConfig struct {
 	BundleID           string
 	BundleFile         string

@@ -18,14 +18,14 @@ decisions.
 | Listener | Serves | Identity per call comes from | Notes |
 | --- | --- | --- | --- |
 | `stateless_http` | `2026-07-28` | the listener's configuration | No session; every request carries its own protocol version and client claim in `_meta` |
-| `stateful_http` | `2025-11-25` and older | the listener's configuration | A `2026-07-28` request is answered `-32022` with the versions the listener serves, so a client renegotiates |
+| `stateful_http` | `2025-11-25` and older | the listener's configuration | A `2026-07-28` request is answered `-32022` with the versions the listener serves, so a client renegotiates. Idle sessions end after `listener.session_idle` |
 | `stdio` | one agent over a pipe | the listener's configuration | Nothing authenticates a pipe |
 
 An end-user identity taken from a request's credential is not in this build: the
 adapter takes an authenticator that establishes one, and no configuration key
 wires it, so every call on a listener is made by the principal the operator
 configured. `_meta.clientInfo` is recorded as a run-context tag and never reaches
-a field the digest covers.
+a field the digest covers. Request bodies get 30 seconds.
 
 Upstream servers are reached over Streamable HTTP (`upstreams[].endpoint`) or as
 a child process over its standard input and output (`upstreams[].command`).

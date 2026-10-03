@@ -52,7 +52,7 @@ decisions.</p>
 <td><code>stateful_http</code></td>
 <td><code>2025-11-25</code> and older</td>
 <td>the listener's configuration</td>
-<td>A <code>2026-07-28</code> request is answered <code>-32022</code> with the versions the listener serves, so a client renegotiates</td>
+<td>A <code>2026-07-28</code> request is answered <code>-32022</code> with the versions the listener serves, so a client renegotiates. Idle sessions end after <code>listener.session_idle</code></td>
 </tr>
 <tr>
 <td><code>stdio</code></td>
@@ -66,7 +66,7 @@ decisions.</p>
 adapter takes an authenticator that establishes one, and no configuration key
 wires it, so every call on a listener is made by the principal the operator
 configured. <code>_meta.clientInfo</code> is recorded as a run-context tag and never reaches
-a field the digest covers.</p>
+a field the digest covers. Request bodies get 30 seconds.</p>
 <p>Upstream servers are reached over Streamable HTTP (<code>upstreams[].endpoint</code>) or as
 a child process over its standard input and output (<code>upstreams[].command</code>).</p>
 <h2 id="methods">Methods</h2>

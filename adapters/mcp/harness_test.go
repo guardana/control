@@ -357,8 +357,10 @@ type rigOptions struct {
 	runToken string
 	headers  http.Header
 	clock    func() time.Time
-	// sessionIdle bounds a stateful session's idle time; zero is the default.
+	// sessionIdle bounds a stateful session's idle time and bodyTimeout an
+	// HTTP request's body; zero is each one's default.
 	sessionIdle time.Duration
+	bodyTimeout time.Duration
 }
 
 // identity is what an unauthenticated listener calls for. An authenticated
@@ -388,7 +390,7 @@ func newConfig(t *testing.T, v *victim, kind mcp.Kind, upstream sdk.Transport, o
 	return mcp.Config{
 		Listener: mcp.Listener{
 			Kind: kind, Authenticator: o.auth, AuthnStrength: "bearer", Identity: identity(o.auth != nil),
-			Runs: o.runs, RunToken: o.runToken, SessionIdle: o.sessionIdle,
+			Runs: o.runs, RunToken: o.runToken, SessionIdle: o.sessionIdle, BodyTimeout: o.bodyTimeout,
 		},
 		Upstreams:   []mcp.Upstream{{Name: "victim", Transport: upstream, TenantID: "t1", Environment: "prod"}},
 		Overrides:   overrides,

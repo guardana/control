@@ -252,13 +252,14 @@ func upstreamResult(res mcp.Result) mcp.Result {
 
 // upstreamError is an upstream wire error as the agent sees it: its own
 // code and message, and data without the gateway's marker, so an upstream
-// cannot answer as the gateway.
+// cannot answer as the gateway. Members stay raw, so a number keeps every
+// digit the upstream wrote.
 func upstreamError(err error) error {
 	var werr *jsonrpc.Error
 	if !errors.As(err, &werr) || len(werr.Data) == 0 {
 		return err
 	}
-	var data map[string]any
+	var data map[string]json.RawMessage
 	if json.Unmarshal(werr.Data, &data) != nil {
 		return err
 	}

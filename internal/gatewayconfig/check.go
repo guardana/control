@@ -20,7 +20,7 @@ func (c *Config) check() error {
 	if err := checkRequired(c, configFields, ""); err != nil {
 		return err
 	}
-	for _, check := range []func() error{c.checkListener, c.checkPolicy, c.checkPDP, c.checkApprovals, c.checkPause, c.checkRuns, c.checkFlow, c.checkEvidence, c.checkExport, c.checkShaping, c.checkUpstreams, c.checkOverrides} {
+	for _, check := range []func() error{c.checkListener, c.checkSessionIdle, c.checkPolicy, c.checkPDP, c.checkApprovals, c.checkPause, c.checkRuns, c.checkFlow, c.checkEvidence, c.checkExport, c.checkShaping, c.checkUpstreams, c.checkOverrides} {
 		if err := check(); err != nil {
 			return err
 		}
@@ -47,6 +47,26 @@ func (c *Config) checkListener() error {
 		if loopback(u.Hostname()) && !loopback(listenerHost(c.Listener.Address)) {
 			return fmt.Errorf("listener.origins.%d: a loopback origin is admitted only while listener.address is on loopback, and it is %s", i, quoteValue(c.Listener.Address))
 		}
+	}
+	return nil
+}
+
+// The bounds of listener.session_idle. Below the floor a session ends between
+// an agent's ordinary calls; above the ceiling an abandoned one holds its
+// memory for longer than a working day.
+const (
+	minSessionIdle = time.Minute
+	maxSessionIdle = 24 * time.Hour
+)
+
+// checkSessionIdle refuses a session bound on a listener that keeps no
+// session, and one outside its bounds.
+func (c *Config) checkSessionIdle() error {
+	if c.Listener.Kind != "stateful_http" && c.wasSet("listener.session_idle") {
+		return fmt.Errorf("listener.session_idle: only a stateful_http listener keeps sessions, and the kind is %s", c.Listener.Kind)
+	}
+	if c.Listener.SessionIdle < minSessionIdle || c.Listener.SessionIdle > maxSessionIdle {
+		return fmt.Errorf("listener.session_idle: %v is outside %v to %v", c.Listener.SessionIdle, minSessionIdle, maxSessionIdle)
 	}
 	return nil
 }

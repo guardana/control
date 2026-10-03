@@ -52,8 +52,9 @@ func adapterConfig(cfg *gatewayconfig.Config, logger *slog.Logger) (adaptermcp.C
 	}
 	return adaptermcp.Config{
 		Listener: adaptermcp.Listener{
-			Kind:    kinds[cfg.Listener.Kind],
-			Origins: cfg.Listener.Origins,
+			Kind:        kinds[cfg.Listener.Kind],
+			Origins:     cfg.Listener.Origins,
+			SessionIdle: cfg.Listener.SessionIdle,
 			Identity: adaptermcp.Identity{
 				Principal: &controlv1.Principal{Id: cfg.Listener.PrincipalID, Type: cfg.Listener.PrincipalType, TenantId: tenant},
 				Agent: &controlv1.Agent{

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,6 +63,21 @@ func TestAnUpstreamRedirectIsNotFollowed(t *testing.T) {
 	}
 	if n := reached.Load(); n != 0 {
 		t.Errorf("the server the upstream redirected to saw %d request(s), want none", n)
+	}
+}
+
+// TestTheSessionIdleBoundReachesTheAdapter: the configured idle bound of a
+// stateful listener is the one the adapter's session reaper runs with.
+func TestTheSessionIdleBoundReachesTheAdapter(t *testing.T) {
+	tr := newTree(t)
+	setEnv(t, "listener.kind", "stateful_http")
+	setEnv(t, "listener.session_idle", "7m")
+	cfg, err := adapterConfig(tr.load(t), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Listener.SessionIdle; got != 7*time.Minute {
+		t.Errorf("the adapter's session idle bound is %v, want 7m", got)
 	}
 }
 

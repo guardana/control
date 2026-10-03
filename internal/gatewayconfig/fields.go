@@ -55,6 +55,7 @@ var configFields = []field[Config]{
 
 	enumField("listener.kind", "stateless_http", listenerKinds, true, func(c *Config) *string { return &c.Listener.Kind }),
 	stringField("listener.address", "127.0.0.1:8080", false, func(c *Config) *string { return &c.Listener.Address }),
+	durationField("listener.session_idle", "30m", func(c *Config) *time.Duration { return &c.Listener.SessionIdle }),
 	stringField("listener.principal.id", "", true, func(c *Config) *string { return &c.Listener.PrincipalID }),
 	stringField("listener.principal.type", "service", false, func(c *Config) *string { return &c.Listener.PrincipalType }),
 	stringField("listener.principal.tenant_id", "", false, func(c *Config) *string { return &c.Listener.PrincipalTenant }),

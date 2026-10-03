@@ -42,6 +42,10 @@ verify one.
   the statement as a start would, without raising the floor, and fails for a
   statement missing, expired, dated ahead or naming another bundle, and for a
   bundle below its floor or at its serial with another digest.
+- `listener.session_idle` sets how long a `stateful_http` session may sit idle
+  before it ends, from one minute to a day; the default stays 30 minutes. A
+  client that only listens on its GET stream is idle. Another listener kind
+  refuses the key.
 
 ### Changed
 
@@ -114,6 +118,12 @@ verify one.
   receives no segment. Refusing a segment with a second name, it gives the
   device and inode, so `find -inum` finds the other name. A quarantine log
   whose directory entry could not be synced is synced by the next append to it.
+- An upstream's JSON-RPC error to a `resources/read` or `prompts/get` keeps
+  every number in its data exactly as sent when the plane strips a key under its
+  namespace; an integer past 2^53 or a long decimal was rounded.
+- An HTTP listener refuses a request whose body has not arrived within 30
+  seconds, so a client trickling one cannot hold a connection and a handler. A
+  long answer and a session's GET stream are not bounded.
 
 ## [0.5.0-alpha] - 2026-10-02
 
