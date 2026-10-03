@@ -67,6 +67,10 @@ type call struct {
 	// approvalExpires is when the approval a resumed call runs on expires; a
 	// resumed call is handed out only before it.
 	approvalExpires time.Time
+	// floor is the latest instant the call already relied on: each clock
+	// reading it took, a decision's, and the time the plane verified for its
+	// snapshot. A later reading behind it proves no expiry unmet.
+	floor time.Time
 }
 
 func (c *call) run() Disposition {
@@ -132,6 +136,7 @@ func (c *call) decideProposed(snap *policy.Snapshot, ask bool) {
 		out = c.p.kernel.Decide(c.ctx, req, snap)
 	}
 	c.kernel, c.decision, c.action = out.Decision, out.Decision, out.Action
+	c.reliedOnDecision(out.Decision, snap)
 	c.material = contract.IsMaterial(c.in.Envelope.GetAction().GetEffect())
 }
 
@@ -322,68 +327,6 @@ func (c *call) start(trail *evidence.Builder) Disposition {
 		Obligations:      c.rest,
 		handle:           handle,
 	}
-}
-
-// refusedBeforeStart decides the block of an execution that may not start: a
-// pause taken just now covers it or cannot vouch for it, its approval expired,
-// or its opened run did. A spent approval stays spent: it was consumed, and a
-// spent approval is never handed back to be used again.
-func (c *call) refusedBeforeStart() bool {
-	switch {
-	case c.pausedNow():
-	case c.held && !c.now.Before(c.approvalExpires):
-		c.decide(verdictDeny, codeApprovalExpired)
-	case c.runLapsed():
-		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
-	default:
-		return false
-	}
-	return true
-}
-
-// lapsedWhileStarting reads the clock once more after ACTION_STARTED, whose
-// append can outlast the approval or the run, and names the block of one that
-// lapsed; a zero reading proves nothing unexpired.
-func (c *call) lapsedWhileStarting() (controlv1.Verdict, string, bool) {
-	if !c.held && c.flow.kind != flowOpened {
-		return 0, "", false
-	}
-	now := c.p.cfg.Clock()
-	lapsed := func(at time.Time) bool { return now.IsZero() || !now.Before(at) }
-	switch {
-	case c.held && lapsed(c.approvalExpires):
-		c.now = now
-		return verdictDeny, codeApprovalExpired, true
-	case c.flow.kind == flowOpened && lapsed(c.flow.opened.Expires):
-		c.now = now
-		return verdictIndeterminate, codeEvidenceUnavailable, true
-	}
-	return 0, "", false
-}
-
-// lapsedAfterStart closes the trail of an execution whose approval or opened
-// run expired while its ACTION_STARTED was appended, the way an adapter aborts
-// what it did not send: ACTION_FAILED with a BLOCKED result naming code, which
-// is APPROVAL_EXPIRED or EVIDENCE_UNAVAILABLE, and no executed digest. The call is blocked with a decision of the plane's own,
-// which no record carries, because the chain has no place for a decision
-// after ACTION_STARTED. A record the sink refuses leaves the trail open with
-// its request id and its journal entry, as blockUnrecorded does.
-func (c *call) lapsedAfterStart(trail *evidence.Builder, ex *execution, verdict controlv1.Verdict, code string) Disposition {
-	// ACTION_STARTED is written, so the abort is too, whatever the agent does.
-	c.ctx = context.WithoutCancel(c.ctx)
-	aborted := ex.stamp(nil)
-	aborted.Status = resultBlocked
-	aborted.ToolProtocolStatus = code
-	aborted.EndedAt = timestampOf(c.now)
-	if !c.record(trail.Failed(aborted)) {
-		return c.blockUnrecorded()
-	}
-	c.decide(verdict, code)
-	c.p.counts.blocked(code)
-	requestID := c.requestID
-	c.close()
-	c.p.journalForget(c.ctx, requestID)
-	return Disposition{Action: core.Block, Decision: c.decision}
 }
 
 // blockStart writes the block start decided on trail and forgets the journal

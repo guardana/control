@@ -206,6 +206,21 @@ func TestTheExpiryCodesDescribeTheCheckNotItsMoment(t *testing.T) {
 	}
 }
 
+// POLICY_STALE is also what a decision says when the receiver's clock cannot
+// be judged by, so its summary names the clock beside the bundle.
+func TestPolicyStaleNamesTheClock(t *testing.T) {
+	const want = "The policy bundle is not known to be current: it is past the staleness budget in force for this call, no freshness statement confirms it, or this receiver's clock reads before 1970, after 9999, or earlier than a time it verified for the bundle."
+	for _, code := range registry(t) {
+		if code.ID == "POLICY_STALE" {
+			if code.Summary != want {
+				t.Errorf("POLICY_STALE says %q, want %q", code.Summary, want)
+			}
+			return
+		}
+	}
+	t.Fatal("the registry holds no POLICY_STALE")
+}
+
 // The two pause codes say who blocked the call: an operator's pause, or a
 // pause state nobody could read. Neither may read as the other.
 func TestThePauseCodesTellAnOperatorFromAFault(t *testing.T) {

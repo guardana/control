@@ -102,3 +102,79 @@ func expectStale(t *testing.T, k *core.Kernel, h *policy.Holder, when string) {
 		}
 	}
 }
+
+// TestAClockBehindTheFloorStopsAnUnconfirmedSnapshotsRead: a bundle started
+// unconfirmed over a floor whose latest issuedAt is T is held to T. At T less
+// a second the kernel stops a read as a cause in the request, which fail-open
+// reads never relieve; at T the same read is a stale bundle's, which they do.
+func TestAClockBehindTheFloorStopsAnUnconfirmedSnapshotsRead(t *testing.T) {
+	t.Parallel()
+	d := valid().withDoc(readsAndWrites)
+	d.version = "v7"
+	b := d.build()
+	h := floorHolder(t, newMemStore(floorOf(t, 7, digestOf([]byte(readsAndWrites)), "11:00:00", "12:00:00")))
+	if err := h.InstallUnconfirmed(context.Background(), b, pinned()); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		now    time.Time
+		codes  []string
+		action core.EnforcementAction
+	}{
+		{utc("11:59:59"), []string{"POLICY_STALE"}, core.Block},
+		{utc("12:00:00"), []string{"POLICY_STALE", "RULE_ALLOW", "FAIL_OPEN_READ_CONFIGURED"}, core.Execute},
+	}
+	for _, c := range cases {
+		k, err := core.New(core.Options{Mode: controlv1.EnforcementMode_ENFORCEMENT_MODE_ENFORCE, MaxStale: 10 * time.Minute, FailOpenRead: true},
+			func() time.Time { return c.now }, func() string { return "decision-1" })
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := decideWith(k, h, controlv1.EffectClass_EFFECT_CLASS_READ)
+		got := out.Decision
+		if got.GetVerdict() != controlv1.Verdict_VERDICT_INDETERMINATE || out.Action != c.action || !slices.Equal(got.GetReasonCodes(), c.codes) {
+			t.Errorf("at %v: %s %v %q; want INDETERMINATE, %v, %q", c.now, got.GetVerdict(), out.Action, got.GetReasonCodes(), c.action, c.codes)
+		}
+	}
+}
+
+// TestAReadingBehindTheVerifiedTimeIsStaleEvenRefused: a snapshot confirmed
+// at 11:28 over a floor whose latest issuedAt is 11:30 is not before 11:30.
+// At 11:29 a call stops at the kernel's clock step, and a request refused
+// before that step still reads STALE although its age is within the budget;
+// at 11:30 the refused request reads FRESH.
+func TestAReadingBehindTheVerifiedTimeIsStaleEvenRefused(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	d := valid().withDoc(readsAndWrites)
+	d.version = "v7"
+	digest := digestOf([]byte(readsAndWrites))
+	h := floorHolder(t, newMemStore(floorOf(t, 7, digest, "11:00:00", "11:30:00")))
+	if err := h.InstallUnconfirmed(ctx, d.build(), pinned()); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Confirm(ctx, statementFor(t, "payments", 7, digest, "11:28:00"), utc("12:00:00")); err != nil {
+		t.Fatal(err)
+	}
+	kernelAt := func(clock string) *core.Kernel {
+		k, err := core.New(core.Options{Mode: controlv1.EnforcementMode_ENFORCEMENT_MODE_ENFORCE, MaxStale: 10 * time.Minute, FailOpenRead: true},
+			func() time.Time { return utc(clock) }, func() string { return "decision-1" })
+		if err != nil {
+			t.Fatal(err)
+		}
+		return k
+	}
+	out := decideWith(kernelAt("11:29:00"), h, controlv1.EffectClass_EFFECT_CLASS_READ)
+	if out.Action != core.Block || !slices.Equal(out.Decision.GetReasonCodes(), []string{"POLICY_STALE"}) {
+		t.Errorf("a read at 11:29: %v %q; want Block and POLICY_STALE alone", out.Action, out.Decision.GetReasonCodes())
+	}
+	for clock, want := range map[string]controlv1.PolicyFreshness{
+		"11:29:00": controlv1.PolicyFreshness_POLICY_FRESHNESS_STALE,
+		"11:30:00": controlv1.PolicyFreshness_POLICY_FRESHNESS_FRESH,
+	} {
+		req := core.Request{Envelope: kernelEnvelope(controlv1.EffectClass_EFFECT_CLASS_READ), Refusal: contract.ErrTooLarge}
+		if got := kernelAt(clock).Decide(ctx, req, h.Current()).Decision.GetPolicyFreshness(); got != want {
+			t.Errorf("a refused request at %s: freshness %s, want %s", clock, got, want)
+		}
+	}
+}

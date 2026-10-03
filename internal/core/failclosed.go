@@ -10,7 +10,8 @@ type undecided struct {
 	effect controlv1.EffectClass
 	// input is a cause in the request: a refusal, an argument that cannot be
 	// digested, a hash that does not match, an undetermined rule, a one-sided
-	// tenant, or a clock reading before the epoch to judge the request by.
+	// tenant, or a clock reading the clock step refuses to judge the request
+	// by.
 	input bool
 	// availability is a cause in the policy's availability: no snapshot, or
 	// one past its budget.

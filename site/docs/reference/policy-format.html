@@ -477,9 +477,9 @@ value is never repeated, because a refusal is written to logs.</p>
 </tbody>
 </table>
 <h2 id="a-test-case">A test case</h2>
-<p>A case for <code>policy test</code> is one JSON object with these members, each once,
-all of them required but <code>external</code>. A member the format does not have, a
-member missing or given twice, and anything after the object are refused.</p>
+<p>A case for <code>policy test</code> is one JSON object holding each member below once,
+all required but <code>external</code>. An unknown, missing or repeated member, and
+anything after the object, are refused.</p>
 <table>
 <thead>
 <tr>
@@ -490,7 +490,7 @@ member missing or given twice, and anything after the object are refused.</p>
 <tbody>
 <tr>
 <td><code>document</code></td>
-<td>The policy document, inline: the object <code>policy lint</code> would read from a file.</td>
+<td>The policy document, inline, as <code>policy lint</code> reads it from a file.</td>
 </tr>
 <tr>
 <td><code>envelope</code></td>
@@ -506,7 +506,7 @@ member missing or given twice, and anything after the object are refused.</p>
 </tr>
 <tr>
 <td><code>options</code></td>
-<td>The kernel's configuration: <code>fail_open_read</code> (<code>true</code> or <code>false</code>), <code>max_stale_seconds</code> (an integer, above zero) and <code>applicable</code> (a list of obligation types the enforcement point can apply, each in the catalogue).</td>
+<td>The kernel's configuration: <code>fail_open_read</code> (<code>true</code> or <code>false</code>), <code>max_stale_seconds</code> (an integer, above zero) and <code>applicable</code> (the catalogue's obligation types the enforcement point can apply).</td>
 </tr>
 <tr>
 <td><code>loaded_at</code></td>
@@ -514,11 +514,11 @@ member missing or given twice, and anything after the object are refused.</p>
 </tr>
 <tr>
 <td><code>decided_at</code></td>
-<td>When the kernel decides, in the same form.</td>
+<td>When the kernel decides, in the same form; one before 1970 or <code>loaded_at</code>, or after 9999, decides <code>INDETERMINATE</code> <code>POLICY_STALE</code> and blocks.</td>
 </tr>
 <tr>
 <td><code>external</code></td>
-<td>Optional. The external decision point's answer the kernel is handed: <code>allowed</code>, <code>denied</code>, <code>denied_with_obligations</code>, <code>timeout</code>, <code>unavailable</code> or <code>answer_refused</code>. Without it nothing was asked: a rule reading <code>external</code> is undetermined unless another constraint is false.</td>
+<td>Optional. The decision point's answer handed to the kernel: <code>allowed</code>, <code>denied</code>, <code>denied_with_obligations</code>, <code>timeout</code>, <code>unavailable</code> or <code>answer_refused</code>. Without it nothing was asked: a rule reading <code>external</code> is undetermined unless another constraint is false.</td>
 </tr>
 <tr>
 <td><code>expect</code></td>

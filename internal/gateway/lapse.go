@@ -1,0 +1,103 @@
+package gateway
+
+import (
+	"context"
+	"time"
+
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/core"
+	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/internal/policy"
+)
+
+// refusedBeforeStart decides the block of an execution that may not start: a
+// pause taken just now covers it or cannot vouch for it, its approval expired,
+// or its opened run did. A spent approval stays spent: it was consumed, and a
+// spent approval is never handed back to be used again.
+func (c *call) refusedBeforeStart() bool {
+	switch {
+	case c.pausedNow():
+	case c.held && lapsedBy(c.now, c.floor, c.approvalExpires):
+		c.decide(verdictDeny, codeApprovalExpired)
+	case c.runLapsed():
+		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
+	default:
+		return false
+	}
+	return true
+}
+
+// lapsedWhileStarting reads the clock once more after ACTION_STARTED, whose
+// append can outlast the approval or the run, and names the block of one that
+// lapsed.
+func (c *call) lapsedWhileStarting() (controlv1.Verdict, string, bool) {
+	if !c.held && c.flow.kind != flowOpened {
+		return 0, "", false
+	}
+	now := c.p.cfg.Clock()
+	switch {
+	case c.held && lapsedBy(now, c.floor, c.approvalExpires):
+		c.now = now
+		return verdictDeny, codeApprovalExpired, true
+	case c.flow.kind == flowOpened && lapsedBy(now, c.floor, c.flow.opened.Expires):
+		c.now = now
+		return verdictIndeterminate, codeEvidenceUnavailable, true
+	}
+	return 0, "", false
+}
+
+// lapsedAfterStart closes the trail of an execution whose approval or opened
+// run expired while its ACTION_STARTED was appended, the way an adapter aborts
+// what it did not send: ACTION_FAILED with a BLOCKED result naming code, which
+// is APPROVAL_EXPIRED or EVIDENCE_UNAVAILABLE, and no executed digest. The call is blocked with a decision of the plane's own,
+// which no record carries, because the chain has no place for a decision
+// after ACTION_STARTED. A record the sink refuses leaves the trail open with
+// its request id and its journal entry, as blockUnrecorded does.
+func (c *call) lapsedAfterStart(trail *evidence.Builder, ex *execution, verdict controlv1.Verdict, code string) Disposition {
+	// ACTION_STARTED is written, so the abort is too, whatever the agent does.
+	c.ctx = context.WithoutCancel(c.ctx)
+	aborted := ex.stamp(nil)
+	aborted.Status = resultBlocked
+	aborted.ToolProtocolStatus = code
+	aborted.EndedAt = timestampOf(c.now)
+	if !c.record(trail.Failed(aborted)) {
+		return c.blockUnrecorded()
+	}
+	c.decide(verdict, code)
+	c.p.counts.blocked(code)
+	requestID := c.requestID
+	c.close()
+	c.p.journalForget(c.ctx, requestID)
+	return Disposition{Action: core.Block, Decision: c.decision}
+}
+
+// reliedOn raises the call's floor to at. Every clock reading the call takes
+// raises it, one after 9999 included, so a clock that jumps ahead and comes
+// back vouches for nothing later in the call.
+func (c *call) reliedOn(at time.Time) {
+	if at.After(c.floor) {
+		c.floor = at
+	}
+}
+
+// reliedOnDecision raises the call's floor to the decision's reading and to
+// the latest time the plane verified for snap.
+func (c *call) reliedOnDecision(d *controlv1.Decision, snap *policy.Snapshot) {
+	if at := d.GetDecidedAt(); at != nil {
+		c.reliedOn(at.AsTime())
+	}
+	c.reliedOn(snap.NotBefore())
+}
+
+// lapsedBy reports whether an expiry is reached at now, or cannot be told
+// unreached.
+func lapsedBy(now, floor, expires time.Time) bool {
+	return unvouched(now, floor) || !now.Before(expires)
+}
+
+// unvouched reports whether now proves nothing unexpired: a reading the
+// kernel would refuse to decide at, or one behind floor, an instant the call
+// already relied on.
+func unvouched(now, floor time.Time) bool {
+	return !policy.UsableTime(now) || now.Before(floor)
+}

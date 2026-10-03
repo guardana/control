@@ -71,11 +71,10 @@ format character or bytes that are not UTF-8 is printed as a quoted Go string.</
 loads: <a href="/docs/guides/write-and-test-a-policy">guides/write-and-test-a-policy.md</a>
 is their page. The <code>approvals</code> commands read and answer the records under an
 approvals directory, from outside the gateway process.</p>
-<p><code>policy renew</code> takes the freshness key, the bundle, its public key, a
-signer's floor and the statement to write; it verifies the bundle, raises the
-floor, then writes the statement. <code>policy state init</code> and <code>reset</code> make and
-lower floors
-(<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>).</p>
+<p><code>policy renew</code> verifies the bundle against its public key, raises a signer's
+floor, then writes the statement it signs with the freshness key. <code>policy state init</code> and <code>reset</code> make and lower floors
+(<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>);
+a reset reaches a running plane's clock check only when it restarts.</p>
 <p><code>policy keygen</code> creates the directory <code>--out</code> names, mode <code>0700</code>, and refuses a
 path that exists. Into it go <code>signing.key</code>, the private key as one PKCS#8 PEM
 block, mode <code>0600</code>, and <code>signing.pub</code>, the public key as one line of standard

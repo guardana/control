@@ -78,8 +78,8 @@ func (c *call) raise() bool {
 }
 
 // runLapsed reports whether the call's opened run expired by the clock the
-// call read last; a zero reading proves nothing unexpired. A run closed after
-// its call passed the listener is not seen here, which reads no file.
+// call read last. A run closed after its call passed the listener is not seen
+// here, which reads no file.
 func (c *call) runLapsed() bool {
-	return c.flow.kind == flowOpened && (c.now.IsZero() || !c.now.Before(c.flow.opened.Expires))
+	return c.flow.kind == flowOpened && lapsedBy(c.now, c.floor, c.flow.opened.Expires)
 }

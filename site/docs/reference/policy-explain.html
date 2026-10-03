@@ -47,6 +47,7 @@ policy_digest: sha256:&lt;64 hex digits&gt;
 freshness: FRESH
 reason_codes: APPROVAL_REQUIRED RULE_UNDETERMINED
 refused: no
+clock: usable
 tenant_unstated: none
 delegation: absent
 external: not asked
@@ -92,7 +93,7 @@ the call is blocked before anyone is asked.</p>
 </tr>
 <tr>
 <td><code>freshness</code></td>
-<td><code>FRESH</code>, or <code>STALE</code> when the policy is older than the smaller of the document's and the options' budgets, or was loaded after the decision time.</td>
+<td><code>FRESH</code>, or <code>STALE</code> when the policy is older than the smaller of the document's and the options' budgets, or <code>decided_at</code> is before 1970, after 9999 or before <code>loaded_at</code>, a refused request included.</td>
 </tr>
 <tr>
 <td><code>reason_codes</code></td>
@@ -103,12 +104,16 @@ the call is blocked before anyone is asked.</p>
 <td><code>no</code>; the envelope field whose refusal stopped the decision before the policy; or <code>yes, naming no field</code> when the refusal is about the message as a whole or its arguments, which the codes tell apart. The refusal's own message is never printed: it can quote the input.</td>
 </tr>
 <tr>
+<td><code>clock</code></td>
+<td><code>usable</code>; <code>unusable, before 1970 or after 9999</code>; <code>unusable, earlier than a time the plane verified</code> when <code>decided_at</code> is before <code>loaded_at</code>; or <code>not checked</code> when the request was refused first. An unusable clock stops the decision with <code>POLICY_STALE</code>, so nothing after it is checked.</td>
+</tr>
+<tr>
 <td><code>tenant_unstated</code></td>
 <td><code>none</code>, or the tenant field a material call left out while the other side named one (<code>TENANT_UNDETERMINED</code>).</td>
 </tr>
 <tr>
 <td><code>delegation</code></td>
-<td><code>absent</code>, <code>passed</code>, <code>refused</code> with the code, or <code>not checked</code> when the request was refused first.</td>
+<td><code>absent</code>, <code>passed</code>, <code>refused</code> with the code, or <code>not checked</code> when the request was refused first or the clock stopped the decision.</td>
 </tr>
 <tr>
 <td><code>external</code></td>

@@ -11,8 +11,13 @@ statement, never by being read again, and that the serial floor outlives the
 process; [status.md](../status.md) says how much of it a plane does today.
 
 Amended in 0.6.0-alpha: a clock reading before 1970, the zero time among them,
-is a cause in the request, decided `INDETERMINATE` with `POLICY_STALE` on every
-effect class, so fail-open reads never apply to it.
+or after the last instant of 9999, is a cause in the request, decided
+`INDETERMINATE` with `POLICY_STALE` on every effect class, so fail-open reads
+never apply to it. A reading earlier than the snapshot's not-before, the
+latest `issuedAt` the plane verified from a freshness statement or its floor,
+is provably wrong and is the same cause; the stale bundle below is then never
+reached. A delegation hop's `issued_at` is the producer's unsigned claim and
+is not compared with the clock.
 
 ## Context
 

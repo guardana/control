@@ -34,8 +34,13 @@ which decides that a bundle is confirmed current by a signed freshness
 statement, never by being read again, and that the serial floor outlives the
 process; <a href="/docs/status">status.md</a> says how much of it a plane does today.</p>
 <p>Amended in 0.6.0-alpha: a clock reading before 1970, the zero time among them,
-is a cause in the request, decided <code>INDETERMINATE</code> with <code>POLICY_STALE</code> on every
-effect class, so fail-open reads never apply to it.</p>
+or after the last instant of 9999, is a cause in the request, decided
+<code>INDETERMINATE</code> with <code>POLICY_STALE</code> on every effect class, so fail-open reads
+never apply to it. A reading earlier than the snapshot's not-before, the
+latest <code>issuedAt</code> the plane verified from a freshness statement or its floor,
+is provably wrong and is the same cause; the stale bundle below is then never
+reached. A delegation hop's <code>issued_at</code> is the producer's unsigned claim and
+is not compared with the clock.</p>
 <h2 id="context">Context</h2>
 <p>ADR-0003 chose structured predicates and deny-overrides, and left the exact
 fail-closed mapping open. ADR-0011 settled what the wire says. What is

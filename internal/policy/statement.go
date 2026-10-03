@@ -225,12 +225,11 @@ func SignStatement(bundleID string, serial int64, digest string, issuedAt time.T
 }
 
 // ParseIssuedAt reads issuedAt's one spelling, YYYY-MM-DDTHH:MM:SSZ, and
-// refuses every other with ErrStatementIssuedAt, and any time before
-// 1970-01-01T00:00:00Z: the zero time is no confirmation at all, and a time
-// near it is outside what a decision's policy_loaded_at can carry.
+// refuses every other with ErrStatementIssuedAt, and any time UsableTime
+// refuses: the zero time is no confirmation at all.
 func ParseIssuedAt(s string) (time.Time, error) {
 	t, err := time.Parse(issuedAtLayout, s)
-	if err != nil || t.Format(issuedAtLayout) != s || t.Before(time.Unix(0, 0)) {
+	if err != nil || t.Format(issuedAtLayout) != s || !UsableTime(t) {
 		return time.Time{}, ErrStatementIssuedAt
 	}
 	return t, nil

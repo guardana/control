@@ -57,6 +57,7 @@ func TestPolicyExplainPrintsTheDecisionAndEveryRule(t *testing.T) {
 		"freshness: FRESH",
 		"reason_codes: RULE_ALLOW RULE_UNDETERMINED",
 		"refused: no",
+		"clock: usable",
 		"tenant_unstated: none",
 		"delegation: absent",
 		"external: not asked",
@@ -250,6 +251,10 @@ func TestPolicyExplainNamesTheKernelsOwnFindings(t *testing.T) {
 		`"id":"ord-1","tenantId":"tenant-1"`, `"id":"ord-1"`, 1)
 	asked := base()
 	asked.external = `"denied"`
+	behindBundle := base()
+	behindBundle.loadedAt = `"2026-09-11T12:00:01Z"`
+	refused := base()
+	refused.envelope = strings.Replace(readEnvelope, `"requestId":"req-1",`, "", 1)
 	for name, tc := range map[string]struct {
 		p    parts
 		line string
@@ -259,6 +264,8 @@ func TestPolicyExplainNamesTheKernelsOwnFindings(t *testing.T) {
 		"a write naming one tenant":   {write, "tenant_unstated: resource.tenant_id"},
 		"an answer the case names":    {asked, "external: denied"},
 		"no chain, no answer, a read": {base(), "delegation: absent"},
+		"a clock behind the bundle":   {behindBundle, "clock: unusable, earlier than a time the plane verified"},
+		"a refused request":           {refused, "clock: not checked"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, lines := explainOf(t, withoutExpect(tc.p))

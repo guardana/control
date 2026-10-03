@@ -64,9 +64,7 @@ func (d *decision) run(k *Kernel) {
 	if !d.admit() {
 		return
 	}
-	if !usableNow(d.now) {
-		d.add(codePolicyStale)
-		d.causes.input = true
+	if !d.checkClock() {
 		return
 	}
 	d.checkDelegation()
@@ -78,15 +76,6 @@ func (d *decision) run(k *Kernel) {
 	}
 	d.checkFreshness()
 	d.evaluate(k.applicable)
-}
-
-// usableNow is false for a reading before 1970-01-01T00:00:00Z, the zero time
-// among them, which the policy package refuses as a confirmation: no expiry
-// and no bundle's age can be judged against it, so no bundle is known current.
-// The decision stops on it as a cause in the request, which fail-open reads,
-// a setting for a missing policy, never relieve.
-func usableNow(now time.Time) bool {
-	return !now.Before(time.Unix(0, 0))
 }
 
 // admit is steps 1 and 2: the refusal handed in, or Validate's on the clone;
@@ -206,15 +195,14 @@ func (d *decision) checkTenant() {
 	}
 }
 
-// stale is step 6's condition: no snapshot, no usable clock reading, or an
-// age over the smaller of the author's and the operator's budget, or a
-// negative one.
+// stale is step 6's condition: no snapshot, a clock reading the clock step
+// refuses, whether or not that step ran, or an age over the smaller of the
+// author's and the operator's budget.
 func (d *decision) stale() bool {
-	if d.snap == nil || !usableNow(d.now) {
+	if d.snap == nil || d.clockState() != ClockUsable {
 		return true
 	}
-	age := d.now.Sub(d.snap.ConfirmedAt())
-	return age < 0 || age > min(d.snap.MaxStale(), d.operator)
+	return d.now.Sub(d.snap.ConfirmedAt()) > min(d.snap.MaxStale(), d.operator)
 }
 
 // checkFreshness is step 6: a stale snapshot is a cause, and evaluation
@@ -290,8 +278,8 @@ func (d *decision) outcome(k *Kernel) Outcome {
 		d.add(codeFailOpenRead)
 	}
 	// The field is computed on every branch; POLICY_STALE is a code only
-	// where step 6 ran, so a refused request reports a stale snapshot
-	// without it.
+	// where the clock step or step 6 ran, so a refused request reports a
+	// stale snapshot without it.
 	freshness := controlv1.PolicyFreshness_POLICY_FRESHNESS_FRESH
 	if d.stale() {
 		freshness = controlv1.PolicyFreshness_POLICY_FRESHNESS_STALE
@@ -322,11 +310,20 @@ func (d *decision) outcome(k *Kernel) Outcome {
 			EnforcementMode:    controlv1.EnforcementMode_ENFORCEMENT_MODE_ENFORCE,
 			PolicyFreshness:    freshness,
 			PolicyLoadedAt:     loadedAt,
-			DecidedAt:          timestamppb.New(d.now),
+			DecidedAt:          decidedAt(d.now),
 		},
 		Action:        action,
 		NeedsExternal: d.needsExternal,
 	}
+}
+
+// decidedAt is the reading as a Timestamp, or none for a reading no record
+// can state.
+func decidedAt(now time.Time) *timestamppb.Timestamp {
+	if !policy.UsableTime(now) {
+		return nil
+	}
+	return timestamppb.New(now)
 }
 
 // obligations are conditions on a call that proceeds, so they travel only on

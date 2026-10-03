@@ -18,6 +18,8 @@ type Explanation struct {
 	// TenantUnstated is the tenant field a material call left out while the
 	// other side named one, in wire spelling.
 	TenantUnstated string
+	// Clock is what the clock step made of the decision's reading.
+	Clock ClockState
 	// Delegation is what step 3 made of the chain.
 	Delegation Delegation
 	// Rules are how each rule read the call, in document order; nil when the
@@ -32,9 +34,27 @@ type Refusal struct {
 	Field string
 }
 
+// ClockState is the clock step's reading of the decision's first clock
+// reading. The zero value is a reading nobody checked, because the request
+// was refused first.
+type ClockState uint8
+
+const (
+	// ClockNotChecked is a request refused before the clock step.
+	ClockNotChecked ClockState = iota
+	// ClockUsable is a reading the decision went on with.
+	ClockUsable
+	// ClockOutOfRange is a reading policy.UsableTime refuses: before 1970 or
+	// after the last instant a Timestamp holds.
+	ClockOutOfRange
+	// ClockBeforeVerified is a reading earlier than the snapshot's
+	// NotBefore, a time the plane verified.
+	ClockBeforeVerified
+)
+
 // DelegationState is step 3's reading of the chain. The zero value is a chain
-// nobody checked, because the request was refused first or the clock reading
-// was before the epoch.
+// nobody checked, because the request was refused first or the clock step
+// stopped the decision.
 type DelegationState uint8
 
 const (

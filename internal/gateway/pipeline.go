@@ -79,8 +79,8 @@ type Config struct {
 	// a bound of its own, and a negative one is refused. A bound that bites
 	// makes that pass unmeasured rather than done.
 	ReconcileMax int
-	// Clock is what the plane reads; a zero reading is refused where it would
-	// pass an expiry.
+	// Clock is what the plane reads. A reading outside 1970 to 9999, or one
+	// behind an instant the call already relied on, never passes an expiry.
 	Clock func() time.Time
 	// NewID names decisions, events, approvals and executions. It has to
 	// return a unique, non-empty id on every call.

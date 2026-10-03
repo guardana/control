@@ -391,11 +391,17 @@ func pinned() bundle.Keyring {
 // snapshot signs a document of rules in memory and loads it at base.
 func snapshot(t *testing.T, rules ...string) *policy.Snapshot {
 	t.Helper()
+	return snapshotAt(t, base(), rules...)
+}
+
+// snapshotAt signs a document of rules in memory and loads it at at.
+func snapshotAt(t *testing.T, at time.Time, rules ...string) *policy.Snapshot {
+	t.Helper()
 	b, err := policy.Sign(document(rules...), key(), "k1")
 	if err != nil {
 		t.Fatalf("Sign refused a document this test builds as valid: %v", err)
 	}
-	snap, err := policy.Load(b, pinned(), base())
+	snap, err := policy.Load(b, pinned(), at)
 	if err != nil {
 		t.Fatalf("Load refused a bundle this test builds as valid: %v", err)
 	}

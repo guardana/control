@@ -15,8 +15,10 @@ const (
 	Unconfirmed State = iota
 	// Confirmed is a snapshot a statement confirmed within its budget.
 	Confirmed
-	// Expired is a snapshot whose confirmation is past its budget, or later
-	// than the clock: the kernel decides it stale too.
+	// Expired is a snapshot whose confirmation is past its budget, or one
+	// read at a clock the kernel refuses to judge by: outside 1970 to 9999,
+	// or earlier than the snapshot's NotBefore. The kernel decides it stale
+	// too.
 	Expired
 )
 
@@ -50,16 +52,16 @@ func ExpiresAt(issued time.Time, snap *policy.Snapshot, operator time.Duration) 
 
 // Freshness is how snap stands at now under the operator's budget, and when
 // its confirmation expires, the zero time where there is none. It judges as
-// the kernel does: a confirmation older than the budget, or later than now,
-// is stale.
+// the kernel does: a confirmation older than the budget is stale, and so is
+// any at a reading outside 1970 to 9999 or earlier than NotBefore, which is
+// never earlier than the confirmation.
 func Freshness(snap *policy.Snapshot, operator time.Duration, now time.Time) (State, time.Time) {
 	confirmed := snap.ConfirmedAt()
 	if snap == nil || confirmed.IsZero() {
 		return Unconfirmed, time.Time{}
 	}
 	expires := ExpiresAt(confirmed, snap, operator)
-	age := now.Sub(confirmed)
-	if age < 0 || age > Budget(snap, operator) {
+	if !policy.UsableTime(now) || now.Before(snap.NotBefore()) || now.Sub(confirmed) > Budget(snap, operator) {
 		return Expired, expires
 	}
 	return Confirmed, expires

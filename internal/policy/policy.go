@@ -22,6 +22,9 @@ type Snapshot struct {
 	maxStale    time.Duration
 	serial      int64
 	program     *match.Program
+	// verified is the latest issuedAt the holder verified when it published
+	// this snapshot; NotBefore is the later of it and confirmedAt.
+	verified time.Time
 }
 
 // Ref returns a clone of the bundle's reference: its id, version and digest.
@@ -40,6 +43,21 @@ func (s *Snapshot) Ref() *controlv1.PolicyBundleRef {
 func (s *Snapshot) ConfirmedAt() time.Time {
 	if s == nil {
 		return time.Time{}
+	}
+	return s.confirmedAt
+}
+
+// NotBefore is the latest time the plane verified when it published this
+// snapshot, never earlier than ConfirmedAt: on a holder's snapshot the latest
+// issuedAt of a statement the holder confirmed or of the floor it read, and
+// on one Load made the time handed to it. A clock reading earlier than it is
+// provably wrong. It never falls across one holder's snapshots.
+func (s *Snapshot) NotBefore() time.Time {
+	if s == nil {
+		return time.Time{}
+	}
+	if s.verified.After(s.confirmedAt) {
+		return s.verified
 	}
 	return s.confirmedAt
 }

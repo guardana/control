@@ -76,6 +76,7 @@ func explanationLines(c *testCase, got explained) []string {
 		"freshness: " + strings.TrimPrefix(d.GetPolicyFreshness().String(), "POLICY_FRESHNESS_"),
 		"reason_codes: " + strings.Join(d.GetReasonCodes(), " "),
 		"refused: " + refusedText(got.why.Refusal),
+		"clock: " + clockText(got.why.Clock),
 		"tenant_unstated: " + orNone(got.why.TenantUnstated),
 		"delegation: " + chainText(got.why.Delegation),
 		"external: " + c.externalName,
@@ -91,6 +92,18 @@ func refusedText(r *core.Refusal) string {
 		return "yes, naming no field"
 	}
 	return r.Field
+}
+
+func clockText(c core.ClockState) string {
+	switch c {
+	case core.ClockUsable:
+		return "usable"
+	case core.ClockOutOfRange:
+		return "unusable, before 1970 or after 9999"
+	case core.ClockBeforeVerified:
+		return "unusable, earlier than a time the plane verified"
+	}
+	return "not checked"
 }
 
 func chainText(d core.Delegation) string {

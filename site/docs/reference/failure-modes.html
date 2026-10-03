@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Failure modes · Guardana Control</title>
-<meta name="description" content="What a plane does when its collector, spool, decision point, an upstream, its pause file or its freshness statement fails, or it is killed holding calls."/>
+<meta name="description" content="What a plane does when its collector, spool, decision point, an upstream, its pause file, freshness statement or clock fails, or it is killed holding calls."/>
 <link rel="canonical" href="https://control.guardana.dev/docs/reference/failure-modes"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
@@ -26,7 +26,7 @@
 <div class="wrap shell">
 <main id="main" class="prose">
 <h1 id="failure-modes">Failure modes</h1>
-<p>The plane is built to survive the eleven failures below. Each row says
+<p>The plane is built to survive the twelve failures below. Each row says
 whether the plane blocks the call, the reason code, what the agent gets,
 whether the plane recovers without an operator, and the test that makes the
 failure happen. The sections after the table say what the trail holds.</p>
@@ -117,6 +117,14 @@ process that really fail. Nothing here is a security boundary yet
 <td>the upstream's answer, then <code>isError</code> and the code</td>
 <td>yes, once the file holds the served bundle or a newer one with its statement</td>
 <td><code>TestEveryRefusedReplacementMovesNothing</code></td>
+</tr>
+<tr>
+<td>Clock outside 1970 to 9999, or behind a verified time</td>
+<td>blocked outside <code>OBSERVE</code>, a read too, whatever <code>policy.fail_open_read</code> says</td>
+<td><code>POLICY_STALE</code></td>
+<td><code>isError</code> and the code</td>
+<td>yes, once the clock passes a verified time, or at a restart after <code>policy state reset</code>; outside 1970 to 9999, no: fix the clock</td>
+<td><code>TestAClockOutsideTheUsableRangeIsACauseInTheRequest</code>, <code>TestAClockBehindAVerifiedTimeIsACauseInTheRequest</code>, <code>TestAClockBehindTheFloorStopsAnUnconfirmedSnapshotsRead</code></td>
 </tr>
 <tr>
 <td>Floor directory or file missing or unreadable at start</td>
@@ -213,6 +221,20 @@ the policy is not confirmed, each call's <code>POLICY_DECIDED</code> carries
 <code>POLICY_STALE</code> and <code>policy_freshness</code> <code>STALE</code>, <code>/healthz</code> answers
 <code>&quot;status&quot;:&quot;degraded&quot;</code>, and outside <code>OBSERVE</code> a material call is blocked
 with <code>ACTION_BLOCKED</code>.</p>
+<h2 id="a-clock-that-cannot-be-read-as-now">A clock that cannot be read as now</h2>
+<p>The kernel judges no expiry and no bundle's age by a reading before 1970,
+after 9999-12-31, or earlier than a time the plane verified: the latest
+<code>issuedAt</code> of a statement it confirmed or of its floor. It decides
+<code>INDETERMINATE</code> with <code>POLICY_STALE</code> alone, and <code>policy.fail_open_read</code> opens
+no read: a wrong clock is no missing policy. A hop's unsigned <code>issued_at</code>
+is not compared.</p>
+<p>Outside 1970 to 9999 the kernel's decision has no <code>decided_at</code>, though the
+plane's records carry the reading. The spool refuses a record dated before
+year 1 or after 9999, which blocks the call with <code>EVIDENCE_UNAVAILABLE</code>
+unless <code>evidence.on_unwritable: allow_reads</code> lets a read go on unrecorded.</p>
+<p>Before an approved or run-bound call is handed out, a reading behind any
+the call took before, the verified time or the approval's <code>requested_at</code>
+blocks it as lapsed: <code>APPROVAL_EXPIRED</code> or <code>EVIDENCE_UNAVAILABLE</code>.</p>
 <h2 id="plane-killed-with-calls-held">Plane killed with calls held</h2>
 <p>A held call's trail stands at <code>APPROVAL_REQUESTED</code> while no plane runs, and
 an approver can still answer its record. With <code>approvals.hold_journal_dir</code>

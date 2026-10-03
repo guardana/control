@@ -41,11 +41,11 @@ loads: [guides/write-and-test-a-policy.md](../guides/write-and-test-a-policy.md)
 is their page. The `approvals` commands read and answer the records under an
 approvals directory, from outside the gateway process.
 
-`policy renew` takes the freshness key, the bundle, its public key, a
-signer's floor and the statement to write; it verifies the bundle, raises the
-floor, then writes the statement. `policy state init` and `reset` make and
-lower floors
-([ADR-0038](../adr/0038-a-signed-freshness-statement-and-a-serial-floor.md)).
+`policy renew` verifies the bundle against its public key, raises a signer's
+floor, then writes the statement it signs with the freshness key. `policy
+state init` and `reset` make and lower floors
+([ADR-0038](../adr/0038-a-signed-freshness-statement-and-a-serial-floor.md));
+a reset reaches a running plane's clock check only when it restarts.
 
 `policy keygen` creates the directory `--out` names, mode `0700`, and refuses a
 path that exists. Into it go `signing.key`, the private key as one PKCS#8 PEM

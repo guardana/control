@@ -66,6 +66,12 @@ func (c *call) try(own *heldRequest, binding approval.Binding, r *resumption) (D
 		// stands for a retry after the lift.
 		return c.freshBlock(), true
 	}
+	if requested := own.approval.GetRequestedAt().AsTime(); unvouched(c.now, c.floor) || c.now.Before(requested) {
+		// A clock that cannot vouch for the approval spends nothing either:
+		// the hold stands for a retry at a reading that can.
+		c.decide(verdictDeny, codeApprovalExpired)
+		return c.freshBlock(), true
+	}
 	a, err := c.p.cfg.Approvals.Consume(c.ctx, binding,
 		own.approval.GetRequestId(), own.approval.GetApprovalId(), c.now)
 	var d Disposition

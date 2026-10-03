@@ -1,6 +1,7 @@
 package policywatch_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -50,6 +51,49 @@ func TestFreshnessJudgesAsTheKernelDoes(t *testing.T) {
 	} {
 		if state.String() != name {
 			t.Errorf("%d spells %q, want %q", state, state.String(), name)
+		}
+	}
+}
+
+// TestFreshnessIsNotConfirmedAtAClockTheKernelRefuses: a confirmation within
+// its budget is still expired at a reading after 9999, or at one earlier than
+// the snapshot's NotBefore, since the kernel decides every call stale there.
+// At NotBefore itself it is confirmed.
+func TestFreshnessIsNotConfirmedAtAClockTheKernelRefuses(t *testing.T) {
+	b := signed(t, doc(planeID, 2, "v2", 300), bundleKey)
+	keys := bundle.Keyring{bundleKeyID: publicOf(bundleKey)}
+	floor, err := policy.NewFloor(planeID, 2, b.GetRef().GetDigest(), t0.Add(-10*time.Minute), t0.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := policy.NewFloorHolder(planeID, &memFloor{floor: floor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.InstallConfirmed(context.Background(), b, keys, statementOf(t, 2, b.GetRef().GetDigest(), t0), t0.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.Current().NotBefore(); !got.Equal(t0.Add(time.Minute)) {
+		t.Fatalf("NotBefore %v, want %v", got, t0.Add(time.Minute))
+	}
+	last := time.Date(9999, time.December, 31, 23, 59, 0, 0, time.UTC)
+	late, err := policy.Load(b, keys, last)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name  string
+		snap  *policy.Snapshot
+		now   time.Time
+		state policywatch.State
+	}{
+		{"behind NotBefore", h.Current(), t0.Add(30 * time.Second), policywatch.Expired},
+		{"at NotBefore", h.Current(), t0.Add(time.Minute), policywatch.Confirmed},
+		{"after 9999", late, time.Date(10000, time.January, 1, 0, 0, 0, 0, time.UTC), policywatch.Expired},
+		{"the last instant of 9999", late, time.Date(9999, time.December, 31, 23, 59, 59, 999999999, time.UTC), policywatch.Confirmed},
+	} {
+		if state, _ := policywatch.Freshness(c.snap, 10*time.Minute, c.now); state != c.state {
+			t.Errorf("%s: %s, want %s", c.name, state, c.state)
 		}
 	}
 }

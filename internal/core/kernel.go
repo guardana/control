@@ -161,9 +161,10 @@ type Outcome struct {
 // becomes an INDETERMINATE decision with a reason code. It reads the clock
 // once on entry for every comparison and once more for the latency, clones
 // the envelope before reading it, and returns nothing that aliases the
-// request, the snapshot or an earlier decision. A first reading before the
-// Unix epoch, the zero time among them, judges nothing: the decision is
-// INDETERMINATE with POLICY_STALE and blocks on every effect class.
+// request, the snapshot or an earlier decision. A first reading before 1970,
+// the zero time among them, after 9999, or earlier than the snapshot's
+// NotBefore judges nothing: the decision is INDETERMINATE with POLICY_STALE
+// and blocks on every effect class.
 //
 // A kernel nobody built, nil or the zero value, has no clock and no id
 // source; it decides INDETERMINATE and Block rather than crash.

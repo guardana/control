@@ -76,6 +76,8 @@ request whose body is still arriving holds no place. Another listener kind
 refuses the key. <code>/metrics</code> carries
 <code>guardana_control_adapter_sessions_live</code> and
 <code>guardana_control_adapter_sessions_refused_total</code>.</li>
+<li><code>guardana-control policy explain</code> prints a <code>clock</code> line: <code>usable</code>, or why
+the clock stopped the decision.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
@@ -129,8 +131,8 @@ scenario past the budget stays fresh. It prints <code>statement</code>, <code>st
 <p><code>scenario run</code> refuses a plane whose policy is not confirmed.</p>
 </li>
 <li>
-<p><code>POLICY_STALE</code>'s summary names an unconfirmed policy too; its identifier and
-number are unchanged.</p>
+<p><code>POLICY_STALE</code>'s summary names an unconfirmed policy and a clock the plane
+cannot judge by too; its identifier and number are unchanged.</p>
 </li>
 <li>
 <p><code>examples/evidence-report</code> prints a <code>block</code> column after <code>reasons</code>: the
@@ -200,11 +202,18 @@ its entries only through the directory it opened and refuses one swapped in
 at its name later. A plane no longer starts over a journal directory another
 account owns, and <code>collect --out</code> refuses a path that names no file, such as
 one ending in a separator.</li>
-<li>A clock reading before 1970, the zero time among them, no longer lets the
-kernel decide: the call is <code>INDETERMINATE</code> with <code>POLICY_STALE</code> and blocks on
-every effect class, fail-open reads included. Such a reading let an expired
-delegation pass and could make a bundle confirmed at the zero time read as
-fresh.</li>
+<li>A clock reading before 1970, the zero time among them, after 9999, or
+earlier than a time the plane verified, the latest <code>issuedAt</code> of a
+statement it confirmed or of its floor, no longer lets the kernel decide:
+the call is <code>INDETERMINATE</code> with <code>POLICY_STALE</code> and blocks on every effect
+class, fail-open reads included, and <code>/healthz</code> reports the policy
+<code>expired</code>. Such a reading let an expired delegation pass and could make a
+bundle confirmed at the zero time read as fresh. Before it hands out an
+approved or run-bound call, the plane treats as expired a reading outside
+1970 to 9999 or earlier than one the call already relied on or than the
+approval's <code>requested_at</code>, so a clock set back after the decision no longer
+runs an expired call, and a resume refused this way no longer spends its
+approval.</li>
 </ul>
 <h2 id="050-alpha---2026-10-02"><a href="https://github.com/guardana/control/releases/tag/v0.5.0-alpha">0.5.0-alpha</a> - 2026-10-02</h2>
 <p>An author can now see why a call got its decision: <code>policy explain</code> names the

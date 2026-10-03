@@ -75,6 +75,7 @@ func (p *Pipeline) newCall(ctx context.Context, a Admission) *call {
 func (c *call) takePause() {
 	snap := c.p.cfg.Pause.Current()
 	c.now = c.p.cfg.Clock()
+	c.reliedOn(c.now)
 	c.pause = snap.At(c.now)
 }
 

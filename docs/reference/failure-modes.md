@@ -1,13 +1,13 @@
 ---
 title: Failure modes
-summary: What a plane does when its collector, spool, decision point, an upstream, its pause file or its freshness statement fails, or it is killed holding calls.
+summary: What a plane does when its collector, spool, decision point, an upstream, its pause file, freshness statement or clock fails, or it is killed holding calls.
 type: reference
 covers: [cmd/guardana-gateway/serve.go, cmd/guardana-gateway/adapter.go, cmd/guardana-gateway/chaos_*_test.go, adapters/mcp/middleware.go, adapters/mcp/answer.go, adapters/authzen/**, adapters/otel/**, internal/spool/**, internal/pause/**, internal/gateway/close.go, internal/gateway/decisionpoint.go, internal/policywatch/**]
 ---
 
 # Failure modes
 
-The plane is built to survive the eleven failures below. Each row says
+The plane is built to survive the twelve failures below. Each row says
 whether the plane blocks the call, the reason code, what the agent gets,
 whether the plane recovers without an operator, and the test that makes the
 failure happen. The sections after the table say what the trail holds.
@@ -28,6 +28,7 @@ process that really fail. Nothing here is a security boundary yet
 | Pause file unreadable | blocked | `PAUSE_STATE_UNAVAILABLE` | `isError` and the code | yes, at the first read of a whole file | `TestAPauseFileSpoiledWhileThePlaneRunsBlocksEveryCall` |
 | Freshness statement missing, expired or refused, at start or later | blocked, a read too unless `policy.fail_open_read` | `POLICY_STALE` | `isError` and the code | yes, at the first poll that takes a statement bound to the bundle | `TestAnUnconfirmedPlaneBlocksMaterialCalls`, `TestARenewalConfirmsAgain` |
 | Bundle file torn, unsigned, older or another id's | runs on the last good bundle until its statement expires, then blocked | none, then `POLICY_STALE` | the upstream's answer, then `isError` and the code | yes, once the file holds the served bundle or a newer one with its statement | `TestEveryRefusedReplacementMovesNothing` |
+| Clock outside 1970 to 9999, or behind a verified time | blocked outside `OBSERVE`, a read too, whatever `policy.fail_open_read` says | `POLICY_STALE` | `isError` and the code | yes, once the clock passes a verified time, or at a restart after `policy state reset`; outside 1970 to 9999, no: fix the clock | `TestAClockOutsideTheUsableRangeIsACauseInTheRequest`, `TestAClockBehindAVerifiedTimeIsACauseInTheRequest`, `TestAClockBehindTheFloorStopsAnUnconfirmedSnapshotsRead` |
 | Floor directory or file missing or unreadable at start | none: the plane does not start | none | no listener | no: restore it, or make it again with `policy state init` or `reset` | `TestAStartWithNoFloorIsRefused`, `TestAStartIsRefusedForWhatItCannotRead` |
 | Plane killed with calls held | never runs | `APPROVAL_NOT_RESUMED`, `APPROVAL_REJECTED`, `APPROVAL_EXPIRED` or `APPROVAL_STATE_UNKNOWN` on the closing record | `APPROVAL_PENDING`, before the kill | at the next start, with a hold journal | `TestAnApproverOutsideThePlaneAnswersAndALostHoldIsClosed`, `TestTheLostHoldCodesTellTheFourAnswersApart` |
 
@@ -120,6 +121,24 @@ the policy is not confirmed, each call's `POLICY_DECIDED` carries
 `POLICY_STALE` and `policy_freshness` `STALE`, `/healthz` answers
 `"status":"degraded"`, and outside `OBSERVE` a material call is blocked
 with `ACTION_BLOCKED`.
+
+## A clock that cannot be read as now
+
+The kernel judges no expiry and no bundle's age by a reading before 1970,
+after 9999-12-31, or earlier than a time the plane verified: the latest
+`issuedAt` of a statement it confirmed or of its floor. It decides
+`INDETERMINATE` with `POLICY_STALE` alone, and `policy.fail_open_read` opens
+no read: a wrong clock is no missing policy. A hop's unsigned `issued_at`
+is not compared.
+
+Outside 1970 to 9999 the kernel's decision has no `decided_at`, though the
+plane's records carry the reading. The spool refuses a record dated before
+year 1 or after 9999, which blocks the call with `EVIDENCE_UNAVAILABLE`
+unless `evidence.on_unwritable: allow_reads` lets a read go on unrecorded.
+
+Before an approved or run-bound call is handed out, a reading behind any
+the call took before, the verified time or the approval's `requested_at`
+blocks it as lapsed: `APPROVAL_EXPIRED` or `EVIDENCE_UNAVAILABLE`.
 
 ## Plane killed with calls held
 

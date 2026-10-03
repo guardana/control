@@ -31,6 +31,17 @@ type Holder struct {
 	// statement issued after it is accepted, none confirms the holder.
 	// Guarded by mu.
 	withdrawn time.Time
+	// verified is the latest issuedAt the holder verified, from a statement
+	// it confirmed or a floor it read; every snapshot it publishes is not
+	// before it. It only rises. Guarded by mu.
+	verified time.Time
+}
+
+// verify raises the latest verified time to at. mu is held.
+func (h *Holder) verify(at time.Time) {
+	if at.After(h.verified) {
+		h.verified = at
+	}
 }
 
 type installed struct {
@@ -135,6 +146,8 @@ func (h *Holder) installUnconfirmed(ctx context.Context, b *controlv1.PolicyBund
 	if err := h.admit(next); err != nil {
 		return err
 	}
+	h.verify(f.latestIssuedAt)
+	next.verified = h.verified
 	h.current.Store(next)
 	return nil
 }
@@ -175,10 +188,10 @@ func (h *Holder) Confirm(ctx context.Context, st Statement, now time.Time) error
 }
 
 // Unconfirm publishes the current snapshot again with no confirmation, so the
-// kernel decides it stale, and withdraws the confirmation it held: Confirm and
-// InstallConfirmed refuse every statement issued no later than it with
-// ErrConfirmationWithdrawn until one issued after it is accepted. On a holder
-// with no snapshot it does nothing.
+// kernel decides it stale, keeping its NotBefore, and withdraws the
+// confirmation it held: Confirm and InstallConfirmed refuse every statement
+// issued no later than it with ErrConfirmationWithdrawn until one issued after
+// it is accepted. On a holder with no snapshot it does nothing.
 func (h *Holder) Unconfirm() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -239,6 +252,8 @@ func (h *Holder) confirm(ctx context.Context, snap *Snapshot, st Statement, now 
 		h.record(snap)
 	}
 	confirmed.confirmedAt = st.issuedAt
+	h.verify(raised.latestIssuedAt)
+	confirmed.verified = h.verified
 	h.withdrawn = time.Time{}
 	h.current.Store(&confirmed)
 	return nil

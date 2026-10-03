@@ -16,6 +16,7 @@ import (
 	"github.com/guardana/control/internal/core/approval"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/pause"
+	"github.com/guardana/control/internal/policy"
 )
 
 // slowJournal runs onResuming while it flips an entry to HoldResuming, the
@@ -76,8 +77,14 @@ const lapseTTL = 10 * time.Minute
 
 func lapsing(t *testing.T) *lapseRig {
 	t.Helper()
+	return lapsingUnder(t, snapshot(t, approveRefunds))
+}
+
+// lapsingUnder is lapsing over snap, a snapshot of approveRefunds.
+func lapsingUnder(t *testing.T, snap *policy.Snapshot) *lapseRig {
+	t.Helper()
 	r := &lapseRig{journal: &slowJournal{}}
-	r.harness = build(t, modeEnforce, snapshot(t, approveRefunds), func(cfg *gateway.Config) {
+	r.harness = build(t, modeEnforce, snap, func(cfg *gateway.Config) {
 		cfg.Journal = r.journal
 		r.store = &spendingStore{ApprovalStore: cfg.Approvals}
 		cfg.Approvals = r.store

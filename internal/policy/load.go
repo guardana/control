@@ -15,9 +15,10 @@ import (
 )
 
 // Load runs every check a bundle has to pass and returns the snapshot of the
-// signed document, confirmed current at now. Load reads no clock. The checks
-// run in this order, and the first that fails is returned, each with its own
-// refusal:
+// signed document, confirmed current at now, whose monotonic reading it drops
+// so that later readings are compared by the wall clock alone. Load reads no
+// clock. The checks run in this order, and the first that fails is returned,
+// each with its own refusal:
 //
 //  1. the bundle, its ref and the ref's created_at carry no field this build
 //     does not know (ErrUnknownField);
@@ -76,7 +77,7 @@ func load(b *controlv1.PolicyBundle, keys bundle.Keyring, now time.Time, compile
 	}
 	return &Snapshot{
 		ref:         &controlv1.PolicyBundleRef{BundleId: doc.Bundle.ID, Version: doc.Bundle.Version, Digest: digest},
-		confirmedAt: now,
+		confirmedAt: now.Round(0),
 		// Parse refuses a budget with more seconds than a Duration holds, so
 		// this cannot wrap.
 		maxStale: time.Duration(doc.Bundle.MaxStaleSeconds) * time.Second,

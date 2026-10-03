@@ -53,6 +53,8 @@ verify one.
   refuses the key. `/metrics` carries
   `guardana_control_adapter_sessions_live` and
   `guardana_control_adapter_sessions_refused_total`.
+- `guardana-control policy explain` prints a `clock` line: `usable`, or why
+  the clock stopped the decision.
 
 ### Changed
 
@@ -96,8 +98,8 @@ verify one.
   scenario past the budget stays fresh. It prints `statement`, `state_dir`,
   `freshness_key_id`, `freshness_key` and `renewal`, and no longer `stale_at`.
 - `scenario run` refuses a plane whose policy is not confirmed.
-- `POLICY_STALE`'s summary names an unconfirmed policy too; its identifier and
-  number are unchanged.
+- `POLICY_STALE`'s summary names an unconfirmed policy and a clock the plane
+  cannot judge by too; its identifier and number are unchanged.
 - `examples/evidence-report` prints a `block` column after `reasons`: the
   decision on the request's `ACTION_BLOCKED`, `=` when it is the kernel's, so a
   call the plane blocked itself, paused or unclassified, shows why. Every later
@@ -160,11 +162,18 @@ verify one.
   at its name later. A plane no longer starts over a journal directory another
   account owns, and `collect --out` refuses a path that names no file, such as
   one ending in a separator.
-- A clock reading before 1970, the zero time among them, no longer lets the
-  kernel decide: the call is `INDETERMINATE` with `POLICY_STALE` and blocks on
-  every effect class, fail-open reads included. Such a reading let an expired
-  delegation pass and could make a bundle confirmed at the zero time read as
-  fresh.
+- A clock reading before 1970, the zero time among them, after 9999, or
+  earlier than a time the plane verified, the latest `issuedAt` of a
+  statement it confirmed or of its floor, no longer lets the kernel decide:
+  the call is `INDETERMINATE` with `POLICY_STALE` and blocks on every effect
+  class, fail-open reads included, and `/healthz` reports the policy
+  `expired`. Such a reading let an expired delegation pass and could make a
+  bundle confirmed at the zero time read as fresh. Before it hands out an
+  approved or run-bound call, the plane treats as expired a reading outside
+  1970 to 9999 or earlier than one the call already relied on or than the
+  approval's `requested_at`, so a clock set back after the decision no longer
+  runs an expired call, and a resume refused this way no longer spends its
+  approval.
 
 ## [0.5.0-alpha] - 2026-10-02
 

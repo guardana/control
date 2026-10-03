@@ -451,8 +451,9 @@ func TestOneClockReadingOnEntry(t *testing.T) {
 }
 
 // TestFreshnessBoundary: the age at the smaller budget is FRESH, one
-// nanosecond over it is STALE, a negative age is STALE, and the smaller of the
-// author's and the operator's budget is the one in force, whichever it is.
+// nanosecond over it is STALE, a negative age is STALE and stops the decision
+// at the clock step, and the smaller of the author's and the operator's budget
+// is the one in force, whichever it is.
 func TestFreshnessBoundary(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -482,6 +483,9 @@ func TestFreshnessBoundary(t *testing.T) {
 		if c.want == stale {
 			codes = []string{codePolicyStale, codeRuleAllow}
 			verdict, action = verdictIndeterminate, core.Block
+		}
+		if c.loadedAt.After(base()) {
+			codes = []string{codePolicyStale}
 		}
 		check(t, out, expect{verdict: verdict, action: action, codes: codes})
 		if !out.Decision.GetPolicyLoadedAt().AsTime().Equal(c.loadedAt) {
