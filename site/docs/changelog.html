@@ -33,7 +33,25 @@
 <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
-<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.5.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.6.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="060-alpha---2026-10-03"><a href="https://github.com/guardana/control/releases/tag/v0.6.0-alpha">0.6.0-alpha</a> - 2026-10-03</h2>
+<p>A plane now takes its policy as current only on a signed freshness
+statement, which <code>policy renew</code> writes, and keeps on disk the serial floor
+that refuses an older bundle, so a restart cannot roll the policy back;
+<code>/healthz</code>, <code>/metrics</code> and <code>doctor</code> say how fresh the policy is. An upgrade
+needs five more configuration keys, a freshness key apart from the bundle's,
+a floor directory that <code>policy state init</code> makes, and a statement renewed
+within the budget: the first entry under Changed says how. A zero
+<code>upstream.call_timeout</code> is now refused. <code>examples/evidence-report</code>, a Go
+module of its own, follows the evidence export, reports what was decided and
+why, and raises local alerts. An audit before the release fixed defects,
+among them: a clock reading before 1970 let an expired delegation pass, and a
+clock set back after a decision let an expired run or approval through; the
+release gate counted a pull request run and could be passed by a tag named
+<code>main</code>; the hold journal and the trail file accepted a directory or a file
+another account owned; and a stateful listener kept any number of sessions
+open. <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
+<code>experimental</code>. Nothing here is a security boundary yet.</p>
 <h3 id="added">Added</h3>
 <ul>
 <li><code>examples/evidence-report -state &lt;dir&gt;</code> follows a trail one export after

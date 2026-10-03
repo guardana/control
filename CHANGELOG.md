@@ -11,6 +11,26 @@ verify one.
 
 ## [Unreleased]
 
+## [0.6.0-alpha] - 2026-10-03
+
+A plane now takes its policy as current only on a signed freshness
+statement, which `policy renew` writes, and keeps on disk the serial floor
+that refuses an older bundle, so a restart cannot roll the policy back;
+`/healthz`, `/metrics` and `doctor` say how fresh the policy is. An upgrade
+needs five more configuration keys, a freshness key apart from the bundle's,
+a floor directory that `policy state init` makes, and a statement renewed
+within the budget: the first entry under Changed says how. A zero
+`upstream.call_timeout` is now refused. `examples/evidence-report`, a Go
+module of its own, follows the evidence export, reports what was decided and
+why, and raises local alerts. An audit before the release fixed defects,
+among them: a clock reading before 1970 let an expired delegation pass, and a
+clock set back after a decision let an expired run or approval through; the
+release gate counted a pull request run and could be passed by a tag named
+`main`; the hold journal and the trail file accepted a directory or a file
+another account owned; and a stateful listener kept any number of sessions
+open. [docs/status.md](docs/status.md) says what is `implemented` and what is
+`experimental`. Nothing here is a security boundary yet.
+
 ### Added
 
 - `examples/evidence-report -state <dir>` follows a trail one export after
@@ -502,7 +522,8 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.5.0-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.6.0-alpha...HEAD
+[0.6.0-alpha]: https://github.com/guardana/control/releases/tag/v0.6.0-alpha
 [0.5.0-alpha]: https://github.com/guardana/control/releases/tag/v0.5.0-alpha
 [0.4.0-alpha]: https://github.com/guardana/control/releases/tag/v0.4.0-alpha
 [0.3.0-alpha]: https://github.com/guardana/control/releases/tag/v0.3.0-alpha
