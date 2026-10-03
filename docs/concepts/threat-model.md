@@ -291,8 +291,11 @@ What it does not do:
   ([ADR-0020](../adr/0020-a-trail-and-counters-without-a-collector.md)).
 - The spool writes its files `0600` and refuses a directory another account
   owns or that others can write.
-- The checks read the owner and the mode bits. On macOS an access control list
-  can grant what the mode bits do not show, and the checks do not read it.
+- The checks read the owner and the mode bits; access control lists are not
+  judged. On macOS an extended ACL can let another account write a directory
+  whose mode bits say `0700`, and that directory is not refused: the trail
+  file and the hold journal accept one. On Linux a write an ACL grants another
+  account shows in the group bits, which these checks refuse.
 
 ## The same local account
 

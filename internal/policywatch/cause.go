@@ -71,9 +71,9 @@ func Causes() []Cause {
 }
 
 // causeOf names the cause of a holder's refusal. A floor's own refusal is
-// named before ErrFloorRaise, which wraps it and whatever else the store's
-// raise returned, its deadline included; a refusal no row names is unknown,
-// never the floor's.
+// named before ErrFloorRaise and ErrFloorRead, which wrap it and whatever else
+// the store's raise or read returned, its deadline included; a refusal no row
+// names is unknown, never the floor's.
 func causeOf(err error) Cause {
 	for _, c := range []struct {
 		err   error
@@ -91,6 +91,7 @@ func causeOf(err error) Cause {
 		{policy.ErrStatementUnbound, CauseStatementUnbound},
 		{policy.ErrFloorInvalid, CauseFloor},
 		{policy.ErrFloorRaise, CauseFloor},
+		{policy.ErrFloorRead, CauseFloor},
 		{policy.ErrNoFloorStore, CauseFloor},
 		{policy.ErrTooLarge, CauseBundleInvalid},
 		{policy.ErrUnknownField, CauseBundleInvalid},

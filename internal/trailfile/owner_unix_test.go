@@ -5,8 +5,10 @@ package trailfile
 import (
 	"errors"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"testing"
 )
 
@@ -116,6 +118,7 @@ func TestOpenRefusesALinkAtTheFile(t *testing.T) {
 // TestARefusedOpenKeepsNoDescriptor: an Open refused for the owner of the
 // directory or of the file gives back the directory and the file it opened.
 func TestARefusedOpenKeepsNoDescriptor(t *testing.T) {
+	stopCollector(t)
 	path := trailPath(t)
 	writeFile(t, path, firstLine)
 	before := openDescriptors(t)
@@ -141,6 +144,7 @@ func TestARefusedOpenKeepsNoDescriptor(t *testing.T) {
 // the file through, and Close the file, so a collector reopened again and
 // again does not run out of descriptors.
 func TestAnOpenedWriterKeepsOnlyItsFile(t *testing.T) {
+	stopCollector(t)
 	path := trailPath(t)
 	before := openDescriptors(t)
 	for range 16 {
@@ -163,6 +167,7 @@ func TestAnOpenedWriterKeepsOnlyItsFile(t *testing.T) {
 // TestAnOpenRefusedByALinkKeepsNoDescriptor: an Open refused for the link at
 // the file's name gives back the directory it opened.
 func TestAnOpenRefusedByALinkKeepsNoDescriptor(t *testing.T) {
+	stopCollector(t)
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "target"), firstLine)
 	link := filepath.Join(dir, "link")
@@ -187,4 +192,17 @@ func openDescriptors(t *testing.T) int {
 		t.Fatalf("listing this process's descriptors: %v", err)
 	}
 	return len(fds)
+}
+
+// stopCollector keeps the collector off until t ends: os.File and os.Root
+// close their descriptor in a finalizer, which would hide a leak from the
+// count. The setting is the process's, so a test calling it is never parallel.
+func stopCollector(t *testing.T) {
+	t.Helper()
+	percent := debug.SetGCPercent(-1)
+	limit := debug.SetMemoryLimit(math.MaxInt64)
+	t.Cleanup(func() {
+		debug.SetMemoryLimit(limit)
+		debug.SetGCPercent(percent)
+	})
 }

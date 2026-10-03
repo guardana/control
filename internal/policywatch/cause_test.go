@@ -64,10 +64,11 @@ func declaredCauses(t *testing.T) []Cause {
 
 // TestCauseOfNamesEveryHolderRefusal holds every refusal Holder.Confirm and
 // Holder.InstallConfirmed return, wrapped as they return it, to its cause.
-// Only what the store's raise or the holder's floor returned is the floor's;
-// a refusal no row names is unknown.
+// Only what the store's raise or read or the holder's floor returned is the
+// floor's; a refusal no row names is unknown.
 func TestCauseOfNamesEveryHolderRefusal(t *testing.T) {
 	raise := func(err error) error { return fmt.Errorf("%w: %w", policy.ErrFloorRaise, err) }
+	read := func(err error) error { return fmt.Errorf("%w: %w", policy.ErrFloorRead, err) }
 	wrap := func(err error) error { return fmt.Errorf("%w: detail", err) }
 	for _, c := range []struct {
 		err  error
@@ -99,6 +100,9 @@ func TestCauseOfNamesEveryHolderRefusal(t *testing.T) {
 		{raise(errors.New("the disk failed")), CauseFloor},
 		{wrap(policy.ErrFloorRaise), CauseFloor},
 		{policy.ErrNoFloorStore, CauseFloor},
+		{read(errors.New("the disk failed")), CauseFloor},
+		{read(context.DeadlineExceeded), CauseFloor},
+		{read(wrap(policy.ErrFloorInvalid)), CauseFloor},
 		{policy.ErrNoBundle, CauseUnknown},
 		{context.DeadlineExceeded, CauseUnknown},
 		{errors.New("a refusal no row names"), CauseUnknown},

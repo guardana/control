@@ -6,8 +6,10 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"testing"
 
 	"github.com/guardana/control/internal/holdjournal"
@@ -243,6 +245,7 @@ func mustRename(t *testing.T, from, to string) {
 // directory of another account or for a marker of another account gives back
 // every descriptor it took, so a plane that keeps retrying does not run out.
 func TestARefusedOpenKeepsNoDescriptor(t *testing.T) {
+	stopCollector(t)
 	held := newDir(t)
 	openJournal(t, held)
 	given := newDir(t)
@@ -283,6 +286,7 @@ func TestARefusedOpenKeepsNoDescriptor(t *testing.T) {
 // lock, for a plane and for a reader, so one opened again and again does not
 // run out of descriptors.
 func TestAClosedJournalKeepsNoDescriptor(t *testing.T) {
+	stopCollector(t)
 	dir := newDir(t)
 	before := openDescriptors(t)
 	for range 16 {
@@ -308,4 +312,17 @@ func openDescriptors(t *testing.T) int {
 		t.Fatalf("listing this process's descriptors: %v", err)
 	}
 	return len(fds)
+}
+
+// stopCollector keeps the collector off until t ends: os.File and os.Root
+// close their descriptor in a finalizer, which would hide a leak from the
+// count. The setting is the process's, so a test calling it is never parallel.
+func stopCollector(t *testing.T) {
+	t.Helper()
+	percent := debug.SetGCPercent(-1)
+	limit := debug.SetMemoryLimit(math.MaxInt64)
+	t.Cleanup(func() {
+		debug.SetMemoryLimit(limit)
+		debug.SetGCPercent(percent)
+	})
 }
