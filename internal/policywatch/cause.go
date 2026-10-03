@@ -56,6 +56,8 @@ const (
 	CauseWithdrawn Cause = "withdrawn"
 	// CauseFloor is a floor that could not be read or raised.
 	CauseFloor Cause = "floor"
+	// CauseUnknown is a refusal of the holder this build cannot name.
+	CauseUnknown Cause = "unknown"
 )
 
 // Causes is every cause, in a fixed order.
@@ -64,13 +66,14 @@ func Causes() []Cause {
 		CauseBundleUnreadable, CauseBundleInvalid, CauseBundleID, CauseBundleBudget, CauseRollback,
 		CauseSerialReused, CauseStatementMissing, CauseStatementUnreadable, CauseStatementInvalid,
 		CauseStatementUnbound, CauseStatementFuture, CauseStatementExpired, CauseBelowFloor,
-		CauseClockBehindFloor, CauseClockBack, CauseWithdrawn, CauseFloor,
+		CauseClockBehindFloor, CauseClockBack, CauseWithdrawn, CauseFloor, CauseUnknown,
 	}
 }
 
-// causeOf names the cause of a holder's or a floor's refusal. A floor's own
-// refusal is named before ErrFloorRaise, which wraps it; a refusal this
-// package does not know is the floor's, the part outside the policy package.
+// causeOf names the cause of a holder's refusal. A floor's own refusal is
+// named before ErrFloorRaise, which wraps it and whatever else the store's
+// raise returned, its deadline included; a refusal no row names is unknown,
+// never the floor's.
 func causeOf(err error) Cause {
 	for _, c := range []struct {
 		err   error
@@ -86,10 +89,23 @@ func causeOf(err error) Cause {
 		{policy.ErrBundlePin, CauseBundleID},
 		{policy.ErrFloorBundle, CauseBundleID},
 		{policy.ErrStatementUnbound, CauseStatementUnbound},
+		{policy.ErrFloorInvalid, CauseFloor},
+		{policy.ErrFloorRaise, CauseFloor},
+		{policy.ErrNoFloorStore, CauseFloor},
+		{policy.ErrTooLarge, CauseBundleInvalid},
+		{policy.ErrUnknownField, CauseBundleInvalid},
+		{policy.ErrSignatureAlg, CauseBundleInvalid},
+		{policy.ErrKey, CauseBundleInvalid},
+		{policy.ErrSignature, CauseBundleInvalid},
+		{policy.ErrDocument, CauseBundleInvalid},
+		{policy.ErrNotCanonical, CauseBundleInvalid},
+		{policy.ErrDigest, CauseBundleInvalid},
+		{policy.ErrMismatch, CauseBundleInvalid},
+		{policy.ErrCreatedAt, CauseBundleInvalid},
 	} {
 		if errors.Is(err, c.err) {
 			return c.cause
 		}
 	}
-	return CauseFloor
+	return CauseUnknown
 }

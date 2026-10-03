@@ -133,6 +133,11 @@ verify one.
 - The plane strips a key under its namespace from an upstream's `_meta` and
   error data in any letter case, since a client may match keys to its own
   fields without regard to case.
+- `guardana_control_policy_refresh_refused_total` counts a refusal the build
+  cannot name under `cause="unknown"` and a bundle the plane's holder fails to
+  load under `bundle_invalid`; both were counted under `floor`, which now means
+  only a floor that could not be read or raised, a raise that timed out
+  included.
 - The hold journal and the trail file refuse a directory or a file another
   account owns, and a platform that names no owner; the hold journal reaches
   its entries only through the directory it opened and refuses one swapped in

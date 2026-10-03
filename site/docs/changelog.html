@@ -173,6 +173,11 @@ sends no next request within two minutes.</li>
 <li>The plane strips a key under its namespace from an upstream's <code>_meta</code> and
 error data in any letter case, since a client may match keys to its own
 fields without regard to case.</li>
+<li><code>guardana_control_policy_refresh_refused_total</code> counts a refusal the build
+cannot name under <code>cause=&quot;unknown&quot;</code> and a bundle the plane's holder fails to
+load under <code>bundle_invalid</code>; both were counted under <code>floor</code>, which now means
+only a floor that could not be read or raised, a raise that timed out
+included.</li>
 <li>The hold journal and the trail file refuse a directory or a file another
 account owns, and a platform that names no owner; the hold journal reaches
 its entries only through the directory it opened and refuses one swapped in
