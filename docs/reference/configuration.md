@@ -25,7 +25,8 @@ and `APPROVE` needs the `file` provider, since nothing outside the process answe
 request held in memory. `upstream.call_timeout`, `pdp.timeout` and `export.timeout` have
 to be positive, so nothing waits on an upstream's call, the decision point or the
 collector without a bound; `upstream.list_timeout` may be zero, which is the adapter's
-own bound, and no timeout may be negative. `runs.dir` may not be, hold or sit inside the spool, the
+own bound of `30s`, longer than the key's `10s` default, and no timeout
+may be negative. `runs.dir` may not be, hold or sit inside the spool, the
 approvals directory, the hold journal or the pause file's directory, needs a
 `listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a
 plane keeps in memory. Every `pdp.` key is refused while `pdp.identifier` is empty,
@@ -106,7 +107,7 @@ Rendered from the field table in `internal/gatewayconfig`. Rebuild it with
 | `list.shaping` | `GUARDANA_CONTROL_LIST_SHAPING` | one of | `none` | yes | `none`, `annotate`, `hide` |
 | `list.ttl` | `GUARDANA_CONTROL_LIST_TTL` | duration | `1m` | no |  |
 | `upstream.call_timeout` | `GUARDANA_CONTROL_UPSTREAM_CALL_TIMEOUT` | duration | `30s` | no |  |
-| `upstream.list_timeout` | `GUARDANA_CONTROL_UPSTREAM_LIST_TIMEOUT` | duration | `10s` | no |  |
+| `upstream.list_timeout` | `GUARDANA_CONTROL_UPSTREAM_LIST_TIMEOUT` | duration | `10s` | no | `0` is the adapter's own `30s` |
 | `upstreams.N.name` | `GUARDANA_CONTROL_UPSTREAMS_N_NAME` | string |  | yes |  |
 | `upstreams.N.endpoint` | `GUARDANA_CONTROL_UPSTREAMS_N_ENDPOINT` | string |  | no |  |
 | `upstreams.N.command` | `GUARDANA_CONTROL_UPSTREAMS_N_COMMAND` | string |  | no |  |

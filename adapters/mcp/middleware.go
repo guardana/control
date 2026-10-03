@@ -263,7 +263,7 @@ func (a *Adapter) listTimeout() time.Duration {
 	if a.cfg.ListTimeout > 0 {
 		return a.cfg.ListTimeout
 	}
-	return defaultListTimeout
+	return DefaultListTimeout
 }
 
 // forwardList merges the upstreams' resource, template or prompt lists.

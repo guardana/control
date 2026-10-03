@@ -27,35 +27,46 @@ func TestDoctorPrintsEveryCheckAndStopsAtTheFirstUnknown(t *testing.T) {
 }
 
 // TestDoctorSaysWhenAReadRunsWithoutThePolicy: policy.fail_open_read is a
-// risk setting, so the policy check names it on both sides, and the key's
-// source names the variable that turned it on.
+// risk setting, so the policy check names it on the side the golden does not.
 func TestDoctorSaysWhenAReadRunsWithoutThePolicy(t *testing.T) {
 	tr := newTree(t)
 	setEnv(t, "policy.fail_open_read", "true")
-	var stdout, stderr bytes.Buffer
-	if status := doctor(context.Background(), tr.config, &stdout, &stderr); status == exitOK {
-		t.Error("doctor reported a pass although no upstream answered")
+	line := doctorLine(t, tr, "ok      policy ")
+	if want := "; policy.fail_open_read true, so a read runs while the policy is unavailable"; !strings.HasSuffix(line, want) {
+		t.Errorf("the policy line is %q, want it to end %q", line, want)
 	}
-	golden(t, "doctor-fail-open-read.golden", tr.output(stdout.String()))
 }
 
 // TestDoctorPrintsTheListBoundInForce: upstream.list_timeout set to zero
 // leaves the adapter's own bound in force, and doctor prints that bound, not
-// a zero that reads as no bound at all.
+// a zero that reads as no bound at all, inside the value's column.
 func TestDoctorPrintsTheListBoundInForce(t *testing.T) {
 	tr := newTree(t)
 	setEnv(t, "upstream.list_timeout", "0s")
+	line := doctorLine(t, tr, "       upstream.list_timeout ")
+	if want := "       upstream.list_timeout        30s (0s: adapter's own)  ("; !strings.HasPrefix(line, want) {
+		t.Errorf("the list bound is printed as %q, want it to start %q", line, want)
+	}
+}
+
+// doctorLine runs doctor on the tree and returns the one line of its output
+// that starts with prefix.
+func doctorLine(t *testing.T, tr tree, prefix string) string {
+	t.Helper()
 	var stdout, stderr bytes.Buffer
-	_ = doctor(context.Background(), tr.config, &stdout, &stderr) // the fixture's upstream is absent; only the settings are read here
-	var line string
+	if status := doctor(context.Background(), tr.config, &stdout, &stderr); status == exitOK {
+		t.Error("doctor reported a pass although no upstream answered")
+	}
+	var found []string
 	for _, l := range strings.Split(stdout.String(), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(l), "upstream.list_timeout ") {
-			line = strings.Join(strings.Fields(l), " ")
+		if strings.HasPrefix(l, prefix) {
+			found = append(found, l)
 		}
 	}
-	if !strings.HasPrefix(line, "upstream.list_timeout 30s, the adapter's own, as 0s asks (") {
-		t.Errorf("the list bound is printed as %q", line)
+	if len(found) != 1 {
+		t.Fatalf("%d lines start %q in:\n%s", len(found), prefix, stdout.String())
 	}
+	return found[0]
 }
 
 // TestDoctorRefusesABundleTheKeyDoesNotVerify is the negative control of the

@@ -95,7 +95,7 @@ func printSettings(w io.Writer, cfg *gatewayconfig.Config) {
 		}
 		value := s.Value
 		if s.Path == "upstream.list_timeout" && cfg.Upstream.ListTimeout == 0 {
-			value = adaptermcp.DefaultListTimeout.String() + ", the adapter's own, as 0s asks"
+			value = adaptermcp.DefaultListTimeout.String() + " (0s: adapter's own)"
 		}
 		writeLine(w, fmt.Sprintf("       %-28s %-24s (%s)", s.Path, oneLine(value), oneLine(source)))
 	}

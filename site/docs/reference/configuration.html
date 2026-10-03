@@ -43,7 +43,8 @@ and <code>APPROVE</code> needs the <code>file</code> provider, since nothing out
 request held in memory. <code>upstream.call_timeout</code>, <code>pdp.timeout</code> and <code>export.timeout</code> have
 to be positive, so nothing waits on an upstream's call, the decision point or the
 collector without a bound; <code>upstream.list_timeout</code> may be zero, which is the adapter's
-own bound, and no timeout may be negative. <code>runs.dir</code> may not be, hold or sit inside the spool, the
+own bound of <code>30s</code>, longer than the key's <code>10s</code> default, and no timeout
+may be negative. <code>runs.dir</code> may not be, hold or sit inside the spool, the
 approvals directory, the hold journal or the pause file's directory, needs a
 <code>listener.principal.type</code>, and refuses <code>flow.max_runs</code>, which bounds only the runs a
 plane keeps in memory. Every <code>pdp.</code> key is refused while <code>pdp.identifier</code> is empty,
@@ -593,7 +594,7 @@ allowed.</p>
 <td>duration</td>
 <td><code>10s</code></td>
 <td>no</td>
-<td></td>
+<td><code>0</code> is the adapter's own <code>30s</code></td>
 </tr>
 <tr>
 <td><code>upstreams.N.name</code></td>

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"unicode"
 
+	adaptermcp "github.com/guardana/control/adapters/mcp"
 	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/docscheck/frontmatter"
 	"github.com/guardana/control/internal/gatewayconfig"
@@ -55,10 +56,14 @@ func render(fields []gatewayconfig.Field, collections []gatewayconfig.Collection
 	if err != nil {
 		return nil, err
 	}
+	listDefault, err := defaultOf(listTimeoutKey)
+	if err != nil {
+		return nil, err
+	}
 	var buf bytes.Buffer
 	buf.Write(head)
 	buf.WriteString("\n")
-	buf.WriteString(lead())
+	buf.WriteString(lead(listDefault))
 	buf.WriteString(header)
 	seen := map[string]bool{}
 	for _, f := range fields {
@@ -89,7 +94,21 @@ func render(fields []gatewayconfig.Field, collections []gatewayconfig.Collection
 	return buf.Bytes(), nil
 }
 
-func lead() string {
+// listTimeoutKey is the key whose zero is not the key's own default but the
+// adapter's bound, which is longer.
+const listTimeoutKey = "upstream.list_timeout"
+
+// defaultOf is the default the loader's table gives path.
+func defaultOf(path string) (string, error) {
+	for _, f := range gatewayconfig.Fields() {
+		if f.Path == path {
+			return f.Default, nil
+		}
+	}
+	return "", fmt.Errorf("%s is not a key of the loader's table", path)
+}
+
+func lead(listDefault string) string {
 	return "# " + title + "\n\n" +
 		"The gateway reads one file, named by `--config`, and then the environment: a variable\n" +
 		"named `" + brand.EnvPrefix + "` followed by a key's path in upper case, with each dot an\n" +
@@ -107,8 +126,9 @@ func lead() string {
 		"and `APPROVE` needs the `file` provider, since nothing outside the process answers a\n" +
 		"request held in memory. `upstream.call_timeout`, `pdp.timeout` and `export.timeout` have\n" +
 		"to be positive, so nothing waits on an upstream's call, the decision point or the\n" +
-		"collector without a bound; `upstream.list_timeout` may be zero, which is the adapter's\n" +
-		"own bound, and no timeout may be negative. `runs.dir` may not be, hold or sit inside the spool, the\n" +
+		"collector without a bound; `" + listTimeoutKey + "` may be zero, which is the adapter's\n" +
+		"own bound of `" + adaptermcp.DefaultListTimeout.String() + "`, longer than the key's `" + listDefault + "` default, and no timeout\n" +
+		"may be negative. `runs.dir` may not be, hold or sit inside the spool, the\n" +
 		"approvals directory, the hold journal or the pause file's directory, needs a\n" +
 		"`listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a\n" +
 		"plane keeps in memory. Every `pdp.` key is refused while `pdp.identifier` is empty,\n" +
@@ -162,8 +182,12 @@ func renderRow(f gatewayconfig.Field) (string, error) {
 	if f.Required {
 		required = "yes"
 	}
+	note := values(f.Values)
+	if f.Path == listTimeoutKey {
+		note = "`0` is the adapter's own `" + adaptermcp.DefaultListTimeout.String() + "`"
+	}
 	return fmt.Sprintf("| `%s` | `%s` | %s | %s | %s | %s |\n",
-		f.Path, f.Env, f.Kind, code(f.Default), required, values(f.Values)), nil
+		f.Path, f.Env, f.Kind, code(f.Default), required, note), nil
 }
 
 // code spells a value in code font, and nothing for an empty one.

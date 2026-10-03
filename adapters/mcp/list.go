@@ -24,11 +24,14 @@ const cacheScopePrivate = "private"
 // that never ends would otherwise hold the manifest, a forwarded list and
 // the memory behind them.
 const (
-	maxListPages       = 100
-	maxListEntries     = 10000
-	maxCachedLists     = 1024
-	defaultListTimeout = 30 * time.Second
+	maxListPages   = 100
+	maxListEntries = 10000
+	maxCachedLists = 1024
 )
+
+// DefaultListTimeout is the bound on reading one upstream's list while
+// Config.ListTimeout is zero.
+const DefaultListTimeout = 30 * time.Second
 
 // brandMeta is the prefix of every _meta key the gateway itself speaks for.
 // An upstream's key under it is removed from what the agent sees, so an

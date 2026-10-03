@@ -98,10 +98,6 @@ const DefaultSessionIdle = 30 * time.Minute
 // open sessions and never close them can hold.
 const DefaultMaxSessions = 1024
 
-// DefaultListTimeout is the bound on reading one upstream's list while
-// Config.ListTimeout is zero.
-const DefaultListTimeout = defaultListTimeout
-
 // DefaultBodyTimeout is how long an HTTP request may take over its body, and
 // its answer may make no progress.
 const DefaultBodyTimeout = 30 * time.Second
