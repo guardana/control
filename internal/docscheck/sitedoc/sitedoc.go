@@ -3,7 +3,9 @@
 // diagram and a page that lags it is a generated file out of date.
 //
 // A slot is `<!-- diagram: README.md <n> -->…<!-- /diagram -->`; its body is
-// replaced with the n-th Mermaid block drawn as a static figure.
+// replaced with the n-th Mermaid block drawn as a static figure. The one
+// `<!-- release -->…<!-- /release -->` slot takes the header's link to the
+// newest release CHANGELOG.md dates.
 package sitedoc
 
 import (

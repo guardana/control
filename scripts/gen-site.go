@@ -1,8 +1,9 @@
 //go:build ignore
 
 // Command gen-site redraws the diagram slots of the site's landing page from
-// the README's Mermaid blocks, and renders the documentation into site/docs/
-// with the sitemap.
+// the README's Mermaid blocks, writes the newest release from CHANGELOG.md
+// into its release slot, and renders the documentation into site/docs/ with
+// the sitemap.
 //
 //	go run scripts/gen-site.go -o site/index.html
 //
@@ -49,6 +50,17 @@ func main() {
 	}
 	rendered, err := sitedoc.Render(page, readme)
 	if err != nil {
+		fail(fmt.Errorf("%s: %w", *out, err))
+	}
+	notes, err := os.ReadFile(sitedoc.Changelog)
+	if err != nil {
+		fail(fmt.Errorf("reading %s: %w", sitedoc.Changelog, err))
+	}
+	release, err := sitedoc.Release(notes)
+	if err != nil {
+		fail(err)
+	}
+	if rendered, err = sitedoc.FillRelease(rendered, release); err != nil {
 		fail(fmt.Errorf("%s: %w", *out, err))
 	}
 	data, err := os.ReadFile(config)

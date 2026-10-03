@@ -30,6 +30,27 @@ var mark = func() string {
 // repository is the project's home on its host.
 var repository = "https://" + brand.ModulePath
 
+// githubIcon is the host's mark, drawn inline because the site loads no image
+// from another host.
+const githubIcon = `<svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>`
+
+// header is the site's one header, the landing page's as well: the mark, the
+// newest release's pill and the primary navigation. The landing page holds
+// the same bytes with the pill inside its release slot.
+func header(pill string) string {
+	return `<header class="top"><div class="wrap bar">
+  ` + mark + `
+  ` + pill + `
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a class="hide-s" href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="` + repository + `" aria-label="GitHub">` + githubIcon + `<span class="hide-s">GitHub</span></a>
+  </nav>
+</div></header>
+`
+}
+
 type navEntry struct{ label, url string }
 
 type navSection struct {
@@ -63,11 +84,13 @@ func buildNav(pages []*page) []navSection {
 }
 
 // layout wraps a rendered body in the site's chrome: the header, the
-// documentation's navigation with the current page marked, the page's source
-// and the footer.
-func layout(p *page, nav []navSection, body []byte) []byte {
+// documentation's navigation with the current page marked, once as the menu a
+// narrow screen shows above the content and once as the sidebar, the page's
+// source and the footer.
+func layout(p *page, nav []navSection, pill string, body []byte) []byte {
 	var b strings.Builder
 	title := p.title + " · " + brand.Name
+	sections := sectionList(p, nav)
 	b.WriteString(`<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
@@ -84,16 +107,12 @@ func layout(p *page, nav []navSection, body []byte) []byte {
 </head>
 <body class="doc">
 <a class="skip" href="#main">Skip to content</a>
-<header class="top"><div class="wrap bar">
-  ` + mark + `
-  <nav aria-label="Primary">
-    <a href="/docs/">Docs</a>
-    <a href="/docs/status">Status</a>
-    <a href="/docs/roadmap">Roadmap</a>
-    <a class="gh" href="` + repository + `">GitHub</a>
-  </nav>
-</div></header>
-<div class="wrap shell">
+` + header(pill) + `<div class="wrap shell">
+<details class="mnav">
+<summary>Menu · <b>` + esc(p.title) + `</b></summary>
+<nav class="inner" aria-label="Documentation">
+` + sections + `</nav>
+</details>
 <main id="main" class="prose">
 `)
 	b.Write(body)
@@ -101,23 +120,7 @@ func layout(p *page, nav []navSection, body []byte) []byte {
 		`</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
 <nav class="side" aria-label="Documentation">
-`)
-	current := func(url string) string {
-		if url == p.url {
-			return ` aria-current="page"`
-		}
-		return ""
-	}
-	b.WriteString(`<ul class="home"><li><a href="/docs/"` + current("/docs/") + `>Overview</a></li></ul>
-`)
-	for _, s := range nav {
-		b.WriteString("<h2>" + esc(s.heading) + "</h2><ul>\n")
-		for _, e := range s.entries {
-			b.WriteString(`<li><a href="` + e.url + `"` + current(e.url) + `>` + esc(e.label) + "</a></li>\n")
-		}
-		b.WriteString("</ul>\n")
-	}
-	b.WriteString(`</nav>
+` + sections + `</nav>
 </div>
 <footer class="foot"><div class="wrap row">
   <p>` + esc(brand.Name) + ` · Apache-2.0</p>
@@ -133,6 +136,28 @@ func layout(p *page, nav []navSection, body []byte) []byte {
 </html>
 `)
 	return []byte(b.String())
+}
+
+// sectionList is the documentation's sections as lists of links, the
+// current page marked.
+func sectionList(p *page, nav []navSection) string {
+	var b strings.Builder
+	current := func(url string) string {
+		if url == p.url {
+			return ` aria-current="page"`
+		}
+		return ""
+	}
+	b.WriteString(`<ul class="home"><li><a href="/docs/"` + current("/docs/") + `>Overview</a></li></ul>
+`)
+	for _, s := range nav {
+		b.WriteString("<h2>" + esc(s.heading) + "</h2><ul>\n")
+		for _, e := range s.entries {
+			b.WriteString(`<li><a href="` + e.url + `"` + current(e.url) + `>` + esc(e.label) + "</a></li>\n")
+		}
+		b.WriteString("</ul>\n")
+	}
+	return b.String()
 }
 
 // sitemap lists the landing page and every rendered page, in path order.

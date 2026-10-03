@@ -20,6 +20,10 @@ verify one.
   stop of one run, before any public SDK. Extensions are planned as separate
   programs speaking versioned data contracts. The README and the website carry
   the new direction, marked `planned` wherever nothing is built yet.
+- The website's header stays on one row on a phone and shows the newest
+  release, which `make docs-gen` takes from this file. Documentation pages get
+  a menu above the content on narrow screens, and a wide table scrolls inside
+  itself instead of breaking words.
 
 ## [0.6.0-alpha] - 2026-10-03
 

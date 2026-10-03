@@ -18,7 +18,7 @@ func fixture(body string) fstest.MapFS {
 		"docs/concepts/b.md":     {Data: []byte(pageHead + "# B\n\n## Part\n\n## Part\n")},
 		"docs/adr/0001-first.md": {Data: []byte("# ADR-0001: First\n\nStatus: accepted\n")},
 		"ROADMAP.md":             {Data: []byte("# Roadmap\n\nPlanned.\n")},
-		"CHANGELOG.md":           {Data: []byte("# Changelog\n\nNothing yet.\n")},
+		"CHANGELOG.md":           {Data: []byte("# Changelog\n\n## [Unreleased]\n\n## [0.2.0] - 2026-01-02\n\n## [0.1.0] - 2026-01-01\n")},
 		"cmd/tool/main.go":       {Data: []byte("package main\n")},
 		"examples/demo/x.txt":    {Data: []byte("x\n")},
 	}
@@ -164,6 +164,42 @@ func TestEveryPageIsWrittenAndListed(t *testing.T) {
 		if !strings.Contains(a, want) {
 			t.Errorf("the page lacks %s", want)
 		}
+	}
+}
+
+// Every page wears the one header, with the newest release's pill, and
+// carries the section list twice: the sidebar and the menu a narrow screen
+// shows above the content, both marking the current page.
+func TestThePageCarriesTheHeaderAndTheMenu(t *testing.T) {
+	a := renderA(t, "# A\n")
+	for _, want := range []string{
+		`<a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.2.0</span></a>`,
+		`<a href="/docs/">Docs</a>`,
+		`<a href="/docs/status">Status</a>`,
+		`<a class="hide-s" href="/docs/roadmap">Roadmap</a>`,
+		`<a class="gh" href="https://github.com/guardana/control" aria-label="GitHub"><svg viewBox="0 0 16 16"`,
+		`<span class="hide-s">GitHub</span></a>`,
+		"<details class=\"mnav\">\n<summary>Menu · <b>A page</b></summary>\n<nav class=\"inner\" aria-label=\"Documentation\">",
+	} {
+		if !strings.Contains(a, want) {
+			t.Errorf("the page lacks %s", want)
+		}
+	}
+	if n := strings.Count(a, `<a href="/docs/concepts/a" aria-current="page">A page</a>`); n != 2 {
+		t.Errorf("the current page is marked %d times, want twice: in the sidebar and in the menu", n)
+	}
+	if menu, main := strings.Index(a, `<details class="mnav">`), strings.Index(a, `<main id="main"`); menu < 0 || main < 0 || menu > main {
+		t.Errorf("the menu opens at byte %d and the content at %d; the menu must come first", menu, main)
+	}
+}
+
+// A changelog whose newest release cannot be read stops the render: a
+// header showing no version, or an older one, is never written.
+func TestAChangelogWithNoReleaseIsRefused(t *testing.T) {
+	fsys := fixture("# A\n")
+	fsys["CHANGELOG.md"] = &fstest.MapFile{Data: []byte("# Changelog\n\n## [Unreleased]\n")}
+	if _, err := Build(fsys, func(string) bool { return false }); !errors.Is(err, ErrSite) || !strings.Contains(err.Error(), "CHANGELOG.md holds no dated release section") {
+		t.Errorf("err = %v, want the missing release named", err)
 	}
 }
 

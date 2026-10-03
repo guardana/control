@@ -19,6 +19,7 @@ import (
 	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/docscheck/frontmatter"
 	"github.com/guardana/control/internal/docscheck/indexdoc"
+	"github.com/guardana/control/internal/docscheck/sitedoc"
 )
 
 const (
@@ -31,7 +32,7 @@ const (
 	Origin = "https://control.guardana.dev"
 
 	roadmap   = "ROADMAP.md"
-	changelog = "CHANGELOG.md"
+	changelog = sitedoc.Changelog
 )
 
 // ErrSite is wrapped by every refusal.
@@ -64,6 +65,15 @@ func Build(fsys fs.FS, excluded func(string) bool) (map[string][]byte, error) {
 	for _, p := range pages {
 		bySource[p.src] = p
 	}
+	notes, err := fs.ReadFile(fsys, changelog)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrSite, err)
+	}
+	release, err := sitedoc.Release(notes)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrSite, err)
+	}
+	pill := sitedoc.Pill(release)
 	nav := buildNav(pages)
 	out := make(map[string][]byte, len(pages)+1)
 	for _, p := range pages {
@@ -71,7 +81,7 @@ func Build(fsys fs.FS, excluded func(string) bool) (map[string][]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: %s: %w", ErrSite, p.src, err)
 		}
-		page := layout(p, nav, body)
+		page := layout(p, nav, pill, body)
 		if err := uniqueIDs(page); err != nil {
 			return nil, fmt.Errorf("%w: %s: %w", ErrSite, p.src, err)
 		}
