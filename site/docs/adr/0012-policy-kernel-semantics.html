@@ -33,6 +33,9 @@ Date: 2026-09-11</p>
 which decides that a bundle is confirmed current by a signed freshness
 statement, never by being read again, and that the serial floor outlives the
 process; <a href="/docs/status">status.md</a> says how much of it a plane does today.</p>
+<p>Amended in 0.6.0-alpha: a clock reading before 1970, the zero time among them,
+is a cause in the request, decided <code>INDETERMINATE</code> with <code>POLICY_STALE</code> on every
+effect class, so fail-open reads never apply to it.</p>
 <h2 id="context">Context</h2>
 <p>ADR-0003 chose structured predicates and deny-overrides, and left the exact
 fail-closed mapping open. ADR-0011 settled what the wire says. What is

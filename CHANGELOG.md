@@ -133,6 +133,11 @@ verify one.
 - The plane strips a key under its namespace from an upstream's `_meta` and
   error data in any letter case, since a client may match keys to its own
   fields without regard to case.
+- A clock reading before 1970, the zero time among them, no longer lets the
+  kernel decide: the call is `INDETERMINATE` with `POLICY_STALE` and blocks on
+  every effect class, fail-open reads included. Such a reading let an expired
+  delegation pass and could make a bundle confirmed at the zero time read as
+  fresh.
 
 ## [0.5.0-alpha] - 2026-10-02
 

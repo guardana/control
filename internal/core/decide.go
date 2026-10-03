@@ -64,6 +64,11 @@ func (d *decision) run(k *Kernel) {
 	if !d.admit() {
 		return
 	}
+	if !usableNow(d.now) {
+		d.add(codePolicyStale)
+		d.causes.input = true
+		return
+	}
 	d.checkDelegation()
 	d.checkTenant()
 	if d.snap == nil {
@@ -73,6 +78,15 @@ func (d *decision) run(k *Kernel) {
 	}
 	d.checkFreshness()
 	d.evaluate(k.applicable)
+}
+
+// usableNow is false for a reading before 1970-01-01T00:00:00Z, the zero time
+// among them, which the policy package refuses as a confirmation: no expiry
+// and no bundle's age can be judged against it, so no bundle is known current.
+// The decision stops on it as a cause in the request, which fail-open reads,
+// a setting for a missing policy, never relieve.
+func usableNow(now time.Time) bool {
+	return !now.Before(time.Unix(0, 0))
 }
 
 // admit is steps 1 and 2: the refusal handed in, or Validate's on the clone;
@@ -192,10 +206,11 @@ func (d *decision) checkTenant() {
 	}
 }
 
-// stale is step 6's condition: no snapshot, or an age over the smaller of
-// the author's and the operator's budget, or a negative one.
+// stale is step 6's condition: no snapshot, no usable clock reading, or an
+// age over the smaller of the author's and the operator's budget, or a
+// negative one.
 func (d *decision) stale() bool {
-	if d.snap == nil {
+	if d.snap == nil || !usableNow(d.now) {
 		return true
 	}
 	age := d.now.Sub(d.snap.ConfirmedAt())

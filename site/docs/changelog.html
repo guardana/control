@@ -173,6 +173,11 @@ sends no next request within two minutes.</li>
 <li>The plane strips a key under its namespace from an upstream's <code>_meta</code> and
 error data in any letter case, since a client may match keys to its own
 fields without regard to case.</li>
+<li>A clock reading before 1970, the zero time among them, no longer lets the
+kernel decide: the call is <code>INDETERMINATE</code> with <code>POLICY_STALE</code> and blocks on
+every effect class, fail-open reads included. Such a reading let an expired
+delegation pass and could make a bundle confirmed at the zero time read as
+fresh.</li>
 </ul>
 <h2 id="050-alpha---2026-10-02"><a href="https://github.com/guardana/control/releases/tag/v0.5.0-alpha">0.5.0-alpha</a> - 2026-10-02</h2>
 <p>An author can now see why a call got its decision: <code>policy explain</code> names the

@@ -10,6 +10,10 @@ which decides that a bundle is confirmed current by a signed freshness
 statement, never by being read again, and that the serial floor outlives the
 process; [status.md](../status.md) says how much of it a plane does today.
 
+Amended in 0.6.0-alpha: a clock reading before 1970, the zero time among them,
+is a cause in the request, decided `INDETERMINATE` with `POLICY_STALE` on every
+effect class, so fail-open reads never apply to it.
+
 ## Context
 
 ADR-0003 chose structured predicates and deny-overrides, and left the exact

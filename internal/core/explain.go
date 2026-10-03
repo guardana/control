@@ -33,11 +33,12 @@ type Refusal struct {
 }
 
 // DelegationState is step 3's reading of the chain. The zero value is a chain
-// nobody checked, because the request was refused first.
+// nobody checked, because the request was refused first or the clock reading
+// was before the epoch.
 type DelegationState uint8
 
 const (
-	// DelegationNotChecked is a request refused before step 3.
+	// DelegationNotChecked is a request stopped before step 3.
 	DelegationNotChecked DelegationState = iota
 	// DelegationAbsent is a call that carried no chain.
 	DelegationAbsent

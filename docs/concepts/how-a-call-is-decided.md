@@ -9,23 +9,25 @@ covers: [internal/core/**, internal/policy/match/**, internal/gateway/flow.go]
 
 The kernel takes a validated envelope and a policy snapshot and answers with
 one of five verdicts, in a fixed order that stops only where nothing more can
-be known: a refused request, an argument that cannot be digested or a hash
-that does not match end the decision; then the kernel's own checks on the
-delegation chain and the tenants; then the bundle, deny-overrides
-([ADR-0012](../adr/0012-policy-kernel-semantics.md)). Every cause found is
-listed in the decision, in order, once each.
+be known: a refused request, an argument that cannot be digested, a hash
+that does not match or a clock reading before 1970 end the decision; then the
+kernel's own checks on the delegation chain and the tenants; then the bundle,
+deny-overrides ([ADR-0012](../adr/0012-policy-kernel-semantics.md)). Every
+cause found is listed in the decision, in order, once each.
 
 ## The order
 
 ```mermaid
 flowchart TD
     accTitle: The order of a decision
-    accDescr: A refused or mismatched request is INDETERMINATE; otherwise the delegation chain, the tenants, the snapshot and its freshness, the rules and the obligations are read in turn; any DENY wins, any cause makes the verdict INDETERMINATE, and the action follows from the verdict.
+    accDescr: A refused or mismatched request, or a clock reading before 1970, is INDETERMINATE; otherwise the delegation chain, the tenants, the snapshot and its freshness, the rules and the obligations are read in turn; any DENY wins, any cause makes the verdict INDETERMINATE, and the action follows from the verdict.
     A["Request: the envelope, the authorized arguments, a decoder's refusal if any"] --> B{"Refused, by the decoder or by Validate?"}
     B -->|yes| R["INDETERMINATE with a cause in the request"]
     B -->|no| C{"Action digest and arguments hash computed, and the hash the envelope carries matches?"}
     C -->|no| R
-    C -->|yes| D["Delegation chain: an expired hop, a party twice or a hop past its parent is DENY"]
+    C -->|yes| K{"The clock reads 1970 or later?"}
+    K -->|no| R
+    K -->|yes| D["Delegation chain: an expired hop, a party twice or a hop past its parent is DENY"]
     D --> E["Tenants: two named and different is DENY, one named on a material class is a cause in the request"]
     E --> F{"A snapshot?"}
     F -->|no| U["POLICY_UNAVAILABLE, a cause in the policy's availability"]
@@ -50,6 +52,7 @@ Sources: `internal/core/decide.go`, `internal/core/delegation/delegation.go`,
 | Refusal | the decoder's refusal, or `contract.Validate` on a clone of the envelope; the decision ends here | `UNSUPPORTED_SCHEMA`, `REQUIRED_FIELD_ABSENT`, `LIMIT_EXCEEDED`, `INVALID_FIELD_VALUE`, `MALFORMED_INPUT`, by the refusal's sentinel |
 | Digest | `canon.DigestV1` over the envelope and the authorized arguments refuses; the decision ends here | `LIMIT_EXCEEDED` for the size bound and the depth bound, else `INVALID_FIELD_VALUE` |
 | Hash | the envelope carries `arguments.canonical_hash` and it is not `canon.ArgumentsHashV1` of the arguments; the decision ends here | `INVALID_FIELD_VALUE` |
+| Clock | the clock reads before 1970-01-01T00:00:00Z, the zero time among them, so no expiry and no bundle's age can be judged: a cause in the request, and the decision ends here | `POLICY_STALE` |
 | Delegation | `delegation.Check` refuses the chain: a `DENY` of the kernel's own, and the rules then see no delegation at all. Nothing signs a hop: a chain's scopes are what the envelope's producer states, so a rule that grants on `delegation.scopes` trusts that producer; the MCP listener sends no chain | `DELEGATION_EXPIRED`, `DELEGATION_CYCLE`, `DELEGATION_EXCEEDS_PARENT` |
 | Tenants | principal and resource name different tenants: `DENY`; one side names a tenant and the other does not, on a material class: a cause in the request | `TENANT_MISMATCH`, `TENANT_UNDETERMINED` |
 | Snapshot | none handed in: a cause in the policy's availability, and nothing is evaluated | `POLICY_UNAVAILABLE` |
@@ -99,6 +102,7 @@ The two kinds of cause are what the table reads, never a reason code:
 | Cause | Kind | Why the table treats it so |
 | --- | --- | --- |
 | a refusal, an argument that cannot be digested, a hash that does not match, a one-sided tenant on a material class, an unknown rule, a veto an external decision point left unanswered among them | in the request | the request itself is what could not be read; no setting relieves it |
+| a clock reading before 1970 | in the request | the kernel has no time to judge a delegation or a bundle's age by; the setting covers a missing policy, not a missing clock |
 | no snapshot, a snapshot past its budget | in the policy's availability | the request is sound and the policy is what is missing; a read may run under the operator's explicit setting |
 
 "The determinate verdict" is what the rules that could be decided concluded

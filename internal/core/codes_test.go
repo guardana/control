@@ -32,6 +32,8 @@ type emission struct {
 	req   func() core.Request
 	snap  func(t *testing.T) *policy.Snapshot
 	opts  core.Options
+	// clock is nil for a kernel reading base.
+	clock func() time.Time
 }
 
 func emissions(t *testing.T) []emission {
@@ -67,27 +69,28 @@ func emissions(t *testing.T) []emission {
 	vetoed := func(t *testing.T) *policy.Snapshot { return snapshot(t, vetoReads) }
 	undetermined := func(code string) []string { return []string{codeRuleUndetermined, code} }
 	return []emission{
-		{codeUnsupportedSchema, alone(codeUnsupportedSchema), refused(contract.ErrUnsupportedSchema), allowing, options()},
-		{codeRequiredFieldAbsent, alone(codeRequiredFieldAbsent), refused(contract.ErrMissingField), allowing, options()},
-		{codeLimitExceeded, alone(codeLimitExceeded), refused(contract.ErrTooLarge), allowing, options()},
-		{codeInvalidFieldValue, alone(codeInvalidFieldValue), refused(contract.ErrInvalidValue), allowing, options()},
-		{codeMalformedInput, alone(codeMalformedInput), refused(errors.New("not this contract")), allowing, options()},
-		{codeTenantMismatch, []string{codeTenantMismatch, codeRuleAllow}, cross, allowing, options()},
+		{codeUnsupportedSchema, alone(codeUnsupportedSchema), refused(contract.ErrUnsupportedSchema), allowing, options(), nil},
+		{codeRequiredFieldAbsent, alone(codeRequiredFieldAbsent), refused(contract.ErrMissingField), allowing, options(), nil},
+		{codeLimitExceeded, alone(codeLimitExceeded), refused(contract.ErrTooLarge), allowing, options(), nil},
+		{codeInvalidFieldValue, alone(codeInvalidFieldValue), refused(contract.ErrInvalidValue), allowing, options(), nil},
+		{codeMalformedInput, alone(codeMalformedInput), refused(errors.New("not this contract")), allowing, options(), nil},
+		{codeTenantMismatch, []string{codeTenantMismatch, codeRuleAllow}, cross, allowing, options(), nil},
 		{codeTenantUndetermined, []string{codeTenantUndetermined, codeRuleAllow}, oneSide,
-			func(t *testing.T) *policy.Snapshot { return snapshot(t, allowWrites) }, options()},
-		{codePolicyUnavailable, alone(codePolicyUnavailable), plain, none, options()},
+			func(t *testing.T) *policy.Snapshot { return snapshot(t, allowWrites) }, options(), nil},
+		{codePolicyUnavailable, alone(codePolicyUnavailable), plain, none, options(), nil},
 		{codePolicyStale, []string{codePolicyStale, codeRuleAllow}, plain,
-			func(t *testing.T) *policy.Snapshot { return snapshotAt(t, document(300, allowReads), at(-time.Hour)) }, options()},
+			func(t *testing.T) *policy.Snapshot { return snapshotAt(t, document(300, allowReads), at(-time.Hour)) }, options(), nil},
+		{codePolicyStale, alone(codePolicyStale), plain, none, failOpen(), fixedClock(time.Time{})},
 		{codeObligationNotUnderstood, []string{codeObligationsAttached, codeObligationNotUnderstood}, plain,
-			func(t *testing.T) *policy.Snapshot { return snapshot(t, sandboxedReads) }, options()},
-		{codeFailOpenRead, []string{codePolicyUnavailable, codeFailOpenRead}, plain, none, failOpen()},
+			func(t *testing.T) *policy.Snapshot { return snapshot(t, sandboxedReads) }, options(), nil},
+		{codeFailOpenRead, []string{codePolicyUnavailable, codeFailOpenRead}, plain, none, failOpen(), nil},
 		{codePDPAllow, []string{codeRuleAllow, codePDPAllow}, answered(core.ExternalAllowed()),
-			func(t *testing.T) *policy.Snapshot { return snapshot(t, allowReads, vetoReads) }, options()},
-		{codePDPDeny, []string{codeRuleDeny, codePDPDeny}, answered(core.ExternalDenied()), vetoed, options()},
-		{codeObligationNotUnderstood, []string{codeRuleDeny, codeObligationNotUnderstood}, answered(core.ExternalDeniedObligations()), vetoed, options()},
-		{codePDPTimeout, undetermined(codePDPTimeout), answered(core.ExternalTimeout()), vetoed, failOpen()},
-		{codePDPUnavailable, undetermined(codePDPUnavailable), answered(core.ExternalUnavailable()), vetoed, failOpen()},
-		{codePDPAnswerRefused, undetermined(codePDPAnswerRefused), answered(core.ExternalAnswerRefused()), vetoed, failOpen()},
+			func(t *testing.T) *policy.Snapshot { return snapshot(t, allowReads, vetoReads) }, options(), nil},
+		{codePDPDeny, []string{codeRuleDeny, codePDPDeny}, answered(core.ExternalDenied()), vetoed, options(), nil},
+		{codeObligationNotUnderstood, []string{codeRuleDeny, codeObligationNotUnderstood}, answered(core.ExternalDeniedObligations()), vetoed, options(), nil},
+		{codePDPTimeout, undetermined(codePDPTimeout), answered(core.ExternalTimeout()), vetoed, failOpen(), nil},
+		{codePDPUnavailable, undetermined(codePDPUnavailable), answered(core.ExternalUnavailable()), vetoed, failOpen(), nil},
+		{codePDPAnswerRefused, undetermined(codePDPAnswerRefused), answered(core.ExternalAnswerRefused()), vetoed, failOpen(), nil},
 	}
 }
 
@@ -98,7 +101,11 @@ func emissions(t *testing.T) []emission {
 func TestEmittedCodesCarryTheirStepsVerdict(t *testing.T) {
 	for _, e := range emissions(t) {
 		t.Run(e.code, func(t *testing.T) {
-			out := decide(kernelAt(t, e.opts), e.req(), e.snap(t))
+			clock := e.clock
+			if clock == nil {
+				clock = fixedClock(base())
+			}
+			out := decide(kernel(t, e.opts, clock), e.req(), e.snap(t))
 			codes := out.Decision.GetReasonCodes()
 			if !slices.Equal(codes, e.codes) {
 				t.Fatalf("codes %q, want %q", codes, e.codes)
