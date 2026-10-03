@@ -152,6 +152,7 @@ func TestNewRefusesEachMisconfiguration(t *testing.T) {
 		{"nil clock", func(c *mcp.Config) { c.Clock = nil }, mcp.ErrNoClock},
 		{"nil id source", func(c *mcp.Config) { c.NewID = nil }, mcp.ErrNoIDSource},
 		{"negative list timeout", func(c *mcp.Config) { c.ListTimeout = -time.Second }, mcp.ErrListTimeout},
+		{"negative call timeout", func(c *mcp.Config) { c.CallTimeout = -time.Nanosecond }, mcp.ErrCallTimeout},
 		{"no upstream", func(c *mcp.Config) { c.Upstreams = nil }, mcp.ErrUpstream},
 		{"upstream without a name", func(c *mcp.Config) { c.Upstreams[0].Name = "" }, mcp.ErrUpstream},
 		{"upstream without a transport", func(c *mcp.Config) { c.Upstreams[0].Transport = nil }, mcp.ErrUpstream},
@@ -187,6 +188,11 @@ func TestNewRefusesEachMisconfiguration(t *testing.T) {
 	cfg.Overrides[0].ResourceFrom = "/a~0b~1c"
 	if _, err := mcp.New(cfg); err != nil {
 		t.Errorf("an escaped pointer was refused: %v", err)
+	}
+	cfg = valid()
+	cfg.CallTimeout = 0
+	if _, err := mcp.New(cfg); err != nil {
+		t.Errorf("a call timeout of zero, which is no bound of the adapter's own, was refused: %v", err)
 	}
 }
 

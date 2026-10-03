@@ -1,4 +1,4 @@
-ok      configuration <tree>/doctor.yaml parses, 24 key(s) set, the rest at their defaults
+ok      configuration <tree>/doctor.yaml parses, 25 key(s) set, the rest at their defaults
        mode                         OBSERVE                  (<tree>/doctor.yaml:3)
        project_id                   orders                   (<tree>/doctor.yaml:4)
        tenant_id                    acme                     (<tree>/doctor.yaml:5)
@@ -25,7 +25,7 @@ ok      configuration <tree>/doctor.yaml parses, 24 key(s) set, the rest at thei
        policy.freshness_public_key  1UIH2hlJd9z0atv+wrwudbUtWopCGE/t/cAAJPDj6No= (<tree>/doctor.yaml:27)
        policy.max_stale             10m0s                    (default)
        policy.poll_interval         5s                       (<tree>/doctor.yaml:28)
-       policy.fail_open_read        false                    (default)
+       policy.fail_open_read        true                     (GUARDANA_CONTROL_POLICY_FAIL_OPEN_READ)
        pdp.identifier                                        (default)
        pdp.evaluation_endpoint                               (default)
        pdp.timeout                  100ms                    (default)
@@ -68,7 +68,7 @@ ok      configuration <tree>/doctor.yaml parses, 24 key(s) set, the rest at thei
        listener.origins.0           http://localhost:5173
        upstreams.0                  orders -> http://127.0.0.1:1/mcp
 ok      mode          OBSERVE needs observe_request, observe_result from the adapter; list shaping none
-ok      policy        bundle gateway-fixture version 2026-09-20.1 serial 1 verifies under key k1, digest sha256:0766ec8e242e7e98c0b9a2513c830762cbae6b3dbd1bffba33f2cf59b74d9e1e, staleness budget 10m0s; a statement under key f1 issued <time> confirms it until <time>; the floor holds no serial yet; policy.fail_open_read false, so a read fails closed while the policy is unavailable
+ok      policy        bundle gateway-fixture version 2026-09-20.1 serial 1 verifies under key k1, digest sha256:0766ec8e242e7e98c0b9a2513c830762cbae6b3dbd1bffba33f2cf59b74d9e1e, staleness budget 10m0s; a statement under key f1 issued <time> confirms it until <time>; the floor holds no serial yet; policy.fail_open_read true, so a read runs while the policy is unavailable
 ok      evidence      <tree>/spool locks and is writable; 0 segment(s), 0 byte(s) unacknowledged, 0 reserved, 0 quarantined; on_unwritable block
 ok      approvals     held requests are kept in process memory under the memory provider: nothing outside this process answers one, and a hold lost to a restart is never closed
 ok      pause         disabled: pause.file is not set, so no call can be paused without a restart

@@ -124,12 +124,13 @@ more often than that budget less twice the poll interval.
 guardana-gateway doctor --config gateway.yaml
 ```
 
-`doctor` prints every key and its source, a credential excepted, then one
-line per check, and stops at the first it cannot make. The `policy` line
+`doctor` prints every key and its source, credentials excepted, then one
+line per check, stopping at the first it cannot make. The `policy` line
 fails for a statement missing, expired, dated ahead or naming another bundle,
-and for a bundle below its floor, which it reads without raising. A tool no
-override classifies is printed with its fingerprint, which step 5 needs.
-`doctor` locks the spool, cuts a torn tail and writes a probe file.
+or a bundle below its floor, which it never raises; like `run`'s first
+line, it names `policy.fail_open_read`. An unclassified tool is
+printed with its fingerprint for step 5. `doctor` locks the spool, cuts a
+torn tail and writes a probe file.
 
 ### 4. Run in OBSERVE
 

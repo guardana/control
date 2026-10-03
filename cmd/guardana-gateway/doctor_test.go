@@ -26,6 +26,38 @@ func TestDoctorPrintsEveryCheckAndStopsAtTheFirstUnknown(t *testing.T) {
 	}
 }
 
+// TestDoctorSaysWhenAReadRunsWithoutThePolicy: policy.fail_open_read is a
+// risk setting, so the policy check names it on both sides, and the key's
+// source names the variable that turned it on.
+func TestDoctorSaysWhenAReadRunsWithoutThePolicy(t *testing.T) {
+	tr := newTree(t)
+	setEnv(t, "policy.fail_open_read", "true")
+	var stdout, stderr bytes.Buffer
+	if status := doctor(context.Background(), tr.config, &stdout, &stderr); status == exitOK {
+		t.Error("doctor reported a pass although no upstream answered")
+	}
+	golden(t, "doctor-fail-open-read.golden", tr.output(stdout.String()))
+}
+
+// TestDoctorPrintsTheListBoundInForce: upstream.list_timeout set to zero
+// leaves the adapter's own bound in force, and doctor prints that bound, not
+// a zero that reads as no bound at all.
+func TestDoctorPrintsTheListBoundInForce(t *testing.T) {
+	tr := newTree(t)
+	setEnv(t, "upstream.list_timeout", "0s")
+	var stdout, stderr bytes.Buffer
+	_ = doctor(context.Background(), tr.config, &stdout, &stderr) // the fixture's upstream is absent; only the settings are read here
+	var line string
+	for _, l := range strings.Split(stdout.String(), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(l), "upstream.list_timeout ") {
+			line = strings.Join(strings.Fields(l), " ")
+		}
+	}
+	if !strings.HasPrefix(line, "upstream.list_timeout 30s, the adapter's own, as 0s asks (") {
+		t.Errorf("the list bound is printed as %q", line)
+	}
+}
+
 // TestDoctorRefusesABundleTheKeyDoesNotVerify is the negative control of the
 // policy check: the fixture's key id with a well-formed public key that did
 // not sign the bundle must not pass, and what fails is the policy check's

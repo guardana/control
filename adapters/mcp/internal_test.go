@@ -263,6 +263,32 @@ func TestUnderBrandFoldsTheNamespaceOnly(t *testing.T) {
 	}
 }
 
+// TestUnderBrandFoldsRuneByRune: the namespace's own letters have no fold
+// partner outside ASCII, so the fold is pinned under a prefix whose letters
+// do. A Kelvin sign folds to k and a long s to s, each taking more bytes than
+// the letter it stands for, so the prefix is measured in runes and folded as
+// Unicode folds, not lower-cased and not compared byte for byte.
+func TestUnderBrandFoldsRuneByRune(t *testing.T) {
+	saved := brandMeta
+	brandMeta = "kiosk.ns/"
+	t.Cleanup(func() { brandMeta = saved })
+	for key, want := range map[string]bool{
+		"kiosk.ns/x": true,
+		"KIOSK.NS/x": true,
+		"Kiosk.ns/x": true,
+		"Kiosk.ns/":  true,
+		"kioſk.ns/x": true,
+		"KioſK.ns/":  true,
+		"Kiosk.ns":   false,
+		"Kiosk.né/x": false,
+		"xKiosk.ns/": false,
+	} {
+		if got := underBrand(key); got != want {
+			t.Errorf("underBrand(%q) under %q = %v, want %v", key, brandMeta, got, want)
+		}
+	}
+}
+
 // stuckWriter accepts nothing and reports no error, and takes a deadline.
 type stuckWriter struct{ header http.Header }
 

@@ -54,13 +54,19 @@ func serve(ctx context.Context, path, tokenPath string, stdout, stderr io.Writer
 	if cfg.Listener.Kind == "stdio" {
 		report = stderr
 	}
-	writeLine(report, fmt.Sprintf("%s %s: mode %s, bundle %s, evidence in %s",
-		brand.Gateway, version, cfg.ModeName, oneLine(cfg.Policy.BundleID), oneLine(cfg.Resolve(cfg.Evidence.Dir))))
+	writeLine(report, startLine(cfg))
 	p.settle(ctx, report)
 	if err := p.run(ctx, report, listenTCP, 0); err != nil {
 		return fail(stderr, "run", err)
 	}
 	return exitOK
+}
+
+// startLine is what run prints once the plane is up. It names the risk
+// setting a read runs under while the policy is unavailable, on either side.
+func startLine(cfg *gatewayconfig.Config) string {
+	return fmt.Sprintf("%s %s: mode %s, bundle %s, policy.fail_open_read %t, evidence in %s",
+		brand.Gateway, version, cfg.ModeName, oneLine(cfg.Policy.BundleID), cfg.Policy.FailOpenRead, oneLine(cfg.Resolve(cfg.Evidence.Dir)))
 }
 
 // startPlane builds the serving plane from cfg and connects its upstreams,

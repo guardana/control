@@ -122,12 +122,13 @@ more often than that budget less twice the poll interval.</p>
 <h3 id="3-check-the-configuration-before-serving">3. Check the configuration before serving</h3>
 <pre><code>guardana-gateway doctor --config gateway.yaml
 </code></pre>
-<p><code>doctor</code> prints every key and its source, a credential excepted, then one
-line per check, and stops at the first it cannot make. The <code>policy</code> line
+<p><code>doctor</code> prints every key and its source, credentials excepted, then one
+line per check, stopping at the first it cannot make. The <code>policy</code> line
 fails for a statement missing, expired, dated ahead or naming another bundle,
-and for a bundle below its floor, which it reads without raising. A tool no
-override classifies is printed with its fingerprint, which step 5 needs.
-<code>doctor</code> locks the spool, cuts a torn tail and writes a probe file.</p>
+or a bundle below its floor, which it never raises; like <code>run</code>'s first
+line, it names <code>policy.fail_open_read</code>. An unclassified tool is
+printed with its fingerprint for step 5. <code>doctor</code> locks the spool, cuts a
+torn tail and writes a probe file.</p>
 <h3 id="4-run-in-observe">4. Run in OBSERVE</h3>
 <pre><code>guardana-gateway run --config gateway.yaml
 </code></pre>

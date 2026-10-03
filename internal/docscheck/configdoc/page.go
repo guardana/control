@@ -105,7 +105,10 @@ func lead() string {
 		"provider needs `approvals.dir` and `approvals.hold_journal_dir`, and that journal\n" +
 		"directory may be neither the spool's nor the approvals directory, nor inside either;\n" +
 		"and `APPROVE` needs the `file` provider, since nothing outside the process answers a\n" +
-		"request held in memory. `runs.dir` may not be, hold or sit inside the spool, the\n" +
+		"request held in memory. `upstream.call_timeout`, `pdp.timeout` and `export.timeout` have\n" +
+		"to be positive, so nothing waits on an upstream's call, the decision point or the\n" +
+		"collector without a bound; `upstream.list_timeout` may be zero, which is the adapter's\n" +
+		"own bound, and no timeout may be negative. `runs.dir` may not be, hold or sit inside the spool, the\n" +
 		"approvals directory, the hold journal or the pause file's directory, needs a\n" +
 		"`listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a\n" +
 		"plane keeps in memory. Every `pdp.` key is refused while `pdp.identifier` is empty,\n" +

@@ -98,6 +98,10 @@ const DefaultSessionIdle = 30 * time.Minute
 // open sessions and never close them can hold.
 const DefaultMaxSessions = 1024
 
+// DefaultListTimeout is the bound on reading one upstream's list while
+// Config.ListTimeout is zero.
+const DefaultListTimeout = defaultListTimeout
+
 // DefaultBodyTimeout is how long an HTTP request may take over its body, and
 // its answer may make no progress.
 const DefaultBodyTimeout = 30 * time.Second
@@ -122,7 +126,7 @@ type Config struct {
 	// adapter keeps one per principal; zero means immediately stale.
 	ListTTL time.Duration
 	// CallTimeout bounds every upstream call; zero means no bound of the
-	// adapter's own.
+	// adapter's own, and New refuses a negative one.
 	CallTimeout time.Duration
 	// ListTimeout bounds reading one upstream's list, on a manifest refresh
 	// and on a forwarded list; zero takes the package's own bound.
@@ -137,6 +141,10 @@ type Config struct {
 	// that failed, a manifest that could not be refreshed. Nil discards.
 	Logger *slog.Logger
 }
+
+// ErrCallTimeout is a negative bound on an upstream call, which would also
+// discard an obligation's shorter one.
+const ErrCallTimeout Error = "mcp: the call timeout cannot be negative"
 
 // Stats counts what the adapter did, for health and for a test that has to
 // see a failure nothing else reports.
@@ -189,7 +197,7 @@ var _ gateway.Adapter = (*Adapter)(nil)
 // source that does not fit the listener, an upstream
 // without a name or a transport, two upstreams with one name, an override
 // that names no known upstream or is incomplete, a shaping it does not know,
-// and a nil clock or id source.
+// a negative call or list timeout, and a nil clock or id source.
 func New(cfg Config) (*Adapter, error) {
 	if err := checkConfig(cfg); err != nil {
 		return nil, err
@@ -233,6 +241,9 @@ func checkConfig(cfg Config) error {
 	}
 	if cfg.ListTimeout < 0 {
 		return fmt.Errorf("%w: %v", ErrListTimeout, cfg.ListTimeout)
+	}
+	if cfg.CallTimeout < 0 {
+		return fmt.Errorf("%w: %v", ErrCallTimeout, cfg.CallTimeout)
 	}
 	names, err := checkUpstreams(cfg.Upstreams)
 	if err != nil {

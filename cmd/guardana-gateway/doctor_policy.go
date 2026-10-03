@@ -35,8 +35,17 @@ func (d *examination) policy(ctx context.Context) (string, string, string) {
 	}
 	ref := rep.Bundle.Ref()
 	return verdictOK, "policy", fmt.Sprintf("bundle %s version %s serial %d verifies under key %s, digest %s, staleness budget %s; "+
-		"a statement under key %s issued %s confirms it until %s; the floor holds %s",
+		"a statement under key %s issued %s confirms it until %s; the floor holds %s; %s",
 		ref.GetBundleId(), ref.GetVersion(), rep.Bundle.Serial(), d.cfg.Policy.KeyID, ref.GetDigest(), rep.Bundle.MaxStale(),
 		d.cfg.Policy.FreshnessKeyID, policy.FormatIssuedAt(rep.Statement.IssuedAt()), policy.FormatIssuedAt(rep.Expires),
-		floorText(rep.Floor))
+		floorText(rep.Floor), failOpenReadText(d.cfg.Policy.FailOpenRead))
+}
+
+// failOpenReadText names the risk setting a read runs under while the policy
+// is unavailable, on either side.
+func failOpenReadText(on bool) string {
+	if on {
+		return "policy.fail_open_read true, so a read runs while the policy is unavailable"
+	}
+	return "policy.fail_open_read false, so a read fails closed while the policy is unavailable"
 }

@@ -22,7 +22,10 @@ under the `interval` policy and refused under `every_record`; the `file` approva
 provider needs `approvals.dir` and `approvals.hold_journal_dir`, and that journal
 directory may be neither the spool's nor the approvals directory, nor inside either;
 and `APPROVE` needs the `file` provider, since nothing outside the process answers a
-request held in memory. `runs.dir` may not be, hold or sit inside the spool, the
+request held in memory. `upstream.call_timeout`, `pdp.timeout` and `export.timeout` have
+to be positive, so nothing waits on an upstream's call, the decision point or the
+collector without a bound; `upstream.list_timeout` may be zero, which is the adapter's
+own bound, and no timeout may be negative. `runs.dir` may not be, hold or sit inside the spool, the
 approvals directory, the hold journal or the pause file's directory, needs a
 `listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a
 plane keeps in memory. Every `pdp.` key is refused while `pdp.identifier` is empty,

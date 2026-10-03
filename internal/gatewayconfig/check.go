@@ -20,7 +20,7 @@ func (c *Config) check() error {
 	if err := checkRequired(c, configFields, ""); err != nil {
 		return err
 	}
-	for _, check := range []func() error{c.checkListener, c.checkSessionIdle, c.checkMaxSessions, c.checkPolicy, c.checkPDP, c.checkApprovals, c.checkPause, c.checkRuns, c.checkFlow, c.checkEvidence, c.checkExport, c.checkShaping, c.checkUpstreams, c.checkOverrides} {
+	for _, check := range []func() error{c.checkListener, c.checkSessionIdle, c.checkMaxSessions, c.checkPolicy, c.checkPDP, c.checkApprovals, c.checkPause, c.checkRuns, c.checkFlow, c.checkEvidence, c.checkExport, c.checkShaping, c.checkTimeouts, c.checkUpstreams, c.checkOverrides} {
 		if err := check(); err != nil {
 			return err
 		}
@@ -397,6 +397,32 @@ func notHTTP(key, value string) error {
 func (c *Config) checkShaping() error {
 	if c.List.Shaping != "none" && (c.ModeName == "OBSERVE" || c.ModeName == "SHADOW") {
 		return fmt.Errorf("list.shaping: %s under %s; shaping is none in a mode that does not enforce (ADR-0013)", c.List.Shaping, c.ModeName)
+	}
+	return nil
+}
+
+// checkTimeouts refuses a bound its client would not take, naming the key
+// rather than the client's option. upstream.call_timeout has to be positive:
+// at zero a call has no bound of the adapter's own, and below zero it would
+// lose an obligation's shorter one too. upstream.list_timeout may be zero,
+// which is the adapter's own bound.
+func (c *Config) checkTimeouts() error {
+	for _, bound := range []struct {
+		key    string
+		d      time.Duration
+		zeroOK bool
+	}{
+		{"upstream.call_timeout", c.Upstream.CallTimeout, false},
+		{"upstream.list_timeout", c.Upstream.ListTimeout, true},
+		{"pdp.timeout", c.PDP.Timeout, false},
+		{"export.timeout", c.Export.Timeout, false},
+	} {
+		switch {
+		case bound.d < 0:
+			return fmt.Errorf("%s: %v; the bound cannot be negative", bound.key, bound.d)
+		case bound.d == 0 && !bound.zeroOK:
+			return fmt.Errorf("%s: %v; the bound has to be positive", bound.key, bound.d)
+		}
 	}
 	return nil
 }

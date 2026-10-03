@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	adaptermcp "github.com/guardana/control/adapters/mcp"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/holdjournal"
@@ -92,7 +93,11 @@ func printSettings(w io.Writer, cfg *gatewayconfig.Config) {
 		if where, ok := sources[s.Path]; ok {
 			source = where
 		}
-		writeLine(w, fmt.Sprintf("       %-28s %-24s (%s)", s.Path, oneLine(s.Value), oneLine(source)))
+		value := s.Value
+		if s.Path == "upstream.list_timeout" && cfg.Upstream.ListTimeout == 0 {
+			value = adaptermcp.DefaultListTimeout.String() + ", the adapter's own, as 0s asks"
+		}
+		writeLine(w, fmt.Sprintf("       %-28s %-24s (%s)", s.Path, oneLine(value), oneLine(source)))
 	}
 	printHeaders(w, gatewayconfig.HeadersPrefix, cfg.Export.Headers)
 	printHeaders(w, gatewayconfig.PDPHeadersPrefix, cfg.PDP.Headers)

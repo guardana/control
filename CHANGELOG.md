@@ -115,6 +115,15 @@ verify one.
   `main`, or a listing longer than one page never counts as that run. Its dry
   run takes the version the tag will carry, makes the same check and prints
   that version's release notes.
+- The configuration refuses a negative `upstream.call_timeout`,
+  `upstream.list_timeout`, `pdp.timeout` or `export.timeout`, naming the key,
+  and a zero `upstream.call_timeout`, `pdp.timeout` or `export.timeout`. A
+  negative `upstream.call_timeout` left upstream calls without a bound and
+  dropped an obligation's shorter timeout too; the other three were refused
+  only later, at start, without the key. `upstream.list_timeout: 0` still
+  means the adapter's own 30 seconds, which `doctor` now prints.
+- `guardana-gateway doctor`'s `policy` line and `run`'s first line say whether
+  `policy.fail_open_read` lets a read run while the policy is unavailable.
 
 ### Fixed
 

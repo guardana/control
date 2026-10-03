@@ -155,6 +155,19 @@ to <code>main</code> of exactly that commit; a pull request run, a run on a tag 
 run takes the version the tag will carry, makes the same check and prints
 that version's release notes.</p>
 </li>
+<li>
+<p>The configuration refuses a negative <code>upstream.call_timeout</code>,
+<code>upstream.list_timeout</code>, <code>pdp.timeout</code> or <code>export.timeout</code>, naming the key,
+and a zero <code>upstream.call_timeout</code>, <code>pdp.timeout</code> or <code>export.timeout</code>. A
+negative <code>upstream.call_timeout</code> left upstream calls without a bound and
+dropped an obligation's shorter timeout too; the other three were refused
+only later, at start, without the key. <code>upstream.list_timeout: 0</code> still
+means the adapter's own 30 seconds, which <code>doctor</code> now prints.</p>
+</li>
+<li>
+<p><code>guardana-gateway doctor</code>'s <code>policy</code> line and <code>run</code>'s first line say whether
+<code>policy.fail_open_read</code> lets a read run while the policy is unavailable.</p>
+</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
