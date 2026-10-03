@@ -322,3 +322,29 @@ func TestAHungRaiseIsGivenUp(t *testing.T) {
 		t.Errorf("%d poll(s) refused for the floor, want 1", got)
 	}
 }
+
+// A statement read so slowly that its budget runs out before it would be
+// published is refused as expired at that moment: expiry is judged on the
+// wall clock read under the clock's lock, not on the poll's start.
+func TestAStatementThatExpiresWhileItIsReadIsRefused(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	r.startConfirmed()
+	next := r.writeBundle(3, "v3", 600)
+	r.writeStatement(3, next, t0.Add(10*time.Second))
+	policywatch.SetBeforeRead(r.refresher, func(path string) {
+		if path == r.opts.StatementPath {
+			r.clock.advance(11 * time.Minute)
+		}
+	})
+	_, writes := r.store.stored()
+	r.poll()
+	if got := r.refresher.Stats(); got.Refused[policywatch.CauseStatementExpired] != 1 || got.Confirmations != 0 {
+		t.Errorf("refused %v, %d confirmation(s); want one refused as expired and none taken", got.Refused, got.Confirmations)
+	}
+	if r.holder.Current().Serial() != 2 {
+		t.Errorf("a statement expired before it was published installed serial %d", r.holder.Current().Serial())
+	}
+	if _, after := r.store.stored(); after != writes {
+		t.Error("a statement expired before it was published raised the floor")
+	}
+}

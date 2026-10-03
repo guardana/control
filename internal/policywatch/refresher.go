@@ -144,7 +144,6 @@ func (r *Refresher) Poll(ctx context.Context) {
 		r.refuse(CauseClockBack, ErrClockBack)
 		return
 	}
-	now := r.o.Wall()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	cur := r.o.Holder.Current()
@@ -166,19 +165,19 @@ func (r *Refresher) Poll(ctx context.Context) {
 	}
 	st, disk := r.statement.st, r.bundle.snap
 	if disk.Ref().GetDigest() == cur.Ref().GetDigest() {
-		r.renew(ctx, cur, st, now)
+		r.renew(ctx, cur, st)
 		return
 	}
-	r.replace(ctx, cur, st, now)
+	r.replace(ctx, cur, st)
 }
 
 // renew judges st against the current bundle, which is the bundle on disk.
-func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.Statement, now time.Time) {
+func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.Statement) {
 	switch {
 	case binds(st, cur) && cur.ConfirmedAt().Equal(st.IssuedAt()):
 		r.settle("confirmed")
 	case binds(st, cur):
-		r.confirm(ctx, cur, st, now, nil)
+		r.confirm(ctx, cur, st, nil)
 	case st.BundleID() == r.o.BundleID && st.Serial() > cur.Serial():
 		r.await(&r.stats.AwaitingBundle, "the statement names a bundle not yet on disk", st)
 	default:
@@ -187,7 +186,7 @@ func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.S
 }
 
 // replace judges the bundle on disk, which is not the current one, and st.
-func (r *Refresher) replace(ctx context.Context, cur *policy.Snapshot, st policy.Statement, now time.Time) {
+func (r *Refresher) replace(ctx context.Context, cur *policy.Snapshot, st policy.Statement) {
 	disk := r.bundle.snap
 	switch {
 	case disk.Serial() < cur.Serial():
@@ -203,7 +202,7 @@ func (r *Refresher) replace(ctx context.Context, cur *policy.Snapshot, st policy
 	}
 	switch {
 	case binds(st, disk):
-		r.confirm(ctx, disk, st, now, r.bundle)
+		r.confirm(ctx, disk, st, r.bundle)
 	case binds(st, cur):
 		r.await(&r.stats.AwaitingStatement, "the bundle on disk awaits its statement", st)
 	case st.BundleID() == r.o.BundleID && st.Serial() > disk.Serial():
@@ -215,22 +214,24 @@ func (r *Refresher) replace(ctx context.Context, cur *policy.Snapshot, st policy
 
 // confirm confirms snap by st: a renewal of the current bundle when install
 // is nil, and otherwise the install of the bundle install holds. A statement
-// whose budget has run out is refused before the floor is raised.
-func (r *Refresher) confirm(ctx context.Context, snap *policy.Snapshot, st policy.Statement, now time.Time, install *diskBundle) {
-	if expired(st, snap, r.o.MaxStale, now) {
-		r.refuse(CauseStatementExpired, expiry(st, snap, r.o.MaxStale))
-		return
-	}
+// whose budget has run out when it would be published is refused before
+// the floor is raised.
+func (r *Refresher) confirm(ctx context.Context, snap *policy.Snapshot, st policy.Statement, install *diskBundle) {
 	// The clock is judged again under its lock, held until the holder has
-	// published or refused, so a withdrawal cannot land between the two; the
-	// raise is bounded, since the holder keeps its own lock across it and the
-	// clock rule needs both.
+	// published or refused, so a withdrawal cannot land between the two, and
+	// expiry is judged on that same reading, the moment st would be
+	// published; the raise is bounded, since the holder keeps its own lock
+	// across it and the clock rule needs both.
 	r.clockMu.Lock()
 	defer r.clockMu.Unlock()
-	now = r.o.Wall()
+	now := r.o.Wall()
 	if r.clock.back(now, r.o.Mono()) {
 		r.withdraw()
 		r.refuse(CauseClockBack, ErrClockBack)
+		return
+	}
+	if expired(st, snap, r.o.MaxStale, now) {
+		r.refuse(CauseStatementExpired, expiry(st, snap, r.o.MaxStale))
 		return
 	}
 	raise, cancel := context.WithTimeout(ctx, r.o.Interval)
