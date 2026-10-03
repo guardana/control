@@ -108,6 +108,29 @@ footer.foot{border-top:1px solid var(--line);padding:40px 0 52px;font-size:14.5p
   .verdicts{grid-template-columns:minmax(0,1fr)}
   .lede{font-size:17px;margin-bottom:30px}
 }
+.scene{max-width:720px;margin:0 0 14px;padding:14px 16px 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.scene svg{display:block;width:100%;height:auto}
+.scene figcaption{margin:8px 0 0;font-size:14.5px;line-height:1.5;color:var(--muted)}
+.scene+.flow,.scene-toggle+.flow{margin-top:26px}
+.scene-pause{position:absolute;width:1px;height:1px;opacity:0;margin:0;pointer-events:none}
+.scene-toggle{cursor:pointer;margin:0}
+.scene-toggle i{background:var(--faint);box-shadow:none}
+.scene-pause:checked~section .scene-toggle i{background:var(--brand)}
+.scene-pause:focus-visible~section .scene-toggle{outline:2px solid var(--brand);outline-offset:3px}
+.scene-pause:checked~section .scene *{animation-play-state:paused}
+.scene .call-allow{animation:scene-pass 7s ease-in-out infinite}
+.scene .call-block{opacity:0;animation:scene-stop 7s ease-in-out infinite}
+.scene .obs-path{stroke-dasharray:1;animation:scene-draw 7s ease-in-out infinite}
+.scene .obs-late{animation:scene-late 7s ease-in-out infinite}
+.scene .feed{animation:scene-feed 4s ease-in-out infinite}
+@media (max-width:600px){.scene{padding:8px 8px 10px}.scene figcaption{padding:0 4px}}
+@keyframes scene-pass{0%,10%{transform:translateX(-344px);opacity:0}16%{transform:translateX(-344px);opacity:1}48%{transform:translateX(-192px)}75%,88%{transform:none;opacity:1}96%,100%{transform:none;opacity:0}}
+@keyframes scene-stop{0%,10%{transform:translateX(-128px);opacity:0}16%{transform:translateX(-128px);opacity:1}46%{transform:none;opacity:1}54%,100%{transform:none;opacity:0}}
+@keyframes scene-draw{0%,8%{stroke-dashoffset:1;opacity:1}50%,92%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+@keyframes scene-late{0%,50%{opacity:0}58%,92%{opacity:1}100%{opacity:0}}
+@keyframes scene-feed{0%{transform:translate(-45px,0);opacity:0}10%{transform:translate(-40px,0);opacity:1}45%{transform:none}80%,88%{transform:translate(38px,34px);opacity:1}96%,100%{transform:translate(38px,34px);opacity:0}}
+
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none !important;transition:none !important}
+  .scene-pause,.scene-toggle{display:none}
 }

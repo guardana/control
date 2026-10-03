@@ -3,7 +3,7 @@
 # Applies the GitHub configuration of guardana/control that ADR-0025 and
 # GOVERNANCE.md describe: repository settings, security features, Actions
 # permissions, the two teams, labels, milestones, the release environment and
-# five rulesets. Every step is idempotent: a run sets what this file names, and
+# six rulesets. Every step is idempotent: a run sets what this file names, and
 # replaces a ruleset or the environment's tag policy of the same name, but it
 # leaves a label, a ruleset or a team it does not name as it found it. A change
 # to the configuration starts here.
@@ -29,9 +29,10 @@ DEFAULT_BRANCH="main"
 # The admin both teams start with, as a team maintainer.
 ADMIN_LOGIN="${ADMIN_LOGIN:-karauda}"
 
-DESCRIPTION="Watch, decide, enforce and record the tool calls your AI agents make: an MCP gateway with signed policies, human approvals, pause and an evidence trail. Open source, Go."
+DESCRIPTION="Watch what your AI agents do, decide before they act, step in only where you allow it. Today: an MCP gateway with signed policies, approvals, pause and an evidence trail. Open source, Go."
 TOPICS=(
   ai-agents
+  agentic-ai
   agent-security
   ai-security
   mcp
@@ -394,6 +395,24 @@ apply_ruleset "release tags: create" <<JSON
   "target": "tag",
   "enforcement": "active",
   "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
+  "bypass_actors": [
+    { "actor_id": ${ROLE_ADMIN}, "actor_type": "RepositoryRole", "bypass_mode": "always" },
+    { "actor_id": ${ROLE_MAINTAIN}, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ],
+  "rules": [
+    { "type": "creation" }
+  ]
+}
+JSON
+
+# Only the admin and the maintain role create any other tag either, so no tag
+# can take a branch's name, which a tag push run reports as its head branch.
+apply_ruleset "other tags: create" <<JSON
+{
+  "name": "other tags: create",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~ALL"], "exclude": ["refs/tags/v*"] } },
   "bypass_actors": [
     { "actor_id": ${ROLE_ADMIN}, "actor_type": "RepositoryRole", "bypass_mode": "always" },
     { "actor_id": ${ROLE_MAINTAIN}, "actor_type": "RepositoryRole", "bypass_mode": "always" }

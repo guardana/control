@@ -286,7 +286,9 @@ carry no policy meaning.</li>
 <code>pkg/policyprovider</code> are reserved names for what an out-of-tree adapter,
 detector or policy provider would compile against; none exists yet. Adding
 to the surface is a compatibility decision and needs its own record
-(<a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a>).</li>
+(<a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a>), and
+data contracts with conformance suites come first
+(<a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>).</li>
 <li>The core (<code>internal/core</code>, <code>internal/policy</code>) validates, classifies, matches
 and decides.</li>
 <li>Everything the decision does not need sits outside it: storage, the control
@@ -317,68 +319,41 @@ itself, which the gate checks. See
 <a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>.</p>
 <h2 id="where-it-is-going">Where it is going</h2>
 <p>Everything in this section is <code>planned</code>, in the order
-<a href="/docs/roadmap">ROADMAP.md</a> gives. The request path above stays how the
-plane stops a call. New inputs also observe agents that do not use the proxy.
-A supervisor compares what agents do with their procedures and permissions and
-reports to the operator's alerting and logging. Seams let others extend the
-plane.</p>
-<figure class="dg-text" id="diagram-4"><figcaption>Where it is going</figcaption><p>A planned shape: agents reach tools through a proxy or framework ports and the enforcement point, feeds and evidence reach a supervisor, and alerts, exports and a run graph come out, with extensions added as adapters and documents. <a href="https://github.com/guardana/control/blob/main/docs/concepts/architecture.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TB
-    accTitle: Where it is going
-    accDescr: A planned shape: agents reach tools through a proxy or framework ports and the enforcement point, feeds and evidence reach a supervisor, and alerts, exports and a run graph come out, with extensions added as adapters and documents.
-    AG[Agents]
-    subgraph IN[Inputs]
-        PX[&#34;Proxy: MCP today, HTTP tool APIs next&#34;]
-        PT[&#34;Framework ports over one API&#34;]
-        FD[&#34;Feeds: traces, logs, process events&#34;]
-    end
-    subgraph CTL[Guardana Control]
-        PEP[&#34;Enforcement point: policy, approvals, pause&#34;]
-        SV[&#34;Supervisor: procedures, deviations, access attempts, unfinished work&#34;]
-        EV[(Evidence)]
-    end
-    subgraph OUT[Outputs]
-        AL[&#34;Alerts: webhooks, chat&#34;]
-        EX[&#34;OpenTelemetry, metrics, SIEM&#34;]
-        GR[Run graph and console]
-    end
-    TL[Tools and APIs]
-    XT[&#34;Extend: adapters, detectors, policy providers; policies, scenarios, procedures as documents&#34;]
-    AG --&gt; PX
-    AG --&gt; PT
-    AG -.-&gt; FD
-    PX --&gt; PEP
-    PT --&gt; PEP
-    PEP --&gt;|allowed calls| TL
-    FD --&gt; SV
-    PEP --&gt; EV
-    EV --&gt; SV
-    SV --&gt; AL
-    EV --&gt; EX
-    SV --&gt; GR
-    GR --&gt;|stop an agent| PEP
-    XT -.-&gt; CTL
-</code></pre></details></figure>
-<p>Sources: <code>ROADMAP.md</code>, <code>internal/policy/rules/document.go</code>, <code>internal/scenario/doc.go</code>,
-<code>adapters/authzen/client.go</code>.</p>
+<a href="/docs/roadmap">ROADMAP.md</a> gives, and
+<a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a> records its shape. The
+request path above stays how a plane stops a call. MCP is the first channel
+of several, and every channel or extension will be one of five ports, and say
+which.</p>
+<figure class="dg" id="dg91209c4"><style>.dg{margin:28px 0 32px;container-type:inline-size;overflow-x:auto}.dg svg{display:block;height:auto;margin:0 auto}.dg .dg-n{display:none}.dg text{text-anchor:middle;dominant-baseline:central}.dg .n rect,.dg .n path{fill:var(--panel,#fff);stroke:var(--line,#E6E8EF);stroke-width:1.2}.dg .n .lip{fill:none}.dg .n text{fill:var(--ink,#0F1115);font:500 13px var(--sans,system-ui,sans-serif)}.dg .accent rect,.dg .accent path{fill:var(--brand-soft,#E6F4F2);stroke:var(--brand,#0B8F80)}.dg .accent .lip{fill:none}.dg .accent text{fill:var(--brand-ink,#08705F)}.dg .cmd text{font:400 12.5px var(--mono,ui-monospace,monospace)}.dg .muted rect,.dg .muted path{stroke-dasharray:4 3}.dg .muted text{fill:var(--muted,#566070)}.dg .e{fill:none;stroke:var(--faint,#8A92A0);stroke-width:1.4}.dg .e.dot{stroke-dasharray:3 4}.dg .e.main{stroke:var(--brand,#0B8F80);stroke-width:1.8;stroke-dasharray:7 5;animation:dg-flow 1.4s linear infinite}.dg .h{fill:var(--faint,#8A92A0)}.dg .h.main{fill:var(--brand,#0B8F80)}.dg .g rect{fill:color-mix(in srgb,var(--brand-soft,#E6F4F2) 45%,transparent);stroke:var(--line,#E6E8EF)}.dg .g text{text-anchor:start;font:500 11px var(--mono,ui-monospace,monospace);letter-spacing:.08em;text-transform:uppercase;fill:var(--muted,#566070)}.dg .l rect{fill:var(--bg,#FBFBFD)}.dg .l text{font:400 11.5px var(--mono,ui-monospace,monospace);fill:var(--muted,#566070)}@keyframes dg-flow{to{stroke-dashoffset:-24}}@media (prefers-reduced-motion:reduce){.dg .e.main{animation:none}}</style><svg class="dg-w" style="width:100%;max-width:1102px;min-width:826.5px" viewBox="0 0 1102 524" width="1102" height="524" role="img" aria-labelledby="dg91209c4w-t dg91209c4w-d" xmlns="http://www.w3.org/2000/svg"><title id="dg91209c4w-t">Where it is going</title><desc id="dg91209c4w-d">A planned shape. Agents act through enforcement points, the MCP gateway and framework hooks over one enforcement API, which decide before the effect and record evidence. Sensors bring in what runtimes, proxies and processes report afterwards, as observations. Detectors in the supervisor read both, map coverage and raise findings. Notifiers deliver findings; a reaction stops one run at the enforcement points where the operator allowed it.</desc><defs><marker id="dg91209c4w-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="h solid" d="M0 0L10 5L0 10z"/></marker><marker id="dg91209c4w-main" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="h main" d="M0 0L10 5L0 10z"/></marker></defs><g class="g"><rect x="4" y="98" width="552" height="86" rx="12"/><text x="18" y="116">Enforcement points</text></g><g class="g"><rect x="574" y="98" width="524" height="86" rx="12"/><text x="588" y="116">Sensors</text></g><g class="g"><rect x="372.5" y="434" width="643" height="86" rx="12"/><text x="386.5" y="452">Notifiers and views</text></g><path class="e solid" d="M551 42C551 87 155 87 155 132" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M551 42C551 87 426 87 426 132" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M155 170C155 206.5 431.5 206.5 431.5 243" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M426 170C426 206.5 431.5 206.5 431.5 243" marker-end="url(#dg91209c4w-solid)"/><path class="e dot" d="M551 42C551 87 680.5 87 680.5 132" marker-end="url(#dg91209c4w-solid)"/><path class="e dot" d="M551 42C551 87 863.5 87 863.5 132" marker-end="url(#dg91209c4w-solid)"/><path class="e dot" d="M551 42C551 87 1019 87 1019 132" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M155 170C155 205 557 205 557 240" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M426 170C426 205 557 205 557 240" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M680.5 170C680.5 205 676.5 205 676.5 240" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M863.5 170C863.5 205 676.5 205 676.5 240" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M1019 170C1019 205 676.5 205 676.5 240" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M557 284C557 312 551 312 551 340" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M676.5 284C676.5 312 551 312 551 340" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M551 378C551 423 475.5 423 475.5 468" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M551 378C551 423 698 423 698 468" marker-end="url(#dg91209c4w-solid)"/><path class="e solid" d="M551 378C551 423 916.5 423 916.5 468" marker-end="url(#dg91209c4w-solid)"/><path class="e dot" d="M551 378C551 423 220.5 423 220.5 468" marker-end="url(#dg91209c4w-solid)"/><g class="l"><rect x="238.5" y="197.5" width="109.5" height="18" rx="5"/><text x="293.2" y="206.5">allowed calls</text></g><g class="n"><rect x="513" y="4" width="76" height="38" rx="10"/><text x="551" y="23">Agents</text></g><g class="n"><rect x="18" y="132" width="274" height="38" rx="10"/><text x="155" y="151">MCP gateway: policy, approvals, pause</text></g><g class="n"><rect x="310" y="132" width="232" height="38" rx="10"/><text x="426" y="151">Framework hooks over one API</text></g><g class="n"><rect x="588" y="132" width="185" height="38" rx="10"/><text x="680.5" y="151">Runtime traces and logs</text></g><g class="n"><rect x="791" y="132" width="145" height="38" rx="10"/><text x="863.5" y="151">Proxy access logs</text></g><g class="n"><rect x="954" y="132" width="130" height="38" rx="10"/><text x="1019" y="151">Process events</text></g><g class="n"><rect x="367.5" y="243" width="128" height="38" rx="10"/><text x="431.5" y="262">Tools and APIs</text></g><g class="n"><path d="M513.5 246C513.5 238 600.5 238 600.5 246V278C600.5 286 513.5 286 513.5 278Z"/><path class="lip" d="M513.5 246C513.5 253.2 600.5 253.2 600.5 246"/><text x="557" y="265">Evidence</text></g><g class="n"><path d="M618.5 246C618.5 238 734.5 238 734.5 246V278C734.5 286 618.5 286 618.5 278Z"/><path class="lip" d="M618.5 246C618.5 253.2 734.5 253.2 734.5 246"/><text x="676.5" y="265">Observations</text></g><g class="n"><rect x="378" y="340" width="346" height="38" rx="10"/><text x="551" y="359">Supervisor: procedures, detectors, coverage map</text></g><g class="n"><rect x="386.5" y="468" width="178" height="38" rx="10"/><text x="475.5" y="487">Alerts: webhooks, chat</text></g><g class="n"><rect x="582.5" y="468" width="231" height="38" rx="10"/><text x="698" y="487">OpenTelemetry, metrics, SIEM</text></g><g class="n"><rect x="831.5" y="468" width="170" height="38" rx="10"/><text x="916.5" y="487">Run graph and console</text></g><g class="n"><rect x="86.5" y="468" width="268" height="38" rx="10"/><text x="220.5" y="487">Reaction: stop one run where allowed</text></g></svg></figure>
+<p>Sources: <code>ROADMAP.md</code>, <code>internal/gateway/pause.go</code>, <code>adapters/authzen/client.go</code>.</p>
 <ul>
-<li><strong>Inputs.</strong> The proxy stops a call before it runs. A framework port stops a
-call from inside the agent, through one language-neutral API built on the
-published contract. A feed brings in the traces, logs and process events an
-agent's runtime records, also for agents that never route a call through the
-plane. What a feed cannot see is reported as unknown, never as clean.</li>
-<li><strong>Supervisor.</strong> It reads the evidence and the feeds beside the request path,
-compares each run with the procedure it follows, and reports deviations,
-access attempts and unfinished work. It adds no latency to a decision and
-never changes a verdict; stopping an agent goes through the decision kernel,
-with the operator's permission.</li>
-<li><strong>Outputs.</strong> Reports reach the tools an operator already watches: webhooks
-and chat for alerts, OpenTelemetry and metrics, and an export a SIEM reads.
-The run graph shows the expected and the observed steps side by side.</li>
-<li><strong>Extensions.</strong> Policies are documents a team writes and tests today, and so
-are scenarios (<code>experimental</code>); procedures will be too. The planned public
-seams, <code>pkg/adapter</code>, <code>pkg/detector</code> and <code>pkg/policyprovider</code>, will let others
-add a port, a detector or a decision source without forking. An external
-decision point can already veto over AuthZEN (<code>experimental</code>).
+<li><strong>Enforcement points</strong> see a proposed action before its effect and may block
+it, hold it for an approval or attach obligations. The MCP gateway is one
+today; an enforcement API will let a framework's hooks be another, from
+inside the agent.</li>
+<li><strong>Sensors</strong> see an effect after it happened, or an indirect sign of it:
+the traces and logs an agent's runtime writes, a proxy's access log, process
+events. They report and never decide. An observation names its source and
+how far that source is trusted; the agent's own account can omit or forge
+events, and a proxy attributes a connection only as well as it knows its
+caller. As everywhere in the project, hidden model reasoning is never
+stored.</li>
+<li><strong>The supervisor</strong> reads the evidence and the observations beside the
+request path, compares each run with the procedure it follows, and raises
+findings that cite what they rest on. It maps each declared path as
+enforced, decided but not enforced, observed, inferred or not covered, and
+what nobody declared as unknown; a missing event is unknown, never proof
+that nothing happened. It runs beside the decision path and never changes a verdict.</li>
+<li><strong>Notifiers and reactions.</strong> A notifier delivers findings to the tools an
+operator already watches. A reaction is a separate, signed route: it stops
+one run's later calls at the enforcement points, for a scope and an expiry,
+and only from a finding the operator allowed to stop anything. Like a
+pause, a stop applies after the kernel decides, and it never cuts a call
+already running.</li>
+<li><strong>Extensions</strong> are separate programs speaking versioned data contracts, and
+definitions (policies, scenarios, and later procedures, detector rules and
+routes) are documents a team writes and tests. An external decision point
+can already veto over AuthZEN (<code>experimental</code>).
 <a href="/docs/extending/adapters">extending/adapters.md</a> is the first guide.</li>
 </ul>
 <h2 id="what-is-deliberately-not-here">What is deliberately not here</h2>
@@ -518,8 +493,8 @@ and audited by someone who did not write it.</li>
 <td><code>planned</code></td>
 </tr>
 <tr>
-<td><code>detectors/builtin/</code></td>
-<td>Built-in detectors</td>
+<td><code>internal/supervise/</code>, <code>internal/ingest/</code></td>
+<td>The supervisor's procedures, detectors and coverage, and the importers of observations, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
 <td><code>planned</code></td>
 </tr>
 </tbody>

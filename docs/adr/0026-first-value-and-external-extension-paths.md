@@ -3,6 +3,12 @@
 Status: accepted
 Date: 2026-09-27
 
+Amended by [ADR-0039](0039-many-channels-into-one-core.md): the supervision
+milestone, now the second, is one task under supervision across two channels,
+so a sensor of another kind, a coverage map and a run-scoped stop come before
+any public SDK; the former second milestone, runs and evidence other tools can
+read, is delivered, its consumer in a module of its own.
+
 Builds on [ADR-0007](0007-repository-layout-and-dependency-rule.md),
 [ADR-0009](0009-open-core-boundary.md) and
 [ADR-0024](0024-control-and-guardana-are-independent.md).

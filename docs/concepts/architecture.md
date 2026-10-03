@@ -225,7 +225,9 @@ From the outside in:
   `pkg/policyprovider` are reserved names for what an out-of-tree adapter,
   detector or policy provider would compile against; none exists yet. Adding
   to the surface is a compatibility decision and needs its own record
-  ([ADR-0026](../adr/0026-first-value-and-external-extension-paths.md)).
+  ([ADR-0026](../adr/0026-first-value-and-external-extension-paths.md)), and
+  data contracts with conformance suites come first
+  ([ADR-0039](../adr/0039-many-channels-into-one-core.md)).
 - The core (`internal/core`, `internal/policy`) validates, classifies, matches
   and decides.
 - Everything the decision does not need sits outside it: storage, the control
@@ -259,71 +261,85 @@ itself, which the gate checks. See
 ## Where it is going
 
 Everything in this section is `planned`, in the order
-[ROADMAP.md](../../ROADMAP.md) gives. The request path above stays how the
-plane stops a call. New inputs also observe agents that do not use the proxy.
-A supervisor compares what agents do with their procedures and permissions and
-reports to the operator's alerting and logging. Seams let others extend the
-plane.
+[ROADMAP.md](../../ROADMAP.md) gives, and
+[ADR-0039](../adr/0039-many-channels-into-one-core.md) records its shape. The
+request path above stays how a plane stops a call. MCP is the first channel
+of several, and every channel or extension will be one of five ports, and say
+which.
 
 ```mermaid
 flowchart TB
     accTitle: Where it is going
-    accDescr: A planned shape: agents reach tools through a proxy or framework ports and the enforcement point, feeds and evidence reach a supervisor, and alerts, exports and a run graph come out, with extensions added as adapters and documents.
+    accDescr: A planned shape. Agents act through enforcement points, the MCP gateway and framework hooks over one enforcement API, which decide before the effect and record evidence. Sensors bring in what runtimes, proxies and processes report afterwards, as observations. Detectors in the supervisor read both, map coverage and raise findings. Notifiers deliver findings; a reaction stops one run at the enforcement points where the operator allowed it.
     AG[Agents]
-    subgraph IN[Inputs]
-        PX["Proxy: MCP today, HTTP tool APIs next"]
-        PT["Framework ports over one API"]
-        FD["Feeds: traces, logs, process events"]
+    subgraph EP[Enforcement points]
+        MCP["MCP gateway: policy, approvals, pause"]
+        HK[Framework hooks over one API]
     end
-    subgraph CTL[Guardana Control]
-        PEP["Enforcement point: policy, approvals, pause"]
-        SV["Supervisor: procedures, deviations, access attempts, unfinished work"]
-        EV[(Evidence)]
+    subgraph SN[Sensors]
+        TR[Runtime traces and logs]
+        PX[Proxy access logs]
+        PR[Process events]
     end
-    subgraph OUT[Outputs]
+    TL[Tools and APIs]
+    EV[(Evidence)]
+    OB[(Observations)]
+    SV["Supervisor: procedures, detectors, coverage map"]
+    subgraph OUT[Notifiers and views]
         AL["Alerts: webhooks, chat"]
         EX["OpenTelemetry, metrics, SIEM"]
         GR[Run graph and console]
     end
-    TL[Tools and APIs]
-    XT["Extend: adapters, detectors, policy providers; policies, scenarios, procedures as documents"]
-    AG --> PX
-    AG --> PT
-    AG -.-> FD
-    PX --> PEP
-    PT --> PEP
-    PEP -->|allowed calls| TL
-    FD --> SV
-    PEP --> EV
+    RE["Reaction: stop one run where allowed"]
+    AG --> MCP
+    AG --> HK
+    MCP -->|allowed calls| TL
+    HK --> TL
+    AG -.-> TR
+    AG -.-> PX
+    AG -.-> PR
+    MCP --> EV
+    HK --> EV
+    TR --> OB
+    PX --> OB
+    PR --> OB
     EV --> SV
+    OB --> SV
     SV --> AL
-    EV --> EX
+    SV --> EX
     SV --> GR
-    GR -->|stop an agent| PEP
-    XT -.-> CTL
+    SV -.-> RE
 ```
 
-Sources: `ROADMAP.md`, `internal/policy/rules/document.go`, `internal/scenario/doc.go`,
-`adapters/authzen/client.go`.
+Sources: `ROADMAP.md`, `internal/gateway/pause.go`, `adapters/authzen/client.go`.
 
-- **Inputs.** The proxy stops a call before it runs. A framework port stops a
-  call from inside the agent, through one language-neutral API built on the
-  published contract. A feed brings in the traces, logs and process events an
-  agent's runtime records, also for agents that never route a call through the
-  plane. What a feed cannot see is reported as unknown, never as clean.
-- **Supervisor.** It reads the evidence and the feeds beside the request path,
-  compares each run with the procedure it follows, and reports deviations,
-  access attempts and unfinished work. It adds no latency to a decision and
-  never changes a verdict; stopping an agent goes through the decision kernel,
-  with the operator's permission.
-- **Outputs.** Reports reach the tools an operator already watches: webhooks
-  and chat for alerts, OpenTelemetry and metrics, and an export a SIEM reads.
-  The run graph shows the expected and the observed steps side by side.
-- **Extensions.** Policies are documents a team writes and tests today, and so
-  are scenarios (`experimental`); procedures will be too. The planned public
-  seams, `pkg/adapter`, `pkg/detector` and `pkg/policyprovider`, will let others
-  add a port, a detector or a decision source without forking. An external
-  decision point can already veto over AuthZEN (`experimental`).
+- **Enforcement points** see a proposed action before its effect and may block
+  it, hold it for an approval or attach obligations. The MCP gateway is one
+  today; an enforcement API will let a framework's hooks be another, from
+  inside the agent.
+- **Sensors** see an effect after it happened, or an indirect sign of it:
+  the traces and logs an agent's runtime writes, a proxy's access log, process
+  events. They report and never decide. An observation names its source and
+  how far that source is trusted; the agent's own account can omit or forge
+  events, and a proxy attributes a connection only as well as it knows its
+  caller. As everywhere in the project, hidden model reasoning is never
+  stored.
+- **The supervisor** reads the evidence and the observations beside the
+  request path, compares each run with the procedure it follows, and raises
+  findings that cite what they rest on. It maps each declared path as
+  enforced, decided but not enforced, observed, inferred or not covered, and
+  what nobody declared as unknown; a missing event is unknown, never proof
+  that nothing happened. It runs beside the decision path and never changes a verdict.
+- **Notifiers and reactions.** A notifier delivers findings to the tools an
+  operator already watches. A reaction is a separate, signed route: it stops
+  one run's later calls at the enforcement points, for a scope and an expiry,
+  and only from a finding the operator allowed to stop anything. Like a
+  pause, a stop applies after the kernel decides, and it never cuts a call
+  already running.
+- **Extensions** are separate programs speaking versioned data contracts, and
+  definitions (policies, scenarios, and later procedures, detector rules and
+  routes) are documents a team writes and tests. An external decision point
+  can already veto over AuthZEN (`experimental`).
   [extending/adapters.md](../extending/adapters.md) is the first guide.
 
 ## What is deliberately not here
@@ -364,6 +380,6 @@ Sources: `ROADMAP.md`, `internal/policy/rules/document.go`, `internal/scenario/d
 | `pkg/`, the other three packages | The rest of the public Go surface | `planned` |
 | `adapters/mcp/`, `adapters/otel/`, `adapters/authzen/` | The MCP adapter, the OTLP exporter and collector, and the AuthZEN client | `experimental` |
 | `adapters/`, the rest | Other protocol and framework adapters | `planned` |
-| `detectors/builtin/` | Built-in detectors | `planned` |
+| `internal/supervise/`, `internal/ingest/` | The supervisor's procedures, detectors and coverage, and the importers of observations, [ADR-0039](../adr/0039-many-channels-into-one-core.md) | `planned` |
 
 Per component, including what is planned elsewhere, see [status.md](../status.md).

@@ -11,6 +11,16 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- The plan follows [ADR-0039](docs/adr/0039-many-channels-into-one-core.md):
+  MCP is one channel of several. The next milestone is one task under
+  supervision across two channels, the plane and an agent runtime's
+  OpenTelemetry traces, with a coverage map, findings, a local notifier and a
+  stop of one run, before any public SDK. Extensions are planned as separate
+  programs speaking versioned data contracts. The README and the website carry
+  the new direction, marked `planned` wherever nothing is built yet.
+
 ## [0.6.0-alpha] - 2026-10-03
 
 A plane now takes its policy as current only on a signed freshness

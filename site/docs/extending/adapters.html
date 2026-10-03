@@ -31,6 +31,11 @@ and turns the plane's answer back into something that protocol can say. It holds
 no policy meaning: what a call means lives in the envelope it builds and in the
 policy (invariant 7). The MCP adapter in <code>adapters/mcp/</code> is the worked example
 and the only one today.</p>
+<p>An adapter is the enforcement point among the five ports of
+<a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>: it sees a call before
+its effect. A sensor, a detector, a reaction and a notifier are <code>planned</code>, as
+separate programs speaking versioned data contracts rather than code compiled
+into the plane, so this guide does not cover them.</p>
 <h2 id="the-seam">The seam</h2>
 <p>The seam is internal, in <code>internal/gateway</code>:</p>
 <pre><code class="language-go">type Adapter interface {

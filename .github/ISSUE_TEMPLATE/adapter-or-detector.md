@@ -1,11 +1,17 @@
 ---
-name: Adapter or detector
-about: Support for a protocol or framework, or a new detector
+name: Adapter, sensor or detector
+about: A new channel (a protocol, a framework or a log source) or a detector
 labels: "kind:design"
 ---
 
 Open this before writing the code, so the interface is agreed first. See
-CONTRIBUTING.md.
+CONTRIBUTING.md and docs/adr/0039-many-channels-into-one-core.md.
+
+## Which port it is
+
+<!-- One of the five: an enforcement point (decides before the effect), a
+     sensor (reports after it), a detector (raises findings over exports), a
+     reaction or a notifier. A sensor or a detector never grants authority. -->
 
 ## Which protocol or framework
 

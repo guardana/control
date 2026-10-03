@@ -58,6 +58,16 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>PolicyBundle</code> in <code>api/proto/guardana/control/v1/bundle.proto</code>, <code>internal/policy/bundle/</code></td>
 </tr>
 <tr>
+<td>channel</td>
+<td>a way an agent's actions reach Control: through an enforcement point, which decides before the effect, or a sensor, which reports after it; MCP is the first</td>
+<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>planned</code></td>
+</tr>
+<tr>
+<td>coverage</td>
+<td>for each path an operator declared, whether it is enforced, decided but not enforced, observed with its source's trust, inferred or not covered; paths nobody declared are unknown, and it is never a percentage</td>
+<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>planned</code></td>
+</tr>
+<tr>
 <td>decision</td>
 <td>what the kernel, or the enforcement point on its own behalf, concluded about one envelope: a verdict, its reason codes, the rules and obligations, the action digest and the bundle digest</td>
 <td><code>Decision</code> in <code>api/proto/guardana/control/v1/decision.proto</code>, made in <code>internal/core/decide.go</code></td>
@@ -108,6 +118,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>Options.FailOpenRead</code> in <code>internal/core/kernel.go</code>, the table in <code>internal/core/failclosed.go</code></td>
 </tr>
 <tr>
+<td>finding</td>
+<td>what a detector concludes about a run, confirmed, suspected or unknown, citing the evidence and observations it rests on; it never grants authority and never changes a verdict</td>
+<td><code>Finding</code> in <code>finding.proto</code>; raised by nothing yet, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
+</tr>
+<tr>
 <td>freshness statement</td>
 <td>a signed claim, under a key apart from the bundle's, that one bundle id, serial and digest was current at its <code>issuedAt</code>; the only thing that confirms a snapshot, for the policy's staleness budget from that time</td>
 <td><code>policy.Statement</code> in <code>internal/policy/statement.go</code>, written by <code>guardana-control policy renew</code></td>
@@ -128,9 +143,19 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>adapters/mcp/manifest.go</code></td>
 </tr>
 <tr>
+<td>notifier</td>
+<td>a port that delivers findings to a tool an operator watches, at least once, each with a stable id a receiver drops repeats by; it holds no authority over a plane</td>
+<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>planned</code></td>
+</tr>
+<tr>
 <td>obligation</td>
 <td>a condition on a call that proceeds, carried by an <code>ALLOW_WITH_OBLIGATIONS</code> or <code>REQUIRE_APPROVAL</code> rule; who applies each type, and what happens to one nobody applies, is on <a href="/docs/reference/obligations">the obligations reference</a></td>
 <td><code>Obligation</code> in <code>decision.proto</code>, the catalogue in <code>internal/policy/rules/</code>, <code>internal/gateway/rewrite.go</code></td>
+</tr>
+<tr>
+<td>observation</td>
+<td>what a sensor reports a source saw, with the source, its trust, the event's time if known and the basis of any correlation; testimony, never a decision or evidence of enforcement</td>
+<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>planned</code></td>
 </tr>
 <tr>
 <td>pipeline</td>
@@ -148,6 +173,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>Reader.Quarantine</code> in <code>internal/spool/quarantine.go</code></td>
 </tr>
 <tr>
+<td>reaction</td>
+<td>a signed route that turns an allowed finding into a stop of one run's later calls at the enforcement points, for a scope and an expiry; apart from a notifier</td>
+<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>planned</code></td>
+</tr>
+<tr>
 <td>reason code</td>
 <td>the identifier of the kind of failure or match a decision carries, from the registry; never derived from error text, and never read to decide</td>
 <td><code>internal/policy/reasons/</code>, listed in <a href="/docs/reference/reason-codes">reference/reason-codes</a></td>
@@ -156,6 +186,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td>record</td>
 <td>one event as the spool writes it to disk, a header and one JSON line, checksummed; the unit the spool appends, reads, acknowledges and quarantines</td>
 <td><code>internal/spool/frame.go</code></td>
+</tr>
+<tr>
+<td>sensor</td>
+<td>a port that sees an effect after it happened, or an indirect sign of it, and reports it as observations; it never decides</td>
+<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>planned</code></td>
 </tr>
 <tr>
 <td>serial floor</td>

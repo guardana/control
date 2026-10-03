@@ -60,10 +60,12 @@ Nothing here is a security boundary. Do not deploy it as one.
 | Framework SDKs and thin clients | `planned` | separate repositories, [ROADMAP.md](../ROADMAP.md) |
 | Control plane API | `planned` | `internal/controlapi/`, [ADR-0009](adr/0009-open-core-boundary.md) |
 | Storage | `planned` | `internal/storage/` |
-| Ingest and normalizer | `planned` | `internal/ingest/` |
+| Observations from sensors: an observation record, a source descriptor and one importer of OpenTelemetry GenAI traces | `planned` | `api/proto/guardana/control/observe/v1alpha1/`, `internal/ingest/`, [ADR-0039](adr/0039-many-channels-into-one-core.md) |
+| Coverage map per declared path | `planned` | no path chosen yet, [ADR-0039](adr/0039-many-channels-into-one-core.md) |
 | Graph API | `planned` | no path chosen yet, [ROADMAP.md](../ROADMAP.md) |
 | Web UI | `planned` | no path chosen yet, [ROADMAP.md](../ROADMAP.md) |
-| Detectors | `planned` | `detectors/builtin/`, `pkg/detector` |
+| Supervisor: procedures and detectors over the exports, raising findings | `planned` | `internal/supervise/`, [ADR-0039](adr/0039-many-channels-into-one-core.md) |
+| Channels beyond MCP, notifiers, and a run-scoped stop from a finding | `planned` | `adapters/`, `internal/pause/`, [ADR-0039](adr/0039-many-channels-into-one-core.md) |
 | Releases built, signed and attested from a tag | `experimental` | `.goreleaser.yaml`, `.github/workflows/release.yml`, [RELEASING.md](../RELEASING.md), [ADR-0025](adr/0025-public-repository-merges-and-releases.md). The release job runs in the `release` environment, which admits only `v*` tags and waits for a maintainer's approval. Archives for Linux and macOS on amd64 and arm64 with both binaries, a demo archive per platform beside each, a CycloneDX bill of materials per archive, `checksums.txt` signed without a stored key, and a build provenance attestation for every archive, all verified by the workflow before it publishes. The release job refuses a commit that is not main's head or an ancestor of it, or that lacks a successful CI and Security push run on main (`scripts/check-gate-runs.sh`). Also an OCI image of the gateway, `ghcr.io/guardana/control-gateway`, for linux/amd64 and linux/arm64 on a distroless nonroot base, signed and attested by digest the same way, its digest named in the release notes ([guides/run-in-a-container.md](guides/run-in-a-container.md)) |
 | Benchmarks | `implemented` | `bench/`: envelope validation, the digest, `Decide` at 10, 100 and 1000 rules and with obligations, and one MCP tool call through the gateway against the same call made directly, with guard tests in `make test`. `scripts/bench.sh` keeps a run in the ignored `bench/results/local/`; `--publish` writes a tracked `bench/results/<stamp>-<os>-<arch>.txt` that names the machine |
 | Website for `control.guardana.dev` | `experimental` | `site/`, `wrangler.json`, `internal/docscheck/sitedoc/`, [ADR-0030](adr/0030-a-static-website-drawn-from-the-repository.md). One static landing page with no script, its diagrams drawn from README's, and every documentation page, record, the roadmap and the changelog rendered under `/docs/` ([ADR-0031](adr/0031-the-documentation-is-served-on-the-website.md)), all written by `make docs-gen` and compared in `make docs-check`; served at https://control.guardana.dev, deployed from `main` on every push |
@@ -79,7 +81,7 @@ this:
 
 | Aim | Today |
 | --- | --- |
-| Setup for common agent stacks, a proxy for the rest | An MCP proxy only; no framework port and no proxy for other tool APIs |
+| Setup for common agent stacks, a proxy for the rest | An MCP proxy only; no framework integration and no proxy for other tool APIs |
 | Oversight of what agents do and the data they reach | Each tool call, resource read and prompt through one plane is decided, and none runs before its record is written unless the operator let a read run unrecorded; a call that bypasses the plane is not seen, and there is no view across planes |
 | Procedures, and deviations from them | Policy per call and one flow rule; no procedure an agent is held to |
 | Attempts to gain access | Each refusal the pipeline decides is counted in `/metrics`, and recorded with its reason codes unless the call's identifiers name no trail, its request id already has an open trail, or the sink refuses one of its events; a request the listener refuses for its origin or its run token is not recorded, and only run token refusals are counted; nothing reports a pattern of attempts |

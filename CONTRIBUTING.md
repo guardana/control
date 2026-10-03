@@ -29,7 +29,7 @@ request.
 
 Open an issue first for:
 
-- a new adapter or a new detector, so the interface is agreed before the work;
+- a new adapter, sensor or detector, so the interface is agreed before the work;
 - anything that adds a public dependency or widens the public Go surface;
 - anything that changes what an existing verdict means.
 

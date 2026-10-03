@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0039: Many channels into one core: what each may see, claim and do · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0039-many-channels-into-one-core"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control">GitHub</a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<main id="main" class="prose">
+<h1 id="adr-0039-many-channels-into-one-core-what-each-may-see-claim-and-do">ADR-0039: Many channels into one core: what each may see, claim and do</h1>
+<p>Status: accepted
+Date: 2026-10-03</p>
+<p>Amends the order of <a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a>
+and withdraws the in-process detector seam of
+<a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>. Builds on
+<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a> and
+<a href="/docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own">ADR-0037</a>.</p>
+<h2 id="context">Context</h2>
+<p>The project is meant to supervise an organization's agents: see what they do,
+compare it with what they were meant to do, report what departs from it, and
+stop an agent where the operator has said it may be stopped. The maintainer's
+direction is that the Model Context Protocol (MCP) is one channel among
+several, and that version one must let other channels plug into the same
+core: an agent framework's hooks, the traces and logs an agent's runtime
+writes, the access logs of the proxies its traffic passes. Most of the time
+the plane should watch and report through the paths an operator configured;
+it should intervene only where it is needed and allowed.</p>
+<p>Much of the core already serves any channel. The action
+envelope, the kernel, the pipeline's admit, close, abort and preview, and the
+evidence event are protocol-neutral, and the MCP adapter is the one
+enforcement point that uses them; the finding is a v1 contract nothing raises
+yet. The evidence export
+(<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>) and a
+consumer in a module of its own
+(<a href="/docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own">ADR-0037</a>) already let
+another program read what the plane decided.</p>
+<p>An outside review found the order wrong in one place: the supervisor came
+before any source but the plane's own events. A supervisor built only on what the MCP gateway saw cannot see an action
+that went around the gateway, and nothing in it would say so.
+Three facts constrain the fix:</p>
+<ul>
+<li>An evidence event cannot carry an observation. Every event names an
+enforcement mode, a chain refuses any request event before
+<code>ACTION_PROPOSED</code>, and a reader of export 1.0 refuses a line of a type it
+does not know.</li>
+<li>A finding cannot be raised by a detector outside the plane: the chain
+refuses one before <code>ACTION_PROPOSED</code>, and a finding names no tenant or
+project.</li>
+<li>Pause authority today is a file anyone who can write it may change, with
+global, provider and action scopes only.</li>
+</ul>
+<h2 id="decision">Decision</h2>
+<p><strong>Five ports, one vocabulary.</strong> A channel is a way an agent's actions reach
+Control, through an enforcement point or a sensor. Every channel and every
+extension is one of five ports, and says which:</p>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Sees</th>
+<th>May do</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Enforcement point</td>
+<td>a proposed action before its effect</td>
+<td>block, hold for approval, attach obligations</td>
+<td>action envelope, decision and evidence event v1, as today</td>
+</tr>
+<tr>
+<td>Sensor</td>
+<td>an effect after it happened, or an indirect signal</td>
+<td>report only</td>
+<td>an observation and a source descriptor, new</td>
+</tr>
+<tr>
+<td>Detector</td>
+<td>bounded, cursor-ordered exports</td>
+<td>raise a finding that cites its evidence</td>
+<td>a finding record around finding v1, new</td>
+</tr>
+<tr>
+<td>Reaction</td>
+<td>findings and a signed route</td>
+<td>add a scoped, expiring stop at enforcement points</td>
+<td>a reaction source the plane reads, new</td>
+</tr>
+<tr>
+<td>Notifier</td>
+<td>findings</td>
+<td>deliver them at least once, each with a stable id a receiver drops repeats by</td>
+<td>a notifier route, new; no authority over a plane</td>
+</tr>
+</tbody>
+</table>
+<p>Notifying and stopping stay two types, so that a mistake in an alert route
+can never stop anything.</p>
+<p><strong>An observation is testimony, not evidence of enforcement.</strong> Its record is a
+sibling contract, <code>guardana.control.observe.v1alpha1</code>, never an action
+envelope: it is never digested, never bound by an approval, and names no
+mode, verdict or decision. It carries its source and that source's version,
+a trust level taken from the source's descriptor and never from the data
+(self-reported by the agent's own process, platform, or independent of the
+agent; unspecified reads as self-reported), the time of the event (absent
+means unknown, never the time it arrived) and the time it arrived, a stage
+(proposed, started, completed, failed, or indirect), the version of any
+outside convention it was read under (OpenTelemetry's GenAI conventions are
+still in development, so a descriptor pins one), and correlation
+identifiers with the basis of the correlation (none, claimed, joined to a
+plane event, or bound to an authenticated run; unspecified reads as none).
+Hidden model reasoning is dropped at every setting; prompts and outputs are
+kept only where capture is turned on, with a redaction profile. An observation
+names a tenant and a project, and goes to a log of its own, under the same
+owner-only, retention and export rules as the evidence, read through an export
+that follows ADR-0035's shape. The v1
+contracts do not change.</p>
+<p><strong>Coverage is stated per path, never as a percentage.</strong> For each path an
+operator declares (a tool, an API, a process, an egress destination) the
+plane reports one of: enforced; decided but not enforced (a plane in
+<code>OBSERVE</code>); observed, with the source's trust; inferred; not covered. A
+standing row says that paths nobody declared are unknown. A source silent past
+its heartbeat turns its paths unknown. A missing event is unknown, never
+proof that nothing happened.</p>
+<p><strong>Watch by default, intervene where configured.</strong> Enforcement modes keep
+their meaning, and a sensor has none. A finding carries an escalation level,
+apart from any mode: inform (recorded), alert (sent by a notifier), review
+(an alert awaiting acknowledgement), stop. A stop refuses a run's later calls
+at the enforcement points that read the reaction source, for a scope and an
+expiry; it never cuts a call already running, a process, or a path that does
+not pass an enforcement point, and it never changes a plane's mode. Only a
+deterministic finding marked confirmed may stop by default; a heuristic or
+model finding stops nothing unless an explicit risk setting says otherwise. A
+reaction route is signed under a key apart from the policy key, verified as a
+bundle is, with a serial a plane never lowers. A stop names a run by the
+identity the plane gave it, never by a run id a source reported, and a finding
+whose correlation is only claimed cannot stop. A finding that rests on a gap
+or on a source past its heartbeat is unknown, and an unknown finding stops
+nothing. A reaction source the plane cannot read or verify blocks every call,
+as an unreadable pause file does; an expired entry stops nothing. Run scope is the
+only scope until operators authenticate; agent and principal scopes come with
+it.</p>
+<p><strong>Extensions are programs, definitions are documents.</strong> An extension is a
+separate process speaking a versioned data contract and declaring what it
+can do; nothing is loaded into a plane's process. Procedures, detector rule
+packs, source descriptors, notifier routes and reaction routes are versioned
+documents, read strictly and tested with cases as policies are; the ones that
+can stop something are signed. A port's conformance suite is a set of input
+and expected output files any language can run, as the digest's golden files
+are. The Go seams <code>pkg/adapter</code>, <code>pkg/detector</code> and <code>pkg/policyprovider</code> stay
+reserved until two consumers use them, and ADR-0007's <code>detectors/builtin/</code>
+is withdrawn: detectors run over exports, outside the plane.</p>
+<p><strong>Order.</strong> The supervisor's milestone becomes one task under supervision
+across two channels: the MCP plane and one sensor of another kind (an agent
+runtime's OpenTelemetry traces), a coverage map, the supervisor over both
+exports, a local notifier and a run-scoped stop, before any public SDK. The
+integrations milestone adds
+an enforcement API for framework hooks, a second sensor independent of the
+agent (an egress proxy's access log), and publishes the port contracts with
+their conformance suites once two consumers have used them.</p>
+<p><strong>Where the code goes.</strong> Pure evaluation of procedures, rules and coverage
+lives in <code>internal/supervise</code>, a guarded tree held to the dependency rule
+like the kernel's; importers in <code>internal/ingest</code> and <code>adapters/&lt;source&gt;</code>;
+notifiers in <code>adapters/</code>. Their commands read a configuration of their own,
+not the plane's. One contract per package, and every file within the size
+budget the gate holds.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>No language model enters the authorization path; a finding never grants, a
+sensor never grants, and an observation is never an input to a decision. The
+kernel, its guarded trees and the v1 contracts are unchanged, and <code>buf breaking</code> keeps examining v1 while the observation package is unstable.</p>
+<p>An automatic stop is a lever for denial of service: a false finding, or text
+that steers a model detector, can stop a run. Hence the defaults above, the
+run scope, the expiry and the signed route. A reaction source the plane
+cannot read blocks every call on the planes that read it, which is the
+fail-closed side, and is documented with it.</p>
+<p>Self-reported telemetry is the agent's own account and can omit or forge
+events; a finding that rests only on self-reported observations is at most
+suspected. A proxy's log attributes a connection only as well as the proxy
+identifies its caller. Content capture can record what people typed, so it
+stays off by default and is scoped to a tenant and a project.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>An observation as a new event kind in evidence v1: one stream, but it
+breaks every strict 1.0 reader, needs a mode it does not have, and mixes
+what the plane did with what a source says happened.</li>
+<li>A JSON Lines schema for observations and no typed contract: the cheapest,
+but a sensor in another language gets nothing to compile against; ADR-0035
+chose JSON for a wrapper, not for a record.</li>
+<li>The supervisor over the plane's events first, other channels later
+(ADR-0026's order): shows the MCP path well and a path around it not at all.</li>
+<li>Extensions loaded into the plane's process: they would share its authority
+and its failures; ADR-0007 and ADR-0026 already refuse it.</li>
+<li>A public SDK first: it would fix a surface before two consumers have shown
+what a stable one is.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>The next milestone adds one sensor that is not MCP, a coverage map, one
+notifier and a run-scoped stop. Every view the supervisor draws can say what
+it did not see. Integrators get a contract to write against before a Go API
+exists, and a detector or a notifier can be written in any language. The cost
+is a second family of contracts to version, a reaction source with its own
+key, and a guarded tree to keep pure.</p>
+<h2 id="validation">Validation</h2>
+<ul>
+<li><code>buf breaking</code> still examines <code>guardana/control/v1</code> once unstable packages
+are excluded, and a dependency listing shows nothing under the observation
+package reaching <code>internal/core</code> or <code>internal/canon</code>.</li>
+<li>Importer fixtures: a sampled source, an event with no time, an unknown run,
+a duplicate span, a skewed clock, a reasoning part (dropped and counted at
+every setting), content dropped unless captured.</li>
+<li>Coverage tests: a plane in <code>OBSERVE</code> never shows a path as enforced; a path
+seen only by a self-reported source shows as such; a silent source turns
+its paths unknown.</li>
+<li>The milestone 2 demonstration shows a path that went around the MCP plane
+as observed or not covered, never as enforced, and a stop that refuses the
+next call of one run and of no other.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0039-many-channels-into-one-core.md">docs/adr/0039-many-channels-into-one-core.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

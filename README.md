@@ -2,7 +2,7 @@
 
 # <img src="site/assets/control/mark.svg" height="30" alt=""> Guardana Control
 
-**Watch, decide, enforce and record the tool calls your AI agents make.**
+**Watch what your AI agents do. Decide before they act. Step in only where you allow it.**
 
 [![CI](https://github.com/guardana/control/actions/workflows/ci.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/ci.yml)
 [![Security](https://github.com/guardana/control/actions/workflows/security.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/security.yml)
@@ -19,9 +19,9 @@
 
 ## Status: alpha
 
-An `experimental` gateway decides and enforces the tool calls an agent makes
-over the Model Context Protocol (MCP). Do not deploy this as a security
-boundary. The longer-term goal is to supervise an organization's agents:
+An `experimental` gateway decides and enforces an agent's tool calls over the
+Model Context Protocol (MCP). Do not deploy this as a security
+boundary. The goal is to supervise an organization's agents on many channels:
 [ROADMAP.md](ROADMAP.md) describes it and [docs/status.md](docs/status.md) lists
 what exists. To try it, follow [the tutorial](docs/get-started/try-the-demo.md).
 
@@ -85,50 +85,60 @@ let run unrecorded, which is counted.
 
 ## Where it is going
 
-Everything beyond that path is `planned` and follows [ROADMAP.md](ROADMAP.md).
-A supervisor compares what agents do with their procedures and permissions,
-reports to the operator's alerting and logging, and can stop an agent.
+MCP is one channel of several ([ROADMAP.md](ROADMAP.md),
+[ADR-0039](docs/adr/0039-many-channels-into-one-core.md)):
+
+| Today, `experimental` | `Planned` |
+| --- | --- |
+| An MCP gateway deciding each call before it runs | Sensors: runtime traces, proxy logs, process events |
+| Signed policy, approvals, pause, evidence trail | A supervisor: procedures, detectors, coverage map |
+| A report and local alerts from the evidence export | Notifiers, and a stop of one run where allowed |
 
 ```mermaid
 flowchart TB
     accTitle: Where Guardana Control is going
-    accDescr: Agents reach Control through a proxy, framework ports, and feeds of traces, logs and process events. The enforcement point decides each call, can pause or stop an agent, passes allowed calls to tools and APIs, and records evidence. A supervisor compares that evidence and the feeds with procedures and permissions, and reports through alerts, OpenTelemetry, metrics, a SIEM, and a run graph with a console.
+    accDescr: Agents act through enforcement points, the MCP gateway today and framework hooks through an enforcement API next, which decide each call before it runs and record evidence. Sensors bring in what runtimes, proxies and processes report after the fact. A supervisor compares the evidence and the observations with procedures and permissions, maps which paths it covers, and raises findings. Findings go out as alerts, to OpenTelemetry and a SIEM, and to a run graph. Where the operator allowed it, a reaction stops one run at the enforcement points.
     AG[Agents]
-    subgraph IN[Inputs]
-        PX["Proxy: MCP today, HTTP tool APIs next"]
-        PT[Framework ports]
-        FD["Feeds: traces, logs, process events"]
+    subgraph EP[Enforcement points]
+        MCP["MCP gateway, today"]
+        HK[Framework hooks]
     end
-    PEP["Enforcement point: policy, approvals, pause, stop"]
+    subgraph SN[Sensors]
+        TR[Runtime traces and logs]
+        PX[Proxy access logs]
+        PR[Process events]
+    end
     TL[Tools and APIs]
     EV[(Evidence)]
-    SV["Supervisor: procedures, deviations, access attempts, unfinished work"]
+    OB[(Observations)]
+    SV["Supervisor: procedures, detectors, coverage"]
     subgraph OUT[Outputs]
         AL["Alerts: webhooks, chat"]
-        EX["OpenTelemetry, metrics, SIEM"]
-        GR[Run graph and console]
+        EX["OpenTelemetry, SIEM"]
+        GR[Run graph]
     end
-    AG --> PX
-    AG --> PT
-    AG -.-> FD
-    PX --> PEP
-    PT --> PEP
-    PEP -->|allowed calls| TL
-    PEP --> EV
-    FD --> SV
+    RE["Reaction: stop one run where allowed"]
+    AG --> MCP
+    AG --> HK
+    MCP -->|allowed calls| TL
+    HK --> TL
+    AG -.-> TR
+    AG -.-> PX
+    AG -.-> PR
+    MCP --> EV
+    HK --> EV
+    TR --> OB
+    PX --> OB
+    PR --> OB
     EV --> SV
-    EV --> EX
+    OB --> SV
     SV --> AL
     SV --> EX
     SV --> GR
+    SV -.-> RE
     classDef accent fill:#E6F4F2,stroke:#0B8F80,color:#0F1115
-    class PEP,EV,SV accent
+    class MCP,SV accent
 ```
-
-Rules and scenarios are documents a team writes and tests; procedures will be
-too. The [adapter guide](docs/extending/adapters.md) describes an internal
-seam; public integration and detector APIs are
-[planned](docs/backlog.md).
 
 ## Install
 

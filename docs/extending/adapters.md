@@ -14,6 +14,12 @@ no policy meaning: what a call means lives in the envelope it builds and in the
 policy (invariant 7). The MCP adapter in `adapters/mcp/` is the worked example
 and the only one today.
 
+An adapter is the enforcement point among the five ports of
+[ADR-0039](../adr/0039-many-channels-into-one-core.md): it sees a call before
+its effect. A sensor, a detector, a reaction and a notifier are `planned`, as
+separate programs speaking versioned data contracts rather than code compiled
+into the plane, so this guide does not cover them.
+
 ## The seam
 
 The seam is internal, in `internal/gateway`:

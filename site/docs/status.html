@@ -224,9 +224,14 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td><code>internal/storage/</code></td>
 </tr>
 <tr>
-<td>Ingest and normalizer</td>
+<td>Observations from sensors: an observation record, a source descriptor and one importer of OpenTelemetry GenAI traces</td>
 <td><code>planned</code></td>
-<td><code>internal/ingest/</code></td>
+<td><code>api/proto/guardana/control/observe/v1alpha1/</code>, <code>internal/ingest/</code>, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
+</tr>
+<tr>
+<td>Coverage map per declared path</td>
+<td><code>planned</code></td>
+<td>no path chosen yet, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
 </tr>
 <tr>
 <td>Graph API</td>
@@ -239,9 +244,14 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td>no path chosen yet, <a href="/docs/roadmap">ROADMAP.md</a></td>
 </tr>
 <tr>
-<td>Detectors</td>
+<td>Supervisor: procedures and detectors over the exports, raising findings</td>
 <td><code>planned</code></td>
-<td><code>detectors/builtin/</code>, <code>pkg/detector</code></td>
+<td><code>internal/supervise/</code>, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
+</tr>
+<tr>
+<td>Channels beyond MCP, notifiers, and a run-scoped stop from a finding</td>
+<td><code>planned</code></td>
+<td><code>adapters/</code>, <code>internal/pause/</code>, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
 </tr>
 <tr>
 <td>Releases built, signed and attested from a tag</td>
@@ -276,7 +286,7 @@ this:</p>
 <tbody>
 <tr>
 <td>Setup for common agent stacks, a proxy for the rest</td>
-<td>An MCP proxy only; no framework port and no proxy for other tool APIs</td>
+<td>An MCP proxy only; no framework integration and no proxy for other tool APIs</td>
 </tr>
 <tr>
 <td>Oversight of what agents do and the data they reach</td>

@@ -118,3 +118,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0036: `policy explain` reads the kernel's own evaluation](adr/0036-policy-explain-reads-the-kernels-own-evaluation.md): accepted
 - [ADR-0037: An evidence consumer in a module of its own](adr/0037-an-evidence-consumer-in-a-module-of-its-own.md): accepted
 - [ADR-0038: A signed freshness statement and a serial floor that outlives the process](adr/0038-a-signed-freshness-statement-and-a-serial-floor.md): accepted
+- [ADR-0039: Many channels into one core: what each may see, claim and do](adr/0039-many-channels-into-one-core.md): accepted
