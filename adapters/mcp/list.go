@@ -131,20 +131,82 @@ func (a *Adapter) listTools(ctx context.Context, req mcp.Request) (mcp.Result, e
 	if err != nil {
 		return nil, blockedError(nil, map[string]any{keyReasonCodes: []string{"REQUIRED_FIELD_ABSENT"}})
 	}
-	key := principalKey(principal)
-	if tools, ok := a.lists.get(key, a.cfg.Clock()); ok {
-		return a.listResult(tools), nil
-	}
 	entries, generation := a.manifest.snapshot(a.names)
+	s := &shaping{a: a, ctx: ctx, p: p, req: req, principal: principal, agent: agent}
+	key, cacheable := principalKey(principal), a.lists.enabled()
+	var bundle string
+	if cacheable {
+		bundle, cacheable = s.bundle(entries)
+	}
+	if cacheable {
+		if tools, ok := a.lists.get(key, bundle, a.cfg.Clock()); ok {
+			return a.listResult(tools), nil
+		}
+	}
 	tools := []*mcp.Tool{}
 	for i := range entries {
-		if t := a.shape(ctx, p, req, &entries[i], principal, agent); t != nil {
+		if t := s.shape(&entries[i]); t != nil {
 			tools = append(tools, t)
 		}
 	}
-	a.lists.put(key, tools, generation, a.cfg.Clock())
+	if cacheable && !s.mixed {
+		a.lists.put(key, tools, bundle, generation, a.cfg.Clock())
+	}
 	return a.listResult(tools), nil
 }
+
+// shaping is one tools/list shaped for one principal, and the bundles its
+// previews were decided under.
+type shaping struct {
+	a         *Adapter
+	ctx       context.Context
+	p         Pipeline
+	req       mcp.Request
+	principal *controlv1.Principal
+	agent     *controlv1.Agent
+	// probe is the entry bundle previewed, and probed its decision, which
+	// shaping that entry takes instead of asking again.
+	probe  *Entry
+	probed *controlv1.Decision
+	digest string
+	// mixed is a preview decided under a bundle other than probed's: the list
+	// straddles two bundles and is cached under neither.
+	mixed bool
+}
+
+// bundle previews the first entry shaping would preview and returns the
+// bundle that decided it, so a list is cached and looked up under the bundle
+// in force. A list no preview shapes reads no bundle. A preview that names
+// no bundle leaves nothing to tell the next one from, and nothing is cached.
+func (s *shaping) bundle(entries []Entry) (string, bool) {
+	if s.a.cfg.Shaping == ShapeNone {
+		return "", true
+	}
+	for i := range entries {
+		if previewed(&entries[i]) {
+			s.probe = &entries[i]
+			s.probed = s.a.preview(s.ctx, s.p, s.req, s.probe, s.principal, s.agent)
+			s.digest = s.probed.GetPolicyBundleDigest()
+			return s.digest, s.digest != ""
+		}
+	}
+	return "", true
+}
+
+// decide is the preview of e, read once for the probe.
+func (s *shaping) decide(e *Entry) *controlv1.Decision {
+	if e == s.probe {
+		return s.probed
+	}
+	d := s.a.preview(s.ctx, s.p, s.req, e, s.principal, s.agent)
+	if s.probe != nil && d.GetPolicyBundleDigest() != s.digest {
+		s.mixed = true
+	}
+	return d
+}
+
+// previewed is an entry shaping asks the policy about.
+func previewed(e *Entry) bool { return e.Classified && !e.Ambiguous }
 
 // principalKey names a principal for the shaped-list cache by every field a
 // policy can read about it.
@@ -165,15 +227,16 @@ func (a *Adapter) ttlMs() int { return int(a.cfg.ListTTL / time.Millisecond) }
 // hide omits what the preview denies and what nobody classified. A tool the
 // preview cannot decide without the call's arguments stays, because the call
 // is decided when it is made.
-func (a *Adapter) shape(ctx context.Context, p Pipeline, req mcp.Request, e *Entry, principal *controlv1.Principal, agent *controlv1.Agent) *mcp.Tool {
-	if a.cfg.Shaping == ShapeNone {
+func (s *shaping) shape(e *Entry) *mcp.Tool {
+	shapingKind := s.a.cfg.Shaping
+	if shapingKind == ShapeNone {
 		return present(e.Tool, "")
 	}
 	mark := codeUnclassified
-	if e.Classified && !e.Ambiguous {
-		switch v := a.preview(ctx, p, req, e, principal, agent).GetVerdict(); v {
+	if previewed(e) {
+		switch v := s.decide(e).GetVerdict(); v {
 		case controlv1.Verdict_VERDICT_DENY:
-			if a.cfg.Shaping == ShapeHide {
+			if shapingKind == ShapeHide {
 				return nil
 			}
 			mark = v.String()
@@ -182,10 +245,10 @@ func (a *Adapter) shape(ctx context.Context, p Pipeline, req mcp.Request, e *Ent
 		default:
 			mark = markDecidedPerCall
 		}
-	} else if a.cfg.Shaping == ShapeHide {
+	} else if shapingKind == ShapeHide {
 		return nil
 	}
-	if a.cfg.Shaping == ShapeAnnotate {
+	if shapingKind == ShapeAnnotate {
 		return present(e.Tool, mark)
 	}
 	return present(e.Tool, "")
@@ -226,7 +289,8 @@ func present(t *mcp.Tool, mark string) *mcp.Tool {
 
 // listCache keeps one shaped list per principal for the operator's TTL, at
 // most maxCachedLists of them, and only lists shaped from the manifest's
-// current generation.
+// current generation. A list answers only under the bundle it was shaped
+// under.
 type listCache struct {
 	ttl        time.Duration
 	mu         sync.Mutex
@@ -236,6 +300,7 @@ type listCache struct {
 
 type cachedList struct {
 	tools   []*mcp.Tool
+	bundle  string
 	expires time.Time
 }
 
@@ -243,14 +308,16 @@ func newListCache(ttl time.Duration) *listCache {
 	return &listCache{ttl: ttl, m: map[string]cachedList{}}
 }
 
-func (c *listCache) get(key string, now time.Time) ([]*mcp.Tool, bool) {
-	if c.ttl <= 0 {
+func (c *listCache) enabled() bool { return c.ttl > 0 }
+
+func (c *listCache) get(key, bundle string, now time.Time) ([]*mcp.Tool, bool) {
+	if !c.enabled() {
 		return nil, false
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e, ok := c.m[key]
-	if !ok || !now.Before(e.expires) {
+	if !ok || !now.Before(e.expires) || e.bundle != bundle {
 		delete(c.m, key)
 		return nil, false
 	}
@@ -259,8 +326,8 @@ func (c *listCache) get(key string, now time.Time) ([]*mcp.Tool, bool) {
 
 // put keeps tools for key unless they were shaped from a manifest older than
 // the last reset, or the cache is full of lists that have not expired.
-func (c *listCache) put(key string, tools []*mcp.Tool, generation uint64, now time.Time) {
-	if c.ttl <= 0 {
+func (c *listCache) put(key string, tools []*mcp.Tool, bundle string, generation uint64, now time.Time) {
+	if !c.enabled() {
 		return
 	}
 	c.mu.Lock()
@@ -278,7 +345,7 @@ func (c *listCache) put(key string, tools []*mcp.Tool, generation uint64, now ti
 			return
 		}
 	}
-	c.m[key] = cachedList{tools: tools, expires: now.Add(c.ttl)}
+	c.m[key] = cachedList{tools: tools, bundle: bundle, expires: now.Add(c.ttl)}
 }
 
 // reset drops every cached list when the manifest changed, and refuses from

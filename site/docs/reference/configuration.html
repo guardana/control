@@ -33,7 +33,8 @@ refused rather than ignored, and a required key with no default has to be set by
 file or by a variable. A key with a default is never without a value, so <code>yes</code> under
 Required matters only where the default is empty. Some requirements depend on another
 key and are not in the table: an HTTP listener needs <code>listener.address</code>, and only a
-<code>stateful_http</code> listener takes <code>listener.session_idle</code>, from one minute to a day; an upstream
+<code>stateful_http</code> listener takes <code>listener.session_idle</code>, from one minute to a day, and
+<code>listener.max_sessions</code>, from 1 to 16384; an upstream
 needs exactly one of <code>endpoint</code> and <code>command</code>; <code>evidence.fsync_interval</code> is needed
 under the <code>interval</code> policy and refused under <code>every_record</code>; the <code>file</code> approval
 provider needs <code>approvals.dir</code> and <code>approvals.hold_journal_dir</code>, and that journal
@@ -124,6 +125,14 @@ allowed.</p>
 <td><code>GUARDANA_CONTROL_LISTENER_SESSION_IDLE</code></td>
 <td>duration</td>
 <td><code>30m</code></td>
+<td>no</td>
+<td></td>
+</tr>
+<tr>
+<td><code>listener.max_sessions</code></td>
+<td><code>GUARDANA_CONTROL_LISTENER_MAX_SESSIONS</code></td>
+<td>integer</td>
+<td><code>1024</code></td>
 <td>no</td>
 <td></td>
 </tr>

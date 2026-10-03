@@ -46,13 +46,13 @@ decisions.</p>
 <td><code>stateless_http</code></td>
 <td><code>2026-07-28</code></td>
 <td>the listener's configuration</td>
-<td>No session; every request carries its own protocol version and client claim in <code>_meta</code></td>
+<td>No session; each request carries its protocol version and client claim in <code>_meta</code></td>
 </tr>
 <tr>
 <td><code>stateful_http</code></td>
 <td><code>2025-11-25</code> and older</td>
 <td>the listener's configuration</td>
-<td>A <code>2026-07-28</code> request is answered <code>-32022</code> with the versions the listener serves, so a client renegotiates. Idle sessions end after <code>listener.session_idle</code></td>
+<td>A <code>2026-07-28</code> request gets <code>-32022</code> and the versions served, so a client renegotiates. Sessions end idle after <code>listener.session_idle</code>; past <code>listener.max_sessions</code> live, an open gets <code>503</code></td>
 </tr>
 <tr>
 <td><code>stdio</code></td>
@@ -62,13 +62,13 @@ decisions.</p>
 </tr>
 </tbody>
 </table>
-<p>An end-user identity taken from a request's credential is not in this build: the
-adapter takes an authenticator that establishes one, and no configuration key
-wires it, so every call on a listener is made by the principal the operator
-configured. <code>_meta.clientInfo</code> is recorded as a run-context tag and never reaches
-a field the digest covers. Request bodies get 30 seconds.</p>
-<p>Upstream servers are reached over Streamable HTTP (<code>upstreams[].endpoint</code>) or as
-a child process over its standard input and output (<code>upstreams[].command</code>).</p>
+<p>No configuration key wires an authenticator, so every call is made by the
+principal the operator configured. <code>_meta.clientInfo</code> is a run-context tag no
+digest covers. A request body gets 30 seconds, and an answer 30 seconds per
+64 KiB slice: a client reading slower is cut, and one reading a slice every 29
+seconds holds a handler while the answer lasts.</p>
+<p>An upstream is reached over Streamable HTTP (<code>upstreams[].endpoint</code>) or as a
+child process over stdio (<code>upstreams[].command</code>).</p>
 <h2 id="methods">Methods</h2>
 <table>
 <thead>
@@ -82,7 +82,7 @@ a child process over its standard input and output (<code>upstreams[].command</c
 <tr>
 <td><code>tools/list</code></td>
 <td>Answers from the manifest, shaped for the principal, with <code>cacheScope: private</code> and the operator's <code>ttlMs</code></td>
-<td>on an uncached <code>annotate</code> or <code>hide</code> list, one preview per classified tool one upstream serves, recording nothing</td>
+<td>uncached under <code>annotate</code> or <code>hide</code>, one preview per classified tool one upstream serves; cached, one naming the bundle in force; nothing recorded</td>
 </tr>
 <tr>
 <td><code>tools/call</code></td>
@@ -91,7 +91,7 @@ a child process over its standard input and output (<code>upstreams[].command</c
 </tr>
 <tr>
 <td><code>resources/read</code></td>
-<td>Translated as a <code>READ</code> of the URI. Routed only when one upstream is configured; with several the call is <code>ACTION_UNCLASSIFIED</code>, since nothing says which server holds the URI</td>
+<td>Translated as a <code>READ</code> of the URI. Routed only when one upstream is configured; with several it is <code>ACTION_UNCLASSIFIED</code>, since nothing says which server holds the URI</td>
 <td>yes</td>
 </tr>
 <tr>
@@ -106,7 +106,7 @@ a child process over its standard input and output (<code>upstreams[].command</c
 </tr>
 <tr>
 <td>everything else</td>
-<td>Handled by the library's own server, which has no tool, resource or prompt registered, so nothing is forwarded</td>
+<td>Handled by the library's own server, which registers nothing, so nothing is forwarded</td>
 <td>no</td>
 </tr>
 </tbody>

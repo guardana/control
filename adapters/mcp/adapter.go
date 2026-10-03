@@ -80,6 +80,10 @@ type Listener struct {
 	// zero is DefaultSessionIdle. Without a bound, sessions a client opens and
 	// abandons hold their memory until the plane stops.
 	SessionIdle time.Duration
+	// MaxSessions caps the stateful HTTP sessions live at once; zero is
+	// DefaultMaxSessions. A request that would open one more is refused until
+	// one closes or idles out.
+	MaxSessions int
 	// BodyTimeout bounds how long an HTTP request may take over sending its
 	// body, and how long its answer may wait on a client that stops reading;
 	// zero is DefaultBodyTimeout.
@@ -88,6 +92,11 @@ type Listener struct {
 
 // DefaultSessionIdle is how long a stateful HTTP session may sit idle.
 const DefaultSessionIdle = 30 * time.Minute
+
+// DefaultMaxSessions is how many stateful HTTP sessions may be live at once:
+// far more than the agents one plane serves, and a bound on what clients that
+// open sessions and never close them can hold.
+const DefaultMaxSessions = 1024
 
 // DefaultBodyTimeout is how long an HTTP request may take over its body, and
 // its answer may make no progress.
@@ -145,6 +154,11 @@ type Stats struct {
 	// reaches the second.
 	RunsRefusedAtRequest RunRefusals
 	RunsRefusedAtMessage RunRefusals
+	// SessionsRefused counts the sessionless POSTs a stateful listener
+	// counted as opens and refused at its cap on live sessions; SessionsLive
+	// is how many sessions it holds now, zero on any other listener.
+	SessionsRefused int64
+	SessionsLive    int64
 }
 
 // Adapter is the MCP adapter as the pipeline sees it and as the agent
@@ -163,6 +177,7 @@ type Adapter struct {
 	lists     *listCache
 
 	admitted, blocked, sent, closeFailures, refreshFailures atomic.Int64
+	sessionsRefused                                         atomic.Int64
 	refusedAtRequest, refusedAtMessage                      *runCounter
 }
 
@@ -236,6 +251,9 @@ func checkListener(l Listener) error {
 	default:
 		return fmt.Errorf("%w: kind %d", ErrListener, l.Kind)
 	}
+	if err := checkSessionCap(l); err != nil {
+		return err
+	}
 	if l.Identity.Principal == nil || l.Identity.Agent == nil {
 		return ErrIdentity
 	}
@@ -251,6 +269,18 @@ func checkListener(l Listener) error {
 	p := l.Identity.Principal
 	if p.GetId() != "" || p.GetAuthnStrength() != "" || len(p.GetAttributes()) > 0 {
 		return fmt.Errorf("%w: an authenticated listener configures the tenant and the type only", ErrIdentity)
+	}
+	return nil
+}
+
+// checkSessionCap refuses a negative cap on sessions, and any cap on a
+// listener that keeps none.
+func checkSessionCap(l Listener) error {
+	switch {
+	case l.MaxSessions < 0:
+		return fmt.Errorf("%w: a negative cap on sessions", ErrListener)
+	case l.MaxSessions > 0 && l.Kind != KindStatefulHTTP:
+		return fmt.Errorf("%w: a cap on sessions on a listener that keeps none", ErrListener)
 	}
 	return nil
 }
@@ -390,7 +420,17 @@ func (a *Adapter) Stats() Stats {
 		Admitted: a.admitted.Load(), Blocked: a.blocked.Load(), Sent: a.sent.Load(),
 		CloseFailures: a.closeFailures.Load(), RefreshFailures: a.refreshFailures.Load(),
 		RunsRefusedAtRequest: a.refusedAtRequest.snapshot(), RunsRefusedAtMessage: a.refusedAtMessage.snapshot(),
+		SessionsRefused: a.sessionsRefused.Load(), SessionsLive: a.statefulSessions(),
 	}
+}
+
+// statefulSessions is the sessions a stateful listener holds; every other
+// listener's are a request's own, and none is counted.
+func (a *Adapter) statefulSessions() int64 {
+	if a.cfg.Listener.Kind != KindStatefulHTTP {
+		return 0
+	}
+	return int64(a.liveSessions())
 }
 
 // Entries returns the manifest as it stands, one entry per listed tool.

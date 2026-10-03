@@ -81,6 +81,36 @@ func TestTheSessionIdleBoundReachesTheAdapter(t *testing.T) {
 	}
 }
 
+// TestTheSessionCapReachesTheAdapter: the configured cap on a stateful
+// listener's live sessions is the one the adapter enforces.
+func TestTheSessionCapReachesTheAdapter(t *testing.T) {
+	tr := newTree(t)
+	setEnv(t, "listener.kind", "stateful_http")
+	setEnv(t, "listener.max_sessions", "37")
+	cfg, err := adapterConfig(tr.load(t), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Listener.MaxSessions; got != 37 {
+		t.Errorf("the adapter's session cap is %d, want 37", got)
+	}
+}
+
+// TestOnlyAStatefulListenerCarriesASessionCap: the cap the configuration
+// holds by default reaches no listener that keeps no session, which the
+// adapter would refuse.
+func TestOnlyAStatefulListenerCarriesASessionCap(t *testing.T) {
+	tr := newTree(t)
+	setEnv(t, "listener.kind", "stateless_http")
+	cfg, err := adapterConfig(tr.load(t), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Listener.MaxSessions; got != 0 {
+		t.Errorf("a stateless listener's adapter carries a session cap of %d, want none", got)
+	}
+}
+
 // resultText joins the text content of a result.
 func resultText(res *sdk.CallToolResult) string {
 	var b strings.Builder

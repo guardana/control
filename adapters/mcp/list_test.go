@@ -17,7 +17,9 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/guardana/control/adapters/mcp"
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/brand"
+	"github.com/guardana/control/internal/gateway"
 )
 
 var metaVerdict = brand.OTelNamespace + "/verdict"
@@ -112,7 +114,7 @@ func TestListShapingAnnotate(t *testing.T) {
 }
 
 // TestShapedListIsCachedPerPrincipal: with a TTL the second list for one
-// principal asks the policy nothing, and another principal on the same
+// principal asks the policy only which bundle is in force, and another principal on the same
 // listener gets its own evaluation and its own list.
 func TestShapedListIsCachedPerPrincipal(t *testing.T) {
 	rules := []string{allowReads, allowMail, allowDeletes, allowTransacts, denyAliceMail}
@@ -128,15 +130,107 @@ func TestShapedListIsCachedPerPrincipal(t *testing.T) {
 	if _, body := rawPost(t, r.url, http.Header{"Authorization": {"Bearer alice-token"}}, listBody(3)); bytes.Contains(body, []byte(`"send_mail"`)) {
 		t.Fatalf("alice's raw list shows what the policy denies her: %s", body)
 	}
-	if n := r.real.previews.Load(); n != 5 {
-		t.Fatalf("%d previews for alice's three lists, want 5", n)
+	// Five shape her first list; the raw list is answered from the cache
+	// after one preview names the bundle in force.
+	if n := r.real.previews.Load(); n != 6 {
+		t.Fatalf("%d previews for alice's three lists, want 6", n)
 	}
 	bob := connectHTTP(t, r.url, "agent-a", r.version, http.Header{"Authorization": {"Bearer bob-token"}})
 	if got := strings.Join(toolNames(listTools(t, bob)), ","); got != "delete_file,read_file,send_mail,slow,transfer" {
 		t.Fatalf("bob sees %s, want his own list", got)
 	}
-	if n := r.real.previews.Load(); n != 10 {
-		t.Fatalf("%d previews after bob's list, want 10", n)
+	if n := r.real.previews.Load(); n != 11 {
+		t.Fatalf("%d previews after bob's list, want 11", n)
+	}
+}
+
+// TestANewBundleReshapesACachedList: within the TTL, a list shaped under one
+// bundle answers again while that bundle is in force, and never once another
+// is: the list shows what the new bundle allows and hides what it denies.
+func TestANewBundleReshapesACachedList(t *testing.T) {
+	src := &swappedPolicy{}
+	src.snap.Store(snapshot(t, allowReads, allowMail, allowDeletes, allowTransacts))
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{shaping: mcp.ShapeHide, mode: modeEnforce, policy: src, listTTL: time.Minute})
+	listed := func(id int) string {
+		t.Helper()
+		_, body := rawPost(t, r.url, nil, listBody(id))
+		var names []string
+		for _, n := range []string{"read_file", "send_mail"} {
+			if bytes.Contains(body, []byte(`"`+n+`"`)) {
+				names = append(names, n)
+			}
+		}
+		return strings.Join(names, ",")
+	}
+	if got := listed(1); got != "read_file,send_mail" {
+		t.Fatalf("under the first bundle: %s", got)
+	}
+	if got := listed(2); got != "read_file,send_mail" {
+		t.Fatalf("a second list under the same bundle: %s", got)
+	}
+	cached := r.real.previews.Load()
+	src.snap.Store(snapshot(t, shapingRules...))
+	if got := listed(3); got != "read_file" {
+		t.Errorf("under a bundle that denies mail: %s, want read_file alone", got)
+	}
+	src.snap.Store(snapshot(t, allowReads, allowMail, allowDeletes, allowTransacts))
+	if got := listed(4); got != "read_file,send_mail" {
+		t.Errorf("back under a bundle that allows mail: %s", got)
+	}
+	// Five previews shape the first list; the cached answer asks one, which
+	// names the bundle in force.
+	if cached != 6 {
+		t.Errorf("%d previews after two lists under one bundle, want 6", cached)
+	}
+}
+
+// TestAListShapedUnderNoBundleIsNotCached: a preview that names no bundle
+// leaves nothing to tell the next bundle from, so its list is shaped again
+// each time, TTL or not.
+func TestAListShapedUnderNoBundleIsNotCached(t *testing.T) {
+	var previews atomic.Int64
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{shaping: mcp.ShapeHide, listTTL: time.Minute})
+	r.pipe.preview = func(gateway.Admission) *controlv1.Decision {
+		previews.Add(1)
+		return decision(controlv1.Verdict_VERDICT_ALLOW)
+	}
+	for id := range 2 {
+		if _, body := rawPost(t, r.url, nil, listBody(id)); !bytes.Contains(body, []byte(`"read_file"`)) {
+			t.Fatalf("list %d: %s", id, body)
+		}
+	}
+	if n := previews.Load(); n != 10 {
+		t.Errorf("%d previews over two lists under no bundle, want 10", n)
+	}
+}
+
+// TestAListShapedAcrossTwoBundlesIsNotCached: a bundle installed while a
+// list is being shaped leaves a list decided partly under each, and it is
+// cached under neither: the next list, under the first bundle again, is
+// shaped whole under it.
+func TestAListShapedAcrossTwoBundlesIsNotCached(t *testing.T) {
+	var previews atomic.Int64
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{shaping: mcp.ShapeHide, listTTL: time.Minute})
+	r.pipe.preview = func(gateway.Admission) *controlv1.Decision {
+		// The second to the fifth preview of the first list run under a
+		// bundle that denies everything.
+		if n := previews.Add(1); n > 1 && n <= 5 {
+			d := decision(controlv1.Verdict_VERDICT_DENY)
+			d.PolicyBundleDigest = "sha256:second"
+			return d
+		}
+		d := decision(controlv1.Verdict_VERDICT_ALLOW)
+		d.PolicyBundleDigest = "sha256:first"
+		return d
+	}
+	for id := range 3 {
+		_, body := rawPost(t, r.url, nil, listBody(id))
+		if id > 0 && !bytes.Contains(body, []byte(`"transfer"`)) {
+			t.Fatalf("list %d under the first bundle hides what it allows: %s", id, body)
+		}
+	}
+	if n := previews.Load(); n != 11 {
+		t.Errorf("%d previews, want 5 for the straddling list, 5 for the next and 1 for the cached one", n)
 	}
 }
 

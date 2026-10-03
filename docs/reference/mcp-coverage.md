@@ -17,29 +17,29 @@ decisions.
 
 | Listener | Serves | Identity per call comes from | Notes |
 | --- | --- | --- | --- |
-| `stateless_http` | `2026-07-28` | the listener's configuration | No session; every request carries its own protocol version and client claim in `_meta` |
-| `stateful_http` | `2025-11-25` and older | the listener's configuration | A `2026-07-28` request is answered `-32022` with the versions the listener serves, so a client renegotiates. Idle sessions end after `listener.session_idle` |
+| `stateless_http` | `2026-07-28` | the listener's configuration | No session; each request carries its protocol version and client claim in `_meta` |
+| `stateful_http` | `2025-11-25` and older | the listener's configuration | A `2026-07-28` request gets `-32022` and the versions served, so a client renegotiates. Sessions end idle after `listener.session_idle`; past `listener.max_sessions` live, an open gets `503` |
 | `stdio` | one agent over a pipe | the listener's configuration | Nothing authenticates a pipe |
 
-An end-user identity taken from a request's credential is not in this build: the
-adapter takes an authenticator that establishes one, and no configuration key
-wires it, so every call on a listener is made by the principal the operator
-configured. `_meta.clientInfo` is recorded as a run-context tag and never reaches
-a field the digest covers. Request bodies get 30 seconds.
+No configuration key wires an authenticator, so every call is made by the
+principal the operator configured. `_meta.clientInfo` is a run-context tag no
+digest covers. A request body gets 30 seconds, and an answer 30 seconds per
+64 KiB slice: a client reading slower is cut, and one reading a slice every 29
+seconds holds a handler while the answer lasts.
 
-Upstream servers are reached over Streamable HTTP (`upstreams[].endpoint`) or as
-a child process over its standard input and output (`upstreams[].command`).
+An upstream is reached over Streamable HTTP (`upstreams[].endpoint`) or as a
+child process over stdio (`upstreams[].command`).
 
 ## Methods
 
 | Method | What the gateway does | Decided |
 | --- | --- | --- |
-| `tools/list` | Answers from the manifest, shaped for the principal, with `cacheScope: private` and the operator's `ttlMs` | on an uncached `annotate` or `hide` list, one preview per classified tool one upstream serves, recording nothing |
+| `tools/list` | Answers from the manifest, shaped for the principal, with `cacheScope: private` and the operator's `ttlMs` | uncached under `annotate` or `hide`, one preview per classified tool one upstream serves; cached, one naming the bundle in force; nothing recorded |
 | `tools/call` | Admits an `ActionEnvelope`; only if the mode lets it run, applies rewriting obligations, none under `OBSERVE`, sends exactly the authorized bytes and closes the trail with their digest | yes |
-| `resources/read` | Translated as a `READ` of the URI. Routed only when one upstream is configured; with several the call is `ACTION_UNCLASSIFIED`, since nothing says which server holds the URI | yes |
+| `resources/read` | Translated as a `READ` of the URI. Routed only when one upstream is configured; with several it is `ACTION_UNCLASSIFIED`, since nothing says which server holds the URI | yes |
 | `prompts/get` | Translated as a `READ` of the prompt, its arguments authorized as a canonical JSON object of strings. Routed as above | yes |
 | `resources/list`, `resources/templates/list`, `prompts/list` | Merged from every upstream, bounded, with the gateway's own `_meta` keys stripped and `cacheScope: private` | no: a listing names no action |
-| everything else | Handled by the library's own server, which has no tool, resource or prompt registered, so nothing is forwarded | no |
+| everything else | Handled by the library's own server, which registers nothing, so nothing is forwarded | no |
 
 ## What the gateway cannot do
 

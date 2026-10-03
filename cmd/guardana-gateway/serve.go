@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	adaptermcp "github.com/guardana/control/adapters/mcp"
 	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/gatewayconfig"
 )
@@ -27,6 +28,12 @@ const readHeaderTimeout = 10 * time.Second
 // idleTimeout bounds how long a kept-alive connection may wait for its next
 // request.
 const idleTimeout = 2 * time.Minute
+
+// healthReadTimeout bounds how long a request to the plane's own answers may
+// take over its headers and body, as the agents' listener bounds a body. The
+// server reads what body a handler leaves before it answers, so without it a
+// client trickling one holds the connection and the handler.
+const healthReadTimeout = adaptermcp.DefaultBodyTimeout
 
 // serve builds the plane and serves it until ctx ends. Nothing is bound and
 // nothing is connected until every seam is built: a configuration the pipeline,
@@ -243,11 +250,11 @@ type listening struct {
 func (p *plane) bind(stdout io.Writer, listen listenFunc) ([]listening, error) {
 	var wanted []wantedServer
 	if p.cfg.Listener.Kind != "stdio" {
-		wanted = append(wanted, wantedServer{p.cfg.Listener.Address, p.adapter.Handler, "listening for agents on "})
+		wanted = append(wanted, wantedServer{p.cfg.Listener.Address, p.adapter.Handler, "listening for agents on ", 0})
 	}
 	if p.cfg.Health.Address != "" {
 		health := func() (http.Handler, error) { return p.healthMux(), nil }
-		wanted = append(wanted, wantedServer{p.cfg.Health.Address, health, "answering /healthz, /metrics and /brand on "})
+		wanted = append(wanted, wantedServer{p.cfg.Health.Address, health, "answering /healthz, /metrics and /brand on ", healthReadTimeout})
 	}
 	var out []listening
 	for _, w := range wanted {
@@ -260,7 +267,7 @@ func (p *plane) bind(stdout io.Writer, listen listenFunc) ([]listening, error) {
 			return nil, errors.Join(err, closeListeners(out))
 		}
 		out = append(out, listening{
-			server:   newServer(w.addr, handler, idleTimeout),
+			server:   newServer(w.addr, handler, idleTimeout, w.read),
 			listener: listener,
 		})
 		writeLine(stdout, w.says+listener.Addr().String())
@@ -268,16 +275,20 @@ func (p *plane) bind(stdout io.Writer, listen listenFunc) ([]listening, error) {
 	return out, nil
 }
 
-// newServer answers on addr with the plane's connection bounds.
-func newServer(addr string, handler http.Handler, idle time.Duration) *http.Server {
-	return &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: readHeaderTimeout, IdleTimeout: idle}
+// newServer answers on addr with the plane's connection bounds; a read above
+// zero bounds a whole request, its body included.
+func newServer(addr string, handler http.Handler, idle, read time.Duration) *http.Server {
+	return &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: readHeaderTimeout, ReadTimeout: read, IdleTimeout: idle}
 }
 
-// wantedServer is one address this configuration asks to be answered on.
+// wantedServer is one address this configuration asks to be answered on, and
+// the bound on reading a request there: zero where the handler bounds a body
+// itself.
 type wantedServer struct {
 	addr    string
 	handler func() (http.Handler, error)
 	says    string
+	read    time.Duration
 }
 
 func closeListeners(bound []listening) error {

@@ -58,6 +58,7 @@ type ListenerConfig struct {
 	AgentFramework  string
 	AgentVersion    string
 	SessionIdle     time.Duration
+	MaxSessions     int
 }
 
 // HealthConfig is the plane's own answers.

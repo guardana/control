@@ -30,6 +30,15 @@ func listenerTenant(cfg *gatewayconfig.Config) string {
 	return cfg.TenantID
 }
 
+// sessionCap is the cap on live sessions of a listener that keeps them; any
+// other carries none, whatever the key's default says.
+func sessionCap(cfg *gatewayconfig.Config) int {
+	if cfg.Listener.Kind != "stateful_http" {
+		return 0
+	}
+	return cfg.Listener.MaxSessions
+}
+
 // adapterConfig translates the configuration into the adapter's, which is
 // where every MCP-side refusal is made.
 func adapterConfig(cfg *gatewayconfig.Config, logger *slog.Logger) (adaptermcp.Config, error) {
@@ -55,6 +64,7 @@ func adapterConfig(cfg *gatewayconfig.Config, logger *slog.Logger) (adaptermcp.C
 			Kind:        kinds[cfg.Listener.Kind],
 			Origins:     cfg.Listener.Origins,
 			SessionIdle: cfg.Listener.SessionIdle,
+			MaxSessions: sessionCap(cfg),
 			Identity: adaptermcp.Identity{
 				Principal: &controlv1.Principal{Id: cfg.Listener.PrincipalID, Type: cfg.Listener.PrincipalType, TenantId: tenant},
 				Agent: &controlv1.Agent{

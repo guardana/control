@@ -98,7 +98,8 @@ func lead() string {
 		"file or by a variable. A key with a default is never without a value, so `yes` under\n" +
 		"Required matters only where the default is empty. Some requirements depend on another\n" +
 		"key and are not in the table: an HTTP listener needs `listener.address`, and only a\n" +
-		"`stateful_http` listener takes `listener.session_idle`, from one minute to a day; an upstream\n" +
+		"`stateful_http` listener takes `listener.session_idle`, from one minute to a day, and\n" +
+		"`listener.max_sessions`, from 1 to 16384; an upstream\n" +
 		"needs exactly one of `endpoint` and `command`; `evidence.fsync_interval` is needed\n" +
 		"under the `interval` policy and refused under `every_record`; the `file` approval\n" +
 		"provider needs `approvals.dir` and `approvals.hold_journal_dir`, and that journal\n" +

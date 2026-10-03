@@ -147,7 +147,8 @@ tool stays in the list and `annotate` marks it as decided per call. A shaped
 list carries `cacheScope: "private"` and the operator's `ttlMs`, set by the
 gateway itself, because the library's cache hook does not run for an answer the
 middleware made, and the gateway's own cache of shaped lists is keyed by the
-end-user identity, stamped with the manifest's generation and bounded. The
+end-user identity and the bundle digest, stamped with the manifest's generation
+and bounded. The
 library offers no way to tell an agent that the list changed while the gateway
 registers no tools of its own, so the listener declares that it does not, and
 an agent refreshes when the cache's `ttlMs` runs out.

@@ -20,7 +20,7 @@ func (c *Config) check() error {
 	if err := checkRequired(c, configFields, ""); err != nil {
 		return err
 	}
-	for _, check := range []func() error{c.checkListener, c.checkSessionIdle, c.checkPolicy, c.checkPDP, c.checkApprovals, c.checkPause, c.checkRuns, c.checkFlow, c.checkEvidence, c.checkExport, c.checkShaping, c.checkUpstreams, c.checkOverrides} {
+	for _, check := range []func() error{c.checkListener, c.checkSessionIdle, c.checkMaxSessions, c.checkPolicy, c.checkPDP, c.checkApprovals, c.checkPause, c.checkRuns, c.checkFlow, c.checkEvidence, c.checkExport, c.checkShaping, c.checkUpstreams, c.checkOverrides} {
 		if err := check(); err != nil {
 			return err
 		}
@@ -67,6 +67,22 @@ func (c *Config) checkSessionIdle() error {
 	}
 	if c.Listener.SessionIdle < minSessionIdle || c.Listener.SessionIdle > maxSessionIdle {
 		return fmt.Errorf("listener.session_idle: %v is outside %v to %v", c.Listener.SessionIdle, minSessionIdle, maxSessionIdle)
+	}
+	return nil
+}
+
+// maxMaxSessions is the most listener.max_sessions takes: past it the
+// sessions clients may hold open outweigh what one plane is sized to keep.
+const maxMaxSessions = 16384
+
+// checkMaxSessions refuses a cap on sessions on a listener that keeps none,
+// and one outside its bounds.
+func (c *Config) checkMaxSessions() error {
+	if c.Listener.Kind != "stateful_http" && c.wasSet("listener.max_sessions") {
+		return fmt.Errorf("listener.max_sessions: only a stateful_http listener keeps sessions, and the kind is %s", c.Listener.Kind)
+	}
+	if c.Listener.MaxSessions < 1 || c.Listener.MaxSessions > maxMaxSessions {
+		return fmt.Errorf("listener.max_sessions: %d is outside 1 to %d", c.Listener.MaxSessions, maxMaxSessions)
 	}
 	return nil
 }

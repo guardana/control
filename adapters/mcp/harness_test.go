@@ -345,8 +345,11 @@ type rigOptions struct {
 	auth    func(http.Handler) http.Handler
 	// mode, when set, runs the rig on the real pipeline in that mode over a
 	// bundle of rules; without it the rig runs on the fake.
-	mode        controlv1.EnforcementMode
-	rules       []string
+	mode  controlv1.EnforcementMode
+	rules []string
+	// policy, when set, serves the real pipeline's snapshot in place of one
+	// built from rules.
+	policy      gateway.PolicySource
 	overrides   func(*victim, *testing.T) []mcp.Override
 	timeout     time.Duration
 	listTimeout time.Duration
@@ -361,6 +364,10 @@ type rigOptions struct {
 	// HTTP request's body; zero is each one's default.
 	sessionIdle time.Duration
 	bodyTimeout time.Duration
+	// maxSessions caps a stateful listener's live sessions; zero is the
+	// default. forceSessionCap sets a cap past New's checks.
+	maxSessions     int
+	forceSessionCap int
 }
 
 // identity is what an unauthenticated listener calls for. An authenticated
@@ -391,6 +398,7 @@ func newConfig(t *testing.T, v *victim, kind mcp.Kind, upstream sdk.Transport, o
 		Listener: mcp.Listener{
 			Kind: kind, Authenticator: o.auth, AuthnStrength: "bearer", Identity: identity(o.auth != nil),
 			Runs: o.runs, RunToken: o.runToken, SessionIdle: o.sessionIdle, BodyTimeout: o.bodyTimeout,
+			MaxSessions: o.maxSessions,
 		},
 		Upstreams:   []mcp.Upstream{{Name: "victim", Transport: upstream, TenantID: "t1", Environment: "prod"}},
 		Overrides:   overrides,
@@ -445,6 +453,20 @@ func newRig(t *testing.T, kind mcp.Kind, o rigOptions) *rig {
 	return newRigOver(t, newVictim(), kind, o)
 }
 
+// newAdapter builds the adapter of a rig, with a session cap forced past
+// New's checks when the options ask for one.
+func newAdapter(t *testing.T, v *victim, kind mcp.Kind, upstream sdk.Transport, o rigOptions) *mcp.Adapter {
+	t.Helper()
+	a, err := mcp.New(newConfig(t, v, kind, upstream, o))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if o.forceSessionCap > 0 {
+		mcp.ForceSessionCap(a, o.forceSessionCap)
+	}
+	return a
+}
+
 // newRigOver builds the arrangement for kind over v: HTTP on both hops for
 // the two HTTP listeners, a pipe toward the agent and an in-memory hop
 // upstream on stdio.
@@ -472,10 +494,7 @@ func newRigOver(t *testing.T, v *victim, kind mcp.Kind, o rigOptions) *rig {
 		t.Cleanup(func() { _ = ss.Close() })
 		upstream = ct
 	}
-	a, err := mcp.New(newConfig(t, r.victim, kind, upstream, o))
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	a := newAdapter(t, r.victim, kind, upstream, o)
 	pipeline := r.plan(t, a, o)
 	if err := a.Start(ctxT(t), pipeline); err != nil {
 		t.Fatalf("Start: %v", err)

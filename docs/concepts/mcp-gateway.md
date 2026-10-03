@@ -101,7 +101,10 @@ instead of losing the connection. `initialize` itself is not the
 middleware's: it goes to the library's own handler, like every method the
 middleware does not answer. A session idle for `listener.session_idle`,
 30 minutes by default, ends, so sessions a client opens and abandons do not
-hold the plane's memory; the client initializes again.
+hold the plane's memory; the client initializes again. At most
+`listener.max_sessions`, 1024 by default, are live at once, and an open past
+them is answered `503`; without authentication the cap bounds memory, not
+fairness, since one client that keeps its sessions active can hold every place.
 
 ```mermaid
 sequenceDiagram

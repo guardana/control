@@ -14,7 +14,8 @@ import (
 // Handler returns the agent-facing HTTP handler of a stateless or stateful
 // listener: a bound on reading the request body, then the origin check, then
 // the authenticator if any, then the run token check if the listener resolves
-// runs, then the library's Streamable HTTP handler over the adapter's server.
+// runs, then on a stateful listener the cap on live sessions, then the
+// library's Streamable HTTP handler over the adapter's server.
 // The library refuses a request whose Mcp-Method or Mcp-Name disagrees with
 // the body (-32020) and, on a stateful listener, a 2026-07-28 request
 // (-32022) before anything of the adapter's runs.
@@ -35,6 +36,9 @@ func (a *Adapter) Handler() (http.Handler, error) {
 		Stateless:      stateless,
 		SessionTimeout: idle,
 	})
+	if !stateless {
+		h = a.capSessions(h)
+	}
 	if a.cfg.Listener.Runs != nil {
 		h = a.runsCheck(h)
 	}
@@ -97,6 +101,9 @@ func (b *boundedWriter) Write(p []byte) (int, error) {
 		written += n
 		if err != nil {
 			return written, err
+		}
+		if n == 0 {
+			return written, io.ErrShortWrite
 		}
 		p = p[n:]
 	}

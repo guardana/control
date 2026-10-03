@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -63,21 +64,37 @@ func TestListCacheDropsAnOlderGeneration(t *testing.T) {
 	now := time.Now()
 	c := newListCache(time.Minute)
 	tools := []*mcp.Tool{{Name: "t"}}
-	c.put("alice", tools, 1, now)
-	if _, ok := c.get("alice", now); !ok {
+	c.put("alice", tools, "b1", 1, now)
+	if _, ok := c.get("alice", "b1", now); !ok {
 		t.Fatal("a list shaped from the current manifest was not kept")
 	}
 	c.reset(2)
-	if _, ok := c.get("alice", now); ok {
+	if _, ok := c.get("alice", "b1", now); ok {
 		t.Error("a refresh left a list cached")
 	}
-	c.put("alice", tools, 1, now)
-	if _, ok := c.get("alice", now); ok {
+	c.put("alice", tools, "b1", 1, now)
+	if _, ok := c.get("alice", "b1", now); ok {
 		t.Error("a list shaped from an older manifest was kept")
 	}
-	c.put("alice", tools, 2, now)
-	if _, ok := c.get("alice", now); !ok {
+	c.put("alice", tools, "b1", 2, now)
+	if _, ok := c.get("alice", "b1", now); !ok {
 		t.Error("a list shaped after the refresh was not kept")
+	}
+}
+
+// TestListCacheAnswersUnderItsBundleOnly: a list kept under one bundle is no
+// answer under another, and one kept under the other is.
+func TestListCacheAnswersUnderItsBundleOnly(t *testing.T) {
+	now := time.Now()
+	c := newListCache(time.Minute)
+	tools := []*mcp.Tool{{Name: "t"}}
+	c.put("alice", tools, "b1", 1, now)
+	if _, ok := c.get("alice", "b2", now); ok {
+		t.Error("a list shaped under b1 answered under b2")
+	}
+	c.put("alice", tools, "b2", 1, now)
+	if _, ok := c.get("alice", "b2", now); !ok {
+		t.Error("a list shaped under b2 did not answer under b2")
 	}
 }
 
@@ -88,18 +105,18 @@ func TestListCacheIsBounded(t *testing.T) {
 	c := newListCache(time.Minute)
 	tools := []*mcp.Tool{{Name: "t"}}
 	for i := range maxCachedLists {
-		c.put(strconv.Itoa(i), tools, 1, now)
+		c.put(strconv.Itoa(i), tools, "b1", 1, now)
 	}
 	if c.len() != maxCachedLists {
 		t.Fatalf("the cache holds %d lists, want %d", c.len(), maxCachedLists)
 	}
-	c.put("one-too-many", tools, 1, now)
-	if _, ok := c.get("one-too-many", now); ok || c.len() != maxCachedLists {
+	c.put("one-too-many", tools, "b1", 1, now)
+	if _, ok := c.get("one-too-many", "b1", now); ok || c.len() != maxCachedLists {
 		t.Errorf("the cache grew past its bound: %d lists", c.len())
 	}
 	later := now.Add(2 * time.Minute)
-	c.put("after-they-expire", tools, 1, later)
-	if _, ok := c.get("after-they-expire", later); !ok {
+	c.put("after-they-expire", tools, "b1", 1, later)
+	if _, ok := c.get("after-they-expire", "b1", later); !ok {
 		t.Errorf("an expired list did not make room: %d lists", c.len())
 	}
 }
@@ -242,6 +259,46 @@ func TestUnderBrandFoldsTheNamespaceOnly(t *testing.T) {
 	} {
 		if got := underBrand(key); got != want {
 			t.Errorf("underBrand(%q) = %v, want %v", key, got, want)
+		}
+	}
+}
+
+// stuckWriter accepts nothing and reports no error, and takes a deadline.
+type stuckWriter struct{ header http.Header }
+
+func (s *stuckWriter) Header() http.Header              { return s.header }
+func (s *stuckWriter) Write([]byte) (int, error)        { return 0, nil }
+func (s *stuckWriter) WriteHeader(int)                  {}
+func (s *stuckWriter) SetWriteDeadline(time.Time) error { return nil }
+
+// TestABoundedWriteThatMovesNothingFails: an inner writer that takes no byte
+// and reports no error ends the write with io.ErrShortWrite instead of
+// looping on it.
+func TestABoundedWriteThatMovesNothingFails(t *testing.T) {
+	w := &stuckWriter{header: http.Header{}}
+	b := &boundedWriter{ResponseWriter: w, rc: http.NewResponseController(w), bound: time.Second}
+	done := make(chan error, 1)
+	go func() {
+		_, err := b.Write([]byte("answer"))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, io.ErrShortWrite) {
+			t.Errorf("a write that moved nothing returned %v, want io.ErrShortWrite", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a write that moved nothing never returned")
+	}
+}
+
+// TestASessionCapLeftUnsetIsTheDefault: a listener that names no cap is
+// capped at 1024 sessions, and one that names a cap at that cap.
+func TestASessionCapLeftUnsetIsTheDefault(t *testing.T) {
+	for set, want := range map[int]int{0: 1024, 1: 1, 7: 7} {
+		a := &Adapter{cfg: Config{Listener: Listener{MaxSessions: set}}}
+		if got := a.sessionLimit(); got != want {
+			t.Errorf("MaxSessions %d caps at %d, want %d", set, got, want)
 		}
 	}
 }

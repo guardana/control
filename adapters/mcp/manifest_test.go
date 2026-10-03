@@ -139,6 +139,11 @@ func TestNewRefusesEachMisconfiguration(t *testing.T) {
 		{"zero listener kind", func(c *mcp.Config) { c.Listener.Kind = 0 }, mcp.ErrListener},
 		{"unknown listener kind", func(c *mcp.Config) { c.Listener.Kind = 99 }, mcp.ErrListener},
 		{"authenticator on stdio", func(c *mcp.Config) { c.Listener.Authenticator = bearer() }, mcp.ErrListener},
+		{"a negative cap on sessions", func(c *mcp.Config) { c.Listener.MaxSessions = -1 }, mcp.ErrListener},
+		{"a cap on sessions on stdio", func(c *mcp.Config) { c.Listener.MaxSessions = 1 }, mcp.ErrListener},
+		{"a cap on sessions on stateless HTTP", func(c *mcp.Config) {
+			c.Listener.Kind, c.Listener.MaxSessions = mcp.KindStatelessHTTP, 1
+		}, mcp.ErrListener},
 		{"a run token without a resolver", func(c *mcp.Config) { c.Listener.RunToken = "run-0.token" }, mcp.ErrRunsSource},
 		{"a stdio resolver without a token", func(c *mcp.Config) { c.Listener.Runs = &fakeRuns{} }, mcp.ErrRunsSource},
 		{"no principal", func(c *mcp.Config) { c.Listener.Identity.Principal = nil }, mcp.ErrIdentity},

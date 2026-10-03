@@ -136,6 +136,12 @@ var seamRows = []Metric{
 	signed("adapter_refresh_failures_total", "Adapter.RefreshFailures",
 		"Tool list reads that failed, each dropping that upstream's entries.",
 		func(r Reading) int64 { return r.Adapter.RefreshFailures }),
+	signed("adapter_sessions_refused_total", "Adapter.SessionsRefused",
+		"Sessionless POSTs a stateful listener counted as opens and answered 503 at its cap on live sessions.",
+		func(r Reading) int64 { return r.Adapter.SessionsRefused }),
+	level("adapter_sessions_live", "Adapter.SessionsLive",
+		"Sessions a stateful listener holds; 0 on any other listener.",
+		func(r Reading) int64 { return r.Adapter.SessionsLive }),
 
 	count("pause_polls_total", "Pause.Polls",
 		"Reads of the pause file, the first included.",

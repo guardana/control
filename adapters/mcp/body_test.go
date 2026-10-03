@@ -202,88 +202,114 @@ func (e *endWatch) Read(p []byte) (int, error) {
 const bigAnswer = 12 << 20
 
 // bigAnswerRig serves a tool whose answer is bigAnswer bytes and a marker,
-// and reports on cut each write of an answer that failed, as the library
-// sees it.
-func bigAnswerRig(t *testing.T) (r *rig, cut <-chan error) {
+// and watches each write of an answer as the library makes it.
+func bigAnswerRig(t *testing.T) (*rig, *writeWatch) {
 	t.Helper()
-	failed := make(chan error, 16)
+	watch := &writeWatch{failed: make(chan error, 16)}
 	o := rigOptions{bodyTimeout: bodyBound, auth: func(next http.Handler) http.Handler {
 		inner := bearer()(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			inner.ServeHTTP(&writeWatch{ResponseWriter: w, failed: failed}, r)
+			inner.ServeHTTP(&watchedWriter{ResponseWriter: w, watch: watch}, r)
 		})
 	}}
-	r = newRig(t, mcp.KindStatelessHTTP, o)
+	r := newRig(t, mcp.KindStatelessHTTP, o)
 	replaceTool(r, "slow", func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
 		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: strings.Repeat("a", bigAnswer) + "END-OF-ANSWER"}}}, nil
 	})
-	return r, failed
+	return r, watch
 }
 
-// writeWatch reports every write that fails.
+// writeWatch reports on failed every write that fails, and keeps how long
+// the longest write took.
 type writeWatch struct {
-	http.ResponseWriter
-	failed chan<- error
+	failed  chan error
+	longest atomic.Int64
 }
 
-func (w *writeWatch) Write(p []byte) (int, error) {
+type watchedWriter struct {
+	http.ResponseWriter
+	watch *writeWatch
+}
+
+func (w *watchedWriter) Write(p []byte) (int, error) {
+	start := time.Now()
 	n, err := w.ResponseWriter.Write(p)
+	took := int64(time.Since(start))
+	for {
+		if was := w.watch.longest.Load(); took <= was || w.watch.longest.CompareAndSwap(was, took) {
+			break
+		}
+	}
 	if err != nil {
 		select {
-		case w.failed <- err:
+		case w.watch.failed <- err:
 		default:
 		}
 	}
 	return n, err
 }
 
-func (w *writeWatch) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *watchedWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // TestAnAnswerTheClientDoesNotReadIsCut: a client that sends its call and
 // then reads nothing has its answer's write fail once it has waited past the
-// bound, and what it reads afterwards is cut, while an agent that reads gets
-// the whole answer.
+// bound, and what it reads afterwards ends short, ended by the plane and not
+// by the client's own patience, while an agent that reads gets the whole
+// answer.
 func TestAnAnswerTheClientDoesNotReadIsCut(t *testing.T) {
-	r, cut := bigAnswerRig(t)
+	r, watch := bigAnswerRig(t)
 	res, err := callTool(t, r.connect(t, "agent-a"), "slow", map[string]any{"path": "/x"})
 	if err != nil || len(res.Content) != 1 || !strings.HasSuffix(res.Content[0].(*sdk.TextContent).Text, "END-OF-ANSWER") {
 		t.Fatalf("an agent that reads did not get the whole answer: %v", err)
 	}
 	select {
-	case err := <-cut:
+	case err := <-watch.failed:
 		t.Fatalf("a write to an agent that reads failed: %v", err)
 	default:
 	}
 
 	conn := sendCall(t, r.url, "slow", 4096)
 	select {
-	case err := <-cut:
+	case err := <-watch.failed:
 		if !errors.Is(err, os.ErrDeadlineExceeded) {
 			t.Errorf("the write to a client that reads nothing failed with %v, want its deadline", err)
 		}
 	case <-time.After(60 * time.Second):
-		t.Fatal("the write to a client that reads nothing never failed")
+		t.Error("the write to a client that reads nothing never failed")
 	}
 	if err := conn.SetReadDeadline(time.Now().Add(20 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
+	data, err := readAnswer(conn)
+	switch {
+	case strings.Contains(string(data), "END-OF-ANSWER"):
+		t.Error("a client whose answer's write failed still got the whole answer")
+	case err == nil:
+		t.Errorf("a cut answer of %d bytes ended as if it were whole", len(data))
+	case errors.Is(err, os.ErrDeadlineExceeded):
+		t.Errorf("after %d bytes the client's own deadline ended the read: the plane held the connection", len(data))
+	}
+}
+
+// readAnswer reads one answer from conn, its body whole or up to the error
+// that ended it.
+func readAnswer(conn net.Conn) ([]byte, error) {
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
-		return
+		return nil, err
 	}
-	data, err := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	if err == nil && strings.Contains(string(data), "END-OF-ANSWER") {
-		t.Error("a client whose answer's write failed still got the whole answer")
-	}
+	defer func() { _ = resp.Body.Close() }()
+	return io.ReadAll(resp.Body)
 }
 
 // TestASlowSteadyReaderGetsTheWholeAnswer: a client that reads the answer
 // steadily, at a pace that takes far longer than the bound in all, gets all
-// of it: the bound measures progress, not the whole answer.
+// of it: the bound measures progress, not the whole answer. The answer's
+// write has to outlast the bound, or socket buffers took it whole and no
+// slice's deadline was ever at stake.
 func TestASlowSteadyReaderGetsTheWholeAnswer(t *testing.T) {
-	r, cut := bigAnswerRig(t)
-	conn := sendCall(t, r.url, "slow", 0)
+	r, watch := bigAnswerRig(t)
+	conn := sendCall(t, r.url, "slow", 4096)
 	if err := conn.SetReadDeadline(time.Now().Add(120 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
@@ -294,12 +320,15 @@ func TestASlowSteadyReaderGetsTheWholeAnswer(t *testing.T) {
 	data, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if err != nil || !strings.Contains(string(data), "END-OF-ANSWER") {
-		t.Errorf("a steady reader got %d bytes and %v, want the whole answer", len(data), err)
+		t.Fatalf("a steady reader got %d bytes and %v, want the whole answer", len(data), err)
 	}
 	select {
-	case err := <-cut:
+	case err := <-watch.failed:
 		t.Errorf("a write to a steady reader failed: %v", err)
 	default:
+	}
+	if took := time.Duration(watch.longest.Load()); took <= 2*bodyBound {
+		t.Errorf("the answer was written in %v, within twice the bound of %v: the buffers took it, and no slice was at stake", took, bodyBound)
 	}
 }
 
@@ -308,20 +337,14 @@ func TestASlowSteadyReaderGetsTheWholeAnswer(t *testing.T) {
 const pacedRate = 4 << 20
 
 // paced reads no faster than pacedRate bytes a second, however the reads
-// above it are sized.
-type paced struct {
-	r     io.Reader
-	start time.Time
-	read  int
-}
+// above it are sized and however late the answer starts: each read waits as
+// long as its bytes take at that rate, so a late start is never caught up
+// in a burst.
+type paced struct{ r io.Reader }
 
 func (p *paced) Read(b []byte) (int, error) {
-	if p.start.IsZero() {
-		p.start = time.Now()
-	}
-	time.Sleep(time.Until(p.start.Add(time.Duration(p.read) * time.Second / pacedRate)))
 	n, err := p.r.Read(b[:min(len(b), 32<<10)])
-	p.read += n
+	time.Sleep(time.Duration(n) * time.Second / pacedRate)
 	return n, err
 }
 

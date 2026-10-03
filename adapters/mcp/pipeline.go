@@ -31,8 +31,9 @@ func (e Error) Error() string { return string(e) }
 
 // New's refusals.
 const (
-	// ErrListener is a listener kind this build does not know, or an
-	// authenticator on a listener that has no HTTP request to authenticate.
+	// ErrListener is a listener kind this build does not know, an
+	// authenticator on a listener that has no HTTP request to authenticate,
+	// or a cap on sessions that is negative or on a listener that keeps none.
 	ErrListener Error = "mcp: the listener is not one this build serves"
 	// ErrIdentity is a listener with no principal or no agent configured, or
 	// an authenticated listener whose configured principal carries more than

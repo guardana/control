@@ -82,7 +82,7 @@ func (r *rig) plan(t *testing.T, a *mcp.Adapter, o rigOptions) mcp.Pipeline {
 		Mode:          o.mode,
 		Adapter:       a,
 		KernelOptions: core.Options{MaxStale: 10 * time.Minute},
-		Policy:        fixedPolicy{snap: snapshot(t, o.rules...)},
+		Policy:        policyOf(t, o),
 		Pause:         gateway.PauseDisabled(),
 		Sink:          r.sink,
 		Approvals:     r.approvals,
@@ -104,6 +104,23 @@ func (r *rig) plan(t *testing.T, a *mcp.Adapter, o rigOptions) mcp.Pipeline {
 type fixedPolicy struct{ snap *policy.Snapshot }
 
 func (f fixedPolicy) Current() *policy.Snapshot { return f.snap }
+
+// policyOf is the options' policy source, or a fixed snapshot of their rules.
+func policyOf(t *testing.T, o rigOptions) gateway.PolicySource {
+	t.Helper()
+	if o.policy != nil {
+		return o.policy
+	}
+	return fixedPolicy{snap: snapshot(t, o.rules...)}
+}
+
+// swappedPolicy serves the snapshot stored last, as a plane that installed a
+// new bundle does.
+type swappedPolicy struct {
+	snap atomic.Pointer[policy.Snapshot]
+}
+
+func (s *swappedPolicy) Current() *policy.Snapshot { return s.snap.Load() }
 
 func key() ed25519.PrivateKey {
 	return ed25519.NewKeyFromSeed(bytes.Repeat([]byte{1}, ed25519.SeedSize))

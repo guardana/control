@@ -47,6 +47,12 @@ verify one.
   before it ends, from one minute to a day; the default stays 30 minutes. A
   client that only listens on its GET stream is idle. Another listener kind
   refuses the key.
+- `listener.max_sessions` caps a `stateful_http` listener's live sessions,
+  from 1 to 16384, 1024 by default; an open past it is answered `503`, and a
+  request whose body is still arriving holds no place. Another listener kind
+  refuses the key. `/metrics` carries
+  `guardana_control_adapter_sessions_live` and
+  `guardana_control_adapter_sessions_refused_total`.
 
 ### Changed
 
@@ -141,6 +147,13 @@ verify one.
   load under `bundle_invalid`; both were counted under `floor`, which now means
   only a floor that could not be read or raised, a raise that timed out
   included.
+- A shaped `tools/list` answer is cached under the policy bundle it was shaped
+  under, so a list shaped under one bundle is no longer served once another
+  is in force.
+- The health listener bounds a whole request at 30 seconds, so a trickled
+  body no longer holds a connection.
+- An answer write that moves no bytes fails instead of being retried without
+  end.
 - The hold journal and the trail file refuse a directory or a file another
   account owns, and a platform that names no owner; the hold journal reaches
   its entries only through the directory it opened and refuses one swapped in

@@ -109,7 +109,10 @@ instead of losing the connection. <code>initialize</code> itself is not the
 middleware's: it goes to the library's own handler, like every method the
 middleware does not answer. A session idle for <code>listener.session_idle</code>,
 30 minutes by default, ends, so sessions a client opens and abandons do not
-hold the plane's memory; the client initializes again.</p>
+hold the plane's memory; the client initializes again. At most
+<code>listener.max_sessions</code>, 1024 by default, are live at once, and an open past
+them is answered <code>503</code>; without authentication the cap bounds memory, not
+fairness, since one client that keeps its sessions active can hold every place.</p>
 <figure class="dg-text" id="diagram-3"><figcaption>A call on the stateful revision</figcaption><p>A stateful listener answers a 2026-07-28 request with -32022; the client initializes on 2025-11-25 and calls on that session, and the adapter hands the envelope to the pipeline as on the other revision. <a href="https://github.com/guardana/control/blob/main/docs/concepts/mcp-gateway.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">sequenceDiagram
     accTitle: A call on the stateful revision
     accDescr: A stateful listener answers a 2026-07-28 request with -32022; the client initializes on 2025-11-25 and calls on that session, and the adapter hands the envelope to the pipeline as on the other revision.

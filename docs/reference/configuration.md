@@ -15,7 +15,8 @@ refused rather than ignored, and a required key with no default has to be set by
 file or by a variable. A key with a default is never without a value, so `yes` under
 Required matters only where the default is empty. Some requirements depend on another
 key and are not in the table: an HTTP listener needs `listener.address`, and only a
-`stateful_http` listener takes `listener.session_idle`, from one minute to a day; an upstream
+`stateful_http` listener takes `listener.session_idle`, from one minute to a day, and
+`listener.max_sessions`, from 1 to 16384; an upstream
 needs exactly one of `endpoint` and `command`; `evidence.fsync_interval` is needed
 under the `interval` policy and refused under `every_record`; the `file` approval
 provider needs `approvals.dir` and `approvals.hold_journal_dir`, and that journal
@@ -45,6 +46,7 @@ Rendered from the field table in `internal/gatewayconfig`. Rebuild it with
 | `listener.kind` | `GUARDANA_CONTROL_LISTENER_KIND` | one of | `stateless_http` | yes | `stateless_http`, `stateful_http`, `stdio` |
 | `listener.address` | `GUARDANA_CONTROL_LISTENER_ADDRESS` | string | `127.0.0.1:8080` | no |  |
 | `listener.session_idle` | `GUARDANA_CONTROL_LISTENER_SESSION_IDLE` | duration | `30m` | no |  |
+| `listener.max_sessions` | `GUARDANA_CONTROL_LISTENER_MAX_SESSIONS` | integer | `1024` | no |  |
 | `listener.principal.id` | `GUARDANA_CONTROL_LISTENER_PRINCIPAL_ID` | string |  | yes |  |
 | `listener.principal.type` | `GUARDANA_CONTROL_LISTENER_PRINCIPAL_TYPE` | string | `service` | no |  |
 | `listener.principal.tenant_id` | `GUARDANA_CONTROL_LISTENER_PRINCIPAL_TENANT_ID` | string |  | no |  |
