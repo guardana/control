@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"syscall"
 	"testing"
 )
 
@@ -58,6 +59,40 @@ func TestOpenRefusesAFileOfAnotherAccountInItsOwnDirectory(t *testing.T) {
 	if got := contents(t, path); got != firstLine+tornTail {
 		t.Errorf("the refused Open changed the file to %q", got)
 	}
+}
+
+// TestOpenRefusesADirectoryRootOwns: with the account check as it ships, a
+// directory root owns is another account's to any other process, so a trail
+// is neither opened nor made in it. The root directory's mode lets neither the
+// group nor others write, so the owner is what refuses it.
+func TestOpenRefusesADirectoryRootOwns(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("as root the root directory is this process's own; the refusal needs another account")
+	}
+	dir := rootOwnedDir(t)
+	path := filepath.Join(dir, "owner-probe.trail")
+	if w, err := Open(path); !errors.Is(err, ErrOwner) || w != nil {
+		t.Errorf("Open in a directory root owns = %v, %v; want ErrOwner", w, err)
+	}
+	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the refused Open left something at %s: %v", path, err)
+	}
+}
+
+// rootOwnedDir is the root directory, after checking it is root's and that
+// neither the group nor others may write it.
+func rootOwnedDir(t *testing.T) string {
+	t.Helper()
+	const dir = "/"
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatalf("reading the root directory: %v", err)
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || st.Uid != 0 || info.Mode().Perm()&forbidden != 0 {
+		t.Fatalf("the root directory is not root's alone (stat %T, mode %04o); this test has nothing to judge", info.Sys(), info.Mode().Perm())
+	}
+	return dir
 }
 
 // wantOwner makes uid name the account each file and directory Open judges

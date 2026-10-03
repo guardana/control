@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"syscall"
 	"testing"
 
 	"github.com/guardana/control/internal/holdjournal"
@@ -45,6 +46,32 @@ func TestADirectoryAnotherAccountOwnsIsRefused(t *testing.T) {
 	j := openJournal(t, dir)
 	if err := j.Close(); err != nil {
 		t.Fatalf("the same directory under its own account: %v", err)
+	}
+}
+
+// TestADirectoryRootOwnsIsRefused: with the account check as it ships, a
+// directory root owns is another account's to any other process, so neither a
+// plane nor a reader opens it. The root directory's mode lets neither the
+// group nor others write, so the owner is what refuses it.
+func TestADirectoryRootOwnsIsRefused(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("as root the root directory is this process's own; the refusal needs another account")
+	}
+	const dir = "/"
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatalf("reading the root directory: %v", err)
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); !ok || st.Uid != 0 || info.Mode().Perm()&0o022 != 0 {
+		t.Fatalf("the root directory is not root's alone (stat %T, mode %04o); this test has nothing to judge", info.Sys(), info.Mode().Perm())
+	}
+	for name, open := range map[string]func(string, ...holdjournal.Option) (*holdjournal.Journal, error){
+		"a plane":  holdjournal.Open,
+		"a reader": holdjournal.OpenReadOnly,
+	} {
+		if j, err := open(dir); !errors.Is(err, holdjournal.ErrOwner) || j != nil {
+			t.Errorf("%s over a directory root owns: %v, %v; want ErrOwner", name, j, err)
+		}
 	}
 }
 
@@ -305,7 +332,27 @@ func TestAClosedJournalKeepsNoDescriptor(t *testing.T) {
 	}
 }
 
+// openDescriptors counts this process's open descriptors, and fails the test
+// unless one more opened is counted, so a listing that shows none of them
+// cannot pass for a count that did not change.
 func openDescriptors(t *testing.T) int {
+	t.Helper()
+	before := listDescriptors(t)
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("opening a descriptor to count: %v", err)
+	}
+	opened := listDescriptors(t)
+	if err := f.Close(); err != nil {
+		t.Fatalf("closing the counted descriptor: %v", err)
+	}
+	if opened != before+1 {
+		t.Fatalf("%d descriptors listed with one more open, %d before it; the listing does not count them", opened, before)
+	}
+	return before
+}
+
+func listDescriptors(t *testing.T) int {
 	t.Helper()
 	fds, err := os.ReadDir("/dev/fd")
 	if err != nil {

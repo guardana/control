@@ -2,6 +2,7 @@ package gateway_test
 
 import (
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -150,6 +151,93 @@ func TestAResumeBehindItsRequestSpendsNothing(t *testing.T) {
 	again := r.admit(retry(t, "req-3"), refundArgs())
 	if again.Action != core.Execute || again.ExecutionID == "" {
 		t.Fatalf("a resume at the request's instant: Action = %d, codes %v", again.Action, again.Decision.GetReasonCodes())
+	}
+}
+
+// scriptedClock reads through to next until armed; armed, it serves its
+// readings in order, then the last of them, and counts every read it served.
+type scriptedClock struct {
+	mu       sync.Mutex
+	next     func() time.Time
+	readings []time.Time
+	served   int
+}
+
+func (s *scriptedClock) read() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.readings) == 0 {
+		return s.next()
+	}
+	at := s.readings[min(s.served, len(s.readings)-1)]
+	s.served++
+	return at
+}
+
+func (s *scriptedClock) arm(readings ...time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.readings, s.served = readings, 0
+}
+
+func (s *scriptedClock) disarm() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	served := s.served
+	s.readings, s.served = nil, 0
+	return served
+}
+
+// TestAResumeBehindADecisionItReliedOnSpendsNothing: a resume reads the
+// clock once at its start, the kernel reads it deciding the proposed refund
+// and again deciding the capped one, and the resume reads it once more before
+// consuming. A last reading behind a decision's reading, though after the
+// request and the start, proves the approval unexpired at no instant the call
+// may rely on, so nothing is consumed and the hold stands; the authorized
+// decision's reading counts as much as the proposed one's. A retry the clock
+// does not set back runs on the same approval.
+func TestAResumeBehindADecisionItReliedOnSpendsNothing(t *testing.T) {
+	start, decided, consumeAt := base().Add(2*time.Minute), base().Add(6*time.Minute), base().Add(4*time.Minute)
+	for _, c := range []struct {
+		name                 string
+		proposed, authorized time.Time
+	}{
+		{"behind both decisions", decided, decided},
+		{"behind the authorized decision only", start, decided},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			sc := &scriptedClock{}
+			r := lapsingUnder(t, snapshot(t, approveRefunds), func(cfg *gateway.Config) {
+				sc.next = cfg.Clock
+				cfg.Clock = sc.read
+			})
+			script := []time.Time{start, c.proposed, c.proposed, c.authorized, c.authorized, consumeAt}
+			sc.arm(script...)
+			d := r.admit(retry(t, "req-2"), refundArgs())
+			served := sc.disarm()
+			if got := r.store.consumed.Load(); got != 0 {
+				t.Fatalf("Consume was called %d time(s) behind a decision; want none", got)
+			}
+			if served != len(script) {
+				t.Fatalf("the resume read the clock %d time(s); the script is for %d", served, len(script))
+			}
+			expectBlock(t, d, verdictDeny, codeApprovalExpired, gateway.PDPType)
+			if got := d.Decision.GetDecidedAt().AsTime(); !got.Equal(consumeAt) {
+				t.Errorf("the block is dated %v; want the reading before the consume, %v", got, consumeAt)
+			}
+			trail := r.trailOf("req-2")
+			if len(trail) < 2 || !trail[1].GetDecision().GetDecidedAt().AsTime().Equal(c.authorized) {
+				t.Fatalf("the retry's recorded decision is not the authorized one at %v: %v", c.authorized, trail)
+			}
+			if entries := r.journal.Entries(); len(entries) != 1 {
+				t.Fatalf("the journal keeps %d entries, want the hold's", len(entries))
+			}
+			r.clock.set(decided)
+			again := r.admit(retry(t, "req-3"), refundArgs())
+			if again.Action != core.Execute || again.ExecutionID == "" {
+				t.Fatalf("a resume at the decision's reading: Action = %d, codes %v", again.Action, again.Decision.GetReasonCodes())
+			}
+		})
 	}
 }
 

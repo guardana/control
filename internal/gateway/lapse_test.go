@@ -80,16 +80,17 @@ func lapsing(t *testing.T) *lapseRig {
 	return lapsingUnder(t, snapshot(t, approveRefunds))
 }
 
-// lapsingUnder is lapsing over snap, a snapshot of approveRefunds.
-func lapsingUnder(t *testing.T, snap *policy.Snapshot) *lapseRig {
+// lapsingUnder is lapsing over snap, a snapshot of approveRefunds; mut edits
+// the config after the rig's own edits.
+func lapsingUnder(t *testing.T, snap *policy.Snapshot, mut ...func(*gateway.Config)) *lapseRig {
 	t.Helper()
 	r := &lapseRig{journal: &slowJournal{}}
-	r.harness = build(t, modeEnforce, snap, func(cfg *gateway.Config) {
+	r.harness = build(t, modeEnforce, snap, append([]func(*gateway.Config){func(cfg *gateway.Config) {
 		cfg.Journal = r.journal
 		r.store = &spendingStore{ApprovalStore: cfg.Approvals}
 		cfg.Approvals = r.store
 		cfg.ApprovalTTL = lapseTTL
-	})
+	}}, mut...)...)
 	r.first = hold(t, r.harness)
 	if got := r.first.Pending.ExpiresAt; !got.Equal(base().Add(lapseTTL)) {
 		t.Fatalf("the hold expires at %s, want %s", got, base().Add(lapseTTL))
