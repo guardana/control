@@ -55,7 +55,7 @@ the plane's own account, someone on the network, and a tampered release.
 ```mermaid
 flowchart TD
     accTitle: Trust boundaries
-    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane's machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file and the key by their owner too, and on the spool's directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
+    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane's machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file, the hold journal, the trail file and the key by their owner too, and on the spool's directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
     Agent["Agent and its model"] -->|"MCP; a run token under runs.dir"| Plane
     Agent -.->|"a path around the plane"| Http
     subgraph Host["The plane's machine"]
@@ -74,7 +74,7 @@ flowchart TD
     Plane -->|"writes evidence first"| Spool
     Page -->|"writes answers and pauses"| Files
     Browser["Browser"] -->|"loopback, a token traded once"| Page
-    Other -.->|"refused on mode, keys and pause file on owner"| Files
+    Other -.->|"refused on mode; pause file, hold journal, trail file and key on owner"| Files
     Other -.->|"files 0600, directory owner and mode checked"| Spool
     Other -->|"no credential"| Collect
     Plane -->|"exactly the authorized bytes"| Http["HTTP upstream"]
@@ -91,7 +91,8 @@ The boxes are the boundaries. A dotted line is either a path that goes around
 the plane or a write that the file checks refuse. The account is the strongest boundary this
 build has: the approvals directory, the pause file, the hold journal, the
 trail file and the key are each refused when the group or the world may write
-them, and the pause file and the key also when another account owns them.
+them, and the pause file, the hold journal, the trail file and the key also
+when another account owns them.
 Inside that account nothing is separated from anything.
 
 ## An agent that is wrong or steered
@@ -258,13 +259,21 @@ What the plane does today:
   call (`internal/pause/snapshot.go`;
   `TestAPauseFileOwnedByAnotherAccountIsUnknown`).
 - The hold journal's directory is refused when the group or the world may
-  write it (`internal/holdjournal/journal.go`).
+  write it or another account owns it, at the start and at every call, and an
+  entry another account owns is not read; the journal reaches its entries only
+  through the directory it opened, so one put at the name later is refused
+  (`internal/holdjournal/journal.go`;
+  `TestADirectoryAnotherAccountOwnsIsRefused`,
+  `TestAFileOfAnotherAccountIsNotRead`,
+  `TestADirectoryChangedUnderTheJournalIsRefused`).
 - A private key file another account owns or has any permission on is
   refused (`internal/policykey/private.go`; `TestReadPrivateModeTable`).
 - The trail file is created `0600`, and an existing one the group or the
-  world may write is refused (`internal/trailfile/writer.go`;
+  world may write is refused, as is a file or a directory another account
+  owns (`internal/trailfile/writer.go`;
   `TestOpenCreatesAFileOnlyItsOwnerMayRead`,
-  `TestOpenRefusesWhatAnotherCouldWrite`).
+  `TestOpenRefusesWhatAnotherCouldWrite`,
+  `TestOpenRefusesADirectoryAnotherAccountOwns`).
 - The approvals page listens on `127.0.0.1` only, answers only its exact
   `Host`, and needs a session traded once from a printed token; each refusal
   leaves the record pending (`internal/console/`;

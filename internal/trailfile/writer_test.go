@@ -29,6 +29,32 @@ func TestOpenCreatesAFileOnlyItsOwnerMayRead(t *testing.T) {
 	}
 }
 
+// TestOpenRefusesAPathThatNamesNoFile: the last element of such a path is
+// not a file name, and cutting it off would open a file the operator did not
+// name, so nothing is opened or made anywhere.
+func TestOpenRefusesAPathThatNamesNoFile(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "x")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	sep := string(os.PathSeparator)
+	for _, path := range []string{"", sep, dir + sep, dir + sep + sep, dir + sep + ".", dir + sep + ".."} {
+		w, err := Open(path)
+		if !errors.Is(err, ErrPath) || w != nil {
+			t.Errorf("Open(%q) = %v, %v; want ErrPath", path, w, err)
+		}
+		if w != nil {
+			_ = w.Close()
+		}
+	}
+	for _, d := range []string{parent, dir} {
+		if names, err := os.ReadDir(d); err != nil || len(names) != map[string]int{parent: 1, dir: 0}[d] {
+			t.Errorf("%s holds %v, %v after the refused opens", d, names, err)
+		}
+	}
+}
+
 // TestOpenRefusesWhatAnotherCouldWrite: each refused case sits beside the one
 // accepted that differs from it only in what the refusal is about.
 func TestOpenRefusesWhatAnotherCouldWrite(t *testing.T) {

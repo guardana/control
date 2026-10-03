@@ -9,11 +9,12 @@ import (
 	"syscall"
 )
 
-// lockDir takes an exclusive lock on the directory itself and returns what
-// releases it. The kernel drops the lock when the process dies, so a plane
-// that crashed leaves nothing behind that refuses the next one.
-func lockDir(dir string) (func() error, error) {
-	d, err := os.Open(dir) //nolint:gosec // G304: the directory checked at Open
+// lockDir takes an exclusive lock on the directory root holds, which dir
+// names, and returns what releases it. The kernel drops the lock when the
+// process dies, so a plane that crashed leaves nothing behind that refuses the
+// next one.
+func lockDir(root *os.Root, dir string) (func() error, error) {
+	d, err := root.Open(".")
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrNotAJournal, err)
 	}

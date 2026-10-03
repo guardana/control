@@ -20,7 +20,9 @@ commands are `experimental`; [status.md](../status.md) is the inventory.
 ## Prerequisites
 
 - A plane you can run ([run-the-gateway.md](run-the-gateway.md)).
-- A directory for the trail file that neither the group nor others may write.
+- A directory for the trail file that the account running `collect` owns and
+  that neither the group nor others may write; a directory or a file another
+  account owns is refused.
   Events carry tenant and principal ids, so the file is created mode `0600`.
 
 ## Steps
@@ -37,7 +39,8 @@ appends to. It runs until you stop it with Ctrl-C or `SIGTERM`, and waits up to 
 seconds for the requests in flight before it exits. One collect holds a file at a time; a
 second one on the same file is refused.
 
-`--out` names a trail file or a path where no file exists yet. A file that is
+`--out` names a trail file or a path where no file exists yet; a path that
+ends in a separator, `.` or `..` names no file and is refused. A file that is
 not a trail, such as notes, is refused as damaged and left as it was. A last
 line with no newline is what a crash leaves of an append the plane was never
 told about, and collect removes it, but only when it can be the start of an

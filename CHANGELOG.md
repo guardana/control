@@ -133,6 +133,12 @@ verify one.
 - The plane strips a key under its namespace from an upstream's `_meta` and
   error data in any letter case, since a client may match keys to its own
   fields without regard to case.
+- The hold journal and the trail file refuse a directory or a file another
+  account owns, and a platform that names no owner; the hold journal reaches
+  its entries only through the directory it opened and refuses one swapped in
+  at its name later. A plane no longer starts over a journal directory another
+  account owns, and `collect --out` refuses a path that names no file, such as
+  one ending in a separator.
 - A clock reading before 1970, the zero time among them, no longer lets the
   kernel decide: the call is `INDETERMINATE` with `POLICY_STALE` and blocks on
   every effect class, fail-open reads included. Such a reading let an expired

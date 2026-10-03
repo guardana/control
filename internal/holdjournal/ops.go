@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"slices"
 )
 
@@ -168,7 +167,7 @@ func (j *Journal) readInto(out *Listing, name string) {
 // pass: the journal owns its directory, and guessing what else is in it is how
 // a forged name gets read as an entry.
 func (j *Journal) entryNames() ([]string, error) {
-	listed, err := os.ReadDir(j.dir)
+	listed, err := j.readDir()
 	if err != nil {
 		return nil, err
 	}

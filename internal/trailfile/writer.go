@@ -48,11 +48,11 @@ type Writer struct {
 
 // Open opens the file at path for appending, creating it mode 0600, and holds
 // it until Close. It refuses a directory or an existing file the group or
-// others may write, a link, anything that is not a regular file, and a file
-// another writer holds. A last line with no newline is what a crash in the
-// middle of an append leaves, and nothing of that append was reported
-// written, so Open cuts it, but only when it can be the start of a line the
-// codec writes. A file that is not one this package leaves behind is refused
+// others may write or another account owns, a path that names no file in a
+// directory, a link, anything that is not a regular file, and a file another
+// writer holds. A last line with no newline is what a crash in the middle of
+// an append leaves, and nothing of that append was reported written, so Open
+// cuts it, but only when it can be the start of a line the codec writes. A file that is not one this package leaves behind is refused
 // as ErrDamaged and left as it is: a whole line that is not one event, a tail
 // that is neither a cut through the opening every line has nor a whole object
 // that decodes as one event, a tail longer than any line a writer writes, and
@@ -63,26 +63,30 @@ type Writer struct {
 func Open(path string) (*Writer, error) { return open(path, osOps) }
 
 func open(path string, ops fileOps) (*Writer, error) {
+	name, err := fileName(path)
+	if err != nil {
+		return nil, err
+	}
 	if !files.PermissionBits {
 		return nil, ErrNoPermissionBits
 	}
-	dir := filepath.Dir(path)
-	if err := files.CheckDir(dir, forbidden); err != nil {
-		if errors.Is(err, files.ErrMode) {
-			return nil, fmt.Errorf("%w: %w", ErrDirMode, err)
-		}
-		return nil, err
-	}
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND|writeFlags, 0o600) //nolint:gosec // G304: the path is the operator's to name, and the descriptor is judged before a byte is written
+	root, err := openDir(filepath.Dir(path))
 	if err != nil {
 		return nil, err
+	}
+	f, err := openFile(root, name)
+	if err != nil {
+		return nil, errors.Join(err, root.Close())
 	}
 	w := &Writer{path: path, f: f, ops: ops}
 	err = w.claim()
 	if err == nil {
-		err = files.SyncDir(dir)
+		err = syncRoot(root)
 	}
 	if err != nil {
+		return nil, errors.Join(err, f.Close(), root.Close())
+	}
+	if err := root.Close(); err != nil {
 		return nil, errors.Join(err, f.Close())
 	}
 	return w, nil
@@ -93,13 +97,11 @@ func open(path string, ops fileOps) (*Writer, error) {
 // Nothing is cut before every whole line was read.
 func (w *Writer) claim() error {
 	info, err := w.f.Stat()
-	switch {
-	case err != nil:
+	if err != nil {
 		return err
-	case !info.Mode().IsRegular():
-		return ErrNotRegular
-	case info.Mode().Perm()&forbidden != 0:
-		return fmt.Errorf("%w: mode %04o", ErrFileMode, info.Mode().Perm())
+	}
+	if err := judgeFile(info); err != nil {
+		return err
 	}
 	if err := lock(w.f); err != nil {
 		return err

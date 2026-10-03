@@ -38,6 +38,12 @@ const (
 	ErrNoLock Error = "holdjournal: this platform has no file lock, so the directory cannot be held"
 	// ErrPermissions is a directory a group or the world may write.
 	ErrPermissions Error = "holdjournal: the directory is group- or world-writable"
+	// ErrOwner is a directory or an entry another account owns, or one whose
+	// owner the platform does not name. Only the plane writes the journal.
+	ErrOwner Error = "holdjournal: the directory or an entry is not owned by this process's account"
+	// ErrDirectoryChanged is a directory that is no longer the one opened:
+	// another directory, or none, stands at its name, or its owner changed.
+	ErrDirectoryChanged Error = "holdjournal: the directory is not the one the journal opened"
 	// ErrNotAJournal is a directory that is not a hold journal: no marker and
 	// not empty, or a marker this build cannot read. It is never read as an
 	// empty journal, because an empty journal says every hold was closed.

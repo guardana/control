@@ -173,6 +173,12 @@ sends no next request within two minutes.</li>
 <li>The plane strips a key under its namespace from an upstream's <code>_meta</code> and
 error data in any letter case, since a client may match keys to its own
 fields without regard to case.</li>
+<li>The hold journal and the trail file refuse a directory or a file another
+account owns, and a platform that names no owner; the hold journal reaches
+its entries only through the directory it opened and refuses one swapped in
+at its name later. A plane no longer starts over a journal directory another
+account owns, and <code>collect --out</code> refuses a path that names no file, such as
+one ending in a separator.</li>
 <li>A clock reading before 1970, the zero time among them, no longer lets the
 kernel decide: the call is <code>INDETERMINATE</code> with <code>POLICY_STALE</code> and blocks on
 every effect class, fail-open reads included. Such a reading let an expired

@@ -19,8 +19,14 @@ const (
 	ErrDirMode Error = "trailfile: the directory is group- or world-writable"
 	// ErrFileMode is a file the group or others may write.
 	ErrFileMode Error = "trailfile: the file is group- or world-writable"
+	// ErrPath is a path that names no file in a directory: one that is empty,
+	// ends in a separator, as the root does, or ends in "." or "..".
+	ErrPath Error = "trailfile: the path names no file in a directory"
 	// ErrNotRegular is a path that is not a regular file.
 	ErrNotRegular Error = "trailfile: not a regular file"
+	// ErrOwner is a file or a directory another account owns, or one whose
+	// owner the platform does not name: that account could write the evidence.
+	ErrOwner Error = "trailfile: the file or its directory is not owned by this process's account"
 	// ErrLocked is a file another writer holds.
 	ErrLocked Error = "trailfile: the file is held by another writer"
 	// ErrDamaged is a file no writer of this package leaves behind: a whole
