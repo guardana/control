@@ -1,9 +1,10 @@
 package policy_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"google.golang.org/protobuf/proto"
 	"pgregory.net/rapid"
@@ -12,135 +13,111 @@ import (
 	"github.com/guardana/control/internal/policy"
 )
 
-func TestHolderIsEmptyUntilAnInstallSucceeds(t *testing.T) {
+// openHolder is a holder of "payments" over a floor that holds no serial yet,
+// so the holder's own rules alone decide what InstallUnconfirmed takes.
+func openHolder(t tb) *policy.Holder {
+	t.Helper()
+	return floorHolder(t, newMemStore(emptyFloor(t, "payments")))
+}
+
+// installUnconfirmed installs b with no confirmation, or fails.
+func installUnconfirmed(t tb, h *policy.Holder, b *controlv1.PolicyBundle) {
+	t.Helper()
+	if err := h.InstallUnconfirmed(context.Background(), b, pinned()); err != nil {
+		t.Fatalf("InstallUnconfirmed refused a bundle this test expects it to take: %v", err)
+	}
+}
+
+// The zero Holder holds nothing and installs nothing: every entry point that
+// would change it is refused, so a holder nobody made with a floor store
+// never serves a snapshot.
+func TestTheZeroHolderRefusesEveryEntryPoint(t *testing.T) {
 	t.Parallel()
 	var h policy.Holder
+	ctx := context.Background()
+	st := statementFor(t, "payments", 7, d7, "12:00:00")
+	for name, err := range map[string]error{
+		"InstallUnconfirmed": h.InstallUnconfirmed(ctx, valid().build(), pinned()),
+		"InstallConfirmed":   h.InstallConfirmed(ctx, valid().build(), pinned(), st, utc("13:00:00")),
+		"Confirm":            h.Confirm(ctx, st, utc("13:00:00")),
+	} {
+		if !errors.Is(err, policy.ErrNoFloorStore) {
+			t.Errorf("%s on the zero Holder = %v, want ErrNoFloorStore", name, err)
+		}
+	}
+	h.Unconfirm()
+	if h.Current() != nil {
+		t.Fatal("the zero Holder serves a snapshot")
+	}
+}
+
+func TestHolderIsEmptyUntilAnInstallSucceeds(t *testing.T) {
+	t.Parallel()
+	h := openHolder(t)
 	if h.Current() != nil {
 		t.Fatal("a new holder has a snapshot")
 	}
 	broken := valid()
 	broken.editSig = flipFirstBit
-	expectOnly(t, h.Install(broken.build(), pinned(), at(0)), policy.ErrSignature)
+	expectOnly(t, h.InstallUnconfirmed(context.Background(), broken.build(), pinned()), policy.ErrSignature)
 	if h.Current() != nil {
 		t.Fatal("a refused first install left a snapshot")
 	}
-	install(t, &h, valid().build(), at(1))
-	expectCurrent(t, &h, 7, exampleDigest, at(1))
+	installUnconfirmed(t, h, valid().build())
+	expectConfirmed(t, h, 7, exampleDigest, "")
 }
 
 func TestInstallTakesAHigherSerial(t *testing.T) {
 	t.Parallel()
-	var h policy.Holder
-	install(t, &h, signedDocument("payments", "v7", 7), at(0))
+	h := openHolder(t)
+	installUnconfirmed(t, h, signedDocument("payments", "v7", 7))
 	higher := signedDocument("payments", "v8", 8)
-	install(t, &h, higher, at(1))
-	expectCurrent(t, &h, 8, digestOf(higher.GetCanonical()), at(1))
+	installUnconfirmed(t, h, higher)
+	expectConfirmed(t, h, 8, digestOf(higher.GetCanonical()), "")
 }
 
 func TestInstallRefusesALowerSerial(t *testing.T) {
 	t.Parallel()
-	var h policy.Holder
+	h := openHolder(t)
 	current := signedDocument("payments", "v7", 7)
-	install(t, &h, current, at(0))
+	installUnconfirmed(t, h, current)
 	before := h.Current()
-	expectOnly(t, h.Install(signedDocument("payments", "v6", 6), pinned(), at(1)), policy.ErrRollback)
+	expectOnly(t, h.InstallUnconfirmed(context.Background(), signedDocument("payments", "v6", 6), pinned()), policy.ErrRollback)
 	if h.Current() != before {
 		t.Fatal("the refused install replaced the snapshot")
 	}
-	expectCurrent(t, &h, 7, digestOf(current.GetCanonical()), at(0))
 }
 
 func TestInstallRefusesTheSameSerialWithOtherContent(t *testing.T) {
 	t.Parallel()
-	var h policy.Holder
+	h := openHolder(t)
 	current := signedDocument("payments", "v7", 7)
-	install(t, &h, current, at(0))
+	installUnconfirmed(t, h, current)
 	before := h.Current()
-	expectOnly(t, h.Install(signedDocument("payments", "v7-other", 7), pinned(), at(1)), policy.ErrSerialReused)
+	expectOnly(t, h.InstallUnconfirmed(context.Background(), signedDocument("payments", "v7-other", 7), pinned()), policy.ErrSerialReused)
 	if h.Current() != before {
 		t.Fatal("the refused install replaced the snapshot")
 	}
-	expectCurrent(t, &h, 7, digestOf(current.GetCanonical()), at(0))
-}
-
-// TestInstallRefreshesTheSameBundle: the same digest again is a new snapshot
-// confirmed at the time Install is given, earlier or later, and the old one
-// is left as it was.
-func TestInstallRefreshesTheSameBundle(t *testing.T) {
-	t.Parallel()
-	var h policy.Holder
-	b := valid().build()
-	install(t, &h, b, at(10))
-	first := h.Current()
-	install(t, &h, b, at(20))
-	if h.Current() == first {
-		t.Fatal("a refresh changed the snapshot in place of making a new one")
-	}
-	if !first.ConfirmedAt().Equal(at(10)) {
-		t.Fatalf("the earlier snapshot now says it was confirmed at %v", first.ConfirmedAt())
-	}
-	expectCurrent(t, &h, 7, exampleDigest, at(20))
-
-	byK2 := valid()
-	byK2.signer, byK2.keyID = key(2), "k2"
-	install(t, &h, byK2.build(), at(30))
-	expectCurrent(t, &h, 7, exampleDigest, at(30))
-
-	install(t, &h, b, at(5))
-	expectCurrent(t, &h, 7, exampleDigest, at(5))
-}
-
-func TestInstallTakesAnotherBundleAtAnySerial(t *testing.T) {
-	t.Parallel()
-	var h policy.Holder
-	install(t, &h, signedDocument("payments", "v7", 7), at(0))
-	other := signedDocument("risk", "v1", 1)
-	install(t, &h, other, at(1))
-	expectCurrent(t, &h, 1, digestOf(other.GetCanonical()), at(1))
-	if got := h.Current().Ref().GetBundleId(); got != "risk" {
-		t.Fatalf("bundle id %q, want risk", got)
-	}
-}
-
-// TestRollbackProtectionHoldsPerBundleID: ADR-0012 says the protection holds
-// per bundle id and per process, so a detour through another bundle id does
-// not reset what was installed before under the first.
-func TestRollbackProtectionHoldsPerBundleID(t *testing.T) {
-	t.Parallel()
-	var h policy.Holder
-	latest := signedDocument("payments", "v7", 7)
-	install(t, &h, latest, at(0))
-	other := signedDocument("risk", "v1", 1)
-	install(t, &h, other, at(1))
-
-	expectOnly(t, h.Install(signedDocument("payments", "v6", 6), pinned(), at(2)), policy.ErrRollback)
-	expectOnly(t, h.Install(signedDocument("payments", "v7-other", 7), pinned(), at(3)), policy.ErrSerialReused)
-	expectCurrent(t, &h, 1, digestOf(other.GetCanonical()), at(1))
-
-	install(t, &h, latest, at(4))
-	expectCurrent(t, &h, 7, digestOf(latest.GetCanonical()), at(4))
-	higher := signedDocument("payments", "v8", 8)
-	install(t, &h, higher, at(5))
-	expectCurrent(t, &h, 8, digestOf(higher.GetCanonical()), at(5))
 }
 
 // TestAFailedInstallChangesNothing offers every change Load refuses to a
 // holder whose snapshot is the unchanged example. Most carry the current
-// digest in their ref, so a holder that refreshed on that claim before
-// checking would take them.
+// digest in their ref, so a holder that took the same digest as the same
+// bundle before checking would take them.
 func TestAFailedInstallChangesNothing(t *testing.T) {
 	t.Parallel()
-	var h policy.Holder
-	install(t, &h, valid().build(), at(0))
+	ctx := context.Background()
+	h := openHolder(t)
+	installUnconfirmed(t, h, valid().build())
 	before := h.Current()
 	for _, c := range changes() {
-		expectOnly(t, h.Install(c.edit(valid()).build(), pinned(), at(60)), c.want)
+		expectOnly(t, h.InstallUnconfirmed(ctx, c.edit(valid()).build(), pinned()), c.want)
 		if h.Current() != before {
 			t.Fatalf("%s/%s: the refused install replaced the snapshot", c.field, c.name)
 		}
 	}
-	expectOnly(t, h.Install(nil, pinned(), at(60)), policy.ErrNoBundle)
-	if h.Current() != before || !before.ConfirmedAt().Equal(at(0)) {
+	expectOnly(t, h.InstallUnconfirmed(ctx, nil, pinned()), policy.ErrNoBundle)
+	if h.Current() != before {
 		t.Fatal("a refused install changed the snapshot")
 	}
 }
@@ -149,56 +126,57 @@ func TestAFailedInstallChangesNothing(t *testing.T) {
 // refused by that check, whatever its serial would have said.
 func TestInstallRunsEveryLoadCheckFirst(t *testing.T) {
 	t.Parallel()
-	var h policy.Holder
-	install(t, &h, signedDocument("payments", "v7", 7), at(0))
+	ctx := context.Background()
+	h := openHolder(t)
+	installUnconfirmed(t, h, signedDocument("payments", "v7", 7))
 
 	lower := valid().withDoc(document("payments", "v6", 6, 300))
 	lower.bundleID, lower.version, lower.editSig = "payments", "v6", flipFirstBit
-	expectOnly(t, h.Install(lower.build(), pinned(), at(1)), policy.ErrSignature)
+	expectOnly(t, h.InstallUnconfirmed(ctx, lower.build(), pinned()), policy.ErrSignature)
 
 	reused := valid().withDoc(document("payments", "v7-other", 7, 300))
 	reused.bundleID, reused.version, reused.keyID = "payments", "v7-other", "k3"
-	expectOnly(t, h.Install(reused.build(), pinned(), at(2)), policy.ErrKey)
+	expectOnly(t, h.InstallUnconfirmed(ctx, reused.build(), pinned()), policy.ErrKey)
 }
 
 // holderModel is what the holder's rules say it holds, written from ADR-0012
-// and the rules of Install: the current bundle's digest again is confirmed at
-// the new time; for a bundle id installed before, a lower serial, or the same
-// serial with other content, is refused; anything else replaces the current
-// bundle.
+// and ADR-0038: a bundle of another id than the pin is refused; the current
+// bundle's digest again changes nothing; a lower serial, or the same serial
+// with other content, is refused; anything else replaces the current bundle,
+// unconfirmed.
 type holderModel struct {
 	digest    string // the current bundle's, "" before any
 	serial    int64
-	confirmed time.Time
-	installed map[string]installed
+	installed map[int64]string
 }
 
-type installed struct {
-	serial int64
-	digest string
-}
-
-func (m *holderModel) install(id string, serial int64, digest string, when time.Time) error {
-	if m.digest != "" && digest == m.digest {
-		m.confirmed = when
+func (m *holderModel) install(id string, serial int64, digest string) error {
+	switch {
+	case id != "payments":
+		return policy.ErrBundlePin
+	case m.digest != "" && digest == m.digest:
 		return nil
+	case serial < m.highest():
+		return policy.ErrRollback
+	case m.installed[serial] != "" && m.installed[serial] != digest:
+		return policy.ErrSerialReused
 	}
-	if last, ok := m.installed[id]; ok {
-		if serial < last.serial {
-			return policy.ErrRollback
-		}
-		if serial == last.serial && digest != last.digest {
-			return policy.ErrSerialReused
-		}
-	}
-	m.installed[id] = installed{serial: serial, digest: digest}
-	m.digest, m.serial, m.confirmed = digest, serial, when
+	m.installed[serial] = digest
+	m.digest, m.serial = digest, serial
 	return nil
 }
 
-// TestHolderAgreesWithItsRules runs random sequences of installs over two
-// bundle ids, four serials, two contents per serial, a clock that also steps
-// back, and now and then a bundle whose signature is broken.
+func (m *holderModel) highest() int64 {
+	var top int64
+	for s := range m.installed {
+		top = max(top, s)
+	}
+	return top
+}
+
+// TestHolderAgreesWithItsRules runs random sequences of installs over the
+// pinned id and another, four serials, two contents per serial, and now and
+// then a bundle whose signature is broken.
 func TestHolderAgreesWithItsRules(t *testing.T) {
 	t.Parallel()
 	cache := map[string]*controlv1.PolicyBundle{}
@@ -212,25 +190,23 @@ func TestHolderAgreesWithItsRules(t *testing.T) {
 		return b
 	}
 	rapid.Check(t, func(rt *rapid.T) {
-		var h policy.Holder
-		m := holderModel{installed: map[string]installed{}}
-		now := loadTime()
+		h := openHolder(rt)
+		m := holderModel{installed: map[int64]string{}}
 		for range rapid.IntRange(1, 25).Draw(rt, "steps") {
 			b := signed(rapid.SampledFrom([]string{"payments", "risk"}).Draw(rt, "id"),
 				rapid.Int64Range(1, 4).Draw(rt, "serial"), rapid.IntRange(0, 1).Draw(rt, "content"))
-			now = now.Add(time.Duration(rapid.Int64Range(-10, 60).Draw(rt, "seconds")) * time.Second)
 			before := h.Current()
 			if rapid.IntRange(0, 9).Draw(rt, "broken") == 0 {
 				broken := proto.CloneOf(b)
 				broken.Signature = flipFirstBit(broken.GetSignature())
-				expectOnly(rt, h.Install(broken, pinned(), now), policy.ErrSignature)
+				expectOnly(rt, h.InstallUnconfirmed(context.Background(), broken, pinned()), policy.ErrSignature)
 				if h.Current() != before {
 					rt.Fatalf("a bundle with a broken signature changed the holder")
 				}
 				continue
 			}
-			want := m.install(b.GetRef().GetBundleId(), serialOf(b), digestOf(b.GetCanonical()), now)
-			compareStep(rt, &h, &m, before, h.Install(b, pinned(), now), want)
+			want := m.install(b.GetRef().GetBundleId(), serialOf(b), digestOf(b.GetCanonical()))
+			compareStep(rt, h, &m, before, h.InstallUnconfirmed(context.Background(), b, pinned()), want)
 		}
 	})
 }
@@ -247,7 +223,7 @@ func serialOf(b *controlv1.PolicyBundle) int64 {
 func compareStep(t tb, h *policy.Holder, m *holderModel, before *policy.Snapshot, err, want error) {
 	t.Helper()
 	if want == nil && err != nil {
-		t.Fatalf("Install refused what the rules take: %v", err)
+		t.Fatalf("InstallUnconfirmed refused what the rules take: %v", err)
 	}
 	if want != nil {
 		expectOnly(t, err, want)
@@ -256,9 +232,14 @@ func compareStep(t tb, h *policy.Holder, m *holderModel, before *policy.Snapshot
 		}
 	}
 	cur := h.Current()
-	if cur == nil || cur.Serial() != m.serial || cur.Ref().GetDigest() != m.digest || !cur.ConfirmedAt().Equal(m.confirmed) {
-		t.Fatalf("Current has serial %d, digest %s, confirmed %v; the rules say %d, %s, %v",
-			cur.Serial(), cur.Ref().GetDigest(), cur.ConfirmedAt(), m.serial, m.digest, m.confirmed)
+	if m.digest == "" {
+		if cur != nil {
+			t.Fatalf("the holder serves serial %d; the rules say nothing was installed", cur.Serial())
+		}
+		return
+	}
+	if cur == nil || cur.Serial() != m.serial || cur.Ref().GetDigest() != m.digest || !cur.ConfirmedAt().IsZero() {
+		t.Fatalf("Current is %v; the rules say serial %d, digest %s, unconfirmed", cur, m.serial, m.digest)
 	}
 }
 
@@ -267,47 +248,20 @@ func compareStep(t tb, h *policy.Holder, m *holderModel, before *policy.Snapshot
 // snapshot as it was.
 func TestPinnedHolderRefusesAnotherBundleID(t *testing.T) {
 	t.Parallel()
-	h := policy.NewHolder("payments")
-	if h.Current() != nil {
-		t.Fatal("a new pinned holder has a snapshot")
-	}
-	expectOnly(t, h.Install(signedDocument("risk", "v1", 1), pinned(), at(0)), policy.ErrBundlePin)
+	ctx := context.Background()
+	h := openHolder(t)
+	expectOnly(t, h.InstallUnconfirmed(ctx, signedDocument("risk", "v1", 1), pinned()), policy.ErrBundlePin)
 	if h.Current() != nil {
 		t.Fatal("a refused first install left a snapshot")
 	}
 	own := signedDocument("payments", "v7", 7)
-	install(t, h, own, at(1))
+	installUnconfirmed(t, h, own)
 	before := h.Current()
 	for _, serial := range []int64{1, 7, 8, 100} {
-		expectOnly(t, h.Install(signedDocument("risk", "v", serial), pinned(), at(2)), policy.ErrBundlePin)
+		expectOnly(t, h.InstallUnconfirmed(ctx, signedDocument("risk", "v", serial), pinned()), policy.ErrBundlePin)
 		if h.Current() != before {
 			t.Fatalf("a bundle of another id at serial %d replaced the snapshot", serial)
 		}
 	}
-	expectCurrent(t, h, 7, digestOf(own.GetCanonical()), at(1))
-}
-
-// TestPinnedHolderTakesItsOwnBundle: the pin changes nothing for the pinned
-// id, so a higher serial still replaces and a lower one is still a rollback.
-func TestPinnedHolderTakesItsOwnBundle(t *testing.T) {
-	t.Parallel()
-	h := policy.NewHolder("payments")
-	install(t, h, signedDocument("payments", "v7", 7), at(0))
-	higher := signedDocument("payments", "v8", 8)
-	install(t, h, higher, at(1))
-	expectCurrent(t, h, 8, digestOf(higher.GetCanonical()), at(1))
-	expectOnly(t, h.Install(signedDocument("payments", "v7", 7), pinned(), at(2)), policy.ErrRollback)
-	install(t, h, higher, at(3))
-	expectCurrent(t, h, 8, digestOf(higher.GetCanonical()), at(3))
-}
-
-// TestAnEmptyPinPinsNothing: NewHolder("") is the zero Holder, which takes
-// any bundle id.
-func TestAnEmptyPinPinsNothing(t *testing.T) {
-	t.Parallel()
-	h := policy.NewHolder("")
-	install(t, h, signedDocument("payments", "v7", 7), at(0))
-	other := signedDocument("risk", "v1", 1)
-	install(t, h, other, at(1))
-	expectCurrent(t, h, 1, digestOf(other.GetCanonical()), at(1))
+	expectConfirmed(t, h, 7, digestOf(own.GetCanonical()), "")
 }

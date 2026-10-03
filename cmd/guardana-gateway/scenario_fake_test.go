@@ -138,7 +138,7 @@ func startFake(t *testing.T, f *fakePlane) *runner {
 	health := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprintf(w, `{"mode":"APPROVE","halted":false,"bundle":{"id":"scenario-fixture","digest":%q},"pipeline":{"admitted":%d},`+
 			`"spool":{"unacknowledged":0,"quarantined_records":0},"exporter":{"acknowledged":%d,"partial_rejected":0},`+
-			`"pause":{"state":"clear","entries":0,"polls":{"made":1}}}`, fakeDigest, f.admitted.Load(), f.acked.Load())
+			`"pause":{"state":"clear","entries":0,"polls":{"made":1}},"policy":{"freshness":"confirmed"}}`, fakeDigest, f.admitted.Load(), f.acked.Load())
 	}))
 	t.Cleanup(health.Close)
 	server := sdk.NewServer(&sdk.Implementation{Name: "fake-plane", Version: "0"}, nil)

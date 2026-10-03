@@ -46,13 +46,14 @@ func TestDoctorRefusesABundleTheKeyDoesNotVerify(t *testing.T) {
 // bundle verifies and is still refused, because the plane serves one bundle id.
 func TestDoctorRefusesAPinnedIdTheBundleDoesNotCarry(t *testing.T) {
 	tr := newTree(t)
+	tr.vouch(t, "another-bundle")
 	setEnv(t, "policy.bundle_id", "another-bundle")
 	var stdout, stderr bytes.Buffer
 	if status := doctor(context.Background(), tr.config, &stdout, &stderr); status == exitOK {
 		t.Fatal("doctor accepted a bundle whose id is not the pinned one")
 	}
-	if !strings.Contains(stdout.String(), "fail    policy") {
-		t.Errorf("the policy check did not fail:\n%s", stdout.String())
+	if !strings.Contains(stdout.String(), "fail    policy") || !strings.Contains(stdout.String(), "pinned to") {
+		t.Errorf("the policy check did not fail on the pin:\n%s", stdout.String())
 	}
 }
 

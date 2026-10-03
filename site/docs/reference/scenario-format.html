@@ -153,7 +153,8 @@ directory's <code>*.json</code> files in name order, and every file is read befo
 first one runs. <code>--timeout</code>, 10s by default, bounds each wait; a call may take the upstream's
 call timeout on top of it.</p>
 <p>Before its first step a scenario needs <code>/healthz</code> to answer 200 with the
-mode and bundle it names, nothing paused and no halt. Then the runner waits
+mode and bundle it names, <code>&quot;freshness&quot;:&quot;confirmed&quot;</code>, nothing paused and no
+halt. Then the runner waits
 for the spool to drain, notes the requests the trail file already holds, and
 connects to the listener as an MCP client. It sends no run token, so a plane
 with <code>runs.dir</code> refuses it.</p>

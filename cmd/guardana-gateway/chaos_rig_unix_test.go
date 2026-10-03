@@ -269,7 +269,7 @@ func stdioHelper(t *testing.T, name, log string) chaosUpstream {
 		env:  []string{stdioUpstreamLog}}
 }
 
-func (s chaosSetup) config(t *testing.T) string {
+func (s chaosSetup) config(t *testing.T, dir string) string {
 	t.Helper()
 	var b strings.Builder
 	fmt.Fprintf(&b, `mode: ENFORCE
@@ -290,7 +290,7 @@ policy:
   bundle_file: policy.bundle
   key_id: %s
   public_key: %s
-evidence:
+%sevidence:
   dir: spool
 %sexport:
   endpoint: %s
@@ -300,7 +300,7 @@ evidence:
   backoff: 20ms
   max_backoff: 200ms
 upstreams:
-`, chaosBundleID, fixtureKeyID, fixturePublicKey(), s.evidence, s.collector)
+`, chaosBundleID, fixtureKeyID, fixturePublicKey(), freshnessKeys(t, dir, chaosBundleID), s.evidence, s.collector)
 	for _, up := range s.upstreams {
 		fmt.Fprintf(&b, "  - name: %s\n    tenant_id: acme\n    environment: dev\n", up.name)
 		if up.endpoint != "" {
@@ -349,7 +349,7 @@ func startChaosPlane(t *testing.T, dir string, s chaosSetup) *chaosPlane {
 	}
 	writeBundle(t, filepath.Join(dir, "policy.bundle"), s.document)
 	config := filepath.Join(dir, "plane.yaml")
-	if err := os.WriteFile(config, []byte(s.config(t)), 0o600); err != nil {
+	if err := os.WriteFile(config, []byte(s.config(t, dir)), 0o600); err != nil {
 		t.Fatalf("writing the configuration: %v", err)
 	}
 	proc := (&rig{t: t, gateway: gatewayBin}).startProcess("run", "--config", config)

@@ -64,13 +64,22 @@ type HealthConfig struct {
 	Address string
 }
 
-// PolicyConfig pins the bundle the plane serves and the key it verifies with.
+// PolicyConfig pins the bundle the plane serves and the key it verifies with,
+// the freshness statement that confirms it and the key that signs that, and
+// the directory that keeps its serial floor (ADR-0038).
 type PolicyConfig struct {
-	BundleID     string
-	BundleFile   string
-	KeyID        string
-	PublicKey    string
-	MaxStale     time.Duration
+	BundleID           string
+	BundleFile         string
+	KeyID              string
+	PublicKey          string
+	StatementFile      string
+	StateDir           string
+	FreshnessKeyID     string
+	FreshnessPublicKey string
+	MaxStale           time.Duration
+	// PollInterval is how often the plane reads the bundle and the
+	// statement again. It has no default.
+	PollInterval time.Duration
 	FailOpenRead bool
 }
 

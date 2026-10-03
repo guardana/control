@@ -1,9 +1,11 @@
 # The plane the demo runs. Every path resolves against this file's
 # directory; the victims are the binary in bin/ two directories up, where a
-# checkout's build and the demo archive both put it. The listener, the health address, the bundle, the key, the approvals,
-# the pause file, the spool and the collector are set by dev. The policy asks
-# a decision point about exports, and this file names none: dev run with
-# --decision-point=silent supplies one that never answers.
+# checkout's build and the demo archive both put it. The listener, the health
+# address, the bundle and its key, the freshness statement and its key, the
+# floor directory, the approvals, the pause file, the spool and the collector
+# are set by dev. The policy asks a decision point about exports, and this
+# file names none: dev run with --decision-point=silent supplies one that
+# never answers.
 mode: ENFORCE
 project_id: demo
 tenant_id: acme
@@ -18,7 +20,8 @@ listener:
 
 policy:
   bundle_id: vulnerable-mcp-agent
-  max_stale: 1h                 # the plane never reloads its bundle; this is how long dev decides on it
+  max_stale: 1h                 # how long one statement confirms the bundle; dev renews it every third of that
+  poll_interval: 1s             # how often the plane reads the bundle and the statement again
 
 pause:
   # A plane whose last read of its pause file is three intervals old blocks

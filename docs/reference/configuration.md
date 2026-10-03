@@ -54,7 +54,12 @@ Rendered from the field table in `internal/gatewayconfig`. Rebuild it with
 | `policy.bundle_file` | `GUARDANA_CONTROL_POLICY_BUNDLE_FILE` | string |  | yes |  |
 | `policy.key_id` | `GUARDANA_CONTROL_POLICY_KEY_ID` | string |  | yes |  |
 | `policy.public_key` | `GUARDANA_CONTROL_POLICY_PUBLIC_KEY` | string |  | yes |  |
+| `policy.statement_file` | `GUARDANA_CONTROL_POLICY_STATEMENT_FILE` | string |  | yes |  |
+| `policy.state_dir` | `GUARDANA_CONTROL_POLICY_STATE_DIR` | string |  | yes |  |
+| `policy.freshness_key_id` | `GUARDANA_CONTROL_POLICY_FRESHNESS_KEY_ID` | string |  | yes |  |
+| `policy.freshness_public_key` | `GUARDANA_CONTROL_POLICY_FRESHNESS_PUBLIC_KEY` | string |  | yes |  |
 | `policy.max_stale` | `GUARDANA_CONTROL_POLICY_MAX_STALE` | duration | `10m` | no |  |
+| `policy.poll_interval` | `GUARDANA_CONTROL_POLICY_POLL_INTERVAL` | duration |  | yes |  |
 | `policy.fail_open_read` | `GUARDANA_CONTROL_POLICY_FAIL_OPEN_READ` | true or false | `false` | no |  |
 | `pdp.identifier` | `GUARDANA_CONTROL_PDP_IDENTIFIER` | string |  | no |  |
 | `pdp.evaluation_endpoint` | `GUARDANA_CONTROL_PDP_EVALUATION_ENDPOINT` | string |  | no |  |

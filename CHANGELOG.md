@@ -28,9 +28,64 @@ verify one.
 - `guardana-control policy state init` makes a floor directory and a bundle
   id's floor, never replacing one, and `policy state reset` lowers a floor,
   recording the reason and the value it replaced.
+- `/healthz` carries a `policy` object: `freshness`, one of `confirmed`,
+  `unconfirmed` and `expired`, the confirmation and its expiry, the seconds
+  left and what the plane's polls of its policy found. A plane whose policy is
+  not confirmed answers `"status":"degraded"` with `200`; a halted plane still
+  answers `halted` with `503`.
+- `/metrics` carries `guardana_control_policy_freshness`,
+  `guardana_control_policy_confirmation_seconds_left`, and counters of the
+  policy's refusals by cause, bundles awaiting a statement, statements
+  awaiting a bundle and withdrawals by a clock set back
+  ([metrics](docs/reference/metrics.md)).
+- `guardana-gateway doctor`'s `policy` line judges the floor, the bundle and
+  the statement as a start would, without raising the floor, and fails for a
+  statement missing, expired, dated ahead or naming another bundle, and for a
+  bundle below its floor or at its serial with another digest.
 
 ### Changed
 
+- **Breaking:** a plane's configuration needs five more keys:
+  `policy.statement_file`, `policy.state_dir`, `policy.freshness_key_id`,
+  `policy.freshness_public_key` and `policy.poll_interval`. A configuration
+  without them is refused at start, naming the first key it lacks. The
+  freshness key may not be the bundle's key; `state_dir` must be a directory
+  `policy state init --kind plane` made; `poll_interval` is at least `1s` and
+  shorter than `policy.max_stale`. No setting keeps the old behaviour. To
+  migrate, run the first three commands where the keys live and the last on
+  the plane's host, then set the five keys and keep renewing the statement
+  within the budget ([run the gateway](docs/guides/run-the-gateway.md),
+  [ADR-0038](docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor.md)):
+
+  ```
+  guardana-control policy keygen --out freshness
+  guardana-control policy state init --kind signer --bundle-id <id> signer-floors
+  guardana-control policy renew --key freshness/signing.key --bundle <bundle> \
+      --bundle-public-key <bundle key dir>/signing.pub --floor signer-floors --out <statement>
+  guardana-control policy state init --kind plane --bundle-id <id> <state_dir>
+  ```
+
+- A plane's policy is confirmed only by a freshness statement bound to its
+  bundle, never by installing the bundle again. The plane reads the bundle and
+  the statement every `policy.poll_interval`, installs a newer bundle only with
+  its statement, and refuses every bad replacement without moving the
+  confirmation. Without a statement in its budget it decides every call
+  `POLICY_STALE`, from the start or once the budget runs out, until a renewal
+  arrives; a restart no longer resets the budget. A wall clock set back more
+  than a second withdraws the confirmation until it is back.
+- A plane's serial floor is kept on disk: a start onto a bundle below it, at
+  its serial with another digest, or above it without a statement is refused,
+  naming both serials.
+- `/healthz` leaves out `bundle.confirmed_at` while no statement confirms the
+  bundle.
+- `dev` makes the plane's floor directory, writes the bundle's freshness
+  statement under a second key held only in memory and renews it every third
+  of the budget, sooner when the poll interval asks for it, so a session or a
+  scenario past the budget stays fresh. It prints `statement`, `state_dir`,
+  `freshness_key_id`, `freshness_key` and `renewal`, and no longer `stale_at`.
+- `scenario run` refuses a plane whose policy is not confirmed.
+- `POLICY_STALE`'s summary names an unconfirmed policy too; its identifier and
+  number are unchanged.
 - `examples/evidence-report` prints a `block` column after `reasons`: the
   decision on the request's `ACTION_BLOCKED`, `=` when it is the kernel's, so a
   call the plane blocked itself, paused or unclassified, shows why. Every later

@@ -13,20 +13,19 @@ import (
 )
 
 // Holder keeps the current snapshot. Every entry point that changes it is
-// serialized; Current is a read that takes no lock. The zero Holder holds
-// nothing, is ready to use and takes any bundle id; NewHolder pins one, and
-// NewFloorHolder pins one and confirms only by a freshness statement.
+// serialized; Current is a read that takes no lock. Only NewFloorHolder makes
+// a Holder that installs anything: it pins one bundle id and confirms a
+// snapshot only by a freshness statement. The zero Holder holds
+// nothing and refuses every entry point with ErrNoFloorStore.
 type Holder struct {
 	mu      sync.Mutex
 	current atomic.Pointer[Snapshot]
-	// pin is the one bundle id Install takes, or "" for any.
+	// pin is the one bundle id the holder takes.
 	pin string
 	// installed holds, per bundle id, the highest serial installed and its
-	// digest. ADR-0012 says rollback protection holds per bundle id, so a
-	// detour through another bundle id must not reset it. Guarded by mu.
+	// digest. Guarded by mu.
 	installed map[string]installed
-	// store is the floor a holder made by NewFloorHolder confirms through.
-	// A holder with a store is confirmed only by a statement.
+	// store is the floor the holder confirms through.
 	store FloorStore
 	// withdrawn is the latest confirmation Unconfirm took back; until a
 	// statement issued after it is accepted, none confirms the holder.
@@ -37,62 +36,6 @@ type Holder struct {
 type installed struct {
 	serial int64
 	digest string
-}
-
-// NewHolder returns a Holder that serves bundleID and no other: Install
-// refuses a bundle of any other id with ErrBundlePin, whatever its serial. An
-// empty bundleID pins nothing, which is the zero Holder.
-func NewHolder(bundleID string) *Holder {
-	return &Holder{pin: bundleID}
-}
-
-// Install loads b, and only if every check of Load passed, refreshes or
-// replaces the current snapshot:
-//
-//   - a pinned Holder refuses a bundle of another id (ErrBundlePin);
-//   - the current snapshot's digest again gives a new snapshot of the same
-//     program, confirmed at now;
-//   - for a bundle id installed before, a lower serial is refused
-//     (ErrRollback), and so is the same serial with another digest
-//     (ErrSerialReused);
-//   - anything else replaces the current snapshot.
-//
-// A refused install changes nothing, and a holder made by NewFloorHolder
-// refuses every install here with ErrStatementOnly. The protection lasts as
-// long as the Holder: a new one accepts any serial. now is taken as given in both
-// directions: a refresh with an earlier now moves the confirmation back, and
-// a later one keeps a superseded bundle fresh, so the caller's clock
-// discipline is the only guard.
-func (h *Holder) Install(b *controlv1.PolicyBundle, keys bundle.Keyring, now time.Time) error {
-	return h.install(b, keys, now, match.Compile)
-}
-
-// install is Install with the compiler as a parameter, so that a test can hold
-// one install inside Load and see whether a second one waits for it.
-func (h *Holder) install(b *controlv1.PolicyBundle, keys bundle.Keyring, now time.Time, compile compiler) error {
-	if h.store != nil {
-		return ErrStatementOnly
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	next, err := load(b, keys, now, compile)
-	if err != nil {
-		return err
-	}
-	if id := next.ref.GetBundleId(); h.pin != "" && id != h.pin {
-		return fmt.Errorf("%w: %q", ErrBundlePin, id)
-	}
-	if cur := h.current.Load(); cur != nil && cur.ref.GetDigest() == next.ref.GetDigest() {
-		refreshed := *cur
-		refreshed.confirmedAt = now
-		h.current.Store(&refreshed)
-		return nil
-	}
-	if err := h.admit(next); err != nil {
-		return err
-	}
-	h.current.Store(next)
-	return nil
 }
 
 // admit applies the rollback rules to next and records it. mu is held.
@@ -128,16 +71,16 @@ func (h *Holder) record(next *Snapshot) {
 }
 
 // Current returns the current snapshot, or nil before the first successful
-// Install.
+// install.
 func (h *Holder) Current() *Snapshot {
 	return h.current.Load()
 }
 
 // NewFloorHolder returns a Holder pinned to bundleID whose snapshots are
-// confirmed only by a freshness statement, through the floor store keeps
-// (ADR-0038). Install refuses on it with ErrStatementOnly; InstallUnconfirmed,
-// InstallConfirmed, Confirm and Unconfirm are its entry points. An empty
-// bundleID is ErrBundlePin and a nil store ErrNoFloorStore.
+// confirmed only by a freshness statement, each raising the floor store
+// keeps. InstallUnconfirmed, InstallConfirmed, Confirm and Unconfirm are its
+// entry points. An empty bundleID is ErrBundlePin and a nil store
+// ErrNoFloorStore.
 func NewFloorHolder(bundleID string, store FloorStore) (*Holder, error) {
 	if bundleID == "" {
 		return nil, fmt.Errorf("%w: an empty bundle id pins nothing", ErrBundlePin)
@@ -155,14 +98,23 @@ func NewFloorHolder(bundleID string, store FloorStore) (*Holder, error) {
 // serial with another digest ErrFloorSerialReused and a higher one
 // ErrAboveFloorUnbound, which only InstallConfirmed installs. The current
 // snapshot's digest again leaves that snapshot, and its confirmation, as it
-// is. The pin and the rollback rules of Install apply as they do there.
+// is. A bundle of another id than the pin is ErrBundlePin; for the pinned id,
+// a serial below one installed before is ErrRollback and the same serial with
+// another digest ErrSerialReused.
 func (h *Holder) InstallUnconfirmed(ctx context.Context, b *controlv1.PolicyBundle, keys bundle.Keyring) error {
+	return h.installUnconfirmed(ctx, b, keys, match.Compile)
+}
+
+// installUnconfirmed is InstallUnconfirmed with the compiler as a parameter,
+// so that a test can hold one install inside the load and see whether a
+// second one waits for it.
+func (h *Holder) installUnconfirmed(ctx context.Context, b *controlv1.PolicyBundle, keys bundle.Keyring, compile compiler) error {
 	if h.store == nil {
 		return ErrNoFloorStore
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	next, err := h.loadPinned(b, keys)
+	next, err := h.loadPinned(b, keys, compile)
 	if err != nil {
 		return err
 	}
@@ -180,18 +132,17 @@ func (h *Holder) InstallUnconfirmed(ctx context.Context, b *controlv1.PolicyBund
 	if f.hasSerial && next.serial > f.serial {
 		return v.refuse(fmt.Errorf("%w: %w", ErrAboveFloorUnbound, ErrStatementMissing)).Cause
 	}
-	if err := h.check(next); err != nil {
+	if err := h.admit(next); err != nil {
 		return err
 	}
-	h.record(next)
 	h.current.Store(next)
 	return nil
 }
 
 // InstallConfirmed loads b and publishes it confirmed at st's issuedAt: a new
 // bundle, or the current one renewed. st must name b's bundle id, serial and
-// digest (ErrStatementUnbound), the pin and the rollback rules of Install
-// apply, and the store must raise the floor to st, judged at now, before
+// digest (ErrStatementUnbound), the pin and the rollback rules of
+// InstallUnconfirmed apply, and the store must raise the floor to st, judged at now, before
 // anything is published: a raise the store refuses or fails is ErrFloorRaise,
 // wrapping the store's error, and leaves the current snapshot as it was.
 func (h *Holder) InstallConfirmed(ctx context.Context, b *controlv1.PolicyBundle, keys bundle.Keyring, st Statement, now time.Time) error {
@@ -200,7 +151,7 @@ func (h *Holder) InstallConfirmed(ctx context.Context, b *controlv1.PolicyBundle
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	next, err := h.loadPinned(b, keys)
+	next, err := h.loadPinned(b, keys, match.Compile)
 	if err != nil {
 		return err
 	}
@@ -235,6 +186,7 @@ func (h *Holder) Unconfirm() {
 	if cur == nil {
 		return
 	}
+
 	if cur.confirmedAt.After(h.withdrawn) {
 		h.withdrawn = cur.confirmedAt
 	}
@@ -245,8 +197,8 @@ func (h *Holder) Unconfirm() {
 
 // loadPinned loads b with no confirmation and refuses a bundle of another id
 // than the pin. mu is held.
-func (h *Holder) loadPinned(b *controlv1.PolicyBundle, keys bundle.Keyring) (*Snapshot, error) {
-	next, err := load(b, keys, time.Time{}, match.Compile)
+func (h *Holder) loadPinned(b *controlv1.PolicyBundle, keys bundle.Keyring, compile compiler) (*Snapshot, error) {
+	next, err := load(b, keys, time.Time{}, compile)
 	if err != nil {
 		return nil, err
 	}

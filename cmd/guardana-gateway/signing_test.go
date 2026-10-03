@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/ed25519"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +38,18 @@ func signedTree(t *testing.T, signer, pinned ed25519.PrivateKey) tree {
 	return tr
 }
 
+// startedHolder starts the policy of cfg as a serving plane does and returns
+// its holder, or the refusal.
+func startedHolder(t *testing.T, cfg *gatewayconfig.Config) (*policy.Holder, error) {
+	t.Helper()
+	pp, err := startPolicy(cfg, slog.New(slog.DiscardHandler), roleServe)
+	if err != nil {
+		return nil, err
+	}
+	t.Cleanup(func() { _ = pp.floor.Close() })
+	return pp.holder, nil
+}
+
 func seededKey(b byte) ed25519.PrivateKey {
 	seed := make([]byte, ed25519.SeedSize)
 	for i := range seed {
@@ -48,9 +61,9 @@ func seededKey(b byte) ed25519.PrivateKey {
 func TestAKeyPairAndBundleFromTheSigningPackageStartAPlane(t *testing.T) {
 	key := seededKey(11)
 	tr := signedTree(t, key, key)
-	holder, err := installedPolicy(tr.load(t), time.Now())
+	holder, err := startedHolder(t, tr.load(t))
 	if err != nil {
-		t.Fatalf("installedPolicy refused a bundle signed under the pinned key: %v", err)
+		t.Fatalf("startPolicy refused a bundle signed under the pinned key: %v", err)
 	}
 	if got := holder.Current().Ref().GetBundleId(); got != "gateway-fixture" {
 		t.Errorf("the plane serves %q", got)
@@ -83,9 +96,9 @@ func TestThePublicKeyFileAsItIsStartsAPlane(t *testing.T) {
 	if cfg.Policy.PublicKey != string(raw) {
 		t.Fatalf("the configuration holds %q, not the file's bytes", cfg.Policy.PublicKey)
 	}
-	holder, err := installedPolicy(cfg, time.Now())
+	holder, err := startedHolder(t, cfg)
 	if err != nil {
-		t.Fatalf("installedPolicy refused signing.pub as keygen wrote it: %v", err)
+		t.Fatalf("startPolicy refused signing.pub as keygen wrote it: %v", err)
 	}
 	if got := holder.Current().Ref().GetBundleId(); got != "gateway-fixture" {
 		t.Errorf("the plane serves %q", got)
@@ -102,9 +115,9 @@ func TestAnotherKeyIsRefusedNamingBothIDs(t *testing.T) {
 	if signerID == pinnedID || !strings.HasPrefix(signerID, "ed25519-") {
 		t.Fatalf("the two keys' ids are %q and %q", signerID, pinnedID)
 	}
-	_, err := installedPolicy(signedTree(t, signer, pinned).load(t), time.Now())
+	_, err := startedHolder(t, signedTree(t, signer, pinned).load(t))
 	if err == nil {
-		t.Fatal("installedPolicy accepted a bundle signed under a key it does not pin")
+		t.Fatal("startPolicy accepted a bundle signed under a key it does not pin")
 	}
 	for _, id := range []string{signerID, pinnedID} {
 		if !strings.Contains(err.Error(), `"`+id+`"`) {
@@ -119,9 +132,9 @@ func TestAnotherKeyIsRefusedNamingBothIDs(t *testing.T) {
 func TestPublicKeyTakesTheOneSpelling(t *testing.T) {
 	tr := newTree(t)
 	setEnv(t, "policy.public_key", strings.TrimSuffix(fixturePublicKey(), "w=")+"x=")
-	_, err := installedPolicy(tr.load(t), time.Now())
+	_, err := startedHolder(t, tr.load(t))
 	if err == nil || !strings.HasPrefix(err.Error(), "policy.public_key: ") {
-		t.Errorf("installedPolicy = %v, want a refusal of policy.public_key", err)
+		t.Errorf("startPolicy = %v, want a refusal of policy.public_key", err)
 	}
 }
 
@@ -137,8 +150,8 @@ func TestABundlesKeyIDIsBoundedInTheRefusal(t *testing.T) {
 	if err := policykey.WriteBundle(filepath.Join(tr.dir, "policy.bundle"), b); err != nil {
 		t.Fatal(err)
 	}
-	_, err = installedPolicy(tr.load(t), time.Now())
+	_, err = startedHolder(t, tr.load(t))
 	if err == nil || !strings.Contains(err.Error(), `"`+strings.Repeat("k", 64)+`..."`) || strings.Contains(err.Error(), "tail") {
-		t.Errorf("installedPolicy = %v, want the id cut at 64 bytes", err)
+		t.Errorf("startPolicy = %v, want the id cut at 64 bytes", err)
 	}
 }

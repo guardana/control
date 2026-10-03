@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/guardana/control/adapters/authzen"
 	adaptermcp "github.com/guardana/control/adapters/mcp"
 	"github.com/guardana/control/adapters/otel"
@@ -23,25 +21,21 @@ import (
 	"github.com/guardana/control/internal/holdjournal"
 	"github.com/guardana/control/internal/pause"
 	"github.com/guardana/control/internal/policy"
-	"github.com/guardana/control/internal/policy/bundle"
-	"github.com/guardana/control/internal/policykey"
 	"github.com/guardana/control/internal/runs"
 	"github.com/guardana/control/internal/spool"
 )
-
-// maxBundleBytes bounds the bundle file this program reads. It sits above the
-// 1 MiB document bound the loader enforces, so an over-long bundle meets that
-// refusal and no second bound is kept here.
-const maxBundleBytes = 2 << 20
 
 // plane is one gateway: the seams, built and wired, with nothing serving yet.
 // build makes every one of them or none, so a refusal leaves no listener bound
 // and no directory locked.
 type plane struct {
-	cfg      *gatewayconfig.Config
-	logger   *slog.Logger
-	spool    *spool.Spool
-	holder   *policy.Holder
+	cfg    *gatewayconfig.Config
+	logger *slog.Logger
+	spool  *spool.Spool
+	holder *policy.Holder
+	// policy holds the holder's floor directory and the refresher that keeps
+	// it current.
+	policy   *planePolicy
 	pipeline *gateway.Pipeline
 	adapter  *adaptermcp.Adapter
 	reader   *spool.Reader
@@ -95,16 +89,16 @@ const (
 // address: everything that can be refused is refused here, before anything
 // serves.
 func build(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time, r role, tokenPath string) (*plane, error) {
-	holder, err := installedPolicy(cfg, now)
+	pp, err := startPolicy(cfg, logger, r)
 	if err != nil {
 		return nil, err
 	}
-	p := &plane{cfg: cfg, logger: logger, holder: holder, started: now}
+	p := &plane{cfg: cfg, logger: logger, holder: pp.holder, policy: pp, started: now}
 	if p.poller, err = openPause(cfg, logger, p.strayIDs); err != nil {
-		return nil, err
+		return nil, errors.Join(err, p.close())
 	}
 	if p.spool, err = openSpool(cfg); err != nil {
-		return nil, err
+		return nil, errors.Join(err, p.close())
 	}
 	if err := p.open(r, tokenPath); err != nil {
 		return nil, errors.Join(err, p.close())
@@ -279,34 +273,10 @@ func (p *plane) close() error {
 	if p.runsDir != nil {
 		errs = append(errs, p.runsDir.Close())
 	}
+	if p.policy != nil {
+		errs = append(errs, p.policy.floor.Close())
+	}
 	return errors.Join(errs...)
-}
-
-// installedPolicy verifies the configured bundle against the configured key
-// and installs it in a holder pinned to the configured id, which refuses every
-// other bundle for the life of the process.
-func installedPolicy(cfg *gatewayconfig.Config, now time.Time) (*policy.Holder, error) {
-	key, err := policykey.ParsePublic(cfg.Policy.PublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("policy.public_key: %w", err)
-	}
-	raw, err := readBounded(cfg.Resolve(cfg.Policy.BundleFile), maxBundleBytes)
-	if err != nil {
-		return nil, fmt.Errorf("policy.bundle_file: %w", err)
-	}
-	var b controlv1.PolicyBundle
-	if err := proto.Unmarshal(raw, &b); err != nil {
-		return nil, fmt.Errorf("policy.bundle_file: not a serialized policy bundle: %w", err)
-	}
-	holder := policy.NewHolder(cfg.Policy.BundleID)
-	if err := holder.Install(&b, bundle.Keyring{cfg.Policy.KeyID: key}, now); err != nil {
-		if errors.Is(err, policy.ErrKey) && b.GetKeyId() != cfg.Policy.KeyID {
-			return nil, fmt.Errorf("policy.bundle_file: signed under key_id %q, and policy.key_id is %q: %w",
-				shortID(b.GetKeyId()), cfg.Policy.KeyID, err)
-		}
-		return nil, fmt.Errorf("policy.bundle_file: %w", err)
-	}
-	return holder, nil
 }
 
 // shortID bounds a key id read from a bundle file, which nothing has verified

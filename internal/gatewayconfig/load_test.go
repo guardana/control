@@ -34,6 +34,11 @@ policy:
   bundle_file: policy.bundle
   key_id: k1
   public_key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+  statement_file: policy.statement
+  state_dir: floors
+  freshness_key_id: f1
+  freshness_public_key: BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=
+  poll_interval: 5s
 
 evidence:
   dir: spool
@@ -184,8 +189,8 @@ func TestSourcesNameWhatSetEachKey(t *testing.T) {
 	if _, ok := sources["health.address"]; ok {
 		t.Error("health.address stands at its default and has a source")
 	}
-	if len(sources) != 20 {
-		t.Errorf("%d keys have a source, want the document's 19 and the variable", len(sources))
+	if len(sources) != 25 {
+		t.Errorf("%d keys have a source, want the document's 24 and the variable", len(sources))
 	}
 	sources["mode"] = "elsewhere"
 	if cfg.Sources()["mode"] == "elsewhere" {

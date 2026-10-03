@@ -46,40 +46,6 @@ func TestNewFloorHolderRefusesNoPinAndNoStore(t *testing.T) {
 	}
 }
 
-// A holder confirmed by statements never takes the clock's word: Install,
-// which confirms at the time it is handed, refuses on it.
-func TestAFloorHolderRefusesInstall(t *testing.T) {
-	t.Parallel()
-	h := floorHolder(t, newMemStore(emptyFloor(t, "payments")))
-	expectOnly(t, h.Install(valid().build(), pinned(), at(0)), policy.ErrStatementOnly)
-	if h.Current() != nil {
-		t.Fatal("a refused Install left a snapshot")
-	}
-}
-
-// The zero Holder has no store, so none of the confirming entry points runs
-// on it; Install still does.
-func TestTheZeroHolderHasNoConfirmingEntryPoints(t *testing.T) {
-	t.Parallel()
-	var h policy.Holder
-	ctx := context.Background()
-	st := statementFor(t, "payments", 7, d7, "12:00:00")
-	if err := h.InstallUnconfirmed(ctx, valid().build(), pinned()); !errors.Is(err, policy.ErrNoFloorStore) {
-		t.Errorf("InstallUnconfirmed = %v", err)
-	}
-	if err := h.InstallConfirmed(ctx, valid().build(), pinned(), st, utc("13:00:00")); !errors.Is(err, policy.ErrNoFloorStore) {
-		t.Errorf("InstallConfirmed = %v", err)
-	}
-	if err := h.Confirm(ctx, st, utc("13:00:00")); !errors.Is(err, policy.ErrNoFloorStore) {
-		t.Errorf("Confirm = %v", err)
-	}
-	if h.Current() != nil {
-		t.Fatal("a refused entry point left a snapshot")
-	}
-	install(t, &h, valid().build(), at(0))
-	expectCurrent(t, &h, 7, exampleDigest, at(0))
-}
-
 // An install moves no confirmation: a bundle starts unconfirmed, a statement
 // confirms it at its issuedAt, and the same bundle installed again leaves
 // that confirmation where it was.

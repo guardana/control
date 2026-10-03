@@ -34,7 +34,9 @@ Before it creates or binds anything, dev refuses, with status 1:
 - a policy document it cannot read or sign;
 - a configuration that sets a key dev owns: `listener.address`,
   `health.address`, `policy.bundle_file`, `policy.key_id`,
-  `policy.public_key`, `pause.file`, `evidence.dir`, `export.endpoint`,
+  `policy.public_key`, `policy.statement_file`, `policy.state_dir`,
+  `policy.freshness_key_id`, `policy.freshness_public_key`, `pause.file`,
+  `evidence.dir`, `export.endpoint`,
   `export.allow_plaintext`, every `approvals` key and every `runs` key, since
   dev serves local runs only, and with `--decision-point=silent` every `pdp`
   key;
@@ -53,14 +55,21 @@ it has anyway may not be seen, and dev's own value applies.
 `--state`, or a new directory under the system's temporary directory, mode
 `0700`, holding everything the plane writes: `approvals/`, `holds/` and
 `spool/`, `trail.jsonl`, which a collector inside dev appends to,
-`policy.bundle`, `pause.json`, made by `guardana-control pause init`, and
-`settings.txt`, every scalar key the plane resolved. The directory is left
-behind when dev stops.
+`policy.bundle`, `policy.statement`, the bundle's freshness statement,
+`floors/`, the plane's floor directory, made by `guardana-control policy
+state init --kind plane`, `pause.json`, made by `guardana-control pause
+init`, and `settings.txt`, every scalar key the plane resolved. The directory
+is left behind when dev stops.
 
 The bundle is signed under an Ed25519 key made in dev's memory for that one
 bundle. The key is never written, and dev clears its own copy once the
 bundle is signed; copies the standard library makes while signing are not
-cleared. The plane pins the public half.
+cleared. A second key, the freshness key, is made apart from it, held in
+memory for the session and never written. Dev writes the first statement
+before the plane starts and a new one every third of the budget, the smaller
+of the document's `maxStaleSeconds` and `policy.max_stale`. The plane pins
+both public halves, and reads the bundle and the statement again every
+`policy.poll_interval`, which the configuration sets.
 
 Dev binds `127.0.0.1` at ports the system picks, for the collector, the
 agents and the health answers, and hands the bound sockets to the plane, so
@@ -81,16 +90,17 @@ A demo's `upstreams[].command` runs as you. Run only demos you trust.
 
 One `name: value` line each, on stdout: `mcp`, the address an agent calls;
 `healthz` and `metrics`; `page`, the line `guardana-control console` printed
-([console.md](console.md)); every path above; `mode`, `bundle`, `digest` and
-`key_id`; `stale_at`; and the commands that read the trail, list the
-approvals, pause every call and run a scenario. The page's token reaches
-nothing but that one line: no argument, variable, file or log of dev's.
+([console.md](console.md)); every path above, the floor directory as
+`state_dir`; `mode`, `bundle`, `digest`, `key_id` and `key`;
+`freshness_key_id` and `freshness_key`; `renewal`, how often the statement
+is renewed; and the commands that read the trail, list the approvals, pause
+every call and run a scenario. The page's token reaches nothing but that one
+line: no argument, variable, file or log of dev's.
 
-The plane installs its bundle once. From `stale_at`, the smaller of the
-document's `maxStaleSeconds` and `policy.max_stale` after the start, every
-decision that passes the input checks carries `POLICY_STALE`, and the plane
-treats the call as its mode and `policy.fail_open_read` treat an undecided
-one, until dev is started again; nothing reloads the bundle.
+A renewal changes no digest, so a scenario that runs past the budget keeps
+its verdicts. A renewal that fails is said on stderr; once the budget runs
+out every decision that passes the input checks carries `POLICY_STALE`, and
+`/healthz` answers `"status":"degraded"`.
 
 The plane's own log, and the page's, go to stderr.
 

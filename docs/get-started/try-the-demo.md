@@ -57,8 +57,10 @@ go build -o bin/ ./cmd/guardana-gateway ./cmd/guardana-control ./examples/vulner
 bin/guardana-gateway dev --decision-point=silent --config examples/vulnerable-mcp-agent/demo.yaml --policy examples/vulnerable-mcp-agent/policy.json
 ```
 
-`dev` signs the policy under a key that lives only in its memory, lays out a
-new state directory, and starts a collector, the plane and the approvals page
+`dev` lays out a new state directory, signs the policy under a key it drops
+once it signed, vouches that the bundle is current under a second key it
+keeps only in memory, renewing that statement while it runs, and starts a
+collector, the plane and the approvals page
 ([reference/dev.md](../reference/dev.md)). `--decision-point=silent` gives the
 plane a decision point that never answers, on a port `dev` binds itself. The
 plane starts both servers as its upstreams. Once it is up it prints one `name: value` line per part,

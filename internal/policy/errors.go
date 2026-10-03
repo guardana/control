@@ -2,7 +2,7 @@ package policy
 
 import "github.com/guardana/control/internal/policy/bundle"
 
-// Error is a refusal by Sign, Load or Install, matched with errors.Is. Each
+// Error is a refusal by Sign, Load or a Holder, matched with errors.Is. Each
 // check Load runs has its own. They are constants, so no other code in the
 // binary can reassign one and turn a refusal into a pass.
 type Error string
@@ -51,7 +51,7 @@ const (
 // package's own refusal.
 const ErrSigningKey Error = "policy: the private key cannot sign"
 
-// Install's refusals of a bundle that passed every check of Load.
+// A Holder's refusals of a bundle that passed every check of Load.
 const (
 	// ErrRollback is a serial below one installed before for its bundle id.
 	ErrRollback Error = "policy: a serial below one installed for this bundle id"
@@ -133,8 +133,8 @@ const (
 	// floor that is not the statement's. It wraps the store's refusal, and
 	// nothing was installed.
 	ErrFloorRaise Error = "policy: the floor was not raised to the statement, so nothing was installed"
-	// ErrNoFloorStore is a confirming entry point called on a holder made
-	// without a floor store, or NewFloorHolder given none.
+	// ErrNoFloorStore is an entry point called on a holder made without a
+	// floor store, the zero Holder among them, or NewFloorHolder given none.
 	ErrNoFloorStore Error = "policy: this holder has no floor store"
 	// ErrFloorRead is a floor the store could not read. It wraps the store's
 	// error, and nothing was installed.
@@ -143,7 +143,4 @@ const (
 	// confirmation Unconfirm withdrew: only a statement issued after it
 	// confirms the holder again.
 	ErrConfirmationWithdrawn Error = "policy: the statement is not newer than the confirmation that was withdrawn"
-	// ErrStatementOnly is Install called on a holder made with a floor store,
-	// which is confirmed by a statement alone.
-	ErrStatementOnly Error = "policy: this holder is confirmed by a freshness statement alone; Install is not its entry point"
 )

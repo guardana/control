@@ -20,13 +20,13 @@ is outside it and talks to it over a protocol it does not own.
 ```mermaid
 flowchart LR
     accTitle: The system in context
-    accDescr: The agent's tool calls pass through the gateway process, which loads a signed bundle, sends held calls to an approver, asks a decision point that can only veto, forwards the calls it lets through and exports evidence to a collector.
+    accDescr: The agent's tool calls pass through the gateway process, which reads a signed bundle and the statement that keeps it current, sends held calls to an approver, asks a decision point that can only veto, forwards the calls it lets through and exports evidence to a collector.
     OP[Operator]
     AG["Agent, an MCP client"]
     APR[Approver]
     GW["Gateway process"]
     SRV["MCP servers, the tools"]
-    BUNDLE["Signed policy bundle"]
+    BUNDLE["Signed policy bundle and its freshness statement"]
     COL["OpenTelemetry collector"]
     PDP["Decision point, the organization's own, over AuthZEN"]
     OP -->|configuration, bundle, mode| GW
@@ -34,13 +34,13 @@ flowchart LR
     GW -->|the calls it lets through| SRV
     GW -->|held call, as a record in the directory| APR
     APR -->|approval for one digest| GW
-    BUNDLE -->|loaded once, verified| GW
+    BUNDLE -->|verified, read again each poll| GW
     GW -->|evidence, OTLP logs| COL
     GW -->|a call a veto rule routes there| PDP
     PDP -->|an answer that can only veto| GW
 ```
 
-Sources: `cmd/guardana-gateway/serve.go`, `adapters/mcp/listener.go`,
+Sources: `cmd/guardana-gateway/serve.go`, `cmd/guardana-gateway/planepolicy.go`, `adapters/mcp/listener.go`,
 `internal/gateway/approvals.go`, `adapters/otel/exporter.go`,
 `adapters/authzen/client.go`.
 
@@ -103,7 +103,8 @@ Sources: `cmd/guardana-gateway/build.go`, `cmd/guardana-control/main.go`,
 | MCP adapter | `adapters/mcp/` | Listens toward the agent, speaks to each upstream server, translates a call into an envelope and shapes every answer the agent sees. |
 | Pipeline | `internal/gateway/` | Protocol-neutral: admits an envelope, asks the kernel and, when the decision turns on it, the external decision point, applies the enforcement mode, holds a call for approval, writes the trail. |
 | Decision kernel | `internal/core/` | The fixed order of checks, the fail-closed table and the delegation check; `Decide` once per admitted call, again with the external decision point's answer when the decision turns on it, and again when a rewriting obligation changes the arguments. |
-| Policy | `internal/policy/` | Parses a document, verifies a bundle's signature, holds one snapshot and matches three-valued. |
+| Policy | `internal/policy/` | Parses a document, verifies a bundle's signature and a freshness statement's, holds one snapshot and its serial floor, and matches three-valued. |
+| Policy refresh | `internal/policywatch/`, `internal/policystate/` | Reads the bundle and the statement again every poll, installs a newer bundle only with its statement, and keeps the serial floor on disk. |
 | Canonical digest | `internal/canon/` | The one digest an approval binds to. |
 | Evidence chain | `internal/evidence/` | The event chain in memory and the `Sink` seam the spool implements. |
 | Spool | `internal/spool/` | The segmented log on disk with a budget, a quarantine and recovery. |

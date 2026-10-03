@@ -12,19 +12,22 @@ import (
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/metrics"
 	"github.com/guardana/control/internal/pause"
+	"github.com/guardana/control/internal/policywatch"
 )
 
 // healthAnswer is what GET /healthz says about the plane. It carries no
 // configuration and no credential: the mode, the bundle it serves, what each
 // seam counted, and whether the plane still takes material calls.
 type healthAnswer struct {
-	Status   string         `json:"status"`
-	Mode     string         `json:"mode"`
-	Adapter  string         `json:"adapter"`
-	UptimeS  float64        `json:"uptime_seconds"`
-	Halted   bool           `json:"halted"`
-	Halt     haltAnswer     `json:"halt"`
-	Bundle   bundleAnswer   `json:"bundle"`
+	Status  string       `json:"status"`
+	Mode    string       `json:"mode"`
+	Adapter string       `json:"adapter"`
+	UptimeS float64      `json:"uptime_seconds"`
+	Halted  bool         `json:"halted"`
+	Halt    haltAnswer   `json:"halt"`
+	Bundle  bundleAnswer `json:"bundle"`
+	// Policy is how the bundle stands against its freshness statement.
+	Policy   policyAnswer   `json:"policy"`
 	Pipeline map[string]any `json:"pipeline"`
 	// Approvals is where a held request is kept, whether this plane keeps a
 	// durable record of its own holds, and what its reconciliation settled.
@@ -69,11 +72,12 @@ type haltAnswer struct {
 }
 
 type bundleAnswer struct {
-	ID          string `json:"id"`
-	Version     string `json:"version"`
-	Digest      string `json:"digest"`
-	Serial      int64  `json:"serial"`
-	ConfirmedAt string `json:"confirmed_at"`
+	ID      string `json:"id"`
+	Version string `json:"version"`
+	Digest  string `json:"digest"`
+	Serial  int64  `json:"serial"`
+	// ConfirmedAt is empty while no statement confirms the bundle.
+	ConfirmedAt string `json:"confirmed_at,omitempty"`
 }
 
 // healthMux answers the plane's own state and what the product is called.
@@ -120,6 +124,10 @@ func (p *plane) metrics(src gateway.PauseSource, clock func() time.Time) ([]byte
 	if p.poller != nil {
 		r.Pause = p.poller.Stats()
 	}
+	r.PolicyFreshness, _, r.PolicySecondsLeft = p.freshness(p.holder.Current(), clock())
+	if p.policy != nil && p.policy.refresher != nil {
+		r.Policy = metrics.RefreshOf(p.policy.refresher.Stats())
+	}
 	return metrics.Render(r)
 }
 
@@ -136,7 +144,9 @@ func (p *plane) serveHealth(w http.ResponseWriter, _ *http.Request) {
 // clock, as a call takes them. ok is false when the plane takes no material
 // call, either halt of ADR-0013 or a spool that cannot answer, and when it
 // takes no call at all because its pause state is unknown. An operator's
-// pause is not a problem.
+// pause is not a problem, and a policy that is not confirmed is degraded:
+// every mode but OBSERVE blocks material calls under it, and a restart does
+// not fix it.
 func (p *plane) health(src gateway.PauseSource, clock func() time.Time) (healthAnswer, bool) {
 	snap := src.Current()
 	now := clock()
@@ -156,11 +166,15 @@ func (p *plane) health(src gateway.PauseSource, clock func() time.Time) (healthA
 		Runs:      runCounters(p.runsDir != nil, stats, p.adapter.Stats()),
 		Exporter:  exporterCounters(p.exporter.Stats()),
 	}
-	if snap := p.holder.Current(); snap != nil {
-		ref := snap.Ref()
+	policySnap := p.holder.Current()
+	if policySnap != nil {
+		ref := policySnap.Ref()
 		answer.Bundle = bundleAnswer{
 			ID: ref.GetBundleId(), Version: ref.GetVersion(), Digest: ref.GetDigest(),
-			Serial: snap.Serial(), ConfirmedAt: snap.ConfirmedAt().UTC().Format(time.RFC3339),
+			Serial: policySnap.Serial(),
+		}
+		if !policySnap.ConfirmedAt().IsZero() {
+			answer.Bundle.ConfirmedAt = policySnap.ConfirmedAt().UTC().Format(time.RFC3339)
 		}
 	} else {
 		answer.Problems = append(answer.Problems, "no policy bundle is installed")
@@ -185,9 +199,15 @@ func (p *plane) health(src gateway.PauseSource, clock func() time.Time) (healthA
 			"oldest_segment": spoolStats.Oldest.Segment, "oldest_offset": spoolStats.Oldest.Offset,
 		}
 	}
-	if answer.Halted || len(answer.Problems) > 0 {
+	answer.Policy = p.policyAnswer(policySnap, now)
+	switch {
+	case answer.Halted || len(answer.Problems) > 0:
 		answer.Status = "halted"
 		return answer, false
+	case answer.Policy.Freshness != policywatch.Confirmed.String():
+		// Not a problem that halts: a restart cannot confirm a policy, and
+		// the plane still answers what it blocks and why.
+		answer.Status = "degraded"
 	}
 	return answer, true
 }

@@ -46,6 +46,7 @@ func TestRunStartsWithAPrintableLine(t *testing.T) {
 	_, body := fixtureKeyText(t)
 	tr := newTree(t)
 	writeBundle(t, filepath.Join(tr.dir, "policy.bundle"), strings.Replace(fixtureDocument, `"id":"gateway-fixture"`, `"id":"`+body+`"`, 1))
+	tr.vouch(t, body)
 	evidence := filepath.Join(tr.dir, "spool\n"+forgedCheck)
 	if err := os.Mkdir(evidence, 0o750); err != nil {
 		t.Fatal(err)

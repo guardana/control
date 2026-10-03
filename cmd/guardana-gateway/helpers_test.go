@@ -5,12 +5,14 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -20,9 +22,12 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/proto"
 
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/policy"
+	"github.com/guardana/control/internal/policykey"
+	"github.com/guardana/control/internal/policystate"
 	"github.com/guardana/control/internal/spool"
 )
 
@@ -47,11 +52,19 @@ func fixturePublicKey() string {
 	return base64.StdEncoding.EncodeToString(fixtureKey()[ed25519.SeedSize:])
 }
 
+// The freshness key the fixture configuration pins, apart from the bundle's.
+const fixtureFreshnessKeyID = "f1"
+
+func fixtureFreshnessKey() ed25519.PrivateKey {
+	return ed25519.NewKeyFromSeed(bytes.Repeat([]byte{21}, ed25519.SeedSize))
+}
+
 // fixtureConfig is the committed configuration every test starts from, copied
 // into the temporary tree so its relative paths point there.
 const fixtureConfig = "doctor.yaml"
 
-// tree lays out what a plane needs on disk: the signed bundle, an empty spool
+// tree lays out what a plane needs on disk: the signed bundle, the statement
+// that confirms it, a floor directory holding no serial yet, an empty spool
 // directory, and the configuration copied from testdata so the committed
 // fixture is the one under test. Relative paths in a configuration resolve
 // against its own directory, so the copy makes them point into the temporary
@@ -68,6 +81,9 @@ func newTree(t *testing.T) tree {
 		t.Fatalf("making the spool directory: %v", err)
 	}
 	writeBundle(t, filepath.Join(dir, "policy.bundle"), fixtureDocument)
+	if err := policystate.Init(context.Background(), filepath.Join(dir, "floors"), policystate.KindPlane, "gateway-fixture"); err != nil {
+		t.Fatalf("making the floor directory: %v", err)
+	}
 	raw, err := os.ReadFile(filepath.Clean(filepath.Join("testdata", fixtureConfig)))
 	if err != nil {
 		t.Fatalf("reading the fixture configuration: %v", err)
@@ -80,7 +96,57 @@ func newTree(t *testing.T) tree {
 	// test puts it there: a variable in the developer's shell would otherwise
 	// change what the loader reads.
 	clearProductEnvironment(t)
-	return tree{dir: dir, config: config}
+	tr := tree{dir: dir, config: config}
+	tr.confirm(t)
+	return tr
+}
+
+// vouch gives bundleID a floor file in the tree's floor directory, where it
+// has none, and confirms the bundle the tree holds now: what a plane pinned
+// to another bundle id needs before it starts.
+func (tr tree) vouch(t *testing.T, bundleID string) {
+	t.Helper()
+	err := policystate.Init(context.Background(), filepath.Join(tr.dir, "floors"), policystate.KindPlane, bundleID)
+	if err != nil && !errors.Is(err, policystate.ErrExists) {
+		t.Fatalf("giving %s a floor: %v", bundleID, err)
+	}
+	tr.confirm(t)
+}
+
+// confirm writes a statement for the bundle the tree holds now, issued at the
+// last whole second, as a signer's renew would.
+func (tr tree) confirm(t *testing.T) {
+	t.Helper()
+	writeStatement(t, filepath.Join(tr.dir, "policy.statement"), filepath.Join(tr.dir, "policy.bundle"), time.Now().Truncate(time.Second))
+}
+
+// writeStatement signs, under the fixture's freshness key, a statement for
+// the bundle at bundlePath issued at, and writes it to path.
+func writeStatement(t *testing.T, path, bundlePath string, at time.Time) {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Clean(bundlePath))
+	if err != nil {
+		t.Fatalf("reading the bundle to vouch for: %v", err)
+	}
+	var b controlv1.PolicyBundle
+	if err := proto.Unmarshal(raw, &b); err != nil {
+		t.Fatalf("the bundle to vouch for: %v", err)
+	}
+	var doc struct {
+		Bundle struct {
+			Serial int64 `json:"serial"`
+		} `json:"bundle"`
+	}
+	if err := json.Unmarshal(b.GetCanonical(), &doc); err != nil {
+		t.Fatalf("the bundle to vouch for holds no document: %v", err)
+	}
+	env, err := policy.SignStatement(b.GetRef().GetBundleId(), doc.Bundle.Serial, b.GetRef().GetDigest(), at.UTC(), fixtureFreshnessKey(), fixtureFreshnessKeyID)
+	if err != nil {
+		t.Fatalf("signing the statement: %v", err)
+	}
+	if err := policykey.WriteStatement(path, env); err != nil {
+		t.Fatalf("writing the statement: %v", err)
+	}
 }
 
 // writeBundle signs the document and writes the serialized bundle.
@@ -173,11 +239,15 @@ func upstreamHandler() http.Handler {
 		&sdk.StreamableHTTPOptions{Stateless: true})
 }
 
+// issuedAtSpelling is a time as a statement and doctor spell it.
+var issuedAtSpelling = regexp.MustCompile(`\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ`)
+
 // output is what a command wrote, with everything that changes between runs
-// replaced: the temporary tree's path, and the tail of the one line that
-// carries an operating system's own words.
+// replaced: the temporary tree's path, the times a statement carries, and the
+// tail of the one line that carries an operating system's own words.
 func (tr tree) output(raw string) string {
 	out := strings.ReplaceAll(raw, tr.dir, "<tree>")
+	out = issuedAtSpelling.ReplaceAllString(out, "<time>")
 	lines := strings.Split(out, "\n")
 	for i, line := range lines {
 		if prefix, _, ok := strings.Cut(line, "not every upstream answered:"); ok {
@@ -261,4 +331,18 @@ func waitFor(t *testing.T, out *syncBuffer, prefix string) string {
 	}
 	t.Fatalf("the command never wrote a line with %q; it wrote:\n%s", prefix, out.String())
 	return ""
+}
+
+// freshnessKeys lays out, under dir, a floor directory for bundleID holding
+// no serial yet and a statement for the bundle at dir/policy.bundle, and
+// returns the policy keys that name them, as lines of the policy group.
+func freshnessKeys(t *testing.T, dir, bundleID string) string {
+	t.Helper()
+	if err := policystate.Init(context.Background(), filepath.Join(dir, "floors"), policystate.KindPlane, bundleID); err != nil {
+		t.Fatalf("making the floor directory: %v", err)
+	}
+	writeStatement(t, filepath.Join(dir, "policy.statement"), filepath.Join(dir, "policy.bundle"), time.Now().Truncate(time.Second))
+	return "  statement_file: policy.statement\n  state_dir: floors\n  freshness_key_id: " + fixtureFreshnessKeyID +
+		"\n  freshness_public_key: " + base64.StdEncoding.EncodeToString(fixtureFreshnessKey()[ed25519.SeedSize:]) +
+		"\n  poll_interval: 5s\n"
 }

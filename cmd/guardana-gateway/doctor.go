@@ -161,22 +161,6 @@ func capabilityList(c gateway.Capabilities) string {
 	return strings.Join(out, ", ")
 }
 
-// policy verifies the configured bundle against the configured key and the
-// pinned id, which is what the holder does at start.
-func (d *examination) policy(context.Context) (string, string, string) {
-	holder, err := installedPolicy(d.cfg, time.Now())
-	if err != nil {
-		return verdictFail, "policy", err.Error()
-	}
-	snap := holder.Current()
-	if snap == nil {
-		return verdictUnknown, "policy", "the bundle installed and the holder serves no snapshot"
-	}
-	ref := snap.Ref()
-	return verdictOK, "policy", fmt.Sprintf("bundle %s version %s serial %d verifies under key %s, digest %s, staleness budget %s",
-		ref.GetBundleId(), ref.GetVersion(), snap.Serial(), d.cfg.Policy.KeyID, ref.GetDigest(), snap.MaxStale())
-}
-
 // evidence opens the spool where it will run: the directory has to exist, take
 // the lock, take a file, and whatever is already in it has to check.
 func (d *examination) evidence(context.Context) (string, string, string) {

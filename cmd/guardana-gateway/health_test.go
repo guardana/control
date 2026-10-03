@@ -145,14 +145,14 @@ func TestOnUnwritableDecidesWhatAnUnrecordableReadDoes(t *testing.T) {
 }
 
 // TestFailOpenReadReachesTheKernel is the other risk setting: the key has to
-// arrive in the kernel's options, and a decision made under it says so. The
-// snapshot is past its staleness budget here, which is the availability cause
-// the setting is about.
+// arrive in the kernel's options, and a decision made under it says so. No
+// statement confirms the snapshot here, which is the availability cause the
+// setting is about.
 func TestFailOpenReadReachesTheKernel(t *testing.T) {
 	for _, setting := range []string{"false", "true"} {
 		t.Run(setting, func(t *testing.T) {
 			tr := newTree(t)
-			setEnv(t, "policy.max_stale", "1ns")
+			tr.unconfirmed(t)
 			setEnv(t, "policy.fail_open_read", setting)
 			p := tr.plane(t)
 			d := p.pipeline.Admit(context.Background(), gateway.Admission{
@@ -160,7 +160,7 @@ func TestFailOpenReadReachesTheKernel(t *testing.T) {
 			})
 			codes := d.Decision.GetReasonCodes()
 			if !slices.Contains(codes, "POLICY_STALE") {
-				t.Fatalf("the snapshot was not past its budget: %v", codes)
+				t.Fatalf("the unconfirmed snapshot was not decided stale: %v", codes)
 			}
 			if got := slices.Contains(codes, "FAIL_OPEN_READ_CONFIGURED"); got != (setting == "true") {
 				t.Errorf("the decision under fail_open_read=%s carries %v", setting, codes)

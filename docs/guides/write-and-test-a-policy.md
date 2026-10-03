@@ -1,6 +1,6 @@
 ---
 title: Write and test a policy
-summary: Write an agent-policy/v1alpha1 document, lint it, prove what it decides with cases, and sign it into the bundle a plane loads.
+summary: Write an agent-policy/v1alpha1 document, lint it, prove what it decides with cases, sign it into the bundle a plane loads, and vouch that the bundle is current.
 type: how-to
 covers: [cmd/guardana-control/**, internal/policy/**, internal/policykey/**]
 ---
@@ -43,8 +43,8 @@ Start from
 [testdata/policy/documents/example.json](../../testdata/policy/documents/example.json),
 or from a starter pack with its cases ([reference/starter-packs.md](../reference/starter-packs.md)).
 Give the bundle an `id`, a `version` and a `serial`, and set `maxStaleSeconds`
-to how long a plane may keep deciding on this document after its loader last
-confirmed it. Then write the rules, each with an `id`, an `effect` and a
+to how long a plane may keep deciding on this document after a freshness
+statement last confirmed it (step 6). Then write the rules, each with an `id`, an `effect` and a
 `when` that constrains something.
 
 Two things an author meets early:
@@ -81,9 +81,8 @@ guardana-control: policy lint: rule "cap-refunds" "rules[0].obligations[0].type"
 ```
 
 The refusal names the rule and, as a path, the member it refused, and never
-repeats the value. `lint` runs the checks a bundle goes through when it
-is loaded, as far as they concern the document itself; the signature, the key
-and the fields outside the document are checked only when a bundle is loaded.
+repeats the value. `lint` runs the load's checks on the document itself; the
+signature and the key are checked only when a bundle is loaded.
 
 ### 3. Write a case per decision you rely on
 
@@ -129,8 +128,8 @@ key_id: ed25519-<16 hex digits>
 out: orders.bundle
 ```
 
-Run `keygen` once per policy authority. It creates `keys` with mode `0700`
-and refuses a path that exists, so it never writes over a key. Its two lines
+Run `keygen` once per policy authority. It refuses a path that exists, so
+it never writes over a key. Its two lines
 go under `policy:` in the gateway's configuration as they are. Whoever can
 read `keys/signing.key` can sign a policy every plane pinning that public key
 accepts, so keep the file off the plane's host; `sign` refuses it when
@@ -139,12 +138,10 @@ a key mounted into a container needs mode `0400`. Give `--key` the path of the
 file, never its text: an argument holding key text is refused without being
 repeated.
 
-`sign` refuses a document that does not parse before it opens the key, signs
-under the id derived from the key, and refuses to write a bundle the loader
-would refuse. The bundle is public and written with mode `0644`, replacing an
-earlier bundle at `--out`; any other file there is refused and left as it
-was. Give each new version a higher `serial`. What the files hold and why is
-[ADR-0018](../adr/0018-keys-and-bundles-on-disk.md).
+`sign` refuses a document that does not parse before it opens the key, and a
+bundle the loader would refuse. The bundle is public, mode `0644`, and
+replaces only an earlier bundle at `--out`. Give each new version a higher
+`serial` ([ADR-0018](../adr/0018-keys-and-bundles-on-disk.md)).
 
 ### 6. Vouch that the bundle is current
 
@@ -167,9 +164,10 @@ issued_at: <YYYY-MM-DDTHH:MM:SSZ>
 key is a second pair: keep its lines for the plane's freshness key, never over
 the `policy` lines of step 5. Give `--bundle` the authority's own copy, not the
 one a plane is served, and keep floor and freshness key with the signer.
-`renew` refuses a bundle below its floor; rerun it before the budget runs out.
-No plane reads a statement yet; a plane will need one
-([ADR-0038](../adr/0038-a-signed-freshness-statement-and-a-serial-floor.md)).
+`renew` refuses a bundle below its floor. A plane takes the statement beside
+the bundle, with the freshness key's two lines and a floor directory of its
+own, and stays confirmed only while you rerun `renew` within the budget
+([run-the-gateway.md](run-the-gateway.md)).
 
 ## Verify
 
@@ -196,7 +194,8 @@ No plane reads a statement yet; a plane will need one
 ## Roll back
 
 A document is not deployed by these commands, so there is nothing to undo on
-the plane: to go back, sign the previous document with a higher `serial` and
-restart the plane on it. Keep the previous document and its cases in version control; a
+the plane: to go back, sign the previous document with a higher `serial`,
+renew for it, and give the plane the statement, then the bundle. A plane
+refuses a serial below one it has taken. Keep the previous document and its cases in version control; a
 change to the policy is a change to the cases in the same commit, and a case
 that stops passing is the review's first question.

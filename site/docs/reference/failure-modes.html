@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Failure modes · Guardana Control</title>
-<meta name="description" content="What a plane does when its collector, spool, decision point, an upstream or its pause file fails, or it is killed holding calls, and the test for each."/>
+<meta name="description" content="What a plane does when its collector, spool, decision point, an upstream, its pause file or its freshness statement fails, or it is killed holding calls."/>
 <link rel="canonical" href="https://control.guardana.dev/docs/reference/failure-modes"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
@@ -26,7 +26,7 @@
 <div class="wrap shell">
 <main id="main" class="prose">
 <h1 id="failure-modes">Failure modes</h1>
-<p>The plane is built to survive the eight failures below. Each row says
+<p>The plane is built to survive the eleven failures below. Each row says
 whether the plane blocks the call, the reason code, what the agent gets,
 whether the plane recovers without an operator, and the test that makes the
 failure happen. The sections after the table say what the trail holds.</p>
@@ -101,6 +101,30 @@ process that really fail. Nothing here is a security boundary yet
 <td><code>isError</code> and the code</td>
 <td>yes, at the first read of a whole file</td>
 <td><code>TestAPauseFileSpoiledWhileThePlaneRunsBlocksEveryCall</code></td>
+</tr>
+<tr>
+<td>Freshness statement missing, expired or refused, at start or later</td>
+<td>blocked, a read too unless <code>policy.fail_open_read</code></td>
+<td><code>POLICY_STALE</code></td>
+<td><code>isError</code> and the code</td>
+<td>yes, at the first poll that takes a statement bound to the bundle</td>
+<td><code>TestAnUnconfirmedPlaneBlocksMaterialCalls</code>, <code>TestARenewalConfirmsAgain</code></td>
+</tr>
+<tr>
+<td>Bundle file torn, unsigned, older or another id's</td>
+<td>runs on the last good bundle until its statement expires, then blocked</td>
+<td>none, then <code>POLICY_STALE</code></td>
+<td>the upstream's answer, then <code>isError</code> and the code</td>
+<td>yes, once the file holds the served bundle or a newer one with its statement</td>
+<td><code>TestEveryRefusedReplacementMovesNothing</code></td>
+</tr>
+<tr>
+<td>Floor directory or file missing or unreadable at start</td>
+<td>none: the plane does not start</td>
+<td>none</td>
+<td>no listener</td>
+<td>no: restore it, or make it again with <code>policy state init</code> or <code>reset</code></td>
+<td><code>TestAStartWithNoFloorIsRefused</code>, <code>TestAStartIsRefusedForWhatItCannotRead</code></td>
 </tr>
 <tr>
 <td>Plane killed with calls held</td>
@@ -178,6 +202,17 @@ finds a whole file again. A read older than three intervals is unknown as
 well. <code>/healthz</code> answers <code>503</code> with <code>pause.state: unknown</code> and the cause
 (<code>TestHealthAnswers503OnEveryUnknownState</code>), and the trail of each call ends
 <code>ACTION_BLOCKED</code> with the code.</p>
+<h2 id="a-policy-that-is-not-confirmed">A policy that is not confirmed</h2>
+<p>Every poll reads the bundle and the statement again. A file it refuses is
+logged and counted under its cause in
+<code>guardana_control_policy_refresh_refused_total</code>, and the bundle in use and
+its confirmation stay as they were. A bundle file refused stops the renewals
+of the bundle in use too, since each poll pairs the statement with the file,
+so the plane turns stale when the last statement's budget runs out. While
+the policy is not confirmed, each call's <code>POLICY_DECIDED</code> carries
+<code>POLICY_STALE</code> and <code>policy_freshness</code> <code>STALE</code>, <code>/healthz</code> answers
+<code>&quot;status&quot;:&quot;degraded&quot;</code>, and outside <code>OBSERVE</code> a material call is blocked
+with <code>ACTION_BLOCKED</code>.</p>
 <h2 id="plane-killed-with-calls-held">Plane killed with calls held</h2>
 <p>A held call's trail stands at <code>APPROVAL_REQUESTED</code> while no plane runs, and
 an approver can still answer its record. With <code>approvals.hold_journal_dir</code>

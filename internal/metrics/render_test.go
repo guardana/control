@@ -16,6 +16,7 @@ import (
 	"github.com/guardana/control/internal/metrics/metricstest"
 	"github.com/guardana/control/internal/pause"
 	"github.com/guardana/control/internal/policy/reasons"
+	"github.com/guardana/control/internal/policywatch"
 )
 
 // leaf is one statistic of a Reading: a number, a flag or a map of counts,
@@ -96,7 +97,7 @@ func TestEachMetricReadsItsOwnStatistic(t *testing.T) {
 	base := parse(t, Reading{})
 	code := reasons.All()[0].ID
 	for i, l := range readingLeaves(t) {
-		if l.path == "PauseState" {
+		if l.path == "PauseState" || l.path == "PolicyFreshness" {
 			continue
 		}
 		r, key, raw := readingWith(t, l, uint64(1_000_003+7919*i), code)
@@ -161,6 +162,8 @@ func readingWith(t *testing.T, l leaf, v uint64, code string) (r Reading, key, r
 			key = code
 		case "Adapter.RunsRefusedAtRequest", "Adapter.RunsRefusedAtMessage":
 			key = string(gateway.RunClosed)
+		case "Policy.Refused":
+			key = string(policywatch.CauseStatementFuture)
 		}
 		m := reflect.MakeMap(field.Type())
 		m.SetMapIndex(reflect.ValueOf(key).Convert(field.Type().Key()), reflect.ValueOf(v))
@@ -258,16 +261,19 @@ func TestFlagsAreTheMetricsWhoseHelpSaysOneWhen(t *testing.T) {
 	}
 }
 
+// zeroStates is the state a zero reading is in, by the statistic that holds it.
+var zeroStates = map[string]string{"PauseState": "unknown", "PolicyFreshness": "unconfirmed"}
+
 // TestAZeroReadingIsZero: before anything is counted every metric without a
-// label is 0, a labelled counter has no sample, and the pause state is
-// unknown, which is the zero state.
+// label is 0, a labelled counter has no sample, the pause state is unknown and
+// the policy unconfirmed, which are the zero states.
 func TestAZeroReadingIsZero(t *testing.T) {
 	for _, f := range parse(t, Reading{}) {
 		m := metric(t, f.Name)
 		switch {
-		case m.Reads == "PauseState":
-			if s, ok := f.One(map[string]string{"state": "unknown"}); !ok || s.Raw != "1" {
-				t.Errorf("the zero pause state is not unknown: %+v", f.Samples)
+		case zeroStates[m.Reads] != "":
+			if s, ok := f.One(map[string]string{"state": zeroStates[m.Reads]}); !ok || s.Raw != "1" {
+				t.Errorf("the zero %s is not %s: %+v", m.Reads, zeroStates[m.Reads], f.Samples)
 			}
 		case m.Label != "":
 			if len(f.Samples) != 0 {
@@ -278,6 +284,46 @@ func TestAZeroReadingIsZero(t *testing.T) {
 				t.Errorf("%s is not one 0: %+v", f.Name, f.Samples)
 			}
 		}
+	}
+}
+
+func TestTheFreshnessStateIsOneOfThree(t *testing.T) {
+	for state, name := range map[policywatch.State]string{
+		policywatch.Unconfirmed: "unconfirmed", policywatch.Confirmed: "confirmed", policywatch.Expired: "expired",
+	} {
+		f := family(t, parse(t, Reading{PolicyFreshness: state}), Prefix()+"policy_freshness")
+		if len(f.Samples) != 3 {
+			t.Errorf("%s: %d samples, want one per state", name, len(f.Samples))
+		}
+		for _, s := range f.Samples {
+			want := "0"
+			if s.Labels["state"] == name {
+				want = "1"
+			}
+			if s.Raw != want {
+				t.Errorf("under %s the sample %v is %s, want %s", name, s.Labels, s.Raw, want)
+			}
+		}
+	}
+}
+
+// TestARefreshCauseOutsideTheSetIsCountedUnderOther: the refresher's causes
+// are a closed set like the pause reader's.
+func TestARefreshCauseOutsideTheSetIsCountedUnderOther(t *testing.T) {
+	var r Reading
+	r.Policy.Refused = map[policywatch.Cause]uint64{policywatch.CauseFloor: 2, "made up": 3}
+	f := family(t, parse(t, r), Prefix()+"policy_refresh_refused_total")
+	want := []metricstest.Sample{{Labels: map[string]string{"cause": "floor"}, Raw: "2"}, {Labels: map[string]string{"cause": Other}, Raw: "3"}}
+	if len(f.Samples) != len(want) {
+		t.Fatalf("%+v, want %+v", f.Samples, want)
+	}
+	for i, s := range f.Samples {
+		if !maps.Equal(s.Labels, want[i].Labels) || s.Raw != want[i].Raw {
+			t.Errorf("sample %d is %v %s, want %v %s", i, s.Labels, s.Raw, want[i].Labels, want[i].Raw)
+		}
+	}
+	if slices.Contains(policywatch.Causes(), policywatch.Cause(Other)) {
+		t.Fatalf("%q is a refresh cause, so it cannot stand for none", Other)
 	}
 }
 
@@ -330,6 +376,7 @@ func TestNamesFollowTheConventions(t *testing.T) {
 		wantLabel := map[string]string{
 			"Pipeline.Blocks": "code", "Pause.Failed": "cause", "PauseState": "state",
 			"Adapter.RunsRefusedAtRequest": "cause", "Adapter.RunsRefusedAtMessage": "cause",
+			"Policy.Refused": "cause", "PolicyFreshness": "state",
 		}[m.Reads]
 		if m.Label != wantLabel {
 			t.Errorf("%s reads %s and has label %q, want %q", m.Name, m.Reads, m.Label, wantLabel)
@@ -356,6 +403,7 @@ func TestRenderRefuses(t *testing.T) {
 	}{
 		{"a counter below zero", Reading{Adapter: statsSent(-1)}, Reading{Adapter: statsSent(0)}},
 		{"a pause state outside the four", Reading{PauseState: pause.Paused + 1}, Reading{PauseState: pause.Paused}},
+		{"a freshness state outside the three", Reading{PolicyFreshness: policywatch.Expired + 1}, Reading{PolicyFreshness: policywatch.Expired}},
 		{"codes outside the registry past a counter's range",
 			Reading{Pipeline: blocks(map[string]uint64{code + "_X": math.MaxUint64, code + "_Y": 1})},
 			Reading{Pipeline: blocks(map[string]uint64{code + "_X": math.MaxUint64 - 1, code + "_Y": 1, code: math.MaxUint64})}},
@@ -469,4 +517,13 @@ func metric(t *testing.T, name string) Metric {
 	}
 	t.Fatalf("no row %s", name)
 	return Metric{}
+}
+
+// TestTheFreshnessHelpSaysWhichModesBlock: an unconfirmed policy blocks
+// material calls only where the mode enforces, so the help names the one mode
+// that does not.
+func TestTheFreshnessHelpSaysWhichModesBlock(t *testing.T) {
+	if help := metric(t, Prefix()+"policy_freshness").Help; !strings.Contains(help, "every mode but OBSERVE blocks") {
+		t.Errorf("policy_freshness says %q, which does not name the mode that runs every call", help)
+	}
 }

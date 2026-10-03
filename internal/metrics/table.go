@@ -16,7 +16,11 @@ import (
 
 // table is the one list of metrics: Render writes it, the reference page
 // lists it, and the tests walk the statistics against it.
-var table = []Metric{
+var table = slices.Concat(seamRows, policyRows, storeRows)
+
+// seamRows are the pipeline's, the decision point's, the adapter's and the
+// pause file reader's.
+var seamRows = []Metric{
 	labelled(Counter, "pipeline_blocks_total", "code", "Pipeline.Blocks",
 		"Calls and resumes blocked, expired holds swept and lost holds a reconciliation closed, by the first reason code "+
 			"of the decision each carries; a code outside the reason registry is counted under "+Other+".",
@@ -148,7 +152,10 @@ var table = []Metric{
 	level("pause_entries", "PauseEntries",
 		"Pause entries in force.",
 		func(r Reading) int64 { return int64(r.PauseEntries) }),
+}
 
+// storeRows are the spool's and the exporter's, which come last.
+var storeRows = []Metric{
 	flag("spool_broken", "SpoolBroken",
 		"1 when the spool reports an error; every other metric reading the spool is then left out.",
 		func(r Reading) bool { return r.SpoolBroken }),

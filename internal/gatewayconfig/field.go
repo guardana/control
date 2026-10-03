@@ -133,6 +133,32 @@ func durationField[T any](path, def string, get func(*T) *time.Duration) field[T
 	}
 }
 
+// requiredDuration is a duration with no default, which a configuration has
+// to set to a positive value. It shows as empty while unset, which is how
+// checkRequired tells a key nobody set.
+func requiredDuration[T any](path string, get func(*T) *time.Duration) field[T] {
+	f := durationField(path, "", get)
+	f.required = true
+	parse := f.set
+	f.set = func(t *T, v string) error {
+		if err := parse(t, v); err != nil {
+			return err
+		}
+		if *get(t) <= 0 {
+			*get(t) = 0
+			return fmt.Errorf("not a positive duration: %s", quoteValue(v))
+		}
+		return nil
+	}
+	f.show = func(t *T) string {
+		if *get(t) == 0 {
+			return ""
+		}
+		return get(t).String()
+	}
+	return f
+}
+
 func bytesField[T any](path, def string, get func(*T) *int64) field[T] {
 	return field[T]{
 		path: path, kind: "bytes, plain or with KiB, MiB, GiB", def: def,

@@ -87,11 +87,6 @@ func loadTime() time.Time {
 	return time.Date(2026, time.September, 11, 12, 0, 0, 123456789, time.UTC)
 }
 
-// at is the clock reading n seconds after loadTime.
-func at(n int) time.Time {
-	return loadTime().Add(time.Duration(n) * time.Second)
-}
-
 // key is the private key whose seed is 32 bytes of b.
 func key(b byte) ed25519.PrivateKey {
 	return ed25519.NewKeyFromSeed(bytes.Repeat([]byte{b}, ed25519.SeedSize))
@@ -260,27 +255,6 @@ func load(t tb, b *controlv1.PolicyBundle) *policy.Snapshot {
 	return snap
 }
 
-func install(t tb, h *policy.Holder, b *controlv1.PolicyBundle, when time.Time) {
-	t.Helper()
-	if err := h.Install(b, pinned(), when); err != nil {
-		t.Fatalf("Install refused a bundle this test expects it to take: %v", err)
-	}
-}
-
-// expectCurrent fails unless the holder's snapshot has this serial and digest
-// and was last confirmed at confirmed.
-func expectCurrent(t tb, h *policy.Holder, serial int64, digest string, confirmed time.Time) {
-	t.Helper()
-	cur := h.Current()
-	if cur == nil {
-		t.Fatalf("Current() = nil, want serial %d", serial)
-	}
-	if cur.Serial() != serial || cur.Ref().GetDigest() != digest || !cur.ConfirmedAt().Equal(confirmed) {
-		t.Fatalf("Current() has serial %d, digest %s, confirmed %v; want %d, %s, %v",
-			cur.Serial(), cur.Ref().GetDigest(), cur.ConfirmedAt(), serial, digest, confirmed)
-	}
-}
-
 // loadChecks are Load's refusals, in the order Load runs its checks.
 func loadChecks() []error {
 	return []error{
@@ -299,7 +273,7 @@ func loadChecks() []error {
 }
 
 // sentinels are every refusal the package names: Load's, then Sign's and
-// Install's own, then the statement's and the floor's.
+// the holder's own, then the statement's and the floor's.
 func sentinels() []error {
 	all := append(loadChecks(), policy.ErrSigningKey, policy.ErrRollback, policy.ErrSerialReused, policy.ErrBundlePin)
 	all = append(all, statementSentinels()...)
@@ -311,7 +285,7 @@ func floorSentinels() []error {
 	return []error{
 		policy.ErrFloorInvalid, policy.ErrFloorBundle, policy.ErrStatementFuture, policy.ErrClockBehindFloor,
 		policy.ErrBelowFloor, policy.ErrFloorSerialReused, policy.ErrAboveFloorUnbound, policy.ErrStatementMissing,
-		policy.ErrStatementUnbound, policy.ErrFloorRaise, policy.ErrNoFloorStore, policy.ErrStatementOnly,
+		policy.ErrStatementUnbound, policy.ErrFloorRaise, policy.ErrNoFloorStore,
 	}
 }
 

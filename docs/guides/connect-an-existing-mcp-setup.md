@@ -43,12 +43,21 @@ The configuration starts `node_modules/.bin/mcp-server-filesystem`, a path it
 resolves against its own directory. The plane gives the server only `PATH`,
 `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `USER` and what `env` names.
 
-### 2. Make a key and sign a policy
+### 2. Make the keys, sign a policy and vouch for it
 
 ```
 guardana-control policy keygen --out keys
+guardana-control policy keygen --out freshness
 guardana-control policy sign --key keys/signing.key --out policy.bundle policy.json
+guardana-control policy state init --kind signer --bundle-id starter-approval-for-writes signer-floors
+guardana-control policy renew --key freshness/signing.key --bundle policy.bundle \
+    --bundle-public-key keys/signing.pub --floor signer-floors --out policy.statement
+guardana-control policy state init --kind plane --bundle-id starter-approval-for-writes floors
 ```
+
+`keys` signs the bundle and `freshness`, a second pair, signs the statement
+that says the bundle is current. `floors` is the plane's: it keeps the highest
+serial the plane took, so a restart cannot go back to an older bundle.
 
 `policy.json` is the approval-for-writes pack's document, which release
 archives do not carry: take it from `examples/starter-packs/` in a checkout or
@@ -56,15 +65,17 @@ on the repository's page.
 
 The approval-for-writes pack allows reads, holds every write for a person,
 denies deletes in `prod` and a confidential message out after untrusted input
-([reference/starter-packs.md](../reference/starter-packs.md)). Keep `keys`
-off the machine that runs the plane once you sign for real.
+([reference/starter-packs.md](../reference/starter-packs.md)). Keep `keys`,
+`freshness`, `signer-floors` and your copy of the bundle off the machine that
+runs the plane once you sign for real.
 
 ### 3. Fill in the profile
 
-In `plane.yaml`, replace `KEY_ID_FROM_KEYGEN` and `PUBLIC_KEY_FROM_KEYGEN`
-with the two lines `keygen` printed, and the server's one argument with the
-absolute path of the directory it may touch. Nothing else needs to change for
-this server.
+In `plane.yaml`, replace `BUNDLE_KEY_ID_FROM_KEYGEN` and `BUNDLE_PUBLIC_KEY_FROM_KEYGEN`
+with the two lines the first `keygen` printed,
+`FRESHNESS_KEY_ID_FROM_KEYGEN` and `FRESHNESS_PUBLIC_KEY_FROM_KEYGEN` with
+the second's, and the server's one argument with the absolute path of the
+directory it may touch. Nothing else needs to change for this server.
 
 ### 4. Start a collector
 
@@ -102,7 +113,10 @@ guardana-gateway run --config plane.yaml
 ```
 
 It listens for agents on `127.0.0.1:8080` and answers `/healthz` and
-`/metrics` on `127.0.0.1:8081`.
+`/metrics` on `127.0.0.1:8081`. The statement confirms the policy for
+`policy.max_stale`, ten minutes unless you set it; rerun the `renew` line
+before that, less one `policy.poll_interval`, or every call is blocked with
+`POLICY_STALE` and `/healthz` says `"status":"degraded"`.
 
 ### 7. Point the client at the plane
 

@@ -2,7 +2,7 @@
 title: Threat model
 summary: What the plane protects, from whom, what it does about each attacker today with the code and the test behind it, and where it stops.
 type: explanation
-covers: [adapters/mcp/**, adapters/authzen/**, adapters/otel/**, cmd/guardana-gateway/**, cmd/guardana-control/**, internal/gateway/**, internal/gatewayconfig/**, internal/core/**, internal/approvals/**, internal/holdjournal/**, internal/pause/**, internal/console/**, internal/trailfile/**, internal/spool/**, internal/policykey/**, internal/policy/bundle/**, .goreleaser.yaml, .github/workflows/release.yml]
+covers: [adapters/mcp/**, adapters/authzen/**, adapters/otel/**, cmd/guardana-gateway/**, cmd/guardana-control/**, internal/gateway/**, internal/gatewayconfig/**, internal/core/**, internal/approvals/**, internal/holdjournal/**, internal/pause/**, internal/console/**, internal/trailfile/**, internal/spool/**, internal/policykey/**, internal/policy/bundle/**, internal/policywatch/**, internal/policystate/**, .goreleaser.yaml, .github/workflows/release.yml]
 ---
 
 # Threat model
@@ -23,7 +23,8 @@ what exists is [status](../status.md); this page keeps no list of its own.
 - `guardana-gateway collect` and the trail file it writes, and `trail`, which
   reads one.
 - The policy key, `policy keygen`, `policy sign` and the signed bundle a plane
-  loads.
+  loads; the freshness key, `policy renew`, the statement it writes and the
+  serial floors that keep a bundle current.
 - The release archives and what proves where they came from
   ([RELEASING.md](../../RELEASING.md)).
 
@@ -37,6 +38,7 @@ outside the plane. They appear below as parties the plane has to deal with.
 | the decision on a call | a call that runs although its policy blocks it, or one blocked although it may run |
 | an approval and its binding | one approved action run with other arguments, under another bundle, twice, or after it expired ([approvals](approvals-and-the-held-call.md)) |
 | the signed policy and its key | any rule they like, on every plane that pins the key's public half |
+| the policy's freshness and its floor | an older signed bundle served again, or a stale one taken as current |
 | the evidence | a record of something that did not happen, or no record of something that did |
 | the pause switch | calls that run although an operator stopped them, or every call stopped |
 | credentials a plane holds | the collector's and the decision point's header values, and the variables an upstream's `env` list hands its command |
@@ -121,6 +123,12 @@ What the plane does today:
   `TestTheToxicFlowIsDeniedAcrossSessions` in `internal/gateway/e2e/`).
 - An operator can pause every call, one upstream or one tool
   (`internal/gateway/pause.go`; `TestAPauseAtEachScopeBlocksExactlyItsCalls`).
+- A policy counts as current only while a signed freshness statement bound to
+  its bundle is within its budget; without one a mode that enforces blocks
+  material calls. The plane's serial floor is on disk, so a restart onto an
+  older bundle is refused (`internal/policywatch/`;
+  `TestAnUnconfirmedPlaneBlocksMaterialCalls`,
+  `TestAStartBelowOrBesideTheFloorIsRefused`).
 
 What it does not do:
 
@@ -149,6 +157,10 @@ What it does not do:
   ([ADR-0021](../adr/0021-a-run-carries-what-it-took-in.md)).
 - A pause takes effect up to one poll interval after it is written, and never
   stops a call already running ([ADR-0019](../adr/0019-an-operator-can-pause-calls.md)).
+- Freshness trusts the plane's clock: a plane restarted with its clock set
+  back takes its last statement as current again, and restoring the floor's
+  volume rolls the floor back with it
+  ([ADR-0038](../adr/0038-a-signed-freshness-statement-and-a-serial-floor.md)).
 
 ## A hostile or compromised MCP server
 
@@ -275,7 +287,8 @@ What it does not do:
 
 The plane's account is the authority for everything on disk. **Any process
 running as that account can approve, reject, pause and lift a pause, sign a
-bundle with a key it can read, read the plane's environment, its header
+bundle or a statement with a key it can read, lower a policy's floor, read the
+plane's environment, its header
 credentials included, and rewrite the evidence.** That includes a
 `stdio` upstream, the page's starter, and a tool behind the plane that can
 write files ([ADR-0016](../adr/0016-approval-providers-and-the-lost-hold.md),
@@ -292,9 +305,10 @@ What bounds it:
   in `internal/gateway/store_test.go`).
 - A writer of that directory can still deny a chosen action and bundle, and
   leave evidence naming an approval that was never used (ADR-0016).
-- The gateway binary holds none of the approver's code and no private-key
-  parser, so the process that serves agents cannot answer an approval or read
-  a signing key itself (`cmd/guardana-gateway/symbols_test.go`).
+- The gateway binary holds none of the approver's code, no private-key
+  parser and no code that makes or lowers a floor, so the process that serves
+  agents cannot answer an approval, read a signing key or reset its own floor
+  (`cmd/guardana-gateway/symbols_test.go`).
 
 When the agent, its tools, the plane and the approver run as one account, as
 `dev` does, the account boundary separates none of them.

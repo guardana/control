@@ -133,6 +133,7 @@ func vetoTree(t *testing.T, identifier, extra string) tree {
 	t.Helper()
 	tr := newTree(t)
 	writeBundle(t, filepath.Join(tr.dir, "policy.bundle"), vetoDocument)
+	tr.confirm(t)
 	withConfig(t, tr, "\npdp:\n  identifier: "+identifier+"\n  allow_plaintext: true\n"+extra)
 	setEnv(t, "mode", "ENFORCE")
 	return tr
@@ -280,6 +281,7 @@ func TestRunRefusesADecisionPointAndABundleThatDisagree(t *testing.T) {
 		{"a bundle that reads external with no decision point", func(t *testing.T) tree {
 			tr := newTree(t)
 			writeBundle(t, filepath.Join(tr.dir, "policy.bundle"), vetoDocument)
+			tr.confirm(t)
 			return tr
 		}, []string{"none is configured", "set pdp.identifier"}},
 		{"a decision point no rule consults", func(t *testing.T) tree {
@@ -290,6 +292,7 @@ func TestRunRefusesADecisionPointAndABundleThatDisagree(t *testing.T) {
 		{"a plaintext decision point with no risk flag", func(t *testing.T) tree {
 			tr := newTree(t)
 			writeBundle(t, filepath.Join(tr.dir, "policy.bundle"), vetoDocument)
+			tr.confirm(t)
 			withConfig(t, tr, "\npdp:\n  identifier: http://127.0.0.1:1\n")
 			return tr
 		}, []string{"pdp: authzen: invalid options"}},
@@ -413,6 +416,7 @@ func TestDoctorSaysWhenNoDecisionPointIsConfigured(t *testing.T) {
 func TestDoctorCarriesTheClientsRefusal(t *testing.T) {
 	tr := newTree(t)
 	writeBundle(t, filepath.Join(tr.dir, "policy.bundle"), vetoDocument)
+	tr.confirm(t)
 	withConfig(t, tr, "\npdp:\n  identifier: http://127.0.0.1:1\n")
 	var out bytes.Buffer
 	if status := doctor(context.Background(), tr.config, &out, &out); status == exitOK {

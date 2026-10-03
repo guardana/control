@@ -17,20 +17,24 @@ begins "1 when", and read 1 or 0. Times are in seconds and sizes in bytes.
 A spool that cannot answer sets `guardana_control_spool_broken` to 1, and every other
 metric reading the spool is left out of the text rather than written as zero; the rest
 is still answered. A reading the text cannot carry truthfully answers 503 with no body:
-a counter below zero, a pause state outside the four, or counts outside a label's
-closed set that sum past a counter's range.
+a counter below zero, a pause state outside the four, a freshness state outside the
+three, or counts outside a label's closed set that sum past a counter's range.
 
 `guardana_control_pipeline_halted` is not the only thing that stops calls. While it
 reads 0, an unknown pause state takes no call at all, which `guardana_control_pause_state`
-reports under `state="unknown"`, and a refused evidence append blocks the call it records,
-which `guardana_control_pipeline_sink_failures_before_effect_total` counts.
+reports under `state="unknown"`; in every mode but OBSERVE a policy that is not
+confirmed blocks every material call, which `guardana_control_policy_freshness`
+reports; and a refused evidence append
+blocks the call it records, which `guardana_control_pipeline_sink_failures_before_effect_total`
+counts.
 
 No label carries an identifier, a digest or a reason: `code` is a code of the reason
-registry, `cause` is why a read of the pause file was unknown, and `state` is one of
-the four pause states. A code or a cause outside its set is counted under `other`,
-so no count is dropped. Reads names the statistic: `Pipeline` is the pipeline's,
-`Adapter` the MCP adapter's, `Pause` the pause file reader's, `Spool` the evidence
-spool's and `Exporter` the exporter's.
+registry; `cause` is why a read of the pause file was unknown, why a run token did not
+resolve, or why a poll of the policy moved nothing; and `state` is one of the four pause
+states or the three freshness states. A code or a cause outside its set is counted under
+`other`, so no count is dropped. Reads names the statistic: `Pipeline` is the
+pipeline's, `Adapter` the MCP adapter's, `Pause` the pause file reader's, `Policy` the
+policy refresher's, `Spool` the evidence spool's and `Exporter` the exporter's.
 
 Rendered from the table in `internal/metrics`. Rebuild it with `make docs-gen`; an
 edit made here does not survive the next run.
@@ -78,6 +82,12 @@ edit made here does not survive the next run.
 | `guardana_control_pause_changes_total` | counter |  | `Pause.Changes` | Reads whose state, cause or entries differ from the read before, the first included. |
 | `guardana_control_pause_state` | gauge | `state` | `PauseState` | 1 for the pause state a call admitted now is decided under, 0 for the three others. |
 | `guardana_control_pause_entries` | gauge |  | `PauseEntries` | Pause entries in force. |
+| `guardana_control_policy_freshness` | gauge | `state` | `PolicyFreshness` | 1 for how the policy a call is decided under stands, confirmed, unconfirmed or expired, 0 for the two others; while it is not confirmed every mode but OBSERVE blocks every material call. |
+| `guardana_control_policy_confirmation_seconds_left` | gauge |  | `PolicySecondsLeft` | Whole seconds until the policy's confirmation expires; 0 while it is unconfirmed or expired. |
+| `guardana_control_policy_refresh_refused_total` | counter | `cause` | `Policy.Refused` | Polls that moved nothing because a replacement, a statement or the clock was refused, by cause; a cause the refresher does not declare is counted under other. |
+| `guardana_control_policy_awaiting_statement_total` | counter |  | `Policy.AwaitingStatement` | Polls that found a new bundle whose statement still names another. |
+| `guardana_control_policy_awaiting_bundle_total` | counter |  | `Policy.AwaitingBundle` | Polls that found a statement naming a bundle not yet on disk. |
+| `guardana_control_policy_withdrawals_total` | counter |  | `Policy.Withdrawals` | Confirmations withdrawn because the wall clock stood more than a second below the highest it had read. |
 | `guardana_control_spool_broken` | gauge |  | `SpoolBroken` | 1 when the spool reports an error; every other metric reading the spool is then left out. |
 | `guardana_control_spool_segments` | gauge |  | `Spool.Segments` | Segments of the spool on disk. |
 | `guardana_control_spool_bytes` | gauge |  | `Spool.Bytes` | Bytes of the spool on disk, the segments and the quarantine. |

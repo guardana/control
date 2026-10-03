@@ -1,6 +1,7 @@
 package policy_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -20,13 +21,11 @@ import (
 // keep installing whichever bundle is current, and a watcher reads Current.
 //
 // Serialized, an install either takes a serial above every serial taken
-// before it or refuses it, and a refresh confirms a bundle that is still
-// current. So the watcher never sees the serial fall, nor sees it below a
+// before it or refuses it, and a refresh of a bundle that is still current
+// changes nothing. So the watcher never sees the serial fall, nor sees it below a
 // serial whose install has returned, and serial n is the one left standing.
 // Unserialized, an install or a refresh can read the current snapshot, lose
-// the processor, and store what it read after a higher serial landed. The
-// refreshers are there because a refresh stores a copy of what it read, which
-// gives that race a window wide enough to be hit on every run.
+// the processor, and store what it read after a higher serial landed.
 func TestInstallIsSerialized(t *testing.T) {
 	const n, refreshers, rounds = 32, 4, 50
 	bundles := make([]*controlv1.PolicyBundle, n)
@@ -38,21 +37,20 @@ func TestInstallIsSerialized(t *testing.T) {
 	keys := pinned()
 	for round := range rounds {
 		order := rapid.Permutation(indices).Example(round)
-		if problem := installAtOnce(bundles, order, refreshers, keys); problem != "" {
+		if problem := installAtOnce(openHolder(t), bundles, order, refreshers, keys); problem != "" {
 			t.Fatalf("round %d, order %v: %s", round, order, problem)
 		}
 	}
 }
 
 // installAtOnce runs one round and says what went wrong, or "".
-func installAtOnce(bundles []*controlv1.PolicyBundle, order []int, refreshers int, keys bundle.Keyring) string {
-	var h policy.Holder
+func installAtOnce(h *policy.Holder, bundles []*controlv1.PolicyBundle, order []int, refreshers int, keys bundle.Keyring) string {
 	var returned atomic.Int64 // the highest serial whose install has returned nil
 	start, stop := make(chan struct{}), make(chan struct{})
 	reports := make(chan string, refreshers+1)
-	go func() { reports <- watch(&h, &returned, stop) }()
+	go func() { reports <- watch(h, &returned, stop) }()
 	for range refreshers {
-		go func() { reports <- refresh(&h, bundles, keys, start, stop) }()
+		go func() { reports <- refresh(h, bundles, keys, start, stop) }()
 	}
 	errs := make([]error, len(order))
 	var wg sync.WaitGroup
@@ -61,7 +59,7 @@ func installAtOnce(bundles []*controlv1.PolicyBundle, order []int, refreshers in
 		go func() {
 			defer wg.Done()
 			<-start
-			if errs[i] = h.Install(bundles[index], keys, loadTime()); errs[i] == nil {
+			if errs[i] = h.InstallUnconfirmed(context.Background(), bundles[index], keys); errs[i] == nil {
 				raise(&returned, int64(index+1))
 			}
 		}()
@@ -136,7 +134,7 @@ func refresh(h *policy.Holder, bundles []*controlv1.PolicyBundle, keys bundle.Ke
 		if s == nil {
 			continue
 		}
-		if err := h.Install(bundles[s.Serial()-1], keys, loadTime()); err != nil && !errors.Is(err, policy.ErrRollback) {
+		if err := h.InstallUnconfirmed(context.Background(), bundles[s.Serial()-1], keys); err != nil && !errors.Is(err, policy.ErrRollback) {
 			return fmt.Sprintf("refresh of serial %d: %v", s.Serial(), err)
 		}
 	}
@@ -153,18 +151,18 @@ func TestConcurrentInstallAndCurrent(t *testing.T) {
 		bundles[i] = signedDocument("payments", "v"+strconv.Itoa(i+1), int64(i+1))
 		digests[int64(i+1)] = digestOf(bundles[i].GetCanonical())
 	}
-	var h policy.Holder
+	h := openHolder(t)
 	keys := pinned()
 	stop := make(chan struct{})
 	problems := make(chan string, installers+readers)
 	var installing, reading sync.WaitGroup
 	for range readers {
 		reading.Add(1)
-		go func() { defer reading.Done(); problems <- readUntil(&h, stop, digests) }()
+		go func() { defer reading.Done(); problems <- readUntil(h, stop, digests) }()
 	}
-	for g := range installers {
+	for range installers {
 		installing.Add(1)
-		go func() { defer installing.Done(); problems <- installAll(&h, bundles, keys, g) }()
+		go func() { defer installing.Done(); problems <- installAll(h, bundles, keys) }()
 	}
 	installing.Wait()
 	close(stop)
@@ -180,12 +178,12 @@ func TestConcurrentInstallAndCurrent(t *testing.T) {
 	}
 }
 
-// installAll installs each bundle twice, the second time a refresh unless
-// another installer got further meanwhile.
-func installAll(h *policy.Holder, bundles []*controlv1.PolicyBundle, keys bundle.Keyring, installer int) string {
+// installAll installs each bundle twice, the second time the same bundle
+// again unless another installer got further meanwhile.
+func installAll(h *policy.Holder, bundles []*controlv1.PolicyBundle, keys bundle.Keyring) string {
 	for i, b := range bundles {
-		for again := range 2 {
-			err := h.Install(b, keys, at(installer*100+i*10+again))
+		for range 2 {
+			err := h.InstallUnconfirmed(context.Background(), b, keys)
 			if err != nil && !errors.Is(err, policy.ErrRollback) {
 				return fmt.Sprintf("install of serial %d: %v", i+1, err)
 			}

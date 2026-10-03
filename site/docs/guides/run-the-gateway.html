@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Run the gateway · Guardana Control</title>
-<meta name="description" content="Start the MCP gateway in OBSERVE, read its health, classify the tools it sees, and move it to ENFORCE."/>
+<meta name="description" content="Set up a plane&#39;s policy files, start the MCP gateway in OBSERVE, keep its policy confirmed, read its health, classify the tools it sees, and move it to ENFORCE."/>
 <link rel="canonical" href="https://control.guardana.dev/docs/guides/run-the-gateway"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
@@ -28,8 +28,8 @@
 <h1 id="run-the-gateway">Run the gateway</h1>
 <h2 id="when-to-use-this">When to use this</h2>
 <p>You have an agent that speaks the Model Context Protocol (MCP) to one or more
-servers, and you want every call it makes decided from policy, enforced before
-the server sees it, and recorded. Start in <code>OBSERVE</code>, which records every call and
+servers, and you want every call decided from policy, enforced before the
+server sees it, and recorded. Start in <code>OBSERVE</code>, which records every call and
 blocks only for the plane's own causes, and move to <code>ENFORCE</code> once the tools
 are classified.</p>
 <p>The gateway is <code>experimental</code>; <a href="/docs/status">status.md</a> says what runs and what
@@ -37,26 +37,39 @@ does not. Nothing here is a security boundary yet.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <ul>
 <li><code>guardana-gateway</code> from a release archive, or built: <code>go build ./cmd/guardana-gateway</code>.</li>
-<li>A signed policy bundle and the two lines <code>policy keygen</code> printed for the key
-that signed it (<a href="/docs/guides/write-and-test-a-policy">write-and-test-a-policy.md</a>).</li>
-<li>A directory for the evidence spool, owned by the plane's account,
-writable by no one else, with room for its budget.</li>
-<li>An OpenTelemetry collector that takes OTLP/HTTP logs in JSON. The endpoint is
-required: evidence nobody drains fills the budget, and material calls then
-block.</li>
-<li>To hold calls for a person to answer: two directories the gateway does not
-create, one for the approval records and one for the plane's own hold
-journal. Neither may be the spool's or inside the other.</li>
+<li><code>guardana-control</code> where the policy is signed and on the plane's host, and a
+policy document (<a href="/docs/guides/write-and-test-a-policy">write-and-test-a-policy.md</a>).</li>
+<li>An OpenTelemetry collector that takes OTLP/HTTP logs in JSON: evidence
+nobody drains fills the spool, and material calls then block.</li>
+<li>To hold calls for a person: two directories the gateway does not create,
+for the approval records and the hold journal, neither the spool's nor
+inside the other.</li>
 </ul>
 <h2 id="steps">Steps</h2>
-<h3 id="1-write-a-configuration">1. Write a configuration</h3>
+<h3 id="1-make-the-policys-files">1. Make the policy's files</h3>
+<p>Where the keys live, never the plane's host, make two key pairs, sign the
+document, and vouch that the bundle is current:</p>
+<pre><code>guardana-control policy keygen --out keys          # the bundle key
+guardana-control policy keygen --out freshness     # the freshness key, never the bundle&#39;s
+guardana-control policy sign --key keys/signing.key --out orders.bundle policy.json
+guardana-control policy state init --kind signer --bundle-id orders-policy signer-floors
+guardana-control policy renew --key freshness/signing.key --bundle orders.bundle \
+    --bundle-public-key keys/signing.pub --floor signer-floors --out orders.statement
+</code></pre>
+<p>Copy <code>orders.bundle</code> and <code>orders.statement</code> to the plane's host, beside the
+configuration. There, as the plane's user, make the spool and the floor
+directory, which keeps the highest serial the plane accepted:</p>
+<pre><code>mkdir -m 700 spool
+guardana-control policy state init --kind plane --bundle-id orders-policy floors
+</code></pre>
+<p><code>--bundle-id</code> is the document's <code>id</code>. Keep <code>floors</code> on a disk that outlives
+the plane: a floor made anew takes any older bundle.</p>
+<h3 id="2-write-a-configuration">2. Write a configuration</h3>
 <p>Every path in the file resolves against the file's directory. Every key has
-an environment variable under <code>GUARDANA_CONTROL_</code>, spelled as the key with its
-dots as underscores in capitals, and the variable wins, so a credential or a
-per-host path stays out of version control. A key the file names and this build
-does not is refused, and so is a variable under that prefix that names no key
-or adds a list entry.
-<a href="/docs/reference/configuration">configuration.md</a> lists every key.</p>
+an environment variable under <code>GUARDANA_CONTROL_</code>, the key in capitals with
+underscores for dots, which wins over the file. A key this build does not
+know is refused. <a href="/docs/reference/configuration">configuration.md</a> lists
+every key.</p>
 <pre><code class="language-yaml">mode: OBSERVE
 project_id: orders
 tenant_id: acme
@@ -73,11 +86,16 @@ listener:
 policy:
   bundle_id: orders-policy      # the plane serves this bundle and no other
   bundle_file: orders.bundle
-  key_id: ed25519-&lt;16 hex digits&gt;   # the two lines policy keygen printed
+  key_id: ed25519-&lt;16 hex digits&gt;   # the two lines keygen printed for keys
   public_key: &lt;44 characters of base64&gt;
+  statement_file: orders.statement
+  state_dir: floors
+  freshness_key_id: ed25519-&lt;16 hex digits&gt;   # the two lines keygen printed for freshness
+  freshness_public_key: &lt;44 characters of base64&gt;
+  poll_interval: 30s            # how often both files are read again
 
 evidence:
-  dir: /var/lib/guardana/spool
+  dir: spool
 
 export:
   endpoint: http://127.0.0.1:4318/v1/logs
@@ -95,26 +113,29 @@ upstreams:
   #     - FILES_ROOT
 </code></pre>
 <p>The listener in this build authenticates nobody, so every request on it is
-made by the principal configured here; no end-user identity is bound from a
-token (<a href="/docs/status">status.md</a>).</p>
-<h3 id="2-check-the-configuration-before-serving">2. Check the configuration before serving</h3>
+made by the principal configured here (<a href="/docs/status">status.md</a>).</p>
+<p>A statement confirms its bundle from its <code>issued_at</code> for the smaller of
+<code>policy.max_stale</code> and the document's <code>maxStaleSeconds</code>. Without one the
+plane starts, but every call is <code>POLICY_STALE</code>: outside <code>OBSERVE</code> a material
+call is blocked, and a read runs only under <code>policy.fail_open_read</code>. Rerun
+<code>renew</code> and copy the statement on a schedule shorter than that budget less
+one poll interval.</p>
+<h3 id="3-check-the-configuration-before-serving">3. Check the configuration before serving</h3>
 <pre><code>guardana-gateway doctor --config gateway.yaml
 </code></pre>
-<p><code>doctor</code> checks the configuration, prints every key and its source, a
-credential excepted, then one line per other check.
-It serves nothing, and it stops at
-the first check it cannot make. A tool no override classifies is printed with
-the fingerprint of its definition, which is what step 4 needs. It does not lock
-the approvals directory, whose lock and permissions the plane checks at start.
-It does open the spool: it locks the evidence directory, cuts a torn tail and
-writes a probe file.</p>
-<h3 id="3-run-in-observe">3. Run in OBSERVE</h3>
+<p><code>doctor</code> prints every key and its source, a credential excepted, then one
+line per check, and stops at the first it cannot make. The <code>policy</code> line
+fails for a statement missing, expired, dated ahead or naming another bundle,
+and for a bundle below its floor, which it reads without raising. A tool no
+override classifies is printed with its fingerprint, which step 5 needs.
+<code>doctor</code> locks the spool, cuts a torn tail and writes a probe file.</p>
+<h3 id="4-run-in-observe">4. Run in OBSERVE</h3>
 <pre><code>guardana-gateway run --config gateway.yaml
 </code></pre>
 <p>Point the agent at <code>http://127.0.0.1:8080</code>, not the server. In <code>OBSERVE</code>
 calls run as proposed, which shows the tools that exist before you classify
 them.</p>
-<h3 id="4-classify-the-tools">4. Classify the tools</h3>
+<h3 id="5-classify-the-tools">5. Classify the tools</h3>
 <p>A call to a tool the manifest does not classify is blocked with
 <code>ACTION_UNCLASSIFIED</code> in every mode but <code>OBSERVE</code>, so classify each one the
 agent needs. Take the fingerprint from <code>doctor</code> and add an override:</p>
@@ -128,23 +149,16 @@ agent needs. Take the fingerprint from <code>doctor</code> and add an override:<
 </code></pre>
 <p>The fingerprint covers the whole definition: a tool whose description or
 schema changes is unclassified again until you look at it.</p>
-<p>A number at <code>resource_from</code> names the resource by its canonical text (<code>42.0</code>
-and <code>4.2e1</code> are <code>42</code>, <code>1e-7</code> stays <code>1e-7</code>), so a rule on a numeric id uses
-that text.</p>
-<h3 id="5-read-the-health">5. Read the health</h3>
+<h3 id="6-read-the-health">6. Read the health</h3>
 <pre><code>curl -s http://127.0.0.1:8081/healthz | jq
 </code></pre>
-<p>The answer carries <code>mode</code>, <code>adapter</code>, <code>halted</code> and a <code>halt</code> object, <code>bundle</code>
-(id, version, digest, serial and when it was last confirmed), <code>spool</code> (segments,
-bytes, unacknowledged bytes, reserved bytes, open trails, quarantined records
-and what a torn write discarded), <code>exporter</code> (acknowledged, quarantined, refused
-and the retries by class) and <code>pipeline</code> (blocks by reason code, pending,
-executed, sink failures before and after an effect, unrecorded reads,
-mismatches, open and held) and <code>approvals</code> (the provider, whether a hold
-journal is kept, and what the last reconciliation closed and could not settle),
-<code>pause</code> and <code>runs</code> (local or opened, and refusals). A plane that takes no material call, or whose pause state is
-unknown, answers <code>503</code>.</p>
-<h3 id="6-move-to-enforce">6. Move to ENFORCE</h3>
+<p>The answer carries <code>mode</code>, <code>halted</code> and <code>halt</code>, <code>bundle</code>, <code>policy</code>, <code>spool</code>,
+<code>exporter</code>, <code>pipeline</code>, <code>approvals</code>, <code>pause</code> and <code>runs</code>. <code>policy.freshness</code>
+is <code>confirmed</code>, <code>unconfirmed</code> or <code>expired</code>, beside the confirmation, its
+expiry, the seconds left and the poll counts. A plane whose policy is not
+confirmed answers <code>&quot;status&quot;:&quot;degraded&quot;</code> with <code>200</code>; one that takes no
+material call, or whose pause state is unknown, answers <code>503</code>.</p>
+<h3 id="7-move-to-enforce">7. Move to ENFORCE</h3>
 <p>Run <code>doctor</code> again with <code>GUARDANA_CONTROL_MODE=ENFORCE</code>: outside <code>OBSERVE</code> an
 unclassified tool is not a pass, which shows whether the overrides are
 complete. Then change the mode and restart.</p>
@@ -178,7 +192,7 @@ complete. Then change the mode and restart.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="7-let-a-person-answer-a-held-call">7. Let a person answer a held call</h3>
+<h3 id="8-let-a-person-answer-a-held-call">8. Let a person answer a held call</h3>
 <pre><code class="language-yaml">approvals:
   provider: file
   dir: /var/lib/guardana/approvals
@@ -190,7 +204,7 @@ the approval authority, and <code>--approver-id</code> is a claim, never authent
 hold lost to a restart never runs; the journal lets the next start close its
 trail or count it left open; <code>doctor</code> counts them
 (<a href="/docs/concepts/approvals-and-the-held-call">concepts/approvals-and-the-held-call.md</a>).</p>
-<h3 id="8-set-the-evidence-rules-on-purpose">8. Set the evidence rules on purpose</h3>
+<h3 id="9-set-the-evidence-rules-on-purpose">9. Set the evidence rules on purpose</h3>
 <table>
 <thead>
 <tr>
@@ -215,13 +229,9 @@ trail or count it left open; <code>doctor</code> counts them
 <td><code>policy.fail_open_read: true</code></td>
 <td>A read undecided only because the policy is unavailable runs if the rules would otherwise allow it. Off by default, and forced off under <code>LOCKDOWN</code></td>
 </tr>
-<tr>
-<td><code>policy.max_stale</code></td>
-<td>Past it, or the bundle's own <code>maxStaleSeconds</code>, calls get <code>POLICY_STALE</code> until a restart</td>
-</tr>
 </tbody>
 </table>
-<h3 id="9-pause-a-tool">9. Pause a tool</h3>
+<h3 id="10-pause-a-tool">10. Pause a tool</h3>
 <p>As the plane's user, before setting <code>pause.file</code> and restarting:</p>
 <pre><code>mkdir -m 700 /srv/pause
 guardana-control pause init /srv/pause/pause.json   # a relative path is read from the working directory
@@ -235,11 +245,12 @@ guardana-control pause init /srv/pause/pause.json   # a relative path is read fr
 (<a href="/docs/concepts/enforcement-modes#pausing-calls">more</a>).</p>
 <h2 id="verify">Verify</h2>
 <ul>
-<li><code>doctor</code> prints <code>ok upstreams ... 0 unclassified</code> in the mode you will run.</li>
+<li><code>doctor</code> prints <code>ok policy</code> and <code>ok upstreams ... 0 unclassified</code> in the
+mode you will run.</li>
 <li>A denied call comes back to the agent as a tool result with <code>isError: true</code>
 and its <code>reason_codes</code>, and the upstream never sees it.</li>
-<li><code>/healthz</code> reports <code>&quot;halted&quot;: false</code> and a spool depth that falls as the
-collector acknowledges records.</li>
+<li><code>/healthz</code> reports <code>&quot;freshness&quot;:&quot;confirmed&quot;</code>, <code>&quot;halted&quot;: false</code> and a spool
+depth that falls as the collector acknowledges records.</li>
 </ul>
 <h2 id="when-the-plane-halts">When the plane halts</h2>
 <p><code>&quot;halted&quot;: true</code> and <code>503</code> mean the plane takes no material call. The <code>halt</code>
@@ -256,6 +267,9 @@ pipeline reports one flag for both halts and a mismatch needs the restart
 either way; <code>pipeline.sink_failures_after_effect</code> counts what happened.</li>
 </ul>
 <h2 id="roll-back">Roll back</h2>
+<p>To change the policy, sign it with a higher <code>serial</code>, renew for it, and copy
+the statement before the bundle: the plane installs the bundle at the poll
+that finds both, and refuses to start on a lower serial.</p>
 <p>Set <code>mode: OBSERVE</code> and restart: no decision blocks a call and the trail
 keeps recording. Evidence that cannot be written still blocks a material call,
 in any mode. To stop enforcing altogether, point the agent back at the server and

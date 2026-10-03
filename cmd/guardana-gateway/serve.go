@@ -113,8 +113,8 @@ func (p *plane) prune(ctx context.Context, stdout io.Writer) {
 	writeLine(stdout, fmt.Sprintf("expired approval records: %d forgotten", forgotten))
 }
 
-// run starts the exporter, the pause file's reader, the health answers and
-// the listener, and returns when ctx ends or a listener stops on its own.
+// run starts the exporter, the pause file's reader, the policy's refresher,
+// the health answers and the listener, and returns when ctx ends or a listener stops on its own.
 // listen binds each address the configuration names, or hands over one bound
 // already. The pause file is read once more before anything is bound: the
 // read the start made is as old as the start took, which can be past what it
@@ -135,21 +135,7 @@ func (p *plane) run(ctx context.Context, stdout io.Writer, listen listenFunc, dr
 	}
 	var wg sync.WaitGroup
 	stopped := make(chan error, len(bound)+1)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		p.export(exportCtx)
-	}()
-	if p.poller != nil {
-		// A poller that stopped leaves its last read standing for three
-		// intervals and then blocks every call, so it runs as long as the
-		// plane does. It logs each change of the snapshot, never a reason.
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			p.poller.Run(ctx)
-		}()
-	}
+	p.startReaders(ctx, exportCtx, &wg)
 	for _, b := range bound {
 		wg.Add(1)
 		go func(b listening) {
@@ -183,6 +169,36 @@ func (p *plane) run(ctx context.Context, stdout io.Writer, listen listenFunc, dr
 	stopExport()
 	wg.Wait()
 	return first
+}
+
+// startReaders runs what feeds a serving plane: the exporter until exportCtx
+// ends, and until ctx ends the pause file's reader and the policy's
+// refresher, each counted in wg.
+func (p *plane) startReaders(ctx, exportCtx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		p.export(exportCtx)
+	}()
+	if p.poller != nil {
+		// A poller that stopped leaves its last read standing for three
+		// intervals and then blocks every call, so it runs as long as the
+		// plane does. It logs each change of the snapshot, never a reason.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p.poller.Run(ctx)
+		}()
+	}
+	if p.policy != nil && p.policy.refresher != nil {
+		// The refresher keeps the policy confirmed; one that stopped leaves
+		// the last confirmation to run out, after which every call is stale.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p.policy.refresher.Run(ctx)
+		}()
+	}
 }
 
 // drainPoll is how often a drain reads the spool's depth.

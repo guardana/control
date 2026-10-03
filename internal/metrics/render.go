@@ -11,6 +11,7 @@ import (
 	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/pause"
+	"github.com/guardana/control/internal/policywatch"
 	"github.com/guardana/control/internal/spool"
 )
 
@@ -48,6 +49,13 @@ type Reading struct {
 	Exporter    otel.Stats
 	// ExporterStopped says the exporter's run ended.
 	ExporterStopped bool
+	// PolicyFreshness is how the snapshot a call is decided under stands,
+	// and PolicySecondsLeft the whole seconds before its confirmation
+	// expires, 0 when it is not confirmed.
+	PolicyFreshness   policywatch.State
+	PolicySecondsLeft int64
+	// Policy is what the policy's refresher counted.
+	Policy PolicyRefresh
 }
 
 // Metric is one row of the table.

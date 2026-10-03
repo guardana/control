@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	adaptermcp "github.com/guardana/control/adapters/mcp"
 	"github.com/guardana/control/internal/brand"
@@ -40,6 +41,7 @@ listener:
     id: orders-assistant
 policy:
   bundle_id: scenario-fixture
+  poll_interval: 1s
 pause:
   poll_interval: 100ms
 export:
@@ -141,6 +143,10 @@ var ownedKeys = [][2]string{
 	{"policy.bundle_file", "orders.bundle"},
 	{"policy.key_id", "k1"},
 	{"policy.public_key", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="},
+	{"policy.statement_file", "orders.statement"},
+	{"policy.state_dir", "floors"},
+	{"policy.freshness_key_id", "f1"},
+	{"policy.freshness_public_key", "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="},
 	{"approvals.provider", "file"},
 	{"approvals.dir", "records"},
 	{"approvals.hold_journal_dir", "holds"},
@@ -267,6 +273,32 @@ func TestDevAddressesAreLoopbackLiterals(t *testing.T) {
 		err := devAddresses(cfg)
 		if err == nil || !strings.HasPrefix(err.Error(), c.key+": ") || strings.Contains(err.Error(), "sesame") {
 			t.Errorf("%s off the loopback: %v", c.key, err)
+		}
+	}
+}
+
+// TestDevRenewsSoonEnoughForItsPollInterval: a statement is renewed every
+// third of the budget, and sooner when a long poll interval would let one be
+// read so late that it aged past the budget; an interval of half the budget
+// or more leaves no period that holds, and is refused.
+func TestDevRenewsSoonEnoughForItsPollInterval(t *testing.T) {
+	for _, c := range []struct {
+		budget, poll, want time.Duration
+	}{
+		{6 * time.Second, time.Second, 2 * time.Second},
+		{6 * time.Second, 2 * time.Second, 2 * time.Second},
+		{6 * time.Second, 2500 * time.Millisecond, time.Second},
+		{90 * time.Second, time.Second, 30 * time.Second},
+		{90 * time.Second, 40 * time.Second, 10 * time.Second},
+		{6 * time.Second, 3 * time.Second, 0},
+		{6 * time.Second, 4 * time.Second, 0},
+	} {
+		got, err := renewalEvery(c.budget, c.poll)
+		switch {
+		case c.want == 0 && (err == nil || !strings.Contains(err.Error(), "policy.poll_interval")):
+			t.Errorf("a %v budget polled every %v: %v, %v; want a refusal naming policy.poll_interval", c.budget, c.poll, got, err)
+		case c.want != 0 && (err != nil || got != c.want):
+			t.Errorf("a %v budget polled every %v: %v, %v; want %v", c.budget, c.poll, got, err, c.want)
 		}
 	}
 }

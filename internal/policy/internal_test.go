@@ -2,6 +2,7 @@ package policy
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"errors"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -133,31 +135,72 @@ func TestLoadReadsTheCallersMessageOnce(t *testing.T) {
 	}
 }
 
-// TestARefreshKeepsTheProgram: the same digest again makes a new snapshot
-// around the program already compiled for it, and leaves the old snapshot as
-// it was. A replacement brings its own program.
-func TestARefreshKeepsTheProgram(t *testing.T) {
+// floorInMemory is a FloorStore holding one floor in memory, raised as
+// Floor.Raise says.
+type floorInMemory struct {
+	mu    sync.Mutex
+	floor Floor
+}
+
+func (s *floorInMemory) Floor(context.Context, string) (Floor, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.floor, nil
+}
+
+func (s *floorInMemory) Raise(_ context.Context, st Statement, now time.Time) (Floor, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next, err := s.floor.Raise(st, now)
+	if err != nil {
+		return Floor{}, err
+	}
+	s.floor = next
+	return next, nil
+}
+
+// paymentsHolder is a holder of "payments" over a floor that holds no serial.
+func paymentsHolder(t *testing.T) *Holder {
+	t.Helper()
+	f, err := EmptyFloor("payments")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := NewFloorHolder("payments", &floorInMemory{floor: f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
+}
+
+// TestARenewalKeepsTheProgram: a statement that confirms the current bundle
+// makes a new snapshot around the program already compiled for it, and
+// leaves the old snapshot as it was. A replacement brings its own program.
+func TestARenewalKeepsTheProgram(t *testing.T) {
 	f := newFixture(t)
-	var h Holder
-	if err := h.Install(f.signed, f.keys, when()); err != nil {
+	h := paymentsHolder(t)
+	ctx := context.Background()
+	if err := h.InstallUnconfirmed(ctx, f.signed, f.keys); err != nil {
 		t.Fatal(err)
 	}
 	first := h.Current()
-	if err := h.Install(f.signed, f.keys, when().Add(time.Minute)); err != nil {
+	st := Statement{bundleID: "payments", serial: 7, digest: exampleDigest, issuedAt: when()}
+	if err := h.Confirm(ctx, st, when().Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	second := h.Current()
 	if second == first || second.program != first.program {
-		t.Fatalf("refresh: new snapshot %v, same program %v; want both", second != first, second.program == first.program)
+		t.Fatalf("renewal: new snapshot %v, same program %v; want both", second != first, second.program == first.program)
 	}
-	if !first.confirmedAt.Equal(when()) || !second.confirmedAt.Equal(when().Add(time.Minute)) {
+	if !first.confirmedAt.IsZero() || !second.confirmedAt.Equal(when()) {
 		t.Fatalf("confirmed at %v then %v", first.confirmedAt, second.confirmedAt)
 	}
 	higher, err := Sign([]byte(strings.Replace(string(f.raw), `"serial": 7`, `"serial": 8`, 1)), f.private, "k1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := h.Install(higher, f.keys, when().Add(2*time.Minute)); err != nil {
+	next := Statement{bundleID: "payments", serial: 8, digest: higher.GetRef().GetDigest(), issuedAt: when().Add(time.Minute)}
+	if err := h.InstallConfirmed(ctx, higher, f.keys, next, when().Add(2*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	if h.Current().program == first.program {
@@ -165,12 +208,12 @@ func TestARefreshKeepsTheProgram(t *testing.T) {
 	}
 }
 
-// TestASecondInstallWaitsForTheFirst holds one install inside Load and starts
-// a second. Serialized, the second cannot finish while the first is held, and
-// once the first is let go the two land in the order they took the lock. The
-// wait is a bounded run of yields, not a timer: long enough for an install
-// nothing holds back to finish many times over, and unable to fail on a
-// holder that serializes, since there the second install is blocked however
+// TestASecondInstallWaitsForTheFirst holds one install inside the load and
+// starts a second. Serialized, the second cannot finish while the first is
+// held, and once the first is let go the two land in the order they took the
+// lock. The wait is a bounded run of yields, not a timer: long enough for an
+// install nothing holds back to finish many times over, and unable to fail on
+// a holder that serializes, since there the second install is blocked however
 // long the loop runs.
 func TestASecondInstallWaitsForTheFirst(t *testing.T) {
 	f := newFixture(t)
@@ -178,7 +221,8 @@ func TestASecondInstallWaitsForTheFirst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var h Holder
+	h := paymentsHolder(t)
+	ctx := context.Background()
 	entered, release := make(chan struct{}), make(chan struct{})
 	hold := func(doc *rules.Document) (*match.Program, error) {
 		close(entered)
@@ -186,30 +230,30 @@ func TestASecondInstallWaitsForTheFirst(t *testing.T) {
 		return match.Compile(doc)
 	}
 	first, second := make(chan error, 1), make(chan error, 1)
-	go func() { first <- h.install(f.signed, f.keys, when(), hold) }()
+	go func() { first <- h.installUnconfirmed(ctx, f.signed, f.keys, hold) }()
 	select {
 	case <-entered:
 	case err := <-first:
-		t.Fatalf("the first Install returned (%v) before it reached the compiler", err)
+		t.Fatalf("the first install returned (%v) before it reached the compiler", err)
 	}
-	go func() { second <- h.Install(higher, f.keys, when()) }()
+	go func() { second <- h.InstallUnconfirmed(ctx, higher, f.keys) }()
 	for range 100_000 {
 		select {
 		case err := <-second:
-			t.Fatalf("a second Install returned (%v) while the first was still inside Load; serial now %d", err, h.Current().Serial())
+			t.Fatalf("a second install returned (%v) while the first was still inside the load; serial now %d", err, h.Current().Serial())
 		default:
 			runtime.Gosched()
 		}
 	}
 	if h.Current() != nil {
-		t.Fatalf("something was installed while the first Install was held: serial %d", h.Current().Serial())
+		t.Fatalf("something was installed while the first install was held: serial %d", h.Current().Serial())
 	}
 	close(release)
 	if err := <-first; err != nil {
-		t.Fatalf("the first Install: %v", err)
+		t.Fatalf("the first install: %v", err)
 	}
 	if err := <-second; err != nil {
-		t.Fatalf("the second Install: %v", err)
+		t.Fatalf("the second install: %v", err)
 	}
 	if got := h.Current().Serial(); got != 8 {
 		t.Fatalf("serial %d after both installs, want 8", got)

@@ -98,8 +98,9 @@ fail-open reads; the floor's own bundle starts confirmed by its statement or
 unconfirmed. A higher bundle whose statement cannot be accepted yet, dated after
 the plane's clock or with the clock behind the floor's latest `issuedAt`,
 refuses the start as one without its statement does; the floor's own bundle in
-that case starts unconfirmed. A start that is unconfirmed or expired is not
-refused: the plane runs and blocks material calls until a statement arrives.
+that case starts unconfirmed. An expired statement counts as none here. A start
+that is unconfirmed is not refused: the plane runs and, outside `OBSERVE`,
+blocks material calls until a statement arrives.
 
 **Refresh.** Every `policy.poll_interval` the plane reads both files again. It
 may keep the verdicts that no clock or state changes, the parse, the signature
@@ -177,11 +178,12 @@ which only a trusted time source would prevent; a restore of the volume or
 machine rolls the floor back with the bundle; a `state_dir` that does not
 survive a restart protects nothing; an account that can write the state
 directory can lower the floor; a statement dated ahead is a valid confirmation
-once its time arrives, so a signer never dates one ahead; a reset made while a
-plane runs is logged at its next start, the last one only; a signer whose clock
-runs ahead of a plane's makes a restart onto a new bundle fail until the plane's
-clock catches up. A plane whose renewal stops fails closed, stale, at the end of
-its budget; the way to tighten policy at once stays the pause file (ADR-0019).
+once its time arrives, so a signer never dates one ahead; a floor's last reset
+is logged at every start, and one made while a plane runs only at its next; a
+signer whose clock runs ahead of a plane's makes a restart onto a new bundle
+fail until the plane's clock catches up. A plane whose renewal stops fails
+closed, stale, at the end of its budget; the way to tighten policy at once stays
+the pause file (ADR-0019).
 
 ## Alternatives considered
 

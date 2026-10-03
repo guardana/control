@@ -91,7 +91,7 @@ is refused, and the refusal names the object, never the key.</p>
 <tr>
 <td><code>maxStaleSeconds</code></td>
 <td>yes</td>
-<td>An integer from 1 up: how long a plane may decide on this document after its loader last confirmed it.</td>
+<td>An integer from 1 up: how long a plane may decide on this document after a freshness statement confirmed it, at most <code>policy.max_stale</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -119,7 +119,7 @@ is refused, and the refusal names the object, never the key.</p>
 <tr>
 <td><code>reason</code></td>
 <td>no</td>
-<td>A reason code the effect may name, from the table below; the effect's own default may be written out or left off.</td>
+<td>A reason code the effect may name, from the table below; the effect's default may be written or left off.</td>
 </tr>
 <tr>
 <td><code>obligations</code></td>
@@ -129,7 +129,7 @@ is refused, and the refusal names the object, never the key.</p>
 <tr>
 <td><code>when</code></td>
 <td>yes</td>
-<td>The constraint groups, at least one. A rule that constrains nothing would match every call.</td>
+<td>The constraint groups, at least one: a rule that constrains nothing would match every call.</td>
 </tr>
 </tbody>
 </table>

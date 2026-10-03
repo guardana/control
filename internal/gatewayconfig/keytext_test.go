@@ -37,7 +37,7 @@ func TestAPathHoldingKeyTextIsRefusedByItsKey(t *testing.T) {
 		"a whole PEM":         pemFile,
 		"a closing marker":    "-----END PRIVATE KEY-----",
 	}
-	for _, key := range []string{"policy.bundle_file", "approvals.dir", "approvals.hold_journal_dir", "pause.file", "evidence.dir", "upstreams.0.command"} {
+	for _, key := range []string{"policy.bundle_file", "policy.statement_file", "policy.state_dir", "approvals.dir", "approvals.hold_journal_dir", "pause.file", "evidence.dir", "upstreams.0.command"} {
 		for name, value := range values {
 			path := write(t, "")
 			setEnv(t, key, value)

@@ -15,9 +15,9 @@ name its digest.
 
 ## Prerequisites
 
-- A configuration that runs outside a container
-  ([run-the-gateway.md](run-the-gateway.md)), a signed bundle and its public
-  key.
+- A configuration that runs outside a container, with its bundle, its
+  freshness statement and its floor directory
+  ([run-the-gateway.md](run-the-gateway.md)).
 - The image's digest from the release notes, checked with the commands in
   [RELEASING.md](../../RELEASING.md#checking-the-image).
 - A directory for the evidence spool, owned by user 65532 and writable by no
@@ -39,6 +39,15 @@ name its digest.
      nothing to run in this image.
    - The collector at an `https` endpoint. A plaintext export is admitted only
      to a loopback IP literal, which here is the container itself.
+   - `policy.state_dir: /var/lib/guardana/floors`, a volume that outlives the
+     container, beside the spool and the approvals directory. Make it on the
+     host with `guardana-control policy state init --kind plane`, then
+     `chown -R 65532` it: the plane refuses a floor directory another user
+     owns. A volume that does not outlive the container protects nothing: a
+     floor made anew at each start takes any older bundle.
+   - The bundle and the statement can stay in the read-only configuration
+     directory. Renew the statement on the host; the plane reads it again
+     every `policy.poll_interval`.
    - The pause file and the approvals and hold journal directories, if you
      use them, on volumes owned by 65532. The plane refuses them when the
      group or others may write them, and the pause file when another account
@@ -48,6 +57,7 @@ name its digest.
    ```
    docker run --rm -p 127.0.0.1:8080:8080 \
      -v "$PWD/conf:/etc/gateway:ro" -v "$PWD/spool:/var/lib/guardana/spool" \
+     -v "$PWD/floors:/var/lib/guardana/floors" \
      ghcr.io/guardana/control-gateway@sha256:<digest> run --config /etc/gateway/gateway.yaml
    ```
 
@@ -59,7 +69,7 @@ name its digest.
 
 Set `health.address: 0.0.0.0:8081`, add `-p 127.0.0.1:8081:8081`, and run
 `curl -s http://127.0.0.1:8081/healthz`. The answer names the mode and the
-bundle, as it does outside a container.
+bundle, as it does outside a container, and `"freshness":"confirmed"`.
 
 ## Roll back
 

@@ -68,7 +68,12 @@ var configFields = []field[Config]{
 	filePath(stringField("policy.bundle_file", "", true, func(c *Config) *string { return &c.Policy.BundleFile })),
 	stringField("policy.key_id", "", true, func(c *Config) *string { return &c.Policy.KeyID }),
 	stringField("policy.public_key", "", true, func(c *Config) *string { return &c.Policy.PublicKey }),
+	filePath(stringField("policy.statement_file", "", true, func(c *Config) *string { return &c.Policy.StatementFile })),
+	filePath(stringField("policy.state_dir", "", true, func(c *Config) *string { return &c.Policy.StateDir })),
+	stringField("policy.freshness_key_id", "", true, func(c *Config) *string { return &c.Policy.FreshnessKeyID }),
+	stringField("policy.freshness_public_key", "", true, func(c *Config) *string { return &c.Policy.FreshnessPublicKey }),
 	durationField("policy.max_stale", "10m", func(c *Config) *time.Duration { return &c.Policy.MaxStale }),
+	requiredDuration("policy.poll_interval", func(c *Config) *time.Duration { return &c.Policy.PollInterval }),
 	boolField("policy.fail_open_read", "false", func(c *Config) *bool { return &c.Policy.FailOpenRead }),
 
 	address(stringField("pdp.identifier", "", false, func(c *Config) *string { return &c.PDP.Identifier })),

@@ -81,7 +81,8 @@ first one runs. `--timeout`, 10s by default, bounds each wait; a call may take t
 call timeout on top of it.
 
 Before its first step a scenario needs `/healthz` to answer 200 with the
-mode and bundle it names, nothing paused and no halt. Then the runner waits
+mode and bundle it names, `"freshness":"confirmed"`, nothing paused and no
+halt. Then the runner waits
 for the spool to drain, notes the requests the trail file already holds, and
 connects to the listener as an MCP client. It sends no run token, so a plane
 with `runs.dir` refuses it.

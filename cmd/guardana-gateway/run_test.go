@@ -50,6 +50,8 @@ func TestRunRefusesEveryConfigurationASeamRefuses(t *testing.T) {
 		name  string
 		env   [2]string
 		wants string
+		// prepare lays out what the case needs beside the variable.
+		prepare func(t *testing.T, tr tree)
 	}{
 		{name: "a mode this build does not enforce", env: [2]string{"mode", "SHADOW"}, wants: "planned"},
 		{name: "a mode that records only and is planned", env: [2]string{"mode", "WARN"}, wants: "planned"},
@@ -61,12 +63,17 @@ func TestRunRefusesEveryConfigurationASeamRefuses(t *testing.T) {
 		{name: "a spool directory that is not there", env: [2]string{"evidence.dir", "nowhere"}, wants: "evidence"},
 		{name: "a bundle file that is not there", env: [2]string{"policy.bundle_file", "nowhere.bundle"}, wants: "policy.bundle_file"},
 		{name: "a key that did not sign the bundle", env: [2]string{"policy.public_key", unsignedPublicKey()}, wants: "policy.bundle_file: policy: the signature does not verify"},
-		{name: "a bundle of another id", env: [2]string{"policy.bundle_id", "another"}, wants: "policy.bundle_file"},
+		{name: "a bundle of another id", env: [2]string{"policy.bundle_id", "another"}, wants: "policy.bundle_file",
+			prepare: func(t *testing.T, tr tree) { tr.vouch(t, "another") }},
+		{name: "an id the floor directory has no floor for", env: [2]string{"policy.bundle_id", "another"}, wants: "policy.state_dir"},
 		{name: "no bound on the requests in flight", env: [2]string{"export.in_flight", "0"}, wants: "otel"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			tr := newTree(t)
 			setEnv(t, c.env[0], c.env[1])
+			if c.prepare != nil {
+				c.prepare(t, tr)
+			}
 			var stdout, stderr bytes.Buffer
 			if status := serve(context.Background(), tr.config, "", &stdout, &stderr); status != exitFail {
 				t.Fatalf("run answered %d for %s; it must refuse to start", status, c.name)

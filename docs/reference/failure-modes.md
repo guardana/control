@@ -1,13 +1,13 @@
 ---
 title: Failure modes
-summary: What a plane does when its collector, spool, decision point, an upstream or its pause file fails, or it is killed holding calls, and the test for each.
+summary: What a plane does when its collector, spool, decision point, an upstream, its pause file or its freshness statement fails, or it is killed holding calls.
 type: reference
-covers: [cmd/guardana-gateway/serve.go, cmd/guardana-gateway/adapter.go, cmd/guardana-gateway/chaos_*_test.go, adapters/mcp/middleware.go, adapters/mcp/answer.go, adapters/authzen/**, adapters/otel/**, internal/spool/**, internal/pause/**, internal/gateway/close.go, internal/gateway/decisionpoint.go]
+covers: [cmd/guardana-gateway/serve.go, cmd/guardana-gateway/adapter.go, cmd/guardana-gateway/chaos_*_test.go, adapters/mcp/middleware.go, adapters/mcp/answer.go, adapters/authzen/**, adapters/otel/**, internal/spool/**, internal/pause/**, internal/gateway/close.go, internal/gateway/decisionpoint.go, internal/policywatch/**]
 ---
 
 # Failure modes
 
-The plane is built to survive the eight failures below. Each row says
+The plane is built to survive the eleven failures below. Each row says
 whether the plane blocks the call, the reason code, what the agent gets,
 whether the plane recovers without an operator, and the test that makes the
 failure happen. The sections after the table say what the trail holds.
@@ -26,6 +26,9 @@ process that really fail. Nothing here is a security boundary yet
 | `stdio` upstream dies mid-call | sent once, never retried | none | a JSON-RPC error | no: restart the plane | `TestAStdioUpstreamThatDiesMidCallIsNeverASuccess` |
 | HTTP upstream drops the connection mid-call | sent once, never retried | none | a JSON-RPC error | yes, the next call is sent | `TestAnHTTPUpstreamThatDropsTheCallIsNeverASuccess` |
 | Pause file unreadable | blocked | `PAUSE_STATE_UNAVAILABLE` | `isError` and the code | yes, at the first read of a whole file | `TestAPauseFileSpoiledWhileThePlaneRunsBlocksEveryCall` |
+| Freshness statement missing, expired or refused, at start or later | blocked, a read too unless `policy.fail_open_read` | `POLICY_STALE` | `isError` and the code | yes, at the first poll that takes a statement bound to the bundle | `TestAnUnconfirmedPlaneBlocksMaterialCalls`, `TestARenewalConfirmsAgain` |
+| Bundle file torn, unsigned, older or another id's | runs on the last good bundle until its statement expires, then blocked | none, then `POLICY_STALE` | the upstream's answer, then `isError` and the code | yes, once the file holds the served bundle or a newer one with its statement | `TestEveryRefusedReplacementMovesNothing` |
+| Floor directory or file missing or unreadable at start | none: the plane does not start | none | no listener | no: restore it, or make it again with `policy state init` or `reset` | `TestAStartWithNoFloorIsRefused`, `TestAStartIsRefusedForWhatItCannotRead` |
 | Plane killed with calls held | never runs | `APPROVAL_NOT_RESUMED`, `APPROVAL_REJECTED`, `APPROVAL_EXPIRED` or `APPROVAL_STATE_UNKNOWN` on the closing record | `APPROVAL_PENDING`, before the kill | at the next start, with a hold journal | `TestAnApproverOutsideThePlaneAnswersAndALostHoldIsClosed`, `TestTheLostHoldCodesTellTheFourAnswersApart` |
 
 `APPROVAL_NOT_RESUMED`, `APPROVAL_REJECTED` and `APPROVAL_EXPIRED` are
@@ -104,6 +107,19 @@ finds a whole file again. A read older than three intervals is unknown as
 well. `/healthz` answers `503` with `pause.state: unknown` and the cause
 (`TestHealthAnswers503OnEveryUnknownState`), and the trail of each call ends
 `ACTION_BLOCKED` with the code.
+
+## A policy that is not confirmed
+
+Every poll reads the bundle and the statement again. A file it refuses is
+logged and counted under its cause in
+`guardana_control_policy_refresh_refused_total`, and the bundle in use and
+its confirmation stay as they were. A bundle file refused stops the renewals
+of the bundle in use too, since each poll pairs the statement with the file,
+so the plane turns stale when the last statement's budget runs out. While
+the policy is not confirmed, each call's `POLICY_DECIDED` carries
+`POLICY_STALE` and `policy_freshness` `STALE`, `/healthz` answers
+`"status":"degraded"`, and outside `OBSERVE` a material call is blocked
+with `ACTION_BLOCKED`.
 
 ## Plane killed with calls held
 

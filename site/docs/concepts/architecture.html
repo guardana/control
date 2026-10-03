@@ -33,15 +33,15 @@ that page is the only inventory.</p>
 <h2 id="the-system-in-context">The system in context</h2>
 <p>One process sits between an agent and the servers it calls. Everything else
 is outside it and talks to it over a protocol it does not own.</p>
-<figure class="dg-text" id="diagram-1"><figcaption>The system in context</figcaption><p>The agent&#39;s tool calls pass through the gateway process, which loads a signed bundle, sends held calls to an approver, asks a decision point that can only veto, forwards the calls it lets through and exports evidence to a collector. <a href="https://github.com/guardana/control/blob/main/docs/concepts/architecture.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart LR
+<figure class="dg-text" id="diagram-1"><figcaption>The system in context</figcaption><p>The agent&#39;s tool calls pass through the gateway process, which reads a signed bundle and the statement that keeps it current, sends held calls to an approver, asks a decision point that can only veto, forwards the calls it lets through and exports evidence to a collector. <a href="https://github.com/guardana/control/blob/main/docs/concepts/architecture.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart LR
     accTitle: The system in context
-    accDescr: The agent&#39;s tool calls pass through the gateway process, which loads a signed bundle, sends held calls to an approver, asks a decision point that can only veto, forwards the calls it lets through and exports evidence to a collector.
+    accDescr: The agent&#39;s tool calls pass through the gateway process, which reads a signed bundle and the statement that keeps it current, sends held calls to an approver, asks a decision point that can only veto, forwards the calls it lets through and exports evidence to a collector.
     OP[Operator]
     AG[&#34;Agent, an MCP client&#34;]
     APR[Approver]
     GW[&#34;Gateway process&#34;]
     SRV[&#34;MCP servers, the tools&#34;]
-    BUNDLE[&#34;Signed policy bundle&#34;]
+    BUNDLE[&#34;Signed policy bundle and its freshness statement&#34;]
     COL[&#34;OpenTelemetry collector&#34;]
     PDP[&#34;Decision point, the organization&#39;s own, over AuthZEN&#34;]
     OP --&gt;|configuration, bundle, mode| GW
@@ -49,12 +49,12 @@ is outside it and talks to it over a protocol it does not own.</p>
     GW --&gt;|the calls it lets through| SRV
     GW --&gt;|held call, as a record in the directory| APR
     APR --&gt;|approval for one digest| GW
-    BUNDLE --&gt;|loaded once, verified| GW
+    BUNDLE --&gt;|verified, read again each poll| GW
     GW --&gt;|evidence, OTLP logs| COL
     GW --&gt;|a call a veto rule routes there| PDP
     PDP --&gt;|an answer that can only veto| GW
 </code></pre></details></figure>
-<p>Sources: <code>cmd/guardana-gateway/serve.go</code>, <code>adapters/mcp/listener.go</code>,
+<p>Sources: <code>cmd/guardana-gateway/serve.go</code>, <code>cmd/guardana-gateway/planepolicy.go</code>, <code>adapters/mcp/listener.go</code>,
 <code>internal/gateway/approvals.go</code>, <code>adapters/otel/exporter.go</code>,
 <code>adapters/authzen/client.go</code>.</p>
 <p>The gateway is the only component this project adds to the request path.
@@ -132,7 +132,12 @@ call and a pause; the one thing it serves is the local approvals page.</p>
 <tr>
 <td>Policy</td>
 <td><code>internal/policy/</code></td>
-<td>Parses a document, verifies a bundle's signature, holds one snapshot and matches three-valued.</td>
+<td>Parses a document, verifies a bundle's signature and a freshness statement's, holds one snapshot and its serial floor, and matches three-valued.</td>
+</tr>
+<tr>
+<td>Policy refresh</td>
+<td><code>internal/policywatch/</code>, <code>internal/policystate/</code></td>
+<td>Reads the bundle and the statement again every poll, installs a newer bundle only with its statement, and keeps the serial floor on disk.</td>
 </tr>
 <tr>
 <td>Canonical digest</td>

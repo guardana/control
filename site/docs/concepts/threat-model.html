@@ -41,7 +41,8 @@ loopback (<a href="/docs/reference/dev">reference/dev</a>).</li>
 <li><code>guardana-gateway collect</code> and the trail file it writes, and <code>trail</code>, which
 reads one.</li>
 <li>The policy key, <code>policy keygen</code>, <code>policy sign</code> and the signed bundle a plane
-loads.</li>
+loads; the freshness key, <code>policy renew</code>, the statement it writes and the
+serial floors that keep a bundle current.</li>
 <li>The release archives and what proves where they came from
 (<a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a>).</li>
 </ul>
@@ -67,6 +68,10 @@ outside the plane. They appear below as parties the plane has to deal with.</p>
 <tr>
 <td>the signed policy and its key</td>
 <td>any rule they like, on every plane that pins the key's public half</td>
+</tr>
+<tr>
+<td>the policy's freshness and its floor</td>
+<td>an older signed bundle served again, or a stale one taken as current</td>
 </tr>
 <tr>
 <td>the evidence</td>
@@ -154,6 +159,12 @@ untrusted destinations (<code>internal/gateway/flow.go</code>;
 <code>TestTheToxicFlowIsDeniedAcrossSessions</code> in <code>internal/gateway/e2e/</code>).</li>
 <li>An operator can pause every call, one upstream or one tool
 (<code>internal/gateway/pause.go</code>; <code>TestAPauseAtEachScopeBlocksExactlyItsCalls</code>).</li>
+<li>A policy counts as current only while a signed freshness statement bound to
+its bundle is within its budget; without one a mode that enforces blocks
+material calls. The plane's serial floor is on disk, so a restart onto an
+older bundle is refused (<code>internal/policywatch/</code>;
+<code>TestAnUnconfirmedPlaneBlocksMaterialCalls</code>,
+<code>TestAStartBelowOrBesideTheFloorIsRefused</code>).</li>
 </ul>
 <p>What it does not do:</p>
 <ul>
@@ -182,6 +193,10 @@ the tools' descriptions and tools outside the plane are not tracked
 (<a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a>).</li>
 <li>A pause takes effect up to one poll interval after it is written, and never
 stops a call already running (<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>).</li>
+<li>Freshness trusts the plane's clock: a plane restarted with its clock set
+back takes its last statement as current again, and restoring the floor's
+volume rolls the floor back with it
+(<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>).</li>
 </ul>
 <h2 id="a-hostile-or-compromised-mcp-server">A hostile or compromised MCP server</h2>
 <p>What the plane does today:</p>
@@ -303,7 +318,8 @@ can grant what the mode bits do not show, and the checks do not read it.</li>
 <h2 id="the-same-local-account">The same local account</h2>
 <p>The plane's account is the authority for everything on disk. <strong>Any process
 running as that account can approve, reject, pause and lift a pause, sign a
-bundle with a key it can read, read the plane's environment, its header
+bundle or a statement with a key it can read, lower a policy's floor, read the
+plane's environment, its header
 credentials included, and rewrite the evidence.</strong> That includes a
 <code>stdio</code> upstream, the page's starter, and a tool behind the plane that can
 write files (<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>,
@@ -319,9 +335,10 @@ field of an answer against its own record of the hold
 in <code>internal/gateway/store_test.go</code>).</li>
 <li>A writer of that directory can still deny a chosen action and bundle, and
 leave evidence naming an approval that was never used (ADR-0016).</li>
-<li>The gateway binary holds none of the approver's code and no private-key
-parser, so the process that serves agents cannot answer an approval or read
-a signing key itself (<code>cmd/guardana-gateway/symbols_test.go</code>).</li>
+<li>The gateway binary holds none of the approver's code, no private-key
+parser and no code that makes or lowers a floor, so the process that serves
+agents cannot answer an approval, read a signing key or reset its own floor
+(<code>cmd/guardana-gateway/symbols_test.go</code>).</li>
 </ul>
 <p>When the agent, its tools, the plane and the approver run as one account, as
 <code>dev</code> does, the account boundary separates none of them.</p>

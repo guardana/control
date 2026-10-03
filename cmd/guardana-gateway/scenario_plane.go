@@ -11,6 +11,7 @@ import (
 
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/pause"
+	"github.com/guardana/control/internal/policywatch"
 )
 
 // The bounds of one /healthz read and how often a wait on the plane asks.
@@ -70,6 +71,8 @@ type planeState struct {
 	entries        int
 	// polls is the pause file's completed reads, or -1 where nothing reads it.
 	polls int64
+	// freshness is how the plane's policy stands.
+	freshness string
 }
 
 type healthBody struct {
@@ -98,6 +101,9 @@ type healthBody struct {
 			Made *int64 `json:"made"`
 		} `json:"polls"`
 	} `json:"pause"`
+	Policy struct {
+		Freshness string `json:"freshness"`
+	} `json:"policy"`
 }
 
 // health reads /healthz once. A status other than 200 is returned with what
@@ -144,7 +150,10 @@ func (b healthBody) state(status int) (planeState, error) {
 		return missing("the exporter's counters")
 	case b.Pause.Entries == nil:
 		return missing("pause.entries")
+	case b.Policy.Freshness == "":
+		return missing("policy.freshness")
 	}
+	s.freshness = b.Policy.Freshness
 	s.halted, s.admitted, s.entries = *b.Halted, *b.Pipeline.Admitted, *b.Pause.Entries
 	s.unacknowledged, s.quarantined = *b.Spool.Unacknowledged, *b.Spool.Quarantined
 	s.acknowledged, s.partial = *b.Exporter.Acknowledged, *b.Exporter.PartialRejected
@@ -155,9 +164,12 @@ func (b healthBody) state(status int) (planeState, error) {
 }
 
 // serving reads /healthz and refuses any answer but 200 from a plane that is
-// not halted. A pause state unknown only because the plane's last read aged
-// past its bound is a read running late on a busy machine: it is read again
-// until the timeout, and any other cause is refused at once.
+// not halted and whose policy is confirmed: a scenario's verdicts are a
+// confirmed policy's, and under a policy that is not confirmed every mode but
+// OBSERVE blocks every material call. A pause state unknown only because the
+// plane's last read aged past its bound is a read running late on a busy
+// machine: it is read again until the timeout, and any other cause is refused
+// at once.
 func (r *runner) serving(ctx context.Context) (planeState, error) {
 	deadline := time.Now().Add(r.timeout)
 	for {
@@ -166,7 +178,7 @@ func (r *runner) serving(ctx context.Context) (planeState, error) {
 		case err != nil:
 			return planeState{}, err
 		case s.status == http.StatusOK && !s.halted:
-			return s, nil
+			return s.confirmed()
 		case !s.halted && s.pauseState == pause.Unknown.String() && s.pauseCause == string(pause.CauseStale) &&
 			time.Now().Before(deadline):
 			if err := pauseFor(ctx, healthPoll); err != nil {
@@ -176,6 +188,14 @@ func (r *runner) serving(ctx context.Context) (planeState, error) {
 		}
 		return planeState{}, fmt.Errorf("/healthz answered %d, halted %t, pause %s", s.status, s.halted, s.pauseState)
 	}
+}
+
+// confirmed is s, or a refusal when the plane's policy is not confirmed.
+func (s planeState) confirmed() (planeState, error) {
+	if s.freshness != policywatch.Confirmed.String() {
+		return planeState{}, fmt.Errorf("/healthz answered %d with the policy %s; a scenario runs against a confirmed policy only", s.status, s.freshness)
+	}
+	return s, nil
 }
 
 // drained waits until the spool holds nothing unacknowledged, which is when

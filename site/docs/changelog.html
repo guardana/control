@@ -51,21 +51,93 @@ the bundle; it refuses a bundle below that floor
 <li><code>guardana-control policy state init</code> makes a floor directory and a bundle
 id's floor, never replacing one, and <code>policy state reset</code> lowers a floor,
 recording the reason and the value it replaced.</li>
+<li><code>/healthz</code> carries a <code>policy</code> object: <code>freshness</code>, one of <code>confirmed</code>,
+<code>unconfirmed</code> and <code>expired</code>, the confirmation and its expiry, the seconds
+left and what the plane's polls of its policy found. A plane whose policy is
+not confirmed answers <code>&quot;status&quot;:&quot;degraded&quot;</code> with <code>200</code>; a halted plane still
+answers <code>halted</code> with <code>503</code>.</li>
+<li><code>/metrics</code> carries <code>guardana_control_policy_freshness</code>,
+<code>guardana_control_policy_confirmation_seconds_left</code>, and counters of the
+policy's refusals by cause, bundles awaiting a statement, statements
+awaiting a bundle and withdrawals by a clock set back
+(<a href="/docs/reference/metrics">metrics</a>).</li>
+<li><code>guardana-gateway doctor</code>'s <code>policy</code> line judges the floor, the bundle and
+the statement as a start would, without raising the floor, and fails for a
+statement missing, expired, dated ahead or naming another bundle, and for a
+bundle below its floor or at its serial with another digest.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
-<li><code>examples/evidence-report</code> prints a <code>block</code> column after <code>reasons</code>: the
+<li>
+<p><strong>Breaking:</strong> a plane's configuration needs five more keys:
+<code>policy.statement_file</code>, <code>policy.state_dir</code>, <code>policy.freshness_key_id</code>,
+<code>policy.freshness_public_key</code> and <code>policy.poll_interval</code>. A configuration
+without them is refused at start, naming the first key it lacks. The
+freshness key may not be the bundle's key; <code>state_dir</code> must be a directory
+<code>policy state init --kind plane</code> made; <code>poll_interval</code> is at least <code>1s</code> and
+shorter than <code>policy.max_stale</code>. No setting keeps the old behaviour. To
+migrate, run the first three commands where the keys live and the last on
+the plane's host, then set the five keys and keep renewing the statement
+within the budget (<a href="/docs/guides/run-the-gateway">run the gateway</a>,
+<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>):</p>
+<pre><code>guardana-control policy keygen --out freshness
+guardana-control policy state init --kind signer --bundle-id &lt;id&gt; signer-floors
+guardana-control policy renew --key freshness/signing.key --bundle &lt;bundle&gt; \
+    --bundle-public-key &lt;bundle key dir&gt;/signing.pub --floor signer-floors --out &lt;statement&gt;
+guardana-control policy state init --kind plane --bundle-id &lt;id&gt; &lt;state_dir&gt;
+</code></pre>
+</li>
+<li>
+<p>A plane's policy is confirmed only by a freshness statement bound to its
+bundle, never by installing the bundle again. The plane reads the bundle and
+the statement every <code>policy.poll_interval</code>, installs a newer bundle only with
+its statement, and refuses every bad replacement without moving the
+confirmation. Without a statement in its budget it decides every call
+<code>POLICY_STALE</code>, from the start or once the budget runs out, until a renewal
+arrives; a restart no longer resets the budget. A wall clock set back more
+than a second withdraws the confirmation until it is back.</p>
+</li>
+<li>
+<p>A plane's serial floor is kept on disk: a start onto a bundle below it, at
+its serial with another digest, or above it without a statement is refused,
+naming both serials.</p>
+</li>
+<li>
+<p><code>/healthz</code> leaves out <code>bundle.confirmed_at</code> while no statement confirms the
+bundle.</p>
+</li>
+<li>
+<p><code>dev</code> makes the plane's floor directory, writes the bundle's freshness
+statement under a second key held only in memory and renews it every third
+of the budget, sooner when the poll interval asks for it, so a session or a
+scenario past the budget stays fresh. It prints <code>statement</code>, <code>state_dir</code>,
+<code>freshness_key_id</code>, <code>freshness_key</code> and <code>renewal</code>, and no longer <code>stale_at</code>.</p>
+</li>
+<li>
+<p><code>scenario run</code> refuses a plane whose policy is not confirmed.</p>
+</li>
+<li>
+<p><code>POLICY_STALE</code>'s summary names an unconfirmed policy too; its identifier and
+number are unchanged.</p>
+</li>
+<li>
+<p><code>examples/evidence-report</code> prints a <code>block</code> column after <code>reasons</code>: the
 decision on the request's <code>ACTION_BLOCKED</code>, <code>=</code> when it is the kernel's, so a
 call the plane blocked itself, paused or unclassified, shows why. Every later
-column moves one to the right.</li>
-<li><code>examples/evidence-report</code> is a Go module of its own, <code>example.com/evidence-report</code>,
+column moves one to the right.</p>
+</li>
+<li>
+<p><code>examples/evidence-report</code> is a Go module of its own, <code>example.com/evidence-report</code>,
 which reaches this repository's generated wire contract and nothing else of it;
 build it with <code>go -C examples/evidence-report build -o &quot;$PWD/bin/&quot; .</code>
 (<a href="/docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own">ADR-0037</a>). Every
-Go target of the gate runs once per module.</li>
-<li>The release workflow refuses a tag whose commit has no successful CI and
+Go target of the gate runs once per module.</p>
+</li>
+<li>
+<p>The release workflow refuses a tag whose commit has no successful CI and
 Security run. Its dry run takes the version the tag will carry, makes the
-same check and prints that version's release notes.</li>
+same check and prints that version's release notes.</p>
+</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>

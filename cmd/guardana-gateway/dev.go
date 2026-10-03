@@ -9,9 +9,9 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/guardana/control/internal/brand"
+	"github.com/guardana/control/internal/policywatch"
 )
 
 const devForm = "--config <file> --policy <file> [--decision-point=silent] [--state <dir>] [--scenario <file>]..."
@@ -92,7 +92,7 @@ func dev(ctx context.Context, o devOptions, stdout, stderr io.Writer) int {
 	if err := refuseState(o.state); err != nil {
 		return fail(stderr, "dev", err)
 	}
-	document, err := readBounded(o.policy, maxBundleBytes)
+	document, err := readBounded(o.policy, policywatch.MaxBundleFileBytes)
 	if err == nil {
 		err = checkSignable(document)
 	}
@@ -154,7 +154,6 @@ func devServe(ctx context.Context, in devInputs, o devOptions, stdout, stderr io
 // each.
 func (d *devPlane) describe(stdout io.Writer, page string, o devOptions) {
 	snap := d.plane.holder.Current()
-	stale := snap.ConfirmedAt().Add(min(snap.MaxStale(), d.cfg.Policy.MaxStale))
 	st := d.state
 	for _, l := range [][2]string{
 		{"mcp", "http://" + d.cfg.Listener.Address},
@@ -169,12 +168,16 @@ func (d *devPlane) describe(stdout io.Writer, page string, o devOptions) {
 		{"trail", st.path(stateTrail)},
 		{"pause", st.path(statePause)},
 		{"bundle_file", st.path(stateBundle)},
+		{"statement", st.path(stateStatement)},
+		{"state_dir", st.path(stateFloors)},
 		{"mode", d.cfg.ModeName},
 		{"bundle", snap.Ref().GetBundleId()},
 		{"digest", snap.Ref().GetDigest()},
 		{"key_id", d.keyID},
-		{"key", "made in this process to sign the bundle, and never written"},
-		{"stale_at", stale.UTC().Format(time.RFC3339) + "; from then on every decision carries POLICY_STALE until dev is started again"},
+		{"key", "made in this process to sign the bundle, cleared once it signed, and never written"},
+		{"freshness_key_id", d.cfg.Policy.FreshnessKeyID},
+		{"freshness_key", "made in this process apart from the bundle key, held in memory to renew the statement, and never written"},
+		{"renewal", d.renewal},
 		{"trail_command", brand.Gateway + " trail " + shellWord(st.path(stateTrail))},
 		{"approvals_command", brand.CLI + " approvals list " + shellWord(st.path(stateApprovals))},
 		{"pause_command", brand.CLI + " pause add --global -- " + shellWord(st.path(statePause))},

@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/bundle"
+	"github.com/guardana/control/internal/policystate"
 	"github.com/guardana/control/internal/spool"
 )
 
@@ -98,6 +100,8 @@ type options struct {
 	// policyAge is how long before the plane starts it was last confirmed.
 	rules     []string
 	policyAge time.Duration
+	// unconfirmed starts the plane with no statement bound to its bundle.
+	unconfirmed bool
 	// allowReadsUnrecorded is evidence.on_unwritable: allow_reads.
 	allowReadsUnrecorded bool
 	callTimeout          time.Duration
@@ -121,6 +125,15 @@ type options struct {
 	pause gateway.PauseSource
 	// classify edits the operator's classification of the victim's tools.
 	classify func([]mcp.Override) []mcp.Override
+}
+
+// confirmedAt is when the plane's statement was issued, or the zero time for
+// a plane that has none.
+func (o options) confirmedAt() time.Time {
+	if o.unconfirmed {
+		return time.Time{}
+	}
+	return time.Now().Add(-o.policyAge)
 }
 
 // plane is one agent -> adapter -> pipeline -> upstream arrangement, with the
@@ -195,7 +208,7 @@ func newPlane(t *testing.T, o options) *plane {
 		Mode:                 o.mode,
 		Adapter:              adapter,
 		KernelOptions:        core.Options{MaxStale: 10 * time.Minute, FailOpenRead: o.failOpenRead},
-		Policy:               holder(t, time.Now().Add(-o.policyAge), o.rules...),
+		Policy:               holder(t, o.confirmedAt(), o.rules...),
 		Pause:                o.pause,
 		Sink:                 p.sink,
 		Approvals:            p.approvals,
@@ -388,8 +401,10 @@ func key() ed25519.PrivateKey {
 	return ed25519.NewKeyFromSeed(bytes.Repeat([]byte{1}, ed25519.SeedSize))
 }
 
-// holder installs a signed bundle of rules, confirmed at confirmed, in a
-// holder pinned to its id, the way the command builds one.
+// holder installs a signed bundle of rules in a holder pinned to its id over
+// a floor on disk, the way the command builds one: confirmed by a statement
+// issued at confirmed, to the second, or unconfirmed when confirmed is the
+// zero time.
 func holder(t *testing.T, confirmed time.Time, rules ...string) *policy.Holder {
 	t.Helper()
 	doc := []byte(`{"apiVersion":"agent-policy/v1alpha1","bundle":{"id":"` + bundleID +
@@ -398,10 +413,39 @@ func holder(t *testing.T, confirmed time.Time, rules ...string) *policy.Holder {
 	if err != nil {
 		t.Fatalf("Sign refused a document this test builds as valid: %v", err)
 	}
-	h := policy.NewHolder(bundleID)
-	keys := bundle.Keyring{"k1": ed25519.PublicKey(slices.Clone(key()[ed25519.SeedSize:]))}
-	if err := h.Install(b, keys, confirmed); err != nil {
-		t.Fatalf("Install refused a bundle this test builds as valid: %v", err)
+	ctx := context.Background()
+	dir := filepath.Join(t.TempDir(), "floors")
+	if err := policystate.Init(ctx, dir, policystate.KindPlane, bundleID); err != nil {
+		t.Fatalf("policystate.Init: %v", err)
+	}
+	store, err := policystate.Open(dir, policystate.KindPlane)
+	if err != nil {
+		t.Fatalf("policystate.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	h, err := policy.NewFloorHolder(bundleID, store)
+	if err != nil {
+		t.Fatalf("NewFloorHolder: %v", err)
+	}
+	pub := ed25519.PublicKey(slices.Clone(key()[ed25519.SeedSize:]))
+	keys := bundle.Keyring{"k1": pub}
+	if confirmed.IsZero() {
+		if err := h.InstallUnconfirmed(ctx, b, keys); err != nil {
+			t.Fatalf("InstallUnconfirmed refused a bundle this test builds as valid: %v", err)
+		}
+		return h
+	}
+	issued := confirmed.UTC().Truncate(time.Second)
+	env, err := policy.SignStatement(bundleID, 1, b.GetRef().GetDigest(), issued, key(), "k1")
+	if err != nil {
+		t.Fatalf("SignStatement: %v", err)
+	}
+	st, err := policy.VerifyStatement(env, keys)
+	if err != nil {
+		t.Fatalf("VerifyStatement: %v", err)
+	}
+	if err := h.InstallConfirmed(ctx, b, keys, st, issued); err != nil {
+		t.Fatalf("InstallConfirmed refused a bundle this test builds as valid: %v", err)
 	}
 	return h
 }

@@ -48,7 +48,9 @@ believes it applies;</li>
 <li>a policy document it cannot read or sign;</li>
 <li>a configuration that sets a key dev owns: <code>listener.address</code>,
 <code>health.address</code>, <code>policy.bundle_file</code>, <code>policy.key_id</code>,
-<code>policy.public_key</code>, <code>pause.file</code>, <code>evidence.dir</code>, <code>export.endpoint</code>,
+<code>policy.public_key</code>, <code>policy.statement_file</code>, <code>policy.state_dir</code>,
+<code>policy.freshness_key_id</code>, <code>policy.freshness_public_key</code>, <code>pause.file</code>,
+<code>evidence.dir</code>, <code>export.endpoint</code>,
 <code>export.allow_plaintext</code>, every <code>approvals</code> key and every <code>runs</code> key, since
 dev serves local runs only, and with <code>--decision-point=silent</code> every <code>pdp</code>
 key;</li>
@@ -65,13 +67,18 @@ it has anyway may not be seen, and dev's own value applies.</p>
 <p><code>--state</code>, or a new directory under the system's temporary directory, mode
 <code>0700</code>, holding everything the plane writes: <code>approvals/</code>, <code>holds/</code> and
 <code>spool/</code>, <code>trail.jsonl</code>, which a collector inside dev appends to,
-<code>policy.bundle</code>, <code>pause.json</code>, made by <code>guardana-control pause init</code>, and
-<code>settings.txt</code>, every scalar key the plane resolved. The directory is left
-behind when dev stops.</p>
+<code>policy.bundle</code>, <code>policy.statement</code>, the bundle's freshness statement,
+<code>floors/</code>, the plane's floor directory, made by <code>guardana-control policy state init --kind plane</code>, <code>pause.json</code>, made by <code>guardana-control pause init</code>, and <code>settings.txt</code>, every scalar key the plane resolved. The directory
+is left behind when dev stops.</p>
 <p>The bundle is signed under an Ed25519 key made in dev's memory for that one
 bundle. The key is never written, and dev clears its own copy once the
 bundle is signed; copies the standard library makes while signing are not
-cleared. The plane pins the public half.</p>
+cleared. A second key, the freshness key, is made apart from it, held in
+memory for the session and never written. Dev writes the first statement
+before the plane starts and a new one every third of the budget, the smaller
+of the document's <code>maxStaleSeconds</code> and <code>policy.max_stale</code>. The plane pins
+both public halves, and reads the bundle and the statement again every
+<code>policy.poll_interval</code>, which the configuration sets.</p>
 <p>Dev binds <code>127.0.0.1</code> at ports the system picks, for the collector, the
 agents and the health answers, and hands the bound sockets to the plane, so
 no port is chosen and then taken by someone else. With
@@ -88,15 +95,16 @@ any tool behind the plane, can call tools as the listener's principal.</p>
 <h2 id="what-it-prints">What it prints</h2>
 <p>One <code>name: value</code> line each, on stdout: <code>mcp</code>, the address an agent calls;
 <code>healthz</code> and <code>metrics</code>; <code>page</code>, the line <code>guardana-control console</code> printed
-(<a href="/docs/reference/console">console.md</a>); every path above; <code>mode</code>, <code>bundle</code>, <code>digest</code> and
-<code>key_id</code>; <code>stale_at</code>; and the commands that read the trail, list the
-approvals, pause every call and run a scenario. The page's token reaches
-nothing but that one line: no argument, variable, file or log of dev's.</p>
-<p>The plane installs its bundle once. From <code>stale_at</code>, the smaller of the
-document's <code>maxStaleSeconds</code> and <code>policy.max_stale</code> after the start, every
-decision that passes the input checks carries <code>POLICY_STALE</code>, and the plane
-treats the call as its mode and <code>policy.fail_open_read</code> treat an undecided
-one, until dev is started again; nothing reloads the bundle.</p>
+(<a href="/docs/reference/console">console.md</a>); every path above, the floor directory as
+<code>state_dir</code>; <code>mode</code>, <code>bundle</code>, <code>digest</code>, <code>key_id</code> and <code>key</code>;
+<code>freshness_key_id</code> and <code>freshness_key</code>; <code>renewal</code>, how often the statement
+is renewed; and the commands that read the trail, list the approvals, pause
+every call and run a scenario. The page's token reaches nothing but that one
+line: no argument, variable, file or log of dev's.</p>
+<p>A renewal changes no digest, so a scenario that runs past the budget keeps
+its verdicts. A renewal that fails is said on stderr; once the budget runs
+out every decision that passes the input checks carries <code>POLICY_STALE</code>, and
+<code>/healthz</code> answers <code>&quot;status&quot;:&quot;degraded&quot;</code>.</p>
 <p>The plane's own log, and the page's, go to stderr.</p>
 <h2 id="how-it-stops">How it stops</h2>
 <p>An interrupt, or any part stopping on its own, stops every part in order:

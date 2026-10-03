@@ -21,6 +21,11 @@ policy:
   bundle_file: policy.bundle
   key_id: k1
   public_key: 6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=
+  statement_file: policy.statement
+  state_dir: floors
+  freshness_key_id: f1
+  freshness_public_key: 1UIH2hlJd9z0atv+wrwudbUtWopCGE/t/cAAJPDj6No=
+  poll_interval: 5s
 
 evidence:
   dir: spool

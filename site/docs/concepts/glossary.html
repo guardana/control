@@ -108,6 +108,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>Options.FailOpenRead</code> in <code>internal/core/kernel.go</code>, the table in <code>internal/core/failclosed.go</code></td>
 </tr>
 <tr>
+<td>freshness statement</td>
+<td>a signed claim, under a key apart from the bundle's, that one bundle id, serial and digest was current at its <code>issuedAt</code>; the only thing that confirms a snapshot, for the policy's staleness budget from that time</td>
+<td><code>policy.Statement</code> in <code>internal/policy/statement.go</code>, written by <code>guardana-control policy renew</code></td>
+</tr>
+<tr>
 <td>gap</td>
 <td>an export record for a line that is not one readable event of a major the build reads, or that reuses an event id with other content; an export holding one exits 1</td>
 <td><code>gapRecord</code> in <code>internal/trailfile/export_records.go</code></td>
@@ -153,8 +158,13 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>internal/spool/frame.go</code></td>
 </tr>
 <tr>
+<td>serial floor</td>
+<td>the newest statement a plane or a signer has accepted for a bundle id, kept on disk; a bundle below it, or at its serial with another digest, is refused, across restarts</td>
+<td><code>policy.Floor</code> in <code>internal/policy/floor.go</code>, stored by <code>internal/policystate/</code></td>
+</tr>
+<tr>
 <td>snapshot</td>
-<td>one verified, compiled bundle, confirmed current at one time; never changed after it is made, so a call is decided against exactly one</td>
+<td>one verified, compiled bundle, with the <code>issuedAt</code> of the statement that confirmed it or none; never changed after it is made, so a call is decided against exactly one</td>
 <td><code>policy.Snapshot</code> in <code>internal/policy/policy.go</code>, served by <code>policy.Holder</code></td>
 </tr>
 <tr>

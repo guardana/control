@@ -22,10 +22,9 @@ issue. Completion requires code, documentation and the applicable checks.
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
 | B00 | Establish a reproducible baseline | none | Full `make quality` and CI on the exact candidate commit pass; platform, tool versions, skips and failures are recorded. A partial target run cannot satisfy this task |
-| B03 | Make policy freshness usable and restart-safe | B00 | Accepted ADR and tests cover atomic refresh, invalid replacement, last-known-good bounds, signed expiry, persisted serial floor and clock rollback. Unavailable policy still fails closed; rereading a file alone does not prove it is the latest policy |
 
-B03 runs before shared use, independently of the usability work. Do not
-wait for a fleet to address it.
+B03, policy freshness from a signed statement and a serial floor that
+outlives the process, is delivered; [status.md](status.md) records it.
 
 ## Milestone 1: one useful local project
 

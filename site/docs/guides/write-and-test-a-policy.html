@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Write and test a policy · Guardana Control</title>
-<meta name="description" content="Write an agent-policy/v1alpha1 document, lint it, prove what it decides with cases, and sign it into the bundle a plane loads."/>
+<meta name="description" content="Write an agent-policy/v1alpha1 document, lint it, prove what it decides with cases, sign it into the bundle a plane loads, and vouch that the bundle is current."/>
 <link rel="canonical" href="https://control.guardana.dev/docs/guides/write-and-test-a-policy"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
@@ -57,8 +57,8 @@ bits cannot be read. Loading the bundle into a plane is
 <a href="https://github.com/guardana/control/blob/main/testdata/policy/documents/example.json">testdata/policy/documents/example.json</a>,
 or from a starter pack with its cases (<a href="/docs/reference/starter-packs">reference/starter-packs.md</a>).
 Give the bundle an <code>id</code>, a <code>version</code> and a <code>serial</code>, and set <code>maxStaleSeconds</code>
-to how long a plane may keep deciding on this document after its loader last
-confirmed it. Then write the rules, each with an <code>id</code>, an <code>effect</code> and a
+to how long a plane may keep deciding on this document after a freshness
+statement last confirmed it (step 6). Then write the rules, each with an <code>id</code>, an <code>effect</code> and a
 <code>when</code> that constrains something.</p>
 <p>Two things an author meets early:</p>
 <ul>
@@ -88,9 +88,8 @@ first refusal, so fix one per run:</p>
 guardana-control: policy lint: rule &#34;cap-refunds&#34; &#34;rules[0].obligations[0].type&#34;: &#34;rules: an obligation type outside the catalogue&#34;
 </code></pre>
 <p>The refusal names the rule and, as a path, the member it refused, and never
-repeats the value. <code>lint</code> runs the checks a bundle goes through when it
-is loaded, as far as they concern the document itself; the signature, the key
-and the fields outside the document are checked only when a bundle is loaded.</p>
+repeats the value. <code>lint</code> runs the load's checks on the document itself; the
+signature and the key are checked only when a bundle is loaded.</p>
 <h3 id="3-write-a-case-per-decision-you-rely-on">3. Write a case per decision you rely on</h3>
 <p>A case is one JSON file holding the document, an envelope, the run's flow, the
 kernel's options, two timestamps, optionally a decision point's answer, and the
@@ -126,8 +125,8 @@ digest: sha256:&lt;64 hex digits&gt;
 key_id: ed25519-&lt;16 hex digits&gt;
 out: orders.bundle
 </code></pre>
-<p>Run <code>keygen</code> once per policy authority. It creates <code>keys</code> with mode <code>0700</code>
-and refuses a path that exists, so it never writes over a key. Its two lines
+<p>Run <code>keygen</code> once per policy authority. It refuses a path that exists, so
+it never writes over a key. Its two lines
 go under <code>policy:</code> in the gateway's configuration as they are. Whoever can
 read <code>keys/signing.key</code> can sign a policy every plane pinning that public key
 accepts, so keep the file off the plane's host; <code>sign</code> refuses it when
@@ -135,12 +134,10 @@ another account owns it or the group or others have any permission on it, and
 a key mounted into a container needs mode <code>0400</code>. Give <code>--key</code> the path of the
 file, never its text: an argument holding key text is refused without being
 repeated.</p>
-<p><code>sign</code> refuses a document that does not parse before it opens the key, signs
-under the id derived from the key, and refuses to write a bundle the loader
-would refuse. The bundle is public and written with mode <code>0644</code>, replacing an
-earlier bundle at <code>--out</code>; any other file there is refused and left as it
-was. Give each new version a higher <code>serial</code>. What the files hold and why is
-<a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>.</p>
+<p><code>sign</code> refuses a document that does not parse before it opens the key, and a
+bundle the loader would refuse. The bundle is public, mode <code>0644</code>, and
+replaces only an earlier bundle at <code>--out</code>. Give each new version a higher
+<code>serial</code> (<a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>).</p>
 <h3 id="6-vouch-that-the-bundle-is-current">6. Vouch that the bundle is current</h3>
 <pre><code>$ go run ./cmd/guardana-control policy keygen --out freshness
 key_id: ed25519-&lt;16 hex digits&gt;
@@ -159,9 +156,10 @@ issued_at: &lt;YYYY-MM-DDTHH:MM:SSZ&gt;
 key is a second pair: keep its lines for the plane's freshness key, never over
 the <code>policy</code> lines of step 5. Give <code>--bundle</code> the authority's own copy, not the
 one a plane is served, and keep floor and freshness key with the signer.
-<code>renew</code> refuses a bundle below its floor; rerun it before the budget runs out.
-No plane reads a statement yet; a plane will need one
-(<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>).</p>
+<code>renew</code> refuses a bundle below its floor. A plane takes the statement beside
+the bundle, with the freshness key's two lines and a floor directory of its
+own, and stays confirmed only while you rerun <code>renew</code> within the budget
+(<a href="/docs/guides/run-the-gateway">run-the-gateway.md</a>).</p>
 <h2 id="verify">Verify</h2>
 <ul>
 <li><code>policy lint</code> exits 0 and prints nothing.</li>
@@ -186,8 +184,9 @@ see them pass on your toolchain.</li>
 </ul>
 <h2 id="roll-back">Roll back</h2>
 <p>A document is not deployed by these commands, so there is nothing to undo on
-the plane: to go back, sign the previous document with a higher <code>serial</code> and
-restart the plane on it. Keep the previous document and its cases in version control; a
+the plane: to go back, sign the previous document with a higher <code>serial</code>,
+renew for it, and give the plane the statement, then the bundle. A plane
+refuses a serial below one it has taken. Keep the previous document and its cases in version control; a
 change to the policy is a change to the cases in the same commit, and a case
 that stops passing is the review's first question.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/write-and-test-a-policy.md">docs/guides/write-and-test-a-policy.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>

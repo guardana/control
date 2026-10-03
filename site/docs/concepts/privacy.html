@@ -178,6 +178,11 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <td>the plane's account: entries are <code>0600</code></td>
 </tr>
 <tr>
+<td>the floor directory, <code>policy.state_dir</code></td>
+<td>per bundle id, the serial, digest and <code>issuedAt</code> of the newest freshness statement taken, and the reason and prior value of the last reset</td>
+<td>the plane's account: the directory is owner-only and its files <code>0600</code></td>
+</tr>
+<tr>
 <td>the pause file</td>
 <td>each entry's scope and its optional reason</td>
 <td>the plane's account, and any account the file's and directory's modes let read it</td>
@@ -189,7 +194,7 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 </tr>
 <tr>
 <td><code>/metrics</code> and <code>/healthz</code></td>
-<td>counts and states; <code>/healthz</code> also the mode, the bundle's id, version, digest and serial, and the ids of pause entries that match no listed tool. No metric label carries an identifier, a digest or a reason (<a href="/docs/reference/metrics">reference/metrics</a>)</td>
+<td>counts and states; <code>/healthz</code> also the mode, the bundle's id, version, digest and serial, its confirmation and expiry times, and the ids of pause entries that match no listed tool. No metric label carries an identifier, a digest or a reason (<a href="/docs/reference/metrics">reference/metrics</a>)</td>
 <td>anyone who reaches <code>health.address</code>, which takes no credential</td>
 </tr>
 <tr>

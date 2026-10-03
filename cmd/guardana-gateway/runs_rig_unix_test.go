@@ -153,7 +153,7 @@ listener:
   bundle_file: policy.bundle
   key_id: %s
   public_key: %s
-runs:
+%sruns:
   dir: runs
 evidence:
   dir: spool
@@ -168,7 +168,7 @@ upstreams:
     tenant_id: %s
     environment: dev
 overrides:
-`, runsTenant, kind, address, runsPrincipal, runsAgent, health, fixtureKeyID, fixturePublicKey(), rp.collector.url, rp.up.url, runsTenant)
+`, runsTenant, kind, address, runsPrincipal, runsAgent, health, fixtureKeyID, fixturePublicKey(), freshnessKeys(rp.t, rp.dir, "runs-fixture"), rp.collector.url, rp.up.url, runsTenant)
 	classes := map[string]string{
 		toolReadTicket: "    effect: READ\n    resource_type: ticket\n    resource_from: /id\n    trust_zone: TRUSTED_INTERNAL\n" +
 			"    returns:\n      trust: UNTRUSTED_EXTERNAL\n      sensitivity: CONFIDENTIAL\n",

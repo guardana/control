@@ -110,12 +110,9 @@ func TestASilentDecisionPointOwnsEveryPDPKey(t *testing.T) {
 // decision point is at silent, or absent when silent is empty.
 func resolveWith(t *testing.T, config, silent string) *gatewayconfig.Config {
 	t.Helper()
-	key, err := newKey()
-	if err != nil {
-		t.Fatal(err)
-	}
+	keys := devKeys{bundle: publicHalf(seededKey(31)), freshness: publicHalf(seededKey(32))}
 	st := devState{dir: filepath.Join(t.TempDir(), "state")}
-	cfg, err := resolveDemo(config, newLayer(st, key, "127.0.0.1:1", "127.0.0.1:2", "127.0.0.1:3", silent))
+	cfg, err := resolveDemo(config, newLayer(st, keys, "127.0.0.1:1", "127.0.0.1:2", "127.0.0.1:3", silent))
 	if err != nil {
 		t.Fatal(err)
 	}

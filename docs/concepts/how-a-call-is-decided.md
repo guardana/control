@@ -53,7 +53,7 @@ Sources: `internal/core/decide.go`, `internal/core/delegation/delegation.go`,
 | Delegation | `delegation.Check` refuses the chain: a `DENY` of the kernel's own, and the rules then see no delegation at all. Nothing signs a hop: a chain's scopes are what the envelope's producer states, so a rule that grants on `delegation.scopes` trusts that producer; the MCP listener sends no chain | `DELEGATION_EXPIRED`, `DELEGATION_CYCLE`, `DELEGATION_EXCEEDS_PARENT` |
 | Tenants | principal and resource name different tenants: `DENY`; one side names a tenant and the other does not, on a material class: a cause in the request | `TENANT_MISMATCH`, `TENANT_UNDETERMINED` |
 | Snapshot | none handed in: a cause in the policy's availability, and nothing is evaluated | `POLICY_UNAVAILABLE` |
-| Freshness | the snapshot's age is negative or over the smaller of the author's and the operator's budget: a cause in availability; evaluation continues, so a stale `DENY` is still a `DENY` | `POLICY_STALE` |
+| Freshness | the snapshot's age is negative or over the smaller of the author's and the operator's budget, which an unconfirmed snapshot's zero time always is: a cause in availability; evaluation continues, so a stale `DENY` is still a `DENY` | `POLICY_STALE` |
 | Rules | every rule is true, false or unknown; an unknown `ALLOW` does not match, an unknown rule of any other effect makes the verdict `INDETERMINATE` with a cause in the request unless a `DENY` matched; nothing matched is `DENY` | each matched rule's reason, then `RULE_UNDETERMINED`, or `NO_MATCHING_RULE` |
 | External answer | where no other constraint of a `DENY` rule reading `external` is false, the rule holds when the answer denies, is false when it allows, and is unknown when the request carries silence or no answer; a decision whose rules turned on the answer names it by one code | `PDP_DENY`, `PDP_ALLOW`, `PDP_TIMEOUT`, `PDP_UNAVAILABLE`, `PDP_ANSWER_REFUSED`, or `OBLIGATION_NOT_UNDERSTOOD` for an allow that attached an obligation |
 | Obligations | a matched obligation that is not advisory and whose type this enforcement point cannot apply is `DENY` | `OBLIGATION_NOT_UNDERSTOOD` |
@@ -196,7 +196,7 @@ call.
 | `policy_rule_ids` | the matched rules in document order, then the rules whose match was unknown, an unknown `ALLOW` left out |
 | `obligations` | the matched rules' obligations, each kept once, on the two verdicts that carry any |
 | `action_digest` | `canon.DigestV1` of the envelope with the authorized arguments; empty when the digest was refused |
-| `policy_bundle_digest`, `policy_loaded_at`, `policy_freshness` | the snapshot's; `STALE` whenever the snapshot is stale or absent, on a refused request too |
+| `policy_bundle_digest`, `policy_loaded_at`, `policy_freshness` | the snapshot's, `policy_loaded_at` being the `issuedAt` of the statement that confirmed it, or `0001-01-01T00:00:00Z` while none has; `STALE` whenever the snapshot is stale or absent, on a refused request too |
 | `enforcement_mode` | `ENFORCE`, always: the kernel knows no other mode |
 | `pdp_type` | `builtin`, also when an external answer was consulted: the verdict is the kernel's |
 | `pdp_instance` | the configured decision point's identifier when a rule's value turned on its answer, empty otherwise |

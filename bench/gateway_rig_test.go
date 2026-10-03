@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
@@ -28,6 +29,7 @@ import (
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/bundle"
+	"github.com/guardana/control/internal/policystate"
 	"github.com/guardana/control/internal/spool"
 )
 
@@ -140,10 +142,32 @@ func rtHolder(tb testing.TB) *policy.Holder {
 	if err != nil {
 		tb.Fatalf("Sign: %v", err)
 	}
-	h := policy.NewHolder(rtBundle)
 	keys := bundle.Keyring{"k1": ed25519.PublicKey(slices.Clone(key[ed25519.SeedSize:]))}
-	if err := h.Install(signed, keys, time.Now()); err != nil {
-		tb.Fatalf("Install: %v", err)
+	ctx := context.Background()
+	dir := filepath.Join(tb.TempDir(), "floors")
+	if err := policystate.Init(ctx, dir, policystate.KindPlane, rtBundle); err != nil {
+		tb.Fatalf("policystate.Init: %v", err)
+	}
+	store, err := policystate.Open(dir, policystate.KindPlane)
+	if err != nil {
+		tb.Fatalf("policystate.Open: %v", err)
+	}
+	tb.Cleanup(func() { _ = store.Close() })
+	h, err := policy.NewFloorHolder(rtBundle, store)
+	if err != nil {
+		tb.Fatalf("NewFloorHolder: %v", err)
+	}
+	issued := time.Now().UTC().Truncate(time.Second)
+	env, err := policy.SignStatement(rtBundle, 1, signed.GetRef().GetDigest(), issued, key, "k1")
+	if err != nil {
+		tb.Fatalf("SignStatement: %v", err)
+	}
+	st, err := policy.VerifyStatement(env, keys)
+	if err != nil {
+		tb.Fatalf("VerifyStatement: %v", err)
+	}
+	if err := h.InstallConfirmed(ctx, signed, keys, st, issued); err != nil {
+		tb.Fatalf("InstallConfirmed: %v", err)
 	}
 	return h
 }

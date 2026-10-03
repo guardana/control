@@ -22,9 +22,9 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [Let a decision point veto calls](guides/let-a-decision-point-veto.md): Point the gateway at an AuthZEN decision point, write the two rules that let it veto a scope, test what each answer does, and check the plane before it serves.
 - [Read the evidence from a program](guides/read-the-evidence-from-a-program.md): Export a trail file in the versioned format, resume where the last export stopped, and rebuild each call's lifecycle without importing the project's internals.
 - [Run the gateway in a container](guides/run-in-a-container.md): Run the release image of the gateway with Docker, with its evidence on a volume and its port reachable from the host alone.
-- [Run the gateway](guides/run-the-gateway.md): Start the MCP gateway in OBSERVE, read its health, classify the tools it sees, and move it to ENFORCE.
+- [Run the gateway](guides/run-the-gateway.md): Set up a plane's policy files, start the MCP gateway in OBSERVE, keep its policy confirmed, read its health, classify the tools it sees, and move it to ENFORCE.
 - [Watch a plane without a collector](guides/watch-a-plane-without-a-collector.md): Run the collector the gateway binary ships, point a plane's export at it, and check each request's trail in the file it writes.
-- [Write and test a policy](guides/write-and-test-a-policy.md): Write an agent-policy/v1alpha1 document, lint it, prove what it decides with cases, and sign it into the bundle a plane loads.
+- [Write and test a policy](guides/write-and-test-a-policy.md): Write an agent-policy/v1alpha1 document, lint it, prove what it decides with cases, sign it into the bundle a plane loads, and vouch that the bundle is current.
 
 ## Concepts
 
@@ -45,7 +45,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [Configuration](reference/configuration.md): Every key the gateway reads, with its environment variable, kind, default, whether it is required and the spellings it takes.
 - [The approvals page](reference/console.md): What guardana-control console serves, what it prints, what it refuses and what it cannot tell you.
 - [Dev mode](reference/dev.md): What guardana-gateway dev lays out, refuses, prints and stops, and how --scenario runs each scenario on a plane of its own.
-- [Failure modes](reference/failure-modes.md): What a plane does when its collector, spool, decision point, an upstream or its pause file fails, or it is killed holding calls, and the test for each.
+- [Failure modes](reference/failure-modes.md): What a plane does when its collector, spool, decision point, an upstream, its pause file or its freshness statement fails, or it is killed holding calls.
 - [MCP enforcement coverage](reference/mcp-coverage.md): Per revision, transport and method, what the gateway enforces today and what it does not.
 - [Metrics](reference/metrics.md): Every metric a plane answers on /metrics, with its type, its label, the statistic it reads and what it counts.
 - [Obligations](reference/obligations.md): The catalogue of obligation types a policy rule may name, and what the tree does with one.

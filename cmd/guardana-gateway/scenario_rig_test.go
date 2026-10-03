@@ -234,7 +234,7 @@ policy:
   bundle_file: policy.bundle
   key_id: %s
   public_key: %s
-approvals:
+%sapprovals:
   provider: file
   dir: records
   hold_journal_dir: holds
@@ -253,7 +253,7 @@ upstreams:
     tenant_id: acme
     environment: dev
 overrides:
-`, fixtureKeyID, fixturePublicKey(), r.pausePoll, endpoint, r.up.url)
+`, fixtureKeyID, fixturePublicKey(), freshnessKeys(r.t, r.dir, "scenario-fixture"), r.pausePoll, endpoint, r.up.url)
 	for _, lt := range liveTools {
 		fp, err := adaptermcp.Fingerprint(lt.tool())
 		if err != nil {

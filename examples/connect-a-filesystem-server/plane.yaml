@@ -21,8 +21,13 @@ listener:
 policy:
   bundle_id: starter-approval-for-writes
   bundle_file: policy.bundle
-  key_id: KEY_ID_FROM_KEYGEN
-  public_key: PUBLIC_KEY_FROM_KEYGEN
+  key_id: BUNDLE_KEY_ID_FROM_KEYGEN
+  public_key: BUNDLE_PUBLIC_KEY_FROM_KEYGEN
+  statement_file: policy.statement
+  state_dir: floors
+  freshness_key_id: FRESHNESS_KEY_ID_FROM_KEYGEN
+  freshness_public_key: FRESHNESS_PUBLIC_KEY_FROM_KEYGEN
+  poll_interval: 30s
 
 approvals:
   provider: file

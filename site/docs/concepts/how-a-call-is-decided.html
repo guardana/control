@@ -99,7 +99,7 @@ listed in the decision, in order, once each.</p>
 </tr>
 <tr>
 <td>Freshness</td>
-<td>the snapshot's age is negative or over the smaller of the author's and the operator's budget: a cause in availability; evaluation continues, so a stale <code>DENY</code> is still a <code>DENY</code></td>
+<td>the snapshot's age is negative or over the smaller of the author's and the operator's budget, which an unconfirmed snapshot's zero time always is: a cause in availability; evaluation continues, so a stale <code>DENY</code> is still a <code>DENY</code></td>
 <td><code>POLICY_STALE</code></td>
 </tr>
 <tr>
@@ -417,7 +417,7 @@ call.</p>
 </tr>
 <tr>
 <td><code>policy_bundle_digest</code>, <code>policy_loaded_at</code>, <code>policy_freshness</code></td>
-<td>the snapshot's; <code>STALE</code> whenever the snapshot is stale or absent, on a refused request too</td>
+<td>the snapshot's, <code>policy_loaded_at</code> being the <code>issuedAt</code> of the statement that confirmed it, or <code>0001-01-01T00:00:00Z</code> while none has; <code>STALE</code> whenever the snapshot is stale or absent, on a refused request too</td>
 </tr>
 <tr>
 <td><code>enforcement_mode</code></td>

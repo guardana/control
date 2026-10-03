@@ -29,6 +29,8 @@ const (
 	stateSpool     = "spool"
 	stateTrail     = "trail.jsonl"
 	stateBundle    = "policy.bundle"
+	stateStatement = "policy.statement"
+	stateFloors    = "floors"
 	statePause     = "pause.json"
 	stateSettings  = "settings.txt"
 )
@@ -86,6 +88,10 @@ type devPlane struct {
 	plane *plane
 	coll  *collector
 	keyID string
+	// signer renews the statement; it holds the only key dev keeps. renewal
+	// says how often.
+	signer  *devSigner
+	renewal string
 	// done is closed once the plane's run returned ran; stop ends the run.
 	done chan struct{}
 	ran  error
@@ -114,11 +120,16 @@ func newKey() (ed25519.PrivateKey, error) {
 // stands in a path nothing creates, named at random so that no other account
 // can plant a link there ahead of dev.
 func checkDemo(in devInputs, dir string) error {
-	key, err := newKey()
+	bundleKey, err := newKey()
 	if err != nil {
 		return err
 	}
-	defer clear(key)
+	defer clear(bundleKey)
+	freshnessKey, err := newKey()
+	if err != nil {
+		return err
+	}
+	defer clear(freshnessKey)
 	if dir == "" {
 		dir = filepath.Join(os.TempDir(), brand.Gateway+"-dev-"+rand.Text())
 	}
@@ -127,8 +138,15 @@ func checkDemo(in devInputs, dir string) error {
 	if in.silent {
 		silent = unbound
 	}
-	_, err = resolveDemo(in.config, newLayer(devState{dir: dir}, key, unbound, unbound, unbound, silent))
+	keys := devKeys{bundle: publicHalf(bundleKey), freshness: publicHalf(freshnessKey)}
+	_, err = resolveDemo(in.config, newLayer(devState{dir: dir}, keys, unbound, unbound, unbound, silent))
 	return err
+}
+
+// publicHalf is key's public half.
+func publicHalf(key ed25519.PrivateKey) ed25519.PublicKey {
+	pub, _ := key.Public().(ed25519.PublicKey)
+	return pub
 }
 
 // checkSignable refuses a document the signer refuses, by signing it once
@@ -151,33 +169,31 @@ func checkSignable(document []byte) error {
 // backlog, the question is written and no answer ever comes, so the plane's
 // ask ends on its own deadline. Whatever it made is released when it refuses; the
 // directory stays, as the record of what was tried.
-func startDevPlane(ctx context.Context, in devInputs, dir string, log io.Writer) (*devPlane, error) {
+func startDevPlane(ctx context.Context, in devInputs, dir string, log io.Writer) (_ *devPlane, err error) {
 	st, err := makeState(dir)
 	if err != nil {
 		return nil, err
 	}
 	d := &devPlane{state: st}
-	key, err := newKey()
+	bundleKey, err := d.signBundle(in.document)
 	if err != nil {
 		return nil, err
 	}
-	defer clear(key)
-	if err := d.sign(in.document, key); err != nil {
+	defer func() {
+		if err != nil {
+			d.signer.halt()
+		}
+	}()
+	if err := d.layOut(ctx, in.control); err != nil {
 		return nil, err
-	}
-	if _, err := in.control.run(ctx, "pause", "init", st.path(statePause)); err != nil {
-		return nil, fmt.Errorf("creating the pause file: %w", err)
 	}
 	listeners, err := bindLoopback(ctx, devListeners(in.silent))
 	if err != nil {
 		return nil, err
 	}
 	addr := func(i int) string { return listeners[i].Addr().String() }
-	d.cfg, err = resolveDemo(in.config, newLayer(st, key, addr(1), addr(2), addr(0), d.takeSilent(listeners)))
-	if err == nil {
-		err = writeSettings(st.path(stateSettings), d.cfg)
-	}
-	if err != nil {
+	keys := devKeys{bundle: bundleKey, freshness: d.signer.public()}
+	if err = d.configure(in.config, newLayer(st, keys, addr(1), addr(2), addr(0), d.takeSilent(listeners))); err != nil {
 		return nil, errors.Join(err, closeAll(listeners))
 	}
 	if d.coll, err = startCollector(listeners[0], st.path(stateTrail), log); err != nil {
@@ -186,6 +202,7 @@ func startDevPlane(ctx context.Context, in devInputs, dir string, log io.Writer)
 	if d.plane, err = startPlane(ctx, d.cfg, log, ""); err != nil {
 		return nil, errors.Join(silentAdvice(err, in.silent), closeAll(listeners[1:]), d.coll.stop())
 	}
+	d.signer.start(ctx, log)
 	d.plane.settle(ctx, log)
 	runCtx, stop := context.WithCancel(ctx)
 	d.done, d.stop = make(chan struct{}), stop
@@ -209,6 +226,20 @@ func startDevPlane(ctx context.Context, in devInputs, dir string, log io.Writer)
 	return d, nil
 }
 
+// configure resolves the demo's configuration under the layer, sets how often
+// the statement is renewed for it, and writes the settings it resolved.
+func (d *devPlane) configure(config string, l devLayer) error {
+	cfg, err := resolveDemo(config, l)
+	if err != nil {
+		return err
+	}
+	if d.renewal, err = d.signer.schedule(cfg); err != nil {
+		return err
+	}
+	d.cfg = cfg
+	return writeSettings(d.state.path(stateSettings), cfg)
+}
+
 // devListeners is how many listeners a dev plane takes: the collector's, the
 // agents', the health answers' and, when asked, a silent decision point's.
 func devListeners(silent bool) int {
@@ -228,14 +259,44 @@ func (d *devPlane) takeSilent(listeners []net.Listener) string {
 	return d.silent.Addr().String()
 }
 
-// sign signs the document under key into the state's bundle file.
-func (d *devPlane) sign(document []byte, key ed25519.PrivateKey) error {
-	b, _, err := policykey.SignBundle(document, key, time.Now())
+// signBundle signs the document into the state's bundle file under a key
+// drawn for it and cleared once it signed, and draws the freshness key apart
+// from it. It returns the bundle key's public half, which the plane pins.
+func (d *devPlane) signBundle(document []byte) (ed25519.PublicKey, error) {
+	key, err := newKey()
 	if err != nil {
-		return fmt.Errorf("--policy: %w", err)
+		return nil, err
+	}
+	defer clear(key)
+	b, snap, err := policykey.SignBundle(document, key, time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("--policy: %w", err)
 	}
 	d.keyID = b.GetKeyId()
-	return policykey.WriteBundle(d.state.path(stateBundle), b)
+	if err := policykey.WriteBundle(d.state.path(stateBundle), b); err != nil {
+		return nil, err
+	}
+	if d.signer, err = newDevSigner(b, snap.Serial(), snap.MaxStale(), d.state.path(stateStatement)); err != nil {
+		return nil, err
+	}
+	return publicHalf(key), nil
+}
+
+// layOut makes, through the approver's binary, the one that holds the code
+// that makes them, the plane's floor directory and its pause file, and writes
+// the first statement before the plane starts.
+func (d *devPlane) layOut(ctx context.Context, control sibling) error {
+	floors := d.state.path(stateFloors)
+	if _, err := control.run(ctx, "policy", "state", "init", "--kind", "plane", "--bundle-id", d.signer.id, floors); err != nil {
+		return fmt.Errorf("creating the floor directory: %w", err)
+	}
+	if err := d.signer.renew(time.Now()); err != nil {
+		return fmt.Errorf("writing the first freshness statement: %w", err)
+	}
+	if _, err := control.run(ctx, "pause", "init", d.state.path(statePause)); err != nil {
+		return fmt.Errorf("creating the pause file: %w", err)
+	}
+	return nil
 }
 
 // bindLoopback binds n ports the system picks on 127.0.0.1, so no port is
@@ -260,12 +321,13 @@ func closeAll(listeners []net.Listener) error {
 	return errors.Join(errs...)
 }
 
-// halt stops the plane's listeners and gives its exporter devDrain to ship
-// what the spool holds, then stops the collector, releases the plane and
+// halt stops the statement's renewals, then the plane's listeners, and gives
+// its exporter devDrain to ship what the spool holds, then stops the collector, releases the plane and
 // closes the silent decision point. It
 // returns what is left unacknowledged in the spool, which the trail file
 // lacks, and whether a part had stopped with an error.
 func (d *devPlane) halt() (left int64, failed error) {
+	d.signer.halt()
 	d.stop()
 	<-d.done
 	failed = d.ran

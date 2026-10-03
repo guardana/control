@@ -201,6 +201,7 @@ func holdingPlane(t *testing.T, provider provider, ttl time.Duration) (tree, *pl
 	provider.configure(t, tr)
 	writeBundle(t, filepath.Join(tr.dir, "holding.bundle"), holdingDocument)
 	setEnv(t, "policy.bundle_file", filepath.Join(tr.dir, "holding.bundle"))
+	writeStatement(t, filepath.Join(tr.dir, "policy.statement"), filepath.Join(tr.dir, "holding.bundle"), time.Now().Truncate(time.Second))
 	setEnv(t, "mode", "ENFORCE")
 	setEnv(t, "approvals.ttl", ttl.String())
 	return tr, tr.plane(t)

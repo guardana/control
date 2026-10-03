@@ -1,0 +1,95 @@
+package policywatch
+
+import (
+	"errors"
+
+	"github.com/guardana/control/internal/policy"
+)
+
+// Cause is why a poll moved nothing: the replacement or the statement it
+// read was refused, and the last good snapshot stays with its confirmation.
+type Cause string
+
+// The causes a refusal is counted under.
+const (
+	// CauseBundleUnreadable is a bundle file that could not be read: missing,
+	// not a regular file, or over its bound.
+	CauseBundleUnreadable Cause = "bundle_unreadable"
+	// CauseBundleInvalid is a bundle that does not load: torn, not a bundle,
+	// unsigned, signed under another key, or not a policy the kernel runs.
+	CauseBundleInvalid Cause = "bundle_invalid"
+	// CauseBundleID is a bundle of another id than the pinned one.
+	CauseBundleID Cause = "bundle_id"
+	// CauseBundleBudget is a bundle whose budget, with the operator's, is not
+	// longer than the poll interval, so no statement could keep it fresh.
+	CauseBundleBudget Cause = "bundle_budget"
+	// CauseRollback is a bundle below the current serial or below the floor.
+	CauseRollback Cause = "rollback"
+	// CauseSerialReused is a bundle of the current or the floor's serial with
+	// another digest.
+	CauseSerialReused Cause = "serial_reused"
+	// CauseStatementMissing is no statement file at its path.
+	CauseStatementMissing Cause = "statement_missing"
+	// CauseStatementUnreadable is a statement file that could not be read.
+	CauseStatementUnreadable Cause = "statement_unreadable"
+	// CauseStatementInvalid is a statement that does not verify: torn, not an
+	// envelope, signed under another key, or a body that is not a statement.
+	CauseStatementInvalid Cause = "statement_invalid"
+	// CauseStatementUnbound is a statement that names neither the bundle on
+	// disk, nor the current one, nor a later serial, or names another id.
+	CauseStatementUnbound Cause = "statement_unbound"
+	// CauseStatementFuture is a statement dated after the plane's clock.
+	CauseStatementFuture Cause = "statement_future"
+	// CauseStatementExpired is a statement whose budget had run out before
+	// it was read.
+	CauseStatementExpired Cause = "statement_expired"
+	// CauseBelowFloor is a statement at or below the floor, other than the
+	// floor's own.
+	CauseBelowFloor Cause = "below_floor"
+	// CauseClockBehindFloor is a clock earlier than the latest issuedAt the
+	// floor holds.
+	CauseClockBehindFloor Cause = "clock_behind_floor"
+	// CauseClockBack is a wall clock more than a second below the mark.
+	CauseClockBack Cause = "clock_back"
+	// CauseWithdrawn is a statement no newer than a confirmation the clock
+	// rule withdrew.
+	CauseWithdrawn Cause = "withdrawn"
+	// CauseFloor is a floor that could not be read or raised.
+	CauseFloor Cause = "floor"
+)
+
+// Causes is every cause, in a fixed order.
+func Causes() []Cause {
+	return []Cause{
+		CauseBundleUnreadable, CauseBundleInvalid, CauseBundleID, CauseBundleBudget, CauseRollback,
+		CauseSerialReused, CauseStatementMissing, CauseStatementUnreadable, CauseStatementInvalid,
+		CauseStatementUnbound, CauseStatementFuture, CauseStatementExpired, CauseBelowFloor,
+		CauseClockBehindFloor, CauseClockBack, CauseWithdrawn, CauseFloor,
+	}
+}
+
+// causeOf names the cause of a holder's or a floor's refusal. A floor's own
+// refusal is named before ErrFloorRaise, which wraps it; a refusal this
+// package does not know is the floor's, the part outside the policy package.
+func causeOf(err error) Cause {
+	for _, c := range []struct {
+		err   error
+		cause Cause
+	}{
+		{policy.ErrConfirmationWithdrawn, CauseWithdrawn},
+		{policy.ErrStatementFuture, CauseStatementFuture},
+		{policy.ErrClockBehindFloor, CauseClockBehindFloor},
+		{policy.ErrFloorSerialReused, CauseSerialReused},
+		{policy.ErrSerialReused, CauseSerialReused},
+		{policy.ErrRollback, CauseRollback},
+		{policy.ErrBelowFloor, CauseBelowFloor},
+		{policy.ErrBundlePin, CauseBundleID},
+		{policy.ErrFloorBundle, CauseBundleID},
+		{policy.ErrStatementUnbound, CauseStatementUnbound},
+	} {
+		if errors.Is(err, c.err) {
+			return c.cause
+		}
+	}
+	return CauseFloor
+}

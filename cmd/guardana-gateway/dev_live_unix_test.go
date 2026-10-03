@@ -124,45 +124,65 @@ func TestDevStopsWhenThePageDies(t *testing.T) {
 	}
 }
 
-// TestStaleAtIsTheSmallerBudgetFromTheStart: a document whose
-// maxStaleSeconds is below the operator's policy.max_stale goes stale the
-// document's budget after the plane installed it, which is between dev's
-// start and its last line.
-func TestStaleAtIsTheSmallerBudgetFromTheStart(t *testing.T) {
+// TestDevRenewsEveryThirdOfTheSmallerBudget: a document whose
+// maxStaleSeconds is below the operator's policy.max_stale is renewed every
+// third of the document's budget, which dev says; the plane starts
+// confirmed by the statement dev wrote before it, and a later statement
+// replaces it on disk without a new bundle.
+func TestDevRenewsEveryThirdOfTheSmallerBudget(t *testing.T) {
 	t.Parallel()
 	d := writeDemo(t, newLiveUpstream(t).url, "5ms", "")
-	rewrite := func(path, from, to string) {
-		t.Helper()
-		raw, err := os.ReadFile(path) //nolint:gosec // G304: a file under the test's own directory
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(string(raw), from) {
-			t.Fatalf("%s holds no %q", path, from)
-		}
-		if err := os.WriteFile(path, []byte(strings.Replace(string(raw), from, to, 1)), 0o600); err != nil { //nolint:gosec // G703: a file under the test's own directory
-			t.Fatal(err)
-		}
-	}
-	rewrite(d.config, "  bundle_id: scenario-fixture\n", "  bundle_id: scenario-fixture\n  max_stale: 30m\n")
-	rewrite(d.policy, `"maxStaleSeconds":600`, `"maxStaleSeconds":90`)
+	rewrite(t, d.config, "  bundle_id: scenario-fixture\n", "  bundle_id: scenario-fixture\n  max_stale: 30m\n")
+	rewrite(t, d.policy, `"maxStaleSeconds":600`, `"maxStaleSeconds":6`)
 	state := filepath.Join(t.TempDir(), "state")
-	before := time.Now()
 	p := startDev(t, "--config", d.config, "--policy", d.policy, "--state", state)
 	values := p.ready(t)
-	after := time.Now()
 	settings, err := os.ReadFile(filepath.Join(state, "settings.txt")) //nolint:gosec // G304: the state directory this test's dev laid out
 	if err != nil || !slices.ContainsFunc(lines(string(settings)), func(l string) bool { return strings.HasPrefix(l, "policy.max_stale: 30m") }) {
 		t.Fatalf("the operator's budget is not in the settings dev resolved: %v\n%s", err, settings)
 	}
-	at, _, _ := strings.Cut(values["stale_at"], ";")
-	stale, err := time.Parse(time.RFC3339, at)
-	if err != nil {
-		t.Fatalf("stale_at %q: %v", values["stale_at"], err)
+	if want := "every 2s of the 6s budget; a statement confirms the policy for the budget"; values["renewal"] != want {
+		t.Errorf("renewal is %q, want %q", values["renewal"], want)
 	}
-	lo, hi := before.Add(90*time.Second).Truncate(time.Second), after.Add(90*time.Second)
-	if stale.Before(lo) || stale.After(hi) {
-		t.Errorf("stale_at is %s, want 90s after the plane's start, between %s and %s", stale, lo.UTC(), hi.UTC())
+	if values["statement"] != filepath.Join(state, "policy.statement") || values["state_dir"] != filepath.Join(state, "floors") {
+		t.Errorf("statement %q, state_dir %q; want them under %s", values["statement"], values["state_dir"], state)
+	}
+	changes(t, values["statement"], 10*time.Second)
+}
+
+// rewrite replaces the first from in the file at path with to, and fails
+// when the file holds no from.
+func rewrite(t *testing.T, path, from, to string) {
+	t.Helper()
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: a file under the test's own directory
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), from) {
+		t.Fatalf("%s holds no %q", path, from)
+	}
+	if err := os.WriteFile(path, []byte(strings.Replace(string(raw), from, to, 1)), 0o600); err != nil { //nolint:gosec // G703: a file under the test's own directory
+		t.Fatal(err)
+	}
+}
+
+// changes fails unless the file at path holds other bytes within limit.
+func changes(t *testing.T, path string, limit time.Duration) {
+	t.Helper()
+	first, err := os.ReadFile(path) //nolint:gosec // G304: a file under the test's own directory
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(limit)
+	for {
+		now, err := os.ReadFile(path) //nolint:gosec // G304: a file under the test's own directory
+		if err == nil && !bytes.Equal(now, first) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s did not change within %v: %v", path, limit, err)
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -265,7 +285,7 @@ func TestTheTokenStaysOnDevsStdout(t *testing.T) {
 			t.Errorf("the arguments or the environment of %d carry the token", pid)
 		}
 	}
-	if names, want := stateNames(t, state), []string{"approvals", "holds", "pause.json", "policy.bundle", "settings.txt", "spool", "trail.jsonl"}; !slices.Equal(names, want) {
+	if names, want := stateNames(t, state), []string{"approvals", "floors", "holds", "pause.json", "policy.bundle", "policy.statement", "settings.txt", "spool", "trail.jsonl"}; !slices.Equal(names, want) {
 		t.Errorf("the state directory holds %q, want %q", names, want)
 	}
 	prefix := []byte(policykey.PKCS8Prefix)

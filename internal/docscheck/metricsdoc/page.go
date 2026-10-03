@@ -97,18 +97,22 @@ func lead() string {
 		"A spool that cannot answer sets `" + metrics.Prefix() + "spool_broken` to 1, and every other\n" +
 		"metric reading the spool is left out of the text rather than written as zero; the rest\n" +
 		"is still answered. A reading the text cannot carry truthfully answers 503 with no body:\n" +
-		"a counter below zero, a pause state outside the four, or counts outside a label's\n" +
-		"closed set that sum past a counter's range.\n\n" +
+		"a counter below zero, a pause state outside the four, a freshness state outside the\n" +
+		"three, or counts outside a label's closed set that sum past a counter's range.\n\n" +
 		"`" + metrics.Prefix() + "pipeline_halted` is not the only thing that stops calls. While it\n" +
 		"reads 0, an unknown pause state takes no call at all, which `" + metrics.Prefix() + "pause_state`\n" +
-		"reports under `state=\"unknown\"`, and a refused evidence append blocks the call it records,\n" +
-		"which `" + metrics.Prefix() + "pipeline_sink_failures_before_effect_total` counts.\n\n" +
+		"reports under `state=\"unknown\"`; in every mode but OBSERVE a policy that is not\n" +
+		"confirmed blocks every material call, which `" + metrics.Prefix() + "policy_freshness`\n" +
+		"reports; and a refused evidence append\n" +
+		"blocks the call it records, which `" + metrics.Prefix() + "pipeline_sink_failures_before_effect_total`\n" +
+		"counts.\n\n" +
 		"No label carries an identifier, a digest or a reason: `code` is a code of the reason\n" +
-		"registry, `cause` is why a read of the pause file was unknown, and `state` is one of\n" +
-		"the four pause states. A code or a cause outside its set is counted under `" + metrics.Other + "`,\n" +
-		"so no count is dropped. Reads names the statistic: `Pipeline` is the pipeline's,\n" +
-		"`Adapter` the MCP adapter's, `Pause` the pause file reader's, `Spool` the evidence\n" +
-		"spool's and `Exporter` the exporter's.\n\n" +
+		"registry; `cause` is why a read of the pause file was unknown, why a run token did not\n" +
+		"resolve, or why a poll of the policy moved nothing; and `state` is one of the four pause\n" +
+		"states or the three freshness states. A code or a cause outside its set is counted under\n" +
+		"`" + metrics.Other + "`, so no count is dropped. Reads names the statistic: `Pipeline` is the\n" +
+		"pipeline's, `Adapter` the MCP adapter's, `Pause` the pause file reader's, `Policy` the\n" +
+		"policy refresher's, `Spool` the evidence spool's and `Exporter` the exporter's.\n\n" +
 		"Rendered from the table in `internal/metrics`. Rebuild it with `make docs-gen`; an\n" +
 		"edit made here does not survive the next run.\n\n"
 }

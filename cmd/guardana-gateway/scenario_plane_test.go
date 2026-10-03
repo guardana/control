@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/http"
@@ -18,6 +19,8 @@ type healthDoc struct {
 	pauseState, cause                  string
 	entries                            int
 	omit                               string
+	// freshness is the policy's; empty is confirmed.
+	freshness string
 }
 
 func (h healthDoc) body() string {
@@ -27,6 +30,7 @@ func (h healthDoc) body() string {
 		"spool":    fmt.Sprintf(`"spool":{"unacknowledged":%d,"quarantined_records":%d}`, h.unack, h.quarantined),
 		"exporter": fmt.Sprintf(`"exporter":{"acknowledged":0,"partial_rejected":%d}`, h.partial),
 		"pause":    fmt.Sprintf(`"pause":{"state":%q,"entries":%d,"polls":{"made":%d}}`, h.pauseState, h.entries, h.polls),
+		"policy":   fmt.Sprintf(`"policy":{"freshness":%q}`, cmp.Or(h.freshness, "confirmed")),
 	}
 	if h.polls < 0 {
 		parts["pause"] = fmt.Sprintf(`"pause":{"state":%q,"entries":%d}`, h.pauseState, h.entries)
@@ -35,7 +39,7 @@ func (h healthDoc) body() string {
 		parts["pause"] = strings.TrimSuffix(parts["pause"], "}") + fmt.Sprintf(`,"cause":%q}`, h.cause)
 	}
 	members := []string{`"mode":"APPROVE"`, `"bundle":{"id":"b","digest":"sha256:bb"}`}
-	for _, k := range []string{"halted", "pipeline", "spool", "exporter", "pause"} {
+	for _, k := range []string{"halted", "pipeline", "spool", "exporter", "pause", "policy"} {
 		if k != h.omit {
 			members = append(members, parts[k])
 		}
@@ -64,7 +68,7 @@ func scriptedPlane(t *testing.T, script ...healthDoc) *runner {
 // TestHealthRefusesAnAnswerWithoutACounter: a counter the answer does not
 // carry is refused, never read as zero.
 func TestHealthRefusesAnAnswerWithoutACounter(t *testing.T) {
-	for _, omit := range []string{"halted", "pipeline", "spool", "exporter", "pause"} {
+	for _, omit := range []string{"halted", "pipeline", "spool", "exporter", "pause", "policy"} {
 		r := scriptedPlane(t, healthDoc{pauseState: "clear", omit: omit})
 		if _, err := r.health(context.Background()); err == nil || !strings.Contains(err.Error(), "without") {
 			t.Errorf("an answer without %s: err = %v", omit, err)
@@ -73,6 +77,21 @@ func TestHealthRefusesAnAnswerWithoutACounter(t *testing.T) {
 	r := scriptedPlane(t, healthDoc{pauseState: "disabled", polls: -1})
 	if s, err := r.health(context.Background()); err != nil || s.polls != -1 {
 		t.Errorf("a plane with no pause file: %+v, %v", s, err)
+	}
+}
+
+// TestServingRefusesAPolicyThatIsNotConfirmed: a scenario's verdicts are
+// those of a confirmed policy, so a plane whose policy is unconfirmed or
+// expired, answered 200 as degraded, is refused, and a confirmed one served.
+func TestServingRefusesAPolicyThatIsNotConfirmed(t *testing.T) {
+	for _, freshness := range []string{"unconfirmed", "expired"} {
+		_, err := scriptedPlane(t, healthDoc{pauseState: "clear", freshness: freshness}).serving(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "policy "+freshness) {
+			t.Errorf("a plane whose policy is %s: err = %v", freshness, err)
+		}
+	}
+	if _, err := scriptedPlane(t, healthDoc{pauseState: "clear"}).serving(context.Background()); err != nil {
+		t.Errorf("a confirmed plane was refused: %v", err)
 	}
 }
 

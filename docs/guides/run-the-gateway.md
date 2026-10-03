@@ -1,8 +1,8 @@
 ---
 title: Run the gateway
-summary: Start the MCP gateway in OBSERVE, read its health, classify the tools it sees, and move it to ENFORCE.
+summary: Set up a plane's policy files, start the MCP gateway in OBSERVE, keep its policy confirmed, read its health, classify the tools it sees, and move it to ENFORCE.
 type: how-to
-covers: [cmd/guardana-gateway/**, adapters/mcp/**, internal/gateway/**, internal/spool/**, adapters/otel/**]
+covers: [cmd/guardana-gateway/**, adapters/mcp/**, internal/gateway/**, internal/spool/**, adapters/otel/**, internal/policywatch/**]
 ---
 
 # Run the gateway
@@ -10,8 +10,8 @@ covers: [cmd/guardana-gateway/**, adapters/mcp/**, internal/gateway/**, internal
 ## When to use this
 
 You have an agent that speaks the Model Context Protocol (MCP) to one or more
-servers, and you want every call it makes decided from policy, enforced before
-the server sees it, and recorded. Start in `OBSERVE`, which records every call and
+servers, and you want every call decided from policy, enforced before the
+server sees it, and recorded. Start in `OBSERVE`, which records every call and
 blocks only for the plane's own causes, and move to `ENFORCE` once the tools
 are classified.
 
@@ -21,28 +21,49 @@ does not. Nothing here is a security boundary yet.
 ## Prerequisites
 
 - `guardana-gateway` from a release archive, or built: `go build ./cmd/guardana-gateway`.
-- A signed policy bundle and the two lines `policy keygen` printed for the key
-  that signed it ([write-and-test-a-policy.md](write-and-test-a-policy.md)).
-- A directory for the evidence spool, owned by the plane's account,
-  writable by no one else, with room for its budget.
-- An OpenTelemetry collector that takes OTLP/HTTP logs in JSON. The endpoint is
-  required: evidence nobody drains fills the budget, and material calls then
-  block.
-- To hold calls for a person to answer: two directories the gateway does not
-  create, one for the approval records and one for the plane's own hold
-  journal. Neither may be the spool's or inside the other.
+- `guardana-control` where the policy is signed and on the plane's host, and a
+  policy document ([write-and-test-a-policy.md](write-and-test-a-policy.md)).
+- An OpenTelemetry collector that takes OTLP/HTTP logs in JSON: evidence
+  nobody drains fills the spool, and material calls then block.
+- To hold calls for a person: two directories the gateway does not create,
+  for the approval records and the hold journal, neither the spool's nor
+  inside the other.
 
 ## Steps
 
-### 1. Write a configuration
+### 1. Make the policy's files
+
+Where the keys live, never the plane's host, make two key pairs, sign the
+document, and vouch that the bundle is current:
+
+```
+guardana-control policy keygen --out keys          # the bundle key
+guardana-control policy keygen --out freshness     # the freshness key, never the bundle's
+guardana-control policy sign --key keys/signing.key --out orders.bundle policy.json
+guardana-control policy state init --kind signer --bundle-id orders-policy signer-floors
+guardana-control policy renew --key freshness/signing.key --bundle orders.bundle \
+    --bundle-public-key keys/signing.pub --floor signer-floors --out orders.statement
+```
+
+Copy `orders.bundle` and `orders.statement` to the plane's host, beside the
+configuration. There, as the plane's user, make the spool and the floor
+directory, which keeps the highest serial the plane accepted:
+
+```
+mkdir -m 700 spool
+guardana-control policy state init --kind plane --bundle-id orders-policy floors
+```
+
+`--bundle-id` is the document's `id`. Keep `floors` on a disk that outlives
+the plane: a floor made anew takes any older bundle.
+
+### 2. Write a configuration
 
 Every path in the file resolves against the file's directory. Every key has
-an environment variable under `GUARDANA_CONTROL_`, spelled as the key with its
-dots as underscores in capitals, and the variable wins, so a credential or a
-per-host path stays out of version control. A key the file names and this build
-does not is refused, and so is a variable under that prefix that names no key
-or adds a list entry.
-[configuration.md](../reference/configuration.md) lists every key.
+an environment variable under `GUARDANA_CONTROL_`, the key in capitals with
+underscores for dots, which wins over the file. A key this build does not
+know is refused. [configuration.md](../reference/configuration.md) lists
+every key.
 
 ```yaml
 mode: OBSERVE
@@ -61,11 +82,16 @@ listener:
 policy:
   bundle_id: orders-policy      # the plane serves this bundle and no other
   bundle_file: orders.bundle
-  key_id: ed25519-<16 hex digits>   # the two lines policy keygen printed
+  key_id: ed25519-<16 hex digits>   # the two lines keygen printed for keys
   public_key: <44 characters of base64>
+  statement_file: orders.statement
+  state_dir: floors
+  freshness_key_id: ed25519-<16 hex digits>   # the two lines keygen printed for freshness
+  freshness_public_key: <44 characters of base64>
+  poll_interval: 30s            # how often both files are read again
 
 evidence:
-  dir: /var/lib/guardana/spool
+  dir: spool
 
 export:
   endpoint: http://127.0.0.1:4318/v1/logs
@@ -84,25 +110,29 @@ upstreams:
 ```
 
 The listener in this build authenticates nobody, so every request on it is
-made by the principal configured here; no end-user identity is bound from a
-token ([status.md](../status.md)).
+made by the principal configured here ([status.md](../status.md)).
 
-### 2. Check the configuration before serving
+A statement confirms its bundle from its `issued_at` for the smaller of
+`policy.max_stale` and the document's `maxStaleSeconds`. Without one the
+plane starts, but every call is `POLICY_STALE`: outside `OBSERVE` a material
+call is blocked, and a read runs only under `policy.fail_open_read`. Rerun
+`renew` and copy the statement on a schedule shorter than that budget less
+one poll interval.
+
+### 3. Check the configuration before serving
 
 ```
 guardana-gateway doctor --config gateway.yaml
 ```
 
-`doctor` checks the configuration, prints every key and its source, a
-credential excepted, then one line per other check.
-It serves nothing, and it stops at
-the first check it cannot make. A tool no override classifies is printed with
-the fingerprint of its definition, which is what step 4 needs. It does not lock
-the approvals directory, whose lock and permissions the plane checks at start.
-It does open the spool: it locks the evidence directory, cuts a torn tail and
-writes a probe file.
+`doctor` prints every key and its source, a credential excepted, then one
+line per check, and stops at the first it cannot make. The `policy` line
+fails for a statement missing, expired, dated ahead or naming another bundle,
+and for a bundle below its floor, which it reads without raising. A tool no
+override classifies is printed with its fingerprint, which step 5 needs.
+`doctor` locks the spool, cuts a torn tail and writes a probe file.
 
-### 3. Run in OBSERVE
+### 4. Run in OBSERVE
 
 ```
 guardana-gateway run --config gateway.yaml
@@ -112,7 +142,7 @@ Point the agent at `http://127.0.0.1:8080`, not the server. In `OBSERVE`
 calls run as proposed, which shows the tools that exist before you classify
 them.
 
-### 4. Classify the tools
+### 5. Classify the tools
 
 A call to a tool the manifest does not classify is blocked with
 `ACTION_UNCLASSIFIED` in every mode but `OBSERVE`, so classify each one the
@@ -131,28 +161,20 @@ overrides:
 The fingerprint covers the whole definition: a tool whose description or
 schema changes is unclassified again until you look at it.
 
-A number at `resource_from` names the resource by its canonical text (`42.0`
-and `4.2e1` are `42`, `1e-7` stays `1e-7`), so a rule on a numeric id uses
-that text.
-
-### 5. Read the health
+### 6. Read the health
 
 ```
 curl -s http://127.0.0.1:8081/healthz | jq
 ```
 
-The answer carries `mode`, `adapter`, `halted` and a `halt` object, `bundle`
-(id, version, digest, serial and when it was last confirmed), `spool` (segments,
-bytes, unacknowledged bytes, reserved bytes, open trails, quarantined records
-and what a torn write discarded), `exporter` (acknowledged, quarantined, refused
-and the retries by class) and `pipeline` (blocks by reason code, pending,
-executed, sink failures before and after an effect, unrecorded reads,
-mismatches, open and held) and `approvals` (the provider, whether a hold
-journal is kept, and what the last reconciliation closed and could not settle),
-`pause` and `runs` (local or opened, and refusals). A plane that takes no material call, or whose pause state is
-unknown, answers `503`.
+The answer carries `mode`, `halted` and `halt`, `bundle`, `policy`, `spool`,
+`exporter`, `pipeline`, `approvals`, `pause` and `runs`. `policy.freshness`
+is `confirmed`, `unconfirmed` or `expired`, beside the confirmation, its
+expiry, the seconds left and the poll counts. A plane whose policy is not
+confirmed answers `"status":"degraded"` with `200`; one that takes no
+material call, or whose pause state is unknown, answers `503`.
 
-### 6. Move to ENFORCE
+### 7. Move to ENFORCE
 
 Run `doctor` again with `GUARDANA_CONTROL_MODE=ENFORCE`: outside `OBSERVE` an
 unclassified tool is not a pass, which shows whether the overrides are
@@ -166,7 +188,7 @@ complete. Then change the mode and restart.
 | `LOCKDOWN` | Blocks every material call whatever the policy said, recording a decision; enforces a read with fail-open reads off |
 | `SHADOW`, `WARN` | Refused at start: declared in the contract, not built |
 
-### 7. Let a person answer a held call
+### 8. Let a person answer a held call
 
 ```yaml
 approvals:
@@ -182,7 +204,7 @@ hold lost to a restart never runs; the journal lets the next start close its
 trail or count it left open; `doctor` counts them
 ([concepts/approvals-and-the-held-call.md](../concepts/approvals-and-the-held-call.md)).
 
-### 8. Set the evidence rules on purpose
+### 9. Set the evidence rules on purpose
 
 | Key | What it costs |
 | --- | --- |
@@ -190,9 +212,8 @@ trail or count it left open; `doctor` counts them
 | `evidence.fsync: interval` | A power loss costs the records since the last sync, every `evidence.fsync_interval`, a duration such as `5s` |
 | `evidence.on_unwritable: allow_reads` | A read whose trail the spool will not take runs unrecorded and counted, unless it retries a held call. A material call never does |
 | `policy.fail_open_read: true` | A read undecided only because the policy is unavailable runs if the rules would otherwise allow it. Off by default, and forced off under `LOCKDOWN` |
-| `policy.max_stale` | Past it, or the bundle's own `maxStaleSeconds`, calls get `POLICY_STALE` until a restart |
 
-### 9. Pause a tool
+### 10. Pause a tool
 
 As the plane's user, before setting `pause.file` and restarting:
 
@@ -215,11 +236,12 @@ guardana-control pause add --action tool --provider orders --name refund /srv/pa
 
 ## Verify
 
-- `doctor` prints `ok upstreams ... 0 unclassified` in the mode you will run.
+- `doctor` prints `ok policy` and `ok upstreams ... 0 unclassified` in the
+  mode you will run.
 - A denied call comes back to the agent as a tool result with `isError: true`
   and its `reason_codes`, and the upstream never sees it.
-- `/healthz` reports `"halted": false` and a spool depth that falls as the
-  collector acknowledges records.
+- `/healthz` reports `"freshness":"confirmed"`, `"halted": false` and a spool
+  depth that falls as the collector acknowledges records.
 
 ## When the plane halts
 
@@ -237,6 +259,10 @@ object says which rule stopped it:
   either way; `pipeline.sink_failures_after_effect` counts what happened.
 
 ## Roll back
+
+To change the policy, sign it with a higher `serial`, renew for it, and copy
+the statement before the bundle: the plane installs the bundle at the poll
+that finds both, and refuses to start on a lower serial.
 
 Set `mode: OBSERVE` and restart: no decision blocks a call and the trail
 keeps recording. Evidence that cannot be written still blocks a material call,

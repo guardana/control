@@ -167,3 +167,54 @@ func TestAPauseBitesTheCallRightAfterIt(t *testing.T) {
 	}
 	t.Logf("%d rounds of pause, call and lift took %v", rounds, time.Since(started).Round(time.Millisecond))
 }
+
+// TestADevScenarioPastTheBudgetStaysFresh: under a document whose budget is
+// six seconds, a scenario that runs more than twice that long keeps every
+// verdict and never decides a call stale, since dev renews the statement
+// every third of the budget; every decision names the one bundle digest, and
+// the confirmations they carry moved forward without a new bundle.
+func TestADevScenarioPastTheBudgetStaysFresh(t *testing.T) {
+	t.Parallel()
+	const budget = 6 * time.Second
+	d := writeDemo(t, newLiveUpstream(t).url, "5ms", "")
+	rewrite(t, d.policy, `"maxStaleSeconds":600`, `"maxStaleSeconds":6`)
+	state := filepath.Join(t.TempDir(), "state")
+	started := time.Now()
+	code, stdout, stderr := runDevToEnd(t, 5*time.Minute, "--config", d.config, "--policy", d.policy,
+		"--state", state, "--scenario", pauseThenCall(t, 30))
+	took := time.Since(started)
+	if code != exitOK || !strings.HasSuffix(stdout, "pause-then-call.json passed\n") {
+		t.Fatalf("exit %d after %v, want 0 and passed:\n%s\n%s", code, took, stdout, stderr)
+	}
+	if took < 2*budget {
+		t.Fatalf("the scenario took %v, not past twice the %v budget, so it examined no renewal", took, budget)
+	}
+	decisions, digests, confirmed := decisionsOn(t, filepath.Join(state, "1-pause-then-call.json", "trail.jsonl"))
+	if decisions < 30 || len(digests) != 1 {
+		t.Errorf("%d decisions name %d bundle digest(s), want at least 30 naming one", decisions, len(digests))
+	}
+	if len(confirmed) < 3 {
+		t.Errorf("the decisions carry %d confirmation time(s) over %v; the statement was not renewed", len(confirmed), took)
+	}
+}
+
+// decisionsOn counts the decisions on the trail file at path, and gathers the
+// bundle digests they name and the confirmation times they carry.
+func decisionsOn(t *testing.T, path string) (n int, digests map[string]bool, confirmed map[int64]bool) {
+	t.Helper()
+	trail, err := readTrail(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digests, confirmed = map[string]bool{}, map[int64]bool{}
+	for _, events := range trail.trails {
+		for _, e := range events {
+			if dec := e.GetDecision(); dec != nil && e.GetKind() == decided {
+				n++
+				digests[dec.GetPolicyBundleDigest()] = true
+				confirmed[dec.GetPolicyLoadedAt().GetSeconds()] = true
+			}
+		}
+	}
+	return n, digests, confirmed
+}

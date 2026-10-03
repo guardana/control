@@ -124,6 +124,7 @@ func (tr tree) approveConfiguration(t *testing.T, collector string) *counted {
 	t.Helper()
 	writeBundle(t, tr.dir+"/approve.bundle", approveDocument)
 	setEnv(t, "policy.bundle_file", tr.dir+"/approve.bundle")
+	writeStatement(t, filepath.Join(tr.dir, "policy.statement"), tr.dir+"/approve.bundle", time.Now().Truncate(time.Second))
 	up := materialUpstream(t)
 	setEnv(t, "upstreams.0.endpoint", up.url)
 	setEnv(t, "upstreams.0.tenant_id", "acme")

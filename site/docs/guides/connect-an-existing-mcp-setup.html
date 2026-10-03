@@ -55,22 +55,32 @@ mkdir -m 700 spool approvals holds
 <p>The configuration starts <code>node_modules/.bin/mcp-server-filesystem</code>, a path it
 resolves against its own directory. The plane gives the server only <code>PATH</code>,
 <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code>, <code>USER</code> and what <code>env</code> names.</p>
-<h3 id="2-make-a-key-and-sign-a-policy">2. Make a key and sign a policy</h3>
+<h3 id="2-make-the-keys-sign-a-policy-and-vouch-for-it">2. Make the keys, sign a policy and vouch for it</h3>
 <pre><code>guardana-control policy keygen --out keys
+guardana-control policy keygen --out freshness
 guardana-control policy sign --key keys/signing.key --out policy.bundle policy.json
+guardana-control policy state init --kind signer --bundle-id starter-approval-for-writes signer-floors
+guardana-control policy renew --key freshness/signing.key --bundle policy.bundle \
+    --bundle-public-key keys/signing.pub --floor signer-floors --out policy.statement
+guardana-control policy state init --kind plane --bundle-id starter-approval-for-writes floors
 </code></pre>
+<p><code>keys</code> signs the bundle and <code>freshness</code>, a second pair, signs the statement
+that says the bundle is current. <code>floors</code> is the plane's: it keeps the highest
+serial the plane took, so a restart cannot go back to an older bundle.</p>
 <p><code>policy.json</code> is the approval-for-writes pack's document, which release
 archives do not carry: take it from <code>examples/starter-packs/</code> in a checkout or
 on the repository's page.</p>
 <p>The approval-for-writes pack allows reads, holds every write for a person,
 denies deletes in <code>prod</code> and a confidential message out after untrusted input
-(<a href="/docs/reference/starter-packs">reference/starter-packs.md</a>). Keep <code>keys</code>
-off the machine that runs the plane once you sign for real.</p>
+(<a href="/docs/reference/starter-packs">reference/starter-packs.md</a>). Keep <code>keys</code>,
+<code>freshness</code>, <code>signer-floors</code> and your copy of the bundle off the machine that
+runs the plane once you sign for real.</p>
 <h3 id="3-fill-in-the-profile">3. Fill in the profile</h3>
-<p>In <code>plane.yaml</code>, replace <code>KEY_ID_FROM_KEYGEN</code> and <code>PUBLIC_KEY_FROM_KEYGEN</code>
-with the two lines <code>keygen</code> printed, and the server's one argument with the
-absolute path of the directory it may touch. Nothing else needs to change for
-this server.</p>
+<p>In <code>plane.yaml</code>, replace <code>BUNDLE_KEY_ID_FROM_KEYGEN</code> and <code>BUNDLE_PUBLIC_KEY_FROM_KEYGEN</code>
+with the two lines the first <code>keygen</code> printed,
+<code>FRESHNESS_KEY_ID_FROM_KEYGEN</code> and <code>FRESHNESS_PUBLIC_KEY_FROM_KEYGEN</code> with
+the second's, and the server's one argument with the absolute path of the
+directory it may touch. Nothing else needs to change for this server.</p>
 <h3 id="4-start-a-collector">4. Start a collector</h3>
 <pre><code>guardana-gateway collect --listen 127.0.0.1:4318 --out trail.jsonl
 </code></pre>
@@ -94,7 +104,10 @@ agent needs, as <a href="/docs/guides/run-the-gateway">run-the-gateway.md</a> sh
 <pre><code>guardana-gateway run --config plane.yaml
 </code></pre>
 <p>It listens for agents on <code>127.0.0.1:8080</code> and answers <code>/healthz</code> and
-<code>/metrics</code> on <code>127.0.0.1:8081</code>.</p>
+<code>/metrics</code> on <code>127.0.0.1:8081</code>. The statement confirms the policy for
+<code>policy.max_stale</code>, ten minutes unless you set it; rerun the <code>renew</code> line
+before that, less one <code>policy.poll_interval</code>, or every call is blocked with
+<code>POLICY_STALE</code> and <code>/healthz</code> says <code>&quot;status&quot;:&quot;degraded&quot;</code>.</p>
 <h3 id="7-point-the-client-at-the-plane">7. Point the client at the plane</h3>
 <p>Replace the server's entry in the client's configuration with the plane's
 address. Most clients take a block like this one; the key names vary between

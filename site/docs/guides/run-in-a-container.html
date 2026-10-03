@@ -33,9 +33,9 @@ is published from the release after <code>v0.1.0-alpha</code> on; each release's
 name its digest.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <ul>
-<li>A configuration that runs outside a container
-(<a href="/docs/guides/run-the-gateway">run-the-gateway.md</a>), a signed bundle and its public
-key.</li>
+<li>A configuration that runs outside a container, with its bundle, its
+freshness statement and its floor directory
+(<a href="/docs/guides/run-the-gateway">run-the-gateway.md</a>).</li>
 <li>The image's digest from the release notes, checked with the commands in
 <a href="https://github.com/guardana/control/blob/main/RELEASING.md#checking-the-image">RELEASING.md</a>.</li>
 <li>A directory for the evidence spool, owned by user 65532 and writable by no
@@ -59,6 +59,15 @@ which is mounted read-only.</li>
 nothing to run in this image.</li>
 <li>The collector at an <code>https</code> endpoint. A plaintext export is admitted only
 to a loopback IP literal, which here is the container itself.</li>
+<li><code>policy.state_dir: /var/lib/guardana/floors</code>, a volume that outlives the
+container, beside the spool and the approvals directory. Make it on the
+host with <code>guardana-control policy state init --kind plane</code>, then
+<code>chown -R 65532</code> it: the plane refuses a floor directory another user
+owns. A volume that does not outlive the container protects nothing: a
+floor made anew at each start takes any older bundle.</li>
+<li>The bundle and the statement can stay in the read-only configuration
+directory. Renew the statement on the host; the plane reads it again
+every <code>policy.poll_interval</code>.</li>
 <li>The pause file and the approvals and hold journal directories, if you
 use them, on volumes owned by 65532. The plane refuses them when the
 group or others may write them, and the pause file when another account
@@ -69,6 +78,7 @@ owns it.</li>
 <p>Run it by digest, with the port published on the host's loopback only:</p>
 <pre><code>docker run --rm -p 127.0.0.1:8080:8080 \
   -v &#34;$PWD/conf:/etc/gateway:ro&#34; -v &#34;$PWD/spool:/var/lib/guardana/spool&#34; \
+  -v &#34;$PWD/floors:/var/lib/guardana/floors&#34; \
   ghcr.io/guardana/control-gateway@sha256:&lt;digest&gt; run --config /etc/gateway/gateway.yaml
 </code></pre>
 <p>The listener takes no credential but a run token under <code>runs.dir</code>, so
@@ -79,7 +89,7 @@ put something that authenticates callers in front of it.</p>
 <h2 id="verify">Verify</h2>
 <p>Set <code>health.address: 0.0.0.0:8081</code>, add <code>-p 127.0.0.1:8081:8081</code>, and run
 <code>curl -s http://127.0.0.1:8081/healthz</code>. The answer names the mode and the
-bundle, as it does outside a container.</p>
+bundle, as it does outside a container, and <code>&quot;freshness&quot;:&quot;confirmed&quot;</code>.</p>
 <h2 id="roll-back">Roll back</h2>
 <p>Stop the container. What the collector has not acknowledged stays in the
 spool directory.</p>

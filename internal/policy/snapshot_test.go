@@ -1,6 +1,7 @@
 package policy_test
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -139,23 +140,35 @@ func TestASnapshotNobodyLoadedHoldsNoPolicy(t *testing.T) {
 }
 
 // TestEveryPathToASnapshotWrapsACompiledProgram takes a snapshot from each way
-// the package makes one: Load, a first Install, a refresh and a replacement.
-// Each decides with the signed rules, and none answers as a program nobody
-// compiled, whatever the envelope.
+// the package makes one: Load, a first install, a replacement, a confirmation
+// and a confirmed replacement. Each decides with the signed rules, and none
+// answers as a program nobody compiled, whatever the envelope.
 func TestEveryPathToASnapshotWrapsACompiledProgram(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	higher, err := policy.Sign([]byte(strings.Replace(exampleRaw, `"serial": 7`, `"serial": 8`, 1)), key(1), "k1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var h policy.Holder
+	highest, err := policy.Sign([]byte(strings.Replace(exampleRaw, `"serial": 7`, `"serial": 9`, 1)), key(1), "k1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := openHolder(t)
 	paths := map[string]*policy.Snapshot{"Load": load(t, valid().build())}
-	install(t, &h, valid().build(), at(0))
-	paths["the first Install"] = h.Current()
-	install(t, &h, valid().build(), at(1))
-	paths["a refresh"] = h.Current()
-	install(t, &h, higher, at(2))
+	installUnconfirmed(t, h, valid().build())
+	paths["the first install"] = h.Current()
+	installUnconfirmed(t, h, higher)
 	paths["a replacement"] = h.Current()
+	if err := h.Confirm(ctx, statementFor(t, "payments", 8, higher.GetRef().GetDigest(), "12:00:00"), utc("12:00:00")); err != nil {
+		t.Fatal(err)
+	}
+	paths["a confirmation"] = h.Current()
+	st := statementFor(t, "payments", 9, highest.GetRef().GetDigest(), "12:01:00")
+	if err := h.InstallConfirmed(ctx, highest, pinned(), st, utc("12:01:00")); err != nil {
+		t.Fatal(err)
+	}
+	paths["a confirmed replacement"] = h.Current()
 	for name, snap := range paths {
 		expectResult(t, snap.Evaluate(refund(), matchInputs()), approvalForRefund())
 		for _, env := range []*controlv1.ActionEnvelope{nil, {}, readCall()} {

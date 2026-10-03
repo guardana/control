@@ -34,7 +34,7 @@ is refused, and the refusal names the object, never the key.
 | `id` | yes | An identifier. A plane pinned to one bundle id refuses every other. |
 | `version` | yes | An identifier the author chooses. |
 | `serial` | yes | An integer from 1 up. |
-| `maxStaleSeconds` | yes | An integer from 1 up: how long a plane may decide on this document after its loader last confirmed it. |
+| `maxStaleSeconds` | yes | An integer from 1 up: how long a plane may decide on this document after a freshness statement confirmed it, at most `policy.max_stale`. |
 
 There is no creation time: none is signed, so a key for one is an unknown key.
 
@@ -44,9 +44,9 @@ There is no creation time: none is signed, so a key for one is an unknown key.
 | --- | --- | --- |
 | `id` | yes | An identifier, unique in the document. A duplicate names the earlier rule by position. |
 | `effect` | yes | `ALLOW`, `DENY`, `REQUIRE_APPROVAL` or `ALLOW_WITH_OBLIGATIONS`. |
-| `reason` | no | A reason code the effect may name, from the table below; the effect's own default may be written out or left off. |
+| `reason` | no | A reason code the effect may name, from the table below; the effect's default may be written or left off. |
 | `obligations` | see below | 1 to 8 obligations. Refused on `ALLOW` and `DENY`, which carry none into a decision; required on `ALLOW_WITH_OBLIGATIONS`; optional on `REQUIRE_APPROVAL`. |
-| `when` | yes | The constraint groups, at least one. A rule that constrains nothing would match every call. |
+| `when` | yes | The constraint groups, at least one: a rule that constrains nothing would match every call. |
 
 | Effect | Reason codes it may name, default first |
 | --- | --- |

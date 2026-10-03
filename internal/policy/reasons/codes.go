@@ -121,7 +121,7 @@ var codes = [...]Code{
 		ID:      "POLICY_STALE",
 		Num:     15,
 		Verdict: controlv1.Verdict_VERDICT_INDETERMINATE,
-		Summary: "The policy bundle is past the staleness budget in force for this call, and a bundle that does not say when it was loaded is past it too.",
+		Summary: "The policy bundle is past the staleness budget in force for this call, or no freshness statement confirms it, so it is not known to be current.",
 	},
 	{
 		ID:      "POLICY_UNAVAILABLE",

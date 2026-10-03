@@ -51,16 +51,10 @@ issue. Completion requires code, documentation and the applicable checks.</p>
 <td>none</td>
 <td>Full <code>make quality</code> and CI on the exact candidate commit pass; platform, tool versions, skips and failures are recorded. A partial target run cannot satisfy this task</td>
 </tr>
-<tr>
-<td>B03</td>
-<td>Make policy freshness usable and restart-safe</td>
-<td>B00</td>
-<td>Accepted ADR and tests cover atomic refresh, invalid replacement, last-known-good bounds, signed expiry, persisted serial floor and clock rollback. Unavailable policy still fails closed; rereading a file alone does not prove it is the latest policy</td>
-</tr>
 </tbody>
 </table>
-<p>B03 runs before shared use, independently of the usability work. Do not
-wait for a fleet to address it.</p>
+<p>B03, policy freshness from a signed statement and a serial floor that
+outlives the process, is delivered; <a href="/docs/status">status.md</a> records it.</p>
 <h2 id="milestone-1-one-useful-local-project">Milestone 1: one useful local project</h2>
 <table>
 <thead>

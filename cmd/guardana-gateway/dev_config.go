@@ -26,6 +26,10 @@ var devSet = []string{
 	"policy.bundle_file",
 	"policy.key_id",
 	"policy.public_key",
+	"policy.statement_file",
+	"policy.state_dir",
+	"policy.freshness_key_id",
+	"policy.freshness_public_key",
 	"approvals.provider",
 	"approvals.dir",
 	"approvals.hold_journal_dir",
@@ -65,24 +69,33 @@ func refuseEnvironment(environ []string) error {
 // loader's environment, the one binder a variable goes through.
 type devLayer map[string]string
 
-// newLayer is dev's values for a plane whose state is under st, which
-// listens at listen and health, exports to collector and, when silent is not
-// empty, asks the decision point there, each a host:port.
-func newLayer(st devState, key ed25519.PrivateKey, listen, health, collector, silent string) devLayer {
-	pub, _ := key.Public().(ed25519.PublicKey)
+// devKeys are the public halves of the two keys a dev plane pins: the one
+// that signed its bundle and the freshness key that signs its statements.
+type devKeys struct {
+	bundle, freshness ed25519.PublicKey
+}
+
+// newLayer is dev's values for a plane whose state is under st, which pins
+// keys, listens at listen and health, exports to collector and, when silent
+// is not empty, asks the decision point there, each a host:port.
+func newLayer(st devState, keys devKeys, listen, health, collector, silent string) devLayer {
 	l := devLayer{
-		"listener.address":           listen,
-		"health.address":             health,
-		"policy.bundle_file":         st.path(stateBundle),
-		"policy.key_id":              policykey.KeyID(pub),
-		"policy.public_key":          policykey.FormatPublic(pub),
-		"approvals.provider":         gatewayconfig.ProviderFile,
-		"approvals.dir":              st.path(stateApprovals),
-		"approvals.hold_journal_dir": st.path(stateHolds),
-		"pause.file":                 st.path(statePause),
-		"evidence.dir":               st.path(stateSpool),
-		"export.endpoint":            "http://" + collector + logsPath,
-		"export.allow_plaintext":     "true",
+		"listener.address":            listen,
+		"health.address":              health,
+		"policy.bundle_file":          st.path(stateBundle),
+		"policy.key_id":               policykey.KeyID(keys.bundle),
+		"policy.public_key":           policykey.FormatPublic(keys.bundle),
+		"policy.statement_file":       st.path(stateStatement),
+		"policy.state_dir":            st.path(stateFloors),
+		"policy.freshness_key_id":     policykey.KeyID(keys.freshness),
+		"policy.freshness_public_key": policykey.FormatPublic(keys.freshness),
+		"approvals.provider":          gatewayconfig.ProviderFile,
+		"approvals.dir":               st.path(stateApprovals),
+		"approvals.hold_journal_dir":  st.path(stateHolds),
+		"pause.file":                  st.path(statePause),
+		"evidence.dir":                st.path(stateSpool),
+		"export.endpoint":             "http://" + collector + logsPath,
+		"export.allow_plaintext":      "true",
 	}
 	if silent != "" {
 		l["pdp.identifier"] = "http://" + silent
