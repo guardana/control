@@ -197,3 +197,92 @@ func TestSlotTitleProblems(t *testing.T) {
 	wantProblem(t, "a slot missing", slotTitleProblems(page, readme, []string{"First", "Second", "Third"}), "2 slots, want 3")
 	wantProblem(t, "a block the README lacks", slotTitleProblems(page, []byte(titledBlock("First")), []string{"First", "Second"}), "slot 2 asks for block 2")
 }
+
+func TestPagePromiseProblems(t *testing.T) {
+	for name, page := range map[string]string{
+		"a plain statement":            `<html><p>The gateway decides each call. It records evidence.</p></html>`,
+		"a promise in a backlog item":  `<html><ul><li data-backlog="B01"><span class="t">Policy explain is next</span></li></ul></html>`,
+		"a word that holds the phrase": `<html><p>It ran through the monsoon season.</p></html>`,
+		"a phrase in an attribute":     `<html><p title="coming soon">Shipped.</p></html>`,
+		"a phrase in a style":          `<html><style>.soon{color:red}</style><p>Shipped.</p></html>`,
+	} {
+		problems, read := promiseProblems("index.html", pageSegments(mustParse(t, page)))
+		wantNone(t, name, problems)
+		if read == 0 {
+			t.Errorf("%s: no sentence was read", name)
+		}
+	}
+	for name, c := range map[string]struct{ page, want string }{
+		"a promise of what shipped": {`<html><p>Today: a gateway. Explaining decisions and starter policy packs come next.</p></html>`,
+			`index.html: the sentence "Explaining decisions and starter policy packs come next." promises future work ("come next")`},
+		"a promise across markup": {`<html><p>Policy <code>explain</code> <em>comes</em>
+			next.</p></html>`, `"Policy explain comes next." promises future work ("comes next")`},
+		"a promise in capitals":        {`<html><h2>COMING SOON</h2></html>`, `("COMING SOON")`},
+		"a promise beside a backlog":   {`<html><ul><li data-backlog="B01">B01</li></ul><p>B01 is next.</p></html>`, `("is next")`},
+		"a promise in a backlog's tag": {`<html><p>Soon: <span data-backlog="B01">B01</span></p></html>`, `"Soon:" promises future work ("Soon")`},
+		"a release promise":            {`<html><p>The next release will ship it.</p></html>`, `("next release")`},
+	} {
+		problems, _ := promiseProblems("index.html", pageSegments(mustParse(t, c.page)))
+		wantProblem(t, name, problems, c.want)
+	}
+}
+
+func TestReadmePromiseProblems(t *testing.T) {
+	good := "<div align=\"center\"><img alt=\"coming soon\" src=\"x.png\"/></div>\n\n# Title\n\nThe gateway decides each call.\n\n```text\nPolicy explain is coming soon\n```\n\n- A listed item.\n"
+	segments, err := readmeSegments([]byte(good))
+	if err != nil {
+		t.Fatal(err)
+	}
+	problems, read := promiseProblems("README.md", segments)
+	wantNone(t, "prose with the phrase only in a fence and a tag", problems)
+	if read != 3 {
+		t.Errorf("read %d sentences, want 3", read)
+	}
+	for name, c := range map[string]struct{ readme, want string }{
+		"a promise in a paragraph": {"# T\n\nPolicy explain is coming soon\n", `README.md: the sentence "Policy explain is coming soon" promises future work ("coming soon")`},
+		"a promise over two lines": {"# T\n\nPolicy explain is\nnext. Then more.\n", `"Policy explain is next." promises future work ("is next")`},
+		"a promise in a list item": {"- Done.\n- Up next: hooks.\n", `"Up next: hooks." promises`},
+		"a promise in a table":     {"| a | b |\n| --- | --- |\n| hooks | soon |\n", `("soon")`},
+		"a promise after a fence":  {"```\nx\n```\nPacks will ship.\n", `("will ship")`},
+	} {
+		segments, err := readmeSegments([]byte(c.readme))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		problems, _ := promiseProblems("README.md", segments)
+		wantProblem(t, name, problems, c.want)
+	}
+	if _, err := readmeSegments([]byte("text\n```\nsoon\n")); err == nil {
+		t.Error("an unclosed fence was read as prose")
+	}
+}
+
+func TestPlannedProblems(t *testing.T) {
+	status := map[string]string{"Evidence spool": "experimental", "Kernel `x`": "implemented", "Web UI": "planned"}
+	for name, page := range map[string]string{
+		"planned work that is not built":      `<html><p>A <code>planned</code> Web UI.</p></html>`,
+		"a delivered row in another sentence": `<html><p>The Evidence spool is experimental. Other work is <code>planned</code>.</p></html>`,
+		"a delivered row in another block":    `<html><ul><li>Evidence spool</li><li><code>planned</code> work</li></ul></html>`,
+		"part of a row's name":                `<html><p>Evidence is <code>planned</code>.</p></html>`,
+		"a row's name in another case":        `<html><p>An evidence spool is <code>planned</code>.</p></html>`,
+		"a row's name inside a longer word":   `<html><p>Evidence spools are <code>planned</code>.</p></html>`,
+		"planned outside code":                `<html><p>The Evidence spool was planned.</p></html>`,
+	} {
+		problems, _ := plannedProblems("index.html", pageSegments(mustParse(t, page)), status)
+		wantNone(t, name, problems)
+	}
+	for name, c := range map[string]struct{ page, want string }{
+		"an experimental row called planned": {`<html><p>The Evidence spool is <code>planned</code>.</p></html>`,
+			`index.html: the sentence "The Evidence spool is planned." calls "Evidence spool" planned; docs/status.md labels it experimental`},
+		"a capital Planned": {`<html><p><code>Planned</code>: the Evidence spool. Then more.</p></html>`, `"Planned: the Evidence spool." calls "Evidence spool" planned`},
+		"an implemented row with a code span": {`<html><p>The Kernel <code>x</code> is <code>planned</code>.</p></html>`,
+			`calls "Kernel x" planned; docs/status.md labels it implemented`},
+		"the last sentence of two": {`<html><p>A gateway. <code>planned</code>: Evidence spool</p></html>`, `"planned: Evidence spool" calls "Evidence spool"`},
+	} {
+		problems, read := plannedProblems("index.html", pageSegments(mustParse(t, c.page)), status)
+		wantProblem(t, name, problems, c.want)
+		if read != 1 {
+			t.Errorf("%s: read %d planned labels, want 1", name, read)
+		}
+	}
+}

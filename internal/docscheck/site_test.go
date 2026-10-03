@@ -27,6 +27,9 @@ const (
 	// minDocsPages is a floor under the rendered set: a render that found
 	// no page would otherwise compare nothing with nothing.
 	minDocsPages = 60
+	// minProseSentences is a floor under the sentences read from the page
+	// and from the README, so an extraction that found none fails.
+	minProseSentences = 20
 )
 
 // siteManifest is every file under site/ that no generator writes; the
@@ -233,6 +236,52 @@ func TestSiteItemsNameTheirSources(t *testing.T) {
 		t.Fatalf("read %d status rows and %d backlog ids; the sources were not parsed", len(status), len(backlog))
 	}
 	report(t, sitedoc.Page, tagProblems(loadPage(t, loadSite(t)["index.html"]), status, backlog, 5, 8, 5))
+}
+
+// A free sentence that promises later work lags the moment the work ships;
+// only a backlog item, which the test above holds to docs/backlog.md, may.
+func TestSiteAndReadmePromiseNoUnlistedWork(t *testing.T) {
+	fsys := repoFS(t)
+	page, err := fs.ReadFile(fsys, sitedoc.Page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readme, err := fs.ReadFile(fsys, readmeName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	segments, err := readmeSegments(readme)
+	if err != nil {
+		t.Fatalf("%s: %v", readmeName, err)
+	}
+	for name, segments := range map[string][]proseSegment{sitedoc.Page: pageSegments(loadPage(t, page)), readmeName: segments} {
+		problems, read := promiseProblems(name, segments)
+		for _, p := range problems {
+			t.Error(p)
+		}
+		if read < minProseSentences {
+			t.Errorf("%s: read %d sentences, want at least %d; the prose was not parsed", name, read, minProseSentences)
+		}
+	}
+}
+
+func TestSitePlannedNamesNoDeliveredRow(t *testing.T) {
+	fsys := repoFS(t)
+	status := statusRows(readLines(t, fsys, "docs/status.md"))
+	if len(status) < minComponentRows {
+		t.Fatalf("read %d status rows; the source was not parsed", len(status))
+	}
+	page, err := fs.ReadFile(fsys, sitedoc.Page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	problems, read := plannedProblems(sitedoc.Page, pageSegments(loadPage(t, page)), status)
+	for _, p := range problems {
+		t.Error(p)
+	}
+	if read == 0 {
+		t.Errorf("%s: no `planned` label was read", sitedoc.Page)
+	}
 }
 
 func TestTaglinesAreTheReadmes(t *testing.T) {
