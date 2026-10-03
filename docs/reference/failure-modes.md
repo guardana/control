@@ -2,7 +2,7 @@
 title: Failure modes
 summary: What a plane does when its collector, spool, decision point, an upstream, its pause file, freshness statement or clock fails, or it is killed holding calls.
 type: reference
-covers: [cmd/guardana-gateway/serve.go, cmd/guardana-gateway/adapter.go, cmd/guardana-gateway/chaos_*_test.go, adapters/mcp/middleware.go, adapters/mcp/answer.go, adapters/authzen/**, adapters/otel/**, internal/spool/**, internal/pause/**, internal/gateway/close.go, internal/gateway/decisionpoint.go, internal/policywatch/**]
+covers: [cmd/guardana-gateway/serve.go, cmd/guardana-gateway/adapter.go, cmd/guardana-gateway/chaos_*_test.go, adapters/mcp/middleware.go, adapters/mcp/answer.go, adapters/authzen/**, adapters/otel/**, internal/spool/**, internal/pause/**, internal/gateway/close.go, internal/gateway/decisionpoint.go, internal/gateway/lapse.go, internal/gateway/resume.go, internal/core/clock.go, internal/policy/policy.go, internal/policywatch/**]
 ---
 
 # Failure modes
@@ -28,7 +28,7 @@ process that really fail. Nothing here is a security boundary yet
 | Pause file unreadable | blocked | `PAUSE_STATE_UNAVAILABLE` | `isError` and the code | yes, at the first read of a whole file | `TestAPauseFileSpoiledWhileThePlaneRunsBlocksEveryCall` |
 | Freshness statement missing, expired or refused, at start or later | blocked, a read too unless `policy.fail_open_read` | `POLICY_STALE` | `isError` and the code | yes, at the first poll that takes a statement bound to the bundle | `TestAnUnconfirmedPlaneBlocksMaterialCalls`, `TestARenewalConfirmsAgain` |
 | Bundle file torn, unsigned, older or another id's | runs on the last good bundle until its statement expires, then blocked | none, then `POLICY_STALE` | the upstream's answer, then `isError` and the code | yes, once the file holds the served bundle or a newer one with its statement | `TestEveryRefusedReplacementMovesNothing` |
-| Clock outside 1970 to 9999, or behind a verified time | blocked outside `OBSERVE`, a read too, whatever `policy.fail_open_read` says | `POLICY_STALE` | `isError` and the code | yes, once the clock passes a verified time, or at a restart after `policy state reset`; outside 1970 to 9999, no: fix the clock | `TestAClockOutsideTheUsableRangeIsACauseInTheRequest`, `TestAClockBehindAVerifiedTimeIsACauseInTheRequest`, `TestAClockBehindTheFloorStopsAnUnconfirmedSnapshotsRead` |
+| Clock outside 1970 to 9999, or behind the verified time | blocked outside `OBSERVE`, a read too, whatever `policy.fail_open_read` says | `POLICY_STALE` | `isError` and the code | yes, once the clock passes the verified time, or at a restart after `policy state reset`; outside 1970 to 9999, no: fix the clock | `TestAClockOutsideTheUsableRangeIsACauseInTheRequest`, `TestAClockBehindAVerifiedTimeIsACauseInTheRequest`, `TestAClockBehindTheFloorStopsAnUnconfirmedSnapshotsRead` |
 | Floor directory or file missing or unreadable at start | none: the plane does not start | none | no listener | no: restore it, or make it again with `policy state init` or `reset` | `TestAStartWithNoFloorIsRefused`, `TestAStartIsRefusedForWhatItCannotRead` |
 | Plane killed with calls held | never runs | `APPROVAL_NOT_RESUMED`, `APPROVAL_REJECTED`, `APPROVAL_EXPIRED` or `APPROVAL_STATE_UNKNOWN` on the closing record | `APPROVAL_PENDING`, before the kill | at the next start, with a hold journal | `TestAnApproverOutsideThePlaneAnswersAndALostHoldIsClosed`, `TestTheLostHoldCodesTellTheFourAnswersApart` |
 
@@ -111,10 +111,14 @@ well. `/healthz` answers `503` with `pause.state: unknown` and the cause
 
 ## A policy that is not confirmed
 
-Every poll reads the bundle and the statement again. A file it refuses is
+Every poll rereads the bundle and the statement. What it refuses is
 logged and counted under its cause in
-`guardana_control_policy_refresh_refused_total`, and the bundle in use and
-its confirmation stay as they were. A bundle file refused stops the renewals
+`guardana_control_policy_refresh_refused_total`: `bundle_unreadable`,
+`bundle_invalid`, `bundle_id`, `bundle_budget`, `rollback`, `serial_reused`,
+`statement_missing`, `statement_unreadable`, `statement_invalid`,
+`statement_unbound`, `statement_future`, `statement_expired`, `below_floor`,
+`clock_behind_floor`, `clock_back`, `withdrawn`, `floor` or `unknown`. The
+bundle in use keeps its confirmation. A bundle file refused stops the renewals
 of the bundle in use too, since each poll pairs the statement with the file,
 so the plane turns stale when the last statement's budget runs out. While
 the policy is not confirmed, each call's `POLICY_DECIDED` carries
@@ -125,8 +129,8 @@ with `ACTION_BLOCKED`.
 ## A clock that cannot be read as now
 
 The kernel judges no expiry and no bundle's age by a reading before 1970,
-after 9999-12-31, or earlier than a time the plane verified: the latest
-`issuedAt` of a statement it confirmed or of its floor. It decides
+after 9999-12-31, or behind the
+[verified time](../concepts/glossary.md). It decides
 `INDETERMINATE` with `POLICY_STALE` alone, and `policy.fail_open_read` opens
 no read: a wrong clock is no missing policy. A hop's unsigned `issued_at`
 is not compared.
@@ -136,9 +140,9 @@ plane's records carry the reading. The spool refuses a record dated before
 year 1 or after 9999, which blocks the call with `EVIDENCE_UNAVAILABLE`
 unless `evidence.on_unwritable: allow_reads` lets a read go on unrecorded.
 
-Before an approved or run-bound call is handed out, a reading behind any
-the call took before, the verified time or the approval's `requested_at`
-blocks it as lapsed: `APPROVAL_EXPIRED` or `EVIDENCE_UNAVAILABLE`.
+Before handing out an approved or run-bound call, a reading outside 1970
+to 9999, or behind one the call took before, the verified time or the
+approval's `requested_at`, blocks it as lapsed: `APPROVAL_EXPIRED` or `EVIDENCE_UNAVAILABLE`.
 
 ## Plane killed with calls held
 

@@ -111,8 +111,9 @@ verify one.
   Go target of the gate runs once per module.
 - The release workflow refuses a tag whose commit is not main's head or an
   ancestor of it, or has no successful CI and Security run started by a push
-  to `main` of exactly that commit; a pull request run, a run on a tag named
-  `main`, or a listing longer than one page never counts as that run. Its dry
+  to `main` of exactly that commit: a pull request run never counts, a commit
+  that is not on main never passes, a tag named `main` included, and a listing
+  longer than one page is refused. Its dry
   run takes the version the tag will carry, makes the same check and prints
   that version's release notes.
 - The configuration refuses a negative `upstream.call_timeout`,
@@ -120,8 +121,10 @@ verify one.
   and a zero `upstream.call_timeout`, `pdp.timeout` or `export.timeout`. A
   negative `upstream.call_timeout` left upstream calls without a bound and
   dropped an obligation's shorter timeout too; the other three were refused
-  only later, at start, without the key. `upstream.list_timeout: 0` still
-  means the adapter's own 30 seconds, which `doctor` now prints.
+  only later, at start, without the key. A configuration that set
+  `upstream.call_timeout: 0` for no bound sets a positive one, `30s` by
+  default. `upstream.list_timeout: 0` still means the adapter's own 30
+  seconds, which `doctor` now prints.
 - `guardana-gateway doctor`'s `policy` line and `run`'s first line say whether
   `policy.fail_open_read` lets a read run while the policy is unavailable.
 
@@ -144,10 +147,10 @@ verify one.
   every number in its data exactly as sent when the plane strips a key under its
   namespace; an integer past 2^53 or a long decimal was rounded.
 - An HTTP listener refuses a request whose body has not arrived within 30
-  seconds, and cuts the answer to such a request when 64 KiB of it cannot reach
-  the client within 30 seconds, so neither a client trickling its body nor one
-  that stops reading holds a connection and a handler; a slow client that keeps
-  reading gets the whole answer. A session's GET stream is not bounded.
+  seconds and, for any request that carries a body, cuts the answer when
+  64 KiB of it cannot reach the client within 30 seconds, so neither a client
+  trickling its body nor one that stops reading holds a connection and a
+  handler; a slow client that keeps reading gets the whole answer. A session's GET stream is not bounded.
 - The plane's listener and health address close a kept-alive connection that
   sends no next request within two minutes.
 - The plane strips a key under its namespace from an upstream's `_meta` and
@@ -158,6 +161,9 @@ verify one.
   load under `bundle_invalid`; both were counted under `floor`, which now means
   only a floor that could not be read or raised, a raise that timed out
   included.
+- A freshness statement that expires while the plane reads it is refused
+  under `statement_expired`, and nothing is raised or published; it was
+  published already expired, raised the floor and counted as a confirmation.
 - A shaped `tools/list` answer is cached under the policy bundle it was shaped
   under, so a list shaped under one bundle is no longer served once another
   is in force.
@@ -172,10 +178,10 @@ verify one.
   account owns, and `collect --out` refuses a path that names no file, such as
   one ending in a separator.
 - A clock reading before 1970, the zero time among them, after 9999, or
-  earlier than a time the plane verified, the latest `issuedAt` of a
+  earlier than the verified time, the latest `issuedAt` of a
   statement it confirmed or of its floor, no longer lets the kernel decide:
   the call is `INDETERMINATE` with `POLICY_STALE` and blocks on every effect
-  class, fail-open reads included, and `/healthz` reports the policy
+  class, fail-open reads included, and `/healthz` reports a confirmed policy
   `expired`. Such a reading let an expired delegation pass and could make a
   bundle confirmed at the zero time read as fresh. Before it hands out an
   approved or run-bound call, the plane treats as expired a reading outside

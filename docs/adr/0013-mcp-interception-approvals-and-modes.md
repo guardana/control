@@ -40,6 +40,10 @@ content. A client checks structured content against the schema a tool listed,
 perhaps in an earlier listing, which those fields never meet, so the
 structured content below is no longer on any answer.
 
+Amended in 0.6.0-alpha: the gateway's cache of shaped lists is also keyed by
+the bundle digest, so a list shaped under one bundle is never served under
+another.
+
 ## Context
 
 The kernel decides and nothing calls it. The first protocol target is the Model
@@ -147,8 +151,7 @@ tool stays in the list and `annotate` marks it as decided per call. A shaped
 list carries `cacheScope: "private"` and the operator's `ttlMs`, set by the
 gateway itself, because the library's cache hook does not run for an answer the
 middleware made, and the gateway's own cache of shaped lists is keyed by the
-end-user identity and the bundle digest, stamped with the manifest's generation
-and bounded. The
+end-user identity, stamped with the manifest's generation and bounded. The
 library offers no way to tell an agent that the list changed while the gateway
 registers no tools of its own, so the listener declares that it does not, and
 an agent refreshes when the cache's `ttlMs` runs out.

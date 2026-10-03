@@ -187,6 +187,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td>one of the five outcomes of a decision: <code>DENY</code>, <code>INDETERMINATE</code>, <code>REQUIRE_APPROVAL</code>, <code>ALLOW_WITH_OBLIGATIONS</code>, <code>ALLOW</code>; <code>INDETERMINATE</code> is never <code>ALLOW</code></td>
 <td><code>Verdict</code> in <code>common.proto</code>, <code>internal/core/decide.go</code></td>
 </tr>
+<tr>
+<td>verified time</td>
+<td>the latest <code>issuedAt</code> the plane verified, from a statement it confirmed or its floor's latest; a clock reading behind it decides nothing</td>
+<td><code>Snapshot.NotBefore</code> in <code>internal/policy/policy.go</code></td>
+</tr>
 </tbody>
 </table>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/glossary.md">docs/concepts/glossary.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>

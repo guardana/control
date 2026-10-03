@@ -43,3 +43,4 @@ for the same thing; the right column is where the code defines it.
 | trail file | the collector's append-only file of events, one per line in the protobuf JSON mapping, each event id once; what `trail` and `trail export` read | `trailfile.Writer` in `internal/trailfile/writer.go` |
 | unrecorded read | a read that ran with a trail the sink did not take, under the explicit evidence setting; counted, never held and never closed | `Config.AllowReadsUnrecorded` in `internal/gateway/pipeline.go` |
 | verdict | one of the five outcomes of a decision: `DENY`, `INDETERMINATE`, `REQUIRE_APPROVAL`, `ALLOW_WITH_OBLIGATIONS`, `ALLOW`; `INDETERMINATE` is never `ALLOW` | `Verdict` in `common.proto`, `internal/core/decide.go` |
+| verified time | the latest `issuedAt` the plane verified, from a statement it confirmed or its floor's latest; a clock reading behind it decides nothing | `Snapshot.NotBefore` in `internal/policy/policy.go` |

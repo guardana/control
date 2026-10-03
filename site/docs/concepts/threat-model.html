@@ -196,8 +196,10 @@ the tools' descriptions and tools outside the plane are not tracked
 stops a call already running (<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>).</li>
 <li>Freshness trusts the plane's clock: a plane restarted with its clock set
 back into its last statement's budget, counted from that statement's
-<code>issued_at</code>, takes it as current again; a clock behind the newest
-<code>issued_at</code> the floor took confirms nothing. Restoring the floor's volume
+<code>issuedAt</code>, takes it as current again; a clock behind the verified time,
+the latest <code>issuedAt</code> the plane verified, decides nothing: every call is
+<code>POLICY_STALE</code> and blocked outside <code>OBSERVE</code>, fail-open reads included.
+Restoring the floor's volume
 rolls the floor back with it
 (<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>).</li>
 </ul>

@@ -70,8 +70,10 @@ keeps the records in its spool.</p>
   endpoint: http://127.0.0.1:4318/v1/logs
   allow_plaintext: true
 </code></pre>
-<p><code>allow_plaintext</code> is the named risk of an unencrypted endpoint; on the
-loopback nobody else is on the path. Start the plane with <code>run</code> as usual.</p>
+<p><code>allow_plaintext</code> is the named risk of an unencrypted endpoint. The collector
+asks for no credential, so any account on this machine can reach its loopback
+port and send it records; no other machine can. Start the plane with <code>run</code> as
+usual.</p>
 <h3 id="3-read-the-trail">3. Read the trail</h3>
 <pre><code class="language-sh">guardana-gateway trail trail/plane.jsonl
 </code></pre>

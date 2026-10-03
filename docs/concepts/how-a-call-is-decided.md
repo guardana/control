@@ -2,7 +2,7 @@
 title: How a call is decided
 summary: From a proposed action to one of five verdicts and the action enforced for it, including what happens when the kernel cannot decide.
 type: explanation
-covers: [internal/core/**, internal/policy/match/**, internal/gateway/flow.go]
+covers: [internal/core/**, internal/policy/match/**, internal/policy/policy.go, internal/policy/holder.go, internal/gateway/flow.go]
 ---
 
 # How a call is decided
@@ -26,7 +26,7 @@ flowchart TD
     B -->|yes| R["INDETERMINATE with a cause in the request"]
     B -->|no| C{"Action digest and arguments hash computed, and the hash the envelope carries matches?"}
     C -->|no| R
-    C -->|yes| K{"The clock reads 1970 to 9999, and no earlier than a time the plane verified?"}
+    C -->|yes| K{"The clock reads 1970 to 9999, and no earlier than the verified time?"}
     K -->|no| R
     K -->|yes| D["Delegation chain: an expired hop, a party twice or a hop past its parent is DENY"]
     D --> E["Tenants: two named and different is DENY, one named on a material class is a cause in the request"]
@@ -41,8 +41,9 @@ flowchart TD
     V --> T
 ```
 
-Sources: `internal/core/decide.go`, `internal/core/delegation/delegation.go`,
-`internal/core/external.go`, `internal/policy/match/combine.go`.
+Sources: `internal/core/decide.go`, `internal/core/clock.go`,
+`internal/core/delegation/delegation.go`, `internal/core/external.go`,
+`internal/policy/match/combine.go`.
 
 `Decide` has no error return: whatever the kernel cannot do becomes an
 `INDETERMINATE` decision with a reason code, and a kernel nobody built answers
@@ -53,11 +54,11 @@ Sources: `internal/core/decide.go`, `internal/core/delegation/delegation.go`,
 | Refusal | the decoder's refusal, or `contract.Validate` on a clone of the envelope; the decision ends here | `UNSUPPORTED_SCHEMA`, `REQUIRED_FIELD_ABSENT`, `LIMIT_EXCEEDED`, `INVALID_FIELD_VALUE`, `MALFORMED_INPUT`, by the refusal's sentinel |
 | Digest | `canon.DigestV1` over the envelope and the authorized arguments refuses; the decision ends here | `LIMIT_EXCEEDED` for the size bound and the depth bound, else `INVALID_FIELD_VALUE` |
 | Hash | the envelope carries `arguments.canonical_hash` and it is not `canon.ArgumentsHashV1` of the arguments; the decision ends here | `INVALID_FIELD_VALUE` |
-| Clock | the clock reads before 1970-01-01T00:00:00Z, the zero time among them, or after the last instant of 9999, or earlier than the snapshot's not-before, the latest `issuedAt` the plane verified from a freshness statement or its floor, so no expiry and no bundle's age can be judged: a cause in the request, and the decision ends here; outside 1970 to 9999 the decision carries no `decided_at`. A hop's `issued_at` is the producer's unsigned claim and is not compared | `POLICY_STALE` |
+| Clock | the clock reads before 1970-01-01T00:00:00Z, the zero time among them, or after the last instant of 9999, or earlier than the verified time, the latest `issuedAt` the plane verified from a freshness statement or its floor, so no expiry and no bundle's age can be judged: a cause in the request, and the decision ends here; outside 1970 to 9999 the decision carries no `decided_at`. A hop's `issued_at` is the producer's unsigned claim and is not compared | `POLICY_STALE` |
 | Delegation | `delegation.Check` refuses the chain: a `DENY` of the kernel's own, and the rules then see no delegation at all. Nothing signs a hop: a chain's scopes are what the envelope's producer states, so a rule that grants on `delegation.scopes` trusts that producer; the MCP listener sends no chain | `DELEGATION_EXPIRED`, `DELEGATION_CYCLE`, `DELEGATION_EXCEEDS_PARENT` |
 | Tenants | principal and resource name different tenants: `DENY`; one side names a tenant and the other does not, on a material class: a cause in the request | `TENANT_MISMATCH`, `TENANT_UNDETERMINED` |
 | Snapshot | none handed in: a cause in the policy's availability, and nothing is evaluated | `POLICY_UNAVAILABLE` |
-| Freshness | the snapshot's age is over the smaller of the author's and the operator's budget, which an unconfirmed snapshot's zero time always is: a cause in availability; evaluation continues, so a stale `DENY` is still a `DENY`. A negative age stopped the decision at the clock step | `POLICY_STALE` |
+| Freshness | the snapshot's age is over the smaller of the author's and the operator's budget, which an unconfirmed snapshot's zero time always is: a cause in availability; evaluation continues, so a stale `DENY` is still a `DENY`. A negative age never reaches this step: the clock step stops it | `POLICY_STALE` |
 | Rules | every rule is true, false or unknown; an unknown `ALLOW` does not match, an unknown rule of any other effect makes the verdict `INDETERMINATE` with a cause in the request unless a `DENY` matched; nothing matched is `DENY` | each matched rule's reason, then `RULE_UNDETERMINED`, or `NO_MATCHING_RULE` |
 | External answer | where no other constraint of a `DENY` rule reading `external` is false, the rule holds when the answer denies, is false when it allows, and is unknown when the request carries silence or no answer; a decision whose rules turned on the answer names it by one code | `PDP_DENY`, `PDP_ALLOW`, `PDP_TIMEOUT`, `PDP_UNAVAILABLE`, `PDP_ANSWER_REFUSED`, or `OBLIGATION_NOT_UNDERSTOOD` for an allow that attached an obligation |
 | Obligations | a matched obligation that is not advisory and whose type this enforcement point cannot apply is `DENY` | `OBLIGATION_NOT_UNDERSTOOD` |
@@ -103,7 +104,7 @@ The two kinds of cause are what the table reads, never a reason code:
 | Cause | Kind | Why the table treats it so |
 | --- | --- | --- |
 | a refusal, an argument that cannot be digested, a hash that does not match, a one-sided tenant on a material class, an unknown rule, a veto an external decision point left unanswered among them | in the request | the request itself is what could not be read; no setting relieves it |
-| a clock reading outside 1970 to 9999, or earlier than a time the plane verified | in the request | the kernel has no time to judge a delegation or a bundle's age by; the setting covers a missing policy, not a missing clock |
+| a clock reading outside 1970 to 9999, or earlier than the verified time | in the request | the kernel has no time to judge a delegation or a bundle's age by; the setting covers a missing policy, not a missing clock |
 | no snapshot, a snapshot past its budget | in the policy's availability | the request is sound and the policy is what is missing; a read may run under the operator's explicit setting |
 
 "The determinate verdict" is what the rules that could be decided concluded

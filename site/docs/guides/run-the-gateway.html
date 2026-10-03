@@ -113,9 +113,9 @@ upstreams:
 </code></pre>
 <p>The listener in this build authenticates nobody, so every request on it is
 made by the principal configured here (<a href="/docs/status">status.md</a>).</p>
-<p>A statement confirms its bundle from its <code>issued_at</code> for the smaller of
-<code>policy.max_stale</code> and the document's <code>maxStaleSeconds</code>. Without one, a
-bundle above the floor's serial is refused, and any other starts with every
+<p>A statement confirms its bundle from its <code>issuedAt</code> for the smaller of
+<code>policy.max_stale</code> and the document's <code>maxStaleSeconds</code>. Without one, only
+the floor's own bundle, or any while the floor has no serial, starts, with every
 call <code>POLICY_STALE</code>: outside <code>OBSERVE</code> a material call is blocked, and a read
 runs only under <code>policy.fail_open_read</code>. Rerun <code>renew</code> and copy the statement
 more often than that budget less twice the poll interval.</p>
@@ -133,8 +133,7 @@ torn tail and writes a probe file.</p>
 <pre><code>guardana-gateway run --config gateway.yaml
 </code></pre>
 <p>Point the agent at <code>http://127.0.0.1:8080</code>, not the server. In <code>OBSERVE</code>
-calls run as proposed, which shows the tools that exist before you classify
-them.</p>
+calls run as proposed, showing which tools exist.</p>
 <h3 id="5-classify-the-tools">5. Classify the tools</h3>
 <p>A call to a tool the manifest does not classify is blocked with
 <code>ACTION_UNCLASSIFIED</code> in every mode but <code>OBSERVE</code>, so classify each one the
@@ -180,7 +179,7 @@ complete. Then change the mode and restart.</p>
 </tr>
 <tr>
 <td><code>ENFORCE</code></td>
-<td>Enforces the decision: blocks a <code>DENY</code> and an <code>INDETERMINATE</code>, applies the obligations, holds what needs an approval</td>
+<td>Enforces the decision: blocks a <code>DENY</code> and an <code>INDETERMINATE</code> save a fail-open read, applies the obligations, holds what needs an approval</td>
 </tr>
 <tr>
 <td><code>LOCKDOWN</code></td>

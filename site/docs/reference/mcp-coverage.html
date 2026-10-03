@@ -64,9 +64,9 @@ decisions.</p>
 </table>
 <p>No configuration key wires an authenticator, so every call is made by the
 principal the operator configured. <code>_meta.clientInfo</code> is a run-context tag no
-digest covers. A request body gets 30 seconds, and an answer 30 seconds per
-64 KiB slice: a client reading slower is cut, and one reading a slice every 29
-seconds holds a handler while the answer lasts.</p>
+digest covers. A request with a body gets 30 seconds for it, and 30 seconds
+per 64 KiB slice of its answer: a client reading slower is cut, and one reading
+a slice every 29 seconds holds a handler throughout.</p>
 <p>An upstream is reached over Streamable HTTP (<code>upstreams[].endpoint</code>) or as a
 child process over stdio (<code>upstreams[].command</code>).</p>
 <h2 id="methods">Methods</h2>

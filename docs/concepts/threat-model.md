@@ -160,8 +160,10 @@ What it does not do:
   stops a call already running ([ADR-0019](../adr/0019-an-operator-can-pause-calls.md)).
 - Freshness trusts the plane's clock: a plane restarted with its clock set
   back into its last statement's budget, counted from that statement's
-  `issued_at`, takes it as current again; a clock behind the newest
-  `issued_at` the floor took confirms nothing. Restoring the floor's volume
+  `issuedAt`, takes it as current again; a clock behind the verified time,
+  the latest `issuedAt` the plane verified, decides nothing: every call is
+  `POLICY_STALE` and blocked outside `OBSERVE`, fail-open reads included.
+  Restoring the floor's volume
   rolls the floor back with it
   ([ADR-0038](../adr/0038-a-signed-freshness-statement-and-a-serial-floor.md)).
 

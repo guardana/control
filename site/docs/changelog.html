@@ -150,8 +150,9 @@ Go target of the gate runs once per module.</p>
 <li>
 <p>The release workflow refuses a tag whose commit is not main's head or an
 ancestor of it, or has no successful CI and Security run started by a push
-to <code>main</code> of exactly that commit; a pull request run, a run on a tag named
-<code>main</code>, or a listing longer than one page never counts as that run. Its dry
+to <code>main</code> of exactly that commit: a pull request run never counts, a commit
+that is not on main never passes, a tag named <code>main</code> included, and a listing
+longer than one page is refused. Its dry
 run takes the version the tag will carry, makes the same check and prints
 that version's release notes.</p>
 </li>
@@ -161,8 +162,10 @@ that version's release notes.</p>
 and a zero <code>upstream.call_timeout</code>, <code>pdp.timeout</code> or <code>export.timeout</code>. A
 negative <code>upstream.call_timeout</code> left upstream calls without a bound and
 dropped an obligation's shorter timeout too; the other three were refused
-only later, at start, without the key. <code>upstream.list_timeout: 0</code> still
-means the adapter's own 30 seconds, which <code>doctor</code> now prints.</p>
+only later, at start, without the key. A configuration that set
+<code>upstream.call_timeout: 0</code> for no bound sets a positive one, <code>30s</code> by
+default. <code>upstream.list_timeout: 0</code> still means the adapter's own 30
+seconds, which <code>doctor</code> now prints.</p>
 </li>
 <li>
 <p><code>guardana-gateway doctor</code>'s <code>policy</code> line and <code>run</code>'s first line say whether
@@ -188,10 +191,10 @@ whose directory entry could not be synced is synced by the next append to it.</l
 every number in its data exactly as sent when the plane strips a key under its
 namespace; an integer past 2^53 or a long decimal was rounded.</li>
 <li>An HTTP listener refuses a request whose body has not arrived within 30
-seconds, and cuts the answer to such a request when 64 KiB of it cannot reach
-the client within 30 seconds, so neither a client trickling its body nor one
-that stops reading holds a connection and a handler; a slow client that keeps
-reading gets the whole answer. A session's GET stream is not bounded.</li>
+seconds and, for any request that carries a body, cuts the answer when
+64 KiB of it cannot reach the client within 30 seconds, so neither a client
+trickling its body nor one that stops reading holds a connection and a
+handler; a slow client that keeps reading gets the whole answer. A session's GET stream is not bounded.</li>
 <li>The plane's listener and health address close a kept-alive connection that
 sends no next request within two minutes.</li>
 <li>The plane strips a key under its namespace from an upstream's <code>_meta</code> and
@@ -202,6 +205,9 @@ cannot name under <code>cause=&quot;unknown&quot;</code> and a bundle the plane'
 load under <code>bundle_invalid</code>; both were counted under <code>floor</code>, which now means
 only a floor that could not be read or raised, a raise that timed out
 included.</li>
+<li>A freshness statement that expires while the plane reads it is refused
+under <code>statement_expired</code>, and nothing is raised or published; it was
+published already expired, raised the floor and counted as a confirmation.</li>
 <li>A shaped <code>tools/list</code> answer is cached under the policy bundle it was shaped
 under, so a list shaped under one bundle is no longer served once another
 is in force.</li>
@@ -216,10 +222,10 @@ at its name later. A plane no longer starts over a journal directory another
 account owns, and <code>collect --out</code> refuses a path that names no file, such as
 one ending in a separator.</li>
 <li>A clock reading before 1970, the zero time among them, after 9999, or
-earlier than a time the plane verified, the latest <code>issuedAt</code> of a
+earlier than the verified time, the latest <code>issuedAt</code> of a
 statement it confirmed or of its floor, no longer lets the kernel decide:
 the call is <code>INDETERMINATE</code> with <code>POLICY_STALE</code> and blocks on every effect
-class, fail-open reads included, and <code>/healthz</code> reports the policy
+class, fail-open reads included, and <code>/healthz</code> reports a confirmed policy
 <code>expired</code>. Such a reading let an expired delegation pass and could make a
 bundle confirmed at the zero time read as fresh. Before it hands out an
 approved or run-bound call, the plane treats as expired a reading outside

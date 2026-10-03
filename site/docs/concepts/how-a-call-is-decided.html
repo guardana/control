@@ -42,7 +42,7 @@ listed in the decision, in order, once each.</p>
     B --&gt;|yes| R[&#34;INDETERMINATE with a cause in the request&#34;]
     B --&gt;|no| C{&#34;Action digest and arguments hash computed, and the hash the envelope carries matches?&#34;}
     C --&gt;|no| R
-    C --&gt;|yes| K{&#34;The clock reads 1970 to 9999, and no earlier than a time the plane verified?&#34;}
+    C --&gt;|yes| K{&#34;The clock reads 1970 to 9999, and no earlier than the verified time?&#34;}
     K --&gt;|no| R
     K --&gt;|yes| D[&#34;Delegation chain: an expired hop, a party twice or a hop past its parent is DENY&#34;]
     D --&gt; E[&#34;Tenants: two named and different is DENY, one named on a material class is a cause in the request&#34;]
@@ -56,8 +56,9 @@ listed in the decision, in order, once each.</p>
     U --&gt; T
     V --&gt; T
 </code></pre></details></figure>
-<p>Sources: <code>internal/core/decide.go</code>, <code>internal/core/delegation/delegation.go</code>,
-<code>internal/core/external.go</code>, <code>internal/policy/match/combine.go</code>.</p>
+<p>Sources: <code>internal/core/decide.go</code>, <code>internal/core/clock.go</code>,
+<code>internal/core/delegation/delegation.go</code>, <code>internal/core/external.go</code>,
+<code>internal/policy/match/combine.go</code>.</p>
 <p><code>Decide</code> has no error return: whatever the kernel cannot do becomes an
 <code>INDETERMINATE</code> decision with a reason code, and a kernel nobody built answers
 <code>INDETERMINATE</code>, <code>POLICY_UNAVAILABLE</code> and blocks (<code>internal/core/kernel.go</code>).</p>
@@ -87,7 +88,7 @@ listed in the decision, in order, once each.</p>
 </tr>
 <tr>
 <td>Clock</td>
-<td>the clock reads before 1970-01-01T00:00:00Z, the zero time among them, or after the last instant of 9999, or earlier than the snapshot's not-before, the latest <code>issuedAt</code> the plane verified from a freshness statement or its floor, so no expiry and no bundle's age can be judged: a cause in the request, and the decision ends here; outside 1970 to 9999 the decision carries no <code>decided_at</code>. A hop's <code>issued_at</code> is the producer's unsigned claim and is not compared</td>
+<td>the clock reads before 1970-01-01T00:00:00Z, the zero time among them, or after the last instant of 9999, or earlier than the verified time, the latest <code>issuedAt</code> the plane verified from a freshness statement or its floor, so no expiry and no bundle's age can be judged: a cause in the request, and the decision ends here; outside 1970 to 9999 the decision carries no <code>decided_at</code>. A hop's <code>issued_at</code> is the producer's unsigned claim and is not compared</td>
 <td><code>POLICY_STALE</code></td>
 </tr>
 <tr>
@@ -107,7 +108,7 @@ listed in the decision, in order, once each.</p>
 </tr>
 <tr>
 <td>Freshness</td>
-<td>the snapshot's age is over the smaller of the author's and the operator's budget, which an unconfirmed snapshot's zero time always is: a cause in availability; evaluation continues, so a stale <code>DENY</code> is still a <code>DENY</code>. A negative age stopped the decision at the clock step</td>
+<td>the snapshot's age is over the smaller of the author's and the operator's budget, which an unconfirmed snapshot's zero time always is: a cause in availability; evaluation continues, so a stale <code>DENY</code> is still a <code>DENY</code>. A negative age never reaches this step: the clock step stops it</td>
 <td><code>POLICY_STALE</code></td>
 </tr>
 <tr>
@@ -263,7 +264,7 @@ fail-open reads on and the only causes are in the policy's availability.</p>
 <td>the request itself is what could not be read; no setting relieves it</td>
 </tr>
 <tr>
-<td>a clock reading outside 1970 to 9999, or earlier than a time the plane verified</td>
+<td>a clock reading outside 1970 to 9999, or earlier than the verified time</td>
 <td>in the request</td>
 <td>the kernel has no time to judge a delegation or a bundle's age by; the setting covers a missing policy, not a missing clock</td>
 </tr>

@@ -64,8 +64,10 @@ export:
   allow_plaintext: true
 ```
 
-`allow_plaintext` is the named risk of an unencrypted endpoint; on the
-loopback nobody else is on the path. Start the plane with `run` as usual.
+`allow_plaintext` is the named risk of an unencrypted endpoint. The collector
+asks for no credential, so any account on this machine can reach its loopback
+port and send it records; no other machine can. Start the plane with `run` as
+usual.
 
 ### 3. Read the trail
 

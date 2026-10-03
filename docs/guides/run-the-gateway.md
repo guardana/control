@@ -111,9 +111,9 @@ upstreams:
 The listener in this build authenticates nobody, so every request on it is
 made by the principal configured here ([status.md](../status.md)).
 
-A statement confirms its bundle from its `issued_at` for the smaller of
-`policy.max_stale` and the document's `maxStaleSeconds`. Without one, a
-bundle above the floor's serial is refused, and any other starts with every
+A statement confirms its bundle from its `issuedAt` for the smaller of
+`policy.max_stale` and the document's `maxStaleSeconds`. Without one, only
+the floor's own bundle, or any while the floor has no serial, starts, with every
 call `POLICY_STALE`: outside `OBSERVE` a material call is blocked, and a read
 runs only under `policy.fail_open_read`. Rerun `renew` and copy the statement
 more often than that budget less twice the poll interval.
@@ -139,8 +139,7 @@ guardana-gateway run --config gateway.yaml
 ```
 
 Point the agent at `http://127.0.0.1:8080`, not the server. In `OBSERVE`
-calls run as proposed, which shows the tools that exist before you classify
-them.
+calls run as proposed, showing which tools exist.
 
 ### 5. Classify the tools
 
@@ -184,7 +183,7 @@ complete. Then change the mode and restart.
 | --- | --- |
 | `OBSERVE` | Records; executes every recordable call one upstream lists, unclassified included, unless a pause or halt blocks it; applies no obligation |
 | `APPROVE` | Enforces, and holds an allowed material call for an approval. It needs `approvals.provider: file`: nothing outside the process answers a hold kept in memory |
-| `ENFORCE` | Enforces the decision: blocks a `DENY` and an `INDETERMINATE`, applies the obligations, holds what needs an approval |
+| `ENFORCE` | Enforces the decision: blocks a `DENY` and an `INDETERMINATE` save a fail-open read, applies the obligations, holds what needs an approval |
 | `LOCKDOWN` | Blocks every material call whatever the policy said, recording a decision; enforces a read with fail-open reads off |
 | `SHADOW`, `WARN` | Refused at start: declared in the contract, not built |
 

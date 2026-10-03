@@ -58,10 +58,10 @@ the call is blocked before anyone is asked.
 | `enforcement_mode` | The decision's own mode, always `ENFORCE`. A plane's mode acts on the decision after it is made, and this command does not know it: under `OBSERVE` a call the kernel blocked runs and is recorded, unless the plane blocks it for a cause of its own ([enforcement modes](../concepts/enforcement-modes.md)). |
 | `bundle` | The bundle's id and version, quoted. |
 | `policy_digest` | The digest the decision names. |
-| `freshness` | `FRESH`, or `STALE` when the policy is older than the smaller of the document's and the options' budgets, or `decided_at` is before 1970, after 9999 or before `loaded_at`, a refused request included. |
+| `freshness` | `FRESH`, or `STALE` when the policy is older than the smaller of the document's and the options' budgets, or `decided_at` is before 1970 or before `loaded_at`, a refused request included. |
 | `reason_codes` | The decision's codes, in order ([reason codes](reason-codes.md)). |
 | `refused` | `no`; the envelope field whose refusal stopped the decision before the policy; or `yes, naming no field` when the refusal is about the message as a whole or its arguments, which the codes tell apart. The refusal's own message is never printed: it can quote the input. |
-| `clock` | `usable`; `unusable, before 1970 or after 9999`; `unusable, earlier than a time the plane verified` when `decided_at` is before `loaded_at`; or `not checked` when the request was refused first. An unusable clock stops the decision with `POLICY_STALE`, so nothing after it is checked. |
+| `clock` | `usable`; `unusable, before 1970 or after 9999` when `decided_at` is before 1970, since a case cannot write a year past 9999; `unusable, earlier than a time the plane verified` when `decided_at` is before `loaded_at`, which is the case's verified time; or `not checked` when the request was refused first. An unusable clock stops the decision with `POLICY_STALE`, so nothing after it is checked. |
 | `tenant_unstated` | `none`, or the tenant field a material call left out while the other side named one (`TENANT_UNDETERMINED`). |
 | `delegation` | `absent`, `passed`, `refused` with the code, or `not checked` when the request was refused first or the clock stopped the decision. |
 | `external` | The decision point's answer as the case names it, or `not asked`. |

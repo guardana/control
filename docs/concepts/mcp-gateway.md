@@ -184,9 +184,9 @@ call no veto rule covers is never sent anywhere.
 
 The question carries the call's principal, action, resource and destination,
 as mapping version 1 lists them, and never its arguments (invariant 9). The
-answer is read strictly where it could allow. An ask past `pdp.timeout`, or
-one past `pdp.max_in_flight` asks waiting, is silence, which blocks in every
-mode that enforces. The plane names its own causes to block a call before any
+answer is read strictly where it could allow. An ask past `pdp.timeout` is
+`PDP_TIMEOUT`, and one past `pdp.max_in_flight` asks in flight is not sent
+and is `PDP_UNAVAILABLE` at once; either blocks in every mode that enforces. The plane names its own causes to block a call before any
 question leaves it, and a call with one is never asked about
 ([ADR-0019](../adr/0019-an-operator-can-pause-calls.md)). Any other call whose
 decision turns on the answer is asked about in every mode, `OBSERVE`
