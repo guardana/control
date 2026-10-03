@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -33,6 +34,21 @@ const (
 // An upstream's key under it is removed from what the agent sees, so an
 // upstream cannot speak as the gateway.
 var brandMeta = brand.OTelNamespace + "/"
+
+// underBrand reports whether k is under the gateway's namespace in any case,
+// since a client may match a _meta key to a field of its own without regard
+// to case. The prefix is compared rune by rune, as folding maps one rune to
+// one rune but not one byte to one byte.
+func underBrand(k string) bool {
+	n := utf8.RuneCountInString(brandMeta)
+	for i := range k {
+		if n == 0 {
+			return strings.EqualFold(k[:i], brandMeta)
+		}
+		n--
+	}
+	return n == 0 && strings.EqualFold(k, brandMeta)
+}
 
 // metaKeyVerdict is the _meta key an annotated tool carries: the verdict
 // the policy gives a call to it, ACTION_UNCLASSIFIED, or DECIDED_PER_CALL
@@ -70,7 +86,7 @@ func readAll[T any](ctx context.Context, page func(ctx context.Context, cursor s
 func stripMeta(m mcp.Meta) mcp.Meta {
 	var out mcp.Meta
 	for k := range m {
-		if strings.HasPrefix(k, brandMeta) {
+		if underBrand(k) {
 			out = make(mcp.Meta, len(m))
 			break
 		}
@@ -79,7 +95,7 @@ func stripMeta(m mcp.Meta) mcp.Meta {
 		return m
 	}
 	for k, v := range m {
-		if !strings.HasPrefix(k, brandMeta) {
+		if !underBrand(k) {
 			out[k] = v
 		}
 	}

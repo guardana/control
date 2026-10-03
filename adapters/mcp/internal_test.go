@@ -222,3 +222,26 @@ func TestAnAnswerTheClientCannotReadIsNoAnswer(t *testing.T) {
 		})
 	}
 }
+
+// TestUnderBrandFoldsTheNamespaceOnly: a key is under the namespace when its
+// first runes fold to the namespace and its slash, whatever the case and
+// whatever follows; a key one rune short of it, or with anything before it,
+// is not.
+func TestUnderBrandFoldsTheNamespaceOnly(t *testing.T) {
+	short := strings.TrimSuffix(brandMeta, "/")
+	for key, want := range map[string]bool{
+		brandMeta:                        true,
+		brandMeta + "answer":             true,
+		strings.ToUpper(brandMeta) + "x": true,
+		strings.ToUpper(brandMeta[:1]) + brandMeta[1:] + "answer": true,
+		short:              false,
+		short + "x/answer": false,
+		"x" + brandMeta:    false,
+		"":                 false,
+		brandMeta[:2]:      false,
+	} {
+		if got := underBrand(key); got != want {
+			t.Errorf("underBrand(%q) = %v, want %v", key, got, want)
+		}
+	}
+}

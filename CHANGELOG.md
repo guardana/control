@@ -124,8 +124,15 @@ verify one.
   every number in its data exactly as sent when the plane strips a key under its
   namespace; an integer past 2^53 or a long decimal was rounded.
 - An HTTP listener refuses a request whose body has not arrived within 30
-  seconds, so a client trickling one cannot hold a connection and a handler. A
-  long answer and a session's GET stream are not bounded.
+  seconds, and cuts the answer to such a request when 64 KiB of it cannot reach
+  the client within 30 seconds, so neither a client trickling its body nor one
+  that stops reading holds a connection and a handler; a slow client that keeps
+  reading gets the whole answer. A session's GET stream is not bounded.
+- The plane's listener and health address close a kept-alive connection that
+  sends no next request within two minutes.
+- The plane strips a key under its namespace from an upstream's `_meta` and
+  error data in any letter case, since a client may match keys to its own
+  fields without regard to case.
 
 ## [0.5.0-alpha] - 2026-10-02
 

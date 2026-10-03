@@ -24,6 +24,10 @@ const shutdownGrace = 10 * time.Second
 // headers, so an idle connection cannot hold a slot open.
 const readHeaderTimeout = 10 * time.Second
 
+// idleTimeout bounds how long a kept-alive connection may wait for its next
+// request.
+const idleTimeout = 2 * time.Minute
+
 // serve builds the plane and serves it until ctx ends. Nothing is bound and
 // nothing is connected until every seam is built: a configuration the pipeline,
 // the adapter or the spool refuses is printed and nothing starts.
@@ -256,12 +260,17 @@ func (p *plane) bind(stdout io.Writer, listen listenFunc) ([]listening, error) {
 			return nil, errors.Join(err, closeListeners(out))
 		}
 		out = append(out, listening{
-			server:   &http.Server{Addr: w.addr, Handler: handler, ReadHeaderTimeout: readHeaderTimeout},
+			server:   newServer(w.addr, handler, idleTimeout),
 			listener: listener,
 		})
 		writeLine(stdout, w.says+listener.Addr().String())
 	}
 	return out, nil
+}
+
+// newServer answers on addr with the plane's connection bounds.
+func newServer(addr string, handler http.Handler, idle time.Duration) *http.Server {
+	return &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: readHeaderTimeout, IdleTimeout: idle}
 }
 
 // wantedServer is one address this configuration asks to be answered on.

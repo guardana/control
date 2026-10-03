@@ -120,7 +120,7 @@ func namedError(err error, d *controlv1.Decision) error {
 	merged := make(map[string]any, len(data)+len(ids))
 	stripped := false
 	for k, v := range data {
-		if strings.HasPrefix(k, brandMeta) {
+		if underBrand(k) {
 			stripped = true
 			continue
 		}
@@ -265,7 +265,7 @@ func upstreamError(err error) error {
 	}
 	stripped := false
 	for k := range data {
-		if strings.HasPrefix(k, brandMeta) {
+		if underBrand(k) {
 			delete(data, k)
 			stripped = true
 		}

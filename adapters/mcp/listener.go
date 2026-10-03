@@ -49,22 +49,70 @@ func (a *Adapter) Handler() (http.Handler, error) {
 }
 
 // bodyDeadline bounds how long a request may take over sending its body, so a
-// client that trickles one cannot hold a connection and a handler. The server
-// clears the deadline itself once the body is read, when it starts watching
-// the connection for the client leaving, so an answer or a session's stream
-// runs on unbounded. A request without a body gets no deadline: that watch has
-// already begun, and a deadline would end it and the request with it.
+// client that trickles one cannot hold a connection and a handler, and how
+// long its answer may wait on a client that stops reading. The server clears
+// the read deadline itself once the body is read, when it starts watching the
+// connection for the client leaving, and the write deadline once the request
+// is answered; each slice of a write sets its own, so an answer or a
+// session's stream runs as long as the client keeps up. A request without a
+// body gets no deadline: that watch has already begun, and a deadline would
+// end it and the request with it.
 func bodyDeadline(bound time.Duration, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Body != nil && r.Body != http.NoBody {
-			if err := http.NewResponseController(w).SetReadDeadline(time.Now().Add(bound)); err != nil {
-				http.Error(w, "the request body cannot be bounded", http.StatusInternalServerError)
-				return
-			}
+		if r.Body == nil || r.Body == http.NoBody {
+			next.ServeHTTP(w, r)
+			return
 		}
-		next.ServeHTTP(w, r)
+		rc := http.NewResponseController(w)
+		if err := rc.SetReadDeadline(time.Now().Add(bound)); err != nil {
+			http.Error(w, "the request body cannot be bounded", http.StatusInternalServerError)
+			return
+		}
+		next.ServeHTTP(&boundedWriter{ResponseWriter: w, rc: rc, bound: bound}, r)
 	})
 }
+
+// writeSlice is how much of an answer one deadline covers. The library writes
+// a whole answer in one call, so a deadline per call would cut a client that
+// reads steadily but more slowly than the answer's size over the bound.
+const writeSlice = 64 << 10
+
+// boundedWriter gives each slice of a write, and each flush, the bound to
+// reach the client, so the bound measures the client's progress. A deadline
+// it cannot set fails the write rather than leaving it unbounded.
+type boundedWriter struct {
+	http.ResponseWriter
+	rc    *http.ResponseController
+	bound time.Duration
+}
+
+func (b *boundedWriter) Write(p []byte) (int, error) {
+	written := 0
+	for len(p) > 0 {
+		if err := b.rc.SetWriteDeadline(time.Now().Add(b.bound)); err != nil {
+			return written, err
+		}
+		chunk := p[:min(len(p), writeSlice)]
+		n, err := b.ResponseWriter.Write(chunk)
+		written += n
+		if err != nil {
+			return written, err
+		}
+		p = p[n:]
+	}
+	return written, nil
+}
+
+// FlushError is what http.ResponseController.Flush calls.
+func (b *boundedWriter) FlushError() error {
+	if err := b.rc.SetWriteDeadline(time.Now().Add(b.bound)); err != nil {
+		return err
+	}
+	return b.rc.Flush()
+}
+
+// Unwrap lets http.ResponseController reach the server's writer.
+func (b *boundedWriter) Unwrap() http.ResponseWriter { return b.ResponseWriter }
 
 // ServeStdio serves one agent over r and w until ctx ends or the agent
 // closes, framing as the protocol's stdio transport does.

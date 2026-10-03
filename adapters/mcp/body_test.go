@@ -2,11 +2,16 @@ package mcp_test
 
 import (
 	"bufio"
+	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -190,4 +195,191 @@ func (e *endWatch) Read(p []byte) (int, error) {
 		e.ended.Add(1)
 	}
 	return n, err
+}
+
+// bigAnswer is longer than the socket buffers of both ends together, so a
+// client that does not read leaves the plane's write waiting.
+const bigAnswer = 12 << 20
+
+// bigAnswerRig serves a tool whose answer is bigAnswer bytes and a marker,
+// and reports on cut each write of an answer that failed, as the library
+// sees it.
+func bigAnswerRig(t *testing.T) (r *rig, cut <-chan error) {
+	t.Helper()
+	failed := make(chan error, 16)
+	o := rigOptions{bodyTimeout: bodyBound, auth: func(next http.Handler) http.Handler {
+		inner := bearer()(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			inner.ServeHTTP(&writeWatch{ResponseWriter: w, failed: failed}, r)
+		})
+	}}
+	r = newRig(t, mcp.KindStatelessHTTP, o)
+	replaceTool(r, "slow", func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: strings.Repeat("a", bigAnswer) + "END-OF-ANSWER"}}}, nil
+	})
+	return r, failed
+}
+
+// writeWatch reports every write that fails.
+type writeWatch struct {
+	http.ResponseWriter
+	failed chan<- error
+}
+
+func (w *writeWatch) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	if err != nil {
+		select {
+		case w.failed <- err:
+		default:
+		}
+	}
+	return n, err
+}
+
+func (w *writeWatch) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// TestAnAnswerTheClientDoesNotReadIsCut: a client that sends its call and
+// then reads nothing has its answer's write fail once it has waited past the
+// bound, and what it reads afterwards is cut, while an agent that reads gets
+// the whole answer.
+func TestAnAnswerTheClientDoesNotReadIsCut(t *testing.T) {
+	r, cut := bigAnswerRig(t)
+	res, err := callTool(t, r.connect(t, "agent-a"), "slow", map[string]any{"path": "/x"})
+	if err != nil || len(res.Content) != 1 || !strings.HasSuffix(res.Content[0].(*sdk.TextContent).Text, "END-OF-ANSWER") {
+		t.Fatalf("an agent that reads did not get the whole answer: %v", err)
+	}
+	select {
+	case err := <-cut:
+		t.Fatalf("a write to an agent that reads failed: %v", err)
+	default:
+	}
+
+	conn := sendCall(t, r.url, "slow", 4096)
+	select {
+	case err := <-cut:
+		if !errors.Is(err, os.ErrDeadlineExceeded) {
+			t.Errorf("the write to a client that reads nothing failed with %v, want its deadline", err)
+		}
+	case <-time.After(60 * time.Second):
+		t.Fatal("the write to a client that reads nothing never failed")
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(20 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		return
+	}
+	data, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err == nil && strings.Contains(string(data), "END-OF-ANSWER") {
+		t.Error("a client whose answer's write failed still got the whole answer")
+	}
+}
+
+// TestASlowSteadyReaderGetsTheWholeAnswer: a client that reads the answer
+// steadily, at a pace that takes far longer than the bound in all, gets all
+// of it: the bound measures progress, not the whole answer.
+func TestASlowSteadyReaderGetsTheWholeAnswer(t *testing.T) {
+	r, cut := bigAnswerRig(t)
+	conn := sendCall(t, r.url, "slow", 0)
+	if err := conn.SetReadDeadline(time.Now().Add(120 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(&paced{r: conn}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil || !strings.Contains(string(data), "END-OF-ANSWER") {
+		t.Errorf("a steady reader got %d bytes and %v, want the whole answer", len(data), err)
+	}
+	select {
+	case err := <-cut:
+		t.Errorf("a write to a steady reader failed: %v", err)
+	default:
+	}
+}
+
+// pacedRate is how fast paced reads: the whole answer takes some three
+// seconds, ten times the bound, and one 64 KiB slice some 16ms.
+const pacedRate = 4 << 20
+
+// paced reads no faster than pacedRate bytes a second, however the reads
+// above it are sized.
+type paced struct {
+	r     io.Reader
+	start time.Time
+	read  int
+}
+
+func (p *paced) Read(b []byte) (int, error) {
+	if p.start.IsZero() {
+		p.start = time.Now()
+	}
+	time.Sleep(time.Until(p.start.Add(time.Duration(p.read) * time.Second / pacedRate)))
+	n, err := p.r.Read(b[:min(len(b), 32<<10)])
+	p.read += n
+	return n, err
+}
+
+// sendCall sends one whole 2026-07-28 tools/call, with the token the bearer
+// authenticator takes as alice, and reads nothing back; a readBuffer above
+// zero sets the connection's receive buffer.
+func sendCall(t *testing.T, raw, tool string, readBuffer int) net.Conn {
+	t.Helper()
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.Dial("tcp", u.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	if readBuffer > 0 {
+		if err := conn.(*net.TCPConn).SetReadBuffer(readBuffer); err != nil {
+			t.Fatal(err)
+		}
+	}
+	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": tool, "arguments": map[string]any{"path": "/x"}, "_meta": meta()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head := "POST / HTTP/1.1\r\nHost: " + u.Host + "\r\nContent-Type: application/json\r\n" +
+		"Accept: application/json, text/event-stream\r\nMcp-Protocol-Version: " + v20260728 + "\r\n" +
+		"Authorization: Bearer alice-token\r\nMcp-Method: tools/call\r\nMcp-Name: " + tool + "\r\nContent-Length: " + strconv.Itoa(len(body)) + "\r\n\r\n"
+	if _, err := io.WriteString(conn, head+string(body)); err != nil {
+		t.Fatal(err)
+	}
+	return conn
+}
+
+// TestAWriteBoundEndsWithItsWrite: on a kept-alive connection, a request
+// without a body that follows an answered call well after the bound is still
+// answered, so no write deadline outlives the call's own writes.
+func TestAWriteBoundEndsWithItsWrite(t *testing.T) {
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{bodyTimeout: bodyBound})
+	conn := sendCall(t, r.url, "read_file", 0)
+	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	br := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(br, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil || resp.Close || resp.StatusCode != http.StatusOK {
+		t.Fatalf("the call was answered %d, read %v, close %v: a kept-alive answer is needed", resp.StatusCode, err, resp.Close)
+	}
+	time.Sleep(3 * bodyBound)
+	if _, err := io.WriteString(conn, "GET / HTTP/1.1\r\nHost: plane\r\nAccept: text/event-stream\r\n\r\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := http.ReadResponse(br, nil); err != nil {
+		t.Errorf("a request after the call, on the same connection, got no answer: %v", err)
+	}
 }

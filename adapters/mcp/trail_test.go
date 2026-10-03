@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -130,7 +131,7 @@ func TestResultHashIsTheUpstreams(t *testing.T) {
 // namespace the upstream put there removed; data of another shape arrives
 // as it was sent and names nothing.
 func TestUpstreamErrorNamesThePlanesTrail(t *testing.T) {
-	forged := `{"` + metaDecisionID + `":"x","` + metaAnswer + `":"pending","k":1}`
+	forged := `{"` + metaDecisionID + `":"x","` + metaAnswer + `":"pending","` + strings.ToUpper(metaAnswer) + `":"pending","k":1}`
 	for _, tc := range []struct {
 		name  string
 		data  json.RawMessage

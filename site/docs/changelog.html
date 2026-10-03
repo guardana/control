@@ -164,8 +164,15 @@ whose directory entry could not be synced is synced by the next append to it.</l
 every number in its data exactly as sent when the plane strips a key under its
 namespace; an integer past 2^53 or a long decimal was rounded.</li>
 <li>An HTTP listener refuses a request whose body has not arrived within 30
-seconds, so a client trickling one cannot hold a connection and a handler. A
-long answer and a session's GET stream are not bounded.</li>
+seconds, and cuts the answer to such a request when 64 KiB of it cannot reach
+the client within 30 seconds, so neither a client trickling its body nor one
+that stops reading holds a connection and a handler; a slow client that keeps
+reading gets the whole answer. A session's GET stream is not bounded.</li>
+<li>The plane's listener and health address close a kept-alive connection that
+sends no next request within two minutes.</li>
+<li>The plane strips a key under its namespace from an upstream's <code>_meta</code> and
+error data in any letter case, since a client may match keys to its own
+fields without regard to case.</li>
 </ul>
 <h2 id="050-alpha---2026-10-02"><a href="https://github.com/guardana/control/releases/tag/v0.5.0-alpha">0.5.0-alpha</a> - 2026-10-02</h2>
 <p>An author can now see why a call got its decision: <code>policy explain</code> names the
