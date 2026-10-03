@@ -18,10 +18,10 @@ const sessionHeader = "Mcp-Session-Id"
 
 // sessionCap refuses a request that would open a stateful session while limit
 // are live. live counts the server's sessions, which the library drops when
-// one closes or idles out; opening counts the opens admitted and not yet
-// answered, so opens that race cannot pass the cap together. A session that
-// is opening counts in both until its request is answered, so near the cap
-// an open can be refused early, and none is admitted past it.
+// one closes or idles out; opening counts the opens admitted whose answer has
+// not begun, so opens that race cannot pass the cap together. The library
+// lists a session before it writes a byte of the answer, so an open stops
+// counting as opening when its answer begins and counts once from then on.
 type sessionCap struct {
 	limit   int
 	live    func() int
@@ -72,10 +72,41 @@ func (c *sessionCap) handler(next http.Handler) http.Handler {
 			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 			return
 		}
-		defer c.done()
-		next.ServeHTTP(w, r)
+		aw := &answerWriter{ResponseWriter: w, begun: c.done}
+		defer aw.begin()
+		next.ServeHTTP(aw, r)
 	})
 }
+
+// answerWriter calls begun once, when the answer it carries begins: at its
+// header, its first byte or its first flush, or, if none comes, when the
+// handler returns.
+type answerWriter struct {
+	http.ResponseWriter
+	begun func()
+	once  sync.Once
+}
+
+func (a *answerWriter) begin() { a.once.Do(a.begun) }
+
+func (a *answerWriter) WriteHeader(code int) {
+	a.begin()
+	a.ResponseWriter.WriteHeader(code)
+}
+
+func (a *answerWriter) Write(p []byte) (int, error) {
+	a.begin()
+	return a.ResponseWriter.Write(p)
+}
+
+// FlushError is what http.ResponseController.Flush calls.
+func (a *answerWriter) FlushError() error {
+	a.begin()
+	return http.NewResponseController(a.ResponseWriter).Flush()
+}
+
+// Unwrap lets http.ResponseController reach the server's writer.
+func (a *answerWriter) Unwrap() http.ResponseWriter { return a.ResponseWriter }
 
 // readBody reads a body under the library's own bound on its size, and
 // returns the status to refuse it with when it cannot.

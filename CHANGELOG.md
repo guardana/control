@@ -25,6 +25,12 @@ verify one.
   a menu above the content on narrow screens, and a wide table scrolls inside
   itself instead of breaking words.
 
+### Fixed
+
+- A stateful listener near its `listener.max_sessions` cap no longer refuses
+  an open while the previous open's answer is still being written: a session
+  whose answer has begun is counted once, not twice.
+
 ## [0.6.0-alpha] - 2026-10-03
 
 A plane now takes its policy as current only on a signed freshness

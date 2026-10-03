@@ -118,6 +118,12 @@ release, which <code>make docs-gen</code> takes from this file. Documentation pa
 a menu above the content on narrow screens, and a wide table scrolls inside
 itself instead of breaking words.</li>
 </ul>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li>A stateful listener near its <code>listener.max_sessions</code> cap no longer refuses
+an open while the previous open's answer is still being written: a session
+whose answer has begun is counted once, not twice.</li>
+</ul>
 <h2 id="060-alpha---2026-10-03"><a href="https://github.com/guardana/control/releases/tag/v0.6.0-alpha">0.6.0-alpha</a> - 2026-10-03</h2>
 <p>A plane now takes its policy as current only on a signed freshness
 statement, which <code>policy renew</code> writes, and keeps on disk the serial floor
@@ -274,7 +280,7 @@ seconds, which <code>doctor</code> now prints.</p>
 <code>policy.fail_open_read</code> lets a read run while the policy is unavailable.</p>
 </li>
 </ul>
-<h3 id="fixed">Fixed</h3>
+<h3 id="fixed-1">Fixed</h3>
 <ul>
 <li><code>runs list</code> and <code>runs close</code> no longer make an empty directory a runs
 directory; they refuse it, and only <code>runs open</code> makes one. A temporary file
@@ -368,7 +374,7 @@ use, and a profile for the MCP project's reference filesystem server that
 classifies its 14 tools and holds every write for approval
 (<a href="/docs/guides/connect-an-existing-mcp-setup">guides/connect-an-existing-mcp-setup.md</a>).</li>
 </ul>
-<h3 id="fixed-1">Fixed</h3>
+<h3 id="fixed-2">Fixed</h3>
 <ul>
 <li>A <code>tools/call</code> the plane blocked or held for a tool that declares an output
 schema reached the agent as a schema error from any client that checks
@@ -426,7 +432,7 @@ counted by cause. A plane without <code>runs.dir</code> is unchanged.</li>
 <li>The release job waits for a maintainer to approve it in the <code>release</code>
 environment before it builds; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> has the step.</li>
 </ul>
-<h3 id="fixed-2">Fixed</h3>
+<h3 id="fixed-3">Fixed</h3>
 <ul>
 <li>A plane with a stdio listener wrote its start lines, the mode and the count
 of held calls lost to a restart among them, to standard output, which is the agent's protocol stream,
@@ -479,7 +485,7 @@ cannot read, and a trailer; <code>examples/evidence-report</code> rebuilds each 
 lifecycle from it without importing the project's internals
 (<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>).</li>
 </ul>
-<h3 id="fixed-3">Fixed</h3>
+<h3 id="fixed-4">Fixed</h3>
 <ul>
 <li>A <code>restrict_resources</code> obligation with a <code>prefix</code> let a resource id such
 as <code>/srv/data/../../etc/passwd</code>, <code>/srv/data/%2e%2e/etc</code> or
@@ -558,7 +564,7 @@ literal only, as <code>pdp.allow_plaintext</code> already did and as
 states. A plaintext endpoint on any other host, a name such as <code>localhost</code>
 included, is refused at start.</li>
 </ul>
-<h3 id="fixed-4">Fixed</h3>
+<h3 id="fixed-5">Fixed</h3>
 <ul>
 <li>A tool whose definition holds a fractional number, such as
 <code>&quot;default&quot;: 0.7</code>, is fingerprinted and can be classified, and a call
