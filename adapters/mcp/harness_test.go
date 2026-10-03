@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -368,6 +369,9 @@ type rigOptions struct {
 	// default. forceSessionCap sets a cap past New's checks.
 	maxSessions     int
 	forceSessionCap int
+	// connState, when set, is told of every state an agent's connection to
+	// an HTTP listener reaches.
+	connState func(net.Conn, http.ConnState)
 }
 
 // identity is what an unauthenticated listener calls for. An authenticated
@@ -415,6 +419,17 @@ func newConfig(t *testing.T, v *victim, kind mcp.Kind, upstream sdk.Transport, o
 func serveHTTP(t *testing.T, h http.Handler) string {
 	t.Helper()
 	ts := httptest.NewServer(h)
+	t.Cleanup(ts.Close)
+	return ts.URL
+}
+
+// serveHTTPWatched serves h as serveHTTP does, telling connState of every
+// change of a connection's state, as the server sees it.
+func serveHTTPWatched(t *testing.T, h http.Handler, connState func(net.Conn, http.ConnState)) string {
+	t.Helper()
+	ts := httptest.NewUnstartedServer(h)
+	ts.Config.ConnState = connState
+	ts.Start()
 	t.Cleanup(ts.Close)
 	return ts.URL
 }
@@ -523,7 +538,7 @@ func newRigOver(t *testing.T, v *victim, kind mcp.Kind, o rigOptions) *rig {
 	if err != nil {
 		t.Fatalf("Handler: %v", err)
 	}
-	r.url = serveHTTP(t, h)
+	r.url = serveHTTPWatched(t, h, o.connState)
 	r.connect = func(t *testing.T, clientName string) *sdk.ClientSession {
 		t.Helper()
 		headers := o.headers.Clone()

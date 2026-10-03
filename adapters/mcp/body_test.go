@@ -201,12 +201,13 @@ func (e *endWatch) Read(p []byte) (int, error) {
 // client that does not read leaves the plane's write waiting.
 const bigAnswer = 12 << 20
 
-// bigAnswerRig serves a tool whose answer is bigAnswer bytes and a marker,
-// and watches each write of an answer as the library makes it.
-func bigAnswerRig(t *testing.T) (*rig, *writeWatch) {
+// bigAnswerRig serves a tool whose answer is bigAnswer bytes and a marker
+// under the body bound, watches each write of an answer as the library makes
+// it, and tells connState, if any, of each connection's states.
+func bigAnswerRig(t *testing.T, bound time.Duration, connState func(net.Conn, http.ConnState)) (*rig, *writeWatch) {
 	t.Helper()
 	watch := &writeWatch{failed: make(chan error, 16)}
-	o := rigOptions{bodyTimeout: bodyBound, auth: func(next http.Handler) http.Handler {
+	o := rigOptions{bodyTimeout: bound, connState: connState, auth: func(next http.Handler) http.Handler {
 		inner := bearer()(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			inner.ServeHTTP(&watchedWriter{ResponseWriter: w, watch: watch}, r)
@@ -253,11 +254,12 @@ func (w *watchedWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // TestAnAnswerTheClientDoesNotReadIsCut: a client that sends its call and
 // then reads nothing has its answer's write fail once it has waited past the
-// bound, and what it reads afterwards ends short, ended by the plane and not
-// by the client's own patience, while an agent that reads gets the whole
-// answer.
+// bound, the plane closes its connection, and what it reads afterwards ends
+// short, ended by the plane and not by the client's own patience, while an
+// agent that reads gets the whole answer.
 func TestAnAnswerTheClientDoesNotReadIsCut(t *testing.T) {
-	r, watch := bigAnswerRig(t)
+	closed := make(chan string, 16)
+	r, watch := bigAnswerRig(t, bodyBound, watchCloses(closed))
 	res, err := callTool(t, r.connect(t, "agent-a"), "slow", map[string]any{"path": "/x"})
 	if err != nil || len(res.Content) != 1 || !strings.HasSuffix(res.Content[0].(*sdk.TextContent).Text, "END-OF-ANSWER") {
 		t.Fatalf("an agent that reads did not get the whole answer: %v", err)
@@ -268,7 +270,7 @@ func TestAnAnswerTheClientDoesNotReadIsCut(t *testing.T) {
 	default:
 	}
 
-	conn := sendCall(t, r.url, "slow", 4096)
+	conn := sendCall(t, r.url, "slow", 0)
 	select {
 	case err := <-watch.failed:
 		if !errors.Is(err, os.ErrDeadlineExceeded) {
@@ -277,6 +279,33 @@ func TestAnAnswerTheClientDoesNotReadIsCut(t *testing.T) {
 	case <-time.After(60 * time.Second):
 		t.Error("the write to a client that reads nothing never failed")
 	}
+	if !closedWithin(closed, conn.LocalAddr().String(), 10*time.Second) {
+		t.Error("the plane held the connection of a client whose answer was cut")
+	}
+	checkCutRead(t, conn)
+}
+
+// watchCloses keeps each server-side send buffer small and reports on
+// closed the client address of each connection the server closes.
+func watchCloses(closed chan<- string) func(net.Conn, http.ConnState) {
+	return func(c net.Conn, state http.ConnState) {
+		switch state {
+		case http.StateNew:
+			// What the plane wrote before the cut stays in its kernel's send
+			// buffer after the close; kept small, it drains at once.
+			if tc, ok := c.(*net.TCPConn); ok {
+				_ = tc.SetWriteBuffer(64 << 10)
+			}
+		case http.StateClosed:
+			closed <- c.RemoteAddr().String()
+		}
+	}
+}
+
+// checkCutRead reads what is left of a cut answer: it has to end short, and
+// by the plane rather than by the client's own deadline.
+func checkCutRead(t *testing.T, conn net.Conn) {
+	t.Helper()
 	if err := conn.SetReadDeadline(time.Now().Add(20 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +316,23 @@ func TestAnAnswerTheClientDoesNotReadIsCut(t *testing.T) {
 	case err == nil:
 		t.Errorf("a cut answer of %d bytes ended as if it were whole", len(data))
 	case errors.Is(err, os.ErrDeadlineExceeded):
-		t.Errorf("after %d bytes the client's own deadline ended the read: the plane held the connection", len(data))
+		t.Errorf("after %d bytes the client's own deadline ended the read, not the plane", len(data))
+	}
+}
+
+// closedWithin reports whether the server closed the connection from addr
+// within d.
+func closedWithin(closed <-chan string, addr string, d time.Duration) bool {
+	deadline := time.After(d)
+	for {
+		select {
+		case got := <-closed:
+			if got == addr {
+				return true
+			}
+		case <-deadline:
+			return false
+		}
 	}
 }
 
@@ -302,14 +347,24 @@ func readAnswer(conn net.Conn) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
+// steadyBound is the body bound the steady reader runs under: a slice takes
+// it some 32ms at pacedRate, so a stall of a busy machine is not a cut.
+const steadyBound = time.Second
+
+// steadyBuffer is the steady reader's receive buffer: small beside the
+// answer, so the plane's write has to wait on the reader, and above the
+// loopback segment size, so the window never shrinks below one segment and
+// stalls on acknowledgements.
+const steadyBuffer = 256 << 10
+
 // TestASlowSteadyReaderGetsTheWholeAnswer: a client that reads the answer
 // steadily, at a pace that takes far longer than the bound in all, gets all
 // of it: the bound measures progress, not the whole answer. The answer's
-// write has to outlast the bound, or socket buffers took it whole and no
+// write has to outlast twice the bound, or socket buffers took it and no
 // slice's deadline was ever at stake.
 func TestASlowSteadyReaderGetsTheWholeAnswer(t *testing.T) {
-	r, watch := bigAnswerRig(t)
-	conn := sendCall(t, r.url, "slow", 4096)
+	r, watch := bigAnswerRig(t, steadyBound, nil)
+	conn := sendCall(t, r.url, "slow", steadyBuffer)
 	if err := conn.SetReadDeadline(time.Now().Add(120 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
@@ -327,14 +382,14 @@ func TestASlowSteadyReaderGetsTheWholeAnswer(t *testing.T) {
 		t.Errorf("a write to a steady reader failed: %v", err)
 	default:
 	}
-	if took := time.Duration(watch.longest.Load()); took <= 2*bodyBound {
-		t.Errorf("the answer was written in %v, within twice the bound of %v: the buffers took it, and no slice was at stake", took, bodyBound)
+	if took := time.Duration(watch.longest.Load()); took <= 2*steadyBound {
+		t.Errorf("the answer was written in %v, within twice the bound of %v: the buffers took it, and no slice was at stake", took, steadyBound)
 	}
 }
 
-// pacedRate is how fast paced reads: the whole answer takes some three
-// seconds, ten times the bound, and one 64 KiB slice some 16ms.
-const pacedRate = 4 << 20
+// pacedRate is how fast paced reads: the whole answer takes some six
+// seconds, six times the steady bound, and one 64 KiB slice some 32ms.
+const pacedRate = 2 << 20
 
 // paced reads no faster than pacedRate bytes a second, however the reads
 // above it are sized and however late the answer starts: each read waits as
