@@ -84,6 +84,7 @@ edit made here does not survive the next run.
 | `guardana_control_pause_entries` | gauge |  | `PauseEntries` | Pause entries in force. |
 | `guardana_control_policy_freshness` | gauge | `state` | `PolicyFreshness` | 1 for how the policy a call is decided under stands, confirmed, unconfirmed or expired, 0 for the two others; while it is not confirmed every mode but OBSERVE blocks every material call. |
 | `guardana_control_policy_confirmation_seconds_left` | gauge |  | `PolicySecondsLeft` | Whole seconds until the policy's confirmation expires; 0 while it is unconfirmed or expired. |
+| `guardana_control_policy_seconds_since_poll` | gauge |  | `PolicySecondsSincePoll` | Whole seconds since the policy's refresher last completed a poll, or since the start before any; it grows past the poll interval while the refresher is stuck. |
 | `guardana_control_policy_refresh_refused_total` | counter | `cause` | `Policy.Refused` | Polls that moved nothing because a replacement, a statement or the clock was refused, by cause; a cause the refresher does not declare is counted under other. |
 | `guardana_control_policy_awaiting_statement_total` | counter |  | `Policy.AwaitingStatement` | Polls that found a new bundle whose statement still names another. |
 | `guardana_control_policy_awaiting_bundle_total` | counter |  | `Policy.AwaitingBundle` | Polls that found a statement naming a bundle not yet on disk. |

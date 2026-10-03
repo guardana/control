@@ -47,7 +47,9 @@ func startPolicy(cfg *gatewayconfig.Config, logger *slog.Logger, r role) (*plane
 }
 
 func installPolicy(cfg *gatewayconfig.Config, logger *slog.Logger, r role, store *policystate.Store) (*planePolicy, error) {
-	var floor policy.FloorStore = store
+	// Bounded gives up a raise at its deadline even on a disk that stopped
+	// answering, which the clock rule would otherwise wait on.
+	var floor = policywatch.Bounded(store)
 	if r == roleInspect {
 		floor = peekFloor{store}
 	}

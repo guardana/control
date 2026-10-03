@@ -54,6 +54,9 @@ type Reading struct {
 	// expires, 0 when it is not confirmed.
 	PolicyFreshness   policywatch.State
 	PolicySecondsLeft int64
+	// PolicySecondsSincePoll is the whole seconds since the policy's
+	// refresher last completed a poll, or since the start before any.
+	PolicySecondsSincePoll int64
 	// Policy is what the policy's refresher counted.
 	Policy PolicyRefresh
 }

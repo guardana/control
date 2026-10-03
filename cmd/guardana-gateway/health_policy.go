@@ -9,14 +9,16 @@ import (
 
 // policyAnswer is the policy's freshness: confirmed, unconfirmed or expired,
 // the statement's issuedAt and when its budget ends where there is one, the
-// whole seconds left while it is confirmed, and what the refresher refused,
-// awaited and withdrew.
+// whole seconds left while it is confirmed, the whole seconds since the
+// refresher last completed a poll, and what it refused, awaited and withdrew.
 type policyAnswer struct {
-	Freshness   string         `json:"freshness"`
-	ConfirmedAt string         `json:"confirmed_at,omitempty"`
-	ExpiresAt   string         `json:"expires_at,omitempty"`
-	SecondsLeft int64          `json:"seconds_left"`
-	Refresh     map[string]any `json:"refresh,omitempty"`
+	Freshness   string `json:"freshness"`
+	ConfirmedAt string `json:"confirmed_at,omitempty"`
+	ExpiresAt   string `json:"expires_at,omitempty"`
+	SecondsLeft int64  `json:"seconds_left"`
+	// SecondsSincePoll is left out where no refresher runs.
+	SecondsSincePoll *int64         `json:"seconds_since_poll,omitempty"`
+	Refresh          map[string]any `json:"refresh,omitempty"`
 }
 
 // freshness is how snap stands at now, when its confirmation expires and the
@@ -38,6 +40,8 @@ func (p *plane) policyAnswer(snap *policy.Snapshot, now time.Time) policyAnswer 
 		out.ExpiresAt = expires.UTC().Format(time.RFC3339)
 	}
 	if p.policy != nil && p.policy.refresher != nil {
+		since := int64(p.policy.refresher.SincePoll() / time.Second)
+		out.SecondsSincePoll = &since
 		s := p.policy.refresher.Stats()
 		refused := make(map[string]uint64, len(s.Refused))
 		for cause, n := range s.Refused {

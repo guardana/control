@@ -365,6 +365,13 @@ edit made here does not survive the next run.</p>
 <td>Whole seconds until the policy's confirmation expires; 0 while it is unconfirmed or expired.</td>
 </tr>
 <tr>
+<td><code>guardana_control_policy_seconds_since_poll</code></td>
+<td>gauge</td>
+<td></td>
+<td><code>PolicySecondsSincePoll</code></td>
+<td>Whole seconds since the policy's refresher last completed a poll, or since the start before any; it grows past the poll interval while the refresher is stuck.</td>
+</tr>
+<tr>
 <td><code>guardana_control_policy_refresh_refused_total</code></td>
 <td>counter</td>
 <td><code>cause</code></td>

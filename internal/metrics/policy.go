@@ -31,6 +31,10 @@ var policyRows = []Metric{
 	level("policy_confirmation_seconds_left", "PolicySecondsLeft",
 		"Whole seconds until the policy's confirmation expires; 0 while it is unconfirmed or expired.",
 		func(r Reading) int64 { return r.PolicySecondsLeft }),
+	level("policy_seconds_since_poll", "PolicySecondsSincePoll",
+		"Whole seconds since the policy's refresher last completed a poll, or since the start before any; "+
+			"it grows past the poll interval while the refresher is stuck.",
+		func(r Reading) int64 { return r.PolicySecondsSincePoll }),
 	labelled(Counter, "policy_refresh_refused_total", "cause", "Policy.Refused",
 		"Polls that moved nothing because a replacement, a statement or the clock was refused, by cause; "+
 			"a cause the refresher does not declare is counted under "+Other+".",

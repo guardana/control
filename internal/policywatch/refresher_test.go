@@ -347,3 +347,23 @@ func TestAPollOfAnEmptyHolderIsRefused(t *testing.T) {
 	}
 	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseFloor: 1}, 0, 0, 0, 0)
 }
+
+// SincePoll is the monotonic time since the last completed poll, or since
+// New before any: it shows whether the refresher is alive.
+func TestSincePollShowsTheRefresherIsAlive(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	r.startConfirmed()
+	r.clock.advance(3 * time.Second)
+	if got := r.refresher.SincePoll(); got != 3*time.Second {
+		t.Errorf("3s after New and no poll, SincePoll is %v", got)
+	}
+	r.poll()
+	r.clock.advance(2 * time.Second)
+	if got := r.refresher.SincePoll(); got != 2*time.Second {
+		t.Errorf("2s after a poll, SincePoll is %v", got)
+	}
+	r.clock.tick(time.Second, -time.Hour)
+	if got := r.refresher.SincePoll(); got != 3*time.Second {
+		t.Errorf("a wall clock set back changed SincePoll to %v; it is monotonic time", got)
+	}
+}

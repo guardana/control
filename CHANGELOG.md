@@ -34,7 +34,8 @@ verify one.
   not confirmed answers `"status":"degraded"` with `200`; a halted plane still
   answers `halted` with `503`.
 - `/metrics` carries `guardana_control_policy_freshness`,
-  `guardana_control_policy_confirmation_seconds_left`, and counters of the
+  `guardana_control_policy_confirmation_seconds_left`,
+  `guardana_control_policy_seconds_since_poll`, and counters of the
   policy's refusals by cause, bundles awaiting a statement, statements
   awaiting a bundle and withdrawals by a clock set back
   ([metrics](docs/reference/metrics.md)).

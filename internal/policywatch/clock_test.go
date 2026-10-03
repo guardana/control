@@ -1,10 +1,12 @@
 package policywatch_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policywatch"
 )
 
@@ -167,30 +169,156 @@ func TestTheClockBoundIsOneSecondExactly(t *testing.T) {
 }
 
 // The mark holds for wall readings outside the range a count of nanoseconds
-// since 1970 can carry: a clock set far ahead and then a little back is
-// caught, and one set to a far-past year is caught too.
+// since 1970 can carry: in 2200 a step forward is taken and a step back is
+// caught, and a reading further from the first than a Duration holds, ahead
+// or behind, is taken as a step back, since it cannot be judged.
 func TestTheMarkHoldsFarFromNineteenSeventy(t *testing.T) {
+	setWall := func(r *rig, wall time.Time) {
+		r.clock.mu.Lock()
+		r.clock.wall, r.clock.mono = wall, r.clock.mono+time.Second
+		r.clock.mu.Unlock()
+	}
 	r := newRig(t, emptyFloor(t))
 	r.startConfirmed()
-	far := time.Date(2400, time.January, 1, 0, 0, 0, 0, time.UTC)
-	r.clock.tick(time.Second, far.Sub(r.clock.Wall()))
+	setWall(r, time.Date(2200, time.January, 1, 0, 0, 0, 0, time.UTC))
 	r.poll()
 	if r.withdrawals() != 0 {
-		t.Fatalf("a clock set forward withdrew the confirmation")
+		t.Fatalf("a clock set forward to 2200 withdrew the confirmation")
 	}
-	r.clock.tick(time.Second, -2*time.Second)
+	setWall(r, time.Date(2199, time.December, 31, 23, 0, 0, 0, time.UTC))
 	r.poll()
 	if r.withdrawals() != 1 {
-		t.Errorf("a clock in 2400 set back a second past the mark: %d withdrawal(s), want 1", r.withdrawals())
+		t.Errorf("a clock in 2200 set back an hour: %d withdrawal(s), want 1", r.withdrawals())
 	}
+	for _, far := range []time.Time{
+		time.Date(2400, time.January, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(1600, time.January, 1, 0, 0, 0, 0, time.UTC),
+	} {
+		r := newRig(t, emptyFloor(t))
+		r.startConfirmed()
+		setWall(r, far)
+		r.poll()
+		if r.withdrawals() != 1 {
+			t.Errorf("a clock set to %d, further than a Duration from the first reading: %d withdrawal(s), want 1", far.Year(), r.withdrawals())
+		}
+	}
+}
 
-	r = newRig(t, emptyFloor(t))
-	r.startConfirmed()
-	r.clock.mu.Lock()
-	r.clock.wall, r.clock.mono = time.Date(1600, time.January, 1, 0, 0, 0, 0, time.UTC), r.clock.mono+time.Second
-	r.clock.mu.Unlock()
+// A poll held inside a file read cannot hold the clock rule off: Run judges
+// the clock on a timer of its own, so a step back is withdrawn within the
+// bound while the poll still waits.
+func TestAPollStuckInAReadCannotHoldTheClockRuleOff(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	r.opts.Interval = 200 * time.Millisecond
+	digest := r.startConfirmed()
+	entered, release := make(chan struct{}, 1), make(chan struct{})
+	policywatch.SetBeforeRead(r.refresher, func(string) {
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-release
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		r.refresher.Run(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		close(release)
+		<-done
+	})
+	select {
+	case <-entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("no poll reached a read")
+	}
+	r.clock.tick(time.Second, -time.Second)
+	deadline := time.Now().Add(3 * time.Second)
+	for !r.holder.Current().ConfirmedAt().IsZero() {
+		if time.Now().After(deadline) {
+			t.Fatal("a step back was not withdrawn within 3s while a poll was held in a read")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	r.expectSnapshot(2, digest, time.Time{})
+}
+
+// A withdrawal that lands while a poll reads, after the poll judged the clock
+// and before it confirms, refuses that poll's newer statement: the confirm
+// judges the clock again under the clock's lock.
+func TestAWithdrawalDuringAPollRefusesItsStatement(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	digest := r.startConfirmed()
+	r.writeStatement(2, digest, t0.Add(10*time.Second))
+	policywatch.SetBeforeRead(r.refresher, func(path string) {
+		if path == r.opts.StatementPath {
+			r.clock.tick(time.Second, -time.Second)
+			if !r.refresher.JudgeClock() {
+				t.Error("the clock set back was not judged back")
+			}
+		}
+	})
 	r.poll()
-	if r.withdrawals() != 1 {
-		t.Errorf("a clock set back to 1600: %d withdrawal(s), want 1", r.withdrawals())
+	r.expectSnapshot(2, digest, time.Time{})
+	if got := r.refresher.Stats().Refused[policywatch.CauseClockBack]; got != 1 {
+		t.Errorf("%d poll(s) refused for the clock, want 1", got)
+	}
+}
+
+// A raise hung on a disk that stopped answering, whatever its context says,
+// is given up at the poll's deadline through Bounded, so neither the poll nor
+// the clock rule waits on it.
+func TestAHungRaiseIsGivenUp(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	r.opts.Interval = 200 * time.Millisecond
+	digest := r.startConfirmed()
+	h, err := policy.NewFloorHolder(planeID, policywatch.Bounded(r.store))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.holder, r.opts.Holder = h, h
+	r.writeStatement(2, digest, t0)
+	if res, err := policywatch.Start(context.Background(), r.opts); err != nil || res.Action != policy.StartConfirmed {
+		t.Fatalf("Start = %+v, %v", res, err)
+	}
+	r.newRefresher()
+	r.writeStatement(3, r.writeBundle(3, "v3", 600), t0.Add(10*time.Second))
+	hung := make(chan struct{})
+	r.store.mu.Lock()
+	r.store.hung = hung
+	r.store.mu.Unlock()
+	t.Cleanup(func() { close(hung) })
+	polled := make(chan struct{})
+	go func() {
+		defer close(polled)
+		r.poll()
+	}()
+	select {
+	case <-hung:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the poll never reached the raise")
+	}
+	select {
+	case <-polled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a poll whose raise hung did not return within 5s at a 200ms interval")
+	}
+	r.clock.tick(time.Second, -time.Second)
+	judged := make(chan bool, 1)
+	go func() { judged <- r.refresher.JudgeClock() }()
+	select {
+	case back := <-judged:
+		if !back {
+			t.Error("the clock set back was not judged back")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("judging the clock waited on a hung raise")
+	}
+	r.expectSnapshot(2, digest, time.Time{})
+	if got := r.refresher.Stats().Refused[policywatch.CauseFloor]; got != 1 {
+		t.Errorf("%d poll(s) refused for the floor, want 1", got)
 	}
 }

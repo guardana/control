@@ -57,7 +57,8 @@ left and what the plane's polls of its policy found. A plane whose policy is
 not confirmed answers <code>&quot;status&quot;:&quot;degraded&quot;</code> with <code>200</code>; a halted plane still
 answers <code>halted</code> with <code>503</code>.</li>
 <li><code>/metrics</code> carries <code>guardana_control_policy_freshness</code>,
-<code>guardana_control_policy_confirmation_seconds_left</code>, and counters of the
+<code>guardana_control_policy_confirmation_seconds_left</code>,
+<code>guardana_control_policy_seconds_since_poll</code>, and counters of the
 policy's refusals by cause, bundles awaiting a statement, statements
 awaiting a bundle and withdrawals by a clock set back
 (<a href="/docs/reference/metrics">metrics</a>).</li>

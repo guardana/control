@@ -127,6 +127,7 @@ func (p *plane) metrics(src gateway.PauseSource, clock func() time.Time) ([]byte
 	r.PolicyFreshness, _, r.PolicySecondsLeft = p.freshness(p.holder.Current(), clock())
 	if p.policy != nil && p.policy.refresher != nil {
 		r.Policy = metrics.RefreshOf(p.policy.refresher.Stats())
+		r.PolicySecondsSincePoll = int64(p.policy.refresher.SincePoll() / time.Second)
 	}
 	return metrics.Render(r)
 }

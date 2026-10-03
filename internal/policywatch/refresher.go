@@ -106,14 +106,19 @@ type Refresher struct {
 	mu        sync.Mutex
 	bundle    *diskBundle
 	statement *diskStatement
+	// beforeRead, when set, is called with each file's path just before a
+	// poll reads it.
+	beforeRead func(path string)
 
 	clockMu sync.Mutex
 	clock   mark
 
-	// statsMu guards the counts and the last outcome logged.
+	// statsMu guards the counts, the last outcome logged and the monotonic
+	// reading of the last completed poll.
 	statsMu sync.Mutex
 	stats   Stats
 	last    string
+	polled  time.Duration
 }
 
 // New checks o and takes the first reading of both clocks, the clock mark's
@@ -122,7 +127,7 @@ func New(o Options) (*Refresher, error) {
 	if err := o.check(); err != nil {
 		return nil, err
 	}
-	r := &Refresher{o: o, stats: Stats{Refused: map[Cause]uint64{}}}
+	r := &Refresher{o: o, stats: Stats{Refused: map[Cause]uint64{}}, polled: o.Mono()}
 	r.clock.back(o.Wall(), o.Mono())
 	return r, nil
 }
@@ -133,16 +138,13 @@ func New(o Options) (*Refresher, error) {
 // it; and anything refused leaves the snapshot, its confirmation and the
 // floor as they were, counted under its cause.
 func (r *Refresher) Poll(ctx context.Context) {
-	now, mono := r.o.Wall(), r.o.Mono()
+	defer r.polledNow()
 	r.count(func(s *Stats) { s.Polls++ })
-	r.clockMu.Lock()
-	back := r.clock.back(now, mono)
-	r.clockMu.Unlock()
-	if back {
-		r.withdraw()
+	if r.JudgeClock() {
 		r.refuse(CauseClockBack, ErrClockBack)
 		return
 	}
+	now := r.o.Wall()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	cur := r.o.Holder.Current()
@@ -150,11 +152,13 @@ func (r *Refresher) Poll(ctx context.Context) {
 		r.refuse(CauseFloor, ErrNoSnapshot)
 		return
 	}
+	r.reading(r.o.BundlePath)
 	r.bundle = readBundle(r.o, r.bundle)
 	if r.bundle.err != nil {
 		r.refuse(r.bundle.cause, r.bundle.err)
 		return
 	}
+	r.reading(r.o.StatementPath)
 	r.statement = readStatement(r.o, r.statement)
 	if r.statement.err != nil {
 		r.refuse(r.statement.cause, r.statement.err)
@@ -217,10 +221,18 @@ func (r *Refresher) confirm(ctx context.Context, snap *policy.Snapshot, st polic
 		r.refuse(CauseStatementExpired, expiry(st, snap, r.o.MaxStale))
 		return
 	}
-	// The holder keeps its lock while the store waits for the directory's,
-	// and a withdrawal by the clock rule needs the holder's: the wait is
-	// bounded so another process holding the directory cannot hold the clock
-	// rule off past one interval.
+	// The clock is judged again under its lock, held until the holder has
+	// published or refused, so a withdrawal cannot land between the two; the
+	// raise is bounded, since the holder keeps its own lock across it and the
+	// clock rule needs both.
+	r.clockMu.Lock()
+	defer r.clockMu.Unlock()
+	now = r.o.Wall()
+	if r.clock.back(now, r.o.Mono()) {
+		r.withdraw()
+		r.refuse(CauseClockBack, ErrClockBack)
+		return
+	}
 	raise, cancel := context.WithTimeout(ctx, r.o.Interval)
 	defer cancel()
 	var err error
@@ -289,14 +301,26 @@ func (r *Refresher) changed(outcome string) bool {
 	return differs && r.o.Logger != nil
 }
 
+// reading is called before a poll reads the file at path.
+func (r *Refresher) reading(path string) {
+	if r.beforeRead != nil {
+		r.beforeRead(path)
+	}
+}
+
 func (r *Refresher) count(f func(*Stats)) {
 	r.statsMu.Lock()
 	defer r.statsMu.Unlock()
 	f(&r.stats)
 }
 
-// Run polls every interval until ctx ends.
+// Run polls every interval, and judges the clock on a timer of its own,
+// until ctx ends.
 func (r *Refresher) Run(ctx context.Context) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go r.watchClock(ctx, &wg)
+	defer wg.Wait()
 	t := time.NewTicker(r.o.Interval)
 	defer t.Stop()
 	for {

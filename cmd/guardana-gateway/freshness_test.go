@@ -127,6 +127,13 @@ func TestMetricsReportFreshnessAndTheSecondsLeft(t *testing.T) {
 	if got := value(t, families, "policy_freshness", map[string]string{"state": "confirmed"}); got != "1" {
 		t.Errorf("policy_freshness{state=confirmed} is %s, want 1", got)
 	}
+	if got := value(t, families, "policy_seconds_since_poll", map[string]string{}); got != "0" {
+		t.Errorf("a plane just started has gone %s seconds without a poll, want 0", got)
+	}
+	_, body := ask(t, p, "/healthz")
+	if since, ok := policyOf(t, body)["seconds_since_poll"].(float64); !ok || since != 0 {
+		t.Errorf("/healthz's policy says seconds_since_poll %v, want 0 for a plane just started", policyOf(t, body)["seconds_since_poll"])
+	}
 	left, err := strconv.Atoi(value(t, families, "policy_confirmation_seconds_left", map[string]string{}))
 	if err != nil || left < 590 || left > 600 {
 		t.Errorf("policy_confirmation_seconds_left is %d (%v), want the ten-minute budget less the seconds since", left, err)

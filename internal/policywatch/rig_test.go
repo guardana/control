@@ -106,6 +106,10 @@ type memFloor struct {
 	// does while another process holds the directory's lock; each such raise
 	// is announced on it first.
 	blocked chan struct{}
+	// hung, when set, makes Raise wait until it is closed whatever its
+	// context says, as a write to a disk that stopped answering does; each
+	// such raise is announced on it first.
+	hung chan struct{}
 }
 
 var errStore = errors.New("memFloor: the store failed")
@@ -121,6 +125,12 @@ func (s *memFloor) Floor(context.Context, string) (policy.Floor, error) {
 
 func (s *memFloor) Raise(ctx context.Context, st policy.Statement, now time.Time) (policy.Floor, error) {
 	s.mu.Lock()
+	if hung := s.hung; hung != nil {
+		s.mu.Unlock()
+		hung <- struct{}{}
+		<-hung
+		return policy.Floor{}, errStore
+	}
 	if blocked := s.blocked; blocked != nil {
 		s.mu.Unlock()
 		blocked <- struct{}{}
