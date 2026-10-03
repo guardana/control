@@ -175,7 +175,7 @@ one the retry equals, oldest first.
 ```mermaid
 stateDiagram-v2
     accTitle: The states of a held request
-    accDescr: A held request runs once when an approved retry consumes its approval, or ends expired, rejected, refused or lost, and every path ends with its trail closed.
+    accDescr: A held request runs once when an approved retry consumes its approval, or ends expired, rejected, refused or lost, and every path ends with its trail closed but a lost hold's, which the next start closes only from a journal entry it can read and close.
     [*] --> held: APPROVAL_REQUESTED written, the hold kept and stored
     held --> held: a retry before an answer is told the same approval_id again
     held --> running: an approved retry consumes the approval once, APPROVAL_DECIDED then ACTION_STARTED
@@ -184,7 +184,8 @@ stateDiagram-v2
     held --> refused: the store would not keep the hold, or MaxHeld holds stand
     held --> lost: the plane stopped while the request was held
     running --> closed: ACTION_COMPLETED or ACTION_FAILED
-    lost --> closed: the next start reads its journal entry and closes the trail
+    lost --> closed: the next start reads its journal entry and writes the closing events
+    lost --> [*]: no journal, or an entry the start cannot read or close, leaves the trail open
     expired --> closed: APPROVAL_EXPIRED, then ACTION_BLOCKED with APPROVAL_EXPIRED
     rejected --> closed: APPROVAL_DECIDED, then ACTION_BLOCKED with APPROVAL_REJECTED
     refused --> closed: APPROVAL_EXPIRED, then ACTION_BLOCKED with EVIDENCE_UNAVAILABLE

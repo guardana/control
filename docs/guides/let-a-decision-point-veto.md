@@ -88,8 +88,8 @@ on every question, and `doctor` never prints its value. The other keys:
 - `proxy`, to send the questions through a proxy. Without it none is used,
   whatever the environment says.
 - `informational_context`, the context members an allowing answer may carry.
-  None by default: any other member makes an allow unreadable, and the call
-  is blocked.
+  None by default: any member but those and `obligations` makes an allow
+  unreadable, and the call is blocked. A non-empty `obligations` is a veto.
 
 `timeout` covers connecting too: the first ask on a new connection pays for
 the handshake, so a decision point on another host may need more than the
@@ -109,7 +109,8 @@ guardana-gateway doctor --config gateway.yaml
 With every earlier check `ok`, the last line is `pdp`. `doctor` reads the decision point's published
 metadata, `/.well-known/authzen-configuration`, and compares it with your
 identifier and evaluation endpoint: `ok` when it agrees, `fail` when it does
-not, `unknown` when it cannot be read. Only `doctor` reads it, and the plane
+not or leaves one out, `unknown` when it cannot be read or either is not a
+string. Only `doctor` reads it, and the plane
 starts whatever it says. `doctor` sends no question and no credential, so `ok`
 does not mean the decision point accepts your credential. A setting the client
 refuses, such as an `http` identifier without `allow_plaintext`, fails the

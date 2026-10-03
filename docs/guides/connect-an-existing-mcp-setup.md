@@ -164,8 +164,9 @@ guardana-control approvals list approvals
 guardana-control approvals approve --approver-id you approvals <approval_id>
 ```
 
-The same write, retried with the same arguments, now runs once. Retried again,
-it is blocked with `APPROVAL_ALREADY_USED`; an approval covers one exact call.
+The same write, retried with the same arguments, now runs once. Retried again
+before that approval expires, it is blocked with `APPROVAL_ALREADY_USED`, and
+held anew after; an approval covers one exact call.
 
 ### 9. Read the report
 

@@ -91,8 +91,8 @@ and nowhere else.</li>
 <li><code>proxy</code>, to send the questions through a proxy. Without it none is used,
 whatever the environment says.</li>
 <li><code>informational_context</code>, the context members an allowing answer may carry.
-None by default: any other member makes an allow unreadable, and the call
-is blocked.</li>
+None by default: any member but those and <code>obligations</code> makes an allow
+unreadable, and the call is blocked. A non-empty <code>obligations</code> is a veto.</li>
 </ul>
 <p><code>timeout</code> covers connecting too: the first ask on a new connection pays for
 the handshake, so a decision point on another host may need more than the
@@ -108,7 +108,8 @@ system's roots; there is no setting for a private certificate authority.</p>
 <p>With every earlier check <code>ok</code>, the last line is <code>pdp</code>. <code>doctor</code> reads the decision point's published
 metadata, <code>/.well-known/authzen-configuration</code>, and compares it with your
 identifier and evaluation endpoint: <code>ok</code> when it agrees, <code>fail</code> when it does
-not, <code>unknown</code> when it cannot be read. Only <code>doctor</code> reads it, and the plane
+not or leaves one out, <code>unknown</code> when it cannot be read or either is not a
+string. Only <code>doctor</code> reads it, and the plane
 starts whatever it says. <code>doctor</code> sends no question and no credential, so <code>ok</code>
 does not mean the decision point accepts your credential. A setting the client
 refuses, such as an <code>http</code> identifier without <code>allow_plaintext</code>, fails the

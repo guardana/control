@@ -61,10 +61,10 @@ next export:</p>
 </code></pre>
 <p>A cursor is refused when the file's first line or the line it names has
 changed, or when its offset is not at the end of a line: another file, or one
-restored and written again since. A line changed elsewhere is not detected. When the trailer's <code>end_reached</code> is false,
+restored and rewritten since. A line changed elsewhere is not detected. When the trailer's <code>end_reached</code> is false,
 more remains: follow <code>next_cursor</code> until it is true. <code>--limit</code> bounds the
-records one export writes (1000 by default) and <code>--max-bytes</code> the bytes of
-whole lines it scans.</p>
+events, gaps and duplicates one export writes (default 1000), <code>--max-bytes</code> the
+bytes of whole lines it scans.</p>
 <h3 id="3-rebuild-each-calls-lifecycle">3. Rebuild each call's lifecycle</h3>
 <p><code>examples/evidence-report</code> reads an export on its standard input with the
 generated package <code>api/gen/go/guardana/control/v1</code> alone, groups the events by

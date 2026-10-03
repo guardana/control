@@ -99,9 +99,9 @@ on this listener is answered `-32022` with the versions served, by the
 library and before the pipeline is asked anything, so a client renegotiates
 instead of losing the connection. `initialize` itself is not the
 middleware's: it goes to the library's own handler, like every method the
-middleware does not answer. A session idle for 30 minutes ends, so sessions a
-client opens and abandons do not hold the plane's memory; the client
-initializes again.
+middleware does not answer. A session idle for `listener.session_idle`,
+30 minutes by default, ends, so sessions a client opens and abandons do not
+hold the plane's memory; the client initializes again.
 
 ```mermaid
 sequenceDiagram

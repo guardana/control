@@ -43,8 +43,9 @@ Start from
 [testdata/policy/documents/example.json](../../testdata/policy/documents/example.json),
 or from a starter pack with its cases ([reference/starter-packs.md](../reference/starter-packs.md)).
 Give the bundle an `id`, a `version` and a `serial`, and set `maxStaleSeconds`
-to how long a plane may keep deciding on this document after a freshness
-statement last confirmed it (step 6). Then write the rules, each with an `id`, an `effect` and a
+to how long a plane may keep deciding on this document after the `issued_at`
+of the freshness statement that last confirmed it, `policy.max_stale` if
+shorter (step 6). Then write the rules, each with an `id`, an `effect` and a
 `when` that constrains something.
 
 Two things an author meets early:

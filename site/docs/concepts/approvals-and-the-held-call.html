@@ -274,9 +274,9 @@ What it compares:</p>
 so the store holds every request under a binding and the pipeline picks the
 one the retry equals, oldest first.</p>
 <h2 id="the-states-of-a-held-request">The states of a held request</h2>
-<figure class="dg-text" id="diagram-2"><figcaption>The states of a held request</figcaption><p>A held request runs once when an approved retry consumes its approval, or ends expired, rejected, refused or lost, and every path ends with its trail closed. <a href="https://github.com/guardana/control/blob/main/docs/concepts/approvals-and-the-held-call.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">stateDiagram-v2
+<figure class="dg-text" id="diagram-2"><figcaption>The states of a held request</figcaption><p>A held request runs once when an approved retry consumes its approval, or ends expired, rejected, refused or lost, and every path ends with its trail closed but a lost hold&#39;s, which the next start closes only from a journal entry it can read and close. <a href="https://github.com/guardana/control/blob/main/docs/concepts/approvals-and-the-held-call.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">stateDiagram-v2
     accTitle: The states of a held request
-    accDescr: A held request runs once when an approved retry consumes its approval, or ends expired, rejected, refused or lost, and every path ends with its trail closed.
+    accDescr: A held request runs once when an approved retry consumes its approval, or ends expired, rejected, refused or lost, and every path ends with its trail closed but a lost hold&#39;s, which the next start closes only from a journal entry it can read and close.
     [*] --&gt; held: APPROVAL_REQUESTED written, the hold kept and stored
     held --&gt; held: a retry before an answer is told the same approval_id again
     held --&gt; running: an approved retry consumes the approval once, APPROVAL_DECIDED then ACTION_STARTED
@@ -285,7 +285,8 @@ one the retry equals, oldest first.</p>
     held --&gt; refused: the store would not keep the hold, or MaxHeld holds stand
     held --&gt; lost: the plane stopped while the request was held
     running --&gt; closed: ACTION_COMPLETED or ACTION_FAILED
-    lost --&gt; closed: the next start reads its journal entry and closes the trail
+    lost --&gt; closed: the next start reads its journal entry and writes the closing events
+    lost --&gt; [*]: no journal, or an entry the start cannot read or close, leaves the trail open
     expired --&gt; closed: APPROVAL_EXPIRED, then ACTION_BLOCKED with APPROVAL_EXPIRED
     rejected --&gt; closed: APPROVAL_DECIDED, then ACTION_BLOCKED with APPROVAL_REJECTED
     refused --&gt; closed: APPROVAL_EXPIRED, then ACTION_BLOCKED with EVIDENCE_UNAVAILABLE

@@ -53,10 +53,10 @@ guardana-gateway trail export --after '<next_cursor>' trail.jsonl
 
 A cursor is refused when the file's first line or the line it names has
 changed, or when its offset is not at the end of a line: another file, or one
-restored and written again since. A line changed elsewhere is not detected. When the trailer's `end_reached` is false,
+restored and rewritten since. A line changed elsewhere is not detected. When the trailer's `end_reached` is false,
 more remains: follow `next_cursor` until it is true. `--limit` bounds the
-records one export writes (1000 by default) and `--max-bytes` the bytes of
-whole lines it scans.
+events, gaps and duplicates one export writes (default 1000), `--max-bytes` the
+bytes of whole lines it scans.
 
 ### 3. Rebuild each call's lifecycle
 

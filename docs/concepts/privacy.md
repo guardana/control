@@ -20,10 +20,11 @@ page.
 ## What an evidence event holds
 
 Every call the plane can name leaves a trail of events
-([evidence](evidence-and-the-spool.md)), with two exceptions: a read the
+([evidence](evidence-and-the-spool.md)), with three exceptions: a read the
 operator lets run unrecorded when the spool cannot take its events
-(`evidence.on_unwritable: allow_reads`), and a call refused because its
-request id already has an open trail. The MCP adapter and the pipeline fill them as below
+(`evidence.on_unwritable: allow_reads`), a call refused because its
+request id already has an open trail, and a call blocked because the sink
+refused its first event. The MCP adapter and the pipeline fill them as below
 (`adapters/mcp/translate.go`, `adapters/mcp/answer.go`,
 `internal/evidence/event.go`).
 
@@ -106,7 +107,7 @@ to the plane, no field of the contract holds it, and no adapter reads it.
 | the floor directory, `policy.state_dir` | per bundle id, the serial, digest and `issuedAt` of the newest freshness statement taken, and the reason and prior value of the last reset | the plane's account: the directory is owner-only and its files `0600` |
 | the pause file | each entry's scope and its optional reason | the plane's account, and any account the file's and directory's modes let read it |
 | the decision point at `pdp.identifier` | the principal, the action, the resource with its id, the destination, the data labels and the ids; never the arguments, their hash or a digest | whoever runs it, and a proxy configured for it ([ADR-0017](../adr/0017-an-external-decision-point-can-veto.md)) |
-| `/metrics` and `/healthz` | counts and states; `/healthz` also the mode, the bundle's id, version, digest and serial, its confirmation and expiry times, and the ids of pause entries that match no listed tool. No metric label carries an identifier, a digest or a reason ([reference/metrics](../reference/metrics.md)) | anyone who reaches `health.address`, which takes no credential |
+| `/metrics` and `/healthz` | counts and states; `/healthz` also the mode, the bundle's id, version, digest and serial, its confirmation and expiry times, and the ids of pause entries that match no listed tool. No metric label carries an identifier, a digest or free text; `pipeline_blocks_total` is labelled with a reason code ([reference/metrics](../reference/metrics.md)) | anyone who reaches `health.address`, which takes no credential |
 | the plane's log, on stderr | messages with ids such as `request_id`, `execution_id` and an upstream's name, and error text; header values are never printed | wherever the operator sends stderr |
 
 The upstream server receives the authorized arguments, as it would without

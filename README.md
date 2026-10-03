@@ -44,7 +44,7 @@ verdicts:
 | `ALLOW` | The action proceeds. |
 | `DENY` | The action is blocked. |
 | `REQUIRE_APPROVAL` | This exact action runs only after an approval. |
-| `ALLOW_WITH_OBLIGATIONS` | The action proceeds under enforced conditions. |
+| `ALLOW_WITH_OBLIGATIONS` | The action proceeds under conditions, enforced unless advisory. |
 | `INDETERMINATE` | The decision could not be made. It is never an allow. |
 
 It enforces the verdict except in `OBSERVE`; `APPROVE` and a pause can be
@@ -66,7 +66,7 @@ over AuthZEN but cannot grant (`experimental`).
 ```mermaid
 flowchart LR
     accTitle: How a tool call is decided today
-    accDescr: The enforcement point decides an agent's proposed call from the built-in policy engine, an external decision point that can only veto, and an approval provider when a person has to approve. An allowed call goes to the tool or API. Every decision is appended to the evidence, which is exported over OpenTelemetry.
+    accDescr: The enforcement point decides an agent's proposed call from the built-in policy engine, an external decision point that can only veto, and an approval provider when a person has to approve. An allowed call goes to the tool or API. Decisions are appended to the evidence, which is exported over OpenTelemetry; a call whose record cannot be appended is blocked, unless the operator let a read run unrecorded.
     AG[Agent] --> PEP[Enforcement point]
     POL[Built-in policy engine] --> PEP
     PDP[External PDP] -.->|can veto| PEP

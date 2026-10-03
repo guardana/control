@@ -61,9 +61,8 @@ the plane: a floor made anew takes any older bundle.
 
 Every path in the file resolves against the file's directory. Every key has
 an environment variable under `GUARDANA_CONTROL_`, the key in capitals with
-underscores for dots, which wins over the file. A key this build does not
-know is refused. [configuration.md](../reference/configuration.md) lists
-every key.
+underscores for dots, which wins over the file. An unknown key is refused.
+[configuration.md](../reference/configuration.md) lists every key.
 
 ```yaml
 mode: OBSERVE
@@ -113,11 +112,11 @@ The listener in this build authenticates nobody, so every request on it is
 made by the principal configured here ([status.md](../status.md)).
 
 A statement confirms its bundle from its `issued_at` for the smaller of
-`policy.max_stale` and the document's `maxStaleSeconds`. Without one the
-plane starts, but every call is `POLICY_STALE`: outside `OBSERVE` a material
-call is blocked, and a read runs only under `policy.fail_open_read`. Rerun
-`renew` and copy the statement on a schedule shorter than that budget less
-twice the poll interval.
+`policy.max_stale` and the document's `maxStaleSeconds`. Without one, a
+bundle above the floor's serial is refused, and any other starts with every
+call `POLICY_STALE`: outside `OBSERVE` a material call is blocked, and a read
+runs only under `policy.fail_open_read`. Rerun `renew` and copy the statement
+more often than that budget less twice the poll interval.
 
 ### 3. Check the configuration before serving
 

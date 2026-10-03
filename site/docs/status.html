@@ -288,7 +288,7 @@ this:</p>
 </tr>
 <tr>
 <td>Attempts to gain access</td>
-<td>Each refusal the pipeline decides is recorded with its reason codes and counted in <code>/metrics</code>; a request the listener refuses for its origin or its run token is not recorded, and only run token refusals are counted; nothing reports a pattern of attempts</td>
+<td>Each refusal the pipeline decides is counted in <code>/metrics</code>, and recorded with its reason codes unless the call's identifiers name no trail, its request id already has an open trail, or the sink refuses one of its events; a request the listener refuses for its origin or its run token is not recorded, and only run token refusals are counted; nothing reports a pattern of attempts</td>
 </tr>
 <tr>
 <td>Quality: finished, not degraded, nothing skipped</td>

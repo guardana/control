@@ -67,9 +67,8 @@ the plane: a floor made anew takes any older bundle.</p>
 <h3 id="2-write-a-configuration">2. Write a configuration</h3>
 <p>Every path in the file resolves against the file's directory. Every key has
 an environment variable under <code>GUARDANA_CONTROL_</code>, the key in capitals with
-underscores for dots, which wins over the file. A key this build does not
-know is refused. <a href="/docs/reference/configuration">configuration.md</a> lists
-every key.</p>
+underscores for dots, which wins over the file. An unknown key is refused.
+<a href="/docs/reference/configuration">configuration.md</a> lists every key.</p>
 <pre><code class="language-yaml">mode: OBSERVE
 project_id: orders
 tenant_id: acme
@@ -115,11 +114,11 @@ upstreams:
 <p>The listener in this build authenticates nobody, so every request on it is
 made by the principal configured here (<a href="/docs/status">status.md</a>).</p>
 <p>A statement confirms its bundle from its <code>issued_at</code> for the smaller of
-<code>policy.max_stale</code> and the document's <code>maxStaleSeconds</code>. Without one the
-plane starts, but every call is <code>POLICY_STALE</code>: outside <code>OBSERVE</code> a material
-call is blocked, and a read runs only under <code>policy.fail_open_read</code>. Rerun
-<code>renew</code> and copy the statement on a schedule shorter than that budget less
-twice the poll interval.</p>
+<code>policy.max_stale</code> and the document's <code>maxStaleSeconds</code>. Without one, a
+bundle above the floor's serial is refused, and any other starts with every
+call <code>POLICY_STALE</code>: outside <code>OBSERVE</code> a material call is blocked, and a read
+runs only under <code>policy.fail_open_read</code>. Rerun <code>renew</code> and copy the statement
+more often than that budget less twice the poll interval.</p>
 <h3 id="3-check-the-configuration-before-serving">3. Check the configuration before serving</h3>
 <pre><code>guardana-gateway doctor --config gateway.yaml
 </code></pre>

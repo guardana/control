@@ -37,10 +37,11 @@ What the plane defends against is on the <a href="/docs/concepts/threat-model">t
 page.</p>
 <h2 id="what-an-evidence-event-holds">What an evidence event holds</h2>
 <p>Every call the plane can name leaves a trail of events
-(<a href="/docs/concepts/evidence-and-the-spool">evidence</a>), with two exceptions: a read the
+(<a href="/docs/concepts/evidence-and-the-spool">evidence</a>), with three exceptions: a read the
 operator lets run unrecorded when the spool cannot take its events
-(<code>evidence.on_unwritable: allow_reads</code>), and a call refused because its
-request id already has an open trail. The MCP adapter and the pipeline fill them as below
+(<code>evidence.on_unwritable: allow_reads</code>), a call refused because its
+request id already has an open trail, and a call blocked because the sink
+refused its first event. The MCP adapter and the pipeline fill them as below
 (<code>adapters/mcp/translate.go</code>, <code>adapters/mcp/answer.go</code>,
 <code>internal/evidence/event.go</code>).</p>
 <p>Every event carries <code>event_id</code>, <code>kind</code>, <code>request_id</code>, <code>project_id</code>,
@@ -194,7 +195,7 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 </tr>
 <tr>
 <td><code>/metrics</code> and <code>/healthz</code></td>
-<td>counts and states; <code>/healthz</code> also the mode, the bundle's id, version, digest and serial, its confirmation and expiry times, and the ids of pause entries that match no listed tool. No metric label carries an identifier, a digest or a reason (<a href="/docs/reference/metrics">reference/metrics</a>)</td>
+<td>counts and states; <code>/healthz</code> also the mode, the bundle's id, version, digest and serial, its confirmation and expiry times, and the ids of pause entries that match no listed tool. No metric label carries an identifier, a digest or free text; <code>pipeline_blocks_total</code> is labelled with a reason code (<a href="/docs/reference/metrics">reference/metrics</a>)</td>
 <td>anyone who reaches <code>health.address</code>, which takes no credential</td>
 </tr>
 <tr>

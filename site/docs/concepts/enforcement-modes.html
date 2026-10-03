@@ -342,7 +342,7 @@ configuration refuses <code>annotate</code> and <code>hide</code> in a mode that
 </tr>
 <tr>
 <td><code>annotate</code></td>
-<td>each classified tool marked with the verdict of its preview under the enum's own name, <code>VERDICT_ALLOW</code> or <code>VERDICT_DENY</code> for instance; <code>DECIDED_PER_CALL</code> when the preview could not decide without arguments; <code>ACTION_UNCLASSIFIED</code> on a tool nobody classified</td>
+<td>each classified tool marked with the verdict of its preview under the enum's own name, <code>VERDICT_ALLOW</code> or <code>VERDICT_DENY</code> for instance; <code>DECIDED_PER_CALL</code> when the preview is <code>INDETERMINATE</code>, as it is when the call's arguments, its run or the decision point's answer decide; <code>ACTION_UNCLASSIFIED</code> on a tool nobody classified</td>
 <td>under <code>LOCKDOWN</code> a material tool is marked <code>VERDICT_DENY</code>, the enforcement point's own; under <code>APPROVE</code> the mark is the kernel's verdict, because the mode changes the action and not the decision, so an allowed material tool is marked <code>VERDICT_ALLOW</code> and held when called</td>
 </tr>
 <tr>
@@ -356,8 +356,9 @@ configuration refuses <code>annotate</code> and <code>hide</code> in a mode that
 <ul>
 <li>The mode lives in the enforcement point, after the decision, and the
 kernel builds <code>ENFORCE</code> only, so the same request decides the same way
-whatever the operator set, and the evidence says what was decided and what
-was done with it, separately (ADR-0012, ADR-0013).</li>
+in every mode but <code>LOCKDOWN</code>, which turns fail-open reads off, and the
+evidence says what was decided and what was done with it, separately
+(ADR-0012, ADR-0013).</li>
 <li>A mode never reaches an extension: the adapter translates, the sink writes,
 the policy holder serves a bundle, and none of them knows the mode
 (ADR-0013, invariant 7).</li>

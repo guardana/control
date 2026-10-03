@@ -136,7 +136,7 @@ unrecorded.
 ```mermaid
 sequenceDiagram
     accTitle: The request path
-    accDescr: The adapter hands a proposed action to the pipeline, whose kernel evaluates the policy snapshot and may take a decision point's answer; a denied or undetermined call is refused, a call that needs approval is held until an identical retry consumes it, an allowed call runs, and evidence is recorded as the sink accepts it.
+    accDescr: The adapter hands a proposed action to the pipeline, whose kernel evaluates the policy snapshot and may take a decision point's answer; the pipeline records the proposal and the decision, then a denied or undetermined call is refused and its block recorded, a call that needs approval is recorded as requested and held until an identical retry consumes it, and a call that runs is recorded as started before the tool is called and as completed or failed once the adapter hands back its result.
     participant Agent
     participant Adapter
     participant Pipeline
@@ -161,9 +161,11 @@ sequenceDiagram
         Core-->>Pipeline: decision
     end
     alt DENY or INDETERMINATE, where the mode enforces it
+        Pipeline->>Evidence: ACTION_PROPOSED, POLICY_DECIDED, ACTION_BLOCKED
         Pipeline-->>Adapter: blocked
         Adapter-->>Agent: refusal carrying the reason codes
     else REQUIRE_APPROVAL
+        Pipeline->>Evidence: ACTION_PROPOSED, POLICY_DECIDED, APPROVAL_REQUESTED
         Pipeline->>Store: hold this request under its binding, with an expiry
         Pipeline-->>Adapter: pending, with the approval id
         Adapter-->>Agent: pending
@@ -172,19 +174,26 @@ sequenceDiagram
         Adapter->>Pipeline: ActionEnvelope and the proposed arguments
         Pipeline->>Store: the requests still held under this binding
         Store-->>Pipeline: what it holds under the binding, and whether it was approved
-        Pipeline-->>Adapter: allow the held request only, consuming the approval once
+        Pipeline->>Store: consume the approval, once
+        Pipeline->>Evidence: APPROVAL_DECIDED, ACTION_STARTED, on the held request's trail
+        Pipeline-->>Adapter: allow the held request only
         Adapter->>Tool: call
         Tool-->>Adapter: result
     else ALLOW or ALLOW_WITH_OBLIGATIONS
+        Pipeline->>Evidence: ACTION_PROPOSED, POLICY_DECIDED, ACTION_STARTED
         Pipeline-->>Adapter: allow, with obligations to enforce
         Adapter->>Tool: call
         Tool-->>Adapter: result
     end
-    Pipeline->>Evidence: decision, hold, approval and result, as the sink accepts them
+    opt the call ran
+        Adapter->>Pipeline: Close, with the result
+        Pipeline->>Evidence: ACTION_COMPLETED or ACTION_FAILED
+    end
 ```
 
 Sources: `internal/gateway/admit.go`, `internal/gateway/approve.go`,
 `internal/gateway/resume.go`, `internal/gateway/approvals.go`,
+`internal/gateway/close.go`,
 `internal/core/decide.go`, `internal/core/failclosed.go`,
 `internal/evidence/chain.go`.
 
@@ -201,7 +210,10 @@ Four properties the branches carry:
   [ADR-0017](../adr/0017-an-external-decision-point-can-veto.md).
 - The blocked branch produces evidence too, naming the policy version that
   decided it, or that none was available, see
-  [ADR-0004](../adr/0004-evidence-and-privacy-defaults.md).
+  [ADR-0004](../adr/0004-evidence-and-privacy-defaults.md). A block the
+  plane cannot record is counted, not recorded: the call's identifiers name no
+  trail, its request id already has an open trail, or the sink refuses one of
+  its events.
 
 ## Layers and the dependency rule
 

@@ -142,8 +142,9 @@ comes back as an error result marked <code>pending</code> with the text
 <pre><code>guardana-control approvals list approvals
 guardana-control approvals approve --approver-id you approvals &lt;approval_id&gt;
 </code></pre>
-<p>The same write, retried with the same arguments, now runs once. Retried again,
-it is blocked with <code>APPROVAL_ALREADY_USED</code>; an approval covers one exact call.</p>
+<p>The same write, retried with the same arguments, now runs once. Retried again
+before that approval expires, it is blocked with <code>APPROVAL_ALREADY_USED</code>, and
+held anew after; an approval covers one exact call.</p>
 <h3 id="9-read-the-report">9. Read the report</h3>
 <pre><code>guardana-gateway trail trail.jsonl
 guardana-gateway trail export trail.jsonl | bin/evidence-report

@@ -86,7 +86,9 @@ refuses it the same way. The page reaches every file through the directory
 it opened, never through its name, so a directory put at the name between
 that check and a read or a write is never read or written.</li>
 <li>Any path but the page, its script and its stylesheet, all built into the
-binary: 404. It opens no file by a name a request chose.</li>
+binary, and <code>/api/</code> followed by <code>session</code>, <code>state</code>, <code>approve</code>, <code>reject</code>,
+<code>pause</code> or <code>unpause</code>: 404, under <code>/api/</code> only after the session token check.
+It opens no file by a name a request chose.</li>
 </ul>
 <p>Every answer, a refusal included, forbids framing, caching and referrers,
 cuts the page off from any window that opened it, and allows the page's own

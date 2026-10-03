@@ -206,15 +206,16 @@ configuration refuses `annotate` and `hide` in a mode that does not enforce
 | Shaping | What the agent sees | What the mode changes |
 | --- | --- | --- |
 | `none` | the upstream's list | nothing |
-| `annotate` | each classified tool marked with the verdict of its preview under the enum's own name, `VERDICT_ALLOW` or `VERDICT_DENY` for instance; `DECIDED_PER_CALL` when the preview could not decide without arguments; `ACTION_UNCLASSIFIED` on a tool nobody classified | under `LOCKDOWN` a material tool is marked `VERDICT_DENY`, the enforcement point's own; under `APPROVE` the mark is the kernel's verdict, because the mode changes the action and not the decision, so an allowed material tool is marked `VERDICT_ALLOW` and held when called |
+| `annotate` | each classified tool marked with the verdict of its preview under the enum's own name, `VERDICT_ALLOW` or `VERDICT_DENY` for instance; `DECIDED_PER_CALL` when the preview is `INDETERMINATE`, as it is when the call's arguments, its run or the decision point's answer decide; `ACTION_UNCLASSIFIED` on a tool nobody classified | under `LOCKDOWN` a material tool is marked `VERDICT_DENY`, the enforcement point's own; under `APPROVE` the mark is the kernel's verdict, because the mode changes the action and not the decision, so an allowed material tool is marked `VERDICT_ALLOW` and held when called |
 | `hide` | a tool the preview denies, and every unclassified tool, is omitted; a tool the preview cannot decide stays | under `LOCKDOWN` every material tool is omitted |
 
 ## Why
 
 - The mode lives in the enforcement point, after the decision, and the
   kernel builds `ENFORCE` only, so the same request decides the same way
-  whatever the operator set, and the evidence says what was decided and what
-  was done with it, separately (ADR-0012, ADR-0013).
+  in every mode but `LOCKDOWN`, which turns fail-open reads off, and the
+  evidence says what was decided and what was done with it, separately
+  (ADR-0012, ADR-0013).
 - A mode never reaches an extension: the adapter translates, the sink writes,
   the policy holder serves a bundle, and none of them knows the mode
   (ADR-0013, invariant 7).

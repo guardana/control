@@ -55,7 +55,7 @@ the plane's own account, someone on the network, and a tampered release.
 ```mermaid
 flowchart TD
     accTitle: Trust boundaries
-    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane's machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files but for the spool's directory, whose mode is not judged; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
+    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane's machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file and the key by their owner too, and on the spool's directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
     Agent["Agent and its model"] -->|"MCP; a run token under runs.dir"| Plane
     Agent -.->|"a path around the plane"| Http
     subgraph Host["The plane's machine"]
@@ -158,8 +158,10 @@ What it does not do:
 - A pause takes effect up to one poll interval after it is written, and never
   stops a call already running ([ADR-0019](../adr/0019-an-operator-can-pause-calls.md)).
 - Freshness trusts the plane's clock: a plane restarted with its clock set
-  back takes its last statement as current again, and restoring the floor's
-  volume rolls the floor back with it
+  back into its last statement's budget, counted from that statement's
+  `issued_at`, takes it as current again; a clock behind the newest
+  `issued_at` the floor took confirms nothing. Restoring the floor's volume
+  rolls the floor back with it
   ([ADR-0038](../adr/0038-a-signed-freshness-statement-and-a-serial-floor.md)).
 
 ## A hostile or compromised MCP server
@@ -189,7 +191,7 @@ What it does not do:
 
 - **It does not look inside a result.** Whatever a server returns, injected
   instructions included, reaches the agent unchanged, but for the plane's own
-  `_meta` keys. The plane records a hash of it.
+  `_meta` keys. The plane records a hash of a result it can encode.
 - A tool the agent is shown comes with its description as the server wrote
   it. List shaping can hide denied and unclassified tools, never rewrite a
   description, and the fingerprint catches a definition that changes, not one

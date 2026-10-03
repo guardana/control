@@ -77,7 +77,9 @@ closing a pipe. Either way it exits 0.
   it opened, never through its name, so a directory put at the name between
   that check and a read or a write is never read or written.
 - Any path but the page, its script and its stylesheet, all built into the
-  binary: 404. It opens no file by a name a request chose.
+  binary, and `/api/` followed by `session`, `state`, `approve`, `reject`,
+  `pause` or `unpause`: 404, under `/api/` only after the session token check.
+  It opens no file by a name a request chose.
 
 Every answer, a refusal included, forbids framing, caching and referrers,
 cuts the page off from any window that opened it, and allows the page's own
