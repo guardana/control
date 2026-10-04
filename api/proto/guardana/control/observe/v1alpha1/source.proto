@@ -1,0 +1,64 @@
+// Unstable observation contract; schema_version is "0.1". Outside the v1
+// promise: a reader takes exactly the minors it knows. See ADR-0039 and
+// ADR-0040.
+//
+// An unspecified enum, or a number a reader does not know, reads as its most
+// restrictive meaning, written beside each enum.
+
+syntax = "proto3";
+
+package guardana.control.observe.v1alpha1;
+
+// How far a source is from the agent it reports on. It comes from the
+// operator's descriptor, never from the data. Unspecified reads as
+// self-reported.
+enum Trust {
+  TRUST_UNSPECIFIED = 0;
+  // The agent's own process wrote it.
+  TRUST_SELF_REPORTED = 1;
+  // The platform the agent runs on wrote it.
+  TRUST_PLATFORM = 2;
+  // Something the agent cannot influence wrote it.
+  TRUST_INDEPENDENT = 3;
+}
+
+// Whether a source passes on everything it sees. Unspecified reads as
+// partial: a missing record is never proof that nothing happened.
+enum Sampling {
+  SAMPLING_UNSPECIFIED = 0;
+  SAMPLING_COMPLETE = 1;
+  SAMPLING_PARTIAL = 2;
+}
+
+// An outside convention the data was written under, pinned to one version.
+message Convention {
+  string name = 1;
+  string version = 2;
+}
+
+// Which records of an input belong to the source.
+message Selector {
+  // Matched exactly against a resource's service.name.
+  string service_name = 1;
+}
+
+// The operator's statement about one source: what it is, how far it may be
+// trusted, which records are its own and when its silence means unknown.
+message SourceDescriptor {
+  string schema_version = 1;
+  string source_id = 2;
+  // "otel-genai-traces" is the one kind this version reads.
+  string kind = 3;
+  Trust trust = 4;
+  Convention convention = 5;
+  // The OTLP version whose JSON encoding the input is read under.
+  string otlp_version = 6;
+  Selector select = 7;
+  Sampling sampling = 8;
+  // A source silent for longer than this is unknown, never quiet.
+  uint32 heartbeat_seconds = 9;
+  string tenant_id = 10;
+  string project_id = 11;
+  // The attribute a span names its run in; empty when the source names none.
+  string run_attribute = 12;
+}

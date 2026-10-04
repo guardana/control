@@ -60,7 +60,7 @@ Nothing here is a security boundary. Do not deploy it as one.
 | Framework SDKs and thin clients | `planned` | separate repositories, [ROADMAP.md](../ROADMAP.md) |
 | Control plane API | `planned` | `internal/controlapi/`, [ADR-0009](adr/0009-open-core-boundary.md) |
 | Storage | `planned` | `internal/storage/` |
-| Observations from sensors: an observation record, a source descriptor and one importer of OpenTelemetry GenAI traces | `planned` | `api/proto/guardana/control/observe/v1alpha1/`, `internal/ingest/`, [ADR-0039](adr/0039-many-channels-into-one-core.md) |
+| Observations from sensors: an observation record, a source descriptor and one importer of OpenTelemetry GenAI traces | `planned` | `internal/observe/`, `internal/observelog/`, `internal/ingest/otelgenai/`, [ADR-0039](adr/0039-many-channels-into-one-core.md), [ADR-0040](adr/0040-observations-a-record-a-log-and-one-importer.md). The messages are written in `api/proto/guardana/control/observe/v1alpha1/`, version `0.1`, outside the v1 promise; `buf breaking` ignores that package and `scripts/proto-breaking-probe.sh` shows v1 still compared. Nothing reads or writes them yet |
 | Coverage map per declared path | `planned` | no path chosen yet, [ADR-0039](adr/0039-many-channels-into-one-core.md) |
 | Graph API | `planned` | no path chosen yet, [ROADMAP.md](../ROADMAP.md) |
 | Web UI | `planned` | no path chosen yet, [ROADMAP.md](../ROADMAP.md) |

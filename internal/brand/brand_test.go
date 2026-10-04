@@ -3,6 +3,7 @@ package brand
 import (
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -65,8 +66,9 @@ func TestProtoPackageMatchesTheProtoFiles(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if pkgs := protoPackages(string(data)); len(pkgs) != 1 || pkgs[0] != ProtoPackage {
-			t.Errorf("%s declares package %q, brand.ProtoPackage is %q", name, pkgs, ProtoPackage)
+		pkgs := protoPackages(string(data))
+		if len(pkgs) != 1 || !protoPackageFits(name, pkgs[0]) {
+			t.Errorf("%s declares package %q; brand.ProtoPackage is %q, and any other package sits under %q in its own directory", name, pkgs, ProtoPackage, OTelNamespace)
 		}
 		return nil
 	})
@@ -77,6 +79,18 @@ func TestProtoPackageMatchesTheProtoFiles(t *testing.T) {
 	if files == 0 {
 		t.Fatal("found no .proto file under api/proto")
 	}
+}
+
+// protoPackageFits reports whether the proto file at name declares pkg as
+// the layout requires: the wire contract's directory holds ProtoPackage, and
+// any other package, such as an unstable sibling contract, is under the
+// product's namespace in the directory its name spells.
+func protoPackageFits(name, pkg string) bool {
+	dir := path.Dir(name)
+	if dir == "api/proto/"+strings.ReplaceAll(ProtoPackage, ".", "/") {
+		return pkg == ProtoPackage
+	}
+	return strings.HasPrefix(pkg, OTelNamespace+".") && dir == "api/proto/"+strings.ReplaceAll(pkg, ".", "/")
 }
 
 // protoPackages returns the name of every `package x.y.z;` line in src.

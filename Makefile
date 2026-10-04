@@ -194,6 +194,7 @@ proto:
 proto-check:
 	$(CD) buf lint
 	$(CD) buf format -d --exit-code
+	$(CD) scripts/proto-breaking-probe.sh
 	@$(RUN) \
 	tmp=$$(mktemp -d); \
 	trap 'rm -rf "$$tmp"' EXIT; \

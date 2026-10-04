@@ -1,0 +1,147 @@
+// Unstable observation contract; schema_version is "0.1". See source.proto
+// for the version and enum rules, and ADR-0040.
+
+syntax = "proto3";
+
+package guardana.control.observe.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+import "guardana/control/observe/v1alpha1/source.proto";
+
+// Where an action stood when the source saw it. Unspecified reads as unknown,
+// never as completed.
+enum Stage {
+  STAGE_UNSPECIFIED = 0;
+  STAGE_PROPOSED = 1;
+  STAGE_STARTED = 2;
+  STAGE_COMPLETED = 3;
+  STAGE_FAILED = 4;
+  // A signal about an action rather than the action, such as a connection.
+  STAGE_INDIRECT = 5;
+}
+
+// What an observation is about. Unspecified reads as unknown.
+enum SubjectKind {
+  SUBJECT_KIND_UNSPECIFIED = 0;
+  SUBJECT_KIND_TOOL = 1;
+  SUBJECT_KIND_MODEL = 2;
+  SUBJECT_KIND_AGENT = 3;
+}
+
+// The status the source sent, as sent. Unset is the source saying nothing.
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_UNSET = 1;
+  STATUS_OK = 2;
+  STATUS_ERROR = 3;
+}
+
+// What ties an observation to a run. Unspecified reads as none.
+enum Basis {
+  BASIS_UNSPECIFIED = 0;
+  BASIS_NONE = 1;
+  // The source named the run; nothing checked it.
+  BASIS_CLAIMED = 2;
+  // A join matched it to a plane event.
+  BASIS_JOINED = 3;
+  // An authenticated run vouches for it.
+  BASIS_BOUND = 4;
+}
+
+// The source an observation came from, as its descriptor stated it.
+message SourceRef {
+  string source_id = 1;
+  // SHA-256 of the descriptor's bytes, lowercase hex.
+  string descriptor_sha256 = 2;
+  Trust trust = 3;
+  Convention convention = 4;
+}
+
+message Subject {
+  SubjectKind kind = 1;
+  // The tool's, model's or agent's name.
+  string name = 2;
+  // The convention's operation, such as execute_tool or chat.
+  string operation = 3;
+  string provider = 4;
+  string server_address = 5;
+}
+
+message Outcome {
+  Status status = 1;
+  string error_type = 2;
+}
+
+// Lowercase hex as the plane's envelope spells trace_id and span_id: 32 and 16
+// digits, never all zeros.
+message Correlation {
+  Basis basis = 1;
+  string run_id = 2;
+  string trace_id = 3;
+  string span_id = 4;
+  string parent_span_id = 5;
+}
+
+// What one source said happened. Testimony, never a decision: it names no
+// mode, verdict or decision, and carries no content.
+message Observation {
+  string schema_version = 1;
+  // "obs-" and 32 lowercase hex digits derived from tenant, project, source,
+  // trace and span, so a re-import yields the same id.
+  string observation_id = 2;
+  string tenant_id = 3;
+  string project_id = 4;
+  SourceRef source = 5;
+  // When the source says it happened; absent when it said nothing, never
+  // another time in its place.
+  google.protobuf.Timestamp event_time = 6;
+  // When this import read it.
+  google.protobuf.Timestamp received_time = 7;
+  Stage stage = 8;
+  Subject subject = 9;
+  Outcome outcome = 10;
+  Correlation correlation = 11;
+  // Content attributes the record held and this one does not.
+  uint32 content_attributes_dropped = 12;
+}
+
+// The counts of one import, so that what was skipped is told apart from what
+// never happened.
+message ImportCounts {
+  uint64 read = 1;
+  uint64 observed = 2;
+  // By reason, such as an operation the importer does not map.
+  map<string, uint64> skipped = 3;
+  uint64 duplicate = 4;
+  uint64 conflict = 5;
+  uint64 other_resource = 6;
+  uint64 refused = 7;
+  uint64 content_attributes_dropped = 8;
+  uint64 reasoning_parts_dropped = 9;
+  uint64 content_unparsed = 10;
+  uint64 run_ids_dropped = 11;
+  uint64 strings_dropped = 12;
+}
+
+// One import into a log: what was read and what became of it.
+message ImportReport {
+  string schema_version = 1;
+  string tenant_id = 2;
+  string project_id = 3;
+  SourceRef source = 4;
+  google.protobuf.Timestamp received_time = 5;
+  // SHA-256 of the input's first line, lowercase hex.
+  string input_first_line_sha256 = 6;
+  uint64 input_bytes = 7;
+  ImportCounts counts = 8;
+  google.protobuf.Timestamp earliest_event_time = 9;
+  google.protobuf.Timestamp latest_event_time = 10;
+}
+
+// One line of an observation log: exactly one of its members.
+message Record {
+  oneof record {
+    Observation observation = 1;
+    ImportReport import_report = 2;
+  }
+}
