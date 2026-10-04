@@ -119,7 +119,12 @@ footer.foot{border-top:1px solid var(--line);padding:40px 0 52px;font-size:14.5p
 .fig figcaption,.fig caption{font-size:15px;line-height:1.5;color:var(--muted)}
 .fig figcaption{margin-top:14px}
 .chain{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1.5fr) 40px minmax(0,1fr);align-items:stretch}
-.cols{display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr) 40px minmax(0,1fr);align-items:center}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr) 40px minmax(0,1fr);align-items:stretch}
+/* Headings share the top row; each column's cards centre below them, and the
+   arrows sit at that centre, one heading's height lower. */
+.cols>div:not(.arrow){display:flex;flex-direction:column}
+.cols>div>.stack,.cols>div>.card{margin:auto 0}
+.cols>.arrow{margin-top:23px}
 .arrow{display:flex;align-items:center;justify-content:center;color:var(--faint)}
 .arrow::before{content:"";width:22px;height:2px;background:currentColor}
 .arrow::after{content:"";border:6px solid transparent;border-left:8px solid currentColor;margin-left:-1px}
@@ -160,7 +165,7 @@ footer.foot{border-top:1px solid var(--line);padding:40px 0 52px;font-size:14.5p
 .m.none i{border:1.5px dashed var(--faint);color:var(--faint)}
 @media (max-width:760px){
   .chain,.cols{grid-template-columns:minmax(0,1fr)}
-  .chain>.arrow,.cols>.arrow{height:30px;flex-direction:column}
+  .chain>.arrow,.cols>.arrow{height:30px;flex-direction:column;margin-top:0}
   .arrow::before{width:2px;height:14px}
   .arrow::after{border:6px solid transparent;border-top:8px solid currentColor;margin:-1px 0 0}
   .outcomes{grid-template-columns:minmax(0,1fr)}
