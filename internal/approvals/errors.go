@@ -81,6 +81,9 @@ const (
 	ErrNoLock Error = "approvals: this platform has no file lock, so the directory cannot be held"
 	// ErrPermissions is a directory a group or the world may write.
 	ErrPermissions Error = "approvals: the directory is group- or world-writable"
+	// ErrOwner is a directory another account owns: its approvals would be
+	// that account's.
+	ErrOwner Error = "approvals: the directory is not owned by this account"
 	// ErrDirectoryChanged is a directory that is no longer the one a handle
 	// opened: another directory at its name, another owner, or a mode a group
 	// or the world may write. Every call of either handle judges it first.

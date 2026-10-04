@@ -71,8 +71,8 @@ records are files; whoever can write them can answer a held request.
 because an operator reading the evidence months later wants a name, and worth
 exactly what the directory's permissions are worth. Nothing in the plane
 treats it as an identity, and no authenticated provider exists yet. The
-directory is refused at open when a group or the world may write it, and each
-record is written `0600`.
+directory is refused at open when another account owns it or a group or the
+world may write it, and each record is written `0600`.
 
 A writer of that directory chooses nothing else. A record answers about one
 approval id: it carries no trail, no position in one, no envelope and no

@@ -38,7 +38,9 @@ func tmpName() string {
 // create writes body under name, which must not be there: the link fails with
 // EEXIST rather than replacing an entry that exists already. The file is
 // forced to disk before the link and the directory after it, so a name that
-// was reported written survives a power loss.
+// was reported written survives a power loss. A failure after the link
+// unlinks the name again, so an error means nothing was filed; only a failure
+// of that unlink too, which the error carries, leaves the entry in place.
 func (j *Journal) create(name string, body []byte) error {
 	tmp := tmpName()
 	if err := j.writeSynced(tmp, body); err != nil {
@@ -51,7 +53,10 @@ func (j *Journal) create(name string, body []byte) error {
 		}
 		return errors.Join(err, j.root.Remove(tmp))
 	}
-	return errors.Join(j.root.Remove(tmp), j.syncDir())
+	if err := errors.Join(j.root.Remove(tmp), j.syncDir()); err != nil {
+		return errors.Join(err, j.root.Remove(name))
+	}
+	return nil
 }
 
 // replace puts body under name, over whatever is there. The rename is atomic,

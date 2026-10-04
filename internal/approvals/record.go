@@ -237,14 +237,8 @@ func decodeRecord(data []byte, maxBody int, maxWindow time.Duration) (Record, er
 	if err != nil {
 		return Record{}, err
 	}
-	var keys map[string]json.RawMessage
-	if err := json.Unmarshal(body, &keys); err != nil {
-		return Record{}, fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
-	}
-	for key := range keys {
-		if !wireKeys[key] {
-			return Record{}, fmt.Errorf("%w: %q", ErrUnknownField, cause(key))
-		}
+	if err := checkMembers(body); err != nil {
+		return Record{}, err
 	}
 	var w wireRecord
 	if err := json.Unmarshal(body, &w); err != nil {
@@ -281,6 +275,43 @@ func decodeRecord(data []byte, maxBody int, maxWindow time.Duration) (Record, er
 		return Record{}, err
 	}
 	return r, nil
+}
+
+// checkMembers refuses a body that is not one JSON object, and one naming a
+// member this build cannot name or naming one member twice: encoding/json
+// keeps the last of two, so a reader keeping the first would read another
+// record from the same bytes.
+func checkMembers(body []byte) error {
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(body, &keys); err != nil {
+		return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
+	}
+	dec := json.NewDecoder(bytes.NewReader(body))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return fmt.Errorf("%w: the body is not a JSON object", ErrMalformed)
+	}
+	seen := make(map[string]bool, len(wireKeys))
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
+		}
+		key, ok := tok.(string)
+		switch {
+		case !ok:
+			return fmt.Errorf("%w: a member name that is not a string", ErrMalformed)
+		case !wireKeys[key]:
+			return fmt.Errorf("%w: %q", ErrUnknownField, cause(key))
+		case seen[key]:
+			return fmt.Errorf("%w: %q appears twice", ErrMalformed, cause(key))
+		}
+		seen[key] = true
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
+		}
+	}
+	return nil
 }
 
 // unframe returns the body of one framed record.

@@ -26,9 +26,9 @@ type Plane struct {
 
 // OpenPlane opens dir for the plane and takes its exclusive lock. It refuses a
 // directory another plane holds with ErrLocked, a group- or world-writable one
-// with ErrPermissions, and one that is not an approvals store with
-// ErrNotAStore rather than reading it as an empty one. An empty directory
-// becomes a store.
+// with ErrPermissions, one another account owns with ErrOwner, and one that is
+// not an approvals store with ErrNotAStore rather than reading it as an empty
+// one. An empty directory becomes a store.
 //
 // A directory held for an instant is waited for rather than refused: asking
 // whether a plane holds the lock means taking it, so anything that asks holds

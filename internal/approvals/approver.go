@@ -26,10 +26,11 @@ type Approver struct {
 }
 
 // OpenApprover opens dir for an approver. It refuses a group- or
-// world-writable directory with ErrPermissions, a directory that is not an
-// approvals store with ErrNotAStore rather than reading it as an empty one,
-// and a platform with no file lock with ErrNoLock, where it could not tell
-// whether anything would consume an answer.
+// world-writable directory with ErrPermissions, one another account owns with
+// ErrOwner, a directory that is not an approvals store with ErrNotAStore
+// rather than reading it as an empty one, and a platform with no file lock
+// with ErrNoLock, where it could not tell whether anything would consume an
+// answer.
 //
 // It opens whether or not a plane holds the directory: a listing is worth
 // having either way, and Listing.PlaneRunning says which it was.

@@ -164,9 +164,9 @@ read steers it. The others are a hostile or compromised MCP server, a decision
 point that is slow, wrong or hostile, another account on the plane's machine,
 the plane's own account, someone on the network, and a tampered release.</p>
 <h2 id="trust-boundaries">Trust boundaries</h2>
-<figure class="dg-text" id="diagram-1"><figcaption>Trust boundaries</figcaption><p>The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file, the hold journal, the trail file and the key by their owner too, and on the spool&#39;s directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence. <a href="https://github.com/guardana/control/blob/main/docs/concepts/threat-model.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TD
+<figure class="dg-text" id="diagram-1"><figcaption>Trust boundaries</figcaption><p>The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file, the approvals directory, the hold journal, the trail file and the key by their owner too, and on the spool&#39;s directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence. <a href="https://github.com/guardana/control/blob/main/docs/concepts/threat-model.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TD
     accTitle: Trust boundaries
-    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file, the hold journal, the trail file and the key by their owner too, and on the spool&#39;s directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
+    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file, the approvals directory, the hold journal, the trail file and the key by their owner too, and on the spool&#39;s directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
     Agent[&#34;Agent and its model&#34;] --&gt;|&#34;MCP; a run token under runs.dir&#34;| Plane
     Agent -.-&gt;|&#34;a path around the plane&#34;| Http
     subgraph Host[&#34;The plane&#39;s machine&#34;]
@@ -354,9 +354,10 @@ out of the arguments, that is argument content.</li>
 <h2 id="another-local-account">Another local account</h2>
 <p>What the plane does today:</p>
 <ul>
-<li>The approvals directory is refused when the group or the world may write
-it. It is judged again at every call, and a change of owner or of directory
-is refused too; each record is <code>0600</code> (<code>internal/approvals/dirid.go</code>;
+<li>The approvals directory is refused when another account owns it or the
+group or the world may write it. It is judged again at every call, and a
+change of owner or of directory is refused too; each record is <code>0600</code>
+(<code>internal/approvals/dirid.go</code>; <code>TestADirectoryAnotherAccountOwnsIsRefused</code>,
 <code>TestADirectoryOthersMayWriteIsRefused</code>,
 <code>TestADirectoryLoosenedAfterOpenIsRefusedByBothHandles</code>).</li>
 <li>A pause file or its directory owned by another account, or writable by the

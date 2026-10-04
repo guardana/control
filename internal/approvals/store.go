@@ -236,7 +236,9 @@ func (s *store) marker(plane, present, empty bool) error {
 }
 
 // sweep removes the writes no writer linked into place. Only the plane sweeps,
-// and only under its lock, so no live writer's file is taken away from it.
+// under its lock, which keeps another plane's writes out of reach but not an
+// approver's: an approver writing as the plane starts can lose its temporary
+// file, and its Answer then fails without filing anything.
 func (s *store) sweep(temps []string) error {
 	for _, name := range temps {
 		if err := s.root.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {

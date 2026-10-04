@@ -7,6 +7,9 @@ import (
 	"os"
 )
 
+// effectiveUID is the account an approvals directory has to belong to.
+var effectiveUID = os.Geteuid
+
 // The steps a test can act at: the directory judged at open, the plane's
 // lock taken, a call's judge passed, and a name linked before anything reads
 // the directory again.
@@ -69,7 +72,8 @@ func (o dirID) sameDirectory(now dirID) error {
 }
 
 // openRoot opens dir as a root, and judges the directory the root holds: a
-// directory a group or the world may write would make every approval theirs.
+// directory a group or the world may write, or another account owns, would
+// make every approval theirs.
 // Every file this store reads or writes after this is named through the root,
 // so a directory put at dir later is never read or written through it.
 func openRoot(dir string) (*os.Root, dirID, error) {
@@ -89,6 +93,9 @@ func openRoot(dir string) (*os.Root, dirID, error) {
 	id, err := identify(info)
 	if err != nil {
 		return nil, dirID{}, errors.Join(err, root.Close())
+	}
+	if euid := effectiveUID(); euid < 0 || int64(id.uid) != int64(euid) {
+		return nil, dirID{}, errors.Join(fmt.Errorf("%w: owned by uid %d", ErrOwner, id.uid), root.Close())
 	}
 	return root, id, nil
 }

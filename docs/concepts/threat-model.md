@@ -55,7 +55,7 @@ the plane's own account, someone on the network, and a tampered release.
 ```mermaid
 flowchart TD
     accTitle: Trust boundaries
-    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane's machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file, the hold journal, the trail file and the key by their owner too, and on the spool's directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
+    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane's machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file, the approvals directory, the hold journal, the trail file and the key by their owner too, and on the spool's directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
     Agent["Agent and its model"] -->|"MCP; a run token under runs.dir"| Plane
     Agent -.->|"a path around the plane"| Http
     subgraph Host["The plane's machine"]
@@ -251,9 +251,10 @@ What it does not do:
 
 What the plane does today:
 
-- The approvals directory is refused when the group or the world may write
-  it. It is judged again at every call, and a change of owner or of directory
-  is refused too; each record is `0600` (`internal/approvals/dirid.go`;
+- The approvals directory is refused when another account owns it or the
+  group or the world may write it. It is judged again at every call, and a
+  change of owner or of directory is refused too; each record is `0600`
+  (`internal/approvals/dirid.go`; `TestADirectoryAnotherAccountOwnsIsRefused`,
   `TestADirectoryOthersMayWriteIsRefused`,
   `TestADirectoryLoosenedAfterOpenIsRefusedByBothHandles`).
 - A pause file or its directory owned by another account, or writable by the

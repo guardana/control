@@ -62,6 +62,10 @@ verify one.
   credential into the collector's log through a malformed line.
 - `guardana-gateway doctor` names a command upstream's program and how many
   arguments it takes, never the arguments, which can carry a credential.
+- The approvals store refuses a directory another account owns, as every
+  other store already did, and a record that repeats a member. A record, a
+  hold journal entry or a file whose filing failed after it was linked is
+  unlinked again, so an error means it was not filed.
 ## [0.6.0-alpha] - 2026-10-03
 
 A plane now takes its policy as current only on a signed freshness

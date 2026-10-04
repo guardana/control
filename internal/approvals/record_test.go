@@ -157,6 +157,14 @@ func TestEveryWayARecordCanLieIsItsOwnRefusal(t *testing.T) {
 		{"an empty body", func(t testing.TB, _ []byte) []byte { return reframe(t, nil) }, approvals.ErrMalformed},
 		{"a body that is not an object", func(t testing.TB, _ []byte) []byte { return reframe(t, []byte("[1,2,3]")) }, approvals.ErrMalformed},
 		{"an unknown field", func(t testing.TB, f []byte) []byte { return withField(t, f, "approved_by", `"someone"`) }, approvals.ErrUnknownField},
+		// encoding/json keeps the last of two members of one name, so a
+		// second one would make the record read two ways.
+		{"a field given twice, the first saying another approval", func(t testing.TB, f []byte) []byte {
+			return reframe(t, replaceInBody(t, f, `{"schema_version"`, `{"approval_id":"APPROVAL9","schema_version"`))
+		}, approvals.ErrMalformed},
+		{"a field given twice with one value", func(t testing.TB, f []byte) []byte {
+			return reframe(t, replaceInBody(t, f, `{"schema_version"`, `{"request_id":"req-1","schema_version"`))
+		}, approvals.ErrMalformed},
 		{"a wrong-typed field", func(t testing.TB, f []byte) []byte { return withField(t, f, "request_id", `7`) }, approvals.ErrFieldType},
 		{"a schema version from a later major", func(t testing.TB, f []byte) []byte {
 			return withField(t, f, "schema_version", `"2.0"`)

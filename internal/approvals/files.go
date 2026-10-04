@@ -21,7 +21,9 @@ const errExists Error = "approvals: the name exists already"
 // writer got there first, and nothing in the request path waits on another
 // process's lock. The temporary file is removed either way, and the directory
 // is forced to disk after a successful link, so a name that was reported
-// written survives a power loss.
+// written survives a power loss. A failure after the link unlinks the name
+// again, so an error means the name was not filed; only a failure of that
+// unlink too, which the error carries, leaves it in place.
 func (s *store) commit(name string, body []byte) error {
 	tmp := tmpPrefix + rand.Text() + tmpSuffix
 	f, err := s.root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
@@ -40,7 +42,10 @@ func (s *store) commit(name string, body []byte) error {
 		return errors.Join(err, s.root.Remove(tmp))
 	}
 	s.step(stepLinked)
-	return errors.Join(s.root.Remove(tmp), s.syncDir())
+	if err := errors.Join(s.root.Remove(tmp), s.syncDir()); err != nil {
+		return errors.Join(err, s.root.Remove(name))
+	}
+	return nil
 }
 
 // syncDir forces a directory entry to disk, so a name that was linked before a
