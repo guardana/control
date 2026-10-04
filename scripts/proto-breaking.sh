@@ -6,9 +6,11 @@
 # Kept out of `make quality`: a tree with no git history, an export for
 # instance, has nothing to compare against. Then this prints UNKNOWN and exits
 # 3, never a pass it did not earn; so does a tree that sits inside some other
-# repository, or a history with no release tag. scripts/gate-commit.sh makes the
-# same comparison for each commit it gates, from that commit's history.
+# repository, or a history with no release tag. The rules are the tag's own
+# buf.yaml, so the tree being checked cannot relax them. scripts/gate-commit.sh
+# makes the same comparison for each commit it gates, from that commit's history.
 set -euo pipefail
+export GIT_NO_REPLACE_OBJECTS=1
 
 _BREAKING_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # shellcheck source=lib/repo-files.sh
@@ -33,6 +35,8 @@ tag="$(git describe --tags --abbrev=0 --match 'v*' 'HEAD^' 2>/dev/null)" || unkn
 [[ "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || unknown "the latest tag is not a version: ${tag}"
 gitdir="$(git rev-parse --path-format=absolute --git-common-dir)"
 
-printf 'proto-breaking: comparing api/proto with %s\n' "${tag}"
-buf breaking --against "${gitdir}#tag=${tag}"
+rules="$(git show "refs/tags/${tag}:buf.yaml")" && [[ -n "${rules}" ]] || unknown "${tag} holds no buf.yaml to take the breaking rules from"
+
+printf 'proto-breaking: comparing api/proto with %s under its buf.yaml\n' "${tag}"
+buf breaking --config "${rules}" --against "${gitdir}#tag=${tag}"
 printf 'proto-breaking: no breaking change against %s\n' "${tag}"

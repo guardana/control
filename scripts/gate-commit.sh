@@ -11,15 +11,19 @@
 # export-ignore or export-subst attribute changes what `git archive` writes.
 # The gate's file scans then read the commit's own file list (REPO_FILES_LIST
 # in scripts/lib/repo-files.sh), not a find over the export. It compares the
-# commit's api/proto with the latest v* tag before the commit, as CI's
-# proto-breaking job does for a push; a break, or no tag to compare with, means
-# no stamp. make runs in an emptied environment that keeps only the locations
-# and the network settings listed below, with GO=go, GOFLAGS empty, GOENV=off
-# and no MAKEFLAGS, so nothing in the caller's environment or go env can narrow
-# or replace what the gate runs.
+# commit's api/proto with the latest v* tag before the commit under the tag's
+# own buf.yaml, as CI's proto-breaking job does for a push, so the commit cannot
+# choose the rules it is judged by; a break, or no tag to compare with, means no
+# stamp. Replace refs are ignored: push sends the commit's own objects, so the
+# gate reads those. make runs in an emptied environment that keeps only the
+# locations and the network settings listed below, with GO=go, GOFLAGS empty,
+# GOENV=off and no MAKEFLAGS, so the caller's environment and go env cannot
+# narrow what the gate runs. PATH is kept and trusted: it picks git, buf, make,
+# go and the tools make calls.
 #
 #   scripts/gate-commit.sh [<commit>]    # HEAD by default
 set -euo pipefail
+export GIT_NO_REPLACE_OBJECTS=1
 
 die() {
   printf 'gate-commit: %s\n' "$*" >&2
@@ -27,6 +31,9 @@ die() {
 }
 
 [[ $# -le 1 ]] || die "name at most one commit"
+# git archive run in a subdirectory holds only that subdirectory.
+top="$(git rev-parse --show-toplevel)" || die "not inside a work tree"
+cd "${top}"
 sha="$(git rev-parse --verify --quiet "${1:-HEAD}^{commit}")" || die "${1:-HEAD} names no commit"
 gitdir="$(git rev-parse --path-format=absolute --git-common-dir)"
 stamps="${gitdir}/gate-green"
@@ -50,7 +57,7 @@ for v in HOME PATH TMPDIR USER LOGNAME LANG TERM \
     clean+=("${v}=${!v}")
   fi
 done
-clean+=(GOENV=off GOFLAGS= "REPO_FILES_LIST=${work}/files" "REPO_FILES_LIST_ROOT=${tree}")
+clean+=(GIT_NO_REPLACE_OBJECTS=1 GOENV=off GOFLAGS= "REPO_FILES_LIST=${work}/files" "REPO_FILES_LIST_ROOT=${tree}")
 
 # The commit as git holds it, one "<mode> <object> <path>" line per entry, and
 # its NUL-delimited file list for repo_files.
@@ -86,8 +93,9 @@ while IFS= read -r -d '' path; do
   fi
 done <"${work}/extracted"
 cut -d ' ' -f 2- "${work}/blobs" >"${work}/blob-paths"
-(cd "${tree}" && git --git-dir="${gitdir}" hash-object --no-filters --stdin-paths) \
-  <"${work}/blob-paths" >"${work}/blob-objects"
+# Each path goes in as ./path: --stdin-paths C-unquotes a line that starts with ".
+sed 's|^|./|' "${work}/blob-paths" |
+  (cd "${tree}" && git --git-dir="${gitdir}" hash-object --no-filters --stdin-paths) >"${work}/blob-objects"
 [[ "$(wc -l <"${work}/blob-objects")" == "$(wc -l <"${work}/blobs")" ]] ||
   die "hashing the archive of ${sha} did not return one object per file"
 paste -d ' ' <(cut -d ' ' -f 1 "${work}/blobs") "${work}/blob-objects" "${work}/blob-paths" >>"${work}/got"
@@ -130,9 +138,11 @@ tag="$(git describe --tags --abbrev=0 --match 'v*' "${sha}^" 2>/dev/null)" ||
   die "UNKNOWN wire compatibility: the latest tag is not a version: ${tag}; nothing stamped"
 command -v buf >/dev/null 2>&1 ||
   die "UNKNOWN wire compatibility: buf is not on PATH; nothing compared, nothing stamped"
-printf 'gate-commit: %s: buf breaking of api/proto against %s\n' "${sha}" "${tag}" | tee -a "${log}"
+rules="$(git show "refs/tags/${tag}:buf.yaml")" && [[ -n "${rules}" ]] ||
+  die "UNKNOWN wire compatibility: ${tag} holds no buf.yaml to take the breaking rules from; nothing stamped"
+printf 'gate-commit: %s: buf breaking of api/proto against %s under its buf.yaml\n' "${sha}" "${tag}" | tee -a "${log}"
 rc=0
-(cd "${tree}" && "${clean[@]}" buf breaking --against "${gitdir}#tag=${tag}") >>"${log}" 2>&1 || rc=$?
+(cd "${tree}" && "${clean[@]}" buf breaking --config "${rules}" --against "${gitdir}#tag=${tag}") >>"${log}" 2>&1 || rc=$?
 if [[ ${rc} -ne 0 ]]; then
   tail -n 20 "${log}" >&2
   die "${sha} breaks, or could not be compared with, the wire contract of ${tag} (buf exit ${rc}); nothing stamped"

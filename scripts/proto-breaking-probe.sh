@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # shellcheck source-path=SCRIPTDIR
-# The negative control of buf.yaml's breaking rules. buf.yaml's breaking
-# section has to be exactly `use: [FILE]` and `ignore: [the observation
-# package]`, with no other rule, exception or per-module override. Then, in
+# The negative control of buf.yaml's breaking rules. buf.yaml, its comment
+# lines and blank lines aside, has to be exactly the text pinned below: one
+# module, the breaking rules `use: [FILE]` and `ignore: [the observation
+# package]`, no other rule, exception or per-module override in any YAML
+# spelling. The rules buf itself reads for the module have to be the pinned
+# list of the FILE category, so a spelling the text check missed still fails
+# and a buf upgrade that changes the category is noticed. Then, in
 # scratch copies of buf.yaml and api/proto, one field of every file of the
 # frozen v1 package is renumbered, one file per copy, and buf breaking against
 # the unchanged copy has to fail naming that field; a copy that does not
@@ -30,22 +34,54 @@ v1=guardana/control/v1
 observe=guardana/control/observe/v1alpha1
 moved=4000
 
-want_breaking="breaking:
+want_config="version: v2
+modules:
+  - path: api/proto
+lint:
+  use:
+    - STANDARD
+breaking:
   use:
     - FILE
   ignore:
     - api/proto/${observe}"
-# Comments and blank lines dropped, so only what buf reads is compared.
-config="$(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' buf.yaml)"
-[[ "$(grep -c '^breaking:' <<<"${config}")" == 1 ]] ||
-  die "buf.yaml must hold exactly one top-level breaking section"
-if grep -qE '^[[:space:]-]+breaking:' <<<"${config}"; then
-  die "buf.yaml holds a nested breaking section, which overrides the top-level one for a module"
+# Only whole comment lines are dropped: with every other line pinned, none of
+# them can sit inside a scalar, and a trailing comment fails the comparison.
+got_config="$(sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' buf.yaml)"
+if [[ "${got_config}" != "${want_config}" ]]; then
+  diff <(printf '%s\n' "${want_config}") <(printf '%s\n' "${got_config}") >&2 || true
+  die "buf.yaml is not exactly the pinned module with the FILE rule and the observation package ignored (< pinned, > buf.yaml)"
 fi
-got_breaking="$(awk '/^breaking:/ { on = 1; print; next } on && /^[^ ]/ { on = 0 } on' <<<"${config}")"
-if [[ "${got_breaking}" != "${want_breaking}" ]]; then
-  printf '%s\n' "${got_breaking}" >&2
-  die "buf.yaml's breaking section is not exactly the FILE rule with the observation package ignored"
+
+want_rules="ENUM_NO_DELETE ENUM_SAME_JSON_FORMAT ENUM_SAME_TYPE ENUM_VALUE_NO_DELETE
+ENUM_VALUE_SAME_NAME EXTENSION_MESSAGE_NO_DELETE EXTENSION_NO_DELETE
+FIELD_NO_DELETE FIELD_SAME_CARDINALITY FIELD_SAME_CPP_STRING_TYPE
+FIELD_SAME_DEFAULT FIELD_SAME_JAVA_UTF8_VALIDATION FIELD_SAME_JSON_NAME
+FIELD_SAME_JSTYPE FIELD_SAME_NAME FIELD_SAME_ONEOF FIELD_SAME_TYPE
+FIELD_SAME_UTF8_VALIDATION FILE_NO_DELETE FILE_SAME_CC_ENABLE_ARENAS
+FILE_SAME_CC_GENERIC_SERVICES FILE_SAME_CSHARP_NAMESPACE
+FILE_SAME_GO_PACKAGE FILE_SAME_JAVA_GENERIC_SERVICES
+FILE_SAME_JAVA_MULTIPLE_FILES FILE_SAME_JAVA_OUTER_CLASSNAME
+FILE_SAME_JAVA_PACKAGE FILE_SAME_OBJC_CLASS_PREFIX FILE_SAME_OPTIMIZE_FOR
+FILE_SAME_PACKAGE FILE_SAME_PHP_CLASS_PREFIX
+FILE_SAME_PHP_METADATA_NAMESPACE FILE_SAME_PHP_NAMESPACE
+FILE_SAME_PY_GENERIC_SERVICES FILE_SAME_RUBY_PACKAGE
+FILE_SAME_SWIFT_PREFIX FILE_SAME_SYNTAX MESSAGE_NO_DELETE
+MESSAGE_NO_REMOVE_STANDARD_DESCRIPTOR_ACCESSOR MESSAGE_SAME_JSON_FORMAT
+MESSAGE_SAME_REQUIRED_FIELDS ONEOF_NO_DELETE RESERVED_ENUM_NO_DELETE
+RESERVED_MESSAGE_NO_DELETE RPC_NO_DELETE RPC_SAME_CLIENT_STREAMING
+RPC_SAME_IDEMPOTENCY_LEVEL RPC_SAME_REQUEST_TYPE RPC_SAME_RESPONSE_TYPE
+RPC_SAME_SERVER_STREAMING SERVICE_NO_DELETE"
+if ! listed="$(buf config ls-breaking-rules --configured-only --module-path api/proto --format json 2>&1)"; then
+  printf '%s\n' "${listed}" >&2
+  die "buf could not list the breaking rules configured for api/proto; nothing was judged"
+fi
+got_rules="$(sed -n 's/^{"id":"\([A-Z0-9_]*\)",.*/\1/p' <<<"${listed}" | LC_ALL=C sort)"
+[[ "$(grep -c . <<<"${listed}")" == "$(grep -c . <<<"${got_rules}")" ]] ||
+  die "buf listed a breaking rule this script cannot read; nothing was judged"
+if [[ "${got_rules}" != "$(tr -s ' \n' '\n' <<<"${want_rules}" | LC_ALL=C sort)" ]]; then
+  diff <(tr -s ' \n' '\n' <<<"${want_rules}" | LC_ALL=C sort) <(printf '%s\n' "${got_rules}") >&2 || true
+  die "the breaking rules buf reads for api/proto are not the pinned FILE rules (< pinned, > configured)"
 fi
 
 work="$(mktemp -d)"
