@@ -1,10 +1,7 @@
 package trailfile
 
 import (
-	"bufio"
 	"bytes"
-	"crypto/sha256"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +9,7 @@ import (
 
 	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/internal/lineexport"
 )
 
 const (
@@ -85,11 +83,10 @@ type Trailer struct {
 // Gap reasons, as the gap record spells them.
 const (
 	gapMalformed   = "malformed"
-	gapTooLong     = "too_long"
 	gapVersion     = "unsupported_version"
 	gapConflict    = "conflicting_event_id"
-	gapPartialTail = "partial_tail"
 	gapCR          = "carriage_return"
+	gapPartialTail = lineexport.GapPartialTail
 )
 
 // Export writes the whole lines of src after q.After as the evidence export,
@@ -108,72 +105,30 @@ const (
 // A refused query or cursor writes nothing. An error after the header leaves
 // the output without its trailer, which is how a reader knows it was cut.
 func Export(src Source, q Query, w io.Writer) (Trailer, error) {
-	x, start, end, err := newExporter(src, q, w)
-	if err != nil {
-		return Trailer{}, err
-	}
-	if err := x.header(src.Name); err != nil {
-		return Trailer{}, err
-	}
-	if err := x.scan(src.R, start, end); err != nil {
-		return Trailer{}, err
-	}
-	if err := x.tail(end); err != nil {
-		return Trailer{}, err
-	}
-	if err := x.trailer(); err != nil {
-		return Trailer{}, err
-	}
-	return x.tr, nil
-}
-
-// newExporter checks the query and the cursor against src and asks about a
-// writer, all before a byte is written, and returns where the scan starts
-// and ends: after the cursor's line, and at the last newline.
-func newExporter(src Source, q Query, w io.Writer) (*exporter, int64, int64, error) {
 	f, err := q.filter()
 	if err != nil {
-		return nil, 0, 0, err
+		return Trailer{}, err
 	}
 	if src.Size < 0 {
-		return nil, 0, 0, fmt.Errorf("%w: size %d", ErrLimit, src.Size)
+		return Trailer{}, fmt.Errorf("%w: size %d", ErrLimit, src.Size)
 	}
-	end, err := lastNewline(src.R, src.Size)
+	tr, err := lineexport.Export(exportFormat(), lineexport.Source{Name: src.Name, R: src.R, Size: src.Size, Held: src.Held},
+		lineexport.Query{After: q.After, Limit: q.Limit, MaxBytes: q.MaxBytes, Echo: q.echo()}, f.judge, w)
 	if err != nil {
-		return nil, 0, 0, err
+		return Trailer{}, err
 	}
-	first, identified, err := firstLineDigest(src.R, end)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	start, err := resume(src.R, end, first, identified, q.After)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	x := &exporter{q: q, f: f, first: first, identified: identified, out: bufio.NewWriter(w), seen: map[string]seenAt{}}
-	x.tr.NextCursor, x.tr.TailBytes = q.After, src.Size-end
-	if x.tr.TailBytes > 0 && src.Held != nil {
-		if x.tr.WriterHeld, err = src.Held(); err != nil {
-			return nil, 0, 0, fmt.Errorf("asking whether a writer holds the file: %w", err)
-		}
-	}
-	return x, start, end, nil
+	return Trailer{NextCursor: tr.NextCursor, EndReached: tr.EndReached, TailBytes: tr.TailBytes, WriterHeld: tr.WriterHeld,
+		Events: tr.Counts["event"], Gaps: tr.Counts[lineexport.Gap], Duplicates: tr.Counts[lineexport.Duplicate],
+		ScannedBytes: tr.ScannedBytes}, nil
 }
 
-// resume is the offset an export after the cursor after starts at, 0 with no
-// cursor.
-func resume(r io.ReaderAt, end int64, first digest, identified bool, after string) (int64, error) {
-	if after == "" {
-		return 0, nil
-	}
-	c, err := parseCursor(after)
-	if err != nil {
-		return 0, err
-	}
-	if err := c.check(r, end, first, identified); err != nil {
-		return 0, err
-	}
-	return c.offset, nil
+// exportFormat is the evidence export as the line export writes it.
+func exportFormat() lineexport.Format {
+	return lineexport.Format{Name: ExportFormat, Version: ExportVersion, Lines: []string{"event"}, IDMember: "event_id",
+		Conflict: gapConflict, MaxLineBytes: evidence.MaxLineBytes, Refusals: lineexport.Refusals{
+			CursorMalformed: ErrCursorMalformed, CursorOtherFile: ErrCursorOtherFile, CursorPastEnd: ErrCursorPastEnd,
+			CursorOffLine: ErrCursorOffLine, CursorChanged: ErrCursorChanged, ShortRead: ErrShortRead, ByteBound: ErrByteBound,
+		}}
 }
 
 // ExportFile exports the file at path as Export does, reading the length it
@@ -196,151 +151,22 @@ func ExportFile(path string, q Query, w io.Writer) (Trailer, error) {
 	return Export(Source{Name: path, R: f, Size: info.Size(), Held: func() (bool, error) { return heldByWriter(f) }}, q, w)
 }
 
-// seenAt is where an event id this export read was first seen, written or
-// passed by, and the digest of that line. One is kept per distinct id among
-// the lines scanned: the byte bound limits them when the query gives one, and
-// otherwise only the file's length does, since a line the filters pass by
-// counts against no record limit.
-type seenAt struct {
-	offset int64
-	line   digest
-}
-
-type exporter struct {
-	q          Query
-	f          filter
-	first      digest
-	identified bool
-	out        *bufio.Writer
-	seen       map[string]seenAt
-	tr         Trailer
-}
-
-func (x *exporter) records() int { return x.tr.Events + x.tr.Gaps + x.tr.Duplicates }
-
-// scan reads the whole lines in [start, end). A line is consumed, and the
-// next cursor moves past it, only once its record is written or the filters
-// passed it by; the limit and the byte bound stop before a line, never in it.
-func (x *exporter) scan(r io.ReaderAt, start, end int64) error {
-	lines := bufio.NewReaderSize(io.NewSectionReader(r, start, end-start), evidence.MaxLineBytes+1)
-	for offset := start; offset < end; {
-		line, length, sum, err := readLine(lines)
-		if err != nil {
-			return err
-		}
-		if x.q.MaxBytes > 0 && x.tr.ScannedBytes+length > x.q.MaxBytes {
-			if x.tr.ScannedBytes == 0 {
-				return fmt.Errorf("%w: the line at offset %d is %d bytes, the bound %d", ErrByteBound, offset, length, x.q.MaxBytes)
-			}
-			return nil
-		}
-		next := cursor{first: x.first, offset: offset + length, line: sum}.String()
-		kind, reason, id := x.judge(line, sum)
-		if kind != "" && x.records() == x.q.Limit {
-			return nil
-		}
-		if err := x.record(kind, reason, id, offset, next, line, sum); err != nil {
-			return err
-		}
-		x.tr.ScannedBytes += length
-		x.tr.NextCursor = next
-		offset += length
-	}
-	x.tr.EndReached = true
-	return nil
-}
-
-// record writes the record judge chose for the line at offset, none for a
-// line the filters passed by.
-func (x *exporter) record(kind, reason, id string, offset int64, next string, line []byte, sum digest) error {
-	if _, ok := x.seen[id]; !ok && id != "" && (kind == "event" || kind == "") {
-		x.seen[id] = seenAt{offset: offset, line: sum}
-	}
-	switch kind {
-	case "event":
-		return x.event(offset, next, eventBytes(line))
-	case "gap":
-		return x.gap(offset, next, reason)
-	case "duplicate":
-		return x.duplicate(offset, id)
-	}
-	return nil
-}
-
-// tail reports the bytes after the last newline as a gap, once every whole
-// line is read, when no writer holds the file. The gap takes a record, and an
-// export with no room left for it has not reached the end.
-func (x *exporter) tail(end int64) error {
-	switch {
-	case !x.tr.EndReached || x.tr.TailBytes == 0 || x.tr.WriterHeld:
-		return nil
-	case x.records() == x.q.Limit:
-		x.tr.EndReached = false
-		return nil
-	}
-	return x.gap(end, "", gapPartialTail)
-}
-
-// judge says what record a line is: an event, a gap and why, a duplicate of
-// an event id, or none when the filters pass the event by. A line nil is one
-// too long to hold. An event id is checked against the lines read before the
-// filters, so a conflict is a gap whatever they pass.
-func (x *exporter) judge(line []byte, sum digest) (kind, reason, id string) {
-	if line == nil {
-		return "gap", gapTooLong, ""
-	}
-	events, err := evidence.DecodeJSONL(bytes.NewReader(line), 1)
+// judge says what record a line is: an event, a gap and why, or an event the
+// filters pass by. The line export finds conflicts and duplicates by the
+// event id, two lines the same only when every byte is.
+func (f filter) judge(l lineexport.Line) lineexport.Verdict {
+	events, err := evidence.DecodeJSONL(bytes.NewReader(l.Bytes), 1)
 	if err != nil {
-		return "gap", gapMalformed, ""
+		return lineexport.Verdict{Type: lineexport.Gap, Reason: gapMalformed}
 	}
 	ev := events[0]
 	if evidence.CheckEventVersion(ev) != nil {
-		return "gap", gapVersion, ""
+		return lineexport.Verdict{Type: lineexport.Gap, Reason: gapVersion}
 	}
-	if bytes.IndexByte(eventBytes(line), '\r') >= 0 {
-		return "gap", gapCR, ""
-	}
-	id = ev.GetEventId()
-	if first, ok := x.seen[id]; ok && first.line != sum {
-		return "gap", gapConflict, ""
+	if bytes.IndexByte(l.Body(), '\r') >= 0 {
+		return lineexport.Verdict{Type: lineexport.Gap, Reason: gapCR}
 	}
 	// A line repeating one exactly matches the filters as that one did, so a
 	// duplicate is written only of an event this export wrote.
-	if !x.f.match(ev) {
-		return "", "", id
-	}
-	if _, ok := x.seen[id]; ok {
-		return "duplicate", "", id
-	}
-	return "event", "", id
-}
-
-// eventBytes is a line as an event record carries it: without its newline
-// and one carriage return before it, both whitespace and no part of the value.
-func eventBytes(line []byte) []byte {
-	return bytes.TrimSuffix(line[:len(line)-1], []byte{'\r'})
-}
-
-// readLine reads one line and its newline, and its digest. A line longer than
-// the codec's bound is read through to its newline and returned nil.
-func readLine(r *bufio.Reader) ([]byte, int64, digest, error) {
-	h := sha256.New()
-	var length int64
-	for {
-		chunk, err := r.ReadSlice('\n')
-		h.Write(chunk)
-		length += int64(len(chunk))
-		switch {
-		case errors.Is(err, bufio.ErrBufferFull):
-			continue
-		case err != nil:
-			return nil, 0, digest{}, fmt.Errorf("%w: no newline where the last one was: %w", ErrShortRead, err)
-		}
-		var sum digest
-		h.Sum(sum[:0])
-		if length > int64(len(chunk)) {
-			return nil, length, sum, nil
-		}
-		return chunk, length, sum, nil
-	}
+	return lineexport.Verdict{Type: "event", Pass: !f.match(ev), ID: ev.GetEventId(), Content: l.Sum}
 }

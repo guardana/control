@@ -2,7 +2,7 @@
 title: Wire contracts
 summary: What the v1 messages are versioned by, what a receiver refuses them for, and how the evidence events chain.
 type: spec
-covers: [api/proto/guardana/control/v1/**, api/gen/go/guardana/control/v1/**, pkg/contract/**, internal/canon/**, internal/evidence/chain.go, internal/evidence/version.go, internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, internal/runs/record.go, internal/runs/state.go, testdata/contracts/**, testdata/digest/**, testdata/export/**]
+covers: [api/proto/guardana/control/v1/**, api/gen/go/guardana/control/v1/**, pkg/contract/**, internal/canon/**, internal/evidence/chain.go, internal/evidence/version.go, internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, internal/lineexport/**, internal/runs/record.go, internal/runs/state.go, testdata/contracts/**, testdata/digest/**, testdata/export/**]
 stability: stable
 ---
 
@@ -1060,8 +1060,9 @@ rather than let protojson drop it silently.
 
 How a program reads a trail file without the terminal or `internal/`:
 `guardana-gateway trail export <file>` writes it to standard output as JSON
-Lines, `experimental`, in `internal/trailfile/export.go`, `export_records.go` and
-`cursor.go`. [ADR-0035](adr/0035-a-versioned-evidence-export-and-a-bounded-query.md)
+Lines, `experimental`. `internal/trailfile/export.go`, `export_records.go` and
+`cursor.go` name the format and its refusals; `internal/lineexport/` reads the
+file, checks the cursor and writes the records. [ADR-0035](adr/0035-a-versioned-evidence-export-and-a-bounded-query.md)
 records why. The goldens in [testdata/export/](../testdata/export/) are pairs of
 a trail file, `<name>.trail`, and its export, `<name>.jsonl`.
 

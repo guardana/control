@@ -3,6 +3,7 @@ package trailfile
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,8 +12,8 @@ import (
 	"github.com/guardana/control/internal/evidence"
 )
 
-// FuzzExportCursor: a cursor parses only in its one spelling, and one an
-// export accepts names the end of a line of the file. The empty string is no
+// FuzzExportCursor: a cursor an export accepts names the end of a line of the
+// file, and one it refuses is refused as a cursor. The empty string is no
 // cursor, and starts at the first byte.
 func FuzzExportCursor(f *testing.F) {
 	body := file(lineE1, lineE2, lineE3)
@@ -23,23 +24,26 @@ func FuzzExportCursor(f *testing.F) {
 	f.Add("v1::1:")
 	f.Add("v1:" + strings.Repeat("0", 64) + ":01:" + strings.Repeat("f", 64))
 	f.Fuzz(func(t *testing.T, s string) {
-		c, err := parseCursor(s)
-		if err == nil && c.String() != s {
-			t.Fatalf("%q parses and spells %q", s, c.String())
-		}
 		if s == "" {
 			return
 		}
 		q := query()
 		q.After = s
-		if _, err := Export(source(body, false), q, &bytes.Buffer{}); err == nil {
-			for n := 1; n <= 3; n++ {
-				if s == cursorAfter(body, n) {
+		_, err := Export(source(body, false), q, &bytes.Buffer{})
+		if err != nil {
+			for _, refusal := range []error{ErrCursorMalformed, ErrCursorOtherFile, ErrCursorPastEnd, ErrCursorOffLine, ErrCursorChanged} {
+				if errors.Is(err, refusal) {
 					return
 				}
 			}
-			t.Fatalf("%q was accepted and names no line's end", s)
+			t.Fatalf("%q: Export = %v, want a cursor refusal", s, err)
 		}
+		for n := 1; n <= 3; n++ {
+			if s == cursorAfter(body, n) {
+				return
+			}
+		}
+		t.Fatalf("%q was accepted and names no line's end", s)
 	})
 }
 

@@ -1252,8 +1252,9 @@ rather than let protojson drop it silently.</p>
 <h2 id="the-evidence-export">The evidence export</h2>
 <p>How a program reads a trail file without the terminal or <code>internal/</code>:
 <code>guardana-gateway trail export &lt;file&gt;</code> writes it to standard output as JSON
-Lines, <code>experimental</code>, in <code>internal/trailfile/export.go</code>, <code>export_records.go</code> and
-<code>cursor.go</code>. <a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>
+Lines, <code>experimental</code>. <code>internal/trailfile/export.go</code>, <code>export_records.go</code> and
+<code>cursor.go</code> name the format and its refusals; <code>internal/lineexport/</code> reads the
+file, checks the cursor and writes the records. <a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>
 records why. The goldens in <a href="https://github.com/guardana/control/tree/main/testdata/export">testdata/export/</a> are pairs of
 a trail file, <code>&lt;name&gt;.trail</code>, and its export, <code>&lt;name&gt;.jsonl</code>.</p>
 <h3 id="format-and-version">Format and version</h3>
