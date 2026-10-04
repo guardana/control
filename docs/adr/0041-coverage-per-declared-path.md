@@ -6,7 +6,9 @@ Date: 2026-10-04
 Builds on [ADR-0039](0039-many-channels-into-one-core.md), which says coverage
 is stated per declared path and never as a percentage, and on
 [ADR-0040](0040-observations-a-record-a-log-and-one-importer.md), whose source
-descriptors and import reports it reads.
+descriptors and import reports it reads. Once accepted it amends ADR-0039,
+which says the plane reports coverage: a command reports it, and no plane
+reads what it prints.
 
 ## Context
 
@@ -22,7 +24,9 @@ logs, and an inventory the operator writes.
 **An inventory of declared paths.** A strict JSON document the operator writes:
 `schema_version` `0.1`, and a list of paths, each a `kind` (`mcp_tool`,
 `http_api`, `process`, `egress`) and the names that identify it (an MCP tool
-by upstream and tool name; an egress destination by host). It is a statement
+by upstream and tool name, and by the sources that would see it with the
+tool name and `server_address` an observation of it carries; an egress
+destination by host). It is a statement
 of what the operator expects agents to do, read as an operator's document is:
 an unknown member is refused.
 
@@ -36,16 +40,18 @@ descriptor and the import reports in its log. It contacts no plane.
 
 | State | When |
 | --- | --- |
-| enforced | a plane in `ENFORCE`, `APPROVE` or `LOCKDOWN` classifies the path |
+| enforced | a plane in `ENFORCE`, `APPROVE` or `LOCKDOWN` classifies the path, and for a read `policy.fail_open_read` is off |
 | decided, not enforced | only a plane in `OBSERVE` classifies it |
 | observed, with the trust | a source live within its heartbeat has observations of it; the weakest trust among those sources is printed (`self_reported`, `platform`, `independent`) |
-| unknown | a source that would see the path is past its heartbeat, or has no import report |
+| unknown | a source the inventory names for the path has its descriptor present and is past its heartbeat, or has no import report |
 | not covered | nothing above |
 
 A standing last row says that undeclared paths are unknown. A path a plane
-enforces and a source also observes shows both, the enforcement first. A
-removed descriptor, or a log the command cannot read, turns that source's
-paths not covered or unknown, never observed. "Inferred" (ADR-0039) has no
+enforces and a source also observes shows both, the enforcement first; an
+observation of that path with no plane event joined to it is shown beside it
+as a call around the plane, since a configuration is not proof every call
+passed the plane. A removed descriptor turns its paths not covered, never
+observed; a log the command cannot read exits 2. "Inferred" (ADR-0039) has no
 source yet and is not printed until one exists.
 
 **Liveness** is ADR-0040's: a source was last heard at its newest event time
@@ -80,7 +86,10 @@ document an operator keeps; the map is as complete as it is.
 
 ## Validation
 
-- A plane in `OBSERVE` never shows a path enforced.
+- A plane in `OBSERVE` never shows a path enforced, and one with
+  `policy.fail_open_read` on never shows a read enforced.
+- An observation of an enforced path with no plane event joined to it shows
+  beside the path as a call around the plane.
 - A path only a self-reported source saw says `observed, self_reported`.
 - A source past its heartbeat turns its paths unknown; a removed descriptor
   turns them not covered.

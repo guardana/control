@@ -102,7 +102,9 @@ Date: 2026-10-04</p>
 <p>Builds on <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, which says coverage
 is stated per declared path and never as a percentage, and on
 <a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a>, whose source
-descriptors and import reports it reads.</p>
+descriptors and import reports it reads. Once accepted it amends ADR-0039,
+which says the plane reports coverage: a command reports it, and no plane
+reads what it prints.</p>
 <h2 id="context">Context</h2>
 <p>An operator needs to know, for each thing an agent can do, whether a plane
 decides it, decides it without enforcing, only sees it afterwards, or nothing
@@ -114,7 +116,9 @@ logs, and an inventory the operator writes.</p>
 <p><strong>An inventory of declared paths.</strong> A strict JSON document the operator writes:
 <code>schema_version</code> <code>0.1</code>, and a list of paths, each a <code>kind</code> (<code>mcp_tool</code>,
 <code>http_api</code>, <code>process</code>, <code>egress</code>) and the names that identify it (an MCP tool
-by upstream and tool name; an egress destination by host). It is a statement
+by upstream and tool name, and by the sources that would see it with the
+tool name and <code>server_address</code> an observation of it carries; an egress
+destination by host). It is a statement
 of what the operator expects agents to do, read as an operator's document is:
 an unknown member is refused.</p>
 <p><strong>Inputs, each read as it is, none trusted beyond its owner.</strong>
@@ -132,7 +136,7 @@ descriptor and the import reports in its log. It contacts no plane.</p>
 <tbody>
 <tr>
 <td>enforced</td>
-<td>a plane in <code>ENFORCE</code>, <code>APPROVE</code> or <code>LOCKDOWN</code> classifies the path</td>
+<td>a plane in <code>ENFORCE</code>, <code>APPROVE</code> or <code>LOCKDOWN</code> classifies the path, and for a read <code>policy.fail_open_read</code> is off</td>
 </tr>
 <tr>
 <td>decided, not enforced</td>
@@ -144,7 +148,7 @@ descriptor and the import reports in its log. It contacts no plane.</p>
 </tr>
 <tr>
 <td>unknown</td>
-<td>a source that would see the path is past its heartbeat, or has no import report</td>
+<td>a source the inventory names for the path has its descriptor present and is past its heartbeat, or has no import report</td>
 </tr>
 <tr>
 <td>not covered</td>
@@ -153,9 +157,11 @@ descriptor and the import reports in its log. It contacts no plane.</p>
 </tbody>
 </table>
 <p>A standing last row says that undeclared paths are unknown. A path a plane
-enforces and a source also observes shows both, the enforcement first. A
-removed descriptor, or a log the command cannot read, turns that source's
-paths not covered or unknown, never observed. &quot;Inferred&quot; (ADR-0039) has no
+enforces and a source also observes shows both, the enforcement first; an
+observation of that path with no plane event joined to it is shown beside it
+as a call around the plane, since a configuration is not proof every call
+passed the plane. A removed descriptor turns its paths not covered, never
+observed; a log the command cannot read exits 2. &quot;Inferred&quot; (ADR-0039) has no
 source yet and is not printed until one exists.</p>
 <p><strong>Liveness</strong> is ADR-0040's: a source was last heard at its newest event time
 not later than an import report's receive time, and a source with no such
@@ -183,7 +189,10 @@ descriptor reader and the observation log's reader. The inventory is one more
 document an operator keeps; the map is as complete as it is.</p>
 <h2 id="validation">Validation</h2>
 <ul>
-<li>A plane in <code>OBSERVE</code> never shows a path enforced.</li>
+<li>A plane in <code>OBSERVE</code> never shows a path enforced, and one with
+<code>policy.fail_open_read</code> on never shows a read enforced.</li>
+<li>An observation of an enforced path with no plane event joined to it shows
+beside the path as a call around the plane.</li>
 <li>A path only a self-reported source saw says <code>observed, self_reported</code>.</li>
 <li>A source past its heartbeat turns its paths unknown; a removed descriptor
 turns them not covered.</li>

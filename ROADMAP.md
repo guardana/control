@@ -42,8 +42,8 @@ skipped required steps, runs past their deadline, runs that carry on after a
 failed step, and attempts to use a tool, resource or permission the run does
 not hold, a denied action retried in another form included. It runs beside
 the decision path and changes no verdict. Missing evidence is unknown,
-never a pass. An observation names its source and how far that source is
-trusted, and never passes for a decision the plane enforced.
+never a pass. Observations already name their source and its trust; a
+finding on one never passes for a decision the plane enforced.
 
 ## 3. Integrations without a fork
 

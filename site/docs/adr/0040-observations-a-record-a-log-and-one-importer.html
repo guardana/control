@@ -99,8 +99,9 @@
 <h1 id="adr-0040-observations-a-record-a-source-descriptor-a-log-and-one-importer">ADR-0040: Observations: a record, a source descriptor, a log and one importer</h1>
 <p>Status: accepted
 Date: 2026-10-04</p>
-<p>Builds on <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, which accepted the
-observation as testimony and named its contract, and on
+<p>Amends <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>: in version 0.1
+content is always dropped and a capture setting refused. Builds on ADR-0039,
+which accepted the observation as testimony and named its contract, and on
 <a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>, whose
 export shape it reuses. Applies <a href="/docs/adr/0002-wire-contracts-and-versioning">ADR-0002</a>
 and <a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>.</p>
@@ -217,8 +218,10 @@ dependencies of the five guarded trees, <code>cmd/guardana-gateway</code> and
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>No v1 contract, digest, reason code or decision path changes; the plane never
 reads an observation. Default-deny holds for content: nothing a prompt or a
-tool carried is stored. A descriptor's trust is what may later let a finding
-stop a run, so it is read under owner checks and never taken from the data.
+tool carried is stored. A descriptor is read under owner checks and its trust
+is never taken from the data. It is unsigned in 0.1, so no finding may stop a
+run on its trust until descriptors are signed under the route key
+(ADR-0039).
 Self-reported spans can lie; an observation says what a source claimed, and
 <code>claimed</code> is the strongest basis this importer gives.</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
@@ -244,7 +247,8 @@ them; fields are cheap to add.</p>
 <h2 id="validation">Validation</h2>
 <ul>
 <li>The CI probe: v1 renumbered fails <code>buf breaking</code>, observe renumbered passes.</li>
-<li>The reach test, with one planted import as its negative control.</li>
+<li>The reach test, and its negative control: the same check finds every
+observation tree in the control's command line, which imports them.</li>
 <li>Descriptor cases: capture, a sampled flag, heartbeat 0, no trust,
 <code>independent</code> for this kind, an unpinned convention or OTLP version, and a
 <code>run_attribute</code> naming a content key, each refused.</li>

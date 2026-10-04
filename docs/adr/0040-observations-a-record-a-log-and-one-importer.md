@@ -3,8 +3,9 @@
 Status: accepted
 Date: 2026-10-04
 
-Builds on [ADR-0039](0039-many-channels-into-one-core.md), which accepted the
-observation as testimony and named its contract, and on
+Amends [ADR-0039](0039-many-channels-into-one-core.md): in version 0.1
+content is always dropped and a capture setting refused. Builds on ADR-0039,
+which accepted the observation as testimony and named its contract, and on
 [ADR-0035](0035-a-versioned-evidence-export-and-a-bounded-query.md), whose
 export shape it reuses. Applies [ADR-0002](0002-wire-contracts-and-versioning.md)
 and [ADR-0004](0004-evidence-and-privacy-defaults.md).
@@ -138,8 +139,10 @@ dependencies of the five guarded trees, `cmd/guardana-gateway` and
 
 No v1 contract, digest, reason code or decision path changes; the plane never
 reads an observation. Default-deny holds for content: nothing a prompt or a
-tool carried is stored. A descriptor's trust is what may later let a finding
-stop a run, so it is read under owner checks and never taken from the data.
+tool carried is stored. A descriptor is read under owner checks and its trust
+is never taken from the data. It is unsigned in 0.1, so no finding may stop a
+run on its trust until descriptors are signed under the route key
+(ADR-0039).
 Self-reported spans can lie; an observation says what a source claimed, and
 `claimed` is the strongest basis this importer gives.
 
@@ -168,7 +171,8 @@ them; fields are cheap to add.
 ## Validation
 
 - The CI probe: v1 renumbered fails `buf breaking`, observe renumbered passes.
-- The reach test, with one planted import as its negative control.
+- The reach test, and its negative control: the same check finds every
+  observation tree in the control's command line, which imports them.
 - Descriptor cases: capture, a sampled flag, heartbeat 0, no trust,
   `independent` for this kind, an unpinned convention or OTLP version, and a
   `run_attribute` naming a content key, each refused.

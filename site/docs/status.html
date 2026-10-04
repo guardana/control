@@ -302,17 +302,17 @@ already holds a package doc and a test holds nothing that decides.</li>
 <tr>
 <td>Coverage map per declared path</td>
 <td><code>planned</code></td>
-<td>no path chosen yet, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
+<td>no path chosen yet; <a href="/docs/adr/0041-coverage-per-declared-path">ADR-0041</a>, proposed, would make it <code>guardana-control coverage</code>; <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
 </tr>
 <tr>
 <td>Graph API</td>
 <td><code>planned</code></td>
-<td>no path chosen yet, <a href="/docs/roadmap">ROADMAP.md</a></td>
+<td>no path chosen yet, and no milestone names it</td>
 </tr>
 <tr>
 <td>Web UI</td>
 <td><code>planned</code></td>
-<td>no path chosen yet, <a href="/docs/roadmap">ROADMAP.md</a></td>
+<td>no path chosen yet; a run's view is part of B15 in <a href="/docs/backlog">backlog.md</a></td>
 </tr>
 <tr>
 <td>Supervisor: procedures and detectors over the exports, raising findings</td>
@@ -320,9 +320,9 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td><code>internal/supervise/</code>, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
 </tr>
 <tr>
-<td>Channels beyond MCP, notifiers, and a run-scoped stop from a finding</td>
+<td>Notifiers, channels beyond MCP and the OpenTelemetry trace sensor, and a run-scoped stop from a finding</td>
 <td><code>planned</code></td>
-<td><code>adapters/</code>, <code>internal/pause/</code>, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
+<td><code>adapters/</code>; the stop's reaction source, apart from the pause file, has no path chosen yet; <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
 </tr>
 <tr>
 <td>Releases built, signed and attested from a tag</td>
@@ -361,7 +361,7 @@ this:</p>
 </tr>
 <tr>
 <td>Oversight of what agents do and the data they reach</td>
-<td>Each tool call, resource read and prompt through one plane is decided, and none runs before its record is written unless the operator let a read run unrecorded; a call that bypasses the plane is not seen, and there is no view across planes</td>
+<td>Each tool call, resource read and prompt through one plane is decided, and none runs before its record is written unless the operator let a read run unrecorded; the plane does not see a call that bypasses it, which an imported trace can record as testimony that nothing reads yet, and there is no view across planes</td>
 </tr>
 <tr>
 <td>Procedures, and deviations from them</td>
