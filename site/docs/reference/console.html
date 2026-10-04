@@ -129,7 +129,8 @@ and open the link it prints. Nothing else is printed on stdout; diagnostics go t
 stderr.</p>
 <p>It serves until interrupted. With <code>--until-stdin-closes</code> it also stops when
 its standard input ends, which lets the process that started it stop it by
-closing a pipe. Either way it exits 0.</p>
+closing a pipe. Either way it exits 0, or 1 when the page or the approvals
+store cannot be closed cleanly.</p>
 <h2 id="what-it-refuses">What it refuses</h2>
 <ul>
 <li>A request under any host name but <code>127.0.0.1:&lt;port&gt;</code>, so a name that

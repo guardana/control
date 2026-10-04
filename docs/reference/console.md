@@ -48,7 +48,8 @@ stderr.
 
 It serves until interrupted. With `--until-stdin-closes` it also stops when
 its standard input ends, which lets the process that started it stop it by
-closing a pipe. Either way it exits 0.
+closing a pipe. Either way it exits 0, or 1 when the page or the approvals
+store cannot be closed cleanly.
 
 ## What it refuses
 

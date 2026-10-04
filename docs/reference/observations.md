@@ -29,8 +29,8 @@ member given twice or `null` is refused, naming the member.
 | `convention` | yes | `{"name": "opentelemetry.gen_ai", "version": "1.41.0"}`; the conventions are still in development, so no other version is read |
 | `otlp_version` | yes | `1.11.1` |
 | `select.service_name` | yes | the `service.name` of the resource whose spans are this source's; spans of any other resource are not imported |
-| `sampling` | no | `SAMPLING_COMPLETE` or `SAMPLING_PARTIAL`; absent reads as partial |
-| `heartbeat_seconds` | yes | 1 to 604800; a source silent longer is unknown, never quiet |
+| `sampling` | no | `SAMPLING_COMPLETE` or `SAMPLING_PARTIAL`; absent or `SAMPLING_UNSPECIFIED` reads as partial |
+| `heartbeat_seconds` | yes | 1 to 604800: how long the source may stay silent before its paths are unknown; nothing reads it yet, and [ADR-0041](../adr/0041-coverage-per-declared-path.md) proposes the reader |
 | `tenant_id`, `project_id` | yes | as `source_id` |
 | `run_attribute` | no | the span attribute that names a run; never a content attribute |
 
@@ -49,8 +49,9 @@ operations the conventions name that this importer does not map,
 
 Only these are copied: the operation, the name above, `gen_ai.provider.name`,
 `server.address`, `error.type` and the run attribute. A copied string longer
-than 256 bytes, or holding a control, format, separator, private-use or
-noncharacter code point or U+FFFD, is dropped and counted. A span's name and its status message are never copied.
+than 256 bytes, made only of whitespace, or holding a control, format,
+separator, private-use or noncharacter code point or U+FFFD, is dropped and
+counted. A span's name and its status message are never copied.
 
 | Field | From the span |
 | --- | --- |
@@ -67,7 +68,7 @@ No content is kept in `0.1`: there is no redaction yet to apply to it, and a
 capture setting is refused. Every content attribute (`gen_ai.input.messages`,
 `gen_ai.output.messages`, `gen_ai.system_instructions`,
 `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`,
-`gen_ai.tool.definitions`) and every other `gen_ai.*` attribute outside the
+`gen_ai.tool.definitions`, `gen_ai.prompt`, `gen_ai.completion`) and every other `gen_ai.*` attribute outside the
 list above is dropped and counted, on a span and on its events, and in the
 report wherever else the selected resource carries one; so is
 `gen_ai.request.model` on a span that is not a model's. Message parts are
@@ -84,8 +85,8 @@ tenant, project, source, trace and span, so importing the same spans again
 writes nothing new: a span already in the log is a duplicate; one with other
 content, its receive time and the descriptor's digest aside, is a conflict,
 is not written, and makes the import exit 1. The observations an import keeps
-and its report are appended together and synced; a crash in that append leaves
-a partial last line, which the next open cuts, and nothing else.
+and its report are appended together and synced, the report last; after a crash
+in that append, the next open cuts everything after the last whole report.
 
 Each import ends with one report: the source, the descriptor's SHA-256, the
 receive time, the input's first-line digest and size, every count above, and
@@ -108,8 +109,10 @@ than 262,144 array elements is refused, and every span in it is counted as
 refused. A line over 16 MiB is refused unread. An input over 256 MiB is
 refused whole. Exit 0: every span read was imported, skipped or a
 duplicate. Exit 1: something was refused or conflicted; the report says
-what. Exit 2: nothing was written, for a usage error, a descriptor refused
-or a log that cannot be opened.
+what. Exit 2: the import did not complete, for a usage error, a descriptor or
+a log refused, or a write that failed; a write refused only after its sync, or
+a log that would not close, can leave the import in the log, and an import of
+the same file counts it as duplicates.
 
 `export` writes `guardana.control.observation-export` version `0.1`, in the
 evidence export's shape ([ADR-0035](../adr/0035-a-versioned-evidence-export-and-a-bounded-query.md)):

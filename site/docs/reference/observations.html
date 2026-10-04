@@ -154,12 +154,12 @@ member given twice or <code>null</code> is refused, naming the member.</p>
 <tr>
 <td><code>sampling</code></td>
 <td>no</td>
-<td><code>SAMPLING_COMPLETE</code> or <code>SAMPLING_PARTIAL</code>; absent reads as partial</td>
+<td><code>SAMPLING_COMPLETE</code> or <code>SAMPLING_PARTIAL</code>; absent or <code>SAMPLING_UNSPECIFIED</code> reads as partial</td>
 </tr>
 <tr>
 <td><code>heartbeat_seconds</code></td>
 <td>yes</td>
-<td>1 to 604800; a source silent longer is unknown, never quiet</td>
+<td>1 to 604800: how long the source may stay silent before its paths are unknown; nothing reads it yet, and <a href="/docs/adr/0041-coverage-per-declared-path">ADR-0041</a> proposes the reader</td>
 </tr>
 <tr>
 <td><code>tenant_id</code>, <code>project_id</code></td>
@@ -185,8 +185,9 @@ operations the conventions name that this importer does not map,
 <code>operation:retrieval</code> and <code>operation:invoke_workflow</code>.</p>
 <p>Only these are copied: the operation, the name above, <code>gen_ai.provider.name</code>,
 <code>server.address</code>, <code>error.type</code> and the run attribute. A copied string longer
-than 256 bytes, or holding a control, format, separator, private-use or
-noncharacter code point or U+FFFD, is dropped and counted. A span's name and its status message are never copied.</p>
+than 256 bytes, made only of whitespace, or holding a control, format,
+separator, private-use or noncharacter code point or U+FFFD, is dropped and
+counted. A span's name and its status message are never copied.</p>
 <table>
 <thead>
 <tr>
@@ -226,7 +227,7 @@ noncharacter code point or U+FFFD, is dropped and counted. A span's name and its
 capture setting is refused. Every content attribute (<code>gen_ai.input.messages</code>,
 <code>gen_ai.output.messages</code>, <code>gen_ai.system_instructions</code>,
 <code>gen_ai.tool.call.arguments</code>, <code>gen_ai.tool.call.result</code>,
-<code>gen_ai.tool.definitions</code>) and every other <code>gen_ai.*</code> attribute outside the
+<code>gen_ai.tool.definitions</code>, <code>gen_ai.prompt</code>, <code>gen_ai.completion</code>) and every other <code>gen_ai.*</code> attribute outside the
 list above is dropped and counted, on a span and on its events, and in the
 report wherever else the selected resource carries one; so is
 <code>gen_ai.request.model</code> on a span that is not a model's. Message parts are
@@ -241,8 +242,8 @@ tenant, project, source, trace and span, so importing the same spans again
 writes nothing new: a span already in the log is a duplicate; one with other
 content, its receive time and the descriptor's digest aside, is a conflict,
 is not written, and makes the import exit 1. The observations an import keeps
-and its report are appended together and synced; a crash in that append leaves
-a partial last line, which the next open cuts, and nothing else.</p>
+and its report are appended together and synced, the report last; after a crash
+in that append, the next open cuts everything after the last whole report.</p>
 <p>Each import ends with one report: the source, the descriptor's SHA-256, the
 receive time, the input's first-line digest and size, every count above, and
 the earliest and latest event time. A source was last heard at its newest
@@ -260,8 +261,10 @@ than 262,144 array elements is refused, and every span in it is counted as
 refused. A line over 16 MiB is refused unread. An input over 256 MiB is
 refused whole. Exit 0: every span read was imported, skipped or a
 duplicate. Exit 1: something was refused or conflicted; the report says
-what. Exit 2: nothing was written, for a usage error, a descriptor refused
-or a log that cannot be opened.</p>
+what. Exit 2: the import did not complete, for a usage error, a descriptor or
+a log refused, or a write that failed; a write refused only after its sync, or
+a log that would not close, can leave the import in the log, and an import of
+the same file counts it as duplicates.</p>
 <p><code>export</code> writes <code>guardana.control.observation-export</code> version <code>0.1</code>, in the
 evidence export's shape (<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>):
 a header, <code>observation</code> and <code>import_report</code> records, gaps (<code>malformed</code>,

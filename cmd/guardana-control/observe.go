@@ -86,8 +86,12 @@ func observeImportCommand(args []string, stdout, stderr io.Writer) int {
 		return usageError(stderr, observeImportName, "--log: "+err.Error())
 	}
 	written, err := log.Write(batch.Observations, batch.Report)
-	if err = errors.Join(err, log.Close()); err != nil {
-		return usageError(stderr, observeImportName, "--log: "+err.Error())
+	closeErr := log.Close()
+	switch {
+	case err != nil:
+		return usageError(stderr, observeImportName, "--log: "+errors.Join(err, closeErr).Error())
+	case closeErr != nil:
+		return usageError(stderr, observeImportName, "--log: the import was written; closing the log failed: "+closeErr.Error())
 	}
 	return printImport(batch.Report.GetCounts(), written, stdout, stderr)
 }

@@ -98,7 +98,8 @@
 <main id="main" class="prose">
 <h1 id="enforcement-modes">Enforcement modes</h1>
 <p>The kernel decides every call, the same way in every mode but <code>LOCKDOWN</code>,
-which builds it with fail-open reads off. A mode is what the
+which builds it with fail-open reads off; outside <code>OBSERVE</code> a rewriting
+obligation has the kernel decide the rewritten call once more. A mode is what the
 enforcement point does with that decision: <code>OBSERVE</code> records it and lets the
 call through, <code>APPROVE</code> holds an allowed material call for an approver,
 <code>ENFORCE</code> does what the decision says, and <code>LOCKDOWN</code> blocks every material

@@ -94,7 +94,8 @@ and whether it is open, closed or expired.
 - `doctor`'s `runs` line is `ok` and says `opened in /var/lib/guardana/runs`.
 - Over HTTP a request with no token, a closed run's or another agent's is
   answered `401`, and `/healthz` counts it under `runs.refused_at_request`;
-  over stdio a refused token is answered `-31102` and counted under
+  over stdio a token refused at start stops the plane, and one whose run is
+  closed or expires while it serves is answered `-31102` and counted under
   `runs.refused_at_message`.
 - After one task reads something untrusted, a call of another task to an
   untrusted destination is decided as before, and its `ACTION_PROPOSED`

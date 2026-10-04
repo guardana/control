@@ -8,7 +8,8 @@ covers: [internal/gateway/mode.go, internal/gateway/adapter.go, internal/gateway
 # Enforcement modes
 
 The kernel decides every call, the same way in every mode but `LOCKDOWN`,
-which builds it with fail-open reads off. A mode is what the
+which builds it with fail-open reads off; outside `OBSERVE` a rewriting
+obligation has the kernel decide the rewritten call once more. A mode is what the
 enforcement point does with that decision: `OBSERVE` records it and lets the
 call through, `APPROVE` holds an allowed material call for an approver,
 `ENFORCE` does what the decision says, and `LOCKDOWN` blocks every material

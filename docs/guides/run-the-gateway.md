@@ -263,8 +263,8 @@ To change the policy, sign it with a higher `serial`, renew for it, and copy
 the statement before the bundle: the plane installs the bundle at the poll
 that finds both, and refuses to start on a lower serial.
 
-Set `mode: OBSERVE` and restart: no decision blocks a call and the trail
-keeps recording. Evidence that cannot be written still blocks a material call,
-in any mode. To stop enforcing altogether, point the agent back at the server and
+Set `mode: OBSERVE` and restart: the policy blocks nothing and the trail keeps
+recording; a pause, a mismatch halt or unwritable evidence can still block a
+call. To stop enforcing altogether, point the agent back at the server and
 stop the gateway; the spool keeps its records, and the exporter drains them on
 the next run from the collector's last acknowledgement.

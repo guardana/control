@@ -157,7 +157,8 @@ and whether it is open, closed or expired.</p>
 <li><code>doctor</code>'s <code>runs</code> line is <code>ok</code> and says <code>opened in /var/lib/guardana/runs</code>.</li>
 <li>Over HTTP a request with no token, a closed run's or another agent's is
 answered <code>401</code>, and <code>/healthz</code> counts it under <code>runs.refused_at_request</code>;
-over stdio a refused token is answered <code>-31102</code> and counted under
+over stdio a token refused at start stops the plane, and one whose run is
+closed or expires while it serves is answered <code>-31102</code> and counted under
 <code>runs.refused_at_message</code>.</li>
 <li>After one task reads something untrusted, a call of another task to an
 untrusted destination is decided as before, and its <code>ACTION_PROPOSED</code>
