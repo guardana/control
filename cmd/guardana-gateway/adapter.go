@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -143,13 +142,15 @@ func upstreamEnv(listed []string, lookup func(string) (string, bool)) []string {
 	return env
 }
 
-// printUpstream prints one upstream for doctor: where it is reached, then
-// each variable its command receives by name, never its value, marking one
-// this environment lacks, since the command would start without it.
+// printUpstream prints one upstream for doctor: where it is reached, a
+// command by its program and how many arguments it takes, since an argument
+// can carry a credential, then each variable its command receives by name,
+// never its value, marking one this environment lacks, since the command would
+// start without it.
 func printUpstream(w io.Writer, i int, up gatewayconfig.UpstreamConfig) {
 	where := gatewayconfig.ShowAddress(up.Endpoint)
 	if up.Endpoint == "" {
-		where = "command " + up.Command + " " + strings.Join(up.Args, " ")
+		where = fmt.Sprintf("command %s (%d arguments)", up.Command, len(up.Args))
 	}
 	writeLine(w, fmt.Sprintf("       %-28s %s -> %s", fmt.Sprintf("upstreams.%d", i), oneLine(up.Name), oneLine(where)))
 	for j, name := range up.Env {

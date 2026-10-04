@@ -60,6 +60,8 @@ verify one.
 - An evidence line that does not decode is refused naming where it went wrong,
   never quoting the value or member name it held, so a sender cannot put a
   credential into the collector's log through a malformed line.
+- `guardana-gateway doctor` names a command upstream's program and how many
+  arguments it takes, never the arguments, which can carry a credential.
 ## [0.6.0-alpha] - 2026-10-03
 
 A plane now takes its policy as current only on a signed freshness

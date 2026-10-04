@@ -89,8 +89,8 @@ func TestDoctorWithholdsKeyTextInAnUnclassifiedTool(t *testing.T) {
 
 // TestDoctorPrintsNoKeyTextFromAnUpstreamOrAnOverride: an upstream's
 // argument may carry a certificate and loads, and an override may name key
-// text; the settings list withholds both and quotes a line break, keeping
-// the rest of each line.
+// text; the settings list prints no argument at all, only how many there
+// are, and withholds the override's key text, keeping the rest of its line.
 func TestDoctorPrintsNoKeyTextFromAnUpstreamOrAnOverride(t *testing.T) {
 	_, body := fixtureKeyText(t)
 	tr := newTree(t)
@@ -110,7 +110,7 @@ func TestDoctorPrintsNoKeyTextFromAnUpstreamOrAnOverride(t *testing.T) {
 	out := doctorOutput(t, tr.config)
 	checkNoKeyTextOrForgedLine(t, out, body)
 	for _, want := range []string{
-		`"command server --ca=[key text withheld] a\n` + forgedCheck + `"`,
+		`orders -> command server (2 arguments)`,
 		`orders/[key text withheld] is READ on order from "[key text withheld]"`,
 	} {
 		if !strings.Contains(out, want) {
