@@ -24,7 +24,7 @@ import (
 // cannot back up.
 var version = "dev"
 
-const statusLine = "the policy, approvals, pause, runs and console commands are implemented; the rest is in docs/status.md"
+const statusLine = "the policy, approvals, pause, runs, observe and console commands are implemented; the rest is in docs/status.md"
 
 // Exit statuses. A usage error is neither a pass nor a refusal of the input,
 // so it has the third status the Go flag package uses for one.
@@ -114,6 +114,8 @@ var commands = []subcommand{
 	{"runs", "open", runsOpenForm, runsOpenFlagSet, runsOpenCommand},
 	{"runs", "close", runsCloseForm, runsCloseFlagSet, runsCloseCommand},
 	{"runs", "list", "<dir>", nil, runsListCommand},
+	{"observe", "import", observeImportForm, observeImportFlagSet, observeImportCommand},
+	{"observe", "export", observeExportForm, observeExportFlagSet, observeExportCommand},
 	{"console", "", consoleForm, consoleFlagSet, consoleCommand},
 }
 

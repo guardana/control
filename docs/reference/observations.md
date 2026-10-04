@@ -1,0 +1,119 @@
+---
+title: Observations
+summary: The source descriptor, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export.
+type: reference
+covers: [internal/observe/**, internal/observelog/**, internal/ingest/**, cmd/guardana-control/observe.go, api/proto/guardana/control/observe/**]
+---
+
+# Observations
+
+An observation is what a source says an agent did: testimony, never a
+decision. The plane never reads one, and nothing in it grants or refuses a
+call ([ADR-0039](../adr/0039-many-channels-into-one-core.md)). The record is
+`guardana.control.observe.v1alpha1`, version `0.1`, outside the v1
+compatibility promise ([ADR-0040](../adr/0040-observations-a-record-a-log-and-one-importer.md)).
+It is `experimental`; [status.md](../status.md) is the inventory.
+
+## The source descriptor
+
+The operator's statement about one source, a JSON file read under the
+stores' owner checks. Every member is matched exactly; an unknown member, a
+member given twice or `null` is refused, naming the member.
+
+| Member | Required | Value |
+| --- | --- | --- |
+| `schema_version` | yes | `0.1` |
+| `source_id` | yes | 1 to 128 characters of `A-Z a-z 0-9 . _ : -` |
+| `kind` | yes | `otel-genai-traces` |
+| `trust` | yes | `TRUST_SELF_REPORTED` or `TRUST_PLATFORM`; an agent's own process writes these spans, so `TRUST_INDEPENDENT` is refused |
+| `convention` | yes | `{"name": "opentelemetry.gen_ai", "version": "1.41.0"}`; the conventions are still in development, so no other version is read |
+| `otlp_version` | yes | `1.11.1` |
+| `select.service_name` | yes | the `service.name` of the resource whose spans are this source's; spans of any other resource are not imported |
+| `sampling` | no | `SAMPLING_COMPLETE` or `SAMPLING_PARTIAL`; absent reads as partial |
+| `heartbeat_seconds` | yes | 1 to 604800; a source silent longer is unknown, never quiet |
+| `tenant_id`, `project_id` | yes | as `source_id` |
+| `run_attribute` | no | the span attribute that names a run; never a content attribute |
+
+Text values may not hold a control or format character, nor be only spaces.
+
+## What an import keeps
+
+A span of the selected resource becomes an observation when its
+`gen_ai.operation.name` is `execute_tool` (a tool, named by
+`gen_ai.tool.name`), `invoke_agent` or `create_agent` (an agent,
+`gen_ai.agent.name`), or `chat`, `generate_content`, `text_completion` or
+`embeddings` (a model, `gen_ai.request.model`). Any other span is skipped and
+counted by reason: `no_operation`, `unmapped_operation`, or one of the two
+operations the conventions name that this importer does not map,
+`operation:retrieval` and `operation:invoke_workflow`.
+
+Only these are copied: the operation, the name above, `gen_ai.provider.name`,
+`server.address`, `error.type` and the run attribute. A copied string longer
+than 256 bytes, or holding a control, format, separator, private-use or
+noncharacter code point or U+FFFD, is dropped and counted. A span's name and its status message are never copied.
+
+| Field | From the span |
+| --- | --- |
+| `event_time` | its end time; absent when it has none, never the time it was read |
+| `received_time` | the import's own clock reading, the same on every record of one import |
+| `stage` | failed when the status is error or `error.type` is present, completed when it ended, unknown otherwise |
+| `outcome.status` | the status as sent: unset, ok or error |
+| `correlation.trace_id`, `span_id`, `parent_span_id` | the span's ids, lowercase hex as the gateway records a call's trace; a span with a missing, zero or upper-case id, or a status code outside 0 to 2, is refused |
+| `correlation.basis` | `BASIS_CLAIMED` when the run attribute holds `run-` and 32 lowercase hex digits, the form of a run an operator opened; any other value is dropped and counted, and the basis is `BASIS_NONE`. Whether the run exists is not checked |
+
+## What an import drops
+
+No content is kept in `0.1`: there is no redaction yet to apply to it, and a
+capture setting is refused. Every content attribute (`gen_ai.input.messages`,
+`gen_ai.output.messages`, `gen_ai.system_instructions`,
+`gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`,
+`gen_ai.tool.definitions`) and every other `gen_ai.*` attribute outside the
+list above is dropped and counted, on a span and on its events, and in the
+report wherever else the selected resource carries one; so is
+`gen_ai.request.model` on a span that is not a model's. Message parts are
+parsed only to count reasoning: a part of type `reasoning` or `thinking` is
+counted and nothing of it is kept; a value that is not an array of messages
+whose parts each name a type is counted as unparsed, never as none.
+
+## The log
+
+One file, `observations.jsonl`, in a directory of the operator's account that
+no other account can reach, held by one writer at a time. Each line holds one
+observation or one import report. An observation's id is derived from its
+tenant, project, source, trace and span, so importing the same spans again
+writes nothing new: a span already in the log is a duplicate; one with other
+content, its receive time and the descriptor's digest aside, is a conflict,
+is not written, and makes the import exit 1. The observations an import keeps
+and its report are appended together and synced; a crash in that append leaves
+a partial last line, which the next open cuts, and nothing else.
+
+Each import ends with one report: the source, the descriptor's SHA-256, the
+receive time, the input's first-line digest and size, every count above, and
+the earliest and latest event time. A source was last heard at its newest
+event time not later than a report's receive time.
+
+## Commands
+
+```
+guardana-control observe import --source <descriptor> --log <dir> <file>
+guardana-control observe export [--after <cursor>] [--limit <n>] [--max-bytes <n>] <file>
+```
+
+`import` reads OTLP/JSON trace lines, one `TracesData` object per line as an
+OpenTelemetry collector's file exporter writes them, up to the last newline;
+the bytes after it are left for the next import, since the exporter may still
+be writing them. A line with an unknown member, a member twice, an attribute
+twice, a `null`, an enum spelled as a string, nesting deeper than 32 or more
+than 262,144 array elements is refused, and every span in it is counted as
+refused. A line over 16 MiB is refused unread. An input over 256 MiB is
+refused whole. Exit 0: every span read was imported, skipped or a
+duplicate. Exit 1: something was refused or conflicted; the report says
+what. Exit 2: nothing was written, for a usage error, a descriptor refused
+or a log that cannot be opened.
+
+`export` writes `guardana.control.observation-export` version `0.1`, in the
+evidence export's shape ([ADR-0035](../adr/0035-a-versioned-evidence-export-and-a-bounded-query.md)):
+a header, `observation` and `import_report` records, gaps (`malformed`,
+`unsupported_version`, `carriage_return`, `conflicting_observation_id`),
+duplicates and a trailer with the cursor to resume from, and the same exit
+codes. It has no filters yet.

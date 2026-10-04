@@ -63,6 +63,7 @@
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
@@ -160,7 +161,10 @@ matched exactly; an unknown member, a capture setting among them, is refused.</p
 honour a capture setting. Every content attribute (<code>gen_ai.input.messages</code>,
 <code>gen_ai.output.messages</code>, <code>gen_ai.system_instructions</code>,
 <code>gen_ai.tool.call.arguments</code>, <code>gen_ai.tool.call.result</code> and any other
-<code>gen_ai.*</code> attribute outside the allowlist below) is dropped and counted.
+<code>gen_ai.*</code> attribute outside the allowlist below) is dropped and counted:
+on an observed span in its own count, and wherever else the selected
+resource carries one (its attributes, its scopes', links, skipped spans) in
+the import's.
 Message parts are parsed only to count reasoning: a part whose <code>type</code> is
 <code>reasoning</code> or <code>thinking</code> is counted as reasoning, and a value that does not
 parse is counted as unparsed, never as zero. Capture returns as an added field
@@ -168,8 +172,9 @@ once a redaction exists.</p>
 <p><strong>An allowlist, not a denylist.</strong> The importer copies only these into typed
 fields: <code>gen_ai.operation.name</code>, <code>gen_ai.tool.name</code>, <code>gen_ai.request.model</code>,
 <code>gen_ai.provider.name</code>, <code>gen_ai.agent.name</code>, <code>server.address</code>, <code>error.type</code>,
-and the descriptor's <code>run_attribute</code>. A copied string over 256 bytes or with a
-control character is dropped and counted. A span's name and its status message
+and the descriptor's <code>run_attribute</code>. A copied string over 256 bytes, or
+holding a control, format, line or paragraph separator, private-use or
+noncharacter code point or U+FFFD, is dropped and counted. A span's name and its status message
 are never copied. <code>execute_tool</code> is a tool, <code>invoke_agent</code> and <code>create_agent</code>
 an agent, <code>chat</code>, <code>generate_content</code>, <code>text_completion</code> and <code>embeddings</code> a
 model; any other span is skipped and counted. Stage is failed when the status
@@ -194,8 +199,9 @@ without an event time does not count, and a later one is taken at
 <p><strong>A log and its export.</strong> One JSON Lines file in an owner-only directory with
 a lock, each line one record, compact and escaped as the evidence writer
 writes its lines. <code>guardana-control observe import --source &lt;descriptor&gt; --log &lt;dir&gt; &lt;file&gt;</code> reads OTLP/JSON <code>TracesData</code> lines up to the last newline;
-an unknown member, a duplicate member or a duplicate attribute refuses that
-line, counted, exit 1. <code>guardana-control observe export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] &lt;file&gt;</code> writes
+an unknown member, a duplicate member, a duplicate attribute, or more array
+elements than one 64th of the line bound refuses that line, counted, exit 1,
+so a line costs memory in proportion to its length. <code>guardana-control observe export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] &lt;file&gt;</code> writes
 <code>guardana.control.observation-export</code> version <code>0.1</code>: ADR-0035's header,
 records of type <code>observation</code> and <code>import_report</code>, gap, duplicate and
 trailer, the same cursor grammar and exit codes, and no filters yet. The
@@ -287,6 +293,7 @@ each with its records and counts.</li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>

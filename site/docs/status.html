@@ -63,6 +63,7 @@
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
@@ -295,8 +296,8 @@ already holds a package doc and a test holds nothing that decides.</li>
 </tr>
 <tr>
 <td>Observations from sensors: an observation record, a source descriptor and one importer of OpenTelemetry GenAI traces</td>
-<td><code>planned</code></td>
-<td><code>internal/observe/</code>, <code>internal/observelog/</code>, <code>internal/ingest/otelgenai/</code>, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a>. The messages are written in <code>api/proto/guardana/control/observe/v1alpha1/</code>, version <code>0.1</code>, outside the v1 promise; <code>buf breaking</code> ignores that package and <code>scripts/proto-breaking-probe.sh</code> shows v1 still compared. Nothing reads or writes them yet</td>
+<td><code>experimental</code></td>
+<td><code>internal/observe/</code> (the version table, the descriptor's reader, the observation id and the line codec), <code>internal/observelog/</code> (the log under one writer's lock and its export), <code>internal/ingest/otelgenai/</code> (OTLP/JSON trace lines under the GenAI conventions 1.41.0), <code>guardana-control observe import</code> and <code>observe export</code>, <a href="/docs/reference/observations">reference/observations.md</a>, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a>. The record is <code>guardana.control.observe.v1alpha1</code>, version <code>0.1</code>, outside the v1 promise; <code>buf breaking</code> ignores that package and <code>scripts/proto-breaking-probe.sh</code> shows v1 still compared. No content is kept and a capture setting is refused; the plane never reads an observation, and nothing joins one to a plane event yet</td>
 </tr>
 <tr>
 <td>Coverage map per declared path</td>
@@ -480,6 +481,7 @@ never withheld from the open build, whatever its status above.</p>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>

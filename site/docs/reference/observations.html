@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>result.proto · Guardana Control</title>
-<meta name="description" content="The messages and enums of result.proto as the compiled descriptor declares them, each field with its number, cardinality and type."/>
-<link rel="canonical" href="https://control.guardana.dev/docs/reference/wire/result"/>
+<title>Observations · Guardana Control</title>
+<meta name="description" content="The source descriptor, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/observations"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
 <link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
@@ -26,7 +26,7 @@
 </div></header>
 <div class="wrap shell">
 <details class="mnav">
-<summary>Menu · <b>result.proto</b></summary>
+<summary>Menu · <b>Observations</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
 <h2>Get started</h2><ul>
@@ -63,7 +63,7 @@
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
-<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/observations" aria-current="page">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
@@ -77,7 +77,7 @@
 <li><a href="/docs/reference/wire/decision">decision.proto</a></li>
 <li><a href="/docs/reference/wire/event">event.proto</a></li>
 <li><a href="/docs/reference/wire/finding">finding.proto</a></li>
-<li><a href="/docs/reference/wire/result" aria-current="page">result.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
 </ul>
 <h2>Specification</h2><ul>
 <li><a href="/docs/contracts">Wire contracts</a></li>
@@ -96,152 +96,179 @@
 </nav>
 </details>
 <main id="main" class="prose">
-<h1 id="resultproto">result.proto</h1>
-<p>What <code>result.proto</code> of package <code>guardana.control.v1</code> puts on the wire: every message with its
-fields and every enum with its values, as the compiled descriptor declares them. The
-descriptor carries no comments, so what a field means, when it is set and what a reader
-does with a number it does not know is on <a href="/docs/contracts">the wire contract</a>.</p>
-<p>Rendered from the descriptor compiled from <code>api/proto/guardana/control/v1/result.proto</code>. Rebuild it with
-<code>make docs-gen</code>; an edit made here does not survive the next run.</p>
-<h2 id="messages">Messages</h2>
-<h3 id="actionresult">ActionResult</h3>
+<h1 id="observations">Observations</h1>
+<p>An observation is what a source says an agent did: testimony, never a
+decision. The plane never reads one, and nothing in it grants or refuses a
+call (<a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>). The record is
+<code>guardana.control.observe.v1alpha1</code>, version <code>0.1</code>, outside the v1
+compatibility promise (<a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a>).
+It is <code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory.</p>
+<h2 id="the-source-descriptor">The source descriptor</h2>
+<p>The operator's statement about one source, a JSON file read under the
+stores' owner checks. Every member is matched exactly; an unknown member, a
+member given twice or <code>null</code> is refused, naming the member.</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Number</th>
-<th>Cardinality</th>
-<th>Type</th>
+<th>Member</th>
+<th>Required</th>
+<th>Value</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td>12</td>
-<td>optional</td>
-<td><code>string</code></td>
+<td>yes</td>
+<td><code>0.1</code></td>
 </tr>
 <tr>
-<td><code>request_id</code></td>
-<td>1</td>
-<td>optional</td>
-<td><code>string</code></td>
+<td><code>source_id</code></td>
+<td>yes</td>
+<td>1 to 128 characters of <code>A-Z a-z 0-9 . _ : -</code></td>
 </tr>
 <tr>
-<td><code>execution_id</code></td>
-<td>2</td>
-<td>optional</td>
-<td><code>string</code></td>
+<td><code>kind</code></td>
+<td>yes</td>
+<td><code>otel-genai-traces</code></td>
 </tr>
 <tr>
-<td><code>status</code></td>
-<td>3</td>
-<td>optional</td>
-<td><a href="#resultstatus"><code>ResultStatus</code></a></td>
+<td><code>trust</code></td>
+<td>yes</td>
+<td><code>TRUST_SELF_REPORTED</code> or <code>TRUST_PLATFORM</code>; an agent's own process writes these spans, so <code>TRUST_INDEPENDENT</code> is refused</td>
 </tr>
 <tr>
-<td><code>started_at</code></td>
-<td>4</td>
-<td>optional</td>
-<td><code>google.protobuf.Timestamp</code></td>
+<td><code>convention</code></td>
+<td>yes</td>
+<td><code>{&quot;name&quot;: &quot;opentelemetry.gen_ai&quot;, &quot;version&quot;: &quot;1.41.0&quot;}</code>; the conventions are still in development, so no other version is read</td>
 </tr>
 <tr>
-<td><code>ended_at</code></td>
-<td>5</td>
-<td>optional</td>
-<td><code>google.protobuf.Timestamp</code></td>
+<td><code>otlp_version</code></td>
+<td>yes</td>
+<td><code>1.11.1</code></td>
 </tr>
 <tr>
-<td><code>tool_protocol_status</code></td>
-<td>6</td>
-<td>optional</td>
-<td><code>string</code></td>
+<td><code>select.service_name</code></td>
+<td>yes</td>
+<td>the <code>service.name</code> of the resource whose spans are this source's; spans of any other resource are not imported</td>
 </tr>
 <tr>
-<td><code>result_schema_valid</code></td>
-<td>7</td>
-<td>optional</td>
-<td><code>bool</code></td>
+<td><code>sampling</code></td>
+<td>no</td>
+<td><code>SAMPLING_COMPLETE</code> or <code>SAMPLING_PARTIAL</code>; absent reads as partial</td>
 </tr>
 <tr>
-<td><code>result_hash</code></td>
-<td>8</td>
-<td>optional</td>
-<td><code>string</code></td>
+<td><code>heartbeat_seconds</code></td>
+<td>yes</td>
+<td>1 to 604800; a source silent longer is unknown, never quiet</td>
 </tr>
 <tr>
-<td><code>redacted_result_preview</code></td>
-<td>9</td>
-<td>optional</td>
-<td><code>string</code></td>
+<td><code>tenant_id</code>, <code>project_id</code></td>
+<td>yes</td>
+<td>as <code>source_id</code></td>
 </tr>
 <tr>
-<td><code>retryable</code></td>
-<td>10</td>
-<td>optional</td>
-<td><code>bool</code></td>
-</tr>
-<tr>
-<td><code>side_effect_confirmation</code></td>
-<td>11</td>
-<td>optional</td>
-<td><code>string</code></td>
-</tr>
-<tr>
-<td><code>executed_action_digest</code></td>
-<td>13</td>
-<td>optional</td>
-<td><code>string</code></td>
-</tr>
-<tr>
-<td><code>redaction_profile</code></td>
-<td>14</td>
-<td>optional</td>
-<td><code>string</code></td>
+<td><code>run_attribute</code></td>
+<td>no</td>
+<td>the span attribute that names a run; never a content attribute</td>
 </tr>
 </tbody>
 </table>
-<h2 id="enums">Enums</h2>
-<h3 id="resultstatus">ResultStatus</h3>
+<p>Text values may not hold a control or format character, nor be only spaces.</p>
+<h2 id="what-an-import-keeps">What an import keeps</h2>
+<p>A span of the selected resource becomes an observation when its
+<code>gen_ai.operation.name</code> is <code>execute_tool</code> (a tool, named by
+<code>gen_ai.tool.name</code>), <code>invoke_agent</code> or <code>create_agent</code> (an agent,
+<code>gen_ai.agent.name</code>), or <code>chat</code>, <code>generate_content</code>, <code>text_completion</code> or
+<code>embeddings</code> (a model, <code>gen_ai.request.model</code>). Any other span is skipped and
+counted by reason: <code>no_operation</code>, <code>unmapped_operation</code>, or one of the two
+operations the conventions name that this importer does not map,
+<code>operation:retrieval</code> and <code>operation:invoke_workflow</code>.</p>
+<p>Only these are copied: the operation, the name above, <code>gen_ai.provider.name</code>,
+<code>server.address</code>, <code>error.type</code> and the run attribute. A copied string longer
+than 256 bytes, or holding a control, format, separator, private-use or
+noncharacter code point or U+FFFD, is dropped and counted. A span's name and its status message are never copied.</p>
 <table>
 <thead>
 <tr>
-<th>Value</th>
-<th>Number</th>
+<th>Field</th>
+<th>From the span</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>RESULT_STATUS_UNSPECIFIED</code></td>
-<td>0</td>
+<td><code>event_time</code></td>
+<td>its end time; absent when it has none, never the time it was read</td>
 </tr>
 <tr>
-<td><code>RESULT_STATUS_SUCCESS</code></td>
-<td>1</td>
+<td><code>received_time</code></td>
+<td>the import's own clock reading, the same on every record of one import</td>
 </tr>
 <tr>
-<td><code>RESULT_STATUS_FAILURE</code></td>
-<td>2</td>
+<td><code>stage</code></td>
+<td>failed when the status is error or <code>error.type</code> is present, completed when it ended, unknown otherwise</td>
 </tr>
 <tr>
-<td><code>RESULT_STATUS_TIMEOUT</code></td>
-<td>3</td>
+<td><code>outcome.status</code></td>
+<td>the status as sent: unset, ok or error</td>
 </tr>
 <tr>
-<td><code>RESULT_STATUS_CANCELLED</code></td>
-<td>4</td>
+<td><code>correlation.trace_id</code>, <code>span_id</code>, <code>parent_span_id</code></td>
+<td>the span's ids, lowercase hex as the gateway records a call's trace; a span with a missing, zero or upper-case id, or a status code outside 0 to 2, is refused</td>
 </tr>
 <tr>
-<td><code>RESULT_STATUS_BLOCKED</code></td>
-<td>5</td>
-</tr>
-<tr>
-<td><code>RESULT_STATUS_UNKNOWN</code></td>
-<td>6</td>
+<td><code>correlation.basis</code></td>
+<td><code>BASIS_CLAIMED</code> when the run attribute holds <code>run-</code> and 32 lowercase hex digits, the form of a run an operator opened; any other value is dropped and counted, and the basis is <code>BASIS_NONE</code>. Whether the run exists is not checked</td>
 </tr>
 </tbody>
 </table>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/wire/result.md">docs/reference/wire/result.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+<h2 id="what-an-import-drops">What an import drops</h2>
+<p>No content is kept in <code>0.1</code>: there is no redaction yet to apply to it, and a
+capture setting is refused. Every content attribute (<code>gen_ai.input.messages</code>,
+<code>gen_ai.output.messages</code>, <code>gen_ai.system_instructions</code>,
+<code>gen_ai.tool.call.arguments</code>, <code>gen_ai.tool.call.result</code>,
+<code>gen_ai.tool.definitions</code>) and every other <code>gen_ai.*</code> attribute outside the
+list above is dropped and counted, on a span and on its events, and in the
+report wherever else the selected resource carries one; so is
+<code>gen_ai.request.model</code> on a span that is not a model's. Message parts are
+parsed only to count reasoning: a part of type <code>reasoning</code> or <code>thinking</code> is
+counted and nothing of it is kept; a value that is not an array of messages
+whose parts each name a type is counted as unparsed, never as none.</p>
+<h2 id="the-log">The log</h2>
+<p>One file, <code>observations.jsonl</code>, in a directory of the operator's account that
+no other account can reach, held by one writer at a time. Each line holds one
+observation or one import report. An observation's id is derived from its
+tenant, project, source, trace and span, so importing the same spans again
+writes nothing new: a span already in the log is a duplicate; one with other
+content, its receive time and the descriptor's digest aside, is a conflict,
+is not written, and makes the import exit 1. The observations an import keeps
+and its report are appended together and synced; a crash in that append leaves
+a partial last line, which the next open cuts, and nothing else.</p>
+<p>Each import ends with one report: the source, the descriptor's SHA-256, the
+receive time, the input's first-line digest and size, every count above, and
+the earliest and latest event time. A source was last heard at its newest
+event time not later than a report's receive time.</p>
+<h2 id="commands">Commands</h2>
+<pre><code>guardana-control observe import --source &lt;descriptor&gt; --log &lt;dir&gt; &lt;file&gt;
+guardana-control observe export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] &lt;file&gt;
+</code></pre>
+<p><code>import</code> reads OTLP/JSON trace lines, one <code>TracesData</code> object per line as an
+OpenTelemetry collector's file exporter writes them, up to the last newline;
+the bytes after it are left for the next import, since the exporter may still
+be writing them. A line with an unknown member, a member twice, an attribute
+twice, a <code>null</code>, an enum spelled as a string, nesting deeper than 32 or more
+than 262,144 array elements is refused, and every span in it is counted as
+refused. A line over 16 MiB is refused unread. An input over 256 MiB is
+refused whole. Exit 0: every span read was imported, skipped or a
+duplicate. Exit 1: something was refused or conflicted; the report says
+what. Exit 2: nothing was written, for a usage error, a descriptor refused
+or a log that cannot be opened.</p>
+<p><code>export</code> writes <code>guardana.control.observation-export</code> version <code>0.1</code>, in the
+evidence export's shape (<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>):
+a header, <code>observation</code> and <code>import_report</code> records, gaps (<code>malformed</code>,
+<code>unsupported_version</code>, <code>carriage_return</code>, <code>conflicting_observation_id</code>),
+duplicates and a trailer with the cursor to resume from, and the same exit
+codes. It has no filters yet.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/observations.md">docs/reference/observations.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -279,7 +306,7 @@ does with a number it does not know is on <a href="/docs/contracts">the wire con
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
-<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/observations" aria-current="page">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
@@ -293,7 +320,7 @@ does with a number it does not know is on <a href="/docs/contracts">the wire con
 <li><a href="/docs/reference/wire/decision">decision.proto</a></li>
 <li><a href="/docs/reference/wire/event">event.proto</a></li>
 <li><a href="/docs/reference/wire/finding">finding.proto</a></li>
-<li><a href="/docs/reference/wire/result" aria-current="page">result.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
 </ul>
 <h2>Specification</h2><ul>
 <li><a href="/docs/contracts">Wire contracts</a></li>

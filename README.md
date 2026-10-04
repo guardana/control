@@ -90,9 +90,10 @@ MCP is one channel of several ([ROADMAP.md](ROADMAP.md),
 
 | Today, `experimental` | `Planned` |
 | --- | --- |
-| An MCP gateway deciding each call before it runs | Sensors: runtime traces, proxy logs, process events |
-| Signed policy, approvals, pause, evidence trail | A supervisor: procedures, detectors, coverage map |
-| A report and local alerts from the evidence export | Notifiers, and a stop of one run where allowed |
+| An MCP gateway deciding each call before it runs | Proxy and process sensors |
+| Signed policy, approvals, pause, evidence trail | A supervisor: procedures, detectors, coverage |
+| A report and local alerts from the evidence export | Notifiers, and stopping one run where allowed |
+| Runtime traces kept as observations | |
 
 ```mermaid
 flowchart TB

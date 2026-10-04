@@ -13,6 +13,14 @@ verify one.
 
 ### Added
 
+- Observations: `guardana-control observe import` reads an agent runtime's
+  OpenTelemetry GenAI spans (OTLP/JSON, conventions 1.41.0) for one source an
+  operator describes, keeps who did what, when and how it ended, and appends
+  it to an observation log; `observe export` writes the log in the evidence
+  export's shape. The record is `guardana.control.observe.v1alpha1`, version
+  `0.1`, outside any compatibility promise. No prompt, output, tool argument
+  or result is kept, and reasoning is counted and dropped. An observation is
+  testimony: the plane never reads one.
 - A call to the MCP gateway that carries W3C trace context in
   `_meta.traceparent` records the trace id and the caller's span id in its
   envelope's `trace_id` and `span_id`, so a trail can be joined to the agent

@@ -73,7 +73,10 @@ matched exactly; an unknown member, a capture setting among them, is refused.
 honour a capture setting. Every content attribute (`gen_ai.input.messages`,
 `gen_ai.output.messages`, `gen_ai.system_instructions`,
 `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` and any other
-`gen_ai.*` attribute outside the allowlist below) is dropped and counted.
+`gen_ai.*` attribute outside the allowlist below) is dropped and counted:
+on an observed span in its own count, and wherever else the selected
+resource carries one (its attributes, its scopes', links, skipped spans) in
+the import's.
 Message parts are parsed only to count reasoning: a part whose `type` is
 `reasoning` or `thinking` is counted as reasoning, and a value that does not
 parse is counted as unparsed, never as zero. Capture returns as an added field
@@ -82,8 +85,9 @@ once a redaction exists.
 **An allowlist, not a denylist.** The importer copies only these into typed
 fields: `gen_ai.operation.name`, `gen_ai.tool.name`, `gen_ai.request.model`,
 `gen_ai.provider.name`, `gen_ai.agent.name`, `server.address`, `error.type`,
-and the descriptor's `run_attribute`. A copied string over 256 bytes or with a
-control character is dropped and counted. A span's name and its status message
+and the descriptor's `run_attribute`. A copied string over 256 bytes, or
+holding a control, format, line or paragraph separator, private-use or
+noncharacter code point or U+FFFD, is dropped and counted. A span's name and its status message
 are never copied. `execute_tool` is a tool, `invoke_agent` and `create_agent`
 an agent, `chat`, `generate_content`, `text_completion` and `embeddings` a
 model; any other span is skipped and counted. Stage is failed when the status
@@ -112,8 +116,9 @@ without an event time does not count, and a later one is taken at
 a lock, each line one record, compact and escaped as the evidence writer
 writes its lines. `guardana-control observe import --source <descriptor>
 --log <dir> <file>` reads OTLP/JSON `TracesData` lines up to the last newline;
-an unknown member, a duplicate member or a duplicate attribute refuses that
-line, counted, exit 1. `guardana-control observe export [--after <cursor>]
+an unknown member, a duplicate member, a duplicate attribute, or more array
+elements than one 64th of the line bound refuses that line, counted, exit 1,
+so a line costs memory in proportion to its length. `guardana-control observe export [--after <cursor>]
 [--limit <n>] [--max-bytes <n>] <file>` writes
 `guardana.control.observation-export` version `0.1`: ADR-0035's header,
 records of type `observation` and `import_report`, gap, duplicate and

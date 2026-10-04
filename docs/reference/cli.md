@@ -17,7 +17,7 @@ without this page fails the gate.
 | --- | --- |
 | 0 | The command did what it was asked. |
 | 1 | The input was refused or a case failed: stderr says why, one line each; `policy test` and a scenario report on stdout what failed. |
-| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, or a trail export refused or cut short. |
+| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail export refused or cut short, or an `observe` command that wrote nothing. |
 
 Without arguments either binary prints its version and one status line on
 stdout and exits 0.
@@ -70,9 +70,8 @@ whatever `a/link` points at. When syncing the directory fails after the
 rename, `sign` reports the failure although the new bundle may already be in
 place.
 
-The key reaches the command only as a path. No refusal quotes the key file or prints
-the `--key` value: a refusal about the key names the flag and the check that
-failed. Both commands refuse
+The key reaches the command only as a path, and no refusal quotes it. Both
+commands refuse
 on a platform without permission bits
 ([ADR-0018](../adr/0018-keys-and-bundles-on-disk.md)).
 
@@ -86,8 +85,7 @@ its resolution and both digests — and beside it the readable fields of the
 projection the plane wrote at hold time. Those readable fields are not bound
 to the action digest beside them, since the binding is over argument bytes no
 record holds; the listing says so above the records. A listing the store
-reports incomplete exits 1 and names what it could not read, because what it
-shows is then neither the whole directory nor an empty one.
+reports incomplete exits 1 and names what it could not read.
 
 `approvals approve` and `approvals reject` write the answer whether or not a
 plane is running, and exit 0 either way: the record is on disk for the next
@@ -133,6 +131,9 @@ the lift if its approval has not expired.
 The `runs` commands open, close and list the runs a plane with `runs.dir`
 serves: [runs.md](runs.md).
 
+The `observe` commands import an agent runtime's OpenTelemetry spans into an
+observation log and export it: [observations.md](observations.md).
+
 `console` serves a page that answers approvals and writes pauses:
 [console.md](console.md).
 
@@ -158,6 +159,8 @@ usage:
   guardana-control runs open --tenant --principal-type --principal --agent --ttl [--parent] <dir>
   guardana-control runs close <dir> <run-id>
   guardana-control runs list <dir>
+  guardana-control observe import --source <file> --log <dir> <file>
+  guardana-control observe export [--after] [--limit] [--max-bytes] <file>
   guardana-control console --approvals <dir> [--pause <f>] --approver-id <id> [--until-stdin-closes]
 
 Write access to the approvals directory is the approval authority:

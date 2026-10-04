@@ -63,6 +63,7 @@
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
@@ -106,6 +107,14 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.6.0-alpha...HEAD">Unreleased</a></h2>
 <h3 id="added">Added</h3>
 <ul>
+<li>Observations: <code>guardana-control observe import</code> reads an agent runtime's
+OpenTelemetry GenAI spans (OTLP/JSON, conventions 1.41.0) for one source an
+operator describes, keeps who did what, when and how it ended, and appends
+it to an observation log; <code>observe export</code> writes the log in the evidence
+export's shape. The record is <code>guardana.control.observe.v1alpha1</code>, version
+<code>0.1</code>, outside any compatibility promise. No prompt, output, tool argument
+or result is kept, and reasoning is counted and dropped. An observation is
+testimony: the plane never reads one.</li>
 <li>A call to the MCP gateway that carries W3C trace context in
 <code>_meta.traceparent</code> records the trace id and the caller's span id in its
 envelope's <code>trace_id</code> and <code>span_id</code>, so a trail can be joined to the agent
@@ -699,6 +708,7 @@ independence of this project from Guardana
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>

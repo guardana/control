@@ -49,6 +49,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [MCP enforcement coverage](reference/mcp-coverage.md): Per revision, transport and method, what the gateway enforces today and what it does not.
 - [Metrics](reference/metrics.md): Every metric a plane answers on /metrics, with its type, its label, the statistic it reads and what it counts.
 - [Obligations](reference/obligations.md): The catalogue of obligation types a policy rule may name, and what the tree does with one.
+- [Observations](reference/observations.md): The source descriptor, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export.
 - [Policy explain](reference/policy-explain.md): What `guardana-control policy explain` reads, every line it prints, which rule decided and which input a rule could not read, and its bounds.
 - [Policy document format](reference/policy-format.md): Every member of an agent-policy/v1alpha1 document, the values each admits, the bounds, and the members of a policy test case.
 - [Reason codes](reference/reason-codes.md): Every reason code a decision may carry, with its number and the verdict it usually accompanies.

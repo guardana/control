@@ -143,7 +143,16 @@ var ownRefusal = map[string]func(missing string) []string{
 	"runs close": func(m string) []string { return []string{m, "run-" + strings.Repeat("0", 32)} },
 	"runs list":  func(m string) []string { return []string{m} },
 	"console":    func(m string) []string { return []string{"--approvals", m, "--approver-id", "someone"} },
+	"observe import": func(m string) []string {
+		return []string{"--source", m, "--log", m, m}
+	},
+	"observe export": func(m string) []string { return []string{m} },
 }
+
+// refusalStatus is the status a command refuses a missing path with where it
+// is not exitFail: the observe commands keep the export's contract, in which
+// 2 says nothing was written and 1 is a whole result that holds a refusal.
+var refusalStatus = map[string]int{"observe import": exitUsage, "observe export": exitUsage}
 
 // TestEveryListedCommandDispatches: the list the help prints is the list run
 // dispatches. Each command's words reach its own command; words the list does
@@ -161,8 +170,12 @@ func TestEveryListedCommandDispatches(t *testing.T) {
 		}
 		var stdout, stderr bytes.Buffer
 		status := run(append(strings.Fields(words), args(missing)...), &stdout, &stderr)
-		if want := brand.CLI + ": " + words + ": "; status != exitFail || !strings.HasPrefix(stderr.String(), want) {
-			t.Errorf("%q answered %d with %q, want %d and a line starting %q", words, status, stderr.String(), exitFail, want)
+		wantStatus, ok := refusalStatus[words]
+		if !ok {
+			wantStatus = exitFail
+		}
+		if want := brand.CLI + ": " + words + ": "; status != wantStatus || !strings.HasPrefix(stderr.String(), want) {
+			t.Errorf("%q answered %d with %q, want %d and a line starting %q", words, status, stderr.String(), wantStatus, want)
 		}
 	}
 	for _, args := range unlistedInvocations(missing) {
