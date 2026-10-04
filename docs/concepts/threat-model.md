@@ -184,9 +184,13 @@ What the plane does today:
   `flow.max_runs` runs a new principal's calls have no run: a flow rule reads
   their flow as unknown, and what they return taints nothing.
 - A server's lists are bounded and timed out, a call is bounded by
-  `upstream.call_timeout`, and an HTTP server's redirect is not followed
+  `upstream.call_timeout`, an HTTP server's redirect is not followed, and an
+  HTTP answer other than an event stream is read no further than 16 MiB
   (`TestUpstreamListIsBounded`, `TestUpstreamListIsTimedOut`,
-  `TestAnUpstreamRedirectIsNotFollowed`).
+  `TestAnUpstreamRedirectIsNotFollowed`,
+  `TestAnOversizeUpstreamAnswerFailsTheCallInBoundedMemory`). A transport
+  failure reaches neither the agent nor the log with the URL
+  (`TestATransportFailureNeverQuotesTheEndpoint`).
 - A server's sampling, roots and progress requests reach no agent
   ([MCP coverage](../reference/mcp-coverage.md)).
 

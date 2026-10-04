@@ -9,6 +9,7 @@ import (
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/pkg/contract"
 )
 
@@ -37,6 +38,22 @@ func AppliedObligations() []string {
 // applied is what the obligations of a decision demand of the send.
 type applied struct {
 	timeout time.Duration
+}
+
+// errResourceMoved is authorized bytes whose member naming the resource does
+// not name the one the envelope was decided on: a rewriting obligation
+// changed it.
+const errResourceMoved Error = "mcp: the authorized arguments name another resource than the one decided on"
+
+// authorizedSend checks what the authorized bytes may be sent under: they
+// name the resource the envelope was decided on, and every obligation left
+// for the adapter holds.
+func authorizedSend(c *call, d gateway.Disposition) (applied, error) {
+	if c.entry != nil && c.entry.ResourceFrom != "" &&
+		resolvePointer(d.AuthorizedArgs, c.entry.ResourceFrom) != c.admission.Envelope.GetResource().GetId() {
+		return applied{}, errResourceMoved
+	}
+	return applyObligations(c, d.Obligations)
 }
 
 // applyObligations checks every obligation against the call and returns

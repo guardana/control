@@ -3,12 +3,15 @@ package mcp
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -325,6 +328,52 @@ func TestASessionCapLeftUnsetIsTheDefault(t *testing.T) {
 		a := &Adapter{cfg: Config{Listener: Listener{MaxSessions: set}}}
 		if got := a.sessionLimit(); got != want {
 			t.Errorf("MaxSessions %d caps at %d, want %d", set, got, want)
+		}
+	}
+}
+
+// TestTheResultHashIsTheHashOfItsMarshalledBytes: the hash Close records is
+// sha256 over what json.Marshal writes for the result, computed here from
+// Marshal itself, for results whose encoding escapes, nests, holds raw JSON
+// and runs past one buffer.
+func TestTheResultHashIsTheHashOfItsMarshalledBytes(t *testing.T) {
+	now := time.Now()
+	for name, res := range map[string]mcp.Result{
+		"escaped characters": &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "<a href=\"x\">&amp;</a>  \x01"}}},
+		"nested structure":   &mcp.CallToolResult{StructuredContent: map[string]any{"b": []any{1, "two", map[string]any{"c": nil}}, "a": true}},
+		"raw arguments":      &mcp.CallToolResult{StructuredContent: json.RawMessage(`{ "z" : 1, "a" : [ 2 ] }`)},
+		"a long text":        &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: strings.Repeat("long ", 1<<16)}}},
+		"a resource":         &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{URI: "file:///r", Text: "r"}}},
+	} {
+		raw, err := json.Marshal(res)
+		if err != nil {
+			t.Fatalf("%s: Marshal: %v", name, err)
+		}
+		sum := sha256.Sum256(raw)
+		want := "sha256:" + hex.EncodeToString(sum[:])
+		if got := resultOf(gateway.Disposition{}, now, now, res, nil).GetResultHash(); got != want {
+			t.Errorf("%s: result hash %s, want %s", name, got, want)
+		}
+	}
+}
+
+// TestALoggedFailureNamesItsCauseAndNotItsURL: a transport's failure is
+// logged by the operation and the cause, never by the URL it quotes; a wire
+// error by its code, never by the upstream's message.
+func TestALoggedFailureNamesItsCauseAndNotItsURL(t *testing.T) {
+	const marker = "query-credential-marker"
+	dial := &url.Error{Op: "Post", URL: "http://127.0.0.1:1/mcp?token=" + marker, Err: errors.New("dial tcp 127.0.0.1:1: connect: connection refused")}
+	rejected := &jsonrpc.Error{Code: -32005, Message: "rejected by transport"}
+	for name, c := range map[string]struct {
+		err  error
+		want string
+	}{
+		"a refused dial": {fmt.Errorf("mcp: tools/list from up: %w", fmt.Errorf("sending %q: %w: %w", "tools/list", rejected, dial)), "Post: dial tcp 127.0.0.1:1: connect: connection refused"},
+		"a wire error":   {fmt.Errorf("mcp: tools/list from up: %w", &jsonrpc.Error{Code: -32042, Message: "reflected " + marker}), "JSON-RPC error -32042"},
+		"its own error":  {ErrListBound, ErrListBound.Error()},
+	} {
+		if got := logText(c.err); got != c.want {
+			t.Errorf("%s: logged %q, want %q", name, got, c.want)
 		}
 	}
 }

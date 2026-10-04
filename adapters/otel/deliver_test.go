@@ -162,6 +162,8 @@ func TestOnlyTheProtocolsAnswerAccepts(t *testing.T) {
 		"a count that is no count": {http.StatusOK, `{"partialSuccess":{"rejectedLogRecords":"many"}}`},
 		"a negative count":         {http.StatusOK, `{"partialSuccess":{"rejectedLogRecords":"-1"}}`},
 		"a cut object":             {http.StatusOK, `{"partialSuccess":`},
+		// Its first 64 KiB alone would read as an empty object.
+		"an answer past the bound": {http.StatusOK, "{}" + strings.Repeat(" ", 64<<10)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var calls atomic.Int32
@@ -193,6 +195,7 @@ func TestOnlyTheProtocolsAnswerAccepts(t *testing.T) {
 		"an empty partial success": {http.StatusOK, `{"partialSuccess":{}}`},
 		"a null partial success":   {http.StatusOK, `{"partialSuccess":null}`},
 		"nothing rejected":         {http.StatusOK, `{"partialSuccess":{"rejectedLogRecords":"0","errorMessage":""}}`},
+		"an answer at the bound":   {http.StatusOK, "{}" + strings.Repeat(" ", 64<<10-2)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := newCollectorFunc(t, func(w http.ResponseWriter, _ *http.Request) {

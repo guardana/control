@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"os/exec"
@@ -88,10 +90,60 @@ func adapterConfig(cfg *gatewayconfig.Config, logger *slog.Logger) (adaptermcp.C
 	}, nil
 }
 
+// maxUpstreamAnswerBytes bounds an upstream's HTTP answer the library reads
+// whole: the bound it puts itself on one event of a stream and on one
+// message over stdio.
+const maxUpstreamAnswerBytes = mcp.DefaultMaxEventSize
+
+// errUpstreamAnswerTooLong is an upstream's HTTP answer read past
+// maxUpstreamAnswerBytes.
+var errUpstreamAnswerTooLong = errors.New("the upstream's answer is longer than the bound")
+
+// boundedAnswers fails every answer past maxUpstreamAnswerBytes but an event
+// stream under a success status, whose events the library bounds one by one
+// and which a session holds open for as long as it lasts.
+type boundedAnswers struct{ next http.RoundTripper }
+
+func (b boundedAnswers) RoundTrip(r *http.Request) (*http.Response, error) {
+	resp, err := b.next.RoundTrip(r)
+	if err != nil {
+		return nil, err
+	}
+	media, _, perr := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if resp.StatusCode/100 == 2 && perr == nil && media == "text/event-stream" {
+		return resp, nil
+	}
+	resp.Body = &boundedBody{ReadCloser: resp.Body, left: maxUpstreamAnswerBytes}
+	return resp, nil
+}
+
+// boundedBody reads up to left bytes and fails on the first byte past them.
+type boundedBody struct {
+	io.ReadCloser
+	left int64
+}
+
+func (b *boundedBody) Read(p []byte) (int, error) {
+	if b.left <= 0 {
+		var past [1]byte
+		if n, err := b.ReadCloser.Read(past[:]); n == 0 {
+			return 0, err
+		}
+		return 0, errUpstreamAnswerTooLong
+	}
+	if int64(len(p)) > b.left {
+		p = p[:b.left]
+	}
+	n, err := b.ReadCloser.Read(p)
+	b.left -= int64(n)
+	return n, err
+}
+
 // upstreams builds one transport per configured server: Streamable HTTP for
 // an endpoint, a child process for a command. An HTTP upstream's redirect is
 // not followed: it reaches the adapter as the upstream's answer, a failed
-// call, so a call goes only to the endpoint the operator configured.
+// call, so a call goes only to the endpoint the operator configured. An HTTP
+// answer is read no further than maxUpstreamAnswerBytes.
 func upstreams(cfg *gatewayconfig.Config) ([]adaptermcp.Upstream, error) {
 	out := make([]adaptermcp.Upstream, 0, len(cfg.Upstreams))
 	for i, up := range cfg.Upstreams {
@@ -100,6 +152,7 @@ func upstreams(cfg *gatewayconfig.Config) ([]adaptermcp.Upstream, error) {
 			transport = &mcp.StreamableClientTransport{
 				Endpoint: up.Endpoint,
 				HTTPClient: &http.Client{
+					Transport:     boundedAnswers{next: http.DefaultTransport},
 					CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 				},
 			}
@@ -200,19 +253,12 @@ func orWord(value, absent string) string {
 }
 
 // startUpstreams connects every upstream, after which the manifest holds
-// what they listed. The transport's refusal quotes the URL it dialled, so
-// where an upstream's endpoint is one ShowAddress withholds, the refusal
-// names the key and why instead of its own text.
+// what they listed. A refusal names the upstream and what failed, never its
+// endpoint or its own message, so it is printed as it is.
 func (p *plane) startUpstreams(ctx context.Context) error {
-	err := p.adapter.Start(ctx, p.pipeline)
-	if err == nil {
-		p.listed.Store(true)
-		return nil
+	if err := p.adapter.Start(ctx, p.pipeline); err != nil {
+		return err
 	}
-	for i, up := range p.cfg.Upstreams {
-		if shown := gatewayconfig.ShowAddress(up.Endpoint); shown != up.Endpoint {
-			return fmt.Errorf("the transport's error is not printed, because upstreams.%d.endpoint is %s", i, shown)
-		}
-	}
-	return err
+	p.listed.Store(true)
+	return nil
 }

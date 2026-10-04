@@ -334,8 +334,12 @@ func TestUpstreamListIsBounded(t *testing.T) {
 			t.Fatal(err)
 		}
 		agent := connectHTTP(t, serveHTTP(t, h), "agent-a", v20260728, nil)
-		if _, err := agent.ListResources(ctxT(t), nil); err == nil {
+		_, err = agent.ListResources(ctxT(t), nil)
+		if err == nil {
 			t.Fatalf("an endless resources/list was forwarded whole")
+		}
+		if !strings.Contains(err.Error(), mcp.ErrListBound.Error()) {
+			t.Errorf("the forwarded list's refusal %q does not name the bound", err)
 		}
 	})
 }

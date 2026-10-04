@@ -23,7 +23,10 @@ import (
 // ErrNotMinted. A mismatch is recorded as ACTION_FAILED naming
 // EXECUTED_ARGS_MISMATCH, returned as ErrExecutedArgsMismatch, and halts
 // material calls until restart; a sink error is returned as is and halts them
-// until an append succeeds. The caller delivers the result either way.
+// until an append succeeds. The caller delivers the result either way. The
+// journal entry of a hold the execution resumed is forgotten only once the
+// closing record lands: a trail a refused append left open keeps its entry, for
+// a later plane to report as an interrupted close.
 func (p *Pipeline) Close(ctx context.Context, d Disposition, sent []byte, result *controlv1.ActionResult) error {
 	if p == nil || p.kernel == nil {
 		return ErrUnbuilt
@@ -39,9 +42,6 @@ func (p *Pipeline) Close(ctx context.Context, d Disposition, sent []byte, result
 	if ex == nil {
 		return ErrNotMinted
 	}
-	// The trail is closed here whatever the closing record says, so a hold
-	// this execution resumed is forgotten here and not earlier.
-	defer p.journalForget(ctx, ex.requestID)
 	executed, err := canon.DigestV1(ex.envelope, sent)
 	matched := err == nil && executed == ex.digest
 	var mismatch error
@@ -64,6 +64,7 @@ func (p *Pipeline) Close(ctx context.Context, d Disposition, sent []byte, result
 		return err
 	}
 	p.counts.appended(gen)
+	p.journalForget(ctx, ex.requestID)
 	return mismatch
 }
 
@@ -141,7 +142,8 @@ func (c AbortCause) code() (string, bool) {
 // consumes the execution and never halts the plane. It refuses a cause this
 // build does not declare with ErrAbortCause, leaving the execution open, and a
 // disposition it did not mint, or closed already, with ErrNotMinted; a sink
-// error is returned as is.
+// error is returned as is, and the journal entry of a hold the execution
+// resumed stays, as it does at Close.
 func (p *Pipeline) Abort(ctx context.Context, d Disposition, cause AbortCause) error {
 	if p == nil || p.kernel == nil {
 		return ErrUnbuilt
@@ -161,7 +163,6 @@ func (p *Pipeline) abort(ctx context.Context, d Disposition, code string) error 
 	if ex == nil {
 		return ErrNotMinted
 	}
-	defer p.journalForget(ctx, ex.requestID)
 	if ex.unrecorded {
 		return nil
 	}
@@ -175,6 +176,7 @@ func (p *Pipeline) abort(ctx context.Context, d Disposition, code string) error 
 		return err
 	}
 	p.counts.appended(gen)
+	p.journalForget(ctx, ex.requestID)
 	return nil
 }
 

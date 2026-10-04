@@ -16,8 +16,11 @@ import (
 )
 
 // maxAnswerBytes bounds what is read of a collector's answer. An accepting
-// answer longer than this does not parse, and the request is sent again.
+// answer longer than this is not an acceptance, and the request is sent again.
 const maxAnswerBytes = 64 << 10
+
+// errAnswerTooLong is an answer longer than maxAnswerBytes.
+const errAnswerTooLong Error = "otel: the answer is longer than the bound"
 
 // maxRefusals is how many times running a collector may refuse one record
 // before it goes to the quarantine.
@@ -135,7 +138,12 @@ func (e *Exporter) post(ctx context.Context, body []byte, batch int) answer {
 		return answer{class: classTransport, err: err}
 	}
 	defer resp.Body.Close() //nolint:errcheck // the answer is read; nothing to lose on close
-	text, err := io.ReadAll(io.LimitReader(resp.Body, maxAnswerBytes))
+	// One byte past the bound is read, so an answer that reaches it is told
+	// from one whose valid prefix ends there.
+	text, err := io.ReadAll(io.LimitReader(resp.Body, maxAnswerBytes+1))
+	if err == nil && len(text) > maxAnswerBytes {
+		err = errAnswerTooLong
+	}
 	return classify(resp.StatusCode, text, err, batch)
 }
 

@@ -3,6 +3,7 @@ package otel_test
 import (
 	"bytes"
 	"errors"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -240,5 +241,41 @@ func TestAnEventOfAnotherMajorIsRefused(t *testing.T) {
 		if !errors.Is(err, otel.ErrRequest) || !errors.Is(err, contract.ErrUnsupportedSchema) {
 			t.Errorf("schemaVersion %s: ReadRequest = %v, want ErrRequest wrapping ErrUnsupportedSchema", version, err)
 		}
+	}
+}
+
+// TestAllocationFollowsTheRequestNotItsRecordCount: a request of many small
+// records costs memory in proportion to its bytes, not one line-sized buffer
+// per record, which would be MaxLineBytes times the count of records.
+func TestAllocationFollowsTheRequestNotItsRecordCount(t *testing.T) {
+	const records = 256
+	record := `{"body":{"stringValue":` + strconv.Quote(bodyLine) + `}}`
+	req := []byte(`{"resourceLogs":[{"scopeLogs":[{"logRecords":[` +
+		strings.TrimSuffix(strings.Repeat(record+",", records), ",") + `]}]}]}`)
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	events, err := otel.ReadRequest(req)
+	runtime.ReadMemStats(&after)
+	if err != nil || len(events) != records {
+		t.Fatalf("ReadRequest = %d events, %v; want %d", len(events), err, records)
+	}
+	allocated := after.TotalAlloc - before.TotalAlloc
+	if limit := uint64(4*evidence.MaxLineBytes + 64*len(req)); allocated > limit {
+		t.Errorf("ReadRequest of %d bytes in %d records allocated %d bytes; want at most %d", len(req), records, allocated, limit)
+	}
+}
+
+// TestALineBreakInOneOfManyBodiesRefusesTheRequest: two log records whose
+// first body holds two evidence lines carry three lines for two records, and
+// the request is refused rather than read as three events.
+func TestALineBreakInOneOfManyBodiesRefusesTheRequest(t *testing.T) {
+	other := strings.Replace(bodyLine, "evt-1", "evt-2", 1)
+	third := strings.Replace(bodyLine, "evt-1", "evt-3", 1)
+	record := func(body string) string { return `{"body":{"stringValue":` + strconv.Quote(body) + `}}` }
+	req := `{"resourceLogs":[{"scopeLogs":[{"logRecords":[` + record(bodyLine+"\n"+other) + `,` + record(third) + `]}]}]}`
+	events, err := otel.ReadRequest([]byte(req))
+	if !errors.Is(err, otel.ErrRequest) || !errors.Is(err, evidence.ErrTooManyEvents) || events != nil {
+		t.Errorf("ReadRequest = %d events, %v; want ErrRequest and ErrTooManyEvents", len(events), err)
 	}
 }

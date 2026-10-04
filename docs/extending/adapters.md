@@ -112,7 +112,8 @@ reads:
 
 An obligation marked advisory that the adapter cannot satisfy is skipped and
 the call proceeds, and nothing records the skip; a non-advisory one stops it,
-and the closing record says the obligation refused it. The plane applies the rewriting types (`redact_fields`,
+and the closing record says the obligation refused it. A rewrite that changes
+the member a tool's `resource_from` reads is aborted, not sent. The plane applies the rewriting types (`redact_fields`,
 `cap_amount`) itself, before the decision that is recorded, because they change
 the bytes the digest covers.
 

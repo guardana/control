@@ -7,8 +7,8 @@ covers: [adapters/mcp/**, internal/gateway/**, cmd/guardana-gateway/**, pkg/cont
 
 # MCP enforcement coverage
 
-What this build of the gateway does with each Model Context Protocol method, on
-each revision and transport. [status.md](../status.md) is the inventory;
+What this build does with each Model Context Protocol method, on each
+revision and transport. [status.md](../status.md) is the inventory;
 [concepts/mcp-gateway](../concepts/mcp-gateway.md) explains the mechanism, and
 [ADR-0013](../adr/0013-mcp-interception-approvals-and-modes.md) records the
 decisions.
@@ -46,12 +46,12 @@ child process over stdio (`upstreams[].command`).
 | Not covered | Why |
 | --- | --- |
 | Elicitation (`input_required`) | The shape needs a handler registered per tool, which this interception does not have; `planned` with the approval providers (ADR-0013) |
-| The Tasks extension | Not implemented by the library. A `resultType: "task"` result was seen to decode as a complete, empty, successful call when this was measured against the library; no test in this repository pins that, so it is a reason not to use the extension rather than a promise about it |
+| The Tasks extension | Not implemented by the library, which was seen to decode a `resultType: "task"` result as a complete, empty, successful call; no test here pins that, so it is a reason not to use the extension, not a promise |
 | `notifications/tools/list_changed` toward the agent | The library emits it only for its own registry, and the gateway registers no tools, so the listener declares it does not send one and an agent refreshes when `list.ttl` runs out |
 | An upstream's own notifications and server-initiated requests, other than a changed tool list | Only a changed tool list is handled, by refreshing the manifest; sampling, roots and progress from an upstream reach no agent |
 | Resuming a hold the plane lost | A hold does not survive a restart, and its call never runs. With a hold journal the next start closes its trail, with the approver's answer and `APPROVAL_NOT_RESUMED` or as expired, or counts it left open; without one it stays open. The agent and the approver start over (ADR-0016) |
 | Telling one approver from another | Write access to the approvals directory is the approval authority, and `approver_id` on a record is a claim recorded as given. An authenticated provider would replace that authority, and none exists yet (ADR-0016) |
-| A client other than the library's own | Not exercised; the conformance tests drive the reference implementation of both revisions |
+| A client other than the library's own | Not exercised; the conformance tests drive the reference implementation |
 | A tool classified `SPAWN_OR_DELEGATE` | The contract requires a delegation chain for that class and the listener carries none, so every such call is refused as `REQUIRED_FIELD_ABSENT` before a rule or a decision point is read |
 | What a run read outside the gateway | A run, without `runs.dir`, is the listener's principal and starts clean at each restart; on stdio the gateway ends with its client's connection, so a run lasts one connection there. The user's prompt, tool descriptions and tools not behind the gateway are not tracked, and a call carries no data label, so a `flow` rule blocks every untrusted destination after untrusted input. A `resources/read` and a `prompts/get` carry no declared result, so each leaves its run untrusted and unknown for the rest of the run (ADR-0021) |
 
@@ -67,7 +67,7 @@ when it is not `none` in a mode that does not enforce.
 | `hide` | refused at start | a tool the preview denies, and every unclassified tool, is omitted |
 
 A preview is one decision made with no arguments, so a tool whose
-`resource_from` reads the resource out of the arguments cannot be decided before
+`resource_from` reads the resource from the arguments cannot be decided before
 the call exists. Such a tool stays in the list, and under `annotate` it is marked
 `DECIDED_PER_CALL`, unless a rule denies it without its arguments. Under `hide` it stays too:
 shaping subtracts what policy denies, never what it could not decide.
@@ -82,11 +82,12 @@ error, outside the protocol's reserved range and the library's private code.
 
 | Code | Means | Data |
 | --- | --- | --- |
-| `-31100` | the gateway blocked the call | `reason_codes`, `decision_id`, and `refused` with what the refusal said when the envelope itself could not be built |
+| `-31100` | the gateway blocked the call | `reason_codes`, `decision_id`, and `refused` with what the refusal said when the envelope could not be built |
 | `-31101` | an approval is pending | `reason_code: APPROVAL_PENDING`, `approval_id`, `action_digest`, `expires_at`, `retry_after` |
 
-An upstream's own wire error passes through with its own code, and to a
-`tools/call` with its own message and data. Only `<ns>/answer` (`blocked` or
+An upstream's own wire error passes through with its code and message; any
+other failure, a timeout or a broken session, answers `-32603` `the upstream
+did not answer`, never the transport's text, which can quote the endpoint. Only `<ns>/answer` (`blocked` or
 `pending`, `<ns>` being the product's namespace) in an answer's `_meta` or in
 the error's `data` marks an answer the gateway made. The namespace is stripped
 from both places in everything an upstream sends, so an upstream cannot answer
@@ -109,8 +110,8 @@ and undecided answers carry neither.
 ## Reason codes in the gateway's answers
 
 A decision the kernel made comes back as the kernel wrote it;
-[reference/reason-codes](reason-codes.md) has every code and its number. The codes below are the ones the enforcement
-point mints or answers on its own.
+[reference/reason-codes](reason-codes.md) has every code and its number. The codes below are the enforcement
+point's own.
 
 | Code | When |
 | --- | --- |
@@ -123,7 +124,7 @@ point mints or answers on its own.
 | `APPROVAL_NOT_RESUMED`, `APPROVAL_STATE_UNKNOWN` | a request this plane lost to a restart was granted, or its answer could not be read or trusted; it never ran |
 | `APPROVAL_DIGEST_MISMATCH`, `APPROVAL_BUNDLE_MISMATCH` | an approval a store returned named another action or another policy bundle |
 | `EXECUTED_ARGS_MISMATCH` | the bytes about to be sent, or the bytes sent, were not the authorized ones |
-| `OBLIGATION_NOT_UNDERSTOOD` | an obligation the plane cannot apply, or whose parameters it cannot read |
-| `INVALID_FIELD_VALUE`, `MALFORMED_INPUT` | the call could not be translated into a valid envelope; `INVALID_FIELD_VALUE` also when its request id names a trail still open in the gateway |
-| `POLICY_UNAVAILABLE` | a block reached the adapter with a decision naming no cause; it answers with the kernel's own code for an absent policy rather than invent a second fail-closed answer |
+| `OBLIGATION_NOT_UNDERSTOOD` | an obligation the plane cannot apply, or whose parameters it cannot read, or a rewrite changed the member `resource_from` reads |
+| `INVALID_FIELD_VALUE`, `MALFORMED_INPUT` | the call, classified or not, could not be translated into a valid envelope; `INVALID_FIELD_VALUE` also when its request id names a trail still open in the gateway |
+| `POLICY_UNAVAILABLE` | a block reached the adapter with a decision naming no cause; it answers with the kernel's code for an absent policy rather than invent a second fail-closed answer |
 | `REQUIRED_FIELD_ABSENT` | a `tools/list` on a listener whose authenticator established no end user |

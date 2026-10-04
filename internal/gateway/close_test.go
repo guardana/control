@@ -240,3 +240,46 @@ func TestAnAppendInFlightDoesNotLiftAHaltRaisedWhileItRan(t *testing.T) {
 		t.Errorf("an append after the failure did not lift the halt")
 	}
 }
+
+// TestAnEndTheSinkRefusesKeepsTheResumedEntry: an approved call whose closing
+// or aborting record the sink refuses leaves its trail open, so the journal
+// keeps its entry at resuming for a later plane to report; one whose record
+// lands leaves the journal empty.
+func TestAnEndTheSinkRefusesKeepsTheResumedEntry(t *testing.T) {
+	ends := map[string]struct {
+		kind controlv1.EventKind
+		end  func(*harness, gateway.Disposition) error
+	}{
+		"close": {kindCompleted, func(h *harness, d gateway.Disposition) error {
+			return h.p.Close(context.Background(), d, d.AuthorizedArgs, result(controlv1.ResultStatus_RESULT_STATUS_SUCCESS))
+		}},
+		"abort": {kindFailed, func(h *harness, d gateway.Disposition) error {
+			return h.p.Abort(context.Background(), d, gateway.AbortObligation)
+		}},
+	}
+	for name, e := range ends {
+		for _, refused := range []bool{true, false} {
+			j := &journalDouble{}
+			h := build(t, modeEnforce, snapshot(t, approveRefunds), func(cfg *gateway.Config) { cfg.Journal = j })
+			if err := h.store.Answer(hold(t, h).Pending.ApprovalID, approved, "alice", "", base()); err != nil {
+				t.Fatalf("Answer: %v", err)
+			}
+			run := h.admit(retry(t, "req-2"), refundArgs())
+			if run.Action != core.Execute {
+				t.Fatalf("%s: the approved retry: Action = %d, want Execute", name, run.Action)
+			}
+			if refused {
+				h.sink.refuseKind(e.kind)
+			}
+			err := e.end(h, run)
+			if refused != errors.Is(err, errSink) {
+				t.Errorf("%s, refused %v: the end = %v", name, refused, err)
+			}
+			if refused {
+				expectEntry(t, j, gateway.HoldResuming)
+			} else {
+				expectNoEntry(t, j)
+			}
+		}
+	}
+}

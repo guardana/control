@@ -76,6 +76,21 @@ verify one.
   `scanned_bytes` or with a `dedup_scope` other than `export`. The demo's
   servers do not start on a journal that is a link, a pipe, a file with a
   second name, or a file another account owns or may read or write.
+- The MCP gateway answers an upstream failure that is not the upstream's own
+  wire error, on a call, a read, a prompt or a forwarded list, with `-32603`
+  `the upstream did not answer`, and logs a refresh failure by what failed:
+  neither the agent nor the log sees the endpoint, which can carry a
+  credential. An HTTP upstream's answer, other than an event stream, is read
+  no further than 16 MiB, so an oversize answer fails the call instead of
+  being held whole.
+- A rewriting obligation that changes the member a tool's `resource_from`
+  reads aborts the call with `OBLIGATION_NOT_UNDERSTOOD` instead of sending
+  it. A call nothing classifies is held to the rest of the envelope contract,
+  and a name or client tag past the string bound no longer leaves a proposal
+  too large to record.
+- A closing record the sink refused no longer forgets the held request, an
+  OTLP request of many records is decoded in one pass, and a collector's
+  answer of exactly 64 KiB is read as whole.
 
 ## [0.6.0-alpha] - 2026-10-03
 

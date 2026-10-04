@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"hash"
 	"strconv"
 	"strings"
 	"time"
@@ -105,11 +106,12 @@ func named(res mcp.Result, d *controlv1.Decision) mcp.Result {
 // namedError is an upstream wire error answering a tools/call: its own code,
 // message and data, the data without the keys under the namespace and with
 // the keys naming d's trail when it is an object or absent. Data of any
-// other shape has no place for them and arrives as it was sent.
+// other shape has no place for them and arrives as it was sent. Any other
+// failure is upstreamFailed.
 func namedError(err error, d *controlv1.Decision) error {
 	var werr *jsonrpc.Error
 	if !errors.As(err, &werr) {
-		return err
+		return upstreamFailed()
 	}
 	out := &jsonrpc.Error{Code: werr.Code, Message: werr.Message, Data: werr.Data}
 	var data map[string]json.RawMessage
@@ -253,15 +255,16 @@ func upstreamResult(res mcp.Result) mcp.Result {
 // upstreamError is an upstream wire error as the agent sees it: its own
 // code and message, and data without the gateway's marker, so an upstream
 // cannot answer as the gateway. Members stay raw, so a number keeps every
-// digit the upstream wrote.
+// digit the upstream wrote. Any other failure is upstreamFailed.
 func upstreamError(err error) error {
 	var werr *jsonrpc.Error
-	if !errors.As(err, &werr) || len(werr.Data) == 0 {
-		return err
+	if !errors.As(err, &werr) {
+		return upstreamFailed()
 	}
+	out := &jsonrpc.Error{Code: werr.Code, Message: werr.Message, Data: werr.Data}
 	var data map[string]json.RawMessage
-	if json.Unmarshal(werr.Data, &data) != nil {
-		return err
+	if len(werr.Data) == 0 || json.Unmarshal(werr.Data, &data) != nil {
+		return out
 	}
 	stripped := false
 	for k := range data {
@@ -271,13 +274,20 @@ func upstreamError(err error) error {
 		}
 	}
 	if !stripped {
-		return err
+		return out
 	}
-	out := &jsonrpc.Error{Code: werr.Code, Message: werr.Message}
+	out.Data = nil
 	if raw, merr := json.Marshal(data); merr == nil {
 		out.Data = raw
 	}
 	return out
+}
+
+// upstreamFailed answers a call that ended in no wire error of the
+// upstream's, a timeout or a broken connection: a fixed code and message,
+// because the error's own text can quote the endpoint, credential and all.
+func upstreamFailed() error {
+	return &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: "the upstream did not answer"}
 }
 
 // codeRejectedByTransport is the code the SDK's HTTP client wraps around a
@@ -316,14 +326,13 @@ func resultOf(d gateway.Disposition, started, ended time.Time, res any, err erro
 			out.Status = controlv1.ResultStatus_RESULT_STATUS_FAILURE
 			out.ToolProtocolStatus = "isError"
 		}
-		b, merr := json.Marshal(res)
-		if merr != nil {
+		sum, ok := resultHash(res)
+		if !ok {
 			out.Status = controlv1.ResultStatus_RESULT_STATUS_UNKNOWN
 			out.ToolProtocolStatus = "unhashable"
 			break
 		}
-		sum := sha256.Sum256(b)
-		out.ResultHash = "sha256:" + hex.EncodeToString(sum[:])
+		out.ResultHash = sum
 	case errors.Is(err, context.DeadlineExceeded):
 		out.Status = controlv1.ResultStatus_RESULT_STATUS_TIMEOUT
 		out.ToolProtocolStatus = "timeout"
@@ -337,4 +346,32 @@ func resultOf(d gateway.Disposition, started, ended time.Time, res any, err erro
 		}
 	}
 	return out
+}
+
+// resultHash is sha256 over json.Marshal's encoding of res, written into the
+// hash without a copy of the encoding beside it. Encode writes Marshal's
+// bytes and one newline, which the hash is not given.
+func resultHash(res any) (string, bool) {
+	w := &withoutLastByte{h: sha256.New()}
+	if err := json.NewEncoder(w).Encode(res); err != nil || w.last != "\n" {
+		return "", false
+	}
+	return "sha256:" + hex.EncodeToString(w.h.Sum(nil)), true
+}
+
+// withoutLastByte hashes everything written to it but the last byte, which it
+// holds.
+type withoutLastByte struct {
+	h    hash.Hash
+	last string
+}
+
+func (w *withoutLastByte) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	w.h.Write([]byte(w.last))
+	w.h.Write(p[:len(p)-1])
+	w.last = string(p[len(p)-1])
+	return len(p), nil
 }

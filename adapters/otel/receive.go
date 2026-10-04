@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 	"unicode/utf8"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -78,15 +77,15 @@ func ReadRequest(body []byte) ([]*controlv1.Event, error) {
 	if err := r.request(body); err != nil {
 		return nil, err
 	}
-	if r.events == nil {
-		r.events = []*controlv1.Event{}
-	}
-	return r.events, nil
+	return r.evidenceLines()
 }
 
+// requestReader gathers every log record's body, one line each, so the
+// evidence codec reads them in one pass: a pass costs a buffer the size of the
+// longest line, and one per record would cost that buffer once per record.
 type requestReader struct {
-	events []*controlv1.Event
-	line   bytes.Buffer
+	lines   bytes.Buffer
+	records int
 }
 
 func refuse(format string, args ...any) error {
@@ -136,7 +135,6 @@ func (r *requestReader) scopeLogs(raw json.RawMessage) error {
 }
 
 func (r *requestReader) logRecord(raw json.RawMessage) error {
-	number := len(r.events) + 1
 	m, err := object(raw, "log record", "timeUnixNano", "severityNumber", "severityText", "body", "attributes")
 	if err != nil {
 		return err
@@ -159,33 +157,37 @@ func (r *requestReader) logRecord(raw json.RawMessage) error {
 	if err != nil {
 		return err
 	}
-	event, err := r.evidenceLine(line)
-	if err != nil {
-		return fmt.Errorf("%w: log record %d: %w", ErrRequest, number, err)
-	}
-	r.events = append(r.events, event)
+	r.records++
+	r.lines.WriteString(line)
+	r.lines.WriteByte('\n')
 	return nil
 }
 
-// evidenceLine decodes line as the one event it has to be, of a version this
-// build reads, and checks the codec writes that event back within its bound:
-// the file the records go to holds the codec's line, and a record that fits as
-// sent and not as written would be refused there, after the request was
-// accepted. An event of another major is refused with the request, so its
-// sender quarantines it where an operator sees it.
-func (r *requestReader) evidenceLine(line string) (*controlv1.Event, error) {
-	events, err := evidence.DecodeJSONL(strings.NewReader(line+"\n"), 1)
+// evidenceLines decodes each body as the one event it has to be, of a version
+// this build reads, and checks the codec writes that event back within its
+// bound: the file the records go to holds the codec's line, and a record that
+// fits as sent and not as written would be refused there, after the request
+// was accepted. An event of another major is refused with the request, so its
+// sender quarantines it where an operator sees it. The codec numbers lines
+// from one, so its line is the log record's number while no body holds a line
+// break; a body that does adds a line past the count of records, which the
+// codec refuses at its limit.
+func (r *requestReader) evidenceLines() ([]*controlv1.Event, error) {
+	events, err := evidence.DecodeJSONL(&r.lines, r.records)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: log record at %w", ErrRequest, err)
 	}
-	if err := evidence.CheckEventVersion(events[0]); err != nil {
-		return nil, err
+	var line bytes.Buffer
+	for i, event := range events {
+		if err := evidence.CheckEventVersion(event); err != nil {
+			return nil, fmt.Errorf("%w: log record %d: %w", ErrRequest, i+1, err)
+		}
+		line.Reset()
+		if err := evidence.EncodeJSONL(&line, events[i:i+1]); err != nil {
+			return nil, fmt.Errorf("%w: log record %d: %w", ErrRequest, i+1, err)
+		}
 	}
-	r.line.Reset()
-	if err := evidence.EncodeJSONL(&r.line, events); err != nil {
-		return nil, err
-	}
-	return events[0], nil
+	return events, nil
 }
 
 func readAttribute(raw json.RawMessage) error {

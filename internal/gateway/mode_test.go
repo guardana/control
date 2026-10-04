@@ -1,10 +1,13 @@
 package gateway_test
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/gateway"
 )
 
@@ -66,5 +69,41 @@ func TestPlannedAndUndeclaredModesAreRefused(t *testing.T) {
 	}
 	if _, err := gateway.Requirements(controlv1.EnforcementMode(99)); !errors.Is(err, gateway.ErrMode) {
 		t.Errorf("Requirements(99) = %v; want ErrMode", err)
+	}
+}
+
+// unclassifiedRead is a read envelope with its effect class gone, refused as
+// nothing classifies it, as an adapter hands over a tool no entry names.
+func unclassifiedRead(requestID string) gateway.Admission {
+	env := requestNamed(readEnvelope(), requestID)
+	env.Action.Effect = controlv1.EffectClass_EFFECT_CLASS_UNSPECIFIED
+	a := admission(env, []byte(`{}`))
+	a.Refusal = fmt.Errorf("adapter: %w", gateway.ErrUnclassified)
+	return a
+}
+
+// TestOBSERVEHoldsAnUnclassifiedCallMaterial: OBSERVE lets a call nothing
+// classifies through, but with no effect class to call it a read it is
+// material, so a halted plane blocks it and the risk setting that runs a read
+// unrecorded does not run it.
+func TestOBSERVEHoldsAnUnclassifiedCallMaterial(t *testing.T) {
+	ctx := context.Background()
+	h := build(t, modeObserve, snapshot(t, allowWrites, allowReads))
+	if d := h.p.Admit(ctx, unclassifiedRead("req-0")); d.Action != core.Execute {
+		t.Fatalf("an unclassified call under OBSERVE: Action = %d, want Execute", d.Action)
+	}
+	d := h.admit(writeEnvelope(), []byte(`{}`))
+	h.sink.fail(true)
+	if err := h.p.Close(ctx, d, []byte(`{}`), result(controlv1.ResultStatus_RESULT_STATUS_SUCCESS)); !errors.Is(err, errSink) {
+		t.Fatalf("Close under a failing sink = %v, want the sink's error", err)
+	}
+	h.sink.fail(false)
+	expectBlock(t, h.p.Admit(ctx, unclassifiedRead("req-2")), verdictIndeterminate, codeEvidenceUnavailable, gateway.PDPType)
+
+	open := build(t, modeObserve, snapshot(t, allowReads), func(c *gateway.Config) { c.AllowReadsUnrecorded = true })
+	open.sink.fail(true)
+	expectBlock(t, open.p.Admit(ctx, unclassifiedRead("req-1")), verdictIndeterminate, codeEvidenceUnavailable, gateway.PDPType)
+	if s := open.p.Stats(); s.ReadsUnrecorded != 0 || s.Executed != 0 {
+		t.Errorf("Stats = %+v; want nothing run unrecorded", s)
 	}
 }

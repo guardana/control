@@ -97,8 +97,8 @@
 </details>
 <main id="main" class="prose">
 <h1 id="mcp-enforcement-coverage">MCP enforcement coverage</h1>
-<p>What this build of the gateway does with each Model Context Protocol method, on
-each revision and transport. <a href="/docs/status">status.md</a> is the inventory;
+<p>What this build does with each Model Context Protocol method, on each
+revision and transport. <a href="/docs/status">status.md</a> is the inventory;
 <a href="/docs/concepts/mcp-gateway">concepts/mcp-gateway</a> explains the mechanism, and
 <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a> records the
 decisions.</p>
@@ -197,7 +197,7 @@ child process over stdio (<code>upstreams[].command</code>).</p>
 </tr>
 <tr>
 <td>The Tasks extension</td>
-<td>Not implemented by the library. A <code>resultType: &quot;task&quot;</code> result was seen to decode as a complete, empty, successful call when this was measured against the library; no test in this repository pins that, so it is a reason not to use the extension rather than a promise about it</td>
+<td>Not implemented by the library, which was seen to decode a <code>resultType: &quot;task&quot;</code> result as a complete, empty, successful call; no test here pins that, so it is a reason not to use the extension, not a promise</td>
 </tr>
 <tr>
 <td><code>notifications/tools/list_changed</code> toward the agent</td>
@@ -217,7 +217,7 @@ child process over stdio (<code>upstreams[].command</code>).</p>
 </tr>
 <tr>
 <td>A client other than the library's own</td>
-<td>Not exercised; the conformance tests drive the reference implementation of both revisions</td>
+<td>Not exercised; the conformance tests drive the reference implementation</td>
 </tr>
 <tr>
 <td>A tool classified <code>SPAWN_OR_DELEGATE</code></td>
@@ -259,7 +259,7 @@ when it is not <code>none</code> in a mode that does not enforce.</p>
 </tbody>
 </table>
 <p>A preview is one decision made with no arguments, so a tool whose
-<code>resource_from</code> reads the resource out of the arguments cannot be decided before
+<code>resource_from</code> reads the resource from the arguments cannot be decided before
 the call exists. Such a tool stays in the list, and under <code>annotate</code> it is marked
 <code>DECIDED_PER_CALL</code>, unless a rule denies it without its arguments. Under <code>hide</code> it stays too:
 shaping subtracts what policy denies, never what it could not decide.</p>
@@ -281,7 +281,7 @@ error, outside the protocol's reserved range and the library's private code.</p>
 <tr>
 <td><code>-31100</code></td>
 <td>the gateway blocked the call</td>
-<td><code>reason_codes</code>, <code>decision_id</code>, and <code>refused</code> with what the refusal said when the envelope itself could not be built</td>
+<td><code>reason_codes</code>, <code>decision_id</code>, and <code>refused</code> with what the refusal said when the envelope could not be built</td>
 </tr>
 <tr>
 <td><code>-31101</code></td>
@@ -290,8 +290,8 @@ error, outside the protocol's reserved range and the library's private code.</p>
 </tr>
 </tbody>
 </table>
-<p>An upstream's own wire error passes through with its own code, and to a
-<code>tools/call</code> with its own message and data. Only <code>&lt;ns&gt;/answer</code> (<code>blocked</code> or
+<p>An upstream's own wire error passes through with its code and message; any
+other failure, a timeout or a broken session, answers <code>-32603</code> <code>the upstream did not answer</code>, never the transport's text, which can quote the endpoint. Only <code>&lt;ns&gt;/answer</code> (<code>blocked</code> or
 <code>pending</code>, <code>&lt;ns&gt;</code> being the product's namespace) in an answer's <code>_meta</code> or in
 the error's <code>data</code> marks an answer the gateway made. The namespace is stripped
 from both places in everything an upstream sends, so an upstream cannot answer
@@ -326,8 +326,8 @@ so the closing record's <code>result_hash</code> is the upstream's. Reads, promp
 and undecided answers carry neither.</p>
 <h2 id="reason-codes-in-the-gateways-answers">Reason codes in the gateway's answers</h2>
 <p>A decision the kernel made comes back as the kernel wrote it;
-<a href="/docs/reference/reason-codes">reference/reason-codes</a> has every code and its number. The codes below are the ones the enforcement
-point mints or answers on its own.</p>
+<a href="/docs/reference/reason-codes">reference/reason-codes</a> has every code and its number. The codes below are the enforcement
+point's own.</p>
 <table>
 <thead>
 <tr>
@@ -374,15 +374,15 @@ point mints or answers on its own.</p>
 </tr>
 <tr>
 <td><code>OBLIGATION_NOT_UNDERSTOOD</code></td>
-<td>an obligation the plane cannot apply, or whose parameters it cannot read</td>
+<td>an obligation the plane cannot apply, or whose parameters it cannot read, or a rewrite changed the member <code>resource_from</code> reads</td>
 </tr>
 <tr>
 <td><code>INVALID_FIELD_VALUE</code>, <code>MALFORMED_INPUT</code></td>
-<td>the call could not be translated into a valid envelope; <code>INVALID_FIELD_VALUE</code> also when its request id names a trail still open in the gateway</td>
+<td>the call, classified or not, could not be translated into a valid envelope; <code>INVALID_FIELD_VALUE</code> also when its request id names a trail still open in the gateway</td>
 </tr>
 <tr>
 <td><code>POLICY_UNAVAILABLE</code></td>
-<td>a block reached the adapter with a decision naming no cause; it answers with the kernel's own code for an absent policy rather than invent a second fail-closed answer</td>
+<td>a block reached the adapter with a decision naming no cause; it answers with the kernel's code for an absent policy rather than invent a second fail-closed answer</td>
 </tr>
 <tr>
 <td><code>REQUIRED_FIELD_ABSENT</code></td>

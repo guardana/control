@@ -147,7 +147,7 @@ func (a *Adapter) toolCall(req *mcp.CallToolRequest) call {
 	c.entry = entry
 	c.upstream = a.route(entry)
 	if err != nil {
-		c.admission.Refusal = errors.Join(hashInto(env, args), err)
+		c.admission.Refusal = unclassified(env, args, err)
 		return c
 	}
 	up := a.upstreamConfig(entry.Upstream)
@@ -201,7 +201,7 @@ func (a *Adapter) read(req mcp.Request, meta map[string]any, kind, name string, 
 		return c
 	}
 	if len(a.names) != 1 {
-		c.admission.Refusal = errors.Join(hashInto(env, args),
+		c.admission.Refusal = unclassified(env, args,
 			fmt.Errorf("%w: %d upstreams serve %ss", gateway.ErrUnclassified, len(a.names), kind))
 		return c
 	}
@@ -219,7 +219,42 @@ func (a *Adapter) finish(env *controlv1.ActionEnvelope, args []byte) error {
 	if err := hashInto(env, args); err != nil {
 		return err
 	}
-	return contract.Validate(env)
+	return recordable(env, contract.Validate(env))
+}
+
+// unclassified is the refusal of an envelope nothing classifies: why, unless
+// Validate refuses the envelope for more than the effect class it lacks, and
+// then Validate's refusal, so a call nothing classifies is held to every other
+// rule of the contract a classified one is.
+func unclassified(env *controlv1.ActionEnvelope, args []byte, why error) error {
+	if err := hashInto(env, args); err != nil {
+		return errors.Join(err, why)
+	}
+	err := recordable(env, contract.Validate(env))
+	if err == nil || lacksEffect(err) {
+		return why
+	}
+	return err
+}
+
+// lacksEffect reports whether err is Validate's refusal of an envelope with
+// no effect class, which it reaches only once the bounds, the schema version
+// and every field each envelope needs have passed.
+func lacksEffect(err error) bool {
+	var ve *contract.ValidationError
+	return errors.As(err, &ve) && ve.Field == "action.effect" && errors.Is(err, contract.ErrMissingField)
+}
+
+// recordable takes the strings an agent chose, the action's name and the
+// run-context tags, off an envelope Validate refused as too large, so the
+// trail can record the refused call; the refusal names what was over the
+// bound.
+func recordable(env *controlv1.ActionEnvelope, err error) error {
+	if errors.Is(err, contract.ErrTooLarge) {
+		env.Action.Name = ""
+		env.Context.Tags = nil
+	}
+	return err
 }
 
 // hashInto puts the arguments hash in the envelope, so that even an envelope

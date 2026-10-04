@@ -170,6 +170,21 @@ its trailer or 64 MiB after its header, and a trailer without
 <code>scanned_bytes</code> or with a <code>dedup_scope</code> other than <code>export</code>. The demo's
 servers do not start on a journal that is a link, a pipe, a file with a
 second name, or a file another account owns or may read or write.</li>
+<li>The MCP gateway answers an upstream failure that is not the upstream's own
+wire error, on a call, a read, a prompt or a forwarded list, with <code>-32603</code>
+<code>the upstream did not answer</code>, and logs a refresh failure by what failed:
+neither the agent nor the log sees the endpoint, which can carry a
+credential. An HTTP upstream's answer, other than an event stream, is read
+no further than 16 MiB, so an oversize answer fails the call instead of
+being held whole.</li>
+<li>A rewriting obligation that changes the member a tool's <code>resource_from</code>
+reads aborts the call with <code>OBLIGATION_NOT_UNDERSTOOD</code> instead of sending
+it. A call nothing classifies is held to the rest of the envelope contract,
+and a name or client tag past the string bound no longer leaves a proposal
+too large to record.</li>
+<li>A closing record the sink refused no longer forgets the held request, an
+OTLP request of many records is decoded in one pass, and a collector's
+answer of exactly 64 KiB is read as whole.</li>
 </ul>
 <h2 id="060-alpha---2026-10-03"><a href="https://github.com/guardana/control/releases/tag/v0.6.0-alpha">0.6.0-alpha</a> - 2026-10-03</h2>
 <p>A plane now takes its policy as current only on a signed freshness

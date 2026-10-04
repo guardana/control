@@ -163,7 +163,7 @@ func containsTag(env *controlv1.ActionEnvelope, tag string) bool {
 // TestOriginIsValidated: a browser origin the operator did not list is
 // refused before anything reads the body, a loopback origin included: only
 // what the operator listed passes, and a request with no Origin is not a
-// browser's.
+// browser's while one with the opaque origin "null" is.
 func TestOriginIsValidated(t *testing.T) {
 	v := newVictim()
 	ct, st := sdk.NewInMemoryTransports()
@@ -198,6 +198,8 @@ func TestOriginIsValidated(t *testing.T) {
 		{"https://evil.example", http.StatusForbidden},
 		{"http://localhost.evil.example", http.StatusForbidden},
 		{"localhost", http.StatusForbidden},
+		// A sandboxed frame or a file: page sends the opaque origin.
+		{"null", http.StatusForbidden},
 	}
 	url := serveHTTP(t, h)
 	for _, tc := range cases {

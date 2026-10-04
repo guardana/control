@@ -198,7 +198,7 @@ func (a *Adapter) run(ctx context.Context, c call, send sender) (outcome, error)
 	if err != nil || got != d.AuthorizedDigest {
 		return a.abort(ctx, p, d, gateway.AbortArgsMismatch, []string{codeExecutedArgsMismatch}, nil), nil
 	}
-	obl, err := applyObligations(&c, d.Obligations)
+	obl, err := authorizedSend(&c, d)
 	if err != nil {
 		codes := append(append([]string(nil), d.Decision.GetReasonCodes()...), codeObligationNotApplied)
 		return a.abort(ctx, p, d, gateway.AbortObligation, codes, err), nil
@@ -288,7 +288,7 @@ func (a *Adapter) forwardList(ctx context.Context, method string) (mcp.Result, e
 			return res.Resources, res.NextCursor, nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, listFailed(err)
 		}
 		out := &mcp.ListResourcesResult{Resources: stripped(items, func(r *mcp.Resource) *mcp.Meta { return &r.Meta })}
 		out.TTLMs, out.CacheScope = a.ttlMs(), cacheScopePrivate
@@ -302,7 +302,7 @@ func (a *Adapter) forwardList(ctx context.Context, method string) (mcp.Result, e
 			return res.ResourceTemplates, res.NextCursor, nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, listFailed(err)
 		}
 		out := &mcp.ListResourceTemplatesResult{ResourceTemplates: stripped(items, func(r *mcp.ResourceTemplate) *mcp.Meta { return &r.Meta })}
 		out.TTLMs, out.CacheScope = a.ttlMs(), cacheScopePrivate
@@ -316,12 +316,21 @@ func (a *Adapter) forwardList(ctx context.Context, method string) (mcp.Result, e
 			return res.Prompts, res.NextCursor, nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, listFailed(err)
 		}
 		out := &mcp.ListPromptsResult{Prompts: stripped(items, func(p *mcp.Prompt) *mcp.Meta { return &p.Meta })}
 		out.TTLMs, out.CacheScope = a.ttlMs(), cacheScopePrivate
 		return out, nil
 	}
+}
+
+// listFailed is a forwarded list's failure as the agent sees it: the bound,
+// which is the adapter's own, as it is, and anything else as an upstream's.
+func listFailed(err error) error {
+	if errors.Is(err, ErrListBound) {
+		return err
+	}
+	return upstreamError(err)
 }
 
 // merged walks one paginated list of every upstream, in configured order,

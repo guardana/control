@@ -243,7 +243,7 @@ func (m *manifest) refresh(ctx context.Context, upstream string, cs *mcp.ClientS
 	})
 	if err != nil {
 		m.replace(upstream, nil)
-		return fmt.Errorf("mcp: tools/list from %s: %w", upstream, err)
+		return err
 	}
 	entries := make([]*Entry, 0, len(tools))
 	for _, tool := range tools {

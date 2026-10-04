@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/guardana/control/internal/brand"
@@ -133,12 +136,12 @@ func (a *Adapter) Start(ctx context.Context, p Pipeline) error {
 		cs, err := a.connect(ctx, up)
 		if err != nil {
 			closeAll(sessions)
-			return err
+			return startFailed("connect", up.Name, err)
 		}
 		sessions[up.Name] = cs
 		if err := a.refresh(ctx, up.Name, cs); err != nil {
 			closeAll(sessions)
-			return err
+			return startFailed("tools/list from", up.Name, err)
 		}
 	}
 	a.pipeline, a.upstreams = p, sessions
@@ -161,15 +164,22 @@ func (a *Adapter) connect(ctx context.Context, up Upstream) (*mcp.ClientSession,
 		ToolListChangedHandler: func(ctx context.Context, req *mcp.ToolListChangedRequest) {
 			if err := a.refresh(ctx, up.Name, req.Session); err != nil {
 				a.refreshFailures.Add(1)
-				a.logger.Error("manifest refresh failed", "upstream", up.Name, "err", err)
+				a.logger.Error("manifest refresh failed", "upstream", up.Name, "err", logText(err))
 			}
 		},
 	})
-	cs, err := client.Connect(ctx, up.Transport, nil)
-	if err != nil {
-		return nil, fmt.Errorf("mcp: connect %s: %w", up.Name, err)
+	return client.Connect(ctx, up.Transport, nil)
+}
+
+// startFailed is a failure of Start as logText words it, after what failed
+// and the upstream's name: the transport's text can quote the endpoint and
+// the upstream's the credential it reflects. Only the list bound, the
+// adapter's own, is kept for errors.Is.
+func startFailed(what, upstream string, err error) error {
+	if errors.Is(err, ErrListBound) {
+		return fmt.Errorf("mcp: %s %s: %w", what, upstream, ErrListBound)
 	}
-	return cs, nil
+	return fmt.Errorf("mcp: %s %s: %s", what, upstream, logText(err))
 }
 
 func closeAll(sessions map[string]*mcp.ClientSession) {
@@ -226,4 +236,19 @@ func (a *Adapter) started() (Pipeline, map[string]*mcp.ClientSession, error) {
 		return nil, nil, ErrNotStarted
 	}
 	return a.pipeline, a.upstreams, nil
+}
+
+// logText is err as a log line carries it: a transport's failure by what
+// failed and never by the URL it quotes, which can hold a credential, and a
+// wire error by its code alone, since its message is the upstream's own text.
+func logText(err error) string {
+	var uerr *url.Error
+	if errors.As(err, &uerr) {
+		return uerr.Op + ": " + uerr.Err.Error()
+	}
+	var werr *jsonrpc.Error
+	if errors.As(err, &werr) {
+		return "JSON-RPC error " + strconv.FormatInt(werr.Code, 10)
+	}
+	return err.Error()
 }

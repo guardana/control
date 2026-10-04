@@ -290,9 +290,13 @@ fire on the next call (<code>adapters/mcp/translate.go</code>;
 <code>flow.max_runs</code> runs a new principal's calls have no run: a flow rule reads
 their flow as unknown, and what they return taints nothing.</li>
 <li>A server's lists are bounded and timed out, a call is bounded by
-<code>upstream.call_timeout</code>, and an HTTP server's redirect is not followed
+<code>upstream.call_timeout</code>, an HTTP server's redirect is not followed, and an
+HTTP answer other than an event stream is read no further than 16 MiB
 (<code>TestUpstreamListIsBounded</code>, <code>TestUpstreamListIsTimedOut</code>,
-<code>TestAnUpstreamRedirectIsNotFollowed</code>).</li>
+<code>TestAnUpstreamRedirectIsNotFollowed</code>,
+<code>TestAnOversizeUpstreamAnswerFailsTheCallInBoundedMemory</code>). A transport
+failure reaches neither the agent nor the log with the URL
+(<code>TestATransportFailureNeverQuotesTheEndpoint</code>).</li>
 <li>A server's sampling, roots and progress requests reach no agent
 (<a href="/docs/reference/mcp-coverage">MCP coverage</a>).</li>
 </ul>

@@ -3,9 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/guardana/control/internal/policykey"
 )
@@ -116,5 +121,58 @@ func TestDoctorPrintsNoKeyTextFromAnUpstreamOrAnOverride(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("doctor's output does not hold %q:\n%s", want, out)
 		}
+	}
+}
+
+// endpointMarker stands for a credential in an upstream's endpoint or in
+// what a hostile upstream reflects; no stream of doctor's or run's holds it.
+const endpointMarker = "endpoint-private-marker"
+
+// refusingUpstream answers every tools/list with a wire error whose message
+// reflects endpointMarker, and returns its URL.
+func refusingUpstream(t *testing.T) string {
+	t.Helper()
+	server := sdk.NewServer(&sdk.Implementation{Name: "refusing-upstream", Version: "0"}, nil)
+	server.AddReceivingMiddleware(func(next sdk.MethodHandler) sdk.MethodHandler {
+		return func(ctx context.Context, method string, req sdk.Request) (sdk.Result, error) {
+			if method == "tools/list" {
+				return nil, &jsonrpc.Error{Code: -32042, Message: "reflected " + endpointMarker}
+			}
+			return next(ctx, method, req)
+		}
+	})
+	ts := httptest.NewServer(sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return server }, &sdk.StreamableHTTPOptions{Stateless: true}))
+	t.Cleanup(ts.Close)
+	return ts.URL
+}
+
+// TestNoUpstreamFailureRepeatsACredential: an upstream run and doctor cannot
+// reach, through a query or a username holding a credential, and one whose
+// tools/list reflects a credential in its error, are named in both commands'
+// output by the upstream and what failed, and the credential is in neither.
+func TestNoUpstreamFailureRepeatsACredential(t *testing.T) {
+	gone := httptest.NewServer(http.NotFoundHandler())
+	host := strings.TrimPrefix(gone.URL, "http://")
+	gone.Close()
+	for name, c := range map[string]struct{ endpoint, cause string }{
+		"a query":         {"http://" + host + "/mcp?token=" + endpointMarker, "mcp: connect orders: Post: dial tcp"},
+		"a username":      {"http://" + endpointMarker + ":pw@" + host + "/mcp", "mcp: connect orders: Post: dial tcp"},
+		"a reflected one": {refusingUpstream(t) + "/mcp", "mcp: tools/list from orders: JSON-RPC error -32042"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tr := newTree(t)
+			setEnv(t, "upstreams.0.endpoint", c.endpoint)
+			setEnv(t, "listener.address", "127.0.0.1:0")
+			setEnv(t, "health.address", "")
+			var stdout, stderr bytes.Buffer
+			if status := serve(context.Background(), tr.config, "", &stdout, &stderr); status != exitFail {
+				t.Fatalf("run answered %d over an upstream it cannot list; it must refuse to start", status)
+			}
+			for command, out := range map[string]string{"run": stdout.String() + stderr.String(), "doctor": doctorOutput(t, tr.config)} {
+				if strings.Contains(out, endpointMarker) || !strings.Contains(out, c.cause) {
+					t.Errorf("%s says:\n%s\nwant %q and no credential", command, out, c.cause)
+				}
+			}
+		})
 	}
 }
