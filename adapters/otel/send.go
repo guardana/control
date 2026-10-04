@@ -3,13 +3,18 @@ package otel
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -147,19 +152,108 @@ func (e *Exporter) post(ctx context.Context, body []byte, batch int) answer {
 	return classify(resp.StatusCode, text, err, batch)
 }
 
-// scrub renders an error for a log line without the endpoint's userinfo or
-// query, which the HTTP client's errors quote.
+// The causes scrub words a failure by when its text is not printed.
+const (
+	causeWithheld = "the transport failed; its text is withheld, since it can quote what the collector sent"
+	causeDeadline = "the collector did not answer in time"
+	causeCanceled = "the request was canceled"
+	causeClosed   = "the connection closed before the answer ended"
+	causeSocket   = "failed"
+)
+
+// scrub renders an error for a log line by what failed: a transport's failure
+// by the operation, the endpoint without its userinfo or query, and a cause
+// chosen from the error's type; the exporter's own error by its words. No
+// other error's text is printed, since the HTTP client quotes a malformed
+// answer's bytes, which can echo the request line and its headers.
 func (e *Exporter) scrub(err error) string {
 	if err == nil {
 		return ""
 	}
-	text := err.Error()
 	var ue *url.Error
-	if errors.As(err, &ue) {
-		text = ue.Op + " " + e.where + ": " + ue.Err.Error()
+	var own Error
+	text := transportCause(err)
+	switch {
+	case errors.As(err, &ue):
+		text = ue.Op + " " + e.where + ": " + transportCause(ue.Err)
+	case errors.As(err, &own):
+		text = own.Error()
 	}
 	for _, secret := range e.secret {
 		text = strings.ReplaceAll(text, secret, "[redacted]")
 	}
 	return text
+}
+
+// transportCause words a transport's error by its type alone.
+func transportCause(err error) string {
+	var op *net.OpError
+	var timeout net.Error
+	switch {
+	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &timeout) && timeout.Timeout():
+		return causeDeadline
+	case errors.Is(err, context.Canceled):
+		return causeCanceled
+	case errors.As(err, &op):
+		return socketCause(op)
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return causeClosed
+	}
+	if cause := tlsCause(err); cause != "" {
+		return cause
+	}
+	return causeWithheld
+}
+
+// socketCause is a socket's failure by its operation, the address it was on
+// and the system's error number.
+func socketCause(op *net.OpError) string {
+	text := op.Op
+	if op.Net != "" {
+		text += " " + op.Net
+	}
+	if op.Addr != nil {
+		text += " " + op.Addr.String()
+	}
+	var dns *net.DNSError
+	var sys *os.SyscallError
+	var errno syscall.Errno
+	switch {
+	case errors.As(op.Err, &dns) && dns.IsNotFound:
+		return text + ": no such host"
+	case errors.As(op.Err, &sys) && errors.As(sys.Err, &errno):
+		return text + ": " + sys.Syscall + ": " + errno.Error()
+	case errors.As(op.Err, &errno):
+		return text + ": " + errno.Error()
+	}
+	if cause := tlsCause(op.Err); cause != "" {
+		return text + ": " + cause
+	}
+	return text + ": " + causeSocket
+}
+
+// tlsCause names a TLS or certificate failure by its type, or is empty: a
+// certificate's error quotes the names the peer's certificate holds.
+func tlsCause(err error) string {
+	var unknown x509.UnknownAuthorityError
+	var host x509.HostnameError
+	var invalid x509.CertificateInvalidError
+	var verify *tls.CertificateVerificationError
+	var record tls.RecordHeaderError
+	var alert tls.AlertError
+	switch {
+	case errors.As(err, &unknown):
+		return "the certificate is signed by an unknown authority"
+	case errors.As(err, &host):
+		return "the certificate is not valid for the host"
+	case errors.As(err, &invalid):
+		return "the certificate is not valid"
+	case errors.As(err, &verify):
+		return "the certificate did not verify"
+	case errors.As(err, &record):
+		return "the peer did not answer in TLS"
+	case errors.As(err, &alert):
+		return "TLS alert " + strconv.Itoa(int(alert))
+	}
+	return ""
 }

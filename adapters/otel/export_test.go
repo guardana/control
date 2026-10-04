@@ -15,3 +15,7 @@ func NewReceiverWithin(sink Sink, log *slog.Logger, maxBytes int64) (http.Handle
 	h.(*receiver).maxBytes = maxBytes
 	return h, nil
 }
+
+// CauseWithheld is the cause a log line gives a transport failure whose text
+// is not printed.
+const CauseWithheld = causeWithheld

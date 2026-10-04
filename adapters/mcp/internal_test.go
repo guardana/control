@@ -4,16 +4,21 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -358,21 +363,41 @@ func TestTheResultHashIsTheHashOfItsMarshalledBytes(t *testing.T) {
 }
 
 // TestALoggedFailureNamesItsCauseAndNotItsURL: a transport's failure is
-// logged by the operation and the cause, never by the URL it quotes; a wire
-// error by its code, never by the upstream's message.
+// logged by the operation and a cause its error's type gives, never by the URL
+// it quotes or by its text; a wire error by its code, never by the upstream's
+// message.
 func TestALoggedFailureNamesItsCauseAndNotItsURL(t *testing.T) {
 	const marker = "query-credential-marker"
-	dial := &url.Error{Op: "Post", URL: "http://127.0.0.1:1/mcp?token=" + marker, Err: errors.New("dial tcp 127.0.0.1:1: connect: connection refused")}
+	at := func(cause error) error {
+		return &url.Error{Op: "Post", URL: "http://127.0.0.1:1/mcp?token=" + marker, Err: cause}
+	}
+	addr := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1}
+	refused := &net.OpError{Op: "dial", Net: "tcp", Addr: addr, Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)}
 	rejected := &jsonrpc.Error{Code: -32005, Message: "rejected by transport"}
 	for name, c := range map[string]struct {
 		err  error
 		want string
 	}{
-		"a refused dial": {fmt.Errorf("mcp: tools/list from up: %w", fmt.Errorf("sending %q: %w: %w", "tools/list", rejected, dial)), "Post: dial tcp 127.0.0.1:1: connect: connection refused"},
-		"a wire error":   {fmt.Errorf("mcp: tools/list from up: %w", &jsonrpc.Error{Code: -32042, Message: "reflected " + marker}), "JSON-RPC error -32042"},
-		"its own error":  {ErrListBound, ErrListBound.Error()},
+		"a refused dial":     {fmt.Errorf("mcp: tools/list from up: %w", fmt.Errorf("sending %q: %w: %w", "tools/list", rejected, at(refused))), "Post: dial tcp 127.0.0.1:1: connect: connection refused"},
+		"a bare errno":       {at(&net.OpError{Op: "read", Net: "tcp", Addr: addr, Err: syscall.ECONNRESET}), "Post: read tcp 127.0.0.1:1: connection reset by peer"},
+		"an unknown host":    {at(&net.OpError{Op: "dial", Net: "tcp", Err: &net.DNSError{Name: marker, Err: "no such host " + marker, IsNotFound: true}}), "Post: dial tcp: no such host"},
+		"a resolver failure": {at(&net.OpError{Op: "dial", Net: "tcp", Err: &net.DNSError{Name: marker, Err: "server misbehaving " + marker}}), "Post: dial tcp: " + causeSocket},
+		"a socket's text":    {at(&net.OpError{Op: "read", Net: "tcp", Err: errors.New(marker)}), "Post: read tcp: " + causeSocket},
+		"a remote alert":     {at(&net.OpError{Op: "remote error", Err: tls.AlertError(42)}), "Post: remote error: TLS alert 42"},
+		"an untyped answer":  {at(fmt.Errorf("net/http: HTTP/1.x transport connection broken: %w", fmt.Errorf("malformed HTTP response %q", marker))), "Post: " + causeWithheld},
+		"a deadline":         {at(context.DeadlineExceeded), "Post: " + causeDeadline},
+		"a timeout":          {at(os.ErrDeadlineExceeded), "Post: " + causeDeadline},
+		"a cancel":           {at(context.Canceled), "Post: " + causeCanceled},
+		"an early close":     {at(io.ErrUnexpectedEOF), "Post: " + causeClosed},
+		"an unknown CA":      {at(&tls.CertificateVerificationError{Err: x509.UnknownAuthorityError{}}), "Post: the certificate is signed by an unknown authority"},
+		"a wrong host":       {at(x509.HostnameError{Host: marker, Certificate: &x509.Certificate{}}), "Post: the certificate is not valid for the host"},
+		"an invalid one":     {at(x509.CertificateInvalidError{Reason: x509.Expired, Detail: marker}), "Post: the certificate is not valid"},
+		"a failed verify":    {at(&tls.CertificateVerificationError{Err: errors.New(marker)}), "Post: the certificate did not verify"},
+		"no TLS answer":      {at(tls.RecordHeaderError{Msg: marker}), "Post: the peer did not answer in TLS"},
+		"a wire error":       {fmt.Errorf("mcp: tools/list from up: %w", &jsonrpc.Error{Code: -32042, Message: "reflected " + marker}), "JSON-RPC error -32042"},
+		"its own error":      {ErrListBound, ErrListBound.Error()},
 	} {
-		if got := logText(c.err); got != c.want {
+		if got := logText(c.err); got != c.want || strings.Contains(got, marker) {
 			t.Errorf("%s: logged %q, want %q", name, got, c.want)
 		}
 	}

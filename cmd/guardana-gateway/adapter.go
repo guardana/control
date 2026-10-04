@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -280,17 +281,15 @@ func withheldRefusal(err error, upstreams []gatewayconfig.UpstreamConfig) error 
 }
 
 // quotesCredential says whether text holds a part of endpoint that can carry
-// a credential, raw or decoded. An endpoint that does not parse counts as
-// quoted, since its parts cannot be told apart.
+// a credential: raw, decoded, or as the Authorization header the HTTP client
+// builds from the userinfo. An endpoint that does not parse counts as quoted,
+// since its parts cannot be told apart.
 func quotesCredential(text, endpoint string) bool {
 	u, err := url.Parse(endpoint)
 	if err != nil {
 		return true
 	}
-	parts := []string{u.User.Username(), u.RawQuery, u.Fragment, u.EscapedFragment()}
-	if password, ok := u.User.Password(); ok {
-		parts = append(parts, password)
-	}
+	parts := append(userinfoParts(u.User, endpoint), u.RawQuery, u.Fragment, u.EscapedFragment())
 	for key, values := range u.Query() {
 		parts = append(parts, key)
 		parts = append(parts, values...)
@@ -301,4 +300,38 @@ func quotesCredential(text, endpoint string) bool {
 		}
 	}
 	return false
+}
+
+// userinfoParts is every spelling of a userinfo's user and password a text may
+// quote: as the endpoint writes them, decoded, escaped again as the HTTP
+// client quotes a URL, and as the base64 of user:password the client sends,
+// in each alphabet. The unpadded base64 is a prefix of the padded.
+func userinfoParts(user *url.Userinfo, endpoint string) []string {
+	if user == nil {
+		return nil
+	}
+	password, _ := user.Password()
+	basic := []byte(user.Username() + ":" + password)
+	parts := []string{user.Username(), password, base64.RawStdEncoding.EncodeToString(basic), base64.RawURLEncoding.EncodeToString(basic)}
+	for _, spelled := range []string{rawUserinfo(endpoint), user.String()} {
+		name, secret, _ := strings.Cut(spelled, ":")
+		parts = append(parts, name, secret)
+	}
+	return parts
+}
+
+// rawUserinfo is the userinfo as endpoint spells it, before any decoding.
+func rawUserinfo(endpoint string) string {
+	_, rest, ok := strings.Cut(endpoint, "//")
+	if !ok {
+		return ""
+	}
+	if end := strings.IndexAny(rest, "/?#"); end >= 0 {
+		rest = rest[:end]
+	}
+	at := strings.LastIndex(rest, "@")
+	if at < 0 {
+		return ""
+	}
+	return rest[:at]
 }

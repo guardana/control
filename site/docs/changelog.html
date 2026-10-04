@@ -178,17 +178,20 @@ second name, or a file another account owns or may read or write.</li>
 wire error, on a call, a read, a prompt or a forwarded list, with <code>-32603</code>
 <code>the upstream did not answer</code>, and logs a refresh failure by what failed:
 neither the agent nor the log sees the endpoint, which can carry a
-credential. A failure the library words without an error type is printed
-and logged as a fixed cause, and run and doctor withhold a refusal that
-quotes an endpoint's userinfo, query or fragment. An HTTP upstream's answer, other than an event stream, is read
-no further than 16 MiB, so an oversize answer fails the call instead of
+credential. A transport failure is printed and logged by its operation and
+a cause its error's type gives, never by its text, which can quote what the
+upstream echoed of the request, the Authorization header included; the OTLP
+exporter's log does the same for the collector. Run and doctor also
+withhold a refusal that quotes an endpoint's userinfo, raw, decoded or as
+the Basic credentials sent, its query or its fragment. An HTTP upstream's
+answer, other than an event stream, is read no further than 16 MiB, so an oversize answer fails the call instead of
 being held whole.</li>
 <li>A rewriting obligation that changes the member a tool's <code>resource_from</code>
 reads, or anything inside it when it is an object, a list or a boolean,
 aborts the call with <code>OBLIGATION_NOT_UNDERSTOOD</code> instead of sending
 it. A call nothing classifies is held to the rest of the envelope contract,
-and a name, a client tag or a resource id past the string bound, which
-alone is left off, no longer leaves a proposal too large to record.</li>
+and each name, client tag or resource id past the string bound is left
+off, so the proposal can still be recorded.</li>
 <li>A closing record the sink refused no longer forgets the held request, an
 OTLP request of many records is decoded in one pass, and a collector's
 answer of exactly 64 KiB is read as whole.</li>

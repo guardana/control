@@ -3,6 +3,8 @@ package mcp
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -39,6 +41,37 @@ func TestATooLargeRefusalClearsOnlyTheFieldItNames(t *testing.T) {
 		if env.GetAction().GetName() != c.wantName || env.GetResource().GetId() != c.wantID || len(env.GetContext().GetTags()) != c.wantTags {
 			t.Errorf("%s: name %q, resource %q, %d tag(s); want %q, %q, %d", name,
 				env.GetAction().GetName(), env.GetResource().GetId(), len(env.GetContext().GetTags()), c.wantName, c.wantID, c.wantTags)
+		}
+	}
+}
+
+// TestASizeRefusalTakesOffEveryOverlongAgentString: whatever field a size
+// refusal names, every string the agent chose past the bound goes, and one at
+// the bound stays; a refusal of another kind takes none.
+func TestASizeRefusalTakesOffEveryOverlongAgentString(t *testing.T) {
+	at, past := strings.Repeat("a", contract.MaxStringBytes), strings.Repeat("p", contract.MaxStringBytes+1)
+	tooLarge := &contract.ValidationError{Field: "delegation", Err: fmt.Errorf("%w: 9 hops", contract.ErrTooLarge)}
+	for name, c := range map[string]struct {
+		err              error
+		name, id         string
+		tags             []string
+		wantName, wantID string
+		wantTags         []string
+	}{
+		"past the bound": {tooLarge, past, past, []string{past, "revision"}, "", "", []string{"revision"}},
+		"at the bound":   {tooLarge, at, at, []string{at, "revision"}, at, at, []string{at, "revision"}},
+		"not a size":     {&contract.ValidationError{Field: "delegation", Err: contract.ErrMissingField}, past, past, []string{past}, past, past, []string{past}},
+	} {
+		env := &controlv1.ActionEnvelope{
+			Action:   &controlv1.Action{Name: c.name},
+			Resource: &controlv1.Resource{Id: c.id},
+			Context:  &controlv1.RunContext{Tags: c.tags},
+		}
+		_ = recordable(env, c.err)
+		if env.GetAction().GetName() != c.wantName || env.GetResource().GetId() != c.wantID || !slices.Equal(env.GetContext().GetTags(), c.wantTags) {
+			t.Errorf("%s: name of %d bytes, resource of %d, tags %d; want %d, %d, %d", name,
+				len(env.GetAction().GetName()), len(env.GetResource().GetId()), len(env.GetContext().GetTags()),
+				len(c.wantName), len(c.wantID), len(c.wantTags))
 		}
 	}
 }

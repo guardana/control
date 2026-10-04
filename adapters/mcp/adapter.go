@@ -5,13 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/guardana/control/internal/brand"
@@ -309,36 +306,4 @@ func (a *Adapter) started() (Pipeline, map[string]*mcp.ClientSession, error) {
 		return nil, nil, ErrNotStarted
 	}
 	return a.pipeline, a.upstreams, nil
-}
-
-// The causes logText words a failure by when its text is not printed.
-const (
-	causeWithheld = "the transport failed; its text is withheld, since it can quote the endpoint or what the upstream sent"
-	causeDeadline = "the upstream did not answer in time"
-)
-
-// logText is err as a log line carries it: a transport's failure by what
-// failed and never by the URL it quotes, which can hold a credential, a wire
-// error by its code alone, since its message is the upstream's own text, and
-// the adapter's own error by its own words. Any other text is withheld rather
-// than scrubbed: the library words some failures with the endpoint and the
-// session id the upstream chose, and that id can repeat what the upstream was
-// sent.
-func logText(err error) string {
-	var uerr *url.Error
-	if errors.As(err, &uerr) {
-		return uerr.Op + ": " + uerr.Err.Error()
-	}
-	var werr *jsonrpc.Error
-	if errors.As(err, &werr) {
-		return "JSON-RPC error " + strconv.FormatInt(werr.Code, 10)
-	}
-	var own Error
-	if errors.As(err, &own) {
-		return own.Error()
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return causeDeadline
-	}
-	return causeWithheld
 }

@@ -1,11 +1,15 @@
 package otel_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -423,6 +427,72 @@ func TestLogsNeverCarryTheEndpointsSecrets(t *testing.T) {
 		t.Fatalf("the log does not name the endpoint at all: %q", out)
 	}
 	for _, secret := range []string{"collector-user", "secret-password", "secret-query", "token="} {
+		if strings.Contains(out, secret) {
+			t.Errorf("the log carries %q: %q", secret, out)
+		}
+	}
+}
+
+// echoingCollector answers every request with a status line that is not one,
+// spelled from the request line and every header it was sent, and
+// returns its host:port.
+func echoingCollector(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close() //nolint:errcheck // the answer is written; nothing reads the close
+				req, err := http.ReadRequest(bufio.NewReader(conn))
+				if err != nil {
+					return
+				}
+				var echo strings.Builder
+				echo.WriteString(req.Method + " " + req.RequestURI + " " + req.Proto + " ")
+				_ = req.Header.Write(&echo)
+				_, _ = io.WriteString(conn, strings.NewReplacer(" ", "_", "\r\n", "_").Replace(echo.String())+"\r\n\r\n")
+			}()
+		}
+	}()
+	return ln.Addr().String()
+}
+
+// TestLogsNeverCarryWhatTheCollectorEchoes: a collector that answers with a
+// malformed status line quoting the request line and the Authorization header
+// gets the HTTP client to quote them back in its error; the log line names
+// the operation, the endpoint without its secrets and a fixed cause, and
+// neither the query, the configured header nor the userinfo as the client
+// encodes it.
+func TestLogsNeverCarryWhatTheCollectorEchoes(t *testing.T) {
+	addr := echoingCollector(t)
+	var logged bytes.Buffer
+	s := openSpool(t, 1<<20)
+	mustAppend(t, s, event(1))
+	e, err := otel.New(fast(otel.Options{
+		Endpoint:       "http://collector-user:userinfo-marker@" + addr + "/v1/logs?token=query-marker",
+		Headers:        map[string]string{"X-Collector-Key": "header-marker"},
+		AllowPlaintext: true,
+		InFlight:       1, Timeout: time.Second,
+		Logger: slog.New(slog.NewTextHandler(&logged, nil)),
+	}), reader(t, s))
+	if err != nil {
+		t.Fatal(err)
+	}
+	runUntil(t, e, func() bool { return e.Stats().RetriedTransport >= 2 })
+	out := logged.String()
+	if want := "Post http://" + addr + "/v1/logs: " + otel.CauseWithheld; !strings.Contains(out, want) {
+		t.Errorf("the log does not name the operation, the endpoint and the fixed cause %q: %q", want, out)
+	}
+	basic := base64.StdEncoding.EncodeToString([]byte("collector-user:userinfo-marker"))
+	for _, secret := range []string{"userinfo-marker", "query-marker", "token=", "header-marker", basic, "Authorization"} {
 		if strings.Contains(out, secret) {
 			t.Errorf("the log carries %q: %q", secret, out)
 		}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -246,10 +247,12 @@ func lacksEffect(err error) bool {
 	return errors.As(err, &ve) && ve.Field == "action.effect" && errors.Is(err, contract.ErrMissingField)
 }
 
-// recordable takes the string an agent chose that Validate refused as too
-// large off the envelope, so the trail can record the refused call: the
-// action's name, a run-context tag or the resource's id. An envelope refused
-// whole loses all three. The refusal names what was over the bound.
+// recordable takes the strings an agent chose off an envelope Validate
+// refused as too large, so the trail can record the refused call: the field
+// the refusal names, and every other one of the action's name, the run
+// context's tags and the resource's id past the bound, since Validate names
+// only the first. An envelope refused whole loses all three. The refusal
+// names what was over the bound.
 func recordable(env *controlv1.ActionEnvelope, err error) error {
 	var ve *contract.ValidationError
 	if !errors.As(err, &ve) || !errors.Is(err, contract.ErrTooLarge) {
@@ -265,7 +268,22 @@ func recordable(env *controlv1.ActionEnvelope, err error) error {
 	if (whole || ve.Field == "resource.id") && env.Resource != nil {
 		env.Resource.Id = ""
 	}
+	dropOverlong(env)
 	return err
+}
+
+// dropOverlong clears the action's name and the resource's id when either is
+// past the contract's bound, and drops each such tag.
+func dropOverlong(env *controlv1.ActionEnvelope) {
+	if len(env.GetAction().GetName()) > contract.MaxStringBytes {
+		env.Action.Name = ""
+	}
+	if len(env.GetResource().GetId()) > contract.MaxStringBytes {
+		env.Resource.Id = ""
+	}
+	if env.Context != nil {
+		env.Context.Tags = slices.DeleteFunc(env.Context.Tags, func(tag string) bool { return len(tag) > contract.MaxStringBytes })
+	}
 }
 
 // hashInto puts the arguments hash in the envelope, so that even an envelope

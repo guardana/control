@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -181,6 +184,61 @@ func TestNoUpstreamFailureRepeatsACredential(t *testing.T) {
 	}
 }
 
+// echoingUpstream answers every request with a status line that is not one,
+// spelled from the request line and every header it was sent, and returns its
+// host:port.
+func echoingUpstream(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close() //nolint:errcheck // the answer is written; nothing reads the close
+				req, err := http.ReadRequest(bufio.NewReader(conn))
+				if err != nil {
+					return
+				}
+				var echo strings.Builder
+				echo.WriteString(req.Method + " " + req.RequestURI + " " + req.Proto + " ")
+				_ = req.Header.Write(&echo)
+				_, _ = io.WriteString(conn, strings.NewReplacer(" ", "_", "\r\n", "_").Replace(echo.String())+"\r\n\r\n")
+			}()
+		}
+	}()
+	return ln.Addr().String()
+}
+
+// TestAnUpstreamEchoingTheRequestRepeatsNoCredential: an upstream answering
+// with a malformed status line that quotes the request line and the
+// Authorization header gets the HTTP client to quote them back; run and
+// doctor name the upstream, the operation and a fixed cause, and neither the
+// query's credential nor the userinfo, raw or as the header encodes it.
+func TestAnUpstreamEchoingTheRequestRepeatsNoCredential(t *testing.T) {
+	tr := newTree(t)
+	setEnv(t, "upstreams.0.endpoint", "http://basic-user:"+endpointMarker+"@"+echoingUpstream(t)+"/mcp?token="+endpointMarker)
+	setEnv(t, "listener.address", "127.0.0.1:0")
+	setEnv(t, "health.address", "")
+	var stdout, stderr bytes.Buffer
+	if status := serve(context.Background(), tr.config, "", &stdout, &stderr); status != exitFail {
+		t.Fatalf("run answered %d over an upstream that answers no status line; it must refuse to start", status)
+	}
+	basic := base64.StdEncoding.EncodeToString([]byte("basic-user:" + endpointMarker))
+	const cause = "mcp: connect orders: Post: the transport failed; its text is withheld"
+	for command, out := range map[string]string{"run": stdout.String() + stderr.String(), "doctor": doctorOutput(t, tr.config)} {
+		if strings.Contains(out, endpointMarker) || strings.Contains(out, basic) || !strings.Contains(out, cause) {
+			t.Errorf("%s says:\n%s\nwant %q and no credential", command, out, cause)
+		}
+	}
+}
+
 // sessionStreamCutter speaks an older protocol revision, so the client opens a
 // standalone stream after initialize, and cuts every such stream. It assigns
 // a session id that reflects endpointMarker and never answers a request, so
@@ -238,6 +296,10 @@ func TestASessionStreamFailureRepeatsNoCredential(t *testing.T) {
 	}
 }
 
+// basicPassword is a password whose base64 with its user differs between the
+// standard and the URL-safe alphabets, and is padded.
+const basicPassword = "~~~marker"
+
 // TestARefusalQuotingAWithheldEndpointIsNotPrinted: should a refusal from the
 // adapter still quote the userinfo, query or fragment of an endpoint doctor
 // withholds, the refusal names the key instead; one that quotes none of them,
@@ -248,13 +310,20 @@ func TestARefusalQuotingAWithheldEndpointIsNotPrinted(t *testing.T) {
 		endpoint, text string
 		withheld       bool
 	}{
-		"a query":          {host + "/mcp?token=" + endpointMarker, "dial " + endpointMarker, true},
-		"a decoded query":  {host + "/mcp?token=a%2F" + endpointMarker, "dial a/" + endpointMarker, true},
-		"a username":       {"http://" + endpointMarker + ":pw@127.0.0.1:1/mcp", "Get " + endpointMarker + ":***@", true},
-		"a password":       {"http://user:" + endpointMarker + "@127.0.0.1:1/mcp", "auth " + endpointMarker, true},
-		"a fragment":       {host + "/mcp#" + endpointMarker, "at " + endpointMarker, true},
-		"none quoted":      {host + "/mcp?token=" + endpointMarker, "connect orders: connection refused", false},
-		"nothing to quote": {host + "/" + endpointMarker, "dial " + endpointMarker, false},
+		"a query":             {host + "/mcp?token=" + endpointMarker, "dial " + endpointMarker, true},
+		"a decoded query":     {host + "/mcp?token=a%2F" + endpointMarker, "dial a/" + endpointMarker, true},
+		"a username":          {"http://" + endpointMarker + ":pw@127.0.0.1:1/mcp", "Get " + endpointMarker + ":***@", true},
+		"a password":          {"http://user:" + endpointMarker + "@127.0.0.1:1/mcp", "auth " + endpointMarker, true},
+		"a fragment":          {host + "/mcp#" + endpointMarker, "at " + endpointMarker, true},
+		"a raw password":      {"http://user:" + endpointMarker + "%2fpw@127.0.0.1:1/mcp/at@path", "auth " + endpointMarker + "%2fpw", true},
+		"a raw username":      {"http://tok%2f" + endpointMarker + ":pw@127.0.0.1:1/mcp", "Get tok%2f" + endpointMarker, true},
+		"a decoded username":  {"http://a%2F" + endpointMarker + ":pw@127.0.0.1:1/mcp", "user a/" + endpointMarker, true},
+		"a decoded password":  {"http://user:a%2F" + endpointMarker + "@127.0.0.1:1/mcp", "auth a/" + endpointMarker, true},
+		"an escaped username": {"http://tok%2f" + endpointMarker + ":pw@127.0.0.1:1/mcp", "Get tok%2F" + endpointMarker, true},
+		"basic, standard":     {"http://basic-user:" + basicPassword + "@127.0.0.1:1/mcp", "Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("basic-user:"+basicPassword)), true},
+		"basic, URL-safe":     {"http://basic-user:" + basicPassword + "@127.0.0.1:1/mcp", "Basic_" + base64.URLEncoding.EncodeToString([]byte("basic-user:"+basicPassword)), true},
+		"none quoted":         {host + "/mcp?token=" + endpointMarker, "connect orders: connection refused", false},
+		"nothing to quote":    {host + "/" + endpointMarker, "dial " + endpointMarker, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			ups := []gatewayconfig.UpstreamConfig{{Name: "orders", Endpoint: c.endpoint}}
