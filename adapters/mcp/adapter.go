@@ -255,14 +255,15 @@ func closeAll(sessions map[string]*mcp.ClientSession) {
 	}
 }
 
-// Close disconnects every upstream.
+// Close disconnects every upstream. A failure names the upstream and its cause
+// as logText words it, since the library's text quotes the endpoint.
 func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	var errs []error
 	for name, cs := range a.upstreams {
 		if err := cs.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("mcp: close %s: %w", name, err))
+			errs = append(errs, fmt.Errorf("mcp: close %s: %s", name, logText(err)))
 		}
 	}
 	a.upstreams = nil

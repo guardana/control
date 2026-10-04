@@ -413,7 +413,7 @@ func TestLogsNeverCarryTheEndpointsSecrets(t *testing.T) {
 	s := openSpool(t, 1<<20)
 	mustAppend(t, s, event(1))
 	e, err := otel.New(fast(otel.Options{
-		Endpoint:       "http://collector-user:secret-password@" + addr + "/v1/logs?token=secret-query",
+		Endpoint:       "http://collector-user:secret-password@" + addr + "/v1/logs/secret-path?token=secret-query",
 		AllowPlaintext: true,
 		InFlight:       1, Timeout: time.Second,
 		Logger: slog.New(slog.NewTextHandler(&logged, nil)),
@@ -426,7 +426,7 @@ func TestLogsNeverCarryTheEndpointsSecrets(t *testing.T) {
 	if !strings.Contains(out, addr) {
 		t.Fatalf("the log does not name the endpoint at all: %q", out)
 	}
-	for _, secret := range []string{"collector-user", "secret-password", "secret-query", "token="} {
+	for _, secret := range []string{"collector-user", "secret-password", "secret-path", "secret-query", "token="} {
 		if strings.Contains(out, secret) {
 			t.Errorf("the log carries %q: %q", secret, out)
 		}
@@ -488,7 +488,7 @@ func TestLogsNeverCarryWhatTheCollectorEchoes(t *testing.T) {
 	}
 	runUntil(t, e, func() bool { return e.Stats().RetriedTransport >= 2 })
 	out := logged.String()
-	if want := "Post http://" + addr + "/v1/logs: " + otel.CauseWithheld; !strings.Contains(out, want) {
+	if want := "Post http://" + addr + ": " + otel.CauseWithheld; !strings.Contains(out, want) {
 		t.Errorf("the log does not name the operation, the endpoint and the fixed cause %q: %q", want, out)
 	}
 	basic := base64.StdEncoding.EncodeToString([]byte("collector-user:userinfo-marker"))

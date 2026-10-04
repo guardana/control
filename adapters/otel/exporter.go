@@ -47,7 +47,8 @@ type Exporter struct {
 	reader *spool.Reader
 	client *http.Client
 	log    *slog.Logger
-	// where is the endpoint as logs name it: no userinfo, no query.
+	// where is the endpoint as logs name it: its scheme and host, since a
+	// userinfo, a path or a query can hold a credential.
 	where  string
 	secret []string
 	// encode is the seam a test makes the encoder fail through.
@@ -84,7 +85,7 @@ func New(opts Options, r *spool.Reader) (*Exporter, error) {
 	if e.log == nil {
 		e.log = slog.Default()
 	}
-	e.where = (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path}).String()
+	e.where = (&url.URL{Scheme: u.Scheme, Host: u.Host}).String()
 	if u.User != nil {
 		e.secret = append(e.secret, u.User.String())
 	}

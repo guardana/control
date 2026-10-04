@@ -321,3 +321,26 @@ func TestStartNamesTheUpstreamAndNeverItsEndpoint(t *testing.T) {
 		}
 	}
 }
+
+// TestCloseNamesTheUpstreamAndNeverItsEndpoint: a stateful upstream gone by
+// the time the plane closes its session fails the session's DELETE, and the
+// close error names the upstream and the cause, never the endpoint's query.
+func TestCloseNamesTheUpstreamAndNeverItsEndpoint(t *testing.T) {
+	v := newVictim()
+	up := httptest.NewServer(sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return v.server }, nil))
+	t.Cleanup(up.Close)
+	transport := &sdk.StreamableClientTransport{Endpoint: up.URL + "/mcp?token=" + queryMarker}
+	a, err := mcp.New(newConfig(t, v, mcp.KindStatelessHTTP, transport, rigOptions{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Start(ctxT(t), &fakePipeline{decide: execute}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	up.CloseClientConnections()
+	up.Close()
+	err = a.Close()
+	if err == nil || strings.Contains(err.Error(), queryMarker) || !strings.HasPrefix(err.Error(), "mcp: close victim: ") {
+		t.Errorf("Close = %v; want it to begin %q and hold no credential", err, "mcp: close victim: ")
+	}
+}
