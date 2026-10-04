@@ -171,10 +171,8 @@ place.</p>
 commands refuse
 on a platform without permission bits
 (<a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>).</p>
-<p>Write access to that directory is the approval authority. <code>--approver-id</code> is
-an unauthenticated claim: it is recorded beside the answer so that whoever
-reads the evidence later has a name, and nothing checks it against anything.
-Both answering commands require it; flags come before the directory and the approval id.</p>
+<p>Both answering commands require <code>--approver-id</code>, a claim nothing checks;
+flags come before the directory and the approval id.</p>
 <p><code>approvals list</code> prints, for each record, what the plane wrote — its state,
 its resolution and both digests — and beside it the readable fields of the
 projection the plane wrote at hold time. Those readable fields are not bound
@@ -261,7 +259,10 @@ policy state reset is the one way that records why.
 file without serving: <a href="/docs/guides/run-the-gateway">guides/run-the-gateway.md</a>
 is their page and <a href="/docs/reference/configuration">configuration.md</a> lists every key.
 <code>--config</code> is required: no default location is searched. A key naming a file or a
-directory refuses key text, naming the key and not the value.</p>
+directory refuses key text, naming the key and not the value. On an interrupt
+or <code>SIGTERM</code>, <code>run</code> waits for the calls in flight, and exits 1 when it cut
+one, lost a closing record or could not close the spool; <code>doctor</code> exits 1
+when the plane it checked does not close.</p>
 <p><code>collect</code> and <code>trail</code> read no configuration:
 <a href="/docs/guides/watch-a-plane-without-a-collector">guides/watch-a-plane-without-a-collector.md</a>
 is their page. <code>collect</code> listens on a loopback IP address only and appends

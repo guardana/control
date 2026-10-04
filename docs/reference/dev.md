@@ -109,12 +109,15 @@ The plane's own log, and the page's, go to stderr.
 ## How it stops
 
 An interrupt, or any part stopping on its own, stops every part in order:
-the plane's listeners, then up to five seconds for the exporter to ship what
+the plane's listeners, then the calls still in flight, each up to
+`upstream.call_timeout` (plus `pdp.timeout` with a decision point) and ten
+seconds to append its closing record, then up to five seconds for the exporter to ship what
 the spool holds, then the collector, then the page, whose input dev closes.
 Dev then prints `unshipped:`, the bytes the collector never acknowledged,
 which the trail file lacks; it never says the trail is complete. It exits 0
 after an interrupt and 1 when a part stopped on its own, the page included,
-whatever the page's status. Killed outright, dev leaves the page to stop
+whatever the page's status, or did not stop cleanly: a call cut at the stop,
+a lost closing record, or a part that did not close. Killed outright, dev leaves the page to stop
 within two seconds, when its input ends.
 
 ## Scenarios
@@ -124,5 +127,5 @@ each on a plane of its own: a new state directory (a numbered one under
 `--state` when given), a new plane, no page, stopped once the scenario ends.
 Each line is the runner's ([scenario-format.md](scenario-format.md)), after
 one line naming the scenario's state directory. It exits 1 when any
-scenario differed, else 2 when any could not run or its plane stopped, else
-0.
+scenario differed, else 2 when any could not run, or its plane stopped on its
+own or did not stop cleanly, else 0.

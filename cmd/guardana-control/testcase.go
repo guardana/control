@@ -190,7 +190,7 @@ func (r *reader) object(m map[string]json.RawMessage, at, key string) []byte {
 
 func (r *reader) string(m map[string]json.RawMessage, at, key string) string {
 	var s string
-	if err := json.Unmarshal(m[key], &s); err != nil {
+	if isNull(m[key]) || json.Unmarshal(m[key], &s) != nil {
 		r.refuse(at, key, errors.New("want a string"))
 	}
 	return s
@@ -198,18 +198,30 @@ func (r *reader) string(m map[string]json.RawMessage, at, key string) string {
 
 func (r *reader) bool(m map[string]json.RawMessage, at, key string) bool {
 	var b bool
-	if err := json.Unmarshal(m[key], &b); err != nil {
+	if isNull(m[key]) || json.Unmarshal(m[key], &b) != nil {
 		r.refuse(at, key, errors.New("want true or false"))
 	}
 	return b
 }
 
 func (r *reader) strings(m map[string]json.RawMessage, at, key string) []string {
-	var list []string
-	if err := json.Unmarshal(m[key], &list); err != nil {
+	var list []*string
+	if isNull(m[key]) || json.Unmarshal(m[key], &list) != nil || slices.Contains(list, nil) {
 		r.refuse(at, key, errors.New("want a list of strings"))
+		return nil
 	}
-	return list
+	out := make([]string, len(list))
+	for i, s := range list {
+		out[i] = *s
+	}
+	return out
+}
+
+// isNull reports a JSON null, which the decoder reads into any Go value as
+// its zero value without an error: a case that wrote null would be read as
+// false, "" or no list, and pass without testing what it names.
+func isNull(raw json.RawMessage) bool {
+	return bytes.Equal(bytes.TrimSpace(raw), []byte("null"))
 }
 
 // time reads an RFC 3339 time and holds it to UTC, so a case decides the

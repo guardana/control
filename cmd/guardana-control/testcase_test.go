@@ -189,6 +189,28 @@ func TestReadCaseRefusals(t *testing.T) {
 		"floor undeclared":     {func() string { p := base(); p.flow = `{"untrusted":false,"floor":"TOP_SECRET"}`; return p.json() }(), "floor"},
 		"floor lowercase":      {func() string { p := base(); p.flow = `{"untrusted":false,"floor":"public"}`; return p.json() }(), "floor"},
 		"untrusted not a bool": {func() string { p := base(); p.flow = `{"untrusted":"no","floor":"PUBLIC"}`; return p.json() }(), "untrusted"},
+		"untrusted null":       {func() string { p := base(); p.flow = `{"untrusted":null,"floor":"PUBLIC"}`; return p.json() }(), "untrusted"},
+		"arguments null":       {func() string { p := base(); p.authorizedArgs = `null`; return p.json() }(), "authorized_args"},
+		"fail_open_read null": {func() string {
+			p := base()
+			p.options = `{"fail_open_read":null,"max_stale_seconds":600,"applicable":[]}`
+			return p.json()
+		}(), "fail_open_read"},
+		"applicable null": {func() string {
+			p := base()
+			p.options = `{"fail_open_read":false,"max_stale_seconds":600,"applicable":null}`
+			return p.json()
+		}(), "applicable"},
+		"applicable holds null": {func() string {
+			p := base()
+			p.options = `{"fail_open_read":false,"max_stale_seconds":600,"applicable":["cap_amount",null]}`
+			return p.json()
+		}(), "applicable"},
+		"codes null": {func() string {
+			p := base()
+			p.expect = `{"verdict":"ALLOW","action":"Execute","reason_codes":null}`
+			return p.json()
+		}(), "reason_codes"},
 		"stale budget a float": {func() string {
 			p := base()
 			p.options = `{"fail_open_read":false,"max_stale_seconds":1.5,"applicable":[]}`

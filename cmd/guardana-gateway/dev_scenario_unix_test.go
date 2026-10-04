@@ -109,6 +109,19 @@ func TestDevExitsOneWhenOneDiffersAndAnotherCannotRun(t *testing.T) {
 	}
 }
 
+// TestDevExitsTwoWhenAPlaneDoesNotStopCleanly: a scenario that passed on a
+// plane whose upstream cannot be let go has not run cleanly, and dev exits 2.
+func TestDevExitsTwoWhenAPlaneDoesNotStopCleanly(t *testing.T) {
+	t.Parallel()
+	d := writeDemo(t, startLiveUpstream(t, true).url, "5ms", "")
+	code, stdout, stderr := runDevToEnd(t, time.Minute, append([]string{"--config", d.config, "--policy", d.policy, "--state", filepath.Join(t.TempDir(), "state")},
+		scenarioFlags(filepath.Join("testdata", "scenario", "allowed-read.json"))...)...)
+	if code != exitCouldNotRun || !strings.Contains(stdout, "\nallowed-read.json passed\n") ||
+		!strings.Contains(stdout, "\nallowed-read.json could not run: its plane did not stop cleanly\n") {
+		t.Fatalf("exit %d, want 2 with the scenario passed and its plane's stop named:\n%s\n%s", code, stdout, stderr)
+	}
+}
+
 // TestDevRefusesAScenarioItCannotRead: a file the reader refuses stops every
 // scenario before any plane is laid out.
 func TestDevRefusesAScenarioItCannotRead(t *testing.T) {

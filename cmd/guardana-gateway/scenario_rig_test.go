@@ -120,6 +120,14 @@ type liveUpstream struct {
 
 func newLiveUpstream(t *testing.T) *liveUpstream {
 	t.Helper()
+	return startLiveUpstream(t, false)
+}
+
+// startLiveUpstream serves the live tools. With dropEnd it keeps a session per
+// client and drops the connection of the request that ends one, so a plane's
+// close of this upstream fails.
+func startLiveUpstream(t *testing.T, dropEnd bool) *liveUpstream {
+	t.Helper()
 	up := &liveUpstream{}
 	server := sdk.NewServer(&sdk.Implementation{Name: "scenario-upstream", Version: "0"}, nil)
 	for _, lt := range liveTools {
@@ -133,8 +141,16 @@ func newLiveUpstream(t *testing.T) *liveUpstream {
 		})
 	}
 	handler := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return server },
-		&sdk.StreamableHTTPOptions{Stateless: true})
-	ts := httptest.NewServer(handler)
+		&sdk.StreamableHTTPOptions{Stateless: !dropEnd})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if dropEnd && r.Method == http.MethodDelete {
+			if conn, _, err := http.NewResponseController(w).Hijack(); err == nil {
+				_ = conn.Close()
+			}
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
 	t.Cleanup(ts.Close)
 	up.url = ts.URL
 	return up

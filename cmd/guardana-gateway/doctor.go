@@ -36,6 +36,7 @@ const doctorTimeout = 20 * time.Second
 // doctor checks a configuration without serving anything and prints one line
 // per check. It stops at the first check that is not "ok", because every later
 // check reads what that one could not establish, and returns a non-zero status.
+// A checked plane that does not close is a failure too, after every check.
 func doctor(ctx context.Context, path string, stdout, stderr io.Writer) int {
 	cfg, err := gatewayconfig.Load(path, os.Environ())
 	if err != nil {
@@ -45,12 +46,23 @@ func doctor(ctx context.Context, path string, stdout, stderr io.Writer) int {
 	report(stdout, verdictOK, "configuration", fmt.Sprintf("%s parses, %d key(s) set, the rest at their defaults", path, len(cfg.Sources())))
 	printSettings(stdout, cfg)
 	d := &examination{cfg: cfg, out: stdout}
-	defer d.close()
+	status := d.check(ctx, stderr)
+	if err := d.close(); err != nil {
+		found := "the checked plane did not close cleanly: " + err.Error()
+		report(stdout, verdictFail, "close", found)
+		writeLine(stderr, "doctor: close: "+oneLine(found))
+		return exitFail
+	}
+	return status
+}
+
+// check runs every check in order until one is not "ok".
+func (d *examination) check(ctx context.Context, stderr io.Writer) int {
 	for _, check := range []func(context.Context) (string, string, string){
 		d.mode, d.policy, d.evidence, d.approvals, d.pauseFile, d.runs, d.export, d.seams, d.upstreams, d.pdp,
 	} {
 		verdict, name, found := check(ctx)
-		report(stdout, verdict, name, found)
+		report(d.out, verdict, name, found)
 		if verdict != verdictOK {
 			writeLine(stderr, "doctor: "+name+": "+oneLine(found))
 			return exitFail
@@ -72,13 +84,11 @@ type examination struct {
 	pauseEntries []pause.Entry
 }
 
-func (d *examination) close() {
+func (d *examination) close() error {
 	if d.plane == nil {
-		return
+		return nil
 	}
-	if err := d.plane.close(); err != nil {
-		writeLine(d.out, "       the checked plane did not close cleanly: "+oneLine(err.Error()))
-	}
+	return d.plane.close()
 }
 
 // printSettings prints every bound and every choice the plane will run with,

@@ -172,9 +172,13 @@ func TestDoctorRefusesASpoolDirectoryAnotherPlaneHolds(t *testing.T) {
 func TestDoctorRefusesAMissingSpoolDirectory(t *testing.T) {
 	tr := newTree(t)
 	setEnv(t, "evidence.dir", filepath.Join(tr.dir, "nowhere"))
+	setEnv(t, "upstreams.0.endpoint", upstream(t))
 	var out bytes.Buffer
 	if status := doctor(context.Background(), tr.config, &out, &out); status == exitOK {
-		t.Fatal("doctor accepted a spool directory that does not exist")
+		t.Fatalf("doctor accepted a spool directory that does not exist:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "fail    evidence") {
+		t.Errorf("the evidence check did not refuse the missing directory:\n%s", out.String())
 	}
 }
 

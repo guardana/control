@@ -91,6 +91,13 @@ verify one.
 - A closing record the sink refused no longer forgets the held request, an
   OTLP request of many records is decoded in one pass, and a collector's
   answer of exactly 64 KiB is read as whole.
+- `guardana-gateway run` and `dev` wait for the agents' calls in flight when
+  they stop, and exit 1 when one was cut, a closing record was lost or the
+  plane did not close; `doctor` fails its `close` check, and a scenario whose
+  plane did not stop cleanly could not run. The configuration, a scenario
+  file and the trail it reads are read only as regular files, so a named pipe
+  no longer holds them. A test case refuses `null` for a member that takes a
+  string, a boolean or a list.
 
 ## [0.6.0-alpha] - 2026-10-03
 

@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"slices"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/internal/files"
 	"github.com/guardana/control/internal/trailfile"
 )
 
@@ -118,22 +118,19 @@ func trailBytes(path string, absent bool) ([]byte, error) {
 		return nil, nil
 	case err != nil:
 		return nil, fmt.Errorf("the trail file: %w", err)
-	case !info.Mode().IsRegular():
-		return nil, fmt.Errorf("the trail file %s is not a regular file", path)
 	case info.Size() > maxTrailBytes:
 		return nil, fmt.Errorf("the trail file is over %d bytes; point the plane's collector at a new one", maxTrailBytes)
 	}
-	f, err := os.Open(path) //nolint:gosec // G304: the operator's own --trail, only read
-	if err != nil {
-		return nil, fmt.Errorf("the trail file: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-	raw, err := io.ReadAll(io.LimitReader(f, maxTrailBytes+1))
+	// The size above is only the cheap refusal: what is judged is the file the
+	// open found, and that open never waits on a pipe swapped in since.
+	raw, err := files.ReadRegular(path, maxTrailBytes, 0)
 	switch {
+	case errors.Is(err, files.ErrTooLarge):
+		return nil, fmt.Errorf("the trail file is over %d bytes; point the plane's collector at a new one", maxTrailBytes)
+	case errors.Is(err, files.ErrNotRegular):
+		return nil, fmt.Errorf("the trail file %s is not a regular file", path)
 	case err != nil:
 		return nil, fmt.Errorf("the trail file: %w", err)
-	case len(raw) > maxTrailBytes:
-		return nil, fmt.Errorf("the trail file is over %d bytes; point the plane's collector at a new one", maxTrailBytes)
 	}
 	return raw[:bytes.LastIndexByte(raw, '\n')+1], nil
 }

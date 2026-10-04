@@ -1,14 +1,14 @@
 package gatewayconfig
 
 import (
+	"errors"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/guardana/control/internal/brand"
+	"github.com/guardana/control/internal/files"
 )
 
 // maxConfigBytes bounds the file the loader reads. A configuration is a page
@@ -68,20 +68,15 @@ func Load(path string, environ []string) (*Config, error) {
 	return b.cfg, nil
 }
 
+// readConfigFile reads the file without waiting on it: a named pipe at path
+// is refused rather than opened for a writer that may never come.
 func readConfigFile(path string) (string, error) {
-	f, err := os.Open(filepath.Clean(path))
-	if err != nil {
-		return "", fmt.Errorf("reading the configuration: %w", err)
-	}
-	raw, err := io.ReadAll(io.LimitReader(f, maxConfigBytes+1))
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		return "", fmt.Errorf("reading %s: %w", path, err)
-	}
-	if len(raw) > maxConfigBytes {
+	raw, err := files.ReadRegular(filepath.Clean(path), maxConfigBytes, 0)
+	switch {
+	case errors.Is(err, files.ErrTooLarge):
 		return "", fmt.Errorf("%s: over %d bytes", path, maxConfigBytes)
+	case err != nil:
+		return "", fmt.Errorf("reading the configuration: %w", err)
 	}
 	return string(raw), nil
 }

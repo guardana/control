@@ -9,8 +9,8 @@ covers: [cmd/guardana-gateway/**, adapters/mcp/**, internal/gateway/**, internal
 
 ## When to use this
 
-You have an agent that speaks the Model Context Protocol (MCP) to one or more
-servers, and you want every call decided from policy, enforced before the
+You have an agent that speaks the Model Context Protocol (MCP) to servers,
+and you want every call decided from policy, enforced before the
 server sees it, and recorded. Start in `OBSERVE`, which records every call and
 blocks only for the plane's own causes, and move to `ENFORCE` once the tools
 are classified.

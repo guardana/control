@@ -15,7 +15,7 @@ import (
 // devScenarios reads every scenario before running any, then runs each on a
 // plane of its own, laid out afresh and stopped once the scenario ends, with
 // no page. It exits 1 when any scenario differed, else 2 when any could not
-// run or its plane stopped on its own, else 0.
+// run or its plane stopped on its own or did not stop cleanly, else 0.
 func devScenarios(ctx context.Context, in devInputs, o devOptions, stdout, stderr io.Writer) int {
 	loaded, err := loadScenarios(o.scenarios, stdout)
 	if err != nil {
@@ -78,6 +78,10 @@ func devScenario(ctx context.Context, in devInputs, dir string, s *scenario.Scen
 	}
 	if _, err := d.halt(); err != nil {
 		writeLine(stderr, brand.Gateway+": dev: stopping the plane of "+oneLine(s.ID)+": "+oneLine(err.Error()))
+		writeLine(stdout, oneLine(s.ID)+" could not run: its plane did not stop cleanly")
+		if status == exitOK {
+			status = exitCouldNotRun
+		}
 	}
 	return status
 }

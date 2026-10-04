@@ -17,10 +17,6 @@ import (
 	"github.com/guardana/control/internal/gatewayconfig"
 )
 
-// shutdownGrace bounds how long a listener is given to finish what it is
-// answering once the process is asked to stop.
-const shutdownGrace = 10 * time.Second
-
 // readHeaderTimeout bounds how long a client may take over sending its
 // headers, so an idle connection cannot hold a slot open.
 const readHeaderTimeout = 10 * time.Second
@@ -47,7 +43,6 @@ func serve(ctx context.Context, path, tokenPath string, stdout, stderr io.Writer
 	if err != nil {
 		return fail(stderr, "run", err)
 	}
-	defer p.closeReporting(stderr, "run")
 	// A stdio listener speaks the protocol on standard output, so what the
 	// plane says about itself goes to standard error there.
 	report := stdout
@@ -56,8 +51,13 @@ func serve(ctx context.Context, path, tokenPath string, stdout, stderr io.Writer
 	}
 	writeLine(report, startLine(cfg))
 	p.settle(ctx, report)
-	if err := p.run(ctx, report, listenTCP, 0); err != nil {
+	err = p.run(ctx, report, listenTCP, 0)
+	closed := p.closeReporting(stderr, "run")
+	if err != nil {
 		return fail(stderr, "run", err)
+	}
+	if !closed {
+		return exitFail
 	}
 	return exitOK
 }
@@ -83,12 +83,15 @@ func startPlane(ctx context.Context, cfg *gatewayconfig.Config, stderr io.Writer
 	return p, nil
 }
 
-// closeReporting releases the plane and reports on stderr what could not be
-// released.
-func (p *plane) closeReporting(stderr io.Writer, command string) {
+// closeReporting releases the plane, reports on stderr what could not be
+// released, and says whether everything was: the spool's last sync is part
+// of it.
+func (p *plane) closeReporting(stderr io.Writer, command string) bool {
 	if err := p.close(); err != nil {
 		writeLine(stderr, brand.CLI+": "+command+": shutdown: "+oneLine(err.Error()))
+		return false
 	}
+	return true
 }
 
 // settle closes the trails of the holds this plane lost to a restart and then
@@ -135,8 +138,10 @@ func (p *plane) prune(ctx context.Context, stdout io.Writer) {
 // listen binds each address the configuration names, or hands over one bound
 // already. The pause file is read once more before anything is bound: the
 // read the start made is as old as the start took, which can be past what it
-// answers for. Once the listeners are shut, the exporter is given up to drain
-// to ship what the spool holds before it is stopped.
+// answers for. Once the listeners are shut and the calls in flight have
+// closed, the exporter is given up to drain to ship what the spool holds
+// before it is stopped. A call cut at the stop, or one whose closing record
+// was lost, is an error, since its trail may stay open.
 func (p *plane) run(ctx context.Context, stdout io.Writer, listen listenFunc, drain time.Duration) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -175,17 +180,11 @@ func (p *plane) run(ctx context.Context, stdout io.Writer, listen listenFunc, dr
 	case first = <-stopped:
 	}
 	cancel()
-	for _, b := range bound {
-		shutdown, done := context.WithTimeout(context.Background(), shutdownGrace)
-		if err := b.server.Shutdown(shutdown); err != nil {
-			p.logger.Error("listener did not shut down cleanly", "addr", b.server.Addr, "err", err)
-		}
-		done()
-	}
+	cut := p.stopServing(bound)
 	p.drainSpool(drain)
 	stopExport()
 	wg.Wait()
-	return first
+	return errors.Join(first, cut, p.lostClosings())
 }
 
 // startReaders runs what feeds a serving plane: the exporter until exportCtx
@@ -256,7 +255,14 @@ type listening struct {
 func (p *plane) bind(stdout io.Writer, listen listenFunc) ([]listening, error) {
 	var wanted []wantedServer
 	if p.cfg.Listener.Kind != "stdio" {
-		wanted = append(wanted, wantedServer{p.cfg.Listener.Address, p.adapter.Handler, "listening for agents on ", 0})
+		agents := func() (http.Handler, error) {
+			h, err := p.adapter.Handler()
+			if err != nil {
+				return nil, err
+			}
+			return p.calls.wrap(h), nil
+		}
+		wanted = append(wanted, wantedServer{p.cfg.Listener.Address, agents, "listening for agents on ", 0})
 	}
 	if p.cfg.Health.Address != "" {
 		health := func() (http.Handler, error) { return p.healthMux(), nil }

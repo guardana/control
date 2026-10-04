@@ -65,6 +65,10 @@ type plane struct {
 	// stopped holds why the exporter's run ended, which /healthz reports. An
 	// export that stopped blocks no decision; it fills the spool.
 	stopped atomic.Pointer[error]
+	// grace bounds a listener's shutdown, and callBound how long a stop
+	// waits for the agents' calls in flight before it cuts them.
+	grace, callBound time.Duration
+	calls            inflight
 }
 
 // role says what the plane being built is for. It is a parameter and not a
@@ -93,7 +97,7 @@ func build(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time, r role
 	if err != nil {
 		return nil, err
 	}
-	p := &plane{cfg: cfg, logger: logger, holder: pp.holder, policy: pp, started: now}
+	p := &plane{cfg: cfg, logger: logger, holder: pp.holder, policy: pp, started: now, grace: shutdownGrace, callBound: callBound(cfg)}
 	if p.poller, err = openPause(cfg, logger, p.strayIDs); err != nil {
 		return nil, errors.Join(err, p.close())
 	}

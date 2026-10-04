@@ -75,10 +75,8 @@ commands refuse
 on a platform without permission bits
 ([ADR-0018](../adr/0018-keys-and-bundles-on-disk.md)).
 
-Write access to that directory is the approval authority. `--approver-id` is
-an unauthenticated claim: it is recorded beside the answer so that whoever
-reads the evidence later has a name, and nothing checks it against anything.
-Both answering commands require it; flags come before the directory and the approval id.
+Both answering commands require `--approver-id`, a claim nothing checks;
+flags come before the directory and the approval id.
 
 `approvals list` prints, for each record, what the plane wrote — its state,
 its resolution and both digests — and beside it the readable fields of the
@@ -179,7 +177,10 @@ policy state reset is the one way that records why.
 file without serving: [guides/run-the-gateway.md](../guides/run-the-gateway.md)
 is their page and [configuration.md](configuration.md) lists every key.
 `--config` is required: no default location is searched. A key naming a file or a
-directory refuses key text, naming the key and not the value.
+directory refuses key text, naming the key and not the value. On an interrupt
+or `SIGTERM`, `run` waits for the calls in flight, and exits 1 when it cut
+one, lost a closing record or could not close the spool; `doctor` exits 1
+when the plane it checked does not close.
 
 `collect` and `trail` read no configuration:
 [guides/watch-a-plane-without-a-collector.md](../guides/watch-a-plane-without-a-collector.md)

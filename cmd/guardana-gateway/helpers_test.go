@@ -228,15 +228,24 @@ func upstream(t *testing.T) string {
 
 // upstreamHandler serves the fixture upstream's one tool.
 func upstreamHandler() http.Handler {
+	return upstreamOver(true, nil)
+}
+
+// upstreamOver serves the fixture upstream's one tool, statelessly or with a
+// session per client, and runs hold, when there is one, before each answer.
+func upstreamOver(stateless bool, hold func(context.Context, *sdk.CallToolRequest)) http.Handler {
 	server := sdk.NewServer(&sdk.Implementation{Name: "fixture-upstream", Version: "0"}, nil)
 	schema := map[string]any{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}}
 	server.AddTool(&sdk.Tool{Name: "read_order", Description: "reads an order", InputSchema: schema},
-		func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+		func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+			if hold != nil {
+				hold(ctx, req)
+			}
 			return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: upstreamAnswer}}}, nil
 		})
 	return sdk.NewStreamableHTTPHandler(
 		func(*http.Request) *sdk.Server { return server },
-		&sdk.StreamableHTTPOptions{Stateless: true})
+		&sdk.StreamableHTTPOptions{Stateless: stateless})
 }
 
 // issuedAtSpelling is a time as a statement and doctor spell it.

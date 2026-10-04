@@ -1,14 +1,14 @@
 package scenario
 
 import (
+	"errors"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"unicode"
 
+	"github.com/guardana/control/internal/files"
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/pkg/contract"
 )
@@ -43,33 +43,20 @@ func Read(name string, raw []byte) (*Scenario, error) {
 }
 
 // ReadFile reads the scenario at path, whose base name is its id. It reads at
-// most one byte past MaxBytes, so a file of any size costs the bound.
+// most one byte past MaxBytes, so a file of any size costs the bound, and its
+// open never waits, so a named pipe is refused whenever it is swapped in.
 func ReadFile(path string) (*Scenario, error) {
 	name := filepath.Base(path)
 	if r := checkName(name); r != nil {
 		return nil, r
 	}
-	// Checked before the open as well as after it, since opening a named pipe
-	// waits for a writer.
-	if info, err := os.Stat(path); err != nil {
-		return nil, fmt.Errorf("scenario: %w", err)
-	} else if !info.Mode().IsRegular() {
+	raw, err := files.ReadRegular(path, MaxBytes, 0)
+	switch {
+	case errors.Is(err, files.ErrTooLarge):
+		return nil, refuse(nil, ErrTooLarge, fmt.Sprintf("over %d bytes", MaxBytes))
+	case errors.Is(err, files.ErrNotRegular):
 		return nil, fmt.Errorf("scenario: %s is not a regular file", name)
-	}
-	f, err := os.Open(path) //nolint:gosec // G304: the path is the operator's own argument, and the file is only read
-	if err != nil {
-		return nil, fmt.Errorf("scenario: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-	info, err := f.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("scenario: %w", err)
-	}
-	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("scenario: %s is not a regular file", name)
-	}
-	raw, err := io.ReadAll(io.LimitReader(f, MaxBytes+1))
-	if err != nil {
+	case err != nil:
 		return nil, fmt.Errorf("scenario: %w", err)
 	}
 	return Read(name, raw)
