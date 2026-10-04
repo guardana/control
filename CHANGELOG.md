@@ -64,13 +64,16 @@ verify one.
 - The approvals store refuses a directory another account owns, as every
   other store already did, and a record that repeats a member. A record, a
   hold journal entry or a file whose filing failed after it was linked is
-  unlinked again, so an error means it was not filed.
+  unlinked again. An answer the plane spent before that is reported as filed,
+  and one already gone when it is unlinked as of unknown outcome, never as not
+  filed; `approvals approve` and `reject` then say to list before answering
+  again.
 - The evidence spool refuses a segment or its quarantine that another account
   owns or the group or others may write, keeps every quarantined id so a crash
   cannot quarantine a record twice, syncs a repair before it continues, and
   refuses an append once its sequence is spent. The trail file's recovery cuts
-  only a tail its writer could have left, and an export reads no line past its
-  byte bound.
+  only a tail its writer could have left, and an export reads the line that
+  would cross its byte bound no further than the bound.
 - The `evidence-report` example refuses an export past 100 000 records and
   its trailer or 64 MiB after its header, and a trailer without
   `scanned_bytes` or with a `dedup_scope` other than `export`. The demo's

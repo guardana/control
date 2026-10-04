@@ -245,16 +245,17 @@ func TestATailPastTheOpeningIsJudged(t *testing.T) {
 	}
 }
 
-// TestPrefixOfOneValue holds the token walk to its definition on inputs no
-// opening lets through: nothing, white space and a whole scalar are not a
-// proper prefix of a value, and a cut literal is.
-func TestPrefixOfOneValue(t *testing.T) {
+// TestAWalkOfAnyValueEndsOnlyInsideIt holds the token walk, from a slot that
+// takes any value, to its definition on inputs no opening lets through:
+// nothing, white space and a whole scalar are not a proper prefix of a value,
+// and a cut literal is.
+func TestAWalkOfAnyValueEndsOnlyInsideIt(t *testing.T) {
 	for in, want := range map[string]bool{
 		"": false, " ": false, "1": false, `"a"`: false, "{}{": false, "[]": false,
 		"tru": true, `"a`: true, "[": true, "[1,": true, `{"a":{}`: true,
 	} {
-		if got := prefixOfOneValue([]byte(in)); got != want {
-			t.Errorf("prefixOfOneValue(%q) = %t, want %t", in, got, want)
+		if got := walk([]byte(in), slot{}); got != want {
+			t.Errorf("walk(%q) from any value = %t, want %t", in, got, want)
 		}
 	}
 }

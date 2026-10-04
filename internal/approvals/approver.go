@@ -186,6 +186,13 @@ type Answered struct {
 // ErrResolved, an approval past its expiry at decidedAt with
 // ErrApprovalExpired, and a directory that is no longer the one opened with
 // ErrDirectoryChanged.
+//
+// A failure after the answer was linked takes it back, and is no such
+// refusal: a running plane may read the answer before it is taken back. A
+// consumed record carrying it by the time the failure is seen makes the call
+// succeed, an answer already gone adds ErrOutcomeUnknown, and an unlink racing
+// a plane that has read the answer but not yet recorded spending it is
+// reported as the failure alone.
 func (a *Approver) Answer(ctx context.Context, approvalID string, answer controlv1.ApprovalState, approverID, reason string, decidedAt time.Time) (Answered, error) {
 	if a == nil {
 		return Answered{}, ErrClosed
@@ -295,7 +302,7 @@ func (a *Approver) file(rec Record, answer controlv1.ApprovalState, approverID, 
 		if errors.Is(err, errExists) {
 			return ErrApprovalAnswered
 		}
-		return err
+		return a.unfiled(answered, err)
 	}
 	// A resolved name that is there as anything but a record is not an absent
 	// one: the answer is taken back unless each name is known to be missing.
@@ -311,6 +318,21 @@ func (a *Approver) file(rec Record, answer controlv1.ApprovalState, approverID, 
 		}
 	}
 	return a.s.remove(rec.ApprovalID + stateHeld.suffix())
+}
+
+// unfiled answers a commit of answered that failed. A plane can read the
+// answer, spend it and unlink it between the link and the failure, so a
+// consumed record of the approval decides the outcome as it does after a
+// successful link.
+func (a *Approver) unfiled(answered Record, failed error) error {
+	err := a.s.present(answered.ApprovalID + stateConsumed.suffix())
+	switch {
+	case err == nil:
+		return a.spent(answered)
+	case errors.Is(err, fs.ErrNotExist):
+		return failed
+	}
+	return errors.Join(failed, err)
 }
 
 // spent answers an answer linked while a consumed record of its approval is

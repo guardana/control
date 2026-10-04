@@ -156,8 +156,9 @@ has an identity once its first line is whole; an empty one gives no cursor.
 Identity is content, not the path, so a renamed file can be read on.</p>
 <p><strong>A bounded query.</strong> <code>--after &lt;cursor&gt;</code> starts after a line an earlier export
 returned; <code>--limit</code> bounds the records written, every type counted (1000 by
-default, 100 000 at most); <code>--max-bytes</code> bounds the bytes of whole lines scanned, and no line is read
-past it;
+default, 100 000 at most); <code>--max-bytes</code> bounds the bytes of whole lines scanned, and the line
+that would cross it is read no further than the bound (the lines a cursor is checked against are
+read whole, as <a href="/docs/contracts#the-evidence-export">contracts.md</a> says);
 <code>--request</code>, <code>--run</code>, <code>--tenant</code>, <code>--project</code> and <code>--kind</code> filter, each
 repeatable, an event matching one value of every filter given, and an unknown
 kind is refused. A filter cuts the links between a request's events, so a

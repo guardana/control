@@ -85,9 +85,11 @@ func CreateNoReplace(dir, name string, body []byte, perm fs.FileMode) error {
 // and link never replaces, so a crash leaves either no name or the whole body
 // under it. Every step goes through root, so a path swapped for a link once
 // root is open changes nothing it writes. The temporary file is removed
-// either way. A failure after the link unlinks the name again, so an error
-// means nothing was written; only a failure of that unlink too, which the
-// error carries, leaves the name in place.
+// either way. A failure after the link unlinks the name again, and only a
+// failure of that unlink too, which the error carries, leaves the name in
+// place. Nothing forces that unlink to disk, since forcing the directory is
+// what failed, so a power loss can bring the name back, and another process
+// may read the name before it is unlinked.
 func CreateNoReplaceIn(root *os.Root, name string, body []byte, perm fs.FileMode) error {
 	tmp, err := writeTemp(root, body, perm)
 	if err != nil {

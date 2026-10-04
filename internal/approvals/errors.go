@@ -45,6 +45,10 @@ const (
 	// ErrApprovalAnswered is an answer to a record an approver answered
 	// already.
 	ErrApprovalAnswered Error = "approvals: the approval was answered already"
+	// ErrOutcomeUnknown is a write that failed after its name was linked,
+	// where the name was gone before it could be taken back. Another process
+	// unlinked it, and may have acted on it first.
+	ErrOutcomeUnknown Error = "approvals: the name was gone before it could be taken back, so whether it was read is unknown"
 	// ErrResolved is an attempt to resolve a record the plane has resolved
 	// already. Resolve does not answer it: the outcome its caller asked for
 	// is the outcome on disk.

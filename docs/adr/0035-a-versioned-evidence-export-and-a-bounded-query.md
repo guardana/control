@@ -68,8 +68,9 @@ Identity is content, not the path, so a renamed file can be read on.
 
 **A bounded query.** `--after <cursor>` starts after a line an earlier export
 returned; `--limit` bounds the records written, every type counted (1000 by
-default, 100 000 at most); `--max-bytes` bounds the bytes of whole lines scanned, and no line is read
-past it;
+default, 100 000 at most); `--max-bytes` bounds the bytes of whole lines scanned, and the line
+that would cross it is read no further than the bound (the lines a cursor is checked against are
+read whole, as [contracts.md](../contracts.md#the-evidence-export) says);
 `--request`, `--run`, `--tenant`, `--project` and `--kind` filter, each
 repeatable, an event matching one value of every filter given, and an unknown
 kind is refused. A filter cuts the links between a request's events, so a

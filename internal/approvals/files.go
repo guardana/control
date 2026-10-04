@@ -21,9 +21,13 @@ const errExists Error = "approvals: the name exists already"
 // writer got there first, and nothing in the request path waits on another
 // process's lock. The temporary file is removed either way, and the directory
 // is forced to disk after a successful link, so a name that was reported
-// written survives a power loss. A failure after the link unlinks the name
-// again, so an error means the name was not filed; only a failure of that
-// unlink too, which the error carries, leaves it in place.
+// written survives a power loss.
+//
+// A failure after the link unlinks the name again. Nothing forces that unlink
+// to disk, since forcing the directory is what just failed, so a power loss can
+// bring the name back. Until the unlink another process may read the name, and
+// one that unlinked it first leaves ErrOutcomeUnknown in the error; a failure of
+// the unlink itself, which the error carries, leaves the name in place.
 func (s *store) commit(name string, body []byte) error {
 	tmp := tmpPrefix + rand.Text() + tmpSuffix
 	f, err := s.root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
@@ -43,9 +47,20 @@ func (s *store) commit(name string, body []byte) error {
 	}
 	s.step(stepLinked)
 	if err := errors.Join(s.root.Remove(tmp), s.syncDir()); err != nil {
-		return errors.Join(err, s.root.Remove(name))
+		return errors.Join(err, s.undo(name))
 	}
 	return nil
+}
+
+// undo unlinks a name this store linked and could not make durable. A name
+// that is already gone was unlinked by another process, which may have read it
+// first, so it is reported as an unknown outcome rather than as not filed.
+func (s *store) undo(name string) error {
+	err := s.root.Remove(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%w: %q", ErrOutcomeUnknown, cause(name))
+	}
+	return err
 }
 
 // syncDir forces a directory entry to disk, so a name that was linked before a

@@ -55,6 +55,44 @@ func TestATailIsCutOnlyWhenTheCodecCouldHaveWrittenIt(t *testing.T) {
 	}
 }
 
+// TestAWholeValueIsCutOnlyWhenTheCodecCouldHaveWrittenIt: a tail that is a
+// whole JSON value is a line cut before its newline only when it is written as
+// the codec writes one. White space outside a string, before a member or after
+// the value, and a member under its proto name, which protojson reads and
+// never writes, are each refused and left; the line the codec wrote is cut.
+func TestAWholeValueIsCutOnlyWhenTheCodecCouldHaveWrittenIt(t *testing.T) {
+	for _, c := range []struct {
+		tail string
+		cut  bool
+	}{
+		{`{ "eventId":"e2"}`, false},
+		{`{"event_id":"e2"}`, false},
+		{`{"eventId":"e2"} `, false},
+		{strings.TrimSuffix(lines(t, event(2)), "\n"), true},
+	} {
+		for _, prefix := range []string{"", lines(t, event(1))} {
+			opensWithTail(t, prefix, c.tail, c.cut)
+		}
+	}
+}
+
+// TestEveryCutOfAnEnumWrittenAsANumberIsCut: protojson writes an enum value
+// it cannot name as a number, so a line holding one is cut wherever a crash
+// stopped it, its number included.
+func TestEveryCutOfAnEnumWrittenAsANumberIsCut(t *testing.T) {
+	ev := event(1)
+	ev.Kind = controlv1.EventKind(4242)
+	line := strings.TrimSuffix(lines(t, ev), "\n")
+	if !strings.Contains(line, `"kind":4242,`) {
+		t.Fatalf("the line %q does not hold the kind as a number, so it does not test it", line)
+	}
+	for cut := 1; cut <= len(line); cut++ {
+		if !torn([]byte(line[:cut])) {
+			t.Errorf("the cut %q of a line the codec wrote is refused", line[:cut])
+		}
+	}
+}
+
 // TestEveryCutOfAnEventWithEveryFieldSetIsCut: an event with every field of
 // its message and of each message under it set, one payload at a time, is
 // cut at open wherever a crash stopped its line, so the walk refuses nothing

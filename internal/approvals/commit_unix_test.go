@@ -7,17 +7,19 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync/atomic"
 	"syscall"
 	"testing"
+	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/approvals"
 )
 
 // TestEveryFileTheStoreWritesIsItsOwnersAlone: under a umask that narrows
-// nothing, the marker, a projection, a held record and an answer are each
-// written readable and writable by their owner and nobody else.
+// nothing, the marker, a projection, a record still held and an answer are
+// each written readable and writable by their owner and nobody else.
 func TestEveryFileTheStoreWritesIsItsOwnersAlone(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "approvals")
 	if err := os.Mkdir(dir, 0o700); err != nil {
@@ -29,7 +31,7 @@ func TestEveryFileTheStoreWritesIsItsOwnersAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"store.meta", "APPROVAL1.view.json", "APPROVAL1.1-answered.rec"} {
+	for _, name := range []string{"store.meta", "APPROVAL1.view.json", "APPROVAL1.1-answered.rec", "APPROVAL2.0-held.rec"} {
 		info, err := os.Lstat(filepath.Join(dir, name))
 		if err != nil {
 			t.Fatal(err)
@@ -50,6 +52,9 @@ func holdAndAnswer(t *testing.T, dir string) error {
 	if err := p.Hold(t.Context(), held(t, firstApproval, "req-1"), minted); err != nil {
 		return err
 	}
+	if err := p.Hold(t.Context(), held(t, "APPROVAL2", "req-2"), minted); err != nil {
+		return err
+	}
 	a, err := approvals.OpenApprover(dir)
 	if err != nil {
 		return err
@@ -61,8 +66,8 @@ func holdAndAnswer(t *testing.T, dir string) error {
 
 // TestAnAnswerThatCannotBeMadeDurableIsNotFiled: the answer is linked, and
 // then the directory cannot be opened to force it to disk. Answer reports the
-// failure, and the name it linked is gone with it, so the plane never reads an
-// answer the approver was told did not happen, and a second answer is taken.
+// failure, and the name it linked is gone with it, so a plane that looks
+// afterwards does not read it, and a second answer is taken.
 func TestAnAnswerThatCannotBeMadeDurableIsNotFiled(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("the superuser opens a directory whatever its mode")
@@ -95,4 +100,69 @@ func TestAnAnswerThatCannotBeMadeDurableIsNotFiled(t *testing.T) {
 	if _, err := a.Answer(t.Context(), firstApproval, approved, "approver-1", "", minted); err != nil {
 		t.Fatalf("the answer after the failed one: %v", err)
 	}
+}
+
+// TestAnAnswerThePlaneSpentBeforeTheFailureIsFiled: between the approver's
+// link and forcing it to disk, the plane reads the answer, runs on it and
+// unlinks it, and then the directory cannot be opened. The consumed record
+// carries this answer, so the answer was filed: Answer reports it as filed
+// and leaves only the consumed record.
+func TestAnAnswerThePlaneSpentBeforeTheFailureIsFiled(t *testing.T) {
+	dir, consumeErr, err := answerWhileThePlaneConsumes(t, controlv1.ApprovalState_APPROVAL_STATE_APPROVED, "approver-1")
+	if consumeErr != nil {
+		t.Fatalf("the plane consuming the answer: %v", consumeErr)
+	}
+	if err != nil {
+		t.Fatalf("Answer of an answer the plane spent = %v, want nil: an action ran on it", err)
+	}
+	if got, want := recordNames(t, dir), []string{"APPROVAL1.3-consumed.rec"}; !slices.Equal(got, want) {
+		t.Fatalf("records = %v, want %v", got, want)
+	}
+}
+
+// TestAnAnswerGoneBeforeItsUndoIsNotReportedNotFiled: the plane reads a
+// rejection between the approver's link and forcing it to disk, and drops the
+// record, answer and all. The approver's undo finds the name gone, so whether
+// the answer was read is unknown, and Answer says so beside the failure.
+func TestAnAnswerGoneBeforeItsUndoIsNotReportedNotFiled(t *testing.T) {
+	_, consumeErr, err := answerWhileThePlaneConsumes(t, controlv1.ApprovalState_APPROVAL_STATE_REJECTED, "")
+	if !errors.Is(consumeErr, approvals.ErrApprovalRejected) {
+		t.Fatalf("the plane reading the rejection = %v, want ErrApprovalRejected", consumeErr)
+	}
+	if !errors.Is(err, approvals.ErrOutcomeUnknown) || !errors.Is(err, fs.ErrPermission) {
+		t.Fatalf("Answer whose undo found its name gone = %v, want ErrOutcomeUnknown beside fs.ErrPermission", err)
+	}
+}
+
+// answerWhileThePlaneConsumes holds firstApproval and answers it. At the
+// approver's link the plane consumes it, and then the directory stops being
+// readable, so forcing the link to disk fails. It returns the directory, what
+// Consume returned and what Answer returned.
+func answerWhileThePlaneConsumes(t *testing.T, answer controlv1.ApprovalState, approverID string) (string, error, error) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("the superuser opens a directory whatever its mode")
+	}
+	p, dir := openPlane(t)
+	h := held(t, firstApproval, "req-1")
+	if err := p.Hold(t.Context(), h, minted); err != nil {
+		t.Fatal(err)
+	}
+	var armed atomic.Bool
+	armed.Store(true)
+	var consumeErr error
+	a := openApprover(t, dir, approvals.WithSteps(func(step string) {
+		if step == approvals.StepLinked && armed.CompareAndSwap(true, false) {
+			_, consumeErr = p.Consume(t.Context(), h.Binding, "req-1", firstApproval, minted.Add(2*time.Minute))
+			if err := os.Chmod(dir, 0o300); err != nil { //nolint:gosec // G302: a directory its owner cannot list, so the sync fails
+				t.Error(err)
+			}
+		}
+	}))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) }) //nolint:gosec // G302: the store's own mode, back
+	_, err := a.Answer(t.Context(), firstApproval, answer, approverID, "", minted.Add(time.Minute))
+	if chmodErr := os.Chmod(dir, 0o700); chmodErr != nil { //nolint:gosec // G302: the store's own mode, back
+		t.Fatal(chmodErr)
+	}
+	return dir, consumeErr, err
 }

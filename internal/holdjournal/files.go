@@ -39,8 +39,10 @@ func tmpName() string {
 // EEXIST rather than replacing an entry that exists already. The file is
 // forced to disk before the link and the directory after it, so a name that
 // was reported written survives a power loss. A failure after the link
-// unlinks the name again, so an error means nothing was filed; only a failure
-// of that unlink too, which the error carries, leaves the entry in place.
+// unlinks the name again, and only a failure of that unlink too, which the
+// error carries, leaves the entry in place. Nothing forces that unlink to
+// disk, since forcing the directory is what failed, so a power loss can bring
+// the entry back.
 func (j *Journal) create(name string, body []byte) error {
 	tmp := tmpName()
 	if err := j.writeSynced(tmp, body); err != nil {

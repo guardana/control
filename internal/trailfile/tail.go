@@ -17,25 +17,29 @@ import (
 var eventMessage = (&controlv1.Event{}).ProtoReflect().Descriptor()
 
 // torn reports whether tail can be what a crash left of a line the codec
-// wrote. A whole JSON value can, only when it decodes as one event: the append
-// was cut between the object and its newline. Anything shorter can only when
-// it holds no white space outside a string, as the codec compacts its lines,
-// and is a proper prefix of one JSON object whose members are, as far as the
-// bytes go, the event's: each a field of its message, once, one member of a
-// oneof at most, its value of the JSON type protojson gives the field.
+// wrote. It can only when it holds no white space outside a string, as the
+// codec compacts its lines. Anything short of a whole JSON value can then only
+// when it is a proper prefix of one JSON object whose members are, as far as
+// the bytes go, the event's: each a field of its message under its JSON name,
+// once, one member of a oneof at most, its value of the JSON type protojson
+// gives the field. A whole value is the line cut between the object and its
+// newline: its members are held to the same, and it decodes as one event.
 func torn(tail []byte) bool {
-	if json.Valid(tail) {
-		events, err := evidence.DecodeJSONL(bytes.NewReader(tail), 1)
-		return err == nil && len(events) == 1
+	root := slot{msg: eventMessage}
+	if !compact(tail) {
+		return false
 	}
-	return compact(tail) && walk(tail, slot{msg: eventMessage})
+	if !json.Valid(tail) {
+		return walk(tail, root)
+	}
+	// A compact whole value ends on its closing byte, so the bytes before it
+	// are a proper prefix the walk judges member by member.
+	if !walk(tail[:len(tail)-1], root) {
+		return false
+	}
+	events, err := evidence.DecodeJSONL(bytes.NewReader(tail), 1)
+	return err == nil && len(events) == 1
 }
-
-// prefixOfOneValue reports whether b is a proper prefix of one JSON value of
-// any shape: a walk of its tokens meets no syntax error, and ends only because
-// the bytes ran out inside that value. A value that closes with bytes after
-// it is not.
-func prefixOfOneValue(b []byte) bool { return walk(b, slot{}) }
 
 // compact reports whether b holds no white space outside its strings.
 func compact(b []byte) bool {

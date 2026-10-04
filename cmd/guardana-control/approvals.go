@@ -155,6 +155,8 @@ func verb(state controlv1.ApprovalState) string {
 // is in, and that the directory was left as it was.
 func answerHint(err error) string {
 	switch {
+	case errors.Is(err, approvals.ErrOutcomeUnknown):
+		return "the plane may have read this answer before the failed write was taken back; run approvals list before answering again"
 	case errors.Is(err, approvals.ErrApprovalConsumed):
 		return "the plane consumed this approval already; nothing was written"
 	case errors.Is(err, approvals.ErrResolved):

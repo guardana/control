@@ -14,8 +14,8 @@ import (
 
 // TestACreateThatCannotBeMadeDurableLeavesNoName: the name is linked, and then
 // the directory cannot be opened to force it to disk. The create reports the
-// failure and the name is gone with it, so the error means nothing was
-// written, and the next create of the name is not refused as taken.
+// failure and the name is gone with it, so the next create of the name is not
+// refused as taken.
 func TestACreateThatCannotBeMadeDurableLeavesNoName(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("the superuser opens a directory whatever its mode")

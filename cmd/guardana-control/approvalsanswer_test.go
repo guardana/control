@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io/fs"
 	"maps"
 	"strings"
 	"testing"
@@ -282,5 +285,15 @@ func TestAnswerRefusesADirectoryThatIsNotAStore(t *testing.T) {
 	}
 	if len(files(t, dir)) != 0 {
 		t.Error("a refused answer wrote into a directory that is not a store")
+	}
+}
+
+// TestAnAnswerOfUnknownOutcomeSaysToLookFirst: a write that failed after the
+// plane may have read it tells the operator to list before answering again,
+// even beside the error that made the write fail.
+func TestAnAnswerOfUnknownOutcomeSaysToLookFirst(t *testing.T) {
+	err := errors.Join(fs.ErrPermission, fmt.Errorf("%w: %q", approvals.ErrOutcomeUnknown, "APPROVAL1.1-answered.rec"))
+	if hint := answerHint(err); !strings.Contains(hint, "may have read") || !strings.Contains(hint, "approvals list") {
+		t.Errorf("hint = %q", hint)
 	}
 }

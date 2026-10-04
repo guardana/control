@@ -51,7 +51,8 @@ func TestEveryFileTheJournalWritesIsItsOwnersAlone(t *testing.T) {
 // TestARecordThatCannotBeMadeDurableIsNotFiled: the entry is linked, and then
 // the directory cannot be opened to force it to disk. Record reports the
 // failure, and the entry is gone with it, so a caller told the hold was not
-// journalled never meets that hold again at the next start.
+// journalled does not meet that hold at the next start without a power loss
+// in between.
 func TestARecordThatCannotBeMadeDurableIsNotFiled(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("the superuser opens a directory whatever its mode")
