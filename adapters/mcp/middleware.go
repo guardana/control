@@ -65,13 +65,13 @@ func (a *Adapter) middleware(next mcp.MethodHandler) mcp.MethodHandler {
 			return a.callTool(ctx, c, toolSender(r.Params.Name))
 		case methodReadResource:
 			r := req.(*mcp.ReadResourceRequest)
-			c := a.read(req, kindResource, r.Params.URI, []byte(noArguments), nil)
+			c := a.read(req, r.Params.Meta, kindResource, r.Params.URI, []byte(noArguments), nil)
 			c.admission.Run = run
 			return a.readThrough(ctx, c, resourceSender(r.Params.URI))
 		case methodGetPrompt:
 			r := req.(*mcp.GetPromptRequest)
 			args, err := promptArguments(r.Params.Arguments)
-			c := a.read(req, kindPrompt, r.Params.Name, args, err)
+			c := a.read(req, r.Params.Meta, kindPrompt, r.Params.Name, args, err)
 			c.admission.Run = run
 			return a.readThrough(ctx, c, promptSender(r.Params.Name))
 		case methodListResources, methodListTemplates, methodListPrompts:

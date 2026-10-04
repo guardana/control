@@ -203,6 +203,21 @@ fairness, since one client that keeps its sessions active can hold every place.<
 </code></pre></details></figure>
 <p>Sources: <code>adapters/mcp/listener.go</code>, <code>adapters/mcp/middleware.go</code>,
 <code>adapters/mcp/translate.go</code>.</p>
+<h2 id="which-trace-a-call-belongs-to">Which trace a call belongs to</h2>
+<p>An agent runtime that traces its work can say which trace a call belongs to:
+OpenTelemetry's conventions for MCP put W3C trace context in the request's
+<code>_meta</code> under the unprefixed key <code>traceparent</code>, on every transport. The
+adapter copies the trace id and the parent id of a version <code>00</code> value into the
+envelope's <code>trace_id</code> and <code>span_id</code>, so a trail can be joined to the
+runtime's spans. A value of any other shape, or none, leaves both empty,
+which claims no correlation, and never refuses or changes the call. The
+digest leaves both out, and nothing that decides, pauses or holds a call
+reads them. They are the client's claim: a reader joining on them learns
+what the client said, not which run made the call. A held call keeps the
+trace of the attempt that was held: the retry that resumes it runs on the
+held trail, and its own trace context is not recorded. <code>tracestate</code>, <code>baggage</code>
+and the HTTP <code>traceparent</code> header are not read, and no upstream receives the
+agent's <code>_meta</code>.</p>
 <h2 id="what-the-manifest-holds">What the manifest holds</h2>
 <p>The manifest is what the upstream lists plus the operator's classification of
 each definition. Nothing else classifies: a tool's own annotations are hints

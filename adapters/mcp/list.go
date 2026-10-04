@@ -258,10 +258,11 @@ func (s *shaping) shape(e *Entry) *mcp.Tool {
 }
 
 // preview asks the pipeline what a call to the tool with no arguments would
-// be decided, for this principal, without recording anything.
+// be decided, for this principal, without recording anything, so it names no
+// trace.
 func (a *Adapter) preview(ctx context.Context, p Pipeline, req mcp.Request, e *Entry, principal *controlv1.Principal, agent *controlv1.Agent) *controlv1.Decision {
 	up := a.upstreamConfig(e.Upstream)
-	env := a.base(req, principal, agent, a.cfg.NewID())
+	env := a.base(req, nil, principal, agent, a.cfg.NewID())
 	env.Action = &controlv1.Action{Kind: kindTool, Name: e.Tool.Name, Protocol: protocolName, Effect: e.Effect, Provider: e.Upstream}
 	env.Resource = &controlv1.Resource{Type: e.ResourceType, TenantId: up.TenantID, Environment: up.Environment}
 	if e.TrustZone != controlv1.TrustZone_TRUST_ZONE_UNSPECIFIED {

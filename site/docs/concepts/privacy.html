@@ -157,12 +157,16 @@ plane mints or, under <code>runs.dir</code>, the id of the run the operator open
 <td><code>canonical_hash</code> only: a SHA-256 of the canonical arguments</td>
 </tr>
 <tr>
+<td><code>trace_id</code>, <code>span_id</code></td>
+<td>the trace id and the parent id of a version <code>00</code> <code>traceparent</code> in the request's <code>_meta</code>, the client's claim; empty without one</td>
+</tr>
+<tr>
 <td><code>context.tags</code></td>
 <td><code>mcp.client=</code> with the name and version the client reported, <code>mcp.protocol_version=</code>, and the plane's flow tags: whether the run took in untrusted content, and the highest sensitivity it read, or <code>flow.v1.state=uncomputed</code> when the plane kept no run state for the call</td>
 </tr>
 </tbody>
 </table>
-<p>Left empty by this plane: <code>trace_id</code>, <code>span_id</code>, <code>principal.authn_strength</code>
+<p>Left empty by this plane: <code>principal.authn_strength</code>
 and <code>attributes</code>, <code>agent.instance_id</code> and <code>model_ref</code>, <code>delegation</code>,
 <code>resource.labels</code>, <code>destination.host</code>, <code>data</code>, <code>arguments.redacted_preview</code>,
 <code>schema_ref</code> and <code>redaction_profile</code>, and every other <code>context</code> field.</p>

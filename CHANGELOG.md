@@ -11,6 +11,14 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- A call to the MCP gateway that carries W3C trace context in
+  `_meta.traceparent` records the trace id and the caller's span id in its
+  envelope's `trace_id` and `span_id`, so a trail can be joined to the agent
+  runtime's traces. A missing or malformed value leaves both empty and changes
+  nothing else.
+
 ### Changed
 
 - The plan follows [ADR-0039](docs/adr/0039-many-channels-into-one-core.md):

@@ -129,6 +129,23 @@ sequenceDiagram
 Sources: `adapters/mcp/listener.go`, `adapters/mcp/middleware.go`,
 `adapters/mcp/translate.go`.
 
+## Which trace a call belongs to
+
+An agent runtime that traces its work can say which trace a call belongs to:
+OpenTelemetry's conventions for MCP put W3C trace context in the request's
+`_meta` under the unprefixed key `traceparent`, on every transport. The
+adapter copies the trace id and the parent id of a version `00` value into the
+envelope's `trace_id` and `span_id`, so a trail can be joined to the
+runtime's spans. A value of any other shape, or none, leaves both empty,
+which claims no correlation, and never refuses or changes the call. The
+digest leaves both out, and nothing that decides, pauses or holds a call
+reads them. They are the client's claim: a reader joining on them learns
+what the client said, not which run made the call. A held call keeps the
+trace of the attempt that was held: the retry that resumes it runs on the
+held trail, and its own trace context is not recorded. `tracestate`, `baggage`
+and the HTTP `traceparent` header are not read, and no upstream receives the
+agent's `_meta`.
+
 ## What the manifest holds
 
 The manifest is what the upstream lists plus the operator's classification of

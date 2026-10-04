@@ -45,9 +45,10 @@ plane mints or, under `runs.dir`, the id of the run the operator opened. `execut
 | `resource` | the override's `type`, and `id`: the string or number at the override's `resource_from` pointer into the arguments, none for another value, the URI of a `resources/read`, or the name of a `prompts/get`; the upstream's `tenant_id` and `environment` |
 | `destination` | the override's trust zone, when it names one |
 | `arguments` | `canonical_hash` only: a SHA-256 of the canonical arguments |
+| `trace_id`, `span_id` | the trace id and the parent id of a version `00` `traceparent` in the request's `_meta`, the client's claim; empty without one |
 | `context.tags` | `mcp.client=` with the name and version the client reported, `mcp.protocol_version=`, and the plane's flow tags: whether the run took in untrusted content, and the highest sensitivity it read, or `flow.v1.state=uncomputed` when the plane kept no run state for the call |
 
-Left empty by this plane: `trace_id`, `span_id`, `principal.authn_strength`
+Left empty by this plane: `principal.authn_strength`
 and `attributes`, `agent.instance_id` and `model_ref`, `delegation`,
 `resource.labels`, `destination.host`, `data`, `arguments.redacted_preview`,
 `schema_ref` and `redaction_profile`, and every other `context` field.

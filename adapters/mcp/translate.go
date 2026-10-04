@@ -94,9 +94,12 @@ func (a *Adapter) identity(req mcp.Request) (*controlv1.Principal, *controlv1.Ag
 }
 
 // base builds what every envelope carries before the action: identifiers,
-// the clock, where the request was received, who calls and the run context
-// with the client's claim as a tag.
-func (a *Adapter) base(req mcp.Request, principal *controlv1.Principal, agent *controlv1.Agent, requestID string) *controlv1.ActionEnvelope {
+// the trace meta says the call belongs to, the clock, where the request was
+// received, who calls and the run context with the client's claim as a tag.
+// meta is the params' _meta, which each caller takes from params it already
+// read: for a method whose params may be absent, the SDK's Params interface
+// can hold a nil pointer that GetMeta dereferences.
+func (a *Adapter) base(req mcp.Request, meta map[string]any, principal *controlv1.Principal, agent *controlv1.Agent, requestID string) *controlv1.ActionEnvelope {
 	env := &controlv1.ActionEnvelope{
 		SchemaVersion: schemaVersion,
 		RequestId:     requestID,
@@ -108,6 +111,7 @@ func (a *Adapter) base(req mcp.Request, principal *controlv1.Principal, agent *c
 		Agent:         agent,
 		Context:       &controlv1.RunContext{},
 	}
+	env.TraceId, env.SpanId = traceContext(meta)
 	if sr, ok := req.(interface {
 		ClientInfo() *mcp.Implementation
 		ProtocolVersion() string
@@ -136,7 +140,7 @@ func (a *Adapter) toolCall(req *mcp.CallToolRequest) call {
 		c.admission.Refusal = err
 		return c
 	}
-	env := a.base(req, principal, agent, c.requestID)
+	env := a.base(req, req.Params.Meta, principal, agent, c.requestID)
 	env.Action = &controlv1.Action{Kind: kindTool, Name: req.Params.Name, Protocol: protocolName}
 	c.admission.Envelope = env
 	entry, err := a.manifest.route(req.Params.Name)
@@ -181,7 +185,7 @@ func (a *Adapter) route(entry *Entry) string {
 // asked with. The manifest lists tools only, so a read routes only where one
 // upstream is configured; with several, nothing says which holds the URI or
 // the prompt, and the read reaches the pipeline as unclassified.
-func (a *Adapter) read(req mcp.Request, kind, name string, args []byte, argErr error) call {
+func (a *Adapter) read(req mcp.Request, meta map[string]any, kind, name string, args []byte, argErr error) call {
 	c := call{requestID: a.cfg.NewID(), upstream: a.route(nil)}
 	c.admission.Arguments = args
 	principal, agent, err := a.identity(req)
@@ -189,7 +193,7 @@ func (a *Adapter) read(req mcp.Request, kind, name string, args []byte, argErr e
 		c.admission.Refusal = err
 		return c
 	}
-	env := a.base(req, principal, agent, c.requestID)
+	env := a.base(req, meta, principal, agent, c.requestID)
 	c.admission.Envelope = env
 	env.Action = &controlv1.Action{Kind: kind, Name: name, Protocol: protocolName}
 	if argErr != nil {
