@@ -38,6 +38,11 @@ verify one.
 - A stateful listener near its `listener.max_sessions` cap no longer refuses
   an open while the previous open's answer is still being written: a session
   whose answer has begun is counted once, not twice.
+- The gateway's configuration refuses a negative value for every duration
+  key, naming the key where it was set. `approvals.ttl`,
+  `approvals.retry_after`, `export.linger`, `export.backoff`,
+  `export.max_backoff` and `list.ttl` took one, and `policy.max_stale` was
+  refused under another key's name.
 
 ## [0.6.0-alpha] - 2026-10-03
 

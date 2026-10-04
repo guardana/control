@@ -127,7 +127,7 @@ func lead(listDefault string) string {
 		"request held in memory. `upstream.call_timeout`, `pdp.timeout` and `export.timeout` have\n" +
 		"to be positive, so nothing waits on an upstream's call, the decision point or the\n" +
 		"collector without a bound; `" + listTimeoutKey + "` may be zero, which is the adapter's\n" +
-		"own bound of `" + adaptermcp.DefaultListTimeout.String() + "`, longer than the key's `" + listDefault + "` default, and no timeout\n" +
+		"own bound of `" + adaptermcp.DefaultListTimeout.String() + "`, longer than the key's `" + listDefault + "` default, and no duration\n" +
 		"may be negative. `runs.dir` may not be, hold or sit inside the spool, the\n" +
 		"approvals directory, the hold journal or the pause file's directory, needs a\n" +
 		"`listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a\n" +

@@ -25,7 +25,7 @@ and `APPROVE` needs the `file` provider, since nothing outside the process answe
 request held in memory. `upstream.call_timeout`, `pdp.timeout` and `export.timeout` have
 to be positive, so nothing waits on an upstream's call, the decision point or the
 collector without a bound; `upstream.list_timeout` may be zero, which is the adapter's
-own bound of `30s`, longer than the key's `10s` default, and no timeout
+own bound of `30s`, longer than the key's `10s` default, and no duration
 may be negative. `runs.dir` may not be, hold or sit inside the spool, the
 approvals directory, the hold journal or the pause file's directory, needs a
 `listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a

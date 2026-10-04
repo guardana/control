@@ -2,6 +2,7 @@ package gatewayconfig
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -33,10 +34,10 @@ func TestTheCallTimeoutHasToBePositive(t *testing.T) {
 }
 
 // TestTheOtherTimeoutsRefuseWhatTheirClientsRefuse: a negative bound is
-// refused naming its key, for every timeout. Zero keeps its meaning: the
-// adapter's own bound for upstream.list_timeout, and for pdp.timeout and
-// export.timeout a refusal, since neither client takes a bound that is not
-// positive.
+// refused naming its key, for every timeout, where it is read. Zero keeps its
+// meaning: the adapter's own bound for upstream.list_timeout, and for
+// pdp.timeout and export.timeout a refusal, since neither client takes a bound
+// that is not positive.
 func TestTheOtherTimeoutsRefuseWhatTheirClientsRefuse(t *testing.T) {
 	for _, c := range []struct {
 		key, file, value string
@@ -61,8 +62,40 @@ func TestTheOtherTimeoutsRefuseWhatTheirClientsRefuse(t *testing.T) {
 				t.Errorf("refused: %v", err)
 			case !c.ok && err == nil:
 				t.Error("accepted")
-			case !c.ok && !strings.HasPrefix(err.Error(), c.key+": "):
-				t.Errorf("the refusal does not start with the key: %v", err)
+			case !c.ok && !strings.Contains(err.Error(), c.key+": "):
+				t.Errorf("the refusal does not name the key: %v", err)
+			}
+		})
+	}
+}
+
+// TestNoDurationTakesANegativeValue: every duration key refuses a negative
+// value where it is parsed, naming the key, whatever block it belongs to. The
+// list is the field table's own duration keys, held to a literal so a new key
+// cannot join the table untested.
+func TestNoDurationTakesANegativeValue(t *testing.T) {
+	keys := []string{
+		"listener.session_idle", "policy.max_stale", "policy.poll_interval", "pdp.timeout",
+		"approvals.ttl", "approvals.retry_after", "pause.poll_interval", "evidence.fsync_interval",
+		"export.timeout", "export.linger", "export.backoff", "export.max_backoff",
+		"list.ttl", "upstream.call_timeout", "upstream.list_timeout",
+	}
+	var table []string
+	for _, f := range Fields() {
+		if f.Kind == "duration" {
+			table = append(table, f.Path)
+		}
+	}
+	if !slices.Equal(slices.Sorted(slices.Values(table)), slices.Sorted(slices.Values(keys))) {
+		t.Fatalf("the table's duration keys are %v, the test's %v", table, keys)
+	}
+	for _, key := range keys {
+		t.Run(key, func(t *testing.T) {
+			path := write(t, "")
+			setEnv(t, key, "-1ns")
+			_, err := Load(path, os.Environ())
+			if err == nil || !strings.Contains(err.Error(), key+": a duration cannot be negative") {
+				t.Errorf("%s=-1ns: %v", key, err)
 			}
 		})
 	}

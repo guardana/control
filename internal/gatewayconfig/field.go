@@ -126,6 +126,9 @@ func durationField[T any](path, def string, get func(*T) *time.Duration) field[T
 			if err != nil {
 				return fmt.Errorf("not a duration such as 30s or 10m: %s", quoteValue(v))
 			}
+			if d < 0 {
+				return fmt.Errorf("a duration cannot be negative: %s", quoteValue(v))
+			}
 			*get(t) = d
 			return nil
 		},
@@ -144,8 +147,7 @@ func requiredDuration[T any](path string, get func(*T) *time.Duration) field[T] 
 		if err := parse(t, v); err != nil {
 			return err
 		}
-		if *get(t) <= 0 {
-			*get(t) = 0
+		if *get(t) == 0 {
 			return fmt.Errorf("not a positive duration: %s", quoteValue(v))
 		}
 		return nil

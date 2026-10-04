@@ -401,26 +401,20 @@ func (c *Config) checkShaping() error {
 	return nil
 }
 
-// checkTimeouts refuses a bound its client would not take, naming the key
-// rather than the client's option. upstream.call_timeout has to be positive:
-// at zero a call has no bound of the adapter's own, and below zero it would
-// lose an obligation's shorter one too. upstream.list_timeout may be zero,
+// checkTimeouts refuses a zero bound its client would not take, naming the
+// key rather than the client's option; a negative one never loads. At zero a
+// call has no bound of the adapter's own. upstream.list_timeout may be zero,
 // which is the adapter's own bound.
 func (c *Config) checkTimeouts() error {
 	for _, bound := range []struct {
-		key    string
-		d      time.Duration
-		zeroOK bool
+		key string
+		d   time.Duration
 	}{
-		{"upstream.call_timeout", c.Upstream.CallTimeout, false},
-		{"upstream.list_timeout", c.Upstream.ListTimeout, true},
-		{"pdp.timeout", c.PDP.Timeout, false},
-		{"export.timeout", c.Export.Timeout, false},
+		{"upstream.call_timeout", c.Upstream.CallTimeout},
+		{"pdp.timeout", c.PDP.Timeout},
+		{"export.timeout", c.Export.Timeout},
 	} {
-		switch {
-		case bound.d < 0:
-			return fmt.Errorf("%s: %v; the bound cannot be negative", bound.key, bound.d)
-		case bound.d == 0 && !bound.zeroOK:
+		if bound.d == 0 {
 			return fmt.Errorf("%s: %v; the bound has to be positive", bound.key, bound.d)
 		}
 	}

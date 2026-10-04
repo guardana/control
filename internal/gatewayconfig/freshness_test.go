@@ -69,7 +69,7 @@ func TestThePollIntervalIsBounded(t *testing.T) {
 		{"2s", "2s", "is not shorter than policy.max_stale"},
 		{"1s", "1001ms", ""},
 		{"0s", "10m", "policy.poll_interval: not a positive duration"},
-		{"-1s", "10m", "policy.poll_interval: not a positive duration"},
+		{"-1s", "10m", "policy.poll_interval: a duration cannot be negative"},
 	} {
 		t.Run(c.poll+" under "+c.maxStale, func(t *testing.T) {
 			path := write(t, "")
