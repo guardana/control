@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/proto"
@@ -245,14 +246,24 @@ func lacksEffect(err error) bool {
 	return errors.As(err, &ve) && ve.Field == "action.effect" && errors.Is(err, contract.ErrMissingField)
 }
 
-// recordable takes the strings an agent chose, the action's name and the
-// run-context tags, off an envelope Validate refused as too large, so the
-// trail can record the refused call; the refusal names what was over the
-// bound.
+// recordable takes the string an agent chose that Validate refused as too
+// large off the envelope, so the trail can record the refused call: the
+// action's name, a run-context tag or the resource's id. An envelope refused
+// whole loses all three. The refusal names what was over the bound.
 func recordable(env *controlv1.ActionEnvelope, err error) error {
-	if errors.Is(err, contract.ErrTooLarge) {
+	var ve *contract.ValidationError
+	if !errors.As(err, &ve) || !errors.Is(err, contract.ErrTooLarge) {
+		return err
+	}
+	whole := ve.Field == ""
+	if whole || ve.Field == "action.name" {
 		env.Action.Name = ""
+	}
+	if whole || strings.HasPrefix(ve.Field, "context.tags") {
 		env.Context.Tags = nil
+	}
+	if (whole || ve.Field == "resource.id") && env.Resource != nil {
+		env.Resource.Id = ""
 	}
 	return err
 }

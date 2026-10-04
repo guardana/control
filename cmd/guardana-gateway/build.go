@@ -69,6 +69,8 @@ type plane struct {
 	// waits for the agents' calls in flight before it cuts them.
 	grace, callBound time.Duration
 	calls            inflight
+	// lost is the count of lost closing records lostClosings last reported.
+	lost atomic.Int64
 }
 
 // role says what the plane being built is for. It is a parameter and not a

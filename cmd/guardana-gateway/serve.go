@@ -51,9 +51,15 @@ func serve(ctx context.Context, path, tokenPath string, stdout, stderr io.Writer
 	}
 	writeLine(report, startLine(cfg))
 	p.settle(ctx, report)
-	err = p.run(ctx, report, listenTCP, 0)
+	return p.finish(p.run(ctx, report, listenTCP, 0), stderr)
+}
+
+// finish releases a plane whose run returned ran and says how `run` exits. A
+// closing record lost after run returned, by a call that outlived the stop,
+// fails it as one lost before.
+func (p *plane) finish(ran error, stderr io.Writer) int {
 	closed := p.closeReporting(stderr, "run")
-	if err != nil {
+	if err := errors.Join(ran, p.lostClosings()); err != nil {
 		return fail(stderr, "run", err)
 	}
 	if !closed {

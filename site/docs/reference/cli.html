@@ -180,8 +180,8 @@ to the action digest beside them, since the binding is over argument bytes no
 record holds; the listing says so above the records. A listing the store
 reports incomplete exits 1 and names what it could not read.</p>
 <p><code>approvals approve</code> and <code>approvals reject</code> write the answer whether or not a
-plane is running, and exit 0 either way: the record is on disk for the next
-plane to read. Where no plane holds the directory they say
+plane is running, and exit 0 either way: the record waits for the next
+plane. Where no plane holds the directory they say
 so on stderr: nothing waits for the answer and the held call will not run,
 since a hold does not survive the plane stopping; the answer is written all
 the same, and a plane that keeps a hold journal records it on that call's
@@ -260,9 +260,9 @@ file without serving: <a href="/docs/guides/run-the-gateway">guides/run-the-gate
 is their page and <a href="/docs/reference/configuration">configuration.md</a> lists every key.
 <code>--config</code> is required: no default location is searched. A key naming a file or a
 directory refuses key text, naming the key and not the value. On an interrupt
-or <code>SIGTERM</code>, <code>run</code> waits for the calls in flight, and exits 1 when it cut
-one, lost a closing record or could not close the spool; <code>doctor</code> exits 1
-when the plane it checked does not close.</p>
+or <code>SIGTERM</code>, <code>run</code> admits no new call, waits for every call it admitted,
+and exits 1 when it cut one, lost a closing record or could not close the
+spool; <code>doctor</code> exits 1 when the plane it checked does not close.</p>
 <p><code>collect</code> and <code>trail</code> read no configuration:
 <a href="/docs/guides/watch-a-plane-without-a-collector">guides/watch-a-plane-without-a-collector.md</a>
 is their page. <code>collect</code> listens on a loopback IP address only and appends

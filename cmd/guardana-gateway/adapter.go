@@ -8,10 +8,12 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -254,11 +256,49 @@ func orWord(value, absent string) string {
 
 // startUpstreams connects every upstream, after which the manifest holds
 // what they listed. A refusal names the upstream and what failed, never its
-// endpoint or its own message, so it is printed as it is.
+// endpoint or its own message; withheldRefusal stands behind that.
 func (p *plane) startUpstreams(ctx context.Context) error {
 	if err := p.adapter.Start(ctx, p.pipeline); err != nil {
-		return err
+		return withheldRefusal(err, p.cfg.Upstreams)
 	}
 	p.listed.Store(true)
 	return nil
+}
+
+// withheldRefusal is err as run and doctor print it: should it quote a part of
+// an endpoint ShowAddress withholds, the userinfo, the query or the fragment,
+// it names that endpoint's key and why in its place.
+func withheldRefusal(err error, upstreams []gatewayconfig.UpstreamConfig) error {
+	text := err.Error()
+	for i, up := range upstreams {
+		shown := gatewayconfig.ShowAddress(up.Endpoint)
+		if shown != up.Endpoint && quotesCredential(text, up.Endpoint) {
+			return fmt.Errorf("the transport's error is not printed, because it quotes upstreams.%d.endpoint, which is %s", i, shown)
+		}
+	}
+	return err
+}
+
+// quotesCredential says whether text holds a part of endpoint that can carry
+// a credential, raw or decoded. An endpoint that does not parse counts as
+// quoted, since its parts cannot be told apart.
+func quotesCredential(text, endpoint string) bool {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return true
+	}
+	parts := []string{u.User.Username(), u.RawQuery, u.Fragment, u.EscapedFragment()}
+	if password, ok := u.User.Password(); ok {
+		parts = append(parts, password)
+	}
+	for key, values := range u.Query() {
+		parts = append(parts, key)
+		parts = append(parts, values...)
+	}
+	for _, part := range parts {
+		if part != "" && strings.Contains(text, part) {
+			return true
+		}
+	}
+	return false
 }

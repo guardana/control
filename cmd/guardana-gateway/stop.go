@@ -27,9 +27,10 @@ func callBound(cfg *gatewayconfig.Config) time.Duration {
 	return bound
 }
 
-// inflight counts the agents' requests a handler is still answering. A GET
-// is not counted: it is a stream a session holds open for as long as its
-// client does, and it carries no call.
+// inflight counts the agents' requests a handler is still answering, so that
+// the answer to a call that closed during a stop can reach its agent. A GET is
+// not counted: it is a stream a session holds open for as long as its client
+// does, and it carries no call.
 type inflight struct{ n atomic.Int64 }
 
 // await waits until no counted request is in flight or bound has passed, and
@@ -55,13 +56,17 @@ func (f *inflight) wrap(next http.Handler) http.Handler {
 	})
 }
 
-// stopServing shuts every listener, then waits for the agents' calls still in
-// flight until callBound has passed since the stop began. A call running then
-// is cut from its agent by closing the connection, which does not end the
-// call itself, so the stop is an error: that call's closing record may come
-// after the spool closed, or never.
+// stopServing stops the adapter admitting calls, shuts every listener, then
+// waits for the calls admitted before the stop until callBound has passed
+// since it began. It counts calls and not requests: a call runs on after its
+// agent drops the connection that carried it, and a request whose body was
+// still arriving at the stop is refused and carries no call. A call running
+// at the bound is cut from its agent by closing the connection, which does
+// not end the call itself, so the stop is an error: that call's closing
+// record may come after the spool closed, or never.
 func (p *plane) stopServing(bound []listening) error {
 	deadline := time.Now().Add(p.callBound)
+	p.adapter.StopAdmitting()
 	for _, b := range bound {
 		shutdown, done := context.WithTimeout(context.Background(), p.grace)
 		if err := b.server.Shutdown(shutdown); err != nil {
@@ -69,8 +74,9 @@ func (p *plane) stopServing(bound []listening) error {
 		}
 		done()
 	}
-	left := p.calls.await(time.Until(deadline))
+	left := p.adapter.Drain(time.Until(deadline))
 	if left == 0 {
+		p.calls.await(min(p.grace, time.Until(deadline)))
 		return nil
 	}
 	errs := []error{fmt.Errorf("%d call(s) still in flight %s after the stop began were cut; their closing records may be missing", left, p.callBound)}
@@ -81,10 +87,13 @@ func (p *plane) stopServing(bound []listening) error {
 }
 
 // lostClosings is an error once a call's closing or aborting record could not
-// be appended in this plane's life: that trail stays open in the spool.
+// be appended since it was last asked: that trail stays open in the spool. It
+// is asked when run returns and again once the plane is released, for a call
+// that outlived the stop.
 func (p *plane) lostClosings() error {
-	if n := p.adapter.Stats().CloseFailures; n > 0 {
-		return fmt.Errorf("%d call(s) could not append their closing record; their trails stay open", n)
+	n := p.adapter.Stats().CloseFailures
+	if seen := p.lost.Swap(n); n > seen {
+		return fmt.Errorf("%d call(s) could not append their closing record; their trails stay open", n-seen)
 	}
 	return nil
 }

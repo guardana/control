@@ -169,12 +169,17 @@ func (a *Adapter) readThrough(ctx context.Context, c call, send sender) (mcp.Res
 // pending state, or send the authorized bytes once their digest is the
 // authorized one and every obligation holds. What was sent and what came
 // back go to Close with the very disposition Admit returned; an execution
-// the adapter does not send is aborted, never closed.
+// the adapter does not send is aborted, never closed. The call counts as in
+// flight from before Admit until its record is appended.
 func (a *Adapter) run(ctx context.Context, c call, send sender) (outcome, error) {
 	p, sessions, err := a.started()
 	if err != nil {
 		return outcome{}, err
 	}
+	if !a.flights.enter() {
+		return outcome{}, ErrDraining
+	}
+	defer a.flights.leave()
 	d := p.Admit(ctx, c.admission)
 	a.admitted.Add(1)
 	switch d.Action {

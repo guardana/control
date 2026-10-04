@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +15,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/policykey"
 )
 
@@ -172,6 +176,94 @@ func TestNoUpstreamFailureRepeatsACredential(t *testing.T) {
 				if strings.Contains(out, endpointMarker) || !strings.Contains(out, c.cause) {
 					t.Errorf("%s says:\n%s\nwant %q and no credential", command, out, c.cause)
 				}
+			}
+		})
+	}
+}
+
+// sessionStreamCutter speaks an older protocol revision, so the client opens a
+// standalone stream after initialize, and cuts every such stream. It assigns
+// a session id that reflects endpointMarker and never answers a request, so
+// the session fails on the stream. It returns its URL.
+func sessionStreamCutter(t *testing.T) string {
+	t.Helper()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			if conn, _, err := http.NewResponseController(w).Hijack(); err == nil {
+				_ = conn.Close()
+			}
+			return
+		}
+		answerOldRevision(w, r)
+	}))
+	t.Cleanup(ts.Close)
+	return ts.URL
+}
+
+func answerOldRevision(w http.ResponseWriter, r *http.Request) {
+	var msg struct {
+		ID     json.RawMessage `json:"id"`
+		Method string          `json:"method"`
+	}
+	raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	_ = json.Unmarshal(raw, &msg)
+	w.Header().Set("Content-Type", "application/json")
+	switch {
+	case msg.Method == "server/discover":
+		_, _ = io.WriteString(w, `{"jsonrpc":"2.0","id":`+string(msg.ID)+`,"error":{"code":-32601,"message":"no"}}`)
+	case msg.Method == "initialize":
+		w.Header().Set("Mcp-Session-Id", "reflected-"+endpointMarker)
+		_, _ = io.WriteString(w, `{"jsonrpc":"2.0","id":`+string(msg.ID)+`,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"cutter","version":"0"}}}`)
+	case len(msg.ID) == 0:
+		w.WriteHeader(http.StatusAccepted)
+	default:
+		<-r.Context().Done()
+	}
+}
+
+// TestASessionStreamFailureRepeatsNoCredential: the library words a failed
+// session stream with the endpoint it dialled and the session id the upstream
+// chose, neither through an error type. doctor names the upstream and what
+// failed, and neither the endpoint's credential nor what the upstream
+// reflected. The library's own reconnect backoff makes this take some 20s.
+func TestASessionStreamFailureRepeatsNoCredential(t *testing.T) {
+	endpoint := strings.Replace(sessionStreamCutter(t), "http://", "http://"+endpointMarker+":pw@", 1) + "/mcp?token=" + endpointMarker
+	tr := newTree(t)
+	setEnv(t, "upstreams.0.endpoint", endpoint)
+	setEnv(t, "listener.address", "127.0.0.1:0")
+	setEnv(t, "health.address", "")
+	out := doctorOutput(t, tr.config)
+	if strings.Contains(out, endpointMarker) || !strings.Contains(out, "orders") {
+		t.Errorf("doctor says:\n%s\nwant the upstream named and no credential", out)
+	}
+}
+
+// TestARefusalQuotingAWithheldEndpointIsNotPrinted: should a refusal from the
+// adapter still quote the userinfo, query or fragment of an endpoint doctor
+// withholds, the refusal names the key instead; one that quotes none of them,
+// or comes over an endpoint that carries none, is printed as it is.
+func TestARefusalQuotingAWithheldEndpointIsNotPrinted(t *testing.T) {
+	host := "http://127.0.0.1:1"
+	for name, c := range map[string]struct {
+		endpoint, text string
+		withheld       bool
+	}{
+		"a query":          {host + "/mcp?token=" + endpointMarker, "dial " + endpointMarker, true},
+		"a decoded query":  {host + "/mcp?token=a%2F" + endpointMarker, "dial a/" + endpointMarker, true},
+		"a username":       {"http://" + endpointMarker + ":pw@127.0.0.1:1/mcp", "Get " + endpointMarker + ":***@", true},
+		"a password":       {"http://user:" + endpointMarker + "@127.0.0.1:1/mcp", "auth " + endpointMarker, true},
+		"a fragment":       {host + "/mcp#" + endpointMarker, "at " + endpointMarker, true},
+		"none quoted":      {host + "/mcp?token=" + endpointMarker, "connect orders: connection refused", false},
+		"nothing to quote": {host + "/" + endpointMarker, "dial " + endpointMarker, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ups := []gatewayconfig.UpstreamConfig{{Name: "orders", Endpoint: c.endpoint}}
+			got := withheldRefusal(errors.New(c.text), ups).Error()
+			if c.withheld && (strings.Contains(got, endpointMarker) || !strings.Contains(got, "upstreams.0.endpoint")) {
+				t.Errorf("printed %q, want the key named in place of the text", got)
+			}
+			if !c.withheld && got != c.text {
+				t.Errorf("printed %q, want %q as it is", got, c.text)
 			}
 		})
 	}

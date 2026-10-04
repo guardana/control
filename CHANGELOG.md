@@ -84,20 +84,25 @@ verify one.
   wire error, on a call, a read, a prompt or a forwarded list, with `-32603`
   `the upstream did not answer`, and logs a refresh failure by what failed:
   neither the agent nor the log sees the endpoint, which can carry a
-  credential. An HTTP upstream's answer, other than an event stream, is read
+  credential. A failure the library words without an error type is printed
+  and logged as a fixed cause, and run and doctor withhold a refusal that
+  quotes an endpoint's userinfo, query or fragment. An HTTP upstream's answer, other than an event stream, is read
   no further than 16 MiB, so an oversize answer fails the call instead of
   being held whole.
 - A rewriting obligation that changes the member a tool's `resource_from`
-  reads aborts the call with `OBLIGATION_NOT_UNDERSTOOD` instead of sending
+  reads, or anything inside it when it is an object, a list or a boolean,
+  aborts the call with `OBLIGATION_NOT_UNDERSTOOD` instead of sending
   it. A call nothing classifies is held to the rest of the envelope contract,
-  and a name or client tag past the string bound no longer leaves a proposal
-  too large to record.
+  and a name, a client tag or a resource id past the string bound, which
+  alone is left off, no longer leaves a proposal too large to record.
 - A closing record the sink refused no longer forgets the held request, an
   OTLP request of many records is decoded in one pass, and a collector's
   answer of exactly 64 KiB is read as whole.
-- `guardana-gateway run` and `dev` wait for the agents' calls in flight when
-  they stop, and exit 1 when one was cut, a closing record was lost or the
-  plane did not close; `doctor` fails its `close` check, and a scenario whose
+- `guardana-gateway run` and `dev` stop admitting calls when they stop and
+  wait for every call admitted before, one whose agent dropped its
+  connection included, on HTTP and stdio, and exit 1 when one was cut, a
+  closing record was lost, even after the plane closed, or the plane did not
+  close; `doctor` fails its `close` check, and a scenario whose
   plane did not stop cleanly could not run. The configuration, a scenario
   file and the trail it reads are read only as regular files, so a named pipe
   no longer holds them. A test case refuses `null` for a member that takes a

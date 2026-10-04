@@ -142,6 +142,9 @@ type runningPlane struct {
 	done  chan struct{}
 	err   error
 	agent *sdk.ClientSession
+	url   string
+	// released is set by a test that released the plane itself.
+	released bool
 }
 
 // runPlane serves the tree's plane with grace for its listeners' shutdown and
@@ -164,13 +167,17 @@ func runPlane(t *testing.T, tr tree, grace, bound time.Duration) *runningPlane {
 	t.Cleanup(func() {
 		stop()
 		<-r.done
+		if r.released {
+			return
+		}
 		if err := p.close(); err != nil && !errors.Is(err, spool.ErrClosed) {
 			t.Errorf("closing the plane: %v", err)
 		}
 	})
 	const says = "listening for agents on "
 	line := waitFor(t, stdout, says)
-	r.agent = connectAgent(t, strings.TrimSpace(line[strings.Index(line, says)+len(says):]))
+	addr := strings.TrimSpace(line[strings.Index(line, says)+len(says):])
+	r.agent, r.url = connectAgent(t, addr), "http://"+addr
 	return r
 }
 
@@ -300,5 +307,92 @@ func TestASessionStreamDoesNotHoldTheStop(t *testing.T) {
 	}
 	if err := r.stopped(t); err != nil {
 		t.Errorf("a stop with only a session's stream open returned %v", err)
+	}
+}
+
+// leaveCall sends a tools/call for order id on the agent's session and drops
+// the connection once the call reached the upstream, the way an agent that
+// gives up on an answer does.
+func leaveCall(t *testing.T, r *runningPlane, up *heldUpstream, id string) {
+	t.Helper()
+	ctx, drop := context.WithCancel(context.Background())
+	defer drop()
+	body := `{"jsonrpc":"2.0","id":99,"method":"tools/call","params":{"name":"read_order","arguments":{"id":"` + id + `"}}}`
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.url, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("Mcp-Session-Id", r.agent.ID())
+	req.Header.Set("Mcp-Protocol-Version", r.agent.InitializeResult().ProtocolVersion)
+	go func() {
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	up.arrived(t, 1)
+}
+
+// TestACallItsAgentLeftStillHoldsTheStop: on a stateful listener a call runs
+// on after its agent dropped the connection that carried it. A stop waits for
+// that call's closing record rather than for the connection, so when run
+// returns the trail is closed and nothing fails after the plane is released.
+func TestACallItsAgentLeftStillHoldsTheStop(t *testing.T) {
+	tr := newTree(t)
+	up := newHeldUpstream(t)
+	setEnv(t, "upstreams.0.endpoint", up.url)
+	setEnv(t, "listener.kind", "stateful_http")
+	setEnv(t, "listener.address", "127.0.0.1:0")
+	setEnv(t, "health.address", "")
+	r := runPlane(t, tr, 50*time.Millisecond, time.Minute)
+	leaveCall(t, r, up, "ord-1")
+	time.Sleep(200 * time.Millisecond)
+	time.AfterFunc(300*time.Millisecond, func() { up.free("ord-1") })
+	if err := r.stopped(t); err != nil {
+		t.Errorf("a stop whose call closed within its bound failed the run: %v", err)
+	}
+	stats, err := r.p.spool.Stats()
+	if err != nil || stats.OpenTrails != 0 {
+		t.Errorf("when run returned the spool held %d open trail(s), %v; want the left call's closed", stats.OpenTrails, err)
+	}
+	if n := r.p.adapter.Stats().CloseFailures; n != 0 {
+		t.Errorf("%d closing record(s) failed, want none", n)
+	}
+}
+
+// TestAClosingRecordLostAfterRunReturnedFailsTheCommand: a call cut at the
+// stop goes on running, and its closing record fails once the spool is shut.
+// The command reads the lost record after it released the plane and names it,
+// although run returned before the record was lost.
+func TestAClosingRecordLostAfterRunReturnedFailsTheCommand(t *testing.T) {
+	tr := newTree(t)
+	up := newHeldUpstream(t)
+	setEnv(t, "upstreams.0.endpoint", up.url)
+	setEnv(t, "listener.kind", "stateful_http")
+	setEnv(t, "listener.address", "127.0.0.1:0")
+	setEnv(t, "health.address", "")
+	r := runPlane(t, tr, 50*time.Millisecond, 300*time.Millisecond)
+	r.call("ord-1")
+	up.arrived(t, 1)
+	ran := r.stopped(t)
+	if ran == nil || strings.Contains(ran.Error(), "could not append") {
+		t.Fatalf("the stop that cut the call returned %v, want the cut alone", ran)
+	}
+	if err := r.p.spool.Close(); err != nil {
+		t.Fatalf("closing the spool under the cut call: %v", err)
+	}
+	up.free("ord-1")
+	deadline := time.Now().Add(10 * time.Second)
+	for r.p.adapter.InFlight() != 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	r.released = true
+	var stderr syncBuffer
+	if status := r.p.finish(ran, &stderr); status != exitFail {
+		t.Errorf("the command exited %d, want %d", status, exitFail)
+	}
+	if !strings.Contains(stderr.String(), "1 call(s) could not append their closing record") {
+		t.Errorf("the command did not name the closing record lost after run returned:\n%s", stderr.String())
 	}
 }
