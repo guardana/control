@@ -1,12 +1,9 @@
 package gatewayconfig
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"net"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -208,31 +205,6 @@ func (c *Config) checkJournalDir() error {
 	return nil
 }
 
-// overlaps reports whether two directories are the same one or one of them
-// sits inside the other. A pair this build cannot compare is reported as
-// overlapping, because a journal that may share a directory with another
-// writer is the answer nothing can take back.
-func overlaps(a, b string) (bool, error) {
-	absA, err := filepath.Abs(a)
-	if err != nil {
-		return true, fmt.Errorf("%q is not a path this build can resolve: %w", a, err)
-	}
-	absB, err := filepath.Abs(b)
-	if err != nil {
-		return true, fmt.Errorf("%q is not a path this build can resolve: %w", b, err)
-	}
-	return inside(absA, absB) || inside(absB, absA), nil
-}
-
-// inside reports whether child is parent or sits under it.
-func inside(child, parent string) bool {
-	rel, err := filepath.Rel(parent, child)
-	if err != nil {
-		return true
-	}
-	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
-}
-
 // The bounds of pause.poll_interval. A pause bites up to one interval after
 // it is written, so the ceiling keeps an emergency stop an emergency stop; the
 // floor keeps the reader from spinning on the file.
@@ -281,74 +253,6 @@ func (c *Config) checkPause() error {
 		}
 	}
 	return nil
-}
-
-// insideDir reports whether directory a is b or sits under it. A pair this
-// build cannot compare is reported as inside, the answer that refuses.
-func insideDir(a, b string) (bool, error) {
-	absA, err := filepath.Abs(a)
-	if err != nil {
-		return true, fmt.Errorf("%q is not a path this build can resolve: %w", a, err)
-	}
-	absB, err := filepath.Abs(b)
-	if err != nil {
-		return true, fmt.Errorf("%q is not a path this build can resolve: %w", b, err)
-	}
-	return inside(absA, absB), nil
-}
-
-// underSameDir reports whether directory a, or a directory it sits in, is
-// the very directory b, compared by identity along a's path as the system
-// resolves it. A directory b that does not exist yet is left to the
-// comparison of paths; a pair this build cannot compare is reported as
-// inside, the answer that refuses.
-func underSameDir(a, b string) (bool, error) {
-	target, err := os.Stat(b)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return false, nil
-	case err != nil:
-		return true, fmt.Errorf("%q cannot be compared: %w", b, err)
-	}
-	existing, err := existingAncestor(a)
-	if err != nil {
-		return true, err
-	}
-	resolved, err := filepath.EvalSymlinks(existing)
-	if err != nil {
-		return true, fmt.Errorf("%q cannot be compared: %w", a, err)
-	}
-	for dir := resolved; ; dir = filepath.Dir(dir) {
-		info, err := os.Stat(dir)
-		if err != nil {
-			return true, fmt.Errorf("%q cannot be compared: %w", dir, err)
-		}
-		if os.SameFile(info, target) {
-			return true, nil
-		}
-		if filepath.Dir(dir) == dir {
-			return false, nil
-		}
-	}
-}
-
-// existingAncestor is dir, made absolute, or the nearest directory above it
-// that exists. What does not exist yet cannot be a link.
-func existingAncestor(dir string) (string, error) {
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return "", fmt.Errorf("%q is not a path this build can resolve: %w", dir, err)
-	}
-	for {
-		_, err := os.Lstat(abs)
-		switch {
-		case err == nil:
-			return abs, nil
-		case !errors.Is(err, fs.ErrNotExist) || filepath.Dir(abs) == abs:
-			return "", fmt.Errorf("%q cannot be compared: %w", dir, err)
-		}
-		abs = filepath.Dir(abs)
-	}
 }
 
 // checkEvidence pairs the fsync policy with its interval: a timer under the
@@ -416,56 +320,6 @@ func (c *Config) checkTimeouts() error {
 	} {
 		if bound.d == 0 {
 			return fmt.Errorf("%s: %v; the bound has to be positive", bound.key, bound.d)
-		}
-	}
-	return nil
-}
-
-// checkUpstreams refuses an upstream that names neither a URL nor a command,
-// or both, arguments or variables without a command, and a variable a
-// command may not receive.
-func (c *Config) checkUpstreams() error {
-	if len(c.Upstreams) == 0 {
-		return fmt.Errorf("upstreams: no upstream; the gateway has nothing to serve")
-	}
-	for i, up := range c.Upstreams {
-		at := fmt.Sprintf("upstreams.%d.", i)
-		if err := checkRequired(&c.Upstreams[i], upstreamFields, at); err != nil {
-			return err
-		}
-		switch {
-		case (up.Endpoint == "") == (up.Command == ""):
-			return fmt.Errorf("%s: name either an endpoint or a command, not both and not neither", at[:len(at)-1])
-		case up.Command == "" && len(up.Args) > 0:
-			return fmt.Errorf("%sargs: arguments without a command", at)
-		case up.Command == "" && len(up.Env) > 0:
-			return fmt.Errorf("%senv: variables without a command; an HTTP upstream starts no process to pass them to", at)
-		}
-		if err := checkEnvNames(at+"env.", up.Env); err != nil {
-			return err
-		}
-		if up.Endpoint != "" && !httpURL(up.Endpoint) {
-			return notHTTP(at+"endpoint", up.Endpoint)
-		}
-	}
-	return nil
-}
-
-// checkOverrides refuses a classification of a tool on a server this
-// configuration does not have, which would classify nothing and leave the
-// tool blocked.
-func (c *Config) checkOverrides() error {
-	names := map[string]bool{}
-	for _, up := range c.Upstreams {
-		names[up.Name] = true
-	}
-	for i := range c.Overrides {
-		at := fmt.Sprintf("overrides.%d.", i)
-		if err := checkRequired(&c.Overrides[i], overrideFields, at); err != nil {
-			return err
-		}
-		if !names[c.Overrides[i].Upstream] {
-			return fmt.Errorf("%supstream: %s is not a configured upstream", at, quoteValue(c.Overrides[i].Upstream))
 		}
 	}
 	return nil
