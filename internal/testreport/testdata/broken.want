@@ -1,0 +1,4 @@
+# example.com/fixture/broken [example.com/fixture/broken.test]
+broken/b.go:3:27: cannot use "not an int" (untyped string constant) as int value in return statement
+FAIL	example.com/fixture/broken [build failed]
+test: 0 skipped

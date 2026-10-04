@@ -1,0 +1,10 @@
+-test.shuffle 1791112381094572000
+    f_test.go:19: subtest failed
+--- FAIL: TestParent/broken (0.00s)
+--- FAIL: TestParent (0.00s)
+    f_test.go:10: before the failure
+    f_test.go:11: wanted 2, got 3
+--- FAIL: TestFails (0.00s)
+FAIL
+FAIL	example.com/fixture/failing	0.264s
+test: 0 skipped

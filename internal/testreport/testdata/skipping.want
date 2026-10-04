@@ -1,0 +1,5 @@
+ok  	example.com/fixture/skipping	0.270s
+test: SKIP example.com/fixture/skipping TestParent/linux_only: s_test.go:14: checked the platform; s_test.go:15: not on darwin
+test: SKIP example.com/fixture/skipping TestSilent: (no message)
+test: SKIP example.com/fixture/skipping TestNeedsRoot: s_test.go:8: needs a non-root user
+test: 3 skipped

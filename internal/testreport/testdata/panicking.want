@@ -1,0 +1,19 @@
+-test.shuffle 1791112382174550000
+--- FAIL: TestPanics (0.00s)
+panic: assignment to entry in nil map [recovered, repanicked]
+
+goroutine 6 [running]:
+testing.tRunner.func1.2({0x104bda548, 0x104c10f30})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2123 +0x1a0
+testing.tRunner.func1()
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2126 +0x2c8
+panic({0x104bda548?, 0x104c10f30?})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/runtime/panic.go:859 +0x120
+example.com/fixture/panicking.TestPanics(0x29c627388488?)
+	/tmp/fixture/panicking/x_test.go:9 +0x34
+testing.tRunner(0x29c627388488, 0x104bf73f0)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2193 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2258 +0x3b8
+FAIL	example.com/fixture/panicking	0.259s
+test: 0 skipped

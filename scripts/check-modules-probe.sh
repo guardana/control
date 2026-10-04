@@ -7,12 +7,15 @@
 # targets there with make:
 #   clean     vet, test, test-race, lint, tidy-check and fuzz-smoke each pass
 #             and report two modules, with a go.work beside them naming the
-#             root alone and a go.mod under the nested module's testdata
+#             root alone and a go.mod under the nested module's testdata; test
+#             prints the reporter's transcript and its count of no skip
+#   skip      a skipping test in the nested module, which test passes while
+#             naming the test, its message and the count
 #   planted   one defect at a time in the nested module, and the target that
 #             answers for it must fail on that defect and name the module:
 #               vet         a format verb with the wrong argument
 #               vet         the same in a file only GOOS=windows compiles
-#               test        a failing test
+#               test        a failing test, shown in the reporter's lines
 #               test-race   a data race
 #               lint        a gosec finding, with a .golangci.yml in the
 #                           module that switches gosec off, so a target that
@@ -66,6 +69,14 @@ done <<<"${libs}"
 for file in Makefile .golangci.yml scripts/fuzz-smoke.sh; do
   cp "${root}/${file}" "${copy}/${file}"
 done
+# make test pipes go test -json through scripts/test-report.go, whose logic is
+# internal/testreport; the staged root module carries both, under its own path.
+mkdir -p "${copy}/internal/testreport"
+cp "${root}/internal/testreport/doc.go" "${root}/internal/testreport/report.go" "${copy}/internal/testreport/"
+sed 's#"github.com/guardana/control/internal/testreport"#"example.com/probe/internal/testreport"#' \
+  "${root}/scripts/test-report.go" >"${copy}/scripts/test-report.go"
+grep -q '"example.com/probe/internal/testreport"' "${copy}/scripts/test-report.go" ||
+  die "scripts/test-report.go does not import internal/testreport by the path this probe rewrites"
 
 # write <path in the copy>, the content on stdin.
 write() {
@@ -223,6 +234,22 @@ expect() {
   show
 }
 
+# expect_start <text a line must begin with> [<more text the same line must hold>]
+# A line of raw `go test -json` begins with "{", so only the reporter's own
+# transcript can satisfy it.
+expect_start() {
+  local line
+  expected=$((expected + 1))
+  while IFS= read -r line; do
+    if [[ "${line}" == "$1"* && "${line}" == *"${2:-$1}"* ]]; then
+      return 0
+    fi
+  done <<<"${out}"
+  printf 'check-modules-probe: make %s printed no line beginning: %s %s\n' "${label}" "$1" "${2:-}" >&2
+  failures=$((failures + 1))
+  show
+}
+
 # plant <file name in the nested module>, the content on stdin.
 plant() {
   write "${nested}/$1"
@@ -232,6 +259,10 @@ for target in vet test test-race lint tidy-check; do
   run pass "${target}"
   expect "${target}: module ${nested}"
   expect "${target}: 2 module(s)"
+  if [[ "${target}" == test ]]; then
+    expect_start "ok  "$'\t'"example.com/nested"
+    expect_start "test: 0 skipped"
+  fi
 done
 run pass fuzz-smoke
 expect "fuzz-smoke: ./${nested} FuzzDouble for 1s"
@@ -274,9 +305,25 @@ func TestProbePlanted(t *testing.T) {
 }
 EOF
 run fail test planted
-expect "probe-test-planted"
+expect_start "--- FAIL: TestProbePlanted"
+expect_start "    zz_fail_test.go:" "probe-test-planted"
+expect_start "FAIL"$'\t'"example.com/nested"
 expect "test: FAIL in module ${nested}"
 rm "${copy}/${nested}/zz_fail_test.go"
+
+plant zz_skip_test.go <<'EOF'
+package nested
+
+import "testing"
+
+func TestProbeSkipped(t *testing.T) {
+	t.Skip("probe-skip-planted")
+}
+EOF
+run pass test "planted skip"
+expect_start "test: SKIP example.com/nested TestProbeSkipped: " "probe-skip-planted"
+expect_start "test: 1 skipped"
+rm "${copy}/${nested}/zz_skip_test.go"
 
 plant zz_race_test.go <<'EOF'
 package nested
@@ -448,5 +495,5 @@ if [[ ${failures} -ne 0 ]]; then
     "${failures}" "${expected}" "${runs}" >&2
   exit 1
 fi
-printf 'check-modules-probe: %d run(s) passed over two clean modules and %d refused a planted defect or tree, each for its reason; all %d expectation(s) held over %d make run(s)\n' \
+printf 'check-modules-probe: %d run(s) passed over two clean modules or a planted skip and %d refused a planted defect or tree, each for its reason; all %d expectation(s) held over %d make run(s)\n' \
   "${passes}" "${refusals}" "${expected}" "${runs}"

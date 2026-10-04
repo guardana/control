@@ -137,7 +137,7 @@ lint:
 	$(call each_module,(cd -- "$$dir" && golangci-lint run --config "$$REPO_ROOT/.golangci.yml" ./...),lint)
 
 test:
-	$(call each_module,$(GO) -C "$$dir" test -count=1 -shuffle=on $$pkgs,test)
+	$(call each_module,$(GO) -C "$$dir" test -count=1 -shuffle=on -json $$pkgs | $(GO) run scripts/test-report.go,test)
 
 test-race:
 	$(call each_module,$(GO) -C "$$dir" test -count=1 -race $$pkgs,test-race)

@@ -1,0 +1,37 @@
+# example.com/fixture/broken [example.com/fixture/broken.test]
+broken/b.go:3:27: cannot use "not an int" (untyped string constant) as int value in return statement
+FAIL	example.com/fixture/broken [build failed]
+?   	example.com/fixture/notests	[no test files]
+-test.shuffle 1791112382540673000
+    f_test.go:10: before the failure
+    f_test.go:11: wanted 2, got 3
+--- FAIL: TestFails (0.00s)
+    f_test.go:19: subtest failed
+--- FAIL: TestParent/broken (0.00s)
+--- FAIL: TestParent (0.00s)
+FAIL
+FAIL	example.com/fixture/failing	0.200s
+-test.shuffle 1791112382661932000
+--- FAIL: TestPanics (0.00s)
+panic: assignment to entry in nil map [recovered, repanicked]
+
+goroutine 6 [running]:
+testing.tRunner.func1.2({0x102a36548, 0x102a6cf30})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2123 +0x1a0
+testing.tRunner.func1()
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2126 +0x2c8
+panic({0x102a36548?, 0x102a6cf30?})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/runtime/panic.go:859 +0x120
+example.com/fixture/panicking.TestPanics(0x7ac2a47a488?)
+	/tmp/fixture/panicking/x_test.go:9 +0x34
+testing.tRunner(0x7ac2a47a488, 0x102a533f0)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2193 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2258 +0x3b8
+FAIL	example.com/fixture/panicking	0.318s
+ok  	example.com/fixture/passing	0.434s
+ok  	example.com/fixture/skipping	0.550s
+test: SKIP example.com/fixture/skipping TestParent/linux_only: s_test.go:14: checked the platform; s_test.go:15: not on darwin
+test: SKIP example.com/fixture/skipping TestSilent: (no message)
+test: SKIP example.com/fixture/skipping TestNeedsRoot: s_test.go:8: needs a non-root user
+test: 3 skipped
