@@ -1,0 +1,239 @@
+package mcp
+
+import (
+	"fmt"
+	"log/slog"
+	"net/http"
+	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/gateway"
+)
+
+// Kind is the transport a listener serves toward the agent.
+type Kind int
+
+const (
+	// KindUnspecified is no listener; New refuses it.
+	KindUnspecified Kind = iota
+	// KindStatelessHTTP is Streamable HTTP without sessions, which serves
+	// protocol 2026-07-28.
+	KindStatelessHTTP
+	// KindStatefulHTTP is Streamable HTTP with sessions, which serves
+	// 2025-11-25 and older and answers a 2026-07-28 request with -32022.
+	KindStatefulHTTP
+	// KindStdio is one agent over a pipe; nothing authenticates it.
+	KindStdio
+)
+
+// Shaping is what tools/list subtracts for a principal.
+type Shaping int
+
+const (
+	// ShapeNone answers the upstream's list.
+	ShapeNone Shaping = iota
+	// ShapeAnnotate marks each tool with the verdict the policy gives a call
+	// to it, and an unclassified tool with ACTION_UNCLASSIFIED.
+	ShapeAnnotate
+	// ShapeHide omits a tool the policy denies and every unclassified tool.
+	ShapeHide
+)
+
+// Identity is who a listener's calls are made by when nothing authenticates
+// them, and what an authenticated listener fills in around the user it
+// bound.
+type Identity struct {
+	Principal *controlv1.Principal
+	Agent     *controlv1.Agent
+}
+
+// Listener is the agent-facing side.
+type Listener struct {
+	Kind Kind
+	// Origins are the browser origins an HTTP listener accepts, loopback
+	// included: a request whose Origin is outside them is refused. The
+	// adapter serves a handler and binds no address of its own.
+	Origins []string
+	// Authenticator wraps the HTTP handler and establishes the end user in
+	// the request's context, the way auth.RequireBearerToken does. With one,
+	// the principal's id is the user the token names; without one, nobody is
+	// authenticated and the principal is Identity's.
+	Authenticator func(http.Handler) http.Handler
+	// AuthnStrength is recorded on a principal the Authenticator bound.
+	AuthnStrength string
+	Identity      Identity
+	// Runs resolves the run token at every request and every message
+	// (ADR-0034): the RunTokenHeader on HTTP, RunToken on stdio. Nil serves
+	// local runs.
+	Runs gateway.RunResolver
+	// RunToken is a stdio listener's token, read from the operator's file;
+	// set exactly when Runs is, and on stdio only.
+	RunToken string
+	// SessionIdle ends a stateful HTTP session that has been idle this long;
+	// zero is DefaultSessionIdle. Without a bound, sessions a client opens and
+	// abandons hold their memory until the plane stops.
+	SessionIdle time.Duration
+	// MaxSessions caps the stateful HTTP sessions live at once; zero is
+	// DefaultMaxSessions. A request that would open one more is refused until
+	// one closes or idles out.
+	MaxSessions int
+	// BodyTimeout bounds how long an HTTP request may take over sending its
+	// body, and how long its answer may wait on a client that stops reading;
+	// zero is DefaultBodyTimeout.
+	BodyTimeout time.Duration
+}
+
+// DefaultSessionIdle is how long a stateful HTTP session may sit idle.
+const DefaultSessionIdle = 30 * time.Minute
+
+// DefaultMaxSessions is how many stateful HTTP sessions may be live at once:
+// far more than the agents one plane serves, and a bound on what clients that
+// open sessions and never close them can hold.
+const DefaultMaxSessions = 1024
+
+// DefaultBodyTimeout is how long an HTTP request may take over its body, and
+// its answer may make no progress.
+const DefaultBodyTimeout = 30 * time.Second
+
+// Upstream is one server the gateway calls as itself.
+type Upstream struct {
+	Name      string
+	Transport mcp.Transport
+	// TenantID and Environment are the resources' the upstream serves, for
+	// the envelope's resource.tenant_id and resource.environment.
+	TenantID    string
+	Environment string
+}
+
+// Config configures an Adapter once, at New.
+type Config struct {
+	Listener  Listener
+	Upstreams []Upstream
+	Overrides []Override
+	Shaping   Shaping
+	// ListTTL is the ttlMs a shaped tools/list carries and how long the
+	// adapter keeps one per principal; zero means immediately stale.
+	ListTTL time.Duration
+	// CallTimeout bounds every upstream call; zero means no bound of the
+	// adapter's own, and New refuses a negative one.
+	CallTimeout time.Duration
+	// ListTimeout bounds reading one upstream's list, on a manifest refresh
+	// and on a forwarded list; zero takes the package's own bound.
+	ListTimeout time.Duration
+	// ProjectID, TenantID and Environment say where the request was received.
+	ProjectID   string
+	TenantID    string
+	Environment string
+	Clock       func() time.Time
+	NewID       func() string
+	// Logger takes what the adapter cannot answer to anyone: a closing record
+	// that failed, a manifest that could not be refreshed. Nil discards.
+	Logger *slog.Logger
+}
+
+// ErrCallTimeout is a negative bound on an upstream call, which would also
+// discard an obligation's shorter one.
+const ErrCallTimeout Error = "mcp: the call timeout cannot be negative"
+
+func checkConfig(cfg Config) error {
+	if err := checkListener(cfg.Listener); err != nil {
+		return err
+	}
+	if cfg.Shaping < ShapeNone || cfg.Shaping > ShapeHide {
+		return fmt.Errorf("%w: %d", ErrShaping, cfg.Shaping)
+	}
+	if cfg.Clock == nil {
+		return ErrNoClock
+	}
+	if cfg.NewID == nil {
+		return ErrNoIDSource
+	}
+	if cfg.ListTimeout < 0 {
+		return fmt.Errorf("%w: %v", ErrListTimeout, cfg.ListTimeout)
+	}
+	if cfg.CallTimeout < 0 {
+		return fmt.Errorf("%w: %v", ErrCallTimeout, cfg.CallTimeout)
+	}
+	names, err := checkUpstreams(cfg.Upstreams)
+	if err != nil {
+		return err
+	}
+	return checkOverrides(cfg.Overrides, names)
+}
+
+func checkListener(l Listener) error {
+	switch l.Kind {
+	case KindStatelessHTTP, KindStatefulHTTP:
+	case KindStdio:
+		if l.Authenticator != nil {
+			return fmt.Errorf("%w: stdio has no request to authenticate", ErrListener)
+		}
+	default:
+		return fmt.Errorf("%w: kind %d", ErrListener, l.Kind)
+	}
+	if err := checkSessionCap(l); err != nil {
+		return err
+	}
+	if l.Identity.Principal == nil || l.Identity.Agent == nil {
+		return ErrIdentity
+	}
+	if err := checkRunsSource(l); err != nil {
+		return err
+	}
+	if l.Authenticator == nil {
+		return nil
+	}
+	// The token names the user; configuration says only which tenant and
+	// which type of principal the listener serves. An id, a strength or
+	// attributes set here would be a claim about a user nobody authenticated.
+	p := l.Identity.Principal
+	if p.GetId() != "" || p.GetAuthnStrength() != "" || len(p.GetAttributes()) > 0 {
+		return fmt.Errorf("%w: an authenticated listener configures the tenant and the type only", ErrIdentity)
+	}
+	return nil
+}
+
+// checkSessionCap refuses a negative cap on sessions, and any cap on a
+// listener that keeps none.
+func checkSessionCap(l Listener) error {
+	switch {
+	case l.MaxSessions < 0:
+		return fmt.Errorf("%w: a negative cap on sessions", ErrListener)
+	case l.MaxSessions > 0 && l.Kind != KindStatefulHTTP:
+		return fmt.Errorf("%w: a cap on sessions on a listener that keeps none", ErrListener)
+	}
+	return nil
+}
+
+func checkUpstreams(upstreams []Upstream) (map[string]bool, error) {
+	if len(upstreams) == 0 {
+		return nil, fmt.Errorf("%w: no upstream", ErrUpstream)
+	}
+	names := map[string]bool{}
+	for i, up := range upstreams {
+		if up.Name == "" || up.Transport == nil || names[up.Name] {
+			return nil, fmt.Errorf("%w: Upstreams[%d]", ErrUpstream, i)
+		}
+		names[up.Name] = true
+	}
+	return names, nil
+}
+
+func checkOverrides(overrides []Override, names map[string]bool) error {
+	for i, o := range overrides {
+		switch {
+		case !names[o.Upstream]:
+			return fmt.Errorf("%w: Overrides[%d] names no configured upstream", ErrOverride, i)
+		case o.Tool == "" || o.Fingerprint == "" || o.ResourceType == "":
+			return fmt.Errorf("%w: Overrides[%d] needs a tool, a fingerprint and a resource type", ErrOverride, i)
+		case o.Effect == controlv1.EffectClass_EFFECT_CLASS_UNSPECIFIED || o.Effect.Descriptor().Values().ByNumber(o.Effect.Number()) == nil:
+			return fmt.Errorf("%w: Overrides[%d] names no effect class", ErrOverride, i)
+		}
+		if err := checkPointer(o.ResourceFrom); err != nil {
+			return fmt.Errorf("overrides[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
