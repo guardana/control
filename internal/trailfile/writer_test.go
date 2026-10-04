@@ -235,9 +235,9 @@ func TestATailPastTheOpeningIsJudged(t *testing.T) {
 		{`{"eventId":"e1"}{"eventId":"e2"`, false},
 		{`{"eventId":"e2" "kind"`, false},
 		{`{"eventId":"e2","kind":]`, false},
-		{`{"eventId":"e2","kind":tru`, true},
+		{`{"eventId":"e2","decision":{"obligations":[{"advisory":tru`, true},
 		{`{"eventId":"e2","kind":"a\`, true},
-		{`{"eventId":"e2","kind":[1,{"a":[`, true},
+		{`{"eventId":"e2","decision":{"obligations":[{"type":"t"},{"params":{`, true},
 	} {
 		for _, prefix := range []string{"", lines(t, event(1))} {
 			opensWithTail(t, prefix, c.tail, c.cut)

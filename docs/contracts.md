@@ -1147,10 +1147,12 @@ file is read on under its new name.
   past it and `next_cursor` names the last line it consumed.
 - `--max-bytes <n>` bounds `scanned_bytes`, the bytes of the whole lines the
   export reads after the cursor; 0 is no bound. The export stops before the
-  line that would cross it. A first line longer than the bound can never be
-  read under it, and the export is refused. The bound is not on every byte the
-  export reads: the file's first line, the line the cursor names and the bytes
-  after the last newline are read to check them, whatever their length. The
+  line that would cross it, and reads that line no further than the bound. A
+  first line longer than the bound is refused before anything is written, and
+  without `--after` read no further than the bound. The bound is not on every
+  byte the export reads: with `--after` the file's first line and the line the
+  cursor names, and always the bytes after the last newline, are read to check
+  them, whatever their length. The
   export keeps one entry per event id among the lines it reads, so the bound
   also bounds that memory.
 - `--request`, `--run`, `--tenant`, `--project` and `--kind` filter events,

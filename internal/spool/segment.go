@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"regexp"
 )
@@ -54,6 +55,10 @@ func (s *Spool) openSegment(seg *segment) error {
 // on a failure the segment is cut back to its committed length so the next
 // append never lands behind a torn one.
 func (s *Spool) write(record []byte) error {
+	// Open reads a record numbered 2^64-1 as past the sequence's range.
+	if s.nextSeq == math.MaxUint64 {
+		return fmt.Errorf("%w: the sequence has no number left for a record", ErrFull)
+	}
 	size := int64(len(record))
 	if err := s.ensureSegment(size); err != nil {
 		return err
@@ -117,13 +122,14 @@ func (s *Spool) retire() error {
 }
 
 // repair follows a failed write or sync: the segment is cut back to its
-// committed length through the descriptor the write went to, and closed. When
-// that cut fails, the log has a tail nobody can vouch for and the spool
-// refuses everything from then on.
+// committed length through the descriptor the write went to, the cut is
+// forced to disk, and the file closed. A record whose sync failed may be on
+// disk whole, so a cut that is not forced to disk too leaves a tail nobody can
+// vouch for, and the spool refuses everything from then on.
 func (s *Spool) repair(cause error) error {
 	seg := s.cur
 	s.cur = nil
-	err := errors.Join(seg.file.Truncate(seg.size), seg.file.Close())
+	err := errors.Join(cutSynced(seg.file, seg.size), seg.file.Close())
 	if err == nil && seg.size == 0 {
 		err = s.root.Remove(seg.name)
 		s.segments = s.segments[:len(s.segments)-1]
@@ -133,6 +139,15 @@ func (s *Spool) repair(cause error) error {
 		return s.broken
 	}
 	return cause
+}
+
+// cutSynced truncates f to size and forces the cut to disk. The sync runs
+// only after a cut that succeeded.
+func cutSynced(f segmentFile, size int64) error {
+	if err := f.Truncate(size); err != nil {
+		return err
+	}
+	return f.Sync()
 }
 
 // release deletes every segment before the acknowledged cursor, and the one

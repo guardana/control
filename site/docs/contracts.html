@@ -1375,10 +1375,12 @@ default, at least 1 and at most 100 000. The export stops before the record
 past it and <code>next_cursor</code> names the last line it consumed.</li>
 <li><code>--max-bytes &lt;n&gt;</code> bounds <code>scanned_bytes</code>, the bytes of the whole lines the
 export reads after the cursor; 0 is no bound. The export stops before the
-line that would cross it. A first line longer than the bound can never be
-read under it, and the export is refused. The bound is not on every byte the
-export reads: the file's first line, the line the cursor names and the bytes
-after the last newline are read to check them, whatever their length. The
+line that would cross it, and reads that line no further than the bound. A
+first line longer than the bound is refused before anything is written, and
+without <code>--after</code> read no further than the bound. The bound is not on every
+byte the export reads: with <code>--after</code> the file's first line and the line the
+cursor names, and always the bytes after the last newline, are read to check
+them, whatever their length. The
 export keeps one entry per event id among the lines it reads, so the bound
 also bounds that memory.</li>
 <li><code>--request</code>, <code>--run</code>, <code>--tenant</code>, <code>--project</code> and <code>--kind</code> filter events,

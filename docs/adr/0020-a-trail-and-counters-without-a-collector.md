@@ -99,7 +99,9 @@ ADR-0014 is relaxed: an acknowledgement still means the record is durable
 somewhere else, and a collector that cannot write still makes the plane block
 material calls at its budget. The collector listens on the loopback only and
 takes no credential. The trail file holds what the evidence holds, metadata by
-default (ADR-0004), and is readable by its owner only. `/metrics` carries counts
+default (ADR-0004), and is created readable by its owner only; an existing file
+keeps the read bits its operator gave it and is refused when the group or
+others may write it or another account owns it. `/metrics` carries counts
 and states, never an identifier, a digest or a reason; it is served on the
 health listener, which binds where the operator configures it.
 

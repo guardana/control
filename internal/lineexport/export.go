@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 )
 
 // Source is the file an export reads.
@@ -134,7 +135,13 @@ func open(f Format, src Source, q Query, judge Judge, w io.Writer) (*exporter, i
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	first, identified, err := in.firstLineDigest(end)
+	// With no cursor the first line is the first one scanned, so one longer
+	// than the bound is refused before it is read through.
+	look := end
+	if q.MaxBytes > 0 && q.After == "" {
+		look = min(end, q.MaxBytes)
+	}
+	first, identified, err := in.firstLineDigest(end, look)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -214,17 +221,22 @@ func (x *exporter) records() int {
 
 // scan reads the whole lines in [start, end). A line is consumed, and the
 // next cursor moves past it, only once its record is written or it is passed
-// by; the limit and the byte bound stop before a line, never in it.
+// by; the limit and the byte bound stop before a line, never in it, and a
+// line that would cross the bound is read no further than the bound.
 func (x *exporter) scan(start, end int64) error {
 	lines := bufio.NewReaderSize(io.NewSectionReader(x.in.r, start, end-start), x.f.MaxLineBytes+1)
 	for offset := start; offset < end; {
-		line, length, sum, err := x.readLine(lines)
+		room := int64(math.MaxInt64)
+		if x.q.MaxBytes > 0 {
+			room = x.q.MaxBytes - x.tr.ScannedBytes
+		}
+		line, length, sum, err := x.readLine(lines, room)
 		if err != nil {
 			return err
 		}
-		if x.q.MaxBytes > 0 && x.tr.ScannedBytes+length > x.q.MaxBytes {
+		if length > room {
 			if x.tr.ScannedBytes == 0 {
-				return fmt.Errorf("%w: the line at offset %d is %d bytes, the bound %d", x.f.Refusals.ByteBound, offset, length, x.q.MaxBytes)
+				return fmt.Errorf("%w: the line at offset %d is longer than the bound %d", x.f.Refusals.ByteBound, offset, x.q.MaxBytes)
 			}
 			return nil
 		}
@@ -308,8 +320,10 @@ func (x *exporter) tail(end int64) error {
 }
 
 // readLine reads one line and its newline, and its digest. A line longer than
-// the format's bound is read through to its newline and returned nil.
-func (x *exporter) readLine(r *bufio.Reader) ([]byte, int64, Digest, error) {
+// the format's bound is read through to its newline and returned nil. Once
+// more than room bytes are read the line is abandoned, and only its length so
+// far, past room, is returned.
+func (x *exporter) readLine(r *bufio.Reader, room int64) ([]byte, int64, Digest, error) {
 	h := sha256.New()
 	var length int64
 	for {
@@ -317,10 +331,12 @@ func (x *exporter) readLine(r *bufio.Reader) ([]byte, int64, Digest, error) {
 		h.Write(chunk)
 		length += int64(len(chunk))
 		switch {
-		case errors.Is(err, bufio.ErrBufferFull):
-			continue
-		case err != nil:
+		case err != nil && !errors.Is(err, bufio.ErrBufferFull):
 			return nil, 0, Digest{}, fmt.Errorf("%w: no newline where the last one was: %w", x.f.Refusals.ShortRead, err)
+		case length > room:
+			return nil, length, Digest{}, nil
+		case err != nil:
+			continue
 		}
 		var sum Digest
 		h.Sum(sum[:0])

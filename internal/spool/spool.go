@@ -27,12 +27,14 @@ const (
 	// quarantine's included, plus the reservations leave no room, and nothing
 	// can be released, because every segment holds an unacknowledged record and
 	// the quarantine is never released at all. It is also an ACTION_STARTED
-	// past MaxOpenTrails. A caller blocks the call it was recording.
+	// past MaxOpenTrails, and any append once the sequence has numbered its
+	// last record. A caller blocks the call it was recording.
 	ErrFull Error = "spool: the budget or the open trails leave no room"
 	// ErrInvalidOptions is an Open whose options cannot make a log.
 	ErrInvalidOptions Error = "spool: invalid options"
 	// ErrForeignFile is a file under Dir that is neither a segment nor the
-	// quarantine. The spool owns its directory and refuses to guess what else
+	// quarantine, or one of them another account owns or the group or others
+	// may write. The spool owns its directory and refuses to guess what else
 	// is there.
 	ErrForeignFile Error = "spool: a file under the directory is not the spool's"
 	// ErrCorrupt is a record that does not check where the writer committed it:

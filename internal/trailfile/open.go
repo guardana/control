@@ -53,7 +53,7 @@ func openDir(dir string) (*os.Root, error) {
 // there. A root follows a symbolic link that stays inside the directory
 // whatever the open's flags say, so a link is refused by its directory entry
 // before the open, and the descriptor has to be the file that entry named.
-func openFile(root *os.Root, name string) (*os.File, error) {
+func openFile(root *os.Root, name string, open func(*os.Root, string, int, fs.FileMode) (*os.File, error)) (*os.File, error) {
 	flag := os.O_RDWR | os.O_APPEND | writeFlags
 	before, err := root.Lstat(name)
 	switch {
@@ -64,7 +64,7 @@ func openFile(root *os.Root, name string) (*os.File, error) {
 	case !before.Mode().IsRegular():
 		return nil, ErrNotRegular
 	}
-	f, err := root.OpenFile(name, flag, 0o600)
+	f, err := open(root, name, flag, 0o600)
 	if err != nil {
 		return nil, err
 	}

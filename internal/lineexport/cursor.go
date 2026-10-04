@@ -129,14 +129,16 @@ func (f file) lastNewline(limit int64) (int64, error) {
 }
 
 // firstLineDigest is the digest of the file's first line, its newline
-// included, when a newline ends one before end.
-func (f file) firstLineDigest(end int64) (Digest, bool, error) {
+// included, when a newline ends one before end. The newline is looked for in
+// the first look bytes only, and a first line that does not end in them is
+// f.rf.ByteBound.
+func (f file) firstLineDigest(end, look int64) (Digest, bool, error) {
 	if end == 0 {
 		return Digest{}, false, nil
 	}
-	buf := make([]byte, min(end, chunkBytes))
-	for at := int64(0); at < end; {
-		chunk := buf[:min(end-at, int64(len(buf)))]
+	buf := make([]byte, min(look, chunkBytes))
+	for at := int64(0); at < look; {
+		chunk := buf[:min(look-at, int64(len(buf)))]
 		if err := f.readFull(chunk, at); err != nil {
 			return Digest{}, false, err
 		}
@@ -145,6 +147,9 @@ func (f file) firstLineDigest(end int64) (Digest, bool, error) {
 			return s, err == nil, err
 		}
 		at += int64(len(chunk))
+	}
+	if look < end {
+		return Digest{}, false, fmt.Errorf("%w: the first line is longer than the bound %d", f.rf.ByteBound, look)
 	}
 	return Digest{}, false, fmt.Errorf("%w: no newline before offset %d", f.rf.ShortRead, end)
 }

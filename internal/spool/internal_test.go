@@ -159,14 +159,14 @@ func TestASyncFailureUnderTheTimerRefusesEverything(t *testing.T) {
 }
 
 // TestASyncFailurePerRecordLeavesNoTornRecord: the record whose sync failed
-// is cut back so the next append lands on a clean tail, and the reader never
-// sees it.
+// is cut back, and the cut synced, so the next append lands on a clean tail,
+// and the reader never sees it.
 func TestASyncFailurePerRecordLeavesNoTornRecord(t *testing.T) {
 	var syncs atomic.Int64
 	boom := errors.New("disk gone")
 	var fail atomic.Bool
 	failOn := func() error {
-		if fail.Load() {
+		if fail.CompareAndSwap(true, false) {
 			return boom
 		}
 		return nil
@@ -363,7 +363,7 @@ func TestAFailedQuarantineIsCutBack(t *testing.T) {
 	var fail atomic.Bool
 	dir := t.TempDir()
 	s, r := spoolWithDelivered(t, dir, 2, func() error {
-		if fail.Load() {
+		if fail.CompareAndSwap(true, false) {
 			return boom
 		}
 		return nil

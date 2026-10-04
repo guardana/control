@@ -3,7 +3,6 @@ package trailfile
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,14 +20,16 @@ import (
 // have: whoever may write either can write evidence into the trail.
 const forbidden fs.FileMode = 0o022
 
-// fileOps are the two calls an append makes on the file, so a test can make
-// either fail.
+// fileOps are the open of the file and the two calls an append makes on it,
+// so a test can change what stands at the name as it is opened, or make either
+// call fail.
 type fileOps struct {
+	open  func(root *os.Root, name string, flag int, perm fs.FileMode) (*os.File, error)
 	write func(*os.File, []byte) (int, error)
 	sync  func(*os.File) error
 }
 
-var osOps = fileOps{write: (*os.File).Write, sync: (*os.File).Sync}
+var osOps = fileOps{open: (*os.Root).OpenFile, write: (*os.File).Write, sync: (*os.File).Sync}
 
 // Writer appends evidence lines to one file it holds under an exclusive lock.
 // Its zero value holds no file, and every append to it is refused.
@@ -74,7 +75,7 @@ func open(path string, ops fileOps) (*Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := openFile(root, name)
+	f, err := openFile(root, name, ops.open)
 	if err != nil {
 		return nil, errors.Join(err, root.Close())
 	}
@@ -145,65 +146,6 @@ func lastLineEnd(f *os.File, size int64) (int64, error) {
 		return 0, fmt.Errorf("%w: the bytes after the last newline are not the start of an evidence line", ErrDamaged)
 	}
 	return size - window + int64(start), nil
-}
-
-// openings are the ways a line the codec writes can begin: an object whose
-// first member is one of the event's fields, in its JSON name and with no
-// space, which is how protojson compacted spells it.
-var openings = func() [][]byte {
-	fields := (&controlv1.Event{}).ProtoReflect().Descriptor().Fields()
-	out := make([][]byte, 0, fields.Len())
-	for i := range fields.Len() {
-		out = append(out, []byte(`{"`+fields.Get(i).JSONName()+`":`))
-	}
-	return out
-}()
-
-// torn reports whether tail can be what a crash left of a line the codec
-// wrote. A whole JSON value can, only when it decodes as one event: the
-// append was cut between the object and its newline. Anything shorter can
-// only when it agrees with one opening as far as either goes and is a proper
-// prefix of one JSON value; "{}", the empty event, is whole and decodes.
-func torn(tail []byte) bool {
-	if json.Valid(tail) {
-		events, err := evidence.DecodeJSONL(bytes.NewReader(tail), 1)
-		return err == nil && len(events) == 1
-	}
-	for _, opening := range openings {
-		n := min(len(tail), len(opening))
-		if bytes.Equal(tail[:n], opening[:n]) {
-			return prefixOfOneValue(tail)
-		}
-	}
-	return false
-}
-
-// prefixOfOneValue reports whether b is a proper prefix of one JSON value: a
-// walk of its tokens meets no syntax error, and ends only because the bytes
-// ran out inside that value. A value that closes with bytes after it is not.
-func prefixOfOneValue(b []byte) bool {
-	dec := json.NewDecoder(bytes.NewReader(b))
-	depth := 0
-	for {
-		tok, err := dec.Token()
-		switch {
-		case errors.Is(err, io.ErrUnexpectedEOF):
-			return true
-		case errors.Is(err, io.EOF):
-			return depth > 0
-		case err != nil:
-			return false
-		}
-		switch tok {
-		case json.Delim('{'), json.Delim('['):
-			depth++
-		case json.Delim('}'), json.Delim(']'):
-			depth--
-		}
-		if depth == 0 {
-			return false
-		}
-	}
 }
 
 // Append writes events as evidence lines at the end of the file, and syncs it

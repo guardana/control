@@ -6,6 +6,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
+
+	"github.com/guardana/control/internal/files"
 )
 
 // segmentFile is what the spool writes through: an appending file that can be
@@ -105,10 +107,11 @@ func (s *Spool) cutBack(name, what string, known fs.FileInfo, size int64) error 
 }
 
 // checkOpened describes the file an open of what returned and refuses it with
-// ErrForeignFile unless it is a regular file with one name and, when a file is
-// known there, that file. A second name lets whoever holds it change the
-// evidence behind the spool's back, or read what the spool appends; the
-// refusal says where the file is, so the other name can be found.
+// ErrForeignFile unless it is a regular file of this process's account that
+// neither the group nor others may write, with one name and, when a file is
+// known there, that file. A second name or a write bit lets whoever holds it
+// change the evidence behind the spool's back, or read what the spool
+// appends; the refusal says where the file is, so the other name can be found.
 func checkOpened(f interface{ Stat() (fs.FileInfo, error) }, what string, known fs.FileInfo) (fs.FileInfo, error) {
 	info, err := f.Stat()
 	if err != nil {
@@ -124,6 +127,11 @@ func checkOpened(f interface{ Stat() (fs.FileInfo, error) }, what string, known 
 		return nil, fmt.Errorf("%w: %s has a name other than its own, or none (%s)", ErrForeignFile, what, where)
 	case known != nil && !os.SameFile(known, info):
 		return nil, fmt.Errorf("%w: %s is not the file the spool found there (opened %s)", ErrForeignFile, what, where)
+	case info.Mode().Perm()&writableByOthers != 0:
+		return nil, fmt.Errorf("%w: %s: %w: mode %04o (%s)", ErrForeignFile, what, files.ErrMode, info.Mode().Perm(), where)
+	}
+	if err := files.CheckOwnedBy(info, effectiveUID()); err != nil {
+		return nil, fmt.Errorf("%w: %s: %w (%s)", ErrForeignFile, what, err, where)
 	}
 	return info, nil
 }

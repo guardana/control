@@ -66,6 +66,12 @@ verify one.
   other store already did, and a record that repeats a member. A record, a
   hold journal entry or a file whose filing failed after it was linked is
   unlinked again, so an error means it was not filed.
+- The evidence spool refuses a segment or its quarantine that another account
+  owns or the group or others may write, keeps every quarantined id so a crash
+  cannot quarantine a record twice, syncs a repair before it continues, and
+  refuses an append once its sequence is spent. The trail file's recovery cuts
+  only a tail its writer could have left, and an export reads no line past its
+  byte bound.
 ## [0.6.0-alpha] - 2026-10-03
 
 A plane now takes its policy as current only on a signed freshness
