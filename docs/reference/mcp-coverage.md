@@ -46,7 +46,7 @@ child process over stdio (`upstreams[].command`).
 | Not covered | Why |
 | --- | --- |
 | Elicitation (`input_required`) | The shape needs a handler registered per tool, which this interception does not have; `planned` with the approval providers (ADR-0013) |
-| The Tasks extension | Not implemented by the library, which was seen to decode a `resultType: "task"` result as a complete, empty, successful call; no test here pins that, so it is a reason not to use the extension, not a promise |
+| The Tasks extension | Not implemented by the library; no test here pins how a `resultType: "task"` result decodes, so do not use the extension |
 | `notifications/tools/list_changed` toward the agent | The library emits it only for its own registry, and the gateway registers no tools, so the listener declares it does not send one and an agent refreshes when `list.ttl` runs out |
 | An upstream's own notifications and server-initiated requests, other than a changed tool list | Only a changed tool list is handled, by refreshing the manifest; sampling, roots and progress from an upstream reach no agent |
 | Resuming a hold the plane lost | A hold does not survive a restart, and its call never runs. With a hold journal the next start closes its trail, with the approver's answer and `APPROVAL_NOT_RESUMED` or as expired, or counts it left open; without one it stays open. The agent and the approver start over (ADR-0016) |

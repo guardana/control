@@ -2,7 +2,7 @@
 title: Read the evidence from a program
 summary: Export a trail file in the versioned format, resume where the last export stopped, and rebuild each call's lifecycle without importing the project's internals.
 type: how-to
-covers: [internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, cmd/guardana-gateway/trail.go, examples/evidence-report/**]
+covers: [internal/lineexport/**, internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, cmd/guardana-gateway/trail.go, examples/evidence-report/**]
 ---
 
 # Read the evidence from a program

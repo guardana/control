@@ -3,12 +3,12 @@
 What has to become true, in the order it is planned, without dates.
 
 Guardana Control is meant to supervise an organization's AI agents across
-the channels an operator connects: to decide a consequential action before it
-happens where an enforcement point sits in an agent's path; elsewhere to
-watch what agents and their runtimes report, compare it with their procedures
-and permissions, and report deviations, access attempts and unfinished work
-through the paths an operator configured; and to stop an agent only where the
-operator allowed that. MCP is the first channel, not the only one
+the channels an operator connects. Where an enforcement point sits in an
+agent's path, it decides a consequential action before it happens. Elsewhere
+it watches what agents and their runtimes report, compares that with their
+procedures and permissions, and reports deviations, access attempts and
+unfinished work through the paths the operator configured. It stops an agent
+only where the operator allowed that. MCP is the first channel, not the only one
 ([ADR-0039](docs/adr/0039-many-channels-into-one-core.md)).
 
 Everything here is `planned`, and a finished item is deleted.
@@ -30,8 +30,8 @@ authority silently.
 ## 2. One task under supervision, across two channels
 
 Done when a user runs the demo's plane beside an agent that emits
-OpenTelemetry traces, asks it to refund an order, and sees for that run: the
-expected and the observed steps, each marked enforced, observed or inferred; a
+OpenTelemetry traces and asks it to refund an order. For that run the user
+sees the expected and observed steps, each marked enforced, observed or inferred; a
 coverage map that names a path the agent took around the plane; a finding
 that cites its evidence; an alert from a local notifier; and a stop that
 refuses that run's next call, no other's.

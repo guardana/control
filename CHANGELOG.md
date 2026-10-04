@@ -35,8 +35,8 @@ verify one.
   supervision across two channels, the plane and an agent runtime's
   OpenTelemetry traces, with a coverage map, findings, a local notifier and a
   stop of one run, before any public SDK. Extensions are planned as separate
-  programs speaking versioned data contracts. The README and the website carry
-  the new direction, marked `planned` wherever nothing is built yet.
+  programs speaking versioned data contracts. The README and the website
+  describe this plan, marked `planned` wherever nothing is built yet.
 - The website's header stays on one row on a phone and shows the newest
   release, which `make docs-gen` takes from this file. Documentation pages get
   a menu above the content on narrow screens, and a wide table scrolls inside
@@ -48,10 +48,10 @@ verify one.
   an open while the previous open's answer is still being written: a session
   whose answer has begun is counted once, not twice.
 - The gateway's configuration refuses a negative value for every duration
-  key, naming the key where it was set. `approvals.ttl`,
+  key and names that key in the error. `approvals.ttl`,
   `approvals.retry_after`, `export.linger`, `export.backoff`,
-  `export.max_backoff` and `list.ttl` took one, and `policy.max_stale` was
-  refused under another key's name.
+  `export.max_backoff` and `list.ttl` accepted a negative value before, and a
+  negative `policy.max_stale` was refused under another key's name.
 - `policy renew` holds the signer floor directory's lock from the raise of
   the floor until its statement is written, so two renews of one bundle can
   no longer leave the older statement in `--out` while the floor holds the
@@ -65,10 +65,10 @@ verify one.
 - The approvals store refuses a directory another account owns, as every
   other store already did, and a record that repeats a member. A record, a
   hold journal entry or a file whose filing failed after it was linked is
-  unlinked again. An answer the plane spent before that is reported as filed,
-  and one already gone when it is unlinked as of unknown outcome, never as not
-  filed; `approvals approve` and `reject` then say to list before answering
-  again.
+  unlinked again. An answer the plane spent before the failed filing is
+  reported as filed. One already gone when it is unlinked is reported as of
+  unknown outcome, never as not filed, and `approvals approve` and `reject`
+  then say to list before answering again.
 - The evidence spool refuses a segment or its quarantine that another account
   owns or the group or others may write, keeps every quarantined id so a crash
   cannot quarantine a record twice, syncs a repair before it continues, and

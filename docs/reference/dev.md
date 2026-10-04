@@ -2,7 +2,7 @@
 title: Dev mode
 summary: What guardana-gateway dev lays out, refuses, prints and stops, and how --scenario runs each scenario on a plane of its own.
 type: reference
-covers: [cmd/guardana-gateway/dev*.go, internal/loopback/**]
+covers: [cmd/guardana-gateway/dev*.go, cmd/guardana-gateway/stop.go, internal/loopback/**]
 ---
 
 # Dev mode

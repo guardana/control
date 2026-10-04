@@ -130,8 +130,8 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>channel</td>
-<td>a way an agent's actions reach Control: through an enforcement point, which decides before the effect, or a sensor, which reports after it; MCP is the first</td>
-<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>planned</code></td>
+<td>a way an agent's actions reach Control: through an enforcement point, which decides before the effect, or a sensor, which reports after it; MCP is the first, and the OpenTelemetry GenAI trace importer the first sensor</td>
+<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>; the importer <code>experimental</code>, other channels <code>planned</code></td>
 </tr>
 <tr>
 <td>coverage</td>
@@ -204,6 +204,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>gapRecord</code> in <code>internal/lineexport/records.go</code></td>
 </tr>
 <tr>
+<td>import report</td>
+<td>the record an import appends after the observations it kept: the source, the receive time, the input's size and first line's digest, the counts, and the earliest and latest event times; what says when a source was last heard</td>
+<td><code>ImportReport</code> in <code>api/proto/guardana/control/observe/v1alpha1/observation.proto</code></td>
+</tr>
+<tr>
 <td>held request</td>
 <td>a request awaiting an approval that the enforcement point keeps in its own record, answered at once with a pending state and resumed by a retry that equals it</td>
 <td><code>heldRequest</code> in <code>internal/gateway/trails.go</code>, <code>Held</code> in <code>internal/gateway/approvals.go</code></td>
@@ -227,6 +232,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td>observation</td>
 <td>what a sensor reports a source saw, with the source, its trust, the event's time if known and the basis of any correlation; testimony, never a decision or evidence of enforcement</td>
 <td><a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a>, <a href="/docs/reference/observations">reference/observations.md</a></td>
+</tr>
+<tr>
+<td>observation log</td>
+<td>one directory's <code>observations.jsonl</code>, appended under one writer's lock with each import's observations and its report, and read through the observation export</td>
+<td><code>internal/observelog/log.go</code></td>
 </tr>
 <tr>
 <td>pipeline</td>
@@ -260,8 +270,8 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>sensor</td>
-<td>a port that sees an effect after it happened, or an indirect sign of it, and reports it as observations; it never decides</td>
-<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>planned</code></td>
+<td>a port that sees an effect after it happened, or an indirect sign of it, and reports it as observations; it never decides; the OpenTelemetry GenAI trace importer is one</td>
+<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>internal/ingest/otelgenai/</code>, <code>experimental</code>; others <code>planned</code></td>
 </tr>
 <tr>
 <td>serial floor</td>
@@ -274,6 +284,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>policy.Snapshot</code> in <code>internal/policy/policy.go</code>, served by <code>policy.Holder</code></td>
 </tr>
 <tr>
+<td>source descriptor</td>
+<td>the operator's JSON statement about one source: its kind, trust, convention, selector, sampling and heartbeat; read under owner checks, never taken from the data</td>
+<td><code>observe.ReadDescriptor</code> in <code>internal/observe/descriptor.go</code></td>
+</tr>
+<tr>
 <td>spool</td>
 <td>the evidence sink that writes disk: an append-only, checksummed, bounded log an exporter drains and acknowledges</td>
 <td><code>spool.Spool</code> in <code>internal/spool/spool.go</code></td>
@@ -282,6 +297,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td>trail file</td>
 <td>the collector's append-only file of events, one per line in the protobuf JSON mapping, each event id once; what <code>trail</code> and <code>trail export</code> read</td>
 <td><code>trailfile.Writer</code> in <code>internal/trailfile/writer.go</code></td>
+</tr>
+<tr>
+<td>trust</td>
+<td>how far an observation's source can be believed, from its descriptor: <code>TRUST_SELF_REPORTED</code> (the agent's own process), <code>TRUST_PLATFORM</code> (the platform it runs on) or <code>TRUST_INDEPENDENT</code> (something the agent cannot influence)</td>
+<td><code>Trust</code> in <code>api/proto/guardana/control/observe/v1alpha1/source.proto</code></td>
 </tr>
 <tr>
 <td>unrecorded read</td>

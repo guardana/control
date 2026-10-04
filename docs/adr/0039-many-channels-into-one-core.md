@@ -6,7 +6,7 @@ Date: 2026-10-03
 Amended by [ADR-0040](0040-observations-a-record-a-log-and-one-importer.md):
 in observation version 0.1 content is always dropped and a capture setting
 refused, and a source descriptor is unsigned, so no finding stops a run on its
-trust. Amended in 0.7.0-alpha: the next milestone also holds procedures and
+trust. Amended before its first release: the next milestone also holds procedures and
 findings over both exports, as the roadmap's second milestone says; and a
 correlation joined only by a trace id is no stronger than claimed, since the
 agent supplies that id on both sides, so it cannot stop a run.

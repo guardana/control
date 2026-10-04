@@ -63,7 +63,8 @@ func observeExportFlagSet(command string, out io.Writer) *flag.FlagSet {
 // observeImportCommand imports one OTLP/JSON file of a source's spans into an
 // observation log. It exits 0 when every span read was imported, skipped or
 // already in the log, 1 when a line or a span was refused or an observation
-// conflicted with the log, and 2 when nothing was written.
+// conflicted with the log, and 2 when the import did not complete; the error
+// says whether it was written.
 func observeImportCommand(args []string, stdout, stderr io.Writer) int {
 	flags, source, logDir := observeImportFlags(observeImportName, io.Discard)
 	if err := flags.Parse(args); err != nil || flags.NArg() != 1 || *source == "" || *logDir == "" {

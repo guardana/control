@@ -2,7 +2,7 @@
 title: Observations
 summary: The source descriptor, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export.
 type: reference
-covers: [internal/observe/**, internal/observelog/**, internal/ingest/**, cmd/guardana-control/observe.go, api/proto/guardana/control/observe/**]
+covers: [internal/observe/**, internal/observelog/**, internal/ingest/**, internal/lineexport/**, cmd/guardana-control/observe.go, api/proto/guardana/control/observe/**]
 ---
 
 # Observations
@@ -16,8 +16,8 @@ It is `experimental`; [status.md](../status.md) is the inventory.
 
 ## The source descriptor
 
-The operator's statement about one source, a JSON file read under the
-stores' owner checks. Every member is matched exactly; an unknown member, a
+A JSON file in which the operator describes one source, read under the
+same owner checks as the stores. Every member is matched exactly; an unknown member, a
 member given twice or `null` is refused, naming the member.
 
 | Member | Required | Value |
@@ -34,7 +34,8 @@ member given twice or `null` is refused, naming the member.
 | `tenant_id`, `project_id` | yes | as `source_id` |
 | `run_attribute` | no | the span attribute that names a run; never a content attribute |
 
-Text values may not hold a control or format character, nor be only spaces.
+Text values may not hold a control or format character, nor be only
+whitespace, nor pass 256 bytes.
 
 ## What an import keeps
 
@@ -82,11 +83,13 @@ One file, `observations.jsonl`, in a directory of the operator's account that
 no other account can reach, held by one writer at a time. Each line holds one
 observation or one import report. An observation's id is derived from its
 tenant, project, source, trace and span, so importing the same spans again
-writes nothing new: a span already in the log is a duplicate; one with other
-content, its receive time and the descriptor's digest aside, is a conflict,
-is not written, and makes the import exit 1. The observations an import keeps
+writes nothing new: a span already in the log with the same content is a
+duplicate. One whose content differs, apart from its receive time and the
+descriptor's digest, is a conflict: it is not written, and the import exits
+1. The observations an import keeps
 and its report are appended together and synced, the report last; after a crash
-in that append, the next open cuts everything after the last whole report.
+in that append, the next open cuts everything after the last whole report;
+a tail no writer of this package leaves is refused, not cut.
 
 Each import ends with one report: the source, the descriptor's SHA-256, the
 receive time, the input's first-line digest and size, every count above, and
@@ -117,6 +120,7 @@ the same file counts it as duplicates.
 `export` writes `guardana.control.observation-export` version `0.1`, in the
 evidence export's shape ([ADR-0035](../adr/0035-a-versioned-evidence-export-and-a-bounded-query.md)):
 a header, `observation` and `import_report` records, gaps (`malformed`,
-`unsupported_version`, `carriage_return`, `conflicting_observation_id`),
+`unsupported_version`, `carriage_return`, `conflicting_observation_id`,
+`too_long`, `partial_tail`),
 duplicates and a trailer with the cursor to resume from, and the same exit
 codes. It has no filters yet.

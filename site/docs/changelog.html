@@ -129,8 +129,8 @@ MCP is one channel of several. The next milestone is one task under
 supervision across two channels, the plane and an agent runtime's
 OpenTelemetry traces, with a coverage map, findings, a local notifier and a
 stop of one run, before any public SDK. Extensions are planned as separate
-programs speaking versioned data contracts. The README and the website carry
-the new direction, marked <code>planned</code> wherever nothing is built yet.</li>
+programs speaking versioned data contracts. The README and the website
+describe this plan, marked <code>planned</code> wherever nothing is built yet.</li>
 <li>The website's header stays on one row on a phone and shows the newest
 release, which <code>make docs-gen</code> takes from this file. Documentation pages get
 a menu above the content on narrow screens, and a wide table scrolls inside
@@ -142,10 +142,10 @@ itself instead of breaking words.</li>
 an open while the previous open's answer is still being written: a session
 whose answer has begun is counted once, not twice.</li>
 <li>The gateway's configuration refuses a negative value for every duration
-key, naming the key where it was set. <code>approvals.ttl</code>,
+key and names that key in the error. <code>approvals.ttl</code>,
 <code>approvals.retry_after</code>, <code>export.linger</code>, <code>export.backoff</code>,
-<code>export.max_backoff</code> and <code>list.ttl</code> took one, and <code>policy.max_stale</code> was
-refused under another key's name.</li>
+<code>export.max_backoff</code> and <code>list.ttl</code> accepted a negative value before, and a
+negative <code>policy.max_stale</code> was refused under another key's name.</li>
 <li><code>policy renew</code> holds the signer floor directory's lock from the raise of
 the floor until its statement is written, so two renews of one bundle can
 no longer leave the older statement in <code>--out</code> while the floor holds the
@@ -159,10 +159,10 @@ arguments it takes, never the arguments, which can carry a credential.</li>
 <li>The approvals store refuses a directory another account owns, as every
 other store already did, and a record that repeats a member. A record, a
 hold journal entry or a file whose filing failed after it was linked is
-unlinked again. An answer the plane spent before that is reported as filed,
-and one already gone when it is unlinked as of unknown outcome, never as not
-filed; <code>approvals approve</code> and <code>reject</code> then say to list before answering
-again.</li>
+unlinked again. An answer the plane spent before the failed filing is
+reported as filed. One already gone when it is unlinked is reported as of
+unknown outcome, never as not filed, and <code>approvals approve</code> and <code>reject</code>
+then say to list before answering again.</li>
 <li>The evidence spool refuses a segment or its quarantine that another account
 owns or the group or others may write, keeps every quarantined id so a crash
 cannot quarantine a record twice, syncs a repair before it continues, and

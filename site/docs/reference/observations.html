@@ -104,8 +104,8 @@ call (<a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>). The re
 compatibility promise (<a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a>).
 It is <code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory.</p>
 <h2 id="the-source-descriptor">The source descriptor</h2>
-<p>The operator's statement about one source, a JSON file read under the
-stores' owner checks. Every member is matched exactly; an unknown member, a
+<p>A JSON file in which the operator describes one source, read under the
+same owner checks as the stores. Every member is matched exactly; an unknown member, a
 member given twice or <code>null</code> is refused, naming the member.</p>
 <table>
 <thead>
@@ -173,7 +173,8 @@ member given twice or <code>null</code> is refused, naming the member.</p>
 </tr>
 </tbody>
 </table>
-<p>Text values may not hold a control or format character, nor be only spaces.</p>
+<p>Text values may not hold a control or format character, nor be only
+whitespace, nor pass 256 bytes.</p>
 <h2 id="what-an-import-keeps">What an import keeps</h2>
 <p>A span of the selected resource becomes an observation when its
 <code>gen_ai.operation.name</code> is <code>execute_tool</code> (a tool, named by
@@ -239,11 +240,15 @@ whose parts each name a type is counted as unparsed, never as none.</p>
 no other account can reach, held by one writer at a time. Each line holds one
 observation or one import report. An observation's id is derived from its
 tenant, project, source, trace and span, so importing the same spans again
-writes nothing new: a span already in the log is a duplicate; one with other
-content, its receive time and the descriptor's digest aside, is a conflict,
-is not written, and makes the import exit 1. The observations an import keeps
+writes nothing new: a span already in the log with the same content is a
+duplicate. One whose content differs, apart from its receive time and the
+descriptor's digest, is a conflict: it is not written, and the import exits</p>
+<ol>
+<li>The observations an import keeps
 and its report are appended together and synced, the report last; after a crash
-in that append, the next open cuts everything after the last whole report.</p>
+in that append, the next open cuts everything after the last whole report;
+a tail no writer of this package leaves is refused, not cut.</li>
+</ol>
 <p>Each import ends with one report: the source, the descriptor's SHA-256, the
 receive time, the input's first-line digest and size, every count above, and
 the earliest and latest event time. A source was last heard at its newest
@@ -268,7 +273,8 @@ the same file counts it as duplicates.</p>
 <p><code>export</code> writes <code>guardana.control.observation-export</code> version <code>0.1</code>, in the
 evidence export's shape (<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>):
 a header, <code>observation</code> and <code>import_report</code> records, gaps (<code>malformed</code>,
-<code>unsupported_version</code>, <code>carriage_return</code>, <code>conflicting_observation_id</code>),
+<code>unsupported_version</code>, <code>carriage_return</code>, <code>conflicting_observation_id</code>,
+<code>too_long</code>, <code>partial_tail</code>),
 duplicates and a trailer with the cursor to resume from, and the same exit
 codes. It has no filters yet.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/observations.md">docs/reference/observations.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>

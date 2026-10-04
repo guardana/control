@@ -2,7 +2,7 @@
 title: Architecture
 summary: The system in context, its containers, the request path from a proposed action to a decision and its evidence, the dependency rule, and where it is going.
 type: explanation
-covers: [cmd/guardana-gateway/**, cmd/guardana-control/**, adapters/**, internal/gateway/**, internal/approvals/**, internal/holdjournal/**, internal/spool/**, internal/core/**, internal/policy/**, internal/canon/**, internal/evidence/**, internal/scenario/**, pkg/**, scripts/lib/dependency-rule.sh, ROADMAP.md]
+covers: [cmd/guardana-gateway/**, cmd/guardana-control/**, adapters/**, internal/gateway/**, internal/approvals/**, internal/holdjournal/**, internal/spool/**, internal/core/**, internal/policy/**, internal/canon/**, internal/evidence/**, internal/observe/**, internal/observelog/**, internal/ingest/**, internal/scenario/**, pkg/**, scripts/lib/dependency-rule.sh, ROADMAP.md]
 ---
 
 # Architecture
