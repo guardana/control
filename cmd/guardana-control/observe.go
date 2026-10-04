@@ -100,10 +100,14 @@ func observeImportCommand(args []string, stdout, stderr io.Writer) int {
 // maxInputBytes bounds one import's input, which is read whole.
 const maxInputBytes = 256 << 20
 
+// inputBound is the bound importFile reads under: maxInputBytes, which a test
+// lowers rather than writing an input of that size.
+var inputBound int64 = maxInputBytes
+
 // importFile reads the input as a regular file, so a pipe or a device put at
 // its name cannot hold the command, and maps it at this moment's clock.
 func importFile(path string, desc *observev1.SourceDescriptor, descriptorSHA256 string) (otelgenai.Batch, error) {
-	raw, err := ondisk.ReadRegular(path, maxInputBytes, 0)
+	raw, err := ondisk.ReadRegular(path, inputBound, 0)
 	if err != nil {
 		return otelgenai.Batch{}, err
 	}

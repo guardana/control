@@ -30,19 +30,25 @@ const readBound = 256 << 10
 
 // TestTheByteBoundStopsTheReadNotOnlyTheExport: a line that would cross the
 // bound is left unread past it, and a first line longer than the bound is
-// refused before it is read through, with nothing written.
+// refused before it is read through, with nothing written. A resumed export's
+// first line is its next one, so an export that could only return its own
+// cursor again is refused rather than looping its consumer.
 func TestTheByteBoundStopsTheReadNotOnlyTheExport(t *testing.T) {
+	resumed := []string{`"n a 1"`, hugeLine, `"n b 1"`}
 	for name, c := range map[string]struct {
 		lines   []string
+		after   string
 		refused bool
 	}{
-		"a long line after the first": {[]string{`"n a 1"`, hugeLine, `"n b 1"`}, false},
-		"a long first line":           {[]string{hugeLine, `"n b 1"`}, true},
+		"a long line after the first":   {[]string{`"n a 1"`, hugeLine, `"n b 1"`}, "", false},
+		"a long first line":             {[]string{hugeLine, `"n b 1"`}, "", true},
+		"a long line next after resume": {resumed, cursorAt(resumed, 1), true},
 	} {
 		var read int64
 		s := src(body(c.lines...), false)
 		s.R = countBytes{s.R, &read}
 		q := query(10)
+		q.After = c.after
 		q.MaxBytes = 16
 		var out bytes.Buffer
 		tr, err := Export(testFormat(), s, q, judge, &out)

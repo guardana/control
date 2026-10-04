@@ -32,6 +32,20 @@ func TestNothingThatDecidesReadsTheTraceFields(t *testing.T) {
 	}
 }
 
+// TestTheTraceWalkFindsEveryRead: the walk finds each selector and string
+// literal of a trace field in a fixture that holds all of them, and none of
+// the names that only resemble one.
+func TestTheTraceWalkFindsEveryRead(t *testing.T) {
+	want := []string{
+		"reads TraceId", "reads SpanId", "reads GetTraceId", "reads GetSpanId",
+		`spells "trace_id"`, `spells "span_id"`, `spells "traceId"`, `spells "spanId"`, "spells `trace_id`",
+	}
+	got := traceReads(t, filepath.Join("testdata", "tracereads", "reads.go"))
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("the walk found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
 // sourceFiles lists the non-test Go files under tree, testdata aside.
 func sourceFiles(t *testing.T, tree string) []string {
 	t.Helper()

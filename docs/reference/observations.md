@@ -109,7 +109,7 @@ the bytes after it are left for the next import, since the exporter may still
 be writing them. A line with an unknown member, a member twice, an attribute
 twice, a `null`, an enum spelled as a string, nesting deeper than 32 or more
 than 262,144 array elements is refused, and every span in it is counted as
-refused. A line over 16 MiB is refused unread. An input over 256 MiB is
+refused. A line over 16 MiB is read through and refused without being held. An input over 256 MiB is
 refused whole. Exit 0: every span read was imported, skipped or a
 duplicate. Exit 1: something was refused or conflicted; the report says
 what. Exit 2: the import did not complete, for a usage error, a descriptor or
