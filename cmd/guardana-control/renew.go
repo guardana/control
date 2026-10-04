@@ -43,8 +43,9 @@ const (
 	// errOneKey is a freshness key whose public half is the bundle's: the
 	// key that vouches for bundles would vouch for those it signs itself.
 	errOneKey = "--key and --bundle-public-key are one key pair; the freshness key is kept apart from the bundle key"
-	// errRaceLost is an --out that came to hold a newer statement for the
-	// bundle id while this renew raised the floor.
+	// errRaceLost is an --out holding a newer statement for the bundle id
+	// than the one the floor took, which no renew under this floor
+	// directory's lock wrote.
 	errRaceLost = "it holds a newer statement for the bundle id, which another renew wrote meanwhile; it was left as it is"
 )
 
@@ -52,8 +53,8 @@ const (
 // marker, by which renew knows a floor directory before it opens one.
 const floorMarker = "floors.meta"
 
-// afterRaise runs between the raise and the write. A test stands a renew that
-// runs meanwhile in for it.
+// afterRaise runs between the raise and the write, under the floor
+// directory's lock. A test starts a renew that runs meanwhile from it.
 var afterRaise = func() {}
 
 // maxPublicKeyFileBytes bounds the public key file: one line of base64 and a
@@ -65,8 +66,8 @@ const maxPublicKeyFileBytes = 1 << 10
 const publicLineBytes = 44
 
 // floorLockWait bounds how long a command waits for another holder of the
-// floor directory's lock.
-const floorLockWait = 10 * time.Second
+// floor directory's lock. A test shortens it.
+var floorLockWait = 10 * time.Second
 
 // renewPaths is what renew is told.
 type renewPaths struct{ key, bundle, bundlePublicKey, floor, out string }
@@ -103,10 +104,12 @@ func renewCommand(args []string, stdout, stderr io.Writer) int {
 // renew refuses in a fixed order and writes nothing on any refusal: the
 // output path, the two keys, the bundle under its public key, the signer's
 // floor. It raises the floor before it writes the statement, so no statement
-// is ever written that the floor did not take; a write that fails after the
-// raise leaves the floor at a statement nobody holds, which only refuses what
-// it would have refused anyway, and a second run at the same or a later
-// second is taken.
+// is ever written that the floor did not take, and holds the floor
+// directory's lock until the statement is written, so two renews under one
+// floor write in the order they raised. A write that fails after the raise
+// leaves the floor at a statement nobody holds, which only refuses what it
+// would have refused anyway, and a second run at the same or a later second
+// is taken.
 func renew(p renewPaths, now time.Time, stdout, stderr io.Writer) int {
 	if err := policykey.CheckPlatform(); err != nil {
 		return fail(stderr, renewName, err)
@@ -116,45 +119,79 @@ func renew(p renewPaths, now time.Time, stdout, stderr io.Writer) int {
 	if err := checkStatementOut(out); err != nil {
 		return fail(stderr, renewName, err)
 	}
-	bundlePub, err := readPublicKey(p.bundlePublicKey)
+	s, err := signedStatement(p, issuedAt)
 	if err != nil {
 		return fail(stderr, renewName, err)
 	}
-	key, err := policykey.ReadPrivate(p.key)
-	if err != nil {
-		return fail(stderr, renewName, fmt.Errorf("--key: %w", err))
-	}
-	defer clear(key)
-	freshPub, _ := key.Public().(ed25519.PublicKey)
-	if policykey.KeyID(freshPub) == policykey.KeyID(bundlePub) {
-		return fail(stderr, renewName, errors.New(errOneKey))
-	}
-	snap, err := verifiedBundle(p.bundle, bundlePub, issuedAt)
-	if err != nil {
+	if err := raiseAndWrite(p.floor, out, s, issuedAt); err != nil {
 		return fail(stderr, renewName, err)
 	}
-	env, st, err := signStatement(snap, key, issuedAt)
-	if err != nil {
-		return fail(stderr, renewName, err)
-	}
-	if err := raiseSignerFloor(p.floor, st, issuedAt); err != nil {
-		return fail(stderr, renewName, err)
-	}
-	afterRaise()
-	if err := checkNotNewer(out, st, freshPub); err != nil {
-		return fail(stderr, renewName, err)
-	}
-	if err := policykey.WriteStatement(out, env); err != nil {
-		return fail(stderr, renewName, fmt.Errorf("--out %s: %w; the signer floor was raised to the statement", out, err))
-	}
-	lines := "bundle_id: " + oneLine(st.BundleID()) + "\n" +
-		"serial: " + strconv.FormatInt(st.Serial(), 10) + "\n" +
-		"digest: " + st.Digest() + "\n" +
-		"issued_at: " + policy.FormatIssuedAt(st.IssuedAt()) + "\n"
+	lines := "bundle_id: " + oneLine(s.st.BundleID()) + "\n" +
+		"serial: " + strconv.FormatInt(s.st.Serial(), 10) + "\n" +
+		"digest: " + s.st.Digest() + "\n" +
+		"issued_at: " + policy.FormatIssuedAt(s.st.IssuedAt()) + "\n"
 	if _, err := io.WriteString(stdout, lines); err != nil {
 		return fail(stderr, renewName, fmt.Errorf("writing to standard output: %w; the statement was written to %s", err, out))
 	}
 	return exitOK
+}
+
+// signed is a freshness statement renew signed, its envelope, and the public
+// half of the key that signed it.
+type signed struct {
+	env      policy.StatementEnvelope
+	st       policy.Statement
+	freshPub ed25519.PublicKey
+}
+
+// signedStatement reads both keys and the bundle, refusing in renew's order,
+// and signs a statement for the bundle at issuedAt. The private key is
+// cleared before it returns.
+func signedStatement(p renewPaths, issuedAt time.Time) (signed, error) {
+	bundlePub, err := readPublicKey(p.bundlePublicKey)
+	if err != nil {
+		return signed{}, err
+	}
+	key, err := policykey.ReadPrivate(p.key)
+	if err != nil {
+		return signed{}, fmt.Errorf("--key: %w", err)
+	}
+	defer clear(key)
+	freshPub, _ := key.Public().(ed25519.PublicKey)
+	if policykey.KeyID(freshPub) == policykey.KeyID(bundlePub) {
+		return signed{}, errors.New(errOneKey)
+	}
+	snap, err := verifiedBundle(p.bundle, bundlePub, issuedAt)
+	if err != nil {
+		return signed{}, err
+	}
+	env, st, err := signStatement(snap, key, issuedAt)
+	if err != nil {
+		return signed{}, err
+	}
+	return signed{env: env, st: st, freshPub: freshPub}, nil
+}
+
+// raiseAndWrite raises the signer floor to s and, still holding the floor
+// directory's lock, checks out for a newer statement and writes s there. An
+// error after the write says the statement was written.
+func raiseAndWrite(floor, out string, s signed, issuedAt time.Time) error {
+	written := false
+	err := raiseSignerFloor(floor, s.st, issuedAt, func() error {
+		afterRaise()
+		if err := checkNotNewer(out, s.st, s.freshPub); err != nil {
+			return err
+		}
+		if err := policykey.WriteStatement(out, s.env); err != nil {
+			return fmt.Errorf("--out %s: %w; the signer floor was raised to the statement", out, err)
+		}
+		written = true
+		return nil
+	})
+	if err != nil && written {
+		return fmt.Errorf("%w; the statement was written to %s", err, out)
+	}
+	return err
 }
 
 // checkStatementOut refuses, before anything is raised, an output path whose
@@ -193,12 +230,12 @@ func checkStatementOut(out string) error {
 }
 
 // checkNotNewer refuses an out that holds, under the freshness key, a
-// statement for st's bundle id ordered after st: a renew that raised the
-// floor past st and wrote while this one waited. One equal to st is st, byte
-// for byte, since an Ed25519 signature over one body is one value, so writing
-// it again changes nothing. An absent out, or one holding a statement this
-// key did not sign or another id's, is replaced; one that can no longer be
-// read as a statement is refused, since it was one before the raise.
+// statement for st's bundle id ordered after st, which a renew under another
+// floor directory wrote. One equal to st is st, byte for byte, since an
+// Ed25519 signature over one body is one value, so writing it again changes
+// nothing. An absent out, or one holding a statement this key did not sign
+// or another id's, is replaced; one that can no longer be read as a
+// statement is refused, since it was one before the raise.
 func checkNotNewer(out string, st policy.Statement, freshPub ed25519.PublicKey) error {
 	env, err := policykey.ReadStatement(out)
 	switch {
@@ -282,24 +319,52 @@ func signStatement(snap *policy.Snapshot, key ed25519.PrivateKey, issuedAt time.
 	return env, st, nil
 }
 
-// raiseSignerFloor raises the signer's floor in dir to st. A refusal names
-// what the floor holds when it can be read.
-func raiseSignerFloor(dir string, st policy.Statement, now time.Time) (err error) {
-	store, err := policystate.Open(dir, policystate.KindSigner)
-	if err != nil {
-		return fmt.Errorf("--floor %s: %w", dir, err)
-	}
-	defer func() { err = errors.Join(err, store.Close()) }()
+// raiseSignerFloor raises the signer's floor in dir to st and, once the floor
+// took it, runs then under the directory's lock. Opening the directory and
+// raising share one wait of floorLockWait for its lock. A refusal of the
+// raise names what the floor holds when it can be read; then's error is
+// returned as it is.
+func raiseSignerFloor(dir string, st policy.Statement, now time.Time, then func() error) (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), floorLockWait)
 	defer cancel()
-	if _, err := store.Raise(ctx, st, now); err != nil {
-		id := oneLine(st.BundleID())
-		if f, readErr := store.Floor(ctx, st.BundleID()); readErr == nil {
-			return fmt.Errorf("--floor %s: bundle id %s: %w; the signer floor holds %s", dir, id, err, floorText(f))
-		}
-		return fmt.Errorf("--floor %s: bundle id %s: %w", dir, id, err)
+	store, err := policystate.OpenContext(ctx, dir, policystate.KindSigner)
+	if err != nil {
+		return fmt.Errorf("--floor %s: %w", dir, lockWaited(err))
 	}
-	return nil
+	defer func() {
+		if closeErr := store.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("--floor %s: %w", dir, closeErr))
+		}
+	}()
+	var ran bool
+	var thenErr error
+	_, err = store.RaiseWith(ctx, st, now, func(policy.Floor) error {
+		ran = true
+		thenErr = then()
+		return thenErr
+	})
+	switch {
+	case err == nil:
+		return nil
+	case ran && thenErr != nil:
+		return err
+	case ran:
+		return fmt.Errorf("--floor %s: %w", dir, err)
+	}
+	err = lockWaited(err)
+	id := oneLine(st.BundleID())
+	if f, readErr := store.Floor(ctx, st.BundleID()); readErr == nil {
+		return fmt.Errorf("--floor %s: bundle id %s: %w; the signer floor holds %s", dir, id, err, floorText(f))
+	}
+	return fmt.Errorf("--floor %s: bundle id %s: %w", dir, id, err)
+}
+
+// lockWaited names a wait for the floor directory's lock that ran out.
+func lockWaited(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%w; another holder kept the floor directory's lock past %s", err, floorLockWait)
+	}
+	return err
 }
 
 // floorText is a floor as the commands print it.

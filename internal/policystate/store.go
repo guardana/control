@@ -68,6 +68,12 @@ var _ policy.FloorStore = (*Store)(nil)
 // ErrPermissions; and a directory holding anything this package does not
 // write with ErrForeignFile.
 func Open(dir string, kind Kind) (*Store, error) {
+	return OpenContext(context.Background(), dir, kind)
+}
+
+// OpenContext opens as Open does and waits for the directory's lock, which
+// it holds while it judges what the directory holds, only until ctx ends.
+func OpenContext(ctx context.Context, dir string, kind Kind) (*Store, error) {
 	if err := checkKind(kind); err != nil {
 		return nil, err
 	}
@@ -75,7 +81,7 @@ func Open(dir string, kind Kind) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := d.judgeLocked(kind); err != nil {
+	if err := d.judgeLocked(ctx, kind); err != nil {
 		return nil, errors.Join(err, d.close())
 	}
 	return &Store{d: d, kind: kind}, nil
@@ -83,8 +89,8 @@ func Open(dir string, kind Kind) (*Store, error) {
 
 // judgeLocked judges what the directory holds under its lock, so no marker
 // or floor file is read while Init or Reset replaces it.
-func (d *dir) judgeLocked(kind Kind) (err error) {
-	unlock, err := d.lock(context.Background())
+func (d *dir) judgeLocked(ctx context.Context, kind Kind) (err error) {
+	unlock, err := d.lock(ctx)
 	if err != nil {
 		return err
 	}
@@ -145,7 +151,17 @@ func (s *Store) Record(ctx context.Context, bundleID string) (_ Record, err erro
 // the file as it was; a write that failed after its rename may have left the
 // raised floor, which is never lower. While another open file holds the lock,
 // Raise tries again until ctx ends.
-func (s *Store) Raise(ctx context.Context, st policy.Statement, now time.Time) (_ policy.Floor, err error) {
+func (s *Store) Raise(ctx context.Context, st policy.Statement, now time.Time) (policy.Floor, error) {
+	return s.RaiseWith(ctx, st, now, nil)
+}
+
+// RaiseWith raises as Raise does and, when the raise is taken, calls then
+// with the raised floor while it still holds the directory's lock, so what
+// then does is ordered with every other raise and read of the directory. A
+// refused or failed raise never calls then. An error then returns is
+// returned, and the raised floor stays written. then must not call s: the
+// lock it would wait for is the one s holds.
+func (s *Store) RaiseWith(ctx context.Context, st policy.Statement, now time.Time, then func(policy.Floor) error) (_ policy.Floor, err error) {
 	if s == nil {
 		return policy.Floor{}, ErrClosed
 	}
@@ -167,11 +183,15 @@ func (s *Store) Raise(ctx context.Context, st policy.Statement, now time.Time) (
 	if err != nil {
 		return policy.Floor{}, err
 	}
-	if next.Equal(stored.Floor) {
-		return next, nil
+	if !next.Equal(stored.Floor) {
+		if err := s.d.writeRecord(Record{Floor: next, Reset: stored.Reset}); err != nil {
+			return policy.Floor{}, err
+		}
 	}
-	if err := s.d.writeRecord(Record{Floor: next, Reset: stored.Reset}); err != nil {
-		return policy.Floor{}, err
+	if then != nil {
+		if err := then(next); err != nil {
+			return policy.Floor{}, err
+		}
 	}
 	return next, nil
 }

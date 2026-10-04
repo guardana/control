@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
@@ -439,59 +438,6 @@ func TestRenewKeepsTheTwoKeysApart(t *testing.T) {
 	if signerFloor(t, r.floor).HasSerial() {
 		t.Error("the floor moved for one key named twice")
 	}
-}
-
-// TestRenewKeepsTheNewerStatementOfARace: a renew that raised the floor and
-// finds, before it writes, a newer statement for its bundle id at --out,
-// which a renew that ran meanwhile wrote, refuses and leaves that one; one
-// that finds the same statement it is about to write writes it.
-func TestRenewKeepsTheNewerStatementOfARace(t *testing.T) {
-	start := time.Now().Truncate(time.Second).Add(-time.Minute)
-	higher := func(r renewTree) renewPaths {
-		path := filepath.Join(r.dir, "higher.bundle")
-		writeBundle(t, path, renewDocument(4, "allow-reads"), r.bundleSigner)
-		p := r.paths()
-		p.bundle = path
-		return p
-	}
-	for name, c := range map[string]struct {
-		meanwhile func(r renewTree) (renewPaths, time.Time)
-		status    int
-		serial    int64
-		at        time.Time
-	}{
-		"a higher serial":        {func(r renewTree) (renewPaths, time.Time) { return higher(r), start }, exitFail, 4, start},
-		"a later time":           {func(r renewTree) (renewPaths, time.Time) { return r.paths(), start.Add(time.Second) }, exitFail, 3, start.Add(time.Second)},
-		"the same statement":     {func(r renewTree) (renewPaths, time.Time) { return r.paths(), start }, exitOK, 3, start},
-		"an older time, written": {func(r renewTree) (renewPaths, time.Time) { return r.paths(), start.Add(-time.Second) }, exitOK, 3, start},
-	} {
-		r := newRenewTree(t)
-		var inner int
-		afterRaise = func() {
-			afterRaise = func() {}
-			p, at := c.meanwhile(r)
-			inner = renew(p, at, &bytes.Buffer{}, &bytes.Buffer{})
-		}
-		var stdout, stderr bytes.Buffer
-		status := renew(r.paths(), start, &stdout, &stderr)
-		afterRaise = func() {}
-		if c.status == exitFail && (status != exitFail || !strings.Contains(stderr.String(), errRaceLost)) {
-			t.Errorf("%s: exit %d, stderr %q; want %d and %q", name, status, stderr.String(), exitFail, errRaceLost)
-		}
-		if c.status == exitOK && status != exitOK {
-			t.Errorf("%s: exit %d, stderr %q", name, status, stderr.String())
-		}
-		_, st := freshStatement(t, r.out)
-		if st.Serial() != c.serial || !st.IssuedAt().Equal(c.at) {
-			t.Errorf("%s: --out holds serial %d issued %s, want %d issued %s (the renew meanwhile exited %d)",
-				name, st.Serial(), st.IssuedAt(), c.serial, c.at, inner)
-		}
-	}
-}
-
-// paths is what renew is told in this tree.
-func (r renewTree) paths() renewPaths {
-	return renewPaths{key: r.freshKey, bundle: r.bundle, bundlePublicKey: r.bundlePub, floor: r.floor, out: r.out}
 }
 
 // TestRenewUsageErrors: a missing flag, an argument and an unknown flag are

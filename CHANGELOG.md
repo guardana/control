@@ -43,6 +43,11 @@ verify one.
   `approvals.retry_after`, `export.linger`, `export.backoff`,
   `export.max_backoff` and `list.ttl` took one, and `policy.max_stale` was
   refused under another key's name.
+- `policy renew` holds the signer floor directory's lock from the raise of
+  the floor until its statement is written, so two renews of one bundle can
+  no longer leave the older statement in `--out` while the floor holds the
+  newer. Renews under different floor directories are not ordered. Waiting
+  for the lock, opening included, ends after 10 seconds.
 
 ## [0.6.0-alpha] - 2026-10-03
 
