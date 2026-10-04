@@ -1,6 +1,7 @@
 // Package sitedoc rewrites the diagram slots of the site's landing page from
 // the README's Mermaid blocks, so the README stays the one source of each
-// diagram and a page that lags it is a generated file out of date.
+// diagram it draws and a page that lags it is a generated file out of date. A
+// page may hold no slot and draw its diagrams itself.
 //
 // A slot is `<!-- diagram: README.md <n> -->…<!-- /diagram -->`; its body is
 // replaced with the n-th Mermaid block drawn as a static figure. The one
@@ -110,9 +111,6 @@ func slotSpans(page []byte) ([]span, error) {
 	}
 	if open >= 0 {
 		return nil, fmt.Errorf("%w: byte %d: a diagram slot is not closed", ErrSlot, open)
-	}
-	if len(spans) == 0 {
-		return nil, fmt.Errorf("%w: the page holds no diagram slot", ErrSlot)
 	}
 	return spans, nil
 }

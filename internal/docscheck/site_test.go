@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/docscheck/docsconfig"
 	"github.com/guardana/control/internal/docscheck/sitedoc"
 	"github.com/guardana/control/internal/docscheck/sitedoc/docsite"
@@ -155,9 +154,10 @@ func TestBrandFilesMatchThePinnedSums(t *testing.T) {
 	report(t, brandDir, brandProblems(sub, brandV1Digest, brandV1Files))
 }
 
-// The page draws README blocks 1, 2 and 3 in that order, each figure indexed
-// by its slot's position, and a re-render leaves the page as committed.
-func TestSiteSlotsAreTheReadmesBlocks(t *testing.T) {
+// The home page draws its own diagrams in HTML, so a phone reflows them, and
+// draws no README block: the README's Mermaid is for GitHub. A re-render
+// leaves the page as committed.
+func TestTheHomePageDrawsNoReadmeBlock(t *testing.T) {
 	fsys := repoFS(t)
 	page, err := fs.ReadFile(fsys, sitedoc.Page)
 	if err != nil {
@@ -171,27 +171,25 @@ func TestSiteSlotsAreTheReadmesBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []sitedoc.Slot{{Path: "README.md", Block: 1}, {Path: "README.md", Block: 2}, {Path: "README.md", Block: 3}}
-	if !slices.Equal(slots, want) {
-		t.Errorf("slots = %v, want %v", slots, want)
+	if len(slots) != 0 {
+		t.Errorf("slots = %v, want none", slots)
 	}
-	report(t, sitedoc.Page, slotTitleProblems(page, readme, []string{
-		"How a tool call is decided today",
-		"Where " + brand.Name + " is going",
-		"Where Guardana and " + brand.Name + " sit in a system's life",
-	}))
 	rendered, err := sitedoc.Render(page, readme)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(rendered, page) {
-		t.Errorf("%s lags README.md; run `make docs-gen`", sitedoc.Page)
+		t.Errorf("%s changes when rendered; run `make docs-gen`", sitedoc.Page)
 	}
 	doc := loadPage(t, page)
-	indexes, problems := figureIndexes(doc)
-	report(t, sitedoc.Page, problems)
-	if !slices.Equal(indexes, []int{1, 2, 3}) {
-		t.Errorf("figure indexes = %v, want [1 2 3]", indexes)
+	figures := 0
+	doc.walk(func(n *xnode) {
+		if n.name == "figure" && n.hasClass("fig") {
+			figures++
+		}
+	})
+	if figures < 3 {
+		t.Errorf("%s holds %d diagrams, want at least three", sitedoc.Page, figures)
 	}
 	report(t, sitedoc.Page, idProblems(doc))
 }

@@ -57,9 +57,16 @@ func TestRenderDrawsEachSlotWithItsPosition(t *testing.T) {
 	}
 }
 
+func TestAPageWithNoSlotRendersUnchanged(t *testing.T) {
+	r := &recorder{}
+	out, err := render([]byte("<p>a</p>"), []byte(readme), r.draw)
+	if err != nil || string(out) != "<p>a</p>" {
+		t.Errorf("render = %q, %v; want the page unchanged", out, err)
+	}
+}
+
 func TestRenderRefusesABadSlot(t *testing.T) {
 	for name, c := range map[string]struct{ page, want string }{
-		"no slot":                {"<p>a</p>", "no diagram slot"},
 		"an unclosed slot":       {"<!-- diagram: README.md 1 -->", "not closed"},
 		"a close with no open":   {"x<!-- /diagram -->", "closes and none is open"},
 		"a nested slot":          {"<!-- diagram: README.md 1 --><!-- diagram: README.md 2 --><!-- /diagram --><!-- /diagram -->", "opens inside another"},
