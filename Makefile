@@ -201,9 +201,9 @@ proto-check:
 	buf generate --output "$$tmp"; \
 	diff -r "$$tmp/api/gen" api/gen
 
-# Wire compatibility against main, as CI checks a pull request. Outside
+# Wire compatibility against the latest release tag before HEAD. Outside
 # quality: an export has no history to compare with, and the script then prints
-# UNKNOWN and fails, never a pass.
+# UNKNOWN and fails, never a pass; scripts/gate-commit.sh compares each commit.
 proto-breaking:
 	$(CD) scripts/proto-breaking.sh
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Shared file enumeration: `git ls-files` in a git work tree, and a find that
-# mirrors .gitignore by hand anywhere else. The fallback is what lets the gate
-# run in an export with no .git (`git archive`, a staged copy), so it is kept
-# and has to be kept in step with .gitignore.
+# Shared file enumeration: `git ls-files` in a git work tree; in an export
+# scripts/gate-commit.sh made, the commit's own file list it names in
+# REPO_FILES_LIST; anywhere else a find that mirrors .gitignore by hand. The
+# fallback is what lets the gate run in a staged copy with no .git, so it is
+# kept and has to be kept in step with .gitignore.
 #
 # A script that sources this file puts `# shellcheck source-path=SCRIPTDIR` on
 # line 2, before its first command. Only there does the directive cover the
@@ -42,55 +43,88 @@ repo_is_work_tree() {
   git -C "${root}" rev-parse --is-inside-work-tree >/dev/null 2>&1
 }
 
+# _repo_files_export root
+# Succeeds for a tree with no .git, the one kind of tree the non-git listings
+# describe. A root holding .git that git cannot read as a work tree, git being
+# missing or the repository broken, fails rather than falling back to them.
+_repo_files_export() {
+  if [[ -e "$1/.git" ]]; then
+    printf 'repo_files: %s holds .git, but git cannot list it as a work tree\n' "$1" >&2
+    return 1
+  fi
+}
+
 # _repo_files_find root
 # Walks the tree with find for the no-git-yet fallback. The exclusions mirror
-# .gitignore by hand; keep the two in sync when either changes.
+# .gitignore by hand; keep the two in sync when either changes. Fails, having
+# printed nothing, when find does: a walk that stopped part way is no listing.
 _repo_files_find() {
-  local root="$1"
-  local path
+  local root="$1" raw path
+  raw="$(mktemp)" || return 1
+  # Dot-directories are pruned generically rather than by name, so this
+  # file does not have to name the harness tooling directory to exclude
+  # it. .github is a project directory and is the one named exception.
+  # -mindepth 1 keeps the rule from matching the start point itself (its
+  # own basename is a single dot, which would otherwise prune the whole
+  # walk before it begins).
+  if ! (
+    cd "${root}" &&
+      find . -mindepth 1 \( \
+          \( -type d -name '.*' ! -name '.github' \) -o \
+          -path ./bin -o -path ./dist -o -path ./coverage -o \
+          -path ./node_modules -o -path ./docs/foundation -o \
+          -path ./docs/plans \
+        \) -prune -o -type f \
+          ! -name '.DS_Store' \
+          ! -name '*.out' \
+          ! -name '*.test' \
+          ! -name '.env' \
+          ! \( -name '.env.*' ! -name '.env.example' \) \
+          ! -name 'go.work' \
+          ! -name 'go.work.sum' \
+          ! -path ./docs/design/foundation-decisions.md \
+          ! -path ./AGENTS.local.md \
+          ! \( -path './bench/results/*' ! -path ./bench/results/.keep \
+            ! \( -name '[0-9]*T[0-9]*Z-*-*.txt' ! -path './bench/results/*/*' \) \) \
+          -print0
+  ) >"${raw}"; then
+    rm -f "${raw}"
+    printf 'repo_files: walking %s with find failed\n' "${root}" >&2
+    return 1
+  fi
   while IFS= read -r -d '' path; do
     printf '%s\0' "${path#./}"
-  done < <(
-    cd "${root}" || exit 1
-    # Dot-directories are pruned generically rather than by name, so this
-    # file does not have to name the harness tooling directory to exclude
-    # it. .github is a project directory and is the one named exception.
-    # -mindepth 1 keeps the rule from matching the start point itself (its
-    # own basename is a single dot, which would otherwise prune the whole
-    # walk before it begins).
-    find . -mindepth 1 \( \
-        \( -type d -name '.*' ! -name '.github' \) -o \
-        -path ./bin -o -path ./dist -o -path ./coverage -o \
-        -path ./node_modules -o -path ./docs/foundation -o \
-        -path ./docs/plans \
-      \) -prune -o -type f \
-        ! -name '.DS_Store' \
-        ! -name '*.out' \
-        ! -name '*.test' \
-        ! -name '.env' \
-        ! \( -name '.env.*' ! -name '.env.example' \) \
-        ! -name 'go.work' \
-        ! -name 'go.work.sum' \
-        ! -path ./docs/design/foundation-decisions.md \
-        ! -path ./AGENTS.local.md \
-        ! \( -path './bench/results/*' ! -path ./bench/results/.keep \
-          ! \( -name '[0-9]*T[0-9]*Z-*-*.txt' ! -path './bench/results/*/*' \) \) \
-        -print0
-  )
+  done <"${raw}"
+  rm -f "${raw}"
 }
 
 # _repo_files_every root
 # Every file and link under root but .git, NUL-delimited, with no .gitignore
-# mirror: what repo_stage copies from a tree with no .git.
+# mirror: what repo_stage copies from a tree with no .git. Fails, having
+# printed nothing, when find does.
 _repo_files_every() {
-  local root="$1"
-  local path
+  local root="$1" raw path
+  raw="$(mktemp)" || return 1
+  if ! (cd "${root}" && find . -mindepth 1 -name .git -prune -o \( -type f -o -type l \) -print0) >"${raw}"; then
+    rm -f "${raw}"
+    printf 'repo_files: walking %s with find failed\n' "${root}" >&2
+    return 1
+  fi
   while IFS= read -r -d '' path; do
     printf '%s\0' "${path#./}"
-  done < <(
-    cd "${root}" || exit 1
-    find . -mindepth 1 -name .git -prune -o \( -type f -o -type l \) -print0
-  )
+  done <"${raw}"
+  rm -f "${raw}"
+}
+
+# _repo_files_commit_list root
+# Succeeds when REPO_FILES_LIST names the list of files of the commit exported
+# at root, which scripts/gate-commit.sh writes from `git ls-tree` and pairs with
+# REPO_FILES_LIST_ROOT, the export's physical path. A tree staged elsewhere from
+# that export does not match the root and keeps the find fallback.
+_repo_files_commit_list() {
+  local root="$1"
+  [[ -n "${REPO_FILES_LIST:-}" && -n "${REPO_FILES_LIST_ROOT:-}" ]] || return 1
+  [[ "$(cd "${root}" >/dev/null 2>&1 && pwd -P)" == "${REPO_FILES_LIST_ROOT}" ]]
 }
 
 # _repo_files_filter pattern ...
@@ -131,30 +165,49 @@ repo_files() {
   root="$(repo_root)" || return 1
 
   local -a paths=()
-  local path
+  local path raw listed src
 
+  # Each listing goes to a file first and its status is checked before a path
+  # is read: a listing that fails part way would otherwise read as a shorter,
+  # successful one, since a loop over a process substitution never sees the
+  # command's exit status.
+  raw="$(mktemp)" || return 1
+  listed="$(mktemp)" || { rm -f "${raw}"; return 1; }
+  src="${listed}"
   if repo_is_work_tree; then
-    # `read -d ''` over process substitution, not a pipe, keeps this loop in
-    # the current shell so `paths+=` mutates the array declared above.
-    #
     # --cached on its own lists tracked files only, which would make every file
     # a change adds invisible to check-brand, check-sizes and fmt-check until
     # someone commits it: three gates reporting green over a file they never
     # opened. --others --exclude-standard adds the untracked files git would not
     # ignore, so the gates see the working tree a reviewer sees. The two sets
     # are disjoint, so nothing is listed twice.
-    while IFS= read -r -d '' path; do
-      paths+=("${path}")
-    done < <(git -C "${root}" ls-files -z --cached --others --exclude-standard -- "$@")
-  elif [[ $# -gt 0 ]]; then
-    while IFS= read -r -d '' path; do
-      paths+=("${path}")
-    done < <(_repo_files_find "${root}" | _repo_files_filter "$@")
+    if ! git -C "${root}" ls-files -z --cached --others --exclude-standard -- "$@" >"${listed}"; then
+      rm -f "${raw}" "${listed}"
+      printf 'repo_files: git ls-files failed in %s\n' "${root}" >&2
+      return 1
+    fi
   else
-    while IFS= read -r -d '' path; do
-      paths+=("${path}")
-    done < <(_repo_files_find "${root}")
+    _repo_files_export "${root}" || { rm -f "${raw}" "${listed}"; return 1; }
+    if _repo_files_commit_list "${root}"; then
+      if [[ ! -f "${REPO_FILES_LIST}" ]] || ! cat "${REPO_FILES_LIST}" >"${raw}"; then
+        rm -f "${raw}" "${listed}"
+        printf 'repo_files: the commit file list %s cannot be read\n' "${REPO_FILES_LIST}" >&2
+        return 1
+      fi
+    elif ! _repo_files_find "${root}" >"${raw}"; then
+      rm -f "${raw}" "${listed}"
+      return 1
+    fi
+    if [[ $# -gt 0 ]]; then
+      _repo_files_filter "$@" <"${raw}" >"${listed}"
+    else
+      src="${raw}"
+    fi
   fi
+  while IFS= read -r -d '' path; do
+    paths+=("${path}")
+  done <"${src}"
+  rm -f "${raw}" "${listed}"
 
   # bash 3.2 (macOS default /bin/bash) raises "unbound variable" on
   # "${paths[@]}" for a truly empty array under `set -u`; return before
@@ -200,13 +253,26 @@ repo_stage() {
   if repo_is_work_tree; then
     list="$(repo_files)" || return 1
   else
+    _repo_files_export "${root}" || return 1
+    local every
+    every="$(mktemp)" || return 1
+    if ! _repo_files_every "${root}" >"${every}"; then
+      rm -f "${every}"
+      return 1
+    fi
+    local spaced=""
     while IFS= read -r -d '' path; do
       if [[ "${path}" == *[[:space:]]* ]]; then
-        printf 'repo_stage: path contains whitespace or a newline, refusing: %q\n' "${path}" >&2
-        return 1
+        spaced="${path}"
+        break
       fi
       list+="${path}"$'\n'
-    done < <(_repo_files_every "${root}")
+    done <"${every}"
+    rm -f "${every}"
+    if [[ -n "${spaced}" ]]; then
+      printf 'repo_stage: path contains whitespace or a newline, refusing: %q\n' "${spaced}" >&2
+      return 1
+    fi
     list="${list%$'\n'}"
   fi
   if [[ -z "${list}" ]]; then

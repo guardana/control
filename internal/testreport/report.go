@@ -23,6 +23,9 @@ var (
 	ErrUnfinished = errors.New("testreport: a package has no result")
 	// ErrFailed is returned when a build, a package or a test failed.
 	ErrFailed = errors.New("testreport: a build, package or test failed")
+	// ErrNoTestsRun is returned when a package with test files passed without
+	// running a test, as when a -run filter matched none of them.
+	ErrNoTestsRun = errors.New("testreport: a package ran no test")
 )
 
 // Summary counts what one stream reported.
@@ -33,6 +36,7 @@ type Summary struct {
 	FailedTests    int // tests, subtests and benchmarks that failed
 	BuildFailures  int
 	Skipped        int // tests and subtests that skipped
+	NoTestsRun     int // packages that passed with "[no tests to run]"
 }
 
 type event struct {
@@ -62,6 +66,7 @@ type reporter struct {
 	pkgs     map[string]*pkgState
 	order    []string
 	skips    []skipped
+	noTests  []string
 	badLines []int
 	writeErr error
 }
@@ -73,7 +78,8 @@ type reporter struct {
 // A line that is not an event is written through as it came.
 //
 // The error is nil only when the stream held at least one package result, every
-// line was an event, every package reached a result and nothing failed.
+// line was an event, every package reached a result, nothing failed and no
+// package with test files passed without running one.
 func Summarize(r io.Reader, w io.Writer) (Summary, error) {
 	rep := &reporter{w: w, pkgs: map[string]*pkgState{}}
 	br := bufio.NewReader(r)
@@ -164,7 +170,12 @@ func (rep *reporter) result(name string, p *pkgState, action string) {
 		rep.writeFailed(p)
 		return
 	}
-	rep.write(p.resultLine(name))
+	line := p.resultLine(name)
+	if action == "pass" && strings.HasSuffix(strings.TrimSpace(line), "[no tests to run]") {
+		rep.sum.NoTestsRun++
+		rep.noTests = append(rep.noTests, name)
+	}
+	rep.write(line)
 }
 
 // writeFailed writes the package's own lines and those of every test that
@@ -239,6 +250,9 @@ func (rep *reporter) finish() error {
 	if s := rep.sum; s.FailedPackages+s.FailedTests+s.BuildFailures > 0 {
 		errs = append(errs, fmt.Errorf("%w: %d package(s), %d test(s), %d build(s)",
 			ErrFailed, s.FailedPackages, s.FailedTests, s.BuildFailures))
+	}
+	if len(rep.noTests) > 0 {
+		errs = append(errs, fmt.Errorf("%w: %s", ErrNoTestsRun, strings.Join(rep.noTests, ", ")))
 	}
 	if rep.writeErr != nil {
 		errs = append(errs, fmt.Errorf("testreport: writing the transcript: %w", rep.writeErr))

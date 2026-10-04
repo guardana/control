@@ -1,0 +1,6 @@
+{"Time":"2026-10-04T19:08:54.294551+02:00","Action":"start","Package":"example.com/fixture/filtered"}
+{"Time":"2026-10-04T19:08:54.599376+02:00","Action":"output","Package":"example.com/fixture/filtered","Output":"-test.shuffle 1791133734596741000\n"}
+{"Time":"2026-10-04T19:08:54.599526+02:00","Action":"output","Package":"example.com/fixture/filtered","Output":"testing: warning: no tests to run\n"}
+{"Time":"2026-10-04T19:08:54.599528+02:00","Action":"output","Package":"example.com/fixture/filtered","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-04T19:08:54.599562+02:00","Action":"output","Package":"example.com/fixture/filtered","Output":"ok  \texample.com/fixture/filtered\t0.304s [no tests to run]\n"}
+{"Time":"2026-10-04T19:08:54.599576+02:00","Action":"pass","Package":"example.com/fixture/filtered","Elapsed":0.305}

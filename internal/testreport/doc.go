@@ -6,7 +6,8 @@
 //
 // Summarize answers with an error whenever the stream does not prove a pass: no
 // event at all, a line that is not an event, a package without a result, a
-// failed build, package or test. A failed test fails the run even in a package
-// whose result is a pass, as when its TestMain exits 0 after the failure, where
-// plain `go test` reports the package ok.
+// failed build, package or test, a package whose test files ran no test. A
+// failed test fails the run even in a package whose result is a pass, as when
+// its TestMain exits 0 after the failure, where plain `go test` reports the
+// package ok.
 package testreport

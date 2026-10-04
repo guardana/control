@@ -6,7 +6,8 @@
 # Kept out of `make quality`: a tree with no git history, an export for
 # instance, has nothing to compare against. Then this prints UNKNOWN and exits
 # 3, never a pass it did not earn; so does a tree that sits inside some other
-# repository, or a history with no release tag.
+# repository, or a history with no release tag. scripts/gate-commit.sh makes the
+# same comparison for each commit it gates, from that commit's history.
 set -euo pipefail
 
 _BREAKING_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
