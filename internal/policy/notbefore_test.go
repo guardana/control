@@ -88,3 +88,27 @@ func TestALoadedSnapshotIsNotBeforeItsConfirmation(t *testing.T) {
 		t.Fatalf("a nil snapshot is not before %v", none.NotBefore())
 	}
 }
+
+// TestNotBeforeDoesNotFallWhenTheFloorIsLowered: a reset lowers the stored
+// floor under a running plane; a statement confirmed after it is older than
+// the time the holder already verified, and the not-before time stays where
+// it was, so a clock reading between the two is still refused.
+func TestNotBeforeDoesNotFallWhenTheFloorIsLowered(t *testing.T) {
+	ctx := context.Background()
+	b7 := signedDocument("payments", "v7", 7)
+	d7 := digestOf(b7.GetCanonical())
+	store := newMemStore(floorOf(t, 7, d7, "11:00:00", "11:30:00"))
+	h := floorHolder(t, store)
+	installUnconfirmed(t, h, b7)
+	if err := h.Confirm(ctx, statementFor(t, "payments", 7, d7, "11:40:00"), utc("12:00:00")); err != nil {
+		t.Fatal(err)
+	}
+	expectNotBefore(t, h, "renewed", "11:40:00", "11:40:00")
+	store.mu.Lock()
+	store.floors["payments"] = floorOf(t, 7, d7, "11:00:00", "11:00:00")
+	store.mu.Unlock()
+	if err := h.Confirm(ctx, statementFor(t, "payments", 7, d7, "11:20:00"), utc("12:00:00")); err != nil {
+		t.Fatal(err)
+	}
+	expectNotBefore(t, h, "confirmed over a lowered floor", "11:20:00", "11:40:00")
+}

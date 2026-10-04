@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -34,14 +35,6 @@ import (
 // still do something about it. The decoder's buffer is this size on every
 // call, which is what a larger factor costs.
 const MaxLineBytes = 3 * contract.MaxEnvelopeBytes
-
-// maxCauseBytes bounds how much of the codec's own message travels with a
-// refusal. protojson quotes the token it refused word for word, so one bad line
-// at MaxLineBytes produces a refusal of about that size, and these are the
-// refusals most likely to end up in an operator's log or in a record. What fits
-// inside the bound is the position and the kind of failure, which is the part
-// an operator acts on; what is cut is the producer's own bytes.
-const maxCauseBytes = 120
 
 var (
 	// ErrLineTooLong reports a line over MaxLineBytes, in either direction.
@@ -240,9 +233,29 @@ func decodeLine(line []byte) (*controlv1.Event, error) {
 	event := &controlv1.Event{}
 	// DiscardUnknown stays false: see the note on unknown fields above.
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(line, event); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrMalformedLine, cause(err))
+		return nil, fmt.Errorf("%w: %s", ErrMalformedLine, refusalAt(err))
 	}
 	return event, nil
+}
+
+// refusalAt says where protojson refused a line and nothing of what the line
+// held: its message quotes the value or the member name it refused, and a
+// sender can put a credential or a prompt in either.
+func refusalAt(err error) string {
+	msg := err.Error()
+	i := strings.Index(msg, "(line ")
+	if i < 0 {
+		return "not an event this build reads"
+	}
+	j := strings.IndexByte(msg[i:], ')')
+	if j < 0 {
+		return "not an event this build reads"
+	}
+	at := msg[i+len("(line ") : i+j]
+	if strings.Trim(at, "0123456789:") != "" {
+		return "not an event this build reads"
+	}
+	return "not an event this build reads, from line:column " + at
 }
 
 // hasUnknownFields reports whether any message in the tree carries a field this

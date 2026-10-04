@@ -34,11 +34,6 @@ func quoted(s string, limit int) string {
 // quoteID quotes one producer identifier for a refusal.
 func quoteID(id string) string { return quoted(id, maxQuotedIDBytes) }
 
-// cause reduces the codec's message to something safe to write down. protojson
-// quotes the token it refused word for word, so its message carries a
-// producer's bytes like any identifier does.
-func cause(err error) string { return quoted(err.Error(), maxCauseBytes) }
-
 // escapeLine appends line to dst with every rune a reader could take for
 // something other than text written as a JSON \u escape. JSON requires the C0
 // controls, the quote and the backslash to be escaped and protojson escapes

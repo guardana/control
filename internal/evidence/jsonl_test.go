@@ -881,6 +881,28 @@ func TestDecodeRefusalDoesNotCarryTheLineBack(t *testing.T) {
 	}
 }
 
+// TestDecodeRefusalNamesNoSubmittedText: a refusal says where the line went
+// wrong and never what it held, since a sender can put a credential or a
+// prompt in a value or a member name, and the refusal is what gets logged.
+func TestDecodeRefusalNamesNoSubmittedText(t *testing.T) {
+	const marker = "SECRETMARKER"
+	for _, input := range []string{
+		`{"kind":"` + marker + `"}`,
+		`{"` + marker + `":1}`,
+		`{"eventId":"` + marker + `","kind":7.5}`,
+		`{"eventId":` + marker + `}`,
+		`{"eventId":"` + marker,
+	} {
+		_, err := evidence.DecodeJSONL(strings.NewReader(input+"\n"), 16)
+		if !errors.Is(err, evidence.ErrMalformedLine) {
+			t.Fatalf("%s: DecodeJSONL = %v, want ErrMalformedLine", input, err)
+		}
+		if strings.Contains(err.Error(), marker) {
+			t.Errorf("%s: the refusal repeats submitted text: %v", input, err)
+		}
+	}
+}
+
 // errors.Is unwraps. A reader whose failure wraps io.EOF would be read as the
 // end of the input, and a truncated read would be reported as a complete one
 // with a nil error. bufio hands back the underlying reader's error as it

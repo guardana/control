@@ -137,19 +137,30 @@ itself instead of breaking words.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
-<li>A stateful listener near its <code>listener.max_sessions</code> cap no longer refuses
+<li>
+<p>A stateful listener near its <code>listener.max_sessions</code> cap no longer refuses
 an open while the previous open's answer is still being written: a session
-whose answer has begun is counted once, not twice.</li>
-<li>The gateway's configuration refuses a negative value for every duration
+whose answer has begun is counted once, not twice.</p>
+</li>
+<li>
+<p>The gateway's configuration refuses a negative value for every duration
 key, naming the key where it was set. <code>approvals.ttl</code>,
 <code>approvals.retry_after</code>, <code>export.linger</code>, <code>export.backoff</code>,
 <code>export.max_backoff</code> and <code>list.ttl</code> took one, and <code>policy.max_stale</code> was
-refused under another key's name.</li>
-<li><code>policy renew</code> holds the signer floor directory's lock from the raise of
+refused under another key's name.</p>
+</li>
+<li>
+<p><code>policy renew</code> holds the signer floor directory's lock from the raise of
 the floor until its statement is written, so two renews of one bundle can
 no longer leave the older statement in <code>--out</code> while the floor holds the
 newer. Renews under different floor directories are not ordered. Waiting
-for the lock, opening included, ends after 10 seconds.</li>
+for the lock, opening included, ends after 10 seconds.</p>
+</li>
+<li>
+<p>An evidence line that does not decode is refused naming where it went wrong,
+never quoting the value or member name it held, so a sender cannot put a
+credential into the collector's log through a malformed line.</p>
+</li>
 </ul>
 <h2 id="060-alpha---2026-10-03"><a href="https://github.com/guardana/control/releases/tag/v0.6.0-alpha">0.6.0-alpha</a> - 2026-10-03</h2>
 <p>A plane now takes its policy as current only on a signed freshness

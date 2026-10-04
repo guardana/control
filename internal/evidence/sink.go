@@ -3,6 +3,7 @@ package evidence
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -33,7 +34,7 @@ type MemorySink struct {
 // already done, because a record nobody waited for is not one anybody holds.
 func (s *MemorySink) Append(ctx context.Context, event *controlv1.Event) error {
 	if event == nil {
-		return ErrNoEvent
+		return fmt.Errorf("%w: append", ErrNoEvent)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
