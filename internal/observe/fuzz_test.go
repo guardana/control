@@ -39,7 +39,8 @@ func FuzzReadDescriptor(f *testing.F) {
 }
 
 // FuzzUnmarshalLine: a line that reads is a record the writer writes, whose
-// line reads back to the same record; a refusal is always a codec error.
+// line is in the writer's form and reads back to the same record; a refusal
+// is always a codec error.
 func FuzzUnmarshalLine(f *testing.F) {
 	for _, line := range fixtureLines(f) {
 		f.Add(line)
@@ -61,6 +62,9 @@ func FuzzUnmarshalLine(f *testing.F) {
 		}
 		if err != nil {
 			t.Fatalf("an accepted record does not write: %v", err)
+		}
+		if err := observe.CheckLineForm(out); err != nil {
+			t.Fatalf("the writer's line is not in its form: %v", err)
 		}
 		back, err := observe.UnmarshalLine(out)
 		if err != nil || !proto.Equal(back, r) {
