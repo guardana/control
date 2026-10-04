@@ -19,6 +19,14 @@ import (
 // the few hundred bytes that frame it, with room to spare.
 const maxRecordBytes = 4 << 20
 
+// maxExportRecords is the most records an export writes, at its highest
+// --limit; only its trailer follows them.
+const maxExportRecords = 100_000
+
+// maxExportBytes bounds what one read takes in after the header, newlines
+// counted, since the events it keeps are held until the export ends.
+const maxExportBytes = 64 << 20
+
 // exportMajor is the major of the export format this reader reads.
 const exportMajor = 1
 
@@ -101,9 +109,11 @@ func readExport(r io.Reader) (*export, error) {
 	return x, nil
 }
 
-// readRecords reads the records after the header. Input that cannot be read
-// is refused where it stops, and without a trailer read the export is cut.
+// readRecords reads the records after the header. Input that cannot be read,
+// or that goes on past what an export writes or this reader holds, is refused
+// where it stops, and without a trailer read the export is cut.
 func (x *export) readRecords(br *bufio.Reader) {
+	read := 0
 	for {
 		l, err := nextLine(br)
 		if errors.Is(err, io.EOF) {
@@ -114,12 +124,32 @@ func (x *export) readRecords(br *bufio.Reader) {
 			x.refuse("the input could not be read: " + err.Error())
 			return
 		}
+		read += l.size
+		if why := x.pastBound(read); why != "" {
+			x.refuse(why)
+			return
+		}
 		x.record(l)
 	}
 }
 
+// pastBound names the bound that the records read so far, read bytes in all,
+// go past.
+func (x *export) pastBound(read int) string {
+	switch {
+	case x.line-1 > maxExportRecords+1:
+		return fmt.Sprintf("the export goes on past %d records and its trailer, more than an export writes", maxExportRecords)
+	case read > maxExportBytes:
+		return fmt.Sprintf("the export goes on past %d bytes after its header, more than this reader holds: "+
+			"export again with a smaller --limit or --max-bytes", maxExportBytes)
+	}
+	return ""
+}
+
 type rawLine struct {
-	b                     []byte
+	b []byte
+	// size is the bytes the record took in the input, its newline included.
+	size                  int
 	tooLong, unterminated bool
 }
 
@@ -146,6 +176,7 @@ func nextLine(r *bufio.Reader) (rawLine, error) {
 			return l, err
 		}
 		l.b = bytes.TrimSuffix(l.b, []byte("\n"))
+		l.size = n
 		l.tooLong = n-len("\n") > maxRecordBytes
 		return l, nil
 	}

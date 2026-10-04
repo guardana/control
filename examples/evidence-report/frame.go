@@ -142,6 +142,22 @@ func trailerDefect(r trailerRecord) string {
 	case !*r.EndReached && r.NextCursor == nil:
 		return "a trailer that stops before the file's end and names no next_cursor"
 	}
+	return scanDefect(r)
+}
+
+// scanDefect names what keeps a trailer from saying how much of the file it
+// read and that it compared duplicates within this export only.
+func scanDefect(r trailerRecord) string {
+	switch {
+	case r.ScannedBytes == nil:
+		return "a trailer without a scanned_bytes count"
+	case *r.ScannedBytes < 0:
+		return fmt.Sprintf("a trailer whose scanned_bytes is %d", *r.ScannedBytes)
+	case r.DedupScope == nil:
+		return "a trailer without dedup_scope"
+	case *r.DedupScope != "export":
+		return `a trailer whose dedup_scope is not "export"`
+	}
 	return ""
 }
 

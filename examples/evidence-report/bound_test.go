@@ -121,3 +121,92 @@ func TestDedupWindowBound(t *testing.T) {
 		})
 	}
 }
+
+// TestExportRecordBound: an export of 100 000 records and its trailer is read
+// whole; one record more and the read stops at the trailer, which is refused
+// with what follows it unread.
+func TestExportRecordBound(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		records int
+		whole   bool
+	}{{records: 100_000, whole: true}, {records: 100_001}} {
+		t.Run(fmt.Sprint(tc.records), func(t *testing.T) {
+			t.Parallel()
+			x := newExport("1.0")
+			for range tc.records {
+				x.gap("malformed")
+			}
+			got, err := readExport(strings.NewReader(x.whole() + x.lines[1] + "\n"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stopped(got) != !tc.whole || got.gaps != tc.records {
+				t.Fatalf("%d records: %d refused, trailer read %t, %d lines and %d gaps read; want whole %t",
+					tc.records, got.refused, got.trailer != nil, got.line, got.gaps, tc.whole)
+			}
+			if !tc.whole && !strings.Contains(got.firstRefusal, fmt.Sprintf("line %d: the export goes on past 100000 records and its trailer", tc.records+2)) {
+				t.Errorf("the refusal says %q", got.firstRefusal)
+			}
+		})
+	}
+}
+
+// stopped reports whether the read took no trailer, refused one record and
+// read nothing past it.
+func stopped(x *export) bool {
+	if x.trailer != nil {
+		return false
+	}
+	return x.refused == 1 && strings.Contains(x.firstRefusal, fmt.Sprintf("line %d: ", x.line))
+}
+
+// paddedGaps is an export whose records and trailer after the header are
+// total bytes, newlines counted, each gap no longer than a record may be.
+func paddedGaps(t *testing.T, total int) string {
+	t.Helper()
+	x := newExport("1.0")
+	for range total/maxRecordBytes + 1 {
+		x.gap("")
+	}
+	trailer := x.trailerLine(true, 0)
+	short := total - len(trailer) - 1
+	for _, l := range x.lines[1:] {
+		short -= len(l) + 1
+	}
+	for i := 1; i < len(x.lines) && short > 0; i++ {
+		pad := min(short, maxRecordBytes-len(x.lines[i]))
+		x.lines[i] = strings.Replace(x.lines[i], `"reason":""`, `"reason":"`+strings.Repeat("m", pad)+`"`, 1)
+		short -= pad
+	}
+	in := x.cut() + trailer + "\n"
+	if short != 0 || len(in)-len(x.lines[0])-1 != total {
+		t.Fatalf("the padded export is %d bytes after its header, want %d", len(in)-len(x.lines[0])-1, total)
+	}
+	return in
+}
+
+// TestExportByteBound: 64 MiB of records and trailer after the header are
+// read whole; one byte more and the read stops at the trailer, which is
+// refused.
+func TestExportByteBound(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		bytes int
+		whole bool
+	}{{bytes: 64 << 20, whole: true}, {bytes: 64<<20 + 1}} {
+		t.Run(fmt.Sprint(tc.bytes), func(t *testing.T) {
+			t.Parallel()
+			got, err := readExport(strings.NewReader(paddedGaps(t, tc.bytes) + `{"type":"gap","offset":0,"reason":"malformed"}` + "\n"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stopped(got) != !tc.whole {
+				t.Fatalf("%d bytes: %d refused, trailer read %t, %d lines read; want whole %t", tc.bytes, got.refused, got.trailer != nil, got.line, tc.whole)
+			}
+			if !tc.whole && !strings.Contains(got.firstRefusal, "the export goes on past 67108864 bytes after its header") {
+				t.Errorf("the refusal says %q", got.firstRefusal)
+			}
+		})
+	}
+}

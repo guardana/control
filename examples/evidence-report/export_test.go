@@ -131,3 +131,34 @@ func TestGapSaidOnce(t *testing.T) {
 		t.Fatalf("exit %d, stderr:\n%s\nwant 1 and the gap said once", got.code, got.stderr)
 	}
 }
+
+// TestTrailerScan holds the trailer to scanned_bytes, a count no less than
+// zero, and to dedup_scope "export", the scope of the duplicates it reports.
+func TestTrailerScan(t *testing.T) {
+	x := newExport("1.0").event(chain("r1", allowed...)...)
+	trailer := x.trailerLine(true, 0)
+	scanned := `,"scanned_bytes":400`
+	if !strings.Contains(trailer, scanned) || !strings.Contains(trailer, `,"dedup_scope":"export"}`) {
+		t.Fatalf("the trailer is not the one these cases edit: %s", trailer)
+	}
+	edited := func(from, to string) string { return x.cut() + strings.Replace(trailer, from, to, 1) + "\n" }
+	refused := oneCompleted + "gaps 0, duplicates 0, conflicting 0, refused 1; no trailer read, the export is not whole"
+	for _, tc := range []reportCase{
+		{name: "no scanned_bytes", in: edited(scanned, ""), code: 1, stderr: "scanned_bytes"},
+		{name: "a null scanned_bytes", in: edited(scanned, `,"scanned_bytes":null`), code: 1, stderr: "scanned_bytes"},
+		{name: "a negative scanned_bytes", in: edited(scanned, `,"scanned_bytes":-1`), code: 1, stderr: "scanned_bytes is -1"},
+		{name: "no dedup_scope", in: edited(`,"dedup_scope":"export"`, ""), code: 1, stderr: "dedup_scope"},
+		{name: "a null dedup_scope", in: edited(`"dedup_scope":"export"`, `"dedup_scope":null`), code: 1, stderr: "dedup_scope"},
+		{name: "another dedup_scope", in: edited(`"dedup_scope":"export"`, `"dedup_scope":"file"`), code: 1, stderr: "dedup_scope"},
+		{name: "a dedup_scope in capitals", in: edited(`"dedup_scope":"export"`, `"dedup_scope":"Export"`), code: 1, stderr: "dedup_scope"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.rows, tc.totals = []string{rowAllowed}, refused
+			check(t, tc)
+		})
+	}
+	t.Run("a scanned_bytes of zero", func(t *testing.T) {
+		check(t, reportCase{in: edited(scanned, `,"scanned_bytes":0`), rows: []string{rowAllowed},
+			totals: oneCompleted + "gaps 0, duplicates 0, conflicting 0, refused 0" + endReached})
+	})
+}

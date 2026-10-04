@@ -2,10 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/guardana/control/internal/files"
 )
 
 // entry is one tool call a victim received, with its arguments.
@@ -25,16 +28,44 @@ type journal struct {
 // openJournal opens the journal of the server name, appending to
 // <dir>/<name>.jsonl when dir is not empty.
 func openJournal(dir, name string) (*journal, error) {
+	return openJournalOf(dir, name, os.Geteuid())
+}
+
+// openJournalOf opens the journal as openJournal does, in a file uid owns.
+// The file holds what each call carried, so the open follows no link at its
+// name and waits on no pipe, and the file is refused unless it has one name,
+// uid owns it and no other account may read or write it.
+func openJournalOf(dir, name string, uid int) (*journal, error) {
 	j := &journal{}
 	if dir == "" {
 		return j, nil
 	}
-	f, err := os.OpenFile(filepath.Join(dir, name+".jsonl"), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600) //nolint:gosec // G304: a directory the operator named for this journal
+	path := filepath.Join(dir, name+".jsonl")
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE|journalFlags, 0o600) //nolint:gosec // G304: a directory the operator named for this journal
 	if err != nil {
 		return nil, fmt.Errorf("opening the journal: %w", err)
 	}
+	if err := checkJournal(f, uid); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("the journal %s is refused: %w", path, err)
+	}
 	j.file = f
 	return j, nil
+}
+
+func checkJournal(f *os.File, uid int) error {
+	info, err := f.Stat()
+	switch {
+	case err != nil:
+		return err
+	case !info.Mode().IsRegular():
+		return errors.New("it is not a regular file")
+	case !singleName(info):
+		return errors.New("it has a second name, or this platform cannot say it has one")
+	case info.Mode().Perm()&0o077 != 0:
+		return fmt.Errorf("its mode %v lets another account reach it", info.Mode().Perm())
+	}
+	return files.CheckOwnedBy(info, uid)
 }
 
 // record keeps e, and fails when the file will not take it, so nothing is

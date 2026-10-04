@@ -23,7 +23,7 @@ states it member by member.
 
 - A trail file: the one `collect` writes, or the demo's `<state>/trail.jsonl`
   ([try the demo](../get-started/try-the-demo.md)).
-- For steps 3 and 4, a checkout of the repository and Go, to build the example.
+- For steps 3 and 4, a checkout of the repository and Go.
 
 ## Steps
 
@@ -63,11 +63,11 @@ bytes of whole lines it scans.
 `examples/evidence-report` reads an export on its standard input with the
 generated package `api/gen/go/guardana/control/v1` alone, groups the events by
 tenant, project and request, follows each request's `prev_event_id` links and
-prints one row per request: the kernel's decision, the block, whether it was
-held and how the approval ended, and how the call ended.
+prints a row per request: the kernel's decision, the block, the hold and how
+its approval ended, and how the call ended.
 
 The `block` column is the decision on the request's `ACTION_BLOCKED`, beside
-the kernel's and never in its place: `=` when its `decision_id` is the
+the kernel's, never in its place: `=` when its `decision_id` is the
 kernel's, otherwise the block's own verdict and codes, such as `DENY PAUSED`
 for a call paused after an allow; `-` when nothing was blocked.
 
@@ -76,14 +76,14 @@ go -C examples/evidence-report build -o "$PWD/bin/" .
 guardana-gateway trail export trail.jsonl | bin/evidence-report
 ```
 
-It exits 1 when any request's chain is broken or unfinished, when a call ran
+It exits 1 when a request's chain is broken or unfinished, when a call ran
 against its decision under an enforcing mode, when a result says the effect
-may have happened, or when the export held a gap, was cut or held no request:
-missing evidence is reported as unknown or open, never as completed. It does
-not read effect classes, so it cannot tell whether a material call ran
-without the approval `APPROVE` asks for, or under `LOCKDOWN`.
-Export the whole file, or one request at a time, to rebuild lifecycles; a
-filter on kinds cuts the links between a request's events.
+may have happened, or when the export held a gap, was cut, held no request,
+or went past 100 000 records or 64 MiB: missing evidence is reported as
+unknown or open, never as completed. It reads no effect class, so it cannot
+tell whether a material call ran without the approval `APPROVE` asks for, or
+under `LOCKDOWN`. Export the whole file, or one request at a time; a filter on
+kinds cuts the links between a request's events.
 
 ### 4. Follow a trail and raise alerts
 
@@ -98,13 +98,13 @@ after=$(bin/evidence-report -state s -cursor)
 guardana-gateway trail export ${after:+--after="$after"} trail.jsonl | bin/evidence-report -state s
 ```
 
-Run the last two lines for what the trail gained since, and again at once
+Run the last two lines for what the trail gained since, again at once
 while the totals say the end was not reached. Run one
 consumer per directory: a run holds its lock, and another refuses.
 
 It refuses, with status 2 and the state untouched, an export that is empty,
-cut, filtered, holds a record it refuses, is of another file than the one it
-first read, does not start at the saved cursor or ends behind it, or whose
+cut, filtered, past those bounds, holds a record it refuses, is of another
+file than the one it first read, does not start at the saved cursor or ends behind it, or whose
 alerts would overfill the log (export again with a smaller `--limit`); and a
 state directory another user owns or may read or write, a state of another
 `schema_version` major or with a member missing or unknown, or an alert log
@@ -163,6 +163,6 @@ counts and the report's rows before trusting the rest. Following a trail,
   record was refused does not appear at all.
 - Duplicates are found within one export. Across exports, drop an event you
   have seen by tenant, project and event id, and read one id with two
-  different lines as a gap, as step 4 does within its window.
+  lines as a gap, as step 4 does within its window.
 - The export reads what the file holds, which holds no argument or result
   content ([privacy](../concepts/privacy.md)).

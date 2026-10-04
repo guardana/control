@@ -56,7 +56,6 @@ verify one.
   no longer leave the older statement in `--out` while the floor holds the
   newer. Renews under different floor directories are not ordered. Waiting
   for the lock, opening included, ends after 10 seconds.
-
 - An evidence line that does not decode is refused naming where it went wrong,
   never quoting the value or member name it held, so a sender cannot put a
   credential into the collector's log through a malformed line.
@@ -72,6 +71,12 @@ verify one.
   refuses an append once its sequence is spent. The trail file's recovery cuts
   only a tail its writer could have left, and an export reads no line past its
   byte bound.
+- The `evidence-report` example refuses an export past 100 000 records and
+  its trailer or 64 MiB after its header, and a trailer without
+  `scanned_bytes` or with a `dedup_scope` other than `export`. The demo's
+  servers do not start on a journal that is a link, a pipe, a file with a
+  second name, or a file another account owns or may read or write.
+
 ## [0.6.0-alpha] - 2026-10-03
 
 A plane now takes its policy as current only on a signed freshness

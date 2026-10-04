@@ -111,7 +111,7 @@ states it member by member.</p>
 <ul>
 <li>A trail file: the one <code>collect</code> writes, or the demo's <code>&lt;state&gt;/trail.jsonl</code>
 (<a href="/docs/get-started/try-the-demo">try the demo</a>).</li>
-<li>For steps 3 and 4, a checkout of the repository and Go, to build the example.</li>
+<li>For steps 3 and 4, a checkout of the repository and Go.</li>
 </ul>
 <h2 id="steps">Steps</h2>
 <h3 id="1-export-the-file">1. Export the file</h3>
@@ -140,23 +140,23 @@ bytes of whole lines it scans.</p>
 <p><code>examples/evidence-report</code> reads an export on its standard input with the
 generated package <code>api/gen/go/guardana/control/v1</code> alone, groups the events by
 tenant, project and request, follows each request's <code>prev_event_id</code> links and
-prints one row per request: the kernel's decision, the block, whether it was
-held and how the approval ended, and how the call ended.</p>
+prints a row per request: the kernel's decision, the block, the hold and how
+its approval ended, and how the call ended.</p>
 <p>The <code>block</code> column is the decision on the request's <code>ACTION_BLOCKED</code>, beside
-the kernel's and never in its place: <code>=</code> when its <code>decision_id</code> is the
+the kernel's, never in its place: <code>=</code> when its <code>decision_id</code> is the
 kernel's, otherwise the block's own verdict and codes, such as <code>DENY PAUSED</code>
 for a call paused after an allow; <code>-</code> when nothing was blocked.</p>
 <pre><code>go -C examples/evidence-report build -o &#34;$PWD/bin/&#34; .
 guardana-gateway trail export trail.jsonl | bin/evidence-report
 </code></pre>
-<p>It exits 1 when any request's chain is broken or unfinished, when a call ran
+<p>It exits 1 when a request's chain is broken or unfinished, when a call ran
 against its decision under an enforcing mode, when a result says the effect
-may have happened, or when the export held a gap, was cut or held no request:
-missing evidence is reported as unknown or open, never as completed. It does
-not read effect classes, so it cannot tell whether a material call ran
-without the approval <code>APPROVE</code> asks for, or under <code>LOCKDOWN</code>.
-Export the whole file, or one request at a time, to rebuild lifecycles; a
-filter on kinds cuts the links between a request's events.</p>
+may have happened, or when the export held a gap, was cut, held no request,
+or went past 100 000 records or 64 MiB: missing evidence is reported as
+unknown or open, never as completed. It reads no effect class, so it cannot
+tell whether a material call ran without the approval <code>APPROVE</code> asks for, or
+under <code>LOCKDOWN</code>. Export the whole file, or one request at a time; a filter on
+kinds cuts the links between a request's events.</p>
 <h3 id="4-follow-a-trail-and-raise-alerts">4. Follow a trail and raise alerts</h3>
 <p>With <code>-state DIR</code> the example follows one trail from export to export. <code>-init</code>
 makes the directory, mode 0700, with an empty state and an empty alert log;
@@ -166,12 +166,12 @@ each run reads one export on its standard input:</p>
 after=$(bin/evidence-report -state s -cursor)
 guardana-gateway trail export ${after:+--after=&#34;$after&#34;} trail.jsonl | bin/evidence-report -state s
 </code></pre>
-<p>Run the last two lines for what the trail gained since, and again at once
+<p>Run the last two lines for what the trail gained since, again at once
 while the totals say the end was not reached. Run one
 consumer per directory: a run holds its lock, and another refuses.</p>
 <p>It refuses, with status 2 and the state untouched, an export that is empty,
-cut, filtered, holds a record it refuses, is of another file than the one it
-first read, does not start at the saved cursor or ends behind it, or whose
+cut, filtered, past those bounds, holds a record it refuses, is of another
+file than the one it first read, does not start at the saved cursor or ends behind it, or whose
 alerts would overfill the log (export again with a smaller <code>--limit</code>); and a
 state directory another user owns or may read or write, a state of another
 <code>schema_version</code> major or with a member missing or unknown, or an alert log
@@ -250,7 +250,7 @@ it shows as a broken link or an unfinished trail; a request whose first
 record was refused does not appear at all.</li>
 <li>Duplicates are found within one export. Across exports, drop an event you
 have seen by tenant, project and event id, and read one id with two
-different lines as a gap, as step 4 does within its window.</li>
+lines as a gap, as step 4 does within its window.</li>
 <li>The export reads what the file holds, which holds no argument or result
 content (<a href="/docs/concepts/privacy">privacy</a>).</li>
 </ul>
