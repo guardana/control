@@ -11,6 +11,28 @@ verify one.
 
 ## [Unreleased]
 
+## [0.7.0-alpha] - 2026-10-05
+
+An agent runtime's OpenTelemetry GenAI traces can now be imported as
+observations. `guardana-control observe import` keeps what each span reports
+was done, by which source, when and how it ended, in an observation log;
+`observe export` writes that log in the evidence export's shape. The record,
+`guardana.control.observe.v1alpha1`, is outside any compatibility promise; it
+keeps no prompt, output, argument or result, and the plane never reads it. A
+call that carries W3C trace context records its trace and span ids, so its
+evidence trail can be joined to the runtime's traces. On upgrade: a
+configuration with a negative duration no longer loads, and `run` now exits 1
+when it stopped uncleanly. An audit of the whole tree before the release
+fixed defects, among them: an upstream's failure reached the agent and the
+log with its endpoint, and any credential in it; a stop closed the evidence
+under a call whose agent had dropped its connection, and exited 0; an HTTP
+upstream's answer was read whole, whatever its size; a rewriting obligation
+could send a call on a resource no decision covered; the approvals store
+accepted another account's directory; and the commit gate could stamp a
+commit that broke the wire contract. [docs/status.md](docs/status.md) says
+what is `implemented` and what is `experimental`. Nothing here is a security
+boundary yet.
+
 ### Added
 
 - Observations: `guardana-control observe import` reads an agent runtime's
@@ -37,6 +59,8 @@ verify one.
   stop of one run, before any public SDK. Extensions are planned as separate
   programs speaking versioned data contracts. The README and the website
   describe this plan, marked `planned` wherever nothing is built yet.
+- The website's home page draws its three diagrams as cards and arrows in
+  text, readable on a phone, instead of animated scenes and flowcharts.
 - The website's header stays on one row on a phone and shows the newest
   release, which `make docs-gen` takes from this file. Documentation pages get
   a menu above the content on narrow screens, and a wide table scrolls inside
@@ -622,7 +646,8 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.6.0-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.7.0-alpha...HEAD
+[0.7.0-alpha]: https://github.com/guardana/control/releases/tag/v0.7.0-alpha
 [0.6.0-alpha]: https://github.com/guardana/control/releases/tag/v0.6.0-alpha
 [0.5.0-alpha]: https://github.com/guardana/control/releases/tag/v0.5.0-alpha
 [0.4.0-alpha]: https://github.com/guardana/control/releases/tag/v0.4.0-alpha
