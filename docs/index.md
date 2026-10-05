@@ -122,3 +122,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0039: Many channels into one core: what each may see, claim and do](adr/0039-many-channels-into-one-core.md): accepted
 - [ADR-0040: Observations: a record, a source descriptor, a log and one importer](adr/0040-observations-a-record-a-log-and-one-importer.md): accepted
 - [ADR-0041: Coverage per declared path](adr/0041-coverage-per-declared-path.md): accepted
+- [ADR-0043: A refused over-long name is recorded by its digest](adr/0043-a-refused-over-long-name-is-recorded-by-its-digest.md): accepted

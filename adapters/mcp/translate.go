@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -251,35 +253,52 @@ func lacksEffect(err error) bool {
 // refused as too large, so the trail can record the refused call: the field
 // the refusal names, and every other one of the action's name, the run
 // context's tags and the resource's id past the bound, since Validate names
-// only the first. An envelope refused whole loses all three. The refusal
-// names what was over the bound.
+// only the first. An envelope refused whole loses its tags; a name and a
+// resource within their bound cannot make it too large, and stay. A name or
+// a resource taken off is recorded as its placeholder, which the contract
+// requires in their place; the refusal names what was over the bound.
 func recordable(env *controlv1.ActionEnvelope, err error) error {
 	var ve *contract.ValidationError
 	if !errors.As(err, &ve) || !errors.Is(err, contract.ErrTooLarge) {
 		return err
 	}
-	whole := ve.Field == ""
-	if whole || ve.Field == "action.name" {
-		env.Action.Name = ""
+	if ve.Field == "action.name" && env.Action != nil {
+		env.Action.Name = placeholder(env.Action.Name)
 	}
-	if whole || strings.HasPrefix(ve.Field, "context.tags") {
+	if ve.Field == "" || strings.HasPrefix(ve.Field, "context.tags") {
 		env.Context.Tags = nil
 	}
-	if (whole || ve.Field == "resource.id") && env.Resource != nil {
-		env.Resource.Id = ""
+	if ve.Field == "resource.id" && env.Resource != nil {
+		env.Resource.Id = placeholder(env.Resource.Id)
 	}
 	dropOverlong(env)
 	return err
 }
 
-// dropOverlong clears the action's name and the resource's id when either is
-// past the contract's bound, and drops each such tag.
+// overlongPrefix starts the placeholder of a name or a resource taken off a
+// refused envelope; the digest after it ties the record to the original
+// without holding it (ADR-0043).
+const overlongPrefix = "overlong:sha256:"
+
+// placeholder is what a name or resource taken off is recorded as; nothing
+// stays nothing.
+func placeholder(original string) string {
+	if original == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(original))
+	return overlongPrefix + hex.EncodeToString(sum[:])
+}
+
+// dropOverlong replaces the action's name and the resource's id with their
+// placeholders when either is past the contract's bound, and drops each such
+// tag.
 func dropOverlong(env *controlv1.ActionEnvelope) {
 	if len(env.GetAction().GetName()) > contract.MaxStringBytes {
-		env.Action.Name = ""
+		env.Action.Name = placeholder(env.Action.Name)
 	}
 	if len(env.GetResource().GetId()) > contract.MaxStringBytes {
-		env.Resource.Id = ""
+		env.Resource.Id = placeholder(env.Resource.Id)
 	}
 	if env.Context != nil {
 		env.Context.Tags = slices.DeleteFunc(env.Context.Tags, func(tag string) bool { return len(tag) > contract.MaxStringBytes })

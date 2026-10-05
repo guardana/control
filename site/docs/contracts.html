@@ -392,6 +392,13 @@ is not the same as being rejected at the transport. A receiver that cannot
 classify an effect cannot know whether the action is material, and
 <code>INDETERMINATE</code> with the fail-closed table is the answer to that, not silent
 acceptance.</p>
+<p>An envelope refused as <code>ErrTooLarge</code> is still recorded. The MCP adapter takes
+the strings the agent chose past the bound off it, and an action name or a
+resource id it takes off becomes <code>overlong:sha256:</code> followed by the lower-case
+hex SHA-256 of the original bytes, 80 bytes in all, so the recorded proposal
+keeps the fields the contract requires and can be tied to what was sent
+(<a href="/docs/adr/0043-a-refused-over-long-name-is-recorded-by-its-digest">ADR-0043</a>).
+No policy reads it: the refusal stops the decision first.</p>
 <p>The error types and the validation that returns them are <code>implemented</code>, and so
 is the mapping: the kernel in <code>internal/core</code> turns each refusal into the
 verdict and the reason code of its row, by sentinel and never by text, and

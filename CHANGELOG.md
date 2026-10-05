@@ -11,6 +11,14 @@ verify one.
 
 ## [Unreleased]
 
+### Fixed
+
+- A call refused as too large records `overlong:sha256:` and the digest of its
+  over-long action name or resource id in their place, so the recorded
+  proposal validates
+  ([ADR-0043](docs/adr/0043-a-refused-over-long-name-is-recorded-by-its-digest.md));
+  both were left empty, which a validating reader refused.
+
 ## [0.7.0-alpha] - 2026-10-05
 
 An agent runtime's OpenTelemetry GenAI traces can now be imported as

@@ -50,3 +50,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0039](0039-many-channels-into-one-core.md) | Many channels into one core: what each may see, claim and do |
 | [0040](0040-observations-a-record-a-log-and-one-importer.md) | Observations: a record, a source descriptor, a log and one importer |
 | [0041](0041-coverage-per-declared-path.md) | Coverage per declared path |
+| [0043](0043-a-refused-over-long-name-is-recorded-by-its-digest.md) | A refused over-long name is recorded by its digest |
