@@ -27,7 +27,18 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/gateway"
+	"github.com/guardana/control/internal/secretscan"
 )
+
+// emptySecrets is the set that scans every answer and finds nothing.
+func emptySecrets(t *testing.T) *secretscan.Set {
+	t.Helper()
+	set, err := secretscan.New(nil)
+	if err != nil {
+		t.Fatalf("secretscan.New(nil): %v", err)
+	}
+	return set
+}
 
 // pages answers with n items per page, for as many pages as it is asked.
 func pagesOf(perPage, lastPage int) func(context.Context, string) ([]int, string, error) {
@@ -73,19 +84,19 @@ func TestListCacheDropsAnOlderGeneration(t *testing.T) {
 	c := newListCache(time.Minute)
 	tools := []*mcp.Tool{{Name: "t"}}
 	c.put("alice", tools, "b1", 1, now)
-	if _, ok := c.get("alice", "b1", now); !ok {
+	if _, ok := c.get("alice", "b1", 1, now); !ok {
 		t.Fatal("a list shaped from the current manifest was not kept")
 	}
 	c.reset(2)
-	if _, ok := c.get("alice", "b1", now); ok {
+	if _, ok := c.get("alice", "b1", 1, now); ok {
 		t.Error("a refresh left a list cached")
 	}
 	c.put("alice", tools, "b1", 1, now)
-	if _, ok := c.get("alice", "b1", now); ok {
+	if _, ok := c.get("alice", "b1", 1, now); ok {
 		t.Error("a list shaped from an older manifest was kept")
 	}
 	c.put("alice", tools, "b1", 2, now)
-	if _, ok := c.get("alice", "b1", now); !ok {
+	if _, ok := c.get("alice", "b1", 2, now); !ok {
 		t.Error("a list shaped after the refresh was not kept")
 	}
 }
@@ -97,11 +108,11 @@ func TestListCacheAnswersUnderItsBundleOnly(t *testing.T) {
 	c := newListCache(time.Minute)
 	tools := []*mcp.Tool{{Name: "t"}}
 	c.put("alice", tools, "b1", 1, now)
-	if _, ok := c.get("alice", "b2", now); ok {
+	if _, ok := c.get("alice", "b2", 1, now); ok {
 		t.Error("a list shaped under b1 answered under b2")
 	}
 	c.put("alice", tools, "b2", 1, now)
-	if _, ok := c.get("alice", "b2", now); !ok {
+	if _, ok := c.get("alice", "b2", 1, now); !ok {
 		t.Error("a list shaped under b2 did not answer under b2")
 	}
 }
@@ -119,12 +130,12 @@ func TestListCacheIsBounded(t *testing.T) {
 		t.Fatalf("the cache holds %d lists, want %d", c.len(), maxCachedLists)
 	}
 	c.put("one-too-many", tools, "b1", 1, now)
-	if _, ok := c.get("one-too-many", "b1", now); ok || c.len() != maxCachedLists {
+	if _, ok := c.get("one-too-many", "b1", 1, now); ok || c.len() != maxCachedLists {
 		t.Errorf("the cache grew past its bound: %d lists", c.len())
 	}
 	later := now.Add(2 * time.Minute)
 	c.put("after-they-expire", tools, "b1", 1, later)
-	if _, ok := c.get("after-they-expire", "b1", later); !ok {
+	if _, ok := c.get("after-they-expire", "b1", 1, later); !ok {
 		t.Errorf("an expired list did not make room: %d lists", c.len())
 	}
 }
@@ -148,7 +159,7 @@ func TestAnErrorTheClientRaisesIsNoAnswer(t *testing.T) {
 		{"a connection closed", errors.New("connection closed"), controlv1.ResultStatus_RESULT_STATUS_UNKNOWN, "error"},
 	}
 	for _, c := range cases {
-		got := resultOf(gateway.Disposition{}, now, now, nil, c.err)
+		got := resultOf(gateway.Disposition{}, now, now, inspect(emptySecrets(t), nil, c.err))
 		if got.GetStatus() != c.status || got.GetToolProtocolStatus() != c.proto {
 			t.Errorf("%s: %v %q, want %v %q", c.name, got.GetStatus(), got.GetToolProtocolStatus(), c.status, c.proto)
 		}
@@ -157,7 +168,8 @@ func TestAnErrorTheClientRaisesIsNoAnswer(t *testing.T) {
 
 // TestAResultThatCannotBeEncodedIsUnknown: an answer with no encoding has no
 // hash, so nothing can say what it held; it is recorded UNKNOWN, not SUCCESS
-// or FAILURE, while an encodable answer keeps its status and hash.
+// or FAILURE, and since it could not be scanned either, withheld. An
+// encodable answer keeps its status and hash.
 func TestAResultThatCannotBeEncodedIsUnknown(t *testing.T) {
 	now := time.Now()
 	for name, res := range map[string]any{
@@ -165,12 +177,12 @@ func TestAResultThatCannotBeEncodedIsUnknown(t *testing.T) {
 		"an infinite number":      &mcp.CallToolResult{StructuredContent: math.Inf(1)},
 		"an error with no number": &mcp.CallToolResult{IsError: true, StructuredContent: math.NaN()},
 	} {
-		got := resultOf(gateway.Disposition{}, now, now, res, nil)
-		if got.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_UNKNOWN || got.GetToolProtocolStatus() != "unhashable" || got.GetResultHash() != "" {
-			t.Errorf("%s: %v %q %q, want UNKNOWN \"unhashable\" and no hash", name, got.GetStatus(), got.GetToolProtocolStatus(), got.GetResultHash())
+		got := resultOf(gateway.Disposition{}, now, now, inspect(emptySecrets(t), res, nil))
+		if got.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_UNKNOWN || got.GetToolProtocolStatus() != "withheld:unhashable" || got.GetResultHash() != "" {
+			t.Errorf("%s: %v %q %q, want UNKNOWN \"withheld:unhashable\" and no hash", name, got.GetStatus(), got.GetToolProtocolStatus(), got.GetResultHash())
 		}
 	}
-	got := resultOf(gateway.Disposition{}, now, now, &mcp.CallToolResult{StructuredContent: 1.5}, nil)
+	got := resultOf(gateway.Disposition{}, now, now, inspect(emptySecrets(t), &mcp.CallToolResult{StructuredContent: 1.5}, nil))
 	if got.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_SUCCESS || got.GetToolProtocolStatus() != "ok" || !strings.HasPrefix(got.GetResultHash(), "sha256:") {
 		t.Errorf("an encodable answer: %v %q %q", got.GetStatus(), got.GetToolProtocolStatus(), got.GetResultHash())
 	}
@@ -240,7 +252,7 @@ func TestAnAnswerTheClientCannotReadIsNoAnswer(t *testing.T) {
 			if err == nil {
 				t.Fatal("the call succeeded")
 			}
-			got := resultOf(gateway.Disposition{}, time.Now(), time.Now(), nil, err)
+			got := resultOf(gateway.Disposition{}, time.Now(), time.Now(), inspect(emptySecrets(t), nil, err))
 			if got.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_UNKNOWN {
 				t.Errorf("%v -> %v %q, want UNKNOWN", err, got.GetStatus(), got.GetToolProtocolStatus())
 			}
@@ -356,8 +368,27 @@ func TestTheResultHashIsTheHashOfItsMarshalledBytes(t *testing.T) {
 		}
 		sum := sha256.Sum256(raw)
 		want := "sha256:" + hex.EncodeToString(sum[:])
-		if got := resultOf(gateway.Disposition{}, now, now, res, nil).GetResultHash(); got != want {
+		if got := resultOf(gateway.Disposition{}, now, now, inspect(emptySecrets(t), res, nil)).GetResultHash(); got != want {
 			t.Errorf("%s: result hash %s, want %s", name, got, want)
+		}
+	}
+}
+
+// TestTheRecordedHashIsUnchanged pins the recorded hash of four results byte
+// for byte: HTML escaping, a float, a blob and a prompt.
+func TestTheRecordedHashIsUnchanged(t *testing.T) {
+	now := time.Now()
+	for _, c := range []struct {
+		res  mcp.Result
+		want string
+	}{
+		{&mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "<a href=\"x\">&amp;</a> \xe2\x80\xa8 \x01"}}}, "sha256:7dd82498506581b82f6a0be0467c2b5521687debefd0c706851723e426e4ffae"},
+		{&mcp.CallToolResult{IsError: true, StructuredContent: map[string]any{"b": []any{1, "two"}, "a": 1.5}}, "sha256:aec0150ff0a763041fee1d91f10194d26887c51924f2c233326de97b7f18a10a"},
+		{&mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{URI: "file:///r", Blob: []byte("blob\x00bytes")}}}, "sha256:48f0c8df637ec28af2ba17f18969659c9392634ef34c5d15cfb911c0ed7dec51"},
+		{&mcp.GetPromptResult{Messages: []*mcp.PromptMessage{{Role: "user", Content: &mcp.TextContent{Text: "p"}}}}, "sha256:53f5a8ab5bf0eab3e45d05b5a88689ebee1906258db03402689526b7154677ba"},
+	} {
+		if got := resultOf(gateway.Disposition{}, now, now, inspect(emptySecrets(t), c.res, nil)).GetResultHash(); got != c.want {
+			t.Errorf("%T: result hash %s, want %s", c.res, got, c.want)
 		}
 	}
 }

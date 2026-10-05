@@ -34,7 +34,7 @@ type sender func(authorized []byte) (send func(context.Context, *mcp.ClientSessi
 
 // outcome is what one admitted call came to: a block with what to add, a
 // pending state, or the upstream's answer, each with the decision the
-// pipeline answered with.
+// pipeline answered with. A withheld answer is shown as a fixed one.
 type outcome struct {
 	decision *controlv1.Decision
 	blocked  bool
@@ -42,6 +42,7 @@ type outcome struct {
 	pending  *gateway.Pending
 	res      mcp.Result
 	err      error
+	withheld bool
 }
 
 // middleware is the one interception point (ADR-0013): it runs after the
@@ -130,8 +131,9 @@ func promptSender(name string) sender {
 
 // callTool answers a tools/call as a tool result the model can read: a
 // block and a pending state are isError results, never JSON-RPC errors; an
-// upstream error passes through with its own code and message. Every answer
-// the pipeline decided names the trail the decision was recorded on.
+// upstream error passes through with its own code and message. An answer
+// that quoted a secret is replaced by a fixed one. Every answer the pipeline
+// decided names the trail the decision was recorded on.
 func (a *Adapter) callTool(ctx context.Context, c call, send sender) (mcp.Result, error) {
 	o, err := a.run(ctx, c, send)
 	switch {
@@ -141,8 +143,12 @@ func (a *Adapter) callTool(ctx context.Context, c call, send sender) (mcp.Result
 		return named(inMeta(pending(o.pending)), o.decision), nil
 	case o.blocked:
 		return named(inMeta(blocked(o.decision, o.extra)), o.decision), nil
+	case o.err != nil && o.withheld:
+		return nil, withheldError(o.err, o.decision)
 	case o.err != nil:
 		return nil, namedError(o.err, o.decision)
+	case o.withheld:
+		return named(withheldResult(o.res, c.entry), o.decision), nil
 	}
 	return named(upstreamResult(o.res), o.decision), nil
 }
@@ -159,8 +165,12 @@ func (a *Adapter) readThrough(ctx context.Context, c call, send sender) (mcp.Res
 		return nil, pendingError(o.pending)
 	case o.blocked:
 		return nil, blockedError(o.decision, o.extra)
+	case o.err != nil && o.withheld:
+		return nil, withheldError(o.err, nil)
 	case o.err != nil:
 		return nil, upstreamError(o.err)
+	case o.withheld:
+		return nil, withheldAnswerError()
 	}
 	return upstreamResult(o.res), nil
 }
@@ -218,8 +228,10 @@ func (a *Adapter) run(ctx context.Context, c call, send sender) (outcome, error)
 	started := a.cfg.Clock()
 	a.sent.Add(1)
 	res, callErr := do(sendCtx, cs)
-	a.close(ctx, p, d, sent, resultOf(d, started, a.cfg.Clock(), res, callErr))
-	return outcome{decision: d.Decision, res: res, err: callErr}, nil
+	ended := a.cfg.Clock()
+	ans := a.scan(d, &c, res, callErr)
+	a.close(ctx, p, d, sent, resultOf(d, started, ended, ans))
+	return outcome{decision: d.Decision, res: res, err: callErr, withheld: ans.withheld}, nil
 }
 
 // abort records an execution the adapter was handed and did not send, and
@@ -269,88 +281,4 @@ func (a *Adapter) listTimeout() time.Duration {
 		return a.cfg.ListTimeout
 	}
 	return DefaultListTimeout
-}
-
-// forwardList merges the upstreams' resource, template or prompt lists.
-// A list is not a call: it names what could be read, and the read is what
-// the policy decides. The merged list carries the adapter's own cache
-// scope, never an upstream's, and nothing under the gateway's own _meta
-// namespace that an upstream put there.
-func (a *Adapter) forwardList(ctx context.Context, method string) (mcp.Result, error) {
-	_, sessions, err := a.started()
-	if err != nil {
-		return nil, err
-	}
-	ctx, cancel := context.WithTimeout(ctx, a.listTimeout())
-	defer cancel()
-	switch method {
-	case methodListResources:
-		items, err := merged(ctx, a.names, sessions, func(ctx context.Context, cs *mcp.ClientSession, cursor string) ([]*mcp.Resource, string, error) {
-			res, err := cs.ListResources(ctx, &mcp.ListResourcesParams{Cursor: cursor})
-			if err != nil {
-				return nil, "", err
-			}
-			return res.Resources, res.NextCursor, nil
-		})
-		if err != nil {
-			return nil, listFailed(err)
-		}
-		out := &mcp.ListResourcesResult{Resources: stripped(items, func(r *mcp.Resource) *mcp.Meta { return &r.Meta })}
-		out.TTLMs, out.CacheScope = a.ttlMs(), cacheScopePrivate
-		return out, nil
-	case methodListTemplates:
-		items, err := merged(ctx, a.names, sessions, func(ctx context.Context, cs *mcp.ClientSession, cursor string) ([]*mcp.ResourceTemplate, string, error) {
-			res, err := cs.ListResourceTemplates(ctx, &mcp.ListResourceTemplatesParams{Cursor: cursor})
-			if err != nil {
-				return nil, "", err
-			}
-			return res.ResourceTemplates, res.NextCursor, nil
-		})
-		if err != nil {
-			return nil, listFailed(err)
-		}
-		out := &mcp.ListResourceTemplatesResult{ResourceTemplates: stripped(items, func(r *mcp.ResourceTemplate) *mcp.Meta { return &r.Meta })}
-		out.TTLMs, out.CacheScope = a.ttlMs(), cacheScopePrivate
-		return out, nil
-	default:
-		items, err := merged(ctx, a.names, sessions, func(ctx context.Context, cs *mcp.ClientSession, cursor string) ([]*mcp.Prompt, string, error) {
-			res, err := cs.ListPrompts(ctx, &mcp.ListPromptsParams{Cursor: cursor})
-			if err != nil {
-				return nil, "", err
-			}
-			return res.Prompts, res.NextCursor, nil
-		})
-		if err != nil {
-			return nil, listFailed(err)
-		}
-		out := &mcp.ListPromptsResult{Prompts: stripped(items, func(p *mcp.Prompt) *mcp.Meta { return &p.Meta })}
-		out.TTLMs, out.CacheScope = a.ttlMs(), cacheScopePrivate
-		return out, nil
-	}
-}
-
-// listFailed is a forwarded list's failure as the agent sees it: the bound,
-// which is the adapter's own, as it is, and anything else as an upstream's.
-func listFailed(err error) error {
-	if errors.Is(err, ErrListBound) {
-		return err
-	}
-	return upstreamError(err)
-}
-
-// merged walks one paginated list of every upstream, in configured order,
-// each bounded like a manifest refresh.
-func merged[T any](ctx context.Context, names []string, sessions map[string]*mcp.ClientSession, page func(context.Context, *mcp.ClientSession, string) ([]T, string, error)) ([]T, error) {
-	items := []T{}
-	for _, name := range names {
-		cs := sessions[name]
-		got, err := readAll(ctx, func(ctx context.Context, cursor string) ([]T, string, error) {
-			return page(ctx, cs, cursor)
-		})
-		if err != nil {
-			return nil, fmt.Errorf("mcp: list from %s: %w", name, err)
-		}
-		items = append(items, got...)
-	}
-	return items, nil
 }

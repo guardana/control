@@ -22,6 +22,7 @@ import (
 	adaptermcp "github.com/guardana/control/adapters/mcp"
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/gatewayconfig"
+	"github.com/guardana/control/internal/secretscan"
 	"github.com/guardana/control/pkg/contract"
 )
 
@@ -63,6 +64,10 @@ func adapterConfig(cfg *gatewayconfig.Config, logger *slog.Logger) (adaptermcp.C
 	if err != nil {
 		return adaptermcp.Config{}, err
 	}
+	secrets, err := secretscan.New(cfg.Secrets(os.LookupEnv))
+	if err != nil {
+		return adaptermcp.Config{}, fmt.Errorf("the secrets upstream answers are scanned for: %w", err)
+	}
 	return adaptermcp.Config{
 		Listener: adaptermcp.Listener{
 			Kind:        kinds[cfg.Listener.Kind],
@@ -89,6 +94,7 @@ func adapterConfig(cfg *gatewayconfig.Config, logger *slog.Logger) (adaptermcp.C
 		Environment: cfg.Environment,
 		Clock:       time.Now,
 		NewID:       newID,
+		Secrets:     secrets,
 		Logger:      logger,
 	}, nil
 }

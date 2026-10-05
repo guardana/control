@@ -132,6 +132,10 @@ structured content below is no longer on any answer.</p>
 <p>Amended in 0.6.0-alpha: the gateway's cache of shaped lists is also keyed by
 the bundle digest, so a list shaped under one bundle is never served under
 another.</p>
+<p>Amended by <a href="/docs/adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld">ADR-0042</a>:
+an upstream's answer, wire error, listed item or tool definition that quotes a
+credential the plane sends reaches the agent as a fixed answer of the plane's,
+never with the upstream's message, data or content.</p>
 <h2 id="context">Context</h2>
 <p>The kernel decides and nothing calls it. The first protocol target is the Model
 Context Protocol, and its two live revisions are different protocols. <code>2026-07-28</code>

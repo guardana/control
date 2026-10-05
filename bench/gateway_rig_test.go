@@ -30,6 +30,7 @@ import (
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policystate"
+	"github.com/guardana/control/internal/secretscan"
 	"github.com/guardana/control/internal/spool"
 )
 
@@ -263,8 +264,9 @@ func newRig(tb testing.TB, mode fsyncMode, record bool) *rig {
 			Effect: controlv1.EffectClass_EFFECT_CLASS_READ, ResourceType: "file", ResourceFrom: "/path",
 		}},
 		ProjectID: "p1", TenantID: "t1", Environment: "prod",
-		Clock: time.Now,
-		NewID: counterIDs(),
+		Clock:   time.Now,
+		NewID:   counterIDs(),
+		Secrets: noSecrets(tb),
 	})
 	if err != nil {
 		tb.Fatalf("mcp.New: %v", err)
@@ -336,4 +338,14 @@ func answerText(res *sdk.CallToolResult) string {
 		return ""
 	}
 	return text.Text
+}
+
+// noSecrets is the empty set, which scans every answer and finds nothing.
+func noSecrets(tb testing.TB) *secretscan.Set {
+	tb.Helper()
+	set, err := secretscan.New(nil)
+	if err != nil {
+		tb.Fatalf("secretscan.New(nil): %v", err)
+	}
+	return set
 }

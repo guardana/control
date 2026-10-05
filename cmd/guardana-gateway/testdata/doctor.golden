@@ -74,5 +74,6 @@ ok      approvals     held requests are kept in process memory under the memory 
 ok      pause         disabled: pause.file is not set, so no call can be paused without a restart
 ok      runs          local: one run per principal and agent, kept in memory, so a new process starts clean (ADR-0021)
 ok      export        OTLP/HTTP JSON logs to http://127.0.0.1:4318/v1/logs, 0 header(s), at most 128 record(s) per request, 4 in flight
+ok      secrets       upstream answers are scanned for 0 configured value(s); 0 value(s) shorter than 8 bytes are not
 ok      seams         the mcp adapter declares observe_request, observe_result, block, see_resource_ids, which covers what OBSERVE needs; at most 128 held and 256 open, an approval lasts 15m0s and a retry is asked for after 30s
 unknown upstreams     not every upstream answered: <reason>

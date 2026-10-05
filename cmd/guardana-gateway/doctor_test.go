@@ -15,6 +15,7 @@ import (
 // check that could not be made.
 func TestDoctorPrintsEveryCheckAndStopsAtTheFirstUnknown(t *testing.T) {
 	tr := newTree(t)
+	withoutProxyVariables(t)
 	var stdout, stderr bytes.Buffer
 	status := doctor(context.Background(), tr.config, &stdout, &stderr)
 	if status == exitOK {
@@ -132,6 +133,29 @@ func TestDoctorReachesAnUpstreamAndItsFingerprintClassifies(t *testing.T) {
 	}
 	if !strings.Contains(third.String(), "1 tool(s) listed, 1 classified, 0 unclassified") {
 		t.Errorf("the override did not classify the tool:\n%s", third.String())
+	}
+}
+
+// TestDoctorNamesAWithheldDefinitionByItsReasonAlone: a tool definition that
+// quotes a configured value is withheld from the manifest, and doctor says so
+// by the upstream and the value's key, never by the tool's name, its
+// fingerprint or the value.
+func TestDoctorNamesAWithheldDefinitionByItsReasonAlone(t *testing.T) {
+	tr := newTree(t)
+	setEnv(t, "upstreams.0.endpoint", upstream(t)+"/?k=reads+an+order")
+	var out bytes.Buffer
+	_ = doctor(context.Background(), tr.config, &out, &out)
+	text := out.String()
+	if !strings.Contains(text, "a tool definition is withheld; its definition quotes the secret upstreams.0.endpoint query value 1") {
+		t.Errorf("doctor does not name the withheld definition by its reason:\n%s", text)
+	}
+	if !strings.Contains(text, "1 tool(s) listed, 0 classified, 1 unclassified, 1 withheld") {
+		t.Errorf("the upstream check does not count the withheld definition:\n%s", text)
+	}
+	for _, never := range []string{"read_order", "fingerprints as", "reads an order", "reads+an+order"} {
+		if strings.Contains(text, never) {
+			t.Errorf("doctor prints %q for a withheld definition:\n%s", never, text)
+		}
 	}
 }
 

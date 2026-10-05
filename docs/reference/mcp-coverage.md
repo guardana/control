@@ -28,17 +28,17 @@ per 64 KiB slice of its answer: a client reading slower is cut, and one reading
 a slice every 29 seconds holds a handler throughout.
 
 An upstream is reached over Streamable HTTP (`upstreams[].endpoint`) or as a
-child process over stdio (`upstreams[].command`).
+child process (`upstreams[].command`).
 
 ## Methods
 
 | Method | What the gateway does | Decided |
 | --- | --- | --- |
-| `tools/list` | Answers from the manifest, shaped for the principal, with `cacheScope: private` and the operator's `ttlMs` | uncached under `annotate` or `hide`, one preview per classified tool one upstream serves; cached, one naming the bundle in force; nothing recorded |
+| `tools/list` | Answers from the manifest, without a [withheld](../concepts/mcp-gateway.md#an-answer-that-quotes-a-credential) definition, shaped for the principal, with `cacheScope: private` and the operator's `ttlMs` | uncached under `annotate` or `hide`, one preview per classified tool one upstream serves; cached, one naming the bundle in force; nothing recorded |
 | `tools/call` | Admits an `ActionEnvelope`; only if the mode lets it run, applies rewriting obligations, none under `OBSERVE`, sends exactly the authorized bytes and closes the trail with their digest | yes |
 | `resources/read` | Translated as a `READ` of the URI. Routed only when one upstream is configured; with several it is `ACTION_UNCLASSIFIED`, since nothing says which server holds the URI | yes |
 | `prompts/get` | Translated as a `READ` of the prompt, its arguments authorized as a canonical JSON object of strings. Routed as above | yes |
-| `resources/list`, `resources/templates/list`, `prompts/list` | Merged from every upstream, bounded, with the gateway's own `_meta` keys stripped and `cacheScope: private` | no: a listing names no action |
+| `resources/list`, `resources/templates/list`, `prompts/list` | Merged from every upstream, bounded, with the gateway's own `_meta` keys stripped and `cacheScope: private`; `-31103` when an item quotes a credential | no: a listing names no action |
 | everything else | Handled by the library's own server, which registers nothing, so nothing is forwarded | no |
 
 ## What the gateway cannot do
@@ -46,11 +46,11 @@ child process over stdio (`upstreams[].command`).
 | Not covered | Why |
 | --- | --- |
 | Elicitation (`input_required`) | The shape needs a handler registered per tool, which this interception does not have; `planned` with the approval providers (ADR-0013) |
-| The Tasks extension | Not implemented by the library; no test here pins how a `resultType: "task"` result decodes, so do not use the extension |
+| The Tasks extension | Not implemented by the library, and no test here pins how its result decodes; do not use it |
 | `notifications/tools/list_changed` toward the agent | The library emits it only for its own registry, and the gateway registers no tools, so the listener declares it does not send one and an agent refreshes when `list.ttl` runs out |
 | An upstream's own notifications and server-initiated requests, other than a changed tool list | Only a changed tool list is handled, by refreshing the manifest; sampling, roots and progress from an upstream reach no agent |
 | Resuming a hold the plane lost | A hold does not survive a restart, and its call never runs. With a hold journal the next start closes its trail, with the approver's answer and `APPROVAL_NOT_RESUMED` or as expired, or counts it left open; without one it stays open. The agent and the approver start over (ADR-0016) |
-| Telling one approver from another | Write access to the approvals directory is the approval authority, and `approver_id` on a record is a claim recorded as given. An authenticated provider would replace that authority, and none exists yet (ADR-0016) |
+| Telling one approver from another | Write access to the approvals directory is the approval authority, and `approver_id` on a record is a claim recorded as given; no authenticated provider exists yet (ADR-0016) |
 | A client other than the library's own | Not exercised; the conformance tests drive the reference implementation |
 | A tool classified `SPAWN_OR_DELEGATE` | The contract requires a delegation chain for that class and the listener carries none, so every such call is refused as `REQUIRED_FIELD_ABSENT` before a rule or a decision point is read |
 | What a run read outside the gateway | A run, without `runs.dir`, is the listener's principal and starts clean at each restart; on stdio the gateway ends with its client's connection, so a run lasts one connection there. The user's prompt, tool descriptions and tools not behind the gateway are not tracked, and a call carries no data label, so a `flow` rule blocks every untrusted destination after untrusted input. A `resources/read` and a `prompts/get` carry no declared result, so each leaves its run untrusted and unknown for the rest of the run (ADR-0021) |
@@ -62,7 +62,7 @@ when it is not `none` in a mode that does not enforce.
 
 | Shaping | `OBSERVE` | `APPROVE`, `ENFORCE`, `LOCKDOWN` |
 | --- | --- | --- |
-| `none` | the upstream's list, `_meta` of the gateway's namespace stripped | the same |
+| `none` | the upstream's list without withheld definitions, `_meta` of the gateway's namespace stripped | the same |
 | `annotate` | refused at start | each tool carries the verdict a call to it would get, under the gateway's `_meta` key |
 | `hide` | refused at start | a tool the preview denies, and every unclassified tool, is omitted |
 
@@ -72,7 +72,7 @@ the call exists. Such a tool stays in the list, and under `annotate` it is marke
 `DECIDED_PER_CALL`, unless a rule denies it without its arguments. Under `hide` it stays too:
 shaping subtracts what policy denies, never what it could not decide.
 
-## The two codes the adapter mints
+## The codes the adapter mints
 
 A `tools/call` answers a block and a pending state as a tool result with
 `isError: true`, the fields below in its `_meta` under `<ns>/` and no
@@ -84,11 +84,13 @@ error, outside the protocol's reserved range and the library's private code.
 | --- | --- | --- |
 | `-31100` | the gateway blocked the call | `reason_codes`, `decision_id`, and `refused` with what the refusal said when the envelope could not be built |
 | `-31101` | an approval is pending | `reason_code: APPROVAL_PENDING`, `approval_id`, `action_digest`, `expires_at`, `retry_after` |
+| `-31103` | an answer was [withheld](../concepts/mcp-gateway.md#an-answer-that-quotes-a-credential) | `<ns>/answer: withheld` |
 
-An upstream's own wire error passes through with its code and message; any
+An upstream's own wire error passes through with its code and message, unless
+it quotes a credential the plane sends; any
 other failure, a timeout or a broken session, answers `-32603` `the upstream
-did not answer`, never the transport's text, which can quote the endpoint. Only `<ns>/answer` (`blocked` or
-`pending`, `<ns>` being the product's namespace) in an answer's `_meta` or in
+did not answer`, never the transport's text, which can quote the endpoint. Only `<ns>/answer` (`blocked`,
+`pending` or `withheld`, `<ns>` being the product's namespace) in an answer's `_meta` or in
 the error's `data` marks an answer the gateway made. The namespace is stripped
 from both places in everything an upstream sends, so an upstream cannot answer
 as the gateway.

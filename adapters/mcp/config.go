@@ -10,6 +10,7 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/gateway"
+	"github.com/guardana/control/internal/secretscan"
 )
 
 // Kind is the transport a listener serves toward the agent.
@@ -128,6 +129,9 @@ type Config struct {
 	Environment string
 	Clock       func() time.Time
 	NewID       func() string
+	// Secrets are the plane's credentials, which no upstream answer may carry
+	// to the agent (ADR-0042). An empty set scans and finds nothing.
+	Secrets *secretscan.Set
 	// Logger takes what the adapter cannot answer to anyone: a closing record
 	// that failed, a manifest that could not be refreshed. Nil discards.
 	Logger *slog.Logger
@@ -136,6 +140,10 @@ type Config struct {
 // ErrCallTimeout is a negative bound on an upstream call, which would also
 // discard an obligation's shorter one.
 const ErrCallTimeout Error = "mcp: the call timeout cannot be negative"
+
+// ErrNoScanSet is a configuration with no set of secrets: a forgotten wiring
+// would otherwise turn the scan of answers off unseen.
+const ErrNoScanSet Error = "mcp: no set of secrets to scan answers for"
 
 func checkConfig(cfg Config) error {
 	if err := checkListener(cfg.Listener); err != nil {
@@ -149,6 +157,9 @@ func checkConfig(cfg Config) error {
 	}
 	if cfg.NewID == nil {
 		return ErrNoIDSource
+	}
+	if cfg.Secrets == nil {
+		return ErrNoScanSet
 	}
 	if cfg.ListTimeout < 0 {
 		return fmt.Errorf("%w: %v", ErrListTimeout, cfg.ListTimeout)

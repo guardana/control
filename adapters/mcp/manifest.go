@@ -17,6 +17,7 @@ import (
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/canon"
 	"github.com/guardana/control/internal/gateway"
+	"github.com/guardana/control/internal/secretscan"
 )
 
 // fingerprintDomain separates a tool fingerprint from every other digest
@@ -83,6 +84,10 @@ type Entry struct {
 	Ambiguous bool
 	// why is the reason a listed definition is not classified.
 	why string
+	// withheld marks a definition that quoted a secret or could not be
+	// scanned: it is never classified and never listed; verdict says why.
+	withheld bool
+	verdict  secretscan.Verdict
 }
 
 // Fingerprint identifies a tool definition by all of it as the library types
@@ -206,6 +211,7 @@ func scalarText(v any) string {
 // looked.
 type manifest struct {
 	overrides map[string]Override // upstream + "\x00" + tool
+	secrets   *secretscan.Set
 
 	mu        sync.RWMutex
 	perUp     map[string][]*Entry
@@ -216,9 +222,10 @@ type manifest struct {
 	generation uint64
 }
 
-func newManifest(overrides []Override) *manifest {
+func newManifest(overrides []Override, secrets *secretscan.Set) *manifest {
 	m := &manifest{
 		overrides: make(map[string]Override, len(overrides)),
+		secrets:   secrets,
 		perUp:     map[string][]*Entry{},
 		byName:    map[string]*Entry{},
 		ambiguous: map[string]bool{},
@@ -256,9 +263,14 @@ func (m *manifest) refresh(ctx context.Context, upstream string, cs *mcp.ClientS
 }
 
 // classify builds the entry for one listed tool from its fingerprint and the
-// override that pins it, if any.
+// override that pins it, if any. A definition the scan withholds is neither
+// fingerprinted nor classified, whatever pins it.
 func (m *manifest) classify(upstream string, tool *mcp.Tool) *Entry {
 	e := &Entry{Upstream: upstream, Tool: tool}
+	if v := scanned(m.secrets, tool); v.Withhold() {
+		e.withheld, e.verdict, e.why = true, v, definitionWithheld(v)
+		return e
+	}
 	fp, err := Fingerprint(tool)
 	if err != nil {
 		e.why = err.Error()

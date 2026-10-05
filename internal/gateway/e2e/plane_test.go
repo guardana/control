@@ -27,6 +27,7 @@ import (
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policystate"
+	"github.com/guardana/control/internal/secretscan"
 	"github.com/guardana/control/internal/spool"
 )
 
@@ -297,9 +298,20 @@ func (p *plane) adapterConfig(t *testing.T, o options, upstream sdk.Transport) m
 		Shaping:     o.shaping,
 		CallTimeout: o.callTimeout,
 		ProjectID:   "p1", TenantID: "t1", Environment: "prod",
-		Clock: time.Now,
-		NewID: ids(),
+		Clock:   time.Now,
+		NewID:   ids(),
+		Secrets: noSecrets(t),
 	}
+}
+
+// noSecrets is the empty set, which scans every answer and finds nothing.
+func noSecrets(t *testing.T) *secretscan.Set {
+	t.Helper()
+	set, err := secretscan.New(nil)
+	if err != nil {
+		t.Fatalf("secretscan.New(nil): %v", err)
+	}
+	return set
 }
 
 // export starts the real exporter over the spool, unless the arrangement wants

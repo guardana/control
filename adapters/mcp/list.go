@@ -142,7 +142,7 @@ func (a *Adapter) listTools(ctx context.Context, req mcp.Request) (mcp.Result, e
 		bundle, cacheable = s.bundle(entries)
 	}
 	if cacheable {
-		if tools, ok := a.lists.get(key, bundle, a.cfg.Clock()); ok {
+		if tools, ok := a.lists.get(key, bundle, generation, a.cfg.Clock()); ok {
 			return a.listResult(tools), nil
 		}
 	}
@@ -229,8 +229,12 @@ func (a *Adapter) ttlMs() int { return int(a.cfg.ListTTL / time.Millisecond) }
 // Shaping only subtracts: none shows the upstream's tool, annotate marks it,
 // hide omits what the preview denies and what nobody classified. A tool the
 // preview cannot decide without the call's arguments stays, because the call
-// is decided when it is made.
+// is decided when it is made. A definition the scan withheld is omitted under
+// every shaping.
 func (s *shaping) shape(e *Entry) *mcp.Tool {
+	if e.withheld {
+		return nil
+	}
 	shapingKind := s.a.cfg.Shaping
 	if shapingKind == ShapeNone {
 		return present(e.Tool, "")
@@ -293,8 +297,9 @@ func present(t *mcp.Tool, mark string) *mcp.Tool {
 
 // listCache keeps one shaped list per principal for the operator's TTL, at
 // most maxCachedLists of them, and only lists shaped from the manifest's
-// current generation. A list answers only under the bundle it was shaped
-// under.
+// current generation. A list answers only under the bundle and the
+// generation it was shaped from, since a caller can snapshot a refreshed
+// manifest before the cache is reset.
 type listCache struct {
 	ttl        time.Duration
 	mu         sync.Mutex
@@ -303,9 +308,10 @@ type listCache struct {
 }
 
 type cachedList struct {
-	tools   []*mcp.Tool
-	bundle  string
-	expires time.Time
+	tools      []*mcp.Tool
+	bundle     string
+	generation uint64
+	expires    time.Time
 }
 
 func newListCache(ttl time.Duration) *listCache {
@@ -314,14 +320,14 @@ func newListCache(ttl time.Duration) *listCache {
 
 func (c *listCache) enabled() bool { return c.ttl > 0 }
 
-func (c *listCache) get(key, bundle string, now time.Time) ([]*mcp.Tool, bool) {
+func (c *listCache) get(key, bundle string, generation uint64, now time.Time) ([]*mcp.Tool, bool) {
 	if !c.enabled() {
 		return nil, false
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e, ok := c.m[key]
-	if !ok || !now.Before(e.expires) || e.bundle != bundle {
+	if !ok || !now.Before(e.expires) || e.bundle != bundle || e.generation != generation {
 		delete(c.m, key)
 		return nil, false
 	}
@@ -349,7 +355,7 @@ func (c *listCache) put(key string, tools []*mcp.Tool, bundle string, generation
 			return
 		}
 	}
-	c.m[key] = cachedList{tools: tools, bundle: bundle, expires: now.Add(c.ttl)}
+	c.m[key] = cachedList{tools: tools, bundle: bundle, generation: generation, expires: now.Add(c.ttl)}
 }
 
 // reset drops every cached list when the manifest changed, and refuses from

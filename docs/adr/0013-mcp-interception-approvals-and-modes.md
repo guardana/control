@@ -44,6 +44,11 @@ Amended in 0.6.0-alpha: the gateway's cache of shaped lists is also keyed by
 the bundle digest, so a list shaped under one bundle is never served under
 another.
 
+Amended by [ADR-0042](0042-an-answer-that-quotes-a-configured-credential-is-withheld.md):
+an upstream's answer, wire error, listed item or tool definition that quotes a
+credential the plane sends reaches the agent as a fixed answer of the plane's,
+never with the upstream's message, data or content.
+
 ## Context
 
 The kernel decides and nothing calls it. The first protocol target is the Model

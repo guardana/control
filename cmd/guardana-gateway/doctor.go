@@ -59,7 +59,7 @@ func doctor(ctx context.Context, path string, stdout, stderr io.Writer) int {
 // check runs every check in order until one is not "ok".
 func (d *examination) check(ctx context.Context, stderr io.Writer) int {
 	for _, check := range []func(context.Context) (string, string, string){
-		d.mode, d.policy, d.evidence, d.approvals, d.pauseFile, d.runs, d.export, d.seams, d.upstreams, d.pdp,
+		d.mode, d.policy, d.evidence, d.approvals, d.pauseFile, d.runs, d.export, d.secrets, d.seams, d.upstreams, d.pdp,
 	} {
 		verdict, name, found := check(ctx)
 		report(d.out, verdict, name, found)
@@ -339,17 +339,26 @@ func (d *examination) upstreams(ctx context.Context) (string, string, string) {
 		return verdictUnknown, "upstreams", "not every upstream answered: " + err.Error()
 	}
 	entries := d.plane.adapter.Entries()
-	unclassified := 0
+	unclassified, withheld := 0, 0
 	for _, e := range entries {
 		if e.Classified {
 			continue
 		}
 		unclassified++
+		if why, ok := e.Withheld(); ok {
+			// The name and the definition may hold the very value the scan found.
+			withheld++
+			writeLine(d.out, fmt.Sprintf("       %s: a tool definition is withheld; %s", oneLine(e.Upstream), oneLine(why)))
+			continue
+		}
 		writeLine(d.out, fmt.Sprintf("       %s/%s is unclassified; its definition fingerprints as %s",
 			oneLine(e.Upstream), oneLine(e.Tool.Name), oneLine(e.Fingerprint)))
 	}
 	found := fmt.Sprintf("%d upstream(s) answered, %d tool(s) listed, %d classified, %d unclassified",
 		len(d.cfg.Upstreams), len(entries), len(entries)-unclassified, unclassified)
+	if withheld > 0 {
+		found += fmt.Sprintf(", %d withheld", withheld)
+	}
 	if d.cfg.Pause.File != "" {
 		found += fmt.Sprintf("; %d pause entry(ies) name a tool its upstream does not list", d.strayTools(entries))
 	}

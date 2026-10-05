@@ -241,7 +241,30 @@ open; past either bound a call blocks with `EVIDENCE_UNAVAILABLE`.
 | The result failed upstream | `ACTION_FAILED` | the upstream's status |
 | The bytes sent were not the authorized ones | `ACTION_FAILED` | `tool_protocol_status: EXECUTED_ARGS_MISMATCH`, and the plane takes no further material call until it restarts |
 | The adapter did not send, because its own check, an obligation, routing or translation refused | `ACTION_FAILED` | the cause's own reason code; the comparison did not run |
+| The answer quoted a credential the plane sends | the record its outcome gets; the agent gets a fixed answer | `tool_protocol_status: withheld:` and the status it would have had, the upstream's own hash ([ADR-0042](../adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld.md)) |
 | The spool refused the closing record | the result is delivered anyway | counted, and material calls are refused until an append succeeds |
+
+## An answer that quotes a credential
+
+An answer, a wire error, a listed item or a tool definition that quotes a
+credential the plane sends never reaches the agent
+([ADR-0042](../adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld.md)).
+The plane looks for the credentials of its endpoints, headers and proxies,
+and, from 8 bytes, for query values and the variables a command upstream
+receives: as written, percent-encoded, JSON-escaped and in base64. It does so
+in every mode, before the closing record is written.
+
+| What quoted one | What the agent gets |
+| --- | --- |
+| a `tools/call` success | a result saying the call ran, its answer was withheld, and calling again repeats its effect; `isError` only when the tool declares an output schema, which no fixed answer meets |
+| a `tools/call` result with `isError` | an `isError` result saying the error was withheld |
+| a wire error | its code, a fixed message, and `<ns>/answer: withheld` as data |
+| a `resources/read` or `prompts/get` result, a forwarded list | `-31103` |
+| a tool definition | the tool is never listed, and a call to it is unclassified, which every mode but `OBSERVE` blocks |
+
+It catches an upstream that echoes what it was sent, not one that sets out to
+leak: hex, a changed case or a split value pass. `doctor` names each value too
+short to scan by its key.
 
 ## Why it works this way
 

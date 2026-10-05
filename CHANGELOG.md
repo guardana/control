@@ -11,8 +11,28 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- An upstream's answer, wire error, listed item or tool definition that quotes
+  a credential the plane sends reaches the agent as a fixed answer, never with
+  the upstream's text
+  ([ADR-0042](docs/adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld.md)).
+  The plane looks for the credentials in its endpoints, headers and proxies,
+  and, from 8 bytes, for query values and the variables a command upstream
+  receives: as written, percent-encoded, JSON-escaped and in base64. A
+  withheld `tools/call` success says the call ran; a read, a prompt or a list
+  answers `-31103`; a tool whose definition quotes one is never listed. The
+  closing record keeps the upstream's outcome and hash, with `withheld:` before
+  its protocol status. `doctor` names the values too short to scan, and
+  `/metrics` counts withheld answers.
+
 ### Fixed
 
+- An upstream could put the gateway's `_meta` namespace inside a content
+  block, an embedded resource or a prompt message, where it reached the agent;
+  it is now stripped from every `_meta` an upstream's result carries.
+- A `tools/list` right after a manifest refresh could be answered with the
+  list cached from the previous manifest.
 - A call refused as too large records `overlong:sha256:` and the digest of its
   over-long action name or resource id in their place, so the recorded
   proposal validates

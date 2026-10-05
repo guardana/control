@@ -77,6 +77,7 @@ edit made here does not survive the next run.
 | `guardana_control_adapter_runs_refused_at_request_total` | counter | `cause` | `Adapter.RunsRefusedAtRequest` | HTTP requests answered 401 before the library read them, because their run token did not resolve, by cause. |
 | `guardana_control_adapter_runs_refused_at_message_total` | counter | `cause` | `Adapter.RunsRefusedAtMessage` | Messages refused with -31102, admitting nothing, because their run token did not resolve, by cause. |
 | `guardana_control_adapter_refresh_failures_total` | counter |  | `Adapter.RefreshFailures` | Tool list reads that failed, each dropping that upstream's entries. |
+| `guardana_control_adapter_answers_withheld_total` | counter |  | `Adapter.Withheld` | Answers to calls and forwarded lists that quoted a credential the plane sends, or could not be scanned, shown to the agent as a fixed answer. |
 | `guardana_control_adapter_sessions_refused_total` | counter |  | `Adapter.SessionsRefused` | Sessionless POSTs a stateful listener counted as opens and answered 503 at its cap on live sessions. |
 | `guardana_control_adapter_sessions_live` | gauge |  | `Adapter.SessionsLive` | Sessions a stateful listener holds; 0 on any other listener. |
 | `guardana_control_pause_polls_total` | counter |  | `Pause.Polls` | Reads of the pause file, the first included. |

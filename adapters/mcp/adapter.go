@@ -36,6 +36,10 @@ type Stats struct {
 	// is how many sessions it holds now, zero on any other listener.
 	SessionsRefused int64
 	SessionsLive    int64
+	// Withheld counts the answers to calls and forwarded lists that quoted a
+	// credential the gateway holds, or could not be scanned, and reached the
+	// agent as a fixed answer.
+	Withheld int64
 }
 
 // Adapter is the MCP adapter as the pipeline sees it and as the agent
@@ -54,7 +58,7 @@ type Adapter struct {
 	lists     *listCache
 
 	admitted, blocked, sent, closeFailures, refreshFailures atomic.Int64
-	sessionsRefused                                         atomic.Int64
+	sessionsRefused, withheld                               atomic.Int64
 	refusedAtRequest, refusedAtMessage                      *runCounter
 	flights                                                 flights
 }
@@ -135,13 +139,13 @@ var _ gateway.Adapter = (*Adapter)(nil)
 // source that does not fit the listener, an upstream
 // without a name or a transport, two upstreams with one name, an override
 // that names no known upstream or is incomplete, a shaping it does not know,
-// a negative call or list timeout, and a nil clock or id source.
+// a negative call or list timeout, and a nil clock, id source or secret set.
 func New(cfg Config) (*Adapter, error) {
 	if err := checkConfig(cfg); err != nil {
 		return nil, err
 	}
 	a := &Adapter{
-		cfg: cfg, manifest: newManifest(cfg.Overrides), lists: newListCache(cfg.ListTTL), logger: cfg.Logger,
+		cfg: cfg, manifest: newManifest(cfg.Overrides, cfg.Secrets), lists: newListCache(cfg.ListTTL), logger: cfg.Logger,
 		refusedAtRequest: newRunCounter(), refusedAtMessage: newRunCounter(),
 	}
 	if a.logger == nil {
@@ -216,13 +220,14 @@ func (a *Adapter) Start(ctx context.Context, p Pipeline) error {
 }
 
 // refresh reads one upstream's tools into the manifest under the list
-// timeout, and drops every shaped list, which was shaped from what the
-// manifest held before.
+// timeout, drops every shaped list, which was shaped from what the manifest
+// held before, and logs each definition the scan withheld.
 func (a *Adapter) refresh(ctx context.Context, upstream string, cs *mcp.ClientSession) error {
 	ctx, cancel := context.WithTimeout(ctx, a.listTimeout())
 	defer cancel()
 	err := a.manifest.refresh(ctx, upstream, cs)
 	a.lists.reset(a.manifest.currentGeneration())
+	a.logWithheldDefinitions(upstream)
 	return err
 }
 
@@ -277,6 +282,7 @@ func (a *Adapter) Stats() Stats {
 		CloseFailures: a.closeFailures.Load(), RefreshFailures: a.refreshFailures.Load(),
 		RunsRefusedAtRequest: a.refusedAtRequest.snapshot(), RunsRefusedAtMessage: a.refusedAtMessage.snapshot(),
 		SessionsRefused: a.sessionsRefused.Load(), SessionsLive: a.statefulSessions(),
+		Withheld: a.withheld.Load(),
 	}
 }
 

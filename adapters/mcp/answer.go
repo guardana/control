@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"hash"
 	"strconv"
 	"strings"
 	"time"
@@ -30,6 +29,9 @@ const (
 	// CodeRunRefused answers every refused run token alike, with one fixed
 	// message: the agent learns nothing about which runs exist or why.
 	CodeRunRefused int64 = -31102
+	// CodeWithheld answers a resources/read, a prompts/get or a forwarded
+	// list whose answer quoted a credential the gateway holds (ADR-0042).
+	CodeWithheld int64 = -31103
 )
 
 // The keys of a block's and a pending state's structured content.
@@ -237,21 +239,6 @@ func dataOf(r *mcp.CallToolResult, answer string) json.RawMessage {
 	return data
 }
 
-// upstreamResult is an upstream answer as the agent sees it: without the
-// _meta keys under the gateway's namespace, which only the gateway speaks
-// for.
-func upstreamResult(res mcp.Result) mcp.Result {
-	switch r := res.(type) {
-	case *mcp.CallToolResult:
-		r.Meta = stripMeta(r.Meta)
-	case *mcp.ReadResourceResult:
-		r.Meta = stripMeta(r.Meta)
-	case *mcp.GetPromptResult:
-		r.Meta = stripMeta(r.Meta)
-	}
-	return res
-}
-
 // upstreamError is an upstream wire error as the agent sees it: its own
 // code and message, and data without the gateway's marker, so an upstream
 // cannot answer as the gateway. Members stay raw, so a number keeps every
@@ -307,10 +294,11 @@ func raisedByTheClient(code int64) bool {
 }
 
 // resultOf records what an upstream answered, or failed to, for Close: the
-// status, the protocol's own status and a hash of the result's encoding.
-// The identifiers are the pipeline's, which named the request and minted the
-// execution; the adapter mints none. No content is captured (ADR-0004).
-func resultOf(d gateway.Disposition, started, ended time.Time, res any, err error) *controlv1.ActionResult {
+// status, the protocol's own status and a hash of the result's encoding,
+// prefixed when the agent was shown a fixed answer instead. The identifiers
+// are the pipeline's, which named the request and minted the execution; the
+// adapter mints none. No content is captured (ADR-0004).
+func resultOf(d gateway.Disposition, started, ended time.Time, ans answer) *controlv1.ActionResult {
 	out := &controlv1.ActionResult{
 		SchemaVersion: schemaVersion,
 		RequestId:     d.Decision.GetRequestId(),
@@ -318,21 +306,22 @@ func resultOf(d gateway.Disposition, started, ended time.Time, res any, err erro
 		StartedAt:     timestamppb.New(started),
 		EndedAt:       timestamppb.New(ended),
 	}
+	err := ans.err
 	switch {
 	case err == nil:
 		out.Status = controlv1.ResultStatus_RESULT_STATUS_SUCCESS
 		out.ToolProtocolStatus = "ok"
-		if r, ok := res.(*mcp.CallToolResult); ok && r.IsError {
+		if r, ok := ans.res.(*mcp.CallToolResult); ok && r != nil && r.IsError {
 			out.Status = controlv1.ResultStatus_RESULT_STATUS_FAILURE
 			out.ToolProtocolStatus = "isError"
 		}
-		sum, ok := resultHash(res)
-		if !ok {
+		if !ans.encoded {
 			out.Status = controlv1.ResultStatus_RESULT_STATUS_UNKNOWN
 			out.ToolProtocolStatus = "unhashable"
 			break
 		}
-		out.ResultHash = sum
+		sum := sha256.Sum256(ans.encoding)
+		out.ResultHash = "sha256:" + hex.EncodeToString(sum[:])
 	case errors.Is(err, context.DeadlineExceeded):
 		out.Status = controlv1.ResultStatus_RESULT_STATUS_TIMEOUT
 		out.ToolProtocolStatus = "timeout"
@@ -345,33 +334,8 @@ func resultOf(d gateway.Disposition, started, ended time.Time, res any, err erro
 			out.ToolProtocolStatus = "jsonrpc:" + strconv.FormatInt(werr.Code, 10)
 		}
 	}
+	if ans.withheld {
+		out.ToolProtocolStatus = statusWithheld + out.ToolProtocolStatus
+	}
 	return out
-}
-
-// resultHash is sha256 over json.Marshal's encoding of res, written into the
-// hash without a copy of the encoding beside it. Encode writes Marshal's
-// bytes and one newline, which the hash is not given.
-func resultHash(res any) (string, bool) {
-	w := &withoutLastByte{h: sha256.New()}
-	if err := json.NewEncoder(w).Encode(res); err != nil || w.last != "\n" {
-		return "", false
-	}
-	return "sha256:" + hex.EncodeToString(w.h.Sum(nil)), true
-}
-
-// withoutLastByte hashes everything written to it but the last byte, which it
-// holds.
-type withoutLastByte struct {
-	h    hash.Hash
-	last string
-}
-
-func (w *withoutLastByte) Write(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-	w.h.Write([]byte(w.last))
-	w.h.Write(p[:len(p)-1])
-	w.last = string(p[len(p)-1])
-	return len(p), nil
 }

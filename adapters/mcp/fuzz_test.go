@@ -136,6 +136,7 @@ func fuzzListener(f *testing.F, v *victim) string {
 		CallTimeout: 5 * time.Second,
 		Clock:       time.Now,
 		NewID:       ids,
+		Secrets:     noSecrets(f),
 	})
 	if err != nil {
 		f.Fatalf("mcp.New: %v", err)

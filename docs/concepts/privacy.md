@@ -66,7 +66,9 @@ approver typed them.
 `ACTION_STARTED` carries no payload. `ACTION_COMPLETED` and `ACTION_FAILED`
 carry the result: its status, when it started and ended, the protocol's own
 status (`ok`, `isError`, `timeout`, `error`, `unhashable` for a result that
-cannot be encoded, whose status is then `UNKNOWN`, or a JSON-RPC error code), a
+cannot be encoded, whose status is then `UNKNOWN`, or a JSON-RPC error code,
+each after `withheld:` when the answer quoted a credential the plane sends and
+the agent was given a fixed answer instead), a
 SHA-256 of the result's JSON encoding when there was one, and the digest of
 the bytes that were sent. Neither an error message from the upstream nor any
 part of the result is kept (`resultOf` in `adapters/mcp/answer.go`). An

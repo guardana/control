@@ -105,8 +105,28 @@
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.7.0-alpha...HEAD">Unreleased</a></h2>
+<h3 id="changed">Changed</h3>
+<ul>
+<li>An upstream's answer, wire error, listed item or tool definition that quotes
+a credential the plane sends reaches the agent as a fixed answer, never with
+the upstream's text
+(<a href="/docs/adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld">ADR-0042</a>).
+The plane looks for the credentials in its endpoints, headers and proxies,
+and, from 8 bytes, for query values and the variables a command upstream
+receives: as written, percent-encoded, JSON-escaped and in base64. A
+withheld <code>tools/call</code> success says the call ran; a read, a prompt or a list
+answers <code>-31103</code>; a tool whose definition quotes one is never listed. The
+closing record keeps the upstream's outcome and hash, with <code>withheld:</code> before
+its protocol status. <code>doctor</code> names the values too short to scan, and
+<code>/metrics</code> counts withheld answers.</li>
+</ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li>An upstream could put the gateway's <code>_meta</code> namespace inside a content
+block, an embedded resource or a prompt message, where it reached the agent;
+it is now stripped from every <code>_meta</code> an upstream's result carries.</li>
+<li>A <code>tools/list</code> right after a manifest refresh could be answered with the
+list cached from the previous manifest.</li>
 <li>A call refused as too large records <code>overlong:sha256:</code> and the digest of its
 over-long action name or resource id in their place, so the recorded
 proposal validates
@@ -150,7 +170,7 @@ envelope's <code>trace_id</code> and <code>span_id</code>, so a trail can be joi
 runtime's traces. A missing or malformed value leaves both empty and changes
 nothing else.</li>
 </ul>
-<h3 id="changed">Changed</h3>
+<h3 id="changed-1">Changed</h3>
 <ul>
 <li>The plan follows <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>:
 MCP is one channel of several. The next milestone is one task under
@@ -298,7 +318,7 @@ refuses the key. <code>/metrics</code> carries
 <li><code>guardana-control policy explain</code> prints a <code>clock</code> line: <code>usable</code>, or why
 the clock stopped the decision.</li>
 </ul>
-<h3 id="changed-1">Changed</h3>
+<h3 id="changed-2">Changed</h3>
 <ul>
 <li>
 <p><strong>Breaking:</strong> a plane's configuration needs five more keys:
@@ -538,7 +558,7 @@ restart, and a held call resumes only from its own run. A refused token is
 answered with HTTP 401 or the JSON-RPC error <code>-31102</code>, and the refusals are
 counted by cause. A plane without <code>runs.dir</code> is unchanged.</li>
 </ul>
-<h3 id="changed-2">Changed</h3>
+<h3 id="changed-3">Changed</h3>
 <ul>
 <li>The release job waits for a maintainer to approve it in the <code>release</code>
 environment before it builds; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> has the step.</li>
@@ -560,7 +580,7 @@ are a demo archive that runs without Go, an evidence export another program
 resumes by cursor, and the documentation on the website.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="changed-3">Changed</h3>
+<h3 id="changed-4">Changed</h3>
 <ul>
 <li><code>mode</code> has no default: a configuration that names no enforcement mode is
 refused at load instead of starting a plane in <code>OBSERVE</code>, which stops nothing
@@ -658,7 +678,7 @@ and where it stops; what a record holds, where it goes and how long it
 stays (<a href="/docs/concepts/threat-model">docs/concepts/threat-model.md</a>,
 <a href="/docs/concepts/privacy">docs/concepts/privacy.md</a>).</li>
 </ul>
-<h3 id="changed-4">Changed</h3>
+<h3 id="changed-5">Changed</h3>
 <ul>
 <li>A stdio upstream no longer inherits the plane's environment. It gets
 <code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code>, each where the

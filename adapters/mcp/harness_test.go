@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,7 @@ import (
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/gateway"
+	"github.com/guardana/control/internal/secretscan"
 )
 
 const (
@@ -372,6 +374,10 @@ type rigOptions struct {
 	// connState, when set, is told of every state an agent's connection to
 	// an HTTP listener reaches.
 	connState func(net.Conn, http.ConnState)
+	// secrets are what answers are scanned for, an empty set when nil;
+	// logger takes the adapter's log, which a nil one discards.
+	secrets *secretscan.Set
+	logger  *slog.Logger
 }
 
 // identity is what an unauthenticated listener calls for. An authenticated
@@ -398,6 +404,10 @@ func newConfig(t *testing.T, v *victim, kind mcp.Kind, upstream sdk.Transport, o
 	if clock == nil {
 		clock = time.Now
 	}
+	secrets := o.secrets
+	if secrets == nil {
+		secrets = noSecrets(t)
+	}
 	return mcp.Config{
 		Listener: mcp.Listener{
 			Kind: kind, Authenticator: o.auth, AuthnStrength: "bearer", Identity: identity(o.auth != nil),
@@ -411,9 +421,21 @@ func newConfig(t *testing.T, v *victim, kind mcp.Kind, upstream sdk.Transport, o
 		CallTimeout: o.timeout,
 		ListTimeout: o.listTimeout,
 		ProjectID:   "p1", TenantID: "t1", Environment: "prod",
-		Clock: clock,
-		NewID: func() string { return "id-" + strconv.FormatInt(n.Add(1), 10) },
+		Clock:   clock,
+		NewID:   func() string { return "id-" + strconv.FormatInt(n.Add(1), 10) },
+		Secrets: secrets,
+		Logger:  o.logger,
 	}
+}
+
+// noSecrets is the empty set, which scans every answer and finds nothing.
+func noSecrets(t testing.TB) *secretscan.Set {
+	t.Helper()
+	set, err := secretscan.New(nil)
+	if err != nil {
+		t.Fatalf("secretscan.New(nil): %v", err)
+	}
+	return set
 }
 
 func serveHTTP(t *testing.T, h http.Handler) string {

@@ -217,6 +217,14 @@ What it does not do:
   environment on its own, on Linux from `/proc`, and the plane's
   configuration file, so run a server you do not trust under another account
   or over HTTP.
+- **An upstream's answer that quotes a credential the plane sends** reaches
+  the agent as a fixed answer, so an upstream that echoes its request, its
+  environment or its configuration does not hand the agent a way around the
+  plane ([ADR-0042](../adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld.md)).
+  An upstream that sets out to leak a credential it was given can still spell
+  it so the scan misses it, and an agent that can make an upstream echo its
+  guesses learns from which echo comes back withheld whether a guess is a
+  credential; each withheld answer is logged by the matched key and counted.
 - An HTTP upstream may be `http`; nothing requires TLS to it, and anyone on
   that path can read the arguments and the results and forge them.
 

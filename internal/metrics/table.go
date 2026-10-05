@@ -136,6 +136,10 @@ var seamRows = []Metric{
 	signed("adapter_refresh_failures_total", "Adapter.RefreshFailures",
 		"Tool list reads that failed, each dropping that upstream's entries.",
 		func(r Reading) int64 { return r.Adapter.RefreshFailures }),
+	signed("adapter_answers_withheld_total", "Adapter.Withheld",
+		"Answers to calls and forwarded lists that quoted a credential the plane sends, or could not be scanned, "+
+			"shown to the agent as a fixed answer.",
+		func(r Reading) int64 { return r.Adapter.Withheld }),
 	signed("adapter_sessions_refused_total", "Adapter.SessionsRefused",
 		"Sessionless POSTs a stateful listener counted as opens and answered 503 at its cap on live sessions.",
 		func(r Reading) int64 { return r.Adapter.SessionsRefused }),

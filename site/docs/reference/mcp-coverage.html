@@ -139,7 +139,7 @@ digest covers. A request with a body gets 30 seconds for it, and 30 seconds
 per 64 KiB slice of its answer: a client reading slower is cut, and one reading
 a slice every 29 seconds holds a handler throughout.</p>
 <p>An upstream is reached over Streamable HTTP (<code>upstreams[].endpoint</code>) or as a
-child process over stdio (<code>upstreams[].command</code>).</p>
+child process (<code>upstreams[].command</code>).</p>
 <h2 id="methods">Methods</h2>
 <table>
 <thead>
@@ -152,7 +152,7 @@ child process over stdio (<code>upstreams[].command</code>).</p>
 <tbody>
 <tr>
 <td><code>tools/list</code></td>
-<td>Answers from the manifest, shaped for the principal, with <code>cacheScope: private</code> and the operator's <code>ttlMs</code></td>
+<td>Answers from the manifest, without a <a href="/docs/concepts/mcp-gateway#an-answer-that-quotes-a-credential">withheld</a> definition, shaped for the principal, with <code>cacheScope: private</code> and the operator's <code>ttlMs</code></td>
 <td>uncached under <code>annotate</code> or <code>hide</code>, one preview per classified tool one upstream serves; cached, one naming the bundle in force; nothing recorded</td>
 </tr>
 <tr>
@@ -172,7 +172,7 @@ child process over stdio (<code>upstreams[].command</code>).</p>
 </tr>
 <tr>
 <td><code>resources/list</code>, <code>resources/templates/list</code>, <code>prompts/list</code></td>
-<td>Merged from every upstream, bounded, with the gateway's own <code>_meta</code> keys stripped and <code>cacheScope: private</code></td>
+<td>Merged from every upstream, bounded, with the gateway's own <code>_meta</code> keys stripped and <code>cacheScope: private</code>; <code>-31103</code> when an item quotes a credential</td>
 <td>no: a listing names no action</td>
 </tr>
 <tr>
@@ -197,7 +197,7 @@ child process over stdio (<code>upstreams[].command</code>).</p>
 </tr>
 <tr>
 <td>The Tasks extension</td>
-<td>Not implemented by the library; no test here pins how a <code>resultType: &quot;task&quot;</code> result decodes, so do not use the extension</td>
+<td>Not implemented by the library, and no test here pins how its result decodes; do not use it</td>
 </tr>
 <tr>
 <td><code>notifications/tools/list_changed</code> toward the agent</td>
@@ -213,7 +213,7 @@ child process over stdio (<code>upstreams[].command</code>).</p>
 </tr>
 <tr>
 <td>Telling one approver from another</td>
-<td>Write access to the approvals directory is the approval authority, and <code>approver_id</code> on a record is a claim recorded as given. An authenticated provider would replace that authority, and none exists yet (ADR-0016)</td>
+<td>Write access to the approvals directory is the approval authority, and <code>approver_id</code> on a record is a claim recorded as given; no authenticated provider exists yet (ADR-0016)</td>
 </tr>
 <tr>
 <td>A client other than the library's own</td>
@@ -243,7 +243,7 @@ when it is not <code>none</code> in a mode that does not enforce.</p>
 <tbody>
 <tr>
 <td><code>none</code></td>
-<td>the upstream's list, <code>_meta</code> of the gateway's namespace stripped</td>
+<td>the upstream's list without withheld definitions, <code>_meta</code> of the gateway's namespace stripped</td>
 <td>the same</td>
 </tr>
 <tr>
@@ -263,7 +263,7 @@ when it is not <code>none</code> in a mode that does not enforce.</p>
 the call exists. Such a tool stays in the list, and under <code>annotate</code> it is marked
 <code>DECIDED_PER_CALL</code>, unless a rule denies it without its arguments. Under <code>hide</code> it stays too:
 shaping subtracts what policy denies, never what it could not decide.</p>
-<h2 id="the-two-codes-the-adapter-mints">The two codes the adapter mints</h2>
+<h2 id="the-codes-the-adapter-mints">The codes the adapter mints</h2>
 <p>A <code>tools/call</code> answers a block and a pending state as a tool result with
 <code>isError: true</code>, the fields below in its <code>_meta</code> under <code>&lt;ns&gt;/</code> and no
 structured content, which a client checks against the tool's output schema. A <code>resources/read</code> and a
@@ -288,11 +288,17 @@ error, outside the protocol's reserved range and the library's private code.</p>
 <td>an approval is pending</td>
 <td><code>reason_code: APPROVAL_PENDING</code>, <code>approval_id</code>, <code>action_digest</code>, <code>expires_at</code>, <code>retry_after</code></td>
 </tr>
+<tr>
+<td><code>-31103</code></td>
+<td>an answer was <a href="/docs/concepts/mcp-gateway#an-answer-that-quotes-a-credential">withheld</a></td>
+<td><code>&lt;ns&gt;/answer: withheld</code></td>
+</tr>
 </tbody>
 </table>
-<p>An upstream's own wire error passes through with its code and message; any
-other failure, a timeout or a broken session, answers <code>-32603</code> <code>the upstream did not answer</code>, never the transport's text, which can quote the endpoint. Only <code>&lt;ns&gt;/answer</code> (<code>blocked</code> or
-<code>pending</code>, <code>&lt;ns&gt;</code> being the product's namespace) in an answer's <code>_meta</code> or in
+<p>An upstream's own wire error passes through with its code and message, unless
+it quotes a credential the plane sends; any
+other failure, a timeout or a broken session, answers <code>-32603</code> <code>the upstream did not answer</code>, never the transport's text, which can quote the endpoint. Only <code>&lt;ns&gt;/answer</code> (<code>blocked</code>,
+<code>pending</code> or <code>withheld</code>, <code>&lt;ns&gt;</code> being the product's namespace) in an answer's <code>_meta</code> or in
 the error's <code>data</code> marks an answer the gateway made. The namespace is stripped
 from both places in everything an upstream sends, so an upstream cannot answer
 as the gateway.</p>

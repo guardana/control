@@ -71,7 +71,7 @@ func TestAFractionInASchemaIsFingerprinted(t *testing.T) {
 		}
 	}
 
-	m := newManifest([]Override{{Upstream: "up", Tool: "sample", Fingerprint: fractionToolFingerprint, Effect: controlv1.EffectClass_EFFECT_CLASS_READ, ResourceType: "model"}})
+	m := newManifest([]Override{{Upstream: "up", Tool: "sample", Fingerprint: fractionToolFingerprint, Effect: controlv1.EffectClass_EFFECT_CLASS_READ, ResourceType: "model"}}, emptySecrets(t))
 	if e := m.classify("up", fractionTool()); !e.Classified {
 		t.Errorf("a pinned definition with fractions is unclassified: %s", e.why)
 	}
