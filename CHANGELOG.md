@@ -41,6 +41,10 @@ verify one.
 
 ### Fixed
 
+- A call that needs an approval, under a run an operator opened, was blocked
+  with `EVIDENCE_UNAVAILABLE` on a live plane instead of held: the run's expiry
+  was judged at the call's first clock reading, which the kernel's later
+  reading had already passed. A test clock that never moves had hidden it.
 - An upstream could put the gateway's `_meta` namespace inside a content
   block, an embedded resource or a prompt message, where it reached the agent;
   it is now stripped from every `_meta` an upstream's result carries.

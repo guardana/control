@@ -83,3 +83,15 @@ func (c *call) raise() bool {
 func (c *call) runLapsed() bool {
 	return c.flow.kind == flowOpened && lapsedBy(c.now, c.floor, c.flow.opened.Expires)
 }
+
+// runLapsedNow reads the clock again before it judges an opened run: the
+// kernel's reading, which the call now relies on, came after the call's
+// first, so that first reading cannot vouch for the run any more.
+func (c *call) runLapsedNow() bool {
+	if c.flow.kind != flowOpened {
+		return false
+	}
+	c.now = c.p.cfg.Clock()
+	c.reliedOn(c.now)
+	return c.runLapsed()
+}

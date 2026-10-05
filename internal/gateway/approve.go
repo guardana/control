@@ -19,7 +19,7 @@ import (
 // which of its records are still there, and the pipeline's own record says what
 // was held. Whatever the store cannot answer blocks the call on its own trail.
 func (c *call) approve(snap *policy.Snapshot) Disposition {
-	if c.runLapsed() {
+	if c.runLapsedNow() {
 		// A hold under a run that expired is one no retry can reach, since the
 		// listener refuses its token.
 		c.decide(verdictIndeterminate, codeEvidenceUnavailable)

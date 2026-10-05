@@ -136,6 +136,10 @@ its protocol status. <code>doctor</code> names the values too short to scan, and
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li>A call that needs an approval, under a run an operator opened, was blocked
+with <code>EVIDENCE_UNAVAILABLE</code> on a live plane instead of held: the run's expiry
+was judged at the call's first clock reading, which the kernel's later
+reading had already passed. A test clock that never moves had hidden it.</li>
 <li>An upstream could put the gateway's <code>_meta</code> namespace inside a content
 block, an embedded resource or a prompt message, where it reached the agent;
 it is now stripped from every <code>_meta</code> an upstream's result carries.</li>
