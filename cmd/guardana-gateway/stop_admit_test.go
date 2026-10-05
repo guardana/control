@@ -33,10 +33,11 @@ func TestACallArrivingDuringTheStopIsNotAdmitted(t *testing.T) {
 		`"_meta":{"io.modelcontextprotocol/protocolVersion":"` + revision + `","io.modelcontextprotocol/clientCapabilities":{}}}}`
 	head := "POST / HTTP/1.1\r\nHost: " + addr + "\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\n" +
 		"Mcp-Protocol-Version: " + revision + "\r\nMcp-Method: tools/call\r\nMcp-Name: read_order\r\nContent-Length: " + strconv.Itoa(len(body)) + "\r\n\r\n"
+	waitInFlight(t, r.p, 0)
 	if _, err := io.WriteString(conn, head+body[:10]); err != nil {
 		t.Fatal(err)
 	}
-	waitHandled(t, r.p)
+	waitInFlight(t, r.p, 1)
 	r.stop()
 	waitClosed(t, addr)
 	if _, err := io.WriteString(conn, body[10:]); err != nil {
@@ -65,13 +66,15 @@ func TestACallArrivingDuringTheStopIsNotAdmitted(t *testing.T) {
 	}
 }
 
-// waitHandled waits until a handler of p's listener is reading a request.
-func waitHandled(t *testing.T, p *plane) {
+// waitInFlight waits until want requests are in a handler of p's listener.
+// A handler can still be finishing the agent's last request after its answer
+// arrived, so a test waits for none before it writes the request it counts.
+func waitInFlight(t *testing.T, p *plane, want int64) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
-	for p.calls.n.Load() == 0 {
+	for p.calls.n.Load() != want {
 		if time.Now().After(deadline) {
-			t.Fatal("no handler took the request")
+			t.Fatalf("%d request(s) in a handler, want %d", p.calls.n.Load(), want)
 		}
 		time.Sleep(time.Millisecond)
 	}
