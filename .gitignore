@@ -9,7 +9,7 @@
 !.env.example
 bin/
 dist/
-coverage/
+/coverage/
 *.out
 *.test
 .idea/

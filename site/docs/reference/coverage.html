@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Coverage · Guardana Control</title>
+<meta name="description" content="What guardana-control coverage reads, the inventory it takes, the state it gives each declared path, the join with a plane&#39;s evidence, and its exit status."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/coverage"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.7.0-alpha</span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a class="hide-s" href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span class="hide-s">GitHub</span></a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<details class="mnav">
+<summary>Menu · <b>Coverage</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage" aria-current="page">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</details>
+<main id="main" class="prose">
+<h1 id="coverage">Coverage</h1>
+<p><code>guardana-control coverage</code> says, for each path an operator declares, whether
+a plane enforces it, decides it without enforcing it, a source observed it,
+nobody can tell, or nothing covers it. It reads files and contacts no plane;
+no plane reads what it prints
+(<a href="/docs/adr/0041-coverage-per-declared-path">ADR-0041</a>,
+<a href="/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export">ADR-0044</a>).
+It is <code>experimental</code>.</p>
+<pre><code>guardana-control coverage --inventory &lt;file&gt; [--plane &lt;config&gt; [--evidence &lt;export&gt;]]...
+    [--source &lt;descriptor&gt; --log &lt;dir&gt;]...
+</code></pre>
+<h2 id="inputs">Inputs</h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>What it reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--inventory</code></td>
+<td>the operator's inventory below, once; a file another account or a group can write is refused</td>
+</tr>
+<tr>
+<td><code>--plane</code></td>
+<td>a plane's configuration, read without the environment of the shell running the command, which is not the plane's</td>
+</tr>
+<tr>
+<td><code>--source</code>, <code>--log</code></td>
+<td>a source descriptor and its observation log's directory, paired in order (<a href="/docs/reference/observations">observations</a>)</td>
+</tr>
+<tr>
+<td><code>--evidence</code></td>
+<td>the evidence export of the <code>--plane</code> before it, as <code>guardana-gateway trail export</code> writes it (<a href="/docs/contracts#the-evidence-export">contracts</a>); at most one per plane</td>
+</tr>
+</tbody>
+</table>
+<p>A descriptor that is absent turns its paths not covered, never observed. A log
+directory without a log is a source never heard. Any other input that cannot
+be read or does not parse exits 2, and no map is printed.</p>
+<h2 id="the-inventory">The inventory</h2>
+<p>A strict JSON document: an unknown member, a repeated member or an empty list
+of paths is refused.</p>
+<pre><code class="language-json">{&#34;schema_version&#34;: &#34;0.1&#34;, &#34;paths&#34;: [
+  {&#34;id&#34;: &#34;orders.read-file&#34;, &#34;kind&#34;: &#34;mcp_tool&#34;, &#34;upstream&#34;: &#34;orders&#34;, &#34;tool&#34;: &#34;read_file&#34;,
+   &#34;sources&#34;: [{&#34;source_id&#34;: &#34;agent-runtime&#34;, &#34;name&#34;: &#34;read_file&#34;, &#34;server_address&#34;: &#34;files.example&#34;}]}
+]}
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>unique, 1 to 64 bytes of <code>a-z</code>, <code>0-9</code>, <code>.</code>, <code>_</code>, <code>-</code></td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td><code>mcp_tool</code> with <code>upstream</code> and <code>tool</code>, one path per pair; <code>egress</code> with <code>host</code>; <code>http_api</code> or <code>process</code> with <code>name</code></td>
+</tr>
+<tr>
+<td><code>sources</code></td>
+<td>each a <code>source_id</code> that would see the path, the <code>name</code> its observation carries and, optionally, its <code>server_address</code></td>
+</tr>
+</tbody>
+</table>
+<p>An observation matches a path when it comes from that source, is of a tool,
+and carries that name and, when given, that server address.</p>
+<h2 id="states">States</h2>
+<p>Each path gets the first state that holds:</p>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>enforced</td>
+<td>every plane that counts for the tool is in <code>ENFORCE</code>, <code>APPROVE</code> or <code>LOCKDOWN</code>, and none lets the read fail open</td>
+</tr>
+<tr>
+<td>decided, not enforced</td>
+<td>a plane counts for it in <code>OBSERVE</code>, or under <code>policy.fail_open_read</code> outside <code>LOCKDOWN</code>, where a read runs undecided while the policy is unavailable</td>
+</tr>
+<tr>
+<td>observed</td>
+<td>a source live within its heartbeat holds a matching observation; the weakest trust of the descriptor and the observations is printed</td>
+</tr>
+<tr>
+<td>unknown</td>
+<td>a source the path names is past its heartbeat or was never heard</td>
+</tr>
+<tr>
+<td>not covered</td>
+<td>nothing above</td>
+</tr>
+</tbody>
+</table>
+<p>Only an <code>mcp_tool</code> can be enforced or decided. A plane counts for a tool when
+it lists the tool's upstream: with an override that classifies the tool, or
+without one, when a call to it is unclassified, blocked in a mode that
+enforces and let run in <code>OBSERVE</code>. A plane in <code>SHADOW</code> or <code>WARN</code> refuses to
+start and counts for nothing. A classification is the configuration's
+override; the live definition behind its fingerprint is not checked. A source is last heard at the newest event time an import report
+covers, never later than that report's receive time; one heard after the
+command's clock is unknown.</p>
+<h2 id="the-join">The join</h2>
+<p>Beside an enforced or decided path, each matching observation is checked
+against the exports of the planes that count for it. It is joined when it, or
+an observation below it in the same trace, has the span id of a proposal for
+that tool on that upstream, in the same tenant and project, recorded in a mode
+at least as strong as the path's state. A call every such plane's export could
+have shown and none does is printed as a call around the plane. The check is
+printed as not checked, with the reason, when:</p>
+<ul>
+<li>a plane that counts has no export, or its export is not whole: cut short,
+not at its end, with a gap, or filtered by a cursor or a query;</li>
+<li>the observation has no trace or span id, or no event time;</li>
+<li>its time is outside the span an export's events cover;</li>
+<li>the path names no source.</li>
+</ul>
+<h2 id="output-and-exit-status">Output and exit status</h2>
+<p>One line per declared path, its state and what it rests on, then indented
+lines for each plane, each source and the joins, and last the line
+<code>undeclared paths: unknown</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Exit</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>every declared path is at least observed and no call around the plane was found</td>
+</tr>
+<tr>
+<td>1</td>
+<td>a path is unknown or not covered, or a call around the plane was found</td>
+</tr>
+<tr>
+<td>2</td>
+<td>an input was refused; nothing is printed on standard output</td>
+</tr>
+</tbody>
+</table>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/coverage.md">docs/reference/coverage.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage" aria-current="page">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

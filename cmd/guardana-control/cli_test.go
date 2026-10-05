@@ -147,12 +147,14 @@ var ownRefusal = map[string]func(missing string) []string{
 		return []string{"--source", m, "--log", m, m}
 	},
 	"observe export": func(m string) []string { return []string{m} },
+	"coverage":       func(m string) []string { return []string{"--inventory", m} },
 }
 
 // refusalStatus is the status a command refuses a missing path with where it
 // is not exitFail: the observe commands keep the export's contract, in which
-// 2 says nothing was written and 1 is a whole result that holds a refusal.
-var refusalStatus = map[string]int{"observe import": exitUsage, "observe export": exitUsage}
+// 2 says nothing was written and 1 is a whole result that holds a refusal, and
+// coverage's 2 says no map was printed and 1 is a whole map with a gap.
+var refusalStatus = map[string]int{"observe import": exitUsage, "observe export": exitUsage, "coverage": exitUsage}
 
 // TestEveryListedCommandDispatches: the list the help prints is the list run
 // dispatches. Each command's words reach its own command; words the list does

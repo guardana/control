@@ -381,6 +381,7 @@ Sources: `ROADMAP.md`, `internal/gateway/pause.go`, `adapters/authzen/client.go`
 | `pkg/`, the other three packages | The rest of the public Go surface | `planned` |
 | `adapters/mcp/`, `adapters/otel/`, `adapters/authzen/` | The MCP adapter, the OTLP exporter and collector, and the AuthZEN client | `experimental` |
 | `adapters/`, the rest | Other protocol and framework adapters | `planned` |
-| `internal/supervise/`, `internal/ingest/` | The supervisor's procedures, detectors and coverage, and the importers of observations, [ADR-0039](../adr/0039-many-channels-into-one-core.md) | `planned` |
+| `internal/ingest/`, `internal/coverage/` | The importer of observations and the coverage map, [ADR-0040](../adr/0040-observations-a-record-a-log-and-one-importer.md), [ADR-0044](../adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md) | `experimental` |
+| `internal/supervise/` | The supervisor's procedures and detectors, [ADR-0039](../adr/0039-many-channels-into-one-core.md) | `planned` |
 
 Per component, including what is planned elsewhere, see [status.md](../status.md).

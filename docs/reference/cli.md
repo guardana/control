@@ -16,8 +16,8 @@ without this page fails the gate.
 | Exit status | Means |
 | --- | --- |
 | 0 | The command did what it was asked. |
-| 1 | The input was refused or a case failed: stderr says why, one line each; `policy test` and a scenario report on stdout what failed. |
-| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail or observation export refused or cut short, or an `observe import` left incomplete. |
+| 1 | The input was refused or a case failed: stderr says why, one line each; `policy test`, a scenario and `coverage` print what failed. |
+| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail or observation export refused or cut short, an incomplete `observe import`, or a refused `coverage` input. |
 
 Without arguments either binary prints its version and one status line on
 stdout and exits 0.
@@ -159,6 +159,8 @@ usage:
   guardana-control runs list <dir>
   guardana-control observe import --source <file> --log <dir> <file>
   guardana-control observe export [--after] [--limit] [--max-bytes] <file>
+  guardana-control coverage --inventory <file> [--plane <config> [--evidence <export>]]...
+      [--source <descriptor> --log <dir>]...
   guardana-control console --approvals <dir> [--pause <f>] --approver-id <id> [--until-stdin-closes]
 
 Write access to the approvals directory is the approval authority:

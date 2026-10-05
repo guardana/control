@@ -58,6 +58,7 @@
 <li><a href="/docs/reference/cli" aria-current="page">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
@@ -116,11 +117,11 @@ without this page fails the gate.</p>
 </tr>
 <tr>
 <td>1</td>
-<td>The input was refused or a case failed: stderr says why, one line each; <code>policy test</code> and a scenario report on stdout what failed.</td>
+<td>The input was refused or a case failed: stderr says why, one line each; <code>policy test</code>, a scenario and <code>coverage</code> print what failed.</td>
 </tr>
 <tr>
 <td>2</td>
-<td>A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail or observation export refused or cut short, or an <code>observe import</code> left incomplete.</td>
+<td>A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail or observation export refused or cut short, an incomplete <code>observe import</code>, or a refused <code>coverage</code> input.</td>
 </tr>
 </tbody>
 </table>
@@ -244,6 +245,8 @@ observation log and export it: <a href="/docs/reference/observations">observatio
   guardana-control runs list &lt;dir&gt;
   guardana-control observe import --source &lt;file&gt; --log &lt;dir&gt; &lt;file&gt;
   guardana-control observe export [--after] [--limit] [--max-bytes] &lt;file&gt;
+  guardana-control coverage --inventory &lt;file&gt; [--plane &lt;config&gt; [--evidence &lt;export&gt;]]...
+      [--source &lt;descriptor&gt; --log &lt;dir&gt;]...
   guardana-control console --approvals &lt;dir&gt; [--pause &lt;f&gt;] --approver-id &lt;id&gt; [--until-stdin-closes]
 
 Write access to the approvals directory is the approval authority:
@@ -369,6 +372,7 @@ dev
 <li><a href="/docs/reference/cli" aria-current="page">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>

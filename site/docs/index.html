@@ -58,6 +58,7 @@
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
@@ -132,6 +133,7 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/reference/cli">Command line</a>: The two binaries, what each prints as its help, and the exit statuses they share.</li>
 <li><a href="/docs/reference/configuration">Configuration</a>: Every key the gateway reads, with its environment variable, kind, default, whether it is required and the spellings it takes.</li>
 <li><a href="/docs/reference/console">The approvals page</a>: What guardana-control console serves, what it prints, what it refuses and what it cannot tell you.</li>
+<li><a href="/docs/reference/coverage">Coverage</a>: What guardana-control coverage reads, the inventory it takes, the state it gives each declared path, the join with a plane's evidence, and its exit status.</li>
 <li><a href="/docs/reference/dev">Dev mode</a>: What guardana-gateway dev lays out, refuses, prints and stops, and how --scenario runs each scenario on a plane of its own.</li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a>: What a plane does when its collector, spool, decision point, an upstream, its pause file, freshness statement or clock fails, or it is killed holding calls.</li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a>: Per revision, transport and method, what the gateway enforces today and what it does not.</li>
@@ -212,6 +214,7 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/adr/0041-coverage-per-declared-path">ADR-0041: Coverage per declared path</a>: accepted</li>
 <li><a href="/docs/adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld">ADR-0042: An answer that quotes a configured credential is withheld</a>: accepted</li>
 <li><a href="/docs/adr/0043-a-refused-over-long-name-is-recorded-by-its-digest">ADR-0043: A refused over-long name is recorded by its digest</a>: accepted</li>
+<li><a href="/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export">ADR-0044: Coverage judges each plane and joins only a whole export</a>: accepted</li>
 </ul>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/index.md">docs/index.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
@@ -246,6 +249,7 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>

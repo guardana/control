@@ -58,6 +58,7 @@
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
@@ -159,12 +160,6 @@ view says what it did not see.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td>B18</td>
-<td>Map coverage per declared path</td>
-<td>ADR-0041 accepted</td>
-<td>A command reads the planes' configurations, the source descriptors and an operator's inventory of paths, and prints each path enforced, decided but not enforced, observed with its source's trust, or not covered (inferred once a source of inference exists), plus a row for undeclared paths. Tests: a plane in <code>OBSERVE</code> never shows a path enforced; a path only a self-reported source saw says so; a silent source turns its paths unknown; a removed descriptor turns its paths not covered</td>
-</tr>
 <tr>
 <td>B15</td>
 <td>Add procedure supervision over one run</td>
@@ -314,6 +309,7 @@ sessions and feedback, consistent with the no-phone-home decision.</p>
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>

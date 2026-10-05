@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 
 	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 	"github.com/guardana/control/internal/observe"
@@ -21,46 +20,86 @@ import (
 // return, and an observation id carried with two contents are ErrDamaged: a
 // writer of this package leaves none of them.
 func readIndex(r io.Reader) (index, int64, error) {
+	ids, committed, err := scanLog(r, nil)
+	var fault *lineFault
+	switch {
+	case errors.As(err, &fault) && errors.Is(fault.cause, bufio.ErrBufferFull):
+		return nil, 0, fmt.Errorf("%w: line %d is over %d bytes", ErrDamaged, fault.number, observe.MaxLineBytes)
+	case errors.As(err, &fault):
+		return nil, 0, fmt.Errorf("%w: line %d: %w", ErrDamaged, fault.number, fault.cause)
+	case err != nil:
+		return nil, 0, err
+	}
+	return ids, committed, nil
+}
+
+// lineFault is a line the log's reader refuses: over observe.MaxLineBytes, or
+// judged and found damaged. Each caller words it, since only some may repeat
+// the cause, which can quote the line.
+type lineFault struct {
+	number int
+	offset int64
+	cause  error
+}
+
+func (f *lineFault) Error() string {
+	return fmt.Sprintf("line %d at byte %d: %v", f.number, f.offset, f.cause)
+}
+
+func (f *lineFault) Unwrap() error { return f.cause }
+
+// scanLog judges r as readIndex describes and, when keep is not nil, hands it
+// each write's records once the write's import report closes it.
+func scanLog(r io.Reader, keep func([]*observev1.Record)) (index, int64, error) {
 	reader := bufio.NewReaderSize(r, observe.MaxLineBytes+1)
 	ids, pending := index{}, index{}
+	var write []*observev1.Record
 	var offset, committed int64
 	for number := 1; ; number++ {
 		line, err := reader.ReadSlice('\n')
 		switch {
 		case errors.Is(err, bufio.ErrBufferFull):
-			return nil, 0, fmt.Errorf("%w: line %d is over %d bytes", ErrDamaged, number, observe.MaxLineBytes)
+			return nil, 0, &lineFault{number: number, offset: offset, cause: err}
 		case errors.Is(err, io.EOF) && len(line) == 0:
 			return ids, committed, nil
 		case err != nil:
 			return nil, 0, fmt.Errorf("reading line %d: %w", number, err)
 		}
-		closes, err := ids.read(pending, line)
+		record, closes, err := ids.read(pending, line)
 		if err != nil {
-			return nil, 0, fmt.Errorf("%w: line %d: %w", ErrDamaged, number, err)
+			return nil, 0, &lineFault{number: number, offset: offset, cause: err}
 		}
 		offset += int64(len(line))
+		if keep != nil {
+			write = append(write, record)
+		}
 		if closes {
 			ids.add(pending)
 			clear(pending)
 			committed = offset
+			if keep != nil {
+				keep(write)
+				write = nil
+			}
 		}
 	}
 }
 
-// read judges one whole line and adds an observation to pending. It reports
-// whether the line is an import report, which closes its write.
-func (ids index) read(pending index, line []byte) (bool, error) {
+// read judges one whole line and adds an observation to pending. It returns
+// the line's record and whether it is an import report, which closes its
+// write.
+func (ids index) read(pending index, line []byte) (*observev1.Record, bool, error) {
 	// The form refuses a carriage return anywhere, a string's or not.
 	if err := observe.CheckLineForm(line); err != nil {
-		return false, err
+		return nil, false, err
 	}
 	r, err := observe.UnmarshalLine(line)
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
 	o := r.GetObservation()
 	if o == nil {
-		return true, nil
+		return r, true, nil
 	}
 	sum, id := observe.ContentDigest(o), o.GetObservationId()
 	held, ok := ids[id]
@@ -68,10 +107,10 @@ func (ids index) read(pending index, line []byte) (bool, error) {
 		held, ok = pending[id]
 	}
 	if sum == "" || (ok && held != sum) {
-		return false, errors.New("an observation id an earlier line carries with other content")
+		return nil, false, errors.New("an observation id an earlier line carries with other content")
 	}
 	pending[id] = sum
-	return false, nil
+	return r, false, nil
 }
 
 // lastLineEnd returns the length of the file up to and including its last
@@ -79,7 +118,7 @@ func (ids index) read(pending index, line []byte) (bool, error) {
 // leaves at most observe.MaxLineBytes after the last newline, so a newline
 // that is not among them is ErrDamaged. So is a tail that cannot be the start
 // of a line the codec writes, which is no write a crash cut.
-func lastLineEnd(f *os.File, size int64) (int64, error) {
+func lastLineEnd(f io.ReaderAt, size int64) (int64, error) {
 	if size == 0 {
 		return 0, nil
 	}

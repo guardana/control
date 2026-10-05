@@ -10,6 +10,12 @@ descriptors and import reports it reads. It amends ADR-0039,
 which says the plane reports coverage: a command reports it, and no plane
 reads what it prints.
 
+Amended by [ADR-0044](0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md):
+the command also reads evidence exports, and joins an observation only to a
+whole, unfiltered one; a path is enforced only when every plane that
+classifies it enforces it; a read under `policy.fail_open_read` outside
+`LOCKDOWN` is decided, not enforced; a call around the plane exits 1.
+
 ## Context
 
 An operator needs to know, for each thing an agent can do, whether a plane

@@ -44,6 +44,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [Command line](reference/cli.md): The two binaries, what each prints as its help, and the exit statuses they share.
 - [Configuration](reference/configuration.md): Every key the gateway reads, with its environment variable, kind, default, whether it is required and the spellings it takes.
 - [The approvals page](reference/console.md): What guardana-control console serves, what it prints, what it refuses and what it cannot tell you.
+- [Coverage](reference/coverage.md): What guardana-control coverage reads, the inventory it takes, the state it gives each declared path, the join with a plane's evidence, and its exit status.
 - [Dev mode](reference/dev.md): What guardana-gateway dev lays out, refuses, prints and stops, and how --scenario runs each scenario on a plane of its own.
 - [Failure modes](reference/failure-modes.md): What a plane does when its collector, spool, decision point, an upstream, its pause file, freshness statement or clock fails, or it is killed holding calls.
 - [MCP enforcement coverage](reference/mcp-coverage.md): Per revision, transport and method, what the gateway enforces today and what it does not.
@@ -124,3 +125,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0041: Coverage per declared path](adr/0041-coverage-per-declared-path.md): accepted
 - [ADR-0042: An answer that quotes a configured credential is withheld](adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld.md): accepted
 - [ADR-0043: A refused over-long name is recorded by its digest](adr/0043-a-refused-over-long-name-is-recorded-by-its-digest.md): accepted
+- [ADR-0044: Coverage judges each plane and joins only a whole export](adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md): accepted

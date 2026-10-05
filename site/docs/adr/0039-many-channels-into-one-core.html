@@ -58,6 +58,7 @@
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
@@ -109,6 +110,9 @@ agent supplies that id on both sides, so it cannot stop a run.</p>
 <p>Amended by <a href="/docs/adr/0041-coverage-per-declared-path">ADR-0041</a>: coverage is
 reported by a command that reads the planes' configurations, the source
 descriptors and their logs, not by a plane, and no plane reads what it prints.</p>
+<p>Amended by <a href="/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export">ADR-0044</a>:
+coverage's code lives in <code>internal/coverage</code>, outside the guarded trees, since
+nothing it prints reaches a decision or a stop.</p>
 <p>Amends the order of <a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a>
 and withdraws the in-process detector seam of
 <a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>. Builds on
@@ -348,6 +352,7 @@ next call of one run and of no other.</li>
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>

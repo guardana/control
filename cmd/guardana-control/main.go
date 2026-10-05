@@ -116,6 +116,7 @@ var commands = []subcommand{
 	{"runs", "list", "<dir>", nil, runsListCommand},
 	{"observe", "import", observeImportForm, observeImportFlagSet, observeImportCommand},
 	{"observe", "export", observeExportForm, observeExportFlagSet, observeExportCommand},
+	{"coverage", "", coverageForm, coverageFlagSet, coverageCommand},
 	{"console", "", consoleForm, consoleFlagSet, consoleCommand},
 }
 

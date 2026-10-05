@@ -58,6 +58,7 @@
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
@@ -565,8 +566,13 @@ and audited by someone who did not write it.</li>
 <td><code>planned</code></td>
 </tr>
 <tr>
-<td><code>internal/supervise/</code>, <code>internal/ingest/</code></td>
-<td>The supervisor's procedures, detectors and coverage, and the importers of observations, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
+<td><code>internal/ingest/</code>, <code>internal/coverage/</code></td>
+<td>The importer of observations and the coverage map, <a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a>, <a href="/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export">ADR-0044</a></td>
+<td><code>experimental</code></td>
+</tr>
+<tr>
+<td><code>internal/supervise/</code></td>
+<td>The supervisor's procedures and detectors, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
 <td><code>planned</code></td>
 </tr>
 </tbody>
@@ -605,6 +611,7 @@ and audited by someone who did not write it.</li>
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>

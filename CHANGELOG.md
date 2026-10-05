@@ -11,6 +11,19 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- `guardana-control coverage` prints, for each path an operator declares in an
+  inventory, whether a plane enforces it, decides it without enforcing it, a
+  live source observed it, nobody can tell, or nothing covers it, and a
+  standing row for the paths nobody declared
+  ([ADR-0041](docs/adr/0041-coverage-per-declared-path.md),
+  [ADR-0044](docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md)).
+  It reads the planes' configurations, source descriptors, observation logs
+  and evidence exports, and contacts no plane. Against a whole evidence export
+  it shows an observed call no plane recorded as a call around the plane, and
+  exits 1 for it.
+
 ### Changed
 
 - An upstream's answer, wire error, listed item or tool definition that quotes

@@ -15,6 +15,10 @@ Amended by [ADR-0041](0041-coverage-per-declared-path.md): coverage is
 reported by a command that reads the planes' configurations, the source
 descriptors and their logs, not by a plane, and no plane reads what it prints.
 
+Amended by [ADR-0044](0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md):
+coverage's code lives in `internal/coverage`, outside the guarded trees, since
+nothing it prints reaches a decision or a stop.
+
 Amends the order of [ADR-0026](0026-first-value-and-external-extension-paths.md)
 and withdraws the in-process detector seam of
 [ADR-0007](0007-repository-layout-and-dependency-rule.md). Builds on

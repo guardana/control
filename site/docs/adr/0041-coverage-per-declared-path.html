@@ -58,6 +58,7 @@
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
@@ -105,6 +106,11 @@ is stated per declared path and never as a percentage, and on
 descriptors and import reports it reads. It amends ADR-0039,
 which says the plane reports coverage: a command reports it, and no plane
 reads what it prints.</p>
+<p>Amended by <a href="/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export">ADR-0044</a>:
+the command also reads evidence exports, and joins an observation only to a
+whole, unfiltered one; a path is enforced only when every plane that
+classifies it enforces it; a read under <code>policy.fail_open_read</code> outside
+<code>LOCKDOWN</code> is decided, not enforced; a call around the plane exits 1.</p>
 <h2 id="context">Context</h2>
 <p>An operator needs to know, for each thing an agent can do, whether a plane
 decides it, decides it without enforcing, only sees it afterwards, or nothing
@@ -231,6 +237,7 @@ turns them not covered.</li>
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
 <li><a href="/docs/reference/dev">Dev mode</a></li>
 <li><a href="/docs/reference/failure-modes">Failure modes</a></li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
