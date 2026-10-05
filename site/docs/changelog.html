@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.7.0-alpha</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.8.0-alpha</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -106,7 +106,30 @@
 <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
-<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.7.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.8.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="080-alpha---2026-10-05"><a href="https://github.com/guardana/control/releases/tag/v0.8.0-alpha">0.8.0-alpha</a> - 2026-10-05</h2>
+<p>One agent run can now be checked against the procedure it was meant to
+follow. <code>guardana-control supervise</code> reads a plane's evidence export for a run
+an operator opened, and the observations the agent's runtime reported for that
+run, and writes findings that cite both. <code>guardana-control notify</code> hands each
+alert to a program the operator names, and marks it delivered only once the
+program accepts it, so a crash or a failure makes the next run hand it over
+again. <code>guardana-control coverage</code> gives each path an operator declares one
+state: enforced by a plane, decided but not enforced, observed by a source,
+unknown, or not covered; where a source observed a call that no plane's export
+records, it says so. None of these commands contacts a plane or changes a
+decision, and a finding that rests on what the runtime reported is marked
+suspected, not confirmed. An upstream answer that quotes a credential the plane
+sends is replaced by a fixed answer from the plane, so the agent does not
+receive the credential. On upgrade, two changes: a call that needs an approval
+under a run an operator opened is held for the approval, where before it was
+blocked; and a call refused as too large records the digest of its over-long
+name or resource. Fixes from an audit of this release include: coverage took a
+prompt or a resource read through the plane for the plane's record of an
+observed tool call, and supervision let the runtime's own report of a step
+count as the step. <a href="/docs/status">docs/status.md</a> says what is
+<code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
+yet.</p>
 <h3 id="added">Added</h3>
 <ul>
 <li><code>guardana-control coverage</code> prints, for each path an operator declares in an

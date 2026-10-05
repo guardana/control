@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.7.0-alpha</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.8.0-alpha</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -246,9 +246,7 @@ runs as well. Their work shares the cores with the call, and <code>B/op</code> a
 <code>allocs/op</code> count the whole process: the exporter, the collector and the
 upstream included. A plane row minus <code>direct</code> is therefore what the plane
 adds in this arrangement, the pipeline, the spool, a second protocol hop and
-the exporter's share of the machine together, not the pipeline alone. Both
-plane rows include the exporter reading each record back from the spool, a
-cost that is not the pipeline's.</p>
+the exporter's share of the machine together, not the pipeline alone.</p>
 <table>
 <thead>
 <tr>
@@ -279,11 +277,65 @@ cost that is not the pipeline's.</p>
 </tr>
 </tbody>
 </table>
-<p>No published run carries this benchmark yet.</p>
+<p>The columns are those of <a href="#decide">Decide</a>, in microseconds; <code>B/op</code> and
+<code>allocs/op</code> count the whole process and vary, so the table gives their range.</p>
+<table>
+<thead>
+<tr>
+<th>Row</th>
+<th>µs/op low</th>
+<th>Median</th>
+<th>High</th>
+<th>p50 µs</th>
+<th>p99 µs (highest)</th>
+<th>B/op</th>
+<th>allocs/op</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>direct</code></td>
+<td>63.4</td>
+<td>66.9</td>
+<td>69.9</td>
+<td>37.5</td>
+<td>209.3 (239.3)</td>
+<td>389540 to 389558</td>
+<td>230</td>
+</tr>
+<tr>
+<td><code>plane/fsync=every_record</code></td>
+<td>16134.9</td>
+<td>16281.3</td>
+<td>16845.5</td>
+<td>16011.0</td>
+<td>18268.0 (22154.7)</td>
+<td>4173863 to 4179807</td>
+<td>2302 to 2319</td>
+</tr>
+<tr>
+<td><code>plane/fsync=interval_100ms</code></td>
+<td>549.6</td>
+<td>568.6</td>
+<td>585.9</td>
+<td>512.1</td>
+<td>1240.3 (1676.2)</td>
+<td>4167054 to 4168426</td>
+<td>2296 to 2298</td>
+</tr>
+</tbody>
+</table>
+<p>Forcing each record to disk is most of a call under the default: 16 ms at the
+median, against 0.57 ms when the timer forces them. The four records are
+forced one after another, and on macOS Go's <code>File.Sync</code> is
+<code>F_FULLFSYNC</code>, which asks the drive to flush its own cache as well; no other
+operating system has been measured. Under <code>fsync=interval_100ms</code> a power loss
+can take the records written since the last tick.</p>
 <h2 id="the-machine">The machine</h2>
-<p>One run of <code>scripts/bench.sh</code> with <code>COUNT=5 BENCHTIME=1s</code>. Its results file
-was not published, so no file in the repository stands behind the tables
-below; the next published run replaces them and is linked here.</p>
+<p>One run of <code>scripts/bench.sh --publish</code> with <code>COUNT=5 BENCHTIME=1s</code>, at commit
+<code>95816d1</code>, whose results file
+<a href="https://github.com/guardana/control/blob/main/bench/results/20261005T211214Z-darwin-arm64.txt">bench/results/20261005T211214Z-darwin-arm64.txt</a>
+holds every measurement on this page.</p>
 <table>
 <thead>
 <tr>
@@ -294,7 +346,7 @@ below; the next published run replaces them and is linked here.</p>
 <tbody>
 <tr>
 <td>CPU</td>
-<td>Apple M5, 10 cores</td>
+<td>Apple M5, 10 cores (4 performance, 6 efficiency), 24 GiB</td>
 </tr>
 <tr>
 <td>OS</td>
@@ -306,12 +358,11 @@ below; the next published run replaces them and is linked here.</p>
 </tr>
 <tr>
 <td>Load</td>
-<td>5.66 over the minute it started, 15.92 over five</td>
+<td>4.52 over the minute it started, 7.90 over five</td>
 </tr>
 </tbody>
 </table>
-<p>The machine was not idle: other work was running on it throughout, which is
-what the load averages record.</p>
+<p>The machine was not idle, which is what the load averages record.</p>
 <h2 id="validate-and-digestv1">Validate and DigestV1</h2>
 <p>Nanoseconds per operation are the lowest, median and highest of the five
 repetitions, to show the spread. Allocation counts and bytes were identical in
@@ -330,87 +381,87 @@ all five.</p>
 <tbody>
 <tr>
 <td><code>BenchmarkValidateEnvelope/minimal</code></td>
-<td>1847</td>
-<td>1890</td>
-<td>1941</td>
+<td>1835</td>
+<td>1846</td>
+<td>1856</td>
 <td>1232</td>
 <td>16</td>
 </tr>
 <tr>
 <td><code>BenchmarkValidateEnvelope/refund_prod</code></td>
-<td>8451</td>
-<td>8519</td>
-<td>8597</td>
+<td>8066</td>
+<td>8631</td>
+<td>8843</td>
 <td>3912</td>
 <td>134</td>
 </tr>
 <tr>
 <td><code>BenchmarkValidateEnvelope/delegated</code></td>
-<td>6168</td>
-<td>6195</td>
-<td>6311</td>
+<td>6157</td>
+<td>6220</td>
+<td>7566</td>
 <td>2416</td>
 <td>67</td>
 </tr>
 <tr>
 <td><code>BenchmarkValidateEnvelope/mutated_amount</code></td>
-<td>8413</td>
-<td>8445</td>
-<td>8461</td>
+<td>8280</td>
+<td>8967</td>
+<td>9382</td>
 <td>3912</td>
 <td>134</td>
 </tr>
 <tr>
 <td><code>BenchmarkDigestV1/minimal</code></td>
-<td>6998</td>
-<td>7068</td>
-<td>7409</td>
+<td>6989</td>
+<td>7331</td>
+<td>10616</td>
 <td>9630</td>
 <td>124</td>
 </tr>
 <tr>
 <td><code>BenchmarkDigestV1/refund_prod</code></td>
-<td>15910</td>
-<td>16254</td>
-<td>17172</td>
-<td>21047</td>
-<td>308</td>
+<td>16297</td>
+<td>17289</td>
+<td>17505</td>
+<td>21092</td>
+<td>311</td>
 </tr>
 <tr>
 <td><code>BenchmarkDigestV1/delegated</code></td>
-<td>12234</td>
-<td>13155</td>
-<td>14149</td>
-<td>16117</td>
-<td>228</td>
+<td>12277</td>
+<td>12382</td>
+<td>12942</td>
+<td>16133</td>
+<td>229</td>
 </tr>
 <tr>
 <td><code>BenchmarkDigestV1/mutated_amount</code></td>
-<td>17039</td>
-<td>17224</td>
-<td>19945</td>
-<td>21047</td>
-<td>308</td>
+<td>16506</td>
+<td>16781</td>
+<td>18409</td>
+<td>21095</td>
+<td>311</td>
 </tr>
 </tbody>
 </table>
 <p>Read the spread before the numbers. <code>refund_prod</code> and <code>mutated_amount</code> carry
 the same envelope and differ only in one argument value, so both functions do
 the same work on both: identical allocations, and for the digest two more
-bytes of input. <code>BenchmarkDigestV1</code> puts them at medians of 16254 and 17224
-and highs of 17172 and 19945: 6% apart at the median and 16% at the high, for
+bytes of input. <code>BenchmarkValidateEnvelope</code> puts them at medians of 8631 and
+8967 and highs of 8843 and 9382: 4% apart at the median and 6% at the high, for
 two rows that do the same work. A difference of that size between two other
 rows in this run is within the variation it shows for identical work.</p>
 <p>Both functions allocate more than the message they read. The digest builds a
 Go map of the action, sorts every object key as UTF-16 code units and encodes
-the whole thing before hashing it, which is where its 124 to 308 allocations
+the whole thing before hashing it, which is where its 124 to 311 allocations
 come from. Nothing has been tuned; no profile has been taken.</p>
 <h2 id="decide">Decide</h2>
 <p><code>ns/op</code> is the mean over the repetition, lowest, middle and highest of the
 five; <code>p50</code> and <code>p99</code> are the per-call percentiles, middle repetition of the
 five, with the highest p99 in parentheses. Allocation counts were identical in
-all five; B/op differed by one byte between repetitions on three rows, which
-is the rounding of a per-operation average.</p>
+all five; B/op varied by up to nine bytes, and the table gives the middle
+repetition's.</p>
 <table>
 <thead>
 <tr>
@@ -427,53 +478,54 @@ is the rounding of a per-operation average.</p>
 <tbody>
 <tr>
 <td><code>BenchmarkDecide/rules=10</code></td>
-<td>11162</td>
-<td>11233</td>
-<td>12430</td>
-<td>9792</td>
-<td>58791 (68750)</td>
-<td>12421</td>
+<td>12123</td>
+<td>12217</td>
+<td>14082</td>
+<td>9917</td>
+<td>75916 (85291)</td>
+<td>12477</td>
 <td>165</td>
 </tr>
 <tr>
 <td><code>BenchmarkDecide/rules=100</code></td>
-<td>12459</td>
-<td>12630</td>
-<td>13316</td>
-<td>10875</td>
-<td>66750 (73459)</td>
-<td>14941</td>
+<td>13736</td>
+<td>13846</td>
+<td>14548</td>
+<td>11000</td>
+<td>83833 (89167)</td>
+<td>15007</td>
 <td>168</td>
 </tr>
 <tr>
 <td><code>BenchmarkDecide/rules=1000</code></td>
-<td>23958</td>
-<td>24239</td>
-<td>26087</td>
-<td>20292</td>
-<td>108166 (119791)</td>
-<td>37838</td>
+<td>27028</td>
+<td>27599</td>
+<td>28419</td>
+<td>20791</td>
+<td>137375 (140958)</td>
+<td>37902</td>
 <td>171</td>
 </tr>
 <tr>
 <td><code>BenchmarkDecide/obligations=100</code></td>
-<td>83757</td>
-<td>84698</td>
-<td>89340</td>
-<td>65125</td>
-<td>252334 (297291)</td>
-<td>210137</td>
+<td>93942</td>
+<td>94784</td>
+<td>95615</td>
+<td>66417</td>
+<td>299875 (301917)</td>
+<td>210199</td>
 <td>1787</td>
 </tr>
 </tbody>
 </table>
-<p>In the middle repetition the p99 is 5.3 to 6.1 times the p50 on the three
-rules rows and 3.9 times on the obligations row, and it includes the scheduler
+<p>In the middle repetition the p99 is 6.6 to 7.7 times the p50 on the three
+rules rows and 4.5 times on the obligations row, and it includes the scheduler
 and the other work on the host as well as the code. Compare medians rather than
 tails.</p>
-<p>Ten rules to a thousand doubles the median: the fixed cost of a decision, the
-clone of the envelope, the digest and the decision's fields, is most of the
-ten-rule number, and a rule costs on the order of ten nanoseconds to evaluate. The
+<p>Ten rules to a thousand more than doubles the median: the fixed cost of a
+decision, the clone of the envelope, the digest and the decision's fields, is
+most of the ten-rule number, and a rule costs about fifteen nanoseconds to
+evaluate. The
 allocation count barely moves with the rules, because the matched-rule list is
 the only thing that grows. The obligations row is a different shape: two
 hundred obligations cloned onto the decision are eleven times the allocations
@@ -489,7 +541,7 @@ and fourteen times the bytes of the hundred-rule document without them.</p>
 <tbody>
 <tr>
 <td>A target or a service level</td>
-<td>Comparing a later run against these is only meaningful on the same machine in the same state.</td>
+<td>A later run compares with these only on the same machine in the same state.</td>
 </tr>
 <tr>
 <td>A gate</td>

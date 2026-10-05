@@ -11,6 +11,31 @@ verify one.
 
 ## [Unreleased]
 
+## [0.8.0-alpha] - 2026-10-05
+
+One agent run can now be checked against the procedure it was meant to
+follow. `guardana-control supervise` reads a plane's evidence export for a run
+an operator opened, and the observations the agent's runtime reported for that
+run, and writes findings that cite both. `guardana-control notify` hands each
+alert to a program the operator names, and marks it delivered only once the
+program accepts it, so a crash or a failure makes the next run hand it over
+again. `guardana-control coverage` gives each path an operator declares one
+state: enforced by a plane, decided but not enforced, observed by a source,
+unknown, or not covered; where a source observed a call that no plane's export
+records, it says so. None of these commands contacts a plane or changes a
+decision, and a finding that rests on what the runtime reported is marked
+suspected, not confirmed. An upstream answer that quotes a credential the plane
+sends is replaced by a fixed answer from the plane, so the agent does not
+receive the credential. On upgrade, two changes: a call that needs an approval
+under a run an operator opened is held for the approval, where before it was
+blocked; and a call refused as too large records the digest of its over-long
+name or resource. Fixes from an audit of this release include: coverage took a
+prompt or a resource read through the plane for the plane's record of an
+observed tool call, and supervision let the runtime's own report of a step
+count as the step. [docs/status.md](docs/status.md) says what is
+`implemented` and what is `experimental`. Nothing here is a security boundary
+yet.
+
 ### Added
 
 - `guardana-control coverage` prints, for each path an operator declares in an
@@ -703,7 +728,8 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.7.0-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.8.0-alpha...HEAD
+[0.8.0-alpha]: https://github.com/guardana/control/releases/tag/v0.8.0-alpha
 [0.7.0-alpha]: https://github.com/guardana/control/releases/tag/v0.7.0-alpha
 [0.6.0-alpha]: https://github.com/guardana/control/releases/tag/v0.6.0-alpha
 [0.5.0-alpha]: https://github.com/guardana/control/releases/tag/v0.5.0-alpha
