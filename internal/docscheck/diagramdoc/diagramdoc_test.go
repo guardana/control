@@ -138,7 +138,7 @@ func TestChainDiagramDrawsTheRecordsEdges(t *testing.T) {
 			t.Errorf("the notes lack %q", note)
 		}
 	}
-	if !strings.Contains(text, "```\n\nSources: `internal/evidence/chain.go`, `internal/evidence/chainsteps.go`.\n") {
+	if !strings.Contains(text, "```\n\nSources: `internal/trailchain/state.go`, `internal/trailchain/trailchain.go`, `internal/evidence/chainsteps.go`.\n") {
 		t.Errorf("the Sources line does not follow the fence:\n%s", text)
 	}
 	if !strings.HasPrefix(text, "```mermaid\nstateDiagram-v2\n") {

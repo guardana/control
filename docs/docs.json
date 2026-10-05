@@ -58,6 +58,7 @@
     "internal/policy/rules/**",
     "internal/policy/reasons/**",
     "internal/evidence/chain.go",
+    "internal/trailchain/**",
     "scripts/lib/dependency-rule.sh"
   ]
 }

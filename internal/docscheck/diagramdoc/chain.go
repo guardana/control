@@ -57,7 +57,7 @@ func chainDiagram() ([]byte, error) {
 			fmt.Fprintf(&b, "    %s --> %s: %s\n", from, to, kindName(s.Kind))
 		}
 	}
-	b.WriteString("```\n\nSources: `internal/evidence/chain.go`, `internal/evidence/chainsteps.go`.\n\n")
+	b.WriteString("```\n\nSources: `internal/trailchain/state.go`, `internal/trailchain/trailchain.go`, `internal/evidence/chainsteps.go`.\n\n")
 	for _, kind := range stayOrder {
 		fmt.Fprintf(&b, "`%s` leaves the trail where it is, from %s.\n", kind, fromList(stays[kind]))
 	}

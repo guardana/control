@@ -127,7 +127,7 @@ takes, and nothing else moves a trail.</p>
     started --&gt; closed: ACTION_COMPLETED
     started --&gt; closed: ACTION_FAILED
 </code></pre></details></figure>
-<p>Sources: <code>internal/evidence/chain.go</code>, <code>internal/evidence/chainsteps.go</code>.</p>
+<p>Sources: <code>internal/trailchain/state.go</code>, <code>internal/trailchain/trailchain.go</code>, <code>internal/evidence/chainsteps.go</code>.</p>
 <p><code>POLICY_RELOADED</code> leaves the trail where it is, from every state.
 <code>FINDING_RAISED</code> leaves the trail where it is, from every state but the start.
 A kind this version does not know is placed nowhere and read as indeterminate, never refused.</p>

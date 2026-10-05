@@ -3,36 +3,15 @@ package evidence
 import (
 	"bytes"
 	"fmt"
-	"strconv"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/guardana/control/internal/trailchain"
 )
 
-// maxQuotedIDBytes bounds how much of one producer identifier a refusal
-// quotes. A refusal names the event it is about, so the identifier is there to
-// be recognised rather than reproduced; two identifiers of 200 KB each made a
-// ValidateChain refusal of 400 KB before this bound.
-const maxQuotedIDBytes = 64
+func quoted(s string, limit int) string { return trailchain.Quoted(s, limit) }
 
-// quoted cuts s to at most limit bytes, quotes it and marks a cut. It is the
-// one way a producer's bytes enter a refusal in this package.
-//
-// strconv.QuoteToASCII escapes every rune outside printable ASCII and every
-// byte that is not valid UTF-8, so a cut that lands inside a rune is escaped
-// rather than emitted. Escaping only what strconv.IsPrint rejects is not
-// enough: a combining mark, U+3164 and U+2800 are printable, so a refusal
-// quoting an NFD spelling beside its NFC one, or a value ending in a filler,
-// would show an operator the same text twice. The cost is that an identifier
-// in another script reads as escapes.
-func quoted(s string, limit int) string {
-	if len(s) > limit {
-		return strconv.QuoteToASCII(s[:limit]) + " (truncated)"
-	}
-	return strconv.QuoteToASCII(s)
-}
-
-// quoteID quotes one producer identifier for a refusal.
-func quoteID(id string) string { return quoted(id, maxQuotedIDBytes) }
+func quoteID(id string) string { return trailchain.Quoted(id, trailchain.MaxQuotedIDBytes) }
 
 // escapeLine appends line to dst with every rune a reader could take for
 // something other than text written as a JSON \u escape. JSON requires the C0

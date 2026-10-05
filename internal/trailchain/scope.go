@@ -1,7 +1,8 @@
-package evidence
+package trailchain
 
 import (
 	"fmt"
+	"strconv"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/pkg/contract"
@@ -36,7 +37,7 @@ func scopeOf(first *controlv1.Event) (trailScope, error) {
 		{"tenant_id", s.tenant},
 	} {
 		if field.value == "" {
-			return trailScope{}, fmt.Errorf("%w: event 0 carries no %s", ErrChainBroken, field.name)
+			return trailScope{}, fmt.Errorf("%w: event 0 carries no %s", ErrBroken, field.name)
 		}
 	}
 	return s, nil
@@ -52,7 +53,7 @@ func (s trailScope) holds(i int, event *controlv1.Event) error {
 	} {
 		if field.got != field.want {
 			return fmt.Errorf("%w: event %d belongs to %s %s, not %s",
-				ErrChainBroken, i, field.name, quoteID(field.got), quoteID(field.want))
+				ErrBroken, i, field.name, quoteID(field.got), quoteID(field.want))
 		}
 	}
 	return nil
@@ -60,12 +61,12 @@ func (s trailScope) holds(i int, event *controlv1.Event) error {
 
 // modeDefect refuses an event that names no enforcement mode. The mode says
 // whether a DENY on the trail was enforced or only observed, so an event
-// without one says nothing about what was done; NewBuilder refuses to make a
-// Builder without one for the same reason. Each event names its own, and
+// without one says nothing about what was done; evidence.NewBuilder refuses to
+// make a Builder without one for the same reason. Each event names its own, and
 // nothing here requires two events to agree.
 func modeDefect(i int, event *controlv1.Event) error {
 	if event.GetEnforcementMode() == controlv1.EnforcementMode_ENFORCEMENT_MODE_UNSPECIFIED {
-		return fmt.Errorf("%w: event %d names no enforcement mode", ErrChainBroken, i)
+		return fmt.Errorf("%w: event %d names no enforcement mode", ErrBroken, i)
 	}
 	return nil
 }
@@ -74,13 +75,13 @@ func modeDefect(i int, event *controlv1.Event) error {
 // does not declare. It is the undetermined answer and not the broken one:
 // common.proto makes an undeclared enum number INDETERMINATE for a receiver, so
 // a mode a later minor version adds reads here the way a kind it adds does.
-// ValidateChain asks it last, so it never stands in front of a definite defect.
+// Validate asks it last, so it never stands in front of a definite defect.
 func checkModes(events []*controlv1.Event) error {
 	for i, event := range events {
 		mode := event.GetEnforcementMode()
 		if _, declared := controlv1.EnforcementMode_name[int32(mode)]; !declared {
 			return fmt.Errorf("%w: event %d names enforcement mode %d, which this version does not declare",
-				ErrChainIndeterminate, i, int32(mode))
+				ErrIndeterminate, i, int32(mode))
 		}
 	}
 	return nil
@@ -115,19 +116,17 @@ func execution(i int, event *controlv1.Event, startedAs string) (string, error) 
 	case controlv1.EventKind_EVENT_KIND_ACTION_COMPLETED, controlv1.EventKind_EVENT_KIND_ACTION_FAILED:
 		if got := event.GetExecutionId(); got != startedAs {
 			return startedAs, fmt.Errorf("%w: event %d closes execution %s, not %s, which started",
-				ErrChainBroken, i, quoteID(got), quoteID(startedAs))
+				ErrBroken, i, quoteID(got), quoteID(startedAs))
 		}
 	}
 	return startedAs, nil
 }
 
-// lengthDefect refuses an event carrying an identifier, among those
-// ValidateChain reads, that is longer than contract.MaxStringBytes, the
-// contract's bound on a string. A Builder bounds the four identifiers it is
-// given. It cannot refuse the two it is handed call by call, event_id from
-// newID and execution_id from Started, so a longer one is refused here, and
-// the line bound is sized on none being longer. The refusal states the
-// length and never quotes the value.
+// lengthDefect refuses an event carrying an identifier, among those Validate
+// reads, that is longer than contract.MaxStringBytes, the contract's bound on a
+// string. An evidence.Builder bounds the four identifiers it is given but not
+// the two it is handed call by call, event_id and execution_id, so a longer one
+// is refused here. The refusal states the length and never quotes the value.
 func lengthDefect(i int, event *controlv1.Event) error {
 	for _, field := range [...]struct{ name, value string }{
 		{"request_id", event.GetRequestId()},
@@ -139,8 +138,27 @@ func lengthDefect(i int, event *controlv1.Event) error {
 	} {
 		if len(field.value) > contract.MaxStringBytes {
 			return fmt.Errorf("%w: event %d's %s is %d bytes, over %d",
-				ErrChainBroken, i, field.name, len(field.value), contract.MaxStringBytes)
+				ErrBroken, i, field.name, len(field.value), contract.MaxStringBytes)
 		}
 	}
 	return nil
 }
+
+// MaxQuotedIDBytes bounds how much of one producer identifier a refusal
+// quotes. A refusal names the event it is about, so the identifier is there to
+// be recognised rather than reproduced.
+const MaxQuotedIDBytes = 64
+
+// Quoted cuts s to at most limit bytes, quotes it and marks a cut: the one way
+// a producer's bytes enter a refusal here and in internal/evidence.
+// strconv.QuoteToASCII escapes every rune outside printable ASCII and every
+// invalid byte, so a cut inside a rune is escaped, and an NFD spelling, a
+// combining mark or a filler never reads as the same text as another.
+func Quoted(s string, limit int) string {
+	if len(s) > limit {
+		return strconv.QuoteToASCII(s[:limit]) + " (truncated)"
+	}
+	return strconv.QuoteToASCII(s)
+}
+
+func quoteID(id string) string { return Quoted(id, MaxQuotedIDBytes) }

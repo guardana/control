@@ -2,7 +2,7 @@
 title: Evidence and the spool
 summary: The trail every call leaves, the order its events may take, and how the spool keeps them on disk before an exporter sees them.
 type: explanation
-covers: [internal/evidence/**, internal/spool/**, adapters/otel/**]
+covers: [internal/evidence/**, internal/spool/**, adapters/otel/**, internal/trailchain/**]
 ---
 
 # Evidence and the spool
@@ -40,7 +40,7 @@ stateDiagram-v2
     started --> closed: ACTION_FAILED
 ```
 
-Sources: `internal/evidence/chain.go`, `internal/evidence/chainsteps.go`.
+Sources: `internal/trailchain/state.go`, `internal/trailchain/trailchain.go`, `internal/evidence/chainsteps.go`.
 
 `POLICY_RELOADED` leaves the trail where it is, from every state.
 `FINDING_RAISED` leaves the trail where it is, from every state but the start.
