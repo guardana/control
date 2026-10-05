@@ -196,9 +196,11 @@ What the plane does today:
 
 What it does not do:
 
-- **It does not look inside a result.** Whatever a server returns, injected
-  instructions included, reaches the agent unchanged, but for the plane's own
-  `_meta` keys. The plane records a hash of a result it can encode.
+- **It does not judge what a result says.** Whatever a server returns,
+  injected instructions included, reaches the agent as it was sent, but for the
+  plane's own `_meta` keys and an answer that quotes a credential the plane
+  sends, which is withheld (below). The plane records a hash of a result it can
+  encode.
 - A tool the agent is shown comes with its description as the server wrote
   it. List shaping can hide denied and unclassified tools, never rewrite a
   description, and the fingerprint catches a definition that changes, not one

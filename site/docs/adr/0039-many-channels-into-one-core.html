@@ -116,7 +116,8 @@ coverage's code lives in <code>internal/coverage</code>, outside the guarded tre
 nothing it prints reaches a decision or a stop.</p>
 <p>Amended by <a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>:
 a notifier lives in <code>internal/notify</code>, since a plane's import rule covers
-<code>adapters/</code>.</p>
+<code>adapters/</code>, and <code>guardana-control supervise</code> raises v1 findings inside a
+finding record of its own, not as plane events.</p>
 <p>Amends the order of <a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a>
 and withdraws the in-process detector seam of
 <a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>. Builds on

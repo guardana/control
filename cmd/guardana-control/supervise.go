@@ -78,7 +78,7 @@ func superviseCommand(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return refuseSupervise(stderr, refusedInput("findings", a.findings[0], err).Error())
 	}
-	unread := unreadSources(in)
+	unread := unreadSources(in, res)
 	text := strings.Join(superviseLines(in, res, unread, logged), "\n") + "\n"
 	if _, err := io.WriteString(stdout, text); err != nil {
 		return refuseSupervise(stderr, "writing to standard output: "+err.Error())

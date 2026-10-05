@@ -65,6 +65,35 @@ func TestNothingJoinsOnLessThanEverything(t *testing.T) {
 	}
 }
 
+// TestOnlyAToolCallJoins: a prompt or a resource read through the plane under
+// the tool's name, upstream and ids is not the tool call the source saw.
+func TestOnlyAToolCallJoins(t *testing.T) {
+	hit := proposal{trace: traceA, span: spanA}
+	cases := []struct {
+		name string
+		line string
+		want coverage.Join
+	}{
+		{"a tool call", hit.line(), coverage.Joined},
+		{"a prompt", withKind(hit, "prompt").line(), coverage.JoinAround},
+		{"a resource", withKind(hit, "resource").line(), coverage.JoinAround},
+		{"a kind spelled otherwise", withKind(hit, "Tool").line(), coverage.JoinAround},
+		{"no kind", strings.Replace(hit.line(), `"kind":"tool",`, "", 1), coverage.JoinAround},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if j := joinOf(t, wholeExport(t, tc.line), observedA.record()); j.Join != tc.want {
+				t.Fatalf("%+v, want %v", j, tc.want)
+			}
+		})
+	}
+}
+
+func withKind(p proposal, kind string) proposal {
+	p.kind = kind
+	return p
+}
+
 // TestAnUnjoinedObservationIsACallAroundThePlane: whole evidence whose window
 // holds the observation, and no proposal joining it.
 func TestAnUnjoinedObservationIsACallAroundThePlane(t *testing.T) {
@@ -88,6 +117,10 @@ func TestADescendantJoins(t *testing.T) {
 		{"a child of another source", []*observev1.Record{observedA.record(), with(child, func(o *obs) { o.source = "s2" }).record()}, spanB, coverage.JoinAround},
 		{"a child with an empty span id", []*observev1.Record{observedA.record(), with(child, func(o *obs) { o.span = "" }).record()}, "", coverage.JoinAround},
 		{"a child in another trace", []*observev1.Record{observedA.record(), with(child, func(o *obs) { o.trace = traceB }).record()}, spanB, coverage.JoinAround},
+		{"a child of another tenant", []*observev1.Record{observedA.record(), with(child, func(o *obs) { o.tenant = "t2" }).record()}, spanB, coverage.JoinAround},
+		{"a child of another project", []*observev1.Record{observedA.record(), with(child, func(o *obs) { o.project = "p2" }).record()}, spanB, coverage.JoinAround},
+		{"a grandchild below a child of another tenant", []*observev1.Record{observedA.record(),
+			with(child, func(o *obs) { o.tenant = "t2" }).record(), grandchild.record()}, spanC, coverage.JoinAround},
 		{"a parent does not join for its child", []*observev1.Record{
 			with(observedA, func(o *obs) { o.parent = spanB }).record(),
 			{Record: &observev1.Record_Observation{Observation: &observev1.Observation{ObservationId: "obs-up",
@@ -126,7 +159,7 @@ func TestAJoinNotCheckedSaysWhy(t *testing.T) {
 		{"a filtered export", notWhole(`{"limit":1000,"tenant":["t1"]}`, true), observedA, "the export of plane a is not whole: it is filtered"},
 		{"an export after a cursor", notWhole(`{"after":"v1:x","limit":1000}`, true), observedA, "not whole"},
 		{"an export stopped early", notWhole(plainQuery, false), observedA, "not whole"},
-		{"a gapped export", notWhole(plainQuery, true, `{"type":"gap","offset":0,"reason":"malformed"}`), observedA, "not whole"},
+		{"a gapped export", notWhole(plainQuery, true, `{"type":"gap","offset":0,"cursor":"c","reason":"malformed"}`), observedA, "not whole"},
 		{"a cut export", mustExport(t, lines(header(plainQuery), windowEvent(-time.Hour), windowEvent(0), miss)), observedA, "not whole"},
 		{"no event time", wholeExport(t, miss), with(observedA, func(o *obs) { o.noTime = true }), "no event time"},
 		{"before the window", mustExport(t, lines(header(plainQuery), windowEvent(-30*time.Second), miss, trailer(2, 0, 0, true))), observedA,
@@ -224,6 +257,73 @@ func TestAnExportSpeaksOnlyForItsPlane(t *testing.T) {
 			}
 			if j := p.Joins[0]; j.Join != tc.want || j.Why != tc.why {
 				t.Fatalf("%+v, want %v (%q)", j, tc.want, tc.why)
+			}
+		})
+	}
+}
+
+// TestAMatchJoinsWhateverTheTime: the event time and the export's window only
+// bound calling an unjoined observation a call around the plane.
+func TestAMatchJoinsWhateverTheTime(t *testing.T) {
+	hit := proposal{trace: traceA, span: spanA}.line()
+	cases := map[string]*coverage.Export{
+		"no event time":      wholeExport(t, hit),
+		"outside the window": mustExport(t, lines(header(plainQuery), windowEvent(-30*time.Second), hit, trailer(2, 0, 0, true))),
+	}
+	for name, x := range cases {
+		t.Run(name, func(t *testing.T) {
+			o := observedA
+			o.noTime = name == "no event time"
+			if j := joinOf(t, x, o.record()); j.Join != coverage.Joined {
+				t.Fatalf("%+v, want joined", j)
+			}
+		})
+	}
+}
+
+// TestEveryProposalUnderOneIDPairIsTried: proposals of other tenants, kinds
+// and tools carrying the same ids, before and after the one that joins.
+func TestEveryProposalUnderOneIDPairIsTried(t *testing.T) {
+	ids := proposal{trace: traceA, span: spanA}
+	others := []string{
+		withProposal(ids, func(p *proposal) { p.tenant = "t2" }).line(),
+		withProposal(ids, func(p *proposal) { p.kind = "prompt" }).line(),
+		withProposal(ids, func(p *proposal) { p.tool = "delete_issue" }).line(),
+	}
+	for _, events := range [][]string{append(others, ids.line()), append([]string{ids.line()}, others...)} {
+		if j := joinOf(t, wholeExport(t, events...), observedA.record()); j.Join != coverage.Joined {
+			t.Fatalf("%+v, want joined", j)
+		}
+	}
+}
+
+func withProposal(p proposal, change func(*proposal)) proposal {
+	change(&p)
+	return p
+}
+
+// TestTheWindowHoldsItsEdges: the observation is a minute before now; an
+// export whose first or last event is at that instant holds it, and one a
+// nanosecond short of it on either side does not.
+func TestTheWindowHoldsItsEdges(t *testing.T) {
+	window := func(first, last time.Duration) *coverage.Export {
+		miss := proposal{trace: traceA, span: spanB, occurred: first}.line()
+		return mustExport(t, lines(header(plainQuery), windowEvent(first), miss, windowEvent(last), trailer(3, 0, 0, true)))
+	}
+	cases := []struct {
+		name string
+		x    *coverage.Export
+		want coverage.Join
+	}{
+		{"at the earliest", window(-time.Minute, 0), coverage.JoinAround},
+		{"at the latest", window(-time.Hour, -time.Minute), coverage.JoinAround},
+		{"a nanosecond before the earliest", window(-time.Minute+time.Nanosecond, 0), coverage.JoinNotChecked},
+		{"a nanosecond after the latest", window(-time.Hour, -time.Minute-time.Nanosecond), coverage.JoinNotChecked},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if j := joinOf(t, tc.x, observedA.record()); j.Join != tc.want {
+				t.Fatalf("%+v, want %v", j, tc.want)
 			}
 		})
 	}

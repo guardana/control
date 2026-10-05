@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -114,6 +115,54 @@ func TestALineThatIsNotItsRecordIsNeverHanded(t *testing.T) {
 		if err := sameRecord([]byte(line), rec); !errors.Is(err, ErrChanged) {
 			t.Errorf("%s: sameRecord = %v, want ErrChanged", name, err)
 		}
+	}
+}
+
+// TestALogChangedAfterItWasReadStopsTheRun: the log holds A and B and its
+// report, and is changed after the run judged it, before it reads the lines.
+// Every line is held to its record, delivered or not, finding or report, and
+// a changed one stops the run before anything is handed on for it.
+func TestALogChangedAfterItWasReadStopsTheRun(t *testing.T) {
+	for name, c := range map[string]struct {
+		delivered bool
+		line      int
+		old, new  string
+		want      error
+	}{
+		"nothing changed":      {true, 1, "", "", nil},
+		"an undelivered alert": {false, 0, `"ruleId":"repeated_denial"`, `"ruleId":"repeated_denials"`, ErrChanged},
+		"an alert re-spelled":  {false, 0, `"tenantId":"tenant-a",`, `"tenantId":"tenant-a", `, ErrChanged},
+		"a delivered alert":    {true, 1, `"ruleId":"repeated_denial"`, `"ruleId":"repeated_denials"`, ErrChanged},
+		"the report":           {true, 2, `"tenantId":"tenant-a"`, `"tenantId":"tenant-b"`, ErrChanged},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := newRig(t)
+			r.write(t, finding(idA, confirmed, alert), finding(idB, confirmed, alert))
+			if c.delivered {
+				wantSummary(t, r.run(t, r.options(true)), 2, 0, 0, 0)
+			}
+			before := r.received(t)
+			ops := osOps
+			ops.openLog = func(path string) (*os.File, error) {
+				raw, err := os.ReadFile(path) //nolint:gosec // G304: the test's own file
+				mustDo(t, err)
+				lines := strings.SplitAfter(string(raw), "\n")
+				edited := strings.Replace(lines[c.line], c.old, c.new, 1)
+				if c.old != "" && edited == lines[c.line] {
+					t.Fatalf("line %d holds no %s", c.line, c.old)
+				}
+				lines[c.line] = edited
+				mustDo(t, os.WriteFile(path, []byte(strings.Join(lines, "")), 0o600)) //nolint:gosec // G703: the log of the test's own directory
+				return osOps.openLog(path)
+			}
+			o := r.options(!c.delivered)
+			if _, err := run(t.Context(), o, ops); !errors.Is(err, c.want) {
+				t.Errorf("run = %v, want %v", err, c.want)
+			}
+			if got := r.received(t); got != before {
+				t.Errorf("the changed run handed the program %q", strings.TrimPrefix(got, before))
+			}
+		})
 	}
 }
 

@@ -50,6 +50,16 @@ func marshalLine(r *findingv1alpha1.Record) ([]byte, error) {
 	return line.Bytes(), nil
 }
 
+// Line is the line the writer writes for r, its newline left out. It
+// refuses a record the writer refuses.
+func Line(r *findingv1alpha1.Record) ([]byte, error) {
+	b, err := marshalLine(r)
+	if err != nil {
+		return nil, err
+	}
+	return b[:len(b)-1], nil
+}
+
 // unmarshalLine reads one log line, with or without its newline, held to the
 // writer's form. Its errors can quote the line, so a caller that may not
 // repeat a line's bytes does not repeat them.

@@ -25,11 +25,12 @@ guarded=(
 )
 
 # Trees of this module outside `guarded` that the non-test build of a guarded
-# tree reaches. A reached package is held to the import rule like a guarded
-# one, and .golangci.yml refuses the same clock, input and randomness reads by
-# name in it: otherwise a helper would be a way around them. A guarded tree that
-# reaches a package of this module under neither list fails check-imports.sh,
-# and so does an entry here that no guarded tree reaches any more.
+# tree reaches. A reached package is held to the import rule and to the same
+# files on every platform like a guarded one, and .golangci.yml refuses the same
+# clock, input and randomness reads by name in it: otherwise a helper would be a
+# way around them. A guarded tree that reaches a package of this module under
+# neither list fails check-imports.sh, and so does an entry here that no guarded
+# tree reaches any more.
 reached=(
   internal/docscheck/frontmatter
   internal/observe

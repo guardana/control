@@ -102,6 +102,43 @@ func TestASpanCycleEndsTheWalk(t *testing.T) {
 			obsRef("s1", "obs-c")))
 }
 
+// TestOnlyTheRunsObservationsMakeTheSpanGraph: obs-top names wipe_disk at
+// span a, and r5 proposes wipe_disk at span c. Only obs-edge says c is a
+// child of a; it joins obs-top to r5 only when it belongs to the run.
+func TestOnlyTheRunsObservationsMakeTheSpanGraph(t *testing.T) {
+	p := procWith(t)
+	plane := want(p, "STEP_OUTSIDE_PROCEDURE", medium, alert, confirmed, id("STEP_OUTSIDE_PROCEDURE", "wipe_disk", "ops"),
+		evRef("r5-e1", "r5"))
+	reported := want(p, "STEP_OUTSIDE_PROCEDURE", medium, alert, suspected, id("STEP_OUTSIDE_PROCEDURE", "wipe_disk"),
+		obsRef("s1", "obs-top"))
+	edge := ob{id: "obs-edge", name: "mcp_call", kind: observev1.SubjectKind_SUBJECT_KIND_AGENT,
+		span: "cccccccccccccccc", parent: "aaaaaaaaaaaaaaaa"}
+	for name, c := range map[string]struct {
+		edit   func(*ob)
+		joined bool
+	}{
+		"of the run":         {func(*ob) {}, true},
+		"of another run":     {func(o *ob) { o.run = "run-ffffffffffffffffffffffffffffffff" }, false},
+		"of another tenant":  {func(o *ob) { o.tenant = "t2" }, false},
+		"of another project": {func(o *ob) { o.proj = "p2" }, false},
+		"with no basis":      {func(o *ob) { o.basis = observev1.Basis_BASIS_NONE }, false},
+		"with a bound basis": {func(o *ob) { o.basis = observev1.Basis_BASIS_BOUND }, false},
+	} {
+		e := edge
+		c.edit(&e)
+		res := evaluate(t, supervise.Input{Procedure: p, Exports: []supervise.Export{export(
+			call{req: "r5", tool: "wipe_disk", upstream: "ops", span: "cccccccccccccccc"})},
+			Sources: []supervise.Source{source(ob{id: "obs-top", name: "wipe_disk", span: "aaaaaaaaaaaaaaaa"}, e)}})
+		t.Run(name, func(t *testing.T) {
+			if c.joined {
+				sameFindings(t, res.Findings, plane)
+				return
+			}
+			sameFindings(t, res.Findings, plane, reported)
+		})
+	}
+}
+
 func BenchmarkJoinAChainOf10000Observations(b *testing.B) {
 	p, err := supervise.ReadProcedure([]byte(procJSON))
 	if err != nil {

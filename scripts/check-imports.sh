@@ -12,9 +12,10 @@
 # refused_files names, natively or as foreign_platform builds it. go list
 # reports the build of one platform, so a file that only another platform
 # compiles, or assembly that needs no import, would otherwise pass on every
-# machine the gate runs on. No Go file of a guarded tree, tests included, may
-# carry a build constraint line either: that is read as text, because a
-# constraint every listed platform satisfies leaves nothing out of a listing.
+# machine the gate runs on. No Go file of a guarded or reached tree, tests
+# included, may carry a build constraint line either: that is read as text,
+# because a constraint every listed platform satisfies leaves nothing out of a
+# listing.
 # And every Go file of a guarded tree must be one go list names, natively and
 # for foreign_platform: a package whose only files a name suffix keeps to
 # another platform is in no listing at all, and neither are its imports.
@@ -23,8 +24,8 @@
 #   - here: the in-module packages the non-test build reaches, which depguard
 #     does not see because it reads only each guarded file's own imports, the
 #     files of those packages that are not plain Go built on every platform,
-#     and the build constraint lines and listings of the guarded trees' Go
-#     files;
+#     the build constraint lines of the guarded and reached trees' Go files,
+#     and the listings of the guarded trees' Go files;
 #   - depguard: imports written in _test.go files, which `go list -deps`
 #     leaves out of the package's dependency set.
 set -euo pipefail
@@ -172,34 +173,34 @@ refuse_unnamed() {
   done
 }
 
-checked=0
-sources=0
-failures=0
-packages=""
-imports=""
-refusals=""
-
-# Every guarded tree exists and holds packages. One that does not resolve is
-# a failure, never a skip: a tree renamed or moved out from under its name
-# would otherwise leave the rule with nothing to examine there and exit 0.
-for dir in "${guarded[@]}"; do
-  pattern="./${dir}/..."
+# examine_sources <tree> <guarded or reached>
+# Refuses each Go file of the tree outside testdata, tests included, that holds
+# a build constraint line; in a guarded tree also each that a listing, native or
+# foreign_platform, does not name: a reached package that no listing names
+# makes go list -deps fail instead. Returns 1, the failure counted, when the
+# tree is missing or holds no Go file.
+examine_sources() {
+  local dir="$1" kind="$2" pattern="./$1/..." gofiles matched rc file listing
 
   # Statted first, so the failure names the tree instead of git warning on
   # stderr about a directory it cannot walk for untracked files.
   if [[ ! -d "${dir}" ]]; then
-    printf 'FAIL %s: the guarded tree does not exist\n' "${pattern}" >&2
+    printf 'FAIL %s: the %s tree does not exist\n' "${pattern}" "${kind}" >&2
     failures=$((failures + 1))
-    continue
+    return 1
   fi
 
-  # Assigned before the test: inside [[ ]] a failing repo_files would look like
-  # an empty result.
-  gofiles="$(repo_files "${dir}/*.go")"
-  if [[ -z "${gofiles}" ]]; then
-    printf 'FAIL %s: the guarded tree holds no Go file\n' "${pattern}" >&2
+  # Tested in an if: a caller testing this function's status turns errexit off
+  # inside it, so a failing repo_files would otherwise read as an empty tree.
+  if ! gofiles="$(repo_files "${dir}/*.go")"; then
+    printf 'FAIL %s: the Go files of the %s tree could not be listed\n' "${pattern}" "${kind}" >&2
     failures=$((failures + 1))
-    continue
+    return 1
+  fi
+  if [[ -z "${gofiles}" ]]; then
+    printf 'FAIL %s: the %s tree holds no Go file\n' "${pattern}" "${kind}" >&2
+    failures=$((failures + 1))
+    return 1
   fi
 
   # Every Go file outside testdata, whether or not a listing names it: go list
@@ -211,38 +212,64 @@ for dir in "${guarded[@]}"; do
     fi
   done <<<"${gofiles}"
   if [[ ${#files[@]} -eq 0 ]]; then
-    printf 'FAIL %s: the guarded tree holds no Go file outside testdata\n' "${pattern}" >&2
+    printf 'FAIL %s: the %s tree holds no Go file outside testdata\n' "${pattern}" "${kind}" >&2
     failures=$((failures + 1))
-  else
-    sources=$((sources + ${#files[@]}))
-    # grep exits 1 when no line matches and 2 when it could not read a file,
-    # which is a failure, never a clean tree.
-    rc=0
-    matched="$(LC_ALL=C grep -lE -- "${constraint_line}" "${files[@]}")" || rc=$?
-    if [[ ${rc} -gt 1 ]]; then
-      printf 'FAIL %s: grep could not read the Go files for build constraints\n' "${pattern}" >&2
-      failures=$((failures + 1))
-    fi
-    while read -r file; do
-      if [[ -n "${file}" ]]; then
-        refusals+="FAIL ${file} ${constrained}"$'\n'
-      fi
-    done <<<"${matched}"
+    return 0
+  fi
+  sources=$((sources + ${#files[@]}))
 
-    # A pattern that matches no package prints a warning and exits 0; every
-    # file is then unnamed and refused.
-    if listing="$(go list -f "${named_template}" "${pattern}")"; then
-      refuse_unnamed "${listing}" "this platform"
-    else
-      printf 'FAIL %s: go list failed\n' "${pattern}" >&2
-      failures=$((failures + 1))
+  # grep exits 1 when no line matches and 2 when it could not read a file,
+  # which is a failure, never a clean tree.
+  rc=0
+  matched="$(LC_ALL=C grep -lE -- "${constraint_line}" "${files[@]}")" || rc=$?
+  if [[ ${rc} -gt 1 ]]; then
+    printf 'FAIL %s: grep could not read the Go files for build constraints\n' "${pattern}" >&2
+    failures=$((failures + 1))
+  fi
+  while read -r file; do
+    if [[ -n "${file}" ]]; then
+      refusals+="FAIL ${file} ${constrained}"$'\n'
     fi
-    if listing="$(GOOS="${foreign_platform[0]}" GOARCH="${foreign_platform[1]}" go list -f "${named_template}" "${pattern}")"; then
-      refuse_unnamed "${listing}" "${foreign}"
-    else
-      printf 'FAIL %s: go list for %s failed\n' "${pattern}" "${foreign}" >&2
-      failures=$((failures + 1))
-    fi
+  done <<<"${matched}"
+
+  [[ "${kind}" == guarded ]] || return 0
+  listed=$((listed + ${#files[@]}))
+
+  # A pattern that matches no package prints a warning and exits 0; every
+  # file is then unnamed and refused.
+  if listing="$(go list -f "${named_template}" "${pattern}")"; then
+    refuse_unnamed "${listing}" "this platform"
+  else
+    printf 'FAIL %s: go list failed\n' "${pattern}" >&2
+    failures=$((failures + 1))
+  fi
+  if listing="$(GOOS="${foreign_platform[0]}" GOARCH="${foreign_platform[1]}" go list -f "${named_template}" "${pattern}")"; then
+    refuse_unnamed "${listing}" "${foreign}"
+  else
+    printf 'FAIL %s: go list for %s failed\n' "${pattern}" "${foreign}" >&2
+    failures=$((failures + 1))
+  fi
+}
+
+checked=0
+sources=0
+listed=0
+failures=0
+packages=""
+imports=""
+refusals=""
+
+for tree in "${reached[@]}"; do
+  examine_sources "${tree}" reached || true
+done
+
+# Every guarded tree exists and holds packages. One that does not resolve is
+# a failure, never a skip: a tree renamed or moved out from under its name
+# would otherwise leave the rule with nothing to examine there and exit 0.
+for dir in "${guarded[@]}"; do
+  pattern="./${dir}/..."
+  if ! examine_sources "${dir}" guarded; then
+    continue
   fi
 
   if ! listing="$(go list -deps -f "${template}" "${pattern}")"; then
@@ -333,8 +360,8 @@ if [[ ${nrefusals} -gt 0 ]]; then
   printf '%s' "${refusals}" | LC_ALL=C sort -u >&2
 fi
 
-printf 'check-imports: %d of %d tree(s) checked; %d package(s) of this module and %d import(s) examined; %d Go file(s) read for build constraints and sought in both listings; %d violation(s)\n' \
-  "${checked}" "${#guarded[@]}" "${npackages}" "${nimports}" "${sources}" "$((nrefusals + failures))"
+printf 'check-imports: %d of %d tree(s) checked; %d package(s) of this module and %d import(s) examined; %d Go file(s) read for build constraints and %d of them sought in both listings; %d violation(s)\n' \
+  "${checked}" "${#guarded[@]}" "${npackages}" "${nimports}" "${sources}" "${listed}" "$((nrefusals + failures))"
 
 # A run that examined nothing reports that, never a pass.
 if [[ ${checked} -eq 0 ]]; then

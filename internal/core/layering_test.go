@@ -58,9 +58,10 @@ var guardedTrees = []string{
 // Trees of this module outside guardedTrees that the non-test build of a
 // guarded tree reaches. A reached package is held to the import rule like a
 // guarded one, and to the same refusal of clock, input and randomness reads by
-// name: otherwise a helper would be a way around it. A guarded tree that
-// reaches a package of this module under neither list fails, and so does an
-// entry here that no guarded tree reaches any more.
+// name, and no Go file of a reached tree may hold a build constraint line:
+// otherwise a helper would be a way around them. A guarded tree that reaches a
+// package of this module under neither list fails, and so does an entry here
+// that no guarded tree reaches any more.
 var reachedTrees = []string{
 	"internal/docscheck/frontmatter",
 	"internal/observe",
@@ -362,18 +363,18 @@ func foreignListing(t *testing.T, moduleDir, tree string) []listedPackage {
 	return listing
 }
 
-// mustExist fails the test when the guarded tree is not a directory of the
-// module.
+// mustExist fails the test when the guarded or reached tree is not a
+// directory of the module.
 func mustExist(t *testing.T, moduleDir, tree string) {
 	t.Helper()
 	info, err := os.Stat(filepath.Join(moduleDir, filepath.FromSlash(tree)))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		t.Fatalf("guarded tree %s does not exist, so the rule examined nothing there", tree)
+		t.Fatalf("tree %s does not exist, so the rule examined nothing there", tree)
 	case err != nil:
 		t.Fatalf("stat %s: %v", tree, err)
 	case !info.IsDir():
-		t.Fatalf("guarded tree %s is not a directory", tree)
+		t.Fatalf("tree %s is not a directory", tree)
 	}
 }
 
@@ -413,15 +414,17 @@ func parseListing(lines []string) ([]listedPackage, error) {
 	return listing, nil
 }
 
-// TestGuardedFilesHoldNoBuildConstraint refuses a build constraint line in any
-// Go file of the guarded trees, tests included. A constraint every listed
-// platform satisfies, `//go:build !plan9` for one, leaves the file out of no
-// listing, yet a build for another platform compiles the package without it.
-func TestGuardedFilesHoldNoBuildConstraint(t *testing.T) {
+// TestGuardedAndReachedFilesHoldNoBuildConstraint refuses a build constraint
+// line in any Go file of the guarded and reached trees, tests included. A
+// constraint every listed platform satisfies, `//go:build !plan9` for one,
+// leaves the file out of no listing, yet a build for another platform compiles
+// the package without it.
+func TestGuardedAndReachedFilesHoldNoBuildConstraint(t *testing.T) {
 	_, moduleDir := mainModule(t)
 	repo := os.DirFS(moduleDir)
+	trees := slices.Concat(guardedTrees, reachedTrees)
 	files := 0
-	for _, tree := range guardedTrees {
+	for _, tree := range trees {
 		mustExist(t, moduleDir, tree)
 		for _, rel := range treeSources(t, repo, tree) {
 			files++
@@ -435,9 +438,9 @@ func TestGuardedFilesHoldNoBuildConstraint(t *testing.T) {
 		}
 	}
 	if files == 0 {
-		t.Fatalf("none of %v holds a Go file outside testdata, so no build constraint was looked for", guardedTrees)
+		t.Fatalf("none of %v holds a Go file outside testdata, so no build constraint was looked for", trees)
 	}
-	t.Logf("%d Go file(s) of the guarded trees read for build constraints", files)
+	t.Logf("%d Go file(s) of the guarded and reached trees read for build constraints", files)
 }
 
 // treeSources returns every Go file under tree outside testdata, as

@@ -31,7 +31,7 @@ alert twice.
 ## Decision
 
 **One opened run.** `guardana-control supervise --procedure <file> --runs <dir>
---run <run-id>` reads that run's record (tenant, when it was opened and
+--run <run-id> --findings <dir>` reads that run's record (tenant, when it was opened and
 closed). Only a run an operator opened is supervised; a plane's local run,
 one per listener for the plane's whole life, is refused, and so are a run's
 children. The command's inputs are evidence exports (`--evidence`) and source
@@ -89,8 +89,9 @@ references (a plane event by event id and request id, an observation by source
 id and observation id) and a v1 `Finding` whose source is `DETERMINISTIC`,
 whose verdict and severity are set, and whose `evidence_refs`, `request_id`,
 `recommended_action` and `framework_mappings` are empty, since the typed
-references say it once. A `SuperviseReport` ends each run of the command: what
-was read and left out, each rule checked or not and why.
+references say it once. A `SuperviseReport` ends each write of the command:
+what was read and left out, each rule checked or not and why. A run of the
+command that read no event of the run writes nothing and exits 1.
 
 **The finding id** is `fnd-` and 32 hex digits of a length-prefixed SHA-256,
 domain `finding-id:1`, over tenant, project, run, procedure id and version,

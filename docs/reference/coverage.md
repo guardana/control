@@ -79,8 +79,9 @@ command's clock is unknown.
 
 Beside an enforced or decided path, each matching observation is checked
 against the exports of the planes that count for it. It is joined when it, or
-an observation below it in the same trace, has the span id of a proposal for
-that tool on that upstream, in the same tenant and project, recorded in a mode
+an observation below it in the same trace, tenant and project, has the span id
+of a tool call's proposal for that tool on that upstream, in the same tenant
+and project, recorded in a mode
 at least as strong as the path's state. A call every such plane's export could
 have shown and none does is printed as a call around the plane. The check is
 printed as not checked, with the reason, when:

@@ -61,8 +61,8 @@ nothing but that file's owner and mode protects it.
 | `STEP_OUTSIDE_PROCEDURE` | a tool neither a step nor allowed is called, or reported and not joined to a plane call |
 | `DEADLINE_EXCEEDED` | the run's events span more than `deadline_seconds` |
 | `REQUIRED_STEP_SKIPPED` | a required step has no instance |
-| `STEP_OUT_OF_ORDER` | a step comes before a step it must follow |
-| `CONTINUED_AFTER_FAILURE` | another step follows a step that failed |
+| `STEP_OUT_OF_ORDER` | a step comes before a step it must follow; an order that cannot be told for want of a time is indeterminate, never a pass |
+| `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure; a proposal or a failure whose time is not known makes it indeterminate |
 
 A retry of the same step is never a finding, and an approval belongs to the
 step it held.

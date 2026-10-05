@@ -304,9 +304,11 @@ failure reaches neither the agent nor the log with the URL
 </ul>
 <p>What it does not do:</p>
 <ul>
-<li><strong>It does not look inside a result.</strong> Whatever a server returns, injected
-instructions included, reaches the agent unchanged, but for the plane's own
-<code>_meta</code> keys. The plane records a hash of a result it can encode.</li>
+<li><strong>It does not judge what a result says.</strong> Whatever a server returns,
+injected instructions included, reaches the agent as it was sent, but for the
+plane's own <code>_meta</code> keys and an answer that quotes a credential the plane
+sends, which is withheld (below). The plane records a hash of a result it can
+encode.</li>
 <li>A tool the agent is shown comes with its description as the server wrote
 it. List shaping can hide denied and unclassified tools, never rewrite a
 description, and the fingerprint catches a definition that changes, not one

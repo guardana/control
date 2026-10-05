@@ -135,9 +135,10 @@ id, tenant, project, tool name and upstream. For a path shown enforced the
 proposal must be recorded in a mode that enforces, so an observing plane
 cannot cover a call around an enforcing one; for a path a plane only decides,
 an <code>OBSERVE</code> proposal is the call passing that plane.
-Empty ids never join, and a trace id alone never joins. An observation with no
-event time, or one outside the time span the export's events cover, is not
-checked. Only an observation that could have joined and did not is printed as
+Empty ids never join, and a trace id alone never joins. A proposal of a
+resource read or a prompt never joins a tool call. An observation that joins
+no proposal, and has no event time or one outside the time span the export's
+events cover, is not checked. Only an observation that could have joined and did not is printed as
 a call around the plane: every plane that counts for the path has a whole
 export holding the observation's time, and none holds the call. Otherwise the
 check names the plane whose export is missing.</p>

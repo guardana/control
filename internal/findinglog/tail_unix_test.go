@@ -61,13 +61,16 @@ func TestOpenRefusesAWholeLogNoWriterLeaves(t *testing.T) {
 		tail   string
 		number int
 	}{
-		"an unknown member, committed":   {planted + r, 3},
-		"an unknown member, uncommitted": {planted, 3},
-		"a key the log holds":            {again + r, 3},
-		"a key twice in one write":       {line(t, findingRecord(finding(idB, suspected, "outside"))) + line(t, findingRecord(finding(idB, suspected, "planted"))), 4},
-		"a carriage return":              {strings.Replace(r, "\n", "\r\n", 1), 3},
-		"a line that is no record":       {"{}\n" + r, 3},
-		"a line over the bound":          {`{"findingRecord":"` + strings.Repeat("p", MaxLineBytes) + "\"}\n" + r, 3},
+		"an unknown member, committed":                {planted + r, 3},
+		"an unknown member, uncommitted":              {planted, 3},
+		"a key the log holds":                         {again + r, 3},
+		"a key twice in one write":                    {line(t, findingRecord(finding(idB, suspected, "outside"))) + line(t, findingRecord(finding(idB, suspected, "planted"))), 4},
+		"a report counting a finding its write lacks": {r, 3},
+		"a report counting fewer than its write holds": {line(t, findingRecord(finding(idB, suspected, "outside"))) +
+			line(t, writtenReport(0)), 4},
+		"a carriage return":        {strings.Replace(r, "\n", "\r\n", 1), 3},
+		"a line that is no record": {"{}\n" + r, 3},
+		"a line over the bound":    {`{"findingRecord":"` + strings.Repeat("p", MaxLineBytes) + "\"}\n" + r, 3},
 	} {
 		dir, whole := logWithTail(t, c.tail)
 		l, err := Open(dir)

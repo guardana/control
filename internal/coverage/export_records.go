@@ -14,7 +14,7 @@ import (
 )
 
 // gapReasons are the reasons ADR-0035 names for a gap.
-var gapReasons = []string{"malformed", "too_long", "unsupported_version", "conflicting_event_id", "carriage_return", "partial_tail"}
+var gapReasons = []string{"malformed", "too_long", "unsupported_version", "conflicting_event_id", "carriage_return", gapPartialTail}
 
 func (er *exportReader) readHeader(line []byte) error {
 	m, err := object(line, "type", "format", "version", "file", "source", "query")
@@ -31,6 +31,9 @@ func (er *exportReader) readHeader(line []byte) error {
 		return errors.New("file: required")
 	}
 	if er.x.File, err = m.str("file"); err != nil {
+		return err
+	}
+	if err := er.readSource(m); err != nil {
 		return err
 	}
 	if err := er.readQuery(m); err != nil {
@@ -50,10 +53,9 @@ func (er *exportReader) readQuery(header members) error {
 	if err != nil {
 		return err
 	}
-	if _, err := q.str("after"); err != nil {
+	if err := er.readBounds(q); err != nil {
 		return err
 	}
-	_, er.after = q["after"]
 	for _, filter := range []string{"request", "run", "tenant", "project", "kind"} {
 		if _, err := q.list(filter); err != nil {
 			return err
@@ -67,6 +69,15 @@ func (er *exportReader) readQuery(header members) error {
 func (er *exportReader) readEvent(line []byte) error {
 	m, err := object(line, "type", "offset", "cursor", "event")
 	if err != nil {
+		return err
+	}
+	if err := er.wholeLine(); err != nil {
+		return err
+	}
+	if _, err := m.count("offset"); err != nil {
+		return err
+	}
+	if err := m.nonEmpty("cursor"); err != nil {
 		return err
 	}
 	raw, ok := m["event"]
@@ -84,8 +95,10 @@ func (er *exportReader) readEvent(line []byte) error {
 	if at := ev.GetOccurredAt(); at.IsValid() {
 		er.x.widen(at.AsTime())
 	}
-	if ev.GetKind() == controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED && ev.GetProposed() != nil {
-		er.x.proposals = append(er.x.proposals, ev)
+	if env := ev.GetProposed(); ev.GetKind() == controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED &&
+		env.GetTraceId() != "" && env.GetSpanId() != "" {
+		k := proposalKey{env.GetTraceId(), env.GetSpanId()}
+		er.x.proposals[k] = append(er.x.proposals[k], ev)
 	}
 	er.counts[recordEvent]++
 	return nil
@@ -96,15 +109,35 @@ func (er *exportReader) readGap(line []byte) error {
 	if err != nil {
 		return err
 	}
-	if reason, err := m.str("reason"); err != nil || !slices.Contains(gapReasons, reason) {
+	if _, err := m.count("offset"); err != nil {
+		return err
+	}
+	reason, err := m.str("reason")
+	if err != nil || !slices.Contains(gapReasons, reason) {
 		return errors.New("reason: not one ADR-0035 names")
+	}
+	if err := er.readGapCursor(m, reason); err != nil {
+		return err
 	}
 	er.counts[recordGap]++
 	return nil
 }
 
 func (er *exportReader) readDuplicate(line []byte) error {
-	if _, err := object(line, "type", "offset", "event_id", "first_offset"); err != nil {
+	m, err := object(line, "type", "offset", "event_id", "first_offset")
+	if err != nil {
+		return err
+	}
+	if err := er.wholeLine(); err != nil {
+		return err
+	}
+	if _, err := m.count("offset"); err != nil {
+		return err
+	}
+	if err := m.nonEmpty("event_id"); err != nil {
+		return err
+	}
+	if _, err := m.count("first_offset"); err != nil {
 		return err
 	}
 	er.counts[recordDuplicate]++
@@ -146,6 +179,9 @@ func (er *exportReader) readTrailer(line []byte) error {
 		if err := json.Unmarshal(c[name], &n); err != nil || n != er.counts[name] {
 			return fmt.Errorf("counts: %s does not count the %d records read", name, er.counts[name])
 		}
+	}
+	if err := er.readTrailerMembers(m); err != nil {
+		return err
 	}
 	er.trailer = true
 	return nil

@@ -192,11 +192,11 @@ nothing but that file's owner and mode protects it.</p>
 </tr>
 <tr>
 <td><code>STEP_OUT_OF_ORDER</code></td>
-<td>a step comes before a step it must follow</td>
+<td>a step comes before a step it must follow; an order that cannot be told for want of a time is indeterminate, never a pass</td>
 </tr>
 <tr>
 <td><code>CONTINUED_AFTER_FAILURE</code></td>
-<td>another step follows a step that failed</td>
+<td>another step is proposed after a step's failure; a proposal or a failure whose time is not known makes it indeterminate</td>
 </tr>
 </tbody>
 </table>

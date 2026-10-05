@@ -196,12 +196,12 @@ unset, so a gap looks like a gap and never like an empty decision.</p>
 </tr>
 <tr>
 <td><code>POLICY_RELOADED</code></td>
-<td>a bundle is taken into use</td>
+<td>defined for a bundle taken into use; this plane writes none yet</td>
 <td>the bundle reference; its content never enters the trail</td>
 </tr>
 <tr>
 <td><code>FINDING_RAISED</code></td>
-<td>a detector reports after the fact</td>
+<td>defined for a detector reporting after the fact; this plane writes none, and <code>supervise</code> keeps its findings in a log of its own</td>
 <td>the finding; it annotates and never grants or denies</td>
 </tr>
 </tbody>

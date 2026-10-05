@@ -32,12 +32,16 @@ type read struct {
 	obsSource map[string]*Source
 	// obsDoubt holds the observation ids read with two contents.
 	obsDoubt map[string]bool
-	counts   *findingv1alpha1.ReadCounts
+	// spans holds, by source, the observations a span graph is built from:
+	// those taken, and the run's observations of a subject other than a tool.
+	spans  map[*Source][]*observev1.Observation
+	counts *findingv1alpha1.ReadCounts
 }
 
 func newRead() *read {
 	return &read{
 		doubtful: map[string]bool{}, obsSource: map[string]*Source{}, obsDoubt: map[string]bool{},
+		spans:  map[*Source][]*observev1.Observation{},
 		counts: &findingv1alpha1.ReadCounts{EventsLeftOut: map[string]uint64{}, ObservationsLeftOut: map[string]uint64{}},
 	}
 }
@@ -109,6 +113,9 @@ func (r *read) takeObservations(run Run, sources []Source) {
 		src := &sources[i]
 		for _, o := range src.Observations {
 			why := r.observationOutside(o, src, run)
+			if why == outNotTool {
+				r.spans[src] = append(r.spans[src], o)
+			}
 			id := o.GetObservationId()
 			if d, ok := digests[id]; ok && why == "" {
 				why = outDuplicate
@@ -124,11 +131,14 @@ func (r *read) takeObservations(run Run, sources []Source) {
 			digests[id] = observe.ContentDigest(o)
 			r.obsSource[id] = src
 			r.obs = append(r.obs, o)
+			r.spans[src] = append(r.spans[src], o)
 		}
 	}
 	r.counts.ObservationsTaken = uint64(len(r.obs))
 }
 
+// observationOutside says why o is not a tool observation of the run. The
+// subject is judged last, so an observation outside only by it is the run's.
 func (r *read) observationOutside(o *observev1.Observation, src *Source, run Run) string {
 	c := o.GetCorrelation()
 	switch {

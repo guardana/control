@@ -68,12 +68,14 @@ type spanGraph struct {
 	cut map[string]bool
 }
 
-func graphOf(src *Source) *spanGraph {
+// graphOf builds a source's graph from obs, the observations of the run it
+// reported, so no observation left out of the run can join one that is in.
+func graphOf(obs []*observev1.Observation) *spanGraph {
 	g := &spanGraph{node: map[[2]string]int{}, seen: map[[2]int]bool{}, cut: map[string]bool{}}
 	edges := map[[2]int]bool{}
-	for _, o := range src.Observations {
+	for _, o := range obs {
 		c := o.GetCorrelation()
-		if o.GetSource().GetSourceId() != src.SourceID || c.GetTraceId() == "" || c.GetSpanId() == "" {
+		if c.GetTraceId() == "" || c.GetSpanId() == "" {
 			continue
 		}
 		child := g.add(c.GetTraceId(), c.GetSpanId())
@@ -116,11 +118,12 @@ type joiner struct {
 	keys   []callKey
 	starts []start
 	steps  int
+	spans  map[*Source][]*observev1.Observation
 	graphs map[*Source]*spanGraph
 }
 
-func newJoiner(ix index, reqs []*request) *joiner {
-	j := &joiner{ix: ix, graphs: map[*Source]*spanGraph{}}
+func newJoiner(ix index, reqs []*request, spans map[*Source][]*observev1.Observation) *joiner {
+	j := &joiner{ix: ix, spans: spans, graphs: map[*Source]*spanGraph{}}
 	keyID := map[callKey]int{}
 	seen := map[start]bool{}
 	for _, rq := range reqs {
@@ -167,7 +170,7 @@ func (j *joiner) graph(src *Source) *spanGraph {
 	if g, ok := j.graphs[src]; ok {
 		return g
 	}
-	g := graphOf(src)
+	g := graphOf(j.spans[src])
 	j.graphs[src] = g
 	for _, st := range j.starts {
 		if n, ok := g.node[[2]string{st.trace, st.span}]; ok {

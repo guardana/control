@@ -33,10 +33,14 @@ type Export struct {
 	// Events counts the event records.
 	Events int
 
-	proposals        []*controlv1.Event
+	// proposals are the ACTION_PROPOSED events by their envelope's trace
+	// and span id; one with either id empty joins nothing and is not kept.
+	proposals        map[proposalKey][]*controlv1.Event
 	earliest, latest time.Time
 	window           bool
 }
+
+type proposalKey struct{ trace, span string }
 
 // ReadExport reads an evidence export as the gateway's trail export writes
 // it. An export cut short, stopped early, gapped, resumed or filtered reads,
@@ -59,14 +63,18 @@ type exportReader struct {
 	endReached bool
 	after      bool
 	filtered   bool
-	counts     map[string]int
+	// source is the header naming one: the file holds a whole line.
+	source bool
+	// tail is a partial tail gap read, after which only the trailer comes.
+	tail   bool
+	counts map[string]int
 }
 
 func readExport(r io.Reader) (*Export, error) {
 	// Behind an interface, so a caller's large bufio.Reader is not taken as
 	// the buffer and the line bound stays this package's.
 	in := bufio.NewReaderSize(struct{ io.Reader }{r}, maxExportLineBytes+1)
-	er := &exportReader{x: &Export{}, counts: map[string]int{}}
+	er := &exportReader{x: &Export{proposals: map[proposalKey][]*controlv1.Event{}}, counts: map[string]int{}}
 	for number := 1; ; number++ {
 		line, err := in.ReadSlice('\n')
 		done, err := er.line(line, err)
@@ -142,6 +150,8 @@ func (er *exportReader) record(line []byte) error {
 	switch {
 	case er.trailer:
 		return errors.New("a record after the trailer")
+	case er.tail && kind != recordTrailer:
+		return errors.New("a record after the bytes after the last newline")
 	case !er.header && kind != recordHeader:
 		return errors.New("the first record is not the header")
 	case er.header && kind == recordHeader:

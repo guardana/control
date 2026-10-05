@@ -92,13 +92,13 @@ func liveSource(trust observev1.Trust, records ...*observev1.Record) coverage.So
 
 // toolInventory declares one mcp_tool path, github/create_issue, seen by
 // source s1 as create_issue.
-func toolInventory(t *testing.T) *coverage.Inventory {
+func toolInventory(t testing.TB) *coverage.Inventory {
 	t.Helper()
 	return mustInventory(t, `{"schema_version":"0.1","paths":[{"id":"gh-create","kind":"mcp_tool",`+
 		`"upstream":"github","tool":"create_issue","sources":[{"source_id":"s1","name":"create_issue"}]}]}`)
 }
 
-func mustInventory(t *testing.T, doc string) *coverage.Inventory {
+func mustInventory(t testing.TB, doc string) *coverage.Inventory {
 	t.Helper()
 	inv, err := coverage.ReadInventory([]byte(doc))
 	if err != nil {
@@ -132,20 +132,24 @@ const (
 	effectWrite  = controlv1.EffectClass_EFFECT_CLASS_WRITE
 )
 
+// header is the header of an export of a file holding a whole line.
 func header(query string) string {
-	return fmt.Sprintf(`{"type":"header","format":%q,"version":"1.0","file":"t.trail","query":%s}`,
-		brand.OTelNamespace+".evidence-export", query)
+	return fmt.Sprintf(`{"type":"header","format":%q,"version":"1.0","file":"t.trail","source":%q,"query":%s}`,
+		brand.OTelNamespace+".evidence-export", sourceDigest, query)
 }
+
+const sourceDigest = "57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c997e2a3"
 
 const plainQuery = `{"limit":1000}`
 
-// proposal is one ACTION_PROPOSED event record. tenant and project set both
-// the event's and its envelope's; the event and envelope fields set one side.
+// proposal is one ACTION_PROPOSED event record of a tool call unless kind
+// names another action kind. tenant and project set both the event's and its
+// envelope's; the event and envelope fields set one side.
 type proposal struct {
-	mode, trace, span, tenant, project, tool, upstream string
-	eventTenant, eventProject                          string
-	envelopeTenant, envelopeProject                    string
-	occurred                                           time.Duration
+	mode, trace, span, tenant, project, tool, upstream, kind string
+	eventTenant, eventProject                                string
+	envelopeTenant, envelopeProject                          string
+	occurred                                                 time.Duration
 }
 
 func (p proposal) line() string {
@@ -159,10 +163,10 @@ func (p proposal) line() string {
 	return fmt.Sprintf(`{"type":"event","offset":0,"cursor":"c","event":{"eventId":"e1",`+
 		`"kind":"EVENT_KIND_ACTION_PROPOSED","projectId":%q,"tenantId":%q,"occurredAt":%q,"schemaVersion":"1.0",`+
 		`"enforcementMode":%q,"proposed":{"traceId":%q,"spanId":%q,"projectId":%q,"tenantId":%q,`+
-		`"action":{"name":%q,"provider":%q}}}}`,
+		`"action":{"kind":%q,"name":%q,"provider":%q}}}}`,
 		pick(p.eventProject, project), pick(p.eventTenant, tenant), rfc(p.occurred), "ENFORCEMENT_MODE_"+pick(p.mode, "ENFORCE"),
 		p.trace, p.span, pick(p.envelopeProject, project), pick(p.envelopeTenant, tenant),
-		pick(p.tool, "create_issue"), pick(p.upstream, "github"))
+		pick(p.kind, "tool"), pick(p.tool, "create_issue"), pick(p.upstream, "github"))
 }
 
 // windowEvent is a POLICY_DECIDED event at occurred, which widens the

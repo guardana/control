@@ -129,7 +129,7 @@ already holds a package doc and a test holds nothing that decides.</li>
 <tr>
 <td>Quality gate, including the documentation and dependency checks</td>
 <td><code>implemented</code></td>
-<td><code>Makefile</code>, <code>.golangci.yml</code>, <code>scripts/</code>, <code>internal/docscheck/</code>, <code>internal/core/layering_test.go</code>. The dependency rule is an allowlist over five trees, all examined; <code>make check-imports-probe</code> plants a violation in each and fails unless every mechanism refuses it. The documentation check judges every page's frontmatter, type, <code>covers</code>, budget and diagrams and pins every rendered page and block to its generator (<a href="/docs/adr/0015-documentation-structure-and-checks">ADR-0015</a>); <code>make docs-impact</code> names the pages a change makes suspect</td>
+<td><code>Makefile</code>, <code>.golangci.yml</code>, <code>scripts/</code>, <code>internal/docscheck/</code>, <code>internal/core/layering_test.go</code>. The dependency rule is an allowlist over six trees, all examined, and every package of this module they reach is held to the same refusals by name; <code>make check-imports-probe</code> plants a violation in each and fails unless every mechanism refuses it. The documentation check judges every page's frontmatter, type, <code>covers</code>, budget and diagrams and pins every rendered page and block to its generator (<a href="/docs/adr/0015-documentation-structure-and-checks">ADR-0015</a>); <code>make docs-impact</code> names the pages a change makes suspect</td>
 </tr>
 <tr>
 <td>Brand indirection and one-command rename</td>
@@ -327,7 +327,7 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td>no path chosen yet; a run's view is B22 in <a href="/docs/backlog">backlog.md</a></td>
 </tr>
 <tr>
-<td>Notifiers, channels beyond MCP and the OpenTelemetry trace sensor, and a run-scoped stop from a finding</td>
+<td>Notifiers beyond the local program, channels beyond MCP and the OpenTelemetry trace sensor, and a run-scoped stop from a finding</td>
 <td><code>planned</code></td>
 <td><code>adapters/</code>; the stop's reaction source, apart from the pause file, has no path chosen yet; <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
 </tr>
@@ -368,23 +368,23 @@ this:</p>
 </tr>
 <tr>
 <td>Oversight of what agents do and the data they reach</td>
-<td>Each tool call, resource read and prompt through one plane is decided, and none runs before its record is written unless the operator let a read run unrecorded; the plane does not see a call that bypasses it, which an imported trace can record as testimony that nothing reads yet, and there is no view across planes</td>
+<td>Each tool call, resource read and prompt through one plane is decided, and none runs before its record is written unless the operator let a read run unrecorded; the plane does not see a call that bypasses it, which an imported trace records as testimony; <code>guardana-control coverage</code> reads the planes' configurations and exports beside it and names a call around the plane, from files, with no plane contacted</td>
 </tr>
 <tr>
 <td>Procedures, and deviations from them</td>
-<td>Policy per call and one flow rule; no procedure an agent is held to</td>
+<td>Policy per call and one flow rule; <code>guardana-control supervise</code> checks one opened run against a procedure, after the fact</td>
 </tr>
 <tr>
 <td>Attempts to gain access</td>
-<td>Each refusal the pipeline decides is counted in <code>/metrics</code>, and recorded with its reason codes unless the call's identifiers name no trail, its request id already has an open trail, or the sink refuses one of its events; a request the listener refuses for its origin or its run token is not recorded, and only run token refusals are counted; nothing reports a pattern of attempts</td>
+<td>Each refusal the pipeline decides is counted in <code>/metrics</code>, and recorded with its reason codes unless the call's identifiers name no trail, its request id already has an open trail, or the sink refuses one of its events; a request the listener refuses for its origin or its run token is not recorded, and only run token refusals are counted; within one run, <code>supervise</code> reports repeated denials of a tool</td>
 </tr>
 <tr>
 <td>Quality: finished, not degraded, nothing skipped</td>
-<td>A result's status and hash only</td>
+<td>A result's status and hash; within one run, <code>supervise</code> reports a skipped step, an order broken and a run that carried on after a failure</td>
 </tr>
 <tr>
 <td>Running beside the agents, reporting deviations</td>
-<td>The plane writes evidence to a spool for export; no supervisor reads it yet</td>
+<td>The plane writes evidence to a spool for export; <code>supervise</code> reads an export when an operator runs it, and <code>notify</code> hands its alerts to a program; nothing runs on its own</td>
 </tr>
 <tr>
 <td>Stopping an agent</td>

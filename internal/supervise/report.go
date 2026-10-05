@@ -25,7 +25,8 @@ func off(member string) ruleState {
 // states says which rules apply. With no event of the run none does. A rule
 // that rests on something not seen applies only once nothing more can arrive
 // and nothing was left out of what did: on a closed run, from exports that
-// are all whole.
+// are all whole. With no event that has a time, no time and no order can be
+// told.
 func (e *evaluation) states() map[string]ruleState {
 	out := make(map[string]ruleState, len(ruleIDs))
 	base := checked
@@ -41,7 +42,13 @@ func (e *evaluation) states() map[string]ruleState {
 	}
 	out[RuleRequiredStepSkipped], out[RuleStepOutOfOrder], out[RuleContinuedAfterFailure] = absence, absence, absence
 	if base.state == checked.state && e.first == nil {
-		out[RuleDeadlineExceeded] = notChecked("no event of the run has a time")
+		untimed := notChecked("no event of the run has a time")
+		out[RuleDeadlineExceeded] = untimed
+		for _, id := range []string{RuleStepOutOfOrder, RuleContinuedAfterFailure} {
+			if out[id].state == checked.state {
+				out[id] = untimed
+			}
+		}
 	}
 	if e.p.maxDenials == 0 {
 		out[RuleRepeatedDenial] = off("max_denials")
@@ -66,7 +73,8 @@ func (e *evaluation) absenceState() ruleState {
 
 func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result {
 	s := scope{tenant: e.in.Run.Tenant, project: e.rd.project, run: e.in.Run.ID, proc: e.p}
-	res := &Result{PlaneBlocks: map[string]uint64{}, SourcesNotRead: e.in.SourcesNotRead}
+	res := &Result{PlaneBlocks: map[string]uint64{}, SourcesNotRead: e.in.SourcesNotRead,
+		NeverHeard: e.neverHeard, Silent: e.lapsed}
 	for _, d := range drafts {
 		res.Findings = append(res.Findings, s.record(d))
 	}

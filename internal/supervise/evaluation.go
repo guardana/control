@@ -10,16 +10,17 @@ import (
 )
 
 // instance is one call of a step: a plane request. An observation no plane
-// call joins is the runtime's claim alone and never an instance. Its seq
-// orders it after another of the same time.
+// call joins is the runtime's claim alone and never an instance. at is when
+// it was proposed, and its seq orders it after another of the same time;
+// endAt is when its terminal event happened.
 type instance struct {
-	step       int
-	at         time.Time
-	timed      bool
-	seq        int
-	failed     bool
-	start, end ref
-	request    string
+	step            int
+	at, endAt       time.Time
+	timed, endTimed bool
+	seq             int
+	failed          bool
+	start, end      ref
+	request         string
 }
 
 func (a *instance) before(b *instance) bool {
@@ -48,6 +49,8 @@ type evaluation struct {
 	first, last *controlv1.Event
 	silent      map[string]bool
 	anySilent   bool
+	neverHeard  []string
+	lapsed      []string
 	orderFired  map[int]bool
 }
 
@@ -64,7 +67,7 @@ func newEvaluation(in Input, rd *read) *evaluation {
 	}
 	e.spanEvents()
 	e.hearSources()
-	j := newJoiner(e.ix, e.reqs)
+	j := newJoiner(e.ix, e.reqs, rd.spans)
 	for _, o := range rd.obs {
 		joined, doubt := j.joined(o, rd.obsSource[o.GetObservationId()])
 		if !joined {
@@ -106,6 +109,12 @@ func (e *evaluation) hearSources() {
 			deadline := s.LastHeard.Add(time.Duration(s.HeartbeatSeconds) * time.Second)
 			silent = deadline.Before(e.last.GetOccurredAt().AsTime())
 		}
+		switch {
+		case !s.Heard:
+			e.neverHeard = append(e.neverHeard, s.SourceID)
+		case silent:
+			e.lapsed = append(e.lapsed, s.SourceID)
+		}
 		e.silent[s.SourceID] = silent
 		e.anySilent = e.anySilent || silent
 	}
@@ -122,7 +131,8 @@ func (e *evaluation) instances() {
 		in := &instance{step: en.step, at: at.AsTime(), timed: at.IsValid(), seq: rq.seq, failed: rq.failed(),
 			start: rq.ref(rq.proposal), request: rq.id}
 		if rq.terminal != nil {
-			in.end = rq.ref(rq.terminal)
+			end := rq.terminal.GetOccurredAt()
+			in.end, in.endAt, in.endTimed = rq.ref(rq.terminal), end.AsTime(), end.IsValid()
 		}
 		e.add(in)
 	}
@@ -136,6 +146,17 @@ func (e *evaluation) instances() {
 func (e *evaluation) add(in *instance) {
 	e.inst = append(e.inst, in)
 	e.ofStep[in.step] = append(e.ofStep[in.step], in)
+}
+
+// firstOf is a step's first instance and whether its time is known: its
+// earliest timed instance when the instance read first has a time, or else
+// that first read, which may have come before any timed one. The step must
+// have an instance.
+func (e *evaluation) firstOf(step int) (*instance, bool) {
+	if read := e.ofStep[step][0]; !read.timed {
+		return read, false
+	}
+	return e.firstTimed(step), true
 }
 
 // firstTimed is a step's earliest instance with a time, or nil.

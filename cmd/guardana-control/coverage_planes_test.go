@@ -35,7 +35,8 @@ func (tr coverageTree) wholeExport(t *testing.T, name string) string {
 	}
 	path := filepath.Join(tr.dir, name)
 	writeFixture(t, path, strings.Join([]string{
-		fmt.Sprintf(`{"type":"header","format":%q,"version":"1.0","file":"gateway.trail","query":{"limit":1000}}`,
+		fmt.Sprintf(`{"type":"header","format":%q,"version":"1.0","file":"gateway.trail",`+
+			`"source":"57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c997e2a3","query":{"limit":1000}}`,
 			brand.OTelNamespace+".evidence-export"),
 		event("e1", time.Now().Add(-time.Hour)),
 		event("e2", time.Now().Add(time.Hour)),

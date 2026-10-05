@@ -3,6 +3,7 @@
 package findinglog
 
 import (
+	"bytes"
 	"errors"
 	"path/filepath"
 	"slices"
@@ -209,5 +210,26 @@ func TestAClosedLogRefusesAWrite(t *testing.T) {
 	}
 	if b := contents(t, filepath.Join(dir, FileName)); len(b) != 0 {
 		t.Errorf("the refused writes left %q", b)
+	}
+}
+
+// TestLineIsTheBytesTheWriterWrites: the file is Line of each record the
+// write appended, each followed by its newline, and Line refuses what the
+// writer refuses.
+func TestLineIsTheBytesTheWriterWrites(t *testing.T) {
+	dir := logDir(t)
+	a, b := finding(idA, confirmed, "repeated\u0085denial"), finding(idB, suspected, "outside")
+	write(t, openLog(t, dir), a, b)
+	var want []byte
+	for _, r := range []*findingv1alpha1.Record{findingRecord(a), findingRecord(b), writtenReport(2)} {
+		l, err := Line(r)
+		mustDo(t, err)
+		want = append(append(want, l...), '\n')
+	}
+	if got := contents(t, filepath.Join(dir, FileName)); !bytes.Equal(got, want) {
+		t.Errorf("the log is\n%q\nwant\n%q", got, want)
+	}
+	if l, err := Line(&findingv1alpha1.Record{}); err == nil || l != nil {
+		t.Errorf("Line of no record = %q, %v; want a refusal", l, err)
 	}
 }

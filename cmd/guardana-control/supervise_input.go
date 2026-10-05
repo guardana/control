@@ -151,41 +151,18 @@ func lastHeard(sourceID string, records []*observev1.Record) (time.Time, bool) {
 }
 
 // unreadSources names each --source the run could not be judged against: a
-// descriptor that does not exist, by its path; a source never heard; and one
-// whose heartbeat ran out before the run's last plane event, the time
-// supervise.Evaluate judges a source silent at.
-func unreadSources(in supervise.Input) []string {
+// descriptor that does not exist, by its path, and each source
+// supervise.Evaluate judged never heard or silent, by its id.
+func unreadSources(in supervise.Input, res *supervise.Result) []string {
 	var out []string
 	for _, path := range in.SourcesNotRead {
 		out = append(out, "source "+oneLine(path)+" absent")
 	}
-	last, timed := lastRunEvent(in)
-	for _, s := range in.Sources {
-		switch {
-		case !s.Heard:
-			out = append(out, "source "+oneLine(s.SourceID)+" never heard")
-		case timed && s.LastHeard.Add(time.Duration(s.HeartbeatSeconds)*time.Second).Before(last):
-			out = append(out, "source "+oneLine(s.SourceID)+" silent")
-		}
+	for _, id := range res.NeverHeard {
+		out = append(out, "source "+oneLine(id)+" never heard")
+	}
+	for _, id := range res.Silent {
+		out = append(out, "source "+oneLine(id)+" silent")
 	}
 	return out
-}
-
-// lastRunEvent is the latest time of an event supervise.Evaluate takes: one
-// of the run and its tenant, the first copy of each event id.
-func lastRunEvent(in supervise.Input) (time.Time, bool) {
-	var last time.Time
-	seen := map[string]bool{}
-	for _, x := range in.Exports {
-		for _, ev := range x.Events {
-			if ev == nil || ev.GetRunId() != in.Run.ID || ev.GetTenantId() != in.Run.Tenant || seen[ev.GetEventId()] {
-				continue
-			}
-			seen[ev.GetEventId()] = true
-			if t := ev.GetOccurredAt().AsTime(); len(seen) == 1 || t.After(last) {
-				last = t
-			}
-		}
-	}
-	return last, len(seen) > 0
 }

@@ -64,8 +64,8 @@ func TestADeliveredKeyIsNotDeliveredAgain(t *testing.T) {
 // it, and not the first.
 func TestACrashBetweenExitAndMarkRedeliversExactlyThatRecord(t *testing.T) {
 	for name, ops := range map[string]fileOps{
-		"the write": {write: failingWrite(2), sync: osOps.sync},
-		"the sync":  {write: osOps.write, sync: failingSync(2)},
+		"the write": {write: failingWrite(2), sync: osOps.sync, openLog: osOps.openLog},
+		"the sync":  {write: osOps.write, sync: failingSync(2), openLog: osOps.openLog},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := newRig(t)
@@ -180,7 +180,8 @@ func TestASecondRunIsRefusedWhileOneHoldsTheState(t *testing.T) {
 			secondSummary, second = Run(t.Context(), r.options(false))
 			return f.Write(b)
 		},
-		sync: osOps.sync,
+		sync:    osOps.sync,
+		openLog: osOps.openLog,
 	}
 	wantSummary(t, mustRun(t, r, ops), 1, 0, 0, 0)
 	wantIs(t, "the second run", second, ErrLocked)

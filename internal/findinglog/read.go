@@ -32,8 +32,9 @@ func (f *lineFault) Unwrap() error { return ErrDamaged }
 // every report closes, with the length up to the end of the last report.
 // The findings after it are a write a crash cut before its report, so they
 // are read and judged but not indexed. A line that is not one record in the
-// writer's form, a carriage return, and a key carried twice are ErrDamaged:
-// the writer leaves none of them. When keep is not nil, it is handed each
+// writer's form, a carriage return, a key carried twice and a report whose
+// findings written is not the number of findings of its write are
+// ErrDamaged: the writer leaves none of them. When keep is not nil, it is handed each
 // write's records once the write's report closes it.
 func scanLog(r io.Reader, keep func([]*findingv1alpha1.Record)) (index, int64, error) {
 	reader := bufio.NewReaderSize(r, MaxLineBytes+1)
@@ -70,11 +71,15 @@ func scanLog(r io.Reader, keep func([]*findingv1alpha1.Record)) (index, int64, e
 	}
 }
 
-// read judges one whole line and adds a finding to pending.
+// read judges one whole line and adds a finding to pending. A report must
+// count the findings of its write, pending, as the writer sets it.
 func (ids index) read(pending index, line []byte) (*findingv1alpha1.Record, error) {
 	r, err := unmarshalLine(line)
 	if err != nil {
 		return nil, err
+	}
+	if rep := r.GetSuperviseReport(); rep != nil && rep.GetFindingsWritten() != uint64(len(pending)) {
+		return nil, errors.New("a report that miscounts its write")
 	}
 	f := r.GetFindingRecord()
 	if f == nil {

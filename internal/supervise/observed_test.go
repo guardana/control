@@ -19,14 +19,19 @@ func TestARunInTwoProjectsIsRefused(t *testing.T) {
 	}
 }
 
-func TestADeadlineWithNoTimeIsNotChecked(t *testing.T) {
+func TestATimeOrAnOrderWithNoTimeIsNotChecked(t *testing.T) {
 	x := export(late()...)
 	for _, ev := range x.Events {
 		ev.OccurredAt = nil
 	}
 	res := closedRun(t, procWith(t, `"deadline_seconds":600`, `"deadline_seconds":1`), x)
-	if got := rules(res)["DEADLINE_EXCEEDED"]; got != "RULE_STATE_NOT_CHECKED:no event of the run has a time" {
-		t.Fatalf("deadline %s", got)
+	for _, rule := range []string{"DEADLINE_EXCEEDED", "STEP_OUT_OF_ORDER", "CONTINUED_AFTER_FAILURE"} {
+		if got := rules(res)[rule]; got != "RULE_STATE_NOT_CHECKED:no event of the run has a time" {
+			t.Errorf("%s %s", rule, got)
+		}
+	}
+	if got := rules(res)["REQUIRED_STEP_SKIPPED"]; got != checked {
+		t.Errorf("REQUIRED_STEP_SKIPPED %s", got)
 	}
 	sameFindings(t, res.Findings)
 }

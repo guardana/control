@@ -230,7 +230,7 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <tr>
 <td>the spool, <code>evidence.dir</code></td>
 <td>every event, one framed JSON line each, until a collector accepts it or it is moved to <code>quarantine.log</code></td>
-<td>the plane's account: new files are <code>0600</code>; the directory must be the plane's account's and writable by no one else; an existing file's mode is not judged</td>
+<td>the plane's account: new files are <code>0600</code>; the directory must be the plane's account's and writable by no one else, and an existing segment or <code>quarantine.log</code> is refused when another account owns it or a group or others may write it</td>
 </tr>
 <tr>
 <td>the collector at <code>export.endpoint</code></td>
@@ -240,7 +240,7 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <tr>
 <td>a trail file written by <code>collect</code></td>
 <td>every event the collector accepted, at least once</td>
-<td>the account that ran <code>collect</code>: a new file is <code>0600</code>, and an existing one is refused only when others may write it</td>
+<td>the account that ran <code>collect</code>: a new file is <code>0600</code>, and an existing one is refused when another account owns it or a group or others may write it</td>
 </tr>
 <tr>
 <td>the approvals directory</td>

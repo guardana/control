@@ -72,6 +72,11 @@ type Result struct {
 	// not read, so every finding that rests on what they did not report is
 	// indeterminate.
 	SourcesNotRead []string
+	// NeverHeard names, in the order given, the sources no import report
+	// says were heard, and Silent those whose heartbeat ran out before the
+	// run's last plane event with a time. Either is in doubt, as a source not
+	// read is.
+	NeverHeard, Silent []string
 	// PlaneBlocks counts the run's blocks that are no denial: the plane's
 	// own, and the kernel's on a verdict other than DENY, by the first reason
 	// code of the decision each carries.

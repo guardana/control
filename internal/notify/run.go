@@ -2,6 +2,7 @@ package notify
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,8 +14,6 @@ import (
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 	"github.com/guardana/control/internal/files"
 	"github.com/guardana/control/internal/findinglog"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
 // Options name one run.
@@ -52,13 +51,19 @@ type Failure struct {
 }
 
 // fileOps are the calls a mark makes on the delivered list, so a test can
-// make either fail between a program's exit and the mark.
+// make either fail between a program's exit and the mark, and the open of
+// the log for its lines, so a test can change the log after it was judged.
 type fileOps struct {
-	write func(*os.File, []byte) (int, error)
-	sync  func(*os.File) error
+	write   func(*os.File, []byte) (int, error)
+	sync    func(*os.File) error
+	openLog func(path string) (*os.File, error)
 }
 
-var osOps = fileOps{write: (*os.File).Write, sync: (*os.File).Sync}
+var osOps = fileOps{write: (*os.File).Write, sync: (*os.File).Sync, openLog: openLog}
+
+func openLog(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_RDONLY|openFlags, 0) //nolint:gosec // G304: the operator's findings directory, which ReadFile has just judged
+}
 
 // Run hands each alert of the findings log that the state has not marked, in
 // log order, to the program: the record on its standard input as the one
@@ -69,9 +74,10 @@ var osOps = fileOps{write: (*os.File).Write, sync: (*os.File).Sync}
 // counted and left alone.
 //
 // An error stops the run where it stands: a state or a log refused, a log
-// whose first line is not the one the state recorded (ErrOtherLog), a state
-// another run holds (ErrLocked), ctx done, or a mark that did not reach the
-// disk (ErrMark), whose record the next run delivers again.
+// whose first line is not the one the state recorded (ErrOtherLog), a log
+// line that is not the record read for it (ErrChanged), a state another run
+// holds (ErrLocked), ctx done, or a mark that did not reach the disk
+// (ErrMark), whose record the next run delivers again.
 func Run(ctx context.Context, o Options) (Summary, error) { return run(ctx, o, osOps) }
 
 func run(ctx context.Context, o Options, ops fileOps) (Summary, error) {
@@ -120,16 +126,25 @@ func (d *deliveries) all(ctx context.Context) error {
 	if err != nil || len(records) == 0 {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_RDONLY|openFlags, 0) //nolint:gosec // G304: the operator's findings directory, which ReadFile has just judged
+	f, err := d.s.ops.openLog(path)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = f.Close() }()
-	lines := bufio.NewReaderSize(f, findinglog.MaxLineBytes+1)
+	return d.each(ctx, records, bufio.NewReaderSize(f, findinglog.MaxLineBytes+1))
+}
+
+// each handles records, each with its line from lines. Every line must be
+// its record, delivered or not, report or finding, before anything is
+// decided on it: a line that is not is a log changed since it was judged.
+func (d *deliveries) each(ctx context.Context, records []*findingv1alpha1.Record, lines *bufio.Reader) error {
 	for i, rec := range records {
 		line, err := lines.ReadSlice('\n')
 		if err != nil {
 			return fmt.Errorf("%w: line %d of %d: %w", ErrChanged, i+1, len(records), err)
+		}
+		if err := sameRecord(line, rec); err != nil {
+			return err
 		}
 		if i == 0 {
 			if err := d.s.checkLog(line); err != nil {
@@ -143,7 +158,7 @@ func (d *deliveries) all(ctx context.Context) error {
 	return nil
 }
 
-// one handles one record whose log line is line.
+// one handles one record whose log line, line, sameRecord has held to it.
 func (d *deliveries) one(ctx context.Context, rec *findingv1alpha1.Record, line []byte) error {
 	f := rec.GetFindingRecord()
 	switch {
@@ -159,9 +174,6 @@ func (d *deliveries) one(ctx context.Context, rec *findingv1alpha1.Record, line 
 	if d.s.keys[k] {
 		d.sum.AlreadyDelivered++
 		return nil
-	}
-	if err := sameRecord(line, rec); err != nil {
-		return err
 	}
 	if err := errors.Join(d.s.room(k), ctx.Err()); err != nil {
 		return err
@@ -181,11 +193,16 @@ func (d *deliveries) one(ctx context.Context, rec *findingv1alpha1.Record, line 
 	return nil
 }
 
-// sameRecord refuses a line that is not the record findinglog read for it,
-// so the program is never handed bytes the run did not judge.
+// sameRecord refuses a line that is not, byte for byte, the line the writer
+// writes for the record findinglog read for it, so the program is never
+// handed bytes the run did not judge: a line re-spelled to the same record
+// is a log changed as much as one carrying another.
 func sameRecord(line []byte, rec *findingv1alpha1.Record) error {
-	got := &findingv1alpha1.Record{}
-	if err := protojson.Unmarshal(line, got); err != nil || !proto.Equal(got, rec) {
+	want, err := findinglog.Line(rec)
+	if err != nil {
+		return fmt.Errorf("%w: the record read for a line has no line of its own: %w", ErrChanged, err)
+	}
+	if !bytes.Equal(line, append(want, '\n')) {
 		return fmt.Errorf("%w: a line is not the record read for it", ErrChanged)
 	}
 	return nil

@@ -21,7 +21,8 @@ nothing it prints reaches a decision or a stop.
 
 Amended by [ADR-0045](0045-one-run-is-supervised-against-its-procedure.md):
 a notifier lives in `internal/notify`, since a plane's import rule covers
-`adapters/`.
+`adapters/`, and `guardana-control supervise` raises v1 findings inside a
+finding record of its own, not as plane events.
 
 Amends the order of [ADR-0026](0026-first-value-and-external-extension-paths.md)
 and withdraws the in-process detector seam of

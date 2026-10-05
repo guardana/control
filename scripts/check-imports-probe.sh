@@ -11,9 +11,10 @@
 #                                       guarded package holds that is not plain
 #                                       Go built on this platform or that the
 #                                       foreign platform leaves out, each Go
-#                                       file with a build constraint line, and
-#                                       a package left out of every listing by
-#                                       its file's name
+#                                       file with a build constraint line in a
+#                                       guarded or reached tree, and a package
+#                                       left out of every listing by its file's
+#                                       name
 #   layering_test.go                    each //nolint that excuses a guarded
 #                                       file from depguard or forbidigo, and
 #                                       each clock, input and randomness read
@@ -33,7 +34,9 @@
 # wherever it lands. A second new package per tree holds only a file its name
 # keeps to FreeBSD, so no listing names it. The fixture's clock and I/O reads
 # alone also go into every package of each tree a guarded tree reaches, where
-# a helper would otherwise read the clock for it.
+# a helper would otherwise read the clock for it, and so does a file whose
+# constraint line every listed platform satisfies, which only the line itself
+# shows.
 # golangci-lint runs with the configuration `make lint` names and every linter
 # that configuration enables, so what the probe proves is what `make lint` runs.
 #
@@ -163,6 +166,7 @@ reads_dirs=()
 while read -r dir name; do
   [[ -n "${dir}" ]] || continue
   plant lint "${dir}" "${name}" zz_probe_reads.go
+  plant platform "${dir}" "${name}" zz_probe_notplan9.go
   reads_dirs+=("${dir}")
 done <<<"${reads_targets}"
 for tree in "${trees[@]}"; do
@@ -236,6 +240,9 @@ expect_walker() {
     expect "$1" "$2${tree}/nameprobe/zz_probe_freebsd.go ${unlisted} this platform"
     expect "$1" "$2${tree}/nameprobe/zz_probe_freebsd.go ${unlisted} ${foreign_platform[0]}/${foreign_platform[1]}"
   done
+  for dir in "${reads_dirs[@]}"; do
+    expect "$1" "$2${dir}/zz_probe_notplan9.go ${constrained}"
+  done
   expect "$1" "$2${helper} imports os/exec, ${not_allowed}"
   expect "$1" "$2${helper} ${outside_scope}"
 }
@@ -244,7 +251,7 @@ run check-imports.sh scripts/check-imports.sh
 expect_walker check-imports.sh "FAIL "
 
 run layering_test.go go test -count=1 \
-  -run '^(TestGuardedTreesImportOnlyAllowedPackages|TestGuardedTreesTakeNoInlineException|TestGuardedFilesHoldNoBuildConstraint|TestGuardedFilesAreNamedByEveryListing|TestReachedPackagesReadNothingByName)$' \
+  -run '^(TestGuardedTreesImportOnlyAllowedPackages|TestGuardedTreesTakeNoInlineException|TestGuardedAndReachedFilesHoldNoBuildConstraint|TestGuardedFilesAreNamedByEveryListing|TestReachedPackagesReadNothingByName)$' \
   ./internal/core/
 expect_walker layering_test.go ""
 for dir in "${lint_dirs[@]}"; do

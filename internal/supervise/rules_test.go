@@ -2,6 +2,7 @@ package supervise_test
 
 import (
 	"maps"
+	"strconv"
 	"testing"
 	"time"
 
@@ -223,5 +224,71 @@ func TestARuleLeftOutIsOff(t *testing.T) {
 		if r := f.GetFinding().GetRuleId(); r == "REPEATED_DENIAL" || r == "DEADLINE_EXCEEDED" {
 			t.Fatalf("an off rule fired: %s", dump(res.Findings))
 		}
+	}
+}
+
+// untimed is x with the times of req's events taken away, or only of its
+// event numbered n when n is not zero.
+func untimed(x supervise.Export, req string, n int) supervise.Export {
+	for i, ev := range x.Events {
+		if ev.GetRequestId() == req && (n == 0 || ev.GetEventId() == req+"-e"+strconv.Itoa(n)) {
+			x.Events[i].OccurredAt = nil
+		}
+	}
+	return x
+}
+
+func TestAnOrderThatCannotBeToldIsIndeterminate(t *testing.T) {
+	p := procWith(t)
+	calls := []call{
+		{req: "r1", tool: "get_order", upstream: "shop"},
+		{req: "r3", tool: "issue_refund", upstream: "pay", at: 20 * time.Second},
+		{req: "r4", tool: "send_mail", upstream: "mail", at: 30 * time.Second},
+	}
+	res := closedRun(t, p, untimed(export(calls...), "r1", 0))
+	sameFindings(t, res.Findings,
+		want(p, "STEP_OUT_OF_ORDER", medium, inform, indetermin, id("STEP_OUT_OF_ORDER", "refund"),
+			evRef("r3-e1", "r3"), evRef("r1-e1", "r1")))
+	if got := rules(res)["STEP_OUT_OF_ORDER"]; got != checked {
+		t.Errorf("STEP_OUT_OF_ORDER %s", got)
+	}
+
+	res = closedRun(t, p, untimed(export(calls...), "r3", 0))
+	sameFindings(t, res.Findings,
+		want(p, "STEP_OUT_OF_ORDER", medium, inform, indetermin, id("STEP_OUT_OF_ORDER", "refund"),
+			evRef("r3-e1", "r3"), evRef("r1-e1", "r1")),
+		want(p, "STEP_OUT_OF_ORDER", medium, inform, indetermin, id("STEP_OUT_OF_ORDER", "notify"),
+			evRef("r4-e1", "r4"), evRef("r3-e1", "r3")))
+}
+
+// TestAContinuationStartsAfterTheFailure: r1 fails at 3 s; r2 is proposed
+// at 1 s, while r1 still runs, and is no continuation of it.
+func TestAContinuationStartsAfterTheFailure(t *testing.T) {
+	p := procWith(t)
+	failed := []call{
+		{req: "r1", tool: "get_order", upstream: "shop", outcome: "fail"},
+		{req: "r2", tool: "issue_refund", upstream: "pay", at: time.Second},
+	}
+	mail := func(at time.Duration) call { return call{req: "r4", tool: "send_mail", upstream: "mail", at: at} }
+	continued := func(v controlv1.FindingVerdict, next string) *findingv1alpha1.FindingRecord {
+		return want(p, "CONTINUED_AFTER_FAILURE", critical, alert, v, id("CONTINUED_AFTER_FAILURE", "r1"),
+			evRef("r1-e4", "r1"), evRef(next+"-e1", next))
+	}
+	for name, c := range map[string]struct {
+		x    supervise.Export
+		want []*findingv1alpha1.FindingRecord
+	}{
+		"a retry after the failure": {export(append(failed,
+			call{req: "r5", tool: "get_order", upstream: "shop", at: 10 * time.Second}, mail(20*time.Second))...), nil},
+		"another step after the failure": {export(append(failed, mail(10*time.Second))...),
+			[]*findingv1alpha1.FindingRecord{continued(suspected, "r4")}},
+		"another step a nanosecond after": {export(append(failed, mail(3*time.Second+1))...),
+			[]*findingv1alpha1.FindingRecord{continued(suspected, "r4")}},
+		"another step at the failure": {export(append(failed, mail(3*time.Second))...),
+			[]*findingv1alpha1.FindingRecord{continued(indetermin, "r4")}},
+		"a failure with no time": {untimed(export(failed...), "r1", 4),
+			[]*findingv1alpha1.FindingRecord{continued(indetermin, "r2")}},
+	} {
+		t.Run(name, func(t *testing.T) { sameFindings(t, closedRun(t, p, c.x).Findings, c.want...) })
 	}
 }

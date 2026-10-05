@@ -136,7 +136,8 @@ func conformingCalls() []supCall {
 // returns its path.
 func (tr supTree) export(t *testing.T, run string, base time.Time, calls ...supCall) string {
 	t.Helper()
-	lines := []string{fmt.Sprintf(`{"type":"header","format":%q,"version":"1.0","file":"gateway.trail","query":{"limit":1000}}`,
+	lines := []string{fmt.Sprintf(`{"type":"header","format":%q,"version":"1.0","file":"gateway.trail",`+
+		`"source":"57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c997e2a3","query":{"limit":1000}}`,
 		brand.OTelNamespace+".evidence-export")}
 	n := 0
 	for _, c := range calls {

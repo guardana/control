@@ -262,8 +262,8 @@ itself, which the gate checks. See
 
 This section is `planned`, in the order [ROADMAP.md](../../ROADMAP.md) gives,
 and [ADR-0039](../adr/0039-many-channels-into-one-core.md) records its shape;
-only the observation log and its one importer are built
-([status.md](../status.md)). The
+the observation log and its importer, the coverage map, supervision of one
+run and a local notifier are built ([status.md](../status.md)). The
 request path above stays how a plane stops a call. MCP is the first channel
 of several, and every channel or extension will be one of five ports, and say
 which.

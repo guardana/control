@@ -123,7 +123,7 @@ is a claim. A missing event is unknown, not proof that a step was skipped. And
 a finding id that moves when one more piece of evidence arrives sends the same
 alert twice.</p>
 <h2 id="decision">Decision</h2>
-<p><strong>One opened run.</strong> <code>guardana-control supervise --procedure &lt;file&gt; --runs &lt;dir&gt; --run &lt;run-id&gt;</code> reads that run's record (tenant, when it was opened and
+<p><strong>One opened run.</strong> <code>guardana-control supervise --procedure &lt;file&gt; --runs &lt;dir&gt; --run &lt;run-id&gt; --findings &lt;dir&gt;</code> reads that run's record (tenant, when it was opened and
 closed). Only a run an operator opened is supervised; a plane's local run,
 one per listener for the plane's whole life, is refused, and so are a run's
 children. The command's inputs are evidence exports (<code>--evidence</code>) and source
@@ -200,8 +200,9 @@ references (a plane event by event id and request id, an observation by source
 id and observation id) and a v1 <code>Finding</code> whose source is <code>DETERMINISTIC</code>,
 whose verdict and severity are set, and whose <code>evidence_refs</code>, <code>request_id</code>,
 <code>recommended_action</code> and <code>framework_mappings</code> are empty, since the typed
-references say it once. A <code>SuperviseReport</code> ends each run of the command: what
-was read and left out, each rule checked or not and why.</p>
+references say it once. A <code>SuperviseReport</code> ends each write of the command:
+what was read and left out, each rule checked or not and why. A run of the
+command that read no event of the run writes nothing and exits 1.</p>
 <p><strong>The finding id</strong> is <code>fnd-</code> and 32 hex digits of a length-prefixed SHA-256,
 domain <code>finding-id:1</code>, over tenant, project, run, procedure id and version,
 rule id and version, and the rule's anchor (the tool and upstream, the step,
