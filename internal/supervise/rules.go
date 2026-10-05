@@ -125,9 +125,9 @@ func (e *evaluation) skipped() []draft {
 
 // outOfOrder fires for a step that ran before a step it must follow: its
 // first instance comes before the first of that step, or that step has no
-// instance at all. An order that cannot be told, because the instance either
-// side read first has no time, is no pass: the finding is then
-// indeterminate. It returns the steps found out of order.
+// instance at all. An order that cannot be told, because an instance of
+// either side has no time, is no pass: the finding is then indeterminate. It
+// returns the steps found out of order.
 func (e *evaluation) outOfOrder() ([]draft, map[int]bool) {
 	var out []draft
 	fired := map[int]bool{}
@@ -178,10 +178,12 @@ func (e *evaluation) order(i int, id string) (*draft, bool) {
 
 // continued fires for a failed instance that a different step's instance
 // follows: the first proposed after the failed one's terminal event. A retry
-// of the same step is no finding, and neither is a pair in which either
-// instance is the first of a step reported out of order. When the line of
-// timed proposals names no such instance, one of another step whose place
-// against the failure is unknown makes the pair indeterminate.
+// of the same step is no finding: one proposed after the failure ends the
+// search, since what follows it follows the retry, and one that may have come
+// before the failure is passed over, as is the first of a step reported out
+// of order, which is not also a continuation. When the line of timed
+// proposals names no such instance, one of another step whose place against
+// the failure is unknown makes the pair indeterminate.
 func (e *evaluation) continued(outOfOrder map[int]bool) []draft {
 	var line, unplaced []*instance
 	for _, in := range e.inst {
@@ -201,9 +203,10 @@ func (e *evaluation) continued(outOfOrder map[int]bool) []draft {
 		if !failed.failed || excused(failed) {
 			continue
 		}
-		next, verdict := e.afterFailure(line, failed)
-		if next == nil || next.step == failed.step || excused(next) {
-			next, verdict = mayFollow(line, unplaced, failed, excused), indeterminate
+		other := func(in *instance) bool { return in.step != failed.step && !excused(in) }
+		next, verdict := e.afterFailure(line, failed, other)
+		if next == nil {
+			next, verdict = mayFollow(line, unplaced, failed, other), indeterminate
 		}
 		if next != nil {
 			out = append(out, draft{rule: RuleContinuedAfterFailure, anchor: []string{failed.request},
@@ -213,23 +216,26 @@ func (e *evaluation) continued(outOfOrder map[int]bool) []draft {
 	return out
 }
 
-// afterFailure is the instance of line, ordered by proposal, that follows
-// failed's failure, and the verdict the pair allows. One proposed at the
-// failure's own time, or the next proposed when the failure has no time,
-// may have come before it, so the pair is then indeterminate. A failure with
-// no time whose proposal has none either has no place in line.
-func (e *evaluation) afterFailure(line []*instance, failed *instance) (*instance, controlv1.FindingVerdict) {
+// afterFailure is the first instance of line, ordered by proposal, that
+// follows failed's failure and is other, before any retry proposed after the
+// failure, and the verdict the pair allows. One
+// proposed at the failure's own time, or the next proposed when the failure
+// has no time, may have come before it, so the pair is then indeterminate. A
+// failure with no time whose proposal has none either has no place in line.
+func (e *evaluation) afterFailure(line []*instance, failed *instance, other func(*instance) bool) (*instance, controlv1.FindingVerdict) {
 	var i int
 	switch {
 	case failed.endTimed:
 		i, _ = slices.BinarySearchFunc(line, failed.endAt, func(in *instance, t time.Time) int { return in.at.Compare(t) })
-		if i < len(line) && line[i] == failed {
-			i++
-		}
 	case failed.timed:
 		i = slices.Index(line, failed) + 1
 	default:
 		return nil, indeterminate
+	}
+	for ; i < len(line) && !other(line[i]); i++ {
+		if retried(failed, line[i]) {
+			return nil, indeterminate
+		}
 	}
 	switch {
 	case i >= len(line):
@@ -240,16 +246,21 @@ func (e *evaluation) afterFailure(line []*instance, failed *instance) (*instance
 	return line[i], e.absenceCap()
 }
 
-// mayFollow is the first instance of another step that may have been
-// proposed after failed's failure without line saying so: one whose proposal
-// has no time, or, when the failure has no time, any proposed after failed.
-func mayFollow(line, unplaced []*instance, failed *instance, excused func(*instance) bool) *instance {
+// retried reports in a retry of failed's step proposed after its failure.
+func retried(failed, in *instance) bool {
+	return in != failed && in.step == failed.step && failed.endTimed && in.at.After(failed.endAt)
+}
+
+// mayFollow is the first instance that is other and may have been proposed
+// after failed's failure without line saying so: one whose proposal has no
+// time, or, when the failure has no time, any proposed after failed.
+func mayFollow(line, unplaced []*instance, failed *instance, other func(*instance) bool) *instance {
 	pool := unplaced
 	if !failed.endTimed {
 		pool = slices.Concat(line[slices.Index(line, failed)+1:], unplaced)
 	}
 	for _, in := range pool {
-		if in.step != failed.step && !excused(in) {
+		if other(in) {
 			return in
 		}
 	}

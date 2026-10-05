@@ -8,10 +8,10 @@ import (
 	"github.com/guardana/control/internal/supervise"
 )
 
-// TestAnUntimedFirstInstanceLeavesTheOrderUntold: a step whose first
-// instance read has no time may have run before the step it follows, whatever
-// a later instance's time says, and so may that step's first. A first read
-// with a time places the step though a retry has none.
+// TestAnUntimedFirstInstanceLeavesTheOrderUntold: a step with an instance
+// that has no time may have run before the step it follows, whatever another
+// instance's time says, and so may that step's first, whichever was read
+// first.
 func TestAnUntimedFirstInstanceLeavesTheOrderUntold(t *testing.T) {
 	p := procWith(t)
 	lookup := call{req: "r1", tool: "get_order", upstream: "shop", at: 10 * time.Second}
@@ -28,7 +28,59 @@ func TestAnUntimedFirstInstanceLeavesTheOrderUntold(t *testing.T) {
 
 	sameFindings(t, closedRun(t, p, untimed(export(lookup,
 		call{req: "r2", tool: "issue_refund", upstream: "pay", at: 20 * time.Second},
-		call{req: "r3", tool: "issue_refund", upstream: "pay"}), "r3", 0)).Findings)
+		call{req: "r3", tool: "issue_refund", upstream: "pay"}), "r3", 0)).Findings,
+		want(p, "STEP_OUT_OF_ORDER", medium, inform, indetermin, id("STEP_OUT_OF_ORDER", "refund"),
+			evRef("r3-e1", "r3"), evRef("r1-e1", "r1")))
+}
+
+// TestTheOrderDoesNotDependOnTheOrderOfTheExports: one export holds lookup
+// at 10 s and a refund at 20 s, the other a call with no time that may have
+// run before either. Read in either order, the order is untold, and of two
+// refunds with no time the finding cites the same one.
+func TestTheOrderDoesNotDependOnTheOrderOfTheExports(t *testing.T) {
+	p := procWith(t)
+	timed := export(call{req: "r1", tool: "get_order", upstream: "shop", at: 10 * time.Second},
+		call{req: "r2", tool: "issue_refund", upstream: "pay", at: 20 * time.Second})
+	for name, c := range map[string]struct {
+		other   call
+		refRefs []string
+	}{
+		"a refund with no time": {call{req: "r3", tool: "issue_refund", upstream: "pay"}, []string{"r3", "r1"}},
+		"a lookup with no time": {call{req: "r5", tool: "get_order", upstream: "shop"}, []string{"r2", "r5"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			other := untimed(export(c.other), c.other.req, 0)
+			untold := want(p, "STEP_OUT_OF_ORDER", medium, inform, indetermin, id("STEP_OUT_OF_ORDER", "refund"),
+				evRef(c.refRefs[0]+"-e1", c.refRefs[0]), evRef(c.refRefs[1]+"-e1", c.refRefs[1]))
+			sameFindings(t, closedRun(t, p, timed, other).Findings, untold)
+			sameFindings(t, closedRun(t, p, other, timed).Findings, untold)
+		})
+	}
+
+	mine := untimed(export(call{req: "r1", tool: "get_order", upstream: "shop", at: 10 * time.Second},
+		call{req: "r4", tool: "issue_refund", upstream: "pay"}), "r4", 0)
+	theirs := untimed(export(call{req: "r3", tool: "issue_refund", upstream: "pay"}), "r3", 0)
+	untold := want(p, "STEP_OUT_OF_ORDER", medium, inform, indetermin, id("STEP_OUT_OF_ORDER", "refund"),
+		evRef("r3-e1", "r3"), evRef("r1-e1", "r1"))
+	sameFindings(t, closedRun(t, p, mine, theirs).Findings, untold)
+	sameFindings(t, closedRun(t, p, theirs, mine).Findings, untold)
+}
+
+// TestATimedFailureSkipsAnExcusedStep: r1 fails at 3 s; mail r4 at 5 s,
+// before the refund it must follow, is out of order and so no continuation,
+// and the refund r2 at 10 s continues after the failure, as it does when the
+// failure has no time.
+func TestATimedFailureSkipsAnExcusedStep(t *testing.T) {
+	p := procWith(t)
+	res := closedRun(t, p, export(
+		call{req: "r1", tool: "get_order", upstream: "shop", outcome: "fail"},
+		call{req: "r4", tool: "send_mail", upstream: "mail", at: 5 * time.Second},
+		call{req: "r2", tool: "issue_refund", upstream: "pay", at: 10 * time.Second}))
+	sameFindings(t, res.Findings,
+		want(p, "STEP_OUT_OF_ORDER", medium, inform, suspected, id("STEP_OUT_OF_ORDER", "notify"),
+			evRef("r4-e1", "r4"), evRef("r2-e1", "r2")),
+		want(p, "CONTINUED_AFTER_FAILURE", critical, alert, suspected, id("CONTINUED_AFTER_FAILURE", "r1"),
+			evRef("r1-e4", "r1"), evRef("r2-e1", "r2")))
 }
 
 // TestAFailureIsPlacedByItsOwnTime: get_order r1 fails at 3 s and a refund
@@ -74,5 +126,17 @@ func TestAnUnplacedFailureSkipsAnExcusedStep(t *testing.T) {
 		want(p, "STEP_OUT_OF_ORDER", medium, inform, suspected, id("STEP_OUT_OF_ORDER", "notify"),
 			evRef("r4-e1", "r4"), evRef("r2-e1", "r2")),
 		want(p, "CONTINUED_AFTER_FAILURE", critical, alert, indetermin, id("CONTINUED_AFTER_FAILURE", "r1"),
+			evRef("r1-e4", "r1"), evRef("r2-e1", "r2")))
+}
+
+// TestAFailureProposedAfterItEndedIsNoRetryOfItself: r1's proposal says 5 s
+// and its failure 3 s; the refund r2 at 10 s still continues after it.
+func TestAFailureProposedAfterItEndedIsNoRetryOfItself(t *testing.T) {
+	p := procWith(t)
+	x := export(call{req: "r1", tool: "get_order", upstream: "shop", outcome: "fail"},
+		call{req: "r2", tool: "issue_refund", upstream: "pay", at: 10 * time.Second})
+	x.Events[0].OccurredAt = at(5 * time.Second)
+	sameFindings(t, closedRun(t, p, x).Findings,
+		want(p, "CONTINUED_AFTER_FAILURE", critical, alert, suspected, id("CONTINUED_AFTER_FAILURE", "r1"),
 			evRef("r1-e4", "r1"), evRef("r2-e1", "r2")))
 }

@@ -158,8 +158,9 @@ another digest is refused.</p>
 <p>Only a run opened in a runs directory is supervised; a plane's local run and a
 run's children are refused. Plane events count when their run id and tenant
 are the run's. Observations count when their correlation is claimed, with that
-run id, tenant and project. An observation joined to a plane event by trace
-and span id is that call, not a second one. Everything else is counted in the
+run id, tenant and project. Only a tool call is a step: a prompt or a resource
+read through the plane never counts as one. An observation joined to a plane
+event by trace and span id is that call, not a second one. Everything else is counted in the
 report and left out.</p>
 <p>An evidence export is read only when it is a regular file of this account
 that the group and others cannot write, as the procedure and the descriptors

@@ -159,7 +159,9 @@ func TestAStepBeforeTheStepsItFollowsIsOutOfOrderAndNotAlsoAContinuation(t *test
 		call{req: "r3", tool: "issue_refund", upstream: "pay", at: 20 * time.Second}))
 	sameFindings(t, res.Findings,
 		want(p, "STEP_OUT_OF_ORDER", medium, inform, suspected, id("STEP_OUT_OF_ORDER", "notify"),
-			evRef("r4-e1", "r4"), evRef("r3-e1", "r3")))
+			evRef("r4-e1", "r4"), evRef("r3-e1", "r3")),
+		want(p, "CONTINUED_AFTER_FAILURE", critical, alert, suspected, id("CONTINUED_AFTER_FAILURE", "r1"),
+			evRef("r1-e4", "r1"), evRef("r3-e1", "r3")))
 }
 
 func TestADifferentStepAfterAFailureIsAContinuationAndARetryIsNot(t *testing.T) {
@@ -169,23 +171,28 @@ func TestADifferentStepAfterAFailureIsAContinuationAndARetryIsNot(t *testing.T) 
 		call{req: "r2", tool: "search_docs", upstream: "docs", at: 5 * time.Second},
 		call{req: "r3", tool: "issue_refund", upstream: "pay", at: 10 * time.Second},
 		call{req: "r4", tool: "send_mail", upstream: "mail", at: 20 * time.Second}))
-	sameFindings(t, res.Findings,
-		want(p, "CONTINUED_AFTER_FAILURE", critical, alert, suspected, id("CONTINUED_AFTER_FAILURE", "r1"),
-			evRef("r1-e4", "r1"), evRef("r3-e1", "r3")))
+	continued := want(p, "CONTINUED_AFTER_FAILURE", critical, alert, suspected, id("CONTINUED_AFTER_FAILURE", "r1"),
+		evRef("r1-e4", "r1"), evRef("r3-e1", "r3"))
+	sameFindings(t, res.Findings, continued)
 
-	for name, first := range map[string][]call{
-		"a retry": {
+	for name, c := range map[string]struct {
+		first []call
+		want  []*findingv1alpha1.FindingRecord
+	}{
+		"a retry": {[]call{
 			{req: "r1", tool: "get_order", upstream: "shop", outcome: "fail"},
 			{req: "r2", tool: "get_order", upstream: "shop", at: 5 * time.Second},
-		},
-		"a held request": {{req: "r1", tool: "get_order", upstream: "shop", outcome: "held"}},
+		}, nil},
+		"a retry at the failure's own time": {[]call{
+			{req: "r1", tool: "get_order", upstream: "shop", outcome: "fail"},
+			{req: "r2", tool: "get_order", upstream: "shop", at: 3 * time.Second},
+		}, []*findingv1alpha1.FindingRecord{continued}},
+		"a held request": {[]call{{req: "r1", tool: "get_order", upstream: "shop", outcome: "held"}}, nil},
 	} {
-		calls := append(first,
+		calls := append(c.first,
 			call{req: "r3", tool: "issue_refund", upstream: "pay", at: 10 * time.Second},
 			call{req: "r4", tool: "send_mail", upstream: "mail", at: 20 * time.Second})
-		if res := closedRun(t, p, export(calls...)); len(res.Findings) != 0 {
-			t.Errorf("%s: %s", name, dump(res.Findings))
-		}
+		t.Run(name, func(t *testing.T) { sameFindings(t, closedRun(t, p, export(calls...)).Findings, c.want...) })
 	}
 }
 

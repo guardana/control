@@ -65,9 +65,11 @@ func procWith(t *testing.T, pairs ...string) *supervise.Procedure {
 }
 
 // call is one request's trail. Its events are req-e1, req-e2, ... one second
-// apart from at; its kernel decision is req-k and a plane's own is req-p.
+// apart from at; its kernel decision is req-k and a plane's own is req-p. Its
+// action is a tool call unless kind names another.
 type call struct {
 	req, tool, upstream string
+	kind                string
 	at                  time.Duration
 	outcome             string
 	run, tenant, proj   string
@@ -151,7 +153,7 @@ func (c call) payload(ev *controlv1.Event, kernel, block *controlv1.Decision) {
 		ev.Payload = &controlv1.Event_Proposed{Proposed: &controlv1.ActionEnvelope{
 			SchemaVersion: "1.0", RequestId: c.req, TraceId: traceA, SpanId: c.span,
 			ProjectId: pick(c.proj, proj), TenantId: pick(c.tenant, tenant),
-			Action: &controlv1.Action{Name: c.tool, Provider: c.upstream},
+			Action: &controlv1.Action{Kind: pick(c.kind, "tool"), Name: c.tool, Provider: c.upstream},
 		}}
 	case controlv1.EventKind_EVENT_KIND_POLICY_DECIDED:
 		ev.Payload = &controlv1.Event_Decision{Decision: kernel}

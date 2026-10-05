@@ -149,12 +149,18 @@ func (e *evaluation) add(in *instance) {
 }
 
 // firstOf is a step's first instance and whether its time is known: its
-// earliest timed instance when the instance read first has a time, or else
-// that first read, which may have come before any timed one. The step must
-// have an instance.
+// earliest instance when every one has a time, or else the one with no time
+// of the least request id, which may have come before any timed one. The
+// order exports are read in decides neither. The step must have an instance.
 func (e *evaluation) firstOf(step int) (*instance, bool) {
-	if read := e.ofStep[step][0]; !read.timed {
-		return read, false
+	var untimed *instance
+	for _, in := range e.ofStep[step] {
+		if !in.timed && (untimed == nil || in.request < untimed.request) {
+			untimed = in
+		}
+	}
+	if untimed != nil {
+		return untimed, false
 	}
 	return e.firstTimed(step), true
 }

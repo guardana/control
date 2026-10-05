@@ -105,7 +105,7 @@ func (g *spanGraph) add(trace, span string) int {
 }
 
 // joiner finds the plane call an observation is, as coverage joins them: a
-// proposal of the run with the observation's trace id and its own or a
+// tool call the run proposed with the observation's trace id and its own or a
 // descendant's span id, in its tenant and project, for the tool the
 // observation names. An observation names a tool by the plane's name for it,
 // or by a name an entry of the procedure lists. Nothing joins on an empty id.
@@ -128,10 +128,10 @@ func newJoiner(ix index, reqs []*request, spans map[*Source][]*observev1.Observa
 	seen := map[start]bool{}
 	for _, rq := range reqs {
 		ev, env := rq.proposal, rq.proposal.GetProposed()
-		if env.GetTraceId() == "" || env.GetSpanId() == "" {
+		tool, ok := rq.tool()
+		if !ok || env.GetTraceId() == "" || env.GetSpanId() == "" {
 			continue
 		}
-		tool, _ := rq.tool()
 		k := callKey{tool: tool, evTenant: ev.GetTenantId(), envTenant: env.GetTenantId(),
 			evProject: ev.GetProjectId(), envProject: env.GetProjectId()}
 		id, ok := keyID[k]

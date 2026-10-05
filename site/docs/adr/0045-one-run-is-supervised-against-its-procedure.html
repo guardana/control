@@ -145,8 +145,9 @@ least 1, a rule turned off only by leaving its member out, and the report says
 so), and per rule its severity and escalation. A cycle or an unknown step is
 refused. The command records the document's digest, and a procedure id and
 version it has seen under another digest is refused.</p>
-<p><strong>The rules.</strong> A step instance is one request; its outcome is its terminal
-event, and a held request is open, never failed.</p>
+<p><strong>The rules.</strong> A step instance is one request of a tool call, never a prompt or
+a resource read; its outcome is its terminal event, and a held request is open,
+never failed.</p>
 <table>
 <thead>
 <tr>

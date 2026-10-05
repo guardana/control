@@ -56,8 +56,9 @@ so), and per rule its severity and escalation. A cycle or an unknown step is
 refused. The command records the document's digest, and a procedure id and
 version it has seen under another digest is refused.
 
-**The rules.** A step instance is one request; its outcome is its terminal
-event, and a held request is open, never failed.
+**The rules.** A step instance is one request of a tool call, never a prompt or
+a resource read; its outcome is its terminal event, and a held request is open,
+never failed.
 
 | Rule | Fires when |
 | --- | --- |

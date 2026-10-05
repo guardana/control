@@ -107,7 +107,7 @@ func (c supCall) events(run string, base time.Time) []*controlv1.Event {
 		case proposed:
 			ev.Payload = &controlv1.Event_Proposed{Proposed: &controlv1.ActionEnvelope{
 				SchemaVersion: "1.0", RequestId: c.req, ProjectId: supProject, TenantId: who.TenantID,
-				Action: &controlv1.Action{Name: c.tool, Provider: c.upstream}}}
+				Action: &controlv1.Action{Name: c.tool, Provider: c.upstream, Kind: "tool"}}}
 		case decided, blocked:
 			ev.Payload = &controlv1.Event_Decision{Decision: d}
 		case started, completed:
