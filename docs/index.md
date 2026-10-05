@@ -121,4 +121,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0038: A signed freshness statement and a serial floor that outlives the process](adr/0038-a-signed-freshness-statement-and-a-serial-floor.md): accepted
 - [ADR-0039: Many channels into one core: what each may see, claim and do](adr/0039-many-channels-into-one-core.md): accepted
 - [ADR-0040: Observations: a record, a source descriptor, a log and one importer](adr/0040-observations-a-record-a-log-and-one-importer.md): accepted
-- [ADR-0041: Coverage per declared path](adr/0041-coverage-per-declared-path.md): proposed
+- [ADR-0041: Coverage per declared path](adr/0041-coverage-per-declared-path.md): accepted

@@ -11,6 +11,10 @@ findings over both exports, as the roadmap's second milestone says; and a
 correlation joined only by a trace id is no stronger than claimed, since the
 agent supplies that id on both sides, so it cannot stop a run.
 
+Amended by [ADR-0041](0041-coverage-per-declared-path.md): coverage is
+reported by a command that reads the planes' configurations, the source
+descriptors and their logs, not by a plane, and no plane reads what it prints.
+
 Amends the order of [ADR-0026](0026-first-value-and-external-extension-paths.md)
 and withdraws the in-process detector seam of
 [ADR-0007](0007-repository-layout-and-dependency-rule.md). Builds on

@@ -30,7 +30,7 @@ member given twice or `null` is refused, naming the member.
 | `otlp_version` | yes | `1.11.1` |
 | `select.service_name` | yes | the `service.name` of the resource whose spans are this source's; spans of any other resource are not imported |
 | `sampling` | no | `SAMPLING_COMPLETE` or `SAMPLING_PARTIAL`; absent or `SAMPLING_UNSPECIFIED` reads as partial |
-| `heartbeat_seconds` | yes | 1 to 604800: how long the source may stay silent before its paths are unknown; nothing reads it yet, and [ADR-0041](../adr/0041-coverage-per-declared-path.md) proposes the reader |
+| `heartbeat_seconds` | yes | 1 to 604800: how long the source may stay silent before its paths are unknown; nothing reads it yet; [ADR-0041](../adr/0041-coverage-per-declared-path.md) decides its reader |
 | `tenant_id`, `project_id` | yes | as `source_id` |
 | `run_attribute` | no | the span attribute that names a run; never a content attribute |
 

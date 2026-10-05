@@ -106,6 +106,9 @@ trust. Amended before its first release: the next milestone also holds procedure
 findings over both exports, as the roadmap's second milestone says; and a
 correlation joined only by a trace id is no stronger than claimed, since the
 agent supplies that id on both sides, so it cannot stop a run.</p>
+<p>Amended by <a href="/docs/adr/0041-coverage-per-declared-path">ADR-0041</a>: coverage is
+reported by a command that reads the planes' configurations, the source
+descriptors and their logs, not by a plane, and no plane reads what it prints.</p>
 <p>Amends the order of <a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a>
 and withdraws the in-process detector seam of
 <a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>. Builds on

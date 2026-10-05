@@ -1,12 +1,12 @@
 # ADR-0041: Coverage per declared path
 
-Status: proposed
-Date: 2026-10-04
+Status: accepted
+Date: 2026-10-05
 
 Builds on [ADR-0039](0039-many-channels-into-one-core.md), which says coverage
 is stated per declared path and never as a percentage, and on
 [ADR-0040](0040-observations-a-record-a-log-and-one-importer.md), whose source
-descriptors and import reports it reads. Once accepted it amends ADR-0039,
+descriptors and import reports it reads. It amends ADR-0039,
 which says the plane reports coverage: a command reports it, and no plane
 reads what it prints.
 
