@@ -27,7 +27,7 @@ guardana-control coverage --inventory <file> [--plane <config> [--evidence <expo
 | `--inventory` | the operator's inventory below, once; a file another account or a group can write is refused |
 | `--plane` | a plane's configuration, read without the environment of the shell running the command, which is not the plane's |
 | `--source`, `--log` | a source descriptor and its observation log's directory, paired in order ([observations](observations.md)) |
-| `--evidence` | the evidence export of the `--plane` before it, as `guardana-gateway trail export` writes it ([contracts](../contracts.md#the-evidence-export)); at most one per plane |
+| `--evidence` | the evidence export of the `--plane` before it, as `guardana-gateway trail export` writes it ([contracts](../contracts.md#the-evidence-export)); at most one per plane, refused when another account or a group can write it |
 
 A descriptor that is absent turns its paths not covered, never observed. A log
 directory without a log is a source never heard. Any other input that cannot

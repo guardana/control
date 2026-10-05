@@ -71,6 +71,7 @@
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
@@ -113,6 +114,9 @@ descriptors and their logs, not by a plane, and no plane reads what it prints.</
 <p>Amended by <a href="/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export">ADR-0044</a>:
 coverage's code lives in <code>internal/coverage</code>, outside the guarded trees, since
 nothing it prints reaches a decision or a stop.</p>
+<p>Amended by <a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>:
+a notifier lives in <code>internal/notify</code>, since a plane's import rule covers
+<code>adapters/</code>.</p>
 <p>Amends the order of <a href="/docs/adr/0026-first-value-and-external-extension-paths">ADR-0026</a>
 and withdraws the in-process detector seam of
 <a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>. Builds on
@@ -365,6 +369,7 @@ next call of one run and of no other.</li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

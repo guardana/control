@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.1",
+  "source_id": "refund-agent-runtime",
+  "kind": "otel-genai-traces",
+  "trust": "TRUST_SELF_REPORTED",
+  "convention": {"name": "opentelemetry.gen_ai", "version": "1.41.0"},
+  "otlp_version": "1.11.1",
+  "select": {"service_name": "refund-agent"},
+  "sampling": "SAMPLING_COMPLETE",
+  "heartbeat_seconds": 300,
+  "tenant_id": "acme",
+  "project_id": "refunds",
+  "run_attribute": "app.run_id"
+}

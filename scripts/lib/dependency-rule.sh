@@ -13,13 +13,27 @@
 # Each array holds one bare word per line: the agreement test reads this file
 # as text.
 
-# Trees that hold the decision path and must stay free of I/O.
+# Trees that hold the decision path, or judge a run against its procedure, and
+# must stay free of I/O.
 guarded=(
   internal/core
   internal/policy
   internal/canon
   internal/evidence
   pkg/contract
+  internal/supervise
+)
+
+# Trees of this module outside `guarded` that the non-test build of a guarded
+# tree reaches. A reached package is held to the import rule like a guarded
+# one, and .golangci.yml refuses the same clock, input and randomness reads by
+# name in it: otherwise a helper would be a way around them. A guarded tree that
+# reaches a package of this module under neither list fails check-imports.sh,
+# and so does an entry here that no guarded tree reaches any more.
+reached=(
+  internal/docscheck/frontmatter
+  internal/observe
+  internal/trailchain
 )
 
 # Trees of this module that a guarded tree must not import.
@@ -46,8 +60,9 @@ generated=(
 # Standard library packages a guarded tree may import, matched exactly: "io"
 # does not admit "io/ioutil". None opens a connection, a file or a process,
 # reads the environment or draws randomness, except through functions
-# .golangci.yml refuses by name in the guarded trees (time.Now, time.Sleep,
-# fmt.Scan, ed25519.GenerateKey and the like); fmt.Print is refused everywhere.
+# .golangci.yml refuses by name in the guarded and reached trees (time.Now,
+# time.Sleep, fmt.Scan, ed25519.GenerateKey and the like); fmt.Print is refused
+# everywhere.
 # A read that no name reveals is not refused: time.Unix(...).Format reads the
 # local zone. crypto/ed25519 imports crypto/rand itself, which the rule does not
 # examine.

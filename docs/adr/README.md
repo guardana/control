@@ -53,3 +53,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0042](0042-an-answer-that-quotes-a-configured-credential-is-withheld.md) | An answer that quotes a configured credential is withheld |
 | [0043](0043-a-refused-over-long-name-is-recorded-by-its-digest.md) | A refused over-long name is recorded by its digest |
 | [0044](0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md) | Coverage judges each plane and joins only a whole export |
+| [0045](0045-one-run-is-supervised-against-its-procedure.md) | One run is supervised against its procedure |

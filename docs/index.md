@@ -57,6 +57,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [Runs](reference/runs.md): The runs directory, what runs open, close and list print and refuse, and what a plane with runs.dir does with a token.
 - [Scenario format](reference/scenario-format.md): Every member of an agent-scenario/v1alpha1 document, how scenario run holds a live plane to one, and what it exits with.
 - [Starter policy packs](reference/starter-packs.md): The read-only and approval-for-writes packs, what each decides, what it assumes about the plane, the cases that prove it, and what it leaves unguarded.
+- [Supervision](reference/supervision.md): The procedure document, what guardana-control supervise checks for one opened run, the finding record and its log, and how notify delivers findings.
 - [action_envelope.proto](reference/wire/action_envelope.md): The messages and enums of action_envelope.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
 - [approval.proto](reference/wire/approval.md): The messages and enums of approval.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
 - [bundle.proto](reference/wire/bundle.md): The messages and enums of bundle.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
@@ -126,3 +127,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0042: An answer that quotes a configured credential is withheld](adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld.md): accepted
 - [ADR-0043: A refused over-long name is recorded by its digest](adr/0043-a-refused-over-long-name-is-recorded-by-its-digest.md): accepted
 - [ADR-0044: Coverage judges each plane and joins only a whole export](adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md): accepted
+- [ADR-0045: One run is supervised against its procedure](adr/0045-one-run-is-supervised-against-its-procedure.md): accepted

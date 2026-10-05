@@ -100,6 +100,20 @@ file_reason() {
   esac
 }
 
+# in_name_scope <package>
+# True when the package lies under a guarded or a reached tree, where
+# .golangci.yml refuses clock, input and randomness reads by name.
+in_name_scope() {
+  local entry
+  for entry in "${guarded[@]}" "${reached[@]}"; do
+    if under "$1" "${module}/${entry}"; then
+      return 0
+    fi
+  done
+  return 1
+}
+outside_scope="is reached by a guarded tree and lies outside every tree in which the rule refuses clock, input and randomness reads by name"
+
 # held <package>
 # True when the package's own imports and files are held to the rule: it is in
 # this module and not generated.
@@ -248,6 +262,9 @@ for dir in "${guarded[@]}"; do
     pkg="${fields[0]}"
     held "${pkg}" || continue
     packages+="${pkg}"$'\n'
+    if ! in_name_scope "${pkg}"; then
+      refusals+="FAIL ${pkg} ${outside_scope}"$'\n'
+    fi
     in_files=0
     for ((i = 1; i < ${#fields[@]}; i++)); do
       token="${fields[i]}"
@@ -293,6 +310,16 @@ for dir in "${guarded[@]}"; do
     done
   done <<<"${listing}"
 done
+
+# A reached tree no guarded tree reaches any more is a stale entry, which would
+# keep the name refusals on a tree for no reason anyone can check.
+if [[ ${checked} -eq ${#guarded[@]} ]]; then
+  for tree in "${reached[@]}"; do
+    if [[ $'\n'"${packages}" != *$'\n'"${module}/${tree}"$'\n'* && $'\n'"${packages}" != *$'\n'"${module}/${tree}/"* ]]; then
+      refusals+="FAIL ${tree} is a reached tree that no guarded tree reaches"$'\n'
+    fi
+  done
+fi
 
 # Two trees can reach the same package; each package and each refusal counts
 # once.

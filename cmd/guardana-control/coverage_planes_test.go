@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -115,5 +116,20 @@ func TestCoverageSaysASourceWasNotGiven(t *testing.T) {
 	}
 	if want := "  source agent-runtime: not covered: no --source given for it"; outputLines(stdout)[1] != want {
 		t.Errorf("source line %q, want %q", outputLines(stdout)[1], want)
+	}
+}
+
+// TestCoverageRefusesAnExportAnotherAccountCouldWrite: an export the group or
+// others could write is refused as the inventory is, and no map is printed.
+func TestCoverageRefusesAnExportAnotherAccountCouldWrite(t *testing.T) {
+	for _, mode := range []os.FileMode{0o666, 0o620, 0o602} {
+		t.Run(mode.String(), func(t *testing.T) {
+			tr := newCoverageTree(t, "")
+			x := tr.wholeExport(t, "export.jsonl")
+			if err := os.Chmod(x, mode); err != nil {
+				t.Fatal(err)
+			}
+			refusedCoverage(t, tr.args("--plane", tr.plane, "--evidence", x), "--evidence", x, "mode")
+		})
 	}
 }

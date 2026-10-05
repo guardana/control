@@ -228,12 +228,21 @@ func readSource(descriptor, logDir string) (coverage.Source, bool, error) {
 	return coverage.Source{Descriptor: desc, Records: records}, true, nil
 }
 
-// readEvidence reads an export as a regular file, so a pipe or a device put
-// at its name cannot hold the command.
-func readEvidence(path string) (*coverage.Export, error) {
-	raw, err := ondisk.ReadRegular(path, maxExportFileBytes, 0)
+// readExportFile reads an export as the descriptor is read: what it holds is
+// taken as the plane's evidence, so only its owner may write it, and as a
+// regular file, so a pipe or a device put at its name cannot hold the command.
+func readExportFile(path string) ([]byte, error) {
+	raw, err := ondisk.ReadOwned(path, maxExportFileBytes, descriptorForbidden, os.Geteuid())
 	if err != nil {
 		return nil, refusedInput("evidence", path, err)
+	}
+	return raw, nil
+}
+
+func readEvidence(path string) (*coverage.Export, error) {
+	raw, err := readExportFile(path)
+	if err != nil {
+		return nil, err
 	}
 	x, err := coverage.ReadExport(bytes.NewReader(raw))
 	if err != nil {

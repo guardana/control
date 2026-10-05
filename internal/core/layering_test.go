@@ -41,16 +41,30 @@ import (
 	"pgregory.net/rapid"
 )
 
-// Trees that hold the decision path and must stay free of I/O. Each is read as
-// the pattern ./<tree>/... . Every one exists and holds packages; a tree that
-// does not resolve fails the test, so a rename or a move out from under its
-// name cannot leave the rule examining less than this list says.
+// Trees that hold the decision path, or judge a run against its procedure, and
+// must stay free of I/O. Each is read as the pattern ./<tree>/... . Every one
+// exists and holds packages; a tree that does not resolve fails the test, so a
+// rename or a move out from under its name cannot leave the rule examining less
+// than this list says.
 var guardedTrees = []string{
 	"internal/core",
 	"internal/policy",
 	"internal/canon",
 	"internal/evidence",
 	"pkg/contract",
+	"internal/supervise",
+}
+
+// Trees of this module outside guardedTrees that the non-test build of a
+// guarded tree reaches. A reached package is held to the import rule like a
+// guarded one, and to the same refusal of clock, input and randomness reads by
+// name: otherwise a helper would be a way around it. A guarded tree that
+// reaches a package of this module under neither list fails, and so does an
+// entry here that no guarded tree reaches any more.
+var reachedTrees = []string{
+	"internal/docscheck/frontmatter",
+	"internal/observe",
+	"internal/trailchain",
 }
 
 var (
@@ -189,6 +203,39 @@ func heldToRule(modulePath, pkg string) bool {
 	return true
 }
 
+// Why a reached package's clock, input and randomness reads would go
+// unrefused by name. check-imports.sh says the same.
+const outsideNameScope = "is reached by a guarded tree and lies outside every tree in which the rule refuses clock, input and randomness reads by name"
+
+// nameScopeVerdict returns outsideNameScope when pkg is held to the rule and
+// lies under neither a guarded nor a reached tree, and "" otherwise.
+func nameScopeVerdict(modulePath, pkg string) string {
+	if !heldToRule(modulePath, pkg) {
+		return ""
+	}
+	for _, tree := range slices.Concat(guardedTrees, reachedTrees) {
+		if underPath(pkg, modulePath+"/"+tree) {
+			return ""
+		}
+	}
+	return outsideNameScope
+}
+
+// unreached returns each of trees that holds none of the reached packages.
+func unreached(modulePath string, trees []string, reached map[string]bool) []string {
+	var stale []string
+	for _, tree := range trees {
+		found := false
+		for pkg := range reached {
+			found = found || underPath(pkg, modulePath+"/"+tree)
+		}
+		if !found {
+			stale = append(stale, tree)
+		}
+	}
+	return stale
+}
+
 // underPath reports whether dep is prefix itself or a package below it.
 // Compared on path segments, not as a raw string prefix: "net/httptest" is not
 // under "net/http".
@@ -211,6 +258,9 @@ func TestGuardedTreesImportOnlyAllowedPackages(t *testing.T) {
 				continue
 			}
 			examined[pkg.path] = true
+			if why := nameScopeVerdict(modulePath, pkg.path); why != "" {
+				t.Errorf("%s %s", pkg.path, why)
+			}
 			imports += len(pkg.imports)
 			for _, imp := range pkg.imports {
 				if ok, why := importVerdict(modulePath, imp); !ok {
@@ -223,6 +273,10 @@ func TestGuardedTreesImportOnlyAllowedPackages(t *testing.T) {
 			}
 		}
 		files += refuseForeignLeftOut(t, modulePath, moduleDir, tree, foreign)
+	}
+
+	for _, tree := range unreached(modulePath, reachedTrees, examined) {
+		t.Errorf("reachedTrees holds %s, which no guarded tree reaches", tree)
 	}
 
 	// A run in which nothing was imported examined nothing and must not
@@ -622,6 +676,7 @@ func TestImportVerdict(t *testing.T) {
 		{"google.golang.org/protobuf/proto", true},
 		{module + "/internal/canon", true},
 		{module + "/api/gen/go/x/v1", true},
+		{module + "/internal/observe", true},
 		{module + "/adaptersx", true},
 		{module + "/internal/storagegen", true},
 		{module + "/internal/controlapix", true},
@@ -692,13 +747,15 @@ func TestFileVerdict(t *testing.T) {
 }
 
 // Written out rather than read from guardedTrees: a tree dropped from every
-// mechanism at once still passes the agreement tests, and the probe plants
-// only in the trees the lists name.
-func TestTheDecisionPathIsGuarded(t *testing.T) {
+// mechanism at once still passes the agreement tests.
+func TestTheDecisionPathAndTheSupervisorAreGuarded(t *testing.T) {
 	for _, tree := range []string{"internal/core", "internal/policy", "internal/canon", "internal/evidence", "pkg/contract"} {
 		if !slices.Contains(guardedTrees, tree) {
 			t.Errorf("guardedTrees lacks %s, which holds the decision path", tree)
 		}
+	}
+	if !slices.Contains(guardedTrees, "internal/supervise") {
+		t.Error("guardedTrees lacks internal/supervise, whose findings must be a function of their inputs alone")
 	}
 }
 
@@ -754,6 +811,51 @@ func TestHeldToRule(t *testing.T) {
 		if got := heldToRule(module, c.pkg); got != c.want {
 			t.Errorf("heldToRule(%q) = %v, want %v", c.pkg, got, c.want)
 		}
+	}
+}
+
+// Written out, not read from the tree lists: dropping a reached tree from both
+// lists at once leaves the helper below it outside the name refusals.
+func TestNameScopeVerdict(t *testing.T) {
+	const module = "example.invalid/m"
+	cases := []struct {
+		pkg     string
+		outside bool
+	}{
+		{module + "/internal/core", false},
+		{module + "/internal/policy/rules", false},
+		{module + "/internal/supervise", false},
+		{module + "/internal/observe", false},
+		{module + "/internal/trailchain", false},
+		{module + "/internal/docscheck/frontmatter", false},
+		{module + "/api/gen/go/x/v1", false},
+		{"time", false},
+		{"google.golang.org/protobuf/types/known/timestamppb", false},
+		{module + "/internal/probehelper", true},
+		{module + "/internal/observer", true},
+		{module + "/internal/trailchainx", true},
+		{module + "/internal/docscheck", true},
+		{module + "/internal/docscheck/frontmatterx", true},
+		{module + "/adapters/mcp", true},
+	}
+	for _, c := range cases {
+		if got := nameScopeVerdict(module, c.pkg); (got != "") != c.outside {
+			t.Errorf("nameScopeVerdict(%q) = %q, want outside = %v", c.pkg, got, c.outside)
+		}
+	}
+}
+
+func TestUnreached(t *testing.T) {
+	const module = "example.invalid/m"
+	reached := map[string]bool{
+		module + "/internal/core":     true,
+		module + "/internal/observe":  true,
+		module + "/internal/docs/sub": true,
+		module + "/internal/trailx":   true,
+	}
+	got := unreached(module, []string{"internal/observe", "internal/docs", "internal/trail", "internal/gone"}, reached)
+	if want := []string{"internal/trail", "internal/gone"}; !slices.Equal(got, want) {
+		t.Errorf("unreached = %q, want %q", got, want)
 	}
 }
 

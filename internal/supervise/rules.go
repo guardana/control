@@ -1,0 +1,181 @@
+package supervise
+
+import (
+	"cmp"
+	"slices"
+	"time"
+
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+)
+
+// byTool groups requests that proposed a tool by that tool and upstream, the
+// groups in tool order.
+func byTool(reqs []*request, keep func(*request) bool) ([][2]string, map[[2]string][]*request) {
+	groups := map[[2]string][]*request{}
+	var keys [][2]string
+	for _, rq := range reqs {
+		tool, ok := rq.tool()
+		if !ok || !keep(rq) {
+			continue
+		}
+		if _, seen := groups[tool]; !seen {
+			keys = append(keys, tool)
+		}
+		groups[tool] = append(groups[tool], rq)
+	}
+	slices.SortFunc(keys, func(a, b [2]string) int { return cmp.Or(cmp.Compare(a[0], b[0]), cmp.Compare(a[1], b[1])) })
+	return keys, groups
+}
+
+// repeatedDenial fires for a tool on an upstream whose calls the policy
+// denied max_denials times or more.
+func (e *evaluation) repeatedDenial() []draft {
+	keys, groups := byTool(e.reqs, (*request).denied)
+	var out []draft
+	for _, tool := range keys {
+		denials := groups[tool]
+		if uint64(len(denials)) < uint64(e.p.maxDenials) {
+			continue
+		}
+		d := draft{rule: RuleRepeatedDenial, anchor: tool[:], cap: confirmed}
+		for _, rq := range denials {
+			d.refs = append(d.refs, rq.ref(rq.terminal))
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
+// outsideProcedure fires for each tool the plane saw called that is neither a
+// step nor allowed, then for each name a source reported of a call no plane
+// call joins and no entry lists.
+func (e *evaluation) outsideProcedure() []draft {
+	keys, groups := byTool(e.reqs, func(rq *request) bool {
+		tool, _ := rq.tool()
+		_, known := e.ix.byTool[tool]
+		return !known
+	})
+	var out []draft
+	for _, tool := range keys {
+		d := draft{rule: RuleStepOutsideProcedure, anchor: tool[:], cap: confirmed}
+		for _, rq := range groups[tool] {
+			d.refs = append(d.refs, rq.ref(rq.proposal))
+		}
+		out = append(out, d)
+	}
+	named := map[string]*draft{}
+	var names []string
+	for _, o := range e.unjoined {
+		name := o.GetSubject().GetName()
+		if _, known := e.ix.byName[name]; known {
+			continue
+		}
+		if named[name] == nil {
+			named[name] = &draft{rule: RuleStepOutsideProcedure, anchor: []string{name}, cap: confirmed}
+			names = append(names, name)
+		}
+		named[name].refs = append(named[name].refs, e.obsRef(o))
+	}
+	slices.Sort(names)
+	for _, n := range names {
+		out = append(out, *named[n])
+	}
+	return out
+}
+
+// deadline fires when the run's plane events span more than
+// deadline_seconds. Events from more than one export may come from planes
+// whose clocks differ, so then it only suggests.
+func (e *evaluation) deadline() []draft {
+	if e.first == nil || e.last.GetOccurredAt().AsTime().Sub(e.first.GetOccurredAt().AsTime()) <=
+		time.Duration(e.p.deadlineSeconds)*time.Second {
+		return nil
+	}
+	d := draft{rule: RuleDeadlineExceeded, cap: confirmed}
+	if len(e.in.Exports) != 1 {
+		d.cap = suspected
+	}
+	for _, ev := range []*controlv1.Event{e.first, e.last} {
+		rq := e.byRequest[ev.GetRequestId()]
+		d.refs = append(d.refs, rq.ref(ev))
+	}
+	return []draft{d}
+}
+
+// absenceCap is the most a finding that rests on something not seen can
+// say: it suggests, and while a source is silent past its heartbeat or was
+// named and not read it cannot say even that.
+func (e *evaluation) absenceCap() controlv1.FindingVerdict {
+	if e.anySilent {
+		return indeterminate
+	}
+	return suspected
+}
+
+// skipped fires for each required step with no instance.
+func (e *evaluation) skipped() []draft {
+	var out []draft
+	for i, s := range e.p.steps {
+		if s.Required && len(e.ofStep[i]) == 0 {
+			out = append(out, draft{rule: RuleRequiredStepSkipped, anchor: []string{s.ID}, cap: e.absenceCap()})
+		}
+	}
+	return out
+}
+
+// outOfOrder fires for a step whose first timed instance comes before the
+// first of a step it must follow, or when one of those has no instance at
+// all. A step whose instances all lack a time is not judged. It returns the
+// steps it fired for.
+func (e *evaluation) outOfOrder() ([]draft, map[int]bool) {
+	var out []draft
+	fired := map[int]bool{}
+	for i, s := range e.p.steps {
+		first := e.firstTimed(i)
+		if first == nil {
+			continue
+		}
+		d := draft{rule: RuleStepOutOfOrder, anchor: []string{s.ID}, cap: e.absenceCap(), refs: []ref{first.start}}
+		broken := false
+		for _, a := range e.p.after[s.ID] {
+			j := e.stepIndex[a]
+			before := e.firstTimed(j)
+			switch {
+			case len(e.ofStep[j]) == 0:
+				broken = true
+			case before != nil && !before.before(first):
+				broken = true
+				d.refs = append(d.refs, before.start)
+			}
+		}
+		if broken {
+			out = append(out, d)
+			fired[i] = true
+		}
+	}
+	return out, fired
+}
+
+// continued fires for a failed instance that a different step's instance
+// follows. A retry of the same step is no finding, and neither is a pair in
+// which either instance is the first of a step reported out of order.
+func (e *evaluation) continued(outOfOrder map[int]bool) []draft {
+	var line []*instance
+	for _, in := range e.inst {
+		if in.timed {
+			line = append(line, in)
+		}
+	}
+	slices.SortStableFunc(line, func(a, b *instance) int { return cmp.Or(a.at.Compare(b.at), cmp.Compare(a.seq, b.seq)) })
+	excused := func(in *instance) bool { return outOfOrder[in.step] && e.firstTimed(in.step) == in }
+	var out []draft
+	for k := 0; k+1 < len(line); k++ {
+		failed, next := line[k], line[k+1]
+		if !failed.failed || next.step == failed.step || excused(failed) || excused(next) {
+			continue
+		}
+		out = append(out, draft{rule: RuleContinuedAfterFailure, anchor: []string{failed.request},
+			cap: e.absenceCap(), refs: []ref{failed.end, next.start}})
+	}
+	return out
+}

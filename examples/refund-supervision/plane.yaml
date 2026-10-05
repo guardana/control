@@ -1,0 +1,80 @@
+# The plane in front of the orders server. Every path resolves against this
+# file's directory: the server is the binary in bin/ two directories up, and
+# the plane's state sits in state/. Fill in the lines of the two keys from
+# what keygen printed, as the README says.
+mode: ENFORCE
+project_id: refunds
+tenant_id: acme
+environment: dev
+
+listener:
+  kind: stateless_http
+  address: 127.0.0.1:8080
+  principal:
+    id: agent-runner
+  agent:
+    id: refund-assistant
+
+health:
+  address: 127.0.0.1:8081
+
+policy:
+  bundle_id: refund-supervision
+  bundle_file: state/policy.bundle
+  key_id: BUNDLE_KEY_ID_FROM_KEYGEN
+  public_key: BUNDLE_PUBLIC_KEY_FROM_KEYGEN
+  statement_file: state/policy.statement
+  state_dir: state/floors
+  freshness_key_id: FRESHNESS_KEY_ID_FROM_KEYGEN
+  freshness_public_key: FRESHNESS_PUBLIC_KEY_FROM_KEYGEN
+  max_stale: 1h
+  poll_interval: 1s
+
+runs:
+  dir: state/runs
+
+approvals:
+  provider: file
+  dir: state/approvals
+  hold_journal_dir: state/holds
+
+evidence:
+  dir: state/spool
+
+export:
+  endpoint: http://127.0.0.1:4318/v1/logs
+  allow_plaintext: true
+  linger: 5ms
+
+upstreams:
+  - name: orders
+    command: ../../bin/vulnerable-mcp-agent
+    args:
+      - --serve
+      - orders
+    env:
+      - VICTIM_JOURNAL_DIR
+    tenant_id: acme
+    environment: dev
+
+overrides:
+  - upstream: orders
+    tool: read_order
+    fingerprint: sha256:f64abfe663a5d7eddf041e16a0bec59e63ff7b0966f40aedaabb2797ab04f3a4
+    effect: READ
+    resource_type: order
+    resource_from: /id
+    trust_zone: TRUSTED_INTERNAL
+    returns:
+      trust: TRUSTED_INTERNAL
+      sensitivity: CONFIDENTIAL
+  - upstream: orders
+    tool: refund
+    fingerprint: sha256:ce1c752bfcc4980977fde7d5c08ca406ce25825d04c508235a4f7a60be94e51b
+    effect: TRANSACT
+    resource_type: order
+    resource_from: /id
+    trust_zone: TRUSTED_INTERNAL
+    returns:
+      trust: TRUSTED_INTERNAL
+      sensitivity: CONFIDENTIAL

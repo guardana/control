@@ -1,0 +1,74 @@
+// Unstable finding contract; schema_version is "0.1". Outside the v1 promise:
+// a reader takes exactly the minors it knows. See ADR-0045.
+//
+// An unspecified enum, or a number a reader does not know, reads as its most
+// restrictive meaning, written beside each enum.
+
+syntax = "proto3";
+
+package guardana.control.finding.v1alpha1;
+
+// Whether a rule was applied to the run. Unspecified reads as not checked,
+// never as checked.
+enum RuleState {
+  RULE_STATE_UNSPECIFIED = 0;
+  // The rule was applied to what was read.
+  RULE_STATE_CHECKED = 1;
+  // The rule is on and could not be applied, such as to an open run.
+  RULE_STATE_NOT_CHECKED = 2;
+  // The procedure leaves the rule out.
+  RULE_STATE_OFF = 3;
+}
+
+// The procedure a run was checked against.
+message ProcedureRef {
+  string procedure_id = 1;
+  string version = 2;
+  // SHA-256 of the procedure's canonical form, lowercase hex.
+  string digest = 3;
+}
+
+// What one supervision read and what it left out, so that what was not read
+// is told apart from what never happened.
+message ReadCounts {
+  // Plane events of the run that the rules were applied to.
+  uint64 events_taken = 1;
+  // Plane events read and left out, by reason, such as another run.
+  map<string, uint64> events_left_out = 2;
+  // Observations of the run that the rules were applied to.
+  uint64 observations_taken = 3;
+  // Observations read and left out, by reason, such as a basis other than claimed.
+  map<string, uint64> observations_left_out = 4;
+  // Evidence exports read whole, from header to trailer with no gap.
+  uint64 exports_whole = 5;
+  // Evidence exports read that were not whole.
+  uint64 exports_not_whole = 6;
+  // The run's blocks that are no denial, such as the plane's own for a pause,
+  // by the first reason code each carries. Reported only; no rule reads them.
+  map<string, uint64> plane_blocks = 7;
+}
+
+// What became of one rule of the procedure.
+message RuleResult {
+  string rule_id = 1;
+  string rule_version = 2;
+  RuleState state = 3;
+  // Why the rule was not checked or is off; empty when it was checked.
+  string why = 4;
+}
+
+// The close of one supervision: what was read, each rule's state, and how
+// many findings it wrote.
+message SuperviseReport {
+  string schema_version = 1;
+  string tenant_id = 2;
+  string project_id = 3;
+  // "run-" and 32 lowercase hex digits: the opened run that was supervised.
+  string run_id = 4;
+  ProcedureRef procedure = 5;
+  ReadCounts read = 6;
+  // One entry per rule the procedure version knows, checked or not.
+  repeated RuleResult rules = 7;
+  // Finding records this supervision appended to the log.
+  uint64 findings_written = 8;
+}

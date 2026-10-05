@@ -1,0 +1,151 @@
+package supervise
+
+import (
+	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
+	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/observe"
+	"google.golang.org/protobuf/proto"
+)
+
+// Why an event or an observation was read and left out.
+const (
+	outNotRecord      = "not a record"
+	outAnotherRun     = "another run"
+	outAnotherTenant  = "another tenant"
+	outAnotherProject = "another project"
+	outAnotherSource  = "another source"
+	outNotClaimed     = "basis not claimed"
+	outNotTool        = "not a tool call"
+	outDuplicate      = "duplicate"
+	outConflict       = "conflicting id"
+)
+
+// read is what belongs to the run, and what was left out of it.
+type read struct {
+	events []*controlv1.Event
+	// doubtful holds the request ids an event id with two contents names.
+	doubtful map[string]bool
+	project  string
+	obs      []*observev1.Observation
+	// obsSource is each taken observation's source, by observation id.
+	obsSource map[string]*Source
+	// obsDoubt holds the observation ids read with two contents.
+	obsDoubt map[string]bool
+	counts   *findingv1alpha1.ReadCounts
+}
+
+func newRead() *read {
+	return &read{
+		doubtful: map[string]bool{}, obsSource: map[string]*Source{}, obsDoubt: map[string]bool{},
+		counts: &findingv1alpha1.ReadCounts{EventsLeftOut: map[string]uint64{}, ObservationsLeftOut: map[string]uint64{}},
+	}
+}
+
+// takeEvents keeps the events of the run in the run's tenant, each event id
+// once. A second copy of an event is left out; a second content under one
+// event id puts both requests in doubt.
+func (r *read) takeEvents(run Run, exports []Export) error {
+	seen := map[string]*controlv1.Event{}
+	for _, x := range exports {
+		if x.Whole {
+			r.counts.ExportsWhole++
+		} else {
+			r.counts.ExportsNotWhole++
+		}
+		for _, ev := range x.Events {
+			why := eventOutside(ev, run)
+			if first, ok := seen[ev.GetEventId()]; ok && why == "" {
+				why = outDuplicate
+				if !proto.Equal(first, ev) {
+					why = outConflict
+					r.doubtful[first.GetRequestId()], r.doubtful[ev.GetRequestId()] = true, true
+				}
+			}
+			if why != "" {
+				r.counts.EventsLeftOut[why]++
+				continue
+			}
+			seen[ev.GetEventId()] = ev
+			r.events = append(r.events, ev)
+		}
+	}
+	r.counts.EventsTaken = uint64(len(r.events))
+	return r.takeProject()
+}
+
+func eventOutside(ev *controlv1.Event, run Run) string {
+	switch {
+	case ev == nil:
+		return outNotRecord
+	case ev.GetRunId() != run.ID:
+		return outAnotherRun
+	case ev.GetTenantId() != run.Tenant:
+		return outAnotherTenant
+	}
+	return ""
+}
+
+// takeProject names the one project the run's events were recorded in. A
+// finding and a report name one project, so a run recorded in two is refused
+// rather than judged as one.
+func (r *read) takeProject() error {
+	for _, ev := range r.events {
+		switch p := ev.GetProjectId(); {
+		case r.project == "":
+			r.project = p
+		case p != r.project:
+			return ErrInput.with("the run's events name more than one project")
+		}
+	}
+	return nil
+}
+
+// takeObservations keeps the tool observations that claim the run, in its
+// tenant and project, each observation id once.
+func (r *read) takeObservations(run Run, sources []Source) {
+	digests := map[string]string{}
+	for i := range sources {
+		src := &sources[i]
+		for _, o := range src.Observations {
+			why := r.observationOutside(o, src, run)
+			id := o.GetObservationId()
+			if d, ok := digests[id]; ok && why == "" {
+				why = outDuplicate
+				if d != observe.ContentDigest(o) || d == "" {
+					why = outConflict
+					r.obsDoubt[id] = true
+				}
+			}
+			if why != "" {
+				r.counts.ObservationsLeftOut[why]++
+				continue
+			}
+			digests[id] = observe.ContentDigest(o)
+			r.obsSource[id] = src
+			r.obs = append(r.obs, o)
+		}
+	}
+	r.counts.ObservationsTaken = uint64(len(r.obs))
+}
+
+func (r *read) observationOutside(o *observev1.Observation, src *Source, run Run) string {
+	c := o.GetCorrelation()
+	switch {
+	case o == nil:
+		return outNotRecord
+	case o.GetSource().GetSourceId() != src.SourceID:
+		return outAnotherSource
+	case observe.BasisOf(c.GetBasis()) != observev1.Basis_BASIS_CLAIMED:
+		return outNotClaimed
+	case c.GetRunId() != run.ID:
+		return outAnotherRun
+	case o.GetTenantId() != run.Tenant:
+		return outAnotherTenant
+	case o.GetProjectId() != r.project:
+		return outAnotherProject
+	case o.GetSubject().GetKind() != observev1.SubjectKind_SUBJECT_KIND_TOOL:
+		return outNotTool
+	}
+	return ""
+}

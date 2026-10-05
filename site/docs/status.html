@@ -71,6 +71,7 @@
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
@@ -311,6 +312,11 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td><code>internal/coverage/</code> (the inventory, the evidence export reader, one state per declared path, the join), <code>coverage</code> in <code>cmd/guardana-control/</code>, <code>observelog.ReadFile</code>, <a href="/docs/reference/coverage">reference/coverage.md</a>, <a href="/docs/adr/0041-coverage-per-declared-path">ADR-0041</a>, <a href="/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export">ADR-0044</a>. It reads files and contacts no plane: a configuration is not proof a plane runs it, and a classification is the override, not the live definition. A call around the plane is shown only against a whole, unfiltered evidence export; &quot;inferred&quot; has no source yet</td>
 </tr>
 <tr>
+<td>Supervision of one opened run against its procedure, and a notifier</td>
+<td><code>experimental</code></td>
+<td><code>internal/supervise/</code> (a guarded tree: the procedure, what belongs to the run, six rules, the verdict, the finding id), <code>internal/findinglog/</code>, <code>internal/notify/</code>, <code>supervise</code> and <code>notify</code> in <code>cmd/guardana-control/</code>, the contract <code>guardana.control.finding.v1alpha1</code>, <code>examples/refund-supervision/</code>, <a href="/docs/reference/supervision">reference/supervision.md</a>, <a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>. It reads exports and logs when an operator runs it; nothing in a plane reads a finding, and no finding stops a run (B19). A finding resting on what a runtime reported is suspected at most; a skipped step is never confirmed</td>
+</tr>
+<tr>
 <td>Graph API</td>
 <td><code>planned</code></td>
 <td>no path chosen yet, and no milestone names it</td>
@@ -318,12 +324,7 @@ already holds a package doc and a test holds nothing that decides.</li>
 <tr>
 <td>Web UI</td>
 <td><code>planned</code></td>
-<td>no path chosen yet; a run's view is part of B15 in <a href="/docs/backlog">backlog.md</a></td>
-</tr>
-<tr>
-<td>Supervisor: procedures and detectors over the exports, raising findings</td>
-<td><code>planned</code></td>
-<td><code>internal/supervise/</code>, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
+<td>no path chosen yet; a run's view is B22 in <a href="/docs/backlog">backlog.md</a></td>
 </tr>
 <tr>
 <td>Notifiers, channels beyond MCP and the OpenTelemetry trace sensor, and a run-scoped stop from a finding</td>
@@ -495,6 +496,7 @@ never withheld from the open build, whatever its status above.</p>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

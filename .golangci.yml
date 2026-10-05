@@ -42,8 +42,11 @@ linters:
           msg: "no panic on external input; return an error"
         - pattern: '^fmt\.Print(ln|f)?$'
           msg: "use log/slog or return values"
-        # The next three hold in the guarded trees only; the exclusion rule
-        # below lifts them everywhere else. A decision is replayed from its
+        # The next three hold in the guarded trees and in the trees of this
+        # module they reach (`reached` in scripts/lib/dependency-rule.sh); the
+        # exclusion rule below lifts them everywhere else, and
+        # internal/core/layering_names_test.go refuses the same names in the
+        # same packages from their source. A decision is replayed from its
         # recorded inputs, and fmt, time, context, crypto/ed25519 and the
         # protobuf runtime are allowed there for what else they offer, not for
         # these. Only reads a name reveals are caught: time.Local and the
@@ -76,6 +79,7 @@ linters:
             - "**/internal/canon/**"
             - "**/internal/evidence/**"
             - "**/pkg/contract/**"
+            - "**/internal/supervise/**"
             - "!$test"
           allow:
             - "github.com/guardana/control$"
@@ -143,6 +147,7 @@ linters:
             - "**/internal/canon/**_test.go"
             - "**/internal/evidence/**_test.go"
             - "**/pkg/contract/**_test.go"
+            - "**/internal/supervise/**_test.go"
           allow:
             - "github.com/guardana/control$"
             - "github.com/guardana/control/"
@@ -224,10 +229,11 @@ linters:
       - "(^|/)testdata/"
     rules:
       # Confines the "guarded tree:" forbidigo patterns to the trees the
-      # dependency rule guards; the agreement test reads this list too.
+      # dependency rule guards and the trees they reach; the agreement test
+      # reads this list too.
       - linters: [forbidigo]
         text: "guarded tree: "
-        path-except: "^(internal/core|internal/policy|internal/canon|internal/evidence|pkg/contract)/"
+        path-except: "^(internal/core|internal/policy|internal/canon|internal/evidence|pkg/contract|internal/supervise|internal/docscheck/frontmatter|internal/observe|internal/trailchain)/"
       # The kernel's determinism property sets the process zone to prove that
       # no decision reads it; that one test may name time.Local.
       - linters: [forbidigo]

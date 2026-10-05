@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -44,7 +45,7 @@ var wantExclusions = []string{
 	`    rules:`,
 	`      - linters: [forbidigo]`,
 	`        text: "guarded tree: "`,
-	`        path-except: "^(internal/core|internal/policy|internal/canon|internal/evidence|pkg/contract)/"`,
+	`        path-except: "^(internal/core|internal/policy|internal/canon|internal/evidence|pkg/contract|internal/supervise|internal/docscheck/frontmatter|internal/observe|internal/trailchain)/"`,
 	`      - linters: [forbidigo]`,
 	"        text: \"use of `time.Local` forbidden\"",
 	`        path: "^internal/core/property_test\\.go$"`,
@@ -126,19 +127,111 @@ func TestAllThreeMechanismsGuardTheSameTrees(t *testing.T) {
 		{ruleScript + ": guarded", mustArray(t, script, "guarded")},
 		{lintConfig + ": depguard rule core, files", prod},
 		{lintConfig + ": depguard rule core-tests, files", tests},
-		{lintConfig + ": the exclusion rule that scopes forbidigo", scope},
-		{"the module's directories", treeDirectories(t, moduleDir)},
+		{"the module's directories", treeDirectories(t, moduleDir, guardedTrees)},
 	} {
 		sameSet(t, c.where, c.have, guardedTrees)
 	}
+
+	// forbidigo's name refusals cover the reached trees as well; depguard reads
+	// each file's own imports and has no use for them.
+	sameSet(t, ruleScript+": reached", mustArray(t, script, "reached"), reachedTrees)
+	sameSet(t, "the module's directories", treeDirectories(t, moduleDir, reachedTrees), reachedTrees)
+	sameSet(t, lintConfig+": the exclusion rule that scopes forbidigo", scope, slices.Concat(guardedTrees, reachedTrees))
+	for _, tree := range reachedTrees {
+		if slices.ContainsFunc(guardedTrees, func(guarded string) bool { return underPath(tree, guarded) || underPath(guarded, tree) }) {
+			t.Errorf("reachedTrees holds %s, which overlaps a guarded tree", tree)
+		}
+	}
 }
 
-// treeDirectories returns each guarded tree that is a directory of the
-// module, so a missing one shows up as a tree the directories lack.
-func treeDirectories(t *testing.T, moduleDir string) []string {
+// The forbidigo patterns that carry the name refusals, written out whole: an
+// edit to one changes what the rule refuses, and the probe plants only the
+// names it knows.
+var wantGuardedPatterns = []string{
+	`^(time\.(Now|Since|Until|After|AfterFunc|Tick|NewTicker|NewTimer|Sleep)|timestamppb\.Now|context\.With(Deadline|Timeout)(Cause)?)$`,
+	`^(fmt\.Scan(f|ln)?|time\.(LoadLocation|Local|Time\.(Local|Zone|ZoneBounds|IsDST)))$`,
+	`^ed25519\.GenerateKey$`,
+}
+
+// The names layering_names_test.go refuses are the names forbidigo refuses in
+// the same packages: each is matched by a guarded pattern, and each guarded
+// pattern matches one of them.
+func TestNameRefusalsAgreeWithForbidigo(t *testing.T) {
+	_, moduleDir := mainModule(t)
+	lint, _ := readMechanisms(t, moduleDir)
+	patterns, err := guardedPatterns(lint)
+	if err != nil {
+		t.Fatalf("%s: %v", lintConfig, err)
+	}
+	sameSet(t, lintConfig+": the guarded forbidigo patterns", patterns, wantGuardedPatterns)
+
+	var names []string
+	for path, refused := range refusedNames {
+		for _, name := range refused {
+			names = append(names, path[strings.LastIndex(path, "/")+1:]+"."+name)
+		}
+	}
+	for _, method := range refusedMethods {
+		names = append(names, "time.Time."+method)
+	}
+	matched := make([]bool, len(patterns))
+	for _, name := range names {
+		found := false
+		for i, pattern := range patterns {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				t.Fatalf("%s: pattern %q: %v", lintConfig, pattern, err)
+			}
+			if re.MatchString(name) {
+				found, matched[i] = true, true
+			}
+		}
+		if !found {
+			t.Errorf("layering_names_test.go refuses %s, which no guarded forbidigo pattern matches", name)
+		}
+	}
+	for i, pattern := range patterns {
+		if !matched[i] {
+			t.Errorf("%s: guarded pattern %q matches no name layering_names_test.go refuses", lintConfig, pattern)
+		}
+	}
+}
+
+// guardedPatterns reads each forbidigo pattern whose message starts with
+// "guarded tree: ". The pattern is the line before the message, written as
+// "- pattern: '<regexp>'"; any other shape is an error.
+func guardedPatterns(lines []string) ([]string, error) {
+	var patterns []string
+	previous := ""
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if strings.HasPrefix(trimmed, `msg: "guarded tree: `) {
+			pattern, ok := strings.CutPrefix(previous, "- pattern: '")
+			if ok {
+				pattern, ok = strings.CutSuffix(pattern, "'")
+			}
+			if !ok || pattern == "" || strings.Contains(pattern, "'") {
+				return nil, fmt.Errorf("the line before %q is %q, not - pattern: '<regexp>'", trimmed, previous)
+			}
+			patterns = append(patterns, pattern)
+		}
+		previous = trimmed
+	}
+	if len(patterns) == 0 {
+		return nil, fmt.Errorf(`no forbidigo pattern carries a message starting "guarded tree: "`)
+	}
+	return patterns, nil
+}
+
+// treeDirectories returns each of trees that is a directory of the module, so
+// a missing one shows up as a tree the directories lack.
+func treeDirectories(t *testing.T, moduleDir string, trees []string) []string {
 	t.Helper()
 	var present []string
-	for _, tree := range guardedTrees {
+	for _, tree := range trees {
 		info, err := os.Stat(filepath.Join(moduleDir, filepath.FromSlash(tree)))
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
@@ -663,6 +756,17 @@ func TestListReadersReadTheShapesTheyKnow(t *testing.T) {
 		t.Errorf("treesFromGlobs = %q, %v", trees, err)
 	}
 
+	patterns, err := guardedPatterns([]string{
+		`        - pattern: '^panic$'`,
+		`          msg: "no panic"`,
+		`        - pattern: '^a\.B$'`,
+		`          # a comment`,
+		`          msg: "guarded tree: x"`,
+	})
+	if err != nil || !slices.Equal(patterns, []string{`^a\.B$`}) {
+		t.Errorf("guardedPatterns = %q, %v", patterns, err)
+	}
+
 	scope, err := forbidigoScope([]string{
 		`      - linters: [forbidigo]`,
 		`        text: "guarded tree: "`,
@@ -727,7 +831,14 @@ func TestReadersRefuseShapesTheyDoNotKnow(t *testing.T) {
 			return err
 		}
 	}
+	patterns := func(lines ...string) func() error {
+		return func() error {
+			_, err := guardedPatterns(lines)
+			return err
+		}
+	}
 	const head, text = `- linters: [forbidigo]`, `text: "guarded tree: "`
+	const guardedMsg = `msg: "guarded tree: x"`
 
 	cases := map[string]func() error{
 		"rule absent":                     rule("core:", "kernel:"),
@@ -753,6 +864,10 @@ func TestReadersRefuseShapesTheyDoNotKnow(t *testing.T) {
 		"scope as path, not path-except":  scope(head, text, `path: "^(a)/"`),
 		"scope holding a regexp":          scope(head, text, `path-except: "^(internal/.*)/"`),
 		"scope with an empty alternative": scope(head, text, `path-except: "^(a||b)/"`),
+		"no guarded pattern":              patterns(`- pattern: '^panic$'`, `msg: "no panic"`),
+		"guarded message without pattern": patterns(`- linters: [x]`, guardedMsg),
+		"guarded pattern double-quoted":   patterns(`- pattern: "^a$"`, guardedMsg),
+		"guarded pattern empty":           patterns(`- pattern: ''`, guardedMsg),
 		"block absent":                    block("exclusions:", "excluded:", "linters", "exclusions"),
 		"block as a flow mapping":         block("  exclusions:", "  exclusions: {paths: [a]}", "linters", "exclusions"),
 		"block with a comment on its key": block("  exclusions:", "  exclusions: # x", "linters", "exclusions"),

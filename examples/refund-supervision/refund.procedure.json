@@ -1,0 +1,21 @@
+{
+  "schema_version": "0.1",
+  "procedure_id": "refund",
+  "version": "1",
+  "steps": [
+    {"id": "fetch-order", "tool": "read_order", "upstream": "orders", "observed_as": ["read_order"], "required": true},
+    {"id": "refund", "tool": "refund", "upstream": "orders", "observed_as": ["refund"], "required": true}
+  ],
+  "order": {"refund": ["fetch-order"]},
+  "allow": [],
+  "max_denials": 4,
+  "deadline_seconds": 900,
+  "rules": {
+    "REPEATED_DENIAL": {"severity": "high", "escalation": "alert"},
+    "STEP_OUTSIDE_PROCEDURE": {"severity": "high", "escalation": "alert"},
+    "DEADLINE_EXCEEDED": {"severity": "medium", "escalation": "inform"},
+    "REQUIRED_STEP_SKIPPED": {"severity": "medium", "escalation": "inform"},
+    "STEP_OUT_OF_ORDER": {"severity": "medium", "escalation": "inform"},
+    "CONTINUED_AFTER_FAILURE": {"severity": "low", "escalation": "inform"}
+  }
+}

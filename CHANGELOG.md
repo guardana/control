@@ -23,6 +23,18 @@ verify one.
   and evidence exports, and contacts no plane. Against a whole evidence export
   it shows an observed call no plane recorded as a call around the plane, and
   exits 1 for it.
+- `guardana-control supervise` checks one run an operator opened against a
+  versioned procedure, from the plane's evidence export and the observations
+  that claim the run, and appends findings with typed references to a
+  findings log; `guardana-control notify` hands each alert to a program of the
+  operator's, at least once, keyed on the finding's id
+  ([ADR-0045](docs/adr/0045-one-run-is-supervised-against-its-procedure.md)).
+  Six rules: repeated denial, a step outside the procedure, a deadline, a
+  skipped required step, a step out of order, and a run that carried on after
+  a failure. A finding resting on what the agent's runtime reported is
+  suspected at most, and a skipped step is never confirmed. No plane reads a
+  finding, and no finding stops a run. `examples/refund-supervision/` runs it
+  on a live plane.
 
 ### Changed
 

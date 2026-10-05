@@ -71,6 +71,7 @@
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
@@ -367,8 +368,8 @@ and decides.</li>
 API, the gateway, ingest.</li>
 </ul>
 <p>The dependency rule is an allowlist, <code>implemented</code> in the gate. A package in
-<code>internal/core</code>, <code>internal/policy</code>, <code>internal/canon</code>, <code>internal/evidence</code> or
-<code>pkg/contract</code> may import packages of this module outside <code>adapters/</code>,
+<code>internal/core</code>, <code>internal/policy</code>, <code>internal/canon</code>, <code>internal/evidence</code>,
+<code>pkg/contract</code> or <code>internal/supervise</code> may import packages of this module outside <code>adapters/</code>,
 <code>internal/storage</code>, <code>internal/controlapi</code>, <code>internal/gateway</code> and
 <code>internal/ingest</code>; packages of <code>google.golang.org/protobuf</code>; and a named set of
 standard library packages that holds no network, file, process, system call,
@@ -378,8 +379,8 @@ refused by name where a name reveals the read; the local zone behind
 <code>time.Unix(...).Format</code> is not. A package in those trees builds from the same
 Go files on every platform: a file build constraints leave out on the machine
 the gate runs on, and any source that is not plain Go, is refused. Every
-package of this module those trees reach is held to the same list, generated
-code excepted. The rule runs one way: an adapter may import the core, and core
+package of this module those trees reach is held to the same list and the
+same refusals by name, generated code excepted. The rule runs one way: an adapter may import the core, and core
 that needs adapter behaviour declares an interface for the adapter to
 implement.</p>
 <p>The rule sandboxes nothing. Adapter and core run in one process, so a
@@ -571,9 +572,9 @@ and audited by someone who did not write it.</li>
 <td><code>experimental</code></td>
 </tr>
 <tr>
-<td><code>internal/supervise/</code></td>
-<td>The supervisor's procedures and detectors, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
-<td><code>planned</code></td>
+<td><code>internal/supervise/</code>, <code>internal/findinglog/</code>, <code>internal/notify/</code></td>
+<td>One run checked against its procedure, the findings log and the notifier, <a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a></td>
+<td><code>experimental</code></td>
 </tr>
 </tbody>
 </table>
@@ -624,6 +625,7 @@ and audited by someone who did not write it.</li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

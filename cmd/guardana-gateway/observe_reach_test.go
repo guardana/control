@@ -18,10 +18,11 @@ var observationTrees = []string{
 }
 
 // TestNoObservationReachesThePlane: an observation is testimony and never an
-// input to a decision (ADR-0039), so neither the guarded trees, the adapters
-// nor the plane's binary may depend on the observation package or on the
-// code that imports, stores or reads observations. A non-test listing of
-// their dependencies holds none of them.
+// input to a decision (ADR-0039), so neither the plane's five guarded trees,
+// the adapters nor the plane's binary may depend on the observation package or
+// on the code that imports, stores or reads observations. A non-test listing
+// of their dependencies holds none of them. internal/supervise, the sixth
+// guarded tree, reads observations and is not one of the plane's.
 func TestNoObservationReachesThePlane(t *testing.T) {
 	// This package is the plane's binary; the rest are named from the root.
 	deps := dependencies(t, ".", "../../internal/core/...", "../../internal/policy/...", "../../internal/canon/...",

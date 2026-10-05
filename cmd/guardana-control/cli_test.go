@@ -148,13 +148,23 @@ var ownRefusal = map[string]func(missing string) []string{
 	},
 	"observe export": func(m string) []string { return []string{m} },
 	"coverage":       func(m string) []string { return []string{"--inventory", m} },
+	"supervise": func(m string) []string {
+		return []string{"--procedure", m, "--runs", m, "--run", "run-" + strings.Repeat("0", 32), "--findings", m}
+	},
+	"notify": func(m string) []string { return []string{"--findings", m, "--state", m, "--", m} },
 }
 
 // refusalStatus is the status a command refuses a missing path with where it
 // is not exitFail: the observe commands keep the export's contract, in which
 // 2 says nothing was written and 1 is a whole result that holds a refusal, and
-// coverage's 2 says no map was printed and 1 is a whole map with a gap.
-var refusalStatus = map[string]int{"observe import": exitUsage, "observe export": exitUsage, "coverage": exitUsage}
+// coverage's 2 says no map was printed and 1 is a whole map with a gap, and
+// supervise's 2 says nothing was judged or written and 1 is a judged run that
+// is not a pass, and notify's 2 says no program ran and 1 is a delivery that
+// failed.
+var refusalStatus = map[string]int{
+	"observe import": exitUsage, "observe export": exitUsage, "coverage": exitUsage, "supervise": exitUsage,
+	"notify": exitUsage,
+}
 
 // TestEveryListedCommandDispatches: the list the help prints is the list run
 // dispatches. Each command's words reach its own command; words the list does

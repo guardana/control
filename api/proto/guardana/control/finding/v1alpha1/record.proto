@@ -1,0 +1,62 @@
+// Unstable finding contract; schema_version is "0.1". See report.proto for the
+// version and enum rules, and ADR-0045.
+
+syntax = "proto3";
+
+package guardana.control.finding.v1alpha1;
+
+import "guardana/control/finding/v1alpha1/report.proto";
+import "guardana/control/v1/finding.proto";
+
+// Whether a finding is handed to a notifier. Unspecified reads as inform,
+// never as alert.
+enum Escalation {
+  ESCALATION_UNSPECIFIED = 0;
+  // Written to the log and handed to no one.
+  ESCALATION_INFORM = 1;
+  // Written to the log and handed to the notifier.
+  ESCALATION_ALERT = 2;
+}
+
+// A plane event a finding rests on.
+message EventRef {
+  string event_id = 1;
+  string request_id = 2;
+}
+
+// An observation a finding rests on.
+message ObservationRef {
+  string source_id = 1;
+  // "obs-" and 32 lowercase hex digits.
+  string observation_id = 2;
+}
+
+// One record a finding rests on; a reference with neither member names nothing.
+message Reference {
+  oneof ref {
+    EventRef event = 1;
+    ObservationRef observation = 2;
+  }
+}
+
+// One finding about one run, with what it rests on. A finding never grants
+// or denies authority, and nothing in a plane reads it.
+message FindingRecord {
+  string schema_version = 1;
+  string tenant_id = 2;
+  string project_id = 3;
+  ProcedureRef procedure = 4;
+  Escalation escalation = 5;
+  // The records the finding rests on; the finding's evidence_refs and request_id stay empty.
+  repeated Reference refs = 6;
+  // Its finding_id is "fnd-" and 32 lowercase hex digits of run, procedure, rule and anchor.
+  guardana.control.v1.Finding finding = 7;
+}
+
+// One line of a findings log: exactly one of its members.
+message Record {
+  oneof record {
+    FindingRecord finding_record = 1;
+    SuperviseReport supervise_report = 2;
+  }
+}

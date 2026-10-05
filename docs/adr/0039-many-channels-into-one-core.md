@@ -19,6 +19,10 @@ Amended by [ADR-0044](0044-coverage-judges-each-plane-and-joins-only-a-whole-exp
 coverage's code lives in `internal/coverage`, outside the guarded trees, since
 nothing it prints reaches a decision or a stop.
 
+Amended by [ADR-0045](0045-one-run-is-supervised-against-its-procedure.md):
+a notifier lives in `internal/notify`, since a plane's import rule covers
+`adapters/`.
+
 Amends the order of [ADR-0026](0026-first-value-and-external-extension-paths.md)
 and withdraws the in-process detector seam of
 [ADR-0007](0007-repository-layout-and-dependency-rule.md). Builds on

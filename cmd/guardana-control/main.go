@@ -117,6 +117,8 @@ var commands = []subcommand{
 	{"observe", "import", observeImportForm, observeImportFlagSet, observeImportCommand},
 	{"observe", "export", observeExportForm, observeExportFlagSet, observeExportCommand},
 	{"coverage", "", coverageForm, coverageFlagSet, coverageCommand},
+	{"supervise", "", superviseForm, superviseFlagSet, superviseCommand},
+	{"notify", "", notifyForm, notifyFlagSet, notifyCommand},
 	{"console", "", consoleForm, consoleFlagSet, consoleCommand},
 }
 

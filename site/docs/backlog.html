@@ -71,6 +71,7 @@
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
@@ -161,16 +162,16 @@ view says what it did not see.</p>
 </thead>
 <tbody>
 <tr>
-<td>B15</td>
-<td>Add procedure supervision over one run</td>
-<td>ADR-0040</td>
-<td>The demonstration run is a shop refund: fetch the order, assess the refund, an approval, the refund; its deviation looks up other customers' orders (denied four times) and sends data to a host the plane never saw, which only the agent's trace shows. Versioned procedures bind to runs; reports cover out-of-order and skipped required steps, failed-step continuation, repeated denial and deadline, over both the evidence and the observation exports. Findings go to a findings log with typed references to events and observations; a finding resting only on self-reported observations is at most suspected; a gap or a duplicate is unknown. One local notifier delivers each finding at least once, keyed on its id, and the state resumes after a crash. The run's view answers what was meant, what happened, where a boundary was crossed, what was stopped and what was not seen; it marks a step done as planned, an exception or approval, a block and missing data by shape and line as well as colour, works without motion, and shows one run and the neighbourhood of a deviation by default. Findings never grant authority, add no latency to a decision and change no verdict</td>
-</tr>
-<tr>
 <td>B19</td>
 <td>Stop one run from a finding</td>
-<td>B15, ADR on the reaction source</td>
+<td>ADR on the reaction source</td>
 <td>A reaction source, apart from the operator's pause file and add-only for the emitter, holds entries with a run scope, an expiry and the finding that caused each. A plane with runs refuses that run's later calls and no other run's; a plane that cannot serve a scope a route names refuses to start. Only a deterministic, confirmed finding stops by default; a repeated finding writes one entry; a call already running is not cut, and the docs say so. A route is verified under a key apart from the policy key, and its serial never goes down. An unreadable or unverifiable reaction source blocks every call on the planes that read it, as an unreadable pause file does</td>
+</tr>
+<tr>
+<td>B22</td>
+<td>Show one supervised run</td>
+<td>ADR-0045</td>
+<td>A run's view answers what was meant, what happened, where a boundary was crossed, what was stopped and what was not seen; it marks a step done as planned, an exception or approval, a block and missing data by shape and line as well as colour, works without motion, and shows one run and the neighbourhood of a deviation by default. Procedures are tested with cases as policies are, a run's children are supervised with it, and findings are exported with a cursor. Nothing in it decides or stops a call</td>
 </tr>
 </tbody>
 </table>
@@ -210,7 +211,7 @@ mappings.</p>
 <tr>
 <td>B12</td>
 <td>Publish the port contracts and add TypeScript</td>
-<td>B15; B11 for the enforcement client</td>
+<td>B11 for the enforcement client</td>
 <td>Sensor, detector, reaction and notifier contracts are published with conformance suites of input and expected output files any language runs, once two consumers have used each. An external detector or notifier built from them alone passes its suite. Queue bounds, lag and failures are visible and cannot affect authorization. TypeScript passes the same client fixtures. A Go seam is promoted only with its own ADR and two consumers; nothing is loaded into a plane at run time</td>
 </tr>
 </tbody>
@@ -258,7 +259,7 @@ Custom policy-provider work preserves ADR-0017's veto-only semantics.</p>
 <tr>
 <td>B16</td>
 <td>Add fleet operations and protocol breadth from demand</td>
-<td>B13, B14, B15</td>
+<td>B13, B14</td>
 <td>Independent deployments demonstrate need; design covers tenant isolation, signed distribution, authenticated APIs and tested recovery. New HTTP/A2A adapters pass conformance. HA and additional stores have reproducible benchmarks before scale claims</td>
 </tr>
 </tbody>
@@ -322,6 +323,7 @@ sessions and feedback, consistent with the no-phone-home decision.</p>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

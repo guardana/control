@@ -71,6 +71,7 @@
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
@@ -247,6 +248,10 @@ observation log and export it: <a href="/docs/reference/observations">observatio
   guardana-control observe export [--after] [--limit] [--max-bytes] &lt;file&gt;
   guardana-control coverage --inventory &lt;file&gt; [--plane &lt;config&gt; [--evidence &lt;export&gt;]]...
       [--source &lt;descriptor&gt; --log &lt;dir&gt;]...
+  guardana-control supervise --procedure &lt;file&gt; --runs &lt;dir&gt; --run &lt;run-id&gt; --findings &lt;dir&gt;
+      [--evidence &lt;export&gt;]... [--source &lt;descriptor&gt; --log &lt;dir&gt;]...
+  guardana-control notify --findings &lt;dir&gt; --state &lt;dir&gt; [--init] [--timeout &lt;duration&gt;]
+      -- &lt;program&gt; [&lt;arg&gt;]...
   guardana-control console --approvals &lt;dir&gt; [--pause &lt;f&gt;] --approver-id &lt;id&gt; [--until-stdin-closes]
 
 Write access to the approvals directory is the approval authority:
@@ -385,6 +390,7 @@ dev
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

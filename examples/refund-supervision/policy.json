@@ -1,0 +1,10 @@
+{
+  "apiVersion": "agent-policy/v1alpha1",
+  "bundle": {"id": "refund-supervision", "version": "1", "serial": 1, "maxStaleSeconds": 3600},
+  "rules": [
+    {"id": "own-order", "effect": "ALLOW", "when": {"action": {"name": ["read_order"]}, "resource": {"id": ["ord-1"]}}},
+    {"id": "other-customers-orders", "effect": "DENY",
+      "when": {"action": {"name": ["read_order"]}, "resource": {"id": ["ord-2", "ord-3", "ord-4", "ord-5"]}}},
+    {"id": "refunds-need-approval", "effect": "REQUIRE_APPROVAL", "when": {"action": {"name": ["refund"]}}}
+  ]
+}

@@ -46,6 +46,7 @@
   <url><loc>https://control.guardana.dev/docs/adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0043-a-refused-over-long-name-is-recorded-by-its-digest</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0045-one-run-is-supervised-against-its-procedure</loc></url>
   <url><loc>https://control.guardana.dev/docs/backlog</loc></url>
   <url><loc>https://control.guardana.dev/docs/changelog</loc></url>
   <url><loc>https://control.guardana.dev/docs/concepts/approvals-and-the-held-call</loc></url>
@@ -86,6 +87,7 @@
   <url><loc>https://control.guardana.dev/docs/reference/runs</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/scenario-format</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/starter-packs</loc></url>
+  <url><loc>https://control.guardana.dev/docs/reference/supervision</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/wire/action_envelope</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/wire/approval</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/wire/bundle</loc></url>

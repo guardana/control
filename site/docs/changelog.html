@@ -71,6 +71,7 @@
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
@@ -118,6 +119,18 @@ It reads the planes' configurations, source descriptors, observation logs
 and evidence exports, and contacts no plane. Against a whole evidence export
 it shows an observed call no plane recorded as a call around the plane, and
 exits 1 for it.</li>
+<li><code>guardana-control supervise</code> checks one run an operator opened against a
+versioned procedure, from the plane's evidence export and the observations
+that claim the run, and appends findings with typed references to a
+findings log; <code>guardana-control notify</code> hands each alert to a program of the
+operator's, at least once, keyed on the finding's id
+(<a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>).
+Six rules: repeated denial, a step outside the procedure, a deadline, a
+skipped required step, a step out of order, and a run that carried on after
+a failure. A finding resting on what the agent's runtime reported is
+suspected at most, and a skipped step is never confirmed. No plane reads a
+finding, and no finding stops a run. <code>examples/refund-supervision/</code> runs it
+on a live plane.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
@@ -838,6 +851,7 @@ independence of this project from Guardana
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

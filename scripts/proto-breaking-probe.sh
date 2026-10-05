@@ -3,17 +3,19 @@
 # The negative control of buf.yaml's breaking rules. buf.yaml, its comment
 # lines and blank lines aside, has to be exactly the text pinned below: one
 # module, the breaking rules `use: [FILE]` and `ignore: [the observation
-# package]`, no other rule, exception or per-module override in any YAML
-# spelling. The rules buf itself reads for the module have to be the pinned
+# package, the finding package]`, no other rule, exception or per-module
+# override in any YAML spelling. The rules buf itself reads for the module have to be the pinned
 # list of the FILE category, so a spelling the text check missed still fails
 # and a buf upgrade that changes the category is noticed. Then, in
 # scratch copies of buf.yaml and api/proto, one field of every file of the
 # frozen v1 package is renumbered, one file per copy, and buf breaking against
 # the unchanged copy has to fail naming that field; a copy that does not
 # compile, or a failure that names something else, is not a detected break.
-# A field of the unstable observation package, which buf.yaml ignores
-# (ADR-0040), renumbered the same way has to pass. A buf that is missing, or a
-# v1 file holding no field this script can find to renumber, fails it.
+# A field of every file of the unstable observation and finding packages,
+# which buf.yaml ignores (ADR-0040, ADR-0045), renumbered the same way has to
+# pass, and has to fail naming that field once that package's ignore line is
+# dropped from the copy's buf.yaml. A buf that is missing, or a file holding no
+# field this script can find to renumber, fails it.
 set -euo pipefail
 
 _PROBE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -32,6 +34,7 @@ command -v buf >/dev/null 2>&1 || die "buf is not on PATH; nothing was probed"
 
 v1=guardana/control/v1
 observe=guardana/control/observe/v1alpha1
+finding=guardana/control/finding/v1alpha1
 moved=4000
 
 want_config="version: v2
@@ -44,13 +47,14 @@ breaking:
   use:
     - FILE
   ignore:
-    - api/proto/${observe}"
+    - api/proto/${observe}
+    - api/proto/${finding}"
 # Only whole comment lines are dropped: with every other line pinned, none of
 # them can sit inside a scalar, and a trailing comment fails the comparison.
 got_config="$(sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' buf.yaml)"
 if [[ "${got_config}" != "${want_config}" ]]; then
   diff <(printf '%s\n' "${want_config}") <(printf '%s\n' "${got_config}") >&2 || true
-  die "buf.yaml is not exactly the pinned module with the FILE rule and the observation package ignored (< pinned, > buf.yaml)"
+  die "buf.yaml is not exactly the pinned module with the FILE rule and the observation and finding packages ignored (< pinned, > buf.yaml)"
 fi
 
 want_rules="ENUM_NO_DELETE ENUM_SAME_JSON_FORMAT ENUM_SAME_TYPE ENUM_VALUE_NO_DELETE
@@ -93,16 +97,17 @@ cp -R api "${work}/base/"
 
 # first_field prints "<line> <message|enum> <name> <number>" for the first
 # field of a top-level message, or the first non-zero value of a top-level
-# enum, in proto file $1; nothing when it holds neither.
+# enum, in proto file $1; nothing when it holds neither. With $2, message or
+# enum, only that kind is looked for.
 first_field() {
-  awk '
+  awk -v want="${2:-}" '
     /^(message|enum) [A-Za-z_][A-Za-z0-9_]* *\{/ { kind = $1; name = $2; sub(/\{.*/, "", name); next }
     /^\}/ { kind = "" }
-    kind == "message" && /^  (optional |repeated )?[A-Za-z_][A-Za-z0-9_.]* [a-z_][a-z0-9_]* = [0-9]+;/ {
+    (want == "" || want == kind) && kind == "message" && /^  (optional |repeated )?[A-Za-z_][A-Za-z0-9_.]* [a-z_][a-z0-9_]* = [0-9]+;/ {
       n = $0; sub(/^.*= /, "", n); sub(/;.*$/, "", n)
       print NR, kind, name, n; exit
     }
-    kind == "enum" && /^  [A-Z_][A-Z0-9_]* = [1-9][0-9]*;/ {
+    (want == "" || want == kind) && kind == "enum" && /^  [A-Z_][A-Z0-9_]* = [1-9][0-9]*;/ {
       n = $0; sub(/^.*= /, "", n); sub(/;.*$/, "", n)
       print NR, kind, name, n; exit
     }
@@ -147,12 +152,53 @@ for path in "api/proto/${v1}"/*.proto; do
   unset line kind name number
 done
 
-read -r line kind name number <<<"$(first_field "api/proto/${observe}/observation.proto")" || true
-[[ -n "${number:-}" ]] || die "${observe}/observation.proto holds no field to renumber"
-renumbered "${work}/observe" "${observe}/observation.proto" "${line}" "${number}"
-if ! out="$(cd "${work}/observe" && buf build 2>&1 && buf breaking --against "${work}/base" 2>&1)"; then
-  printf '%s\n' "${out}" >&2
-  die "an observation field renumbered failed buf breaking: the unstable package is compared"
-fi
+# ignored checks every file of the unstable package $1, which buf.yaml ignores:
+# its first message field and its first enum value, each renumbered in a copy
+# of its own, have to pass buf breaking, and have to fail naming that field
+# with the package's ignore line dropped, so the pass is the ignore's. It sets
+# ignored_files to the number of files checked.
+ignored() {
+  local pkg="$1" path file want line kind name number dir out rc found messages=0 copies=0
+  ignored_files=0
+  for path in "api/proto/${pkg}"/*.proto; do
+    [[ -f "${path}" ]] || die "no proto file under api/proto/${pkg}"
+    file="${path#api/proto/}"
+    found=0
+    for want in message enum; do
+      line="" number=""
+      read -r line kind name number <<<"$(first_field "${path}" "${want}")" || true
+      [[ -n "${number}" ]] || continue
+      found=$((found + 1))
+      [[ "${kind}" != message ]] || messages=$((messages + 1))
+      dir="${work}/ignored-${pkg//\//-}-${copies}"
+      copies=$((copies + 1))
+      renumbered "${dir}" "${file}" "${line}" "${number}"
+      if ! out="$(cd "${dir}" && buf build 2>&1 && buf breaking --against "${work}/base" 2>&1)"; then
+        printf '%s\n' "${out}" >&2
+        die "${file}: ${kind} ${name} field ${number} renumbered failed buf breaking: the unstable package is compared"
+      fi
+      grep -qxF "    - api/proto/${pkg}" "${dir}/buf.yaml" || die "the copy's buf.yaml has no ignore line for ${pkg}"
+      grep -vxF "    - api/proto/${pkg}" "${dir}/buf.yaml" >"${dir}/buf.yaml.kept" || die "the copy's buf.yaml could not be rewritten"
+      mv "${dir}/buf.yaml.kept" "${dir}/buf.yaml"
+      rc=0
+      out="$(cd "${dir}" && buf breaking --against "${work}/base" 2>&1)" || rc=$?
+      if [[ ${rc} -eq 0 ]]; then
+        die "${file}: ${kind} ${name} field ${number} renumbered passed buf breaking without its ignore line: the ignore is not what lets it pass"
+      fi
+      if ! grep -E "^api/proto/${file}:" <<<"${out}" | grep -F "\"${number}\"" | grep -qF "${kind} \"${name}\""; then
+        printf '%s\n' "${out}" >&2
+        die "${file}: buf breaking without its ignore line failed (exit ${rc}) without naming ${kind} ${name} field ${number}"
+      fi
+    done
+    [[ ${found} -gt 0 ]] || die "${file} holds no message field or enum value to renumber"
+    ignored_files=$((ignored_files + 1))
+  done
+  [[ ${messages} -gt 0 ]] || die "no file under api/proto/${pkg} holds a message field to renumber"
+}
 
-printf 'proto-breaking-probe: v1 compared in %d file(s), observe/v1alpha1 ignored\n' "${files}"
+ignored "${observe}"
+observed="${ignored_files}"
+ignored "${finding}"
+findings="${ignored_files}"
+
+printf 'proto-breaking-probe: v1 compared in %d file(s); observe/v1alpha1 ignored in %d file(s), finding/v1alpha1 in %d file(s)\n' "${files}" "${observed}" "${findings}"

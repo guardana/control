@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0045: One run is supervised against its procedure · Guardana Control</title>
+<meta name="description" content="Decision record, accepted."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0045-one-run-is-supervised-against-its-procedure"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.7.0-alpha</span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a class="hide-s" href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span class="hide-s">GitHub</span></a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<details class="mnav">
+<summary>Menu · <b>ADR-0045: One run is supervised against its procedure</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</details>
+<main id="main" class="prose">
+<h1 id="adr-0045-one-run-is-supervised-against-its-procedure">ADR-0045: One run is supervised against its procedure</h1>
+<p>Status: accepted
+Date: 2026-10-05</p>
+<p>Builds on <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, which decided the
+vocabulary (procedures as versioned documents, a finding record around
+finding v1, notifiers apart from reactions, a missing event as unknown), on
+<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>,
+<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>,
+<a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a> and
+<a href="/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export">ADR-0044</a>.
+Amends ADR-0039 on where a notifier lives, and ADR-0040's &quot;five guarded
+trees&quot;, which now reads &quot;the plane's trees&quot;.</p>
+<h2 id="context">Context</h2>
+<p>A plane decides each call on its own. Whether a run as a whole kept to the
+procedure it was meant to follow (the steps it took, their order, the steps it
+skipped, what it did after a failure, how often it was denied, how long it
+took) is a question about many calls, from more than one channel: the plane's
+events and what the agent's runtime reports. Backlog B15 asks for it over one
+run, with findings that cite their evidence and a local notifier, and with no
+verdict changed.</p>
+<p>Three things make it easy to get wrong. A run id an agent's runtime reports
+is a claim. A missing event is unknown, not proof that a step was skipped. And
+a finding id that moves when one more piece of evidence arrives sends the same
+alert twice.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>One opened run.</strong> <code>guardana-control supervise --procedure &lt;file&gt; --runs &lt;dir&gt; --run &lt;run-id&gt;</code> reads that run's record (tenant, when it was opened and
+closed). Only a run an operator opened is supervised; a plane's local run,
+one per listener for the plane's whole life, is refused, and so are a run's
+children. The command's inputs are evidence exports (<code>--evidence</code>) and source
+descriptors with their observation logs (<code>--source</code>, <code>--log</code>). It reads no
+clock and contacts no plane.</p>
+<p><strong>What belongs to the run.</strong> Plane events whose <code>run_id</code> and tenant are the
+run's. Observations whose correlation basis is <code>claimed</code>, with that run id and
+tenant and the project the run's plane events name. Everything else is counted
+and left out. An observation joined to a plane event, as ADR-0044 joins them,
+is that call, not a second one. An observation not joined to a plane call
+never stands for a step: a required step only the runtime reports is still
+skipped, and the report names the claim.</p>
+<p><strong>The procedure.</strong> A strict JSON document, <code>schema_version</code> <code>0.1</code>, every
+member required: <code>procedure_id</code>, <code>version</code>, the steps (each an id, the tool
+and upstream a plane would see, the names a runtime would report it under,
+and whether it is required), the order (each step after the steps it lists),
+the tools the run may also call, <code>max_denials</code> and <code>deadline_seconds</code> (each at
+least 1, a rule turned off only by leaving its member out, and the report says
+so), and per rule its severity and escalation. A cycle or an unknown step is
+refused. The command records the document's digest, and a procedure id and
+version it has seen under another digest is refused.</p>
+<p><strong>The rules.</strong> A step instance is one request; its outcome is its terminal
+event, and a held request is open, never failed.</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Fires when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>REPEATED_DENIAL</code></td>
+<td>one tool's calls are denied <code>max_denials</code> times; a denial is the policy's <code>DENY</code>, not a block of the plane's own (a pause, an unclassified tool, an approval spent or expired)</td>
+</tr>
+<tr>
+<td><code>STEP_OUTSIDE_PROCEDURE</code></td>
+<td>a tool that is neither a step nor allowed is called, or reported by a source and not joined to a plane call</td>
+</tr>
+<tr>
+<td><code>DEADLINE_EXCEEDED</code></td>
+<td>the run's events span more than <code>deadline_seconds</code></td>
+</tr>
+<tr>
+<td><code>REQUIRED_STEP_SKIPPED</code></td>
+<td>a required step has no instance</td>
+</tr>
+<tr>
+<td><code>STEP_OUT_OF_ORDER</code></td>
+<td>a step's first instance comes before the steps it must follow</td>
+</tr>
+<tr>
+<td><code>CONTINUED_AFTER_FAILURE</code></td>
+<td>a different step follows a step whose instance failed</td>
+</tr>
+</tbody>
+</table>
+<p>A retry of the same step is never a finding, an approval is part of the step
+it held, and a step out of order is not also a continuation.</p>
+<p><strong>The verdict</strong> is the weakest of what the finding rests on. Plane events in
+an unbroken chain can confirm. Any observation caps it at <code>SUSPECTED</code>: its
+correlation is claimed and its descriptor unsigned. A cited record in doubt (a
+conflicting id, a broken chain, a source silent past its heartbeat as of the
+run's last plane event) makes it <code>INDETERMINATE</code>. The three rules that rest on
+something not seen (skipped, out of order, continued) are <code>SUSPECTED</code> at most,
+and run only when the run is closed and every export is whole; otherwise the
+report says &quot;not checked&quot; and why. A deadline across planes is <code>SUSPECTED</code>,
+since their clocks differ.</p>
+<p><strong>The finding record.</strong> <code>guardana.control.finding.v1alpha1</code>, a package of its
+own outside the v1 promise, ignored by <code>buf breaking</code> as the observation
+package is: a <code>FindingRecord</code> holds the schema version, tenant, project,
+procedure id, version and digest, the escalation (<code>inform</code> or <code>alert</code>), typed
+references (a plane event by event id and request id, an observation by source
+id and observation id) and a v1 <code>Finding</code> whose source is <code>DETERMINISTIC</code>,
+whose verdict and severity are set, and whose <code>evidence_refs</code>, <code>request_id</code>,
+<code>recommended_action</code> and <code>framework_mappings</code> are empty, since the typed
+references say it once. A <code>SuperviseReport</code> ends each run of the command: what
+was read and left out, each rule checked or not and why.</p>
+<p><strong>The finding id</strong> is <code>fnd-</code> and 32 hex digits of a length-prefixed SHA-256,
+domain <code>finding-id:1</code>, over tenant, project, run, procedure id and version,
+rule id and version, and the rule's anchor (the tool and upstream, the step,
+the failed request, or the observation's name or id where an observation is
+what the finding is about). A fifth denial, or an older file read later, keeps
+the id. The log keys a record on its id and verdict, so a verdict that changes is
+a new record.</p>
+<p><strong>The findings log.</strong> <code>internal/findinglog</code>: one JSON Lines file in an
+owner-only directory under a lock, written as the observation log is, each
+write closed by its <code>SuperviseReport</code>, a torn or unclosed tail never read as
+written.</p>
+<p><strong>The notifier.</strong> <code>guardana-control notify --findings &lt;dir&gt; --state &lt;dir&gt; [--timeout &lt;d&gt;] -- &lt;program&gt; [args]</code> hands each <code>alert</code> finding, in log
+order, to the program on its standard input, one JSON line, without a shell,
+killing its process group at the timeout. A delivery is keyed <code>&lt;id&gt;:&lt;verdict&gt;</code>
+and marked in the state, synced, only after the program exits 0, so a crash
+repeats at most the one record in flight: delivery is at least once, and a
+receiver drops a key it has seen. The state is an owner-only directory with a
+marker, a lock, an append-only list of delivered keys and the digest of the
+log's first line; a state without its marker is refused unless <code>--init</code>,
+which delivers everything again. A failure moves on to the next record, and
+the command exits 1; the next run retries. The code lives in
+<code>internal/notify</code>, not <code>adapters/</code>, which a plane's import rule covers.</p>
+<p><strong>No verdict changed.</strong> <code>internal/supervise</code> is a sixth guarded tree, pure as
+the kernel is: what a finding rests on and its id are then a function of the
+inputs alone. A test holds that the plane's binary, its five trees and
+<code>adapters/mcp</code> reach none of supervise, the findings log, the finding package
+or the notifier, with the control binary as its negative control. Nothing in
+a plane reads a finding, and no finding stops anything here: a stop is B19's.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>The v1 contracts, the digest and the plane do not change. An evidence export
+is read as the procedure is, refused when another account or a group can
+write it: a confirmed finding rests on the export being the plane's, which
+nothing but the file's owner and mode protects until evidence is signed. A
+source the command was asked to read and could not, or that fell silent past
+its heartbeat, is never a pass: the command exits 1 and names it. A finding grants
+nothing and stops nothing. A source that reports a run id it does not belong
+to can raise a <code>SUSPECTED</code> finding against that run, never a confirmed one;
+another tenant's observation is left out. The notifier runs a program the
+operator names, with the finding on its standard input and nothing else of
+the plane's.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>Supervise a plane's local run.</strong> It spans every task of a listener's life.</li>
+<li><strong>Bind observations by trace id.</strong> No stronger than the claimed run id.</li>
+<li><strong>A whole export makes a finding confirmed.</strong> A skipped step cites nothing,
+so it would be confirmed by nothing.</li>
+<li><strong>Any input not whole makes every finding indeterminate.</strong> It would demote
+facts that are present and flood the log.</li>
+<li><strong>Finding records as Go-only JSON.</strong> A notifier program in another language
+is the reader that needs a typed contract.</li>
+<li><strong>Generalise the observation log.</strong> One failure domain for two records, and
+observation code within a notifier's reach.</li>
+<li><strong>References inside the finding id.</strong> The id would move as evidence arrives.</li>
+<li><strong>The notifier in <code>adapters/</code>.</strong> The plane's import rule treats that tree
+as the plane's.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>An operator writes a procedure per task, opens a run for each task, exports
+each plane's trail and the observations, and runs <code>supervise</code> and <code>notify</code>
+when they want an answer; nothing runs on its own. A runtime that names tools
+differently from the plane needs each step's reported names. Findings are as
+complete as the inputs, and the report says what was not checked.</p>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>A local run id is refused; another tenant's observation and an
+observation without a claimed basis are left out; a claimed observation
+caps a finding at <code>SUSPECTED</code>.</li>
+<li>A run that keeps to its procedure gives no finding, and the report names
+each step's requests and every rule checked; a wrong run id is not a pass.</li>
+<li>A skipped step on an open run or with a filtered export is &quot;not checked&quot;.</li>
+<li>A pause, a silent decision point and an expired approval are not denials;
+four denials fire at <code>max_denials</code> 4 and not at 5.</li>
+<li>A second run of the command gives the same ids; a fifth denial keeps the id;
+an edited procedure under the same version is refused.</li>
+<li>The notifier killed between the program's exit and the mark delivers that
+one record again; a second notifier is refused by the lock; a timeout or an
+exec failure is not marked.</li>
+<li><code>buf breaking</code> passes a renumbered field in the finding package and fails one
+in v1; the layering rule covers six trees.</li>
+<li>The refund example, on a live plane with an opened run: exactly
+<code>REPEATED_DENIAL</code> confirmed and <code>STEP_OUTSIDE_PROCEDURE</code> suspected, and the
+second gone when the observation names another run.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0045-one-run-is-supervised-against-its-procedure.md">docs/adr/0045-one-run-is-supervised-against-its-procedure.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

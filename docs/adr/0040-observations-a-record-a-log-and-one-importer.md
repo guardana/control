@@ -10,6 +10,11 @@ which accepted the observation as testimony and named its contract, and on
 export shape it reuses. Applies [ADR-0002](0002-wire-contracts-and-versioning.md)
 and [ADR-0004](0004-evidence-and-privacy-defaults.md).
 
+Amended by [ADR-0045](0045-one-run-is-supervised-against-its-procedure.md):
+`internal/supervise`, the sixth guarded tree, imports `internal/observe`; the
+test below holds the plane's five trees, not every guarded tree, away from
+observation code.
+
 ## Context
 
 ADR-0039 fixed what an observation says and left its shape open. The first
