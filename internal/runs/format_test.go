@@ -91,6 +91,48 @@ func TestTheRecordDecoderRefusesWhatItCannotReadOneWay(t *testing.T) {
 	}
 }
 
+// A string the decoder would turn into U+FFFD is refused, so a file holding
+// one never reads as the file holding U+FFFD itself; that file, and a
+// surrogate pair, still read.
+func TestTheReadersRefuseAStringThatIsNotUnicode(t *testing.T) {
+	tenant := func(v string) string { return strings.Replace(literalRecord, `"tenant-a"`, `"tenant-`+v+`"`, 1) }
+	state := func(root, maxRead string) string {
+		return `{"schema_version":"1.0","root":"` + root + `","untrusted":false,"max_read":"` + maxRead + `"}`
+	}
+	refused := map[string]string{
+		"a lone high surrogate":         tenant(`\ud800`),
+		"a lone low surrogate":          tenant(`\udc00`),
+		"a high surrogate, then a char": tenant(`\ud800A`),
+		"two high surrogates":           tenant(`\ud800\ud800`),
+		"a byte that is not UTF-8":      tenant("\xff"),
+		"a truncated sequence":          tenant("\xe2\x82"),
+	}
+	for name, raw := range refused {
+		if _, err := decodeRecord([]byte(raw)); !errors.Is(err, ErrEncoding) {
+			t.Errorf("record, %s: %v, want ErrEncoding", name, err)
+		}
+	}
+	for name, raw := range map[string]string{
+		"a lone surrogate in max_read": state(literalID, `PUBLIC\ud800`),
+		"a byte that is not UTF-8":     state(literalID+"\xff", "PUBLIC"),
+	} {
+		if _, _, err := decodeState([]byte(raw)); !errors.Is(err, ErrEncoding) {
+			t.Errorf("state, %s: %v, want ErrEncoding", name, err)
+		}
+	}
+	for raw, want := range map[string]string{
+		tenant("�"):          "tenant-�",
+		tenant(`�`):          "tenant-�",
+		tenant(`😀`):          "tenant-\U0001F600",
+		tenant("\U0001F600"): "tenant-\U0001F600",
+	} {
+		got, err := decodeRecord([]byte(raw))
+		if err != nil || got.Who.TenantID != want {
+			t.Errorf("%q: tenant %q, %v; want %q", raw, got.Who.TenantID, err, want)
+		}
+	}
+}
+
 func TestTheStateFormatReadsAndWritesAsDocumented(t *testing.T) {
 	cases := []struct {
 		text  string

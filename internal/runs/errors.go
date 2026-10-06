@@ -1,6 +1,9 @@
 package runs
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // Error is a refusal by this package, matched with errors.Is. They are
 // constants, so no other code in the binary can reassign one and turn a
@@ -41,6 +44,10 @@ const (
 	// ErrMalformed is a file that is not one JSON object, or one whose field
 	// holds a value of the wrong type or shape.
 	ErrMalformed Error = "runs: the file is malformed"
+	// ErrEncoding is a string that is not valid UTF-8 or escapes an unpaired
+	// surrogate. Decoded, either reads as U+FFFD, so two files would read as
+	// one.
+	ErrEncoding Error = "runs: a string is not valid UTF-8 or escapes an unpaired surrogate"
 	// ErrUnknownField is a key this build cannot name.
 	ErrUnknownField Error = "runs: the file carries an unknown field"
 	// ErrMissingField is a key the format requires that the file lacks. No
@@ -75,6 +82,9 @@ const (
 	ErrParentExpired Error = "runs: the parent run has expired"
 	// ErrParentTenant is a parent opened for another tenant.
 	ErrParentTenant Error = "runs: the parent run belongs to another tenant"
+	// ErrParentOutlived is a run whose expiry would pass its parent's. An
+	// *OutlivesParentError carries it.
+	ErrParentOutlived Error = "runs: the run would outlive its parent"
 	// ErrNoRun is a close of a run no record names.
 	ErrNoRun Error = "runs: no such run"
 	// ErrAlreadyClosed is a close of a run closed already.
@@ -87,6 +97,22 @@ const (
 	// name.
 	ErrState Error = "runs: the state cannot be written"
 )
+
+// OutlivesParentError is an opening refused because the run would expire after
+// its parent. It matches ErrParentOutlived.
+type OutlivesParentError struct {
+	Parent                     string
+	ExpiresAt, ParentExpiresAt time.Time
+}
+
+// Error names both expiries.
+func (e *OutlivesParentError) Error() string {
+	return fmt.Sprintf("%s: it would expire at %s, its parent %s at %s",
+		ErrParentOutlived, formatTime(e.ExpiresAt), e.Parent, formatTime(e.ParentExpiresAt))
+}
+
+// Unwrap returns ErrParentOutlived.
+func (e *OutlivesParentError) Unwrap() error { return ErrParentOutlived }
 
 // Cause is why a token was refused. The values are a fixed label set, so
 // none ever names a run.

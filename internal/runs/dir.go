@@ -270,7 +270,7 @@ func (d *dir) replace(tmp, name string, body []byte) error {
 	if err := d.root.Remove(tmp); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	f, err := d.root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	f, err := d.createNew(tmp)
 	if err != nil {
 		return err
 	}
@@ -282,6 +282,12 @@ func (d *dir) replace(tmp, name string, body []byte) error {
 		return errors.Join(err, d.root.Remove(tmp))
 	}
 	return d.syncDir()
+}
+
+// createNew creates name for its owner alone and refuses a name that exists
+// already, a link included, rather than write through it.
+func (d *dir) createNew(name string) (*os.File, error) {
+	return d.root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 }
 
 func (d *dir) syncDir() error {

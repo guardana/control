@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -289,6 +290,53 @@ func TestAFloorRaisedElsewhereRefusesAnOlderRenewal(t *testing.T) {
 	r.poll()
 	r.expectSnapshot(2, digest, t0)
 	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseBelowFloor: 1}, 0, 0, 0, 0)
+}
+
+// An unchanged, confirmed statement still has the floor read at every poll: a
+// floor another plane raised to a later serial, and a floor that cannot be
+// read, are each counted while the files stay as they are, and the last good
+// snapshot keeps its confirmation.
+func TestAnUnchangedStatementHasTheFloorReadAtEveryPoll(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	digest := r.startConfirmed()
+	r.store.mu.Lock()
+	r.store.failRead = true
+	r.store.mu.Unlock()
+	r.clock.advance(interval)
+	r.poll()
+	r.expectSnapshot(2, digest, t0)
+	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseFloor: 1}, 0, 0, 0, 0)
+
+	r.store.mu.Lock()
+	r.store.failRead = false
+	elsewhere := t0.Add(5 * time.Second)
+	raised, err := r.store.floor.Raise(statementOf(t, 3, "sha256:"+strings.Repeat("3", 64), elsewhere), elsewhere)
+	if err != nil {
+		r.store.mu.Unlock()
+		t.Fatal(err)
+	}
+	r.store.floor = raised
+	r.store.mu.Unlock()
+	_, writes := r.store.stored()
+	r.clock.advance(interval)
+	r.poll()
+	r.expectSnapshot(2, digest, t0)
+	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseFloor: 1, policywatch.CauseBelowFloor: 1}, 0, 0, 0, 0)
+	if floor, after := r.store.stored(); after != writes || floor.Serial() != 3 {
+		t.Errorf("the poll wrote the floor %d time(s) and left serial %d, want none and 3", after-writes, floor.Serial())
+	}
+
+	other, err := policy.EmptyFloor("another-plane")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.store.mu.Lock()
+	r.store.floor = other
+	r.store.mu.Unlock()
+	r.clock.advance(interval)
+	r.poll()
+	r.expectSnapshot(2, digest, t0)
+	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseFloor: 2, policywatch.CauseBelowFloor: 1}, 0, 0, 0, 0)
 }
 
 func TestNewRefusesIncompleteOptions(t *testing.T) {

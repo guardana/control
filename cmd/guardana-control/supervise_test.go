@@ -78,7 +78,7 @@ func TestSuperviseAWrongRunIsNotAPass(t *testing.T) {
 // record holds and a child run are refused before the log is opened.
 func TestSuperviseRefusesARunItCannotSupervise(t *testing.T) {
 	tr := newSupTree(t)
-	child := openRun(t, tr.runs, who, "1h", "--parent", tr.run).runID
+	child := openRun(t, tr.runs, who, "30m", "--parent", tr.run).runID
 	for name, c := range map[string]struct{ run, want string }{
 		"a local run":   {"01J9Z3A6S5K8M2P4Q7R9T1V3W5", "not an opened run's id"},
 		"no record":     {"run-" + strings.Repeat("ab", 16), "no record"},

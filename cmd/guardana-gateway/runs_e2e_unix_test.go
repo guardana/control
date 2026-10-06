@@ -135,7 +135,7 @@ func expectCounts(t *testing.T, got, want map[string]float64) {
 func TestTwoRunsOfOneAgentKeepWhatTheyTookInApart(t *testing.T) {
 	rp := newRunsPlane(t, "stateless_http")
 	a, b := rp.open(), rp.open()
-	child := rp.open("--parent", a.id)
+	child := rp.open("--parent", a.id, "--ttl", "30m")
 	if child.root != a.id || b.root != b.id || a.root != a.id {
 		t.Fatalf("roots: a %s, b %s, child %s; want a and child under %s, b its own", a.root, b.root, child.root, a.id)
 	}

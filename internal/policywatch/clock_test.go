@@ -106,6 +106,31 @@ func TestDriftUnconfirmsOnlyPast100PartsPerMillion(t *testing.T) {
 	}
 }
 
+// Over a horizon of two million seconds one part per million is two seconds,
+// past the second of slack: a wall clock slow by 100 ppm is let through and
+// one slow by 101 ppm is caught, so the rule is 100 ppm and no other.
+func TestDriftIsJudgedAtExactly100PartsPerMillion(t *testing.T) {
+	const horizon = 2_000_000 * time.Second
+	for _, c := range []struct {
+		ppm         int64
+		unconfirmed bool
+	}{
+		{99, false},
+		{100, false},
+		{101, true},
+	} {
+		t.Run(fmt.Sprint(c.ppm, "ppm"), func(t *testing.T) {
+			r := newRig(t, emptyFloor(t))
+			r.startConfirmed()
+			r.clock.tick(horizon, horizon-horizon*time.Duration(c.ppm)/1_000_000)
+			r.poll()
+			if got := r.withdrawals() > 0; got != c.unconfirmed {
+				t.Errorf("%v slow by %d ppm: withdrawn %t, want %t", horizon, c.ppm, got, c.unconfirmed)
+			}
+		})
+	}
+}
+
 // A raise waiting on the floor directory's lock is given up within the poll
 // interval and counted under the floor; and a poll made meanwhile, after the
 // wall clock was set back, still withdraws the confirmation once the waiting

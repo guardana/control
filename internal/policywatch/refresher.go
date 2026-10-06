@@ -42,7 +42,7 @@ type Options struct {
 	BundleKeys, FreshnessKeys bundle.Keyring
 	// Holder is the plane's holder, made by policy.NewFloorHolder over Floor.
 	Holder *policy.Holder
-	// Floor is the store the holder raises; Start reads it.
+	// Floor is the store the holder raises; Start and every poll read it.
 	Floor policy.FloorStore
 	// Interval is the poll interval and MaxStale the operator's budget.
 	Interval, MaxStale time.Duration
@@ -175,6 +175,10 @@ func (r *Refresher) Poll(ctx context.Context) {
 func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.Statement) {
 	switch {
 	case binds(st, cur) && cur.ConfirmedAt().Equal(st.IssuedAt()):
+		if err := r.floorStillAdmits(ctx, cur); err != nil {
+			r.refuse(causeOf(err), err)
+			return
+		}
 		r.settle("confirmed")
 	case binds(st, cur):
 		r.confirm(ctx, cur, st, nil)
@@ -183,6 +187,25 @@ func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.S
 	default:
 		r.refuse(CauseStatementUnbound, fmt.Errorf("%w: it names %s serial %d", policy.ErrStatementUnbound, st.BundleID(), st.Serial()))
 	}
+}
+
+// floorStillAdmits reads the floor for a poll that would otherwise settle
+// without the store: a floor that cannot be read, or that holds a later
+// serial than the current bundle's, is refused. The read is bounded by the
+// poll interval, as a raise is.
+func (r *Refresher) floorStillAdmits(ctx context.Context, cur *policy.Snapshot) error {
+	read, cancel := context.WithTimeout(ctx, r.o.Interval)
+	defer cancel()
+	f, err := r.o.Floor.Floor(read, r.o.BundleID)
+	switch {
+	case err != nil:
+		return fmt.Errorf("%w: %w", policy.ErrFloorRead, err)
+	case f.BundleID() != r.o.BundleID:
+		return fmt.Errorf("%w: the store returned the floor of another bundle id", policy.ErrFloorRead)
+	case f.Serial() > cur.Serial():
+		return fmt.Errorf("%w: serial %d, floor serial %d", policy.ErrBelowFloor, cur.Serial(), f.Serial())
+	}
+	return nil
 }
 
 // replace judges the bundle on disk, which is not the current one, and st.

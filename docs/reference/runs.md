@@ -48,7 +48,9 @@ default.
 `--parent <run id>` opens the run under an open run of the same tenant. The
 two then share the parent's root and its flow state, because data moves
 between a parent and the runs it spawned in ways the plane does not see.
-Closing a parent closes none of its children.
+A child ends no later than its parent: a `--ttl` that would pass the parent's
+`expires_at` exits 1 naming both times. Closing a parent closes none of its
+children.
 
 It prints four lines:
 

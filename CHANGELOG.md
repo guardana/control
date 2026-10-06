@@ -20,6 +20,8 @@ verify one.
 - A second override of the same tool on one upstream is refused at start. The
   last one won, so an `effect: READ` after an `effect: DELETE` classified a
   delete as a read.
+- `guardana-control runs open --parent` refuses a child whose expiry would
+  pass its parent's.
 
 ### Fixed
 
@@ -32,6 +34,12 @@ verify one.
 - A rejection the approval store returns is checked as an approval is; one that
   does not check out is recorded as the plane's own expired approval, never as
   decided.
+- The runs directory's reader refuses a string that is not valid Unicode. It
+  read an unpaired surrogate or a bad byte as U+FFFD, so two different files
+  could read as one record.
+- A plane whose bundle and statement do not change reads its serial floor at
+  every poll, and counts a floor it cannot read, or one holding a newer
+  serial, as a refused poll; it read the floor only when a file changed.
 - With an authenticator that names no user, the forwarded resource, template
   and prompt lists are refused as the tool list is.
 - An approval whose own schema version is not of major 1 is refused when it is

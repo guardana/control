@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/guardana/control/internal/canon"
 )
 
 // SchemaVersion is the version this build writes into every file. A reader
@@ -70,11 +72,15 @@ func finish(dec *json.Decoder, out map[string]json.RawMessage, keys []string) er
 }
 
 // stringField reads a key fields found as a JSON string. A null is not a
-// string: decoded into one it would read as empty.
+// string: decoded into one it would read as empty. The canonical reader is
+// asked first, since it refuses what encoding/json would decode as U+FFFD.
 func stringField(f map[string]json.RawMessage, key string) (string, error) {
 	v := f[key]
 	if len(v) == 0 || v[0] != '"' {
 		return "", fmt.Errorf("%w: %q is not a string", ErrMalformed, key)
+	}
+	if _, err := canon.CanonicalizeJSON(v); err != nil {
+		return "", fmt.Errorf("%w: %q", ErrEncoding, key)
 	}
 	var s string
 	if err := json.Unmarshal(v, &s); err != nil {

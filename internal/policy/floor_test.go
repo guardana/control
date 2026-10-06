@@ -11,6 +11,7 @@ import (
 	"pgregory.net/rapid"
 
 	"github.com/guardana/control/internal/policy"
+	"github.com/guardana/control/pkg/contract"
 )
 
 // Digests the floor tests name, typed: d7 is the example bundle's, the others
@@ -224,6 +225,33 @@ func TestFloorConstructorsRefuseWhatNoStatementLeaves(t *testing.T) {
 		}
 	}
 	expectFloor(t, "NewFloor at the bounds", floorOf(t, 1, d7, "12:00:00", "12:00:00"), 1, d7, "12:00:00", "12:00:00")
+}
+
+// A floor takes the largest serial canonical JSON holds and a bundle id of
+// exactly the string bound, and refuses one past either.
+func TestFloorBoundsAreTheStatementsOwn(t *testing.T) {
+	t.Parallel()
+	at := utc("12:00:00")
+	if _, err := policy.NewFloor("payments", 9007199254740991, d7, at, at); err != nil {
+		t.Errorf("serial 2^53-1: %v", err)
+	}
+	if _, err := policy.NewFloor("payments", 9007199254740992, d7, at, at); !errors.Is(err, policy.ErrFloorInvalid) {
+		t.Errorf("serial 2^53 = %v, want ErrFloorInvalid", err)
+	}
+	longest := strings.Repeat("b", contract.MaxStringBytes)
+	if _, err := policy.NewFloor(longest, 7, d7, at, at); err != nil {
+		t.Errorf("NewFloor with a bundle id at the bound: %v", err)
+	}
+	if _, err := policy.EmptyFloor(longest); err != nil {
+		t.Errorf("EmptyFloor with a bundle id at the bound: %v", err)
+	}
+	over := longest + "b"
+	if _, err := policy.NewFloor(over, 7, d7, at, at); !errors.Is(err, policy.ErrFloorInvalid) {
+		t.Errorf("NewFloor with a bundle id one byte over = %v, want ErrFloorInvalid", err)
+	}
+	if _, err := policy.EmptyFloor(over); !errors.Is(err, policy.ErrFloorInvalid) {
+		t.Errorf("EmptyFloor with a bundle id one byte over = %v, want ErrFloorInvalid", err)
+	}
 }
 
 // Equal compares every part of two floors, the times as instants.

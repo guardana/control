@@ -103,8 +103,9 @@ type OpenRequest struct {
 // A root run gets its state file, then its lock file, then its record; a
 // child gets only its record and shares its root's state. Open refuses a zero
 // Now with ErrZeroTime, a lifetime out of bounds with ErrTTL, an identity
-// with ErrIdentity, and a parent that does not exist, is closed, is expired
-// at Now or is another tenant's with the ErrParent sentinel saying which.
+// with ErrIdentity, a parent that does not exist, is closed, is expired at Now
+// or is another tenant's with the ErrParent sentinel saying which, and a run
+// that would expire after its parent with an *OutlivesParentError.
 func (a *Admin) Open(ctx context.Context, req OpenRequest) (_ Record, _ string, err error) {
 	if err := req.check(); err != nil {
 		return Record{}, "", err
@@ -160,7 +161,8 @@ func (req OpenRequest) check() error {
 }
 
 // rootFor is the root a new run shares: its own id with no parent, else its
-// parent's root once the parent is shown open, unexpired and the tenant's.
+// parent's root once the parent is shown open, unexpired, the tenant's and
+// expiring no earlier than the new run would.
 func (a *Admin) rootFor(id string, req OpenRequest) (string, error) {
 	if req.Parent == "" {
 		return id, nil
@@ -180,6 +182,9 @@ func (a *Admin) rootFor(id string, req OpenRequest) (string, error) {
 		return "", fmt.Errorf("%w: %s", ErrParentExpired, req.Parent)
 	case parent.Who.TenantID != req.Who.TenantID:
 		return "", fmt.Errorf("%w: %s", ErrParentTenant, req.Parent)
+	}
+	if expires := canonTime(req.Now).Add(req.TTL); expires.After(parent.ExpiresAt) {
+		return "", &OutlivesParentError{Parent: req.Parent, ExpiresAt: expires, ParentExpiresAt: parent.ExpiresAt}
 	}
 	return parent.Root, nil
 }
@@ -210,7 +215,7 @@ func (a *Admin) startRoot(id string) error {
 	if err := a.d.replace(id+stateTemp, id+stateSuffix, body); err != nil {
 		return err
 	}
-	f, err := a.d.root.OpenFile(id+lockSuffix, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	f, err := a.d.createNew(id + lockSuffix)
 	if err != nil {
 		return err
 	}

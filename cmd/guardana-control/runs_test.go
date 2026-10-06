@@ -203,9 +203,10 @@ func leaks(out, secret string) bool {
 
 // TestRunsOpenRefusesAndWritesNothing: every refusal leaves the directory with
 // the records it had. A missing flag or a malformed value is a usage error; a
-// lifetime one step past either bound, an identity, and a parent that is
-// unknown, closed or another tenant's are refusals of the input, each naming
-// what was refused. Each bound also lets its own value through.
+// lifetime one step past either bound, an identity, a parent that is unknown,
+// closed or another tenant's, and a child that would outlive its parent are
+// refusals of the input, each naming what was refused. Each bound also lets
+// its own value through.
 func TestRunsOpenRefusesAndWritesNothing(t *testing.T) {
 	dir := runsDir(t)
 	parent := openRun(t, dir, who, "1h")
@@ -231,6 +232,7 @@ func TestRunsOpenRefusesAndWritesNothing(t *testing.T) {
 		"an unknown parent":      {openArgs(dir, who, "1h", "--parent", unknown), exitFail, "the parent run does not exist: " + unknown},
 		"a closed parent":        {openArgs(dir, who, "1h", "--parent", closed.runID), exitFail, "the parent run is closed"},
 		"another tenant's":       {openArgs(dir, who, "1h", "--parent", foreign.runID), exitFail, "belongs to another tenant"},
+		"outliving the parent":   {openArgs(dir, who, "2h", "--parent", parent.runID), exitFail, "would outlive its parent"},
 		"a parent that is no id": {openArgs(dir, who, "1h", "--parent", "run-1"), exitFail, "--parent is not a run id"},
 		"no directory":           {append([]string{"runs", "open"}, openFlags(who, "1h")...), exitUsage, "takes the runs directory"},
 		"a flag after the dir":   {append(openArgs(dir, who, "1h"), "--parent", parent.runID), exitUsage, "takes the runs directory"},
@@ -257,9 +259,8 @@ func TestRunsOpenRefusesAndWritesNothing(t *testing.T) {
 			t.Errorf("%s: the directory's records went from %s to %s", name, records, got)
 		}
 	}
-	for _, ttl := range []string{"1m", "720h"} {
-		openRun(t, dir, who, ttl, "--parent", parent.runID)
-	}
+	openRun(t, dir, who, "1m", "--parent", parent.runID)
+	openRun(t, dir, who, "720h")
 }
 
 // recordNames lists the records under dir, in the order the directory gives.

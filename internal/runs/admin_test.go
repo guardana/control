@@ -183,11 +183,66 @@ func TestOpenRefusesAParentThatIsNotAnOpenRunOfTheTenant(t *testing.T) {
 	if err != nil || len(listing.Records) != 2 {
 		t.Fatalf("a refused opening left a record: %d records, %v", len(listing.Records), err)
 	}
-	stillOpen := opened.Add(time.Hour - time.Nanosecond)
 	bob := alice
 	bob.PrincipalID = "bob"
-	if _, _, err := a.Open(t.Context(), runs.OpenRequest{Who: bob, Parent: parent.ID, TTL: time.Hour, Now: stillOpen}); err != nil {
-		t.Fatalf("a parent of the tenant one nanosecond before its expiry: %v", err)
+	_, _, err = a.Open(t.Context(), runs.OpenRequest{Who: bob, Parent: parent.ID, TTL: runs.MinTTL, Now: expires.Add(-time.Nanosecond)})
+	if !errors.Is(err, runs.ErrParentOutlived) || errors.Is(err, runs.ErrParentExpired) {
+		t.Fatalf("a parent one nanosecond before its expiry is not expired, and the child would outlive it: %v", err)
+	}
+	if _, _, err := a.Open(t.Context(), runs.OpenRequest{Who: bob, Parent: parent.ID, TTL: runs.MinTTL, Now: expires.Add(-runs.MinTTL)}); err != nil {
+		t.Fatalf("a child of the shortest lifetime that ends as its parent does: %v", err)
+	}
+}
+
+// A run opened under another ends at or before its parent's expiry: one that
+// would end a nanosecond later is refused with both expiries named and leaves
+// no record. The parent that counts is the direct one.
+func TestOpenRefusesAChildThatWouldOutliveItsParent(t *testing.T) {
+	_, a, _ := setup(t)
+	root, _ := openRoot(t, a)
+	at := opened.Add(10 * time.Minute)
+	child, _, err := a.Open(t.Context(), runs.OpenRequest{Who: alice, Parent: root.ID, TTL: 50 * time.Minute, Now: at})
+	if err != nil {
+		t.Fatalf("a child that ends as its parent does: %v", err)
+	}
+	if want := time.Date(2026, time.March, 1, 13, 0, 0, 0, time.UTC); !child.ExpiresAt.Equal(want) {
+		t.Fatalf("the child expires at %s, want %s", child.ExpiresAt, want)
+	}
+	_, token, err := a.Open(t.Context(), runs.OpenRequest{Who: alice, Parent: root.ID, TTL: 50*time.Minute + time.Nanosecond, Now: at})
+	if token != "" {
+		t.Fatal("a refused opening returned a token")
+	}
+	expectOutlives(t, err, root.ID)
+	grandchild, _, err := a.Open(t.Context(), runs.OpenRequest{Who: alice, Parent: child.ID, TTL: runs.MinTTL, Now: at})
+	if err != nil {
+		t.Fatalf("a grandchild inside its parent's lifetime: %v", err)
+	}
+	beyond := runs.OpenRequest{Who: alice, Parent: grandchild.ID, TTL: runs.MinTTL + time.Nanosecond, Now: at}
+	if _, _, err := a.Open(t.Context(), beyond); !errors.Is(err, runs.ErrParentOutlived) {
+		t.Fatalf("a run outliving its direct parent but not its root: %v", err)
+	}
+	if l, err := a.List(t.Context(), 100); err != nil || len(l.Records) != 3 {
+		t.Fatalf("a refused opening left a record: %d records, %v", len(l.Records), err)
+	}
+}
+
+// expectOutlives fails unless err refuses a child of parent that would expire
+// one nanosecond after the parent's 13:00, naming both times.
+func expectOutlives(t *testing.T, err error, parent string) {
+	t.Helper()
+	var outlives *runs.OutlivesParentError
+	if !errors.Is(err, runs.ErrParentOutlived) || !errors.As(err, &outlives) {
+		t.Fatalf("a child that ends a nanosecond after its parent: %v", err)
+	}
+	if outlives.Parent != parent ||
+		!outlives.ExpiresAt.Equal(time.Date(2026, time.March, 1, 13, 0, 0, 1, time.UTC)) ||
+		!outlives.ParentExpiresAt.Equal(time.Date(2026, time.March, 1, 13, 0, 0, 0, time.UTC)) {
+		t.Fatalf("the refusal names %+v", outlives)
+	}
+	for _, named := range []string{"2026-03-01T13:00:00.000000001Z", "2026-03-01T13:00:00Z", parent} {
+		if !strings.Contains(err.Error(), named) {
+			t.Errorf("the refusal %q does not name %s", err, named)
+		}
 	}
 }
 
