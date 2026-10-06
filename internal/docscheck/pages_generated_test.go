@@ -2,6 +2,8 @@ package docscheck
 
 import (
 	"fmt"
+	"path"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -24,7 +26,7 @@ type genRun struct {
 // page names a script docs-gen runs onto it, or a `go test` pin whose
 // package exists; a hand-written page's generated blocks pair, do not nest
 // and are each claimed.
-func generatedProblems(files []string, runs []genRun, claims []blockClaim, p parsedPage) []string {
+func generatedProblems(files []string, tests testIndex, runs []genRun, claims []blockClaim, p parsedPage) []string {
 	var problems []string
 	switch g := p.meta.Generated; {
 	case g == "":
@@ -36,7 +38,7 @@ func generatedProblems(files []string, runs []genRun, claims []blockClaim, p par
 			problems = append(problems, fmt.Sprintf("the %s recipe does not run %s -o %s", docsGenTarget, g, p.path))
 		}
 	case strings.HasPrefix(g, genTestPrefix):
-		if problem := testPinProblem(files, g); problem != "" {
+		if problem := testPinProblem(files, tests, g); problem != "" {
 			problems = append(problems, problem)
 		}
 	}
@@ -44,15 +46,19 @@ func generatedProblems(files []string, runs []genRun, claims []blockClaim, p par
 }
 
 // testPinProblem checks a `go test <pkg> -run <Test>` pin names a package
-// directory of the walk.
-func testPinProblem(files []string, pin string) string {
+// directory of the walk and one Test function that package declares by its
+// exact name, so a pin cannot name a test that never runs.
+func testPinProblem(files []string, tests testIndex, pin string) string {
 	fields := strings.Fields(pin)
-	if len(fields) != 5 || fields[3] != "-run" {
+	if len(fields) != 5 || fields[3] != "-run" || !testName.MatchString(fields[4]) {
 		return fmt.Sprintf("generated %q is not `go test <pkg> -run <Test>`", pin)
 	}
 	dir := strings.TrimPrefix(fields[2], "./")
 	if !slices.ContainsFunc(files, func(f string) bool { return strings.HasPrefix(f, dir+"/") }) {
 		return fmt.Sprintf("generated %q names package %s, which holds no file", pin, dir)
+	}
+	if !slices.Contains(tests[dir], fields[4]) {
+		return fmt.Sprintf("generated %q names no test %s in %s", pin, fields[4], dir)
 	}
 	return ""
 }
@@ -204,4 +210,20 @@ func recipeProblems(runs []genRun, pages []parsedPage, claims []blockClaim) []st
 		}
 	}
 	return problems
+}
+
+// testIndex holds the Test functions each package directory declares in its
+// _test.go files.
+type testIndex map[string][]string
+
+var (
+	testFunc = regexp.MustCompile(`(?m)^func (Test\w*)\(\w+ \*testing\.T\)`)
+	testName = regexp.MustCompile(`^Test\w*$`)
+)
+
+func (ix testIndex) add(rel string, data []byte) {
+	dir := path.Dir(rel)
+	for _, m := range testFunc.FindAllSubmatch(data, -1) {
+		ix[dir] = append(ix[dir], string(m[1]))
+	}
 }

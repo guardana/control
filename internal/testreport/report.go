@@ -24,7 +24,8 @@ var (
 	// ErrFailed is returned when a build, a package or a test failed.
 	ErrFailed = errors.New("testreport: a build, package or test failed")
 	// ErrNoTestsRun is returned when a package with test files passed without
-	// running a test, as when a -run filter matched none of them.
+	// running a test, as when a -run filter matched none of them or a TestMain
+	// exited before calling m.Run.
 	ErrNoTestsRun = errors.New("testreport: a package ran no test")
 )
 
@@ -36,7 +37,7 @@ type Summary struct {
 	FailedTests    int // tests, subtests and benchmarks that failed
 	BuildFailures  int
 	Skipped        int // tests and subtests that skipped
-	NoTestsRun     int // packages that passed with "[no tests to run]"
+	NoTestsRun     int // packages that passed without a test's run event
 }
 
 type event struct {
@@ -54,6 +55,7 @@ type output struct {
 type pkgState struct {
 	lines   []output
 	results map[string]string
+	ran     bool
 }
 
 type skipped struct {
@@ -116,6 +118,10 @@ func (rep *reporter) line(n int, text string) {
 	}
 	p := rep.pkg(e.Package)
 	switch e.Action {
+	case "run":
+		if e.Test != "" {
+			p.ran = true
+		}
 	case "output":
 		p.lines = append(p.lines, output{e.Test, e.Output})
 	case "pass", "fail", "skip", "bench":
@@ -171,7 +177,7 @@ func (rep *reporter) result(name string, p *pkgState, action string) {
 		return
 	}
 	line := p.resultLine(name)
-	if action == "pass" && strings.HasSuffix(strings.TrimSpace(line), "[no tests to run]") {
+	if action == "pass" && !p.ran {
 		rep.sum.NoTestsRun++
 		rep.noTests = append(rep.noTests, name)
 	}

@@ -111,6 +111,10 @@ func TestPageProblemsGenerated(t *testing.T) {
 		"a test pin on a package":         {goodPagePath, pin, ""},
 		"a test pin on no package":        {goodPagePath, replaceOnce(t, pin, "./cmd/tool", "./cmd/none"), "names package cmd/none, which holds no file"},
 		"a test pin of another shape":     {goodPagePath, replaceOnce(t, pin, "-run TestPage", "-v"), "is not `go test <pkg> -run <Test>`"},
+		"a test pin naming no test":       {goodPagePath, replaceOnce(t, pin, "TestPage", "TestNone"), "names no test TestNone in cmd/tool"},
+		"a test pin naming a prefix":      {goodPagePath, replaceOnce(t, pin, "TestPage", "TestPa"), "names no test TestPa in cmd/tool"},
+		"a test pin naming a pattern":     {goodPagePath, replaceOnce(t, pin, "TestPage", "^TestPage$"), "is not `go test <pkg> -run <Test>`"},
+		"a test of another package":       {goodPagePath, replaceOnce(t, pin, "./cmd/tool", "./internal/thing"), "names no test TestPage in internal/thing"},
 		"a claimed block":                 {goodPagePath, goodPage + goodBlock, ""},
 		"an unclaimed block":              {goodPagePath, replaceOnce(t, goodPage+goodBlock, "gen-thing.go", "gen-other.go"), "generated block scripts/gen-other.go is claimed by nobody"},
 		"a block on another page":         {"docs/guides/other.md", goodPage + goodBlock, "is claimed by nobody"},
@@ -133,6 +137,14 @@ func TestEveryClaimOpensItsBlock(t *testing.T) {
 	tree := loadTree(t)
 	for _, problem := range claimProblems(generatedBlocks, parsedPages(t, tree.pages)) {
 		t.Errorf("generatedBlocks: %s", problem)
+	}
+	for _, claim := range generatedBlocks {
+		if !strings.HasPrefix(claim.generator, genTestPrefix) {
+			continue
+		}
+		if problem := testPinProblem(tree.files, tree.tests, claim.generator); problem != "" {
+			t.Errorf("generatedBlocks: %s: %s", claim.page, problem)
+		}
 	}
 }
 

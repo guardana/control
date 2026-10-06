@@ -120,10 +120,11 @@ func TestMatchGlob(t *testing.T) {
 }
 
 // budgetProblems holds a page to its type's budget, or to its ceiling when
-// docs.json pins it. An exempt type and a generated page have no budget.
+// docs.json pins it. An exempt type and a page a docs-gen script renders have
+// no budget; a page a `go test` pin checks is written by hand and keeps it.
 func budgetProblems(cfg docsconfig.Config, p parsedPage) []string {
 	budget, budgeted := cfg.Budgets[p.meta.Type]
-	if !budgeted || p.meta.Generated != "" {
+	if !budgeted || strings.HasPrefix(p.meta.Generated, genScriptPrefix) {
 		budget = 0
 	}
 	return wordProblems(cfg.Ceilings, p.path, frontmatter.Words(p.body), budget)
@@ -245,9 +246,11 @@ func TestPageProblemsBudget(t *testing.T) {
 			"\n<!-- generated: scripts/gen-thing.go -->\n" + strings.Repeat("word ", 50) + "\n<!-- /generated -->\n", ""},
 		"an exempt type over every budget": {"docs/exempt.md", wordsPage(replaceOnce(t, head, "type: how-to", "type: project"), 500), ""},
 		"a generated page over its budget": {goodPagePath, wordsPage(generatedHead, 500), ""},
-		"at the ceiling":                   {"docs/reference/pinned.md", wordsPage(pinnedHead, 150), ""},
-		"one under the ceiling":            {"docs/reference/pinned.md", wordsPage(pinnedHead, 149), "holds 149 words, the ceiling pins 150"},
-		"one over the ceiling":             {"docs/reference/pinned.md", wordsPage(pinnedHead, 151), "holds 151 words, the ceiling pins 150"},
+		"a test-pinned page over its budget": {goodPagePath, wordsPage(strings.TrimSuffix(head, "---\n")+
+			"generated: go test ./cmd/tool -run TestPage\n---\n", 101), "holds 101 words, the budget is 100"},
+		"at the ceiling":        {"docs/reference/pinned.md", wordsPage(pinnedHead, 150), ""},
+		"one under the ceiling": {"docs/reference/pinned.md", wordsPage(pinnedHead, 149), "holds 149 words, the ceiling pins 150"},
+		"one over the ceiling":  {"docs/reference/pinned.md", wordsPage(pinnedHead, 151), "holds 151 words, the ceiling pins 150"},
 	}
 	claims := []blockClaim{{goodPagePath, "scripts/gen-thing.go"}}
 	runs := []genRun{{"scripts/gen-thing.go", goodPagePath}}

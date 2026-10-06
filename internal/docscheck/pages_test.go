@@ -9,6 +9,7 @@ package docscheck
 import (
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -64,6 +65,7 @@ type parsedPage struct {
 type docsTree struct {
 	config  docsconfig.Config
 	files   []string
+	tests   testIndex
 	pages   []page
 	readmes []page
 }
@@ -100,8 +102,15 @@ func collectTree(fsys fs.FS, cfg docsconfig.Config) (docsTree, error) {
 	if err != nil {
 		return docsTree{}, err
 	}
-	tree := docsTree{config: cfg, files: files}
+	tree := docsTree{config: cfg, files: files, tests: testIndex{}}
 	for _, rel := range files {
+		if strings.HasSuffix(rel, "_test.go") {
+			data, err := fs.ReadFile(fsys, rel)
+			if err != nil {
+				return docsTree{}, fmt.Errorf("reading %s: %w", rel, err)
+			}
+			tree.tests.add(rel, data)
+		}
 		if cfg.Excludes(rel) {
 			continue
 		}
@@ -177,7 +186,7 @@ func parsedPages(t *testing.T, pages []page) []parsedPage {
 
 // pageProblems judges one page whole: its frontmatter, its heading, its
 // place, its covers, its budget, its diagrams and its generated parts.
-func pageProblems(cfg docsconfig.Config, files []string, runs []genRun, claims []blockClaim, p page) []string {
+func pageProblems(cfg docsconfig.Config, files []string, tests testIndex, runs []genRun, claims []blockClaim, p page) []string {
 	pp, err := parsePage(p)
 	if err != nil {
 		return []string{err.Error()}
@@ -186,7 +195,7 @@ func pageProblems(cfg docsconfig.Config, files []string, runs []genRun, claims [
 	problems = append(problems, describeProblems(cfg, files, pp)...)
 	problems = append(problems, budgetProblems(cfg, pp)...)
 	problems = append(problems, diagramProblems(files, pp)...)
-	problems = append(problems, generatedProblems(files, runs, claims, pp)...)
+	problems = append(problems, generatedProblems(files, tests, runs, claims, pp)...)
 	return problems
 }
 
@@ -197,7 +206,7 @@ func TestPagesAreInOrder(t *testing.T) {
 		t.Errorf("Makefile: %s", problem)
 	}
 	for _, p := range tree.pages {
-		for _, problem := range pageProblems(tree.config, tree.files, runs, generatedBlocks, p) {
+		for _, problem := range pageProblems(tree.config, tree.files, tree.tests, runs, generatedBlocks, p) {
 			t.Errorf("%s: %s", p.path, problem)
 		}
 	}
@@ -237,6 +246,9 @@ const fixtureConfig = `{
   "surfaces": ["internal/**"]
 }`
 
+// fixtureTests is the test functions the fixture tree declares, by package.
+var fixtureTests = testIndex{"cmd/tool": {"TestPage"}, "internal/thing": {"TestThing"}}
+
 var fixtureFiles = []string{
 	"docs/guides/good.md", "docs/reference/pinned.md", "docs/moved.md", "docs/get-started/first.md",
 	"internal/thing/a.go", "internal/thing/deep/b.go", "internal/other/c.go",
@@ -274,7 +286,7 @@ func judgeEdits(t *testing.T, cfg docsconfig.Config, files []string, runs []genR
 	t.Helper()
 	for name, c := range cases {
 		p := page{path: c.path, data: []byte(c.text)}
-		problems := pageProblems(cfg, files, runs, claims, p)
+		problems := pageProblems(cfg, files, fixtureTests, runs, claims, p)
 		if c.want == "" {
 			if len(problems) != 0 {
 				t.Errorf("%s: a correct page reported %q", name, problems)
@@ -343,6 +355,10 @@ func TestCollectTreeSeparatesJudgedFromCovered(t *testing.T) {
 	} {
 		fsys[rel] = &fstest.MapFile{Data: []byte("# x\n")}
 	}
+	fsys["internal/thing/a_test.go"] = &fstest.MapFile{Data: []byte("package thing\n\n" +
+		"func TestA(t *testing.T) {}\nfunc helper(t *testing.T) {}\nfunc TestHelper(n int) {}\n" +
+		"// func TestComment(t *testing.T) {}\nfunc TestB(tb *testing.T) {\n}\n")}
+	fsys["internal/thing/deep/b_test.go"] = &fstest.MapFile{Data: []byte("package deep\n\nfunc TestDeep(t *testing.T) {}\n")}
 	tree, err := collectTree(fsys, cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -350,9 +366,13 @@ func TestCollectTreeSeparatesJudgedFromCovered(t *testing.T) {
 	wantFiles := []string{
 		".github/README.md", ".github/workflows/ci.yml", "CHANGELOG.md", "README.md", "bench/README.md",
 		"docs/adr/0001-record.md", "docs/guides/g.md", "docs/index.md", "docs/plans/p.md", "internal/thing/a.go",
+		"internal/thing/a_test.go", "internal/thing/deep/b_test.go",
 	}
 	if !slices.Equal(tree.files, wantFiles) {
 		t.Errorf("files = %q, want %q", tree.files, wantFiles)
+	}
+	if want := (testIndex{"internal/thing": {"TestA", "TestB"}, "internal/thing/deep": {"TestDeep"}}); !maps.EqualFunc(tree.tests, want, slices.Equal) {
+		t.Errorf("tests = %q, want %q", tree.tests, want)
 	}
 	if want := []string{"docs/guides/g.md", "docs/index.md"}; !slices.Equal(pagePaths(tree.pages), want) {
 		t.Errorf("pages = %q, want %q", pagePaths(tree.pages), want)

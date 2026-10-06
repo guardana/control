@@ -26,13 +26,10 @@ const (
 var skipped = []string{"docs/foundation", "docs/plans", "docs/design/foundation-decisions.md", "node_modules"}
 
 var (
-	// Exactly one group is set: an inline link or image, or a reference
-	// definition. Fenced code is not exempt, because a path shown in an example
-	// is still a path a reader will follow.
-	linkTarget     = regexp.MustCompile(`\]\(([^)]*)\)|^\[[^\]]+\]:\s*(\S+)`)
+	linkTarget     = regexp.MustCompile(`\]\(([^)]*)\)`)
 	uriScheme      = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.\-]*:`)
 	tableSeparator = regexp.MustCompile(`^\s*\|[\s:|-]*-[\s:|-]*\|\s*$`)
-	claimPhrase    = regexp.MustCompile(`supports |provides |integrates with `)
+	claimPhrase    = regexp.MustCompile(`(?i)supports\s|provides\s|integrates\s+with\s`)
 	statusLabel    = regexp.MustCompile("implemented|experimental|planned")
 	allowedStatus  = map[string]bool{"`implemented`": true, "`experimental`": true, "`planned`": true}
 	componentHead  = "Component | Status | Where"
@@ -137,18 +134,14 @@ func TestAgentsFileStaysShort(t *testing.T) {
 }
 
 // TestLocalMarkdownLinksResolve reports every broken link, not just the first:
-// a path that does not exist, and a #fragment that names no heading of the
-// Markdown file it points into.
+// a path that does not exist, a #fragment that names no heading of the
+// Markdown file it points into, and a reference no definition names.
 func TestLocalMarkdownLinksResolve(t *testing.T) {
 	fsys := repoFS(t)
 	anchors := newAnchorIndex(fsys)
 	for _, rel := range markdownFiles(t, fsys) {
-		for i, line := range readLines(t, fsys, rel) {
-			for _, m := range linkTarget.FindAllStringSubmatch(line, -1) {
-				if problem := linkProblem(anchors, rel, m[1]+m[2]); problem != "" {
-					t.Errorf("%s:%d: %s", rel, i+1, problem)
-				}
-			}
+		for _, problem := range markdownLinkProblems(anchors, rel, readLines(t, fsys, rel)) {
+			t.Error(problem)
 		}
 	}
 }
@@ -156,7 +149,8 @@ func TestLocalMarkdownLinksResolve(t *testing.T) {
 // TestCapabilityClaims fails a capability sentence carrying no status label, in
 // every Markdown file the walk finds: a claim on a page nobody thought to list
 // is still read as a claim. Fenced code and table separators are not prose and
-// are skipped.
+// are skipped; a paragraph is read whole, so a claim wrapped at its verb is
+// still a claim.
 //
 // What this does not do: it cannot tell whether a label that is present is
 // true. A page that calls a planned thing `implemented` passes here, and on
@@ -166,18 +160,8 @@ func TestLocalMarkdownLinksResolve(t *testing.T) {
 func TestCapabilityClaims(t *testing.T) {
 	fsys := repoFS(t)
 	for _, rel := range markdownFiles(t, fsys) {
-		fenced := false
-		for i, line := range readLines(t, fsys, rel) {
-			switch {
-			case strings.HasPrefix(strings.TrimSpace(line), "```"):
-				fenced = !fenced
-			case fenced || tableSeparator.MatchString(line):
-			case claimPhrase.MatchString(line) && !statusLabel.MatchString(line):
-				t.Errorf("%s:%d: capability claim with no status label: %s", rel, i+1, strings.TrimSpace(line))
-			}
-		}
-		if fenced {
-			t.Errorf("%s: unclosed code fence; every claim after it would go unchecked", rel)
+		for _, problem := range capabilityClaimProblems(rel, readLines(t, fsys, rel)) {
+			t.Error(problem)
 		}
 	}
 }

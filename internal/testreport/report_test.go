@@ -31,6 +31,8 @@ func TestSummarizeRecordedStreams(t *testing.T) {
 		{"skipping", testreport.Summary{Events: 32, Packages: 1, Skipped: 3}, nil},
 		{"notests", testreport.Summary{Events: 3, Packages: 1}, nil},
 		{"filtered", testreport.Summary{Events: 6, Packages: 1, NoTestsRun: 1}, testreport.ErrNoTestsRun},
+		{"exitearly", testreport.Summary{Events: 3, Packages: 1, NoTestsRun: 1}, testreport.ErrNoTestsRun},
+		{"everyran", testreport.Summary{Events: 22, Packages: 3, Skipped: 1}, nil},
 		{"failing", testreport.Summary{Events: 30, Packages: 1, FailedPackages: 1, FailedTests: 3}, testreport.ErrFailed},
 		{"panicking", testreport.Summary{Events: 27, Packages: 1, FailedPackages: 1, FailedTests: 1}, testreport.ErrFailed},
 		{"broken", testreport.Summary{Events: 6, Packages: 1, FailedPackages: 1, BuildFailures: 1}, testreport.ErrFailed},
@@ -90,6 +92,14 @@ func TestSummarizeRefusesWhatDoesNotProveAPass(t *testing.T) {
 {"Action":"pass","Package":"example.com/q"}
 {"Action":"pass","Package":"example.com/p"}
 `, testreport.ErrNoTestsRun},
+		{"a pass with no test run and no warning", `{"Action":"output","Package":"example.com/q","Output":"ok  \texample.com/q\t0.1s\n"}
+{"Action":"pass","Package":"example.com/q"}
+`, testreport.ErrNoTestsRun},
+		{"a pass whose only test ran in another package", `{"Action":"run","Package":"example.com/p","Test":"TestX"}
+{"Action":"pass","Package":"example.com/p","Test":"TestX"}
+{"Action":"pass","Package":"example.com/q"}
+{"Action":"pass","Package":"example.com/p"}
+`, testreport.ErrNoTestsRun},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -134,11 +144,15 @@ func TestSummarizeWritesNothingForAnEmptyStream(t *testing.T) {
 
 func TestSummarizeNamesAPassingPackageWithoutAResultLine(t *testing.T) {
 	var out bytes.Buffer
-	got, err := testreport.Summarize(strings.NewReader(`{"Action":"pass","Package":"example.com/p"}`+"\n"), &out)
+	input := `{"Action":"run","Package":"example.com/p","Test":"TestX"}
+{"Action":"pass","Package":"example.com/p","Test":"TestX"}
+{"Action":"pass","Package":"example.com/p"}
+`
+	got, err := testreport.Summarize(strings.NewReader(input), &out)
 	if err != nil {
 		t.Fatalf("Summarize: %v", err)
 	}
-	if got != (testreport.Summary{Events: 1, Packages: 1}) {
+	if got != (testreport.Summary{Events: 3, Packages: 1}) {
 		t.Errorf("Summary = %+v", got)
 	}
 	if want := "ok  \texample.com/p\ntest: 0 skipped\n"; out.String() != want {
@@ -213,7 +227,7 @@ func TestSummarizeReportsAReadFailureAfterAPass(t *testing.T) {
 }
 
 func FuzzSummarize(f *testing.F) {
-	for _, name := range []string{"passing", "skipping", "notests", "filtered", "failing", "panicking", "broken", "all"} {
+	for _, name := range []string{"passing", "skipping", "notests", "filtered", "exitearly", "everyran", "failing", "panicking", "broken", "all"} {
 		b, err := fs.ReadFile(os.DirFS("testdata"), name+".jsonl")
 		if err != nil {
 			f.Fatal(err)
@@ -254,5 +268,23 @@ func TestSummarizeNamesEveryPackageThatRanNoTest(t *testing.T) {
 	}
 	if got.NoTestsRun != 2 || got.Packages != 3 {
 		t.Errorf("Summary = %+v, want 3 packages, 2 of them with no test run", got)
+	}
+}
+
+func TestSummarizeCountsAnyRunEventAsATestRun(t *testing.T) {
+	for _, name := range []string{"TestX", "TestX/sub", "ExampleX", "BenchmarkX", "FuzzX"} {
+		t.Run(name, func(t *testing.T) {
+			input := `{"Action":"run","Package":"example.com/p","Test":"` + name + `"}
+{"Action":"pass","Package":"example.com/p","Test":"` + name + `"}
+{"Action":"pass","Package":"example.com/p"}
+`
+			got, err := testreport.Summarize(strings.NewReader(input), &bytes.Buffer{})
+			if err != nil {
+				t.Fatalf("Summarize: %v", err)
+			}
+			if got.NoTestsRun != 0 {
+				t.Errorf("NoTestsRun = %d, want 0", got.NoTestsRun)
+			}
+		})
 	}
 }

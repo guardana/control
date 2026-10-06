@@ -1,0 +1,22 @@
+{"Time":"2026-10-06T17:17:58.817743+02:00","Action":"start","Package":"example.com/fixture/allskip"}
+{"Time":"2026-10-06T17:17:58.818564+02:00","Action":"start","Package":"example.com/fixture/nofiles"}
+{"Time":"2026-10-06T17:17:58.818611+02:00","Action":"output","Package":"example.com/fixture/nofiles","Output":"?   \texample.com/fixture/nofiles\t[no test files]\n"}
+{"Time":"2026-10-06T17:17:58.818634+02:00","Action":"skip","Package":"example.com/fixture/nofiles","Elapsed":0}
+{"Time":"2026-10-06T17:17:58.82349+02:00","Action":"start","Package":"example.com/fixture/example"}
+{"Time":"2026-10-06T17:17:59.016057+02:00","Action":"output","Package":"example.com/fixture/allskip","Output":"-test.shuffle 1791299879015970000\n"}
+{"Time":"2026-10-06T17:17:59.016185+02:00","Action":"run","Package":"example.com/fixture/allskip","Test":"TestA"}
+{"Time":"2026-10-06T17:17:59.016201+02:00","Action":"output","Package":"example.com/fixture/allskip","Test":"TestA","Output":"=== RUN   TestA\n","OutputType":"frame"}
+{"Time":"2026-10-06T17:17:59.016214+02:00","Action":"output","Package":"example.com/fixture/allskip","Test":"TestA","Output":"    s_test.go:5: needs root\n"}
+{"Time":"2026-10-06T17:17:59.016234+02:00","Action":"output","Package":"example.com/fixture/allskip","Test":"TestA","Output":"--- SKIP: TestA (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-06T17:17:59.016244+02:00","Action":"skip","Package":"example.com/fixture/allskip","Test":"TestA","Elapsed":0}
+{"Time":"2026-10-06T17:17:59.016256+02:00","Action":"output","Package":"example.com/fixture/allskip","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-06T17:17:59.016642+02:00","Action":"output","Package":"example.com/fixture/allskip","Output":"ok  \texample.com/fixture/allskip\t0.198s\n"}
+{"Time":"2026-10-06T17:17:59.016684+02:00","Action":"pass","Package":"example.com/fixture/allskip","Elapsed":0.199}
+{"Time":"2026-10-06T17:17:59.125747+02:00","Action":"output","Package":"example.com/fixture/example","Output":"-test.shuffle 1791299879125615000\n"}
+{"Time":"2026-10-06T17:17:59.12584+02:00","Action":"run","Package":"example.com/fixture/example","Test":"Example"}
+{"Time":"2026-10-06T17:17:59.125852+02:00","Action":"output","Package":"example.com/fixture/example","Test":"Example","Output":"=== RUN   Example\n","OutputType":"frame"}
+{"Time":"2026-10-06T17:17:59.126985+02:00","Action":"output","Package":"example.com/fixture/example","Test":"Example","Output":"--- PASS: Example (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-06T17:17:59.127008+02:00","Action":"pass","Package":"example.com/fixture/example","Test":"Example","Elapsed":0}
+{"Time":"2026-10-06T17:17:59.127016+02:00","Action":"output","Package":"example.com/fixture/example","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-06T17:17:59.127444+02:00","Action":"output","Package":"example.com/fixture/example","Output":"ok  \texample.com/fixture/example\t0.304s\n"}
+{"Time":"2026-10-06T17:17:59.127469+02:00","Action":"pass","Package":"example.com/fixture/example","Elapsed":0.304}

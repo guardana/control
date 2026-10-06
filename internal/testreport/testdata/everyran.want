@@ -1,0 +1,5 @@
+?   	example.com/fixture/nofiles	[no test files]
+ok  	example.com/fixture/allskip	0.198s
+ok  	example.com/fixture/example	0.304s
+test: SKIP example.com/fixture/allskip TestA: s_test.go:5: needs root
+test: 1 skipped
