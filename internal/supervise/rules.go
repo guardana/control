@@ -126,7 +126,8 @@ func (e *evaluation) skipped() []draft {
 // outOfOrder fires for a step that ran before a step it must follow: its
 // first instance comes before the first of that step, or that step has no
 // instance at all. An order that cannot be told, because an instance of
-// either side has no time, is no pass: the finding is then indeterminate. It
+// either side has no time or the first of each side shares its time with one
+// of another export, is no pass: the finding is then indeterminate. It
 // returns the steps found out of order.
 func (e *evaluation) outOfOrder() ([]draft, map[int]bool) {
 	var out []draft
@@ -159,7 +160,7 @@ func (e *evaluation) order(i int, id string) (*draft, bool) {
 		}
 		before, beforeTold := e.firstOf(j)
 		switch {
-		case !told || !beforeTold:
+		case !told || !beforeTold || before.untoldFrom(first):
 			untold = append(untold, before.start)
 		case !before.before(first):
 			broken = true
@@ -222,28 +223,59 @@ func (e *evaluation) continued(outOfOrder map[int]bool) []draft {
 // proposed at the failure's own time, or the next proposed when the failure
 // has no time, may have come before it, so the pair is then indeterminate. A
 // failure with no time whose proposal has none either has no place in line.
+// Proposals of one time in two exports are untold against each other: when a
+// retry may have come first the pair is indeterminate, and of several next
+// instances the one of the least request id is cited.
 func (e *evaluation) afterFailure(line []*instance, failed *instance, other func(*instance) bool) (*instance, controlv1.FindingVerdict) {
-	var i int
+	from := failed.endAt
 	switch {
 	case failed.endTimed:
-		i, _ = slices.BinarySearchFunc(line, failed.endAt, func(in *instance, t time.Time) int { return in.at.Compare(t) })
 	case failed.timed:
-		i = slices.Index(line, failed) + 1
+		from = failed.at
 	default:
 		return nil, indeterminate
 	}
-	for ; i < len(line) && !other(line[i]); i++ {
-		if retried(failed, line[i]) {
-			return nil, indeterminate
+	// With no failure time, only what may follow the proposal counts: not the
+	// proposal itself, nor one its own export appended before it at that instant.
+	follows := func(in *instance) bool {
+		return failed.endTimed || in != failed && (in.export != failed.export || !in.at.Equal(failed.at) || in.seq > failed.seq)
+	}
+	i, _ := slices.BinarySearchFunc(line, from, func(in *instance, t time.Time) int { return in.at.Compare(t) })
+	ends, nexts := firstAfter(line[i:], failed, follows, other)
+	if len(nexts) == 0 {
+		return nil, indeterminate
+	}
+	next := leastRequest(nexts)
+	if len(ends) > 0 || !failed.endTimed || next.at.Equal(failed.endAt) {
+		return next, indeterminate
+	}
+	return next, e.absenceCap()
+}
+
+// firstAfter takes the earliest instant of line at which an instance that
+// follows failed is a retry of it or other, and returns, by export, the first
+// such instance of that instant in each: a retry in ends, else in nexts.
+func firstAfter(line []*instance, failed *instance, follows, other func(*instance) bool) (ends, nexts map[int]*instance) {
+	ends, nexts = map[int]*instance{}, map[int]*instance{}
+	var at time.Time
+	for _, in := range line {
+		retry := retried(failed, in)
+		if !follows(in) || !retry && !other(in) {
+			continue
+		}
+		if len(ends)+len(nexts) > 0 && !in.at.Equal(at) {
+			break
+		}
+		at = in.at
+		switch {
+		case ends[in.export] != nil || nexts[in.export] != nil:
+		case retry:
+			ends[in.export] = in
+		default:
+			nexts[in.export] = in
 		}
 	}
-	switch {
-	case i >= len(line):
-		return nil, indeterminate
-	case !failed.endTimed || line[i].at.Equal(failed.endAt):
-		return line[i], indeterminate
-	}
-	return line[i], e.absenceCap()
+	return ends, nexts
 }
 
 // retried reports in a retry of failed's step proposed after its failure.

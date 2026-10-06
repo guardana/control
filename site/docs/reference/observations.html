@@ -249,7 +249,9 @@ descriptor's digest, is a conflict: it is not written, and the import exits</p>
 <li>The observations an import keeps
 and its report are appended together and synced, the report last; after a crash
 in that append, the next open cuts everything after the last whole report;
-a tail no writer of this package leaves is refused, not cut.</li>
+a tail no writer of this package leaves is refused, not cut. An append that
+would take the file past 1 GiB is refused and writes nothing: the log is then
+rotated by hand.</li>
 </ol>
 <p>Each import ends with one report: the source, the descriptor's SHA-256, the
 receive time, the input's first-line digest and size, every count above, and
@@ -278,7 +280,9 @@ a header, <code>observation</code> and <code>import_report</code> records, gaps 
 <code>unsupported_version</code>, <code>carriage_return</code>, <code>conflicting_observation_id</code>,
 <code>too_long</code>, <code>partial_tail</code>),
 duplicates and a trailer with the cursor to resume from, and the same exit
-codes. It has no filters yet.</p>
+codes. It has no filters yet. It reads only a file the writer would open: a
+regular file of this account, not a link, that the group and others cannot
+reach, with no other name.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/observations.md">docs/reference/observations.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
 <nav class="side" aria-label="Documentation">

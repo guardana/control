@@ -10,6 +10,7 @@ import (
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/pkg/contract"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -95,13 +96,33 @@ func (er *exportReader) readEvent(line []byte) error {
 	if at := ev.GetOccurredAt(); at.IsValid() {
 		er.x.widen(at.AsTime())
 	}
-	if env := ev.GetProposed(); ev.GetKind() == controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED &&
-		env.GetTraceId() != "" && env.GetSpanId() != "" {
-		k := proposalKey{env.GetTraceId(), env.GetSpanId()}
-		er.x.proposals[k] = append(er.x.proposals[k], ev)
-	}
+	er.x.index(ev)
 	er.counts[recordEvent]++
 	return nil
+}
+
+// index keeps a proposal by its envelope's trace and span id, the only one an
+// observation can join. One whose envelope the contract refuses is only
+// noted: a plane records a refused call too, and the agent chose its ids.
+func (x *Export) index(ev *controlv1.Event) {
+	env := ev.GetProposed()
+	if ev.GetKind() != controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED || env.GetTraceId() == "" || env.GetSpanId() == "" {
+		return
+	}
+	k := proposalKey{env.GetTraceId(), env.GetSpanId()}
+	if err := contract.Validate(env); err != nil && !lacksEffect(err) {
+		x.refused[k] = append(x.refused[k], ev)
+		return
+	}
+	x.proposals[k] = append(x.proposals[k], ev)
+}
+
+// lacksEffect is Validate's refusal of an envelope that passed every bound and
+// required field but has no effect class: a call nothing classifies, which a
+// plane records as proposed and, in OBSERVE, lets run.
+func lacksEffect(err error) bool {
+	var ve *contract.ValidationError
+	return errors.As(err, &ve) && ve.Field == "action.effect" && errors.Is(err, contract.ErrMissingField)
 }
 
 func (er *exportReader) readGap(line []byte) error {

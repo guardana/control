@@ -38,12 +38,12 @@ type Log struct {
 	path string
 	f    *os.File
 	// size is the length of the file up to the end of the last write that
-	// was synced.
-	size   int64
-	ids    index
-	failed error
-	closed bool
-	ops    fileOps
+	// was synced; limit is the length no write may take it past.
+	size, limit int64
+	ids         index
+	failed      error
+	closed      bool
+	ops         fileOps
 }
 
 // Written is what one Write found: the observations it appended, and those
@@ -81,7 +81,7 @@ func open(dir string, ops fileOps) (*Log, error) {
 	if err != nil {
 		return nil, errors.Join(err, root.Close())
 	}
-	l := &Log{path: filepath.Join(filepath.Clean(dir), FileName), f: f, ops: ops}
+	l := &Log{path: filepath.Join(filepath.Clean(dir), FileName), f: f, ops: ops, limit: MaxLogBytes}
 	err = l.claim()
 	if err == nil {
 		err = syncRoot(root)
@@ -137,12 +137,13 @@ func (l *Log) claim() error {
 // is a copy of report with those counts added to its own.
 //
 // An observation or a report the codec refuses, or none for report, refuses
-// the whole call as ErrRecord. A write that fails leaves the file as it was
-// before it, and is ErrWrite; when the file cannot be cut back, the log
-// refuses every later write with ErrFailed. Before the write and after the
-// sync, the log file's name must still name the file the log holds, at the
-// length it left it; otherwise the write is ErrChanged, and so is every later
-// one.
+// the whole call as ErrRecord, and a write that would take the file past
+// MaxLogBytes is ErrTooLarge; neither writes anything. A write that fails
+// leaves the file as it was before it, and is ErrWrite; when the file cannot
+// be cut back, the log refuses every later write with ErrFailed. Before the
+// write and after the sync, the log file's name must still name the file the
+// log holds, at the length it left it; otherwise the write is ErrChanged, and
+// so is every later one.
 func (l *Log) Write(obs []*observev1.Observation, report *observev1.ImportReport) (Written, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -161,6 +162,9 @@ func (l *Log) Write(obs []*observev1.Observation, report *observev1.ImportReport
 		return Written{}, err
 	}
 	buf := append(b.lines, line...)
+	if end := l.size + int64(len(buf)); end > l.limit {
+		return Written{}, fmt.Errorf("%w: the write would take it to %d bytes, limit %d", ErrTooLarge, end, l.limit)
+	}
 	if err := l.stillHeld(l.size); err != nil {
 		return Written{}, err
 	}

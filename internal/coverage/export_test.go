@@ -7,7 +7,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 	"github.com/guardana/control/internal/coverage"
 )
 
@@ -152,5 +154,90 @@ func TestExportLineBound(t *testing.T) {
 		if (err == nil) != tc.ok {
 			t.Errorf("a %d-byte record: err %v, want accepted %v", tc.n, err, tc.ok)
 		}
+	}
+}
+
+// TestARefusedProposalOfNoScopeNamesNoCall: a source and its records with no
+// tenant or project, and a refused proposal with none either, at the
+// observation's ids: equal emptiness names no call, so the call is around
+// the plane.
+func TestARefusedProposalOfNoScopeNamesNoCall(t *testing.T) {
+	unscoped := strings.ReplaceAll(refusedAs(proposal{}), `"projectId":"p1","tenantId":"t1"`, `"projectId":"","tenantId":""`)
+	x := wholeExport(t, unscoped)
+	d := descriptor("s1", selfReported)
+	d.TenantId, d.ProjectId = "", ""
+	rep := report("s1", at(-10*time.Second), at(-10*time.Second))
+	rep.GetImportReport().TenantId, rep.GetImportReport().ProjectId = "", ""
+	o := observedA.record()
+	o.GetObservation().TenantId, o.GetObservation().ProjectId = "", ""
+	p := mustMap(t, coverage.Input{
+		Inventory: toolInventory(t),
+		Planes:    []coverage.Plane{withExport(plane("a", modeEnforce, false, override(effectWrite)), x)},
+		Sources:   []coverage.Source{{Descriptor: d, Records: []*observev1.Record{rep, o}}},
+	}).Paths[0]
+	if len(p.Joins) != 1 || p.Joins[0].Join != coverage.JoinAround {
+		t.Fatalf("joins %+v, want one call around the plane", p.Joins)
+	}
+}
+
+// refusedAs is p at obs-a's trace and span, its envelope refused for want of
+// a request id.
+func refusedAs(p proposal) string {
+	p.trace, p.span = traceA, spanA
+	return strings.Replace(p.line(), `"requestId":"r1",`, ``, 1)
+}
+
+// TestAProposalThatDoesNotValidateLeavesItsJoinNotChecked: a plane records a
+// call the contract refuses under the ids the agent sent, so such a proposal
+// neither joins an observation nor lets it be a call around the plane, and
+// the export holding it still reads whole. A call nothing classifies, the one
+// refusal a plane records by design for a call it may let run, still joins.
+func TestAProposalThatDoesNotValidateLeavesItsJoinNotChecked(t *testing.T) {
+	const why = "the record of a call at its span in the export of plane a does not validate"
+	ev := proposal{trace: traceA, span: spanA}.line()
+	unclassified := proposal{trace: traceA, span: spanA, unclassified: true}.line()
+	noRequest := strings.Replace(ev, `"requestId":"r1",`, ``, 1)
+	child := obs{id: "obs-child", kind: observev1.SubjectKind_SUBJECT_KIND_MODEL, name: "m", trace: traceA, span: spanB, parent: spanA}
+	cases := []struct {
+		name    string
+		events  []string
+		records []*observev1.Record
+		want    coverage.Join
+		why     string
+	}{
+		{"a valid proposal", []string{ev}, nil, coverage.Joined, ""},
+		{"an unclassified proposal", []string{unclassified}, nil, coverage.Joined, ""},
+		{"no request id", []string{noRequest}, nil, coverage.JoinNotChecked, why},
+		{"no principal", []string{strings.Replace(ev, `"principal":{"id":"agent-1"},`, ``, 1)}, nil, coverage.JoinNotChecked, why},
+		{"no envelope schema version", []string{strings.Replace(ev, `"proposed":{"schemaVersion":"1.0",`, `"proposed":{`, 1)}, nil,
+			coverage.JoinNotChecked, why},
+		{"unclassified and no request id", []string{strings.Replace(unclassified, `"requestId":"r1",`, ``, 1)}, nil,
+			coverage.JoinNotChecked, why},
+		{"refused at a descendant's span", []string{strings.Replace(proposal{trace: traceA, span: spanB}.line(), `"requestId":"r1",`, ``, 1)},
+			[]*observev1.Record{child.record()}, coverage.JoinNotChecked, why},
+		{"refused at a span of another trace", []string{strings.Replace(proposal{trace: traceB, span: spanA}.line(), `"requestId":"r1",`, ``, 1)},
+			nil, coverage.JoinAround, ""},
+		{"refused with no span id", []string{strings.Replace(proposal{trace: traceA}.line(), `"requestId":"r1",`, ``, 1)}, nil,
+			coverage.JoinAround, ""},
+		{"refused beside a valid proposal", []string{noRequest, ev}, nil, coverage.Joined, ""},
+		{"refused for another tool", []string{refusedAs(proposal{tool: "delete_issue"})}, nil, coverage.JoinAround, ""},
+		{"refused on another upstream", []string{refusedAs(proposal{upstream: "gitlab"})}, nil, coverage.JoinAround, ""},
+		{"refused in another tenant", []string{refusedAs(proposal{tenant: "t2"})}, nil, coverage.JoinAround, ""},
+		{"refused in another project", []string{refusedAs(proposal{envelopeProject: "p2"})}, nil, coverage.JoinAround, ""},
+		{"refused as a prompt", []string{refusedAs(proposal{kind: "prompt"})}, nil, coverage.JoinAround, ""},
+		{"refused without a tool name", []string{strings.Replace(ev, `"name":"create_issue",`, ``, 1)}, nil, coverage.JoinAround, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := lines(append(append([]string{header(plainQuery), windowEvent(-time.Hour), windowEvent(0)}, tc.events...),
+				trailer(len(tc.events)+2, 0, 0, true))...)
+			x, err := coverage.ReadExport(bytes.NewReader(b))
+			if err != nil || !x.Whole {
+				t.Fatalf("%+v, %v; want a whole export", x, err)
+			}
+			if j := joinOf(t, x, append([]*observev1.Record{observedA.record()}, tc.records...)...); j.Join != tc.want || j.Why != tc.why {
+				t.Fatalf("%+v, want %v (%q)", j, tc.want, tc.why)
+			}
+		})
 	}
 }

@@ -24,6 +24,9 @@ const (
 // read is what belongs to the run, and what was left out of it.
 type read struct {
 	events []*controlv1.Event
+	// exportOf is the place in the input of the export each event was taken
+	// from.
+	exportOf map[*controlv1.Event]int
 	// doubtful holds the request ids an event id with two contents names.
 	doubtful map[string]bool
 	project  string
@@ -40,7 +43,7 @@ type read struct {
 
 func newRead() *read {
 	return &read{
-		doubtful: map[string]bool{}, obsSource: map[string]*Source{}, obsDoubt: map[string]bool{},
+		doubtful: map[string]bool{}, exportOf: map[*controlv1.Event]int{}, obsSource: map[string]*Source{}, obsDoubt: map[string]bool{},
 		spans:  map[*Source][]*observev1.Observation{},
 		counts: &findingv1alpha1.ReadCounts{EventsLeftOut: map[string]uint64{}, ObservationsLeftOut: map[string]uint64{}},
 	}
@@ -51,7 +54,7 @@ func newRead() *read {
 // event id puts both requests in doubt.
 func (r *read) takeEvents(run Run, exports []Export) error {
 	seen := map[string]*controlv1.Event{}
-	for _, x := range exports {
+	for i, x := range exports {
 		if x.Whole {
 			r.counts.ExportsWhole++
 		} else {
@@ -72,6 +75,7 @@ func (r *read) takeEvents(run Run, exports []Export) error {
 			}
 			seen[ev.GetEventId()] = ev
 			r.events = append(r.events, ev)
+			r.exportOf[ev] = i
 		}
 	}
 	r.counts.EventsTaken = uint64(len(r.events))

@@ -138,8 +138,9 @@ func Map(in Input) (*Report, error) {
 		return nil, err
 	}
 	r := &Report{Paths: make([]PathCoverage, 0, len(in.Inventory.Paths))}
+	steps := 0
 	for _, p := range in.Inventory.Paths {
-		r.Paths = append(r.Paths, in.path(p, sources))
+		r.Paths = append(r.Paths, in.path(p, sources, &steps))
 	}
 	return r, nil
 }
@@ -173,7 +174,7 @@ func (in Input) check() (map[string]*Source, error) {
 	return sources, nil
 }
 
-func (in Input) path(p Path, sources map[string]*Source) PathCoverage {
+func (in Input) path(p Path, sources map[string]*Source, steps *int) PathCoverage {
 	pc := PathCoverage{Path: p}
 	planeState, counting := NotCovered, []Plane(nil)
 	if p.Kind == KindMCPTool {
@@ -195,7 +196,7 @@ func (in Input) path(p Path, sources map[string]*Source) PathCoverage {
 		pc.Trust = trust
 	}
 	if planeState >= Decided {
-		pc.Joins = joins(p, pc.State, sources, counting)
+		pc.Joins = joins(p, pc.State, sources, counting, steps)
 	}
 	return pc
 }
@@ -210,8 +211,9 @@ func planeNames(planes []Plane) string {
 
 // joins checks every observation of the path, from any source the path
 // names, live or not, against the exports of the planes in front of it: an
-// old call around the plane is still one.
-func joins(p Path, state State, sources map[string]*Source, planes []Plane) []JoinCheck {
+// old call around the plane is still one. The span walks draw on steps, which
+// MaxJoinSteps bounds across the map.
+func joins(p Path, state State, sources map[string]*Source, planes []Plane, steps *int) []JoinCheck {
 	need := modeDecides
 	if state == Enforced {
 		need = modeEnforces
@@ -224,7 +226,7 @@ func joins(p Path, state State, sources map[string]*Source, planes []Plane) []Jo
 		}
 		f := familyOf(src)
 		for _, o := range observationsOf(src, ps) {
-			out = append(out, joinOf(o, f, p, need, planes))
+			out = append(out, joinOf(o, f, p, need, planes, steps))
 		}
 	}
 	return out

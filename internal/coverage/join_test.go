@@ -1,6 +1,7 @@
 package coverage_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -135,6 +136,62 @@ func TestADescendantJoins(t *testing.T) {
 			}
 		})
 	}
+}
+
+func spanAt(i int) string { return fmt.Sprintf("%016x", i+1) }
+
+// On a chain of 16385 spans, each of 64 observations of the path walks from
+// spanAt(1) down to spanAt(16384), where the only proposal is: 64 times 16384
+// steps, MaxJoinSteps, and every one joins. When the last starts at the root
+// instead, the walks take one step more, it never reaches the proposal, and
+// its join is not checked rather than a call around the plane.
+func TestTheSpanWalkIsBounded(t *testing.T) {
+	if coverage.MaxJoinSteps != 1<<20 {
+		t.Fatalf("MaxJoinSteps %d: the chain below is sized for 1<<20", coverage.MaxJoinSteps)
+	}
+	atBound := chainJoins(t, 1)
+	if last := atBound[63]; last.Join != coverage.Joined {
+		t.Errorf("at the bound: %+v, want joined", last)
+	}
+	past := chainJoins(t, 0)
+	if last := past[63]; last.Join != coverage.JoinNotChecked || last.Why != "the span walk stopped at its bound of 1048576 steps" {
+		t.Errorf("one step past the bound: %+v, want not checked because the walk stopped", last)
+	}
+}
+
+// chainJoins maps the chain TestTheSpanWalkIsBounded describes, the last
+// observation of the path at spanAt(lastAt), and returns its 64 joins, the
+// first 63 of them checked to be joined.
+func chainJoins(t *testing.T, lastAt int) []coverage.JoinCheck {
+	t.Helper()
+	const deepest = 16384
+	var records []*observev1.Record
+	for i := 1; i <= deepest; i++ {
+		records = append(records, obs{id: fmt.Sprintf("obs-chain-%d", i), name: "other_tool", trace: traceA,
+			span: spanAt(i), parent: spanAt(i - 1)}.record())
+	}
+	for k := range 64 {
+		start := 1
+		if k == 63 {
+			start = lastAt
+		}
+		records = append(records, obs{id: fmt.Sprintf("obs-%d", k), trace: traceA, span: spanAt(start)}.record())
+	}
+	p := mustMap(t, coverage.Input{
+		Inventory: toolInventory(t),
+		Planes: []coverage.Plane{withExport(plane("a", modeEnforce, false, override(effectWrite)),
+			wholeExport(t, proposal{trace: traceA, span: spanAt(deepest)}.line()))},
+		Sources: []coverage.Source{liveSource(selfReported, records...)},
+	}).Paths[0]
+	if len(p.Joins) != 64 {
+		t.Fatalf("last at span %d: %d joins, want 64", lastAt, len(p.Joins))
+	}
+	for _, j := range p.Joins[:63] {
+		if j.Join != coverage.Joined {
+			t.Fatalf("last at span %d: %+v, want joined", lastAt, j)
+		}
+	}
+	return p.Joins
 }
 
 func with(o obs, change func(*obs)) obs {

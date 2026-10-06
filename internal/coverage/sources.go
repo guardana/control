@@ -28,17 +28,24 @@ func trustName(t observev1.Trust) string {
 	return strings.ToLower(strings.TrimPrefix(observe.TrustOf(t).String(), "TRUST_"))
 }
 
+// ownedBy reports whether a record naming source, tenant and project is the
+// source's own, as its descriptor names them.
+func ownedBy(src *Source, source, tenant, project string) bool {
+	d := src.Descriptor
+	return source == d.GetSourceId() && tenant == d.GetTenantId() && project == d.GetProjectId()
+}
+
 // lastHeard is the newest event time an import report of the source names,
 // each taken no later than its report's receive time. A report without both
 // times does not count.
 func lastHeard(src *Source) (time.Time, bool) {
-	id := src.Descriptor.GetSourceId()
 	var last time.Time
 	heard := false
 	for _, r := range src.Records {
 		rep := r.GetImportReport()
 		latest, received := rep.GetLatestEventTime(), rep.GetReceivedTime()
-		if rep.GetSource().GetSourceId() != id || !latest.IsValid() || !received.IsValid() {
+		if !ownedBy(src, rep.GetSource().GetSourceId(), rep.GetTenantId(), rep.GetProjectId()) ||
+			!latest.IsValid() || !received.IsValid() {
 			continue
 		}
 		t := latest.AsTime()
@@ -59,7 +66,7 @@ func observationsOf(src *Source, ps PathSource) []*observev1.Observation {
 	for _, r := range src.Records {
 		o := r.GetObservation()
 		subject := o.GetSubject()
-		if o == nil || o.GetSource().GetSourceId() != src.Descriptor.GetSourceId() ||
+		if o == nil || !ownedBy(src, o.GetSource().GetSourceId(), o.GetTenantId(), o.GetProjectId()) ||
 			subject.GetKind() != observev1.SubjectKind_SUBJECT_KIND_TOOL || subject.GetName() != ps.Name ||
 			ps.ServerAddress != "" && subject.GetServerAddress() != ps.ServerAddress {
 			continue

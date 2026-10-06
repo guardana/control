@@ -35,7 +35,11 @@ type Export struct {
 
 	// proposals are the ACTION_PROPOSED events by their envelope's trace
 	// and span id; one with either id empty joins nothing and is not kept.
+	// refused holds, by the same ids, those whose envelope the contract
+	// refuses for more than a missing effect class: they join nothing and
+	// leave the observation of the call they name not checked.
 	proposals        map[proposalKey][]*controlv1.Event
+	refused          map[proposalKey][]*controlv1.Event
 	earliest, latest time.Time
 	window           bool
 }
@@ -74,7 +78,7 @@ func readExport(r io.Reader) (*Export, error) {
 	// Behind an interface, so a caller's large bufio.Reader is not taken as
 	// the buffer and the line bound stays this package's.
 	in := bufio.NewReaderSize(struct{ io.Reader }{r}, maxExportLineBytes+1)
-	er := &exportReader{x: &Export{proposals: map[proposalKey][]*controlv1.Event{}}, counts: map[string]int{}}
+	er := &exportReader{x: &Export{proposals: map[proposalKey][]*controlv1.Event{}, refused: map[proposalKey][]*controlv1.Event{}}, counts: map[string]int{}}
 	for number := 1; ; number++ {
 		line, err := in.ReadSlice('\n')
 		done, err := er.line(line, err)

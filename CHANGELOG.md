@@ -43,6 +43,19 @@ verify one.
 - A rejection the approval store returns is checked as an approval is; one that
   does not check out is recorded as the plane's own expired approval, never as
   decided.
+- `guardana-control observe export` judges the log as the reader does: a link,
+  a file another account owns, one the group or others may reach, or one with
+  a second name is refused; it was exported.
+- An observation import refuses a write that would take the log past its
+  1 GiB bound, which the reader then refused.
+- Coverage counts a source's records only in the tenant and project its
+  descriptor names; bounds its walk of a trace's spans, printing a join cut
+  short as not checked; and prints a join as not checked where the plane's
+  record of that call does not validate, rather than as joined or as a call
+  around the plane.
+- Supervision tells no order between two steps whose proposals, in two
+  planes' exports, carry the same time; the order of the `--evidence` flags
+  decided it.
 - `doctor` judges the approvals and hold journal directories for owner and
   mode as `run` does; it reported ok for a directory `run` refuses. It also
   names the bytes of a torn evidence tail it cut, and a floor directory that

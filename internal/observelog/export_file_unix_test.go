@@ -5,6 +5,7 @@ package observelog
 import (
 	"bytes"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,6 +53,51 @@ func TestTheExportRefusesWhatIsNoRegularFile(t *testing.T) {
 	}
 	if _, err := ExportFile(filepath.Join(dir, "missing"), Query{Limit: 1}, &bytes.Buffer{}); err == nil {
 		t.Error("ExportFile of a missing file passed")
+	}
+}
+
+// TestTheExportJudgesTheFileAsTheReaderDoes: a link, even to the log itself,
+// a log the group or others may reach, one of another account and one with a
+// second name are refused before a byte is written; the log itself exports.
+func TestTheExportJudgesTheFileAsTheReaderDoes(t *testing.T) {
+	export := func(path string) (string, error) {
+		var out bytes.Buffer
+		_, err := ExportFile(path, Query{Limit: DefaultExportLimit}, &out)
+		return out.String(), err
+	}
+	fresh := func() string {
+		dir := logDir(t)
+		write(t, openLog(t, dir), report("2026-10-04T10:05:00Z"))
+		return filepath.Join(dir, FileName)
+	}
+	path := fresh()
+	if out, err := export(path); err != nil || !strings.Contains(out, `"type":"trailer"`) {
+		t.Fatalf("the log itself: %v, %q; want an export", err, out)
+	}
+	link := filepath.Join(filepath.Dir(path), "link")
+	mustDo(t, os.Symlink(FileName, link))
+	if out, err := export(link); !errors.Is(err, ErrNotRegular) || out != "" {
+		t.Errorf("a link to the log: %v, wrote %q; want ErrNotRegular and nothing", err, out)
+	}
+
+	for _, mode := range []os.FileMode{0o640, 0o620, 0o610, 0o604, 0o602, 0o601} {
+		path := fresh()
+		mustDo(t, os.Chmod(path, mode))
+		if out, err := export(path); !errors.Is(err, ErrFileMode) || out != "" {
+			t.Errorf("mode %04o: %v, wrote %q; want ErrFileMode and nothing", mode, err, out)
+		}
+	}
+
+	path = fresh()
+	mustDo(t, os.Link(path, filepath.Join(filepath.Dir(path), "second")))
+	if out, err := export(path); !errors.Is(err, ErrLinks) || out != "" {
+		t.Errorf("a second name: %v, wrote %q; want ErrLinks and nothing", err, out)
+	}
+
+	path = fresh()
+	wantOwner(t, func(fs.FileInfo) int { return os.Geteuid() + 1 })
+	if out, err := export(path); !errors.Is(err, ErrOwner) || out != "" {
+		t.Errorf("another account's: %v, wrote %q; want ErrOwner and nothing", err, out)
 	}
 }
 

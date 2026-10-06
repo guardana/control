@@ -169,8 +169,9 @@ of paths is refused.</p>
 </tr>
 </tbody>
 </table>
-<p>An observation matches a path when it comes from that source, is of a tool,
-and carries that name and, when given, that server address.</p>
+<p>An observation matches a path when it comes from that source in the tenant
+and project its descriptor names, is of a tool, and carries that name and,
+when given, that server address.</p>
 <h2 id="states">States</h2>
 <p>Each path gets the first state that holds:</p>
 <table>
@@ -208,9 +209,10 @@ it lists the tool's upstream: with an override that classifies the tool, or
 without one, when a call to it is unclassified, blocked in a mode that
 enforces and let run in <code>OBSERVE</code>. A plane in <code>SHADOW</code> or <code>WARN</code> refuses to
 start and counts for nothing. A classification is the configuration's
-override; the live definition behind its fingerprint is not checked. A source is last heard at the newest event time an import report
-covers, never later than that report's receive time; one heard after the
-command's clock is unknown.</p>
+override; the live definition behind its fingerprint is not checked. A
+source is last heard at the newest event time an import report of its
+descriptor's tenant and project covers, never later than that report's
+receive time; one heard after the command's clock is unknown.</p>
 <h2 id="the-join">The join</h2>
 <p>Beside an enforced or decided path, each matching observation is checked
 against the exports of the planes that count for it. It is joined when it, or
@@ -225,6 +227,11 @@ printed as not checked, with the reason, when:</p>
 not at its end, with a gap, or filtered by a cursor or a query;</li>
 <li>the observation has no trace or span id, or no event time;</li>
 <li>its time is outside the span an export's events cover;</li>
+<li>no proposal joins it and one at its span, or below it, names the same call
+(tenant, project, tool and upstream, of kind tool) in an envelope the
+contract refuses for more than a missing effect class: the plane saw that
+call, and its record cannot be joined;</li>
+<li>the walk down its trace ran out of the 1,048,576 span steps one map takes;</li>
 <li>the path names no source.</li>
 </ul>
 <h2 id="output-and-exit-status">Output and exit status</h2>

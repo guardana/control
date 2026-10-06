@@ -7,13 +7,9 @@ import (
 	"syscall"
 )
 
-// writeFlags keep the writer's open from following a link at the file's name
-// and from waiting on a named pipe before its type is judged; readFlags keep
-// the export's from waiting.
-const (
-	writeFlags = syscall.O_NOFOLLOW | syscall.O_NONBLOCK
-	readFlags  = syscall.O_NONBLOCK
-)
+// writeFlags keep an open from following a link at the file's name and from
+// waiting on a named pipe before its type is judged.
+const writeFlags = syscall.O_NOFOLLOW | syscall.O_NONBLOCK
 
 // singleName reports whether info's file has exactly one name. A platform
 // that does not say has not shown that it does.

@@ -24,8 +24,8 @@ guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <dura
 
 ## The procedure
 
-A strict JSON document: an unknown or repeated member is refused, and so is a
-cycle in the order or a step it does not know. Its digest is recorded with
+A strict JSON document of at most 64 KiB: an unknown or repeated member is
+refused, and so is a cycle in the order or a step it does not know. Its digest is recorded with
 every finding; a procedure id and version the findings log has seen under
 another digest is refused.
 
@@ -62,11 +62,13 @@ nothing but that file's owner and mode protects it.
 | `STEP_OUTSIDE_PROCEDURE` | a tool neither a step nor allowed is called, or reported and not joined to a plane call |
 | `DEADLINE_EXCEEDED` | the run's events span more than `deadline_seconds` |
 | `REQUIRED_STEP_SKIPPED` | a required step has no instance |
-| `STEP_OUT_OF_ORDER` | a step comes before a step it must follow; an order that cannot be told for want of a time is indeterminate, never a pass |
-| `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure; a proposal or a failure whose time is not known makes it indeterminate |
+| `STEP_OUT_OF_ORDER` | a step comes before a step it must follow; an order that cannot be told is indeterminate, never a pass |
+| `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure, before any retry of it; an order that cannot be told makes it indeterminate |
 
-A retry of the same step is never a finding, and an approval belongs to the
-step it held.
+An order cannot be told when a proposal or a failure has no time, or between
+two exports' proposals of one instant; within one export the plane's append
+order holds. A retry continues nothing, though each denial of it counts
+toward `REPEATED_DENIAL`, and an approval belongs to the step it held.
 
 ## The verdict
 
@@ -121,8 +123,9 @@ has exited, so no child it started outlives the delivery. A delivery is keyed on
 finding id and verdict and marked in the state only after the program exits
 0, so a crash delivers that one record again: a receiver drops a key it has
 seen. The state is an owner-only directory, locked while a run holds it;
-`--init` starts one, which delivers everything again. A failed delivery is
-retried by the next run. Exit 0 when nothing failed; 1 when a delivery
+`--init` starts one where none is and is refused over one. A failed delivery
+is retried by the next run. Nothing replays a delivered record but a new
+state, which delivers every alert again. Exit 0 when nothing failed; 1 when a delivery
 failed, or when the run stopped after a program had run (a mark that did not
 reach the disk, an interrupt, a log that changed under it); 2, printing
 nothing, when the state or the log is refused before any program ran.

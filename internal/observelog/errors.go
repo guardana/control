@@ -27,7 +27,8 @@ const (
 	// ErrLinks is a log file with a name besides the log's, or one whose
 	// names the platform does not count.
 	ErrLinks Error = "observelog: the log file has another name"
-	// ErrTooLarge is a log file past MaxLogBytes.
+	// ErrTooLarge is a log file past MaxLogBytes, or a write that would take
+	// it past.
 	ErrTooLarge Error = "observelog: the log file is larger than an open reads"
 	// ErrOwner is a directory or a log file another account owns, or one whose
 	// owner the platform does not name.

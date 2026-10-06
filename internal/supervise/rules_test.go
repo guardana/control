@@ -114,6 +114,24 @@ func TestAPlanesOwnBlockIsNotADenial(t *testing.T) {
 		evRef("d1-e3", "d1"), evRef("d2-e3", "d2"), evRef("d3-e3", "d3")))
 }
 
+// TestABlockWithoutADecisionIDIsNotADenial: a block and a kernel decision
+// that both carry no decision id are not told to be one decision, so four of
+// them are four plane blocks and no REPEATED_DENIAL.
+func TestABlockWithoutADecisionIDIsNotADenial(t *testing.T) {
+	p := procWith(t)
+	x := export(denials(4)...)
+	for _, ev := range x.Events {
+		if d := ev.GetDecision(); d != nil {
+			d.DecisionId = ""
+		}
+	}
+	res := evaluate(t, supervise.Input{Procedure: p, Exports: []supervise.Export{x}})
+	sameFindings(t, res.Findings)
+	if want := map[string]uint64{"RULE_DENY": 4}; !maps.Equal(res.PlaneBlocks, want) {
+		t.Fatalf("plane blocks %v, want %v", res.PlaneBlocks, want)
+	}
+}
+
 func TestABrokenChainOrAConflictingEventIsIndeterminate(t *testing.T) {
 	p := procWith(t)
 	broken := export(denials(4)...)

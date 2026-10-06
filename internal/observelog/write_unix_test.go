@@ -30,6 +30,39 @@ func TestOneOpenLogRemembersWhatItWrote(t *testing.T) {
 	}
 }
 
+// TestAWriteThatWouldPassTheFileBoundIsRefused: the bound is lowered to the
+// length one write leaves, measured on another log; a write one byte past it
+// is refused and leaves the file empty, so Open never meets a log it refuses.
+func TestAWriteThatWouldPassTheFileBoundIsRefused(t *testing.T) {
+	if l := openLog(t, logDir(t)); l.limit != MaxLogBytes {
+		t.Fatalf("an open log's bound is %d, want MaxLogBytes", l.limit)
+	}
+	o, rep := observation(spanA, "read_file", "2026-10-04T10:05:00Z"), report("2026-10-04T10:05:00Z")
+	measured := logDir(t)
+	write(t, openLog(t, measured), rep, o)
+	size := int64(len(contents(t, filepath.Join(measured, FileName))))
+	for _, c := range []struct {
+		limit int64
+		want  error
+	}{{size, nil}, {size - 1, ErrTooLarge}} {
+		dir := logDir(t)
+		l := openLog(t, dir)
+		l.limit = c.limit
+		_, err := l.Write([]*observev1.Observation{o}, rep)
+		if !errors.Is(err, c.want) || (err == nil) != (c.want == nil) {
+			t.Errorf("limit %d: Write = %v, want %v", c.limit, err, c.want)
+		}
+		if got := int64(len(contents(t, filepath.Join(dir, FileName)))); (c.want == nil) != (got == size) || (c.want != nil && got != 0) {
+			t.Errorf("limit %d: the log holds %d bytes", c.limit, got)
+		}
+		if c.want != nil {
+			if _, err := l.Write(nil, rep); err != nil {
+				t.Errorf("limit %d: a refused write refused the next one: %v", c.limit, err)
+			}
+		}
+	}
+}
+
 // TestAFileChangedDuringTheWriteIsRefused: the change happens between the
 // check before the write and the write's end, so only the check after the
 // sync sees it.

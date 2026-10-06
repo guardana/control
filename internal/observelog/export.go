@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"strconv"
 
 	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/lineexport"
@@ -96,22 +94,15 @@ func exportFormat() lineexport.Format {
 }
 
 // ExportFile exports the file at path as Export does, reading the length it
-// has when opened and holding no lock, so it reads a log a writer holds.
-// Anything that is not a regular file is refused, without waiting on a named
-// pipe.
+// has when opened and holding no lock, so it reads a log a writer holds. The
+// file must pass the judgement ReadFile makes, a link at path refused as
+// ErrNotRegular, without waiting on a named pipe.
 func ExportFile(path string, q Query, w io.Writer) (lineexport.Trailer, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|readFlags, 0) //nolint:gosec // G304: the path is the operator's to name, and the descriptor is judged before a byte is read
+	f, info, err := openJudged(path)
 	if err != nil {
 		return lineexport.Trailer{}, err
 	}
 	defer func() { _ = f.Close() }()
-	info, err := f.Stat()
-	switch {
-	case err != nil:
-		return lineexport.Trailer{}, err
-	case !info.Mode().IsRegular():
-		return lineexport.Trailer{}, fmt.Errorf("%w: %s", ErrNotRegular, strconv.Quote(path))
-	}
 	return Export(lineexport.Source{Name: path, R: f, Size: info.Size(), Held: func() (bool, error) { return heldByWriter(f) }}, q, w)
 }
 

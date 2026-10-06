@@ -51,8 +51,9 @@ of paths is refused.
 | `kind` | `mcp_tool` with `upstream` and `tool`, one path per pair; `egress` with `host`; `http_api` or `process` with `name` |
 | `sources` | each a `source_id` that would see the path, the `name` its observation carries and, optionally, its `server_address` |
 
-An observation matches a path when it comes from that source, is of a tool,
-and carries that name and, when given, that server address.
+An observation matches a path when it comes from that source in the tenant
+and project its descriptor names, is of a tool, and carries that name and,
+when given, that server address.
 
 ## States
 
@@ -71,9 +72,10 @@ it lists the tool's upstream: with an override that classifies the tool, or
 without one, when a call to it is unclassified, blocked in a mode that
 enforces and let run in `OBSERVE`. A plane in `SHADOW` or `WARN` refuses to
 start and counts for nothing. A classification is the configuration's
-override; the live definition behind its fingerprint is not checked. A source is last heard at the newest event time an import report
-covers, never later than that report's receive time; one heard after the
-command's clock is unknown.
+override; the live definition behind its fingerprint is not checked. A
+source is last heard at the newest event time an import report of its
+descriptor's tenant and project covers, never later than that report's
+receive time; one heard after the command's clock is unknown.
 
 ## The join
 
@@ -90,6 +92,11 @@ printed as not checked, with the reason, when:
   not at its end, with a gap, or filtered by a cursor or a query;
 - the observation has no trace or span id, or no event time;
 - its time is outside the span an export's events cover;
+- no proposal joins it and one at its span, or below it, names the same call
+  (tenant, project, tool and upstream, of kind tool) in an envelope the
+  contract refuses for more than a missing effect class: the plane saw that
+  call, and its record cannot be joined;
+- the walk down its trace ran out of the 1,048,576 span steps one map takes;
 - the path names no source.
 
 ## Output and exit status

@@ -26,34 +26,46 @@ import (
 // offset but none of its bytes. A missing file is an error that matches
 // fs.ErrNotExist.
 func ReadFile(path string) ([]*observev1.Record, error) {
+	f, info, err := openJudged(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	if info.Size() > MaxLogBytes {
+		return nil, fmt.Errorf("%w: %d bytes, limit %d", ErrTooLarge, info.Size(), MaxLogBytes)
+	}
+	return readCommitted(f, info.Size())
+}
+
+// openJudged opens the log file at path for reading once the writer's own
+// judgement passes it: a regular file at the name itself, of this account,
+// that the group and others cannot reach, with no other name.
+func openJudged(path string) (*os.File, os.FileInfo, error) {
 	if !files.PermissionBits {
-		return nil, ErrNoPermissionBits
+		return nil, nil, ErrNoPermissionBits
 	}
 	named, err := os.Lstat(path)
 	switch {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	case !named.Mode().IsRegular():
-		return nil, fmt.Errorf("%w: %s", ErrNotRegular, strconv.Quote(path))
+		return nil, nil, fmt.Errorf("%w: %s", ErrNotRegular, strconv.Quote(path))
 	}
 	// The writer's flags: a link put at the name after the Lstat is not
 	// followed, and a named pipe is not waited on.
 	f, err := os.OpenFile(path, os.O_RDONLY|writeFlags, 0) //nolint:gosec // G304: the path is the operator's to name, and the descriptor is judged before a byte is read
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	defer func() { _ = f.Close() }()
 	info, err := f.Stat()
+	if err == nil {
+		err = judgeFile(info)
+	}
 	if err != nil {
-		return nil, err
+		_ = f.Close()
+		return nil, nil, err
 	}
-	if err := judgeFile(info); err != nil {
-		return nil, err
-	}
-	if info.Size() > MaxLogBytes {
-		return nil, fmt.Errorf("%w: %d bytes, limit %d", ErrTooLarge, info.Size(), MaxLogBytes)
-	}
-	return readCommitted(f, info.Size())
+	return f, info, nil
 }
 
 // readCommitted reads the first size bytes of r as the writer's Open judges

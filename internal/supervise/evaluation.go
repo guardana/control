@@ -11,13 +11,13 @@ import (
 
 // instance is one call of a step: a plane request. An observation no plane
 // call joins is the runtime's claim alone and never an instance. at is when
-// it was proposed, and its seq orders it after another of the same time;
-// endAt is when its terminal event happened.
+// it was proposed, and its seq orders it after another of the same time in
+// its export; endAt is when its terminal event happened.
 type instance struct {
 	step            int
 	at, endAt       time.Time
 	timed, endTimed bool
-	seq             int
+	seq, export     int
 	failed          bool
 	start, end      ref
 	request         string
@@ -25,6 +25,13 @@ type instance struct {
 
 func (a *instance) before(b *instance) bool {
 	return cmp.Or(a.at.Compare(b.at), cmp.Compare(a.seq, b.seq)) < 0
+}
+
+// untoldFrom reports two proposals of one instant from two exports: the
+// planes' clocks tell no order within it, and the order the exports were
+// read in must not.
+func (a *instance) untoldFrom(b *instance) bool {
+	return a.at.Equal(b.at) && a.export != b.export
 }
 
 // evaluation is one run's inputs as the rules read them.
@@ -129,7 +136,7 @@ func (e *evaluation) instances() {
 		}
 		at := rq.proposal.GetOccurredAt()
 		in := &instance{step: en.step, at: at.AsTime(), timed: at.IsValid(), seq: rq.seq, failed: rq.failed(),
-			start: rq.ref(rq.proposal), request: rq.id}
+			start: rq.ref(rq.proposal), request: rq.id, export: e.rd.exportOf[rq.proposal]}
 		if rq.terminal != nil {
 			end := rq.terminal.GetOccurredAt()
 			in.end, in.endAt, in.endTimed = rq.ref(rq.terminal), end.AsTime(), end.IsValid()
@@ -148,10 +155,11 @@ func (e *evaluation) add(in *instance) {
 	e.ofStep[in.step] = append(e.ofStep[in.step], in)
 }
 
-// firstOf is a step's first instance and whether its time is known: its
-// earliest instance when every one has a time, or else the one with no time
-// of the least request id, which may have come before any timed one. The
-// order exports are read in decides neither. The step must have an instance.
+// firstOf is a step's first instance and whether it is told: its earliest
+// instance when every one has a time, or else the one with no time of the
+// least request id, which may have come before any timed one. An earliest
+// instance that another export's ties is untold too. The order exports are
+// read in decides neither. The step must have an instance.
 func (e *evaluation) firstOf(step int) (*instance, bool) {
 	var untimed *instance
 	for _, in := range e.ofStep[step] {
@@ -162,18 +170,42 @@ func (e *evaluation) firstOf(step int) (*instance, bool) {
 	if untimed != nil {
 		return untimed, false
 	}
-	return e.firstTimed(step), true
+	return e.firstTimed(step)
 }
 
-// firstTimed is a step's earliest instance with a time, or nil.
-func (e *evaluation) firstTimed(step int) *instance {
-	var first *instance
+// firstTimed is a step's earliest instance with a time, or nil, and whether
+// it is told: whether no other export holds one of the same time. Of earliest
+// instances in two exports it is the first in its export of the least request
+// id.
+func (e *evaluation) firstTimed(step int) (*instance, bool) {
+	var earliest *instance
 	for _, in := range e.ofStep[step] {
-		if in.timed && (first == nil || in.before(first)) {
-			first = in
+		if in.timed && (earliest == nil || in.at.Before(earliest.at)) {
+			earliest = in
 		}
 	}
-	return first
+	if earliest == nil {
+		return nil, true
+	}
+	firsts := map[int]*instance{}
+	for _, in := range e.ofStep[step] {
+		if f := firsts[in.export]; in.timed && in.at.Equal(earliest.at) && (f == nil || in.seq < f.seq) {
+			firsts[in.export] = in
+		}
+	}
+	return leastRequest(firsts), len(firsts) == 1
+}
+
+// leastRequest is the instance of the least request id, so which of untold
+// instances a finding cites does not follow the order exports were read in.
+func leastRequest(ins map[int]*instance) *instance {
+	var least *instance
+	for _, in := range ins {
+		if least == nil || in.request < least.request {
+			least = in
+		}
+	}
+	return least
 }
 
 // obsRef cites an observation: it suggests at most, and nothing when its id

@@ -89,7 +89,9 @@ descriptor's digest, is a conflict: it is not written, and the import exits
 1. The observations an import keeps
 and its report are appended together and synced, the report last; after a crash
 in that append, the next open cuts everything after the last whole report;
-a tail no writer of this package leaves is refused, not cut.
+a tail no writer of this package leaves is refused, not cut. An append that
+would take the file past 1 GiB is refused and writes nothing: the log is then
+rotated by hand.
 
 Each import ends with one report: the source, the descriptor's SHA-256, the
 receive time, the input's first-line digest and size, every count above, and
@@ -123,4 +125,6 @@ a header, `observation` and `import_report` records, gaps (`malformed`,
 `unsupported_version`, `carriage_return`, `conflicting_observation_id`,
 `too_long`, `partial_tail`),
 duplicates and a trailer with the cursor to resume from, and the same exit
-codes. It has no filters yet.
+codes. It has no filters yet. It reads only a file the writer would open: a
+regular file of this account, not a link, that the group and others cannot
+reach, with no other name.

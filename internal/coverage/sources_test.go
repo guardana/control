@@ -116,6 +116,33 @@ func TestAnotherSourcesRecordsAreIgnored(t *testing.T) {
 	}
 }
 
+// TestRecordsOfAnotherTenantOrProjectAreIgnored: a log written under one
+// tenant or project counts nothing for a descriptor pointed at another.
+func TestRecordsOfAnotherTenantOrProjectAreIgnored(t *testing.T) {
+	reportIn := func(tenant, project string) *observev1.Record {
+		r := report("s1", at(-time.Second), at(-time.Second))
+		r.GetImportReport().TenantId, r.GetImportReport().ProjectId = tenant, project
+		return r
+	}
+	cases := []struct {
+		name    string
+		records []*observev1.Record
+		want    coverage.State
+	}{
+		{"both in its tenant and project", []*observev1.Record{reportIn("t1", "p1"), obs{}.record()}, coverage.Observed},
+		{"a report of another tenant", []*observev1.Record{reportIn("t2", "p1"), obs{}.record()}, coverage.Unknown},
+		{"a report of another project", []*observev1.Record{reportIn("t1", "p2"), obs{}.record()}, coverage.Unknown},
+		{"an observation of another tenant", []*observev1.Record{reportIn("t1", "p1"), obs{tenant: "t2"}.record()}, coverage.NotCovered},
+		{"an observation of another project", []*observev1.Record{reportIn("t1", "p1"), obs{project: "p2"}.record()}, coverage.NotCovered},
+	}
+	for _, tc := range cases {
+		src := coverage.Source{Descriptor: descriptor("s1", selfReported), Records: tc.records}
+		if p := sourceState(t, src); p.State != tc.want {
+			t.Errorf("%s: %v, want %v; %+v", tc.name, p.State, tc.want, p.Sources)
+		}
+	}
+}
+
 func TestOnlyAToolObservationOfTheNameMatches(t *testing.T) {
 	cases := map[string]obs{
 		"an agent of the tool's name":   {kind: observev1.SubjectKind_SUBJECT_KIND_AGENT},

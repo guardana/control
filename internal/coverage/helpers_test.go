@@ -143,13 +143,16 @@ const sourceDigest = "57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c9
 const plainQuery = `{"limit":1000}`
 
 // proposal is one ACTION_PROPOSED event record of a tool call unless kind
-// names another action kind. tenant and project set both the event's and its
-// envelope's; the event and envelope fields set one side.
+// names another action kind, its envelope one the contract accepts. tenant
+// and project set both the event's and its envelope's; the event and
+// envelope fields set one side. unclassified leaves the effect class out, as
+// a plane records a call nothing classifies.
 type proposal struct {
 	mode, trace, span, tenant, project, tool, upstream, kind string
 	eventTenant, eventProject                                string
 	envelopeTenant, envelopeProject                          string
 	occurred                                                 time.Duration
+	unclassified                                             bool
 }
 
 func (p proposal) line() string {
@@ -160,13 +163,18 @@ func (p proposal) line() string {
 		return v
 	}
 	tenant, project := pick(p.tenant, "t1"), pick(p.project, "p1")
+	effect := `,"effect":"EFFECT_CLASS_READ"`
+	if p.unclassified {
+		effect = ""
+	}
 	return fmt.Sprintf(`{"type":"event","offset":0,"cursor":"c","event":{"eventId":"e1",`+
 		`"kind":"EVENT_KIND_ACTION_PROPOSED","projectId":%q,"tenantId":%q,"occurredAt":%q,"schemaVersion":"1.0",`+
-		`"enforcementMode":%q,"proposed":{"traceId":%q,"spanId":%q,"projectId":%q,"tenantId":%q,`+
-		`"action":{"kind":%q,"name":%q,"provider":%q}}}}`,
+		`"enforcementMode":%q,"proposed":{"schemaVersion":"1.0","requestId":"r1","occurredAt":%q,`+
+		`"traceId":%q,"spanId":%q,"projectId":%q,"tenantId":%q,"principal":{"id":"agent-1"},`+
+		`"action":{"kind":%q,"name":%q,"provider":%q%s},"resource":{"type":"tool"}}}}`,
 		pick(p.eventProject, project), pick(p.eventTenant, tenant), rfc(p.occurred), "ENFORCEMENT_MODE_"+pick(p.mode, "ENFORCE"),
-		p.trace, p.span, pick(p.envelopeProject, project), pick(p.envelopeTenant, tenant),
-		pick(p.kind, "tool"), pick(p.tool, "create_issue"), pick(p.upstream, "github"))
+		rfc(p.occurred), p.trace, p.span, pick(p.envelopeProject, project), pick(p.envelopeTenant, tenant),
+		pick(p.kind, "tool"), pick(p.tool, "create_issue"), pick(p.upstream, "github"), effect)
 }
 
 // windowEvent is a POLICY_DECIDED event at occurred, which widens the
