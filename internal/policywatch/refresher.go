@@ -109,6 +109,9 @@ type Refresher struct {
 	mu        sync.Mutex
 	bundle    *diskBundle
 	statement *diskStatement
+	// latestSeen is the latest issuedAt a floor this refresher read or
+	// confirmed held; a floor read back below it is a restored copy.
+	latestSeen time.Time
 	// beforeRead, when set, is called with each file's path just before a
 	// poll reads it.
 	beforeRead func(path string)
@@ -196,9 +199,10 @@ func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.S
 
 // floorStillTakes reads the floor for a poll that would otherwise settle
 // without the store, and refuses a floor that cannot be read, that would not
-// take st, the statement the current bundle was confirmed by, at now, or that
-// stands below st, which the confirmation raised it to. The read is bounded
-// by the poll interval, as a raise is.
+// take st, the statement the current bundle was confirmed by, at now, that
+// stands below st, which the confirmation raised it to, or whose latest
+// statement is older than one a floor read or confirmed here held. The read
+// is bounded by the poll interval, as a raise is.
 func (r *Refresher) floorStillTakes(ctx context.Context, st policy.Statement, now time.Time) error {
 	read, cancel := context.WithTimeout(ctx, r.o.Interval)
 	defer cancel()
@@ -216,6 +220,11 @@ func (r *Refresher) floorStillTakes(ctx context.Context, st policy.Statement, no
 		return fmt.Errorf("%w: floor serial %d issued %s, confirmed serial %d issued %s", ErrFloorBehind,
 			f.Serial(), policy.FormatIssuedAt(f.IssuedAt()), st.Serial(), policy.FormatIssuedAt(st.IssuedAt()))
 	}
+	if f.LatestIssuedAt().Before(r.latestSeen) {
+		return fmt.Errorf("%w: its latest statement issued %s, after one issued %s was read", ErrFloorBehind,
+			policy.FormatIssuedAt(f.LatestIssuedAt()), policy.FormatIssuedAt(r.latestSeen))
+	}
+	r.latestSeen = f.LatestIssuedAt()
 	return nil
 }
 
@@ -279,6 +288,9 @@ func (r *Refresher) confirm(ctx context.Context, snap *policy.Snapshot, st polic
 	if err != nil {
 		r.refuse(causeOf(err), err)
 		return
+	}
+	if st.IssuedAt().After(r.latestSeen) {
+		r.latestSeen = st.IssuedAt()
 	}
 	r.count(func(s *Stats) {
 		s.Confirmations++

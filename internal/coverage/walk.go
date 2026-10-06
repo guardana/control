@@ -1,8 +1,9 @@
 package coverage
 
-// MaxWalkSpans bounds one observation's walk down its trace: its own span and
-// every span below it. A walk past the bound is not checked, and the map has a
-// gap, since an agent can nest spans below its own call to cut its walk.
+// MaxWalkSpans bounds the spans one observation's join may rest on: its own
+// span and every span below it. A join past the bound is not checked, and the
+// map has a gap, since an agent can nest spans below its own call to cut its
+// walk. Each span is grouped once however many walks pass it.
 const MaxWalkSpans = 1 << 16
 
 // MaxCountSteps bounds the work of counting, for one source, the spans below
@@ -175,18 +176,22 @@ func (f *family) count(g int) (int, bool) {
 	queue := []int{g}
 	n := 0
 	for len(queue) > 0 && n <= MaxWalkSpans {
-		if f.steps >= MaxCountSteps {
-			return 0, false
-		}
-		f.steps++
 		h := queue[0]
 		queue = queue[1:]
 		if f.groups[h].distinct > MaxWalkSpans {
 			n = MaxWalkSpans + 1
 			break
 		}
-		n += len(f.groups[h].spans)
-		for _, b := range f.groups[h].below {
+		if n += len(f.groups[h].spans); n > MaxWalkSpans {
+			break
+		}
+		// Each group taken and each group below it looked at is a step, so
+		// a group with many below costs what scanning them costs.
+		below := f.groups[h].below
+		if f.steps += 1 + len(below); f.steps > MaxCountSteps {
+			return 0, false
+		}
+		for _, b := range below {
 			if !seen[b] {
 				seen[b] = true
 				queue = append(queue, b)

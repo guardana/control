@@ -102,3 +102,54 @@ func TestCountingIsBoundedPerSource(t *testing.T) {
 		}
 	}
 }
+
+// TestCountingChargesTheGroupsItLooksAt: tops over a layer of 300 spans that
+// each of 300 spans below claims as a parent. A count from a top takes some
+// 600 groups but looks at some 90,000 below them; the step bound charges the
+// looking, so 30 tops are counted within it and 60 pass it, where a charge
+// for the groups taken alone would let thousands through.
+func TestCountingChargesTheGroupsItLooksAt(t *testing.T) {
+	const layer = 300
+	mid := func(i int) string { return spanAt(1000 + i) }
+	low := func(j int) string { return spanAt(2000 + j) }
+	top := func(q int) string { return spanAt(3000 + q) }
+	var shape []*observev1.Record
+	for j := range layer {
+		for i := range layer {
+			shape = append(shape, obs{id: fmt.Sprintf("obs-low-%d-%d", j, i), name: "other_tool",
+				trace: traceA, span: low(j), parent: mid(i)}.record())
+		}
+	}
+	for _, c := range []struct {
+		tops    int
+		wantCut bool
+	}{{30, false}, {60, true}} {
+		records := append([]*observev1.Record(nil), shape...)
+		for q := range c.tops {
+			for i := range layer {
+				records = append(records, obs{id: fmt.Sprintf("obs-mid-%d-%d", q, i), name: "other_tool",
+					trace: traceA, span: mid(i), parent: top(q)}.record())
+			}
+			records = append(records, obs{id: fmt.Sprintf("obs-at-%d", q), trace: traceA, span: top(q)}.record())
+		}
+		p := mustMap(t, coverage.Input{
+			Inventory: toolInventory(t),
+			Planes: []coverage.Plane{withExport(plane("a", modeEnforce, false, override(effectWrite)),
+				wholeExport(t, proposal{trace: traceA, span: low(0)}.line()))},
+			Sources: []coverage.Source{liveSource(selfReported, records...)},
+		}).Paths[0]
+		cut := 0
+		for _, j := range p.Joins {
+			switch {
+			case j.Join == coverage.Joined:
+			case j.Cut && j.Why == stepsWhy:
+				cut++
+			default:
+				t.Fatalf("%d tops: %+v, want joined or cut by the counting bound", c.tops, j)
+			}
+		}
+		if len(p.Joins) != c.tops || (cut > 0) != c.wantCut {
+			t.Errorf("%d tops: %d joins, %d cut; want %d joins, cut %v", c.tops, len(p.Joins), cut, c.tops, c.wantCut)
+		}
+	}
+}

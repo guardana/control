@@ -400,6 +400,36 @@ func TestASettledPollJudgesTheFloorAsARaiseWould(t *testing.T) {
 	}
 }
 
+// A floor whose latest statement, read back, is older than the latest one a
+// settled poll read before is a restored copy: it would let a clock behind
+// that statement through, so it is counted under the floor and moves
+// nothing.
+func TestASettledPollRefusesAFloorWhoseLatestStatementWentBack(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	digest := r.startConfirmed()
+	later, err := policy.NewFloor(planeID, 2, digest, t0, t0.Add(10*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.store.mu.Lock()
+	r.store.floor = later
+	r.store.mu.Unlock()
+	r.clock.advance(interval)
+	r.poll()
+	r.expectStats(map[policywatch.Cause]uint64{}, 0, 0, 0, 0)
+	restored, err := policy.NewFloor(planeID, 2, digest, t0, t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.store.mu.Lock()
+	r.store.floor = restored
+	r.store.mu.Unlock()
+	r.clock.advance(interval)
+	r.poll()
+	r.expectSnapshot(2, digest, t0)
+	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseFloor: 1}, 0, 0, 0, 0)
+}
+
 // The floor read of a poll that settles is given up at the poll interval, so
 // a store that never answers holds the poll no longer than a raise would.
 func TestASettledPollGivesUpAFloorReadAtTheInterval(t *testing.T) {
