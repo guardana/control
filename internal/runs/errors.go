@@ -85,7 +85,7 @@ const (
 	// ErrParentOutlived is a run whose expiry would pass its parent's. An
 	// *OutlivesParentError carries it.
 	ErrParentOutlived Error = "runs: the run would outlive its parent"
-	// ErrNoRun is a close of a run no record names.
+	// ErrNoRun is a close or a lookup of a run no record names.
 	ErrNoRun Error = "runs: no such run"
 	// ErrAlreadyClosed is a close of a run closed already.
 	ErrAlreadyClosed Error = "runs: the run is closed already"

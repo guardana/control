@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-// Plane is the plane's handle on a runs directory. It resolves tokens and
-// reads and raises a root's state; it has no method that opens, closes or
-// lists a run, and nothing it does creates, rewrites or deletes a record. It
+// Plane is the plane's handle on a runs directory. It resolves tokens, looks
+// a run up, and reads and raises a root's state; it has no method that opens,
+// closes or lists a run, and nothing it does creates, rewrites or deletes a record. It
 // takes no directory lock, so planes side by side share one directory, and a
 // root's state is written only under that root's own lock file.
 //
@@ -92,6 +92,33 @@ func (p *Plane) Resolve(ctx context.Context, token string, who Identity, now tim
 		return Run{}, refuse(CauseExpired, nil)
 	}
 	return Run{ID: rec.ID, Root: rec.Root, Who: rec.Who, Expires: rec.ExpiresAt}, nil
+}
+
+// Lookup reads the record of run id, with its secret's hash left out, for a
+// caller that needs to know whether a run is open, whose it is and what it
+// shares state with. It refuses a run no record names with ErrNoRun, and like
+// every method of a Plane it locks, creates and rewrites nothing.
+func (p *Plane) Lookup(ctx context.Context, id string) (Record, error) {
+	if p == nil {
+		return Record{}, ErrClosed
+	}
+	if err := checkRunID(id); err != nil {
+		return Record{}, err
+	}
+	end, err := p.d.begin(ctx)
+	if err != nil {
+		return Record{}, err
+	}
+	defer end()
+	rec, err := p.d.readRecord(id)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return Record{}, fmt.Errorf("%w: %s", ErrNoRun, id)
+	case err != nil:
+		return Record{}, err
+	}
+	rec.SecretSHA256 = ""
+	return rec, nil
 }
 
 // State reads root's state. A missing or unreadable state file is an error:
