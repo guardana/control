@@ -54,7 +54,8 @@ const (
 	// CauseWithdrawn is a statement no newer than a confirmation the clock
 	// rule withdrew.
 	CauseWithdrawn Cause = "withdrawn"
-	// CauseFloor is a floor that could not be read or raised.
+	// CauseFloor is a floor that could not be read or raised, or one read
+	// back below the statement the plane confirmed.
 	CauseFloor Cause = "floor"
 	// CauseUnknown is a refusal of the holder this build cannot name.
 	CauseUnknown Cause = "unknown"
@@ -93,6 +94,7 @@ func causeOf(err error) Cause {
 		{policy.ErrFloorRaise, CauseFloor},
 		{policy.ErrFloorRead, CauseFloor},
 		{policy.ErrNoFloorStore, CauseFloor},
+		{ErrFloorBehind, CauseFloor},
 		{policy.ErrTooLarge, CauseBundleInvalid},
 		{policy.ErrUnknownField, CauseBundleInvalid},
 		{policy.ErrSignatureAlg, CauseBundleInvalid},

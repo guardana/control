@@ -112,15 +112,16 @@ well. `/healthz` answers `503` with `pause.state: unknown` and the cause
 ## A policy that is not confirmed
 
 Every poll rereads the bundle and the statement. A refusal is
-logged and counted under its cause in
+logged and counted by cause in
 `guardana_control_policy_refresh_refused_total`: `bundle_unreadable`,
 `bundle_invalid`, `bundle_id`, `bundle_budget`, `rollback`, `serial_reused`,
 `statement_missing`, `statement_unreadable`, `statement_invalid`,
 `statement_unbound`, `statement_future`, `statement_expired`, `below_floor`,
-`clock_behind_floor`, `clock_back`, `withdrawn`, `floor` or `unknown`. The
-bundle in use keeps its confirmation. A refused bundle file stops the renewals
-of the bundle in use too, since each poll pairs the statement with the file:
-the plane turns stale when the last statement's budget ends. While
+`clock_behind_floor`, `clock_back`, `withdrawn`, `floor` or `unknown`. A
+floor restored below the confirmed statement counts under `floor`. The
+bundle in use keeps its confirmation. A refused bundle file also stops
+renewals, since each poll pairs statement and file: the plane turns stale
+when the last budget ends. While
 the policy is not confirmed, each call's `POLICY_DECIDED` carries
 `POLICY_STALE` and `policy_freshness` `STALE`, `/healthz` answers
 `"status":"degraded"`, and outside `OBSERVE` a call is blocked with

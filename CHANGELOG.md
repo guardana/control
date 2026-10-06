@@ -40,6 +40,9 @@ verify one.
 
 ### Fixed
 
+- A plane whose policy floor is read back below the statement it confirmed,
+  a copy restored from before its raise, counts the poll as refused under
+  `floor` and logs it; it went unremarked.
 - `guardana-control coverage` counts a span that claims two parents once, so
   a few dozen observations whose spans form a ladder of diamonds no longer cut
   a walk as past 65,536 spans. Counting such spans is bounded per source, and

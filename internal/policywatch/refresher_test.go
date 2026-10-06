@@ -343,7 +343,9 @@ func TestAnUnchangedStatementHasTheFloorReadAtEveryPoll(t *testing.T) {
 // a raise of that statement would, at the poll's reading of the wall clock:
 // the floor's serial with another digest, the floor's serial renewed later
 // elsewhere, and a clock behind the floor's latest issuedAt are each refused;
-// a latest issuedAt at the reading itself is not.
+// a latest issuedAt at the reading itself is not. A floor read back below
+// the statement this plane confirmed, which only a restored copy can be, is
+// counted under the floor and leaves the floor as it is.
 func TestASettledPollJudgesTheFloorAsARaiseWould(t *testing.T) {
 	polled := t0.Add(30*time.Second + interval)
 	cases := []struct {
@@ -363,6 +365,15 @@ func TestASettledPollJudgesTheFloorAsARaiseWould(t *testing.T) {
 		{"a latest issuedAt at the reading", func(digest string) (policy.Floor, error) {
 			return policy.NewFloor(planeID, 2, digest, t0, polled)
 		}, map[policywatch.Cause]uint64{}},
+		{"a floor restored below the confirmed serial", func(string) (policy.Floor, error) {
+			return policy.NewFloor(planeID, 1, "sha256:"+strings.Repeat("1", 64), t0.Add(-time.Hour), t0.Add(-time.Hour))
+		}, map[policywatch.Cause]uint64{policywatch.CauseFloor: 1}},
+		{"a floor restored empty", func(string) (policy.Floor, error) {
+			return policy.EmptyFloor(planeID)
+		}, map[policywatch.Cause]uint64{policywatch.CauseFloor: 1}},
+		{"the confirmed serial, restored to an earlier statement", func(digest string) (policy.Floor, error) {
+			return policy.NewFloor(planeID, 2, digest, t0.Add(-time.Minute), t0.Add(-time.Minute))
+		}, map[policywatch.Cause]uint64{policywatch.CauseFloor: 1}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

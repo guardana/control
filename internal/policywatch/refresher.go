@@ -30,6 +30,9 @@ const (
 	ErrStatementExpired Error = "policywatch: the statement's budget has run out"
 	// ErrNoSnapshot is a refresher over a holder Start installed nothing in.
 	ErrNoSnapshot Error = "policywatch: the holder serves no snapshot; Start installs the first"
+	// ErrFloorBehind is a floor read back below the statement this plane
+	// confirmed and raised it to: a copy restored from before that raise.
+	ErrFloorBehind Error = "policywatch: the floor was read back below the statement this plane confirmed"
 )
 
 // Options configure Start, Check and a Refresher.
@@ -192,9 +195,10 @@ func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.S
 }
 
 // floorStillTakes reads the floor for a poll that would otherwise settle
-// without the store, and refuses a floor that cannot be read or that would
-// not take st, the statement the current bundle was confirmed by, at now.
-// The read is bounded by the poll interval, as a raise is.
+// without the store, and refuses a floor that cannot be read, that would not
+// take st, the statement the current bundle was confirmed by, at now, or that
+// stands below st, which the confirmation raised it to. The read is bounded
+// by the poll interval, as a raise is.
 func (r *Refresher) floorStillTakes(ctx context.Context, st policy.Statement, now time.Time) error {
 	read, cancel := context.WithTimeout(ctx, r.o.Interval)
 	defer cancel()
@@ -205,7 +209,14 @@ func (r *Refresher) floorStillTakes(ctx context.Context, st policy.Statement, no
 	case f.BundleID() != r.o.BundleID:
 		return fmt.Errorf("%w: the store returned the floor of another bundle id", policy.ErrFloorRead)
 	}
-	return f.Takes(st, now)
+	if err := f.Takes(st, now); err != nil {
+		return err
+	}
+	if !f.HasSerial() || f.Serial() < st.Serial() || (f.Serial() == st.Serial() && f.IssuedAt().Before(st.IssuedAt())) {
+		return fmt.Errorf("%w: floor serial %d issued %s, confirmed serial %d issued %s", ErrFloorBehind,
+			f.Serial(), policy.FormatIssuedAt(f.IssuedAt()), st.Serial(), policy.FormatIssuedAt(st.IssuedAt()))
+	}
+	return nil
 }
 
 // replace judges the bundle on disk, which is not the current one, and st.

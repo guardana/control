@@ -285,15 +285,16 @@ well. <code>/healthz</code> answers <code>503</code> with <code>pause.state: unk
 <code>ACTION_BLOCKED</code> with the code.</p>
 <h2 id="a-policy-that-is-not-confirmed">A policy that is not confirmed</h2>
 <p>Every poll rereads the bundle and the statement. A refusal is
-logged and counted under its cause in
+logged and counted by cause in
 <code>guardana_control_policy_refresh_refused_total</code>: <code>bundle_unreadable</code>,
 <code>bundle_invalid</code>, <code>bundle_id</code>, <code>bundle_budget</code>, <code>rollback</code>, <code>serial_reused</code>,
 <code>statement_missing</code>, <code>statement_unreadable</code>, <code>statement_invalid</code>,
 <code>statement_unbound</code>, <code>statement_future</code>, <code>statement_expired</code>, <code>below_floor</code>,
-<code>clock_behind_floor</code>, <code>clock_back</code>, <code>withdrawn</code>, <code>floor</code> or <code>unknown</code>. The
-bundle in use keeps its confirmation. A refused bundle file stops the renewals
-of the bundle in use too, since each poll pairs the statement with the file:
-the plane turns stale when the last statement's budget ends. While
+<code>clock_behind_floor</code>, <code>clock_back</code>, <code>withdrawn</code>, <code>floor</code> or <code>unknown</code>. A
+floor restored below the confirmed statement counts under <code>floor</code>. The
+bundle in use keeps its confirmation. A refused bundle file also stops
+renewals, since each poll pairs statement and file: the plane turns stale
+when the last budget ends. While
 the policy is not confirmed, each call's <code>POLICY_DECIDED</code> carries
 <code>POLICY_STALE</code> and <code>policy_freshness</code> <code>STALE</code>, <code>/healthz</code> answers
 <code>&quot;status&quot;:&quot;degraded&quot;</code>, and outside <code>OBSERVE</code> a call is blocked with
