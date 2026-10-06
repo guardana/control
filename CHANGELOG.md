@@ -26,11 +26,13 @@ verify one.
 - The MCP adapter refuses an obligation that carries a parameter its type does
   not read, as the gateway already did; a non-advisory one stops the call. The
   obligations page lists the parameters each type reads.
-- The gateway refuses a configuration file that others may write, or that an
-  account other than its own or root owns, and one in a directory others may
-  write unless the directory is sticky; a link is followed and the file it
-  reaches is judged. The file names the policy keys, the pause file and the
-  credentials the plane sends, and was read whatever its owner and mode.
+- The gateway refuses a configuration file when the file, or any directory or
+  link on its path, is owned by an account other than its own or root, or
+  others may write it (a sticky directory, or one on a read-only mount,
+  excepted), and a file with a second name. The file names the policy keys,
+  the pause file and the credentials the plane sends, and was read whatever
+  its owner and mode. A container's configuration now has to be owned by the
+  image's user.
 - Each agent connection gets a 64 KiB send buffer, so on Linux, as on macOS,
   the answer bound measures a slow client's progress in steps of that size.
   Linux grows a connection's buffer to megabytes, which cut a client reading

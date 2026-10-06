@@ -10,8 +10,7 @@ covers: [.goreleaser.yaml, .github/workflows/release.yml]
 Use this when the gateway should run as a container rather than as a binary
 on the host. The image holds only `guardana-gateway`, on a distroless base,
 and runs as user 65532. It is `experimental` ([status.md](../status.md)) and
-is published from the release after `v0.1.0-alpha` on; each release's notes
-name its digest.
+is published with each release, whose notes name its digest.
 
 ## Prerequisites
 
@@ -45,6 +44,9 @@ name its digest.
      `chown -R 65532` it: the plane refuses a floor directory another user
      owns. A volume that does not outlive the container protects nothing: a
      floor made anew at each start takes any older bundle.
+   - The configuration directory owned by 65532, its files with one name each,
+     and neither writable by others: `chown -R 65532 conf`. The plane refuses a
+     configuration another account owns, here the host user who made it.
    - The bundle and the statement can stay in the read-only configuration
      directory. Run `renew` where the freshness key lives, not in the
      container, and copy the statement into that directory; the plane

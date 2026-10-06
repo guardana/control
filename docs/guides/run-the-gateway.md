@@ -63,8 +63,8 @@ Every path in the file resolves against the file's directory. Every key has
 an environment variable under `GUARDANA_CONTROL_`, the key in capitals with
 underscores for dots, which wins over the file. An unknown key is refused.
 [configuration.md](../reference/configuration.md) lists every key. The plane
-refuses a file others may write or that an account other than its own or root
-owns, and such a directory unless it is sticky.
+refuses the file when it, or a directory or link on its path, is another
+account's than its own or root's, or others may write it.
 
 ```yaml
 mode: OBSERVE

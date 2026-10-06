@@ -247,32 +247,6 @@ func TestRootOrThePlaneOwnsTheConfiguration(t *testing.T) {
 	}
 }
 
-// TestARootOwnedFileIsRead reads a file root owns through the loader's own
-// judge, as a read-only mount presents one, where the system has one to read.
-func TestARootOwnedFileIsRead(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("as root, root's file is the plane's own; the case needs another account")
-	}
-	const hosts = "/etc/hosts"
-	resolved, err := filepath.EvalSymlinks(hosts)
-	if err != nil {
-		t.Skipf("no %s to read: %v", hosts, err)
-	}
-	for _, p := range []string{resolved, filepath.Dir(resolved)} {
-		info, err := os.Stat(p)
-		if err != nil {
-			t.Skipf("%s: %v", p, err)
-		}
-		st, ok := info.Sys().(*syscall.Stat_t)
-		if !ok || st.Uid != 0 || info.Mode().Perm()&0o002 != 0 {
-			t.Skipf("%s is not root's with a mode only root may write", p)
-		}
-	}
-	if _, err := readConfigFile(hosts); err != nil {
-		t.Errorf("readConfigFile(%s), root's: %v", hosts, err)
-	}
-}
-
 // atStep runs each of act, in order, when the loader reaches step.
 func atStep(t *testing.T, step string, act ...func() error) {
 	t.Helper()

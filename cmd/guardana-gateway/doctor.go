@@ -15,7 +15,7 @@ import (
 	"time"
 
 	adaptermcp "github.com/guardana/control/adapters/mcp"
-	"github.com/guardana/control/internal/files"
+	"github.com/guardana/control/internal/approvals"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/holdjournal"
@@ -230,47 +230,28 @@ func writable(dir string) error {
 // that takes no lock is the approver's, and it carries the method that answers
 // an approval, which this binary must not hold; the plane's own handle takes
 // the lock and makes an unused directory a store. So each directory is judged
-// from its metadata as `run`'s open judges it, and its lock and its records are
-// checked where they are used, at `run`.
+// by its store's own judgement of the directory, which takes no lock and
+// creates nothing, and its lock and its records are checked where they are
+// used, at `run`.
 func (d *examination) approvals(ctx context.Context) (string, string, string) {
 	if d.cfg.Approvals.Provider != gatewayconfig.ProviderFile {
 		return verdictOK, "approvals", fmt.Sprintf(
 			"held requests are kept in process memory under the %s provider: nothing outside this process answers one, and a hold lost to a restart is never closed",
 			d.cfg.Approvals.Provider)
 	}
-	for _, named := range []struct{ key, dir string }{
-		{"approvals.dir", d.cfg.Resolve(d.cfg.Approvals.Dir)},
-		{"approvals.hold_journal_dir", d.cfg.Resolve(d.cfg.Approvals.HoldJournalDir)},
+	for _, named := range []struct {
+		key   string
+		judge func(string) error
+		dir   string
+	}{
+		{"approvals.dir", approvals.JudgeDirectory, d.cfg.Resolve(d.cfg.Approvals.Dir)},
+		{"approvals.hold_journal_dir", holdjournal.JudgeDirectory, d.cfg.Resolve(d.cfg.Approvals.HoldJournalDir)},
 	} {
-		if err := judgeDirectory(named.dir); err != nil {
+		if err := named.judge(named.dir); err != nil {
 			return verdictFail, "approvals", fmt.Sprintf("%s: %v", named.key, err)
 		}
 	}
 	return d.holdJournal(ctx)
-}
-
-// writableByOthers is the mode bits that make a directory's approvals or holds
-// a group's or the world's, which `run` refuses.
-const writableByOthers os.FileMode = 0o022
-
-// judgeDirectory refuses what `run`'s open of an approvals or a hold journal
-// directory refuses, with a link followed as that open follows one: anything
-// but a directory, a mode a group or the world may write, and an owner other
-// than this process's account.
-func judgeDirectory(dir string) error {
-	info, err := os.Stat(dir)
-	switch {
-	case err != nil:
-		return err
-	case !info.IsDir():
-		return fmt.Errorf("%s is not a directory", filepath.ToSlash(dir))
-	case info.Mode().Perm()&writableByOthers != 0:
-		return fmt.Errorf("%s: %w: mode %04o, which a group or the world may write", filepath.ToSlash(dir), files.ErrMode, info.Mode().Perm())
-	}
-	if err := files.CheckOwnedBy(info, os.Geteuid()); err != nil {
-		return fmt.Errorf("%s: %w", filepath.ToSlash(dir), err)
-	}
-	return nil
 }
 
 // holdJournal reports the holds a reconciliation would close, read through a

@@ -18,16 +18,18 @@ import (
 // file provider names is refused by doctor where `run`'s open refuses it, a
 // mode a group may write and another account's ownership, through a link as
 // directly, and a link to a sound directory passes, as `run` follows one.
-// Each refusal is first shown to be one the store's own open makes.
+// Each refusal is first shown to be one the store's own open makes, and
+// doctor's line carries that store's own refusal.
 func TestDoctorJudgesTheApprovalDirectoriesAsRunOpensThem(t *testing.T) {
 	for _, key := range []string{"approvals.dir", "approvals.hold_journal_dir"} {
 		t.Run(key, func(t *testing.T) {
+			groupWritable := storeRefusal(key, approvals.ErrPermissions, holdjournal.ErrPermissions) + ": mode 0770"
 			t.Run("group-writable", func(t *testing.T) {
 				tr := newTree(t)
 				dir := tr.approvalDir(t, key)
 				chmod(t, dir, 0o770)
 				expectStoreRefuses(t, key, dir)
-				expectDoctorRefuses(t, tr, key+": ", "mode 0770")
+				expectDoctorRefuses(t, tr, key+": ", groupWritable)
 			})
 			t.Run("a link to a group-writable directory", func(t *testing.T) {
 				tr := newTree(t)
@@ -38,7 +40,7 @@ func TestDoctorJudgesTheApprovalDirectoriesAsRunOpensThem(t *testing.T) {
 				chmod(t, target, 0o770)
 				link := tr.linkApprovalDir(t, key, target)
 				expectStoreRefuses(t, key, link)
-				expectDoctorRefuses(t, tr, key+": ", "mode 0770")
+				expectDoctorRefuses(t, tr, key+": ", groupWritable)
 			})
 			t.Run("owned by another account", func(t *testing.T) {
 				if os.Geteuid() == 0 {
@@ -48,7 +50,7 @@ func TestDoctorJudgesTheApprovalDirectoriesAsRunOpensThem(t *testing.T) {
 				tr.approvalDir(t, key)
 				setEnv(t, key, "/usr")
 				expectStoreRefuses(t, key, "/usr")
-				expectDoctorRefuses(t, tr, key+": ", "owned by another account")
+				expectDoctorRefuses(t, tr, key+": ", storeRefusal(key, approvals.ErrOwner, holdjournal.ErrOwner))
 			})
 			t.Run("a link to a sound directory", func(t *testing.T) {
 				tr := newTree(t)
@@ -118,6 +120,14 @@ func expectStoreRefuses(t *testing.T, key, dir string) {
 	if err == nil {
 		t.Fatalf("the store opens %s, so the case is not one run refuses", dir)
 	}
+}
+
+// storeRefusal is the text of the refusal key's store makes.
+func storeRefusal(key string, records, holds error) string {
+	if key == "approvals.dir" {
+		return records.Error()
+	}
+	return holds.Error()
 }
 
 // expectDoctorRefuses wants the approvals check to fail, naming key and why.
