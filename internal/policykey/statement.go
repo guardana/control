@@ -44,74 +44,118 @@ const (
 // payload and sig are standard base64 in the one spelling they encode back
 // to.
 func ParseStatement(raw []byte) (policy.StatementEnvelope, error) {
-	if n := len(raw); n > MaxStatementFileBytes {
-		return policy.StatementEnvelope{}, fmt.Errorf("%w: %d bytes, limit %d", ErrStatementFileTooLarge, n, MaxStatementFileBytes)
+	return parseEnvelope(raw, MaxStatementFileBytes, statementRefusals())
+}
+
+// ParseEnvelope reads raw as ParseStatement does, under limit in place of
+// MaxStatementFileBytes, and refuses with the ErrEnvelope sentinels. It is
+// for a DSSE file of another payload type, and checks neither the type nor
+// any signature.
+func ParseEnvelope(raw []byte, limit int) (policy.StatementEnvelope, error) {
+	return parseEnvelope(raw, limit, envelopeRefusals())
+}
+
+// ParseEnvelope's refusals, one per statement file refusal. Each text
+// differs from its counterpart's, since errors.Is compares the values. None
+// quotes the file.
+const (
+	// ErrEnvelopeFileTooLarge is a file over the bound its reader names.
+	ErrEnvelopeFileTooLarge Error = "policykey: the envelope file is over its bound"
+	// ErrEnvelope is a file that is not one strict JSON object of the DSSE
+	// envelope's shape.
+	ErrEnvelope Error = "policykey: the file is not a DSSE envelope in strict JSON"
+	// ErrEnvelopeMember is an envelope or signature member DSSE does not
+	// have, or one it requires and the file lacks.
+	ErrEnvelopeMember Error = "policykey: the envelope holds a member DSSE does not have, or lacks one it requires"
+	// ErrEnvelopeRepeated is an envelope or signature member named twice.
+	ErrEnvelopeRepeated Error = "policykey: the envelope names a member twice"
+	// ErrEnvelopeBase64 is a payload or sig that is not standard base64 in
+	// the one spelling it encodes back to.
+	ErrEnvelopeBase64 Error = "policykey: the envelope's payload or sig is not standard base64"
+)
+
+// refusals is the sentinel a reader returns for each way a file fails.
+type refusals struct {
+	tooLarge, envelope, member, repeated, base64 Error
+}
+
+func statementRefusals() refusals {
+	return refusals{ErrStatementFileTooLarge, ErrStatementEnvelope, ErrStatementEnvelopeMember, ErrStatementEnvelopeRepeated, ErrStatementBase64}
+}
+
+func envelopeRefusals() refusals {
+	return refusals{ErrEnvelopeFileTooLarge, ErrEnvelope, ErrEnvelopeMember, ErrEnvelopeRepeated, ErrEnvelopeBase64}
+}
+
+func parseEnvelope(raw []byte, limit int, r refusals) (policy.StatementEnvelope, error) {
+	if n := len(raw); n > limit {
+		return policy.StatementEnvelope{}, fmt.Errorf("%w: %d bytes, limit %d", r.tooLarge, n, limit)
 	}
 	if !utf8.Valid(raw) {
-		return policy.StatementEnvelope{}, fmt.Errorf("%w: invalid UTF-8", ErrStatementEnvelope)
+		return policy.StatementEnvelope{}, fmt.Errorf("%w: invalid UTF-8", r.envelope)
 	}
-	top, err := members(raw, memberPayloadType, memberPayload, memberSignatures)
+	top, err := r.members(raw, memberPayloadType, memberPayload, memberSignatures)
 	if err != nil {
 		return policy.StatementEnvelope{}, err
 	}
 	var env policy.StatementEnvelope
-	if env.PayloadType, err = text(top[memberPayloadType]); err != nil {
+	if env.PayloadType, err = r.text(top[memberPayloadType]); err != nil {
 		return policy.StatementEnvelope{}, err
 	}
-	if env.Payload, err = base64Value(top[memberPayload]); err != nil {
+	if env.Payload, err = r.base64Value(top[memberPayload]); err != nil {
 		return policy.StatementEnvelope{}, err
 	}
-	if env.Signatures, err = signatures(top[memberSignatures]); err != nil {
+	if env.Signatures, err = r.signatures(top[memberSignatures]); err != nil {
 		return policy.StatementEnvelope{}, err
 	}
 	// The canonical form refuses an unpaired surrogate, which the decoder
 	// reads as U+FFFD without a word.
 	if _, err := canon.CanonicalizeJSON(raw); err != nil {
-		return policy.StatementEnvelope{}, fmt.Errorf("%w: not strict JSON", ErrStatementEnvelope)
+		return policy.StatementEnvelope{}, fmt.Errorf("%w: not strict JSON", r.envelope)
 	}
 	return env, nil
 }
 
 // members reads raw as one JSON object holding exactly the members named,
 // each value kept as the bytes it was written as.
-func members(raw []byte, names ...string) (strictjson.Object, error) {
+func (r refusals) members(raw []byte, names ...string) (strictjson.Object, error) {
 	o, err := strictjson.ReadObject(raw)
 	switch {
 	case errors.Is(err, strictjson.ErrRepeated):
-		return nil, fmt.Errorf("%w: %w", ErrStatementEnvelopeRepeated, err)
+		return nil, fmt.Errorf("%w: %w", r.repeated, err)
 	case err != nil:
-		return nil, fmt.Errorf("%w: %w", ErrStatementEnvelope, err)
+		return nil, fmt.Errorf("%w: %w", r.envelope, err)
 	}
 	if err := o.Only(names...); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrStatementEnvelopeMember, err)
+		return nil, fmt.Errorf("%w: %w", r.member, err)
 	}
 	if err := o.Require(names...); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrStatementEnvelopeMember, err)
+		return nil, fmt.Errorf("%w: %w", r.member, err)
 	}
 	return o, nil
 }
 
 // signatures reads the array of signatures, each an object of exactly keyid
 // and sig.
-func signatures(raw json.RawMessage) ([]policy.StatementSignature, error) {
+func (r refusals) signatures(raw json.RawMessage) ([]policy.StatementSignature, error) {
 	if len(raw) == 0 || raw[0] != '[' {
-		return nil, fmt.Errorf("%w: signatures is not an array", ErrStatementEnvelope)
+		return nil, fmt.Errorf("%w: signatures is not an array", r.envelope)
 	}
 	var items []json.RawMessage
 	if err := json.Unmarshal(raw, &items); err != nil {
-		return nil, fmt.Errorf("%w: signatures is not an array", ErrStatementEnvelope)
+		return nil, fmt.Errorf("%w: signatures is not an array", r.envelope)
 	}
 	out := make([]policy.StatementSignature, 0, len(items))
 	for _, item := range items {
-		sig, err := members(item, memberKeyID, memberSig)
+		sig, err := r.members(item, memberKeyID, memberSig)
 		if err != nil {
 			return nil, err
 		}
-		keyID, err := text(sig[memberKeyID])
+		keyID, err := r.text(sig[memberKeyID])
 		if err != nil {
 			return nil, err
 		}
-		signature, err := base64Value(sig[memberSig])
+		signature, err := r.base64Value(sig[memberSig])
 		if err != nil {
 			return nil, err
 		}
@@ -121,10 +165,10 @@ func signatures(raw json.RawMessage) ([]policy.StatementSignature, error) {
 }
 
 // text reads raw as a JSON string and nothing else, null included.
-func text(raw json.RawMessage) (string, error) {
+func (r refusals) text(raw json.RawMessage) (string, error) {
 	s, ok := strictjson.String(raw)
 	if !ok {
-		return "", fmt.Errorf("%w: a value that is not a string", ErrStatementEnvelope)
+		return "", fmt.Errorf("%w: a value that is not a string", r.envelope)
 	}
 	return s, nil
 }
@@ -132,14 +176,14 @@ func text(raw json.RawMessage) (string, error) {
 // base64Value reads raw as a string of standard base64. The decoder skips
 // line breaks and ignores stray padding bits, so a value is taken only when
 // it encodes back to itself.
-func base64Value(raw json.RawMessage) ([]byte, error) {
-	s, err := text(raw)
+func (r refusals) base64Value(raw json.RawMessage) ([]byte, error) {
+	s, err := r.text(raw)
 	if err != nil {
 		return nil, err
 	}
 	decoded, err := base64.StdEncoding.DecodeString(s)
 	if err != nil || base64.StdEncoding.EncodeToString(decoded) != s {
-		return nil, ErrStatementBase64
+		return nil, r.base64
 	}
 	return decoded, nil
 }
@@ -160,6 +204,16 @@ type signatureJSON struct {
 // refuses a file over MaxStatementFileBytes, or one ParseStatement would not
 // read back, so nothing it returns is refused by a reader for its form.
 func MarshalStatement(env policy.StatementEnvelope) ([]byte, error) {
+	return marshalEnvelope(env, ParseStatement)
+}
+
+// MarshalEnvelope is MarshalStatement under limit: it refuses a file
+// ParseEnvelope would not read back under the same limit.
+func MarshalEnvelope(env policy.StatementEnvelope, limit int) ([]byte, error) {
+	return marshalEnvelope(env, func(raw []byte) (policy.StatementEnvelope, error) { return ParseEnvelope(raw, limit) })
+}
+
+func marshalEnvelope(env policy.StatementEnvelope, readBack func([]byte) (policy.StatementEnvelope, error)) ([]byte, error) {
 	out := envelopeJSON{
 		PayloadType: env.PayloadType,
 		Payload:     base64.StdEncoding.EncodeToString(env.Payload),
@@ -172,10 +226,10 @@ func MarshalStatement(env policy.StatementEnvelope) ([]byte, error) {
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(out); err != nil {
-		return nil, fmt.Errorf("policykey: encoding the statement: %w", err)
+		return nil, fmt.Errorf("policykey: encoding the envelope: %w", err)
 	}
 	raw := buf.Bytes()
-	if _, err := ParseStatement(raw); err != nil {
+	if _, err := readBack(raw); err != nil {
 		return nil, err
 	}
 	return raw, nil

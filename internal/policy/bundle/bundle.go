@@ -139,6 +139,18 @@ func VerifyBytesAs(payloadType string, canonical, signature []byte, keyID string
 	return nil
 }
 
+// WeakKey reports whether pub is an Ed25519 public key of small order, the
+// key VerifyBytes refuses as ErrWeakKey. A key of another size is not one.
+// It lets a reader refuse such a key when it reads it, before any signature.
+func WeakKey(pub ed25519.PublicKey) bool {
+	if len(pub) != ed25519.PublicKeySize {
+		return false
+	}
+	var y [ed25519.PublicKeySize]byte
+	copy(y[:], pub)
+	return smallOrder(y)
+}
+
 // smallOrder reports whether y encodes a point of order 1, 2, 4 or 8. The
 // library accepts such a key, and under it the signature R = identity, S = 0
 // verifies for at least one message in eight, and for every message under the

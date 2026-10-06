@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0046: A finding stops one run through a signed route · Guardana Control</title>
+<meta name="description" content="Decision record, proposed."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.8.0-alpha</span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a class="hide-s" href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span class="hide-s">GitHub</span></a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<details class="mnav">
+<summary>Menu · <b>ADR-0046: A finding stops one run through a signed route</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</details>
+<main id="main" class="prose">
+<h1 id="adr-0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046: A finding stops one run through a signed route</h1>
+<p>Status: proposed
+Date: 2026-10-06</p>
+<p>Builds on <a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>,
+<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>,
+<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>,
+<a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a> and
+<a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>. Amends
+ADR-0019 on the order of the plane's causes, and ADR-0045 on &quot;no finding stops
+anything&quot;: one can, through this record's route.</p>
+<h2 id="context">Context</h2>
+<p>ADR-0039 decided that a reaction turns a finding into a stop of one run's later
+calls, under a route signed with a key apart from the policy key, and that a
+source the plane cannot read or verify blocks every call. ADR-0045 built the
+findings: <code>guardana-control supervise</code> writes a <code>FindingRecord</code> per finding of
+one opened run, with a stable id. Milestone 2 ends with &quot;a stop that refuses
+that run's next call, no other's&quot; (backlog B19).</p>
+<p>The pause file (ADR-0019) blocks calls from a file the plane polls and fails
+closed when it cannot read it, but anyone who can write it can lift any pause,
+and the plane rereads it whole, so a truncated file lifts silently. A stop
+from a finding must not inherit either: what writes stops must not be able to
+lift one, and a stop must not vanish because bytes did.</p>
+<p>A run has two identities: the one the plane gives an opened run when a token
+resolves (ADR-0034), and the one a runtime claims. Only the first can name
+what a stop refuses.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>Two documents.</strong> The <em>route</em> is the operator's signed statement of which
+findings may stop a run. The <em>stop list</em> holds the stops, each judged against
+the route; its lifts are signed under a key the route names.</p>
+<p><strong>The route.</strong> A strict JSON document, <code>kind</code> <code>reaction-route/v1alpha1</code>: a
+<code>route_id</code>, a <code>serial</code> of at least 1, a <code>tenant_id</code>, <code>scope</code> <code>run</code>, the
+<code>lift_public_key</code> that signs lifts, and <code>rules</code>, each a procedure
+(<code>procedure_id</code>, <code>version</code> and <code>digest</code>, as a <code>FindingRecord</code> names it), a
+supervise <code>rule_id</code> and <code>rule_version</code>, and an optional <code>expires_seconds</code> from
+60 to the longest run lifetime; without one a stop lasts as long as its run. A
+route with no rule, another scope, or a scope naming agents or principals is
+refused. It is signed in a DSSE envelope like the freshness statement's, over
+its canonical bytes, with the payload type
+<code>application/vnd.agent-reaction-route+json</code>, by <code>guardana-control route sign</code>,
+which refuses a rule id supervise does not have and the three rules that are
+never <code>CONFIRMED</code> (ADR-0045). The plane names it with <code>reaction.route</code> and
+<code>reaction.public_key</code> and refuses to start when that key's bytes, or the lift
+key's, equal the policy key's or the freshness key's, or each other. It reads
+the route at start only: a route can only allow stops, so a stale one stops too
+much and never grants, and needs no freshness statement.</p>
+<p><strong>The route floor.</strong> A third kind of floor in <code>internal/policystate</code>, <code>route</code>,
+in a directory of its own (<code>reaction.floor_dir</code>), holding per route id the
+highest serial and its digest. The operator makes it with <code>policy state init --kind route --route-id</code>. At start the plane refuses a route below the floor's
+serial, or at it with another digest, and raises the floor under its lock
+before it listens; it never creates one, so a removed floor refuses the start.
+<code>doctor</code> reads it and never raises it.</p>
+<p><strong>What may stop.</strong> Two predicates in <code>internal/reaction</code>, which holds no
+finding type. <code>Eligible</code>, the emitter's, takes facts the emitter copies out of
+a <code>FindingRecord</code> and the runs directory: the finding's source is
+<code>DETERMINISTIC</code>, its verdict <code>CONFIRMED</code>, its run an opened run that is open,
+unexpired and no child; zero and unknown values are not eligible.
+<code>Route.Permits</code>, the emitter's and the plane's, takes a stop's claim: its
+tenant is the route's, its procedure and rule a rule of the route, and its
+expiry within the rule's. A finding's escalation is not read: the route
+decides. No setting widens this: a suspected, indeterminate or model's finding
+stops nothing, and a claimed run id never stops a run.</p>
+<p><strong>The stop list.</strong> One JSON Lines file, <code>stops.jsonl</code>, in an owner-only
+directory (<code>reaction.stops</code>), judged as the pause file is and bounded at 4 MiB
+and 20 000 lines. Every line names its <code>kind</code> and <code>version</code>, and every time is
+spelled <code>YYYY-MM-DDTHH:MM:SSZ</code>. The first line is a header: a random <code>list_id</code>
+and the route's id, serial and digest. A <code>stop</code> line holds an entry id derived
+from the finding id under a domain of its own, the tenant, the run id, the
+finding id, the procedure and rule, <code>created_at</code> and <code>expires_at</code>. A <code>covered</code>
+line holds a finding id the route allows about a run that already had an
+active stop. A <code>lift</code> line names a run and the last line it ends, and carries a
+DSSE signature under the lift key, payload type
+<code>application/vnd.agent-reaction-lift+json</code>, over its kind, version, the
+<code>list_id</code>, the route digest, the run and that line; it ends every stop of that
+run up to that line. Lines are appended, never rewritten. Only
+<code>internal/reaction/stopwrite</code> writes, under a lock, truncating an unterminated
+tail to its last newline before it appends; the plane links only the reader.</p>
+<p><strong>The emitter adds and never lifts.</strong> <code>guardana-control react --findings &lt;dir&gt; --runs &lt;dir&gt; --route &lt;file&gt; --public-key &lt;file&gt; --stops &lt;dir&gt;</code> verifies the
+route, refuses one whose digest is not the header's, reads the findings log as
+<code>notify</code> does, and appends, for each finding <code>Eligible</code> and the route permit
+and the list does not name yet, a <code>stop</code> when its run has no active stop and a
+<code>covered</code> line when it has one. A finding the list names, in any line, writes
+nothing again, so a lift holds: what an agent does while stopped is covered,
+and only a new finding after a lift stops the run again. <code>expires_at</code> is its
+clock plus the rule's lifetime and never later than the run's expiry. At the
+list's bound it exits 1 naming each finding it could not write. It holds no
+key. <code>guardana-control stops init --route --public-key [--carry &lt;dir&gt;]</code> starts
+a list, and with <code>--carry</code> copies the old list's unlifted, unexpired stops and
+every finding id it names as covered, so a new list only adds; <code>stops lift --key</code> and <code>stops list</code> are the operator's.</p>
+<p><strong>What a plane checks.</strong> A plane with a route requires <code>runs.dir</code>, a route
+tenant equal to the listener's, and a stops directory that is neither inside
+nor around any directory the plane or its commands lock or own. A nil stop
+source is refused and a plane without a route gets an explicit disabled one. It
+reads the list every <code>reaction.poll_interval</code> into a snapshot, as it reads the
+pause file, with the same four states and age rule, and keeps the length and
+SHA-256 of the prefix it accepted, which only grows: a read that does not
+extend it, or whose header differs, is unknown. Each line is judged by
+<code>Route.Permits</code> and the grammar: a duplicate entry id, a <code>created_at</code> later
+than the plane's clock plus one poll interval, and a <code>lift</code> that is unsigned,
+under another key, of another list or route, naming a line after itself, or
+repeating one already read, each make the state unknown. Unknown blocks every
+call <code>STOP_STATE_UNAVAILABLE</code> (<code>INDETERMINATE</code>, registry 46).</p>
+<p><strong>What a plane does.</strong> An entry is active until a lift ends it or the call's
+clock is usable, not behind the call's floor, and at or past <code>expires_at</code>; a
+clock it cannot trust keeps a stop active. A call whose opened run, as the
+plane vouched for it, and tenant equal an active entry's is blocked
+<code>RUN_STOPPED</code> (<code>DENY</code>, registry 45). Both are plane causes, named before the
+decision point is asked, in every mode and for every effect class. The order
+of ADR-0019 becomes: <code>PAUSED</code>, <code>RUN_STOPPED</code>, <code>EXECUTED_ARGS_MISMATCH</code>,
+<code>LOCKDOWN</code>, <code>PAUSE_STATE_UNAVAILABLE</code>, <code>STOP_STATE_UNAVAILABLE</code>,
+<code>EVIDENCE_UNAVAILABLE</code>, <code>ACTION_UNCLASSIFIED</code>. Another run's call, including a
+stopped run's child, and the tool listing are not stopped. The stop snapshot is
+taken with the pause snapshot, before the clock, and again before each step
+that cannot be undone: a stopped retry of a held request is blocked on its own
+trail and consumes nothing; a stop read after the approval was consumed closes
+the held trail as stopped and the approval is spent; a hold outlives a stop and
+resumes after it ends.</p>
+<p><strong>A call already running is not cut.</strong> An execution handed out before the stop
+was read finishes and is recorded; the stop bites on the run's next call,
+within one poll interval of the line being written. The pages say so.</p>
+<p><strong>What reports it.</strong> <code>doctor</code> and <code>/healthz</code> show the route's id, serial and
+digest, the <code>list_id</code>, the state and an unknown state's cause, the snapshot's
+age, the active entries (bounded), the list's use of its bounds, and each
+active stop that names a run the runs directory does not hold; an unknown state
+answers 503, and a list past nine tenths of a bound is degraded. <code>doctor</code> also
+names a rule whose lifetime ends a stop before its run can end. The plane logs
+each entry that becomes active, expires or is lifted, with its finding id;
+<code>/metrics</code> counts polls, failed polls by cause and active entries. A decision
+carries no entry id, as a pause's carries none.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>No model and no heuristic stops anything (invariant 1); a stop only blocks. An
+unreadable, rewritten or unverifiable list blocks every call (invariants 4 and
+5). The route key and floor keep a stale or forged route from widening what may
+stop. The emitter, and anything else running as the plane's user, can add a
+stop the route allows for any opened run of its tenant, and can block every
+call by writing a line the route refuses; it cannot lift a stop without the
+lift key, which need not be on the plane's host, nor shorten the list while a
+plane runs without the plane seeing it. It can rotate the list and restart a
+plane, which nothing here tells from an operator doing so; a real separation
+needs another account for the list, which belongs with authenticated operators
+(B13).</p>
+<p>The wire contract does not change. Codes 45 and 46 are a registry change. The
+plane gains an optional, all-or-nothing key group, <code>reaction</code>, and reaches
+<code>internal/reaction</code> and its reader, which hold no finding type; it reaches none
+of supervise, the findings log, the finding package, the notifier or the stop
+writer.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>Stops written into the pause file.</strong> The emitter would hold the authority
+to lift every pause, and a pause has no run scope.</li>
+<li><strong>Unsigned lifts and append-only by convention.</strong> Any process of the plane's
+user could lift inside the file.</li>
+<li><strong>A lift that clears a run for the whole list.</strong> Simplest and cannot
+cascade, but a new bad act after the lift is never stopped.</li>
+<li><strong>One stop per finding with no covered lines.</strong> A lift would be followed by
+the next finding the stop itself produced, so it would never hold.</li>
+<li><strong>A list owned by an account of its own that the plane only reads.</strong> The only
+real separation of authority; it needs a second account per deployment and
+breaks the pause file's owner rule. With B13.</li>
+<li><strong>Signed stop lines, or the route key signing lifts.</strong> Either puts a signing
+key on the account that owns the list.</li>
+<li><strong>The route floor among the policy floors.</strong> Changes that directory's strict
+marker, so an older plane would refuse it.</li>
+<li><strong>A stop of the run's tree.</strong> Children share the root's flow state, but the
+milestone asks for one run's calls and no other's.</li>
+<li><strong>A stop as <code>runs close</code>.</strong> The approver's authority, final, with no expiry,
+and the listener's 401 writes no trail.</li>
+<li><strong>Suspected findings stop when the route says so.</strong> ADR-0039 allows it under
+an explicit risk setting; nothing asks for it yet.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>An operator signs a route, makes its floor and a stop list, and runs
+<code>supervise</code> and <code>react</code> while the run is open: a closed run is refused at the
+listener anyway, and nothing runs on its own, so the time from finding to stop
+is the operator's cadence, plus the export's lag, plus one poll. A plane
+configured with a route blocks everything when its list breaks or shrinks,
+which is the price of a stop deleting bytes cannot defeat; <code>stops init --carry</code> and a restart repair a broken list without dropping a stop. Changing
+the route takes a carried list and a restart. A wall clock that jumps forward
+ends stops early. <code>docs/contracts.md</code> gains the route, the list's grammar, the
+lift's payload and the two codes, and <code>docs/status.md</code> the stop.</p>
+<h2 id="declared-limits">Declared limits</h2>
+<ul>
+<li>A stop never cuts a call already running, and never a child of the run.</li>
+<li>The list's continuity is checked within one plane's life only.</li>
+<li>A process running as the plane's user can add stops the route allows, and
+rotate the list across a restart.</li>
+<li>The checks read mode bits and owners, not a darwin access control list.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>A stop refuses that run's next call, <code>RUN_STOPPED</code>, in every mode and for a
+read; another run's call, and a child of the stopped run, run; a local run
+whose id equals the stopped one is not stopped.</li>
+<li>An expired entry stops nothing; a zero, rolled-back or untrusted clock keeps
+it active, and a mutant that judges expiry as an approval's does turns that
+test red.</li>
+<li>After a lift, <code>react</code> over the same findings writes nothing, three probes of
+tools outside the procedure while stopped write covered lines and no stop,
+and a new finding after the lift writes one stop.</li>
+<li>A lift under the lift key ends its run's stops through its line; an unsigned
+one, one under another key, one of another list or route, one naming a later
+line, and a repeated one make the state unknown; the emitter writes none.</li>
+<li>N confirmed findings of one run give one active stop, and another run's stop
+is still written; at the bound <code>react</code> exits 1 naming each finding.</li>
+<li>Every line <code>react</code> writes is accepted by the plane's judge, as a property.</li>
+<li>Every value of the finding's source and verdict, the zero and an unknown
+number included, is eligible only as <code>DETERMINISTIC</code> and <code>CONFIRMED</code>; a rule
+or procedure digest the route does not list, another tenant, and a closed,
+expired or child run write nothing; <code>--carry</code> brings no old finding back.</li>
+<li>A truncated list, an edited earlier line and a changed header while a plane
+runs are unknown, and a failed read does not reset the accepted prefix; a
+torn tail is left out and truncated by the next writer.</li>
+<li>A <code>created_at</code> past the tolerance, and a far-future one with a legal
+difference, are unknown.</li>
+<li>Bundle, statement, route and lift signatures never verify as one another; a
+route or lift key equal to a policy key, or to each other, refuses the start.</li>
+<li>A removed route floor refuses the start and the plane never creates one;
+<code>doctor</code> leaves the floor's bytes and time as they were; a route whose tenant
+is not the listener's, and one whose scope the plane cannot serve, refuse the
+start; a nil stop source is refused.</li>
+<li>A held request and a stopped retry consume nothing; a stop read after the
+consume closes the held trail as stopped; after the stop ends the retry
+resumes once; the listing under a stop equals the listing under none.</li>
+<li>A stop written during the decision point's ask, the store's search or before
+<code>ACTION_STARTED</code> blocks that call; one written during the last append does
+not. A counting decision point is never asked about a stopped call.</li>
+<li>A pair table over every two plane causes pins the codes, the verdict and the
+counted code; <code>internal/core</code> never emits 45 or 46.</li>
+<li>Supervise over a stopped run raises no <code>REPEATED_DENIAL</code> from its blocks.</li>
+<li>The gateway binary's reach test holds none of the stop writer, supervise,
+the findings log, the finding package or the notifier.</li>
+<li>The refund example, on a live plane with two opened runs: after <code>supervise</code>
+and <code>react</code>, the first run's next call is refused and the second's runs.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route.md">docs/adr/0046-a-finding-stops-one-run-through-a-signed-route.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

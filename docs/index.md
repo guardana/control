@@ -128,3 +128,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0043: A refused over-long name is recorded by its digest](adr/0043-a-refused-over-long-name-is-recorded-by-its-digest.md): accepted
 - [ADR-0044: Coverage judges each plane and joins only a whole export](adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md): accepted
 - [ADR-0045: One run is supervised against its procedure](adr/0045-one-run-is-supervised-against-its-procedure.md): accepted
+- [ADR-0046: A finding stops one run through a signed route](adr/0046-a-finding-stops-one-run-through-a-signed-route.md): proposed
