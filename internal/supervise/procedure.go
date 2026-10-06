@@ -37,6 +37,21 @@ var ruleIDs = [...]string{
 	RuleRequiredStepSkipped, RuleStepOutOfOrder, RuleContinuedAfterFailure,
 }
 
+// RuleIDs is every rule a procedure configures, in the order a report lists
+// them. The slice is a copy.
+func RuleIDs() []string { return slices.Clone(ruleIDs[:]) }
+
+// CanConfirm reports whether a finding of rule id can be CONFIRMED. The
+// three rules that rest on something not seen are capped by absenceCap, so
+// none of them ever is, and an id that is no rule's never is.
+func CanConfirm(id string) bool {
+	switch id {
+	case RuleRepeatedDenial, RuleStepOutsideProcedure, RuleDeadlineExceeded:
+		return true
+	}
+	return false
+}
+
 // Step is one step of a procedure: the tool and upstream a plane sees it as,
 // and the names a source reports it under.
 type Step struct {

@@ -112,6 +112,9 @@ func (c call) kinds() ([]controlv1.EventKind, *controlv1.Decision, *controlv1.De
 	case "pause":
 		return []controlv1.EventKind{proposed, decided, blocked}, allow,
 			decision(p, c.req, controlv1.Verdict_VERDICT_DENY, "PAUSED")
+	case "stopped":
+		return []controlv1.EventKind{proposed, blocked}, nil,
+			decision(p, c.req, controlv1.Verdict_VERDICT_DENY, "RUN_STOPPED")
 	case "denied and paused":
 		return []controlv1.EventKind{proposed, decided, blocked},
 			decision(k, c.req, controlv1.Verdict_VERDICT_DENY, "RULE_DENY"),
@@ -266,6 +269,11 @@ func evaluate(t *testing.T, in supervise.Input) *supervise.Result {
 	res, err := supervise.Evaluate(in)
 	if err != nil {
 		t.Fatalf("Evaluate: %v", err)
+	}
+	for _, f := range res.Findings {
+		if v := f.GetFinding().GetVerdict(); v == confirmed && !supervise.CanConfirm(f.GetFinding().GetRuleId()) {
+			t.Fatalf("%s, a rule that cannot confirm, is %s:\n%s", f.GetFinding().GetRuleId(), v, dump(res.Findings))
+		}
 	}
 	return res
 }

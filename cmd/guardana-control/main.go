@@ -1,7 +1,9 @@
 // Command line entry point for the product. Without arguments it answers with
 // the version and the status line; the `policy` commands (lint, test,
-// explain, keygen, sign, renew and state), the `approvals` commands, the `pause` commands, the `runs`
-// commands and `console`, the page that answers approvals and writes pauses,
+// explain, keygen, sign, renew and state), the `approvals` commands, the
+// `pause` commands, the `runs` commands, `observe`, `coverage`, `supervise`,
+// `notify`, `route sign`, the `stops` commands (init, lift and list),
+// `react`, and `console`, the page that answers approvals and writes pauses,
 // are the commands with behaviour, and docs/guides/write-and-test-a-policy.md
 // and docs/reference/cli.md are their pages.
 package main
@@ -119,6 +121,11 @@ var commands = []subcommand{
 	{"coverage", "", coverageForm, coverageFlagSet, coverageCommand},
 	{"supervise", "", superviseForm, superviseFlagSet, superviseCommand},
 	{"notify", "", notifyForm, notifyFlagSet, notifyCommand},
+	{"route", "sign", routeSignForm, routeSignFlagSet, routeSignCommand},
+	{"stops", "init", stopsInitForm, stopsInitFlagSet, stopsInitCommand},
+	{"stops", "lift", stopsLiftForm, stopsLiftFlagSet, stopsLiftCommand},
+	{"stops", "list", stopsListForm, stopsListFlagSet, stopsListCommand},
+	{"react", "", reactForm, reactFlagSet, reactCommand},
 	{"console", "", consoleForm, consoleFlagSet, consoleCommand},
 }
 
@@ -141,7 +148,8 @@ func helpText() string {
 	for _, c := range commands {
 		b.WriteString("  " + brand.CLI + " " + c.words() + " " + c.arguments + "\n")
 	}
-	b.WriteString("\n" + approvalAuthority + "\n" + pauseAuthority + "\n" + runsAuthority + "\n" + floorAuthority + "\n")
+	b.WriteString("\n" + approvalAuthority + "\n" + pauseAuthority + "\n" + runsAuthority + "\n" + floorAuthority + "\n" +
+		stopsAuthority + "\n")
 	return b.String()
 }
 

@@ -164,6 +164,14 @@ usage:
       [--evidence <export>]... [--source <descriptor> --log <dir>]...
   guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <duration>]
       -- <program> [<arg>]...
+  guardana-control route sign --key <file> --out <file> <route.json>
+  guardana-control stops init --route <file> --public-key <file>
+      [--carry <dir> --carry-route <file>] <dir>
+  guardana-control stops lift --route <file> --public-key <file> --key <file> --run <run-id>
+      [--through <line>] <dir>
+  guardana-control stops list --route <file> --public-key <file> <dir>
+  guardana-control react --findings <dir> --runs <dir> --route <file> --public-key <file>
+      --stops <dir>
   guardana-control console --approvals <dir> [--pause <f>] --approver-id <id> [--until-stdin-closes]
 
 Write access to the approvals directory is the approval authority:
@@ -173,6 +181,7 @@ Write access to the runs directory is the authority to open and to close a run;
 a token acts as its run until it expires or is closed, and runs open prints it once.
 Write access to a floor directory is the authority to lower its floors;
 policy state reset is the one way that records why.
+Only the lift key lifts a stop; write access to the stops directory adds any stop the route allows.
 ```
 <!-- /generated -->
 

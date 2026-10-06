@@ -149,7 +149,7 @@ type signed struct {
 // and signs a statement for the bundle at issuedAt. The private key is
 // cleared before it returns.
 func signedStatement(p renewPaths, issuedAt time.Time) (signed, error) {
-	bundlePub, err := readPublicKey(p.bundlePublicKey)
+	bundlePub, err := readPublicKey("--bundle-public-key", p.bundlePublicKey)
 	if err != nil {
 		return signed{}, err
 	}
@@ -262,21 +262,21 @@ func signedBy(env policy.StatementEnvelope, pub ed25519.PublicKey) (policy.State
 	return st, err == nil
 }
 
-// readPublicKey reads the public key file at path. A file the length of no
-// public key line is refused before it becomes a string, which nothing can
-// clear: the file may be a private key given in the wrong place.
-func readPublicKey(path string) (ed25519.PublicKey, error) {
+// readPublicKey reads the public key file flagName names. A file the length
+// of no public key line is refused before it becomes a string, which nothing
+// can clear: the file may be a private key given in the wrong place.
+func readPublicKey(flagName, path string) (ed25519.PublicKey, error) {
 	line, err := ondisk.ReadRegular(path, maxPublicKeyFileBytes, 0)
 	defer clear(line)
 	if err != nil {
-		return nil, fmt.Errorf("--bundle-public-key: %w", err)
+		return nil, fmt.Errorf("%s: %w", flagName, err)
 	}
 	if n := len(bytes.TrimSuffix(line, []byte("\n"))); n != publicLineBytes {
-		return nil, fmt.Errorf("--bundle-public-key: %w", policykey.ErrPublicLine)
+		return nil, fmt.Errorf("%s: %w", flagName, policykey.ErrPublicLine)
 	}
 	pub, err := policykey.ParsePublic(string(line))
 	if err != nil {
-		return nil, fmt.Errorf("--bundle-public-key: %w", err)
+		return nil, fmt.Errorf("%s: %w", flagName, err)
 	}
 	return pub, nil
 }

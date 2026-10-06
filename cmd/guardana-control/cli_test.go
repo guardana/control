@@ -151,7 +151,16 @@ var ownRefusal = map[string]func(missing string) []string{
 	"supervise": func(m string) []string {
 		return []string{"--procedure", m, "--runs", m, "--run", "run-" + strings.Repeat("0", 32), "--findings", m}
 	},
-	"notify": func(m string) []string { return []string{"--findings", m, "--state", m, "--", m} },
+	"notify":     func(m string) []string { return []string{"--findings", m, "--state", m, "--", m} },
+	"route sign": func(m string) []string { return []string{"--key", m, "--out", m + ".route", m} },
+	"stops init": func(m string) []string { return []string{"--route", m, "--public-key", m, m} },
+	"stops lift": func(m string) []string {
+		return []string{"--route", m, "--public-key", m, "--key", m, "--run", "run-" + strings.Repeat("0", 32), m}
+	},
+	"stops list": func(m string) []string { return []string{"--route", m, "--public-key", m, m} },
+	"react": func(m string) []string {
+		return []string{"--findings", m, "--runs", m, "--route", m, "--public-key", m, "--stops", m}
+	},
 }
 
 // refusalStatus is the status a command refuses a missing path with where it
@@ -225,7 +234,8 @@ func unlistedInvocations(missing string) [][]string {
 		}
 	}
 	return append(out, []string{"explain"}, []string{"policy"}, []string{"approvals"}, []string{"pause"}, []string{"runs"},
-		[]string{"policy", "state"}, []string{"policy", "state", missing})
+		[]string{"policy", "state"}, []string{"policy", "state", missing}, []string{"route"}, []string{"stops"},
+		[]string{"stops", missing})
 }
 
 // TestHelpNamesEveryCommand: the help opens with one line per listed command,
@@ -260,6 +270,7 @@ func TestHelpNamesEveryCommand(t *testing.T) {
 		"Write access to the pause file is the authority to pause a call and to lift a pause.",
 		"Write access to the runs directory is the authority to open and to close a run",
 		"Write access to a floor directory is the authority to lower its floors;\npolicy state reset is the one way that records why.",
+		"Only the lift key lifts a stop; write access to the stops directory adds any stop the route allows.",
 	} {
 		if !strings.Contains(helpText(), authority) {
 			t.Errorf("the help does not say %q", authority)
