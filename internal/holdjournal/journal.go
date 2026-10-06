@@ -84,6 +84,8 @@ type journalMarker struct {
 
 const markerKind = "hold_journal"
 
+var markerKeys = map[string]bool{"schema_version": true, "kind": true}
+
 // ownerWanted is the account info has to belong to: this process's, for the
 // directory and for every entry alike.
 var ownerWanted = func(fs.FileInfo) int { return os.Geteuid() }
@@ -274,6 +276,9 @@ func (j *Journal) readMarker() error {
 	raw, err := j.readBounded(markerFile, 4<<10)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrNotAJournal, err)
+	}
+	if err := checkMembers(raw, markerKeys); err != nil {
+		return fmt.Errorf("%w: the marker: %w", ErrNotAJournal, err)
 	}
 	var m journalMarker
 	if err := json.Unmarshal(raw, &m); err != nil {

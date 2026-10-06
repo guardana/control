@@ -202,6 +202,28 @@ func TestAnAnswerToABrokenRecordSaysWhatIsWrongWithIt(t *testing.T) {
 	}
 }
 
+// TestAnAnswerToAnIDAnIncompleteListingLeftOutIsNotNoApproval: the listing
+// the page reads the digest from stops at the store's bound, so an id past it
+// may be held all the same. The answer is refused as one the page could not
+// look up, never as an approval nobody holds, and nothing is written.
+func TestAnAnswerToAnIDAnIncompleteListingLeftOutIsNotNoApproval(t *testing.T) {
+	dir, plane := newPlane(t)
+	hold(t, plane, "HELDA")
+	hold(t, plane, "HELDB")
+	whole := serve(t, dir, "")
+	digest := whole.digestOf(t, "HELDB")
+	s := serveAs(t, dir, "", testApprover, nil, approvals.WithMaxRecords(1))
+	s.token = s.trade(t)
+	a := s.do(t, s.write("/api/approve", `{"id":"HELDB","reason":"","action_digest":"`+digest+`"}`))
+	if a.status != http.StatusConflict || !strings.Contains(a.body, "listing of the directory was incomplete") ||
+		strings.Contains(a.body, approvals.ErrNoApproval.Error()) {
+		t.Errorf("an answer to an id past the listing's bound: %d %q, want 409 saying the listing was incomplete", a.status, a.body)
+	}
+	if got := whole.stateOf(t, "HELDB"); got != pending {
+		t.Errorf("a refused answer left the record %s", got)
+	}
+}
+
 // TestAnAnswerIsBoundToTheRecordsDigestNotItsProjections: the projection
 // beside a record names another digest, as any writer of the directory can
 // make it. An answer carrying the projection's digest is refused and writes

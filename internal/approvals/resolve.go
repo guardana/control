@@ -105,12 +105,13 @@ func (p *Plane) matching(binding approval.Binding, requestID string, want func(s
 
 // Consume marks the approval of the held request consumed, as one
 // compare-and-swap by link, and returns it as decided. It answers ErrZeroTime
-// for a zero now, ErrNoApproval when the request is not held under the binding
-// or nobody approved it, ErrApprovalConsumed when an execution used it,
-// ErrMultiUse for a record marked multi-use, ErrApprovalExpired at or past its
-// expiry, and ErrApprovalRejected beside the record it read when an approver
-// refused it. An expired or rejected record is dropped. The caller checks what
-// it returns and trusts none of it.
+// for a zero now, ErrNoApproval when the request is not held under the
+// binding, nobody approved it or the answer is dated after now,
+// ErrApprovalConsumed when an execution used it, ErrMultiUse for a record
+// marked multi-use, ErrApprovalExpired at or past its expiry, and
+// ErrApprovalRejected beside the record it read when an approver refused it.
+// An expired or rejected record is dropped. The caller checks what it returns
+// and trusts none of it.
 //
 // approvalID is the approval the plane minted and holds in its own record, and
 // it is part of the compare-and-swap: a record filed under this binding and
@@ -134,6 +135,10 @@ func (p *Plane) Consume(ctx context.Context, binding approval.Binding, requestID
 	switch {
 	case a.GetMultiUse():
 		return nil, ErrMultiUse
+	// An answer is only an answer from the time it was decided at: one dated
+	// after now would put the decision after the action it allowed.
+	case a.GetDecidedAt() == nil || a.GetDecidedAt().AsTime().After(now):
+		return nil, ErrNoApproval
 	case a.GetState() == controlv1.ApprovalState_APPROVAL_STATE_REJECTED:
 		return proto.CloneOf(a), errors.Join(ErrApprovalRejected, p.s.drop(rec.ApprovalID))
 	case a.GetState() != controlv1.ApprovalState_APPROVAL_STATE_APPROVED || a.GetApproverId() == "":
@@ -325,6 +330,10 @@ func (p *Plane) resolve(rec Record, to Resolution) error {
 // projection, and reports how many it forgot. Nothing else removes a record
 // the plane did not consume: a directory left to grow refuses holds at its
 // bound, which is a refusal an operator can see.
+//
+// A directory past its bound is read only as far as the bound. What that pass
+// read is pruned, and ErrTooManyRecords beside the count says the sweep did
+// not reach the rest.
 func (p *Plane) Prune(ctx context.Context, now time.Time) (int, error) {
 	if err := p.beginAt(ctx, now); err != nil {
 		return 0, err
@@ -350,6 +359,10 @@ func (p *Plane) Prune(ctx context.Context, now time.Time) (int, error) {
 			return pruned, err
 		}
 		pruned++
+	}
+	if !l.complete {
+		return pruned, fmt.Errorf("%w: limit %d, so the sweep read only the first %d records",
+			ErrTooManyRecords, p.s.opts.maxRecords, len(l.ids))
 	}
 	return pruned, nil
 }

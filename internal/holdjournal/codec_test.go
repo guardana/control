@@ -139,6 +139,28 @@ func TestTheDecoderTellsItsRefusalsApart(t *testing.T) {
 		"a field of another type":        {withBody(bytes.Replace(body, []byte(`"last_event_id":"evt-1"`), []byte(`"last_event_id":7`), 1)), ErrFieldType},
 		"a state nobody knows":           {withBody(bytes.Replace(body, []byte(`"state":"held"`), []byte(`"state":"unknown"`), 1)), ErrMalformed},
 		"an expiry that is not a time":   {withBody(bytes.Replace(body, []byte(`"expires":"2026-03-01T12:15:00Z"`), []byte(`"expires":"soon"`), 1)), ErrMalformed},
+		// encoding/json keeps the last of two members of one name, so a
+		// reader keeping the first would read another entry from the bytes.
+		"a state given twice": {
+			withBody(bytes.Replace(body, []byte(`{"schema_version"`), []byte(`{"state":"resuming","schema_version"`), 1)), ErrMalformed,
+		},
+		"a member given twice with one value": {
+			withBody(bytes.Replace(body, []byte(`{"schema_version"`), []byte(`{"request_id":"req-1","schema_version"`), 1)), ErrMalformed,
+		},
+		"a member in capitals": {
+			withBody(bytes.Replace(body, []byte(`"state":"held"`), []byte(`"STATE":"held"`), 1)), ErrUnknownField,
+		},
+		// The expiry is one spelling of one instant, the one the encoder
+		// writes, so two journals holding one entry hold the same bytes.
+		"an expiry with a numeric zone": {
+			withBody(bytes.Replace(body, []byte(`"expires":"2026-03-01T12:15:00Z"`), []byte(`"expires":"2026-03-01T12:15:00+00:00"`), 1)), ErrMalformed,
+		},
+		"an expiry in another zone": {
+			withBody(bytes.Replace(body, []byte(`"expires":"2026-03-01T12:15:00Z"`), []byte(`"expires":"2026-03-01T13:15:00+01:00"`), 1)), ErrMalformed,
+		},
+		"an expiry with trailing zeros": {
+			withBody(bytes.Replace(body, []byte(`"expires":"2026-03-01T12:15:00Z"`), []byte(`"expires":"2026-03-01T12:15:00.000Z"`), 1)), ErrMalformed,
+		},
 		"an approval this build cannot read": {
 			withBody(bytes.Replace(body, []byte(`"approvalId"`), []byte(`"approvalIx"`), 1)), ErrMalformed,
 		},

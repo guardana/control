@@ -226,7 +226,7 @@ func everyState(t *testing.T) (string, *approvals.Plane) {
 	hold(t, plane, staleID, now.Add(-time.Minute))
 	mustApprove(t, dir, answeredID, "duty-officer")
 	mustApprove(t, dir, spentID, "duty-officer")
-	if _, err := plane.Consume(context.Background(), bindingOf(t, spentID), requestOf(spentID), spentID, now); err != nil {
+	if _, err := plane.Consume(context.Background(), bindingOf(t, spentID), requestOf(spentID), spentID, time.Now()); err != nil {
 		t.Fatalf("consuming %s: %v", spentID, err)
 	}
 	if err := plane.Resolve(context.Background(), bindingOf(t, closedID), requestOf(closedID), approvals.ResolutionNotResumed, now); err != nil {

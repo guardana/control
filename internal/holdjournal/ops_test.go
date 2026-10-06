@@ -110,6 +110,25 @@ func TestForgettingARequestWithNoEntryIsNoError(t *testing.T) {
 	}
 }
 
+// TestForgettingARequestNeverHeldFreesNoRoom: the plane forgets every call it
+// closes, held or not, so a forget that removed nothing must not count as one
+// that did, or the bound would stop biting.
+func TestForgettingARequestNeverHeldFreesNoRoom(t *testing.T) {
+	ctx := context.Background()
+	j := openJournal(t, newDir(t), holdjournal.WithMaxEntries(1))
+	record(t, j, "req-a")
+	if err := j.Forget(ctx, "req-b"); err != nil {
+		t.Fatalf("forgetting a request never held: %v", err)
+	}
+	if err := j.Record(ctx, heldEntry("req-c")); !errors.Is(err, holdjournal.ErrTooManyEntries) {
+		t.Fatalf("a second hold under a bound of one after forgetting nothing: %v, want ErrTooManyEntries", err)
+	}
+	if err := j.Forget(ctx, "req-a"); err != nil {
+		t.Fatalf("forgetting the held request: %v", err)
+	}
+	record(t, j, "req-c")
+}
+
 // TestAnEntryLeavesHeldOnlyForResumingOrClosing: every other state is refused,
 // including the one it is already in and one no build knows.
 func TestAnEntryLeavesHeldOnlyForResumingOrClosing(t *testing.T) {

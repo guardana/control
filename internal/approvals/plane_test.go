@@ -651,6 +651,38 @@ func TestPruneForgetsWhatExpired(t *testing.T) {
 	}
 }
 
+// TestAPruneOverACutScanSaysSo: a directory past the bound is read only as
+// far as the bound, so the count a prune reports is of what it read and not
+// of what expired. It forgets what it read, and says the sweep was cut.
+func TestAPruneOverACutScanSaysSo(t *testing.T) {
+	p, dir := openPlane(t)
+	ctx := t.Context()
+	for _, id := range []string{firstApproval, "APPROVAL2"} {
+		if err := p.Hold(ctx, held(t, id, "req-"+id), minted); err != nil {
+			t.Fatalf("holding %s: %v", id, err)
+		}
+	}
+	if err := p.Close(); err != nil {
+		t.Fatal(err)
+	}
+	bounded, err := approvals.OpenPlane(dir, approvals.WithMaxRecords(1))
+	if err != nil {
+		t.Fatalf("reopening under a bound of one: %v", err)
+	}
+	t.Cleanup(func() { _ = bounded.Close() })
+	n, err := bounded.Prune(ctx, expires)
+	if !errors.Is(err, approvals.ErrTooManyRecords) || n != 1 {
+		t.Fatalf("pruning two expired records under a bound of one = %d, %v; want 1 and ErrTooManyRecords", n, err)
+	}
+	if names := recordNames(t, dir); !slices.Equal(names, []string{"APPROVAL2.0-held.rec"}) {
+		t.Fatalf("after the cut prune the directory holds %v", names)
+	}
+	n, err = bounded.Prune(ctx, expires)
+	if err != nil || n != 1 {
+		t.Fatalf("pruning the one record left under a bound of one = %d, %v; want 1 and no error", n, err)
+	}
+}
+
 // TestACancelledContextStopsTheCall.
 func TestACancelledContextStopsTheCall(t *testing.T) {
 	p, _ := openPlane(t)

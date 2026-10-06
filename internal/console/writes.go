@@ -91,10 +91,16 @@ func (p *page) answer(w http.ResponseWriter, r *http.Request, b *answerBody, sta
 	})
 }
 
+// unlisted is the refusal of an id an incomplete listing does not name: the
+// record may be past the store's bound, so whether it is held is unknown.
+const unlisted = "the listing of the directory was incomplete and does not name this approval, " +
+	"so whether it is held is unknown and nothing was written"
+
 // digestOf reads the action digest of the record listed under approvalID, so
 // no answer is filed without a digest to compare. An id the store cannot
 // hold, and one the listing names among its problems, are refused as the
-// store words it; only an id the listing does not name at all is no approval.
+// store words it; an id a complete listing does not name is no approval, and
+// one an incomplete listing does not name is unknown.
 func (p *page) digestOf(ctx context.Context, approvalID string) (string, error) {
 	if err := approvals.CheckApprovalID(approvalID); err != nil {
 		return "", err
@@ -114,12 +120,17 @@ func (p *page) digestOf(ctx context.Context, approvalID string) (string, error) 
 			return "", listedProblem{pr.Err}
 		}
 	}
+	if !l.Complete {
+		return "", listedProblem{errors.New(unlisted)}
+	}
 	return "", approvals.ErrNoApproval
 }
 
-// listedProblem is what is wrong with a record the listing names among its
-// problems. An answer to it conflicts with what is on disk whether the store
-// or the system said so, a file the page cannot open among them.
+// listedProblem is what the listing says against an answer: what is wrong
+// with a record it names among its problems, or that it was incomplete and
+// did not name the record. An answer to it conflicts with what is on disk
+// whether the store or the system said so, a file the page cannot open among
+// them.
 type listedProblem struct{ err error }
 
 func (e listedProblem) Error() string { return e.err.Error() }
@@ -187,8 +198,8 @@ func (p *page) unpause(w http.ResponseWriter, r *http.Request, body any) {
 }
 
 // refuseStore answers a refusal of the store or the pause file with its own
-// sentence: a refusal either package names, and a record the listing names
-// among its problems, is a conflict with what is on disk, and anything else
+// sentence: a refusal either package names, and one the listing makes, is a
+// conflict with what is on disk, and anything else
 // is the page failing to reach it.
 func refuseStore(w http.ResponseWriter, err error) {
 	var ae approvals.Error

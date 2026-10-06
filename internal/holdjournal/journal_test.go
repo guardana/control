@@ -84,6 +84,93 @@ func TestADirectoryThatIsNotAJournalIsRefused(t *testing.T) {
 	}
 }
 
+// TestAMarkerIsReadStrictly: the marker decides whether a directory is a
+// journal, so it is held to the members it names exactly. encoding/json
+// would fold a member's case, skip an unknown one and keep the last of two.
+func TestAMarkerIsReadStrictly(t *testing.T) {
+	cases := map[string]string{
+		"an unknown member":       `{"schema_version":"1.0","kind":"hold_journal","owner":"anyone"}`,
+		"members in capitals":     `{"Schema_Version":"1.0","KIND":"hold_journal"}`,
+		"the kind given twice":    `{"schema_version":"1.0","kind":"approvals","kind":"hold_journal"}`,
+		"the version given twice": `{"schema_version":"9.0","schema_version":"1.0","kind":"hold_journal"}`,
+	}
+	for name, marker := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := newDir(t)
+			writeFile(t, filepath.Join(dir, "journal.meta"), []byte(marker))
+			if _, err := holdjournal.Open(dir); !errors.Is(err, holdjournal.ErrNotAJournal) {
+				t.Errorf("opening %s: %v, want ErrNotAJournal", name, err)
+			}
+			if _, err := holdjournal.OpenReadOnly(dir); !errors.Is(err, holdjournal.ErrNotAJournal) {
+				t.Errorf("reading %s: %v, want ErrNotAJournal", name, err)
+			}
+		})
+	}
+	dir := newDir(t)
+	writeFile(t, filepath.Join(dir, "journal.meta"), []byte(`{"schema_version":"1.0","kind":"hold_journal"}`+"\n"))
+	j, err := holdjournal.Open(dir)
+	if err != nil {
+		t.Fatalf("opening the marker as the format spells it: %v", err)
+	}
+	if err := j.Close(); err != nil {
+		t.Fatalf("closing the journal: %v", err)
+	}
+}
+
+// TestAForeignFileRefusesTheOpen: a journal is never opened over a directory
+// holding a name it did not write, marker or not.
+func TestAForeignFileRefusesTheOpen(t *testing.T) {
+	dir := newDir(t)
+	j := openJournal(t, dir)
+	record(t, j, "req-1")
+	if err := j.Close(); err != nil {
+		t.Fatalf("closing the journal: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "somebody-elses-file"), []byte("."))
+	if _, err := holdjournal.Open(dir); !errors.Is(err, holdjournal.ErrForeignFile) {
+		t.Fatalf("opening a journal holding a foreign file: %v, want ErrForeignFile", err)
+	}
+	if _, err := holdjournal.OpenReadOnly(dir); !errors.Is(err, holdjournal.ErrForeignFile) {
+		t.Fatalf("reading a journal holding a foreign file: %v, want ErrForeignFile", err)
+	}
+}
+
+// TestOpenSweepsTheWritesNobodyPutInPlace: a temporary file a crash left is
+// removed by the plane that opens the journal next, and by nothing that only
+// reads it; it is never counted as an entry.
+func TestOpenSweepsTheWritesNobodyPutInPlace(t *testing.T) {
+	ctx := context.Background()
+	dir := newDir(t)
+	j := openJournal(t, dir)
+	record(t, j, "req-1")
+	if err := j.Close(); err != nil {
+		t.Fatalf("closing the journal: %v", err)
+	}
+	leftover := filepath.Join(dir, "tmp.left-by-a-crash.part")
+	writeFile(t, leftover, []byte("half an entry"))
+
+	reader, err := holdjournal.OpenReadOnly(dir)
+	if err != nil {
+		t.Fatalf("reading a journal with a leftover write: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("closing the reader: %v", err)
+	}
+	if _, err := os.Stat(leftover); err != nil {
+		t.Fatalf("a reader removed the leftover write: %v", err)
+	}
+
+	plane := openJournal(t, dir, holdjournal.WithMaxEntries(2))
+	if _, err := os.Stat(leftover); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the leftover write after the plane opened: %v, want it gone", err)
+	}
+	record(t, plane, "req-2")
+	listing, err := plane.List(ctx, 8)
+	if err != nil || len(listing.Held) != 2 || !listing.Complete {
+		t.Fatalf("after the sweep the listing is %+v, %v", listing, err)
+	}
+}
+
 // TestAnEmptyDirectoryIsAJournalOnlyOnceAPlaneHasMadeItOne: a reader refuses
 // what no plane has written, so a report about a journal that does not exist
 // is never a report of no lost holds.

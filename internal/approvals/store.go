@@ -109,6 +109,8 @@ type storeMarker struct {
 
 const markerKind = "approvals"
 
+var markerKeys = map[string]bool{"schema_version": true, "kind": true}
+
 // openStore opens dir. The plane takes the directory's exclusive lock and
 // sweeps the temporary files a crash left; the approver takes no lock and
 // sweeps nothing, because it is not alone in the directory.
@@ -252,6 +254,9 @@ func (s *store) readMarker() error {
 	raw, err := s.readBounded(markerFile, 4<<10)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrNotAStore, err)
+	}
+	if err := checkMembers(raw, markerKeys); err != nil {
+		return fmt.Errorf("%w: the marker: %w", ErrNotAStore, err)
 	}
 	var m storeMarker
 	if err := json.Unmarshal(raw, &m); err != nil {

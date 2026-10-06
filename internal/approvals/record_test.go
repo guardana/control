@@ -170,6 +170,12 @@ func TestEveryWayARecordCanLieIsItsOwnRefusal(t *testing.T) {
 			return withField(t, f, "schema_version", `"2.0"`)
 		}, approvals.ErrSchemaVersion},
 		{"no schema version at all", func(t testing.TB, f []byte) []byte { return withField(t, f, "schema_version", `""`) }, approvals.ErrSchemaVersion},
+		{"an approval from a later major", func(t testing.TB, f []byte) []byte {
+			return withApprovalField(t, f, "schemaVersion", `"9.0"`)
+		}, approvals.ErrSchemaVersion},
+		{"an approval with no schema version", func(t testing.TB, f []byte) []byte {
+			return withApprovalField(t, f, "schemaVersion", `""`)
+		}, approvals.ErrSchemaVersion},
 		{"a resolution this build cannot name", func(t testing.TB, f []byte) []byte {
 			return withField(t, f, "resolution", `"granted"`)
 		}, approvals.ErrMalformed},

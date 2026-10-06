@@ -177,6 +177,11 @@ func decodeEntry(data []byte, maxBody int) (Entry, error) {
 	if err != nil {
 		return Entry{}, fmt.Errorf("%w: the expiry: %s", ErrMalformed, cause(err.Error()))
 	}
+	// One instant has one spelling here, the encoder's, so one entry is one
+	// sequence of bytes whoever wrote it.
+	if expires.UTC().Format(time.RFC3339Nano) != w.Expires {
+		return Entry{}, fmt.Errorf("%w: the expiry %q is not spelled as this build writes it", ErrMalformed, cause(w.Expires))
+	}
 	a := &controlv1.Approval{}
 	// DiscardUnknown stays false: a field this build cannot name is refused
 	// here too, rather than dropped on the way in.
@@ -202,16 +207,10 @@ func decodeEntry(data []byte, maxBody int) (Entry, error) {
 }
 
 // readWire reads the body's one object and refuses a key this build cannot
-// name before it reads any value.
+// name, or one named twice, before it reads any value.
 func readWire(body []byte) (wireEntry, error) {
-	var keys map[string]json.RawMessage
-	if err := json.Unmarshal(body, &keys); err != nil {
-		return wireEntry{}, fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
-	}
-	for key := range keys {
-		if !wireKeys[key] {
-			return wireEntry{}, fmt.Errorf("%w: %q", ErrUnknownField, cause(key))
-		}
+	if err := checkMembers(body, wireKeys); err != nil {
+		return wireEntry{}, err
 	}
 	var w wireEntry
 	if err := json.Unmarshal(body, &w); err != nil {
@@ -222,6 +221,43 @@ func readWire(body []byte) (wireEntry, error) {
 		return wireEntry{}, fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
 	}
 	return w, nil
+}
+
+// checkMembers refuses a body that is not one JSON object, and one naming a
+// member outside known, spelled in another case, or named twice:
+// encoding/json folds case and keeps the last of two, so a reader that did
+// neither would read another entry from the same bytes.
+func checkMembers(body []byte, known map[string]bool) error {
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(body, &keys); err != nil {
+		return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
+	}
+	dec := json.NewDecoder(bytes.NewReader(body))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return fmt.Errorf("%w: the body is not a JSON object", ErrMalformed)
+	}
+	seen := make(map[string]bool, len(known))
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
+		}
+		key, ok := tok.(string)
+		switch {
+		case !ok:
+			return fmt.Errorf("%w: a member name that is not a string", ErrMalformed)
+		case !known[key]:
+			return fmt.Errorf("%w: %q", ErrUnknownField, cause(key))
+		case seen[key]:
+			return fmt.Errorf("%w: %q appears twice", ErrMalformed, cause(key))
+		}
+		seen[key] = true
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
+		}
+	}
+	return nil
 }
 
 // unframe returns the body of one framed entry.

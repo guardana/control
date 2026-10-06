@@ -11,6 +11,20 @@ verify one.
 
 ## [Unreleased]
 
+### Fixed
+
+- An approval whose own schema version is not of major 1 is refused when it is
+  held, answered or read, and an answer dated after the moment it would be
+  spent, or with no date, is not yet an answer.
+- The hold journal, and the markers of the approvals and journal directories,
+  refuse a member named twice, in another case or unknown, and the journal an
+  expiry spelled otherwise than the plane writes it.
+- The start's sweep of expired approval records says it is unmeasured when the
+  directory holds more records than `approvals.max_records`; it gave a count
+  as if it had read them all.
+- The approvals page refuses an answer to an id an incomplete listing left out
+  as unknown, where it said there was no such approval.
+
 ## [0.8.0-alpha] - 2026-10-06
 
 One agent run can now be checked against the procedure it was meant to

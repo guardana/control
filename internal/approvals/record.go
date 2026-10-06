@@ -164,6 +164,9 @@ func (r Record) checkIdentity() error {
 	if err := checkSchemaVersion(r.SchemaVersion); err != nil {
 		return err
 	}
+	if err := checkSchemaVersion(r.Approval.GetSchemaVersion()); err != nil {
+		return fmt.Errorf("the approval: %w", err)
+	}
 	if got := r.Approval.GetApprovalId(); got != r.ApprovalID {
 		return fmt.Errorf("%w: the approval names %q, the record %q", ErrRecordMismatch, cause(got), cause(r.ApprovalID))
 	}
@@ -237,7 +240,7 @@ func decodeRecord(data []byte, maxBody int, maxWindow time.Duration) (Record, er
 	if err != nil {
 		return Record{}, err
 	}
-	if err := checkMembers(body); err != nil {
+	if err := checkMembers(body, wireKeys); err != nil {
 		return Record{}, err
 	}
 	var w wireRecord
@@ -278,10 +281,10 @@ func decodeRecord(data []byte, maxBody int, maxWindow time.Duration) (Record, er
 }
 
 // checkMembers refuses a body that is not one JSON object, and one naming a
-// member this build cannot name or naming one member twice: encoding/json
-// keeps the last of two, so a reader keeping the first would read another
-// record from the same bytes.
-func checkMembers(body []byte) error {
+// member outside known, spelled in another case, or named twice:
+// encoding/json folds case and keeps the last of two, so a reader that did
+// neither would read another record from the same bytes.
+func checkMembers(body []byte, known map[string]bool) error {
 	var keys map[string]json.RawMessage
 	if err := json.Unmarshal(body, &keys); err != nil {
 		return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
@@ -290,7 +293,7 @@ func checkMembers(body []byte) error {
 	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
 		return fmt.Errorf("%w: the body is not a JSON object", ErrMalformed)
 	}
-	seen := make(map[string]bool, len(wireKeys))
+	seen := make(map[string]bool, len(known))
 	for dec.More() {
 		tok, err := dec.Token()
 		if err != nil {
@@ -300,7 +303,7 @@ func checkMembers(body []byte) error {
 		switch {
 		case !ok:
 			return fmt.Errorf("%w: a member name that is not a string", ErrMalformed)
-		case !wireKeys[key]:
+		case !known[key]:
 			return fmt.Errorf("%w: %q", ErrUnknownField, cause(key))
 		case seen[key]:
 			return fmt.Errorf("%w: %q appears twice", ErrMalformed, cause(key))

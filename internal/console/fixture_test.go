@@ -142,10 +142,11 @@ func serveAt(t *testing.T, dir, pauseFile string, now func() time.Time) *site {
 	return serveAs(t, dir, pauseFile, testApprover, now)
 }
 
-// serveAs is serveAt under the approver id approver.
-func serveAs(t *testing.T, dir, pauseFile, approver string, now func() time.Time) *site {
+// serveAs is serveAt under the approver id approver, over a store opened with
+// opts.
+func serveAs(t *testing.T, dir, pauseFile, approver string, now func() time.Time, opts ...approvals.Option) *site {
 	t.Helper()
-	store, err := approvals.OpenApprover(dir)
+	store, err := approvals.OpenApprover(dir, opts...)
 	if err != nil {
 		t.Fatalf("opening %s for an approver: %v", dir, err)
 	}

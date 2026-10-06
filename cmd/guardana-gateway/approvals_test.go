@@ -67,6 +67,7 @@ func lostHold(t *testing.T, records, holds string, expires time.Time) approval.B
 		t.Fatalf("Bind: %v", err)
 	}
 	held := &controlv1.Approval{
+		SchemaVersion:      "1.0",
 		ApprovalId:         lostApproval,
 		RequestId:          lostRequest,
 		ActionDigest:       string(digest),
@@ -517,6 +518,7 @@ func openRefusalRig(t *testing.T) refusalRig {
 func (r refusalRig) held(id string, multiUse bool) gateway.Held {
 	return gateway.Held{
 		Approval: &controlv1.Approval{
+			SchemaVersion:      "1.0",
 			ApprovalId:         "apr-" + id,
 			RequestId:          "req-" + id,
 			ActionDigest:       r.digest,
