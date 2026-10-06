@@ -40,7 +40,7 @@ func (c *Config) checkRuns() error {
 		if other.dir == "" {
 			continue
 		}
-		overlap, err := overlaps(runs, c.Resolve(other.dir))
+		overlap, err := sharesDir(runs, c.Resolve(other.dir))
 		if err != nil {
 			return fmt.Errorf("runs.dir: %w", err)
 		}

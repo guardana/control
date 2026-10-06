@@ -45,8 +45,9 @@ func (c *call) resume(matches []*heldRequest, binding approval.Binding) Disposit
 	}
 	// Every match was held under another decision than this call's, which its
 	// trail cannot record, so this call is a request of its own and is held
-	// anew: the agent is told to retry that one (ADR-0013).
-	return c.hold(binding)
+	// anew, as one no hold matched is: the agent is told to retry that one
+	// (ADR-0013).
+	return c.holdAnew(binding, nil)
 }
 
 // resumption is what a resume found so far among the held requests it tried.

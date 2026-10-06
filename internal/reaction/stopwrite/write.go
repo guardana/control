@@ -77,6 +77,11 @@ func AppendLift(ctx context.Context, dir string, route reaction.Route, l reactio
 func AppendFinding(ctx context.Context, dir string, route reaction.Route, s reaction.Stop, now time.Time) (int64, bool, error) {
 	covered := false
 	n, err := appendLine(ctx, dir, route, now, func(list reaction.List) ([]byte, error) {
+		// Named before the bound is judged, so a finding another writer
+		// named reads as named even on a full list.
+		if list.Names(s.FindingID) {
+			return nil, ErrNamed
+		}
 		covered = slices.ContainsFunc(list.Entries(), func(e reaction.Entry) bool {
 			return e.RunID == s.RunID && e.TenantID == s.TenantID && e.ActiveAt(now, time.Time{}) && !e.ExpiresAt.Before(s.ExpiresAt)
 		})

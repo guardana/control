@@ -78,3 +78,26 @@ func refusedNaming(t *testing.T, path, key string) {
 		t.Errorf("the refusal names neither reaction.stops nor %s: %v", key, err)
 	}
 }
+
+// TestALinkDoesNotJoinTheRunsOrTheJournalDirectoryToTheSpool: the runs
+// directory and the hold journal's are kept out of the spool by identity, as
+// the stops directory is, so a link into the spool is refused for each.
+func TestALinkDoesNotJoinTheRunsOrTheJournalDirectoryToTheSpool(t *testing.T) {
+	for _, key := range []string{"runs.dir", "approvals.hold_journal_dir"} {
+		t.Run(key, func(t *testing.T) {
+			path := write(t, withRoute)
+			dir := filepath.Dir(path)
+			mkdir(t, filepath.Join(dir, "spool", "inner"))
+			link(t, filepath.Join(dir, "spool", "inner"), filepath.Join(dir, "linked"))
+			if key == "approvals.hold_journal_dir" {
+				setEnv(t, "approvals.provider", "file")
+				setEnv(t, "approvals.dir", "approvals")
+			}
+			setEnv(t, key, "linked")
+			_, err := Load(path, os.Environ())
+			if err == nil || !strings.Contains(err.Error(), key) || !strings.Contains(err.Error(), "evidence.dir") {
+				t.Errorf("%s linked into the spool = %v, want a refusal naming %s and evidence.dir", key, err, key)
+			}
+		})
+	}
+}

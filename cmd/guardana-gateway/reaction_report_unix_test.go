@@ -173,11 +173,22 @@ func TestHealthAnswersTheStopStateAnd503WhenTheListIsRewritten(t *testing.T) {
 	}
 	held := answer.Stops.ListID
 	answer, _ = p.health(p.pauseSource(), time.Now)
-	if answer.Stops.State != "unknown" || answer.Stops.Cause != string(reaction.CauseHeader) {
-		t.Errorf("the stop state over a rewritten list is %s (%s), want unknown (%s)", answer.Stops.State, answer.Stops.Cause, reaction.CauseHeader)
+	heldAnswer(t, answer.Stops, held)
+}
+
+// heldAnswer fails unless s, read over a rewritten list, is unknown with
+// the header's cause and names the list the plane holds, list id held, with
+// its usage and its one active stop of unheldRun.
+func heldAnswer(t *testing.T, s stopsAnswer, held string) {
+	t.Helper()
+	if s.State != "unknown" || s.Cause != string(reaction.CauseHeader) {
+		t.Errorf("the stop state over a rewritten list is %s (%s), want unknown (%s)", s.State, s.Cause, reaction.CauseHeader)
 	}
-	if answer.Stops.ListID == "" || answer.Stops.ListID != held || answer.Stops.Usage == nil {
-		t.Errorf("over a rewritten list /healthz names list %q with usage %+v, want the list the plane holds, %q, and its usage", answer.Stops.ListID, answer.Stops.Usage, held)
+	if s.ListID == "" || s.ListID != held || s.Usage == nil {
+		t.Errorf("over a rewritten list /healthz names list %q with usage %+v, want the list the plane holds, %q, and its usage", s.ListID, s.Usage, held)
+	}
+	if s.Active != 1 || len(s.Entries) != 1 || s.Entries[0].RunID != unheldRun {
+		t.Errorf("over a rewritten list /healthz lists %d active stop(s) %+v, want the held list's stop of %s", s.Active, s.Entries, unheldRun)
 	}
 }
 

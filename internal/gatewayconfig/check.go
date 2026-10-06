@@ -193,7 +193,7 @@ func (c *Config) checkJournalDir() error {
 		{"evidence.dir", c.Resolve(c.Evidence.Dir)},
 		{"approvals.dir", c.Resolve(c.Approvals.Dir)},
 	} {
-		overlap, err := overlaps(journal, other.dir)
+		overlap, err := sharesDir(journal, other.dir)
 		if err != nil {
 			return fmt.Errorf("approvals.hold_journal_dir: %w", err)
 		}

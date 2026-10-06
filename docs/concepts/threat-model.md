@@ -274,13 +274,14 @@ What the plane does today:
   or another account may write it (a sticky directory, or root's on a
   read-only mount, excepted), and when it has a second name. The path is
   walked as the kernel walks it. The group's write bit is refused too: on
-  macOS every local account shares `staff`, which no file names, and under an
-  access control list the group bits are the mask a named account writes
-  through (`internal/gatewayconfig/pathwalk.go`;
+  macOS every account shares `staff`, and under a POSIX access control list
+  the group bits are the mask a named account writes through
+  (`internal/gatewayconfig/pathwalk.go`;
   `TestEveryDirectoryOnThePathIsJudged`, `TestALinkIsJudgedWhereItLies`,
   `TestAFileWithASecondNameIsRefused`). A read-only mount is root's word;
-  another mount may still write the directory. A Nix store with
-  `auto-optimise-store` gives the file a second name, so it is refused.
+  another mount may still write the directory. A darwin access control list
+  granting write is not read. A Nix store with `auto-optimise-store` gives
+  the file a second name, so it is refused.
 - The approvals directory is refused when another account owns it or the
   group or the world may write it. It is judged again at every call, and a
   change of owner or of directory is refused too; each record is `0600`

@@ -126,3 +126,44 @@ func TestAListPastItsByteBoundIsLeftAsItIs(t *testing.T) {
 		t.Error("an append to a list past the bound changed it")
 	}
 }
+
+// TestAFullListStillSaysAFindingIsNamed: on a list at its line bound, a
+// finding the list names is refused as named, which a writer that read the
+// list before another named it takes as done, and a new one as past the
+// bound.
+func TestAFullListStillSaysAFindingIsNamed(t *testing.T) {
+	t.Parallel()
+	r := testRoute(t)
+	dir, list := stoppedList(t, r)
+	for i := 3; i <= reaction.MaxListLines; i++ {
+		list.Write(coveredLine(t, fmt.Sprintf("f-%d", i)))
+		list.WriteByte('\n')
+	}
+	setContent(t, dir, list.Bytes())
+	before := content(t, dir)
+	if _, _, err := stopwrite.AppendFinding(bg, dir, r, stopOf(t, "f-9", "run-1", clock0), clock0); !errors.Is(err, stopwrite.ErrNamed) {
+		t.Errorf("a named finding on a full list = %v, want ErrNamed", err)
+	}
+	if _, _, err := stopwrite.AppendFinding(bg, dir, r, stopOf(t, "f-new", "run-1", clock0), clock0); !errors.Is(err, stopwrite.ErrFull) {
+		t.Errorf("a new finding on a full list = %v, want ErrFull", err)
+	}
+	if !bytes.Equal(content(t, dir), before) {
+		t.Error("a refused write changed the full list")
+	}
+}
+
+// TestAListThatNamesAnotherFindingTwiceIsNoNamedFinding: a list the judge
+// refuses for naming one finding twice refuses every append as such, never
+// as the new finding being named already.
+func TestAListThatNamesAnotherFindingTwiceIsNoNamedFinding(t *testing.T) {
+	t.Parallel()
+	r := testRoute(t)
+	dir, list := stoppedList(t, r)
+	list.Write(coveredLine(t, "f-0"))
+	list.WriteByte('\n')
+	setContent(t, dir, list.Bytes())
+	_, _, err := stopwrite.AppendFinding(bg, dir, r, stopOf(t, "f-new", "run-2", clock0), clock0)
+	if !errors.Is(err, stopwrite.ErrRefused) || !errors.Is(err, reaction.ErrFindingAgain) || errors.Is(err, stopwrite.ErrNamed) {
+		t.Errorf("an append to a list naming f-0 twice = %v, want ErrRefused wrapping ErrFindingAgain and not ErrNamed", err)
+	}
+}

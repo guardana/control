@@ -23,6 +23,10 @@ const (
 	// ErrRefused is a write the plane's judge would refuse the list for,
 	// wrapping the judge's refusal; nothing is written.
 	ErrRefused Error = "stopwrite: the plane's judge would refuse the list this write makes"
+	// ErrNamed is a finding AppendFinding was given that the list names
+	// already, by another writer since its caller read the list; nothing is
+	// written.
+	ErrNamed Error = "stopwrite: the stop list names the finding already"
 	// ErrFull is a write that would take the list past its bound of bytes or
 	// of lines, wrapping the judge's refusal; nothing is written.
 	ErrFull Error = "stopwrite: the write would take the stop list past its bounds"

@@ -79,6 +79,9 @@ func (p *plane) stopsAnswer(snap reaction.Snapshot, now time.Time) stopsAnswer {
 		out.AgeMS = &age
 	}
 	entries, total := at.ActiveEntries(now, now)
+	if at.State() == reaction.Unknown {
+		entries, total = heldActive(held, now)
+	}
 	out.Active = total
 	for _, e := range entries {
 		out.Entries = append(out.Entries, stopEntryAnswer{
@@ -98,6 +101,25 @@ func (p *plane) stopsAnswer(snap reaction.Snapshot, now time.Time) stopsAnswer {
 	}
 	out.Polls = map[string]any{"made": stats.Polls, "failed": failed}
 	return out
+}
+
+// heldActive is what ActiveEntries says of the list a plane holds while its
+// state is unknown: the stops of the last list it accepted that are active at
+// now, at most reaction.MaxListedEntries of them, and how many in all. The
+// state still blocks every call; this is what the plane would stop by.
+func heldActive(held reaction.List, now time.Time) ([]reaction.Entry, int) {
+	var out []reaction.Entry
+	total := 0
+	for _, e := range held.Entries() {
+		if !e.ActiveAt(now, now) {
+			continue
+		}
+		total++
+		if len(out) < reaction.MaxListedEntries {
+			out = append(out, e)
+		}
+	}
+	return out, total
 }
 
 // unheldRuns names, in order, the runs of entries the runs directory holds no

@@ -312,6 +312,40 @@ func TestAStopDuringTheLookupOfANewRequestBlocksItsHold(t *testing.T) {
 	}
 }
 
+// TestAStopDuringTheLookupOfARetryHeldAnewBlocksIt: a retry whose hold was
+// decided otherwise, here because its run read restricted data in between,
+// is held anew; a stop written while the store looked it up blocks it
+// instead, and nothing more is held.
+func TestAStopDuringTheLookupOfARetryHeldAnewBlocksIt(t *testing.T) {
+	for _, stopDuringFind := range []bool{false, true} {
+		var store *stepStore
+		src := newStopSource(stopped(t))
+		h := stopPlane(t, modeEnforce, []string{approveRefunds, taintedRefunds, allowReads}, src, withStepStore(&store))
+		first := hold(t, h)
+		if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
+			t.Fatalf("Answer: %v", err)
+		}
+		read := returning(readOf("read-1", "user-1"), 0, sensRestricted)
+		read.Run = h.run
+		if between := h.admitA(read); between.Action != core.Execute {
+			t.Fatalf("the read in between: Action = %d", between.Action)
+		}
+		if stopDuringFind {
+			store.onFind = func() { src.set(stopped(t, "run-a")) }
+		}
+		d := h.admit(retry(t, "req-2"), refundArgs())
+		switch {
+		case !stopDuringFind && (d.Pending == nil || h.p.Stats().Held != 2):
+			t.Fatalf("the tainted retry: Action = %d, pending %+v, held %d; want it held anew", d.Action, d.Pending, h.p.Stats().Held)
+		case stopDuringFind:
+			expectPlaneBlock(t, h, d, verdictDeny, codeRunStopped)
+			if held := h.p.Stats().Held; held != 1 {
+				t.Errorf("Stats.Held = %d after a stopped retry held anew, want the first hold alone", held)
+			}
+		}
+	}
+}
+
 // TestAStopWrittenDuringTheAskBitesThatCall: the stop read after the ask
 // decides the call; with nothing written during the ask the write runs.
 func TestAStopWrittenDuringTheAskBitesThatCall(t *testing.T) {

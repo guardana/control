@@ -430,6 +430,34 @@ func TestASettledPollRefusesAFloorWhoseLatestStatementWentBack(t *testing.T) {
 	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseFloor: 1}, 0, 0, 0, 0)
 }
 
+// A floor raised elsewhere past the confirmed statement refuses the poll,
+// and is still remembered: restoring the older floor after it is a floor
+// going back, refused too.
+func TestAFloorRestoredAfterARefusedOneIsStillSeenGoingBack(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	digest := r.startConfirmed()
+	elsewhere := t0.Add(5 * time.Second)
+	r.store.mu.Lock()
+	older := r.store.floor
+	raised, err := older.Raise(statementOf(t, 3, "sha256:"+strings.Repeat("3", 64), elsewhere), elsewhere)
+	if err != nil {
+		r.store.mu.Unlock()
+		t.Fatal(err)
+	}
+	r.store.floor = raised
+	r.store.mu.Unlock()
+	r.clock.advance(interval)
+	r.poll()
+	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseBelowFloor: 1}, 0, 0, 0, 0)
+	r.store.mu.Lock()
+	r.store.floor = older
+	r.store.mu.Unlock()
+	r.clock.advance(interval)
+	r.poll()
+	r.expectSnapshot(2, digest, t0)
+	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseBelowFloor: 1, policywatch.CauseFloor: 1}, 0, 0, 0, 0)
+}
+
 // The floor read of a poll that settles is given up at the poll interval, so
 // a store that never answers holds the poll no longer than a raise would.
 func TestASettledPollGivesUpAFloorReadAtTheInterval(t *testing.T) {

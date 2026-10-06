@@ -213,6 +213,13 @@ func (r *Refresher) floorStillTakes(ctx context.Context, st policy.Statement, no
 	case f.BundleID() != r.o.BundleID:
 		return fmt.Errorf("%w: the store returned the floor of another bundle id", policy.ErrFloorRead)
 	}
+	if f.LatestIssuedAt().Before(r.latestSeen) {
+		return fmt.Errorf("%w: its latest statement issued %s, after one issued %s was read", ErrFloorBehind,
+			policy.FormatIssuedAt(f.LatestIssuedAt()), policy.FormatIssuedAt(r.latestSeen))
+	}
+	// Taken from every floor read, refused or not, so a floor raised
+	// elsewhere and then restored to an older copy is still seen going back.
+	r.latestSeen = f.LatestIssuedAt()
 	if err := f.Takes(st, now); err != nil {
 		return err
 	}
@@ -220,11 +227,6 @@ func (r *Refresher) floorStillTakes(ctx context.Context, st policy.Statement, no
 		return fmt.Errorf("%w: floor serial %d issued %s, confirmed serial %d issued %s", ErrFloorBehind,
 			f.Serial(), policy.FormatIssuedAt(f.IssuedAt()), st.Serial(), policy.FormatIssuedAt(st.IssuedAt()))
 	}
-	if f.LatestIssuedAt().Before(r.latestSeen) {
-		return fmt.Errorf("%w: its latest statement issued %s, after one issued %s was read", ErrFloorBehind,
-			policy.FormatIssuedAt(f.LatestIssuedAt()), policy.FormatIssuedAt(r.latestSeen))
-	}
-	r.latestSeen = f.LatestIssuedAt()
 	return nil
 }
 
