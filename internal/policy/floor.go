@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/guardana/control/internal/canon"
-
-	"github.com/guardana/control/pkg/contract"
 )
 
 // Floor is the newest accepted freshness statement for one bundle id, and the
@@ -25,23 +23,19 @@ type Floor struct {
 
 // EmptyFloor is the floor of bundleID before any statement was accepted.
 func EmptyFloor(bundleID string) (Floor, error) {
-	if !isBundleID(bundleID) {
+	if !ValidID(bundleID) {
 		return Floor{}, fmt.Errorf("%w: the bundle id", ErrFloorInvalid)
 	}
 	return Floor{bundleID: bundleID}, nil
 }
 
-// maxSerial is the largest serial a statement can carry: its body is
-// canonical JSON, which holds an integer to the JSON-safe range.
-const maxSerial = 1<<53 - 1
-
 // NewFloor is a floor holding a serial, as a store reads it back. It refuses,
 // with ErrFloorInvalid, values no accepted statement could have left.
 func NewFloor(bundleID string, serial int64, digest string, issuedAt, latestIssuedAt time.Time) (Floor, error) {
 	switch {
-	case !isBundleID(bundleID):
+	case !ValidID(bundleID):
 		return Floor{}, fmt.Errorf("%w: the bundle id", ErrFloorInvalid)
-	case serial < 1 || serial > maxSerial:
+	case serial < 1 || serial > MaxSerial:
 		return Floor{}, fmt.Errorf("%w: the serial", ErrFloorInvalid)
 	case !canon.ValidDigest(digest):
 		return Floor{}, fmt.Errorf("%w: the digest", ErrFloorInvalid)
@@ -58,12 +52,6 @@ func NewFloor(bundleID string, serial int64, digest string, issuedAt, latestIssu
 		issuedAt:       issuedAt.UTC(),
 		latestIssuedAt: latestIssuedAt.UTC(),
 	}, nil
-}
-
-// isBundleID holds a bundle id to the rule a policy document holds its own
-// to, so a floor names only an id a bundle can carry.
-func isBundleID(id string) bool {
-	return id != "" && len(id) <= contract.MaxStringBytes && contract.CheckIdentifier(id) == nil
 }
 
 // isIssuedAt reports whether t is a time issuedAt's spelling can carry.

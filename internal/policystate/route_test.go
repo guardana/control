@@ -158,6 +158,21 @@ func TestInitRouteNeverReplacesAFloor(t *testing.T) {
 	}
 }
 
+// A route marker listing more ids than a directory may is refused as too
+// many route ids, not bundle ids.
+func TestARouteMarkerListingPastTheBoundIsRefused(t *testing.T) {
+	ids := []string{`"` + routeA + `"`}
+	for i := range policystate.MaxRouteIDs {
+		ids = append(ids, fmt.Sprintf(`"route-b%02d"`, i))
+	}
+	dir := routeRaisedTo5(t)
+	writeFile(t, filepath.Join(dir, routeMarker), strings.Replace(routeMarkerA, `["route-a"]`, "["+strings.Join(ids, ",")+"]", 1))
+	_, err := policystate.ReadRoute(dir, routeA)
+	if !errors.Is(err, policystate.ErrTooManyRouteIDs) || errors.Is(err, policystate.ErrTooManyBundleIDs) || !errors.Is(err, policystate.ErrNotStateDir) {
+		t.Errorf("ReadRoute under a marker listing %d ids: %v, want ErrNotStateDir and ErrTooManyRouteIDs alone", len(ids), err)
+	}
+}
+
 func TestInitRouteRefusesAnIDPastTheBound(t *testing.T) {
 	dir := newDir(t)
 	for i := range policystate.MaxRouteIDs {
@@ -166,8 +181,8 @@ func TestInitRouteRefusesAnIDPastTheBound(t *testing.T) {
 		}
 	}
 	err := policystate.InitRoute(t.Context(), dir, "route-zz")
-	if !errors.Is(err, policystate.ErrTooManyBundleIDs) {
-		t.Errorf("InitRoute of id %d: %v, want ErrTooManyBundleIDs", policystate.MaxRouteIDs+1, err)
+	if !errors.Is(err, policystate.ErrTooManyRouteIDs) || errors.Is(err, policystate.ErrTooManyBundleIDs) {
+		t.Errorf("InitRoute of id %d: %v, want ErrTooManyRouteIDs alone", policystate.MaxRouteIDs+1, err)
 	}
 	if strings.Contains(readFile(t, filepath.Join(dir, routeMarker)), "route-zz") {
 		t.Error("the refused id is listed")

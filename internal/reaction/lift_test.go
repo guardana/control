@@ -12,11 +12,11 @@ import (
 const runID = "run-0123456789abcdef0123456789abcdef"
 
 func validLift() reaction.Lift {
-	return reaction.Lift{Version: "1.0", ListID: "list-1", RouteDigest: procDigest, RunID: runID, ThroughLine: 12}
+	return reaction.Lift{Version: "1.0", ListID: "list-1", RouteDigest: docDigest, RunID: runID, ThroughLine: 12}
 }
 
 // liftCanonical is validLift's payload, written out by hand.
-const liftCanonical = `{"kind":"reaction-lift/v1alpha1","list_id":"list-1","route_digest":"` + procDigest +
+const liftCanonical = `{"kind":"reaction-lift/v1alpha1","list_id":"list-1","route_digest":"` + docDigest +
 	`","run_id":"` + runID + `","through_line":12,"version":"1.0"}`
 
 func TestLiftPayloadIsCanonical(t *testing.T) {
@@ -75,17 +75,21 @@ func TestVerifyLiftRefuses(t *testing.T) {
 		{"no run", edit(`"run_id":"`+runID+`",`, ``), reaction.ErrLiftMember},
 		{"version 2.0", edit(`"1.0"`, `"2.0"`), reaction.ErrLiftVersion},
 		{"version 1", edit(`"1.0"`, `"1"`), reaction.ErrLiftVersion},
+		{"version 1.00", edit(`"1.0"`, `"1.00"`), reaction.ErrLiftVersion},
+		{"version 1.01", edit(`"1.0"`, `"1.01"`), reaction.ErrLiftVersion},
+		{"version 1.1", edit(`"1.0"`, `"1.1"`), reaction.ErrLiftVersion},
 		{"a version that is a number", edit(`"1.0"`, `1`), reaction.ErrLiftVersion},
 		{"an empty list id", edit(`"list-1"`, `""`), reaction.ErrLiftValue},
 		{"a list id with a line break", edit(`"list-1"`, `"list\n1"`), reaction.ErrLiftValue},
-		{"a route digest in capitals", edit(procDigest, strings.ToUpper(procDigest)), reaction.ErrLiftValue},
+		{"a route digest with no algorithm prefix", edit(docDigest, procDigest), reaction.ErrLiftValue},
+		{"a route digest in capitals", edit(docDigest, strings.ToUpper(docDigest)), reaction.ErrLiftValue},
 		{"an empty run", edit(`"`+runID+`"`, `""`), reaction.ErrLiftValue},
 		{"through line 0", edit(`"through_line":12`, `"through_line":0`), reaction.ErrLiftLine},
 		{"a negative through line", edit(`"through_line":12`, `"through_line":-12`), reaction.ErrLiftLine},
 		{"through line 2^53", edit(`"through_line":12`, `"through_line":9007199254740992`), reaction.ErrLiftLine},
 		{"a through line with a fraction", edit(`"through_line":12`, `"through_line":12.0`), reaction.ErrLiftLine},
 		{"a through line as a string", edit(`"through_line":12`, `"through_line":"12"`), reaction.ErrLiftLine},
-		{"members out of order", `{"list_id":"list-1","kind":"reaction-lift/v1alpha1","route_digest":"` + procDigest +
+		{"members out of order", `{"list_id":"list-1","kind":"reaction-lift/v1alpha1","route_digest":"` + docDigest +
 			`","run_id":"` + runID + `","through_line":12,"version":"1.0"}`, reaction.ErrLiftNotCanonical},
 		{"white space", edit(`,"version"`, `, "version"`), reaction.ErrLiftNotCanonical},
 		{"an unpaired surrogate", edit(`"list-1"`, `"list\ud8001"`), reaction.ErrLiftJSON},
@@ -145,7 +149,7 @@ func TestPayloadRefusesALiftNoReaderTakes(t *testing.T) {
 		{"through line 0", func(l *reaction.Lift) { l.ThroughLine = 0 }},
 		{"through line 2^53", func(l *reaction.Lift) { l.ThroughLine = 1 << 53 }},
 		{"invalid UTF-8 in the list id", func(l *reaction.Lift) { l.ListID = "list\xff" }},
-		{"a short route digest", func(l *reaction.Lift) { l.RouteDigest = procDigest[:20] }},
+		{"a short route digest", func(l *reaction.Lift) { l.RouteDigest = docDigest[:20] }},
 	} {
 		l := validLift()
 		c.edit(&l)

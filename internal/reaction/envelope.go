@@ -45,7 +45,7 @@ func MarshalRouteFile(env Envelope) ([]byte, error) {
 
 // SignRoute signs the canonical bytes of r with key under RoutePayloadType,
 // with policykey's key id of the public half. It refuses a Route no reader
-// made, and a key that is the route's own lift key.
+// made, and a key that is the route's own lift key as DistinctKeys compares.
 func SignRoute(r Route, key ed25519.PrivateKey) (Envelope, error) {
 	checked, err := ParseRoute(r.canonical)
 	if err != nil {
@@ -55,7 +55,7 @@ func SignRoute(r Route, key ed25519.PrivateKey) (Envelope, error) {
 	if err != nil {
 		return Envelope{}, err
 	}
-	if bytes.Equal(pub, checked.liftKey) {
+	if sameKey(pub, checked.liftKey) {
 		return Envelope{}, fmt.Errorf("%w: the route key is the route's lift key", ErrKeysEqual)
 	}
 	return env, nil
@@ -66,7 +66,8 @@ func SignRoute(r Route, key ed25519.PrivateKey) (Envelope, error) {
 // is RoutePayloadType; there is one signature; the body is at most
 // MaxRouteBytes; the keyid is policykey's id of pub; the signature verifies
 // over the pre-authentication encoding of the route type and the body; the
-// body is a route (ParseRoute) and its own canonical form.
+// body is a route (ParseRoute) and its own canonical form; its lift key is not
+// pub as DistinctKeys compares.
 func VerifyRoute(env Envelope, pub ed25519.PublicKey) (Route, error) {
 	body, err := open(env, pub, envelopeRefusals{
 		payloadType: RoutePayloadType, limit: MaxRouteBytes, wrongType: ErrRoutePayloadType,
@@ -81,6 +82,9 @@ func VerifyRoute(env Envelope, pub ed25519.PublicKey) (Route, error) {
 	}
 	if !bytes.Equal(body, r.canonical) {
 		return Route{}, ErrRouteNotCanonical
+	}
+	if sameKey(pub, r.liftKey) {
+		return Route{}, fmt.Errorf("%w: the route key is the route's lift key", ErrKeysEqual)
 	}
 	return r, nil
 }
@@ -109,22 +113,32 @@ func VerifyLift(env Envelope, pub ed25519.PublicKey) (Lift, error) {
 	return readLift(body)
 }
 
-// DistinctKeys refuses, with ErrKeysEqual, any two of keys equal by bytes,
-// and with ErrKeySize a key that is not an Ed25519 public key's 32 bytes.
-// The plane holds its policy, freshness, route and lift keys to it, so no
-// one key signs as two authorities.
+// DistinctKeys refuses, with ErrKeysEqual, any two of keys equal by bytes but
+// for bit 255, and with ErrKeySize a key that is not an Ed25519 public key's
+// 32 bytes. The plane holds its policy, freshness, route and lift keys to it,
+// so no one key signs as two authorities.
 func DistinctKeys(keys ...ed25519.PublicKey) error {
 	for i, k := range keys {
 		if len(k) != ed25519.PublicKeySize {
 			return fmt.Errorf("%w: key %d is %d bytes", ErrKeySize, i, len(k))
 		}
 		for j := range i {
-			if bytes.Equal(keys[j], k) {
+			if sameKey(keys[j], k) {
 				return fmt.Errorf("%w: keys %d and %d", ErrKeysEqual, j, i)
 			}
 		}
 	}
 	return nil
+}
+
+// sameKey reports whether a and b are one key but for bit 255, the sign of x:
+// a key with it flipped is the negated point, which the same seed can sign for.
+func sameKey(a, b ed25519.PublicKey) bool {
+	if len(a) != ed25519.PublicKeySize || len(b) != ed25519.PublicKeySize {
+		return bytes.Equal(a, b)
+	}
+	last := ed25519.PublicKeySize - 1
+	return bytes.Equal(a[:last], b[:last]) && a[last]&0x7f == b[last]&0x7f
 }
 
 func sign(payloadType string, body []byte, key ed25519.PrivateKey) (Envelope, ed25519.PublicKey, error) {

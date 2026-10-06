@@ -48,8 +48,9 @@ its canonical bytes, with the payload type
 `application/vnd.agent-reaction-route+json`, by `guardana-control route sign`,
 which refuses a rule id supervise does not have and the three rules that are
 never `CONFIRMED` (ADR-0045). The plane names it with `reaction.route` and
-`reaction.public_key` and refuses to start when that key's bytes, or the lift
-key's, equal the policy key's or the freshness key's, or each other. It reads
+`reaction.public_key` and refuses to start when that key or the lift key is the
+policy key or the freshness key, or the two are one, comparing keys as points
+up to their sign, since one private key signs for a point and its negation. It reads
 the route at start only: a route can only allow stops, so a stale one stops too
 much and never grants, and needs no freshness statement.
 

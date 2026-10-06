@@ -19,9 +19,9 @@ type StopClaim struct {
 // Permits returns nil when the route allows the stop c claims to be: its
 // tenant is the route's, its procedure and rule are one rule of the route
 // compared exactly, its times are usable with expires_at after created_at,
-// and the span between them is within the rule's lifetime. A rule with no
-// lifetime sets no bound here; the emitter ends the stop with its run. The
-// zero Route permits nothing.
+// and the span between them is within the rule's lifetime, or within
+// MaxLifetime for a rule with none, since no run outlives it. The zero Route
+// permits nothing.
 func (r Route) Permits(c StopClaim) error {
 	if c.TenantID == "" || c.TenantID != r.tenantID {
 		return ErrClaimTenant
@@ -42,8 +42,12 @@ func (r Rule) permitsTimes(created, expires time.Time) error {
 	if !policy.UsableTime(created) || !policy.UsableTime(expires) || !expires.After(created) {
 		return ErrClaimTimes
 	}
-	if span := expires.Sub(created); r.Lifetime > 0 && span > r.Lifetime {
-		return fmt.Errorf("%w: %s, the rule's %s", ErrClaimLifetime, span, r.Lifetime)
+	limit := r.Lifetime
+	if limit == 0 {
+		limit = MaxLifetime
+	}
+	if span := expires.Sub(created); span > limit {
+		return fmt.Errorf("%w: %s, limit %s", ErrClaimLifetime, span, limit)
 	}
 	return nil
 }

@@ -9,18 +9,14 @@ import (
 	"strconv"
 
 	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/strictjson"
-	"github.com/guardana/control/pkg/contract"
 )
 
 // routeNameDomain is hashed ahead of a route id to name its file, so a route
 // id never names the file a bundle id of the same text names. Like canon's
 // domain tags it ends with a newline, which no route id holds.
 const routeNameDomain = "agent-route-floor-name/v1\n"
-
-// maxRouteSerial is the largest serial a route can carry: its body is
-// canonical JSON, which holds an integer to the JSON-safe range.
-const maxRouteSerial = 1<<53 - 1
 
 var (
 	routeMarkerMembers = []string{"schema_version", "kind", "route_ids"}
@@ -35,20 +31,14 @@ func routeName(routeID string) string {
 
 // checkRouteID holds a route id to the rule a bundle id is held to.
 func checkRouteID(id string) error {
-	switch {
-	case id == "":
-		return fmt.Errorf("%w: the route id is empty", ErrRouteInvalid)
-	case len(id) > contract.MaxStringBytes:
-		return fmt.Errorf("%w: the route id is over %d bytes", ErrRouteInvalid, contract.MaxStringBytes)
-	}
-	if err := contract.CheckIdentifier(id); err != nil {
-		return fmt.Errorf("%w: the route id: %w", ErrRouteInvalid, err)
+	if !policy.ValidID(id) {
+		return fmt.Errorf("%w: the route id", ErrRouteInvalid)
 	}
 	return nil
 }
 
 // check refuses a floor no route can leave: an id checkRouteID refuses, a
-// serial outside 1 to maxRouteSerial, or a digest canon does not take. The
+// serial outside 1 to policy.MaxSerial, or a digest canon does not take. The
 // floor with no serial yet holds no digest either.
 func (f RouteFloor) check() error {
 	if err := checkRouteID(f.RouteID); err != nil {
@@ -57,7 +47,7 @@ func (f RouteFloor) check() error {
 	switch {
 	case f.Serial == 0 && f.Digest == "":
 		return nil
-	case f.Serial < 1 || f.Serial > maxRouteSerial:
+	case f.Serial < 1 || f.Serial > policy.MaxSerial:
 		return fmt.Errorf("%w: serial %d", ErrRouteInvalid, f.Serial)
 	case !canon.ValidDigest(f.Digest):
 		return fmt.Errorf("%w: the digest", ErrRouteInvalid)
@@ -108,7 +98,7 @@ func decodeRouteMarker(raw []byte) ([]string, error) {
 	if named, ok := strictjson.String(members["kind"]); !ok || Kind(named) != KindRoute {
 		return nil, fmt.Errorf("%w: kind", ErrMalformed)
 	}
-	return readIDs(members["route_ids"], "route_ids", MaxRouteIDs, checkRouteID)
+	return readIDs(members["route_ids"], "route_ids", MaxRouteIDs, ErrTooManyRouteIDs, checkRouteID)
 }
 
 // encodeRouteFile writes f as one JSON line, and reads it back before it

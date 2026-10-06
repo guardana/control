@@ -194,7 +194,7 @@ func crossSigners(t *testing.T, key ed25519.PrivateKey) []crossSigned {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st, err := policy.SignStatement("b1", 1, procDigest, time.Unix(1_800_000_000, 0), key, keyIDOf(key))
+	st, err := policy.SignStatement("b1", 1, docDigest, time.Unix(1_800_000_000, 0), key, keyIDOf(key))
 	if err != nil {
 		t.Fatal(err)
 	}

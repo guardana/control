@@ -57,7 +57,7 @@ func TestADirectoryListsAtMost32BundleIDs(t *testing.T) {
 	if err := policystate.Init(t.Context(), dir, policystate.KindPlane, "id-x1"); err != nil {
 		t.Fatalf("Init of the 32nd id: %v", err)
 	}
-	if err := policystate.Init(t.Context(), dir, policystate.KindPlane, "id-x2"); !errors.Is(err, policystate.ErrTooManyBundleIDs) || errors.Is(err, policystate.ErrUnwritable) {
+	if err := policystate.Init(t.Context(), dir, policystate.KindPlane, "id-x2"); !errors.Is(err, policystate.ErrTooManyBundleIDs) || errors.Is(err, policystate.ErrTooManyRouteIDs) || errors.Is(err, policystate.ErrUnwritable) {
 		t.Errorf("Init of the 33rd id: %v, want ErrTooManyBundleIDs before any marker is encoded", err)
 	}
 	writeFile(t, filepath.Join(dir, "floors.meta"), markerListing(32))

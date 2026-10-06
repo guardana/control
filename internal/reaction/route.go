@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
-	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policy/strictjson"
 	"github.com/guardana/control/internal/policykey"
-	"github.com/guardana/control/internal/runs"
 	"github.com/guardana/control/pkg/contract"
 )
 
@@ -30,7 +30,9 @@ const (
 	MinLifetime = time.Minute
 	// MaxLifetime is the longest expires_seconds a rule may name: the
 	// longest a run lives.
-	MaxLifetime = runs.MaxTTL
+	MaxLifetime = 720 * time.Hour
+	// MaxTenantIDBytes bounds the tenant_id, as a run record bounds its own.
+	MaxTenantIDBytes = 256
 )
 
 const (
@@ -58,7 +60,8 @@ type Rule struct {
 	ProcedureID, ProcedureVersion, ProcedureDigest string
 	RuleID, RuleVersion                            string
 	// Lifetime is the longest a stop under the rule may last. Zero sets no
-	// bound of its own: the stop lasts as long as its run.
+	// bound of its own: the stop lasts as long as its run, and never longer
+	// than MaxLifetime.
 	Lifetime time.Duration
 }
 
@@ -133,13 +136,13 @@ func ParseRoute(raw []byte) (Route, error) {
 func routeValues(o strictjson.Object) (Route, error) {
 	var r Route
 	var ok bool
-	if r.id, ok = identifier(o[memberRouteID], contract.MaxStringBytes); !ok {
+	if r.id, ok = strictjson.String(o[memberRouteID]); !ok || !policy.ValidID(r.id) {
 		return Route{}, fmt.Errorf("%w: %s", ErrRouteValue, memberRouteID)
 	}
-	if r.serial, ok = integer(o[memberSerial], 1, MaxSerial); !ok {
+	if r.serial, ok = integer(o[memberSerial], 1, policy.MaxSerial); !ok {
 		return Route{}, ErrRouteSerial
 	}
-	if r.tenantID, ok = identifier(o[memberTenantID], runs.MaxIdentityBytes); !ok {
+	if r.tenantID, ok = identifier(o[memberTenantID], MaxTenantIDBytes); !ok {
 		return Route{}, fmt.Errorf("%w: %s", ErrRouteValue, memberTenantID)
 	}
 	if scope, isString := strictjson.String(o[memberScope]); !isString || scope != ScopeRun {
@@ -207,7 +210,7 @@ func readRule(raw json.RawMessage) (Rule, error) {
 		*f.into = v
 	}
 	digest, ok := strictjson.String(o[memberDigest])
-	if !ok || !canon.ValidDigest(digest) {
+	if !ok || !procedureDigest(digest) {
 		return Rule{}, fmt.Errorf("%w: %s", ErrRouteValue, memberDigest)
 	}
 	r.ProcedureDigest = digest
@@ -219,4 +222,11 @@ func readRule(raw json.RawMessage) (Rule, error) {
 		r.Lifetime = time.Duration(seconds) * time.Second
 	}
 	return r, nil
+}
+
+// procedureDigest reports whether s is a procedure digest as a finding record
+// carries it: 64 lower-case hex digits with no algorithm prefix, unlike the
+// digest of a route or a bundle.
+func procedureDigest(s string) bool {
+	return len(s) == 64 && strings.Trim(s, "0123456789abcdef") == ""
 }

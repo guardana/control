@@ -23,7 +23,7 @@ func eligibleFacts() (reaction.FindingFacts, reaction.RunFacts) {
 func eligibleRefusals() []error {
 	return []error{
 		reaction.ErrFindingSource, reaction.ErrFindingVerdict, reaction.ErrRunUnknown, reaction.ErrRunTenant,
-		reaction.ErrRunClosed, reaction.ErrRunChild, reaction.ErrRunExpired, reaction.ErrClock,
+		reaction.ErrRunClosed, reaction.ErrRunChild, reaction.ErrRunExpired, reaction.ErrRunExpiry, reaction.ErrClock,
 	}
 }
 
@@ -77,7 +77,10 @@ func TestEligibleRefusesARunItCannotStop(t *testing.T) {
 		{"a child run", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.Root = "run-ffffffffffffffffffffffffffffffff" }, now, reaction.ErrRunChild},
 		{"a run with no root copied", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.Root = "" }, now, reaction.ErrRunChild},
 		{"a run expiring now", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.ExpiresAt = now }, now, reaction.ErrRunExpired},
-		{"a run with no expiry copied", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.ExpiresAt = time.Time{} }, now, reaction.ErrRunExpired},
+		{"a run with no expiry copied", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.ExpiresAt = time.Time{} }, now, reaction.ErrRunExpiry},
+		{"a run expiring past what a record holds", func(_ *reaction.FindingFacts, r *reaction.RunFacts) {
+			r.ExpiresAt = time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
+		}, now, reaction.ErrRunExpiry},
 		{"the zero time", func(*reaction.FindingFacts, *reaction.RunFacts) {}, time.Time{}, reaction.ErrClock},
 		{"a time past what a record holds", func(*reaction.FindingFacts, *reaction.RunFacts) {}, time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC), reaction.ErrClock},
 	} {

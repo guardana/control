@@ -60,7 +60,7 @@ func decodeMarker(raw []byte) (Kind, []string, error) {
 	if !ok || checkKind(Kind(named)) != nil {
 		return "", nil, fmt.Errorf("%w: kind", ErrMalformed)
 	}
-	ids, err := readIDs(members["bundle_ids"], "bundle_ids", MaxBundleIDs, func(id string) error {
+	ids, err := readIDs(members["bundle_ids"], "bundle_ids", MaxBundleIDs, ErrTooManyBundleIDs, func(id string) error {
 		_, err := policy.EmptyFloor(id)
 		return err
 	})
@@ -72,7 +72,8 @@ func decodeMarker(raw []byte) (Kind, []string, error) {
 
 // readIDs reads the list member names: one to most ids, each one check
 // takes, in ascending order with none twice, so one list has one spelling.
-func readIDs(raw json.RawMessage, member string, most int, check func(string) error) ([]string, error) {
+// A list of more than most is refused with tooMany.
+func readIDs(raw json.RawMessage, member string, most int, tooMany Error, check func(string) error) ([]string, error) {
 	var items []json.RawMessage
 	if len(raw) == 0 || raw[0] != '[' || json.Unmarshal(raw, &items) != nil {
 		return nil, fmt.Errorf("%w: %s is not a list", ErrMalformed, member)
@@ -81,7 +82,7 @@ func readIDs(raw json.RawMessage, member string, most int, check func(string) er
 	case len(items) == 0:
 		return nil, fmt.Errorf("%w: %s is empty", ErrMalformed, member)
 	case len(items) > most:
-		return nil, fmt.Errorf("%w: %w: %d", ErrMalformed, ErrTooManyBundleIDs, len(items))
+		return nil, fmt.Errorf("%w: %w: %d", ErrMalformed, tooMany, len(items))
 	}
 	ids := make([]string, 0, len(items))
 	for _, item := range items {

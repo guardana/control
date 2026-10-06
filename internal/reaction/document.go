@@ -11,10 +11,6 @@ import (
 	"github.com/guardana/control/pkg/contract"
 )
 
-// MaxSerial is the largest serial and line number a document may name: the
-// largest integer every JSON reader holds exactly.
-const MaxSerial = 1<<53 - 1
-
 const memberKind = "kind"
 
 // docRefusals is the sentinel a body reader returns for each way the body

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/reaction"
 )
 
@@ -50,7 +51,7 @@ func FuzzParseRoute(f *testing.F) {
 
 func checkAccepted(t *testing.T, raw []byte, r reaction.Route) {
 	t.Helper()
-	if len(raw) > reaction.MaxRouteBytes || r.Serial() < 1 || r.Serial() > reaction.MaxSerial || r.TenantID() == "" ||
+	if len(raw) > reaction.MaxRouteBytes || r.Serial() < 1 || r.Serial() > policy.MaxSerial || r.TenantID() == "" ||
 		len(r.Rules()) == 0 || len(r.Rules()) > reaction.MaxRules {
 		t.Fatalf("accepted a route outside its bounds: %d bytes, serial %d, %d rules", len(raw), r.Serial(), len(r.Rules()))
 	}
@@ -72,7 +73,7 @@ func checkReadBack(t *testing.T, raw []byte, r reaction.Route) {
 
 func checkSignedAndPermits(t *testing.T, r reaction.Route) {
 	t.Helper()
-	if bytes.Equal(r.LiftKey(), pubOf(routeKey())) {
+	if reaction.DistinctKeys(r.LiftKey(), pubOf(routeKey())) != nil {
 		return
 	}
 	env, err := reaction.SignRoute(r, routeKey())

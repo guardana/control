@@ -12,8 +12,13 @@ import (
 	"github.com/guardana/control/internal/reaction"
 )
 
-// procDigest is a procedure digest of the right form.
-const procDigest = "sha256:" + "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+// procDigest is a procedure digest as a finding record spells it: 64
+// lower-case hex digits, no algorithm prefix.
+const procDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+// docDigest is a route's or a statement's digest: "sha256:" and 64 lower-case
+// hex digits.
+const docDigest = "sha256:" + procDigest
 
 // routeTemplate is a route as an operator writes it, with LIFTKEY in place
 // of the lift key's line.

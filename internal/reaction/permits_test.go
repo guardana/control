@@ -31,11 +31,17 @@ func TestPermits(t *testing.T) {
 	if err := r.Permits(claimOf(time.Second)); err != nil {
 		t.Fatalf("a stop of a second: %v", err)
 	}
-	unbounded := claimOf(720*time.Hour + time.Hour)
-	unbounded.RuleID = "STEP_OUT_OF_ORDER"
-	if err := r.Permits(unbounded); err != nil {
-		t.Fatalf("a long stop of a rule with no lifetime: %v", err)
+	// A rule with no lifetime of its own is bounded by the longest a run
+	// lives, 720 hours.
+	noLifetime := claimOf(720 * time.Hour)
+	noLifetime.RuleID = "STEP_OUT_OF_ORDER"
+	if err := r.Permits(noLifetime); err != nil {
+		t.Fatalf("a stop of 720 hours under a rule with no lifetime: %v", err)
 	}
+	noLifetime.ExpiresAt = noLifetime.ExpiresAt.Add(time.Nanosecond)
+	expectOnly(t, "a stop a nanosecond over 720 hours under a rule with no lifetime", r.Permits(noLifetime), reaction.ErrClaimLifetime, permitRefusals())
+	noLifetime.ExpiresAt = time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC)
+	expectOnly(t, "a stop to the end of what a record holds under a rule with no lifetime", r.Permits(noLifetime), reaction.ErrClaimLifetime, permitRefusals())
 	for _, c := range []struct {
 		name string
 		edit func(*reaction.StopClaim)

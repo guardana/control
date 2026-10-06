@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/strictjson"
 )
 
 const (
 	// LiftKind is the one kind a lift may name.
 	LiftKind = "reaction-lift/v1alpha1"
-	// LiftVersion is the version a lift is written with; a reader takes any
-	// version of major 1, and the unknown-member rule refuses what a later
-	// minor adds.
+	// LiftVersion is the one version a lift may name, in this one spelling,
+	// so one lift has one payload and one signature.
 	LiftVersion = "1.0"
 	// MaxLiftBytes bounds a lift's payload.
 	MaxLiftBytes = 4096
@@ -73,7 +73,7 @@ func readLift(body []byte) (Lift, error) {
 	}
 	var l Lift
 	var ok bool
-	if l.Version, ok = strictjson.String(o[memberVersion]); !ok || !strictjson.IsVersion(l.Version, "1") {
+	if l.Version, ok = strictjson.String(o[memberVersion]); !ok || l.Version != LiftVersion {
 		return Lift{}, ErrLiftVersion
 	}
 	if l.ListID, ok = identifier(o[memberListID], MaxListIDBytes); !ok {
@@ -85,7 +85,7 @@ func readLift(body []byte) (Lift, error) {
 	if l.RunID, ok = identifier(o[memberRunID], MaxRunIDBytes); !ok {
 		return Lift{}, fmt.Errorf("%w: %s", ErrLiftValue, memberRunID)
 	}
-	if l.ThroughLine, ok = integer(o[memberThrough], 1, MaxSerial); !ok {
+	if l.ThroughLine, ok = integer(o[memberThrough], 1, policy.MaxSerial); !ok {
 		return Lift{}, ErrLiftLine
 	}
 	canonical, err := canonicalOf(body, ErrLiftJSON)

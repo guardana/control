@@ -75,9 +75,12 @@ const (
 	// ErrExists is Init or InitRoute for an id that has a floor file already.
 	// Neither replaces one, so neither is a second way to lower a floor.
 	ErrExists Error = "policystate: the id has a floor file already"
-	// ErrTooManyBundleIDs is Init of an id past MaxBundleIDs, InitRoute of
-	// one past MaxRouteIDs, or a marker listing more.
-	ErrTooManyBundleIDs Error = "policystate: the directory lists as many ids as it may"
+	// ErrTooManyBundleIDs is Init of an id past MaxBundleIDs, or a marker
+	// listing more.
+	ErrTooManyBundleIDs Error = "policystate: the directory lists as many bundle ids as it may"
+	// ErrTooManyRouteIDs is InitRoute of an id past MaxRouteIDs, or a route
+	// marker listing more.
+	ErrTooManyRouteIDs Error = "policystate: the directory lists as many route ids as it may"
 	// ErrFloorRemoved is Init or InitRoute of an id the marker lists whose
 	// file is gone: making it again would lower the floor with no record, so
 	// only Reset gives a bundle id a floor again, and nothing a route id.

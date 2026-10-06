@@ -37,7 +37,7 @@ func (f RouteFloor) HasSerial() bool { return f.Serial != 0 }
 // holding only what a crash left, a route floor directory. It refuses an id
 // whose file exists with ErrExists and an id listed once whose file is gone
 // with ErrFloorRemoved, so it never lowers a floor; an id past MaxRouteIDs
-// with ErrTooManyBundleIDs; a plane's or a signer's directory with
+// with ErrTooManyRouteIDs; a plane's or a signer's directory with
 // ErrWrongKind; and every directory ReadRoute refuses.
 func InitRoute(ctx context.Context, dir, routeID string) (err error) {
 	body, err := encodeRouteFile(RouteFloor{RouteID: routeID})
@@ -97,7 +97,7 @@ func (d *dir) claimRoute(routeID string) error {
 		return fmt.Errorf("%w: %s", ErrExists, name)
 	}
 	if len(ids) >= MaxRouteIDs {
-		return fmt.Errorf("%w: %d listed", ErrTooManyBundleIDs, len(ids))
+		return fmt.Errorf("%w: %d listed", ErrTooManyRouteIDs, len(ids))
 	}
 	ids = append(ids, routeID)
 	slices.Sort(ids)

@@ -160,7 +160,7 @@ func statementJSONCause(err error) error {
 // statementValues reads the five members' values, each held to its form.
 func statementValues(members strictjson.Object) (Statement, error) {
 	id, ok := strictjson.String(members[memberBundleID])
-	if !ok || !isBundleID(id) {
+	if !ok || !ValidID(id) {
 		return Statement{}, fmt.Errorf("%w: %s", ErrStatementValue, memberBundleID)
 	}
 	serial, err := strconv.ParseInt(string(members[memberSerial]), 10, 64)

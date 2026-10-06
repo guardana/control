@@ -33,8 +33,8 @@ type RunFacts struct {
 // finding is DETERMINISTIC and CONFIRMED, and its run is an opened run of its
 // tenant that is open, no child, and not expired at now. Any other value of
 // either enum, the zero and a number this build does not know among them, is
-// refused, and so is a time that is not usable. A finding's escalation is
-// not read: the route decides.
+// refused, and so is a now or a run expiry that is not a usable time. A
+// finding's escalation is not read: the route decides.
 func Eligible(f FindingFacts, r RunFacts, now time.Time) error {
 	switch {
 	case f.Source != controlv1.FindingSource_FINDING_SOURCE_DETERMINISTIC:
@@ -51,6 +51,8 @@ func Eligible(f FindingFacts, r RunFacts, now time.Time) error {
 		return ErrRunChild
 	case !policy.UsableTime(now):
 		return ErrClock
+	case !policy.UsableTime(r.ExpiresAt):
+		return ErrRunExpiry
 	case !now.Before(r.ExpiresAt):
 		return ErrRunExpired
 	}

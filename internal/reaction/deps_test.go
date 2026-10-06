@@ -13,10 +13,12 @@ import (
 
 // TestReactionReachesNoFindingCode: a plane links this package, and a plane
 // links none of supervision, the findings log, the notifier or the finding
-// contract's package. Each platform's files are listed: an import only a file
-// for another platform carries would escape a listing of this one.
+// contract's package; nor does this package link the runs directory's code,
+// whose bounds it holds as its own. Each platform's files are listed: an
+// import only a file for another platform carries would escape a listing of
+// this one.
 func TestReactionReachesNoFindingCode(t *testing.T) {
-	refused := []string{"/internal/supervise", "/internal/findinglog", "/internal/notify", "/api/gen/go/guardana/control/finding"}
+	refused := []string{"/internal/supervise", "/internal/findinglog", "/internal/notify", "/api/gen/go/guardana/control/finding", "/internal/runs"}
 	for _, goos := range []string{runtime.GOOS, "windows"} {
 		cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", ".")
 		cmd.Env = append(os.Environ(), "GOOS="+goos)

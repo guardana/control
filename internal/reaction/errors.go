@@ -69,5 +69,6 @@ const (
 	ErrRunClosed      Error = "reaction: the finding's run is closed"
 	ErrRunChild       Error = "reaction: the finding's run was opened under another"
 	ErrRunExpired     Error = "reaction: the finding's run is expired at the time given"
+	ErrRunExpiry      Error = "reaction: the finding's run holds no usable expiry"
 	ErrClock          Error = "reaction: the time given is not a usable time"
 )
