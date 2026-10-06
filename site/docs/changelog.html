@@ -109,8 +109,9 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.8.0-alpha...HEAD">Unreleased</a></h2>
 <h3 id="changed">Changed</h3>
 <ul>
-<li>An upstream that answers a call, a read or a prompt with <code>input_required</code> ends
-that call as failed, with a fixed answer the gateway does not relay. The
+<li>An upstream that answers a call, a read or a prompt with <code>input_required</code>, or
+with input requests of any kind, ends that call as failed, with a fixed
+answer the gateway does not relay. The
 library had sent the same call to the upstream again on its own, up to ten
 times, for the one call the plane decided and recorded.</li>
 <li>A second override of the same tool on one upstream is refused at start. The
@@ -136,9 +137,10 @@ for a sink that did not fail: once proposed, a call's records, its hold and
 its consume finish whatever the agent does.</li>
 <li>A call whose opened run the plane cannot read or name is blocked before the
 external decision point is asked about it.</li>
-<li>A rejection the approval store returns is checked as an approval is; one that
-does not check out is recorded as the plane's own expired approval, never as
-decided.</li>
+<li>An approval or a rejection the store returns that does not check out (another
+major, no decision time or one outside the request's window, another id) is
+recorded as the plane's own expired approval, never as decided. An agent that
+cancels before its approval is consumed spends nothing.</li>
 <li><code>guardana-control observe export</code> judges the log as the reader does: a link,
 a file another account owns, one the group or others may reach, or one with
 a second name is refused; it was exported.</li>

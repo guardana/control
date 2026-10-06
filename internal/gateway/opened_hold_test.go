@@ -27,13 +27,16 @@ func ticking(start time.Time) func() time.Time {
 // run, when the clock reads later at every step, as it does on a live plane.
 func TestACallUnderAnOpenedRunIsHeldOnAClockThatMoves(t *testing.T) {
 	runs := newRuns("root-1")
-	h := build(t, modeEnforce, snapshot(t, approveRefunds), withRuns(runs), func(c *gateway.Config) { c.Clock = ticking(base()) })
+	clock := ticking(base())
+	h := build(t, modeEnforce, snapshot(t, approveRefunds), withRuns(runs), func(c *gateway.Config) { c.Clock = clock })
 	run := opened("run-a", "root-1")
 	first := h.admitA(under(admission(refundEnvelope(t, refundArgs()), refundArgs()), run))
 	if first.Action != core.AwaitApproval || first.Pending == nil {
 		t.Fatalf("the refund under an opened run: Action = %d, %s %v; want it held", first.Action, first.Decision.GetVerdict(), first.Decision.GetReasonCodes())
 	}
-	if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
+	// Answered at a reading of the same clock, after the hold and before the
+	// retry, as an approver answers on a live plane.
+	if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", clock()); err != nil {
 		t.Fatalf("answering the approval: %v", err)
 	}
 	again := h.admitA(under(admission(retry(t, first.Decision.GetRequestId()), refundArgs()), run))

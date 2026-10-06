@@ -250,3 +250,57 @@ func TestAnAgentsCancelAfterTheConsumeStillStartsTheCall(t *testing.T) {
 	}
 	expectNoSinkFailure(t, h)
 }
+
+// TestAnAgentsCancelBeforeTheConsumeSpendsNothing: an agent that gives up on
+// the retry of an approved hold before its approval is spent, at the
+// admission or while the store is asked, has that call blocked on a whole
+// trail of its own with nothing spent: the hold stands, nothing is counted as
+// the sink's failure, and the agent's next retry runs on the approval.
+func TestAnAgentsCancelBeforeTheConsumeSpendsNothing(t *testing.T) {
+	for _, when := range []string{"before the admission", "while the store is asked"} {
+		t.Run(when, func(t *testing.T) {
+			f := newFakeStore()
+			h := withStore(t, f)
+			holdApproved(t, h, f)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if when == "before the admission" {
+				cancel()
+			} else {
+				f.found = func(*controlv1.Approval) { cancel() }
+			}
+			d := h.p.Admit(ctx, admission(retry(t, "req-2"), refundArgs()))
+			f.found = nil
+			if d.Action != core.Block || d.ExecutionID != "" {
+				t.Errorf("the cancelled retry: Action = %d under execution %q, want a block with nothing handed out", d.Action, d.ExecutionID)
+			}
+			expectKinds(t, kindsOf(h.trailOf("req-2")), []controlv1.EventKind{kindProposed, kindDecided, kindBlocked})
+			expectKinds(t, kindsOf(h.trailOf("req-1")), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested})
+			expectNoSinkFailure(t, h)
+			if again := h.admit(retry(t, "req-3"), refundArgs()); again.Action != core.Execute && again.Action != core.ExecuteWithObligations {
+				t.Errorf("the next retry: %s %v, want it run on the approval nothing spent", again.Decision.GetVerdict(), again.Decision.GetReasonCodes())
+			}
+		})
+	}
+}
+
+// TestAnAgentsCancelBeforeTheStartHandsNothingOut: a call whose agent gave up
+// before its execution was handed out is blocked on a whole trail, with
+// nothing started and nothing counted as the sink's failure.
+func TestAnAgentsCancelBeforeTheStartHandsNothingOut(t *testing.T) {
+	h := build(t, modeEnforce, snapshot(t, allowWrites))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	d := h.p.Admit(ctx, admission(writeEnvelope(), []byte(`{"k":1}`)))
+	if d.Action != core.Block || d.ExecutionID != "" {
+		t.Errorf("the cancelled call: Action = %d under execution %q, want a block with nothing handed out", d.Action, d.ExecutionID)
+	}
+	expectKinds(t, h.kinds(), []controlv1.EventKind{kindProposed, kindDecided, kindBlocked})
+	if err := evidence.ValidateChain(h.events()); err != nil {
+		t.Errorf("ValidateChain: %v", err)
+	}
+	expectNoSinkFailure(t, h)
+	if s := h.p.Stats(); s.Executed != 0 || s.Open != 0 {
+		t.Errorf("Stats: %d executed, %d open; want nothing", s.Executed, s.Open)
+	}
+}

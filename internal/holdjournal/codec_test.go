@@ -150,8 +150,7 @@ func TestTheDecoderTellsItsRefusalsApart(t *testing.T) {
 		"a member in capitals": {
 			withBody(bytes.Replace(body, []byte(`"state":"held"`), []byte(`"STATE":"held"`), 1)), ErrUnknownField,
 		},
-		// The expiry is one spelling of one instant, the one the encoder
-		// writes, so two journals holding one entry hold the same bytes.
+		// The expiry is read in one spelling, the one the encoder writes.
 		"an expiry with a numeric zone": {
 			withBody(bytes.Replace(body, []byte(`"expires":"2026-03-01T12:15:00Z"`), []byte(`"expires":"2026-03-01T12:15:00+00:00"`), 1)), ErrMalformed,
 		},
@@ -167,12 +166,21 @@ func TestTheDecoderTellsItsRefusalsApart(t *testing.T) {
 		"an approval naming another request": {
 			withBody(bytes.Replace(body, []byte(`"requestId":"req-1"`), []byte(`"requestId":"req-2"`), 1)), ErrEntry,
 		},
+		"an approval in a state nobody knows": {
+			withBody(bytes.Replace(body, []byte(`"state":"APPROVAL_STATE_PENDING"`), []byte(`"state":99`), 1)), ErrMalformed,
+		},
 		"a request id that cannot name a file": {
 			withBody(bytes.Replace(body, []byte(`"request_id":"req-1"`), []byte(`"request_id":""`), 1)), ErrRequestName,
 		},
 		"no position on the trail": {
 			withBody(bytes.Replace(body, []byte(`"last_event_id":"evt-1"`), []byte(`"last_event_id":""`), 1)), ErrEntry,
 		},
+	}
+	for _, v := range []string{"1.", "1.x", "1.0.0", "1.-3", "1.+3", "01.0", " 1.0"} {
+		cases["the version "+v] = struct {
+			data []byte
+			want Error
+		}{withBody(bytes.Replace(body, []byte(`"schema_version":"1.0"`), []byte(`"schema_version":"`+v+`"`), 1)), ErrSchemaVersion}
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

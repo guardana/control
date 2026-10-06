@@ -178,6 +178,12 @@ func TestRecordRefusesWhatAClosingWouldNeed(t *testing.T) {
 		},
 		"an entry that is not held": {func(e *holdjournal.Entry) { e.State = holdjournal.StateResuming }, holdjournal.ErrEntry},
 	}
+	for _, v := range []string{"1.", "1.x", "1.0.0", "1.-3", "1.+3", "01.0"} {
+		cases["the schema version "+v] = struct {
+			damage func(*holdjournal.Entry)
+			want   error
+		}{func(e *holdjournal.Entry) { e.SchemaVersion = v }, holdjournal.ErrSchemaVersion}
+	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			j := openJournal(t, newDir(t))

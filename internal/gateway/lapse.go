@@ -11,7 +11,8 @@ import (
 
 // refusedBeforeStart decides the block of an execution that may not start: a
 // pause taken just now covers it or cannot vouch for it, its approval expired,
-// or its opened run did. A spent approval stays spent: it was consumed, and a
+// its opened run did, or the agent of a call that resumes nothing gave up on
+// it. A spent approval stays spent: it was consumed, and a
 // spent approval is never handed back to be used again.
 func (c *call) refusedBeforeStart() bool {
 	switch {
@@ -19,6 +20,10 @@ func (c *call) refusedBeforeStart() bool {
 	case c.held && lapsedBy(c.now, c.floor, c.approvalExpires):
 		c.decide(verdictDeny, codeApprovalExpired)
 	case c.runLapsed():
+		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
+	case !c.held && c.agentGone():
+		// A resumed call spent its approval already; it is handed out, and
+		// the adapter aborts what it cannot send.
 		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
 	default:
 		return false

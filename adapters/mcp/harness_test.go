@@ -214,6 +214,9 @@ type fakePipeline struct {
 	probe    func() int
 	closeErr error
 	abortErr error
+	// onAdmit, when set, is handed the context of every Admit before the fake
+	// answers it.
+	onAdmit func(context.Context)
 
 	mu         sync.Mutex
 	admissions []admitted
@@ -221,7 +224,10 @@ type fakePipeline struct {
 	aborts     []aborted
 }
 
-func (f *fakePipeline) Admit(_ context.Context, a gateway.Admission) gateway.Disposition {
+func (f *fakePipeline) Admit(ctx context.Context, a gateway.Admission) gateway.Disposition {
+	if f.onAdmit != nil {
+		f.onAdmit(ctx)
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	calls := 0
@@ -378,6 +384,10 @@ type rigOptions struct {
 	// logger takes the adapter's log, which a nil one discards.
 	secrets *secretscan.Set
 	logger  *slog.Logger
+	// rewrite, on stdio, edits the members of every result the upstream
+	// answers before the adapter reads it, as an upstream speaking for
+	// itself on the wire would write them.
+	rewrite func(map[string]json.RawMessage)
 }
 
 // identity is what an unauthenticated listener calls for. An authenticated
@@ -530,6 +540,9 @@ func newRigOver(t *testing.T, v *victim, kind mcp.Kind, o rigOptions) *rig {
 		}
 		t.Cleanup(func() { _ = ss.Close() })
 		upstream = ct
+		if o.rewrite != nil {
+			upstream = rewritingTransport{Transport: ct, rewrite: o.rewrite}
+		}
 	}
 	a := newAdapter(t, r.victim, kind, upstream, o)
 	pipeline := r.plan(t, a, o)

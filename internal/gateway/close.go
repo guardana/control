@@ -119,6 +119,10 @@ const (
 	// protocol from the authorized bytes, because a field it needs is not
 	// one the protocol carries; nothing was sent.
 	AbortUntranslatable
+	// AbortCancelled is a call its agent gave up on before the adapter sent
+	// it; nothing was sent. No registry code names a cancel, so it is
+	// recorded as the plane's own failure to proceed.
+	AbortCancelled
 )
 
 // code is the registry code a cause is recorded as.
@@ -132,6 +136,8 @@ func (c AbortCause) code() (string, bool) {
 		return codeActionUnclassified, true
 	case AbortUntranslatable:
 		return codeInvalidFieldValue, true
+	case AbortCancelled:
+		return codeEvidenceUnavailable, true
 	}
 	return "", false
 }

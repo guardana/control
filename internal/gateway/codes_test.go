@@ -48,6 +48,7 @@ var abortCodes = map[gateway.AbortCause]string{
 	gateway.AbortObligation:     codeObligationNotUnderstood,
 	gateway.AbortUnroutable:     codeActionUnclassified,
 	gateway.AbortUntranslatable: codeInvalidFieldValue,
+	gateway.AbortCancelled:      codeEvidenceUnavailable,
 }
 
 // TestEveryAbortCauseIsRecordedAsItsRegisteredCode: each declared cause

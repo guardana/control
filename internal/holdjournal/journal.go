@@ -84,7 +84,7 @@ type journalMarker struct {
 
 const markerKind = "hold_journal"
 
-var markerKeys = map[string]bool{"schema_version": true, "kind": true}
+var markerKeys = []string{"schema_version", "kind"}
 
 // ownerWanted is the account info has to belong to: this process's, for the
 // directory and for every entry alike.
@@ -277,7 +277,7 @@ func (j *Journal) readMarker() error {
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrNotAJournal, err)
 	}
-	if err := checkMembers(raw, markerKeys); err != nil {
+	if err := checkMembers(raw, markerKeys...); err != nil {
 		return fmt.Errorf("%w: the marker: %w", ErrNotAJournal, err)
 	}
 	var m journalMarker

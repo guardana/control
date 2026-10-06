@@ -1,6 +1,7 @@
 // Package strictjson reads one JSON object whose members are known by their
 // exact names, each named once, for the small formats whose every member is
-// required and whose decoding must not keep the last of two.
+// required and whose decoding must not keep the last of two, and checks the
+// version such a format names.
 package strictjson
 
 import (
@@ -9,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 )
 
 // Error is a refusal by this package, matched with errors.Is.
@@ -102,4 +105,19 @@ func String(raw json.RawMessage) (string, bool) {
 		return "", false
 	}
 	return s, true
+}
+
+// IsVersion reports whether v is MAJOR.MINOR under major, as the wire
+// contracts spell a version: two parts, each decimal digits within 32 bits
+// with no sign, the first spelled exactly as major.
+func IsVersion(v, major string) bool {
+	m, minor, ok := strings.Cut(v, ".")
+	return ok && m == major && isDecimal(m) && isDecimal(minor)
+}
+
+// isDecimal is ParseUint at base 10, which takes no sign, no underscore and no
+// empty string.
+func isDecimal(s string) bool {
+	_, err := strconv.ParseUint(s, 10, 32)
+	return err == nil
 }

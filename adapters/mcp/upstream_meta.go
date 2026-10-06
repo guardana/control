@@ -8,21 +8,25 @@ import (
 
 // upstreamResult is an upstream answer as the agent sees it: without the
 // _meta keys under the gateway's namespace, which only the gateway speaks
-// for, on the result and on every block and resource it carries. It runs
-// after the answer was encoded for the record, so the hash stays the
-// upstream's.
+// for, on the result and on every block and resource it carries, and without
+// input requests or a request state, which would have the agent's client
+// answer the upstream and send the call again. It runs after the answer was
+// encoded for the record, so the hash stays the upstream's.
 func upstreamResult(res mcp.Result) mcp.Result {
 	switch r := res.(type) {
 	case *mcp.CallToolResult:
 		r.Meta = stripMeta(r.Meta)
+		r.InputRequests, r.RequestState = nil, ""
 		stripContents(r.Content)
 	case *mcp.ReadResourceResult:
 		r.Meta = stripMeta(r.Meta)
+		r.InputRequests, r.RequestState = nil, ""
 		for _, c := range r.Contents {
 			stripResource(c)
 		}
 	case *mcp.GetPromptResult:
 		r.Meta = stripMeta(r.Meta)
+		r.InputRequests, r.RequestState = nil, ""
 		for _, m := range r.Messages {
 			if m != nil {
 				stripContent(m.Content)
@@ -85,4 +89,38 @@ func stripResource(r *mcp.ResourceContents) {
 	if r != nil {
 		r.Meta = stripMeta(r.Meta)
 	}
+}
+
+// errInputRequired ends a call whose upstream asked for input. The requests
+// are not relayed, since nothing decides what an upstream asks of the agent,
+// and the call is not sent again, since the plane admitted one.
+const errInputRequired Error = "the upstream asked for input this gateway does not relay"
+
+// complete is an upstream's answer to a call, a read or a prompt, with an
+// answer that asks for input turned into errInputRequired.
+func complete(res mcp.Result, err error) (mcp.Result, error) {
+	if err == nil && needsInput(res) {
+		return nil, errInputRequired
+	}
+	return res, err
+}
+
+// needsInput reports whether res is a call's, a read's or a prompt's answer
+// that asks for input. An agent's client acts on input requests whatever
+// resultType says, and a request state is only ever echoed in a retry, so
+// either one asks, as input_required does.
+func needsInput(res mcp.Result) bool {
+	switch r := res.(type) {
+	case *mcp.CallToolResult:
+		return r != nil && asks(r.InputRequests, r.RequestState, r.NeedsInput())
+	case *mcp.ReadResourceResult:
+		return r != nil && asks(r.InputRequests, r.RequestState, r.NeedsInput())
+	case *mcp.GetPromptResult:
+		return r != nil && asks(r.InputRequests, r.RequestState, r.NeedsInput())
+	}
+	return false
+}
+
+func asks(requests mcp.InputRequestMap, state string, marked bool) bool {
+	return requests != nil || state != "" || marked
 }

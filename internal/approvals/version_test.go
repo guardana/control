@@ -13,7 +13,7 @@ import (
 // is a contract version like the record's, and a major this build does not
 // read is refused rather than held as if it were understood.
 func TestAnApprovalFromAnotherMajorIsNotHeld(t *testing.T) {
-	for _, v := range []string{"9.0", "2.0", ""} {
+	for _, v := range []string{"9.0", "2.0", "", "1.", "1.x", "1.0.0", "1.-3", "1.+3", "01.0"} {
 		p, dir := openPlane(t)
 		h := held(t, firstApproval, "req-1")
 		h.Approval.SchemaVersion = v

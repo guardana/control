@@ -12,6 +12,7 @@ import (
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/core/approval"
 	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/internal/policy/strictjson"
 )
 
 // resume is a retry of one of matches, oldest first. The fresh decision is a
@@ -73,6 +74,12 @@ func (c *call) try(own *heldRequest, binding approval.Binding, r *resumption) (D
 		c.decide(verdictDeny, codeApprovalExpired)
 		return c.freshBlock(), true
 	}
+	if c.agentGone() {
+		// Nothing is spent for an agent that left: the hold stands for a
+		// retry it may still send.
+		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
+		return c.freshBlock(), true
+	}
 	a, err := c.p.cfg.Approvals.Consume(c.ctx, binding,
 		own.approval.GetRequestId(), own.approval.GetApprovalId(), c.now)
 	var d Disposition
@@ -125,13 +132,19 @@ func sameDecision(held, fresh *controlv1.Decision) bool {
 // decision that trail recorded. The approval is consumed before the record is
 // written, because two retries must not both write it; a record the sink
 // refuses then blocks with the approval spent.
+//
+// The plane never trusts the store's answer. One that is not the held approval
+// field by field closes the window with the plane's own approval, expired, as
+// a rejection does; only the held approval answered otherwise than approved
+// is written as decided.
 func (c *call) resumeApproved(own *heldRequest, a *controlv1.Approval) Disposition {
-	if verdict, code, refused := c.checkApproval(own, a); refused {
-		event := expiredEvent(own.approval)
-		if a != nil && code != codeApprovalExpired {
-			event = decidedEvent(a)
-		}
-		return c.resumeBlocked(own, verdict, code, event)
+	if verdict, code, refused := approvalFields(own.approval, a, own.expires, c.now); refused {
+		return c.resumeBlocked(own, verdict, code, expiredEvent(own.approval))
+	}
+	if a.GetState() != approvalApproved || a.GetApproverId() == "" {
+		// The held approval in every field the plane checks, answered
+		// otherwise than approved: that answer is what the trail records.
+		return c.resumeBlocked(own, verdictIndeterminate, codeEvidenceUnavailable, decidedEvent(a))
 	}
 	trail, err := c.resumedTrail(own)
 	if err != nil {
@@ -167,19 +180,6 @@ func (c *call) resumeApproved(own *heldRequest, a *controlv1.Approval) Dispositi
 	return c.start(trail)
 }
 
-// checkApproval refuses an approval the store handed out that is not the held
-// one, approved, unexpired and single-use: the plane never trusts the store's
-// answer, so every field is compared with the pipeline's own record of the
-// hold, whose digests are this call's decision's because the resume got that
-// far. An expiry later than the one the plane minted is not the record it
-// minted. It returns the verdict and code of the block.
-func (c *call) checkApproval(own *heldRequest, a *controlv1.Approval) (controlv1.Verdict, string, bool) {
-	if a == nil || a.GetState() != approvalApproved || a.GetApproverId() == "" {
-		return verdictIndeterminate, codeEvidenceUnavailable, true
-	}
-	return approvalFields(own.approval, a, own.expires, c.now)
-}
-
 // resumeRejected closes the held trail on the rejection the store answered,
 // checked as an approval is. Only a record that is the held approval, and
 // rejected, is written as APPROVAL_DECIDED; any other answer is one the plane
@@ -198,14 +198,14 @@ func (c *call) resumeRejected(own *heldRequest, a *controlv1.Approval) Dispositi
 // by field, and is the whole of what the plane trusts about a store: the same
 // checks a resume makes are the ones a reconciliation makes about a hold
 // nobody is retrying. An answer of a major this build does not read, or
-// decided after now, is not one the plane can place on its trail. It leaves
-// the answer's state to its caller, because a refusal is an answer where a
-// resume needs an approval.
+// decided outside the window between the request and now, is not one the
+// plane can place on its trail. It leaves the answer's state to its caller,
+// because a refusal is an answer where a resume needs an approval.
 func approvalFields(want, a *controlv1.Approval, expires, now time.Time) (controlv1.Verdict, string, bool) {
 	switch {
 	case a == nil, !readsApprovalVersion(a.GetSchemaVersion()),
 		a.GetApprovalId() != want.GetApprovalId(), a.GetRequestId() != want.GetRequestId(), a.GetMultiUse(),
-		a.GetDecidedAt() != nil && a.GetDecidedAt().AsTime().After(now):
+		!decidedWithin(a, want.GetRequestedAt().AsTime(), now):
 		return verdictIndeterminate, codeEvidenceUnavailable, true
 	case a.GetActionDigest() != want.GetActionDigest():
 		return verdictDeny, codeApprovalDigestMismatch, true
@@ -219,12 +219,23 @@ func approvalFields(want, a *controlv1.Approval, expires, now time.Time) (contro
 	return 0, "", false
 }
 
+// decidedWithin reports whether a was decided at or after requested and not
+// after now. Only an answer nobody gave, still pending or expired, carries no
+// decision time.
+func decidedWithin(a *controlv1.Approval, requested, now time.Time) bool {
+	decided := a.GetDecidedAt()
+	if decided == nil {
+		return a.GetState() == approvalPending || a.GetState() == approvalExpired
+	}
+	at := decided.AsTime()
+	return !at.Before(requested) && !at.After(now)
+}
+
 // readsApprovalVersion reports whether v is MAJOR.MINOR under the major this
 // build mints.
 func readsApprovalVersion(v string) bool {
-	major, _, ok := strings.Cut(v, ".")
 	want, _, _ := strings.Cut(approvalSchemaVersion, ".")
-	return ok && major == want
+	return strictjson.IsVersion(v, want)
 }
 
 func expiredEvent(a *controlv1.Approval) func(*evidence.Builder) *controlv1.Event {

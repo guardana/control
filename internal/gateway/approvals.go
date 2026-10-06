@@ -100,12 +100,12 @@ type ApprovalStore interface {
 	// answers ErrZeroTime for a zero now, ErrNoApproval when the request is
 	// not held under the binding or its approval is not yet approved,
 	// ErrApprovalConsumed when an earlier execution used it, ErrMultiUse for
-	// a record marked multi-use,
-	// ErrApprovalExpired when now is at or past its expiry, and
-	// ErrApprovalRejected beside the record it read when an approver refused
-	// it. An expired or rejected record is dropped. A consumed approval stays
-	// consumed when the upstream call then fails. The caller checks what it
-	// returns and trusts none of it.
+	// a record marked multi-use, ErrApprovalExpired when now is at or past its
+	// expiry, and ErrApprovalRejected beside the record it read when an
+	// approver refused it. An answer dated before the request or after now is
+	// never consumed. An expired or rejected record is dropped. A consumed
+	// approval stays consumed when the upstream call then fails. The caller
+	// checks what it returns and trusts none of it.
 	Consume(ctx context.Context, binding approval.Binding, requestID, approvalID string, now time.Time) (*controlv1.Approval, error)
 	// Resolve records that the request held as requestID under binding will
 	// not be resumed: nothing spent its approval and nothing will, so a later
@@ -188,7 +188,9 @@ func (m *MemoryApprovals) Find(ctx context.Context, binding approval.Binding, no
 }
 
 // Consume is the compare-and-swap: under the lock, the approved and unconsumed
-// record the plane minted becomes consumed, and nothing else changes it.
+// record the plane minted becomes consumed, and nothing else changes it. An
+// answer dated outside its window answers ErrNoApproval, as the directory
+// store answers one dated after now.
 func (m *MemoryApprovals) Consume(ctx context.Context, binding approval.Binding, requestID, approvalID string, now time.Time) (*controlv1.Approval, error) {
 	if now.IsZero() {
 		return nil, ErrZeroTime
@@ -211,9 +213,11 @@ func (m *MemoryApprovals) Consume(ctx context.Context, binding approval.Binding,
 		return nil, ErrNoApproval
 	case a.GetMultiUse():
 		return nil, ErrMultiUse
-	case a.GetExpiresAt() == nil || !now.Before(a.GetExpiresAt().AsTime()):
+	case !unexpired(a, now):
 		m.drop(binding, requestID)
 		return nil, ErrApprovalExpired
+	case !decidedWithin(a, a.GetRequestedAt().AsTime(), now):
+		return nil, ErrNoApproval
 	case a.GetState() == controlv1.ApprovalState_APPROVAL_STATE_REJECTED:
 		m.drop(binding, requestID)
 		return proto.CloneOf(a), ErrApprovalRejected
@@ -308,10 +312,13 @@ func (m *MemoryApprovals) drop(binding approval.Binding, requestID string) {
 // dropExpired forgets every record under binding whose approval is expired at
 // now. mu is held.
 func (m *MemoryApprovals) dropExpired(binding approval.Binding, now time.Time) {
-	m.keep(binding, func(r *heldRecord) bool {
-		expires := r.held.Approval.GetExpiresAt()
-		return expires != nil && now.Before(expires.AsTime())
-	})
+	m.keep(binding, func(r *heldRecord) bool { return unexpired(r.held.Approval, now) })
+}
+
+// unexpired reports whether a expires after now. An approval with no expiry
+// has expired: a record that never expires is one no bound reaches.
+func unexpired(a *controlv1.Approval, now time.Time) bool {
+	return a.GetExpiresAt() != nil && now.Before(a.GetExpiresAt().AsTime())
 }
 
 // keep leaves the records under binding that want keeps. mu is held.

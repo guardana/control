@@ -13,8 +13,9 @@ verify one.
 
 ### Changed
 
-- An upstream that answers a call, a read or a prompt with `input_required` ends
-  that call as failed, with a fixed answer the gateway does not relay. The
+- An upstream that answers a call, a read or a prompt with `input_required`, or
+  with input requests of any kind, ends that call as failed, with a fixed
+  answer the gateway does not relay. The
   library had sent the same call to the upstream again on its own, up to ten
   times, for the one call the plane decided and recorded.
 - A second override of the same tool on one upstream is refused at start. The
@@ -40,9 +41,10 @@ verify one.
   its consume finish whatever the agent does.
 - A call whose opened run the plane cannot read or name is blocked before the
   external decision point is asked about it.
-- A rejection the approval store returns is checked as an approval is; one that
-  does not check out is recorded as the plane's own expired approval, never as
-  decided.
+- An approval or a rejection the store returns that does not check out (another
+  major, no decision time or one outside the request's window, another id) is
+  recorded as the plane's own expired approval, never as decided. An agent that
+  cancels before its approval is consumed spends nothing.
 - `guardana-control observe export` judges the log as the reader does: a link,
   a file another account owns, one the group or others may reach, or one with
   a second name is refused; it was exported.

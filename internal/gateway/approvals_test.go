@@ -183,6 +183,42 @@ func TestConsumeInEveryState(t *testing.T) {
 	})
 }
 
+// TestConsumeSpendsNoAnswerOutsideItsWindow: an approval answered before it
+// was requested, at the zero time or after the clock handed in is not spent,
+// and stays where it was for a reading that can spend it.
+func TestConsumeSpendsNoAnswerOutsideItsWindow(t *testing.T) {
+	binding := approval.Binding("sha256:0")
+	var store gateway.MemoryApprovals
+	for _, tc := range []struct {
+		approvalID, requestID string
+		decided               time.Time
+	}{
+		{"a-7", "req-7", base().Add(-time.Nanosecond)},
+		{"a-8", "req-8", time.Time{}},
+		{"a-9", "req-9", base().Add(time.Nanosecond)},
+	} {
+		h := held(binding, tc.approvalID, tc.requestID)
+		h.Approval.RequestedAt = timestamppb.New(base())
+		mustHold(t, &store, h)
+		if err := store.Answer(tc.approvalID, approved, "alice", "", tc.decided); err != nil {
+			t.Fatalf("Answer: %v", err)
+		}
+		expectConsume(t, &store, binding, tc.requestID, tc.approvalID, base(), gateway.ErrNoApproval)
+	}
+	// Nothing was spent: the answer decided after the first reading is
+	// spent at a reading after it.
+	expectConsume(t, &store, binding, "req-9", "a-9", base().Add(time.Nanosecond), nil)
+	helds, err := store.Find(ctx(), binding, base())
+	if err != nil || len(helds) != 3 {
+		t.Fatalf("Find = %d record(s), %v; want the three held", len(helds), err)
+	}
+	for _, h := range helds {
+		if id := h.Approval.GetApprovalId(); id != "a-9" && h.Resolution != gateway.ResolutionPending {
+			t.Errorf("the record of %s was refused and stands %d, want pending", id, h.Resolution)
+		}
+	}
+}
+
 // TestConsumeSpendsOnlyTheApprovalTheCallerMinted: a record kept under the
 // right binding and request id, carrying an approval id the caller never
 // minted, is not the caller's to spend. It is refused and left where it was,

@@ -17,6 +17,7 @@ import (
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/canon"
 	"github.com/guardana/control/internal/core/approval"
+	"github.com/guardana/control/internal/policy/strictjson"
 )
 
 // SchemaVersion is the version this build writes. A record whose major
@@ -123,10 +124,7 @@ type wireRecord struct {
 	Approval      json.RawMessage `json:"approval"`
 }
 
-var wireKeys = map[string]bool{
-	"schema_version": true, "approval_id": true, "request_id": true,
-	"binding": true, "resolution": true, "approval": true,
-}
+var wireKeys = []string{"schema_version", "approval_id", "request_id", "binding", "resolution", "approval"}
 
 // check holds a record to what it claims about itself, in either direction. A
 // record that disagrees with itself is refused rather than read as if one half
@@ -187,8 +185,7 @@ func (r Record) checkIdentity() error {
 // what decides: a later minor may add a field, and the unknown-field rule
 // refuses that record too, so nothing is dropped in silence.
 func checkSchemaVersion(v string) error {
-	major, _, ok := strings.Cut(v, ".")
-	if !ok || major != "1" {
+	if !strictjson.IsVersion(v, "1") {
 		return fmt.Errorf("%w: %q", ErrSchemaVersion, cause(v))
 	}
 	return nil
@@ -240,7 +237,7 @@ func decodeRecord(data []byte, maxBody int, maxWindow time.Duration) (Record, er
 	if err != nil {
 		return Record{}, err
 	}
-	if err := checkMembers(body, wireKeys); err != nil {
+	if err := checkMembers(body, wireKeys...); err != nil {
 		return Record{}, err
 	}
 	var w wireRecord
@@ -284,35 +281,16 @@ func decodeRecord(data []byte, maxBody int, maxWindow time.Duration) (Record, er
 // member outside known, spelled in another case, or named twice:
 // encoding/json folds case and keeps the last of two, so a reader that did
 // neither would read another record from the same bytes.
-func checkMembers(body []byte, known map[string]bool) error {
-	var keys map[string]json.RawMessage
-	if err := json.Unmarshal(body, &keys); err != nil {
-		return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
+func checkMembers(body []byte, known ...string) error {
+	members, err := strictjson.ReadObject(body)
+	switch {
+	case errors.Is(err, strictjson.ErrRepeated):
+		return fmt.Errorf("%w: a member appears twice", ErrMalformed)
+	case err != nil:
+		return fmt.Errorf("%w: the body is not one JSON object", ErrMalformed)
 	}
-	dec := json.NewDecoder(bytes.NewReader(body))
-	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
-		return fmt.Errorf("%w: the body is not a JSON object", ErrMalformed)
-	}
-	seen := make(map[string]bool, len(known))
-	for dec.More() {
-		tok, err := dec.Token()
-		if err != nil {
-			return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
-		}
-		key, ok := tok.(string)
-		switch {
-		case !ok:
-			return fmt.Errorf("%w: a member name that is not a string", ErrMalformed)
-		case !known[key]:
-			return fmt.Errorf("%w: %q", ErrUnknownField, cause(key))
-		case seen[key]:
-			return fmt.Errorf("%w: %q appears twice", ErrMalformed, cause(key))
-		}
-		seen[key] = true
-		var skip json.RawMessage
-		if err := dec.Decode(&skip); err != nil {
-			return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
-		}
+	if err := members.Only(known...); err != nil {
+		return fmt.Errorf("%w: a member this build cannot name", ErrUnknownField)
 	}
 	return nil
 }

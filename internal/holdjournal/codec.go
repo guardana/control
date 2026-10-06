@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -15,6 +14,7 @@ import (
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/core/approval"
 	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/internal/policy/strictjson"
 )
 
 // An entry on disk is a header and one JSON object:
@@ -52,10 +52,9 @@ type wireEntry struct {
 	Expires       string          `json:"expires"`
 }
 
-var wireKeys = map[string]bool{
-	"schema_version": true, "state": true, "request_id": true, "run_id": true,
-	"project_id": true, "tenant_id": true, "last_event_id": true,
-	"binding": true, "approval": true, "expires": true,
+var wireKeys = []string{
+	"schema_version", "state", "request_id", "run_id", "project_id", "tenant_id",
+	"last_event_id", "binding", "approval", "expires",
 }
 
 // parseState reads what an entry spells. "unknown" is refused on the way in:
@@ -73,8 +72,7 @@ func parseState(s string) (State, error) {
 // what decides: a later minor may add a field, and the unknown-field rule
 // refuses that entry too, so nothing is dropped in silence.
 func checkSchemaVersion(v string) error {
-	major, _, ok := strings.Cut(v, ".")
-	if !ok || major != "1" {
+	if !strictjson.IsVersion(v, "1") {
 		return fmt.Errorf("%w: %q", ErrSchemaVersion, cause(v))
 	}
 	return nil
@@ -177,8 +175,7 @@ func decodeEntry(data []byte, maxBody int) (Entry, error) {
 	if err != nil {
 		return Entry{}, fmt.Errorf("%w: the expiry: %s", ErrMalformed, cause(err.Error()))
 	}
-	// One instant has one spelling here, the encoder's, so one entry is one
-	// sequence of bytes whoever wrote it.
+	// The expiry is read in one spelling, the encoder's.
 	if expires.UTC().Format(time.RFC3339Nano) != w.Expires {
 		return Entry{}, fmt.Errorf("%w: the expiry %q is not spelled as this build writes it", ErrMalformed, cause(w.Expires))
 	}
@@ -187,6 +184,10 @@ func decodeEntry(data []byte, maxBody int) (Entry, error) {
 	// here too, rather than dropped on the way in.
 	if err := (protojson.UnmarshalOptions{}).Unmarshal(w.Approval, a); err != nil {
 		return Entry{}, fmt.Errorf("%w: the approval: %s", ErrMalformed, cause(err.Error()))
+	}
+	// protojson reads an enum number this build does not name as that number.
+	if _, named := controlv1.ApprovalState_name[int32(a.GetState())]; !named {
+		return Entry{}, fmt.Errorf("%w: the approval's state %d is not one this build names", ErrMalformed, a.GetState())
 	}
 	e := Entry{
 		SchemaVersion: w.SchemaVersion,
@@ -209,7 +210,7 @@ func decodeEntry(data []byte, maxBody int) (Entry, error) {
 // readWire reads the body's one object and refuses a key this build cannot
 // name, or one named twice, before it reads any value.
 func readWire(body []byte) (wireEntry, error) {
-	if err := checkMembers(body, wireKeys); err != nil {
+	if err := checkMembers(body, wireKeys...); err != nil {
 		return wireEntry{}, err
 	}
 	var w wireEntry
@@ -227,35 +228,16 @@ func readWire(body []byte) (wireEntry, error) {
 // member outside known, spelled in another case, or named twice:
 // encoding/json folds case and keeps the last of two, so a reader that did
 // neither would read another entry from the same bytes.
-func checkMembers(body []byte, known map[string]bool) error {
-	var keys map[string]json.RawMessage
-	if err := json.Unmarshal(body, &keys); err != nil {
-		return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
+func checkMembers(body []byte, known ...string) error {
+	members, err := strictjson.ReadObject(body)
+	switch {
+	case errors.Is(err, strictjson.ErrRepeated):
+		return fmt.Errorf("%w: a member appears twice", ErrMalformed)
+	case err != nil:
+		return fmt.Errorf("%w: the body is not one JSON object", ErrMalformed)
 	}
-	dec := json.NewDecoder(bytes.NewReader(body))
-	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
-		return fmt.Errorf("%w: the body is not a JSON object", ErrMalformed)
-	}
-	seen := make(map[string]bool, len(known))
-	for dec.More() {
-		tok, err := dec.Token()
-		if err != nil {
-			return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
-		}
-		key, ok := tok.(string)
-		switch {
-		case !ok:
-			return fmt.Errorf("%w: a member name that is not a string", ErrMalformed)
-		case !known[key]:
-			return fmt.Errorf("%w: %q", ErrUnknownField, cause(key))
-		case seen[key]:
-			return fmt.Errorf("%w: %q appears twice", ErrMalformed, cause(key))
-		}
-		seen[key] = true
-		var skip json.RawMessage
-		if err := dec.Decode(&skip); err != nil {
-			return fmt.Errorf("%w: %s", ErrMalformed, cause(err.Error()))
-		}
+	if err := members.Only(known...); err != nil {
+		return fmt.Errorf("%w: a member this build cannot name", ErrUnknownField)
 	}
 	return nil
 }

@@ -651,6 +651,37 @@ func TestPruneForgetsWhatExpired(t *testing.T) {
 	}
 }
 
+// TestACutScanAnswersNothing: a directory past the bound is read only as far
+// as the bound, so Find, Consume and Resolve refuse rather than answer from
+// the records the scan happened to reach.
+func TestACutScanAnswersNothing(t *testing.T) {
+	p, dir := openPlane(t)
+	ctx := t.Context()
+	for _, id := range []string{firstApproval, "APPROVAL2"} {
+		if err := p.Hold(ctx, held(t, id, "req-"+id), minted); err != nil {
+			t.Fatalf("holding %s: %v", id, err)
+		}
+	}
+	if err := p.Close(); err != nil {
+		t.Fatal(err)
+	}
+	bounded, err := approvals.OpenPlane(dir, approvals.WithMaxRecords(1))
+	if err != nil {
+		t.Fatalf("reopening under a bound of one: %v", err)
+	}
+	t.Cleanup(func() { _ = bounded.Close() })
+	binding := bindingOf(t, "req-APPROVAL2")
+	if found, err := bounded.Find(ctx, binding, minted); !errors.Is(err, approvals.ErrTooManyRecords) {
+		t.Errorf("Find over a cut scan = %d record(s), %v; want ErrTooManyRecords", len(found), err)
+	}
+	if _, err := bounded.Consume(ctx, binding, "req-APPROVAL2", "APPROVAL2", minted); !errors.Is(err, approvals.ErrTooManyRecords) {
+		t.Errorf("Consume past the cut = %v, want ErrTooManyRecords", err)
+	}
+	if err := bounded.Resolve(ctx, binding, "req-APPROVAL2", approvals.ResolutionNotResumed, minted); !errors.Is(err, approvals.ErrTooManyRecords) {
+		t.Errorf("Resolve past the cut = %v, want ErrTooManyRecords", err)
+	}
+}
+
 // TestAPruneOverACutScanSaysSo: a directory past the bound is read only as
 // far as the bound, so the count a prune reports is of what it read and not
 // of what expired. It forgets what it read, and says the sweep was cut.

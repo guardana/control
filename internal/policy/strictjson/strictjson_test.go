@@ -109,3 +109,22 @@ func TestString(t *testing.T) {
 		}
 	}
 }
+
+func TestIsVersion(t *testing.T) {
+	for _, v := range []string{"1.0", "1.7", "1.4294967295"} {
+		if !strictjson.IsVersion(v, "1") {
+			t.Errorf("IsVersion(%q, 1) = false, want true", v)
+		}
+	}
+	for _, v := range []string{
+		"", "1", "1.", ".0", "1.x", "1.0.0", "1.-3", "1.+3", "1.0_0", "1. 0", " 1.0", "1.0 ",
+		"01.0", "2.0", "10.0", "1.4294967296", "١.0",
+	} {
+		if strictjson.IsVersion(v, "1") {
+			t.Errorf("IsVersion(%q, 1) = true, want false", v)
+		}
+	}
+	if strictjson.IsVersion("+1.0", "+1") || strictjson.IsVersion("x.0", "x") {
+		t.Error("a major that is no decimal is accepted when the caller names it")
+	}
+}

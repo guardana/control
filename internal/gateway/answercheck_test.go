@@ -77,9 +77,10 @@ func TestARejectionTheChecksRefuseIsNeverRecordedAsDecided(t *testing.T) {
 }
 
 // TestAnApprovalOfAnotherMajorOrDecidedLaterNeverRuns: an approval of a major
-// this build does not read, with none, or decided after the plane's clock
-// reading, is refused and the call never runs; a later minor, and an answer
-// decided at that very reading, run.
+// this build does not read, with none, with no decision time, or decided
+// after the plane's clock reading or before its request, is refused and the
+// call never runs; a later minor, and an answer decided at that very reading,
+// run.
 func TestAnApprovalOfAnotherMajorOrDecidedLaterNeverRuns(t *testing.T) {
 	cases := []struct {
 		name string
@@ -93,7 +94,17 @@ func TestAnApprovalOfAnotherMajorOrDecidedLaterNeverRuns(t *testing.T) {
 		{"major 10", func(a *controlv1.Approval) { a.SchemaVersion = "10.0" }, false},
 		{"no version", func(a *controlv1.Approval) { a.SchemaVersion = "" }, false},
 		{"a major alone", func(a *controlv1.Approval) { a.SchemaVersion = "1" }, false},
+		{"a major and a dot", func(a *controlv1.Approval) { a.SchemaVersion = "1." }, false},
+		{"a minor that is no number", func(a *controlv1.Approval) { a.SchemaVersion = "1.x" }, false},
+		{"a third part", func(a *controlv1.Approval) { a.SchemaVersion = "1.0.0" }, false},
+		{"a signed minor", func(a *controlv1.Approval) { a.SchemaVersion = "1.-3" }, false},
+		{"a minor past 32 bits", func(a *controlv1.Approval) { a.SchemaVersion = "1.4294967296" }, false},
+		{"a major with a leading zero", func(a *controlv1.Approval) { a.SchemaVersion = "01.0" }, false},
 		{"decided after the reading", func(a *controlv1.Approval) { a.DecidedAt = timestamppb.New(base().Add(time.Nanosecond)) }, false},
+		{"no decision time", func(a *controlv1.Approval) { a.DecidedAt = nil }, false},
+		{"decided before the request", func(a *controlv1.Approval) {
+			a.DecidedAt = timestamppb.New(a.GetRequestedAt().AsTime().Add(-time.Nanosecond))
+		}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

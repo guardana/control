@@ -223,15 +223,35 @@ func (a *Adapter) run(ctx context.Context, c call, send sender) (outcome, error)
 		// The bytes are the authorized ones; this protocol cannot carry them.
 		return a.abort(ctx, p, d, gateway.AbortUntranslatable, []string{codeInvalidFieldValue}, err), nil
 	}
-	sendCtx, cancel := a.deadline(ctx, obl.timeout)
+	return a.sendOnce(ctx, p, d, &c, upstreamCall{session: cs, do: do, sent: sent, timeout: obl.timeout}), nil
+}
+
+// upstreamCall is the one send an admitted call comes to: the session it
+// goes over, the call, the bytes it carries and the obligations' bound.
+type upstreamCall struct {
+	session *mcp.ClientSession
+	do      func(context.Context, *mcp.ClientSession) (mcp.Result, error)
+	sent    []byte
+	timeout time.Duration
+}
+
+// sendOnce sends u and closes the execution with what came back. An agent
+// that gave up first gets nothing sent: a send under its context never
+// leaves, so the execution is aborted and the record says nothing was sent
+// rather than that the result is unknown.
+func (a *Adapter) sendOnce(ctx context.Context, p Pipeline, d gateway.Disposition, c *call, u upstreamCall) outcome {
+	if ctx.Err() != nil {
+		return a.abort(ctx, p, d, gateway.AbortCancelled, []string{codeEvidenceUnavailable}, nil)
+	}
+	sendCtx, cancel := a.deadline(ctx, u.timeout)
 	defer cancel()
 	started := a.cfg.Clock()
 	a.sent.Add(1)
-	res, callErr := complete(do(sendCtx, cs))
+	res, callErr := complete(u.do(sendCtx, u.session))
 	ended := a.cfg.Clock()
-	ans := a.scan(d, &c, res, callErr)
-	a.close(ctx, p, d, sent, resultOf(d, started, ended, ans))
-	return outcome{decision: d.Decision, res: res, err: callErr, withheld: ans.withheld}, nil
+	ans := a.scan(d, c, res, callErr)
+	a.close(ctx, p, d, u.sent, resultOf(d, started, ended, ans))
+	return outcome{decision: d.Decision, res: res, err: callErr, withheld: ans.withheld}
 }
 
 // abort records an execution the adapter was handed and did not send, and

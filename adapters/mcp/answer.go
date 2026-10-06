@@ -50,6 +50,7 @@ const (
 	codeApprovalPending      = "APPROVAL_PENDING"
 	codeExecutedArgsMismatch = "EXECUTED_ARGS_MISMATCH"
 	codeObligationNotApplied = "OBLIGATION_NOT_UNDERSTOOD"
+	codeEvidenceUnavailable  = "EVIDENCE_UNAVAILABLE"
 )
 
 // metaKeyAnswer marks an answer the gateway made itself, under its own
@@ -279,34 +280,6 @@ func upstreamFailed(err error) error {
 		return &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: errInputRequired.Error()}
 	}
 	return &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: "the upstream did not answer"}
-}
-
-// errInputRequired ends a call whose upstream answered input_required. The
-// requests are not relayed, since nothing decides what an upstream asks of
-// the agent, and the call is not sent again, since the plane admitted one.
-var errInputRequired = errors.New("the upstream asked for input this gateway does not relay")
-
-// complete is an upstream's answer to a call, a read or a prompt, with an
-// answer of input_required turned into errInputRequired.
-func complete(res mcp.Result, err error) (mcp.Result, error) {
-	if err == nil && needsInput(res) {
-		return nil, errInputRequired
-	}
-	return res, err
-}
-
-// needsInput reports whether res is a call's, a read's or a prompt's answer
-// of input_required.
-func needsInput(res mcp.Result) bool {
-	switch r := res.(type) {
-	case *mcp.CallToolResult:
-		return r != nil && r.NeedsInput()
-	case *mcp.ReadResourceResult:
-		return r != nil && r.NeedsInput()
-	case *mcp.GetPromptResult:
-		return r != nil && r.NeedsInput()
-	}
-	return false
 }
 
 // codeRejectedByTransport is the code the SDK's HTTP client wraps around a

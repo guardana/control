@@ -21,3 +21,25 @@ func TestATypedNilBlockIsNotACrash(_ *testing.T) {
 		upstreamResult(res)
 	}
 }
+
+// TestNoAnswerRelaysAnInputRequest: whatever reaches the agent carries no
+// input request and no request state, the members its client would answer
+// the upstream from and send the call again with.
+func TestNoAnswerRelaysAnInputRequest(t *testing.T) {
+	asks := mcp.InputRequestMap{"r1": &mcp.ListRootsParams{}} //nolint:staticcheck // deprecated, yet an upstream can still ask for roots
+	call, _ := upstreamResult(&mcp.CallToolResult{InputRequests: asks, RequestState: "s"}).(*mcp.CallToolResult)
+	read, _ := upstreamResult(&mcp.ReadResourceResult{InputRequests: asks, RequestState: "s"}).(*mcp.ReadResourceResult)
+	prompt, _ := upstreamResult(&mcp.GetPromptResult{InputRequests: asks, RequestState: "s"}).(*mcp.GetPromptResult)
+	for name, got := range map[string]struct {
+		requests mcp.InputRequestMap
+		state    string
+	}{
+		"a call":   {call.InputRequests, call.RequestState},
+		"a read":   {read.InputRequests, read.RequestState},
+		"a prompt": {prompt.InputRequests, prompt.RequestState},
+	} {
+		if got.requests != nil || got.state != "" {
+			t.Errorf("%s reaches the agent with input requests %v and request state %q", name, got.requests, got.state)
+		}
+	}
+}

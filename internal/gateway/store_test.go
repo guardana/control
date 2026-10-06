@@ -95,7 +95,10 @@ func holdApproved(t *testing.T, h *harness, f *fakeStore) {
 // TestThePipelineNeverTrustsTheStoresApproval: a store that hands out a
 // record that is not the held approval, approved, unexpired and single-use is
 // refused, the held trail is closed with the code for what is wrong, and
-// nothing runs; the genuine record runs.
+// nothing runs; the genuine record runs. The store's answer is written as
+// APPROVAL_DECIDED only when it is the held approval in everything but its
+// state or its approver; any other answer is one the plane cannot stand
+// behind, and the window closes with the plane's own approval, expired.
 func TestThePipelineNeverTrustsTheStoresApproval(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -110,11 +113,16 @@ func TestThePipelineNeverTrustsTheStoresApproval(t *testing.T) {
 			return a
 		}, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalDecided},
 		{"no approver", func(a *controlv1.Approval) *controlv1.Approval { a.ApproverId = ""; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalDecided},
-		{"another approval", func(a *controlv1.Approval) *controlv1.Approval { a.ApprovalId = "a-other"; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalDecided},
-		{"another request", func(a *controlv1.Approval) *controlv1.Approval { a.RequestId = "req-other"; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalDecided},
-		{"multi-use", func(a *controlv1.Approval) *controlv1.Approval { a.MultiUse = true; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalDecided},
-		{"another digest", func(a *controlv1.Approval) *controlv1.Approval { a.ActionDigest = "sha256:" + digits; return a }, verdictDeny, codeApprovalDigestMismatch, kindApprovalDecided},
-		{"another bundle", func(a *controlv1.Approval) *controlv1.Approval { a.PolicyBundleDigest = "sha256:" + digits; return a }, verdictDeny, codeApprovalBundleMismatch, kindApprovalDecided},
+		{"another approval", func(a *controlv1.Approval) *controlv1.Approval { a.ApprovalId = "a-other"; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
+		{"another request", func(a *controlv1.Approval) *controlv1.Approval { a.RequestId = "req-other"; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
+		{"multi-use", func(a *controlv1.Approval) *controlv1.Approval { a.MultiUse = true; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
+		{"another major", func(a *controlv1.Approval) *controlv1.Approval { a.SchemaVersion = "9.0"; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
+		{"decided later", func(a *controlv1.Approval) *controlv1.Approval {
+			a.DecidedAt = timestamppb.New(base().Add(time.Hour))
+			return a
+		}, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
+		{"another digest", func(a *controlv1.Approval) *controlv1.Approval { a.ActionDigest = "sha256:" + digits; return a }, verdictDeny, codeApprovalDigestMismatch, kindApprovalExpired},
+		{"another bundle", func(a *controlv1.Approval) *controlv1.Approval { a.PolicyBundleDigest = "sha256:" + digits; return a }, verdictDeny, codeApprovalBundleMismatch, kindApprovalExpired},
 		{"expiring now", func(a *controlv1.Approval) *controlv1.Approval { a.ExpiresAt = timestamppb.New(base()); return a }, verdictDeny, codeApprovalExpired, kindApprovalExpired},
 		{"no expiry", func(a *controlv1.Approval) *controlv1.Approval { a.ExpiresAt = nil; return a }, verdictDeny, codeApprovalExpired, kindApprovalExpired},
 	}
@@ -139,6 +147,9 @@ func TestThePipelineNeverTrustsTheStoresApproval(t *testing.T) {
 			if err := evidence.ValidateChain(trail); err != nil {
 				t.Errorf("ValidateChain: %v", err)
 			}
+			if tc.outcome == kindApprovalExpired && len(trail) == 5 {
+				expectPlanesApprovalExpired(t, trail[2].GetApproval(), trail[3].GetApproval())
+			}
 			if s := h.p.Stats(); s.Executed != 0 || s.Open != 0 || s.Held != 0 {
 				t.Errorf("Stats = %+v", s)
 			}
@@ -150,6 +161,16 @@ func TestThePipelineNeverTrustsTheStoresApproval(t *testing.T) {
 	f.answer = func(a *controlv1.Approval, err error) (*controlv1.Approval, error) { return a, err }
 	if d := h.admit(retry(t, "req-2"), refundArgs()); d.Action != core.Execute {
 		t.Errorf("the genuine approval: Action = %d, decision %+v", d.Action, d.Decision)
+	}
+}
+
+// expectPlanesApprovalExpired fails unless closed is the approval the plane
+// minted, own, as it held it for req-1, now expired.
+func expectPlanesApprovalExpired(t *testing.T, own, closed *controlv1.Approval) {
+	t.Helper()
+	if closed.GetApprovalId() != own.GetApprovalId() || closed.GetRequestId() != "req-1" || closed.GetSchemaVersion() != "1.0" ||
+		closed.GetDecidedAt() != nil || closed.GetState() != controlv1.ApprovalState_APPROVAL_STATE_EXPIRED {
+		t.Errorf("the window closed with %v, want the plane's own approval, expired", closed)
 	}
 }
 
@@ -460,7 +481,7 @@ func TestAStoreThatLiesTheSameWayTwiceIsStillRefused(t *testing.T) {
 			}
 			d := h.admit(retry(t, "req-2"), refundArgs())
 			expectBlock(t, d, verdictDeny, tc.code, gateway.PDPType)
-			expectKinds(t, kindsOf(h.trailOf("req-1")), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested, kindApprovalDecided, kindBlocked})
+			expectKinds(t, kindsOf(h.trailOf("req-1")), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested, kindApprovalExpired, kindBlocked})
 			if err := evidenceOf(h, "req-1"); err != nil {
 				t.Errorf("ValidateChain: %v", err)
 			}
@@ -485,7 +506,7 @@ func TestAStoreThatStretchesTheExpiryIsRefused(t *testing.T) {
 	}
 	d := h.admit(retry(t, "req-2"), refundArgs())
 	expectBlock(t, d, verdictIndeterminate, codeEvidenceUnavailable, gateway.PDPType)
-	expectKinds(t, kindsOf(h.trailOf("req-1")), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested, kindApprovalDecided, kindBlocked})
+	expectKinds(t, kindsOf(h.trailOf("req-1")), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested, kindApprovalExpired, kindBlocked})
 
 	// Past the window the plane minted, the plane holds no such request, so the
 	// retry is a request of its own and the hold's trail is closed as expired,

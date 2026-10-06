@@ -17,8 +17,12 @@ import (
 type call struct {
 	p   *Pipeline
 	ctx context.Context
-	in  Admission
-	now time.Time
+	// agent is the context the agent's call came with. Once the call is
+	// proposed, ctx no longer ends with it; agent says whether the agent is
+	// still there to receive what the plane hands out.
+	agent context.Context
+	in    Admission
+	now   time.Time
 	// pause is the operator's pause state as this call took it: once at
 	// admission and, when the decision point is asked, once more after the
 	// ask, at the clock read after it. Every decision after the ask, the
@@ -97,7 +101,7 @@ func (c *call) run() Disposition {
 	// The call is proposed: its records, its hold and its consume are the
 	// plane's to finish whatever the agent does, or a cancel would leave a
 	// trail cut short, a hold open and an approval spent with nothing on record.
-	c.ctx = context.WithoutCancel(c.ctx)
+	c.agent, c.ctx = c.ctx, context.WithoutCancel(c.ctx)
 
 	c.applyMode()
 	c.refuseFlow()
@@ -273,6 +277,10 @@ func (c *call) block() (Disposition, bool) {
 	return Disposition{Action: core.Block, Decision: c.decision}, !c.unrecorded
 }
 
+// agentGone reports whether the agent gave up on this call, which then spends
+// no approval and is handed out to nobody.
+func (c *call) agentGone() bool { return c.agent != nil && c.agent.Err() != nil }
+
 // close ends the trail this call owns.
 func (c *call) close() {
 	if c.requestID != "" {
@@ -285,9 +293,10 @@ func (c *call) close() {
 // execution for Close and hands out what to send. An execution a pause taken
 // just now covers or cannot vouch for, a resumed one whose approval has
 // expired by the clock read with that pause, one whose opened run expired by
-// that clock, or one the pipeline cannot name, cannot keep under its own name,
-// cannot keep within MaxOpen, or whose opened run's state it cannot raise, is
-// blocked before it is recorded as started; that block closes the trail, so a resumed
+// that clock, one that resumes nothing and whose agent gave up on it, or one
+// the pipeline cannot name, cannot keep under its own name, cannot keep
+// within MaxOpen, or whose opened run's state it cannot raise, is blocked
+// before it is recorded as started; that block closes the trail, so a resumed
 // hold's entry is forgotten there, as Close would. A resumed one whose
 // approval expired while ACTION_STARTED was appended is aborted instead of
 // handed out.
