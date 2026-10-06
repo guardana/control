@@ -40,6 +40,10 @@ verify one.
 
 ### Fixed
 
+- `guardana-control coverage` counts a span that claims two parents once, so
+  a few dozen observations whose spans form a ladder of diamonds no longer cut
+  a walk as past 65,536 spans. Counting such spans is bounded per source, and
+  a count past that bound cuts the walk.
 - The evidence-report example stops reading an endless line at the export's
   byte bound, and refuses a header without a well-formed source and a cursor
   that is not one of its file; the demo's `call.sh` exits 1 on an HTTP status

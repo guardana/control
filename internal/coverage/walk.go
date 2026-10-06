@@ -5,6 +5,12 @@ package coverage
 // gap, since an agent can nest spans below its own call to cut its walk.
 const MaxWalkSpans = 1 << 16
 
+// MaxCountSteps bounds the work of counting, for one source, the spans below
+// those whose spans are reached by two ways; each count past it is cut too.
+// Only spans claiming two parents in one trace make that work, and its count
+// would otherwise grow with the square of their number.
+const MaxCountSteps = 1 << 22
+
 // spanKey is a span of one trace among one tenant's project's observations.
 type spanKey struct{ tenant, project, trace, span string }
 
@@ -18,6 +24,10 @@ type family struct {
 	// group is the group of each span a walk reached.
 	group  map[spanKey]int
 	groups []spanGroup
+	// parents counts, for each group, the groups found above it so far.
+	parents map[int]int
+	// steps is the work the counts of shared groups took.
+	steps int
 }
 
 // spanGroup is spans of one trace that each reach every other one: a single
@@ -28,8 +38,14 @@ type spanGroup struct {
 	below []int
 	// size counts the spans at and below the group, held at MaxWalkSpans+1
 	// once past it. A span reached by two ways is counted for each, which
-	// only spans claiming two parents in one trace can do.
+	// only spans claiming two parents in one trace can do, so it is exact
+	// unless shared is set.
 	size int
+	// shared is set when a group below this one was found under two groups.
+	shared bool
+	// distinct, once counted, is the number of distinct spans at and below
+	// the group, held at MaxWalkSpans+1 once past it.
+	distinct int
 }
 
 // families keeps each source's family for every path of a map.
@@ -39,7 +55,7 @@ func (fs families) of(src *Source) *family {
 	if f := fs[src]; f != nil {
 		return f
 	}
-	f := &family{children: map[spanKey][]string{}, group: map[spanKey]int{}}
+	f := &family{children: map[spanKey][]string{}, group: map[spanKey]int{}, parents: map[int]int{}}
 	for _, r := range src.Records {
 		o := r.GetObservation()
 		c := o.GetCorrelation()
@@ -135,5 +151,48 @@ func (f *family) newGroup(members []spanKey) spanGroup {
 			g.size = min(g.size+f.groups[b].size, MaxWalkSpans+1)
 		}
 	}
+	for _, b := range g.below {
+		f.parents[b]++
+		g.shared = g.shared || f.groups[b].shared || f.parents[b] > 1
+	}
 	return g
+}
+
+// count is the number of distinct spans at and below group g, held at
+// MaxWalkSpans+1 once past it, and false when counting them would pass the
+// family's MaxCountSteps. A group with nothing shared below it is counted by
+// its size; a shared one past its bound is counted by a walk of the groups
+// below it, once.
+func (f *family) count(g int) (int, bool) {
+	grp := &f.groups[g]
+	if !grp.shared || grp.size <= MaxWalkSpans {
+		return grp.size, true
+	}
+	if grp.distinct > 0 {
+		return grp.distinct, true
+	}
+	seen := map[int]bool{g: true}
+	queue := []int{g}
+	n := 0
+	for len(queue) > 0 && n <= MaxWalkSpans {
+		if f.steps >= MaxCountSteps {
+			return 0, false
+		}
+		f.steps++
+		h := queue[0]
+		queue = queue[1:]
+		if f.groups[h].distinct > MaxWalkSpans {
+			n = MaxWalkSpans + 1
+			break
+		}
+		n += len(f.groups[h].spans)
+		for _, b := range f.groups[h].below {
+			if !seen[b] {
+				seen[b] = true
+				queue = append(queue, b)
+			}
+		}
+	}
+	grp.distinct = min(n, MaxWalkSpans+1)
+	return grp.distinct, true
 }

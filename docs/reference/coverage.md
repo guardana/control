@@ -96,7 +96,10 @@ printed as not checked, with the reason, when:
   (tenant, project, tool and upstream, of kind tool) in an envelope the
   contract refuses for more than a missing effect class: the plane saw that
   call, and its record cannot be joined;
-- more than 65,536 spans are at or below its own in its trace, which cuts its walk;
+- more than 65,536 spans are at or below its own in its trace, each counted
+  once however many parents it claims, which cuts its walk;
+- counting those spans, where spans claim two parents, passes 4,194,304 steps
+  for its source, which cuts its walk too;
 - the path names no source.
 
 ## Output and exit status

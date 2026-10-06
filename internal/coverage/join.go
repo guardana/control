@@ -47,7 +47,12 @@ func (j *joiner) join(o *observev1.Observation) JoinCheck {
 		return check
 	}
 	g := j.f.walk(spanKey{o.GetTenantId(), o.GetProjectId(), trace, span})
-	if j.f.groups[g].size > MaxWalkSpans {
+	switch n, counted := j.f.count(g); {
+	case !counted:
+		check.Why = fmt.Sprintf("counting the spans below it passed its source's bound of %d steps", MaxCountSteps)
+		check.Cut = true
+		return check
+	case n > MaxWalkSpans:
 		check.Why = fmt.Sprintf("the walk down its trace passed its bound of %d spans", MaxWalkSpans)
 		check.Cut = true
 		return check
