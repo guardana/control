@@ -285,18 +285,24 @@ func TestAnAnswerTheClientDoesNotReadIsCut(t *testing.T) {
 	checkCutRead(t, conn)
 }
 
+// smallSendBuffer keeps a new server-side connection's send buffer at 64 KiB.
+// Linux grows one to megabytes and wakes a blocked write only once much of it
+// has drained, so a slice's write would wait on the kernel's batch rather
+// than on the reader's progress.
+func smallSendBuffer(c net.Conn, state http.ConnState) {
+	if tc, ok := c.(*net.TCPConn); ok && state == http.StateNew {
+		_ = tc.SetWriteBuffer(64 << 10)
+	}
+}
+
 // watchCloses keeps each server-side send buffer small and reports on
 // closed the client address of each connection the server closes.
 func watchCloses(closed chan<- string) func(net.Conn, http.ConnState) {
 	return func(c net.Conn, state http.ConnState) {
-		switch state {
-		case http.StateNew:
-			// What the plane wrote before the cut stays in its kernel's send
-			// buffer after the close; kept small, it drains at once.
-			if tc, ok := c.(*net.TCPConn); ok {
-				_ = tc.SetWriteBuffer(64 << 10)
-			}
-		case http.StateClosed:
+		// What the plane wrote before the cut stays in its kernel's send
+		// buffer after the close; kept small, it drains at once.
+		smallSendBuffer(c, state)
+		if state == http.StateClosed {
 			closed <- c.RemoteAddr().String()
 		}
 	}
@@ -363,7 +369,7 @@ const steadyBuffer = 256 << 10
 // write has to outlast twice the bound, or socket buffers took it and no
 // slice's deadline was ever at stake.
 func TestASlowSteadyReaderGetsTheWholeAnswer(t *testing.T) {
-	r, watch := bigAnswerRig(t, steadyBound, nil)
+	r, watch := bigAnswerRig(t, steadyBound, smallSendBuffer)
 	conn := sendCall(t, r.url, "slow", steadyBuffer)
 	if err := conn.SetReadDeadline(time.Now().Add(120 * time.Second)); err != nil {
 		t.Fatal(err)
