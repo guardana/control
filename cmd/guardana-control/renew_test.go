@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
@@ -71,6 +72,19 @@ func newRenewTree(t *testing.T) renewTree {
 		t.Fatal(err)
 	}
 	return r
+}
+
+// negatedPublic writes, under dir, the freshness key's public half with bit
+// 255 flipped: the negated point, which the freshness seed can sign for.
+func negatedPublic(t *testing.T, dir string) string {
+	t.Helper()
+	pub := bytes.Clone(freshSigner(t).Public().(ed25519.PublicKey))
+	pub[ed25519.PublicKeySize-1] ^= 0x80
+	path := filepath.Join(dir, "negated.pub")
+	if err := os.WriteFile(path, []byte(policykey.FormatPublic(pub)+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func freshSigner(t *testing.T) ed25519.PrivateKey {
@@ -435,6 +449,8 @@ func TestRenewKeepsTheTwoKeysApart(t *testing.T) {
 	renewRefused(t, "the bundle key as the freshness key", r, errOneKey, r.args("--key", r.bundleKey)...)
 	renewRefused(t, "before the bundle is read", r, errOneKey,
 		r.args("--bundle", filepath.Join(r.dir, "none"), "--key", r.bundleKey)...)
+	renewRefused(t, "the freshness key negated as the bundle's", r, errOneKey,
+		r.args("--bundle", forged, "--bundle-public-key", negatedPublic(t, r.dir))...)
 	if signerFloor(t, r.floor).HasSerial() {
 		t.Error("the floor moved for one key named twice")
 	}

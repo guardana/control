@@ -1,6 +1,7 @@
 package policykey
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
@@ -28,6 +29,17 @@ func KeyID(pub ed25519.PublicKey) string {
 	}
 	sum := sha256.Sum256(pub)
 	return keyIDPrefix + hex.EncodeToString(sum[:8])
+}
+
+// SameKey reports whether a and b are one key but for bit 255, the sign of x:
+// a key with it flipped is the negated point, which the same seed can sign
+// for. Two values that are not both 32 bytes are one key only when equal.
+func SameKey(a, b ed25519.PublicKey) bool {
+	if len(a) != ed25519.PublicKeySize || len(b) != ed25519.PublicKeySize {
+		return bytes.Equal(a, b)
+	}
+	last := ed25519.PublicKeySize - 1
+	return bytes.Equal(a[:last], b[:last]) && a[last]&0x7f == b[last]&0x7f
 }
 
 // FormatPublic is the public key line: standard base64 of the 32 raw bytes.

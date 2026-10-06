@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,35 +19,47 @@ import (
 	"github.com/guardana/control/internal/runs"
 )
 
-// impurePackages are refused whole: each is there to read or write files,
-// start or signal processes, reach the network or draw randomness.
-var impurePackages = []string{
-	"os", "os/exec", "os/signal", "os/user", "io/ioutil", "path/filepath", "syscall", "plugin", "unsafe", "runtime",
-	"net", "crypto/rand", "math/rand", "math/rand/v2",
-	brand.ModulePath + "/internal/files",
+// allowedStdlib are the standard library packages this package's own files
+// may import. None reads a file, the network, a process or the environment,
+// or draws randomness, except through a name impureNames refuses.
+var allowedStdlib = []string{
+	"bytes", "context", "crypto/ed25519", "crypto/sha256", "encoding/base64", "encoding/hex", "encoding/json",
+	"errors", "fmt", "hash", "maps", "math", "slices", "strconv", "strings", "time", "unicode/utf8",
 }
 
-// impurePrefixes refuses every package under each.
-var impurePrefixes = []string{"net/", "golang.org/x/sys/"}
+// allowedModule are the packages of this module those files may import. Each
+// is in a tree the dependency rule guards or generates, but policykey, which
+// reads and writes key files and so is held to the names onlyNames lists.
+var allowedModule = []string{
+	"/api/gen/go/guardana/control/v1", "/internal/canon", "/internal/policy", "/internal/policy/bundle",
+	"/internal/policy/strictjson", "/internal/policykey", "/pkg/contract",
+}
 
-// impureNames are the functions of an allowed package that read the clock,
-// the zone database or standard input, or draw randomness.
+// onlyNames are, for an allowed package that also reads or writes files, the
+// names this package may use of it.
+var onlyNames = map[string][]string{
+	brand.ModulePath + "/internal/policykey": {"FormatPublic", "KeyID", "MarshalEnvelope", "ParseEnvelope", "ParsePublic", "SameKey"},
+}
+
+// impureNames are the names of an allowed package that read the clock, the
+// zone database or standard input, start a deadline, write standard output,
+// or draw randomness.
 var impureNames = map[string][]string{
 	"time": {
 		"Now", "Since", "Until", "After", "AfterFunc", "Tick", "NewTicker", "NewTimer", "Sleep",
 		"LoadLocation", "Local",
 	},
 	"context":        {"WithDeadline", "WithTimeout", "WithDeadlineCause", "WithTimeoutCause"},
-	"fmt":            {"Scan", "Scanf", "Scanln"},
+	"fmt":            {"Scan", "Scanf", "Scanln", "Print", "Printf", "Println"},
 	"crypto/ed25519": {"GenerateKey"},
 }
 
 // impureMethods read the local zone, whatever value they are called on.
 var impureMethods = []string{"Local", "Zone", "ZoneBounds", "IsDST"}
 
-func impurePackage(path string) bool {
-	return slices.Contains(impurePackages, path) ||
-		slices.ContainsFunc(impurePrefixes, func(p string) bool { return strings.HasPrefix(path, p) })
+func allowedImport(path string) bool {
+	return slices.Contains(allowedStdlib, path) ||
+		slices.ContainsFunc(allowedModule, func(p string) bool { return path == brand.ModulePath+p })
 }
 
 // impureReads returns a message for each import or name of src this package
@@ -74,8 +87,8 @@ func impureReads(t *testing.T, name string, src []byte) []string {
 	return problems
 }
 
-// impureImports reports each refused import of file, and maps the name each
-// other import is bound to onto its path.
+// impureImports reports each import of file not on the lists, and each dot
+// import, and maps the name each other import is bound to onto its path.
 func impureImports(t *testing.T, name string, file *ast.File, report func(token.Pos, string)) map[string]string {
 	t.Helper()
 	imported := map[string]string{}
@@ -88,13 +101,12 @@ func impureImports(t *testing.T, name string, file *ast.File, report func(token.
 		if spec.Name != nil {
 			local = spec.Name.Name
 		}
-		_, named := impureNames[path]
 		switch {
-		case impurePackage(path):
+		case !allowedImport(path):
 			report(spec.Pos(), "imports "+path)
-		case local == "." && named:
+		case local == ".":
 			report(spec.Pos(), "imports "+path+" with a dot")
-		case local != "_" && local != ".":
+		case local != "_":
 			imported[local] = path
 		}
 	}
@@ -109,6 +121,9 @@ func impureSelector(imported map[string]string, sel *ast.SelectorExpr) string {
 			if slices.Contains(impureNames[path], sel.Sel.Name) {
 				return "names " + path + "." + sel.Sel.Name
 			}
+			if only, held := onlyNames[path]; held && !slices.Contains(only, sel.Sel.Name) {
+				return "names " + path + "." + sel.Sel.Name + ", which is not listed"
+			}
 			return ""
 		}
 	}
@@ -119,7 +134,7 @@ func impureSelector(imported map[string]string, sel *ast.SelectorExpr) string {
 }
 
 // TestPackageReadsNoClockFileProcessOrRandomness holds every non-test Go file
-// of this package, whatever its build constraints, to the names above.
+// of this package, whatever its build constraints, to the lists above.
 func TestPackageReadsNoClockFileProcessOrRandomness(t *testing.T) {
 	pkg := os.DirFS(".")
 	names, err := fs.Glob(pkg, "*.go")
@@ -141,49 +156,51 @@ func TestPackageReadsNoClockFileProcessOrRandomness(t *testing.T) {
 		}
 	}
 	// A glob that missed the package's own files examined nothing.
-	for _, want := range []string{"doc.go", "route.go", "envelope.go"} {
+	for _, want := range []string{"doc.go", "route.go", "envelope.go", "judge.go"} {
 		if !slices.Contains(read, want) {
 			t.Fatalf("read %v, which lacks %s", read, want)
 		}
 	}
 }
 
-// Each case is a way to write a refused read, or a near miss that is not one.
-func TestImpureReads(t *testing.T) {
-	for _, c := range []struct {
-		name, src string
-		want      []string
-	}{
-		{"clock", `import "time"; var _ = time.Now()`, []string{"names time.Now"}},
-		{"clock as a value", `import clock "time"; var f = clock.Since`, []string{"names time.Since"}},
-		{"zone", `import "time"; func f(t time.Time) { _ = t.Local() }`, []string{"names the method Local"}},
-		{"deadline", `import "context"; var _, _ = context.WithTimeout(nil, 0)`, []string{"names context.WithTimeout"}},
-		{"input", `import "fmt"; var _, _ = fmt.Scanln()`, []string{"names fmt.Scanln"}},
-		{"key generation", `import "crypto/ed25519"; var _, _, _ = ed25519.GenerateKey(nil)`, []string{"names crypto/ed25519.GenerateKey"}},
-		{"file", `import "os"; var _, _ = os.ReadFile("x")`, []string{"imports os"}},
-		{"process", `import "os/exec"; var _ = exec.Command("x")`, []string{"imports os/exec"}},
-		{"randomness", `import "crypto/rand"; var _ = rand.Reader`, []string{"imports crypto/rand"}},
-		{"renamed randomness", `import r "math/rand/v2"; var _ = r.Int()`, []string{"imports math/rand/v2"}},
-		{"network", `import "net/http"; var _ = http.Get`, []string{"imports net/http"}},
-		{"the module's file helpers", `import _ "` + brand.ModulePath + `/internal/files"`, []string{"imports " + brand.ModulePath + "/internal/files"}},
-		{"dot import of the clock", `import . "time"; var _ = Now()`, []string{"imports time with a dot"}},
-
-		{"a time from a number", `import "time"; var _ = time.Unix(0, 0)`, nil},
-		{"a duration", `import "time"; var _ = time.Minute`, nil},
-		{"a clock of another package", `import clock "example.invalid/m/clock"; var _ = clock.Now()`, nil},
-		{"a name in a string", `var _ = "time.Now"`, nil},
-	} {
-		problems := impureReads(t, "x.go", []byte("package x; "+c.src))
-		if len(problems) != len(c.want) {
-			t.Errorf("%s: impureReads = %q, want %q", c.name, problems, c.want)
+// TestAllowedModulePackagesAreGuarded: every module package on the list but
+// those held to their names is in a tree the dependency rule guards or
+// generates, so the rule keeps it free of what this package may not read.
+func TestAllowedModulePackagesAreGuarded(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "scripts", "lib", "dependency-rule.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	trees := append(shellArray(t, string(raw), "guarded"), shellArray(t, string(raw), "generated")...)
+	for _, p := range allowedModule {
+		if _, held := onlyNames[brand.ModulePath+p]; held {
 			continue
 		}
-		for i, want := range c.want {
-			if problems[i] != "x.go:1: "+want {
-				t.Errorf("%s: problem %q, want %q", c.name, problems[i], "x.go:1: "+want)
-			}
+		pkg := strings.TrimPrefix(p, "/")
+		if !slices.ContainsFunc(trees, func(tree string) bool { return pkg == tree || strings.HasPrefix(pkg, tree+"/") }) {
+			t.Errorf("%s is in no tree of %v", pkg, trees)
 		}
 	}
+}
+
+// shellArray is the bare words of the array name=( ... ) in script.
+func shellArray(t *testing.T, script, name string) []string {
+	t.Helper()
+	_, body, found := strings.Cut(script, "\n"+name+"=(\n")
+	body, _, closed := strings.Cut(body, "\n)")
+	if !found || !closed {
+		t.Fatalf("no array %s in the dependency rule", name)
+	}
+	var words []string
+	for _, line := range strings.Split(body, "\n") {
+		if w := strings.TrimSpace(line); w != "" && !strings.HasPrefix(w, "#") {
+			words = append(words, w)
+		}
+	}
+	if len(words) == 0 {
+		t.Fatalf("the array %s is empty", name)
+	}
+	return words
 }
 
 // The bounds this package holds as its own, so it links no runs code, are the

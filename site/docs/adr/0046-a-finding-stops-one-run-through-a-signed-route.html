@@ -167,8 +167,9 @@ spelled <code>YYYY-MM-DDTHH:MM:SSZ</code>. The first line is a header: a random 
 and the route's id, serial and digest. A <code>stop</code> line holds an entry id derived
 from the finding id under a domain of its own, the tenant, the run id, the
 finding id, the procedure and rule, <code>created_at</code> and <code>expires_at</code>. A <code>covered</code>
-line holds a finding id the route allows about a run that already had an
-active stop. A <code>lift</code> line names a run and the last line it ends, and carries a
+line holds a finding id the list knows and will not stop again: the emitter
+writes one for a finding about a run that has an active stop, and a carried
+list one for each finding whose stop ended. A <code>lift</code> line names a run and the last line it ends, and carries a
 DSSE signature under the lift key, payload type
 <code>application/vnd.agent-reaction-lift+json</code>, over its kind, version, the
 <code>list_id</code>, the route digest, the run and that line; it ends every stop of that

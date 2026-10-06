@@ -12,7 +12,8 @@ import (
 // FuzzJudge: for any bytes, Judge returns a list or a refusal that matches
 // exactly one of its sentinels, and never panics. A list it accepts ends its
 // prefix at a newline within the bytes, is accepted again from its own
-// prefix with nothing changed, and is the list its prefix alone gives.
+// prefix with nothing changed, and is the list its prefix alone gives; and
+// JudgeFrom over the bytes in two reads answers as Judge over them at once.
 func FuzzJudge(f *testing.F) {
 	r := listRoute(f)
 	b := newList(f, r)
@@ -31,6 +32,7 @@ func FuzzJudge(f *testing.F) {
 		if !bytes.Equal(content, held) {
 			t.Fatal("Judge changed its input")
 		}
+		checkInTwoReads(t, r, content, l, err)
 		if err != nil {
 			if matched := matching(err); matched != 1 {
 				t.Fatalf("refusal %v matches %d sentinels", err, matched)
@@ -66,5 +68,29 @@ func checkJudged(t *testing.T, r reaction.Route, content []byte, l reaction.List
 	alone, err := reaction.Judge(r, reaction.Prefix{}, content[:n], clock0, poll)
 	if err != nil || alone.Prefix() != l.Prefix() || alone.Usage() != l.Usage() {
 		t.Fatalf("its prefix alone: %v", err)
+	}
+}
+
+// checkInTwoReads judges content's first half of lines, then all of it from
+// there, and holds the answer to whole's, the answer of Judge at once.
+func checkInTwoReads(t *testing.T, r reaction.Route, content []byte, whole reaction.List, wholeErr error) {
+	t.Helper()
+	cut := 0
+	for i := (bytes.Count(content, []byte{'\n'}) + 1) / 2; i > 0; i-- {
+		cut += bytes.IndexByte(content[cut:], '\n') + 1
+	}
+	first, err := reaction.JudgeFrom(r, reaction.List{}, content[:cut], clock0, poll)
+	if err != nil {
+		if wholeErr == nil || wholeErr.Error() != err.Error() {
+			t.Fatalf("the first %d bytes: %v; at once: %v", cut, err, wholeErr)
+		}
+		return
+	}
+	both, err := reaction.JudgeFrom(r, first, content, clock0, poll)
+	if (err == nil) != (wholeErr == nil) || err != nil && err.Error() != wholeErr.Error() {
+		t.Fatalf("in two reads: %v; at once: %v", err, wholeErr)
+	}
+	if err == nil && (both.Prefix() != whole.Prefix() || both.Usage() != whole.Usage() || entryRuns(both.Entries()) != entryRuns(whole.Entries())) {
+		t.Fatalf("in two reads %s, at once %s", entryRuns(both.Entries()), entryRuns(whole.Entries()))
 	}
 }

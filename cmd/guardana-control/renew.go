@@ -40,8 +40,9 @@ const (
 	// errFloorDirectory is an --out in a floor directory, a signer's or a
 	// plane's, which holds nothing but its own files.
 	errFloorDirectory = "the directory is a floor directory, which holds no statement"
-	// errOneKey is a freshness key whose public half is the bundle's: the
-	// key that vouches for bundles would vouch for those it signs itself.
+	// errOneKey is a freshness key whose public half is the bundle's, or its
+	// negation: the key that vouches for bundles would vouch for those it
+	// signs itself.
 	errOneKey = "--key and --bundle-public-key are one key pair; the freshness key is kept apart from the bundle key"
 	// errRaceLost is an --out holding a newer statement for the bundle id
 	// than the one the floor took, which no renew under this floor
@@ -158,7 +159,7 @@ func signedStatement(p renewPaths, issuedAt time.Time) (signed, error) {
 	}
 	defer clear(key)
 	freshPub, _ := key.Public().(ed25519.PublicKey)
-	if policykey.KeyID(freshPub) == policykey.KeyID(bundlePub) {
+	if policykey.SameKey(freshPub, bundlePub) {
 		return signed{}, errors.New(errOneKey)
 	}
 	snap, err := verifiedBundle(p.bundle, bundlePub, issuedAt)

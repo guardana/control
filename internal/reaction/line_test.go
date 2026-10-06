@@ -120,6 +120,7 @@ func lineRefusals() []error {
 	return []error{
 		reaction.ErrLineTooLong, reaction.ErrLineJSON, reaction.ErrLineRepeat, reaction.ErrLineKind,
 		reaction.ErrLineMember, reaction.ErrLineVersion, reaction.ErrLineValue, reaction.ErrLineTime, reaction.ErrEntryID,
+		reaction.ErrLineCanonical,
 	}
 }
 
@@ -205,7 +206,8 @@ func liftLineRefusals(t *testing.T) []struct {
 }
 
 // TestLineBound: a stop line padded with white space to exactly
-// MaxLineBytes is read; one byte more is refused for its length.
+// MaxLineBytes is read, and refused only for its spelling; one byte more is
+// refused for its length.
 func TestLineBound(t *testing.T) {
 	if reaction.MaxLineBytes != 65536 {
 		t.Fatalf("MaxLineBytes = %d", reaction.MaxLineBytes)
@@ -213,10 +215,9 @@ func TestLineBound(t *testing.T) {
 	pad := func(n int) []byte {
 		return []byte(stopGolden[:1] + strings.Repeat(" ", n-len(stopGolden)) + stopGolden[1:])
 	}
-	if l, err := reaction.ParseLine(pad(65536)); err != nil || l.Kind != reaction.KindStop {
-		t.Fatalf("a line of 65536 bytes: %v", err)
-	}
-	_, err := reaction.ParseLine(pad(65537))
+	_, err := reaction.ParseLine(pad(65536))
+	expectOnly(t, "a line of 65536 bytes", err, reaction.ErrLineCanonical, lineRefusals())
+	_, err = reaction.ParseLine(pad(65537))
 	expectOnly(t, "a line of 65537 bytes", err, reaction.ErrLineTooLong, lineRefusals())
 }
 

@@ -102,9 +102,8 @@ func TestJudgeRefusesALineOutOfPlace(t *testing.T) {
 		{"a finding stopped twice", []byte(header + stop("fnd-1", "run-a") + stop("fnd-1", "run-b")), reaction.ErrFindingAgain},
 		{"a stop's finding covered", []byte(header + stop("fnd-1", "run-a") + covered("fnd-1", "run-a", "acme")), reaction.ErrFindingAgain},
 		{"a finding covered twice", []byte(header + stop("fnd-1", "run-a") + covered("fnd-2", "run-a", "acme") + covered("fnd-2", "run-a", "acme")), reaction.ErrFindingAgain},
-		{"a covered run with no stop", []byte(header + stop("fnd-1", "run-a") + covered("fnd-2", "run-b", "acme")), reaction.ErrCoveredRun},
-		{"a covered line before its stop", []byte(header + covered("fnd-2", "run-a", "acme") + stop("fnd-1", "run-a")), reaction.ErrCoveredRun},
 		{"a covered run of another tenant", []byte(header + stop("fnd-1", "run-a") + covered("fnd-2", "run-a", "other")), reaction.ErrCoveredRun},
+		{"a covered run of another tenant and no stop", []byte(header + covered("fnd-2", "run-b", "other")), reaction.ErrCoveredRun},
 		{"a stop with another finding's entry id", []byte(header + strings.Replace(stop("fnd-1", "run-a"), reaction.EntryID("fnd-1"), reaction.EntryID("fnd-2"), 1)), reaction.ErrEntryID},
 	} {
 		_, err := judge(t, c.content)
@@ -295,5 +294,34 @@ func TestVerifyLiftLineTiesTheLiftToItsList(t *testing.T) {
 	} {
 		_, err := reaction.VerifyLiftLine(tc.line, tc.h, tc.r)
 		expectOnly(t, tc.name, err, tc.want, judgeRefusals())
+	}
+}
+
+// TestACoveredLineNamesAnyRunAndStopsNothing: a covered line is a finding the
+// list names and will not stop again. It may name a run no stop names, one
+// whose stops were lifted, or one stopped only later, and it stops none.
+func TestACoveredLineNamesAnyRunAndStopsNothing(t *testing.T) {
+	r := listRoute(t)
+	b := newList(t, r)
+	b.covered("fnd-b1", "run-b", clock0)         // 2: no stop of run-b anywhere
+	b.covered("fnd-a0", "run-a", clock0)         // 3: before run-a's stop
+	b.stop("fnd-a1", "run-a", clock0, time.Hour) // 4
+	b.lift("run-a", 4)                           // 5
+	b.covered("fnd-a2", "run-a", clock0)         // 6: after the lift
+	b.stop("fnd-c1", "run-c", clock0, time.Hour) // 7
+	l := mustJudge(t, b.bytes())
+	if got := entryRuns(l.Entries()); got != "run-c@7" {
+		t.Fatalf("entries %s, want run-c@7", got)
+	}
+	for _, f := range []string{"fnd-b1", "fnd-a0", "fnd-a2"} {
+		if !l.Names(f) {
+			t.Errorf("the list does not name %s", f)
+		}
+	}
+	s := reaction.Snapshot{}.Next(r, b.bytes(), clock0, poll)
+	for _, run := range []string{"run-a", "run-b"} {
+		if got, cause := s.ForCall(run, "acme", clock0, clock0); got != reaction.Clear || cause != "" {
+			t.Errorf("a call of %s: %s %q, want clear", run, got, cause)
+		}
 	}
 }

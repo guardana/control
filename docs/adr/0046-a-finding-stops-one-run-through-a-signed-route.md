@@ -80,8 +80,9 @@ spelled `YYYY-MM-DDTHH:MM:SSZ`. The first line is a header: a random `list_id`
 and the route's id, serial and digest. A `stop` line holds an entry id derived
 from the finding id under a domain of its own, the tenant, the run id, the
 finding id, the procedure and rule, `created_at` and `expires_at`. A `covered`
-line holds a finding id the route allows about a run that already had an
-active stop. A `lift` line names a run and the last line it ends, and carries a
+line holds a finding id the list knows and will not stop again: the emitter
+writes one for a finding about a run that has an active stop, and a carried
+list one for each finding whose stop ended. A `lift` line names a run and the last line it ends, and carries a
 DSSE signature under the lift key, payload type
 `application/vnd.agent-reaction-lift+json`, over its kind, version, the
 `list_id`, the route digest, the run and that line; it ends every stop of that

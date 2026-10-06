@@ -33,14 +33,14 @@ func (c *Config) checkPolicy() error {
 	return nil
 }
 
-// samePublicKey reports whether a and b name one public key: the same key
-// once both read as keys, or the same text where either does not, which
-// the plane's start then refuses on its own.
+// samePublicKey reports whether a and b name one public key: one key but
+// for its sign bit once both read as keys, or the same text where either does
+// not, which the plane's start then refuses on its own.
 func samePublicKey(a, b string) bool {
 	keyA, errA := policykey.ParsePublic(a)
 	keyB, errB := policykey.ParsePublic(b)
 	if errA == nil && errB == nil {
-		return keyA.Equal(keyB)
+		return policykey.SameKey(keyA, keyB)
 	}
 	return strings.TrimSpace(a) == strings.TrimSpace(b)
 }

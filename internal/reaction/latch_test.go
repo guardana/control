@@ -114,22 +114,29 @@ func TestListBoundOfLines(t *testing.T) {
 	expectOnly(t, "20001 lines", err, reaction.ErrListLines, judgeRefusals())
 }
 
-// paddedList is a valid list of exactly size bytes: stops padded with white
-// space inside their objects.
+// paddedList is a valid list of exactly size bytes: stops whose finding ids
+// are lengthened up to MaxFindingIDBytes to fill it.
 func paddedList(t *testing.T, size int) []byte {
 	t.Helper()
 	b := newList(t, listRoute(t))
-	remaining := size - len(b.bytes())
-	const target = 60000
-	lines := (remaining + target - 1) / target
-	for i := range lines {
-		want := remaining / (lines - i)
-		raw, err := stopOf(t, "fnd-"+strconv.Itoa(i), "run-"+strconv.Itoa(i), clock0, time.Hour).Marshal()
+	// line is stop i's line with a finding id of idLen bytes, or of its
+	// shortest spelling when idLen is shorter.
+	line := func(i, idLen int) []byte {
+		id := "fnd-" + strconv.Itoa(i)
+		id += strings.Repeat("x", max(0, idLen-len(id)))
+		raw, err := stopOf(t, id, "run-"+strconv.Itoa(i%50), clock0, time.Hour).Marshal()
 		if err != nil {
 			t.Fatal(err)
 		}
-		pad := want - 1 - len(raw)
-		b.raw(string(raw[:1]) + strings.Repeat(" ", pad) + string(raw[1:]))
+		return raw
+	}
+	longest := len(line(0, reaction.MaxFindingIDBytes)) + 1
+	remaining := size - len(b.bytes())
+	lines := (remaining + longest - 1) / longest
+	for i := range lines {
+		want := remaining / (lines - i)
+		shortest := len("fnd-" + strconv.Itoa(i))
+		b.raw(string(line(i, shortest+want-1-len(line(i, 0)))))
 		remaining -= want
 	}
 	out := b.bytes()

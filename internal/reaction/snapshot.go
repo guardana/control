@@ -3,6 +3,7 @@ package reaction
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 	"unicode/utf8"
 
@@ -98,14 +99,15 @@ const maxDetailBytes = 256
 // MaxListedEntries bounds the active entries a report lists.
 const MaxListedEntries = 64
 
-// Snapshot is the stop state as one read found it, and the prefix a plane
-// accepted so far, which an unknown read keeps. It is immutable.
+// Snapshot is the stop state as one read found it, and the list a plane
+// accepted so far, which an unknown read keeps and the next read is judged
+// from. It is immutable.
 type Snapshot struct {
 	state    State
 	cause    Cause
 	detail   string
 	list     List
-	accepted Prefix
+	accepted List
 	readAt   time.Time
 	maxAge   time.Duration
 }
@@ -114,11 +116,12 @@ type Snapshot struct {
 func DisabledSnapshot() Snapshot { return Snapshot{state: Disabled} }
 
 // Next judges content, the stop list read at the plane's clock now, against
-// route, from the prefix s accepted, with one poll interval of tolerance.
-// The snapshot it returns answers for staleAfter intervals. A refused list
-// is Unknown with its cause, and keeps the prefix s accepted.
+// route, from the list s accepted, with one poll interval of tolerance: only
+// the lines after its prefix are judged anew. The snapshot it returns answers
+// for staleAfter intervals. A refused list is Unknown with its cause, and
+// keeps the list s accepted.
 func (s Snapshot) Next(route Route, content []byte, now time.Time, interval time.Duration) Snapshot {
-	l, err := Judge(route, s.accepted, content, now, interval)
+	l, err := JudgeFrom(route, s.accepted, content, now, interval)
 	if err != nil {
 		return s.Unknown(CauseOf(err), err.Error(), now, interval)
 	}
@@ -126,10 +129,10 @@ func (s Snapshot) Next(route Route, content []byte, now time.Time, interval time
 	if len(activeAt(l.entries, now, time.Time{}, 1)) > 0 {
 		state = Stopped
 	}
-	return Snapshot{state: state, list: l, accepted: l.prefix, readAt: now, maxAge: interval}
+	return Snapshot{state: state, list: l, accepted: l, readAt: now, maxAge: interval}
 }
 
-// Unknown is an Unknown snapshot read at now with cause, keeping the prefix s
+// Unknown is an Unknown snapshot read at now with cause, keeping the list s
 // accepted. A reader that cannot read the file says so through it.
 func (s Snapshot) Unknown(cause Cause, detail string, now time.Time, interval time.Duration) Snapshot {
 	return Snapshot{state: Unknown, cause: cause, detail: bounded(detail), accepted: s.accepted, readAt: now, maxAge: interval}
@@ -153,8 +156,8 @@ func (s Snapshot) Detail() string { return s.detail }
 // ReadAt is the plane's clock when the list was read.
 func (s Snapshot) ReadAt() time.Time { return s.readAt }
 
-// Accepted is the prefix to judge the next read from.
-func (s Snapshot) Accepted() Prefix { return s.accepted }
+// Accepted is the prefix the next read is judged from.
+func (s Snapshot) Accepted() Prefix { return s.accepted.prefix }
 
 // Header is the header of the list read; the zero Header unless the list was
 // accepted.
@@ -176,10 +179,38 @@ func (s Snapshot) At(now time.Time) Snapshot {
 	switch age := now.Sub(s.readAt); {
 	case age < 0:
 		return s.Unknown(CauseAhead, fmt.Sprintf("read %v after the plane's clock", -age), s.readAt, s.maxAge)
-	case age > staleAfter*s.maxAge:
+	case age > answersFor(s.maxAge):
 		return s.Unknown(CauseStale, fmt.Sprintf("read %v ago, past %d poll intervals", age, staleAfter), s.readAt, s.maxAge)
 	}
 	return s
+}
+
+// answersFor is staleAfter intervals, saturated rather than wrapped.
+func answersFor(interval time.Duration) time.Duration {
+	if interval > math.MaxInt64/staleAfter {
+		return math.MaxInt64
+	}
+	return staleAfter * interval
+}
+
+// ForCall is what s says of a call of runID and tenantID at the call's clock
+// now, given floor, the latest instant the call relied on, with At's age rule
+// applied at now: Stopped when an entry of that run and tenant is active,
+// Clear when none is, and Unknown with its cause when the state is unknown or
+// past its age. A plane with no route is Disabled. The cause is empty unless
+// the state is Unknown.
+func (s Snapshot) ForCall(runID, tenantID string, now, floor time.Time) (State, Cause) {
+	at := s.At(now)
+	switch at.state {
+	case Disabled:
+		return Disabled, ""
+	case Clear, Stopped:
+		if at.Active(runID, tenantID, now, floor) {
+			return Stopped, ""
+		}
+		return Clear, ""
+	}
+	return Unknown, at.Cause()
 }
 
 // Active reports whether an entry of a list read whole stops a call of runID

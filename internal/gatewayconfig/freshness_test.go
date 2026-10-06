@@ -122,6 +122,9 @@ func TestTheFreshnessKeyIsNeverTheBundleKey(t *testing.T) {
 			[]string{"policy.freshness_public_key", "policy.public_key"}},
 		{"the same public key with its newline", map[string]string{"policy.freshness_public_key": bundlePublic + "\n"},
 			[]string{"policy.freshness_public_key", "policy.public_key"}},
+		{"the public key negated", map[string]string{"policy.freshness_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIA="},
+			[]string{"policy.freshness_public_key", "policy.public_key"}},
+		{"a public key apart in bit 254", map[string]string{"policy.freshness_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEA="}, nil},
 		{"keys apart", map[string]string{"policy.freshness_key_id": "k2"}, nil},
 	} {
 		t.Run(c.name, func(t *testing.T) {

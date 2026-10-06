@@ -63,3 +63,34 @@ func TestParsePublicTakesOneSpelling(t *testing.T) {
 		}
 	}
 }
+
+// TestSameKeyIgnoresOnlyTheSignOfX: a key and its negation, apart in bit 255
+// alone, are one key; keys apart in any other bit, or of another length, are
+// not.
+func TestSameKeyIgnoresOnlyTheSignOfX(t *testing.T) {
+	pub := ed25519.PublicKey(mustHex(t, rfcPublicHex))
+	flipped := func(byteAt int, bit uint) ed25519.PublicKey {
+		out := ed25519.PublicKey(mustHex(t, rfcPublicHex))
+		out[byteAt] ^= 1 << bit
+		return out
+	}
+	for _, c := range []struct {
+		name string
+		a, b ed25519.PublicKey
+		want bool
+	}{
+		{"one key", pub, ed25519.PublicKey(mustHex(t, rfcPublicHex)), true},
+		{"the key and its negation", pub, flipped(31, 7), true},
+		{"the negation and the key", flipped(31, 7), pub, true},
+		{"apart in bit 254", pub, flipped(31, 6), false},
+		{"apart in bit 0", pub, flipped(0, 0), false},
+		{"apart in bit 7 of the first byte", pub, flipped(0, 7), false},
+		{"a key and its first 31 bytes", pub, pub[:31], false},
+		{"two equal short values", pub[:31], ed25519.PublicKey(mustHex(t, rfcPublicHex))[:31], true},
+		{"two empty values", nil, ed25519.PublicKey{}, true},
+	} {
+		if got := policykey.SameKey(c.a, c.b); got != c.want {
+			t.Errorf("%s: SameKey = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

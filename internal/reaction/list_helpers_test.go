@@ -93,7 +93,7 @@ func (b *listBuilder) add(line []byte, err error) int64 {
 }
 
 // raw appends a line as given.
-func (b *listBuilder) raw(line string) int64 { return b.add([]byte(line), nil) }
+func (b *listBuilder) raw(line string) { b.add([]byte(line), nil) }
 
 func stopOf(t testing.TB, finding, run string, created time.Time, life time.Duration) reaction.Stop {
 	return reaction.Stop{
@@ -135,9 +135,12 @@ func liftLineOf(t testing.TB, key []byte, list, routeDigest, run string, line, s
 	return reaction.LiftLine{RunID: run, ThroughLine: line, Envelope: env}
 }
 
-func (b *listBuilder) bytes() []byte {
+func (b *listBuilder) bytes() []byte { return b.prefixOf(len(b.lines)) }
+
+// prefixOf is the list's first n lines.
+func (b *listBuilder) prefixOf(n int) []byte {
 	var out bytes.Buffer
-	for _, l := range b.lines {
+	for _, l := range b.lines[:n] {
 		out.Write(l)
 		out.WriteByte('\n')
 	}
@@ -169,7 +172,7 @@ func judgeRefusals() []error {
 		reaction.ErrLiftAgain, reaction.ErrLiftUnsigned, reaction.ErrLiftMismatch, reaction.ErrJudgeClock,
 		reaction.ErrLineTooLong, reaction.ErrLineJSON, reaction.ErrLineRepeat, reaction.ErrLineKind,
 		reaction.ErrLineMember, reaction.ErrLineVersion, reaction.ErrLineValue, reaction.ErrLineTime,
-		reaction.ErrEntryID,
+		reaction.ErrEntryID, reaction.ErrLineCanonical,
 	}
 }
 

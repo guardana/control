@@ -1,6 +1,7 @@
 package reaction
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -64,15 +65,16 @@ const (
 
 // The refusals of one line, whatever its place in the list.
 const (
-	ErrLineTooLong Error = "reaction: a stop list line is over its bound"
-	ErrLineJSON    Error = "reaction: a stop list line is not one strict JSON object"
-	ErrLineRepeat  Error = "reaction: a stop list line names a member twice"
-	ErrLineKind    Error = "reaction: a stop list line's kind is none of header, stop, covered and lift"
-	ErrLineMember  Error = "reaction: a stop list line holds a member its kind does not have, or lacks one it requires"
-	ErrLineVersion Error = "reaction: a stop list line's version is not one this build reads"
-	ErrLineValue   Error = "reaction: a stop list line member holds a value of the wrong type, form or length"
-	ErrLineTime    Error = "reaction: a stop list line's time is not spelled YYYY-MM-DDTHH:MM:SSZ"
-	ErrEntryID     Error = "reaction: a stop's entry_id is not the one its finding id derives"
+	ErrLineTooLong   Error = "reaction: a stop list line is over its bound"
+	ErrLineJSON      Error = "reaction: a stop list line is not one strict JSON object"
+	ErrLineRepeat    Error = "reaction: a stop list line names a member twice"
+	ErrLineKind      Error = "reaction: a stop list line's kind is none of header, stop, covered and lift"
+	ErrLineMember    Error = "reaction: a stop list line holds a member its kind does not have, or lacks one it requires"
+	ErrLineVersion   Error = "reaction: a stop list line's version is not one this build reads"
+	ErrLineValue     Error = "reaction: a stop list line member holds a value of the wrong type, form or length"
+	ErrLineTime      Error = "reaction: a stop list line's time is not spelled YYYY-MM-DDTHH:MM:SSZ"
+	ErrEntryID       Error = "reaction: a stop's entry_id is not the one its finding id derives"
+	ErrLineCanonical Error = "reaction: a stop list line is not spelled in its canonical form"
 )
 
 // Header is a stop list's first line: the list's own id and the route it is
@@ -176,9 +178,14 @@ func ParseLine(raw []byte) (Line, error) {
 		return Line{}, err
 	}
 	// The members are read; what is left to refuse is invalid UTF-8 or an
-	// unpaired surrogate, which a decoded string hides.
-	if _, err := canonicalOf(raw, ErrLineJSON); err != nil {
+	// unpaired surrogate, which a decoded string hides, and any spelling but
+	// the canonical one, which two readers of one list could part over.
+	canonical, err := canonicalOf(raw, ErrLineJSON)
+	if err != nil {
 		return Line{}, err
+	}
+	if !bytes.Equal(canonical, raw) {
+		return Line{}, ErrLineCanonical
 	}
 	return l, nil
 }

@@ -55,7 +55,7 @@ func SignRoute(r Route, key ed25519.PrivateKey) (Envelope, error) {
 	if err != nil {
 		return Envelope{}, err
 	}
-	if sameKey(pub, checked.liftKey) {
+	if policykey.SameKey(pub, checked.liftKey) {
 		return Envelope{}, fmt.Errorf("%w: the route key is the route's lift key", ErrKeysEqual)
 	}
 	return env, nil
@@ -83,7 +83,7 @@ func VerifyRoute(env Envelope, pub ed25519.PublicKey) (Route, error) {
 	if !bytes.Equal(body, r.canonical) {
 		return Route{}, ErrRouteNotCanonical
 	}
-	if sameKey(pub, r.liftKey) {
+	if policykey.SameKey(pub, r.liftKey) {
 		return Route{}, fmt.Errorf("%w: the route key is the route's lift key", ErrKeysEqual)
 	}
 	return r, nil
@@ -123,22 +123,12 @@ func DistinctKeys(keys ...ed25519.PublicKey) error {
 			return fmt.Errorf("%w: key %d is %d bytes", ErrKeySize, i, len(k))
 		}
 		for j := range i {
-			if sameKey(keys[j], k) {
+			if policykey.SameKey(keys[j], k) {
 				return fmt.Errorf("%w: keys %d and %d", ErrKeysEqual, j, i)
 			}
 		}
 	}
 	return nil
-}
-
-// sameKey reports whether a and b are one key but for bit 255, the sign of x:
-// a key with it flipped is the negated point, which the same seed can sign for.
-func sameKey(a, b ed25519.PublicKey) bool {
-	if len(a) != ed25519.PublicKeySize || len(b) != ed25519.PublicKeySize {
-		return bytes.Equal(a, b)
-	}
-	last := ed25519.PublicKeySize - 1
-	return bytes.Equal(a[:last], b[:last]) && a[last]&0x7f == b[last]&0x7f
 }
 
 func sign(payloadType string, body []byte, key ed25519.PrivateKey) (Envelope, ed25519.PublicKey, error) {
