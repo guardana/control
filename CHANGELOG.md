@@ -11,7 +11,7 @@ verify one.
 
 ## [Unreleased]
 
-## [0.8.0-alpha] - 2026-10-05
+## [0.8.0-alpha] - 2026-10-06
 
 One agent run can now be checked against the procedure it was meant to
 follow. `guardana-control supervise` reads a plane's evidence export for a run
