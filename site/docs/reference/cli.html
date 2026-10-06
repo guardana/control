@@ -199,7 +199,7 @@ every call; <code>--provider &lt;p&gt;</code>, every call to that upstream by it
 name; or <code>--action &lt;k&gt;</code> with <code>--provider &lt;p&gt;</code>, where <code>&lt;k&gt;</code> is <code>tool</code>, <code>prompt</code>
 or <code>resource</code> and a tool also takes <code>--name &lt;n&gt;</code>, the name the plane routes
 by. A prompt or a resource takes no name. <code>&lt;f&gt;</code> is the pause file, relative to the working directory. It prints
-the id it drew for the entry and nothing else, and <code>pause remove &lt;file&gt; &lt;id&gt;</code>
+only the id it drew for the entry, and <code>pause remove &lt;file&gt; &lt;id&gt;</code>
 takes that id; removing the last entry leaves a file that pauses nothing,
 because a missing file blocks every call. <code>pause list</code> prints one line per
 entry, its reason included, or <code>no entries</code>.</p>
@@ -275,16 +275,17 @@ adds any stop the route allows and, across a restart, can start a new list with 
 <p><code>run</code> serves one plane from a configuration file and <code>doctor</code> checks that
 file without serving: <a href="/docs/guides/run-the-gateway">guides/run-the-gateway.md</a>
 is their page and <a href="/docs/reference/configuration">configuration.md</a> lists every key.
-<code>--config</code> is required: no default location is searched. A key naming a file or a
+<code>--config</code> is required. A key naming a file or a
 directory refuses key text, naming the key and not the value. On an interrupt
-or <code>SIGTERM</code>, <code>run</code> admits no new call, waits for every call it admitted,
-and exits 1 when it cut one, lost a closing record or could not close the
+or <code>SIGTERM</code>, <code>run</code> admits no new call, waits for admitted calls up to
+<code>upstream.call_timeout</code> plus ten seconds, plus <code>pdp.timeout</code> with a decision
+point, and exits 1 when it cut one, lost a closing record or could not close the
 spool; <code>doctor</code> exits 1 when the plane it checked does not close.</p>
 <p><code>collect</code> and <code>trail</code> read no configuration:
 <a href="/docs/guides/watch-a-plane-without-a-collector">guides/watch-a-plane-without-a-collector.md</a>
 is their page. <code>collect</code> listens on a loopback IP address only and appends
-what a plane exports to one file until stopped; <code>--out</code> names a trail
-file or a new path, and any other file is refused and left as it was. A last
+what a plane exports, previews cleared, to one file until stopped; <code>--out</code>
+names a trail file or a new path, and any other is refused untouched. A last
 line with no newline is removed only when it can be the start of an evidence
 line, so a file of one line that cannot, such as a settings file, is refused
 too. <code>trail</code> prints one line per request and exits 1 when a chain fails,

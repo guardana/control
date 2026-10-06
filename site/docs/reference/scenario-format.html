@@ -219,7 +219,8 @@ them is refused when the file loads.</p>
 <h2 id="running-scenarios">Running scenarios</h2>
 <pre><code>guardana-gateway scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;...
 </code></pre>
-<p><code>--config</code> is the plane's own configuration. The listener, <code>/healthz</code>, the
+<p><code>--config</code> is the plane's own configuration, read with the environment as
+<code>run</code> reads it. The listener, <code>/healthz</code>, the
 approvals directory and the pause file come from it and nowhere else; the
 listener must speak HTTP and <code>health.address</code> must be set. <code>--trail</code> is the
 file the plane's collector writes. Paths run in the order given, a

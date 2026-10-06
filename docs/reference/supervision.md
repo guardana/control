@@ -60,12 +60,12 @@ nothing but that file's owner and mode protects it.
 
 | Rule | Fires when |
 | --- | --- |
-| `REPEATED_DENIAL` | one tool is denied by policy `max_denials` times; a block of the plane's own (a pause, an unclassified tool, a spent or expired approval) is counted, not a denial |
+| `REPEATED_DENIAL` | one tool on one upstream is denied by policy `max_denials` times; a block of the plane's own (a pause, an unclassified tool, a spent or expired approval) is counted, not a denial |
 | `STEP_OUTSIDE_PROCEDURE` | a tool neither a step nor allowed is called, or reported and not joined to a plane call |
 | `DEADLINE_EXCEEDED` | the run's events span more than `deadline_seconds` |
 | `REQUIRED_STEP_SKIPPED` | a required step has no instance |
 | `STEP_OUT_OF_ORDER` | a step comes before a step it must follow; an order that cannot be told is indeterminate, never a pass |
-| `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure, before any retry of it; an order that cannot be told makes it indeterminate |
+| `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure, before any retry of it; the first instance of a step found out of order is that finding, not this one; an order that cannot be told makes it indeterminate |
 
 An order cannot be told when a proposal or a failure has no time, or between
 two exports' proposals of one instant; within one export the plane's append
@@ -128,6 +128,6 @@ seen. The state is an owner-only directory, locked while a run holds it;
 `--init` starts one where none is and is refused over one. A failed delivery
 is retried by the next run. Nothing replays a delivered record but a new
 state, which delivers every alert again. Exit 0 when nothing failed; 1 when a delivery
-failed, or when the run stopped after a program had run (a mark that did not
-reach the disk, an interrupt, a log that changed under it); 2, printing
+failed, on an interrupt, or when the run stopped after a program had run (a
+mark that did not reach the disk, a log that changed under it); 2, printing
 nothing, when the state or the log is refused before any program ran.

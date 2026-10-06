@@ -104,7 +104,7 @@ every call; `--provider <p>`, every call to that upstream by its configured
 name; or `--action <k>` with `--provider <p>`, where `<k>` is `tool`, `prompt`
 or `resource` and a tool also takes `--name <n>`, the name the plane routes
 by. A prompt or a resource takes no name. `<f>` is the pause file, relative to the working directory. It prints
-the id it drew for the entry and nothing else, and `pause remove <file> <id>`
+only the id it drew for the entry, and `pause remove <file> <id>`
 takes that id; removing the last entry leaves a file that pauses nothing,
 because a missing file blocks every call. `pause list` prints one line per
 entry, its reason included, or `no entries`.
@@ -190,17 +190,18 @@ adds any stop the route allows and, across a restart, can start a new list with 
 `run` serves one plane from a configuration file and `doctor` checks that
 file without serving: [guides/run-the-gateway.md](../guides/run-the-gateway.md)
 is their page and [configuration.md](configuration.md) lists every key.
-`--config` is required: no default location is searched. A key naming a file or a
+`--config` is required. A key naming a file or a
 directory refuses key text, naming the key and not the value. On an interrupt
-or `SIGTERM`, `run` admits no new call, waits for every call it admitted,
-and exits 1 when it cut one, lost a closing record or could not close the
+or `SIGTERM`, `run` admits no new call, waits for admitted calls up to
+`upstream.call_timeout` plus ten seconds, plus `pdp.timeout` with a decision
+point, and exits 1 when it cut one, lost a closing record or could not close the
 spool; `doctor` exits 1 when the plane it checked does not close.
 
 `collect` and `trail` read no configuration:
 [guides/watch-a-plane-without-a-collector.md](../guides/watch-a-plane-without-a-collector.md)
 is their page. `collect` listens on a loopback IP address only and appends
-what a plane exports to one file until stopped; `--out` names a trail
-file or a new path, and any other file is refused and left as it was. A last
+what a plane exports, previews cleared, to one file until stopped; `--out`
+names a trail file or a new path, and any other is refused untouched. A last
 line with no newline is removed only when it can be the start of an evidence
 line, so a file of one line that cannot, such as a settings file, is refused
 too. `trail` prints one line per request and exits 1 when a chain fails,

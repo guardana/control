@@ -113,7 +113,7 @@ for the same thing; the right column is where the code defines it.</p>
 <tbody>
 <tr>
 <td>action digest</td>
-<td>the canonical digest of an envelope with its authorized arguments, <code>sha256:</code> and 64 lowercase hex digits; what a decision names, an approval binds to and the executed bytes are compared with</td>
+<td>the canonical digest of an envelope with its authorized arguments, <code>sha256:</code> and 64 lowercase hex digits; what a decision names unless it refused the envelope or its arguments, an approval binds to and the executed bytes are compared with</td>
 <td><code>canon.DigestV1</code> in <code>internal/canon/digest.go</code></td>
 </tr>
 <tr>
@@ -258,7 +258,7 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>reaction</td>
-<td>a signed route that turns an allowed finding into a stop of one run's later calls at the enforcement points, for a scope and an expiry; apart from a notifier</td>
+<td>turning a finding the operator's signed route allows into a stop of the one run it is about, which the enforcement points apply to that run's later calls, for a scope and an expiry; separate from the notifier</td>
 <td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>internal/reaction/</code>, <a href="/docs/reference/reaction">reference/reaction</a>, <code>experimental</code> for one opened run from a confirmed finding</td>
 </tr>
 <tr>

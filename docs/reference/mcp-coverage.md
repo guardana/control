@@ -34,7 +34,7 @@ child process (`upstreams[].command`).
 
 | Method | What the gateway does | Decided |
 | --- | --- | --- |
-| `tools/list` | Answers from the manifest, without a [withheld](../concepts/mcp-gateway.md#an-answer-that-quotes-a-credential) definition, shaped for the principal, with `cacheScope: private` and the operator's `ttlMs` | uncached under `annotate` or `hide`, one preview per classified tool one upstream serves; cached, one naming the bundle in force; nothing recorded |
+| `tools/list` | Answers from the manifest, without a [withheld](../concepts/mcp-gateway.md#an-answer-that-quotes-a-credential) definition, shaped for the principal, with `cacheScope: private` and the operator's `ttlMs` | under `annotate` or `hide`, one preview per classified tool one upstream serves; a cached list, one naming the bundle in force; nothing recorded |
 | `tools/call` | Admits an `ActionEnvelope`; only if the mode lets it run, applies rewriting obligations, none under `OBSERVE`, sends exactly the authorized bytes and closes the trail with their digest | yes |
 | `resources/read` | Translated as a `READ` of the URI. Routed only when one upstream is configured; with several it is `ACTION_UNCLASSIFIED`, since nothing says which server holds the URI | yes |
 | `prompts/get` | Translated as a `READ` of the prompt, its arguments authorized as a canonical JSON object of strings. Routed as above | yes |
@@ -57,7 +57,7 @@ child process (`upstreams[].command`).
 
 ## List shaping under each mode
 
-`list.shaping` only ever subtracts, and the configuration is refused at start
+`list.shaping` only subtracts, and the configuration is refused at start
 when it is not `none` in a mode that does not enforce.
 
 | Shaping | `OBSERVE` | `APPROVE`, `ENFORCE`, `LOCKDOWN` |

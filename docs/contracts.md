@@ -261,8 +261,9 @@ classify an effect cannot know whether the action is material, and
 `INDETERMINATE` with the fail-closed table is the answer to that, not silent
 acceptance.
 
-An envelope with a field refused as `ErrTooLarge` is still recorded; one past
-`MaxEnvelopeBytes` is not, since it names no request. The MCP adapter takes
+An envelope with a field refused as `ErrTooLarge` is still recorded, and so is
+one the MCP adapter built past `MaxEnvelopeBytes`, its tags taken off; bytes
+refused as past it are not, since they name no request. The MCP adapter takes
 the strings the agent chose past the bound off it, and an action name or a
 resource id it takes off becomes `overlong:sha256:` followed by the lower-case
 hex SHA-256 of the original bytes, 80 bytes in all, so the recorded proposal

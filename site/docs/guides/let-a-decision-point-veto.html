@@ -205,8 +205,9 @@ which shows the decision point answered; a call it does not
 cover leaves the counters where they were.</li>
 </ul>
 <h2 id="what-the-decision-point-sees">What the decision point sees</h2>
-<p>The question carries the principal, the action, the resource and the
-destination, as mapping version 1 in ADR-0017 lists them. It never carries
+<p>The question carries the principal, the agent, the action, the resource, the
+destination, the data labels and the request's ids, as mapping version 1 in
+ADR-0017 lists them. It never carries
 the call's arguments, their hash, the run context or the delegation chain.</p>
 <h2 id="roll-back">Roll back</h2>
 <p>Remove the <code>external</code> rules from the bundle and the <code>pdp.</code> keys from the

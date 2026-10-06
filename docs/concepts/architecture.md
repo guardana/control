@@ -32,7 +32,7 @@ flowchart LR
     OP -->|configuration, bundle, mode| GW
     AG -->|tools/call| GW
     GW -->|the calls it lets through| SRV
-    GW -->|held call, as a record in the directory| APR
+    GW -->|held call, as a record in the directory of file approvals| APR
     APR -->|approval for one digest| GW
     BUNDLE -->|verified, read again each poll| GW
     GW -->|evidence, OTLP logs| COL

@@ -12,7 +12,8 @@ covers: [cmd/guardana-gateway/collect.go, cmd/guardana-gateway/trail.go, adapter
 A plane exports its evidence to an OpenTelemetry collector and will not start
 without `export.endpoint`. On a first run, or on a small plane you watch yourself, you may
 have no collector. `guardana-gateway collect` is one: it takes what a plane
-exports over OTLP/HTTP and appends it to a file of evidence lines, and
+exports over OTLP/HTTP and appends it, argument and result previews cleared,
+to a file of evidence lines, and
 `guardana-gateway trail` reads that file back, one line per request. The plane
 itself does not change: it exports exactly as it would to any collector. Both
 commands are `experimental`; [status.md](../status.md) is the inventory.

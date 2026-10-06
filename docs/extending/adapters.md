@@ -55,7 +55,7 @@ failing:
 | Call | Means |
 | --- | --- |
 | `Admit(ctx, Admission) Disposition` | decide one proposed action. There is no error return: whatever the plane cannot do is a block that names its cause, and the zero `Disposition` blocks |
-| `Close(ctx, disposition, sent, result) error` | the call ran; here are the bytes that went and what came back. An error means the record is not durable |
+| `Close(ctx, disposition, sent, result) error` | the call ran; here are the bytes that went and what came back. An error means the record is not durable, or that the bytes sent were not the authorized ones (`ErrExecutedArgsMismatch`), which the record says |
 | `Abort(ctx, disposition, cause) error` | the call did not go, and the cause says why: the adapter's own pre-send check, an obligation it applies, a call it cannot route, a call its protocol cannot express |
 | `Preview(ctx, Admission) *Decision` | what a call would be decided, recording and holding nothing. It is what shaping a listing asks |
 

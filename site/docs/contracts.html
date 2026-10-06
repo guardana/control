@@ -399,8 +399,9 @@ is not the same as being rejected at the transport. A receiver that cannot
 classify an effect cannot know whether the action is material, and
 <code>INDETERMINATE</code> with the fail-closed table is the answer to that, not silent
 acceptance.</p>
-<p>An envelope with a field refused as <code>ErrTooLarge</code> is still recorded; one past
-<code>MaxEnvelopeBytes</code> is not, since it names no request. The MCP adapter takes
+<p>An envelope with a field refused as <code>ErrTooLarge</code> is still recorded, and so is
+one the MCP adapter built past <code>MaxEnvelopeBytes</code>, its tags taken off; bytes
+refused as past it are not, since they name no request. The MCP adapter takes
 the strings the agent chose past the bound off it, and an action name or a
 resource id it takes off becomes <code>overlong:sha256:</code> followed by the lower-case
 hex SHA-256 of the original bytes, 80 bytes in all, so the recorded proposal

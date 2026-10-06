@@ -39,7 +39,7 @@ plane mints or, under `runs.dir`, the id of the run the operator opened. `execut
 | Field | What this plane puts there |
 | --- | --- |
 | `request_id`, `occurred_at`, `project_id`, `tenant_id`, `environment` | an id the plane mints, the clock, and the configuration |
-| `principal` | `id`, `type` and `tenant_id` from `listener.principal`; no end user, since no key wires an authenticator |
+| `principal` | `id`, `type` and `tenant_id` from `listener.principal`, the plane's `tenant_id` when it names none; no end user, since no key wires an authenticator |
 | `agent` | `id`, `framework` and `version` from `listener.agent` |
 | `action` | `kind` (`tool`, `resource` or `prompt`), `name` (the tool's name, the resource's URI or the prompt's name), `protocol` `mcp`, the effect class, and `provider`, the upstream's name |
 | `resource` | the override's `type`, and `id`: the string or number at the override's `resource_from` pointer into the arguments, none for another value, the URI of a `resources/read`, or the name of a `prompts/get`; the upstream's `tenant_id` and `environment`. An action name or resource id refused as over-long is recorded as `overlong:sha256:` and the hex SHA-256 of what was sent |

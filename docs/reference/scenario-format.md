@@ -72,7 +72,8 @@ them is refused when the file loads.
 guardana-gateway scenario run --config <file> --trail <file> [--control <file>] [--timeout <d>] <path>...
 ```
 
-`--config` is the plane's own configuration. The listener, `/healthz`, the
+`--config` is the plane's own configuration, read with the environment as
+`run` reads it. The listener, `/healthz`, the
 approvals directory and the pause file come from it and nowhere else; the
 listener must speak HTTP and `health.address` must be set. `--trail` is the
 file the plane's collector writes. Paths run in the order given, a

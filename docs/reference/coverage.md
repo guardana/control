@@ -88,10 +88,12 @@ at least as strong as the path's state. A call every such plane's export could
 have shown and none does is printed as a call around the plane. The check is
 printed as not checked, with the reason, when:
 
-- a plane that counts has no export, or its export is not whole: cut short,
-  not at its end, with a gap, or filtered by a cursor or a query;
-- the observation has no trace or span id, or no event time;
-- its time is outside the span an export's events cover;
+- the observation has no trace or span id;
+- no proposal joins it, and a plane that counts has no export, or its export
+  is not whole: cut short, not at its end, with a gap, or filtered by a cursor
+  or a query;
+- no proposal joins it, and it has no event time, or its time is outside the
+  span an export's events cover;
 - no proposal joins it, but one at or below its span names the same call
   (tenant, project, tool and upstream, of kind tool) in an envelope the
   contract refuses for more than a missing effect class: the plane saw that

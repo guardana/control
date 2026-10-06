@@ -1,8 +1,8 @@
 # A refund run, supervised and stopped
 
-One agent task, refunding an order, run on a live plane under a run an
-operator opened, checked against its procedure, then stopped on what the
-check confirmed. [supervision.md](../../docs/reference/supervision.md) and
+An operator opens a run for an agent's refund on a live plane; the run is
+checked against its procedure and stopped on a confirmed finding.
+[supervision.md](../../docs/reference/supervision.md) and
 [reaction.md](../../docs/reference/reaction.md) are the references.
 
 | File | Holds |
@@ -31,6 +31,6 @@ check confirmed. [supervision.md](../../docs/reference/supervision.md) and
 5. `<control> supervise` finds `REPEATED_DENIAL` confirmed and
    `STEP_OUTSIDE_PROCEDURE` suspected, resting on the runtime's word.
 6. `<control> react` writes one stop, of the first run. Within a poll
-   interval its next call is refused `RUN_STOPPED`, and the second run's runs.
+   interval its next call is refused `RUN_STOPPED`, and the second run's calls go on.
 7. `<control> stops lift`, with the lift key, ends the stop.
 8. `<control> notify --init` hands each alert to a program once.

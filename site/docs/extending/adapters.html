@@ -148,7 +148,7 @@ failing:</p>
 </tr>
 <tr>
 <td><code>Close(ctx, disposition, sent, result) error</code></td>
-<td>the call ran; here are the bytes that went and what came back. An error means the record is not durable</td>
+<td>the call ran; here are the bytes that went and what came back. An error means the record is not durable, or that the bytes sent were not the authorized ones (<code>ErrExecutedArgsMismatch</code>), which the record says</td>
 </tr>
 <tr>
 <td><code>Abort(ctx, disposition, cause) error</code></td>

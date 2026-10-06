@@ -61,8 +61,8 @@ Two things an author meets early:
   ones. A rule on `delegation.scopes` is unknown for a call that carries no
   chain, and an unknown rule of any effect but `ALLOW` makes the decision
   `INDETERMINATE`, which is `Block` for a material effect. A rule that
-  should apply to delegated calls alone therefore turns every direct call into
-  one the enforcement point blocks.
+  should apply to delegated calls alone therefore blocks every direct material
+  call its other conditions match.
 
 ### 2. Lint it
 

@@ -136,8 +136,9 @@ decision point in `pdp_instance` and carries one of the codes on
 
 ## What the decision point sees
 
-The question carries the principal, the action, the resource and the
-destination, as mapping version 1 in ADR-0017 lists them. It never carries
+The question carries the principal, the agent, the action, the resource, the
+destination, the data labels and the request's ids, as mapping version 1 in
+ADR-0017 lists them. It never carries
 the call's arguments, their hash, the run context or the delegation chain.
 
 ## Roll back

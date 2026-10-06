@@ -156,7 +156,7 @@ child process (<code>upstreams[].command</code>).</p>
 <tr>
 <td><code>tools/list</code></td>
 <td>Answers from the manifest, without a <a href="/docs/concepts/mcp-gateway#an-answer-that-quotes-a-credential">withheld</a> definition, shaped for the principal, with <code>cacheScope: private</code> and the operator's <code>ttlMs</code></td>
-<td>uncached under <code>annotate</code> or <code>hide</code>, one preview per classified tool one upstream serves; cached, one naming the bundle in force; nothing recorded</td>
+<td>under <code>annotate</code> or <code>hide</code>, one preview per classified tool one upstream serves; a cached list, one naming the bundle in force; nothing recorded</td>
 </tr>
 <tr>
 <td><code>tools/call</code></td>
@@ -233,7 +233,7 @@ child process (<code>upstreams[].command</code>).</p>
 </tbody>
 </table>
 <h2 id="list-shaping-under-each-mode">List shaping under each mode</h2>
-<p><code>list.shaping</code> only ever subtracts, and the configuration is refused at start
+<p><code>list.shaping</code> only subtracts, and the configuration is refused at start
 when it is not <code>none</code> in a mode that does not enforce.</p>
 <table>
 <thead>

@@ -148,8 +148,8 @@ and nothing matched is <code>DENY</code>.</li>
 ones. A rule on <code>delegation.scopes</code> is unknown for a call that carries no
 chain, and an unknown rule of any effect but <code>ALLOW</code> makes the decision
 <code>INDETERMINATE</code>, which is <code>Block</code> for a material effect. A rule that
-should apply to delegated calls alone therefore turns every direct call into
-one the enforcement point blocks.</li>
+should apply to delegated calls alone therefore blocks every direct material
+call its other conditions match.</li>
 </ul>
 <h3 id="2-lint-it">2. Lint it</h3>
 <pre><code>$ go run ./cmd/guardana-control policy lint testdata/policy/documents/example.json
