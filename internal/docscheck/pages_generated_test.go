@@ -1,10 +1,13 @@
 package docscheck
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
+	"io"
 	"maps"
 	"path"
 	"regexp"
@@ -225,10 +228,20 @@ type testIndex map[string][]string
 
 var testName = regexp.MustCompile(`^Test\w*$`)
 
+// gatePlatforms are the platforms the gate runs go test on: CI's and the
+// maintainers' machines.
+var gatePlatforms = [][2]string{{"linux", "amd64"}, {"darwin", "arm64"}}
+
 // add indexes the top-level functions go test runs from one file's syntax
-// tree, so a test name written in a string or a comment indexes nothing. A
-// file that does not parse is an error rather than a file with no tests.
+// tree, so a test name written in a string or a comment indexes nothing, and
+// a file whose build constraint or name leaves it out on every platform the
+// gate runs, as `//go:build ignore` does, indexes nothing either. A file that
+// does not parse is an error rather than a file with no tests.
 func (ix testIndex) add(rel string, data []byte) error {
+	built, err := builtOnTheGate(rel, data)
+	if err != nil || !built {
+		return err
+	}
 	file, err := parser.ParseFile(token.NewFileSet(), rel, data, parser.SkipObjectResolution)
 	if err != nil {
 		return fmt.Errorf("parsing %s: %w", rel, err)
@@ -241,6 +254,24 @@ func (ix testIndex) add(rel string, data []byte) error {
 		}
 	}
 	return nil
+}
+
+// builtOnTheGate reports whether go test builds the file rel, holding data,
+// on any of gatePlatforms.
+func builtOnTheGate(rel string, data []byte) (bool, error) {
+	for _, p := range gatePlatforms {
+		ctxt := build.Default
+		ctxt.GOOS, ctxt.GOARCH = p[0], p[1]
+		ctxt.OpenFile = func(string) (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(data)), nil }
+		match, err := ctxt.MatchFile(path.Dir(rel), path.Base(rel))
+		if err != nil {
+			return false, fmt.Errorf("reading the build constraints of %s: %w", rel, err)
+		}
+		if match {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // testingName is the name a file refers to package testing by.
@@ -306,5 +337,17 @@ func TestTestIndexHoldsOnlyDeclaredTests(t *testing.T) {
 	}
 	if err := ix.add("internal/thing/b_test.go", []byte("package thing\nfunc TestCut(t *testing.T) {\n")); err == nil {
 		t.Error("a test file that does not parse was indexed without an error")
+	}
+	for name, text := range map[string]string{
+		"internal/thing/c_test.go":         "//go:build ignore\n\npackage thing\n\nimport \"testing\"\n\nfunc TestIgnored(t *testing.T) {}\n",
+		"internal/thing/d_windows_test.go": "package thing\n\nimport \"testing\"\n\nfunc TestWindowsOnly(t *testing.T) {}\n",
+		"internal/thing/e_test.go":         "//go:build linux\n\npackage thing\n\nimport \"testing\"\n\nfunc TestLinuxOnly(t *testing.T) {}\n",
+	} {
+		if err := ix.add(name, []byte(text)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if want := []string{"TestDeclared", "Test", "TestLinuxOnly"}; !slices.Equal(ix["internal/thing"], want) {
+		t.Errorf("after files the gate builds and leaves out, tests = %q, want %q", ix["internal/thing"], want)
 	}
 }

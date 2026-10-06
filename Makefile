@@ -6,6 +6,24 @@ RANGE ?= HEAD~1..HEAD
 PKGS := ./...
 FUZZTIME ?= 10s
 
+# make quality reports green only over work it did. A dry run, a touch, a
+# question or ignored errors would print its last line over recipes that never
+# ran or failed; another makefile or a shell startup file could redefine what
+# the recipes run; and GOFLAGS would change what every go command builds and
+# tests. Each is refused before any recipe, however it was set, since an
+# earlier CI step can set any of them through the environment.
+ifneq ($(filter quality,$(MAKECMDGOALS)),)
+ifneq ($(strip $(MAKEFILES)$(BASH_ENV)$(ENV)),)
+$(error make quality reads this Makefile alone and starts its recipes' shell clean; MAKEFILES, BASH_ENV or ENV is set)
+endif
+ifneq ($(strip $(GOFLAGS)$(shell $(GO) env GOFLAGS 2>/dev/null)),)
+$(error make quality builds what the module says; GOFLAGS is set: $(strip $(GOFLAGS) $(shell $(GO) env GOFLAGS 2>/dev/null)))
+endif
+ifneq ($(strip $(foreach f,n t q i,$(findstring $(f),$(firstword -$(MAKEFLAGS))))),)
+$(error make quality runs and checks every recipe; MAKEFLAGS asks for a dry run, a touch, a question or ignored errors: $(MAKEFLAGS))
+endif
+endif
+
 # This Makefile's own directory. Recipes use paths relative to it, so a recipe
 # started from anywhere else changes there first rather than half-working on
 # paths that happen to resolve.

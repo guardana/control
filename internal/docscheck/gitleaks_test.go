@@ -372,6 +372,53 @@ func TestGitleaksConfigLoadsOnlyTheDefaultsAndNarrowExceptions(t *testing.T) {
 	for _, problem := range gitleaksConfigProblems(string(data)) {
 		t.Errorf("%s: %s", gitleaksConfigPath, problem)
 	}
+	for _, entry := range unreviewedExceptions(string(data), reviewedGitleaksExceptions) {
+		t.Errorf("%s: the exception %q is not among the reviewed ones this test names", gitleaksConfigPath, entry)
+	}
+}
+
+// reviewedGitleaksExceptions is every regex and stopword the scan's
+// configuration may hold. Whether a narrow pattern hides a real secret of a
+// rule's shape is a judgement no check here makes, so an exception added to
+// the configuration fails until this list, which the security maintainers
+// own, names it too.
+var reviewedGitleaksExceptions = []string{}
+
+// unreviewedExceptions is each regex and stopword of the configuration text
+// that reviewed does not name; a text that does not parse is its own entry.
+func unreviewedExceptions(text string, reviewed []string) []string {
+	tables, err := parseGitleaksTOML(text)
+	if err != nil {
+		return []string{err.Error()}
+	}
+	var out []string
+	for _, t := range tables {
+		for _, v := range t.values {
+			if v.key != "regexes" && v.key != "stopwords" {
+				continue
+			}
+			for _, entry := range v.strs {
+				if !slices.Contains(reviewed, entry) {
+					out = append(out, entry)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// TestANarrowExceptionNeedsAReview: an exception too narrow for the planted
+// secrets to show, such as one prefix of a token's shape, is still named as
+// unreviewed, and one the list names is not.
+func TestANarrowExceptionNeedsAReview(t *testing.T) {
+	text := "[extend]\nuseDefault = true\n\n[[allowlists]]\ntargetRules = ['''github-pat''']\n" +
+		"regexTarget = '''secret'''\nregexes = ['''^ghp_Z''']\nstopwords = ['''zzqx''']\n"
+	if got := unreviewedExceptions(text, nil); !slices.Equal(got, []string{"^ghp_Z", "zzqx"}) {
+		t.Errorf("unreviewed exceptions %q, want both", got)
+	}
+	if got := unreviewedExceptions(text, []string{"^ghp_Z", "zzqx"}); len(got) != 0 {
+		t.Errorf("reviewed exceptions named as unreviewed: %q", got)
+	}
 }
 
 const gitleaksFixture = `# A comment.

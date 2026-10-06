@@ -22,10 +22,21 @@ var (
 	ciStepKeys = []string{"name", "run"}
 )
 
-// The variables make and go take flags and settings from. An earlier step that
-// writes one to $GITHUB_ENV changes what the gate step runs without touching
-// it.
-var ciLooseningNames = []string{"MAKEFLAGS", "MFLAGS", "GNUMAKEFLAGS", "GOFLAGS", "GOENV"}
+// The variables make, go and the recipes' bash take flags, makefiles and
+// startup files from. An earlier step that writes one to $GITHUB_ENV changes
+// what the gate step runs without touching it.
+var ciLooseningNames = []string{"MAKEFLAGS", "MFLAGS", "GNUMAKEFLAGS", "MAKEFILES", "GOFLAGS", "GOENV", "BASH_ENV"}
+
+// ciEnvWrites are the only lines of the quality job that may name the files
+// a step hands variables and the path to later steps through: the pins of
+// scripts/tool-versions.env and the directory of the tools the job installs.
+// The check reads text, so a write a step spells some other way is the
+// Makefile's guard to refuse; this keeps every plain one visible.
+var ciEnvWrites = []string{
+	`printf '%s\n' "${pins}" >>"$GITHUB_ENV"`,
+	`scripts/tool-versions.env | grep . >>"$GITHUB_ENV"`,
+	`echo "${bin}" >>"$GITHUB_PATH"`,
+}
 
 // yamlNode is one mapping key or sequence item ("-") of a block-style YAML
 // document, with the scalar written after its colon and the lines of a block
@@ -222,6 +233,12 @@ func looseningProblems(step *yamlNode) []string {
 			problems = append(problems, fmt.Sprintf("line %d: a step of the %s job names %s, which a write to $GITHUB_ENV hands to the gate step", step.line, ciGateJob, name))
 		}
 	}
+	for line := range strings.Lines(text) {
+		line = strings.TrimSpace(line)
+		if (strings.Contains(line, "GITHUB_ENV") || strings.Contains(line, "GITHUB_PATH")) && !slices.Contains(ciEnvWrites, line) {
+			problems = append(problems, fmt.Sprintf("line %d: a step of the %s job writes the environment or the path of later steps other than as the pins and the tools do: %s", step.line, ciGateJob, line))
+		}
+	}
 	return problems
 }
 
@@ -269,14 +286,26 @@ func triggerProblems(root *yamlNode) []string {
 			problems = append(problems, where+" is not bare")
 		}
 		for _, kid := range trigger.kids {
-			if event == "pull_request" || kid.key != "branches" {
-				problems = append(problems, fmt.Sprintf("%s carries %s", where, kid.key))
-			} else if !slices.Contains(sequence(kid), "main") {
-				problems = append(problems, where+" runs on no main branch")
+			if problem := triggerFilterProblem(where, event, kid); problem != "" {
+				problems = append(problems, problem)
 			}
 		}
 	}
 	return problems
+}
+
+// triggerFilterProblem judges one filter of a trigger: only a push may be
+// filtered, and only by branches that name main and exclude none.
+func triggerFilterProblem(where, event string, kid *yamlNode) string {
+	switch branches := sequence(kid); {
+	case event == "pull_request" || kid.key != "branches":
+		return fmt.Sprintf("%s carries %s", where, kid.key)
+	case !slices.Contains(branches, "main"):
+		return where + " runs on no main branch"
+	case slices.ContainsFunc(branches, func(b string) bool { return strings.HasPrefix(b, "!") }):
+		return where + " excludes a branch, which can take main back out"
+	}
+	return ""
 }
 
 // sequence is the scalars of n's value as a flow list, or of its block items.
@@ -376,7 +405,7 @@ jobs:
       - name: Load pins
         # a comment
         run: |
-          grep -E 'x' file >>"$GITHUB_ENV"
+          printf '%s\n' "${pins}" >>"$GITHUB_ENV"
           if: this is script text, not a key
       - name: Run the quality gate
         run: make quality
@@ -394,7 +423,7 @@ func TestCIGateProblems(t *testing.T) {
 	}
 	gateStep := "      - name: Run the quality gate\n        run: make quality\n"
 	jobHead := "    name: Quality gate\n"
-	pinsWrite := "          grep -E 'x' file >>\"$GITHUB_ENV\"\n"
+	pinsWrite := "          printf '%s\\n' \"${pins}\" >>\"$GITHUB_ENV\"\n"
 	cases := map[string]struct{ old, replacement, want string }{
 		"the quick gate":                {"run: make quality\n\n", "run: make quality-quick\n\n", `no step of the quality job runs exactly "make quality"`},
 		"the gate with a fallback":      {"run: make quality\n\n", "run: make quality || true\n\n", "runs exactly"},
@@ -425,6 +454,11 @@ func TestCIGateProblems(t *testing.T) {
 		"GNUMAKEFLAGS in a printf":      {pinsWrite, pinsWrite + "          printf '%s\\n' GNUMAKEFLAGS=-n >>$GITHUB_ENV\n", "names GNUMAKEFLAGS"},
 		"GOFLAGS in an inline step":     {gateStep, "      - run: echo GOFLAGS=-tags=skip >> $GITHUB_ENV\n" + gateStep, "names GOFLAGS"},
 		"GOENV in a step's env":         {gateStep, "      - name: x\n        env:\n          NAME: GOENV\n        run: echo \"$NAME=/tmp/env\" >>\"$GITHUB_ENV\"\n" + gateStep, "names GOENV"},
+		"a name split in quotes":        {pinsWrite, pinsWrite + "          echo 'MAKE'FLAGS=-n >>\"$GITHUB_ENV\"\n", "other than as the pins and the tools do"},
+		"BASH_ENV through GITHUB_ENV":   {pinsWrite, pinsWrite + "          echo \"BASH_ENV=$PWD/x.sh\" >>\"$GITHUB_ENV\"\n", "names BASH_ENV"},
+		"MAKEFILES through GITHUB_ENV":  {pinsWrite, pinsWrite + "          echo MAKEFILES=loose.mk >>\"$GITHUB_ENV\"\n", "names MAKEFILES"},
+		"a directory on GITHUB_PATH":    {pinsWrite, pinsWrite + "          echo \"$PWD/fakebin\" >>\"$GITHUB_PATH\"\n", "other than as the pins and the tools do"},
+		"a branch excluded":             {"branches: [main]", "branches: [main, '!main']", "excludes a branch"},
 		"no pull_request trigger":       {"  pull_request:\n", "", "does not run on pull_request"},
 		"a pull_request filter":         {"  pull_request:\n", "  pull_request:\n    paths: [docs/**]\n", "the pull_request trigger carries paths"},
 		"pull_request types":            {"  pull_request:\n", "  pull_request: {types: [closed]}\n", "the pull_request trigger is not bare"},
