@@ -88,7 +88,8 @@ func TestRenderRefusesAnEmptyCatalogue(t *testing.T) {
 
 func TestPageIsDeterministic(t *testing.T) {
 	src := []byte(catalogueSource(`"cap_amount", "redact_fields"`))
-	appliers := []Applier{{Name: "the gateway", Types: []string{"redact_fields", "cap_amount"}}}
+	appliers := []Applier{{Name: "the gateway", Types: []string{"redact_fields", "cap_amount"},
+		Params: map[string][]string{"redact_fields": {"fields"}, "cap_amount": {"max", "field"}}}}
 	first, err := Page(src, appliers)
 	if err != nil {
 		t.Fatalf("Page: %v", err)
@@ -127,8 +128,8 @@ func FuzzNames(f *testing.F) {
 
 func TestRenderNamesWhoAppliesEachType(t *testing.T) {
 	appliers := []Applier{
-		{Name: "the gateway", Types: []string{"cap_amount"}},
-		{Name: "the adapter", Types: []string{"cap_amount", "read_only"}},
+		{Name: "the gateway", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": {"max", "field"}}},
+		{Name: "the adapter", Types: []string{"cap_amount", "read_only"}, Params: map[string][]string{"cap_amount": {"max", "field"}, "read_only": nil}},
 	}
 	page, err := render([]string{"cap_amount", "read_only", "emit_alert"}, appliers)
 	if err != nil {
@@ -136,9 +137,9 @@ func TestRenderNamesWhoAppliesEachType(t *testing.T) {
 	}
 	text := string(page)
 	for _, row := range []string{
-		"| `cap_amount` | the gateway, the adapter |\n",
-		"| `read_only` | the adapter |\n",
-		"| `emit_alert` | " + unapplied + " |\n",
+		"| `cap_amount` | the gateway, the adapter | `max`, `field` |\n",
+		"| `read_only` | the adapter | none |\n",
+		"| `emit_alert` | " + unapplied + " |  |\n",
 	} {
 		if !strings.Contains(text, row) {
 			t.Errorf("page has no row %q:\n%s", row, text)
@@ -156,7 +157,23 @@ func TestRenderRefusesAnApplierThePageCannotState(t *testing.T) {
 	}{
 		{"a type outside the catalogue", []Applier{{Name: "the adapter", Types: []string{"cap_rate"}}}},
 		{"no name", []Applier{{Types: []string{"cap_amount"}}}},
-		{"a name a cell cannot carry", []Applier{{Name: "a|b", Types: []string{"cap_amount"}}}},
+		{"a name a cell cannot carry", []Applier{{Name: "a|b", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": nil}}}},
+		{"a type with no parameter entry", []Applier{{Name: "the adapter", Types: []string{"cap_amount"}, Params: map[string][]string{}}}},
+		{"parameters for a type not applied", []Applier{{Name: "the adapter", Types: []string{"cap_amount"},
+			Params: map[string][]string{"cap_amount": nil, "read_only": {"x"}}}}},
+		{"a parameter a cell cannot carry", []Applier{{Name: "the adapter", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": {"a|b"}}}}},
+		{"a backtick in a parameter", []Applier{{Name: "the adapter", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": {"a`b"}}}}},
+		{"a comma in a parameter", []Applier{{Name: "the adapter", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": {"a,b"}}}}},
+		{"an empty parameter", []Applier{{Name: "the adapter", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": {""}}}}},
+		{"a parameter twice", []Applier{{Name: "the adapter", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": {"max", "max"}}}}},
+		{"two appliers reading different parameters", []Applier{
+			{Name: "the gateway", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": {"max"}}},
+			{Name: "the adapter", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": {"max", "field"}}},
+		}},
+		{"two appliers, one reading none", []Applier{
+			{Name: "the gateway", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": {"max"}}},
+			{Name: "the adapter", Types: []string{"cap_amount"}, Params: map[string][]string{"cap_amount": nil}},
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			page, err := render(names, tc.appliers)

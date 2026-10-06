@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -25,17 +26,43 @@ const (
 	obligationShortenTimeout    = "shorten_timeout"
 	obligationDenyExternalSink  = "deny_external_sink"
 
-	// The parameters each reads. No type has a schema in the catalogue yet,
-	// so these are this adapter's reading and the page documents them.
 	paramIDs    = "ids"
 	paramPrefix = "prefix"
 	paramMS     = "ms"
 )
 
+// applies is each type the adapter applies, in the order it declares them,
+// with the parameters it reads. The catalogue holds no parameter schema, so
+// this table is both what the adapter checks an obligation against and what
+// the obligation reference page renders.
+var applies = []struct {
+	typ    string
+	params []string
+}{
+	{obligationReadOnly, nil},
+	{obligationRestrictResources, []string{paramIDs, paramPrefix}},
+	{obligationShortenTimeout, []string{paramMS}},
+	{obligationDenyExternalSink, nil},
+}
+
 // AppliedObligations returns the obligation types the adapter applies to a
 // call it sends, which it declares to the kernel as applicable.
 func AppliedObligations() []string {
-	return []string{obligationReadOnly, obligationRestrictResources, obligationShortenTimeout, obligationDenyExternalSink}
+	out := make([]string, 0, len(applies))
+	for _, a := range applies {
+		out = append(out, a.typ)
+	}
+	return out
+}
+
+// ObligationParams returns, for each type the adapter applies, the parameters
+// it reads; an obligation carrying any other is not applied.
+func ObligationParams() map[string][]string {
+	out := make(map[string][]string, len(applies))
+	for _, a := range applies {
+		out[a.typ] = slices.Clone(a.params)
+	}
+	return out
 }
 
 // applied is what the obligations of a decision demand of the send.
@@ -117,6 +144,9 @@ func applyObligations(c *call, obligations []*controlv1.Obligation) (applied, er
 }
 
 func applyOne(c *call, o *controlv1.Obligation, out *applied) error {
+	if err := onlyParams(o); err != nil {
+		return err
+	}
 	env := c.admission.Envelope
 	switch o.GetType() {
 	case obligationReadOnly:
@@ -138,6 +168,23 @@ func applyOne(c *call, o *controlv1.Obligation, out *applied) error {
 		return errors.New("not applied by this adapter")
 	}
 	return nil
+}
+
+// onlyParams refuses a parameter the obligation's type does not read: a
+// parameter nobody read would be an instruction nobody followed.
+func onlyParams(o *controlv1.Obligation) error {
+	for _, a := range applies {
+		if a.typ != o.GetType() {
+			continue
+		}
+		for key := range o.GetParams() {
+			if !slices.Contains(a.params, key) {
+				return fmt.Errorf("parameter %q is not one this adapter applies", key)
+			}
+		}
+		return nil
+	}
+	return errors.New("not applied by this adapter")
 }
 
 // shorten reads ms as a positive integer and keeps the shortest timeout. A

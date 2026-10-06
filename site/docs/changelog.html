@@ -119,6 +119,9 @@ last one won, so an <code>effect: READ</code> after an <code>effect: DELETE</cod
 delete as a read.</li>
 <li><code>guardana-control runs open --parent</code> refuses a child whose expiry would
 pass its parent's.</li>
+<li>The MCP adapter refuses an obligation that carries a parameter its type does
+not read, as the gateway already did; a non-advisory one stops the call. The
+obligations page lists the parameters each type reads.</li>
 <li>The gateway refuses a configuration file that others may write, or that an
 account other than its own or root owns, and one in a directory others may
 write unless the directory is sticky; a link is followed and the file it

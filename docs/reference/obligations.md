@@ -23,25 +23,29 @@ include one outside it. The gateway rewrites the arguments for its types
 before the decision it records, and an adapter applies the types it declares
 to the call it sends. A decision carrying a non-advisory obligation that
 nothing here applies is `DENY` with `OBLIGATION_NOT_UNDERSTOOD`, and no
-fail-open setting relieves that; an advisory one is skipped. The name is all
-the tree holds about a type: a parameter's key is checked as a map key, and
-no type has a parameter schema yet. What is built and what is not is in
-[status.md](../status.md).
+fail-open setting relieves that; an advisory one is skipped.
+
+The policy parser checks a parameter's key only as a map key; the catalogue
+holds no parameter schema. The applier of a type reads the parameters its
+row lists and refuses any other, so an obligation carrying another is not
+applied: a non-advisory one stops the call and an advisory one is skipped.
+A type nothing in this build applies lists no parameters. What is built and
+what is not is in [status.md](../status.md).
 
 Rendered from the catalogue in `internal/policy/rules/catalogue.go` and the
-types the gateway and the MCP adapter declare. Rebuild it with
-`make docs-gen`; an edit made here does not survive the next run.
+types and parameters the gateway and the MCP adapter declare. Rebuild it
+with `make docs-gen`; an edit made here does not survive the next run.
 
-| Type | Applied by |
-| --- | --- |
-| `redact_fields` | the gateway |
-| `read_only` | the MCP adapter |
-| `restrict_resources` | the MCP adapter |
-| `require_idempotency_key` | `planned`: nothing in this build |
-| `cap_amount` | the gateway |
-| `cap_rate` | `planned`: nothing in this build |
-| `require_sandbox` | `planned`: nothing in this build |
-| `second_approver` | `planned`: nothing in this build |
-| `emit_alert` | `planned`: nothing in this build |
-| `shorten_timeout` | the MCP adapter |
-| `deny_external_sink` | the MCP adapter |
+| Type | Applied by | Parameters |
+| --- | --- | --- |
+| `redact_fields` | the gateway | `fields` |
+| `read_only` | the MCP adapter | none |
+| `restrict_resources` | the MCP adapter | `ids`, `prefix` |
+| `require_idempotency_key` | `planned`: nothing in this build |  |
+| `cap_amount` | the gateway | `max`, `field` |
+| `cap_rate` | `planned`: nothing in this build |  |
+| `require_sandbox` | `planned`: nothing in this build |  |
+| `second_approver` | `planned`: nothing in this build |  |
+| `emit_alert` | `planned`: nothing in this build |  |
+| `shorten_timeout` | the MCP adapter | `ms` |
+| `deny_external_sink` | the MCP adapter | none |

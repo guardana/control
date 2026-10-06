@@ -3,6 +3,7 @@ package mcp_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -186,6 +187,95 @@ func TestDenyExternalSinkObligation(t *testing.T) {
 	assertRefused(t, r, res, err, "read_file")
 	if res, err := callTool(t, agent, "unlisted", map[string]any{"path": "/x"}); err != nil || res.IsError {
 		t.Fatalf("trusted sink refused: %v %+v", err, res)
+	}
+}
+
+// TestObligationWithAnUnreadParameterIsNotApplied: a parameter the type does
+// not read is an instruction nobody follows, so the obligation carrying it is
+// not applied. Each case passes without the extra parameter; with it, a
+// non-advisory obligation stops the call and an advisory one is skipped.
+func TestObligationWithAnUnreadParameterIsNotApplied(t *testing.T) {
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{overrides: func(v *victim, t *testing.T) []mcp.Override {
+		o := v.overrides(t)
+		o = append(o, mcp.Override{Upstream: "victim", Tool: "unlisted", Fingerprint: v.fingerprint(t, "unlisted"), Effect: effectRead, ResourceType: "file", ResourceFrom: "/path", TrustZone: zoneInternal})
+		return o
+	}})
+	agent := r.connect(t, "agent-a")
+	// The extra key is, where one exists, a parameter another type reads.
+	for _, tc := range []struct {
+		typ    string
+		params map[string]string
+		extra  string
+	}{
+		{"read_only", map[string]string{}, "ids"},
+		{"restrict_resources", map[string]string{"ids": "/x"}, "ms"},
+		{"restrict_resources", map[string]string{"prefix": "/"}, "fields"},
+		{"shorten_timeout", map[string]string{"ms": "60000"}, "prefix"},
+		{"deny_external_sink", map[string]string{}, "limit"},
+	} {
+		t.Run(tc.typ+"/"+tc.extra, func(t *testing.T) {
+			r.pipe.decide = executeWith(obligation(tc.typ, tc.params))
+			if res, err := callTool(t, agent, "unlisted", map[string]any{"path": "/x"}); err != nil || res.IsError {
+				t.Fatalf("%s %v refused without an extra parameter: %v %+v", tc.typ, tc.params, err, res)
+			}
+			extra := map[string]string{tc.extra: "/"}
+			maps.Copy(extra, tc.params)
+			r.pipe.decide = executeWith(obligation(tc.typ, extra))
+			before := r.victim.count("unlisted")
+			res, err := callTool(t, agent, "unlisted", map[string]any{"path": "/x"})
+			if err != nil || !res.IsError || r.victim.count("unlisted") != before {
+				t.Fatalf("%s %v was applied: %v %+v", tc.typ, extra, err, res)
+			}
+			if codes := codesOf(t, res); !slices.Equal(codes, []string{"OBLIGATIONS_ATTACHED", "OBLIGATION_NOT_UNDERSTOOD"}) {
+				t.Errorf("codes %v", codes)
+			}
+			r.pipe.decide = executeWith(&controlv1.Obligation{Type: tc.typ, Params: extra, Advisory: true})
+			if res, err := callTool(t, agent, "unlisted", map[string]any{"path": "/x"}); err != nil || res.IsError {
+				t.Fatalf("advisory %s with an extra parameter stopped the call: %v %+v", tc.typ, err, res)
+			}
+		})
+	}
+}
+
+// TestObligationParamsNameWhatEachTypeReads: the declared parameters are the
+// ones the conformance tests above exercise, one entry per applied type, and
+// a caller that changes the returned table changes nothing the adapter reads.
+func TestObligationParamsNameWhatEachTypeReads(t *testing.T) {
+	want := map[string][]string{
+		"read_only":          nil,
+		"restrict_resources": {"ids", "prefix"},
+		"shorten_timeout":    {"ms"},
+		"deny_external_sink": nil,
+	}
+	got := mcp.ObligationParams()
+	if !maps.EqualFunc(got, want, func(a, b []string) bool { return slices.Equal(a, b) }) {
+		t.Fatalf("ObligationParams = %v, want %v", got, want)
+	}
+	types := slices.Sorted(maps.Keys(got))
+	if applied := slices.Sorted(slices.Values(mcp.AppliedObligations())); !slices.Equal(types, applied) {
+		t.Errorf("parameters declared for %v, types applied %v", types, applied)
+	}
+	got["shorten_timeout"][0] = "seconds"
+	got["read_only"] = append(got["read_only"], "ms")
+	if again := mcp.ObligationParams(); !slices.Equal(again["shorten_timeout"], []string{"ms"}) || len(again["read_only"]) != 0 {
+		t.Errorf("a caller's change reached the table: %v", again)
+	}
+}
+
+// TestAdvisoryShortenTimeoutWithAnUnreadParameterIsSkipped: the skip is
+// observable on the one type that changes the send: the deadline an advisory
+// shorten_timeout sets applies, and does not once it carries a parameter the
+// type does not read.
+func TestAdvisoryShortenTimeoutWithAnUnreadParameterIsSkipped(t *testing.T) {
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{})
+	agent := r.connect(t, "agent-a")
+	r.pipe.decide = executeWith(&controlv1.Obligation{Type: "shorten_timeout", Params: map[string]string{"ms": "100"}, Advisory: true})
+	if _, err := callTool(t, agent, "slow", map[string]any{"path": "/x"}); err == nil {
+		t.Fatal("the slow tool completed under an advisory 100ms obligation")
+	}
+	r.pipe.decide = executeWith(&controlv1.Obligation{Type: "shorten_timeout", Params: map[string]string{"ms": "100", "limit": "1"}, Advisory: true})
+	if res, err := callTool(t, agent, "slow", map[string]any{"path": "/x"}); err != nil || res.IsError {
+		t.Fatalf("an advisory shorten_timeout with an unread parameter cut the call: %v %+v", err, res)
 	}
 }
 

@@ -61,17 +61,21 @@ const header = "\n# Obligations\n" +
 	"before the decision it records, and an adapter applies the types it declares\n" +
 	"to the call it sends. A decision carrying a non-advisory obligation that\n" +
 	"nothing here applies is `DENY` with `OBLIGATION_NOT_UNDERSTOOD`, and no\n" +
-	"fail-open setting relieves that; an advisory one is skipped. The name is all\n" +
-	"the tree holds about a type: a parameter's key is checked as a map key, and\n" +
-	"no type has a parameter schema yet. What is built and what is not is in\n" +
-	"[status.md](../status.md).\n" +
+	"fail-open setting relieves that; an advisory one is skipped.\n" +
+	"\n" +
+	"The policy parser checks a parameter's key only as a map key; the catalogue\n" +
+	"holds no parameter schema. The applier of a type reads the parameters its\n" +
+	"row lists and refuses any other, so an obligation carrying another is not\n" +
+	"applied: a non-advisory one stops the call and an advisory one is skipped.\n" +
+	"A type nothing in this build applies lists no parameters. What is built and\n" +
+	"what is not is in [status.md](../status.md).\n" +
 	"\n" +
 	"Rendered from the catalogue in `internal/policy/rules/catalogue.go` and the\n" +
-	"types the gateway and the MCP adapter declare. Rebuild it with\n" +
-	"`make docs-gen`; an edit made here does not survive the next run.\n" +
+	"types and parameters the gateway and the MCP adapter declare. Rebuild it\n" +
+	"with `make docs-gen`; an edit made here does not survive the next run.\n" +
 	"\n" +
-	"| Type | Applied by |\n" +
-	"| --- | --- |\n"
+	"| Type | Applied by | Parameters |\n" +
+	"| --- | --- | --- |\n"
 
 // unapplied is the cell of a type nothing in this build applies.
 const unapplied = "`planned`: nothing in this build"
@@ -211,9 +215,30 @@ func render(names []string, appliers []Applier) ([]byte, error) {
 		if err := checkName(name); err != nil {
 			return nil, err
 		}
-		fmt.Fprintf(&buf, "| `%s` | %s |\n", name, appliedBy(name, appliers))
+		fmt.Fprintf(&buf, "| `%s` | %s | %s |\n", name, appliedBy(name, appliers), paramsOf(name, appliers))
 	}
 	return buf.Bytes(), nil
+}
+
+// paramsOf is the parameters cell of one type: the parameters its appliers
+// read, in their order, `none` when they read none, and empty when nothing
+// applies the type. checkAppliers has refused appliers that disagree.
+func paramsOf(name string, appliers []Applier) string {
+	for _, a := range appliers {
+		if !slices.Contains(a.Types, name) {
+			continue
+		}
+		params := a.Params[name]
+		if len(params) == 0 {
+			return "none"
+		}
+		cells := make([]string, len(params))
+		for i, p := range params {
+			cells[i] = "`" + p + "`"
+		}
+		return strings.Join(cells, ", ")
+	}
+	return ""
 }
 
 // appliedBy is the cell of one type: every applier that declares it, in the

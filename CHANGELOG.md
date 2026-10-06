@@ -23,6 +23,9 @@ verify one.
   delete as a read.
 - `guardana-control runs open --parent` refuses a child whose expiry would
   pass its parent's.
+- The MCP adapter refuses an obligation that carries a parameter its type does
+  not read, as the gateway already did; a non-advisory one stops the call. The
+  obligations page lists the parameters each type reads.
 - The gateway refuses a configuration file that others may write, or that an
   account other than its own or root owns, and one in a directory others may
   write unless the directory is sticky; a link is followed and the file it

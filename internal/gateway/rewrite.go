@@ -22,14 +22,38 @@ const (
 	obligationCapAmount    = "cap_amount"
 )
 
+const (
+	paramFields = "fields"
+	paramMax    = "max"
+	paramField  = "field"
+)
+
 // rewriting is the pipeline's own applicable set, in the order New declares
 // it to the kernel.
 var rewriting = []string{obligationRedactFields, obligationCapAmount}
+
+// rewritingParams is the parameters each rewriting type reads. The catalogue
+// holds no parameter schema, so this table is both what onlyParams checks
+// and what the obligation reference page renders.
+var rewritingParams = map[string][]string{
+	obligationRedactFields: {paramFields},
+	obligationCapAmount:    {paramMax, paramField},
+}
 
 // RewritingObligations returns the obligation types the pipeline applies
 // itself, by rewriting the arguments before the decision it records.
 func RewritingObligations() []string {
 	return slices.Clone(rewriting)
+}
+
+// ObligationParams returns, for each type the pipeline rewrites, the
+// parameters it reads; an obligation carrying any other is refused.
+func ObligationParams() map[string][]string {
+	out := make(map[string][]string, len(rewritingParams))
+	for typ, params := range rewritingParams {
+		out[typ] = slices.Clone(params)
+	}
+	return out
 }
 
 // errRewrite is an obligation of a rewriting type the pipeline cannot apply as
@@ -152,13 +176,13 @@ func integers(v any) (any, error) {
 // something else than what is applied is not applied. So is a document that
 // still holds a top-level member name outside ASCII, for the reason below.
 func redactFields(doc map[string]any, params map[string]string) error {
-	if err := onlyParams(params, "fields"); err != nil {
+	if err := onlyParams(obligationRedactFields, params); err != nil {
 		return err
 	}
-	if params["fields"] == "" {
+	if params[paramFields] == "" {
 		return errors.New(`"fields" names no member`)
 	}
-	names := strings.Split(params["fields"], ",")
+	names := strings.Split(params[paramFields], ",")
 	for i, name := range names {
 		if name == "" || strings.ContainsAny(name, "./") || strings.IndexFunc(name, unicode.IsSpace) >= 0 {
 			return fmt.Errorf(`"fields" entry %d is not a member name`, i)
@@ -199,15 +223,15 @@ func isASCII(s string) bool {
 // fraction among them, cannot be capped and is refused rather than passed
 // through. 5000.0 is the integer 5000 by then, as it is to the digest.
 func capAmount(doc map[string]any, params map[string]string) error {
-	if err := onlyParams(params, "max", "field"); err != nil {
+	if err := onlyParams(obligationCapAmount, params); err != nil {
 		return err
 	}
-	limit, err := strconv.ParseInt(params["max"], 10, 64)
+	limit, err := strconv.ParseInt(params[paramMax], 10, 64)
 	if err != nil {
 		return fmt.Errorf(`"max" is not an integer: %w`, err)
 	}
 	field := "amount"
-	if named, ok := params["field"]; ok {
+	if named, ok := params[paramField]; ok {
 		field = named
 	}
 	value, ok := doc[field].(int64)
@@ -220,9 +244,14 @@ func capAmount(doc map[string]any, params map[string]string) error {
 	return nil
 }
 
-// onlyParams refuses a parameter outside the ones an obligation type reads:
-// a parameter nobody read would be an instruction nobody followed.
-func onlyParams(params map[string]string, known ...string) error {
+// onlyParams refuses a parameter outside the ones typ reads in
+// rewritingParams: a parameter nobody read would be an instruction nobody
+// followed.
+func onlyParams(typ string, params map[string]string) error {
+	known, ok := rewritingParams[typ]
+	if !ok {
+		return fmt.Errorf("%s declares no parameters", typ)
+	}
 	for key := range params {
 		if !slices.Contains(known, key) {
 			return fmt.Errorf("parameter %q is not one this plane applies", key)
