@@ -67,6 +67,7 @@ func TestTheRecordDecoderRefusesWhatItCannotReadOneWay(t *testing.T) {
 		"number":              {swap(`"tenant_id":"tenant-a"`, `"tenant_id":7`), ErrMalformed},
 		"major 2":             {swap(`"1.0"`, `"2.0"`), ErrSchemaVersion},
 		"no minor":            {swap(`"1.0"`, `"1"`), ErrSchemaVersion},
+		"minor past 32 bits":  {swap(`"1.0"`, `"1.4294967296"`), ErrSchemaVersion},
 		"trailing object":     {literalRecord + "{}", ErrMalformed},
 		"an array":            {"[" + literalRecord + "]", ErrMalformed},
 		"offset time":         {swap(`"2026-03-01T12:00:00Z"`, `"2026-03-01T14:00:00+02:00"`), ErrMalformed},
@@ -88,6 +89,9 @@ func TestTheRecordDecoderRefusesWhatItCannotReadOneWay(t *testing.T) {
 	at = strings.Replace(at, `"2026-03-01T13:00:00.5Z"`, `"2026-03-31T12:00:00Z"`, 1)
 	if _, err := decodeRecord([]byte(at)); err != nil {
 		t.Fatalf("a lifetime of exactly MaxTTL: %v", err)
+	}
+	if _, err := decodeRecord([]byte(swap(`"1.0"`, `"1.4294967295"`))); err != nil {
+		t.Fatalf("the last minor within 32 bits: %v", err)
 	}
 }
 

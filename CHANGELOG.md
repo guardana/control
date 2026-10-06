@@ -58,8 +58,9 @@ verify one.
 - A call whose opened run the plane cannot read or name is blocked before the
   external decision point is asked about it.
 - An approval or a rejection the store returns that does not check out (another
-  major, no decision time or one outside the request's window, another id) is
-  recorded as the plane's own expired approval, never as decided. An agent that
+  major, another request time, no decision time or one outside the request's
+  window, another id, a state that is not an answer) is recorded as the plane's
+  own expired approval, never as decided. An agent that
   cancels before its approval is consumed spends nothing.
 - `guardana-control observe export` judges the log as the reader does: a link,
   a file another account owns, one the group or others may reach, or one with
@@ -83,9 +84,10 @@ verify one.
 - The runs directory's reader refuses a string that is not valid Unicode. It
   read an unpaired surrogate or a bad byte as U+FFFD, so two different files
   could read as one record.
-- A plane whose bundle and statement do not change reads its serial floor at
-  every poll, and counts a floor it cannot read, or one holding a newer
-  serial, as a refused poll; it read the floor only when a file changed.
+- A plane whose bundle and statement do not change judges its serial floor at
+  every poll as a raise would, and counts a floor it cannot read, one holding a
+  newer serial or another digest at its serial, and a clock behind it, as a
+  refused poll; it read the floor only when a file changed.
 - With an authenticator that names no user, the forwarded resource, template
   and prompt lists are refused as the tool list is.
 - An approval whose own schema version is not of major 1 is refused when it is

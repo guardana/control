@@ -123,6 +123,13 @@ func (f Floor) Raise(st Statement, now time.Time) (Floor, error) {
 	return next, nil
 }
 
+// Takes is Raise's judgement of st at now without the floor Raise returns: nil
+// where Raise would take st, and Raise's own refusal otherwise.
+func (f Floor) Takes(st Statement, now time.Time) error {
+	_, err := f.Raise(st, now)
+	return err
+}
+
 // admits runs Raise's checks that do not order st against the floor.
 func (f Floor) admits(st Statement, now time.Time) error {
 	switch {
@@ -253,8 +260,7 @@ func confirmable(f Floor, snap *Snapshot, st *Statement, now time.Time) error {
 	if err := bound(*st, snap); err != nil {
 		return err
 	}
-	_, err := f.Raise(*st, now)
-	return err
+	return f.Takes(*st, now)
 }
 
 // bound refuses a statement that does not name snap's bundle id, serial and

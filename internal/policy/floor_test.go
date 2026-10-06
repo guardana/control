@@ -123,15 +123,17 @@ func TestFloorOrdering(t *testing.T) {
 	}
 	for _, c := range cases {
 		got, err := floor.Raise(c.st, now)
+		taken := floor.Takes(c.st, now)
 		if c.want == nil {
 			expectFloorRefusal(t, c.name, err, c.refusals)
+			expectFloorRefusal(t, c.name+", asked whether it takes", taken, c.refusals)
 			if !got.Equal(policy.Floor{}) {
 				t.Errorf("%s: a floor beside the refusal", c.name)
 			}
 			continue
 		}
-		if err != nil {
-			t.Errorf("%s: refused: %v", c.name, err)
+		if err != nil || taken != nil {
+			t.Errorf("%s: refused: %v, asked whether it takes: %v", c.name, err, taken)
 			continue
 		}
 		expectFloor(t, c.name, got, c.want.serial, c.want.digest, c.want.issuedAt, c.want.latest)
@@ -166,9 +168,13 @@ func TestFloorRefusesAClockBehindItsLatest(t *testing.T) {
 	st := statementFor(t, "payments", 8, d8, "11:30:00")
 	_, err := floor.Raise(st, utc("11:59:59"))
 	expectFloorRefusal(t, "a clock one second behind", err, policy.ErrClockBehindFloor)
+	expectFloorRefusal(t, "a clock one second behind, asked whether it takes", floor.Takes(st, utc("11:59:59")), policy.ErrClockBehindFloor)
 	got, err := floor.Raise(st, utc("12:00:00"))
 	if err != nil {
 		t.Fatalf("a clock at the latest: %v", err)
+	}
+	if err := floor.Takes(st, utc("12:00:00")); err != nil {
+		t.Errorf("a clock at the latest, asked whether it takes: %v", err)
 	}
 	expectFloor(t, "a clock at the latest", got, 8, d8, "11:30:00", "12:00:00")
 }
@@ -198,6 +204,8 @@ func TestFloorConstructorsRefuseWhatNoStatementLeaves(t *testing.T) {
 	t.Parallel()
 	_, err := policy.Floor{}.Raise(statementFor(t, "payments", 7, d7, "12:00:00"), utc("13:00:00"))
 	expectFloorRefusal(t, "the zero Floor", err, policy.ErrFloorInvalid)
+	err = policy.Floor{}.Takes(statementFor(t, "payments", 7, d7, "12:00:00"), utc("13:00:00"))
+	expectFloorRefusal(t, "the zero Floor, asked whether it takes", err, policy.ErrFloorInvalid)
 	if _, err := policy.EmptyFloor(""); !errors.Is(err, policy.ErrFloorInvalid) {
 		t.Errorf("EmptyFloor(\"\") = %v, want ErrFloorInvalid", err)
 	}
@@ -351,9 +359,14 @@ func TestFloorRaiseNeverMovesDown(t *testing.T) {
 
 func checkRaise(t tb, before, after policy.Floor, st policy.Statement, now time.Time, next policy.Floor, err error) {
 	t.Helper()
-	if want := floorAccepts(before, st, now); want != (err == nil) {
+	want := floorAccepts(before, st, now)
+	if want != (err == nil) {
 		t.Fatalf("serial %d %s issued %v at %v over floor %d %v latest %v: refused %v, the ordering says accepted %v",
 			st.Serial(), st.Digest(), st.IssuedAt(), now, before.Serial(), before.IssuedAt(), before.LatestIssuedAt(), err, want)
+	}
+	if taken := before.Takes(st, now); want != (taken == nil) {
+		t.Fatalf("serial %d %s issued %v at %v over floor %d %v latest %v: Takes says %v, the ordering says accepted %v",
+			st.Serial(), st.Digest(), st.IssuedAt(), now, before.Serial(), before.IssuedAt(), before.LatestIssuedAt(), taken, want)
 	}
 	if err != nil {
 		if !next.Equal(policy.Floor{}) || !after.Equal(before) {

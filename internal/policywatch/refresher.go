@@ -140,7 +140,8 @@ func New(o Options) (*Refresher, error) {
 func (r *Refresher) Poll(ctx context.Context) {
 	defer r.polledNow()
 	r.count(func(s *Stats) { s.Polls++ })
-	if r.JudgeClock() {
+	now, back := r.judgeClock()
+	if back {
 		r.refuse(CauseClockBack, ErrClockBack)
 		return
 	}
@@ -165,17 +166,18 @@ func (r *Refresher) Poll(ctx context.Context) {
 	}
 	st, disk := r.statement.st, r.bundle.snap
 	if disk.Ref().GetDigest() == cur.Ref().GetDigest() {
-		r.renew(ctx, cur, st)
+		r.renew(ctx, cur, st, now)
 		return
 	}
 	r.replace(ctx, cur, st)
 }
 
-// renew judges st against the current bundle, which is the bundle on disk.
-func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.Statement) {
+// renew judges st against the current bundle, which is the bundle on disk;
+// now is the poll's reading of the wall clock.
+func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.Statement, now time.Time) {
 	switch {
 	case binds(st, cur) && cur.ConfirmedAt().Equal(st.IssuedAt()):
-		if err := r.floorStillAdmits(ctx, cur); err != nil {
+		if err := r.floorStillTakes(ctx, st, now); err != nil {
 			r.refuse(causeOf(err), err)
 			return
 		}
@@ -189,11 +191,11 @@ func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.S
 	}
 }
 
-// floorStillAdmits reads the floor for a poll that would otherwise settle
-// without the store: a floor that cannot be read, or that holds a later
-// serial than the current bundle's, is refused. The read is bounded by the
-// poll interval, as a raise is.
-func (r *Refresher) floorStillAdmits(ctx context.Context, cur *policy.Snapshot) error {
+// floorStillTakes reads the floor for a poll that would otherwise settle
+// without the store, and refuses a floor that cannot be read or that would
+// not take st, the statement the current bundle was confirmed by, at now.
+// The read is bounded by the poll interval, as a raise is.
+func (r *Refresher) floorStillTakes(ctx context.Context, st policy.Statement, now time.Time) error {
 	read, cancel := context.WithTimeout(ctx, r.o.Interval)
 	defer cancel()
 	f, err := r.o.Floor.Floor(read, r.o.BundleID)
@@ -202,10 +204,8 @@ func (r *Refresher) floorStillAdmits(ctx context.Context, cur *policy.Snapshot) 
 		return fmt.Errorf("%w: %w", policy.ErrFloorRead, err)
 	case f.BundleID() != r.o.BundleID:
 		return fmt.Errorf("%w: the store returned the floor of another bundle id", policy.ErrFloorRead)
-	case f.Serial() > cur.Serial():
-		return fmt.Errorf("%w: serial %d, floor serial %d", policy.ErrBelowFloor, cur.Serial(), f.Serial())
 	}
-	return nil
+	return f.Takes(st, now)
 }
 
 // replace judges the bundle on disk, which is not the current one, and st.

@@ -95,36 +95,57 @@ func holdApproved(t *testing.T, h *harness, f *fakeStore) {
 // TestThePipelineNeverTrustsTheStoresApproval: a store that hands out a
 // record that is not the held approval, approved, unexpired and single-use is
 // refused, the held trail is closed with the code for what is wrong, and
-// nothing runs; the genuine record runs. The store's answer is written as
-// APPROVAL_DECIDED only when it is the held approval in everything but its
-// state or its approver; any other answer is one the plane cannot stand
-// behind, and the window closes with the plane's own approval, expired.
+// nothing runs; the genuine record runs. An answer to a Consume that is not an
+// approval is one the plane cannot stand behind, whatever its state, so the
+// window closes with the plane's own approval, expired.
 func TestThePipelineNeverTrustsTheStoresApproval(t *testing.T) {
 	cases := []struct {
 		name    string
 		lie     func(*controlv1.Approval) *controlv1.Approval
 		verdict controlv1.Verdict
 		code    string
-		outcome controlv1.EventKind
 	}{
-		{"no record", func(*controlv1.Approval) *controlv1.Approval { return nil }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
+		{"no record", func(*controlv1.Approval) *controlv1.Approval { return nil }, verdictIndeterminate, codeEvidenceUnavailable},
 		{"still pending", func(a *controlv1.Approval) *controlv1.Approval {
 			a.State = controlv1.ApprovalState_APPROVAL_STATE_PENDING
 			return a
-		}, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalDecided},
-		{"no approver", func(a *controlv1.Approval) *controlv1.Approval { a.ApproverId = ""; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalDecided},
-		{"another approval", func(a *controlv1.Approval) *controlv1.Approval { a.ApprovalId = "a-other"; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
-		{"another request", func(a *controlv1.Approval) *controlv1.Approval { a.RequestId = "req-other"; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
-		{"multi-use", func(a *controlv1.Approval) *controlv1.Approval { a.MultiUse = true; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
-		{"another major", func(a *controlv1.Approval) *controlv1.Approval { a.SchemaVersion = "9.0"; return a }, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
+		}, verdictIndeterminate, codeEvidenceUnavailable},
+		{"pending, undecided", func(a *controlv1.Approval) *controlv1.Approval {
+			a.State, a.DecidedAt = controlv1.ApprovalState_APPROVAL_STATE_PENDING, nil
+			return a
+		}, verdictIndeterminate, codeEvidenceUnavailable},
+		{"expired, undecided", func(a *controlv1.Approval) *controlv1.Approval {
+			a.State, a.DecidedAt = controlv1.ApprovalState_APPROVAL_STATE_EXPIRED, nil
+			return a
+		}, verdictIndeterminate, codeEvidenceUnavailable},
+		{"rejected", func(a *controlv1.Approval) *controlv1.Approval {
+			a.State = controlv1.ApprovalState_APPROVAL_STATE_REJECTED
+			return a
+		}, verdictIndeterminate, codeEvidenceUnavailable},
+		{"no state", func(a *controlv1.Approval) *controlv1.Approval { a.State = 0; return a }, verdictIndeterminate, codeEvidenceUnavailable},
+		{"a state of no name", func(a *controlv1.Approval) *controlv1.Approval { a.State = 99; return a }, verdictIndeterminate, codeEvidenceUnavailable},
+		{"no approver", func(a *controlv1.Approval) *controlv1.Approval { a.ApproverId = ""; return a }, verdictIndeterminate, codeEvidenceUnavailable},
+		{"requested a year earlier", func(a *controlv1.Approval) *controlv1.Approval {
+			a.RequestedAt = timestamppb.New(a.GetRequestedAt().AsTime().AddDate(-1, 0, 0))
+			return a
+		}, verdictIndeterminate, codeEvidenceUnavailable},
+		{"requested a nanosecond later", func(a *controlv1.Approval) *controlv1.Approval {
+			a.RequestedAt = timestamppb.New(a.GetRequestedAt().AsTime().Add(time.Nanosecond))
+			return a
+		}, verdictIndeterminate, codeEvidenceUnavailable},
+		{"no request time", func(a *controlv1.Approval) *controlv1.Approval { a.RequestedAt = nil; return a }, verdictIndeterminate, codeEvidenceUnavailable},
+		{"another approval", func(a *controlv1.Approval) *controlv1.Approval { a.ApprovalId = "a-other"; return a }, verdictIndeterminate, codeEvidenceUnavailable},
+		{"another request", func(a *controlv1.Approval) *controlv1.Approval { a.RequestId = "req-other"; return a }, verdictIndeterminate, codeEvidenceUnavailable},
+		{"multi-use", func(a *controlv1.Approval) *controlv1.Approval { a.MultiUse = true; return a }, verdictIndeterminate, codeEvidenceUnavailable},
+		{"another major", func(a *controlv1.Approval) *controlv1.Approval { a.SchemaVersion = "9.0"; return a }, verdictIndeterminate, codeEvidenceUnavailable},
 		{"decided later", func(a *controlv1.Approval) *controlv1.Approval {
 			a.DecidedAt = timestamppb.New(base().Add(time.Hour))
 			return a
-		}, verdictIndeterminate, codeEvidenceUnavailable, kindApprovalExpired},
-		{"another digest", func(a *controlv1.Approval) *controlv1.Approval { a.ActionDigest = "sha256:" + digits; return a }, verdictDeny, codeApprovalDigestMismatch, kindApprovalExpired},
-		{"another bundle", func(a *controlv1.Approval) *controlv1.Approval { a.PolicyBundleDigest = "sha256:" + digits; return a }, verdictDeny, codeApprovalBundleMismatch, kindApprovalExpired},
-		{"expiring now", func(a *controlv1.Approval) *controlv1.Approval { a.ExpiresAt = timestamppb.New(base()); return a }, verdictDeny, codeApprovalExpired, kindApprovalExpired},
-		{"no expiry", func(a *controlv1.Approval) *controlv1.Approval { a.ExpiresAt = nil; return a }, verdictDeny, codeApprovalExpired, kindApprovalExpired},
+		}, verdictIndeterminate, codeEvidenceUnavailable},
+		{"another digest", func(a *controlv1.Approval) *controlv1.Approval { a.ActionDigest = "sha256:" + digits; return a }, verdictDeny, codeApprovalDigestMismatch},
+		{"another bundle", func(a *controlv1.Approval) *controlv1.Approval { a.PolicyBundleDigest = "sha256:" + digits; return a }, verdictDeny, codeApprovalBundleMismatch},
+		{"expiring now", func(a *controlv1.Approval) *controlv1.Approval { a.ExpiresAt = timestamppb.New(base()); return a }, verdictDeny, codeApprovalExpired},
+		{"no expiry", func(a *controlv1.Approval) *controlv1.Approval { a.ExpiresAt = nil; return a }, verdictDeny, codeApprovalExpired},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -143,11 +164,11 @@ func TestThePipelineNeverTrustsTheStoresApproval(t *testing.T) {
 				t.Errorf("the block names request %q, want the held req-1", d.Decision.GetRequestId())
 			}
 			trail := h.trailOf("req-1")
-			expectKinds(t, kindsOf(trail), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested, tc.outcome, kindBlocked})
+			expectKinds(t, kindsOf(trail), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested, kindApprovalExpired, kindBlocked})
 			if err := evidence.ValidateChain(trail); err != nil {
 				t.Errorf("ValidateChain: %v", err)
 			}
-			if tc.outcome == kindApprovalExpired && len(trail) == 5 {
+			if len(trail) == 5 {
 				expectPlanesApprovalExpired(t, trail[2].GetApproval(), trail[3].GetApproval())
 			}
 			if s := h.p.Stats(); s.Executed != 0 || s.Open != 0 || s.Held != 0 {
@@ -169,6 +190,7 @@ func TestThePipelineNeverTrustsTheStoresApproval(t *testing.T) {
 func expectPlanesApprovalExpired(t *testing.T, own, closed *controlv1.Approval) {
 	t.Helper()
 	if closed.GetApprovalId() != own.GetApprovalId() || closed.GetRequestId() != "req-1" || closed.GetSchemaVersion() != "1.0" ||
+		!closed.GetRequestedAt().AsTime().Equal(base()) || closed.GetApproverId() != "" ||
 		closed.GetDecidedAt() != nil || closed.GetState() != controlv1.ApprovalState_APPROVAL_STATE_EXPIRED {
 		t.Errorf("the window closed with %v, want the plane's own approval, expired", closed)
 	}

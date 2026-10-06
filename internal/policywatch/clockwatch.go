@@ -20,13 +20,20 @@ const clockEvery = time.Second
 // a timer of its own; a confirm in progress holds the clock's lock, so a
 // withdrawal never lands between that confirm's judgement and its publish.
 func (r *Refresher) JudgeClock() bool {
+	_, back := r.judgeClock()
+	return back
+}
+
+// judgeClock is JudgeClock, also returning the wall reading it judged.
+func (r *Refresher) judgeClock() (time.Time, bool) {
 	r.clockMu.Lock()
 	defer r.clockMu.Unlock()
-	if !r.clock.back(r.o.Wall(), r.o.Mono()) {
-		return false
+	now := r.o.Wall()
+	if !r.clock.back(now, r.o.Mono()) {
+		return now, false
 	}
 	r.withdraw()
-	return true
+	return now, true
 }
 
 // SincePoll is the monotonic time since the last completed poll, or since

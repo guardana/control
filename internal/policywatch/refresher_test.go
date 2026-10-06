@@ -339,6 +339,89 @@ func TestAnUnchangedStatementHasTheFloorReadAtEveryPoll(t *testing.T) {
 	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseFloor: 2, policywatch.CauseBelowFloor: 1}, 0, 0, 0, 0)
 }
 
+// A poll that settles on an unchanged statement judges the floor read back as
+// a raise of that statement would, at the poll's reading of the wall clock:
+// the floor's serial with another digest, the floor's serial renewed later
+// elsewhere, and a clock behind the floor's latest issuedAt are each refused;
+// a latest issuedAt at the reading itself is not.
+func TestASettledPollJudgesTheFloorAsARaiseWould(t *testing.T) {
+	polled := t0.Add(30*time.Second + interval)
+	cases := []struct {
+		name   string
+		floor  func(digest string) (policy.Floor, error)
+		causes map[policywatch.Cause]uint64
+	}{
+		{"the floor's serial, another digest", func(string) (policy.Floor, error) {
+			return policy.NewFloor(planeID, 2, "sha256:"+strings.Repeat("7", 64), t0, t0)
+		}, map[policywatch.Cause]uint64{policywatch.CauseSerialReused: 1}},
+		{"the floor's serial, renewed a second later", func(digest string) (policy.Floor, error) {
+			return policy.NewFloor(planeID, 2, digest, t0.Add(time.Second), t0.Add(time.Second))
+		}, map[policywatch.Cause]uint64{policywatch.CauseBelowFloor: 1}},
+		{"a latest issuedAt a second past the reading", func(digest string) (policy.Floor, error) {
+			return policy.NewFloor(planeID, 2, digest, t0, polled.Add(time.Second))
+		}, map[policywatch.Cause]uint64{policywatch.CauseClockBehindFloor: 1}},
+		{"a latest issuedAt at the reading", func(digest string) (policy.Floor, error) {
+			return policy.NewFloor(planeID, 2, digest, t0, polled)
+		}, map[policywatch.Cause]uint64{}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := newRig(t, emptyFloor(t))
+			digest := r.startConfirmed()
+			f, err := c.floor(digest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r.store.mu.Lock()
+			r.store.floor = f
+			r.store.mu.Unlock()
+			r.clock.advance(interval)
+			if !r.clock.Wall().Equal(polled) {
+				t.Fatalf("the poll reads %v, want %v", r.clock.Wall(), polled)
+			}
+			r.poll()
+			r.expectSnapshot(2, digest, t0)
+			r.expectStats(c.causes, 0, 0, 0, 0)
+			if stored, _ := r.store.stored(); !stored.Equal(f) {
+				t.Error("a settled poll moved the floor")
+			}
+		})
+	}
+}
+
+// The floor read of a poll that settles is given up at the poll interval, so
+// a store that never answers holds the poll no longer than a raise would.
+func TestASettledPollGivesUpAFloorReadAtTheInterval(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	r.opts.Interval = 200 * time.Millisecond
+	digest := r.startConfirmed()
+	blocked := make(chan struct{})
+	r.store.mu.Lock()
+	r.store.readBlocked = blocked
+	r.store.mu.Unlock()
+	took := make(chan time.Duration, 1)
+	go func() {
+		start := time.Now()
+		r.poll()
+		took <- time.Since(start)
+	}()
+	select {
+	case <-blocked:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the poll never read the floor")
+	}
+	select {
+	case d := <-took:
+		if d < r.opts.Interval {
+			t.Errorf("the read was given up after %v, before the interval", d)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a poll whose floor read never answered did not return within 5s at a 200ms interval")
+	}
+	r.expectSnapshot(2, digest, t0)
+	r.expectStats(map[policywatch.Cause]uint64{policywatch.CauseFloor: 1}, 0, 0, 0, 0)
+}
+
 func TestNewRefusesIncompleteOptions(t *testing.T) {
 	r := newRig(t, emptyFloor(t))
 	for name, edit := range map[string]func(*policywatch.Options){

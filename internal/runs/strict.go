@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/policy/strictjson"
 )
 
 // SchemaVersion is the version this build writes into every file. A reader
@@ -103,8 +103,7 @@ func boolField(f map[string]json.RawMessage, key string) (bool, error) {
 // decides: a later minor may add a field, and the unknown-field rule refuses
 // that file too, so nothing is dropped in silence.
 func checkSchemaVersion(v string) error {
-	major, minor, ok := strings.Cut(v, ".")
-	if !ok || major != "1" || minor == "" || strings.Trim(minor, "0123456789") != "" {
+	if !strictjson.IsVersion(v, "1") {
 		return fmt.Errorf("%w: %q", ErrSchemaVersion, clip(v))
 	}
 	return nil

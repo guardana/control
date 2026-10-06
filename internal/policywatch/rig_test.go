@@ -110,12 +110,21 @@ type memFloor struct {
 	// context says, as a write to a disk that stopped answering does; each
 	// such raise is announced on it first.
 	hung chan struct{}
+	// readBlocked, when set, makes Floor wait until its context ends; each
+	// such read is announced on it first.
+	readBlocked chan struct{}
 }
 
 var errStore = errors.New("memFloor: the store failed")
 
-func (s *memFloor) Floor(context.Context, string) (policy.Floor, error) {
+func (s *memFloor) Floor(ctx context.Context, _ string) (policy.Floor, error) {
 	s.mu.Lock()
+	if blocked := s.readBlocked; blocked != nil {
+		s.mu.Unlock()
+		blocked <- struct{}{}
+		<-ctx.Done()
+		return policy.Floor{}, ctx.Err()
+	}
 	defer s.mu.Unlock()
 	if s.failRead {
 		return policy.Floor{}, errStore

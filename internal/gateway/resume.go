@@ -134,17 +134,15 @@ func sameDecision(held, fresh *controlv1.Decision) bool {
 // refuses then blocks with the approval spent.
 //
 // The plane never trusts the store's answer. One that is not the held approval
-// field by field closes the window with the plane's own approval, expired, as
-// a rejection does; only the held approval answered otherwise than approved
-// is written as decided.
+// field by field, or not approved by someone, closes the window with the
+// plane's own approval, expired, as a lost hold's does: a store that answered
+// a spend with anything but an approval said nothing the plane can record.
 func (c *call) resumeApproved(own *heldRequest, a *controlv1.Approval) Disposition {
 	if verdict, code, refused := approvalFields(own.approval, a, own.expires, c.now); refused {
 		return c.resumeBlocked(own, verdict, code, expiredEvent(own.approval))
 	}
 	if a.GetState() != approvalApproved || a.GetApproverId() == "" {
-		// The held approval in every field the plane checks, answered
-		// otherwise than approved: that answer is what the trail records.
-		return c.resumeBlocked(own, verdictIndeterminate, codeEvidenceUnavailable, decidedEvent(a))
+		return c.resumeBlocked(own, verdictIndeterminate, codeEvidenceUnavailable, expiredEvent(own.approval))
 	}
 	trail, err := c.resumedTrail(own)
 	if err != nil {
@@ -205,6 +203,7 @@ func approvalFields(want, a *controlv1.Approval, expires, now time.Time) (contro
 	switch {
 	case a == nil, !readsApprovalVersion(a.GetSchemaVersion()),
 		a.GetApprovalId() != want.GetApprovalId(), a.GetRequestId() != want.GetRequestId(), a.GetMultiUse(),
+		!proto.Equal(a.GetRequestedAt(), want.GetRequestedAt()),
 		!decidedWithin(a, want.GetRequestedAt().AsTime(), now):
 		return verdictIndeterminate, codeEvidenceUnavailable, true
 	case a.GetActionDigest() != want.GetActionDigest():
