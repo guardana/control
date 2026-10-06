@@ -1,5 +1,6 @@
 // Package policystate keeps the serial floor of ADR-0038 on disk, one file per
-// bundle id, so that a restart cannot roll a plane's policy back. It
+// bundle id, so that a restart cannot roll a plane's policy back, and the
+// route floor of ADR-0046 in a directory of its own. It
 // implements policy.FloorStore, which the policy package declares and calls.
 //
 // The operator's code and the plane's are apart, and the compiler keeps them
@@ -45,6 +46,22 @@
 // as an object of the same four members, or null when the reset found the
 // file missing. Times are issuedAt's one spelling,
 // YYYY-MM-DDTHH:MM:SSZ.
+//
+// # Route floors
+//
+// A route floor directory keeps, per reaction route id, the highest serial a
+// plane took and the route's digest at it (ADR-0046). It is a directory of
+// its own kind, never a plane's or a signer's, judged by the same rules:
+//
+//	routes.meta              the marker: schema_version, kind "route", route_ids
+//	<sha256 hex>.route.json  the floor of the listed id whose hash, under a
+//	                         name domain of its own, names it
+//
+// A route floor file holds schema_version, route_id, serial and digest, both
+// null until a raise. InitRoute is the operator's and never replaces a file;
+// ReadRoute takes no lock and writes nothing; RaiseRoute holds the lock and
+// refuses a lower serial, or the same one with another digest. Nothing makes
+// a route floor file but InitRoute.
 //
 // Nothing here reads a clock: every time is the caller's.
 package policystate

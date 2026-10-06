@@ -60,38 +60,40 @@ func decodeMarker(raw []byte) (Kind, []string, error) {
 	if !ok || checkKind(Kind(named)) != nil {
 		return "", nil, fmt.Errorf("%w: kind", ErrMalformed)
 	}
-	ids, err := readBundleIDs(members["bundle_ids"])
+	ids, err := readIDs(members["bundle_ids"], "bundle_ids", MaxBundleIDs, func(id string) error {
+		_, err := policy.EmptyFloor(id)
+		return err
+	})
 	if err != nil {
 		return "", nil, err
 	}
 	return Kind(named), ids, nil
 }
 
-// readBundleIDs reads a list of one to MaxBundleIDs bundle ids, each one a
-// bundle can carry, in ascending order with none twice, so one list has one
-// spelling.
-func readBundleIDs(raw json.RawMessage) ([]string, error) {
+// readIDs reads the list member names: one to most ids, each one check
+// takes, in ascending order with none twice, so one list has one spelling.
+func readIDs(raw json.RawMessage, member string, most int, check func(string) error) ([]string, error) {
 	var items []json.RawMessage
 	if len(raw) == 0 || raw[0] != '[' || json.Unmarshal(raw, &items) != nil {
-		return nil, fmt.Errorf("%w: bundle_ids is not a list", ErrMalformed)
+		return nil, fmt.Errorf("%w: %s is not a list", ErrMalformed, member)
 	}
 	switch {
 	case len(items) == 0:
-		return nil, fmt.Errorf("%w: bundle_ids is empty", ErrMalformed)
-	case len(items) > MaxBundleIDs:
+		return nil, fmt.Errorf("%w: %s is empty", ErrMalformed, member)
+	case len(items) > most:
 		return nil, fmt.Errorf("%w: %w: %d", ErrMalformed, ErrTooManyBundleIDs, len(items))
 	}
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
 		id, ok := strictjson.String(item)
 		if !ok {
-			return nil, fmt.Errorf("%w: a bundle id is not a string", ErrMalformed)
+			return nil, fmt.Errorf("%w: an id in %s is not a string", ErrMalformed, member)
 		}
-		if _, err := policy.EmptyFloor(id); err != nil {
+		if err := check(id); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrMalformed, err)
 		}
 		if n := len(ids); n > 0 && id <= ids[n-1] {
-			return nil, fmt.Errorf("%w: bundle_ids out of order or repeated", ErrMalformed)
+			return nil, fmt.Errorf("%w: %s out of order or repeated", ErrMalformed, member)
 		}
 		ids = append(ids, id)
 	}

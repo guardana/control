@@ -28,8 +28,10 @@ const othersAccess fs.FileMode = 0o077
 
 // The names this package writes under a directory.
 const (
-	markerFile  = "floors.meta"
-	floorSuffix = ".floor.json"
+	markerFile      = "floors.meta"
+	floorSuffix     = ".floor.json"
+	routeMarkerFile = "routes.meta"
+	routeSuffix     = ".route.json"
 )
 
 // effectiveUID is the user a floor directory and its files have to belong to.
@@ -255,26 +257,43 @@ func (d *dir) readDir() ([]os.DirEntry, error) {
 // id the marker does not list among them: guessing what else is there is how
 // a planted name gets read. It returns the ids the marker lists.
 func (d *dir) judgeContents(entries []os.DirEntry, kind Kind) ([]string, error) {
-	if !slices.ContainsFunc(entries, func(e os.DirEntry) bool { return e.Name() == markerFile }) {
+	if !holds(entries, markerFile) {
+		if holds(entries, routeMarkerFile) {
+			return nil, fmt.Errorf("%w: it holds route floors, not a %s's", ErrWrongKind, kind)
+		}
 		return nil, fmt.Errorf("%w: it holds no %s", ErrNotStateDir, markerFile)
 	}
 	ids, err := d.readMarker(kind)
 	if err != nil {
 		return nil, err
 	}
+	if err := judgeEntries(entries, markerFile, ids, floorName); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// holds reports whether entries hold an entry called name.
+func holds(entries []os.DirEntry, name string) bool {
+	return slices.ContainsFunc(entries, func(e os.DirEntry) bool { return e.Name() == name })
+}
+
+// judgeEntries refuses an entry that is not a regular file, and any name but
+// the marker, the file name gives a listed id, and what a crash left.
+func judgeEntries(entries []os.DirEntry, marker string, ids []string, name func(string) string) error {
 	listed := make(map[string]bool, len(ids))
 	for _, id := range ids {
-		listed[floorName(id)] = true
+		listed[name(id)] = true
 	}
 	for _, e := range entries {
 		if !e.Type().IsRegular() {
-			return nil, fmt.Errorf("%w: %q is not a regular file", ErrForeignFile, clip(e.Name()))
+			return fmt.Errorf("%w: %q is not a regular file", ErrForeignFile, clip(e.Name()))
 		}
-		if n := e.Name(); n != markerFile && !listed[n] && !files.IsTemp(n) {
-			return nil, fmt.Errorf("%w: %q", ErrForeignFile, clip(n))
+		if n := e.Name(); n != marker && !listed[n] && !files.IsTemp(n) {
+			return fmt.Errorf("%w: %q", ErrForeignFile, clip(n))
 		}
 	}
-	return ids, nil
+	return nil
 }
 
 // openRegular opens name read-only and refuses anything but the regular file

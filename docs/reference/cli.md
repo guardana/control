@@ -142,7 +142,8 @@ usage:
   guardana-control policy keygen --out <dir>
   guardana-control policy sign --key <file> --out <file> <document>
   guardana-control policy renew --key --bundle --bundle-public-key --floor --out
-  guardana-control policy state init --kind plane|signer --bundle-id <id> <dir>
+  guardana-control policy state init --kind plane|signer|route
+      (--bundle-id <id> | --route-id <id>) <dir>
   guardana-control policy state reset --kind plane|signer --bundle-id <id> --reason <text>
       (--empty | --serial <n> --digest <d> --issued-at <t>) <dir>
   guardana-control approvals list <dir>

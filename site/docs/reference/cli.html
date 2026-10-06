@@ -229,7 +229,8 @@ is <a href="/docs/reference/coverage">coverage.md</a>, <code>supervise</code> an
   guardana-control policy keygen --out &lt;dir&gt;
   guardana-control policy sign --key &lt;file&gt; --out &lt;file&gt; &lt;document&gt;
   guardana-control policy renew --key --bundle --bundle-public-key --floor --out
-  guardana-control policy state init --kind plane|signer --bundle-id &lt;id&gt; &lt;dir&gt;
+  guardana-control policy state init --kind plane|signer|route
+      (--bundle-id &lt;id&gt; | --route-id &lt;id&gt;) &lt;dir&gt;
   guardana-control policy state reset --kind plane|signer --bundle-id &lt;id&gt; --reason &lt;text&gt;
       (--empty | --serial &lt;n&gt; --digest &lt;d&gt; --issued-at &lt;t&gt;) &lt;dir&gt;
   guardana-control approvals list &lt;dir&gt;

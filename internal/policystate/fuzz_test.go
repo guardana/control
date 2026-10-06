@@ -112,3 +112,64 @@ func FuzzMarker(f *testing.F) {
 		}
 	})
 }
+
+// FuzzRouteFile holds the route floor file's reader to the floor file's
+// properties: no panic, and whatever it accepts writes back as bytes it reads
+// back the same.
+func FuzzRouteFile(f *testing.F) {
+	for _, seed := range []string{
+		`{"schema_version":"1.0","route_id":"route-a","serial":null,"digest":null}`,
+		`{"schema_version":"1.0","route_id":"route-a","serial":5,"digest":"sha256:5555555555555555555555555555555555555555555555555555555555555555"}`,
+		`{"schema_version":"1.3","route_id":"route-a","serial":9007199254740991,"digest":"sha256:5555555555555555555555555555555555555555555555555555555555555555"}`,
+		`{"schema_version":"1.0","route_id":"route-a","serial":0,"digest":""}`,
+		`{"schema_version":"1.0","route_id":"route-a","serial":5,"serial":9}`,
+	} {
+		f.Add([]byte(seed))
+	}
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		floor, err := decodeRouteFile(raw)
+		if err != nil {
+			return
+		}
+		written, err := encodeRouteFile(floor)
+		if err != nil {
+			t.Fatalf("the writer refused what the reader accepted: %v\n%s", err, raw)
+		}
+		back, err := decodeRouteFile(written)
+		if err != nil || back != floor {
+			t.Fatalf("read back as %+v, %v\nfrom %s\nwritten from %s", back, err, written, raw)
+		}
+		if again, err := encodeRouteFile(back); err != nil || !bytes.Equal(again, written) {
+			t.Fatalf("written twice as\n%s\n%s", written, again)
+		}
+	})
+}
+
+// FuzzRouteMarker holds the route marker's reader to the same properties.
+func FuzzRouteMarker(f *testing.F) {
+	for _, seed := range []string{
+		`{"schema_version":"1.0","kind":"route","route_ids":["route-a"]}`,
+		`{"schema_version":"1.2","kind":"route","route_ids":["route-a","route-b"]}`,
+		`{"schema_version":"1.0","kind":"plane","route_ids":["route-a"]}`,
+		`{"schema_version":"1.0","kind":"route","route_ids":["route-b","route-a"]}`,
+	} {
+		f.Add([]byte(seed))
+	}
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		ids, err := decodeRouteMarker(raw)
+		if err != nil {
+			return
+		}
+		written, err := encodeRouteMarker(ids)
+		if err != nil {
+			t.Fatalf("the writer refused what the reader accepted: %v\n%s", err, raw)
+		}
+		back, err := decodeRouteMarker(written)
+		if err != nil || fmt.Sprint(back) != fmt.Sprint(ids) {
+			t.Fatalf("read back as %q, %v\nfrom %s", back, err, raw)
+		}
+		if again, err := encodeRouteMarker(back); err != nil || !bytes.Equal(again, written) {
+			t.Fatalf("written twice as\n%s\n%s", written, again)
+		}
+	})
+}

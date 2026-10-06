@@ -11,12 +11,12 @@ import (
 )
 
 // The names these commands report themselves under, and how the help spells
-// what follows them. The reset form takes a second line: with every flag
-// spelled it is wider than a terminal.
+// what follows them. Each form takes a second line: with every flag spelled
+// it is wider than a terminal.
 const (
 	stateInitName  = "policy state init"
 	stateResetName = "policy state reset"
-	stateInitForm  = "--kind plane|signer --bundle-id <id> <dir>"
+	stateInitForm  = "--kind plane|signer|route\n      (--bundle-id <id> | --route-id <id>) <dir>"
 	stateResetForm = "--kind plane|signer --bundle-id <id> --reason <text>\n" +
 		"      (--empty | --serial <n> --digest <d> --issued-at <t>) <dir>"
 )
@@ -28,22 +28,30 @@ const floorAuthority = "Write access to a floor directory is the authority to lo
 
 // stateFlagValues is what the state commands are told.
 type stateFlagValues struct {
-	kind, bundleID           string
+	kind, bundleID, routeID  string
 	empty                    bool
 	serial                   int64
 	digest, issuedAt, reason string
 }
 
-func stateInitFlags(command string, out io.Writer) (*flag.FlagSet, *stateFlagValues) {
+// stateFlags is the flags both state commands take: whose floors, and the
+// bundle id.
+func stateFlags(command string, out io.Writer, kinds string) (*flag.FlagSet, *stateFlagValues) {
 	flags := commandFlags(command, out)
 	var v stateFlagValues
-	flags.StringVar(&v.kind, "kind", "", "plane or signer: whose floors the directory keeps")
+	flags.StringVar(&v.kind, "kind", "", kinds+": whose floors the directory keeps")
 	flags.StringVar(&v.bundleID, "bundle-id", "", "the bundle id whose floor this is")
 	return flags, &v
 }
 
+func stateInitFlags(command string, out io.Writer) (*flag.FlagSet, *stateFlagValues) {
+	flags, v := stateFlags(command, out, "plane, signer or route")
+	flags.StringVar(&v.routeID, "route-id", "", "the route id whose floor this is, with --kind route")
+	return flags, v
+}
+
 func stateResetFlags(command string, out io.Writer) (*flag.FlagSet, *stateFlagValues) {
-	flags, v := stateInitFlags(command, out)
+	flags, v := stateFlags(command, out, "plane or signer")
 	flags.BoolVar(&v.empty, "empty", false, "set the floor to hold no serial")
 	flags.Int64Var(&v.serial, "serial", 0, "the serial the floor is set to")
 	flags.StringVar(&v.digest, "digest", "", "the digest of the bundle at that serial")
@@ -82,12 +90,22 @@ func parseStateFlags(flags *flag.FlagSet, command string, args []string, stderr 
 	return given, exitOK
 }
 
-// stateInitCommand gives a bundle id its floor file holding no serial yet,
-// and never replaces one.
+// stateInitCommand gives a bundle id, or with --kind route a route id, its
+// floor file holding no serial yet, and never replaces one.
 func stateInitCommand(args []string, stdout, stderr io.Writer) int {
 	flags, v := stateInitFlags(stateInitName, stderr)
-	if _, status := parseStateFlags(flags, stateInitName, args, stderr, "kind", "bundle-id"); status != exitOK {
+	given, status := parseStateFlags(flags, stateInitName, args, stderr, "kind")
+	if status != exitOK {
 		return status
+	}
+	if policystate.Kind(v.kind) == policystate.KindRoute {
+		return stateInitRoute(flags.Arg(0), v.routeID, given, stdout, stderr)
+	}
+	switch {
+	case given["route-id"]:
+		return usageError(stderr, stateInitName, "--route-id names a route's floor, with --kind route")
+	case !given["bundle-id"]:
+		return usageError(stderr, stateInitName, "--bundle-id is missing")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), floorLockWait)
 	defer cancel()
@@ -95,6 +113,24 @@ func stateInitCommand(args []string, stdout, stderr io.Writer) int {
 		return fail(stderr, stateInitName, err)
 	}
 	return writeFloorLines(stdout, stderr, stateInitName, "bundle_id: "+oneLine(v.bundleID)+"\nfloor: no serial\n",
+		"the floor file was made as asked")
+}
+
+// stateInitRoute gives routeID its route floor file holding no serial yet,
+// and never replaces one.
+func stateInitRoute(dir, routeID string, given map[string]bool, stdout, stderr io.Writer) int {
+	switch {
+	case given["bundle-id"]:
+		return usageError(stderr, stateInitName, "--bundle-id names a plane's or a signer's floor, not a route's")
+	case !given["route-id"]:
+		return usageError(stderr, stateInitName, "--route-id is missing")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), floorLockWait)
+	defer cancel()
+	if err := policystate.InitRoute(ctx, dir, routeID); err != nil {
+		return fail(stderr, stateInitName, err)
+	}
+	return writeFloorLines(stdout, stderr, stateInitName, "route_id: "+oneLine(routeID)+"\nfloor: no serial\n",
 		"the floor file was made as asked")
 }
 
