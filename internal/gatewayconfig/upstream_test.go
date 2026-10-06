@@ -100,3 +100,38 @@ func TestNoDurationTakesANegativeValue(t *testing.T) {
 		})
 	}
 }
+
+// TestASecondOverrideOfOneToolIsRefused: the adapter keeps the last entry of
+// an upstream's tool, so a READ after a DELETE would classify a delete as a
+// read. The same tool on another upstream, and another tool on the same one,
+// are the controls.
+func TestASecondOverrideOfOneToolIsRefused(t *testing.T) {
+	entry := func(upstream, tool, effect string) string {
+		return "  - upstream: " + upstream + "\n    tool: " + tool + "\n    fingerprint: abc\n" +
+			"    effect: " + effect + "\n    resource_type: order\n"
+	}
+	billing := "  - name: billing\n    endpoint: http://127.0.0.1:2/mcp\n"
+	for _, c := range []struct {
+		name, overrides string
+		wants           string
+	}{
+		{"one tool twice", entry("orders", "drop_order", "DELETE") + entry("orders", "drop_order", "READ"), `overrides.1: the tool "drop_order" of "orders" is classified by overrides.0 already`},
+		{"one tool twice, apart", entry("orders", "drop_order", "DELETE") + entry("orders", "read_order", "READ") + entry("billing", "drop_order", "READ") + entry("orders", "drop_order", "DELETE"), `overrides.3: the tool "drop_order" of "orders" is classified by overrides.0 already`},
+		{"one tool on two upstreams", entry("orders", "drop_order", "DELETE") + entry("billing", "drop_order", "READ"), ""},
+		{"two tools on one upstream", entry("orders", "drop_order", "DELETE") + entry("orders", "read_order", "READ"), ""},
+		{"a tool named as another's case", entry("orders", "drop_order", "DELETE") + entry("orders", "Drop_order", "READ"), ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			path := writeDocument(t, document+billing+"\noverrides:\n"+c.overrides)
+			_, err := Load(path, os.Environ())
+			switch {
+			case c.wants == "" && err != nil:
+				t.Errorf("refused: %v", err)
+			case c.wants != "" && err == nil:
+				t.Error("accepted")
+			case c.wants != "" && !strings.Contains(err.Error(), c.wants):
+				t.Errorf("the refusal is %q, which does not say %q", err, c.wants)
+			}
+		})
+	}
+}

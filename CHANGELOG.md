@@ -22,6 +22,11 @@ verify one.
   delete as a read.
 - `guardana-control runs open --parent` refuses a child whose expiry would
   pass its parent's.
+- The gateway refuses a configuration file that others may write, or that an
+  account other than its own or root owns, and one in a directory others may
+  write unless the directory is sticky; a link is followed and the file it
+  reaches is judged. The file names the policy keys, the pause file and the
+  credentials the plane sends, and was read whatever its owner and mode.
 
 ### Fixed
 

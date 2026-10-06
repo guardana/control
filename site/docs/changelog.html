@@ -118,6 +118,11 @@ last one won, so an <code>effect: READ</code> after an <code>effect: DELETE</cod
 delete as a read.</li>
 <li><code>guardana-control runs open --parent</code> refuses a child whose expiry would
 pass its parent's.</li>
+<li>The gateway refuses a configuration file that others may write, or that an
+account other than its own or root owns, and one in a directory others may
+write unless the directory is sticky; a link is followed and the file it
+reaches is judged. The file names the policy keys, the pause file and the
+credentials the plane sends, and was read whatever its owner and mode.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>

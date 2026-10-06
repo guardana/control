@@ -163,6 +163,24 @@ func TestOnlyAnAuthorizationValueIsSplit(t *testing.T) {
 	}
 }
 
+// TestAnAuthorizationValueWithNoSchemeIsOneSecret: a value with no gap, or
+// whose first word is no scheme, has no credential after a scheme to list on
+// its own, so the whole value is its only secret.
+func TestAnAuthorizationValueWithNoSchemeIsOneSecret(t *testing.T) {
+	cfg := &Config{PDP: PDPConfig{Headers: map[string]string{
+		"Authorization":       "opaque-token-without-scheme",
+		"Proxy-Authorization": "no/scheme proxy-word",
+	}}}
+	got := cfg.Secrets(func(string) (string, bool) { return "", false })
+	want := []secretscan.Secret{
+		{Key: "pdp.headers.Authorization", Value: "opaque-token-without-scheme", Kind: secretscan.Credential},
+		{Key: "pdp.headers.Proxy-Authorization", Value: "no/scheme proxy-word", Kind: secretscan.Credential},
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("got\n%swant\n%s", listSecrets(got), listSecrets(want))
+	}
+}
+
 // TestSecretsSkipsAUserinfoWithNothingInIt: an endpoint whose userinfo is
 // empty sends a Basic token of a lone colon, which is no credential and would
 // match far more than it should.

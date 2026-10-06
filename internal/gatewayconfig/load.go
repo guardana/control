@@ -68,15 +68,16 @@ func Load(path string, environ []string) (*Config, error) {
 	return b.cfg, nil
 }
 
-// readConfigFile reads the file without waiting on it: a named pipe at path
-// is refused rather than opened for a writer that may never come.
+// readConfigFile reads the file once it and its directory are judged, without
+// waiting on it: a named pipe at path is refused rather than opened for a
+// writer that may never come.
 func readConfigFile(path string) (string, error) {
-	raw, err := files.ReadRegular(filepath.Clean(path), maxConfigBytes, 0)
+	raw, err := readJudged(filepath.Clean(path))
 	switch {
 	case errors.Is(err, files.ErrTooLarge):
 		return "", fmt.Errorf("%s: over %d bytes", path, maxConfigBytes)
 	case err != nil:
-		return "", fmt.Errorf("reading the configuration: %w", err)
+		return "", fmt.Errorf("reading the configuration %s: %w", path, err)
 	}
 	return string(raw), nil
 }

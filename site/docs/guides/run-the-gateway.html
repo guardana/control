@@ -141,7 +141,9 @@ the plane: a floor made anew takes any older bundle.</p>
 <p>Every path in the file resolves against the file's directory. Every key has
 an environment variable under <code>GUARDANA_CONTROL_</code>, the key in capitals with
 underscores for dots, which wins over the file. An unknown key is refused.
-<a href="/docs/reference/configuration">configuration.md</a> lists every key.</p>
+<a href="/docs/reference/configuration">configuration.md</a> lists every key. The plane
+refuses a file others may write or that an account other than its own or root
+owns, and such a directory unless it is sticky.</p>
 <pre><code class="language-yaml">mode: OBSERVE
 project_id: orders
 tenant_id: acme
@@ -224,10 +226,8 @@ schema changes is unclassified again until you look at it.</p>
 <h3 id="6-read-the-health">6. Read the health</h3>
 <pre><code>curl -s http://127.0.0.1:8081/healthz | jq
 </code></pre>
-<p>The answer carries <code>mode</code>, <code>halted</code> and <code>halt</code>, <code>bundle</code>, <code>policy</code>, <code>spool</code>,
-<code>exporter</code>, <code>pipeline</code>, <code>approvals</code>, <code>pause</code> and <code>runs</code>. <code>policy.freshness</code>
-is <code>confirmed</code>, <code>unconfirmed</code> or <code>expired</code>, beside the confirmation, its
-expiry, the seconds left and the poll counts. A plane whose policy is not
+<p><code>policy.freshness</code> is <code>confirmed</code>, <code>unconfirmed</code> or <code>expired</code>, beside its
+expiry and the poll counts. A plane whose policy is not
 confirmed answers <code>&quot;status&quot;:&quot;degraded&quot;</code> with <code>200</code>; one that takes no
 material call, or whose pause state is unknown, answers <code>503</code>.</p>
 <h3 id="7-move-to-enforce">7. Move to ENFORCE</h3>
@@ -244,7 +244,7 @@ complete. Then change the mode and restart.</p>
 <tbody>
 <tr>
 <td><code>OBSERVE</code></td>
-<td>Records; executes every recordable call one upstream lists, unclassified included, unless a pause or halt blocks it; applies no obligation</td>
+<td>Records; executes every recordable call one upstream lists, unclassified included, unless one of the plane's own causes blocks it (<a href="/docs/concepts/enforcement-modes">enforcement modes</a>); applies no obligation</td>
 </tr>
 <tr>
 <td><code>APPROVE</code></td>
@@ -273,8 +273,8 @@ complete. Then change the mode and restart.</p>
 <p>An approver answers with the approval commands
 (<a href="/docs/reference/cli">reference/cli.md</a>). Write access to <code>approvals.dir</code> is
 the approval authority, and <code>--approver-id</code> is a claim, never authenticated. A
-hold lost to a restart never runs; the journal lets the next start close its
-trail or count it left open; <code>doctor</code> counts them
+hold lost to a restart never runs, and the next start closes its trail from
+the journal
 (<a href="/docs/concepts/approvals-and-the-held-call">concepts/approvals-and-the-held-call.md</a>).</p>
 <h3 id="9-set-the-evidence-rules-on-purpose">9. Set the evidence rules on purpose</h3>
 <table>
@@ -306,10 +306,10 @@ trail or count it left open; <code>doctor</code> counts them
 <h3 id="10-pause-a-tool">10. Pause a tool</h3>
 <p>As the plane's user, before setting <code>pause.file</code> and restarting:</p>
 <pre><code>mkdir -m 700 /srv/pause
-guardana-control pause init /srv/pause/pause.json   # a relative path is read from the working directory
+guardana-control pause init /srv/pause/pause.json
 </code></pre>
 <pre><code class="language-yaml">pause:
-  file: /srv/pause/pause.json   # a relative path is read from this file&#39;s directory
+  file: /srv/pause/pause.json
 </code></pre>
 <pre><code>guardana-control pause add --action tool --provider orders --name refund /srv/pause/pause.json
 </code></pre>

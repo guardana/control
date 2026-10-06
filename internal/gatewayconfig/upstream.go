@@ -34,20 +34,28 @@ func (c *Config) checkUpstreams() error {
 
 // checkOverrides refuses a classification of a tool on a server this
 // configuration does not have, which would classify nothing and leave the
-// tool blocked.
+// tool blocked, and a second classification of one upstream's tool, which
+// the adapter would let replace the first.
 func (c *Config) checkOverrides() error {
 	names := map[string]bool{}
 	for _, up := range c.Upstreams {
 		names[up.Name] = true
 	}
+	type tool struct{ upstream, name string }
+	seen := make(map[tool]int, len(c.Overrides))
 	for i := range c.Overrides {
+		o := &c.Overrides[i]
 		at := fmt.Sprintf("overrides.%d.", i)
-		if err := checkRequired(&c.Overrides[i], overrideFields, at); err != nil {
+		if err := checkRequired(o, overrideFields, at); err != nil {
 			return err
 		}
-		if !names[c.Overrides[i].Upstream] {
-			return fmt.Errorf("%supstream: %s is not a configured upstream", at, quoteValue(c.Overrides[i].Upstream))
+		if !names[o.Upstream] {
+			return fmt.Errorf("%supstream: %s is not a configured upstream", at, quoteValue(o.Upstream))
 		}
+		if first, ok := seen[tool{o.Upstream, o.Tool}]; ok {
+			return fmt.Errorf("overrides.%d: the tool %s of %s is classified by overrides.%d already", i, quoteValue(o.Tool), quoteValue(o.Upstream), first)
+		}
+		seen[tool{o.Upstream, o.Tool}] = i
 	}
 	return nil
 }

@@ -62,7 +62,9 @@ the plane: a floor made anew takes any older bundle.
 Every path in the file resolves against the file's directory. Every key has
 an environment variable under `GUARDANA_CONTROL_`, the key in capitals with
 underscores for dots, which wins over the file. An unknown key is refused.
-[configuration.md](../reference/configuration.md) lists every key.
+[configuration.md](../reference/configuration.md) lists every key. The plane
+refuses a file others may write or that an account other than its own or root
+owns, and such a directory unless it is sticky.
 
 ```yaml
 mode: OBSERVE
@@ -166,10 +168,8 @@ schema changes is unclassified again until you look at it.
 curl -s http://127.0.0.1:8081/healthz | jq
 ```
 
-The answer carries `mode`, `halted` and `halt`, `bundle`, `policy`, `spool`,
-`exporter`, `pipeline`, `approvals`, `pause` and `runs`. `policy.freshness`
-is `confirmed`, `unconfirmed` or `expired`, beside the confirmation, its
-expiry, the seconds left and the poll counts. A plane whose policy is not
+`policy.freshness` is `confirmed`, `unconfirmed` or `expired`, beside its
+expiry and the poll counts. A plane whose policy is not
 confirmed answers `"status":"degraded"` with `200`; one that takes no
 material call, or whose pause state is unknown, answers `503`.
 
@@ -181,7 +181,7 @@ complete. Then change the mode and restart.
 
 | Mode | What the plane does with the kernel's decision |
 | --- | --- |
-| `OBSERVE` | Records; executes every recordable call one upstream lists, unclassified included, unless a pause or halt blocks it; applies no obligation |
+| `OBSERVE` | Records; executes every recordable call one upstream lists, unclassified included, unless one of the plane's own causes blocks it ([enforcement modes](../concepts/enforcement-modes.md)); applies no obligation |
 | `APPROVE` | Enforces, and holds an allowed material call for an approval. It needs `approvals.provider: file`: nothing outside the process answers a hold kept in memory |
 | `ENFORCE` | Enforces the decision: blocks a `DENY` and an `INDETERMINATE` save a fail-open read, applies the obligations, holds what needs an approval |
 | `LOCKDOWN` | Blocks every material call whatever the policy said, recording a decision; enforces a read with fail-open reads off |
@@ -199,8 +199,8 @@ approvals:
 An approver answers with the approval commands
 ([reference/cli.md](../reference/cli.md)). Write access to `approvals.dir` is
 the approval authority, and `--approver-id` is a claim, never authenticated. A
-hold lost to a restart never runs; the journal lets the next start close its
-trail or count it left open; `doctor` counts them
+hold lost to a restart never runs, and the next start closes its trail from
+the journal
 ([concepts/approvals-and-the-held-call.md](../concepts/approvals-and-the-held-call.md)).
 
 ### 9. Set the evidence rules on purpose
@@ -218,12 +218,12 @@ As the plane's user, before setting `pause.file` and restarting:
 
 ```
 mkdir -m 700 /srv/pause
-guardana-control pause init /srv/pause/pause.json   # a relative path is read from the working directory
+guardana-control pause init /srv/pause/pause.json
 ```
 
 ```yaml
 pause:
-  file: /srv/pause/pause.json   # a relative path is read from this file's directory
+  file: /srv/pause/pause.json
 ```
 
 ```
