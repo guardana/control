@@ -72,7 +72,7 @@ func Load(path string, environ []string) (*Config, error) {
 // waiting on it: a named pipe at path is refused rather than opened for a
 // writer that may never come.
 func readConfigFile(path string) (string, error) {
-	raw, err := readJudged(filepath.Clean(path))
+	raw, err := readJudged(path)
 	switch {
 	case errors.Is(err, files.ErrTooLarge):
 		return "", fmt.Errorf("%s: over %d bytes", path, maxConfigBytes)

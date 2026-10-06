@@ -114,12 +114,18 @@ func TestEveryDirectoryOnThePathIsJudged(t *testing.T) {
 		{"a directory only others may write above the file's", 0o703, 0o755, 0o644, files.ErrMode},
 		{"a sticky directory others may write above the file's", fs.ModeSticky | 0o777, 0o755, 0o644, nil},
 		{"a group-writable file in a group-writable tree", 0o775, 0o775, 0o664, nil},
+		{"a directory a shared group may write above the file's", 0o775, 0o755, 0o644, files.ErrMode},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			upper := filepath.Join(t.TempDir(), "upper")
 			conf := mkdirMode(t, filepath.Join(upper, "conf"), c.conf)
 			path := fileAt(t, filepath.Join(conf, "gateway.yaml"), c.fileMode)
 			mkdirMode(t, upper, c.upper)
+			if c.want == nil {
+				privateGroupOf(t, path)
+			} else {
+				sharedGroupOf(t, path)
+			}
 			if c.want == nil {
 				loads(t, path)
 				return
@@ -341,11 +347,25 @@ func TestAConfigMapUnderRootIsRead(t *testing.T) {
 	})
 }
 
-// TestTheFilesDirectoryOnAReadOnlyMountIsTaken: a directory no account may
-// write, since its mount is read-only, is taken whatever its mode says.
+// TestTheFilesDirectoryOnAReadOnlyMountIsTaken: a directory of root's that
+// no account may write through its mount, since the mount is read-only, is
+// taken whatever its mode says. One of another account's is not: that account
+// may write it through another mount.
 func TestTheFilesDirectoryOnAReadOnlyMountIsTaken(t *testing.T) {
 	path := placed(t, 0o777, 0o644)
+	conf, err := os.Stat(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
 	readOnlyAt(t, filepath.Dir(path))
+	_, err = Load(path, nil)
+	refusedFor(t, err, files.ErrMode, path)
+	ownedAs(t, func(info fs.FileInfo, uid int) int {
+		if os.SameFile(info, conf) {
+			return 0
+		}
+		return uid
+	})
 	loads(t, path)
 }
 
@@ -507,6 +527,12 @@ func TestADirectorySwappedOnTheWalkIsRefused(t *testing.T) {
 	fileAt(t, filepath.Join(planted, "conf", "gateway.yaml"), 0o644)
 	mkdirMode(t, planted, 0o777)
 	readOnlyAt(t, upper, planted)
+	ownedAs(t, func(info fs.FileInfo, uid int) int {
+		if info.Name() == "upper" || info.Name() == "planted" {
+			return 0
+		}
+		return uid
+	})
 	loads(t, path)
 	atStep(t, stepDirLooked,
 		func() error { return os.Rename(upper, upper+".judged") },
@@ -564,4 +590,37 @@ func TestARootOwnedFileIsRead(t *testing.T) {
 	if _, err := readConfigFile(p); err != nil && !errors.Is(err, files.ErrTooLarge) {
 		t.Errorf("readConfigFile(%s), root's: %v", p, err)
 	}
+}
+
+// TestThePathIsWalkedAsGiven: ".." after a link names the parent of what the
+// link reached, as the kernel takes it, not the link's own directory, and a
+// "." or an empty name below a file is refused as the kernel refuses it. The
+// kernel's own answer is read beside the loader's.
+func TestThePathIsWalkedAsGiven(t *testing.T) {
+	base := t.TempDir()
+	target := mkdirMode(t, filepath.Join(base, "real"), 0o755)
+	mkdirMode(t, filepath.Join(target, "sub"), 0o755)
+	good := fileAt(t, filepath.Join(target, "gateway.yaml"), 0o644)
+	d := mkdirMode(t, filepath.Join(base, "d"), 0o755)
+	fileAt(t, filepath.Join(d, "gateway.yaml"), 0o666)
+	symlink(t, filepath.Join("..", "real", "sub"), filepath.Join(d, "lnk"))
+	through := filepath.Join(d, "lnk") + string(filepath.Separator) + ".." + string(filepath.Separator) + "gateway.yaml"
+	if kernel, err := os.Stat(through); err != nil || !sameAs(t, kernel, good) {
+		t.Fatalf("the kernel reads %s as %v, %v; want %s", through, kernel, err, good)
+	}
+	loads(t, through)
+	for _, target := range []string{good + string(filepath.Separator) + ".", good + string(filepath.Separator)} {
+		link := symlink(t, target, filepath.Join(t.TempDir(), "gateway.yaml"))
+		if _, err := os.Stat(link); err == nil {
+			t.Fatalf("the kernel reads %s through %q", link, target)
+		}
+		_, err := Load(link, nil)
+		refusedFor(t, err, files.ErrNotDirectory, link)
+	}
+}
+
+func sameAs(t *testing.T, info fs.FileInfo, path string) bool {
+	t.Helper()
+	other, err := os.Stat(path)
+	return err == nil && os.SameFile(info, other)
 }

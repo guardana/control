@@ -376,12 +376,18 @@ out of the arguments, that is argument content.</li>
 <ul>
 <li>The configuration file is refused when it, or any directory or link on its
 path from the root, is owned by an account other than the plane's or root,
-or others may write it (a sticky directory, or one on a read-only mount,
-excepted), and when it has a second name. Group write is allowed, so a member
-of the file's group can change the configuration; on macOS every local
-account shares the <code>staff</code> group (<code>internal/gatewayconfig/pathwalk.go</code>;
+or another account may write it (a sticky directory, or root's on a
+read-only mount, excepted), and when it has a second name. The path is
+walked as the kernel walks it. Group write is taken only where the group is
+the owner's own, its one member by <code>/etc/passwd</code> and <code>/etc/group</code>, as a user
+private group is; a group those files cannot show, as on macOS, where every
+local account shares <code>staff</code>, is refused
+(<code>internal/gatewayconfig/pathwalk.go</code>, <code>groupwrite.go</code>;
 <code>TestEveryDirectoryOnThePathIsJudged</code>, <code>TestALinkIsJudgedWhereItLies</code>,
-<code>TestAFileWithASecondNameIsRefused</code>).</li>
+<code>TestAFileWithASecondNameIsRefused</code>,
+<code>TestAGroupIsTheOwnersOwnOnlyWithNoOtherMember</code>). A read-only mount is
+root's word; another mount may still write the directory. A Nix store with
+<code>auto-optimise-store</code> gives the file a second name, so it is refused.</li>
 <li>The approvals directory is refused when another account owns it or the
 group or the world may write it. It is judged again at every call, and a
 change of owner or of directory is refused too; each record is <code>0600</code>

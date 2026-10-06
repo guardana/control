@@ -271,12 +271,18 @@ What the plane does today:
 
 - The configuration file is refused when it, or any directory or link on its
   path from the root, is owned by an account other than the plane's or root,
-  or others may write it (a sticky directory, or one on a read-only mount,
-  excepted), and when it has a second name. Group write is allowed, so a member
-  of the file's group can change the configuration; on macOS every local
-  account shares the `staff` group (`internal/gatewayconfig/pathwalk.go`;
+  or another account may write it (a sticky directory, or root's on a
+  read-only mount, excepted), and when it has a second name. The path is
+  walked as the kernel walks it. Group write is taken only where the group is
+  the owner's own, its one member by `/etc/passwd` and `/etc/group`, as a user
+  private group is; a group those files cannot show, as on macOS, where every
+  local account shares `staff`, is refused
+  (`internal/gatewayconfig/pathwalk.go`, `groupwrite.go`;
   `TestEveryDirectoryOnThePathIsJudged`, `TestALinkIsJudgedWhereItLies`,
-  `TestAFileWithASecondNameIsRefused`).
+  `TestAFileWithASecondNameIsRefused`,
+  `TestAGroupIsTheOwnersOwnOnlyWithNoOtherMember`). A read-only mount is
+  root's word; another mount may still write the directory. A Nix store with
+  `auto-optimise-store` gives the file a second name, so it is refused.
 - The approvals directory is refused when another account owns it or the
   group or the world may write it. It is judged again at every call, and a
   change of owner or of directory is refused too; each record is `0600`

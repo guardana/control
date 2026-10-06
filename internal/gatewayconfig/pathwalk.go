@@ -17,13 +17,20 @@ const maxLinks = 40
 // resolveJudged resolves path a component at a time from the root of the
 // file system, following each link it meets, and judges every entry it
 // passes: each directory and each link has to be the plane's account's or
-// root's, and no directory may let others write it unless it is sticky or on
-// a read-only mount. Whoever may change any of them could put a file of their
-// own at the path. It returns the path the walk reached, which holds no link.
+// root's, and no directory may let another account write it unless it is
+// sticky or a directory of root's on a read-only mount. Whoever may change
+// any of them could put a file of their own at the path. The path is walked
+// as given, never cleaned first, so ".." after a link names the parent of
+// what the link reached, as the kernel takes it. It returns the path the walk
+// reached, which holds no link.
 func resolveJudged(path string) (string, error) {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return "", err
+	abs := path
+	if !filepath.IsAbs(path) {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		abs = wd + separator + path
 	}
 	top, err := os.Lstat(separator)
 	if err != nil {
@@ -57,10 +64,10 @@ func (w *pathWalk) step() error {
 	name := w.pending[0]
 	w.pending = w.pending[1:]
 	switch {
-	case name == "" || name == ".":
-		return nil
 	case !w.isDir:
 		return fmt.Errorf("%s: %w", w.at, files.ErrNotDirectory)
+	case name == "" || name == ".":
+		return nil
 	case name == "..":
 		w.at = filepath.Dir(w.at)
 		return nil
@@ -111,8 +118,7 @@ func judgeTraversed(dir string, info fs.FileInfo) error {
 	if err := checkConfigOwner(info); err != nil {
 		return fmt.Errorf("the directory %s: %w", dir, err)
 	}
-	mode := info.Mode()
-	if mode&fs.ModeSticky != 0 || mode.Perm()&worldWritable == 0 {
+	if info.Mode()&fs.ModeSticky != 0 || othersMayWrite(info) == nil {
 		return nil
 	}
 	configStep(stepDirLooked)
@@ -134,20 +140,29 @@ func judgeTraversed(dir string, info fs.FileInfo) error {
 	return nil
 }
 
-// judgeDirMode refuses an opened directory others may write, unless it is
-// sticky or on a read-only mount, where no account may write it whatever its
-// mode says. A mount whose flags cannot be read is refused.
+// judgeDirMode refuses an opened directory another account may write, unless
+// it is sticky, or root's and on a read-only mount, where no account may
+// write it through this mount whatever its mode says. A read-only mount is
+// taken as its owner's word: a directory of another account's mounted
+// read-only could be written through another mount by that account. A mount
+// whose flags cannot be read is refused.
 func judgeDirMode(d *os.File, info fs.FileInfo) error {
-	mode := info.Mode()
-	if mode&fs.ModeSticky != 0 || mode.Perm()&worldWritable == 0 {
+	if info.Mode()&fs.ModeSticky != 0 {
 		return nil
+	}
+	why := othersMayWrite(info)
+	if why == nil {
+		return nil
+	}
+	if uid, named := ownerOf(info); !named || uid != 0 {
+		return fmt.Errorf("%w; it is not sticky, nor root's on a read-only mount", why)
 	}
 	ro, err := onReadOnlyMount(d)
 	switch {
 	case err != nil:
-		return fmt.Errorf("%w: mode %04o, on a mount whose flags cannot be read: %w", files.ErrMode, mode.Perm(), err)
+		return fmt.Errorf("%w, on a mount whose flags cannot be read: %w", why, err)
 	case !ro:
-		return fmt.Errorf("%w: mode %04o; others may not write it unless it is sticky or on a read-only mount", files.ErrMode, mode.Perm())
+		return fmt.Errorf("%w; it is not sticky, nor on a read-only mount", why)
 	}
 	return nil
 }

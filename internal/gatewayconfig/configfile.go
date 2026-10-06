@@ -13,8 +13,9 @@ import (
 
 // worldWritable is the permission bit that lets any account replace or
 // rewrite the configuration, which names the mode, the policy keys, the pause
-// file and the credentials the plane sends. The group's write bit is taken,
-// since a umask of 002 sets it on every file extracted or checked out.
+// file and the credentials the plane sends. The group's write bit is taken
+// only for the owner's own group (othersMayWrite), which a umask of 002 is
+// meant for.
 const worldWritable fs.FileMode = 0o002
 
 // ownerWanted is the plane's account, which may own the configuration and
@@ -150,16 +151,17 @@ func openJudgedDir(dir string) (*os.Root, error) {
 }
 
 // judgeFile refuses the configuration file unless it is regular, closed to
-// writes by others, with no name but the one read, and owned by the plane's
-// account or root.
+// writes by any account but its owner, with no name but the one read, and
+// owned by the plane's account or root.
 func judgeFile(info fs.FileInfo) error {
 	mode := info.Mode()
-	switch {
-	case !mode.IsRegular():
+	if !mode.IsRegular() {
 		return fmt.Errorf("%w: %s", files.ErrNotRegular, mode.Type())
-	case mode.Perm()&worldWritable != 0:
-		return fmt.Errorf("%w: mode %04o; others may not write it", files.ErrMode, mode.Perm())
-	case !singleName(info):
+	}
+	if err := othersMayWrite(info); err != nil {
+		return err
+	}
+	if !singleName(info) {
 		return errSecondName
 	}
 	return checkConfigOwner(info)
