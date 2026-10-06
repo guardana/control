@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/guardana/control/internal/reaction"
+	"github.com/guardana/control/internal/reaction/stoplist"
 	"github.com/guardana/control/internal/reaction/stopwrite"
 )
 
@@ -100,5 +101,28 @@ func TestTheByteBoundAtItsLimit(t *testing.T) {
 	}
 	if info, err := os.Stat(listPath(dir)); err != nil || info.Size() != 4<<20 {
 		t.Errorf("the list at its bound: %v, %v; want 4194304 bytes", info, err)
+	}
+}
+
+// TestAListPastItsByteBoundIsLeftAsItIs: a list longer than the bound, which
+// only a write around this package can make, is refused as the plane's reader
+// refuses it, and no write cuts the complete lines past the bound, a stop
+// among them.
+func TestAListPastItsByteBoundIsLeftAsItIs(t *testing.T) {
+	t.Parallel()
+	r := testRoute(t)
+	dir, list := stoppedList(t, r)
+	list.WriteString(strings.Repeat("x", reaction.MaxListBytes))
+	list.WriteByte('\n')
+	list.Write(must(t)(stopOf(t, "f-past", "run-2", clock0).Marshal()))
+	list.WriteByte('\n')
+	setContent(t, dir, list.Bytes())
+	before := content(t, dir)
+	n, err := stopwrite.AppendCovered(bg, dir, r, coveredOf("f-new", "run-1", clock0), clock0)
+	if !errors.Is(err, stopwrite.ErrFull) || !errors.Is(err, stoplist.ErrTooLarge) || n != 0 {
+		t.Errorf("an append to a list past the bound = %d, %v; want ErrFull wrapping %q", n, err, stoplist.ErrTooLarge)
+	}
+	if !bytes.Equal(content(t, dir), before) {
+		t.Error("an append to a list past the bound changed it")
 	}
 }

@@ -105,6 +105,11 @@ func appendTo(f *os.File, named fs.FileInfo, route reaction.Route, now time.Time
 	if err != nil {
 		return 0, err
 	}
+	// Past the bound, the bytes after the last newline read are not a torn
+	// tail but lines never read, which a cut would delete.
+	if len(content) > reaction.MaxListBytes {
+		return 0, fmt.Errorf("%w: %w: limit %d", ErrFull, stoplist.ErrTooLarge, reaction.MaxListBytes)
+	}
 	complete := content[:bytes.LastIndexByte(content, '\n')+1]
 	next := append(append(bytes.Clone(complete), line...), '\n')
 	list, err := reaction.Judge(route, reaction.Prefix{}, next, now, 0)

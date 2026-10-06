@@ -175,7 +175,8 @@ DSSE signature under the lift key, payload type
 <code>list_id</code>, the route digest, the run and that line; it ends every stop of that
 run up to that line. Lines are appended, never rewritten. Only
 <code>internal/reaction/stopwrite</code> writes, under a lock, truncating an unterminated
-tail to its last newline before it appends; the plane links only the reader.</p>
+tail to its last newline before it appends, and refusing a list past its byte
+bound rather than cut lines it did not read; the plane links only the reader.</p>
 <p><strong>The emitter adds and never lifts.</strong> <code>guardana-control react --findings &lt;dir&gt; --runs &lt;dir&gt; --route &lt;file&gt; --public-key &lt;file&gt; --stops &lt;dir&gt;</code> verifies the
 route, refuses one whose digest is not the header's, reads the findings log as
 <code>notify</code> does, and appends, for each finding <code>Eligible</code> and the route permit
@@ -186,8 +187,10 @@ and only a new finding after a lift stops the run again. <code>expires_at</code>
 clock plus the rule's lifetime and never later than the run's expiry. At the
 list's bound it exits 1 naming each finding it could not write. It holds no
 key. <code>guardana-control stops init --route --public-key [--carry &lt;dir&gt;]</code> starts
-a list, and with <code>--carry</code> copies the old list's unlifted, unexpired stops and
-every finding id it names as covered, so a new list only adds; <code>stops lift --key</code> and <code>stops list</code> are the operator's.</p>
+a list, and with <code>--carry</code> copies the old list's unlifted stops, expired or
+not, since the writer's clock may be one a plane would not trust, and every
+other finding id it names as covered, holding the old list's lock until the
+new one is written, so a new list only adds; <code>stops lift --key</code> and <code>stops list</code> are the operator's.</p>
 <p><strong>What a plane checks.</strong> A plane with a route requires <code>runs.dir</code>, a route
 tenant equal to the listener's, and a stops directory that is neither inside
 nor around any directory the plane or its commands lock or own. A nil stop
@@ -310,7 +313,8 @@ or procedure digest the route does not list, another tenant, and a closed,
 expired or child run write nothing; <code>--carry</code> brings no old finding back.</li>
 <li>A truncated list, an edited earlier line and a changed header while a plane
 runs are unknown, and a failed read does not reset the accepted prefix; a
-torn tail is left out and truncated by the next writer.</li>
+torn tail is left out and truncated by the next writer, and a list past its
+byte bound is refused by the writer, never cut.</li>
 <li>A <code>created_at</code> past the tolerance, and a far-future one with a legal
 difference, are unknown.</li>
 <li>Bundle, statement, route and lift signatures never verify as one another; a

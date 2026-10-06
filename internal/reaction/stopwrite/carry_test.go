@@ -3,6 +3,7 @@ package stopwrite_test
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -61,11 +62,11 @@ func oldList(t *testing.T, r reaction.Route, stranded bool) string {
 	return dir
 }
 
-// TestCarryBringsNoEndedStopAndNamesEveryFinding: the new list, under a
-// route of a later serial, holds the one stop no lift ended and that is not
-// expired, as it was, and names every other finding as covered; a plane
-// serves it, and every finding the old list names is named again.
-func TestCarryBringsNoEndedStopAndNamesEveryFinding(t *testing.T) {
+// TestCarryBringsEveryUnliftedStopAndNamesEveryFinding: the new list, under
+// a route of a later serial, holds the two stops no lift ended, the expired
+// one among them, as they were, and names every other finding as covered; a
+// plane serves it, and every finding the old list names is named again.
+func TestCarryBringsEveryUnliftedStopAndNamesEveryFinding(t *testing.T) {
 	from, to := testRoute(t), routeOf(t, 4, true)
 	old := oldList(t, from, false)
 	dir := emptyDir(t)
@@ -73,8 +74,8 @@ func TestCarryBringsNoEndedStopAndNamesEveryFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Carry: %v", err)
 	}
-	if got.Stops != 1 || got.Covered != 3 || got.Header.RouteSerial != 4 || got.Header.RouteDigest != to.Digest() {
-		t.Errorf("Carry = %+v; want 1 stop and 3 covered under serial 4", got)
+	if got.Stops != 2 || got.Covered != 2 || got.Header.RouteSerial != 4 || got.Header.RouteDigest != to.Digest() {
+		t.Errorf("Carry = %+v; want 2 stops and 2 covered under serial 4", got)
 	}
 	expectCarried(t, to, content(t, dir))
 	if s := planeOn(t, dir, to).Current(); s.State() != reaction.Stopped || !s.Active("run-1", "acme", clock0, time.Time{}) {
@@ -94,20 +95,20 @@ func TestCarryNamesTheFindingsOfARunThatKeepsNoStop(t *testing.T) {
 	from, to := testRoute(t), routeOf(t, 4, false)
 	old := []string{"f-lifted", "f-expired", "f-kept", "f-covered"}
 	t.Run("a run that keeps no stop", func(t *testing.T) {
-		dir := carriedNoStop(t, oldList(t, from, true), from, to, clock0, 1, append(old, "f-run2", "f-run2b"), reaction.Stopped)
+		dir := carriedNoStop(t, oldList(t, from, true), from, to, clock0, 2, append(old, "f-run2", "f-run2b"), reaction.Stopped)
 		if _, err := stopwrite.AppendStop(bg, dir, to, stopOf(t, "f-run2", "run-2", clock0), clock0); !errors.Is(err, reaction.ErrFindingAgain) {
 			t.Errorf("a stop of a finding the old list named = %v, want ErrFindingAgain", err)
 		}
 	})
 	t.Run("every stop expired", func(t *testing.T) {
-		carriedNoStop(t, oldList(t, from, false), from, to, clock0.Add(2*time.Hour), 0, old, reaction.Clear)
+		carriedNoStop(t, oldList(t, from, false), from, to, clock0.Add(2*time.Hour), 2, old, reaction.Clear)
 	})
 }
 
 // carriedNoStop carries the list in old at now and fails unless the new list
 // holds stops stops and a covered line for every other finding of named, a
-// plane serves it in state with run-2 not stopped, and a new finding of run-2
-// still stops it. It returns the new list's directory.
+// plane at now serves it in state with run-2 not stopped, and a new finding of
+// run-2 still stops it. It returns the new list's directory.
 func carriedNoStop(t *testing.T, old string, from, to reaction.Route, now time.Time, stops int, named []string, state reaction.State) string {
 	t.Helper()
 	dir := emptyDir(t)
@@ -141,18 +142,29 @@ func carriedNoStop(t *testing.T, old string, from, to reaction.Route, now time.T
 }
 
 // expectCarried fails unless the plane's judge takes the carried list with
-// f-kept its one entry, on line 2 with its times as they were, and every
-// finding of the old list named.
+// f-expired and f-kept its entries, on lines 2 and 3 with their times as they
+// were, and every finding of the old list named.
 func expectCarried(t *testing.T, r reaction.Route, carried []byte) {
 	t.Helper()
 	list, err := reaction.Judge(r, reaction.Prefix{}, carried, clock0.Add(time.Minute), 0)
 	if err != nil {
 		t.Fatalf("the plane's judge refuses the carried list: %v", err)
 	}
-	entries := list.Entries()
-	if len(entries) != 1 || entries[0].FindingID != "f-kept" || entries[0].Line != 2 ||
-		!entries[0].CreatedAt.Equal(clock0.Add(-time.Minute)) || !entries[0].ExpiresAt.Equal(clock0.Add(59*time.Minute)) {
-		t.Errorf("carried entries %+v; want f-kept alone, on line 2, its times as they were", entries)
+	type kept struct {
+		finding          string
+		line             int64
+		created, expires time.Time
+	}
+	var got []kept
+	for _, e := range list.Entries() {
+		got = append(got, kept{e.FindingID, e.Line, e.CreatedAt, e.ExpiresAt})
+	}
+	want := []kept{
+		{"f-expired", 2, clock0.Add(-2 * time.Hour), clock0.Add(-time.Hour)},
+		{"f-kept", 3, clock0.Add(-time.Minute), clock0.Add(59 * time.Minute)},
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("carried entries %+v; want %+v, their times as they were", got, want)
 	}
 	for _, f := range []string{"f-lifted", "f-expired", "f-kept", "f-covered"} {
 		if !list.Names(f) {
@@ -177,8 +189,6 @@ func TestCarryRefusesWhatItCannotCarryWhole(t *testing.T) {
 	}{
 		{"a route of another tenant", old, from, routeFor(t, 4, "other", false), clock0,
 			[]error{stopwrite.ErrRefused, reaction.ErrStopRefused}},
-		{"covered lines of another tenant", oldList(t, from, false), from, routeFor(t, 4, "other", false), clock0.Add(2 * time.Hour),
-			[]error{stopwrite.ErrRefused, reaction.ErrCoveredRun}},
 		{"judged against another route", old, routeOf(t, 4, false), routeOf(t, 5, false), clock0,
 			[]error{stopwrite.ErrRefused, reaction.ErrListRoute}},
 		{"no old list", emptyDir(t), from, from, clock0, []error{stoplist.ErrMissing}},
@@ -198,5 +208,19 @@ func TestCarryRefusesWhatItCannotCarryWhole(t *testing.T) {
 	}
 	if !bytes.Equal(content(t, old), before) {
 		t.Error("a carry onto a list changed it")
+	}
+}
+
+// TestCarryKeepsAStopAClockAheadCallsExpired: a writer whose clock runs a
+// thousand hours ahead carries the stop it reads as expired as a stop, not as
+// covered, so a plane whose clock is right still stops its run.
+func TestCarryKeepsAStopAClockAheadCallsExpired(t *testing.T) {
+	from, to := testRoute(t), routeOf(t, 4, false)
+	dir := emptyDir(t)
+	if _, err := stopwrite.Carry(bg, oldList(t, from, false), from, dir, to, clock0.Add(1000*time.Hour)); err != nil {
+		t.Fatalf("Carry: %v", err)
+	}
+	if s := planeOn(t, dir, to).Current(); s.State() != reaction.Stopped || !s.Active("run-1", "acme", clock0, time.Time{}) {
+		t.Errorf("a plane at the right clock over the list: %s (%s), want run-1 stopped", s.State(), s.Detail())
 	}
 }

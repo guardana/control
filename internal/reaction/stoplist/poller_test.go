@@ -211,21 +211,20 @@ func TestTheStatsAndTheLogFollowTheEntries(t *testing.T) {
 	}
 }
 
-func TestTheDisabledSourceReadsNothing(t *testing.T) {
-	d := Disabled()
-	if d.Current().State() != reaction.Disabled || d.Poll().State() != reaction.Disabled {
-		t.Errorf("Disabled serves %s", d.Current().State())
-	}
-	if st := d.Stats(); st.Polls != 0 {
-		t.Errorf("Disabled counted %+v", st)
-	}
+// TestANilPollerServesUnknown: a poller nobody opened serves the unknown
+// state, counts nothing and only waits when run; a plane with no route is
+// handed the gateway's own disabled source, never a poller.
+func TestANilPollerServesUnknown(t *testing.T) {
 	var none *Poller
 	if none.Current().State() != reaction.Unknown || none.Poll().State() != reaction.Unknown {
 		t.Errorf("a nil poller serves %s, want unknown", none.Current().State())
 	}
+	if st := none.Stats(); st.Polls != 0 {
+		t.Errorf("a nil poller counted %+v", st)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() { d.Run(ctx); close(done) }()
+	go func() { none.Run(ctx); close(done) }()
 	cancel()
 	<-done
 }

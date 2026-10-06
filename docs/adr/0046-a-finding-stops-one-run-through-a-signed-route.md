@@ -88,7 +88,8 @@ DSSE signature under the lift key, payload type
 `list_id`, the route digest, the run and that line; it ends every stop of that
 run up to that line. Lines are appended, never rewritten. Only
 `internal/reaction/stopwrite` writes, under a lock, truncating an unterminated
-tail to its last newline before it appends; the plane links only the reader.
+tail to its last newline before it appends, and refusing a list past its byte
+bound rather than cut lines it did not read; the plane links only the reader.
 
 **The emitter adds and never lifts.** `guardana-control react --findings <dir>
 --runs <dir> --route <file> --public-key <file> --stops <dir>` verifies the
@@ -101,9 +102,11 @@ and only a new finding after a lift stops the run again. `expires_at` is its
 clock plus the rule's lifetime and never later than the run's expiry. At the
 list's bound it exits 1 naming each finding it could not write. It holds no
 key. `guardana-control stops init --route --public-key [--carry <dir>]` starts
-a list, and with `--carry` copies the old list's unlifted, unexpired stops and
-every finding id it names as covered, so a new list only adds; `stops lift
---key` and `stops list` are the operator's.
+a list, and with `--carry` copies the old list's unlifted stops, expired or
+not, since the writer's clock may be one a plane would not trust, and every
+other finding id it names as covered, holding the old list's lock until the
+new one is written, so a new list only adds; `stops lift --key` and `stops
+list` are the operator's.
 
 **What a plane checks.** A plane with a route requires `runs.dir`, a route
 tenant equal to the listener's, and a stops directory that is neither inside
@@ -237,7 +240,8 @@ lift's payload and the two codes, and `docs/status.md` the stop.
   expired or child run write nothing; `--carry` brings no old finding back.
 - A truncated list, an edited earlier line and a changed header while a plane
   runs are unknown, and a failed read does not reset the accepted prefix; a
-  torn tail is left out and truncated by the next writer.
+  torn tail is left out and truncated by the next writer, and a list past its
+  byte bound is refused by the writer, never cut.
 - A `created_at` past the tolerance, and a far-future one with a legal
   difference, are unknown.
 - Bundle, statement, route and lift signatures never verify as one another; a

@@ -150,3 +150,27 @@ func TestTwoWritersAreSerialised(t *testing.T) {
 		t.Errorf("the plane over the raced list: %s (%s)", s.State(), s.Detail())
 	}
 }
+
+// TestCarryHoldsTheOldListsLockUntilItWrites: between reading the old list
+// and writing the new one, no writer can append to the old list, so no stop,
+// covered line or lift falls between the two; once the carry is done, one
+// can.
+func TestCarryHoldsTheOldListsLockUntilItWrites(t *testing.T) {
+	from, to := testRoute(t), routeOf(t, 4, false)
+	old, _ := initDir(t, from)
+	var during error
+	defer stopwrite.SetCarrying(func() {
+		ctx, cancel := context.WithTimeout(bg, 50*time.Millisecond)
+		defer cancel()
+		_, during = stopwrite.AppendStop(ctx, old, from, stopOf(t, "f-between", "run-1", clock0), clock0)
+	})()
+	if _, err := stopwrite.Carry(bg, old, from, emptyDir(t), to, clock0); err != nil {
+		t.Fatalf("Carry: %v", err)
+	}
+	if !errors.Is(during, stopwrite.ErrLocked) {
+		t.Errorf("an append to the old list during the carry = %v, want ErrLocked", during)
+	}
+	if _, err := stopwrite.AppendStop(bg, old, from, stopOf(t, "f-after", "run-1", clock0), clock0); err != nil {
+		t.Errorf("an append to the old list after the carry = %v, want written", err)
+	}
+}

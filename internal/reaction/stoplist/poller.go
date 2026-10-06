@@ -44,9 +44,8 @@ type PollStats struct {
 // accepted, and an Unknown read keeps that prefix, so a list that shrank or
 // was rewritten stays Unknown until it extends the accepted prefix again.
 type Poller struct {
-	opts     Options
-	disabled bool
-	current  atomic.Pointer[reaction.Snapshot]
+	opts    Options
+	current atomic.Pointer[reaction.Snapshot]
 
 	// mu serialises the polls, so each judges from the one before, and
 	// guards what they count.
@@ -54,10 +53,6 @@ type Poller struct {
 	stats  PollStats
 	active map[string]reaction.Entry
 }
-
-// Disabled is the source of a plane configured with no route: it serves the
-// disabled snapshot and never reads a file.
-func Disabled() *Poller { return &Poller{disabled: true} }
 
 // Open checks o, reads the list once and returns a poller serving that read,
 // or refuses: with ErrOptions for an empty directory, a route that was never
@@ -81,9 +76,6 @@ func (p *Poller) Current() reaction.Snapshot {
 	if p == nil {
 		return reaction.Snapshot{}
 	}
-	if p.disabled {
-		return reaction.DisabledSnapshot()
-	}
 	if s := p.current.Load(); s != nil {
 		return *s
 	}
@@ -94,7 +86,7 @@ func (p *Poller) Current() reaction.Snapshot {
 // publishes the snapshot and returns it. A file that cannot be read is
 // Unknown with the file's cause, and keeps the accepted prefix.
 func (p *Poller) Poll() reaction.Snapshot {
-	if p == nil || p.disabled {
+	if p == nil {
 		return p.Current()
 	}
 	p.mu.Lock()
@@ -112,10 +104,10 @@ func (p *Poller) Poll() reaction.Snapshot {
 	return next
 }
 
-// Run polls at once and then every interval until ctx ends. A disabled
-// poller, and a nil one, only wait for ctx.
+// Run polls at once and then every interval until ctx ends. A nil poller
+// only waits for ctx.
 func (p *Poller) Run(ctx context.Context) {
-	if p == nil || p.disabled {
+	if p == nil {
 		<-ctx.Done()
 		return
 	}
@@ -134,7 +126,7 @@ func (p *Poller) Run(ctx context.Context) {
 
 // Stats is what the poller counted so far.
 func (p *Poller) Stats() PollStats {
-	if p == nil || p.disabled {
+	if p == nil {
 		return PollStats{Failed: map[reaction.Cause]uint64{}}
 	}
 	p.mu.Lock()
