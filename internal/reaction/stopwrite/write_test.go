@@ -241,3 +241,38 @@ func TestATornTailIsRepairedByTheNextWriter(t *testing.T) {
 		t.Errorf("the plane after the repair: %s (%s), accepted %d of %d", s.State(), s.Detail(), s.Accepted().Length(), len(want))
 	}
 }
+
+// TestAppendFindingStopsARunOnce: a finding of a run with no active stop is
+// written as a stop, one of a run with an active stop as covered; a run whose
+// stop expired, and one whose stop a lift ended, take a stop again.
+func TestAppendFindingStopsARunOnce(t *testing.T) {
+	r := testRoute(t)
+	dir, h := initDir(t, r)
+	if _, err := stopwrite.AppendStop(bg, dir, r, stopOf(t, "f-old", "run-3", clock0.Add(-2*time.Hour)), clock0); err != nil {
+		t.Fatal(err)
+	}
+	for i, c := range []struct {
+		finding, run string
+		lift         bool
+		line         int64
+		covered      bool
+	}{
+		{"f-1", "run-1", false, 3, false},
+		{"f-2", "run-1", false, 4, true},
+		{"f-3", "run-2", false, 5, false},
+		{"f-4", "run-3", false, 6, false},
+		{"", "run-1", true, 7, false},
+		{"f-5", "run-1", false, 8, false},
+	} {
+		if c.lift {
+			if _, err := stopwrite.AppendLift(bg, dir, r, liftOf(t, liftKey(), r, h.ListID, c.run, 6), clock0); err != nil {
+				t.Fatalf("step %d: the lift: %v", i, err)
+			}
+			continue
+		}
+		n, covered, err := stopwrite.AppendFinding(bg, dir, r, stopOf(t, c.finding, c.run, clock0), clock0)
+		if err != nil || n != c.line || covered != c.covered {
+			t.Errorf("step %d, %s of %s: line %d, covered %v, %v; want line %d, covered %v", i, c.finding, c.run, n, covered, err, c.line, c.covered)
+		}
+	}
+}

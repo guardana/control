@@ -110,8 +110,12 @@ func TestALiftUnderAnotherKeyIsRefusedBeforeAWrite(t *testing.T) {
 	}
 }
 
-// TestALiftEndsTheStopsThroughItsLine: a lift through the header ends no
-// stop; one through the last line, the default, ends the run's.
+// TestALiftEndsTheStopsThroughItsLine: a --through of zero or below is a
+// usage error, never the widest lift; a lift that would end no stop of its
+// run, through the header, of a run the list does not stop, or of a run whose
+// stops were lifted already, is refused and writes nothing; a lift through a
+// stop's line, or the default, the list's last line, ends that run's stops
+// and no other run's.
 func TestALiftEndsTheStopsThroughItsLine(t *testing.T) {
 	tr := newStopTree(t)
 	now := time.Now()
@@ -127,22 +131,35 @@ func TestALiftEndsTheStopsThroughItsLine(t *testing.T) {
 		return out
 	}
 	for _, c := range []struct {
-		through, line string
-		want          []string
+		run, through string
+		code         int
+		line         string
+		want         []string
 	}{
-		{"1", "lift line 4 run " + tr.open + " through line 1", []string{tr.open, tr.second}},
-		{"", "lift line 5 run " + tr.open + " through line 4", []string{tr.second}},
+		{tr.open, "0", exitUsage, "", []string{tr.open, tr.second}},
+		{tr.open, "-1", exitUsage, "", []string{tr.open, tr.second}},
+		{tr.open, "1", exitFail, "", []string{tr.open, tr.second}},
+		{"run-ffffffffffffffffffffffffffffffff", "", exitFail, "", []string{tr.open, tr.second}},
+		{tr.open, "2", exitOK, "lift line 4 run " + tr.open + " through line 2", []string{tr.second}},
+		{tr.open, "", exitFail, "", []string{tr.second}},
+		{tr.second, "", exitOK, "lift line 5 run " + tr.second + " through line 4", nil},
 	} {
-		args := []string{"--key", tr.liftKey, "--run", tr.open}
+		args := []string{"--key", tr.liftKey, "--run", c.run}
 		if c.through != "" {
 			args = append(args, "--through", c.through)
 		}
+		before := tr.listBytes(t)
 		code, stdout, stderr := tr.stopsRun(t, "stops lift", append(args, tr.stops)...)
-		if code != exitOK || stdout != c.line+"\n" {
-			t.Fatalf("stops lift answered %d: %q %q, want %q", code, stdout, stderr, c.line)
+		switch {
+		case code != c.code:
+			t.Fatalf("stops lift --run %s --through %q answered %d: %q %q, want %d", c.run, c.through, code, stdout, stderr, c.code)
+		case code == exitOK && stdout != c.line+"\n":
+			t.Fatalf("stops lift answered %q, want %q", stdout, c.line)
+		case code != exitOK && !bytes.Equal(tr.listBytes(t), before):
+			t.Fatalf("a refused lift --run %s --through %q changed the list", c.run, c.through)
 		}
 		if got := runsOf(); strings.Join(got, " ") != strings.Join(c.want, " ") {
-			t.Fatalf("after %q the stopped runs are %q, want %q", c.line, got, c.want)
+			t.Fatalf("after --run %s --through %q the stopped runs are %q, want %q", c.run, c.through, got, c.want)
 		}
 	}
 }
@@ -212,7 +229,7 @@ func TestStopsListPrintsEachStopAsAPlaneJudgesIt(t *testing.T) {
 			fmt.Sprintf("stop line 2 run %s finding %s rule REPEATED_DENIAL created_at %s expires_at %s %s",
 				tr.open, fid(1), lineTime(now), lineTime(now.Add(600*time.Second)), c.state),
 			fmt.Sprintf("stop line 4 run %s finding %s rule STEP_OUTSIDE_PROCEDURE created_at %s expires_at %s active",
-				tr.second, fid(3), lineTime(now), lineTime(tr.runExpiry(t, tr.second))),
+				tr.second, fid(3), lineTime(now), runEnd(tr.runExpiry(t, tr.second))),
 			"covered: 1, lifts: 0",
 			fmt.Sprintf("bytes: %d of 4194304, lines: 4 of 20000", len(raw)),
 		}, "\n") + "\n"
@@ -253,5 +270,33 @@ func TestStopsListRefusesAListAPlaneWouldNot(t *testing.T) {
 			!strings.Contains(stderr, "a plane reading this list blocks every call") {
 			t.Errorf("%s: stops list answered %d: %q %q, want 1 and %q", c.name, code, stdout, stderr, c.want)
 		}
+	}
+}
+
+// TestStopsCarryRepairsAListBrokenAtItsEnd: a line appended around the
+// writer, which a plane refuses and so blocks every call on, is left out of
+// a carry, which says so; the stop before it is carried.
+func TestStopsCarryRepairsAListBrokenAtItsEnd(t *testing.T) {
+	tr := newStopTree(t)
+	if code, stdout, stderr := tr.react(t, tr.findingsDir(t, "log", finding(1, tr.open, denial, confirmed)), time.Now()); code != exitOK {
+		t.Fatalf("react answered %d: %q %q", code, stdout, stderr)
+	}
+	f, err := os.OpenFile(filepath.Join(tr.stops, stoplist.FileName), os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString("{}\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	next := filepath.Join(tr.dir, "next.signed")
+	signRouteFile(t, next, routeDoc(seeded(0x4c), 2), seeded(0x52))
+	carried := ownerDir(t, filepath.Join(tr.dir, "carried"))
+	code, stdout, stderr := invoke(t, "stops", "init", "--route", next, "--public-key", tr.routePub,
+		"--carry", tr.stops, "--carry-route", tr.route, carried)
+	if code != exitOK || !strings.Contains(stdout, "\nstops: 1\ncovered: 0\nleft out: the last 1 line(s) of the old list, from line 3: ") {
+		t.Fatalf("stops init --carry of a broken list answered %d: %q\n%s", code, stderr, stdout)
 	}
 }

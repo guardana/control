@@ -1,5 +1,7 @@
 package reaction
 
+import "fmt"
+
 // Error is a refusal by this package, matched with errors.Is. They are
 // constants, so no other code in the binary can reassign one and turn a
 // refusal into a pass. No refusal quotes the value it refused.
@@ -7,6 +9,19 @@ type Error string
 
 // Error returns the refusal's text.
 func (e Error) Error() string { return string(e) }
+
+// LineError is a list refused at one of its lines: the judge accepts every
+// line before Line.
+type LineError struct {
+	Line int64
+	Err  error
+}
+
+// Error names the line and the refusal.
+func (e *LineError) Error() string { return fmt.Sprintf("line %d: %v", e.Line, e.Err) }
+
+// Unwrap is the refusal.
+func (e *LineError) Unwrap() error { return e.Err }
 
 // The route document's refusals.
 const (

@@ -247,23 +247,30 @@ func TestTheRouteKeysAreKeysOfTheirOwn(t *testing.T) {
 		name           string
 		routeKey, lift ed25519.PublicKey
 		first, second  string
+		// liftNamed is set where the case names the lift key, which the
+		// flipped case negates; otherwise it negates the route key.
+		liftNamed bool
 	}{
-		{"the route key is the policy key", policy, lift, "reaction.public_key", "policy.public_key"},
-		{"the route key is the freshness key", fresh, lift, "reaction.public_key", "policy.freshness_public_key"},
-		{"the lift key is the policy key", routeKey, policy, "lift_public_key", "policy.public_key"},
-		{"the lift key is the freshness key", routeKey, fresh, "lift_public_key", "policy.freshness_public_key"},
-		{"the route key is the lift key", lift, lift, "reaction.public_key", "lift_public_key"},
+		{"the route key is the policy key", policy, lift, "reaction.public_key", "policy.public_key", false},
+		{"the route key is the freshness key", fresh, lift, "reaction.public_key", "policy.freshness_public_key", false},
+		{"the lift key is the policy key", routeKey, policy, "lift_public_key", "policy.public_key", true},
+		{"the lift key is the freshness key", routeKey, fresh, "lift_public_key", "policy.freshness_public_key", true},
+		{"the route key is the lift key", lift, lift, "reaction.public_key", "lift_public_key", false},
 	} {
 		for _, flip := range []bool{false, true} {
 			name := c.name
-			rk := c.routeKey
-			if flip {
+			rk, lk := c.routeKey, c.lift
+			switch {
+			case flip && c.liftNamed:
+				name += " with its sign flipped"
+				lk = negated(lk)
+			case flip:
 				name += " with its sign flipped"
 				rk = negated(rk)
 			}
 			t.Run(name, func(t *testing.T) {
 				cfg := routeConfig(t, policy, fresh)
-				err := cfg.CheckRoute(routeFor(t, "acme", c.lift), rk)
+				err := cfg.CheckRoute(routeFor(t, "acme", lk), rk)
 				if !errors.Is(err, reaction.ErrKeysEqual) {
 					t.Fatalf("CheckRoute = %v, want %v", err, reaction.ErrKeysEqual)
 				}

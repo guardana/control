@@ -57,8 +57,8 @@ plane's machine.
 The route floor keeps, per route id, the highest serial a plane took and its
 digest, in a directory of its own that `policy state init --kind route` makes.
 At start a plane refuses a route below its floor's serial, or at it with
-another digest, and a missing floor, and raises the floor before it listens; it
-never makes one. A plane reads the route at start only: a stale route can
+another digest, and a missing floor, and raises the floor once the list's
+first read is served, before it listens; it never makes one. A plane reads the route at start only: a stale route can
 only stop too much, never grant. Changing it takes a carried list and a
 restart.
 
@@ -76,9 +76,13 @@ not read.
 list is there. With `--carry` it copies the old list's unlifted stops,
 expired or not, and names every other finding of it as covered, judging the
 old list by `--carry-route` under the same route key and holding its lock
-until the new list is written, so the new list only adds. `stops lift` signs
-a lift of one run through a line, by default the last complete one, and
-refuses a key that is not the route's lift key. `stops list` prints the
+until the new list is written, so the new list only adds. A list a plane
+refuses at one line is carried up to that line, and `stops init` says what it
+left out, unless a stop or covered line follows it or the line is dated past
+the writer's clock. Point `react` at the new list: no plane reads the old one
+again. `stops lift` signs a lift of one run through a line, by default the
+last complete one, and refuses a key that is not the route's lift key and a
+lift that ends no stop. `stops list` prints the
 header, each stop no lift ended and whether it is active, the covered lines
 and lifts counted and the list's use of its bounds, as a plane with a trusted
 clock would judge it.
@@ -89,7 +93,7 @@ clock would judge it.
 reads the findings log and looks each finding's run up in the runs directory,
 which it never writes. It holds no key and never lifts. For each finding the
 list does not name yet, it writes a `stop` when the run has no active stop
-and a `covered` line when it has one, if:
+and a `covered` line when it has one, as the list stands under its lock, if:
 
 - the finding is `DETERMINISTIC` and `CONFIRMED`; a suspected, indeterminate
   or model's finding stops nothing, and no setting changes that;
@@ -99,7 +103,7 @@ and a `covered` line when it has one, if:
 A finding the list names in any line writes nothing again, so a lift holds:
 what a run did while stopped is covered, and only a new finding after the lift
 stops it again. A stop expires at `react`'s clock plus the rule's lifetime,
-never after the run's expiry. `react` prints each line it wrote and one
+never after the run's expiry rounded up to the second. `react` prints each line it wrote and one
 count line, and exits 0 when every finding the route allows is on the list,
 and 1 on any refusal, naming each finding it could not write.
 Nothing runs it: a stop comes when the operator runs `supervise` and `react`

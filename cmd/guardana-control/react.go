@@ -78,11 +78,13 @@ func react(a reactArgs, now time.Time, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(stderr, reactName, fmt.Errorf("--runs %s: %w", a.runs, err))
 	}
-	defer func() { _ = plane.Close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), stopsLockWait)
 	defer cancel()
 	r := newReactor(ctx, route, list, plane.Lookup, a.stops, now)
 	err = r.each(records)
+	if cerr := plane.Close(); cerr != nil {
+		err = errors.Join(err, fmt.Errorf("--runs %s: %w", a.runs, cerr))
+	}
 	lines := slices.Concat(r.written, r.unwritten, []string{fmt.Sprintf(
 		"stops %d, covered %d, already named %d, not stopping %d, not written %d",
 		r.stops, r.covered, r.alreadyNamed, r.skipped, len(r.unwritten))})
@@ -111,24 +113,16 @@ type reactor struct {
 	now    time.Time
 
 	runFacts map[string]reaction.RunFacts
-	// named is the finding ids this pass wrote, and active the tenant and
-	// run of every stop active at now, read or written.
-	named  map[string]bool
-	active map[[2]string]bool
+	// named is the finding ids this pass wrote.
+	named map[string]bool
 
 	written, unwritten                    []string
 	stops, covered, alreadyNamed, skipped int
 }
 
 func newReactor(ctx context.Context, route reaction.Route, list reaction.List, lookup lookupRun, dir string, now time.Time) *reactor {
-	r := &reactor{ctx: ctx, route: route, list: list, lookup: lookup, dir: dir, now: now,
-		runFacts: map[string]reaction.RunFacts{}, named: map[string]bool{}, active: map[[2]string]bool{}}
-	for _, e := range list.Entries() {
-		if activeAt(e, now) {
-			r.active[[2]string{e.TenantID, e.RunID}] = true
-		}
-	}
-	return r
+	return &reactor{ctx: ctx, route: route, list: list, lookup: lookup, dir: dir, now: now,
+		runFacts: map[string]reaction.RunFacts{}, named: map[string]bool{}}
 }
 
 // each takes the findings of records in file order. A run it cannot look up
@@ -205,7 +199,8 @@ func (r *reactor) run(id string) (reaction.RunFacts, error) {
 // claim is the stop the finding would be, created at now and expiring at
 // now plus its rule's lifetime, never after its run expires, or when its run
 // expires for a rule with none. A line spells whole seconds, so the run's
-// expiry is cut down to one. A finding no rule of the route names makes no
+// expiry is rounded up to one: rounded down, the run's last fraction of a
+// second would run unstopped. A finding no rule of the route names makes no
 // claim.
 func (r *reactor) claim(fr *findingv1alpha1.FindingRecord, run reaction.RunFacts) (reaction.StopClaim, bool) {
 	proc, f := fr.GetProcedure(), fr.GetFinding()
@@ -216,8 +211,12 @@ func (r *reactor) claim(fr *findingv1alpha1.FindingRecord, run reaction.RunFacts
 	for _, rule := range r.route.Rules() {
 		if rule.ProcedureID == c.ProcedureID && rule.ProcedureVersion == c.ProcedureVersion &&
 			rule.ProcedureDigest == c.ProcedureDigest && rule.RuleID == c.RuleID && rule.RuleVersion == c.RuleVersion {
-			c.ExpiresAt = run.ExpiresAt.Truncate(time.Second)
-			if end := r.now.Add(rule.Lifetime); rule.Lifetime > 0 && end.Before(c.ExpiresAt) {
+			c.ExpiresAt = ceilSecond(run.ExpiresAt)
+			limit := rule.Lifetime
+			if limit == 0 {
+				limit = reaction.MaxLifetime
+			}
+			if end := r.now.Add(limit); end.Before(c.ExpiresAt) {
 				c.ExpiresAt = end
 			}
 			return c, true
@@ -227,21 +226,15 @@ func (r *reactor) claim(fr *findingv1alpha1.FindingRecord, run reaction.RunFacts
 }
 
 // write appends a stop for a run with no active stop and a covered line for
-// one with. A write the list's bound or the judge refuses is named and the
-// pass goes on; any other refusal stops it.
+// one with, the writer choosing under its lock over the list as it stands,
+// so a react running beside this one cannot give the run a second stop. A
+// write the list's bound or the judge refuses is named and the pass goes on;
+// any other refusal stops it.
 func (r *reactor) write(id string, c reaction.StopClaim, runID string) error {
-	key := [2]string{c.TenantID, runID}
-	var n int64
-	var err error
-	if r.active[key] {
-		cov := reaction.Covered{FindingID: id, TenantID: c.TenantID, RunID: runID, CreatedAt: c.CreatedAt}
-		n, err = stopwrite.AppendCovered(r.ctx, r.dir, r.route, cov, r.now)
-	} else {
-		s := reaction.Stop{EntryID: reaction.EntryID(id), TenantID: c.TenantID, RunID: runID, FindingID: id,
-			ProcedureID: c.ProcedureID, ProcedureVersion: c.ProcedureVersion, ProcedureDigest: c.ProcedureDigest,
-			RuleID: c.RuleID, RuleVersion: c.RuleVersion, CreatedAt: c.CreatedAt, ExpiresAt: c.ExpiresAt}
-		n, err = stopwrite.AppendStop(r.ctx, r.dir, r.route, s, r.now)
-	}
+	s := reaction.Stop{EntryID: reaction.EntryID(id), TenantID: c.TenantID, RunID: runID, FindingID: id,
+		ProcedureID: c.ProcedureID, ProcedureVersion: c.ProcedureVersion, ProcedureDigest: c.ProcedureDigest,
+		RuleID: c.RuleID, RuleVersion: c.RuleVersion, CreatedAt: c.CreatedAt, ExpiresAt: c.ExpiresAt}
+	n, covered, err := stopwrite.AppendFinding(r.ctx, r.dir, r.route, s, r.now)
 	switch {
 	case errors.Is(err, stopwrite.ErrFull), errors.Is(err, stopwrite.ErrRefused):
 		r.unwritten = append(r.unwritten, fmt.Sprintf("not written: finding %s run %s: %s", oneLine(id), oneLine(runID), oneLine(err.Error())))
@@ -250,14 +243,21 @@ func (r *reactor) write(id string, c reaction.StopClaim, runID string) error {
 		return err
 	}
 	r.named[id] = true
-	if r.active[key] {
+	if covered {
 		r.covered++
 		r.written = append(r.written, fmt.Sprintf("covered line %d run %s finding %s", n, oneLine(runID), oneLine(id)))
 		return nil
 	}
-	r.active[key] = true
 	r.stops++
 	r.written = append(r.written, fmt.Sprintf("stop line %d run %s finding %s rule %s expires_at %s",
 		n, oneLine(runID), oneLine(id), oneLine(c.RuleID), policy.FormatIssuedAt(c.ExpiresAt)))
 	return nil
+}
+
+// ceilSecond is t rounded up to a whole second.
+func ceilSecond(t time.Time) time.Time {
+	if down := t.Truncate(time.Second); down.Before(t) {
+		return down.Add(time.Second)
+	}
+	return t
 }

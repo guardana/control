@@ -254,6 +254,10 @@ func activeAt(entries []Entry, now, floor time.Time, limit int) []Entry {
 	return out
 }
 
+// ActiveAt reports whether e still stops at now given floor, by the rule a
+// plane decides a call under.
+func (e Entry) ActiveAt(now, floor time.Time) bool { return active(e, now, floor) }
+
 // active reports whether e still stops: it ends only at a clock the call can
 // trust, one usable and not behind floor, at or past its expiry. An
 // approval's lapse reads the same clock the other way, since there an

@@ -148,8 +148,10 @@ much and never grants, and needs no freshness statement.</p>
 <p><strong>The route floor.</strong> A third kind of floor in <code>internal/policystate</code>, <code>route</code>,
 in a directory of its own (<code>reaction.floor_dir</code>), holding per route id the
 highest serial and its digest. The operator makes it with <code>policy state init --kind route --route-id</code>. At start the plane refuses a route below the floor's
-serial, or at it with another digest, and raises the floor under its lock
-before it listens; it never creates one, so a removed floor refuses the start.
+serial, or at it with another digest, and, once its list's first read is
+served, raises the floor under its lock before it listens, so a start refused
+for its list leaves the floor as it was; it never creates one, so a removed
+floor refuses the start.
 <code>doctor</code> reads it and never raises it.</p>
 <p><strong>What may stop.</strong> Two predicates in <code>internal/reaction</code>, which holds no
 finding type. <code>Eligible</code>, the emitter's, takes facts the emitter copies out of
@@ -182,16 +184,23 @@ bound rather than cut lines it did not read; the plane links only the reader.</p
 route, refuses one whose digest is not the header's, reads the findings log as
 <code>notify</code> does, and appends, for each finding <code>Eligible</code> and the route permit
 and the list does not name yet, a <code>stop</code> when its run has no active stop and a
-<code>covered</code> line when it has one. A finding the list names, in any line, writes
+<code>covered</code> line when it has one, the writer choosing under its lock over the
+list as it stands, so two emitters never stop one run twice. A finding the
+list names, in any line, writes
 nothing again, so a lift holds: what an agent does while stopped is covered,
 and only a new finding after a lift stops the run again. <code>expires_at</code> is its
-clock plus the rule's lifetime and never later than the run's expiry. At the
+clock plus the rule's lifetime and never later than the run's expiry rounded
+up to the whole second a line spells. At the
 list's bound it exits 1 naming each finding it could not write. It holds no
 key. <code>guardana-control stops init --route --public-key [--carry &lt;dir&gt;]</code> starts
 a list, and with <code>--carry</code> copies the old list's unlifted stops, expired or
 not, since the writer's clock may be one a plane would not trust, and every
 other finding id it names as covered, holding the old list's lock until the
-new one is written, so a new list only adds; <code>stops lift --key</code> and <code>stops list</code> are the operator's.</p>
+new one is written, so a new list only adds. A list a plane refuses at one
+line is carried up to that line, and the command names what it left out,
+unless a stop or covered line follows it or the line is dated past the
+writer's clock. <code>stops lift --key</code>, which refuses a lift that ends no stop,
+and <code>stops list</code> are the operator's.</p>
 <p><strong>What a plane checks.</strong> A plane with a route requires <code>runs.dir</code>, a route
 tenant equal to the listener's, and a stops directory that is neither inside
 nor around any directory the plane or its commands lock or own. A nil stop

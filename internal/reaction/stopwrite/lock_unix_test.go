@@ -174,3 +174,33 @@ func TestCarryHoldsTheOldListsLockUntilItWrites(t *testing.T) {
 		t.Errorf("an append to the old list after the carry = %v, want written", err)
 	}
 }
+
+// TestWritersRacingForOneRunStopItOnce: eight writers, each with a finding of
+// one run that holds no stop, leave one stop and seven covered lines, whatever
+// order the lock lets them in.
+func TestWritersRacingForOneRunStopItOnce(t *testing.T) {
+	r := testRoute(t)
+	dir, _ := initDir(t, r)
+	const writers = 8
+	var wg sync.WaitGroup
+	var stops atomic.Int32
+	for i := range writers {
+		wg.Go(func() {
+			_, covered, err := stopwrite.AppendFinding(bg, dir, r, stopOf(t, fmt.Sprintf("f-%d", i), "run-1", clock0), clock0)
+			if err != nil {
+				t.Errorf("writer %d: %v", i, err)
+			}
+			if !covered {
+				stops.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	list, err := reaction.Judge(r, reaction.Prefix{}, content(t, dir), clock0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(list.Entries()); stops.Load() != 1 || got != 1 || list.Usage().Lines != writers+1 {
+		t.Errorf("%d writers said stop, the list holds %d stop(s) in %d lines; want 1 stop and %d lines", stops.Load(), got, list.Usage().Lines, writers+1)
+	}
+}

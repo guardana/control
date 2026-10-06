@@ -234,7 +234,8 @@ func TestARouteTheConfigurationDoesNotServeRefusesTheStart(t *testing.T) {
 }
 
 // TestAStopListThatCannotBeServedRefusesTheStart: a list that is not there,
-// and one whose header names another route, are refused at the first read.
+// and one whose header names another route, are refused at the first read,
+// and leave the route floor as it was.
 func TestAStopListThatCannotBeServedRefusesTheStart(t *testing.T) {
 	t.Run("missing", func(t *testing.T) {
 		tr := newTree(t)
@@ -243,6 +244,7 @@ func TestAStopListThatCannotBeServedRefusesTheStart(t *testing.T) {
 			t.Fatal(err)
 		}
 		refusesStart(t, tr, stoplist.ErrNotServable, "reaction.stops")
+		unraised(t, tr)
 	})
 	t.Run("another route's list", func(t *testing.T) {
 		tr := newTree(t)
@@ -255,5 +257,6 @@ func TestAStopListThatCannotBeServedRefusesTheStart(t *testing.T) {
 			t.Fatal(err)
 		}
 		refusesStart(t, tr, stoplist.ErrNotServable, "reaction.stops")
+		unraised(t, tr)
 	})
 }

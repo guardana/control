@@ -3,6 +3,7 @@ package stopwrite
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -20,6 +21,12 @@ type Carried struct {
 	Stops int
 	// Covered is how many covered lines it holds.
 	Covered int
+	// LeftOut is how many lines of the old list, from the first one the
+	// plane's judge refuses to its end, the carry left out; zero when it took
+	// the whole list.
+	LeftOut int64
+	// Refused is the first line left out and why; nil when none was.
+	Refused error
 }
 
 // carrying, when a test sets it, runs once a carry read the old list and
@@ -31,9 +38,11 @@ var carrying func()
 // one no lift ended, expired or not, as it was, since the writer's clock may
 // be one a plane would not trust, and a covered line for every other finding
 // the old list names, so that a finding the old list names never stops a run
-// again. The old list's lock is held until the new list is written, so no
-// write to it falls between the two. A carry writes the new list whole or not
-// at all, and refuses with ErrExists when dir holds a list.
+// again. A list a plane refuses at one of its lines is carried up to that
+// line, as acceptedPart allows. The old list's lock is held until the new
+// list is written, so no write to it falls between the two. A carry writes
+// the new list whole or not at all, and refuses with ErrExists when dir holds
+// a list.
 func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir string, route reaction.Route, now time.Time) (Carried, error) {
 	var out Carried
 	err := locked(ctx, from, func(root *os.Root) error {
@@ -48,10 +57,11 @@ func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 		if err != nil {
 			return err
 		}
-		list, err := reaction.Judge(fromRoute, reaction.Prefix{}, old, now, 0)
+		part, err := acceptedPart(fromRoute, old, now)
 		if err != nil {
-			return fmt.Errorf("the list carried from: %w", refusal(err))
+			return err
 		}
+		list := part.list
 		h, err := newHeader(route)
 		if err != nil {
 			return err
@@ -60,7 +70,7 @@ func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrRefused, err)
 		}
-		out = Carried{Header: h}
+		out = Carried{Header: h, LeftOut: part.leftOut, Refused: part.refused}
 		lines := [][]byte{header}
 		kept := map[string]bool{}
 		for _, e := range list.Entries() {
@@ -72,7 +82,7 @@ func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 			kept[e.FindingID] = true
 			out.Stops++
 		}
-		covered, err := coveredLines(old, kept)
+		covered, err := coveredLines(part.accepted, kept)
 		if err != nil {
 			return err
 		}
@@ -86,6 +96,48 @@ func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 		return Carried{}, err
 	}
 	return out, nil
+}
+
+// part is what a carry takes of an old list: the list a plane accepts, its
+// bytes, and how many lines after them it leaves out and why.
+type part struct {
+	list     reaction.List
+	accepted []byte
+	leftOut  int64
+	refused  error
+}
+
+// acceptedPart judges old against route as a plane does. A list it accepts is
+// taken whole. One it refuses at a line is taken up to that line, which
+// repairs a list someone broke by appending a line the route refuses, but
+// only where nothing left out could be a stop the old list was meant to hold:
+// a refused header, a line refused for a created_at past the writer's clock,
+// which another writer whose clock runs ahead wrote in good faith, and a stop
+// or covered line after the refused line each refuse the carry.
+func acceptedPart(route reaction.Route, old []byte, now time.Time) (part, error) {
+	list, err := reaction.Judge(route, reaction.Prefix{}, old, now, 0)
+	if err == nil {
+		return part{list: list, accepted: old}, nil
+	}
+	var at *reaction.LineError
+	if !errors.As(err, &at) || at.Line < 2 || errors.Is(err, reaction.ErrDatedAhead) {
+		return part{}, fmt.Errorf("the list carried from: %w", refusal(err))
+	}
+	complete := old[:bytes.LastIndexByte(old, '\n')+1]
+	lines := bytes.SplitAfter(complete, []byte{'\n'})
+	lines = lines[:len(lines)-1]
+	for i, raw := range lines[at.Line:] {
+		l, perr := reaction.ParseLine(bytes.TrimSuffix(raw, []byte{'\n'}))
+		if perr == nil && (l.Kind == reaction.KindStop || l.Kind == reaction.KindCovered) {
+			return part{}, fmt.Errorf("the list carried from: %w: line %d names a finding after line %d, which is refused: %w",
+				ErrRefused, at.Line+int64(i)+1, at.Line, at.Err)
+		}
+	}
+	accepted := bytes.Join(lines[:at.Line-1], nil)
+	if list, err = reaction.Judge(route, reaction.Prefix{}, accepted, now, 0); err != nil {
+		return part{}, fmt.Errorf("the list carried from: %w", refusal(err))
+	}
+	return part{list: list, accepted: accepted, leftOut: int64(len(lines)) - at.Line + 1, refused: at}, nil
 }
 
 // sameDir reports whether dir names the directory root holds. A dir that

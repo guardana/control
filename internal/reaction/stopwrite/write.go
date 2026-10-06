@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/guardana/control/internal/files"
@@ -50,34 +51,60 @@ func Init(ctx context.Context, dir string, route reaction.Route, now time.Time) 
 // AppendStop appends s to the list in dir, judged against route at the
 // writer's clock now, and returns its line number.
 func AppendStop(ctx context.Context, dir string, route reaction.Route, s reaction.Stop, now time.Time) (int64, error) {
-	line, err := s.Marshal()
-	return appendLine(ctx, dir, route, now, line, err)
+	return appendLine(ctx, dir, route, now, fixed(s.Marshal()))
 }
 
 // AppendCovered appends c to the list in dir, judged against route at the
 // writer's clock now, and returns its line number.
 func AppendCovered(ctx context.Context, dir string, route reaction.Route, c reaction.Covered, now time.Time) (int64, error) {
-	line, err := c.Marshal()
-	return appendLine(ctx, dir, route, now, line, err)
+	return appendLine(ctx, dir, route, now, fixed(c.Marshal()))
 }
 
 // AppendLift appends l, signed elsewhere, to the list in dir, judged against
 // route at the writer's clock now, and returns its line number. The writer
 // holds no key: a lift the route's lift key did not sign is refused.
 func AppendLift(ctx context.Context, dir string, route reaction.Route, l reaction.LiftLine, now time.Time) (int64, error) {
-	line, err := l.Marshal()
-	return appendLine(ctx, dir, route, now, line, err)
+	return appendLine(ctx, dir, route, now, fixed(l.Marshal()))
 }
 
-// appendLine appends line under the lock. The list is read with every check
-// a plane's read makes, and judged with the line after its last complete
-// line, with no tolerance past now; only a list the judge accepts is
+// AppendFinding appends, for the finding s names, s itself when the list
+// holds no stop of its run and tenant active at the writer's clock now, and a
+// covered line of that finding when it holds one. The choice is made under
+// the lock, over the list as it stands, so two writers never give one run two
+// active stops. It returns the line number and whether the line is covered.
+func AppendFinding(ctx context.Context, dir string, route reaction.Route, s reaction.Stop, now time.Time) (int64, bool, error) {
+	covered := false
+	n, err := appendLine(ctx, dir, route, now, func(list reaction.List) ([]byte, error) {
+		covered = slices.ContainsFunc(list.Entries(), func(e reaction.Entry) bool {
+			return e.RunID == s.RunID && e.TenantID == s.TenantID && e.ActiveAt(now, time.Time{})
+		})
+		if covered {
+			return reaction.Covered{FindingID: s.FindingID, TenantID: s.TenantID, RunID: s.RunID, CreatedAt: s.CreatedAt}.Marshal()
+		}
+		return s.Marshal()
+	})
+	if err != nil {
+		return 0, false, err
+	}
+	return n, covered, nil
+}
+
+// lineFor builds the line to append from the list as it stands under the
+// lock.
+type lineFor func(list reaction.List) ([]byte, error)
+
+// fixed is a line that does not depend on the list.
+func fixed(line []byte, err error) lineFor {
+	return func(reaction.List) ([]byte, error) { return line, err }
+}
+
+// appendLine appends the line build makes under the lock. The list is read
+// with every check a plane's read makes and judged, the line is built from
+// it, and the list with the line after its last complete line is judged
+// again, with no tolerance past now; only a list the judge accepts is
 // written. Bytes after the last newline are a line a writer did not finish,
 // and are cut before the append. A refused write changes nothing.
-func appendLine(ctx context.Context, dir string, route reaction.Route, now time.Time, line []byte, marshalled error) (int64, error) {
-	if marshalled != nil {
-		return 0, fmt.Errorf("%w: %w", ErrRefused, marshalled)
-	}
+func appendLine(ctx context.Context, dir string, route reaction.Route, now time.Time, build lineFor) (int64, error) {
 	var n int64
 	err := locked(ctx, dir, func(root *os.Root) error {
 		named, err := stoplist.Named(root)
@@ -88,7 +115,7 @@ func appendLine(ctx context.Context, dir string, route reaction.Route, now time.
 		if err != nil {
 			return err
 		}
-		n, err = appendTo(f, named, route, now, line)
+		n, err = appendTo(f, named, route, now, build)
 		return errors.Join(err, f.Close())
 	})
 	if err != nil {
@@ -97,7 +124,7 @@ func appendLine(ctx context.Context, dir string, route reaction.Route, now time.
 	return n, nil
 }
 
-func appendTo(f *os.File, named fs.FileInfo, route reaction.Route, now time.Time, line []byte) (int64, error) {
+func appendTo(f *os.File, named fs.FileInfo, route reaction.Route, now time.Time, build lineFor) (int64, error) {
 	if err := stoplist.CheckOpened(named, f); err != nil {
 		return 0, err
 	}
@@ -111,8 +138,16 @@ func appendTo(f *os.File, named fs.FileInfo, route reaction.Route, now time.Time
 		return 0, fmt.Errorf("%w: %w: limit %d", ErrFull, stoplist.ErrTooLarge, reaction.MaxListBytes)
 	}
 	complete := content[:bytes.LastIndexByte(content, '\n')+1]
+	before, err := reaction.Judge(route, reaction.Prefix{}, complete, now, 0)
+	if err != nil {
+		return 0, refusal(err)
+	}
+	line, err := build(before)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", ErrRefused, err)
+	}
 	next := append(append(bytes.Clone(complete), line...), '\n')
-	list, err := reaction.Judge(route, reaction.Prefix{}, next, now, 0)
+	list, err := reaction.JudgeFrom(route, before, next, now, 0)
 	if err != nil {
 		return 0, refusal(err)
 	}

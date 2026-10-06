@@ -172,7 +172,7 @@ func walk(route Route, from List, complete []byte, lines int64, sum [sha256.Size
 	for n := from.usage.Lines + 1; len(rest) > 0; n++ {
 		end := bytes.IndexByte(rest, '\n')
 		if err := j.line(n, rest[:end]); err != nil {
-			return List{}, fmt.Errorf("line %d: %w", n, err)
+			return List{}, &LineError{Line: n, Err: err}
 		}
 		rest = rest[end+1:]
 	}

@@ -224,3 +224,67 @@ func TestCarryKeepsAStopAClockAheadCallsExpired(t *testing.T) {
 		t.Errorf("a plane at the right clock over the list: %s (%s), want run-1 stopped", s.State(), s.Detail())
 	}
 }
+
+// TestCarryRepairsAListBrokenAtALine: a list a plane refuses at one line, as
+// one someone appended a line the route refuses to, is carried up to that
+// line, the lines left out counted and the first one's refusal named, unless
+// what it would leave out could be a stop the list was meant to hold: a stop
+// or covered line after the refused one, a line refused for a created_at past
+// the writer's clock, or a refused header.
+func TestCarryRepairsAListBrokenAtALine(t *testing.T) {
+	from, to := testRoute(t), routeOf(t, 4, false)
+	stranger := stopOf(t, "f-stranger", "run-9", clock0)
+	stranger.TenantID = "other"
+	line := func(raw []byte, err error) string {
+		t.Helper()
+		return string(must(t)(raw, err)) + "\n"
+	}
+	refusedStop := line(stranger.Marshal())
+	for _, c := range []struct {
+		name    string
+		tail    string
+		leftOut int64
+		errs    []error
+	}{
+		{"a stop the route refuses at the end", refusedStop, 1, nil},
+		{"junk after it", refusedStop + "{}\nnot json\n", 3, nil},
+		{"a stop after it", refusedStop + line(stopOf(t, "f-after", "run-2", clock0).Marshal()), 0,
+			[]error{stopwrite.ErrRefused}},
+		{"a covered line after it", refusedStop + line(coveredOf("f-after", "run-2", clock0).Marshal()), 0,
+			[]error{stopwrite.ErrRefused}},
+		{"a stop dated past the writer's clock", line(stopOf(t, "f-ahead", "run-2", clock0.Add(time.Hour)).Marshal()), 0,
+			[]error{stopwrite.ErrRefused, reaction.ErrDatedAhead}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			old := oldList(t, from, false)
+			setContent(t, old, append(content(t, old), c.tail...))
+			dir := emptyDir(t)
+			got, err := stopwrite.Carry(bg, old, from, dir, to, clock0.Add(time.Minute))
+			if c.errs != nil {
+				for _, want := range c.errs {
+					if !errors.Is(err, want) {
+						t.Errorf("Carry = %v, want %q", err, want)
+					}
+				}
+				noList(t, c.name, dir)
+				return
+			}
+			if err != nil {
+				t.Fatalf("Carry: %v", err)
+			}
+			if got.Stops != 2 || got.Covered != 2 || got.LeftOut != c.leftOut || !errors.Is(got.Refused, reaction.ErrStopRefused) {
+				t.Errorf("Carry = %+v; want 2 stops, 2 covered, %d line(s) left out from a stop the route refuses", got, c.leftOut)
+			}
+			expectCarried(t, to, content(t, dir))
+		})
+	}
+	t.Run("a refused header", func(t *testing.T) {
+		old := oldList(t, from, false)
+		setContent(t, old, append([]byte("{}\n"), content(t, old)...))
+		dir := emptyDir(t)
+		if _, err := stopwrite.Carry(bg, old, from, dir, to, clock0); !errors.Is(err, stopwrite.ErrRefused) {
+			t.Errorf("Carry of a list with a refused header = %v, want ErrRefused", err)
+		}
+		noList(t, "a refused header", dir)
+	})
+}

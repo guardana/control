@@ -95,7 +95,12 @@ func (tr tree) react(t *testing.T, first openedRun, s supervision) {
 	if err != nil {
 		t.Fatalf("runs open printed expires_at %q: %v", first.expiresAt, err)
 	}
-	until := expires.UTC().Truncate(time.Second).Format("2006-01-02T15:04:05Z")
+	// A stop lasts through the run's last instant: its expiry rounded up to
+	// the whole second a line spells.
+	if expires.Nanosecond() != 0 {
+		expires = expires.Truncate(time.Second).Add(time.Second)
+	}
+	until := expires.UTC().Format("2006-01-02T15:04:05Z")
 	finding := s.finding("REPEATED_DENIAL").GetFinding().GetFindingId()
 	stop := "stop line 2 run " + first.id + " finding " + finding + " rule REPEATED_DENIAL"
 	if out := must(t, tr.dir, tr.control, react...); out != stop+" expires_at "+until+"\n"+

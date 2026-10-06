@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -102,6 +103,9 @@ func stopsInit(a stopsInitArgs, dir string, now time.Time, stdout, stderr io.Wri
 		return fail(stderr, stopsInitName, err)
 	}
 	lines := append(headerLines(c.Header), "stops: "+strconv.Itoa(c.Stops), "covered: "+strconv.Itoa(c.Covered))
+	if c.LeftOut > 0 {
+		lines = append(lines, fmt.Sprintf("left out: the last %d line(s) of the old list, from %s", c.LeftOut, oneLine(c.Refused.Error())))
+	}
 	return emit(stdout, stderr, stopsInitName, lines, dir)
 }
 
@@ -133,7 +137,10 @@ func stopsLiftCommand(args []string, stdout, stderr io.Writer) int {
 		return usageError(stderr, stopsLiftName, err.Error())
 	}
 	flags, a := stopsLiftFlags(stopsLiftName, io.Discard)
-	if err := flags.Parse(args); err != nil || flags.NArg() != 1 || !a.set() || a.key == "" || a.run == "" || a.through < 0 {
+	err := flags.Parse(args)
+	throughGiven := false
+	flags.Visit(func(f *flag.Flag) { throughGiven = throughGiven || f.Name == "through" })
+	if err != nil || flags.NArg() != 1 || !a.set() || a.key == "" || a.run == "" || (throughGiven && a.through <= 0) {
 		return usageError(stderr, stopsLiftName,
 			"takes --route, --public-key, --key and --run, a --through above zero if any, then the stops directory")
 	}
@@ -141,8 +148,8 @@ func stopsLiftCommand(args []string, stdout, stderr io.Writer) int {
 }
 
 // stopsLift refuses in a fixed order and writes nothing on any refusal: the
-// route, the key, which must be the route's lift key, the list, then the
-// lift as the plane's judge reads it.
+// route, the key, which must be the route's lift key, the list, a lift that
+// would end no stop, then the lift as the plane's judge reads it.
 func stopsLift(a stopsLiftArgs, dir string, now time.Time, stdout, stderr io.Writer) int {
 	route, err := a.verified()
 	if err != nil {
@@ -163,6 +170,9 @@ func stopsLift(a stopsLiftArgs, dir string, now time.Time, stdout, stderr io.Wri
 	through := a.through
 	if through == 0 {
 		through = list.Usage().Lines
+	}
+	if !slices.ContainsFunc(list.Entries(), func(e reaction.Entry) bool { return e.RunID == a.run && e.Line <= through }) {
+		return fail(stderr, stopsLiftName, fmt.Errorf("run %s has no stop through line %d for a lift to end", oneLine(a.run), through))
 	}
 	lift := reaction.Lift{Version: reaction.LiftVersion, ListID: list.Header().ListID, RouteDigest: route.Digest(),
 		RunID: a.run, ThroughLine: through}
@@ -273,7 +283,7 @@ func judgedList(dir string, route reaction.Route, now time.Time) (reaction.List,
 
 // activeAt reports whether e still stops at now, as a plane whose clock is
 // trusted judges it: until its expiry.
-func activeAt(e reaction.Entry, now time.Time) bool { return now.Before(e.ExpiresAt) }
+func activeAt(e reaction.Entry, now time.Time) bool { return e.ActiveAt(now, time.Time{}) }
 
 func headerLines(h reaction.Header) []string {
 	return []string{

@@ -4,6 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
+	"maps"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +21,15 @@ import (
 // lineTime is t as a stop list line spells it.
 func lineTime(t time.Time) string {
 	return t.UTC().Truncate(time.Second).Format("2006-01-02T15:04:05Z")
+}
+
+// runEnd is a run's expiry as a stop that lasts to it spells it: rounded up
+// to the whole second, so the stop holds through the run's last instant.
+func runEnd(t time.Time) string {
+	if t.Nanosecond() != 0 {
+		t = t.Add(time.Second)
+	}
+	return lineTime(t)
 }
 
 // runExpiry is when run expires, as the runs directory records it.
@@ -58,7 +72,7 @@ func TestReactStopsARunOnceAndCoversItsOtherFindings(t *testing.T) {
 		"stop line 2 run "+tr.open+" finding "+fid(1)+" rule REPEATED_DENIAL expires_at "+lineTime(now.Add(600*time.Second)),
 		"covered line 3 run "+tr.open+" finding "+fid(2),
 		"covered line 4 run "+tr.open+" finding "+fid(3),
-		"stop line 5 run "+tr.second+" finding "+fid(4)+" rule STEP_OUTSIDE_PROCEDURE expires_at "+lineTime(tr.runExpiry(t, tr.second)),
+		"stop line 5 run "+tr.second+" finding "+fid(4)+" rule STEP_OUTSIDE_PROCEDURE expires_at "+runEnd(tr.runExpiry(t, tr.second)),
 		"stops 2, covered 2, already named 0, not stopping 0, not written 0")
 	entries := tr.judged(t, now).Entries()
 	if len(entries) != 2 || entries[0].RunID != tr.open || entries[1].RunID != tr.second {
@@ -74,7 +88,7 @@ func TestAStopNeverOutlivesItsRun(t *testing.T) {
 	now := time.Now()
 	code, stdout, stderr := tr.react(t, tr.findingsDir(t, "log", finding(1, short, denial, confirmed)), now)
 	reacted(t, code, stdout, stderr,
-		"stop line 2 run "+short+" finding "+fid(1)+" rule REPEATED_DENIAL expires_at "+lineTime(tr.runExpiry(t, short)),
+		"stop line 2 run "+short+" finding "+fid(1)+" rule REPEATED_DENIAL expires_at "+runEnd(tr.runExpiry(t, short)),
 		"stops 1, covered 0, already named 0, not stopping 0, not written 0")
 }
 
@@ -202,7 +216,7 @@ func TestALiftHoldsAndOnlyANewFindingStopsAgain(t *testing.T) {
 	appendLog(t, log, finding(5, tr.open, outside, confirmed))
 	code, stdout, stderr = tr.react(t, log, now)
 	reacted(t, code, stdout, stderr,
-		"stop line 7 run "+tr.open+" finding "+fid(5)+" rule STEP_OUTSIDE_PROCEDURE expires_at "+lineTime(tr.runExpiry(t, tr.open)),
+		"stop line 7 run "+tr.open+" finding "+fid(5)+" rule STEP_OUTSIDE_PROCEDURE expires_at "+runEnd(tr.runExpiry(t, tr.open)),
 		"stops 1, covered 0, already named 4, not stopping 0, not written 0")
 }
 
@@ -242,4 +256,57 @@ func TestAPassStopsAtARunItCannotLookUp(t *testing.T) {
 	if err := r.each([]*findingv1alpha1.Record{{Record: &findingv1alpha1.Record_FindingRecord{FindingRecord: f}}}); !errors.Is(err, broken) {
 		t.Fatalf("each = %v, want the lookup's error", err)
 	}
+}
+
+// TestReactReadsTheRunsAndTheFindingsAndWritesNeither: every file of the
+// runs directory and of the findings log keeps its bytes, mode and time, and
+// neither directory gains or loses a file, while the stop list grows.
+func TestReactReadsTheRunsAndTheFindingsAndWritesNeither(t *testing.T) {
+	tr := newStopTree(t)
+	log := tr.findingsDir(t, "log", finding(1, tr.open, denial, confirmed), finding(2, tr.second, outside, confirmed))
+	runsBefore, logBefore, listBefore := treeState(t, tr.runs), treeState(t, log), tr.listBytes(t)
+	if code, stdout, stderr := tr.react(t, log, time.Now()); code != exitOK {
+		t.Fatalf("react answered %d: %q %q", code, stdout, stderr)
+	}
+	if bytes.Equal(tr.listBytes(t), listBefore) {
+		t.Fatal("react wrote nothing; the case examined no write")
+	}
+	for name, c := range map[string][2]map[string]string{
+		"--runs":     {runsBefore, treeState(t, tr.runs)},
+		"--findings": {logBefore, treeState(t, log)},
+	} {
+		if !maps.Equal(c[0], c[1]) {
+			t.Errorf("react changed %s: %v, now %v", name, c[0], c[1])
+		}
+	}
+}
+
+// treeState is each file under dir by its path, with its bytes, mode and
+// modification time.
+func treeState(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	out := map[string]string{}
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		body := ""
+		if d.Type().IsRegular() {
+			raw, err := os.ReadFile(path) //nolint:gosec // G304: a file under the test's own directory
+			if err != nil {
+				return err
+			}
+			body = string(raw)
+		}
+		out[path] = fmt.Sprintf("%v %v %q", info.Mode(), info.ModTime().UnixNano(), body)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
 }

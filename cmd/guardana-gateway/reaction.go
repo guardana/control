@@ -43,11 +43,12 @@ func (p *plane) stopSource() gateway.StopSource {
 	return p.stops.poller
 }
 
-// openStops verifies the route a serving plane is configured with, raises its
-// floor under the floor directory's lock and opens the stop list's reader,
-// whose first read has to find a state it can serve. A route below its floor,
-// at it with another digest, or with no floor at all refuses the start; the
-// floor is never created here. Without a route it returns nil.
+// openStops verifies the route a serving plane is configured with, opens the
+// stop list's reader, whose first read has to find a state it can serve, and
+// only then raises the route's floor under the floor directory's lock, so a
+// start refused for its list leaves the floor as it was. A route below its
+// floor, at it with another digest, or with no floor at all refuses the
+// start; the floor is never created here. Without a route it returns nil.
 func openStops(cfg *gatewayconfig.Config, logger *slog.Logger) (*planeStops, error) {
 	if !cfg.Reaction.Configured() {
 		return nil, nil
@@ -56,15 +57,15 @@ func openStops(cfg *gatewayconfig.Config, logger *slog.Logger) (*planeStops, err
 	if err != nil {
 		return nil, err
 	}
+	poller, err := openStopList(cfg, route, logger)
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), floorLockWait)
 	defer cancel()
 	floor, err := policystate.RaiseRoute(ctx, cfg.Resolve(cfg.Reaction.FloorDir), route.ID(), route.Serial(), route.Digest())
 	if err != nil {
 		return nil, fmt.Errorf("reaction.floor_dir: %w", err)
-	}
-	poller, err := openStopList(cfg, route, logger)
-	if err != nil {
-		return nil, err
 	}
 	snap := poller.Current()
 	logger.Info("the reaction route starts", "route_id", route.ID(), "serial", route.Serial(), "digest", route.Digest(),

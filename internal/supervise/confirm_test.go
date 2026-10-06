@@ -57,9 +57,10 @@ func TestTheRulesThatCannotConfirmFireUnconfirmed(t *testing.T) {
 	}
 }
 
-// TestAStoppedRunsBlocksAreNoDenial: RUN_STOPPED is the plane's block, so a
-// run the plane stopped raises no REPEATED_DENIAL from it, however often it
-// tried, and its blocks are counted by that code.
+// TestAStoppedRunsBlocksAreNoDenial: RUN_STOPPED is the plane's block, with a
+// decision of its own beside the kernel's, so a run the plane stopped raises
+// no REPEATED_DENIAL from it, however often it tried and though the kernel
+// would have denied each call, and its blocks are counted by that code.
 func TestAStoppedRunsBlocksAreNoDenial(t *testing.T) {
 	p := procWith(t)
 	calls := []call{{req: "r1", tool: "get_order", upstream: "shop"}}

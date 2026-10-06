@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -74,9 +75,13 @@ func reactProperty(t *testing.T, rng *rand.Rand) {
 		}
 		if rng.IntN(3) == 0 {
 			run := []string{tr.open, tr.second}[rng.IntN(2)]
+			want := exitFail
+			if slices.ContainsFunc(tr.judged(t, now).Entries(), func(e reaction.Entry) bool { return e.RunID == run }) {
+				want = exitOK
+			}
 			if code, _, stderr := invoke(t, append(append([]string{"stops", "lift"}, tr.routeArgs()...),
-				"--key", tr.liftKey, "--run", run, tr.stops)...); code != exitOK {
-				t.Fatalf("pass %d: stops lift answered %d: %q", pass, code, stderr)
+				"--key", tr.liftKey, "--run", run, tr.stops)...); code != want {
+				t.Fatalf("pass %d: stops lift answered %d: %q, want %d", pass, code, stderr, want)
 			}
 		}
 		if s := poller.Poll(); s.State() == reaction.Unknown {

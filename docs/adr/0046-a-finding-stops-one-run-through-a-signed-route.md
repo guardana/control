@@ -58,8 +58,10 @@ much and never grants, and needs no freshness statement.
 in a directory of its own (`reaction.floor_dir`), holding per route id the
 highest serial and its digest. The operator makes it with `policy state init
 --kind route --route-id`. At start the plane refuses a route below the floor's
-serial, or at it with another digest, and raises the floor under its lock
-before it listens; it never creates one, so a removed floor refuses the start.
+serial, or at it with another digest, and, once its list's first read is
+served, raises the floor under its lock before it listens, so a start refused
+for its list leaves the floor as it was; it never creates one, so a removed
+floor refuses the start.
 `doctor` reads it and never raises it.
 
 **What may stop.** Two predicates in `internal/reaction`, which holds no
@@ -96,17 +98,23 @@ bound rather than cut lines it did not read; the plane links only the reader.
 route, refuses one whose digest is not the header's, reads the findings log as
 `notify` does, and appends, for each finding `Eligible` and the route permit
 and the list does not name yet, a `stop` when its run has no active stop and a
-`covered` line when it has one. A finding the list names, in any line, writes
+`covered` line when it has one, the writer choosing under its lock over the
+list as it stands, so two emitters never stop one run twice. A finding the
+list names, in any line, writes
 nothing again, so a lift holds: what an agent does while stopped is covered,
 and only a new finding after a lift stops the run again. `expires_at` is its
-clock plus the rule's lifetime and never later than the run's expiry. At the
+clock plus the rule's lifetime and never later than the run's expiry rounded
+up to the whole second a line spells. At the
 list's bound it exits 1 naming each finding it could not write. It holds no
 key. `guardana-control stops init --route --public-key [--carry <dir>]` starts
 a list, and with `--carry` copies the old list's unlifted stops, expired or
 not, since the writer's clock may be one a plane would not trust, and every
 other finding id it names as covered, holding the old list's lock until the
-new one is written, so a new list only adds; `stops lift --key` and `stops
-list` are the operator's.
+new one is written, so a new list only adds. A list a plane refuses at one
+line is carried up to that line, and the command names what it left out,
+unless a stop or covered line follows it or the line is dated past the
+writer's clock. `stops lift --key`, which refuses a lift that ends no stop,
+and `stops list` are the operator's.
 
 **What a plane checks.** A plane with a route requires `runs.dir`, a route
 tenant equal to the listener's, and a stops directory that is neither inside
