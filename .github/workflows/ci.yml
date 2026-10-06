@@ -53,10 +53,17 @@ jobs:
         # BUF_SEMVER is derived because buf-action builds its download URL as
         # ".../download/v${version}" and would otherwise double the "v";
         # `grep .` turns a missing pin into a failure instead of a silent
-        # fall-through to whatever version is current.
+        # fall-through to whatever version is current. The pins handed to an
+        # action are required by name for the same reason: an action given an
+        # empty version installs the current one, and an empty checksum checks
+        # nothing, so a pin line in another shape fails here.
         run: |
-          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
-            scripts/tool-versions.env >>"$GITHUB_ENV"
+          pins="$(grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env)"
+          for name in GOLANGCI_LINT_VERSION BUF_SHA256; do
+            grep -q "^${name}=" <<<"${pins}" || { echo "scripts/tool-versions.env has no ${name} line in the pinned shape" >&2; exit 1; }
+          done
+          printf '%s\n' "${pins}" >>"$GITHUB_ENV"
           sed -n 's/^BUF_VERSION=v*\([0-9][A-Za-z0-9._+-]*\)$/BUF_SEMVER=\1/p' \
             scripts/tool-versions.env | grep . >>"$GITHUB_ENV"
 
@@ -125,8 +132,10 @@ jobs:
 
       - name: Load pinned tool versions
         run: |
-          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
-            scripts/tool-versions.env >>"$GITHUB_ENV"
+          pins="$(grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env)"
+          grep -q '^BUF_SHA256=' <<<"${pins}" || { echo "scripts/tool-versions.env has no BUF_SHA256 line in the pinned shape" >&2; exit 1; }
+          printf '%s\n' "${pins}" >>"$GITHUB_ENV"
           sed -n 's/^BUF_VERSION=v*\([0-9][A-Za-z0-9._+-]*\)$/BUF_SEMVER=\1/p' \
             scripts/tool-versions.env | grep . >>"$GITHUB_ENV"
 

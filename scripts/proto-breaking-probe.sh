@@ -2,9 +2,10 @@
 # shellcheck source-path=SCRIPTDIR
 # The negative control of buf.yaml's breaking rules. buf.yaml, its comment
 # lines and blank lines aside, has to be exactly the text pinned below: one
-# module, the breaking rules `use: [FILE]` and `ignore: [the observation
-# package, the finding package]`, no other rule, exception or per-module
-# override in any YAML spelling. The rules buf itself reads for the module have to be the pinned
+# module, the STANDARD lint rules with ignore comments in the protos refused,
+# the breaking rules `use: [FILE]` and `ignore: [the observation package, the
+# finding package]`, no other rule, exception or per-module override in any
+# YAML spelling. The rules buf itself reads for the module have to be the pinned
 # list of the FILE category, so a spelling the text check missed still fails
 # and a buf upgrade that changes the category is noticed. Then, in
 # scratch copies of buf.yaml and api/proto, one field of every file of the
@@ -43,6 +44,7 @@ modules:
 lint:
   use:
     - STANDARD
+  disallow_comment_ignores: true
 breaking:
   use:
     - FILE
@@ -54,7 +56,7 @@ breaking:
 got_config="$(sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' buf.yaml)"
 if [[ "${got_config}" != "${want_config}" ]]; then
   diff <(printf '%s\n' "${want_config}") <(printf '%s\n' "${got_config}") >&2 || true
-  die "buf.yaml is not exactly the pinned module with the FILE rule and the observation and finding packages ignored (< pinned, > buf.yaml)"
+  die "buf.yaml is not exactly the pinned module with lint ignore comments refused, the FILE rule and the observation and finding packages ignored (< pinned, > buf.yaml)"
 fi
 
 want_rules="ENUM_NO_DELETE ENUM_SAME_JSON_FORMAT ENUM_SAME_TYPE ENUM_VALUE_NO_DELETE

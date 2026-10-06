@@ -36,6 +36,7 @@ jobs:
     permissions:
       contents: read
       actions: read # Check the gate: reads CI's and Security's runs of this commit
+      security-events: read # Check the gate: reads the open code scanning alerts on main
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -146,6 +147,7 @@ jobs:
       packages: write # Build and draft: ko pushes the image; Sign the image and Attest the image: push the signature and the provenance beside it
       artifact-metadata: write # Attest the image: records which registry holds the image, the organization's linked artifacts
       actions: read # Check the gate: reads CI's and Security's runs of the tagged commit
+      security-events: read # Check the gate: reads the open code scanning alerts on main
     env:
       # The repository .goreleaser.yaml's kos section pushes to.
       IMAGE: ghcr.io/guardana/control-gateway
@@ -311,18 +313,28 @@ jobs:
             --certificate-github-workflow-sha "${GITHUB_SHA}" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
           archives=0
+          sboms=0
           for f in dist/*.tar.gz dist/*.cdx.json dist/checksums.txt; do
             [[ -f "${f}" ]] || { echo "no file matches ${f}" >&2; exit 1; }
             gh attestation verify "${f}" --repo "${GITHUB_REPOSITORY}" \
               --cert-identity "${identity}" \
               --source-ref "${GITHUB_REF}" --deny-self-hosted-runners
-            [[ "${f}" != *.tar.gz ]] || archives=$((archives + 1))
+            case "${f}" in
+              *.tar.gz)
+                [[ -f "${f}.cdx.json" ]] || { echo "no SBOM for ${f}: ${f}.cdx.json is missing" >&2; exit 1; }
+                archives=$((archives + 1))
+                ;;
+              *.cdx.json)
+                [[ -f "${f%.cdx.json}" ]] || { echo "${f} describes no archive" >&2; exit 1; }
+                sboms=$((sboms + 1))
+                ;;
+            esac
           done
           # The product and the demo archive, for two systems times two
-          # architectures in .goreleaser.yaml. A missing platform, or a glob
-          # that matched nothing, is not a verified release.
-          if [[ "${archives}" -ne 8 ]]; then
-            echo "expected 8 archives, verified ${archives}" >&2
+          # architectures in .goreleaser.yaml, each with its own SBOM. A missing
+          # platform, or a glob that matched nothing, is not a verified release.
+          if [[ "${archives}" -ne 8 || "${sboms}" -ne 8 ]]; then
+            echo "expected 8 archives and 8 SBOMs, verified ${archives} archives and ${sboms} SBOMs" >&2
             exit 1
           fi
           cosign verify "${IMAGE}@${DIGEST}" \

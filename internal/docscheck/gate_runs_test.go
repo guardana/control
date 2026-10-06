@@ -28,15 +28,22 @@ case "$2" in
   "repos/owner/name/compare/${STUB_MAIN}...${STUB_SHA}") answer="${STUB_DIR}/compare.json" ;;
   */workflows/ci.yml/runs\?*) answer="${STUB_DIR}/ci.json" ;;
   */workflows/security.yml/runs\?*) answer="${STUB_DIR}/security.json" ;;
+  "repos/owner/name/code-scanning/alerts?ref=refs/heads/main&state=open&per_page=100") answer="${STUB_DIR}/alerts.json" ;;
   *) echo "stub gh: unexpected url $2" >&2; exit 64 ;;
 esac
+if [[ "$(head -c 5 "${answer}")" == "HTTP " ]]; then
+  cat "${answer}" >&2
+  exit 1
+fi
 exec jq -r "$4" "${answer}"
 `
 
 // gateAnswers are the stub's answers; an empty ref or compare is replaced by
-// main at gateMainSHA and a comparison that finds the commit identical.
+// main at gateMainSHA and a comparison that finds the commit identical, and
+// empty alerts by an empty list. An answer that starts with "HTTP " is a gh
+// failure: the stub prints it and exits 1.
 type gateAnswers struct {
-	ci, security, ref, compare string
+	ci, security, ref, compare, alerts string
 }
 
 func gateRun(sha, event, branch, conclusion string) string {
@@ -176,6 +183,75 @@ func TestCheckGateRunsRefusesACommitNotOnMain(t *testing.T) {
 	}
 }
 
+func gateAlert(number int, state, level string) string {
+	return toolAlert(number, state, level, "CodeQL")
+}
+
+func toolAlert(number int, state, level, tool string) string {
+	severity := "null"
+	if level != "" {
+		severity = `"` + level + `"`
+	}
+	return `{"number":` + strconv.Itoa(number) + `,"state":"` + state + `","rule":{"id":"go/rule-` + strconv.Itoa(number) +
+		`","severity":"error","security_severity_level":` + severity + `},"tool":{"name":"` + tool + `"}}`
+}
+
+// The analysis step succeeds whatever CodeQL raises, so an open alert blocks
+// a release only here.
+func TestCheckGateRunsRefusesAnOpenSevereAlert(t *testing.T) {
+	bash, script := gateRunsTools(t)
+
+	good := gateRuns(gateRun(gateRunsSHA, "push", "main", "success"))
+	fullPage := make([]string, 100)
+	for i := range fullPage {
+		fullPage[i] = gateAlert(i+1, "open", "low")
+	}
+	cases := map[string]struct {
+		alerts string
+		pass   bool
+		want   string
+	}{
+		"no open alert": {"[]", true, "no open high or critical CodeQL alert on main (0 alert(s) read)"},
+		"an open high Scorecard alert, which judges the repository": {"[" + toolAlert(2, "open", "high", "Scorecard") + "]", true, "no open high or critical CodeQL alert on main (1 alert(s) read)"},
+		"an alert with no tool": {`[{"number":1,"state":"open","rule":{"security_severity_level":"high"}}]`, false, "could not read the open code scanning alerts on main"},
+		"open medium and low alerts, and one with no security severity": {
+			"[" + gateAlert(1, "open", "medium") + "," + gateAlert(2, "open", "low") + "," + gateAlert(3, "open", "") + "]", true,
+			"no open high or critical CodeQL alert on main (3 alert(s) read)",
+		},
+		"a dismissed high alert listed anyway": {"[" + gateAlert(4, "dismissed", "high") + "]", true, "no open high or critical"},
+		"an open high alert": {
+			"[" + gateAlert(1, "open", "medium") + "," + gateAlert(7, "open", "high") + "]", false,
+			"main has open CodeQL alerts of severity high or critical: #7 high (go/rule-7)",
+		},
+		"an open critical alert": {"[" + gateAlert(9, "open", "critical") + "]", false, "#9 critical (go/rule-9)"},
+		"one alert short of a page": {
+			"[" + strings.Join(fullPage[:99], ",") + "]", true, "no open high or critical CodeQL alert on main (99 alert(s) read)",
+		},
+		"a full page of alerts": {
+			"[" + strings.Join(fullPage, ",") + "]", false,
+			"GitHub answered a full page of 100 open code scanning alerts on main; more alerts than one page; refusing rather than guessing",
+		},
+		"an answer that is no list": {
+			`{"message":"no analysis found"}`, false, "could not read the open code scanning alerts on main; refusing rather than guessing",
+		},
+		"an alert with no rule":       {`[{"number":1,"state":"open"}]`, false, "could not read the open code scanning alerts on main"},
+		"an alert with no number":     {`[{"state":"open","rule":{"security_severity_level":"high"}}]`, false, "could not read the open code scanning alerts"},
+		"malformed JSON":              {`[{"number":`, false, "could not read the open code scanning alerts on main"},
+		"a refused request":           {"HTTP 403: Resource not accessible by integration", false, "could not read the open code scanning alerts on main"},
+		"a code scanning API missing": {"HTTP 404: no analysis found", false, "could not read the open code scanning alerts on main"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			out, urls, err := runCheckGateRuns(t, bash, script, gateAnswers{ci: good, security: good, alerts: tc.alerts})
+			checkGateVerdict(t, out, err, tc.pass, tc.want)
+			want := "repos/owner/name/code-scanning/alerts?ref=refs/heads/main&state=open&per_page=100"
+			if !slices.Contains(urls, want) {
+				t.Errorf("the script never asked for %q; it asked for %q", want, urls)
+			}
+		})
+	}
+}
+
 func gateRunsTools(t *testing.T) (bash, script string) {
 	t.Helper()
 	bash, err := exec.LookPath("bash")
@@ -211,8 +287,13 @@ func runCheckGateRuns(t *testing.T, bash, script string, a gateAnswers) (string,
 	if a.compare == "" {
 		a.compare = gateCompare("identical")
 	}
+	if a.alerts == "" {
+		a.alerts = "[]"
+	}
 	dir := t.TempDir()
-	for file, content := range map[string]string{"ci.json": a.ci, "security.json": a.security, "ref.json": a.ref, "compare.json": a.compare} {
+	for file, content := range map[string]string{
+		"ci.json": a.ci, "security.json": a.security, "ref.json": a.ref, "compare.json": a.compare, "alerts.json": a.alerts,
+	} {
 		if err := os.WriteFile(filepath.Join(dir, file), []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}

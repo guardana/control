@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck source-path=SCRIPTDIR
 # Size budget for hand-written Go. Above 350 non-blank lines warns, above 500
-# fails.
+# fails. Generated code is exempt only under api/gen/, which proto-check holds
+# equal to the generator's output; a .pb.go name anywhere else proves nothing.
 set -euo pipefail
 
 _CHECK_SIZES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -27,7 +28,7 @@ failures=0
 while IFS= read -r file; do
   [[ -n "${file}" ]] || continue
   case "${file}" in
-    api/gen/*|testdata/*|*/testdata/*|*_test.go|*.pb.go) continue ;;
+    api/gen/*|testdata/*|*/testdata/*|*_test.go) continue ;;
   esac
 
   lines="$(awk 'NF { n++ } END { print n + 0 }' "${file}")"

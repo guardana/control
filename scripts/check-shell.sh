@@ -10,7 +10,10 @@
 # switch every check off for every script. A directive inside a script can do
 # that for its own file, so a directive that disables all checks, a range of
 # them or the dataflow analysis is refused here. One that names the codes it
-# disables stays, and review reads the reason written beside it. A comment that
+# disables stays, and review reads the reason written beside it. The same
+# directives are refused anywhere in a workflow file, since actionlint runs the
+# checker over each run block and a directive there applies to that block. A
+# comment that
 # begins with the checker's name is read as a directive, malformed or not, so
 # no comment here starts with it.
 set -euo pipefail
@@ -37,6 +40,12 @@ scripts=()
 while IFS= read -r file; do
   scripts+=("${file}")
 done <<<"${listed}"
+listed_workflows="$(repo_files '.github/workflows/*.yml' '.github/workflows/*.yaml')"
+[[ -n "${listed_workflows}" ]] || die "no workflow found"
+workflows=()
+while IFS= read -r file; do
+  workflows+=("${file}")
+done <<<"${listed_workflows}"
 
 # broad <the text after "shellcheck" in a directive>
 # Sets `why` to the setting when the directive switches off more than the codes
@@ -69,7 +78,7 @@ broad() {
 
 broad_directives=0
 directive_re='#[[:space:]]*shellcheck[[:space:]]+(.*)$'
-for file in "${scripts[@]}"; do
+for file in "${scripts[@]}" "${workflows[@]}"; do
   # grep exits 1 for "no match" and 2 or more for "could not read"; folding the
   # two together would pass a script nobody read.
   hits="$(grep -nE '#[[:space:]]*shellcheck[[:space:]]' "${file}")" && status=0 || status=$?
@@ -90,5 +99,5 @@ if (( broad_directives > 0 )); then
 fi
 
 SHELLCHECK_OPTS='' shellcheck --norc -x "${scripts[@]}"
-printf 'check-shell: %d script(s) clean (shellcheck --norc -x, no directive broader than its codes)\n' \
-  "${#scripts[@]}"
+printf 'check-shell: %d script(s) clean (shellcheck --norc -x), no directive broader than its codes in them or in %d workflow(s)\n' \
+  "${#scripts[@]}" "${#workflows[@]}"

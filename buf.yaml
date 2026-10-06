@@ -4,6 +4,9 @@ modules:
 lint:
   use:
     - STANDARD
+  # A `buf:lint:ignore` comment in a proto file would otherwise switch a rule
+  # off for that element without a change here.
+  disallow_comment_ignores: true
 breaking:
   use:
     - FILE

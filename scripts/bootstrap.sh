@@ -3,7 +3,11 @@
 # Checks the local toolchain and installs a missing binary tool with Homebrew.
 # Two pin files, because they have different readers: go.mod holds the Go
 # version and the Go tools, scripts/tool-versions.env holds the binary tools.
-# Go tools are never installed here; `go mod download` fetches them.
+# Go tools are never installed here; `go mod download` fetches them. With
+# --check it only compares: nothing is downloaded or installed, and a missing
+# tool fails like a mismatched one. scripts/gate-commit.sh runs it that way.
+#
+#   scripts/bootstrap.sh [--check]
 set -euo pipefail
 
 _BOOTSTRAP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -32,6 +36,13 @@ die() {
   printf 'FAIL %s\n' "$*" >&2
   exit 1
 }
+
+check_only=0
+case "$#:${1:-}" in
+  0:) ;;
+  1:--check) check_only=1 ;;
+  *) die "usage: scripts/bootstrap.sh [--check]" ;;
+esac
 
 # semver_of <version output>
 # Prints the first x.y.z token on the first line. Each pinned tool prints its
@@ -104,6 +115,10 @@ check_tool() {
   # The pins carry a leading "v"; the tools report the bare number.
   want="${want#v}"
   if ! command -v "${bin}" >/dev/null 2>&1; then
+    if ((check_only)); then
+      fail "${bin}: missing; --check installs nothing"
+      return
+    fi
     if ! command -v brew >/dev/null 2>&1; then
       fail "${bin}: missing, and Homebrew is not installed to provide it"
       return
@@ -137,7 +152,7 @@ check_tool() {
 
 require_go
 
-if ! (cd "${ROOT}" && go mod download); then
+if ((!check_only)) && ! (cd "${ROOT}" && go mod download); then
   die "go mod download failed in ${ROOT}"
 fi
 
@@ -160,4 +175,8 @@ if [[ ${checked} -ne ${TOOL_COUNT} ]]; then
   die "compared ${checked} tools, expected ${TOOL_COUNT}"
 fi
 
-printf 'bootstrap ok\n'
+if ((check_only)); then
+  printf 'bootstrap --check: go and %d tools match their pins; nothing installed\n' "${checked}"
+else
+  printf 'bootstrap ok\n'
+fi

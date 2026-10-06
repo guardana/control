@@ -10,7 +10,9 @@
 # mode and blob `git ls-tree` names must be extracted as it is, since an
 # export-ignore or export-subst attribute changes what `git archive` writes.
 # The gate's file scans then read the commit's own file list (REPO_FILES_LIST
-# in scripts/lib/repo-files.sh), not a find over the export. It compares the
+# in scripts/lib/repo-files.sh), not a find over the export. The installed
+# tools are compared with the commit's own pins by its scripts/bootstrap.sh
+# --check, which installs nothing; a mismatch means no stamp. It compares the
 # commit's api/proto with the latest v* tag before the commit under the tag's
 # own buf.yaml, as CI's proto-breaking job does for a push, so the commit cannot
 # choose the rules it is judged by; a break, or no tag to compare with, means no
@@ -130,6 +132,14 @@ diff "${work}/files.sorted" "${work}/listed" >"${work}/list.diff" || rc=$?
 if [[ ${rc} -eq 1 ]]; then
   head -n 20 "${work}/list.diff" >&2
   die "repo_files in the archive of ${sha} does not list the commit's files; nothing stamped"
+fi
+
+printf 'gate-commit: %s: the installed tools against its pins\n' "${sha}" | tee -a "${log}"
+rc=0
+(cd "${tree}" && "${clean[@]}" /bin/bash scripts/bootstrap.sh --check) >>"${log}" 2>&1 || rc=$?
+if [[ ${rc} -ne 0 ]]; then
+  grep '^FAIL' "${log}" | tail -n 20 >&2 || true
+  die "the installed tools do not match ${sha}'s pins (bootstrap --check exit ${rc}); nothing stamped"
 fi
 
 tag="$(git describe --tags --abbrev=0 --match 'v*' "${sha}^" 2>/dev/null)" ||

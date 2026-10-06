@@ -7,9 +7,13 @@
 # whose conclusion is success. A push of a tag named main reports main as its
 # branch too, for any commit, so the commit must also be main's head or an
 # ancestor of it. A run made green by a re-run counts, because GitHub reports
-# a run's latest attempt. It asks GitHub, so it needs GH_TOKEN (or a gh login)
-# with read access to the repository's contents and Actions, and
-# GITHUB_REPOSITORY as owner/name.
+# a run's latest attempt. Security's analysis step succeeds whatever CodeQL
+# raises, so an open CodeQL alert of severity high or critical on main refuses
+# the commit too (Scorecard's alerts judge the repository, not the code); alerts are kept per branch, not per commit, so main's
+# latest analysis is what is read. An answer that cannot be read is a refusal.
+# It asks GitHub, so it needs GH_TOKEN (or a gh login) with read access to the
+# repository's contents, Actions and security events, and GITHUB_REPOSITORY as
+# owner/name.
 #
 #   GITHUB_REPOSITORY=<owner>/<name> scripts/check-gate-runs.sh <commit sha>
 set -euo pipefail
@@ -82,3 +86,34 @@ for workflow in ci.yml security.yml; do
   fi
   printf 'check-gate-runs: %s passed on %s (a successful push run on main)\n' "${workflow}" "${sha}"
 done
+
+# The first line is the number of alerts GitHub answered with; then one line per
+# open CodeQL alert of severity high or critical: number, severity, rule. An
+# answer that is no list, or an alert without a number, a state, a rule or a
+# tool, is an error.
+alerts_filter='if type != "array" then error("the answer is no list of alerts")
+  else (length | tostring),
+    (.[] | if (.number | type) != "number" or (.state | type) != "string" or (.rule | type) != "object"
+        or (.tool.name | type) != "string"
+      then error("an alert without a number, a state, a rule or a tool")
+      elif .state == "open" and .tool.name == "CodeQL"
+        and (.rule.security_severity_level == "high" or .rule.security_severity_level == "critical")
+      then [(.number | tostring), .rule.security_severity_level, (.rule.id // "no rule id" | tostring)] | @tsv
+      else empty end)
+  end'
+alerts="$(gh api "repos/${repo}/code-scanning/alerts?ref=refs/heads/main&state=open&per_page=100" --jq "${alerts_filter}")" ||
+  die "could not read the open code scanning alerts on main; refusing rather than guessing"
+severe=""
+{
+  read -r answered || true
+  [[ "${answered:-}" =~ ^[0-9]+$ ]] ||
+    die "GitHub answered '${answered:-}' for the number of open code scanning alerts on main"
+  ((answered < 100)) ||
+    die "GitHub answered a full page of ${answered} open code scanning alerts on main; more alerts than one page; refusing rather than guessing"
+  while IFS=$'\t' read -r number level rule; do
+    [[ -n "${number}" ]] || continue
+    severe+="${severe:+; }#${number} ${level} (${rule})"
+  done
+} <<<"${alerts}"
+[[ -z "${severe}" ]] || die "main has open CodeQL alerts of severity high or critical: ${severe}"
+printf 'check-gate-runs: no open high or critical CodeQL alert on main (%d alert(s) read)\n' "${answered}"

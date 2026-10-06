@@ -35,6 +35,12 @@ verify one.
 
 ### Fixed
 
+- A release refuses a commit while main has an open CodeQL alert of severity
+  high or critical, and its verification requires a bill of materials for each
+  archive, not one for all. The gate refuses lint ignore comments in the
+  protocol files, compares the installed tools with their pins, and holds the
+  CI job that runs it, the secret scan's configuration and the code owners of
+  every guarded tree to what they must be.
 - An agent that cancels a call no longer leaves its trail without a closing
   record, a held request open for the plane's life, or a sink failure counted
   for a sink that did not fail: once proposed, a call's records, its hold and

@@ -13,12 +13,14 @@
 
 # Paths that carry authorization meaning: the decision path, the enforcement
 # pipeline, the approvals store, the policy keys, the digest an approval binds
-# to, the evidence record, contract validation, the policy provider interface,
-# the wire schema and the fixtures that pin them.
+# to, the evidence record, contract validation, the judgement of a run against
+# its procedure, the policy provider interface, the wire schema and the fixtures
+# that pin them. Every tree scripts/lib/dependency-rule.sh guards is among them.
 /internal/core/        @guardana/security-maintainers
 /internal/policy/      @guardana/security-maintainers
 /internal/canon/       @guardana/security-maintainers
 /internal/evidence/    @guardana/security-maintainers
+/internal/supervise/   @guardana/security-maintainers
 /internal/gateway/     @guardana/security-maintainers
 /internal/approvals/   @guardana/security-maintainers
 /internal/policykey/   @guardana/security-maintainers
@@ -39,6 +41,8 @@
 /go.mod                @guardana/security-maintainers
 /go.sum                @guardana/security-maintainers
 /scripts/              @guardana/security-maintainers
+/internal/testreport/  @guardana/security-maintainers
+/internal/docscheck/   @guardana/security-maintainers
 /.github/              @guardana/security-maintainers
 /.goreleaser.yaml      @guardana/security-maintainers
 
