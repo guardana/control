@@ -55,11 +55,10 @@ func refusedFor(t *testing.T, err error, want error, path string) {
 }
 
 // TestAConfigurationOthersMayWriteIsRefused: whoever may write the file sets
-// the mode, the policy keys and the pause file. Others may only read it; the
-// group may write it only where the group is the owner's own, as a umask of
-// 002 under a user private group leaves an extracted or checked-out file.
+// the mode, the policy keys and the pause file. The group and others may only
+// read it, as a umask of 002 would not leave it.
 func TestAConfigurationOthersMayWriteIsRefused(t *testing.T) {
-	for _, mode := range []fs.FileMode{0o666, 0o646, 0o602} {
+	for _, mode := range []fs.FileMode{0o666, 0o646, 0o602, 0o664, 0o620} {
 		path := placed(t, 0o700, mode)
 		_, err := Load(path, nil)
 		refusedFor(t, err, files.ErrMode, path)
@@ -70,24 +69,13 @@ func TestAConfigurationOthersMayWriteIsRefused(t *testing.T) {
 			t.Errorf("a file of mode %04o: %v", mode, err)
 		}
 	}
-	for _, mode := range []fs.FileMode{0o664, 0o620} {
-		path := placed(t, 0o700, mode)
-		sharedGroupOf(t, path)
-		_, err := Load(path, nil)
-		refusedFor(t, err, files.ErrMode, path)
-		privateGroupOf(t, path)
-		if _, err := Load(path, nil); err != nil {
-			t.Errorf("a file of mode %04o, its group its owner's own: %v", mode, err)
-		}
-	}
 }
 
 // TestAConfigurationInADirectoryOthersMayWriteIsRefused: whoever may write the
 // directory may put another file at the name, unless the directory is sticky,
-// where only the file's owner may. The group may write it only where the
-// group is the owner's own.
+// where only the file's owner may.
 func TestAConfigurationInADirectoryOthersMayWriteIsRefused(t *testing.T) {
-	for _, mode := range []fs.FileMode{0o777, 0o707, 0o703} {
+	for _, mode := range []fs.FileMode{0o777, 0o707, 0o703, 0o775, 0o770} {
 		path := placed(t, mode, 0o600)
 		_, err := Load(path, nil)
 		refusedFor(t, err, files.ErrMode, path)
@@ -99,16 +87,6 @@ func TestAConfigurationInADirectoryOthersMayWriteIsRefused(t *testing.T) {
 		}
 		if _, err := Load(path, nil); err != nil {
 			t.Errorf("a directory of mode %v: %v", mode, err)
-		}
-	}
-	for _, mode := range []fs.FileMode{0o775, 0o770} {
-		path := placed(t, mode, 0o600)
-		sharedGroupOf(t, filepath.Dir(path))
-		_, err := Load(path, nil)
-		refusedFor(t, err, files.ErrMode, path)
-		privateGroupOf(t, filepath.Dir(path))
-		if _, err := Load(path, nil); err != nil {
-			t.Errorf("a directory of mode %v, its group its owner's own: %v", mode, err)
 		}
 	}
 }

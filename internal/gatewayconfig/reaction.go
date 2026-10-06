@@ -2,8 +2,11 @@ package gatewayconfig
 
 import (
 	"crypto/ed25519"
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -108,6 +111,13 @@ func (c *Config) checkStopsDir() error {
 // each one's resolved path, so a link naming one inside the other is caught.
 // A pair this build cannot compare is reported as shared.
 func sharesDir(a, b string) (bool, error) {
+	a, err := asResolved(a)
+	if err != nil {
+		return true, err
+	}
+	if b, err = asResolved(b); err != nil {
+		return true, err
+	}
 	for _, compare := range []func() (bool, error){
 		func() (bool, error) { return overlaps(a, b) },
 		func() (bool, error) { return underSameDir(a, b) },
@@ -118,6 +128,23 @@ func sharesDir(a, b string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// asResolved is dir as the system resolves it where it exists, every link
+// followed before the ".." after it, as the plane's opens take it; a path
+// cleaned first would drop the link and name another directory. A dir that
+// does not exist yet and names ".." cannot be compared, so it is refused.
+func asResolved(dir string) (string, error) {
+	resolved, err := filepath.EvalSymlinks(dir)
+	switch {
+	case err == nil:
+		return filepath.Abs(resolved)
+	case !errors.Is(err, fs.ErrNotExist):
+		return "", fmt.Errorf("%q cannot be compared: %w", dir, err)
+	case slices.Contains(strings.Split(filepath.ToSlash(dir), "/"), ".."):
+		return "", fmt.Errorf("%q does not exist and names \"..\", so it cannot be compared", dir)
+	}
+	return dir, nil
 }
 
 // ListenerTenant is the tenant of the listener's principal: its own, or the

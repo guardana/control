@@ -14,6 +14,3 @@ func statOwner(fs.FileInfo) (int, bool) { return 0, false }
 // singleName cannot count a file's names here, so no file has shown it has
 // one.
 func singleName(fs.FileInfo) bool { return false }
-
-// statGroup names no group here, so no group may write the configuration.
-func statGroup(fs.FileInfo) (int, bool) { return 0, false }

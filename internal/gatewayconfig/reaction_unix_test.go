@@ -22,6 +22,28 @@ func TestALinkDoesNotJoinTheStopsDirectoryToALockedOne(t *testing.T) {
 		setEnv(t, "reaction.stops", "stopslink")
 		refusedNaming(t, path, "evidence.dir")
 	})
+	t.Run("paths through a link and .. that put the stops directory around the spool", func(t *testing.T) {
+		path := write(t, withRoute)
+		dir := filepath.Dir(path)
+		up := string(filepath.Separator) + ".."
+		mkdir(t, filepath.Join(dir, "area", "child"))
+		mkdir(t, filepath.Join(dir, "area", "spool", "inner"))
+		mkdir(t, filepath.Join(dir, "x"))
+		mkdir(t, filepath.Join(dir, "y"))
+		link(t, filepath.Join(dir, "area", "child"), filepath.Join(dir, "x", "deep"))
+		link(t, filepath.Join(dir, "area", "spool", "inner"), filepath.Join(dir, "y", "deep"))
+		setEnv(t, "reaction.stops", filepath.Join(dir, "x", "deep")+up)
+		setEnv(t, "evidence.dir", filepath.Join(dir, "y", "deep")+up)
+		refusedNaming(t, path, "evidence.dir")
+	})
+	t.Run("a path naming .. that does not exist yet", func(t *testing.T) {
+		path := write(t, withRoute)
+		dir := filepath.Dir(path)
+		setEnv(t, "reaction.stops", filepath.Join(dir, "none")+string(filepath.Separator)+".."+string(filepath.Separator)+"later")
+		if _, err := Load(path, os.Environ()); err == nil || !strings.Contains(err.Error(), "reaction.stops") {
+			t.Errorf("a stops directory that does not exist and names .. = %v, want a refusal naming reaction.stops", err)
+		}
+	})
 	t.Run("the spool links into the stops directory", func(t *testing.T) {
 		path := write(t, withRoute)
 		dir := filepath.Dir(path)

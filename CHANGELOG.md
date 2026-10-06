@@ -53,9 +53,8 @@ verify one.
 - The gateway refuses a configuration file when the file, or any directory or
   link on its path, is owned by an account other than its own or root, or
   another account may write it (a sticky directory, or root's on a read-only
-  mount, excepted), and a file with a second name. A group may write it only
-  where the group is the owner's own, as a user private group is; on macOS,
-  where every account shares `staff`, group write is refused. The file names the policy keys,
+  mount, excepted), and a file with a second name. Its group may not write it
+  either: a checkout under a umask of 002 needs `chmod g-w`. The file names the policy keys,
   the pause file and the credentials the plane sends, and was read whatever
   its owner and mode. A container's configuration now has to be owned by the
   image's user.

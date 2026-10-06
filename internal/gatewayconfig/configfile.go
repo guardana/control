@@ -11,12 +11,22 @@ import (
 	"github.com/guardana/control/internal/files"
 )
 
-// worldWritable is the permission bit that lets any account replace or
-// rewrite the configuration, which names the mode, the policy keys, the pause
-// file and the credentials the plane sends. The group's write bit is taken
-// only for the owner's own group (othersMayWrite), which a umask of 002 is
-// meant for.
-const worldWritable fs.FileMode = 0o002
+// othersWrite is the permission bits that let an account other than the
+// owner replace or rewrite the configuration, which names the mode, the
+// policy keys, the pause file and the credentials the plane sends. The
+// group's bit is refused too: which accounts a group holds cannot be read
+// from the files on every system, and under an access control list the group
+// bits are the mask that lets a named account write.
+const othersWrite fs.FileMode = 0o022
+
+// othersMayWrite refuses an entry whose mode lets an account other than its
+// owner write it.
+func othersMayWrite(info fs.FileInfo) error {
+	if perm := info.Mode().Perm(); perm&othersWrite != 0 {
+		return fmt.Errorf("%w: mode %04o; the group or others may write it", files.ErrMode, perm)
+	}
+	return nil
+}
 
 // ownerWanted is the plane's account, which may own the configuration and
 // every directory and link on its path beside root.

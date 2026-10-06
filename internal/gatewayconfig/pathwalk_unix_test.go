@@ -100,8 +100,8 @@ func loads(t *testing.T, path string) {
 
 // TestEveryDirectoryOnThePathIsJudged: whoever may write any directory the
 // path passes may put another tree under it, so each is judged, not only the
-// file's own. A group may write one, as a umask of 002 leaves it; a sticky one
-// lets nobody but an entry's owner replace the entry.
+// file's own, its group's write bit among the others'; a sticky one lets
+// nobody but an entry's owner replace the entry.
 func TestEveryDirectoryOnThePathIsJudged(t *testing.T) {
 	for _, c := range []struct {
 		name     string
@@ -113,19 +113,14 @@ func TestEveryDirectoryOnThePathIsJudged(t *testing.T) {
 		{"a directory others may write above the file's", 0o777, 0o755, 0o644, files.ErrMode},
 		{"a directory only others may write above the file's", 0o703, 0o755, 0o644, files.ErrMode},
 		{"a sticky directory others may write above the file's", fs.ModeSticky | 0o777, 0o755, 0o644, nil},
-		{"a group-writable file in a group-writable tree", 0o775, 0o775, 0o664, nil},
-		{"a directory a shared group may write above the file's", 0o775, 0o755, 0o644, files.ErrMode},
+		{"a directory the group may write above the file's", 0o775, 0o755, 0o644, files.ErrMode},
+		{"a group-writable file in a group-writable tree", 0o775, 0o775, 0o664, files.ErrMode},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			upper := filepath.Join(t.TempDir(), "upper")
 			conf := mkdirMode(t, filepath.Join(upper, "conf"), c.conf)
 			path := fileAt(t, filepath.Join(conf, "gateway.yaml"), c.fileMode)
 			mkdirMode(t, upper, c.upper)
-			if c.want == nil {
-				privateGroupOf(t, path)
-			} else {
-				sharedGroupOf(t, path)
-			}
 			if c.want == nil {
 				loads(t, path)
 				return

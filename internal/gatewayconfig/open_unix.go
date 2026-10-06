@@ -26,12 +26,3 @@ func singleName(info fs.FileInfo) bool {
 	st, ok := info.Sys().(*syscall.Stat_t)
 	return ok && st != nil && st.Nlink == 1
 }
-
-// statGroup is the gid that owns info's file.
-func statGroup(info fs.FileInfo) (int, bool) {
-	st, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || st == nil {
-		return 0, false
-	}
-	return int(st.Gid), true
-}

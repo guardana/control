@@ -273,15 +273,13 @@ What the plane does today:
   path from the root, is owned by an account other than the plane's or root,
   or another account may write it (a sticky directory, or root's on a
   read-only mount, excepted), and when it has a second name. The path is
-  walked as the kernel walks it. Group write is taken only where the group is
-  the owner's own, its one member by `/etc/passwd` and `/etc/group`, as a user
-  private group is; a group those files cannot show, as on macOS, where every
-  local account shares `staff`, is refused
-  (`internal/gatewayconfig/pathwalk.go`, `groupwrite.go`;
+  walked as the kernel walks it. The group's write bit is refused too: on
+  macOS every local account shares `staff`, which no file names, and under an
+  access control list the group bits are the mask a named account writes
+  through (`internal/gatewayconfig/pathwalk.go`;
   `TestEveryDirectoryOnThePathIsJudged`, `TestALinkIsJudgedWhereItLies`,
-  `TestAFileWithASecondNameIsRefused`,
-  `TestAGroupIsTheOwnersOwnOnlyWithNoOtherMember`). A read-only mount is
-  root's word; another mount may still write the directory. A Nix store with
+  `TestAFileWithASecondNameIsRefused`). A read-only mount is root's word;
+  another mount may still write the directory. A Nix store with
   `auto-optimise-store` gives the file a second name, so it is refused.
 - The approvals directory is refused when another account owns it or the
   group or the world may write it. It is judged again at every call, and a
