@@ -131,6 +131,11 @@ steadily but slowly.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li>The evidence-report example stops reading an endless line at the export's
+byte bound, and refuses a header without a well-formed source and a cursor
+that is not one of its file; the demo's <code>call.sh</code> exits 1 on an HTTP status
+that is not 2xx. The benchmarks page's argument sizes are what the
+benchmarks measure now, held by a test.</li>
 <li>A release refuses a commit while main has an open CodeQL alert of severity
 high or critical, and its verification requires a bill of materials for each
 archive, not one for all. The gate refuses lint ignore comments in the

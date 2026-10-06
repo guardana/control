@@ -129,7 +129,7 @@ func TestPrivacy(t *testing.T) {
 	first := framed("c.trail", lines, 0, len(lines), 1000)
 	all := append(append([]string(nil), lines...), conflicting...)
 	second := framed("c.trail", all, len(lines), len(all), 1000)
-	gap := strings.Replace(second, `{"type":"trailer"`, `{"type":"gap","offset":999999,"cursor":"`+canary+`","reason":"`+canary+`"}`+"\n"+`{"type":"trailer"`, 1)
+	gap := strings.Replace(second, `{"type":"trailer"`, `{"type":"gap","offset":999999,"cursor":"v1:`+digest(lines[0]+"\n")+`:1000000:`+digest("\n")+`","reason":"`+canary+`"}`+"\n"+`{"type":"trailer"`, 1)
 	gap = strings.Replace(gap, `"gap":0`, `"gap":1`, 1)
 	for _, in := range []string{first, gap} {
 		if !strings.Contains(in, canary) {
@@ -195,7 +195,9 @@ func canaryRefusals() []refusedWithCanary {
 		{"a header member", withHeader(`"file"`, `"`+canary+`":1,"file"`)},
 		{"a header that is not JSON", withHeader(`{"type"`, `{`+canary+`"type"`)},
 		{"a query after", withHeader(`"query":{`, `"query":{"after":"`+canary+`",`)},
-		{"a header source", withHeader(`"file"`, `"source":"`+canary+`","file"`)},
+		{"a header source", withHeader(`"source":"`+exportSource, `"source":"`+canary)},
+		{"an event cursor", record(`{"type":"event","offset":900,"cursor":"` + canary + `","event":` + r1[0] + `}`)},
+		{"a gap cursor", record(`{"type":"gap","offset":900,"cursor":"` + canary + `","reason":"malformed"}`)},
 		{"a record type", record(`{"type":"` + canary + `","offset":900}`)},
 		{"a record member", record(`{"type":"gap","offset":900,"reason":"malformed","` + canary + `":1}`)},
 		{"a record that is not JSON", record(`{"type":"gap",` + canary + `}`)},

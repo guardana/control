@@ -162,3 +162,77 @@ func TestTrailerScan(t *testing.T) {
 			totals: oneCompleted + "gaps 0, duplicates 0, conflicting 0, refused 0" + endReached})
 	})
 }
+
+// TestHeaderSource holds the header's source to the SHA-256 of a first line,
+// 64 lowercase hex digits, or to its absence while the file has no whole line.
+func TestHeaderSource(t *testing.T) {
+	sum := strings.Repeat("0123456789abcdef", 4)
+	header := func(member string) string {
+		return `{"type":"header","format":"` + exportFormat + `","version":"1.0","file":"a.trail",` + member + `"query":{"limit":1}}` + "\n"
+	}
+	for _, tc := range []struct {
+		name, member string
+		refused      bool
+	}{
+		{name: "a digest", member: `"source":"` + sum + `",`},
+		{name: "no source", member: ``},
+		{name: "a digest in capitals", member: `"source":"` + strings.ToUpper(sum) + `",`, refused: true},
+		{name: "a digest one digit short", member: `"source":"` + sum[1:] + `",`, refused: true},
+		{name: "a digest one digit long", member: `"source":"` + sum + `0",`, refused: true},
+		{name: "an empty source", member: `"source":"",`, refused: true},
+		{name: "a null source", member: `"source":null,`, refused: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := readExport(strings.NewReader(header(tc.member)))
+			switch {
+			case tc.refused && (err == nil || err.Error() != "the header's source is not the SHA-256 of a first line in 64 lowercase hex digits"):
+				t.Fatalf("error %v, want the source refused", err)
+			case !tc.refused && err != nil:
+				t.Fatalf("error %v, want the header read", err)
+			}
+		})
+	}
+}
+
+// TestRecordCursor holds an event's and a gap's cursor to its defined form:
+// spelled v1, of the file the header names, and ending after the record's
+// offset, where its line starts.
+func TestRecordCursor(t *testing.T) {
+	src := strings.Repeat("0123456789abcdef", 4)
+	other := strings.Repeat("fedcba9876543210", 4)
+	line := strings.Repeat("5", 64)
+	header := `{"type":"header","format":"` + exportFormat + `","version":"1.0","file":"a.trail","source":"` + src + `","query":{"limit":9}}`
+	noSource := `{"type":"header","format":"` + exportFormat + `","version":"1.0","file":"a.trail","query":{"limit":9}}`
+	ev := chain("r1", allowed...)[0]
+	records := map[string]func(cursor string) string{
+		"event": func(c string) string { return `{"type":"event","offset":100,"cursor":"` + c + `","event":` + ev + `}` },
+		"gap":   func(c string) string { return `{"type":"gap","offset":100,"cursor":"` + c + `","reason":"malformed"}` },
+	}
+	for _, tc := range []struct {
+		name, header, cursor, says string
+	}{
+		{name: "one byte past its offset", header: header, cursor: "v1:" + src + ":101:" + line},
+		{name: "not spelled v1", header: header, cursor: "c200", says: "whose cursor is not a v1 cursor"},
+		{name: "empty", header: header, cursor: "", says: "whose cursor is not a v1 cursor"},
+		{name: "of another file", header: header, cursor: "v1:" + other + ":200:" + line, says: "whose cursor is not of the file the header names"},
+		{name: "of a header naming no source", header: noSource, cursor: "v1:" + src + ":200:" + line,
+			says: "whose cursor is not of the file the header names"},
+		{name: "at its offset", header: header, cursor: "v1:" + src + ":100:" + line, says: "whose cursor does not end after its offset, 100"},
+		{name: "before its offset", header: header, cursor: "v1:" + src + ":99:" + line, says: "whose cursor does not end after its offset, 100"},
+	} {
+		for typ, record := range records {
+			t.Run(typ+" "+tc.name, func(t *testing.T) {
+				got, err := readExport(strings.NewReader(tc.header + "\n" + record(tc.cursor) + "\n"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				switch want := "line 2: a" + map[string]string{"event": "n event", "gap": " gap"}[typ] + " record " + tc.says; {
+				case tc.says == "" && got.refused != 0:
+					t.Fatalf("refused %q, want the record read", got.firstRefusal)
+				case tc.says != "" && (got.refused != 1 || got.firstRefusal != want):
+					t.Fatalf("%d refused, the first %q; want %q", got.refused, got.firstRefusal, want)
+				}
+			})
+		}
+	}
+}

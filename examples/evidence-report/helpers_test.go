@@ -81,21 +81,31 @@ var (
 )
 
 // exportText builds an export the way the exporter frames one: a header,
-// records at rising offsets 100 apart, and a trailer counting them.
+// records at rising offsets 100 apart, each line ending where the next
+// starts, and a trailer counting them.
 type exportText struct {
 	lines           []string
 	offset          int64
 	events, gaps, n int
 }
 
+// exportSource is the source the header of an exportText names, and the
+// file someCursor is of.
+var exportSource = strings.Repeat("a", 64)
+
 func newExport(version string) *exportText {
-	return &exportText{lines: []string{
-		`{"type":"header","format":"` + exportFormat + `","version":"` + version + `","file":"a.trail","query":{"limit":1000}}`}}
+	return &exportText{lines: []string{`{"type":"header","format":"` + exportFormat + `","version":"` + version +
+		`","file":"a.trail","source":"` + exportSource + `","query":{"limit":1000}}`}}
+}
+
+// cursor names the end of the line at x.offset whose bytes are line.
+func (x *exportText) cursor(line string) string {
+	return fmt.Sprintf("v1:%s:%d:%s", exportSource, x.offset+100, digest(line+"\n"))
 }
 
 func (x *exportText) event(events ...string) *exportText {
 	for _, e := range events {
-		x.lines = append(x.lines, fmt.Sprintf(`{"type":"event","offset":%d,"cursor":"c%d","event":%s}`, x.offset, x.offset, e))
+		x.lines = append(x.lines, fmt.Sprintf(`{"type":"event","offset":%d,"cursor":"%s","event":%s}`, x.offset, x.cursor(e), e))
 		x.offset += 100
 		x.events++
 	}
@@ -103,7 +113,7 @@ func (x *exportText) event(events ...string) *exportText {
 }
 
 func (x *exportText) gap(reason string) *exportText {
-	x.lines = append(x.lines, fmt.Sprintf(`{"type":"gap","offset":%d,"cursor":"c%d","reason":"%s"}`, x.offset, x.offset, reason))
+	x.lines = append(x.lines, fmt.Sprintf(`{"type":"gap","offset":%d,"cursor":"%s","reason":"%s"}`, x.offset, x.cursor(reason), reason))
 	x.offset += 100
 	x.gaps++
 	return x
@@ -124,8 +134,8 @@ func (x *exportText) raw(line string) *exportText {
 // cut is the export without its trailer.
 func (x *exportText) cut() string { return strings.Join(x.lines, "\n") + "\n" }
 
-// someCursor is spelled as a v1 cursor is, and names no file.
-var someCursor = "v1:" + strings.Repeat("a", 64) + ":2100:" + strings.Repeat("b", 64)
+// someCursor is spelled as a v1 cursor is, of the file an exportText names.
+var someCursor = "v1:" + exportSource + ":2100:" + strings.Repeat("b", 64)
 
 // trailerLine is the trailer the exporter would write after these records
 // while no writer holds the file.

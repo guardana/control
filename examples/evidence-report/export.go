@@ -93,7 +93,7 @@ type trailerState struct {
 // Everything wrong past the header is counted and said, and the read goes on.
 func readExport(r io.Reader) (*export, error) {
 	br := bufio.NewReader(r)
-	first, err := nextLine(br)
+	first, err := nextLine(br, maxRecordBytes+1)
 	switch {
 	case errors.Is(err, io.EOF):
 		return nil, errors.New("no header: the input is empty")
@@ -115,7 +115,7 @@ func readExport(r io.Reader) (*export, error) {
 func (x *export) readRecords(br *bufio.Reader) {
 	read := 0
 	for {
-		l, err := nextLine(br)
+		l, err := nextLine(br, maxExportBytes-read)
 		if errors.Is(err, io.EOF) {
 			return
 		}
@@ -155,8 +155,9 @@ type rawLine struct {
 
 // nextLine returns the next record without its newline, or io.EOF when no
 // byte is left. A record longer than maxRecordBytes is read through and its
-// bytes dropped.
-func nextLine(r *bufio.Reader) (rawLine, error) {
+// bytes dropped, but a record no newline has ended is read no further than
+// once past limit bytes: the input may never end it.
+func nextLine(r *bufio.Reader, limit int) (rawLine, error) {
 	var l rawLine
 	n := 0
 	for {
@@ -166,6 +167,8 @@ func nextLine(r *bufio.Reader) (rawLine, error) {
 			l.b = append(l.b, chunk...)
 		}
 		switch {
+		case errors.Is(err, bufio.ErrBufferFull) && n > limit:
+			l.unterminated = true
 		case errors.Is(err, bufio.ErrBufferFull):
 			continue
 		case errors.Is(err, io.EOF) && n == 0:
@@ -290,8 +293,12 @@ func (x *export) event(b []byte) {
 		x.refuse("an event record whose members are of another type")
 		return
 	}
-	if r.Offset == nil || r.Cursor == nil || *r.Cursor == "" || len(r.Event) == 0 || string(r.Event) == "null" {
+	if r.Offset == nil || r.Cursor == nil || len(r.Event) == 0 || string(r.Event) == "null" {
 		x.refuse("an event record without its offset, cursor or event")
+		return
+	}
+	if why := x.cursorDefect(*r.Offset, *r.Cursor); why != "" {
+		x.refuse("an event record whose cursor " + why)
 		return
 	}
 	if !x.inOrder(*r.Offset) {
@@ -307,6 +314,20 @@ func (x *export) event(b []byte) {
 		return
 	}
 	x.add(*r.Offset, *r.Cursor, r.Event, ev)
+}
+
+// cursorDefect names what keeps c from being the cursor of a line that starts
+// at offset in the file the header names: the cursor names where it ends.
+func (x *export) cursorDefect(offset int64, c string) string {
+	switch {
+	case !isCursor(c):
+		return "is not a v1 cursor"
+	case x.header.source == "" || !strings.HasPrefix(c, "v1:"+x.header.source+":"):
+		return "is not of the file the header names"
+	case cursorOffset(c) <= offset:
+		return fmt.Sprintf("does not end after its offset, %d", offset)
+	}
+	return ""
 }
 
 // add keeps an event once. The same line twice is a duplicate; one id with
@@ -338,6 +359,12 @@ func (x *export) gap(b []byte) {
 	if err := json.Unmarshal(b, &r); err != nil || r.Offset == nil || r.Reason == nil {
 		x.refuse("a gap record without its offset or reason")
 		return
+	}
+	if r.Cursor != nil {
+		if why := x.cursorDefect(*r.Offset, *r.Cursor); why != "" {
+			x.refuse("a gap record whose cursor " + why)
+			return
+		}
 	}
 	if !x.inOrder(*r.Offset) {
 		return

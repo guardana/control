@@ -14,6 +14,7 @@ package bench_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"testing"
@@ -110,6 +111,21 @@ func TestBenchmarkedPathSucceeds(t *testing.T) {
 			t.Logf("envelope %d bytes encoded, authorized arguments %d bytes",
 				proto.Size(s.env), len(s.args))
 		})
+	}
+}
+
+// TestBenchmarksPageSizes holds the fixture table of the benchmarks page to
+// the sizes the test above logs, which no results file records.
+func TestBenchmarksPageSizes(t *testing.T) {
+	page, err := fs.ReadFile(os.DirFS("../docs/reference"), "benchmarks.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range subjects(t) {
+		row := fmt.Sprintf("| `%s` | %d B | %d B |", s.name, proto.Size(s.env), len(s.args))
+		if !bytes.Contains(page, []byte("\n"+row+"\n")) {
+			t.Errorf("the page holds no row %s", row)
+		}
 	}
 }
 

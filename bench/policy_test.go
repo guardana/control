@@ -11,12 +11,14 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -127,10 +129,82 @@ func decideSubjects(tb testing.TB) []decideSubject {
 	return out
 }
 
+// series is prefix0, prefix<step> and so on, n names.
+func series(prefix string, step, n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = fmt.Sprintf("%s%d", prefix, i*step)
+	}
+	return out
+}
+
+// cappedObligations spells the two obligations of each of n capped rules.
+func cappedObligations(n int) []string {
+	out := make([]string, 0, 2*n)
+	for i := range n {
+		out = append(out, fmt.Sprintf("redact_fields{fields=field-%d}", i), fmt.Sprintf("cap_amount{max=%d}", 1000+i))
+	}
+	return out
+}
+
+// wantDecided is what each row's decision names: its rules and obligations.
+var wantDecided = map[string]struct{ rules, obligations []string }{
+	"rules=10":        {rules: []string{"allow-0", "allow-2", "allow-4", "allow-6", "allow-8"}},
+	"rules=100":       {rules: series("allow-", 2, 50)},
+	"rules=1000":      {rules: series("allow-", 2, 500)},
+	"obligations=100": {rules: series("capped-", 1, 100), obligations: cappedObligations(100)},
+}
+
+// spelled is an obligation as type{key=value,...}, its keys sorted, and
+// marked when advisory.
+func spelled(o *controlv1.Obligation) string {
+	keys := slices.Sorted(maps.Keys(o.GetParams()))
+	params := make([]string, len(keys))
+	for i, k := range keys {
+		params[i] = k + "=" + o.GetParams()[k]
+	}
+	s := o.GetType() + "{" + strings.Join(params, ",") + "}"
+	if o.GetAdvisory() {
+		s += " advisory"
+	}
+	return s
+}
+
+// decidedDefects names where d's rules and obligations differ from the
+// row's, each list compared whole and in order.
+func decidedDefects(name string, d *controlv1.Decision) []string {
+	want := wantDecided[name]
+	obligations := make([]string, len(d.GetObligations()))
+	for i, o := range d.GetObligations() {
+		obligations[i] = spelled(o)
+	}
+	var out []string
+	if diff := firstDiff(d.GetPolicyRuleIds(), want.rules); diff != "" {
+		out = append(out, "rules: "+diff)
+	}
+	if diff := firstDiff(obligations, want.obligations); diff != "" {
+		out = append(out, "obligations: "+diff)
+	}
+	return out
+}
+
+// firstDiff names the first place got and want differ, empty when equal.
+func firstDiff(got, want []string) string {
+	for i := range min(len(got), len(want)) {
+		if got[i] != want[i] {
+			return fmt.Sprintf("[%d] is %q, want %q", i, got[i], want[i])
+		}
+	}
+	if len(got) != len(want) {
+		return fmt.Sprintf("%d of them, want %d", len(got), len(want))
+	}
+	return ""
+}
+
 // TestBenchmarkedDecideSucceeds holds every row to the decision it is meant
-// to measure: the verdict and action, every matched rule named, and the whole
-// obligation union on the decision. It runs under `go test ./bench/`, which
-// scripts/bench.sh runs before it records anything.
+// to measure: the verdict and action, every matched rule named once, and the
+// whole obligation union on the decision with its parameters. It runs under
+// `go test ./bench/`, which scripts/bench.sh runs before it records anything.
 func TestBenchmarkedDecideSucceeds(t *testing.T) {
 	for _, s := range decideSubjects(t) {
 		t.Run(s.row.name, func(t *testing.T) {
@@ -145,10 +219,39 @@ func TestBenchmarkedDecideSucceeds(t *testing.T) {
 			if got := len(d.GetObligations()); got != s.row.obligations {
 				t.Errorf("%d obligations, want %d", got, s.row.obligations)
 			}
+			for _, defect := range decidedDefects(s.row.name, d) {
+				t.Error(defect)
+			}
 			if d.GetPolicyFreshness() != controlv1.PolicyFreshness_POLICY_FRESHNESS_FRESH {
 				t.Errorf("freshness %s: the snapshot is stale against the real clock, and the row measures the stale branch", d.GetPolicyFreshness())
 			}
 		})
+	}
+}
+
+// TestDecidedDefectsSeeAWrongDecision holds the comparison above to failing
+// on a decision with the right counts and the wrong content: one rule named
+// twice in place of another, or an obligation with another parameter.
+func TestDecidedDefectsSeeAWrongDecision(t *testing.T) {
+	for _, s := range decideSubjects(t) {
+		if s.row.obligations == 0 {
+			continue
+		}
+		d := s.kernel.Decide(context.Background(), s.req, s.snap).Decision
+		if defects := decidedDefects(s.row.name, d); len(defects) != 0 {
+			t.Fatalf("the decision as made: %q", defects)
+		}
+		repeated := proto.CloneOf(d)
+		repeated.PolicyRuleIds[1] = repeated.PolicyRuleIds[0]
+		reparamed := proto.CloneOf(d)
+		reparamed.Obligations[3].Params["max"] = "1002"
+		advisory := proto.CloneOf(d)
+		advisory.Obligations[0].Advisory = true
+		for name, wrong := range map[string]*controlv1.Decision{"a rule named twice": repeated, "another parameter": reparamed, "an advisory obligation": advisory} {
+			if defects := decidedDefects(s.row.name, wrong); len(defects) != 1 {
+				t.Errorf("%s: %d defects, want 1: %q", name, len(defects), defects)
+			}
+		}
 	}
 }
 

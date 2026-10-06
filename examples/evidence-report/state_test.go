@@ -139,6 +139,23 @@ const (
 	conflictSource = "3cd4f852726ed6aa0ee7d0110a62da7f29c7ff501c8817107150332dfec020ab"
 )
 
+// ofAnotherFile is the committed export with its source and every cursor
+// but query.after naming another file, so the export holds together and only
+// the state can tell it is not the state's file.
+func ofAnotherFile(export string) func(*testing.T) string {
+	return func(t *testing.T) string {
+		t.Helper()
+		in := fixture(t, export)
+		for _, member := range []string{`"source":"`, `"cursor":"v1:`, `"next_cursor":"v1:`} {
+			if !strings.Contains(in, member+outageSource) {
+				t.Fatalf("%s holds no %s of the outage source", export, member)
+			}
+			in = strings.ReplaceAll(in, member+outageSource, member+conflictSource)
+		}
+		return in
+	}
+}
+
 func exportRefusals() []refusal {
 	return []refusal{
 		{name: "an empty stdin", in: func(*testing.T) string { return "" }, stderr: "the input is empty"},
@@ -150,8 +167,7 @@ func exportRefusals() []refusal {
 		{name: "the same export twice", prepare: consumed("repeat.jsonl"), in: input("repeat.jsonl"), stderr: "query.after"},
 		{name: "an export after another cursor", prepare: consumed("outage-1.jsonl"), in: input("outage-3.jsonl"), stderr: "query.after"},
 		{name: "a first export after a cursor", in: input("outage-2.jsonl"), stderr: "query.after"},
-		{name: "another source", prepare: consumed("outage-1.jsonl"),
-			in: edited("outage-2.jsonl", `"source":"`+outageSource, `"source":"`+conflictSource), stderr: "source"},
+		{name: "another source", prepare: consumed("outage-1.jsonl"), in: ofAnotherFile("outage-2.jsonl"), stderr: "its source is not the state's"},
 		{name: "a next cursor of another source", in: edited("outage-1.jsonl", `"next_cursor":"v1:`+outageSource, `"next_cursor":"v1:`+conflictSource),
 			stderr: "next_cursor"},
 		{name: "a filter", in: edited("outage-1.jsonl", `"query":{"limit":1000}`, `"query":{"limit":1000,"request":["A"]}`), stderr: "filter"},

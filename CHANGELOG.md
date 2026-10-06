@@ -35,6 +35,11 @@ verify one.
 
 ### Fixed
 
+- The evidence-report example stops reading an endless line at the export's
+  byte bound, and refuses a header without a well-formed source and a cursor
+  that is not one of its file; the demo's `call.sh` exits 1 on an HTTP status
+  that is not 2xx. The benchmarks page's argument sizes are what the
+  benchmarks measure now, held by a test.
 - A release refuses a commit while main has an open CodeQL alert of severity
   high or critical, and its verification requires a bill of materials for each
   archive, not one for all. The gate refuses lint ignore comments in the

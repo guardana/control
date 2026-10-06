@@ -8,8 +8,7 @@ covers: [bench/**, scripts/bench.sh]
 # Benchmarks
 
 What three calls on the authorization path and one tool call through the
-gateway cost, measured on one machine. These are measurements, not thresholds
-or gate conditions. How to run and publish them is in
+gateway cost, measured on one machine. How to run and publish them is in
 [bench/README.md](../../bench/README.md).
 
 ## What is measured
@@ -39,9 +38,12 @@ envelopes, so the two numbers can be read against each other.
 | Fixture | Envelope, encoded | Authorized arguments |
 | --- | --- | --- |
 | `minimal` | 126 B | 2 B |
-| `refund_prod` | 857 B | 345 B |
-| `delegated` | 695 B | 90 B |
-| `mutated_amount` | 857 B | 347 B |
+| `refund_prod` | 857 B | 360 B |
+| `delegated` | 710 B | 90 B |
+| `mutated_amount` | 857 B | 362 B |
+
+The sizes are what `TestBenchmarkedPathSucceeds` logs; no results file holds
+them, and `TestBenchmarksPageSizes` pins them.
 
 Each input is checked before it is timed: all three functions return early
 when they refuse their input, so a fixture that stopped validating, or a
@@ -109,7 +111,7 @@ can take the records written since the last tick.
 One run of `scripts/bench.sh --publish` with `COUNT=5 BENCHTIME=1s`, at commit
 `95816d1`, whose results file
 [bench/results/20261005T211214Z-darwin-arm64.txt](../../bench/results/20261005T211214Z-darwin-arm64.txt)
-holds every measurement on this page.
+holds every other measurement on this page.
 
 | Item | Value |
 | --- | --- |
@@ -118,7 +120,7 @@ holds every measurement on this page.
 | Go | go1.27.1 darwin/arm64 |
 | Load | 4.52 over the minute it started, 7.90 over five |
 
-The machine was not idle, which is what the load averages record.
+The machine was not idle.
 
 ## Validate and DigestV1
 

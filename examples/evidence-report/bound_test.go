@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -209,4 +210,63 @@ func TestExportByteBound(t *testing.T) {
 			}
 		})
 	}
+}
+
+// endless serves its prefix and then bytes that no newline ever ends. It
+// fails a read only far past every bound, so a reader that ignores the
+// bounds ends instead of spinning, and the test sees how much it took.
+type endless struct {
+	prefix string
+	served int
+}
+
+const endlessBackstop = 4 * maxExportBytes
+
+func (e *endless) Read(p []byte) (int, error) {
+	if e.served >= len(e.prefix)+endlessBackstop {
+		return 0, errors.New("the endless reader's backstop")
+	}
+	n := 0
+	if e.served < len(e.prefix) {
+		n = copy(p, e.prefix[e.served:])
+	}
+	for ; n < len(p); n++ {
+		p[n] = 'x'
+	}
+	e.served += n
+	return n, nil
+}
+
+// TestEndlessLine: a line no newline ends is read no further than its bound,
+// the export's bytes after the header, or a record's bytes for the header
+// itself, and refused there.
+func TestEndlessLine(t *testing.T) {
+	t.Parallel()
+	const slack = 4096 // one fill of the reader's buffer past the bound
+	t.Run("after the header", func(t *testing.T) {
+		t.Parallel()
+		header := newExport("1.0").lines[0] + "\n"
+		in := &endless{prefix: header}
+		got, err := readExport(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if read := in.served - len(header); read > maxExportBytes+slack {
+			t.Fatalf("read %d bytes after the header, past the bound %d; refusal %q", read, maxExportBytes, got.firstRefusal)
+		}
+		if !stopped(got) || !strings.Contains(got.firstRefusal, "line 2: the export goes on past 67108864 bytes after its header") {
+			t.Fatalf("%d refused, the first %q; want the line refused at the byte bound", got.refused, got.firstRefusal)
+		}
+	})
+	t.Run("the header", func(t *testing.T) {
+		t.Parallel()
+		in := &endless{prefix: `{"type":"header","file":"`}
+		_, err := readExport(in)
+		if in.served > maxRecordBytes+1+slack {
+			t.Fatalf("read %d bytes of the header, past the bound %d; error %v", in.served, maxRecordBytes, err)
+		}
+		if err == nil || err.Error() != "the first record is not a whole header" {
+			t.Fatalf("error %v, want the header refused as not whole", err)
+		}
+	})
 }

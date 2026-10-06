@@ -146,7 +146,7 @@ func trailerCases(r1 []string) []reportCase {
 }
 
 func eventCases(r1 []string) []reportCase {
-	backwards := newExport("1.0").event(r1...).raw(`{"type":"gap","offset":100,"cursor":"c","reason":"malformed"}`)
+	backwards := newExport("1.0").event(r1...).raw(`{"type":"gap","offset":100,"cursor":"v1:` + exportSource + `:200:` + digest("\n") + `","reason":"malformed"}`)
 	return []reportCase{
 		{name: "an event of another major", in: newExport("1.0").event(r1[:3]...).event(strings.Replace(r1[3], `"1.0"`, `"2.0"`, 1)).whole(),
 			rows:   []string{"t\tp\tr1\trun-r1\tread_order\tALLOW\tRULE_ALLOW\t-\tno\t-\topen\tno event ends the action"},

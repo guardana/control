@@ -100,8 +100,7 @@
 <main id="main" class="prose">
 <h1 id="benchmarks">Benchmarks</h1>
 <p>What three calls on the authorization path and one tool call through the
-gateway cost, measured on one machine. These are measurements, not thresholds
-or gate conditions. How to run and publish them is in
+gateway cost, measured on one machine. How to run and publish them is in
 <a href="https://github.com/guardana/control/blob/main/bench/README.md">bench/README.md</a>.</p>
 <h2 id="what-is-measured">What is measured</h2>
 <p>Three functions, all <code>implemented</code>, and the <code>experimental</code> gateway around
@@ -185,20 +184,22 @@ envelopes, so the two numbers can be read against each other.</p>
 <tr>
 <td><code>refund_prod</code></td>
 <td>857 B</td>
-<td>345 B</td>
+<td>360 B</td>
 </tr>
 <tr>
 <td><code>delegated</code></td>
-<td>695 B</td>
+<td>710 B</td>
 <td>90 B</td>
 </tr>
 <tr>
 <td><code>mutated_amount</code></td>
 <td>857 B</td>
-<td>347 B</td>
+<td>362 B</td>
 </tr>
 </tbody>
 </table>
+<p>The sizes are what <code>TestBenchmarkedPathSucceeds</code> logs; no results file holds
+them, and <code>TestBenchmarksPageSizes</code> pins them.</p>
 <p>Each input is checked before it is timed: all three functions return early
 when they refuse their input, so a fixture that stopped validating, or a
 snapshot that went stale against the real clock, would be reported as fast
@@ -335,7 +336,7 @@ can take the records written since the last tick.</p>
 <p>One run of <code>scripts/bench.sh --publish</code> with <code>COUNT=5 BENCHTIME=1s</code>, at commit
 <code>95816d1</code>, whose results file
 <a href="https://github.com/guardana/control/blob/main/bench/results/20261005T211214Z-darwin-arm64.txt">bench/results/20261005T211214Z-darwin-arm64.txt</a>
-holds every measurement on this page.</p>
+holds every other measurement on this page.</p>
 <table>
 <thead>
 <tr>
@@ -362,7 +363,7 @@ holds every measurement on this page.</p>
 </tr>
 </tbody>
 </table>
-<p>The machine was not idle, which is what the load averages record.</p>
+<p>The machine was not idle.</p>
 <h2 id="validate-and-digestv1">Validate and DigestV1</h2>
 <p>Nanoseconds per operation are the lowest, median and highest of the five
 repetitions, to show the spread. Allocation counts and bytes were identical in

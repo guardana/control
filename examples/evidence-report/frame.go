@@ -25,12 +25,12 @@ func checkHeader(l rawLine) (header, error) {
 		return header{}, err
 	}
 	var h struct {
-		Type    string       `json:"type"`
-		Format  *string      `json:"format"`
-		Version *string      `json:"version"`
-		File    *string      `json:"file"`
-		Source  *string      `json:"source"`
-		Query   *headerQuery `json:"query"`
+		Type    string          `json:"type"`
+		Format  *string         `json:"format"`
+		Version *string         `json:"version"`
+		File    *string         `json:"file"`
+		Source  json.RawMessage `json:"source"`
+		Query   *headerQuery    `json:"query"`
 	}
 	if err := json.Unmarshal(l.b, &h); err != nil {
 		return header{}, errors.New("the first record is not a header: a member is of another type")
@@ -50,7 +50,24 @@ func checkHeader(l rawLine) (header, error) {
 	case major != exportMajor:
 		return header{}, fmt.Errorf("the header's version is of major %d, and this reader reads major %d", major, exportMajor)
 	}
-	return h.Query.facts(h.Source), nil
+	source, err := sourceOf(h.Source)
+	if err != nil {
+		return header{}, err
+	}
+	return h.Query.facts(source), nil
+}
+
+// sourceOf reads the header's source: the SHA-256 of the file's first line,
+// absent while the file holds no whole line.
+func sourceOf(raw json.RawMessage) (string, error) {
+	if raw == nil {
+		return "", nil
+	}
+	var s string
+	if json.Unmarshal(raw, &s) != nil || !isSum(s) {
+		return "", errors.New("the header's source is not the SHA-256 of a first line in 64 lowercase hex digits")
+	}
+	return s, nil
 }
 
 type headerQuery struct {
@@ -62,11 +79,8 @@ type headerQuery struct {
 
 // facts is what a state follows of the header: the file's identity, the
 // cursor the export starts after, and whether it names a filter.
-func (q *headerQuery) facts(source *string) header {
-	var h header
-	if source != nil {
-		h.source = *source
-	}
+func (q *headerQuery) facts(source string) header {
+	h := header{source: source}
 	if q != nil {
 		if q.After != nil {
 			h.after = *q.After

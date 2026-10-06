@@ -21,14 +21,25 @@ version="2026-07-28"
 body='{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"'"${tool}"'","arguments":'"${args}"',"_meta":{"io.modelcontextprotocol/protocolVersion":"'"${version}"'","io.modelcontextprotocol/clientCapabilities":{}}}}'
 
 # The answer comes as JSON or as one server-sent event; either way the
-# JSON-RPC message is printed alone.
-answer="$(curl -sS --max-time 30 -X POST "${url}" \
+# JSON-RPC message is printed alone. A status other than 2xx fails the call,
+# said with the reply's body on standard error.
+reply="$(curl -sS --max-time 30 -X POST "${url}" \
+  -w '\n%{http_code}' \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   -H "MCP-Protocol-Version: ${version}" \
   -H 'Mcp-Method: tools/call' \
   -H "Mcp-Name: ${tool}" \
   --data-binary "${body}")"
+status="${reply##*$'\n'}"
+answer="$(printf '%s' "${reply%$'\n'*}")"
+if [[ ! "${status}" =~ ^2[0-9][0-9]$ ]]; then
+  printf '%s: HTTP status %s\n' "$0" "${status}" >&2
+  if [[ -n "${answer}" ]]; then
+    printf '%s\n' "${answer}" >&2
+  fi
+  exit 1
+fi
 case "${answer}" in
   event:* | data:*) printf '%s\n' "${answer}" | sed -n 's/^data: //p' ;;
   *) printf '%s\n' "${answer}" ;;
