@@ -67,6 +67,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs" aria-current="page">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -148,7 +149,9 @@ to close and another to open.</p>
 <p><code>runs close &lt;dir&gt; &lt;run-id&gt;</code> prints <code>closed &lt;run-id&gt;</code>. A closed run, an unknown
 one and a malformed id each exit 1. A closed run's token is refused at the
 next request or message, and a call that passed the listener before the close
-still runs.</p>
+still runs. A plane with a route also stops an open run without closing it:
+a stop from a confirmed finding refuses the run's later calls <code>RUN_STOPPED</code>
+until it expires or is lifted (<a href="/docs/reference/reaction">reaction.md</a>).</p>
 <p><code>runs list &lt;dir&gt;</code> prints one run a line: its id, <code>open</code>, <code>closed</code> or <code>expired</code>
 by this machine's clock, then <code>root</code>, <code>tenant_id</code>, <code>principal_type</code>,
 <code>principal_id</code>, <code>agent_id</code>, <code>opened_at</code> and <code>expires_at</code>, each followed by its
@@ -235,6 +238,7 @@ its id.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs" aria-current="page">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>

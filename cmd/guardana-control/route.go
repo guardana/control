@@ -24,7 +24,8 @@ const (
 
 // stopsAuthority is what the help and docs/reference/cli.md both say about
 // who may stop a run and who may lift a stop.
-const stopsAuthority = "Only the lift key lifts a stop; write access to the stops directory adds any stop the route allows."
+const stopsAuthority = "Only the lift key lifts a stop while a plane runs; write access to the stops directory\n" +
+	"adds any stop the route allows and, across a restart, can start a new list with none."
 
 // routeFileMode is the mode route sign writes with: a signed route is
 // public, as a freshness statement is.

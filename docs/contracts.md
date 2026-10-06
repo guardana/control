@@ -2,7 +2,7 @@
 title: Wire contracts
 summary: What the v1 messages are versioned by, what a receiver refuses them for, and how the evidence events chain.
 type: spec
-covers: [api/proto/guardana/control/v1/**, api/gen/go/guardana/control/v1/**, pkg/contract/**, internal/canon/**, internal/evidence/chain.go, internal/evidence/version.go, internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, internal/lineexport/**, internal/runs/record.go, internal/runs/state.go, testdata/contracts/**, testdata/digest/**, testdata/export/**]
+covers: [api/proto/guardana/control/v1/**, api/gen/go/guardana/control/v1/**, pkg/contract/**, internal/canon/**, internal/evidence/chain.go, internal/evidence/version.go, internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, internal/lineexport/**, internal/runs/record.go, internal/runs/state.go, internal/reaction/route.go, internal/reaction/line.go, internal/reaction/lift.go, internal/reaction/envelope.go, internal/reaction/judge.go, testdata/contracts/**, testdata/digest/**, testdata/export/**]
 stability: stable
 ---
 
@@ -1244,3 +1244,94 @@ is always replaced whole, never edited in place.
 
 A state only rises: `untrusted` never goes back to `false`, and `max_read`
 never falls, `UNKNOWN` included.
+
+## The reaction route and the stop list
+
+What a route and a stop list hold, for an operator who writes a route and a
+program that reads a list. `experimental`, in `internal/reaction/`
+([ADR-0046](adr/0046-a-finding-stops-one-run-through-a-signed-route.md));
+[reference/reaction.md](reference/reaction.md) says what the commands and a
+plane do with them. Only `guardana-control route sign` signs a route, and
+only `stops` and `react` write a list, under its lock; a plane reads both and
+writes neither.
+
+### The route
+
+One strict JSON object of at most 64 KiB: a member this build cannot name, one
+given twice, a `null` and a value of another type are refused.
+
+| Member | Meaning |
+| --- | --- |
+| `kind` | `reaction-route/v1alpha1` |
+| `route_id` | the route's id, spelled as a bundle id; it names the route's floor |
+| `serial` | an integer from 1 to 2^53-1 |
+| `tenant_id` | the one tenant whose runs the route may stop |
+| `scope` | `run` |
+| `lift_public_key` | the key every lift is signed with, one line of standard base64, as `policy.public_key` takes it |
+| `rules` | 1 to 256 rules, no two alike: each a `procedure_id`, `version` and `digest`, as a finding record names its procedure, a supervise `rule_id` and `rule_version`, and an optional `expires_seconds` from 60 to 2592000, the longest a run lives |
+
+The route's digest is `sha256:` and the lowercase hex SHA-256 of its RFC 8785
+canonical form. The signed route is a DSSE envelope as JSON, of at most
+128 KiB, the shape the freshness statement's file has: payload type
+`application/vnd.agent-reaction-route+json`, the canonical form as its
+payload, and exactly one signature, by a key apart from the policy key, the
+freshness key and the lift key.
+
+### The stop list
+
+`stops.jsonl`, in the directory `reaction.stops` names: JSON Lines of at most
+4 MiB and 20 000 lines, the header included, each line at most 64 KiB. A line
+is one object in its RFC 8785 canonical spelling, with `kind` and `version`
+`1.0`; every time is spelled `YYYY-MM-DDTHH:MM:SSZ`. Bytes after the last
+newline are a line being written, and no reader takes them. Lines are
+appended and never rewritten.
+
+| `kind` | Members |
+| --- | --- |
+| `header` | line 1 and no other: `list_id`, and the `route_id`, `route_serial` and `route_digest` of the route the list is judged against |
+| `stop` | `entry_id`, `tenant_id`, `run_id`, `finding_id`, `procedure_id`, `procedure_version`, `procedure_digest`, `rule_id`, `rule_version`, `created_at`, `expires_at` |
+| `covered` | `finding_id`, `tenant_id`, `run_id`, `created_at`: a finding the list names and will not stop again |
+| `lift` | `run_id`, `through_line`, and `envelope`, the signed lift below, of at most 8 KiB |
+
+`entry_id` is `stp-` and the first 32 lowercase hex digits of the SHA-256 of
+`agent-reaction-stop-entry/v1`, a newline and the finding id. A stop ends at
+its `expires_at`, or at a lift of its run whose `through_line` is its line or
+a later one; lines are counted from 1, the header's.
+
+A list is taken whole or not at all. A reader refuses a header that is not
+line 1 alone or names another route; a finding id two lines name; a stop the
+route does not permit, whose tenant is not the route's, whose procedure and
+rule are no rule of it, or whose expiry passes the rule's lifetime; a covered
+line of another tenant; a `created_at` later than the reader's clock and its
+tolerance; and a lift that names a line at or after its own, names a run and
+line an earlier lift named, does not verify under the route's lift key, or
+whose signed run, line, list id and route digest are not its line's and the
+header's. A plane also refuses a list that no longer begins with the bytes it
+accepted before.
+
+### The lift
+
+The payload a lift line's envelope signs, payload type
+`application/vnd.agent-reaction-lift+json`: one object in its canonical form,
+of at most 4 KiB.
+
+| Member | Meaning |
+| --- | --- |
+| `kind` | `reaction-lift/v1alpha1` |
+| `version` | `1.0` |
+| `list_id` | the header's |
+| `route_digest` | the header's, and the route's |
+| `run_id` | the lift line's |
+| `through_line` | the lift line's: the last line whose stops of that run it ends |
+
+### The codes
+
+| Code | Number | Verdict | When |
+| --- | --- | --- | --- |
+| `RUN_STOPPED` | 45 | `DENY` | the call's opened run, as the plane resolved it from the call's token, and its tenant are an active stop's |
+| `STOP_STATE_UNAVAILABLE` | 46 | `INDETERMINATE` | every call, while the plane cannot read or trust the stop list |
+
+Both are the plane's own causes, named in every mode and for every effect
+class before an external decision point is asked, in the order
+[ADR-0046](adr/0046-a-finding-stops-one-run-through-a-signed-route.md) gives.
+A decision names no stop's entry id.

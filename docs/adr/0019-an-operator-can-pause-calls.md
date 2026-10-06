@@ -10,6 +10,13 @@ Builds on [ADR-0012](0012-policy-kernel-semantics.md),
 Amends [ADR-0017](0017-an-external-decision-point-can-veto.md): the decision
 point is never asked about a call the plane blocks whatever it answers.
 
+Amended by [ADR-0046](0046-a-finding-stops-one-run-through-a-signed-route.md):
+a plane with a route also blocks a stopped run's calls `RUN_STOPPED` and every
+call `STOP_STATE_UNAVAILABLE` while its stop list is unknown, and the order of
+the plane's causes becomes `PAUSED`, `RUN_STOPPED`, `EXECUTED_ARGS_MISMATCH`,
+`LOCKDOWN`, `PAUSE_STATE_UNAVAILABLE`, `STOP_STATE_UNAVAILABLE`,
+`EVIDENCE_UNAVAILABLE`, `ACTION_UNCLASSIFIED`.
+
 ## Context
 
 The registry holds `PAUSED`, number 24, `DENY`, and nothing emits it. An

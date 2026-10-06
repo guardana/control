@@ -54,4 +54,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0043](0043-a-refused-over-long-name-is-recorded-by-its-digest.md) | A refused over-long name is recorded by its digest |
 | [0044](0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md) | Coverage judges each plane and joins only a whole export |
 | [0045](0045-one-run-is-supervised-against-its-procedure.md) | One run is supervised against its procedure |
-| [0046](0046-a-finding-stops-one-run-through-a-signed-route.md) | A finding stops one run through a signed route (proposed) |
+| [0046](0046-a-finding-stops-one-run-through-a-signed-route.md) | A finding stops one run through a signed route |

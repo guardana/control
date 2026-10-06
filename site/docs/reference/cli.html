@@ -67,6 +67,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -182,11 +183,9 @@ record holds; the listing says so above the records. A listing the store
 reports incomplete exits 1 and names what it could not read.</p>
 <p><code>approvals approve</code> and <code>approvals reject</code> write the answer whether or not a
 plane is running, and exit 0 either way: the record waits for the next
-plane. Where no plane holds the directory they say
-so on stderr: nothing waits for the answer and the held call will not run,
-since a hold does not survive the plane stopping; the answer is written all
-the same, and a plane that keeps a hold journal records it on that call's
-trail as too late to resume it.</p>
+plane. Where no plane holds the directory they say so on stderr: no held
+call waits for the answer, since a hold does not outlive its plane, and a
+plane that keeps a hold journal records it on that call's trail as too late.</p>
 <p>Both commands refuse, writing nothing, an approval id that is not there, one
 an approver answered already, one the plane consumed, one the plane closed
 without resuming, one past its expiry, and an approver id or a reason over
@@ -219,7 +218,8 @@ serves: <a href="/docs/reference/runs">runs.md</a>.</p>
 <p>The <code>observe</code> commands import an agent runtime's OpenTelemetry spans into an
 observation log and export it: <a href="/docs/reference/observations">observations.md</a>. <code>coverage</code>
 is <a href="/docs/reference/coverage">coverage.md</a>, <code>supervise</code> and <code>notify</code>
-<a href="/docs/reference/supervision">supervision.md</a>.</p>
+<a href="/docs/reference/supervision">supervision.md</a>, and <code>route</code>, <code>stops</code> and <code>react</code>, which
+turn a confirmed finding into a stop of its run, <a href="/docs/reference/reaction">reaction.md</a>.</p>
 <p><code>console</code> serves a page that answers approvals and writes pauses:
 <a href="/docs/reference/console">console.md</a>.</p>
 <pre><code>usage:
@@ -268,7 +268,8 @@ Write access to the runs directory is the authority to open and to close a run;
 a token acts as its run until it expires or is closed, and runs open prints it once.
 Write access to a floor directory is the authority to lower its floors;
 policy state reset is the one way that records why.
-Only the lift key lifts a stop; write access to the stops directory adds any stop the route allows.
+Only the lift key lifts a stop while a plane runs; write access to the stops directory
+adds any stop the route allows and, across a restart, can start a new list with none.
 </code></pre>
 <h2 id="guardana-gateway">guardana-gateway</h2>
 <p><code>run</code> serves one plane from a configuration file and <code>doctor</code> checks that
@@ -394,6 +395,7 @@ dev
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>

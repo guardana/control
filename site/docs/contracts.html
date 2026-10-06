@@ -67,6 +67,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -1532,6 +1533,175 @@ is always replaced whole, never edited in place.</p>
 </table>
 <p>A state only rises: <code>untrusted</code> never goes back to <code>false</code>, and <code>max_read</code>
 never falls, <code>UNKNOWN</code> included.</p>
+<h2 id="the-reaction-route-and-the-stop-list">The reaction route and the stop list</h2>
+<p>What a route and a stop list hold, for an operator who writes a route and a
+program that reads a list. <code>experimental</code>, in <code>internal/reaction/</code>
+(<a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a>);
+<a href="/docs/reference/reaction">reference/reaction.md</a> says what the commands and a
+plane do with them. Only <code>guardana-control route sign</code> signs a route, and
+only <code>stops</code> and <code>react</code> write a list, under its lock; a plane reads both and
+writes neither.</p>
+<h3 id="the-route">The route</h3>
+<p>One strict JSON object of at most 64 KiB: a member this build cannot name, one
+given twice, a <code>null</code> and a value of another type are refused.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kind</code></td>
+<td><code>reaction-route/v1alpha1</code></td>
+</tr>
+<tr>
+<td><code>route_id</code></td>
+<td>the route's id, spelled as a bundle id; it names the route's floor</td>
+</tr>
+<tr>
+<td><code>serial</code></td>
+<td>an integer from 1 to 2^53-1</td>
+</tr>
+<tr>
+<td><code>tenant_id</code></td>
+<td>the one tenant whose runs the route may stop</td>
+</tr>
+<tr>
+<td><code>scope</code></td>
+<td><code>run</code></td>
+</tr>
+<tr>
+<td><code>lift_public_key</code></td>
+<td>the key every lift is signed with, one line of standard base64, as <code>policy.public_key</code> takes it</td>
+</tr>
+<tr>
+<td><code>rules</code></td>
+<td>1 to 256 rules, no two alike: each a <code>procedure_id</code>, <code>version</code> and <code>digest</code>, as a finding record names its procedure, a supervise <code>rule_id</code> and <code>rule_version</code>, and an optional <code>expires_seconds</code> from 60 to 2592000, the longest a run lives</td>
+</tr>
+</tbody>
+</table>
+<p>The route's digest is <code>sha256:</code> and the lowercase hex SHA-256 of its RFC 8785
+canonical form. The signed route is a DSSE envelope as JSON, of at most
+128 KiB, the shape the freshness statement's file has: payload type
+<code>application/vnd.agent-reaction-route+json</code>, the canonical form as its
+payload, and exactly one signature, by a key apart from the policy key, the
+freshness key and the lift key.</p>
+<h3 id="the-stop-list">The stop list</h3>
+<p><code>stops.jsonl</code>, in the directory <code>reaction.stops</code> names: JSON Lines of at most
+4 MiB and 20 000 lines, the header included, each line at most 64 KiB. A line
+is one object in its RFC 8785 canonical spelling, with <code>kind</code> and <code>version</code>
+<code>1.0</code>; every time is spelled <code>YYYY-MM-DDTHH:MM:SSZ</code>. Bytes after the last
+newline are a line being written, and no reader takes them. Lines are
+appended and never rewritten.</p>
+<table>
+<thead>
+<tr>
+<th><code>kind</code></th>
+<th>Members</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>header</code></td>
+<td>line 1 and no other: <code>list_id</code>, and the <code>route_id</code>, <code>route_serial</code> and <code>route_digest</code> of the route the list is judged against</td>
+</tr>
+<tr>
+<td><code>stop</code></td>
+<td><code>entry_id</code>, <code>tenant_id</code>, <code>run_id</code>, <code>finding_id</code>, <code>procedure_id</code>, <code>procedure_version</code>, <code>procedure_digest</code>, <code>rule_id</code>, <code>rule_version</code>, <code>created_at</code>, <code>expires_at</code></td>
+</tr>
+<tr>
+<td><code>covered</code></td>
+<td><code>finding_id</code>, <code>tenant_id</code>, <code>run_id</code>, <code>created_at</code>: a finding the list names and will not stop again</td>
+</tr>
+<tr>
+<td><code>lift</code></td>
+<td><code>run_id</code>, <code>through_line</code>, and <code>envelope</code>, the signed lift below, of at most 8 KiB</td>
+</tr>
+</tbody>
+</table>
+<p><code>entry_id</code> is <code>stp-</code> and the first 32 lowercase hex digits of the SHA-256 of
+<code>agent-reaction-stop-entry/v1</code>, a newline and the finding id. A stop ends at
+its <code>expires_at</code>, or at a lift of its run whose <code>through_line</code> is its line or
+a later one; lines are counted from 1, the header's.</p>
+<p>A list is taken whole or not at all. A reader refuses a header that is not
+line 1 alone or names another route; a finding id two lines name; a stop the
+route does not permit, whose tenant is not the route's, whose procedure and
+rule are no rule of it, or whose expiry passes the rule's lifetime; a covered
+line of another tenant; a <code>created_at</code> later than the reader's clock and its
+tolerance; and a lift that names a line at or after its own, names a run and
+line an earlier lift named, does not verify under the route's lift key, or
+whose signed run, line, list id and route digest are not its line's and the
+header's. A plane also refuses a list that no longer begins with the bytes it
+accepted before.</p>
+<h3 id="the-lift">The lift</h3>
+<p>The payload a lift line's envelope signs, payload type
+<code>application/vnd.agent-reaction-lift+json</code>: one object in its canonical form,
+of at most 4 KiB.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kind</code></td>
+<td><code>reaction-lift/v1alpha1</code></td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td><code>1.0</code></td>
+</tr>
+<tr>
+<td><code>list_id</code></td>
+<td>the header's</td>
+</tr>
+<tr>
+<td><code>route_digest</code></td>
+<td>the header's, and the route's</td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td>the lift line's</td>
+</tr>
+<tr>
+<td><code>through_line</code></td>
+<td>the lift line's: the last line whose stops of that run it ends</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-codes">The codes</h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Number</th>
+<th>Verdict</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RUN_STOPPED</code></td>
+<td>45</td>
+<td><code>DENY</code></td>
+<td>the call's opened run, as the plane resolved it from the call's token, and its tenant are an active stop's</td>
+</tr>
+<tr>
+<td><code>STOP_STATE_UNAVAILABLE</code></td>
+<td>46</td>
+<td><code>INDETERMINATE</code></td>
+<td>every call, while the plane cannot read or trust the stop list</td>
+</tr>
+</tbody>
+</table>
+<p>Both are the plane's own causes, named in every mode and for every effect
+class before an external decision point is asked, in the order
+<a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a> gives.
+A decision names no stop's entry id.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/contracts.md">docs/contracts.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
 <nav class="side" aria-label="Documentation">
@@ -1574,6 +1744,7 @@ never falls, <code>UNKNOWN</code> included.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>

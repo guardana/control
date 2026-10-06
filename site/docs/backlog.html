@@ -67,6 +67,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -161,12 +162,6 @@ view says what it did not see.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td>B19</td>
-<td>Stop one run from a finding</td>
-<td>ADR on the reaction source</td>
-<td>A reaction source, apart from the operator's pause file and add-only for the emitter, holds entries with a run scope, an expiry and the finding that caused each. A plane with runs refuses that run's later calls and no other run's; a plane that cannot serve a scope a route names refuses to start. Only a deterministic, confirmed finding stops by default; a repeated finding writes one entry; a call already running is not cut, and the docs say so. A route is verified under a key apart from the policy key, and its serial never goes down. An unreadable or unverifiable reaction source blocks every call on the planes that read it, as an unreadable pause file does</td>
-</tr>
 <tr>
 <td>B22</td>
 <td>Show one supervised run</td>
@@ -319,6 +314,7 @@ sessions and feedback, consistent with the no-phone-home decision.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>

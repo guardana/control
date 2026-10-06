@@ -67,6 +67,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -136,13 +137,14 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/reference/console">The approvals page</a>: What guardana-control console serves, what it prints, what it refuses and what it cannot tell you.</li>
 <li><a href="/docs/reference/coverage">Coverage</a>: What guardana-control coverage reads, the inventory it takes, the state it gives each declared path, the join with a plane's evidence, and its exit status.</li>
 <li><a href="/docs/reference/dev">Dev mode</a>: What guardana-gateway dev lays out, refuses, prints and stops, and how --scenario runs each scenario on a plane of its own.</li>
-<li><a href="/docs/reference/failure-modes">Failure modes</a>: What a plane does when its collector, spool, decision point, an upstream, its pause file, freshness statement or clock fails, or it is killed holding calls.</li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a>: What a plane does when its collector, spool, decision point, upstream, pause file, stop list, freshness statement or clock fails, or it is killed holding calls.</li>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a>: Per revision, transport and method, what the gateway enforces today and what it does not.</li>
 <li><a href="/docs/reference/metrics">Metrics</a>: Every metric a plane answers on /metrics, with its type, its label, the statistic it reads and what it counts.</li>
 <li><a href="/docs/reference/obligations">Obligations</a>: The catalogue of obligation types a policy rule may name, and what the tree does with one.</li>
 <li><a href="/docs/reference/observations">Observations</a>: The source descriptor, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export.</li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a>: What <code>guardana-control policy explain</code> reads, every line it prints, which rule decided and which input a rule could not read, and its bounds.</li>
 <li><a href="/docs/reference/policy-format">Policy document format</a>: Every member of an agent-policy/v1alpha1 document, the values each admits, the bounds, and the members of a policy test case.</li>
+<li><a href="/docs/reference/reaction">Reaction</a>: The signed route, the stop list and the commands that write them, and how a plane refuses a stopped run's calls and reports its stops.</li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a>: Every reason code a decision may carry, with its number and the verdict it usually accompanies.</li>
 <li><a href="/docs/reference/runs">Runs</a>: The runs directory, what runs open, close and list print and refuse, and what a plane with runs.dir does with a token.</li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a>: Every member of an agent-scenario/v1alpha1 document, how scenario run holds a live plane to one, and what it exits with.</li>
@@ -218,7 +220,7 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/adr/0043-a-refused-over-long-name-is-recorded-by-its-digest">ADR-0043: A refused over-long name is recorded by its digest</a>: accepted</li>
 <li><a href="/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export">ADR-0044: Coverage judges each plane and joins only a whole export</a>: accepted</li>
 <li><a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045: One run is supervised against its procedure</a>: accepted</li>
-<li><a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046: A finding stops one run through a signed route</a>: proposed</li>
+<li><a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046: A finding stops one run through a signed route</a>: accepted</li>
 </ul>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/index.md">docs/index.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
@@ -262,6 +264,7 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>

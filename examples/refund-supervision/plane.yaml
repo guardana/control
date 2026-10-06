@@ -1,7 +1,7 @@
 # The plane in front of the orders server. Every path resolves against this
 # file's directory: the server is the binary in bin/ two directories up, and
 # the plane's state sits in state/. Fill in the lines of the two keys from
-# what keygen printed, as the README says.
+# what keygen printed, and make the route's files, as the README says.
 mode: ENFORCE
 project_id: refunds
 tenant_id: acme
@@ -32,6 +32,13 @@ policy:
 
 runs:
   dir: state/runs
+
+reaction:
+  route: state/route.signed.json
+  public_key: state/route.pub
+  floor_dir: state/routefloor
+  stops: state/stops
+  poll_interval: 1s
 
 approvals:
   provider: file

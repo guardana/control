@@ -13,7 +13,9 @@ agent's runtime reported, and appends findings to a findings log.
 `guardana-control notify` hands each alert in that log to a program of the
 operator's, at least once. Both are `experimental`. Neither decides a call,
 and no plane reads what they write
-([ADR-0045](../adr/0045-one-run-is-supervised-against-its-procedure.md)).
+([ADR-0045](../adr/0045-one-run-is-supervised-against-its-procedure.md));
+`react` turns a confirmed finding into a stop of its run, which a plane with
+a route reads ([reaction.md](reaction.md)).
 
 ```
 guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --findings <dir>

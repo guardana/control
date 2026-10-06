@@ -1,21 +1,18 @@
 ---
 title: Failure modes
-summary: What a plane does when its collector, spool, decision point, an upstream, its pause file, freshness statement or clock fails, or it is killed holding calls.
+summary: What a plane does when its collector, spool, decision point, upstream, pause file, stop list, freshness statement or clock fails, or it is killed holding calls.
 type: reference
-covers: [cmd/guardana-gateway/serve.go, cmd/guardana-gateway/adapter.go, cmd/guardana-gateway/chaos_*_test.go, adapters/mcp/middleware.go, adapters/mcp/answer.go, adapters/authzen/**, adapters/otel/**, internal/spool/**, internal/pause/**, internal/gateway/close.go, internal/gateway/decisionpoint.go, internal/gateway/lapse.go, internal/gateway/resume.go, internal/core/clock.go, internal/core/clock_test.go, internal/gateway/e2e/**, internal/gateway/reconcile.go, internal/policy/policy.go, internal/policywatch/**, internal/policystate/**]
+covers: [cmd/guardana-gateway/serve.go, cmd/guardana-gateway/adapter.go, cmd/guardana-gateway/chaos_*_test.go, adapters/mcp/middleware.go, adapters/mcp/answer.go, adapters/authzen/**, adapters/otel/**, internal/spool/**, internal/pause/**, internal/gateway/close.go, internal/gateway/decisionpoint.go, internal/gateway/lapse.go, internal/gateway/resume.go, internal/core/clock.go, internal/core/clock_test.go, internal/gateway/e2e/**, internal/gateway/reconcile.go, internal/policy/policy.go, internal/policywatch/**, internal/policystate/**, internal/reaction/stoplist/**, cmd/guardana-gateway/reaction.go]
 ---
 
 # Failure modes
 
-The plane is built to survive the twelve failures below. Each row says
-whether the plane blocks the call, the reason code, what the agent gets,
-whether the plane recovers without an operator, and the test that makes the
-failure happen. The sections after the table say what the trail holds.
-
-The tests in the `chaos_` files of `cmd/guardana-gateway/` run the built
-binary as a process in `ENFORCE`, against listeners, files and a child
-process that really fail. Nothing here is a security boundary
-([status](../status.md)).
+Each row says whether the plane blocks the call, its code, what the agent
+gets, whether the plane recovers without an operator, and the test that makes
+the failure happen; the sections say what the trail holds. The `chaos_` tests
+of `cmd/guardana-gateway/` run the built binary in `ENFORCE` against
+listeners, files and a child process that really fail. Nothing here is a
+security boundary ([status](../status.md)).
 
 | Failure | The call | Reason code | The agent gets | Recovers by itself | Test |
 | --- | --- | --- | --- | --- | --- |
@@ -26,6 +23,7 @@ process that really fail. Nothing here is a security boundary
 | `stdio` upstream dies mid-call | sent once, never retried | none | a JSON-RPC error | no: restart the plane | `TestAStdioUpstreamThatDiesMidCallIsNeverASuccess` |
 | HTTP upstream drops the connection mid-call | sent once, never retried | none | a JSON-RPC error | yes, the next call is sent | `TestAnHTTPUpstreamThatDropsTheCallIsNeverASuccess` |
 | Pause file unreadable | blocked | `PAUSE_STATE_UNAVAILABLE` | `isError` and the code | yes, at the first read of a whole file | `TestAPauseFileSpoiledWhileThePlaneRunsBlocksEveryCall` |
+| Stop list unknown | blocked | `STOP_STATE_UNAVAILABLE` | `isError` and the code | yes, at a whole read extending the accepted list; shrunk or rewritten, no | `TestAnUnknownStopStateBlocksEveryCall`, `TestHealthAnswersTheStopStateAnd503WhenTheListIsRewritten` |
 | Freshness statement missing, expired or refused, at start or later | blocked, a read too unless `policy.fail_open_read` | `POLICY_STALE` | `isError` and the code | yes, at the first poll that takes a statement bound to the bundle | `TestAnUnconfirmedPlaneBlocksMaterialCalls`, `TestARenewalConfirmsAgain` |
 | Bundle file torn, unsigned, older or another id's | runs on the last good bundle until its statement expires, then blocked | none, then `POLICY_STALE` | the upstream's answer, then `isError` and the code | yes, once the file holds the served bundle or a newer one with its statement | `TestEveryRefusedReplacementMovesNothing` |
 | Clock outside 1970 to 9999, or behind the verified time | blocked outside `OBSERVE`, a read too, whatever `policy.fail_open_read` says | `POLICY_STALE` | `isError` and the code | yes, once the clock passes the verified time, or at a restart after `policy state reset`; outside 1970 to 9999, no: fix the clock | `TestAClockOutsideTheUsableRangeIsACauseInTheRequest`, `TestAClockBehindAVerifiedTimeIsACauseInTheRequest`, `TestAClockBehindTheFloorStopsAnUnconfirmedSnapshotsRead` |
@@ -41,57 +39,50 @@ the adapter's code.
 
 ## Collector gone, then back
 
-The exporter resends with a backoff that grows to `export.max_backoff`, and
-every record stays in the spool: `/healthz` counts them in
-`spool.unacknowledged` and the failed sends in `exporter.retried_transport`.
-No call is blocked for it until the spool is full. When a collector answers
-at the endpoint again, every record it accepts arrives. A record it refuses
-again and again goes to `quarantine.log` in the spool. Delivery is at least
-once, so a collector tells copies apart by `event_id`.
+The exporter resends with a backoff growing to `export.max_backoff`; every
+record stays in the spool (`/healthz`: `spool.unacknowledged`, and
+`exporter.retried_transport` for failed sends), and no call is blocked until
+the spool is full. Once a collector answers again, every record it accepts
+arrives, at least once, so it tells copies apart by `event_id`; one it keeps
+refusing goes to the spool's `quarantine.log`.
 `TestCollectorOutageBlocksNoDecision` in `internal/gateway/e2e/` holds the
-same for a collector that answers `503`.
+same for a collector answering `503`.
 
 ## Spool full
 
-If a record would take the bytes on disk and the reservations past
-`evidence.max_bytes`, a call is blocked before anything runs. A read is
-blocked too, unless `evidence.on_unwritable` is `allow_reads`. The block is
-not recorded, because the record that would have held it is the one that
-failed. A call already running writes its closing record into the room its
-`ACTION_STARTED` reserved, up to the reserved size; bytes past it are
-checked like any record's (`TestAClosingRecordWritesOnAFullSpool`). Calls
-run again once the exporter has delivered and the spool has released what
-the collector accepted.
+A record that would take the bytes on disk and the reservations past
+`evidence.max_bytes` blocks the call before anything runs, a read too unless
+`evidence.on_unwritable` is `allow_reads`. The block is not recorded: its
+record is the one that failed. A running call writes its closing record into
+the room its `ACTION_STARTED` reserved; bytes past it are checked like any
+record's (`TestAClosingRecordWritesOnAFullSpool`). Calls run again once the
+spool has released what the collector accepted.
 
 ## Decision point silent, wrong or gone
 
-The plane asks the decision point only when its answer would change a call's
-decision, so a failure blocks only calls a veto rule covers. Its trail ends
-`ACTION_BLOCKED` with the code, and nothing was started. An ask past
-`pdp.timeout` is `PDP_TIMEOUT`. An answer the plane cannot read as an allow
-or a deny is `PDP_ANSWER_REFUSED`: two `decision` members, even when they
-agree; a string for a boolean; a truncated or trailing document; an unknown
-member on an allow; or no decision at all. A decision point with nothing
-listening, a `500` answer, or an ask past `pdp.max_in_flight` is
-`PDP_UNAVAILABLE`. A well-formed `false` is `PDP_DENY`; a forged `true` is
+The plane asks only when the answer would change a call's decision, so a
+failure blocks only calls a veto rule covers, and their trail ends
+`ACTION_BLOCKED` with the code. An ask past `pdp.timeout` is
+`PDP_TIMEOUT`. An answer that is no plain allow or deny is
+`PDP_ANSWER_REFUSED`: two `decision` members, even agreeing; a string for a
+boolean; a truncated or trailing document; an unknown member on an allow; or
+no decision. Nothing listening, a `500`, or an ask past `pdp.max_in_flight`
+is `PDP_UNAVAILABLE`. A well-formed `false` is `PDP_DENY`; a forged `true` is
 read as an allow ([threat model](../concepts/threat-model.md)).
 
 ## An upstream that dies mid-call
 
-The call was decided, started and sent, and the upstream took it; no answer
-came back. The agent gets a JSON-RPC error, never a result, and the plane
-does not send the call again. The trail ends `ACTION_FAILED`, never
-`ACTION_COMPLETED`.
+The upstream took the decided, started call and no answer came back. The
+agent gets a JSON-RPC error, never a result; the call is not sent again, and
+its trail ends `ACTION_FAILED` with an `UNKNOWN` result and
+`tool_protocol_status: error`, never `ACTION_COMPLETED`.
 
-- A `stdio` upstream is a child process. When it exits during a call, the
-  result is `UNKNOWN` with `tool_protocol_status: error`. The plane does not
-  start it again: every later call to it is decided, recorded as started,
-  closed `ACTION_FAILED` with an `UNKNOWN` result and answered with an
-  error, until the plane restarts. Calls to the other upstreams run.
+- A `stdio` upstream, a child process, that exits during a call is not
+  started again: every later call to it is decided, started, closed that way
+  and answered with an error until the plane restarts. Other upstreams run.
 - An HTTP upstream that closes the connection after reading the call, before
-  or after its status line, is recorded `UNKNOWN` with
-  `tool_protocol_status: error`: the outcome of that call is unknown. The
-  next call to the same upstream is sent and answered.
+  or after its status line, leaves that call's outcome unknown; the next
+  call to it is sent and answered.
 
 An upstream that answers nothing within `upstream.call_timeout` is closed
 with a `TIMEOUT` result (`TestUpstreamTimeoutIsRecordedAsOne`).
@@ -99,33 +90,48 @@ with a `TIMEOUT` result (`TestUpstreamTimeoutIsRecordedAsOne`).
 ## Pause file unreadable
 
 At start, a pause file that is missing, garbled, too large, a link, a
-directory, or writable by the group or others stops the plane before it
-listens, naming `pause.file` and the cause
-(`TestAStartIsRefusedOnEveryUnknownCause`). While the plane runs, the reader
-takes the file once every `pause.poll_interval`. If a read meets one of
-those causes, or the file cannot be read, every call is blocked until a read
-finds a whole file again. A read older than three intervals is unknown as
-well. `/healthz` answers `503` with `pause.state: unknown` and the cause
+directory, or writable by the group or others refuses the start, naming
+`pause.file` and the cause (`TestAStartIsRefusedOnEveryUnknownCause`). While
+the plane runs, a read every `pause.poll_interval` that meets one of those
+causes, or cannot read the file, blocks every call until a read finds a whole
+file, and so does a read older than three intervals. `/healthz` answers `503`
+with `pause.state: unknown` and the cause
 (`TestHealthAnswers503OnEveryUnknownState`), and the trail of each call ends
 `ACTION_BLOCKED` with the code.
 
+## Stop list unknown
+
+At start, a stop list the plane cannot serve refuses the start, naming
+`reaction.stops` and the cause
+(`TestAStopListThatCannotBeServedRefusesTheStart`). While the plane runs, a
+read every `reaction.poll_interval` that is not whole, or does not extend the
+bytes accepted before, blocks every call until one does. `/healthz` answers
+`503` with `stops.state: unknown` and one cause, which `/metrics` counts:
+`missing`, `unreadable`, `a link`, `writable by others`, `owned by another
+account`, `never read`, `too large`, `malformed`, `another route`, `header
+changed`, `shrunk`, `rewritten`, `a stop the route does not permit`, `a line
+dated ahead`, `a lift that does not verify`, `clock unusable`, `stale` or
+`read ahead`. The trail of each call ends
+`ACTION_BLOCKED` with the code. A shrunk or rewritten list stays unknown
+until `stops init --carry` copies its unlifted stops to a new list and the
+plane restarts ([reaction.md](reaction.md)).
+
 ## A policy that is not confirmed
 
-Every poll rereads the bundle and the statement. A refusal is
-logged and counted by cause in
+Every poll rereads the bundle and the statement, and logs and counts a
+refusal by cause in
 `guardana_control_policy_refresh_refused_total`: `bundle_unreadable`,
 `bundle_invalid`, `bundle_id`, `bundle_budget`, `rollback`, `serial_reused`,
 `statement_missing`, `statement_unreadable`, `statement_invalid`,
 `statement_unbound`, `statement_future`, `statement_expired`, `below_floor`,
 `clock_behind_floor`, `clock_back`, `withdrawn`, `floor` or `unknown`. A
 floor restored below the confirmed statement counts under `floor`. The
-bundle in use keeps its confirmation. A refused bundle file also stops
-renewals, since each poll pairs statement and file: the plane turns stale
-when the last budget ends. While
-the policy is not confirmed, each call's `POLICY_DECIDED` carries
+bundle in use keeps its confirmation, but a refused bundle file stops
+renewals, since each poll pairs statement and file, so the plane turns stale
+when the last budget ends. Then each call's `POLICY_DECIDED` carries
 `POLICY_STALE` and `policy_freshness` `STALE`, `/healthz` answers
-`"status":"degraded"`, and outside `OBSERVE` a call is blocked with
-`ACTION_BLOCKED`, a read too unless `policy.fail_open_read`.
+`"status":"degraded"`, and outside `OBSERVE` a call is blocked, a read too
+unless `policy.fail_open_read`.
 
 ## A clock that cannot be read as now
 
@@ -148,21 +154,18 @@ approval's `requested_at`, blocks it as lapsed: `APPROVAL_EXPIRED` or `EVIDENCE_
 ## Plane killed with calls held
 
 A held call's trail stands at `APPROVAL_REQUESTED` while no plane runs, and
-an approver can still answer its record. With `approvals.hold_journal_dir`
-set, the next `run` closes that trail. It records the answer, then
-`ACTION_BLOCKED` with `APPROVAL_NOT_RESUMED` for an approval,
-`APPROVAL_REJECTED` for a rejection, or `APPROVAL_EXPIRED` when nobody
-answered or the approval expired. When the store cannot be read, has lost a
-record whose approval has not expired, or answers with a record that fails
-its checks, an approval with no approver or a state no answer has, the block
-is `INDETERMINATE` with `APPROVAL_STATE_UNKNOWN`: the plane does not know what
-the approver said. A crash between journalling a hold and filing its record,
-followed by a restart before the expiry, closes that way too, because the
-plane cannot tell a record never filed from one deleted. The call never runs,
-and `run` prints `lost holds:` with the count it closed. The reconciliation is
-bounded, and what it cannot settle stays open: a journal it cannot read, or
-more entries than its bound, sets
-`guardana_control_pipeline_reconcile_incomplete` to 1, and an entry it
+an approver can still answer its record. With `approvals.hold_journal_dir`,
+the next `run` closes it: the answer, then `ACTION_BLOCKED` with
+`APPROVAL_NOT_RESUMED` for an approval, `APPROVAL_REJECTED` for a rejection,
+or `APPROVAL_EXPIRED` when nobody answered or the approval expired. A store
+that cannot be read, a record lost before its approval expired, and one that
+fails its checks (no approver, a state no answer has) give `INDETERMINATE`
+`APPROVAL_STATE_UNKNOWN`. So does a crash between journalling a hold and filing its record, followed by a
+restart before the expiry, since a record never filed looks like one
+deleted. The call never runs; `run` prints `lost holds:` with the count.
+What the bounded reconciliation cannot settle stays open: a journal it cannot
+read, or one past its bound, sets
+`guardana_control_pipeline_reconcile_incomplete` to 1, and each entry it
 cannot settle counts in `guardana_control_pipeline_holds_unmeasured_total`.
-Without a hold journal the trail is never closed, and `/healthz` says so
-under `approvals.limits`.
+Without a hold journal the trail is never closed, as `/healthz` says under
+`approvals.limits`.

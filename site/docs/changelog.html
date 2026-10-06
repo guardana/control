@@ -67,6 +67,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -107,22 +108,56 @@
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.8.0-alpha...HEAD">Unreleased</a></h2>
+<h3 id="added">Added</h3>
+<ul>
+<li>A confirmed finding can stop the run it is about
+(<a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a>).
+An operator signs a route with <code>guardana-control route sign</code>, naming the
+procedures and rules whose findings may stop a run and the key that lifts a
+stop, and starts a stop list with <code>stops init</code>. <code>guardana-control react</code>
+appends a stop for each deterministic, confirmed finding the route allows,
+about an opened run that is open, and never lifts one; <code>stops lift</code>, signed
+with the lift key, ends a run's stops, and <code>stops list</code> shows them. A plane
+configured with the <code>reaction</code> keys checks the route against its own floor
+at start and reads the list every poll interval: a stopped run's later calls
+are refused <code>RUN_STOPPED</code> (45) and no other run's, and every call is blocked
+<code>STOP_STATE_UNAVAILABLE</code> (46) while the list cannot be read, shrinks, is
+rewritten or does not verify. A call already running is not cut, and a
+stopped run's children are not stopped. <code>doctor</code>, <code>/healthz</code> and <code>/metrics</code>
+report the route and the list; <code>examples/refund-supervision/</code> stops one of
+two runs on a live plane and lifts the stop.</li>
+</ul>
 <h3 id="changed">Changed</h3>
 <ul>
-<li>An upstream that answers a call, a read or a prompt with <code>input_required</code>, or
+<li>
+<p>The policy key and the freshness key, in the configuration and in
+<code>guardana-control policy renew</code>, are compared as points up to their sign:
+one private key signs for a point and its negation, so two keys that
+differ only there were taken as two authorities.</p>
+</li>
+<li>
+<p>An upstream that answers a call, a read or a prompt with <code>input_required</code>, or
 with input requests of any kind, ends that call as failed, with a fixed
 answer the gateway does not relay. The
 library had sent the same call to the upstream again on its own, up to ten
-times, for the one call the plane decided and recorded.</li>
-<li>A second override of the same tool on one upstream is refused at start. The
+times, for the one call the plane decided and recorded.</p>
+</li>
+<li>
+<p>A second override of the same tool on one upstream is refused at start. The
 last one won, so an <code>effect: READ</code> after an <code>effect: DELETE</code> classified a
-delete as a read.</li>
-<li><code>guardana-control runs open --parent</code> refuses a child whose expiry would
-pass its parent's.</li>
-<li>The MCP adapter refuses an obligation that carries a parameter its type does
+delete as a read.</p>
+</li>
+<li>
+<p><code>guardana-control runs open --parent</code> refuses a child whose expiry would
+pass its parent's.</p>
+</li>
+<li>
+<p>The MCP adapter refuses an obligation that carries a parameter its type does
 not read, as the gateway already did; a non-advisory one stops the call. The
-obligations page lists the parameters each type reads.</li>
-<li>The gateway refuses a configuration file when the file, or any directory or
+obligations page lists the parameters each type reads.</p>
+</li>
+<li>
+<p>The gateway refuses a configuration file when the file, or any directory or
 link on its path, is owned by an account other than its own or root, or
 another account may write it (a sticky directory, or root's on a read-only
 mount, excepted), and a file with a second name. A group may write it only
@@ -130,11 +165,14 @@ where the group is the owner's own, as a user private group is; on macOS,
 where every account shares <code>staff</code>, group write is refused. The file names the policy keys,
 the pause file and the credentials the plane sends, and was read whatever
 its owner and mode. A container's configuration now has to be owned by the
-image's user.</li>
-<li>Each agent connection gets a 64 KiB send buffer, so on Linux, as on macOS,
+image's user.</p>
+</li>
+<li>
+<p>Each agent connection gets a 64 KiB send buffer, so on Linux, as on macOS,
 the answer bound measures a slow client's progress in steps of that size.
 Linux grows a connection's buffer to megabytes, which cut off a client
-reading steadily but slowly.</li>
+reading steadily but slowly.</p>
+</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
@@ -231,7 +269,7 @@ observed tool call, and supervision let the runtime's own report of a step
 count as the step. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added">Added</h3>
+<h3 id="added-1">Added</h3>
 <ul>
 <li><code>guardana-control coverage</code> prints, for each path an operator declares in an
 inventory, whether a plane enforces it, decides it without enforcing it, a
@@ -308,7 +346,7 @@ accepted another account's directory; and the commit gate could stamp a
 commit that broke the wire contract. <a href="/docs/status">docs/status.md</a> says
 what is <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security
 boundary yet.</p>
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 <ul>
 <li>Observations: <code>guardana-control observe import</code> reads an agent runtime's
 OpenTelemetry GenAI spans (OTLP/JSON, conventions 1.41.0) for one source an
@@ -428,7 +466,7 @@ release gate counted a pull request run and could be passed by a tag named
 another account owned; and a stateful listener kept any number of sessions
 open. <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 <ul>
 <li><code>examples/evidence-report -state &lt;dir&gt;</code> follows a trail one export after
 another and raises local alerts: a JSON line each, appended to
@@ -640,7 +678,7 @@ refusal printed a header credential; and some MCP clients refused the plane's
 answers as schema errors. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 <ul>
 <li><code>guardana-control policy explain &lt;case&gt;</code> decides one case as <code>policy test</code>
 does and says how: the decision's verdict, action, mode, policy digest and
@@ -700,7 +738,7 @@ plane without <code>runs.dir</code> behaves as before. A stdio plane no longer w
 start lines into the protocol stream.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-4">Added</h3>
+<h3 id="added-5">Added</h3>
 <ul>
 <li>Runs an operator opens
 (<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>):
@@ -746,7 +784,7 @@ default (<a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</
 <code>dev --decision-point=silent</code>, which the old command lacks and now needs.
 <code>dev</code> refuses a system without process groups before it starts anything.</li>
 </ul>
-<h3 id="added-5">Added</h3>
+<h3 id="added-6">Added</h3>
 <ul>
 <li>A website for <code>control.guardana.dev</code> in <code>site/</code>: one static page with
 no script and nothing loaded from another host, whose diagrams
@@ -807,7 +845,7 @@ the gateway beside the archives, and pages that say what the plane
 protects, what it records and which failures it survives.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-6">Added</h3>
+<h3 id="added-7">Added</h3>
 <ul>
 <li>Reason code <code>APPROVAL_STATE_UNKNOWN</code> (44, <code>INDETERMINATE</code>): a lost hold
 whose approval the plane could not read or trust closes with it, where
@@ -874,7 +912,7 @@ Such an answer could be read as refused or as unavailable instead.</li>
 <p>The first public release. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added-7">Added</h3>
+<h3 id="added-8">Added</h3>
 <ul>
 <li>Wire contracts, frozen at <code>1.0</code>: eight protobuf files for the action
 envelope, the decision, approvals, results, events, findings, policy bundles
@@ -971,6 +1009,7 @@ independence of this project from Guardana
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>

@@ -39,7 +39,6 @@ view says what it did not see.
 
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
-| B19 | Stop one run from a finding | ADR on the reaction source | A reaction source, apart from the operator's pause file and add-only for the emitter, holds entries with a run scope, an expiry and the finding that caused each. A plane with runs refuses that run's later calls and no other run's; a plane that cannot serve a scope a route names refuses to start. Only a deterministic, confirmed finding stops by default; a repeated finding writes one entry; a call already running is not cut, and the docs say so. A route is verified under a key apart from the policy key, and its serial never goes down. An unreadable or unverifiable reaction source blocks every call on the planes that read it, as an unreadable pause file does |
 | B22 | Show one supervised run | ADR-0045 | A run's view answers what was meant, what happened, where a boundary was crossed, what was stopped and what was not seen; it marks a step done as planned, an exception or approval, a block and missing data by shape and line as well as colour, works without motion, and shows one run and the neighbourhood of a deviation by default. Procedures are tested with cases as policies are, a run's children are supervised with it, and findings are exported with a cursor. Nothing in it decides or stops a call |
 
 The existing event wire format is reused where it suffices. A query response

@@ -11,7 +11,31 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- A confirmed finding can stop the run it is about
+  ([ADR-0046](docs/adr/0046-a-finding-stops-one-run-through-a-signed-route.md)).
+  An operator signs a route with `guardana-control route sign`, naming the
+  procedures and rules whose findings may stop a run and the key that lifts a
+  stop, and starts a stop list with `stops init`. `guardana-control react`
+  appends a stop for each deterministic, confirmed finding the route allows,
+  about an opened run that is open, and never lifts one; `stops lift`, signed
+  with the lift key, ends a run's stops, and `stops list` shows them. A plane
+  configured with the `reaction` keys checks the route against its own floor
+  at start and reads the list every poll interval: a stopped run's later calls
+  are refused `RUN_STOPPED` (45) and no other run's, and every call is blocked
+  `STOP_STATE_UNAVAILABLE` (46) while the list cannot be read, shrinks, is
+  rewritten or does not verify. A call already running is not cut, and a
+  stopped run's children are not stopped. `doctor`, `/healthz` and `/metrics`
+  report the route and the list; `examples/refund-supervision/` stops one of
+  two runs on a live plane and lifts the stop.
+
 ### Changed
+
+- The policy key and the freshness key, in the configuration and in
+  `guardana-control policy renew`, are compared as points up to their sign:
+  one private key signs for a point and its negation, so two keys that
+  differ only there were taken as two authorities.
 
 - An upstream that answers a call, a read or a prompt with `input_required`, or
   with input requests of any kind, ends that call as failed, with a fixed

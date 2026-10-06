@@ -67,6 +67,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -105,7 +106,9 @@ agent's runtime reported, and appends findings to a findings log.
 <code>guardana-control notify</code> hands each alert in that log to a program of the
 operator's, at least once. Both are <code>experimental</code>. Neither decides a call,
 and no plane reads what they write
-(<a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>).</p>
+(<a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>);
+<code>react</code> turns a confirmed finding into a stop of its run, which a plane with
+a route reads (<a href="/docs/reference/reaction">reaction.md</a>).</p>
 <pre><code>guardana-control supervise --procedure &lt;file&gt; --runs &lt;dir&gt; --run &lt;run-id&gt; --findings &lt;dir&gt;
     [--evidence &lt;export&gt;]... [--source &lt;descriptor&gt; --log &lt;dir&gt;]...
 guardana-control notify --findings &lt;dir&gt; --state &lt;dir&gt; [--init] [--timeout &lt;duration&gt;]
@@ -314,6 +317,7 @@ nothing, when the state or the log is refused before any program ran.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>

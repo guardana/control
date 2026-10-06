@@ -2,7 +2,7 @@
 title: Privacy
 summary: What the plane records about a call, where each record goes and who can read it, how long it stays, and that nothing goes to the project.
 type: explanation
-covers: [internal/evidence/**, adapters/mcp/translate.go, adapters/mcp/answer.go, adapters/mcp/trace.go, adapters/mcp/adapter.go, internal/gateway/authorize.go, internal/gateway/flow.go, internal/spool/**, adapters/otel/**, internal/trailfile/**, internal/metrics/**, internal/approvals/**, internal/holdjournal/**, internal/pause/**, internal/console/**, adapters/authzen/mapping.go, cmd/guardana-gateway/**, internal/observelog/**, internal/findinglog/**, internal/notify/**]
+covers: [internal/evidence/**, adapters/mcp/translate.go, adapters/mcp/answer.go, adapters/mcp/trace.go, adapters/mcp/adapter.go, internal/gateway/authorize.go, internal/gateway/flow.go, internal/spool/**, adapters/otel/**, internal/trailfile/**, internal/metrics/**, internal/approvals/**, internal/holdjournal/**, internal/pause/**, internal/console/**, adapters/authzen/mapping.go, cmd/guardana-gateway/**, internal/observelog/**, internal/findinglog/**, internal/notify/**, internal/reaction/**]
 ---
 
 # Privacy
@@ -109,8 +109,9 @@ to the plane, no field of the contract holds it, and no adapter reads it.
 | the hold journal, `approvals.hold_journal_dir` | per hold, the trail's ids, the binding, the approval and its expiry; no envelope and no decision | the plane's account: entries are `0600` |
 | the floor directory, `policy.state_dir` | per bundle id, the serial, digest and `issuedAt` of the newest freshness statement taken, and the reason and prior value of the last reset | the plane's account: the directory is owner-only and its files `0600` |
 | the pause file | each entry's scope and its optional reason | the plane's account, and any account the file's and directory's modes let read it |
+| the stop list, `reaction.stops` | per stop the tenant, run id, finding id, procedure, rule and times; per covered finding its id, tenant and run; per lift the run, a line number and its signature | the plane's account: the file is `0600`, and the list is refused when another account owns it or a group or others may write it |
 | the decision point at `pdp.identifier` | the principal, the action, the resource with its id, the destination, the data labels and the ids; never the arguments, their hash or a digest | whoever runs it, and a proxy configured for it ([ADR-0017](../adr/0017-an-external-decision-point-can-veto.md)) |
-| `/metrics` and `/healthz` | counts and states; `/healthz` also the mode, the bundle's id, version, digest and serial, its confirmation and expiry times, and the ids of pause entries that match no listed tool. No metric label carries an identifier, a digest or free text; `pipeline_blocks_total` is labelled with a reason code ([reference/metrics](../reference/metrics.md)) | anyone who reaches `health.address`, which takes no credential |
+| `/metrics` and `/healthz` | counts and states; `/healthz` also the mode, the bundle's id, version, digest and serial, its confirmation and expiry times, and the ids of pause entries that match no listed tool; with a route, also the route's id, serial and digest, its floor's serial and digest, the stop list's `list_id`, state and age, and, for each active stop up to 64, its entry id, run id, finding id, rule id and expiry, and the run ids of those stops the runs directory does not hold or cannot read. No metric label carries an identifier, a digest or free text; `pipeline_blocks_total` is labelled with a reason code ([reference/metrics](../reference/metrics.md)) | anyone who reaches `health.address`, which takes no credential |
 | the observation log, `observe import --log` | per observation its source and trust, its times, the tool name and server address it names, and its correlation ids; never a prompt, an output or reasoning | the operator's account: the directory is owner-only and the log `0600` |
 | the findings log, `supervise --findings` | per finding the tenant, project, procedure, rule, verdict and the ids of the events and observations it cites | the operator's account: the directory is owner-only and the log `0600` |
 | notify's state, `notify --state` | the keys delivered and the digest of the findings log's first line | the operator's account: owner-only, files `0600` |
@@ -130,6 +131,7 @@ the plane. A plane in `OBSERVE` sends the proposed ones.
 | an approval record and its projection | at a plane's start, once its approval has expired, whether it was consumed or not | nothing removes them while a plane runs; a directory left to grow refuses holds at `approvals.max_records` |
 | a hold journal entry | when its trail can take nothing more | nothing |
 | a pause entry | when an operator removes it; the file keeps no history | nothing |
+| a stop list's line | never: lines are appended, and a lift ends a stop without removing it; a list is refused past 4 MiB or 20 000 lines | start a new list with `stops init --carry`, which keeps every unlifted stop, and restart the plane |
 | the collector's copy, the log | as the operator's systems keep them | the operator's retention |
 | the observation log and the findings log | never: neither is rotated or pruned, and each is refused past 1 GiB | move the directory aside and start a new one |
 | notify's state | never | delete it; `notify --init` on a new state delivers every alert again |

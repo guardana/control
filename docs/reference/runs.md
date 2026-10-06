@@ -70,7 +70,9 @@ to close and another to open.
 `runs close <dir> <run-id>` prints `closed <run-id>`. A closed run, an unknown
 one and a malformed id each exit 1. A closed run's token is refused at the
 next request or message, and a call that passed the listener before the close
-still runs.
+still runs. A plane with a route also stops an open run without closing it:
+a stop from a confirmed finding refuses the run's later calls `RUN_STOPPED`
+until it expires or is lifted ([reaction.md](reaction.md)).
 
 `runs list <dir>` prints one run a line: its id, `open`, `closed` or `expired`
 by this machine's clock, then `root`, `tenant_id`, `principal_type`,

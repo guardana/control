@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Reaction · Guardana Control</title>
+<meta name="description" content="The signed route, the stop list and the commands that write them, and how a plane refuses a stopped run&#39;s calls and reports its stops."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/reaction"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.8.0-alpha</span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a class="hide-s" href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span class="hide-s">GitHub</span></a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<details class="mnav">
+<summary>Menu · <b>Reaction</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction" aria-current="page">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</details>
+<main id="main" class="prose">
+<h1 id="reaction">Reaction</h1>
+<p><code>guardana-control react</code> turns a confirmed finding of <code>supervise</code> into a stop
+of the run it is about, under a route the operator signed. A plane with that
+route refuses the run's later calls <code>RUN_STOPPED</code>, and no other run's. It is
+<code>experimental</code>: <a href="/docs/status">status.md</a> is the inventory,
+<a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a> the
+record, and <a href="/docs/contracts#the-reaction-route-and-the-stop-list">contracts.md</a>
+gives the formats. <code>examples/refund-supervision/</code> runs it on a live plane.</p>
+<pre><code>guardana-control route sign --key &lt;file&gt; --out &lt;file&gt; &lt;route.json&gt;
+guardana-control policy state init --kind route --route-id &lt;id&gt; &lt;dir&gt;
+guardana-control stops init --route &lt;file&gt; --public-key &lt;file&gt; [--carry &lt;dir&gt; --carry-route &lt;file&gt;] &lt;dir&gt;
+guardana-control react --findings &lt;dir&gt; --runs &lt;dir&gt; --route &lt;file&gt; --public-key &lt;file&gt; --stops &lt;dir&gt;
+guardana-control stops list --route &lt;file&gt; --public-key &lt;file&gt; &lt;dir&gt;
+guardana-control stops lift --route &lt;file&gt; --public-key &lt;file&gt; --key &lt;file&gt; --run &lt;run-id&gt; [--through &lt;line&gt;] &lt;dir&gt;
+</code></pre>
+<figure class="dg" id="dg6ac6831"><style>.dg{margin:28px 0 32px;container-type:inline-size;overflow-x:auto}.dg svg{display:block;height:auto;margin:0 auto}.dg .dg-n{display:none}.dg text{text-anchor:middle;dominant-baseline:central}.dg .n rect,.dg .n path{fill:var(--panel,#fff);stroke:var(--line,#E6E8EF);stroke-width:1.2}.dg .n .lip{fill:none}.dg .n text{fill:var(--ink,#0F1115);font:500 13px var(--sans,system-ui,sans-serif)}.dg .accent rect,.dg .accent path{fill:var(--brand-soft,#E6F4F2);stroke:var(--brand,#0B8F80)}.dg .accent .lip{fill:none}.dg .accent text{fill:var(--brand-ink,#08705F)}.dg .cmd text{font:400 12.5px var(--mono,ui-monospace,monospace)}.dg .muted rect,.dg .muted path{stroke-dasharray:4 3}.dg .muted text{fill:var(--muted,#566070)}.dg .e{fill:none;stroke:var(--faint,#8A92A0);stroke-width:1.4}.dg .e.dot{stroke-dasharray:3 4}.dg .e.main{stroke:var(--brand,#0B8F80);stroke-width:1.8;stroke-dasharray:7 5;animation:dg-flow 1.4s linear infinite}.dg .h{fill:var(--faint,#8A92A0)}.dg .h.main{fill:var(--brand,#0B8F80)}.dg .g rect{fill:color-mix(in srgb,var(--brand-soft,#E6F4F2) 45%,transparent);stroke:var(--line,#E6E8EF)}.dg .g text{text-anchor:start;font:500 11px var(--mono,ui-monospace,monospace);letter-spacing:.08em;text-transform:uppercase;fill:var(--muted,#566070)}.dg .l rect{fill:var(--bg,#FBFBFD)}.dg .l text{font:400 11.5px var(--mono,ui-monospace,monospace);fill:var(--muted,#566070)}@keyframes dg-flow{to{stroke-dashoffset:-24}}@media (prefers-reduced-motion:reduce){.dg .e.main{animation:none}}</style><style>@container (max-width:915.2px){#dg6ac6831 .dg-w{display:none}#dg6ac6831 .dg-n{display:block}}</style><svg class="dg-w" style="width:100%;max-width:1144px" viewBox="0 0 1144 170" width="1144" height="170" role="img" aria-labelledby="dg6ac6831w-t dg6ac6831w-d" xmlns="http://www.w3.org/2000/svg"><title id="dg6ac6831w-t">How a finding stops a run</title><desc id="dg6ac6831w-d">supervise writes findings; react reads them, the signed route and the runs directory, and appends stop and covered lines to the stop list. The operator appends signed lifts with stops lift. A plane reads the route at start and the list every poll interval, and refuses a stopped run&#x27;s calls with RUN_STOPPED.</desc><defs><marker id="dg6ac6831w-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="h solid" d="M0 0L10 5L0 10z"/></marker><marker id="dg6ac6831w-main" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="h main" d="M0 0L10 5L0 10z"/></marker></defs><path class="e solid" d="M113 23C186.2 23 186.2 44 259.5 44" marker-end="url(#dg6ac6831w-solid)"/><path class="e solid" d="M122 144C190.8 144 190.8 44 259.5 44" marker-end="url(#dg6ac6831w-solid)"/><path class="e solid" d="M129 82C194.2 82 194.2 44 259.5 44" marker-end="url(#dg6ac6831w-solid)"/><path class="e solid" d="M327.5 44C430.2 44 430.2 72 533 72" marker-end="url(#dg6ac6831w-solid)"/><path class="e solid" d="M340 100C436.5 100 436.5 72 533 72" marker-end="url(#dg6ac6831w-solid)"/><path class="e solid" d="M122 144C207.8 144 207.8 141 293.5 141C434.8 141 434.8 116 576 116C682.8 116 682.8 85 789.5 85" marker-end="url(#dg6ac6831w-solid)"/><path class="e solid" d="M619 72C704.2 72 704.2 85 789.5 85" marker-end="url(#dg6ac6831w-solid)"/><path class="e solid" d="M853.5 85C908.8 85 908.8 85 964 85" marker-end="url(#dg6ac6831w-solid)"/><g class="l"><rect x="135.2" y="24.5" width="102" height="18" rx="5"/><text x="186.2" y="33.5">findings log</text></g><g class="l"><rect x="154.5" y="54" width="79.5" height="18" rx="5"/><text x="194.2" y="63">read only</text></g><g class="l"><rect x="341.8" y="49" width="177" height="18" rx="5"/><text x="430.2" y="58">stop and covered lines</text></g><g class="l"><rect x="366.8" y="77" width="139.5" height="18" rx="5"/><text x="436.5" y="86">signed lift lines</text></g><g class="l"><rect x="171.8" y="133.5" width="72" height="18" rx="5"/><text x="207.8" y="142.5">at start</text></g><g class="l"><rect x="627" y="69.5" width="154.5" height="18" rx="5"/><text x="704.2" y="78.5">every poll interval</text></g><g class="l"><rect x="861.5" y="76" width="94.5" height="18" rx="5"/><text x="908.8" y="85">RUN_STOPPED</text></g><g class="n"><rect x="20" y="4" width="93" height="38" rx="10"/><text x="66.5" y="23">supervise</text></g><g class="n"><rect x="259.5" y="25" width="68" height="38" rx="10"/><text x="293.5" y="44">react</text></g><g class="n"><path d="M11 128C11 120 122 120 122 128V160C122 168 11 168 11 160Z"/><path class="lip" d="M11 128C11 135.2 122 135.2 122 128"/><text x="66.5" y="147">signed route</text></g><g class="n"><path d="M4 66C4 58 129 58 129 66V98C129 106 4 106 4 98Z"/><path class="lip" d="M4 66C4 73.2 129 73.2 129 66"/><text x="66.5" y="85">runs directory</text></g><g class="n"><path d="M533 56C533 48 619 48 619 56V88C619 96 533 96 533 88Z"/><path class="lip" d="M533 56C533 63.2 619 63.2 619 56"/><text x="576" y="75">stop list</text></g><g class="n"><rect x="247" y="81" width="93" height="38" rx="10"/><text x="293.5" y="100">stops lift</text></g><g class="n"><rect x="789.5" y="66" width="64" height="38" rx="10"/><text x="821.5" y="85">plane</text></g><g class="n"><rect x="964" y="66" width="176" height="38" rx="10"/><text x="1052" y="85">the stopped run&#x27;s calls</text></g></svg><svg class="dg-n" style="width:100%;max-width:327.4px;min-width:245.5px" viewBox="0 0 327.4 434" width="327.4" height="434" role="img" aria-labelledby="dg6ac6831n-t dg6ac6831n-d" xmlns="http://www.w3.org/2000/svg"><title id="dg6ac6831n-t">How a finding stops a run</title><desc id="dg6ac6831n-d">supervise writes findings; react reads them, the signed route and the runs directory, and appends stop and covered lines to the stop list. The operator appends signed lifts with stops lift. A plane reads the route at start and the list every poll interval, and refuses a stopped run&#x27;s calls with RUN_STOPPED.</desc><defs><marker id="dg6ac6831n-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="h solid" d="M0 0L10 5L0 10z"/></marker><marker id="dg6ac6831n-main" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="h main" d="M0 0L10 5L0 10z"/></marker></defs><path class="e solid" d="M45 45C45 74.5 107 74.5 107 104" marker-end="url(#dg6ac6831n-solid)"/><path class="e solid" d="M273.4 48C273.4 76 107 76 107 104" marker-end="url(#dg6ac6831n-solid)"/><path class="e solid" d="M154.7 48C154.7 76 107 76 107 104" marker-end="url(#dg6ac6831n-solid)"/><path class="e solid" d="M107 142C107 170 153.9 170 153.9 198" marker-end="url(#dg6ac6831n-solid)"/><path class="e solid" d="M191.7 142C191.7 170 153.9 170 153.9 198" marker-end="url(#dg6ac6831n-solid)"/><path class="e solid" d="M273.4 48C273.4 85.5 248.4 85.5 248.4 123C248.4 171.5 207.1 171.5 207.1 220C207.1 259 163.7 259 163.7 298" marker-end="url(#dg6ac6831n-solid)"/><path class="e solid" d="M153.9 242C153.9 270 163.7 270 163.7 298" marker-end="url(#dg6ac6831n-solid)"/><path class="e solid" d="M163.7 336C163.7 364 163.7 364 163.7 392" marker-end="url(#dg6ac6831n-solid)"/><g class="l"><rect x="25" y="65.5" width="102" height="18" rx="5"/><text x="76" y="74.5">findings log</text></g><g class="l"><rect x="91.1" y="67" width="79.5" height="18" rx="5"/><text x="130.8" y="76">read only</text></g><g class="l"><rect x="41.9" y="161" width="177" height="18" rx="5"/><text x="130.4" y="170">stop and covered lines</text></g><g class="l"><rect x="103" y="161" width="139.5" height="18" rx="5"/><text x="172.8" y="170">signed lift lines</text></g><g class="l"><rect x="224.9" y="76.5" width="72" height="18" rx="5"/><text x="260.9" y="85.5">at start</text></g><g class="l"><rect x="81.5" y="261" width="154.5" height="18" rx="5"/><text x="158.8" y="270">every poll interval</text></g><g class="l"><rect x="116.5" y="355" width="94.5" height="18" rx="5"/><text x="163.7" y="364">RUN_STOPPED</text></g><g class="n"><rect x="4" y="7" width="82" height="38" rx="10"/><text x="45" y="26">supervise</text></g><g class="n"><rect x="75" y="104" width="64" height="38" rx="10"/><text x="107" y="123">react</text></g><g class="n"><path d="M223.4 10C223.4 2 323.4 2 323.4 10V42C323.4 50 223.4 50 223.4 42Z"/><path class="lip" d="M223.4 10C223.4 17.2 323.4 17.2 323.4 10"/><text x="273.4" y="29">signed route</text></g><g class="n"><path d="M97.7 10C97.7 2 211.7 2 211.7 10V42C211.7 50 97.7 50 97.7 42Z"/><path class="lip" d="M97.7 10C97.7 17.2 211.7 17.2 211.7 10"/><text x="154.7" y="29">runs directory</text></g><g class="n"><path d="M116.4 204C116.4 196 191.4 196 191.4 204V236C191.4 244 116.4 244 116.4 236Z"/><path class="lip" d="M116.4 204C116.4 211.2 191.4 211.2 191.4 204"/><text x="153.9" y="223">stop list</text></g><g class="n"><rect x="150.7" y="104" width="82" height="38" rx="10"/><text x="191.7" y="123">stops lift</text></g><g class="n"><rect x="131.7" y="298" width="64" height="38" rx="10"/><text x="163.7" y="317">plane</text></g><g class="n"><rect x="81.2" y="392" width="165" height="38" rx="10"/><text x="163.7" y="411">the stopped run&#x27;s calls</text></g></svg></figure>
+<p>Sources: <code>cmd/guardana-control/react.go</code>, <code>cmd/guardana-control/stops.go</code>, <code>internal/reaction/stoplist/poller.go</code>, <code>internal/gateway/pause.go</code>.</p>
+<h2 id="the-route">The route</h2>
+<p>The route says which findings may stop a run: its tenant, and rules, each a
+procedure by id, version and digest and a supervise rule, with an optional
+lifetime for the stops it allows. Without one a stop lasts as long as its run.
+<code>route sign</code> signs it with a key of its own, writes the file mode <code>0644</code>,
+replacing only an earlier signed route, and prints <code>route_id</code>, <code>serial</code>,
+<code>digest</code>, <code>key_id</code> and <code>out</code>. It refuses a rule id supervise does not have, a
+<code>rule_version</code> that is not supervise's, and the three rules supervise never
+raises as <code>CONFIRMED</code>: <code>REQUIRED_STEP_SKIPPED</code>, <code>STEP_OUT_OF_ORDER</code> and
+<code>CONTINUED_AFTER_FAILURE</code>. The route also names the lift key, whose holder
+alone can lift a stop while a plane runs, and which need not be on the
+plane's machine.</p>
+<p>The route floor keeps, per route id, the highest serial a plane took and its
+digest, in a directory of its own that <code>policy state init --kind route</code> makes.
+At start a plane refuses a route below its floor's serial, or at it with
+another digest, and a missing floor, and raises the floor before it listens; it
+never makes one. A plane reads the route at start only: a stale route can
+only stop too much, never grant. Changing it takes a carried list and a
+restart.</p>
+<h2 id="the-stop-list">The stop list</h2>
+<p><code>stops.jsonl</code> in an owner-only directory: a header naming the route, then
+<code>stop</code>, <code>covered</code> and <code>lift</code> lines, appended and never rewritten, at most
+4 MiB and 20 000 lines. Only the <code>stops</code> commands and <code>react</code> write it, each
+under the list's lock, waiting up to ten seconds for another writer; a plane
+takes no lock. A writer cuts a torn last line back to its last newline before
+it appends, and refuses a write past the bound rather than cut a line it did
+not read.</p>
+<p><code>stops init</code> starts a list in a directory that exists, and refuses one whose
+list is there. With <code>--carry</code> it copies the old list's unlifted stops,
+expired or not, and names every other finding of it as covered, judging the
+old list by <code>--carry-route</code> under the same route key and holding its lock
+until the new list is written, so the new list only adds. <code>stops lift</code> signs
+a lift of one run through a line, by default the last complete one, and
+refuses a key that is not the route's lift key. <code>stops list</code> prints the
+header, each stop no lift ended and whether it is active, the covered lines
+and lifts counted and the list's use of its bounds, as a plane with a trusted
+clock would judge it.</p>
+<h2 id="what-react-writes">What react writes</h2>
+<p><code>react</code> verifies the route, refuses a list whose header names another route,
+reads the findings log and looks each finding's run up in the runs directory,
+which it never writes. It holds no key and never lifts. For each finding the
+list does not name yet, it writes a <code>stop</code> when the run has no active stop
+and a <code>covered</code> line when it has one, if:</p>
+<ul>
+<li>the finding is <code>DETERMINISTIC</code> and <code>CONFIRMED</code>; a suspected, indeterminate
+or model's finding stops nothing, and no setting changes that;</li>
+<li>its run is an opened run, open, unexpired and no child;</li>
+<li>the route permits it: its tenant, procedure and rule are a rule's.</li>
+</ul>
+<p>A finding the list names in any line writes nothing again, so a lift holds:
+what a run did while stopped is covered, and only a new finding after the lift
+stops it again. A stop expires at <code>react</code>'s clock plus the rule's lifetime,
+never after the run's expiry. <code>react</code> prints each line it wrote and one
+count line, and exits 0 when every finding the route allows is on the list,
+and 1 on any refusal, naming each finding it could not write.
+Nothing runs it: a stop comes when the operator runs <code>supervise</code> and <code>react</code>
+while the run is open.</p>
+<h2 id="what-a-plane-checks">What a plane checks</h2>
+<p>At start, a plane with <code>reaction.route</code> refuses to serve unless all four of
+<code>reaction.route</code>, <code>reaction.public_key</code>, <code>reaction.floor_dir</code> and
+<code>reaction.stops</code> are set, with <code>runs.dir</code>; the route verifies under the key
+<code>reaction.public_key</code> names; its tenant is the listener's; the route key, the
+lift key, the policy key and the freshness key are four keys, compared as
+points up to their sign; the floor takes the route; and the first read of the
+list finds a state it can serve.</p>
+<p>It reads the list every <code>reaction.poll_interval</code> into a snapshot, as it reads
+the pause file. A read must extend the bytes it accepted before, with the
+same header; a list that is missing, a link, owned by another account,
+writable by the group or others, too large, refused by the judge, shrunk or
+rewritten, and a snapshot older than three intervals, are an unknown state.</p>
+<p>Each call takes the stop snapshot with the pause snapshot, before its clock,
+and again after an external decision point's answer and before each step that
+cannot be undone. An active stop whose run and tenant are the call's opened
+run, as its token resolved, blocks it. A stop is active until a lift ends it,
+or until the call's clock, usable and not behind the floor, reaches its
+<code>expires_at</code>; a clock the plane cannot trust keeps it active. The tool
+listing and another run's calls, a stopped run's children included, are not
+stopped. A stopped retry of a held request consumes nothing, and the hold
+resumes after the stop ends; a stop read after the approval was consumed
+closes the held trail and spends the approval.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Number</th>
+<th>Verdict</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RUN_STOPPED</code></td>
+<td>45</td>
+<td><code>DENY</code></td>
+<td>the call's run has an active stop</td>
+</tr>
+<tr>
+<td><code>STOP_STATE_UNAVAILABLE</code></td>
+<td>46</td>
+<td><code>INDETERMINATE</code></td>
+<td>every call, while the stop state is unknown</td>
+</tr>
+</tbody>
+</table>
+<p>Both apply in every mode and to every effect class, before an external
+decision point is asked, in this order of the plane's causes: <code>PAUSED</code>,
+<code>RUN_STOPPED</code>, <code>EXECUTED_ARGS_MISMATCH</code>, <code>LOCKDOWN</code>,
+<code>PAUSE_STATE_UNAVAILABLE</code>, <code>STOP_STATE_UNAVAILABLE</code>, <code>EVIDENCE_UNAVAILABLE</code>,
+<code>ACTION_UNCLASSIFIED</code>. A decision names no stop.</p>
+<h2 id="what-reports-it">What reports it</h2>
+<p><code>doctor</code> reads the route, the floor and the list as a start would, takes no
+lock and leaves the floor as it was. It prints the route's id, serial and
+digest, the floor, the list's id, state and age, each active stop, each of
+those naming a run the runs directory does not hold, and each rule whose
+lifetime ends a stop before its run can end. <code>/healthz</code> answers the same
+under <code>stops</code>, with the unknown state's cause, the list's use of its bounds
+and the reads it made; an unknown state answers <code>503</code>, and a list past nine
+tenths of a bound is <code>degraded</code>. <code>/metrics</code> counts the reads, the failed ones
+by cause, and the active stops (<a href="/docs/reference/metrics">metrics.md</a>). The plane logs each
+stop that becomes active, expires or is lifted, with its finding id.
+<a href="/docs/reference/failure-modes">failure-modes.md</a> says what an unknown state does.</p>
+<h2 id="limits">Limits</h2>
+<ul>
+<li>A call already handed out for execution when the stop is read is not cut:
+the stop bites on the run's next call, within one poll interval of the line
+being written.</li>
+<li>A stopped run's children are not stopped.</li>
+<li>Any process of the plane's account can add a stop the route allows for any
+opened run of its tenant, or block every call by writing a line the route
+refuses. It cannot lift a stop without the lift key, nor shorten the list
+while a plane runs unseen, but it can start a new list and restart the
+plane, which nothing here tells from an operator doing so. The list's
+continuity is checked within one plane's life only.</li>
+<li>The checks read mode bits and owners, not a darwin access control list.</li>
+<li>A wall clock that jumps forward ends stops early.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/reaction.md">docs/reference/reaction.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction" aria-current="page">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

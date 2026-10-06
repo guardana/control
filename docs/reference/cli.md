@@ -86,11 +86,9 @@ reports incomplete exits 1 and names what it could not read.
 
 `approvals approve` and `approvals reject` write the answer whether or not a
 plane is running, and exit 0 either way: the record waits for the next
-plane. Where no plane holds the directory they say
-so on stderr: nothing waits for the answer and the held call will not run,
-since a hold does not survive the plane stopping; the answer is written all
-the same, and a plane that keeps a hold journal records it on that call's
-trail as too late to resume it.
+plane. Where no plane holds the directory they say so on stderr: no held
+call waits for the answer, since a hold does not outlive its plane, and a
+plane that keeps a hold journal records it on that call's trail as too late.
 
 Both commands refuse, writing nothing, an approval id that is not there, one
 an approver answered already, one the plane consumed, one the plane closed
@@ -128,7 +126,8 @@ serves: [runs.md](runs.md).
 The `observe` commands import an agent runtime's OpenTelemetry spans into an
 observation log and export it: [observations.md](observations.md). `coverage`
 is [coverage.md](coverage.md), `supervise` and `notify`
-[supervision.md](supervision.md).
+[supervision.md](supervision.md), and `route`, `stops` and `react`, which
+turn a confirmed finding into a stop of its run, [reaction.md](reaction.md).
 
 `console` serves a page that answers approvals and writes pauses:
 [console.md](console.md).
@@ -181,7 +180,8 @@ Write access to the runs directory is the authority to open and to close a run;
 a token acts as its run until it expires or is closed, and runs open prints it once.
 Write access to a floor directory is the authority to lower its floors;
 policy state reset is the one way that records why.
-Only the lift key lifts a stop; write access to the stops directory adds any stop the route allows.
+Only the lift key lifts a stop while a plane runs; write access to the stops directory
+adds any stop the route allows and, across a restart, can start a new list with none.
 ```
 <!-- /generated -->
 

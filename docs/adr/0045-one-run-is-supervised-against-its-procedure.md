@@ -13,6 +13,11 @@ finding v1, notifiers apart from reactions, a missing event as unknown), on
 Amends ADR-0039 on where a notifier lives, and ADR-0040's "five guarded
 trees", which now reads "the plane's trees".
 
+Amended by [ADR-0046](0046-a-finding-stops-one-run-through-a-signed-route.md):
+a finding can stop a run. `guardana-control react` turns a deterministic,
+confirmed finding a signed route allows into a stop of its run, which a plane
+with that route reads; no plane reads a finding itself.
+
 ## Context
 
 A plane decides each call on its own. Whether a run as a whole kept to the

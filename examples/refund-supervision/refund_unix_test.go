@@ -147,25 +147,24 @@ func (s supervision) printed(t *testing.T, lines ...string) {
 // live plane under an opened run, then supervises the run, still open, from
 // the plane's trail and the runtime's own spans: the four denials are
 // confirmed, the upload the plane never saw is suspected, and nothing else is
-// found; the rules about what is missing wait for the run to close. The
-// same upload claiming another run is not this run's, and the notifier hands
-// each alert to the receiver once.
+// found; the rules about what is missing wait for the run to close. react
+// turns the confirmed finding into a stop that refuses the run's next call
+// and not a second run's, until a lift ends it. The same upload claiming the
+// second run is not the first run's, and the notifier hands each alert to the
+// receiver once.
 func TestARefundRunIsSupervisedAgainstItsProcedure(t *testing.T) {
 	started := time.Now()
 	tr := newTree(t)
 	collector := start(t, tr.dir, environ(), tr.gateway, "collect", "--listen", "127.0.0.1:0", "--out", "trail/plane.jsonl")
 	tr.sign(t, collector.after(t, "collect: listening on "))
-	runID, token := tr.openRun(t)
+	liftKey := tr.makeRoute(t)
+	first, second := tr.openRun(t), tr.openRun(t)
+	runID := first.id
 	plane := start(t, tr.dir, append(environ(), journalVariable+"="+tr.path("journal")), tr.gateway, "run", "--config", "plane.yaml")
-	ra := newAgent(t, "http://"+plane.after(t, "listening for agents on "), token)
+	agents := "http://" + plane.after(t, "listening for agents on ")
+	ra := newAgent(t, agents, first.token)
 	rq := ra.work(t, tr)
 	tr.waitForTrails(t, "trail/plane.jsonl", 6)
-	plane.interrupt(t)
-	collector.interrupt(t)
-	want := `{"call":"read_order","args":{"id":"ord-1"}}` + "\n" + `{"call":"refund","args":{"amount":"12.00","id":"ord-1"}}` + "\n"
-	if got := readFile(t, tr.path("journal", "orders.jsonl")); got != want {
-		t.Fatalf("the orders server received %q, want only the customer's order and the approved refund", got)
-	}
 	writeFile(t, filepath.Join(tr.root, "plane.export.jsonl"), must(t, tr.dir, tr.gateway, "trail", "export", "trail/plane.jsonl"))
 
 	claimed := tr.supervise(t, "claimed", runID, ra, func(span) string { return runID })
@@ -187,10 +186,21 @@ func TestARefundRunIsSupervisedAgainstItsProcedure(t *testing.T) {
 		t.Errorf("STEP_OUTSIDE_PROCEDURE cites %v, want the one observation of the runtime", outside)
 	}
 
-	other, _ := tr.openRun(t)
+	pl := livePlane{health: plane.after(t, "answering /healthz, /metrics and /brand on "), first: ra, second: newAgent(t, agents, second.token)}
+	refused := tr.stopAndLift(t, pl, first, claimed, liftKey)
+	tr.waitForTrails(t, "trail/plane.jsonl", 9)
+	plane.interrupt(t)
+	collector.interrupt(t)
+	own := `{"call":"read_order","args":{"id":"ord-1"}}` + "\n"
+	if got, want := readFile(t, tr.path("journal", "orders.jsonl")), own+`{"call":"refund","args":{"amount":"12.00","id":"ord-1"}}`+"\n"+own+own; got != want {
+		t.Fatalf("the orders server received %q, want the customer's order, the approved refund, the second run's read "+
+			"and the first run's read after the lift, never the stopped call", got)
+	}
+	tr.expectStoppedTrail(t, refused, runID)
+
 	control := tr.supervise(t, "control", runID, ra, func(s span) string {
 		if s.tool == "upload_file" {
-			return other
+			return second.id
 		}
 		return runID
 	})

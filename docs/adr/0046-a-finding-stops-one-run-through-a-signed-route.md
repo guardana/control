@@ -1,6 +1,6 @@
 # ADR-0046: A finding stops one run through a signed route
 
-Status: proposed
+Status: accepted
 Date: 2026-10-06
 
 Builds on [ADR-0019](0019-an-operator-can-pause-calls.md),

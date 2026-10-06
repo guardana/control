@@ -61,7 +61,7 @@ func newTree(t *testing.T) tree {
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"plane.yaml", "policy.json", "refund.procedure.json", "runtime.source.json"} {
+	for _, name := range []string{"plane.yaml", "policy.json", "refund.procedure.json", "runtime.source.json", "route.json"} {
 		writeFile(t, tr.path(name), readFile(t, name))
 	}
 	return tr
@@ -154,16 +154,18 @@ func (tr tree) sign(t *testing.T, collector string) string {
 	return config
 }
 
-// openRun opens a run for the listener's identity and returns its id and
-// token.
-func (tr tree) openRun(t *testing.T) (id, token string) {
+// openedRun is what runs open printed for one run.
+type openedRun struct{ id, token, expiresAt string }
+
+// openRun opens a run for the listener's identity.
+func (tr tree) openRun(t *testing.T) openedRun {
 	t.Helper()
 	v := values(must(t, tr.dir, tr.control, "runs", "open", "--tenant", tenant, "--principal-type", "service",
 		"--principal", principal, "--agent", agent, "--ttl", "1h", "state/runs"))
-	if !strings.HasPrefix(v["token"], v["run_id"]+".") {
-		t.Fatalf("runs open printed no run and token: %q", v)
+	if !strings.HasPrefix(v["token"], v["run_id"]+".") || v["expires_at"] == "" {
+		t.Fatalf("runs open printed no run, token and expiry: %q", v)
 	}
-	return v["run_id"], v["token"]
+	return openedRun{id: v["run_id"], token: v["token"], expiresAt: v["expires_at"]}
 }
 
 // environ is this process's environment without the product's variables,

@@ -46,13 +46,14 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [The approvals page](reference/console.md): What guardana-control console serves, what it prints, what it refuses and what it cannot tell you.
 - [Coverage](reference/coverage.md): What guardana-control coverage reads, the inventory it takes, the state it gives each declared path, the join with a plane's evidence, and its exit status.
 - [Dev mode](reference/dev.md): What guardana-gateway dev lays out, refuses, prints and stops, and how --scenario runs each scenario on a plane of its own.
-- [Failure modes](reference/failure-modes.md): What a plane does when its collector, spool, decision point, an upstream, its pause file, freshness statement or clock fails, or it is killed holding calls.
+- [Failure modes](reference/failure-modes.md): What a plane does when its collector, spool, decision point, upstream, pause file, stop list, freshness statement or clock fails, or it is killed holding calls.
 - [MCP enforcement coverage](reference/mcp-coverage.md): Per revision, transport and method, what the gateway enforces today and what it does not.
 - [Metrics](reference/metrics.md): Every metric a plane answers on /metrics, with its type, its label, the statistic it reads and what it counts.
 - [Obligations](reference/obligations.md): The catalogue of obligation types a policy rule may name, and what the tree does with one.
 - [Observations](reference/observations.md): The source descriptor, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export.
 - [Policy explain](reference/policy-explain.md): What `guardana-control policy explain` reads, every line it prints, which rule decided and which input a rule could not read, and its bounds.
 - [Policy document format](reference/policy-format.md): Every member of an agent-policy/v1alpha1 document, the values each admits, the bounds, and the members of a policy test case.
+- [Reaction](reference/reaction.md): The signed route, the stop list and the commands that write them, and how a plane refuses a stopped run's calls and reports its stops.
 - [Reason codes](reference/reason-codes.md): Every reason code a decision may carry, with its number and the verdict it usually accompanies.
 - [Runs](reference/runs.md): The runs directory, what runs open, close and list print and refuse, and what a plane with runs.dir does with a token.
 - [Scenario format](reference/scenario-format.md): Every member of an agent-scenario/v1alpha1 document, how scenario run holds a live plane to one, and what it exits with.
@@ -128,4 +129,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0043: A refused over-long name is recorded by its digest](adr/0043-a-refused-over-long-name-is-recorded-by-its-digest.md): accepted
 - [ADR-0044: Coverage judges each plane and joins only a whole export](adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md): accepted
 - [ADR-0045: One run is supervised against its procedure](adr/0045-one-run-is-supervised-against-its-procedure.md): accepted
-- [ADR-0046: A finding stops one run through a signed route](adr/0046-a-finding-stops-one-run-through-a-signed-route.md): proposed
+- [ADR-0046: A finding stops one run through a signed route](adr/0046-a-finding-stops-one-run-through-a-signed-route.md): accepted

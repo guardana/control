@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Failure modes · Guardana Control</title>
-<meta name="description" content="What a plane does when its collector, spool, decision point, an upstream, its pause file, freshness statement or clock fails, or it is killed holding calls."/>
+<meta name="description" content="What a plane does when its collector, spool, decision point, upstream, pause file, stop list, freshness statement or clock fails, or it is killed holding calls."/>
 <link rel="canonical" href="https://control.guardana.dev/docs/reference/failure-modes"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
@@ -67,6 +67,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -99,14 +100,12 @@
 </details>
 <main id="main" class="prose">
 <h1 id="failure-modes">Failure modes</h1>
-<p>The plane is built to survive the twelve failures below. Each row says
-whether the plane blocks the call, the reason code, what the agent gets,
-whether the plane recovers without an operator, and the test that makes the
-failure happen. The sections after the table say what the trail holds.</p>
-<p>The tests in the <code>chaos_</code> files of <code>cmd/guardana-gateway/</code> run the built
-binary as a process in <code>ENFORCE</code>, against listeners, files and a child
-process that really fail. Nothing here is a security boundary
-(<a href="/docs/status">status</a>).</p>
+<p>Each row says whether the plane blocks the call, its code, what the agent
+gets, whether the plane recovers without an operator, and the test that makes
+the failure happen; the sections say what the trail holds. The <code>chaos_</code> tests
+of <code>cmd/guardana-gateway/</code> run the built binary in <code>ENFORCE</code> against
+listeners, files and a child process that really fail. Nothing here is a
+security boundary (<a href="/docs/status">status</a>).</p>
 <table>
 <thead>
 <tr>
@@ -176,6 +175,14 @@ process that really fail. Nothing here is a security boundary
 <td><code>TestAPauseFileSpoiledWhileThePlaneRunsBlocksEveryCall</code></td>
 </tr>
 <tr>
+<td>Stop list unknown</td>
+<td>blocked</td>
+<td><code>STOP_STATE_UNAVAILABLE</code></td>
+<td><code>isError</code> and the code</td>
+<td>yes, at a whole read extending the accepted list; shrunk or rewritten, no</td>
+<td><code>TestAnUnknownStopStateBlocksEveryCall</code>, <code>TestHealthAnswersTheStopStateAnd503WhenTheListIsRewritten</code></td>
+</tr>
+<tr>
 <td>Freshness statement missing, expired or refused, at start or later</td>
 <td>blocked, a read too unless <code>policy.fail_open_read</code></td>
 <td><code>POLICY_STALE</code></td>
@@ -224,81 +231,84 @@ a tool result with <code>isError: true</code>; a blocked <code>resources/read</c
 <code>prompts/get</code>, whose results cannot say <code>isError</code>, is a JSON-RPC error with
 the adapter's code.</p>
 <h2 id="collector-gone-then-back">Collector gone, then back</h2>
-<p>The exporter resends with a backoff that grows to <code>export.max_backoff</code>, and
-every record stays in the spool: <code>/healthz</code> counts them in
-<code>spool.unacknowledged</code> and the failed sends in <code>exporter.retried_transport</code>.
-No call is blocked for it until the spool is full. When a collector answers
-at the endpoint again, every record it accepts arrives. A record it refuses
-again and again goes to <code>quarantine.log</code> in the spool. Delivery is at least
-once, so a collector tells copies apart by <code>event_id</code>.
+<p>The exporter resends with a backoff growing to <code>export.max_backoff</code>; every
+record stays in the spool (<code>/healthz</code>: <code>spool.unacknowledged</code>, and
+<code>exporter.retried_transport</code> for failed sends), and no call is blocked until
+the spool is full. Once a collector answers again, every record it accepts
+arrives, at least once, so it tells copies apart by <code>event_id</code>; one it keeps
+refusing goes to the spool's <code>quarantine.log</code>.
 <code>TestCollectorOutageBlocksNoDecision</code> in <code>internal/gateway/e2e/</code> holds the
-same for a collector that answers <code>503</code>.</p>
+same for a collector answering <code>503</code>.</p>
 <h2 id="spool-full">Spool full</h2>
-<p>If a record would take the bytes on disk and the reservations past
-<code>evidence.max_bytes</code>, a call is blocked before anything runs. A read is
-blocked too, unless <code>evidence.on_unwritable</code> is <code>allow_reads</code>. The block is
-not recorded, because the record that would have held it is the one that
-failed. A call already running writes its closing record into the room its
-<code>ACTION_STARTED</code> reserved, up to the reserved size; bytes past it are
-checked like any record's (<code>TestAClosingRecordWritesOnAFullSpool</code>). Calls
-run again once the exporter has delivered and the spool has released what
-the collector accepted.</p>
+<p>A record that would take the bytes on disk and the reservations past
+<code>evidence.max_bytes</code> blocks the call before anything runs, a read too unless
+<code>evidence.on_unwritable</code> is <code>allow_reads</code>. The block is not recorded: its
+record is the one that failed. A running call writes its closing record into
+the room its <code>ACTION_STARTED</code> reserved; bytes past it are checked like any
+record's (<code>TestAClosingRecordWritesOnAFullSpool</code>). Calls run again once the
+spool has released what the collector accepted.</p>
 <h2 id="decision-point-silent-wrong-or-gone">Decision point silent, wrong or gone</h2>
-<p>The plane asks the decision point only when its answer would change a call's
-decision, so a failure blocks only calls a veto rule covers. Its trail ends
-<code>ACTION_BLOCKED</code> with the code, and nothing was started. An ask past
-<code>pdp.timeout</code> is <code>PDP_TIMEOUT</code>. An answer the plane cannot read as an allow
-or a deny is <code>PDP_ANSWER_REFUSED</code>: two <code>decision</code> members, even when they
-agree; a string for a boolean; a truncated or trailing document; an unknown
-member on an allow; or no decision at all. A decision point with nothing
-listening, a <code>500</code> answer, or an ask past <code>pdp.max_in_flight</code> is
-<code>PDP_UNAVAILABLE</code>. A well-formed <code>false</code> is <code>PDP_DENY</code>; a forged <code>true</code> is
+<p>The plane asks only when the answer would change a call's decision, so a
+failure blocks only calls a veto rule covers, and their trail ends
+<code>ACTION_BLOCKED</code> with the code. An ask past <code>pdp.timeout</code> is
+<code>PDP_TIMEOUT</code>. An answer that is no plain allow or deny is
+<code>PDP_ANSWER_REFUSED</code>: two <code>decision</code> members, even agreeing; a string for a
+boolean; a truncated or trailing document; an unknown member on an allow; or
+no decision. Nothing listening, a <code>500</code>, or an ask past <code>pdp.max_in_flight</code>
+is <code>PDP_UNAVAILABLE</code>. A well-formed <code>false</code> is <code>PDP_DENY</code>; a forged <code>true</code> is
 read as an allow (<a href="/docs/concepts/threat-model">threat model</a>).</p>
 <h2 id="an-upstream-that-dies-mid-call">An upstream that dies mid-call</h2>
-<p>The call was decided, started and sent, and the upstream took it; no answer
-came back. The agent gets a JSON-RPC error, never a result, and the plane
-does not send the call again. The trail ends <code>ACTION_FAILED</code>, never
-<code>ACTION_COMPLETED</code>.</p>
+<p>The upstream took the decided, started call and no answer came back. The
+agent gets a JSON-RPC error, never a result; the call is not sent again, and
+its trail ends <code>ACTION_FAILED</code> with an <code>UNKNOWN</code> result and
+<code>tool_protocol_status: error</code>, never <code>ACTION_COMPLETED</code>.</p>
 <ul>
-<li>A <code>stdio</code> upstream is a child process. When it exits during a call, the
-result is <code>UNKNOWN</code> with <code>tool_protocol_status: error</code>. The plane does not
-start it again: every later call to it is decided, recorded as started,
-closed <code>ACTION_FAILED</code> with an <code>UNKNOWN</code> result and answered with an
-error, until the plane restarts. Calls to the other upstreams run.</li>
+<li>A <code>stdio</code> upstream, a child process, that exits during a call is not
+started again: every later call to it is decided, started, closed that way
+and answered with an error until the plane restarts. Other upstreams run.</li>
 <li>An HTTP upstream that closes the connection after reading the call, before
-or after its status line, is recorded <code>UNKNOWN</code> with
-<code>tool_protocol_status: error</code>: the outcome of that call is unknown. The
-next call to the same upstream is sent and answered.</li>
+or after its status line, leaves that call's outcome unknown; the next
+call to it is sent and answered.</li>
 </ul>
 <p>An upstream that answers nothing within <code>upstream.call_timeout</code> is closed
 with a <code>TIMEOUT</code> result (<code>TestUpstreamTimeoutIsRecordedAsOne</code>).</p>
 <h2 id="pause-file-unreadable">Pause file unreadable</h2>
 <p>At start, a pause file that is missing, garbled, too large, a link, a
-directory, or writable by the group or others stops the plane before it
-listens, naming <code>pause.file</code> and the cause
-(<code>TestAStartIsRefusedOnEveryUnknownCause</code>). While the plane runs, the reader
-takes the file once every <code>pause.poll_interval</code>. If a read meets one of
-those causes, or the file cannot be read, every call is blocked until a read
-finds a whole file again. A read older than three intervals is unknown as
-well. <code>/healthz</code> answers <code>503</code> with <code>pause.state: unknown</code> and the cause
+directory, or writable by the group or others refuses the start, naming
+<code>pause.file</code> and the cause (<code>TestAStartIsRefusedOnEveryUnknownCause</code>). While
+the plane runs, a read every <code>pause.poll_interval</code> that meets one of those
+causes, or cannot read the file, blocks every call until a read finds a whole
+file, and so does a read older than three intervals. <code>/healthz</code> answers <code>503</code>
+with <code>pause.state: unknown</code> and the cause
 (<code>TestHealthAnswers503OnEveryUnknownState</code>), and the trail of each call ends
 <code>ACTION_BLOCKED</code> with the code.</p>
+<h2 id="stop-list-unknown">Stop list unknown</h2>
+<p>At start, a stop list the plane cannot serve refuses the start, naming
+<code>reaction.stops</code> and the cause
+(<code>TestAStopListThatCannotBeServedRefusesTheStart</code>). While the plane runs, a
+read every <code>reaction.poll_interval</code> that is not whole, or does not extend the
+bytes accepted before, blocks every call until one does. <code>/healthz</code> answers
+<code>503</code> with <code>stops.state: unknown</code> and one cause, which <code>/metrics</code> counts:
+<code>missing</code>, <code>unreadable</code>, <code>a link</code>, <code>writable by others</code>, <code>owned by another account</code>, <code>never read</code>, <code>too large</code>, <code>malformed</code>, <code>another route</code>, <code>header changed</code>, <code>shrunk</code>, <code>rewritten</code>, <code>a stop the route does not permit</code>, <code>a line dated ahead</code>, <code>a lift that does not verify</code>, <code>clock unusable</code>, <code>stale</code> or
+<code>read ahead</code>. The trail of each call ends
+<code>ACTION_BLOCKED</code> with the code. A shrunk or rewritten list stays unknown
+until <code>stops init --carry</code> copies its unlifted stops to a new list and the
+plane restarts (<a href="/docs/reference/reaction">reaction.md</a>).</p>
 <h2 id="a-policy-that-is-not-confirmed">A policy that is not confirmed</h2>
-<p>Every poll rereads the bundle and the statement. A refusal is
-logged and counted by cause in
+<p>Every poll rereads the bundle and the statement, and logs and counts a
+refusal by cause in
 <code>guardana_control_policy_refresh_refused_total</code>: <code>bundle_unreadable</code>,
 <code>bundle_invalid</code>, <code>bundle_id</code>, <code>bundle_budget</code>, <code>rollback</code>, <code>serial_reused</code>,
 <code>statement_missing</code>, <code>statement_unreadable</code>, <code>statement_invalid</code>,
 <code>statement_unbound</code>, <code>statement_future</code>, <code>statement_expired</code>, <code>below_floor</code>,
 <code>clock_behind_floor</code>, <code>clock_back</code>, <code>withdrawn</code>, <code>floor</code> or <code>unknown</code>. A
 floor restored below the confirmed statement counts under <code>floor</code>. The
-bundle in use keeps its confirmation. A refused bundle file also stops
-renewals, since each poll pairs statement and file: the plane turns stale
-when the last budget ends. While
-the policy is not confirmed, each call's <code>POLICY_DECIDED</code> carries
+bundle in use keeps its confirmation, but a refused bundle file stops
+renewals, since each poll pairs statement and file, so the plane turns stale
+when the last budget ends. Then each call's <code>POLICY_DECIDED</code> carries
 <code>POLICY_STALE</code> and <code>policy_freshness</code> <code>STALE</code>, <code>/healthz</code> answers
-<code>&quot;status&quot;:&quot;degraded&quot;</code>, and outside <code>OBSERVE</code> a call is blocked with
-<code>ACTION_BLOCKED</code>, a read too unless <code>policy.fail_open_read</code>.</p>
+<code>&quot;status&quot;:&quot;degraded&quot;</code>, and outside <code>OBSERVE</code> a call is blocked, a read too
+unless <code>policy.fail_open_read</code>.</p>
 <h2 id="a-clock-that-cannot-be-read-as-now">A clock that cannot be read as now</h2>
 <p>The kernel judges no expiry and no bundle's age by a reading before 1970,
 after 9999-12-31, or behind the
@@ -315,24 +325,21 @@ to 9999, or behind one the call took before, the verified time or the
 approval's <code>requested_at</code>, blocks it as lapsed: <code>APPROVAL_EXPIRED</code> or <code>EVIDENCE_UNAVAILABLE</code>.</p>
 <h2 id="plane-killed-with-calls-held">Plane killed with calls held</h2>
 <p>A held call's trail stands at <code>APPROVAL_REQUESTED</code> while no plane runs, and
-an approver can still answer its record. With <code>approvals.hold_journal_dir</code>
-set, the next <code>run</code> closes that trail. It records the answer, then
-<code>ACTION_BLOCKED</code> with <code>APPROVAL_NOT_RESUMED</code> for an approval,
-<code>APPROVAL_REJECTED</code> for a rejection, or <code>APPROVAL_EXPIRED</code> when nobody
-answered or the approval expired. When the store cannot be read, has lost a
-record whose approval has not expired, or answers with a record that fails
-its checks, an approval with no approver or a state no answer has, the block
-is <code>INDETERMINATE</code> with <code>APPROVAL_STATE_UNKNOWN</code>: the plane does not know what
-the approver said. A crash between journalling a hold and filing its record,
-followed by a restart before the expiry, closes that way too, because the
-plane cannot tell a record never filed from one deleted. The call never runs,
-and <code>run</code> prints <code>lost holds:</code> with the count it closed. The reconciliation is
-bounded, and what it cannot settle stays open: a journal it cannot read, or
-more entries than its bound, sets
-<code>guardana_control_pipeline_reconcile_incomplete</code> to 1, and an entry it
+an approver can still answer its record. With <code>approvals.hold_journal_dir</code>,
+the next <code>run</code> closes it: the answer, then <code>ACTION_BLOCKED</code> with
+<code>APPROVAL_NOT_RESUMED</code> for an approval, <code>APPROVAL_REJECTED</code> for a rejection,
+or <code>APPROVAL_EXPIRED</code> when nobody answered or the approval expired. A store
+that cannot be read, a record lost before its approval expired, and one that
+fails its checks (no approver, a state no answer has) give <code>INDETERMINATE</code>
+<code>APPROVAL_STATE_UNKNOWN</code>. So does a crash between journalling a hold and filing its record, followed by a
+restart before the expiry, since a record never filed looks like one
+deleted. The call never runs; <code>run</code> prints <code>lost holds:</code> with the count.
+What the bounded reconciliation cannot settle stays open: a journal it cannot
+read, or one past its bound, sets
+<code>guardana_control_pipeline_reconcile_incomplete</code> to 1, and each entry it
 cannot settle counts in <code>guardana_control_pipeline_holds_unmeasured_total</code>.
-Without a hold journal the trail is never closed, and <code>/healthz</code> says so
-under <code>approvals.limits</code>.</p>
+Without a hold journal the trail is never closed, as <code>/healthz</code> says under
+<code>approvals.limits</code>.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/failure-modes.md">docs/reference/failure-modes.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
 <nav class="side" aria-label="Documentation">
@@ -375,6 +382,7 @@ under <code>approvals.limits</code>.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
