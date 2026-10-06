@@ -193,7 +193,8 @@ below, it refuses in <code>OBSERVE</code> too: it writes the trail first, and an
 sink will not take blocks the call, unless the read is let through unrecorded
 under the explicit evidence setting.</p>
 <h2 id="what-the-enforcement-point-blocks-in-every-mode">What the enforcement point blocks in every mode</h2>
-<p>These come before the mode, or from the trail, and no mode relieves them:</p>
+<p>These come before the mode, after it, or from the trail, and no mode relieves
+them:</p>
 <table>
 <thead>
 <tr>
@@ -235,6 +236,24 @@ under the explicit evidence setting.</p>
 <td>an append succeeds</td>
 </tr>
 <tr>
+<td>a call with no opened run of its identity where runs are presented, one whose run's state cannot be read, or one whose run the id source cannot name</td>
+<td><code>INDETERMINATE</code></td>
+<td><code>EVIDENCE_UNAVAILABLE</code></td>
+<td>the run resolves and its state reads, or the id source names it</td>
+</tr>
+<tr>
+<td>a call whose producer sent a run-context tag under the reserved <code>flow.v</code> prefix, <code>OBSERVE</code> included, after the mode</td>
+<td><code>INDETERMINATE</code></td>
+<td>the code of the call's refusal, <code>INVALID_FIELD_VALUE</code> for the tag alone</td>
+<td>the producer stops sending it</td>
+</tr>
+<tr>
+<td>an execution whose opened run expired before it started, or whose run's state cannot be raised, after the mode</td>
+<td><code>INDETERMINATE</code></td>
+<td><code>EVIDENCE_UNAVAILABLE</code></td>
+<td>a run that is open, and a raise that succeeds</td>
+</tr>
+<tr>
 <td>a request id whose trail is still open in this enforcement point, unless the call resumes that trail</td>
 <td><code>INDETERMINATE</code></td>
 <td><code>INVALID_FIELD_VALUE</code></td>
@@ -254,10 +273,12 @@ under the explicit evidence setting.</p>
 </tr>
 </tbody>
 </table>
-<p>When a call has more than one of the first five causes, or one of them and
+<p>When a call has more than one of the first six causes, or one of them and
 <code>LOCKDOWN</code> on a material call, the decision on the block lists every one, in
 this order: <code>PAUSED</code>, <code>EXECUTED_ARGS_MISMATCH</code>, <code>LOCKDOWN</code>,
-<code>PAUSE_STATE_UNAVAILABLE</code>, <code>EVIDENCE_UNAVAILABLE</code>, <code>ACTION_UNCLASSIFIED</code>. Its
+<code>PAUSE_STATE_UNAVAILABLE</code>, <code>EVIDENCE_UNAVAILABLE</code> (once, for a sink halt, a
+run or both), <code>ACTION_UNCLASSIFIED</code>. A forged flow tag is a refusal of the
+call itself, which the kernel decides without asking anyone. Its
 verdict is <code>DENY</code> when any of them denies, and its first code is the one the
 block counters count. The kernel still decides such a
 call, and <code>POLICY_DECIDED</code> records that decision, but an external decision

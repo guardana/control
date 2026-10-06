@@ -251,21 +251,16 @@ func (c *call) stampFlow() {
 	c.in.Envelope = out
 }
 
-// refuseFlow blocks three calls in every mode: one whose producer sent a tag
-// under the reserved prefix, whose record would otherwise carry a state the
-// plane never computed; one whose run the id source could not name, whose
-// execution would leave no taint for the next call of its principal; and one
-// that needs an opened run the plane cannot vouch for, or whose root's state
-// it cannot read (ADR-0034). A forged call reaches the kernel with a refusal,
-// the producer's own or the tag's, so the block keeps the code the kernel
-// gave that refusal.
+// refuseFlow blocks, in every mode, a call whose producer sent a tag under the
+// reserved prefix, whose record would otherwise carry a state the plane never
+// computed. A forged call reaches the kernel with a refusal, the producer's
+// own or the tag's, so no decision point is asked about it and the block keeps
+// the code the kernel gave that refusal. A run the id source could not name,
+// or an opened run the plane cannot vouch for or read, is one of the plane's
+// own causes instead, named before any ask.
 func (c *call) refuseFlow() {
-	switch {
-	case c.action == core.Block:
-	case c.forged:
+	if c.action != core.Block && c.forged {
 		c.decide(verdictIndeterminate, c.kernel.GetReasonCodes()...)
-	case c.flow.kind == flowUnnamed, c.flow.kind == flowUnavailable:
-		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
 	}
 }
 

@@ -23,6 +23,15 @@ verify one.
 
 ### Fixed
 
+- An agent that cancels a call no longer leaves its trail without a closing
+  record, a held request open for the plane's life, or a sink failure counted
+  for a sink that did not fail: once proposed, a call's records, its hold and
+  its consume finish whatever the agent does.
+- A call whose opened run the plane cannot read or name is blocked before the
+  external decision point is asked about it.
+- A rejection the approval store returns is checked as an approval is; one that
+  does not check out is recorded as the plane's own expired approval, never as
+  decided.
 - With an authenticator that names no user, the forwarded resource, template
   and prompt lists are refused as the tool list is.
 - An approval whose own schema version is not of major 1 is refused when it is

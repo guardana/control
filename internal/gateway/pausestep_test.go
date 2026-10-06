@@ -86,7 +86,7 @@ func TestAPauseDuringTheApprovalLookupBlocksTheResume(t *testing.T) {
 			var store *stepStore
 			h := build(t, modeEnforce, snapshot(t, approveRefunds), withStepStore(&store))
 			first := hold(t, h)
-			if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base().Add(time.Minute)); err != nil {
+			if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
 				t.Fatalf("Answer: %v", err)
 			}
 			h.pause.set(paused(t))
@@ -179,7 +179,7 @@ func TestAPauseDuringTheApprovalRecordBlocksTheStart(t *testing.T) {
 	j := &journalDouble{}
 	h := build(t, modeEnforce, snapshot(t, approveRefunds), func(cfg *gateway.Config) { cfg.Journal = j })
 	first := hold(t, h)
-	if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base().Add(time.Minute)); err != nil {
+	if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
 		t.Fatalf("Answer: %v", err)
 	}
 	h.pause.set(paused(t))

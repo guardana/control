@@ -170,7 +170,7 @@ func TestAPausedRetryConsumesNothing(t *testing.T) {
 		c.Approvals = store
 	})
 	first := hold(t, h)
-	if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base().Add(time.Minute)); err != nil {
+	if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
 		t.Fatalf("Answer: %v", err)
 	}
 	h.pause.set(paused(t, pausePayments))

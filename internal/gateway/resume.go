@@ -3,6 +3,7 @@ package gateway
 import (
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -91,11 +92,7 @@ func (c *call) try(own *heldRequest, binding approval.Binding, r *resumption) (D
 	case errors.Is(err, ErrApprovalExpired):
 		d = c.resumeBlocked(own, verdictDeny, codeApprovalExpired, expiredEvent(own.approval))
 	case errors.Is(err, ErrApprovalRejected):
-		answer := a
-		if answer == nil {
-			answer = own.approval
-		}
-		d = c.resumeBlocked(own, verdictDeny, codeApprovalRejected, decidedEvent(answer))
+		d = c.resumeRejected(own, a)
 	default:
 		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
 		return c.freshBlock(), true
@@ -183,15 +180,32 @@ func (c *call) checkApproval(own *heldRequest, a *controlv1.Approval) (controlv1
 	return approvalFields(own.approval, a, own.expires, c.now)
 }
 
+// resumeRejected closes the held trail on the rejection the store answered,
+// checked as an approval is. Only a record that is the held approval, and
+// rejected, is written as APPROVAL_DECIDED; any other answer is one the plane
+// cannot stand behind, so the window closes with its own approval, expired.
+func (c *call) resumeRejected(own *heldRequest, a *controlv1.Approval) Disposition {
+	if verdict, code, refused := approvalFields(own.approval, a, own.expires, c.now); refused {
+		return c.resumeBlocked(own, verdict, code, expiredEvent(own.approval))
+	}
+	if a.GetState() != approvalRejected {
+		return c.resumeBlocked(own, verdictIndeterminate, codeEvidenceUnavailable, expiredEvent(own.approval))
+	}
+	return c.resumeBlocked(own, verdictDeny, codeApprovalRejected, decidedEvent(a))
+}
+
 // approvalFields compares an answer with the record the plane minted, field
 // by field, and is the whole of what the plane trusts about a store: the same
 // checks a resume makes are the ones a reconciliation makes about a hold
-// nobody is retrying. It leaves the answer's state to its caller, because a
-// refusal is an answer where a resume needs an approval.
+// nobody is retrying. An answer of a major this build does not read, or
+// decided after now, is not one the plane can place on its trail. It leaves
+// the answer's state to its caller, because a refusal is an answer where a
+// resume needs an approval.
 func approvalFields(want, a *controlv1.Approval, expires, now time.Time) (controlv1.Verdict, string, bool) {
 	switch {
-	case a == nil, a.GetApprovalId() != want.GetApprovalId(),
-		a.GetRequestId() != want.GetRequestId(), a.GetMultiUse():
+	case a == nil, !readsApprovalVersion(a.GetSchemaVersion()),
+		a.GetApprovalId() != want.GetApprovalId(), a.GetRequestId() != want.GetRequestId(), a.GetMultiUse(),
+		a.GetDecidedAt() != nil && a.GetDecidedAt().AsTime().After(now):
 		return verdictIndeterminate, codeEvidenceUnavailable, true
 	case a.GetActionDigest() != want.GetActionDigest():
 		return verdictDeny, codeApprovalDigestMismatch, true
@@ -203,6 +217,14 @@ func approvalFields(want, a *controlv1.Approval, expires, now time.Time) (contro
 		return verdictIndeterminate, codeEvidenceUnavailable, true
 	}
 	return 0, "", false
+}
+
+// readsApprovalVersion reports whether v is MAJOR.MINOR under the major this
+// build mints.
+func readsApprovalVersion(v string) bool {
+	major, _, ok := strings.Cut(v, ".")
+	want, _, _ := strings.Cut(approvalSchemaVersion, ".")
+	return ok && major == want
 }
 
 func expiredEvent(a *controlv1.Approval) func(*evidence.Builder) *controlv1.Event {

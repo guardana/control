@@ -2,7 +2,7 @@
 title: Enforcement modes
 summary: What each mode does with the kernel's decision, what it needs from an adapter, and which modes this build runs.
 type: explanation
-covers: [internal/gateway/mode.go, internal/gateway/adapter.go, internal/gateway/pipeline.go, internal/gateway/admit.go, internal/gateway/pause.go, internal/pause/**, adapters/mcp/list.go]
+covers: [internal/gateway/mode.go, internal/gateway/adapter.go, internal/gateway/pipeline.go, internal/gateway/admit.go, internal/gateway/pause.go, internal/gateway/flow.go, internal/gateway/runflow.go, internal/gateway/lapse.go, internal/pause/**, adapters/mcp/list.go]
 ---
 
 # Enforcement modes
@@ -71,7 +71,8 @@ under the explicit evidence setting.
 
 ## What the enforcement point blocks in every mode
 
-These come before the mode, or from the trail, and no mode relieves them:
+These come before the mode, after it, or from the trail, and no mode relieves
+them:
 
 | Case | Verdict on the block | Code | Until |
 | --- | --- | --- | --- |
@@ -80,14 +81,19 @@ These come before the mode, or from the trail, and no mode relieves them:
 | a call nothing classifies, in every mode but `OBSERVE` | `INDETERMINATE` | `ACTION_UNCLASSIFIED` | the operator classifies it |
 | a material call after an execution ran with bytes that were not authorized | `DENY` | `EXECUTED_ARGS_MISMATCH` | the enforcement point restarts |
 | a material call after a closing event the sink refused | `INDETERMINATE` | `EVIDENCE_UNAVAILABLE` | an append succeeds |
+| a call with no opened run of its identity where runs are presented, one whose run's state cannot be read, or one whose run the id source cannot name | `INDETERMINATE` | `EVIDENCE_UNAVAILABLE` | the run resolves and its state reads, or the id source names it |
+| a call whose producer sent a run-context tag under the reserved `flow.v` prefix, `OBSERVE` included, after the mode | `INDETERMINATE` | the code of the call's refusal, `INVALID_FIELD_VALUE` for the tag alone | the producer stops sending it |
+| an execution whose opened run expired before it started, or whose run's state cannot be raised, after the mode | `INDETERMINATE` | `EVIDENCE_UNAVAILABLE` | a run that is open, and a raise that succeeds |
 | a request id whose trail is still open in this enforcement point, unless the call resumes that trail | `INDETERMINATE` | `INVALID_FIELD_VALUE` | that trail closes |
 | an event the sink will not take before the effect, for a material call, or for a read without `AllowReadsUnrecorded` | `INDETERMINATE` | `EVIDENCE_UNAVAILABLE` | the sink takes events again |
 | an execution past `MaxOpen`, or a hold past `MaxHeld` | `INDETERMINATE` | `EVIDENCE_UNAVAILABLE` | an execution closes, or a hold ends |
 
-When a call has more than one of the first five causes, or one of them and
+When a call has more than one of the first six causes, or one of them and
 `LOCKDOWN` on a material call, the decision on the block lists every one, in
 this order: `PAUSED`, `EXECUTED_ARGS_MISMATCH`, `LOCKDOWN`,
-`PAUSE_STATE_UNAVAILABLE`, `EVIDENCE_UNAVAILABLE`, `ACTION_UNCLASSIFIED`. Its
+`PAUSE_STATE_UNAVAILABLE`, `EVIDENCE_UNAVAILABLE` (once, for a sink halt, a
+run or both), `ACTION_UNCLASSIFIED`. A forged flow tag is a refusal of the
+call itself, which the kernel decides without asking anyone. Its
 verdict is `DENY` when any of them denies, and its first code is the one the
 block counters count. The kernel still decides such a
 call, and `POLICY_DECIDED` records that decision, but an external decision

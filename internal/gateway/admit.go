@@ -94,6 +94,10 @@ func (c *call) run() Disposition {
 		return Disposition{Action: core.Block, Decision: c.decision}
 	}
 	c.trail = trail
+	// The call is proposed: its records, its hold and its consume are the
+	// plane's to finish whatever the agent does, or a cancel would leave a
+	// trail cut short, a hold open and an approval spent with nothing on record.
+	c.ctx = context.WithoutCancel(c.ctx)
 
 	c.applyMode()
 	c.refuseFlow()

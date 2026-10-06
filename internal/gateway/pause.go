@@ -10,7 +10,8 @@ import (
 )
 
 // planeState is what the plane's own causes to block a call are a function
-// of: the call, the mode, the pause snapshot the call took, and the halts.
+// of: the call, the mode, the pause snapshot the call took, the halts, and
+// whether the call's run is one the plane can vouch for.
 type planeState struct {
 	mode         controlv1.EnforcementMode
 	material     bool
@@ -19,6 +20,9 @@ type planeState struct {
 	pauseUnknown bool
 	sinkHalt     bool
 	mismatchHalt bool
+	// runRefused: the call needs an opened run the plane cannot vouch for or
+	// read, or a local run the id source could not name (ADR-0034).
+	runRefused bool
 }
 
 // cause is one reason the plane blocks a call whatever the policy decides,
@@ -41,7 +45,7 @@ func planeCauses(s planeState) []cause {
 		{s.material && s.mismatchHalt, cause{codeExecutedArgsMismatch, verdictDeny}},
 		{s.material && s.mode == modeLockdown, cause{codeLockdown, verdictDeny}},
 		{s.pauseUnknown, cause{codePauseStateUnavailable, verdictIndeterminate}},
-		{s.material && s.sinkHalt, cause{codeEvidenceUnavailable, verdictIndeterminate}},
+		{(s.material && s.sinkHalt) || s.runRefused, cause{codeEvidenceUnavailable, verdictIndeterminate}},
 		{s.unclassified && s.mode != modeObserve, cause{codeActionUnclassified, verdictIndeterminate}},
 	} {
 		if c.on {
@@ -96,7 +100,8 @@ func (c *call) pausedNow() bool {
 }
 
 // planeState is this call's state as the plane sees it now: the halts as
-// they stand, and the pause state the call took last.
+// they stand, the pause state the call took last and the run it took when it
+// started.
 func (c *call) planeState() planeState {
 	sink, mismatch := c.p.counts.halts()
 	action := c.in.Envelope.GetAction()
@@ -109,5 +114,6 @@ func (c *call) planeState() planeState {
 		pauseUnknown: state == pause.Unknown,
 		sinkHalt:     sink,
 		mismatchHalt: mismatch,
+		runRefused:   c.flow.kind == flowUnnamed || c.flow.kind == flowUnavailable,
 	}
 }

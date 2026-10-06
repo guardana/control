@@ -33,7 +33,7 @@ func TestACallUnderAnOpenedRunIsHeldOnAClockThatMoves(t *testing.T) {
 	if first.Action != core.AwaitApproval || first.Pending == nil {
 		t.Fatalf("the refund under an opened run: Action = %d, %s %v; want it held", first.Action, first.Decision.GetVerdict(), first.Decision.GetReasonCodes())
 	}
-	if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base().Add(time.Minute)); err != nil {
+	if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
 		t.Fatalf("answering the approval: %v", err)
 	}
 	again := h.admitA(under(admission(retry(t, first.Decision.GetRequestId()), refundArgs()), run))

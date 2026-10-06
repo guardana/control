@@ -95,7 +95,7 @@ func lapsingUnder(t *testing.T, snap *policy.Snapshot, mut ...func(*gateway.Conf
 	if got := r.first.Pending.ExpiresAt; !got.Equal(base().Add(lapseTTL)) {
 		t.Fatalf("the hold expires at %s, want %s", got, base().Add(lapseTTL))
 	}
-	if err := r.harness.store.Answer(r.first.Pending.ApprovalID, approved, "alice", "", base().Add(time.Minute)); err != nil {
+	if err := r.harness.store.Answer(r.first.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
 		t.Fatalf("Answer: %v", err)
 	}
 	r.clock.set(base().Add(2 * time.Minute))

@@ -2,10 +2,14 @@ package gateway_test
 
 import (
 	"context"
+	"slices"
+	"strconv"
 	"testing"
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/core"
+	"github.com/guardana/control/internal/core/approval"
 	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/gateway"
 )
@@ -84,4 +88,165 @@ func TestAnAgentsCancelAfterTheStartNeverDropsTheLapse(t *testing.T) {
 	if s := r.p.Stats(); s.HeldTrailsLeftOpen != 0 {
 		t.Errorf("HeldTrailsLeftOpen = %d after a cancel past the start", s.HeldTrailsLeftOpen)
 	}
+}
+
+// expectNoSinkFailure asserts the sink failed nothing and no held trail was
+// left open: an agent's cancel is not the sink's failure.
+func expectNoSinkFailure(t *testing.T, h *harness) {
+	t.Helper()
+	if s := h.p.Stats(); s.SinkFailuresBeforeEffect != 0 || s.SinkFailuresAfterEffect != 0 || s.HeldTrailsLeftOpen != 0 || s.Halted {
+		t.Errorf("Stats after an agent's cancel: %d sink failures before, %d after, %d held trails left open, halted %v; want 0, 0, 0, false",
+			s.SinkFailuresBeforeEffect, s.SinkFailuresAfterEffect, s.HeldTrailsLeftOpen, s.Halted)
+	}
+}
+
+// TestAnAgentsCancelNeverCutsAProposedCallsTrail: a call is proposed once the
+// plane decided it, so an agent that cancels before its trail is written, or
+// while its block or its start is appended, still has the whole trail
+// written, and nothing is counted as the sink's failure.
+func TestAnAgentsCancelNeverCutsAProposedCallsTrail(t *testing.T) {
+	cases := map[string]struct {
+		rules  string
+		cancel controlv1.EventKind
+		want   []controlv1.EventKind
+	}{
+		"cancelled before the admission":    {denyWrites, 0, []controlv1.EventKind{kindProposed, kindDecided, kindBlocked}},
+		"cancelled before the block record": {denyWrites, kindBlocked, []controlv1.EventKind{kindProposed, kindDecided, kindBlocked}},
+		"cancelled before the start record": {allowWrites, kindStarted, []controlv1.EventKind{kindProposed, kindDecided, kindStarted}},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			h := build(t, modeEnforce, snapshot(t, tc.rules))
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if tc.cancel == 0 {
+				cancel()
+			} else {
+				h.sink.hook(tc.cancel, cancel)
+			}
+			h.p.Admit(ctx, admission(writeEnvelope(), []byte(`{"k":1}`)))
+			expectKinds(t, h.kinds(), tc.want)
+			if err := evidence.ValidateChain(h.events()); err != nil {
+				t.Errorf("ValidateChain: %v", err)
+			}
+			expectNoSinkFailure(t, h)
+		})
+	}
+}
+
+// cancellingStore cancels the admitting agent's context as the store is asked
+// to keep a hold, or once it has spent an approval: an agent that gives up
+// while the store syncs.
+type cancellingStore struct {
+	*gateway.MemoryApprovals
+	cancel  func()
+	onHold  bool
+	consume bool
+}
+
+func (s *cancellingStore) Hold(ctx context.Context, held gateway.Held, now time.Time) error {
+	if s.onHold {
+		s.cancel()
+	}
+	return s.MemoryApprovals.Hold(ctx, held, now)
+}
+
+func (s *cancellingStore) Consume(ctx context.Context, b approval.Binding, requestID, approvalID string, now time.Time) (*controlv1.Approval, error) {
+	a, err := s.MemoryApprovals.Consume(ctx, b, requestID, approvalID, now)
+	if s.consume {
+		s.cancel()
+	}
+	return a, err
+}
+
+// cancellingJournal cancels the admitting agent's context as an entry is
+// filed, when onRecord is set.
+type cancellingJournal struct {
+	*gateway.MemoryHoldJournal
+	cancel   func()
+	onRecord bool
+}
+
+func (j *cancellingJournal) Record(ctx context.Context, entry gateway.HoldEntry) error {
+	if j.onRecord {
+		j.cancel()
+	}
+	return j.MemoryHoldJournal.Record(ctx, entry)
+}
+
+// cancelledHolds is how many agents give up on their hold in one run.
+const cancelledHolds = 500
+
+// TestAnAgentsCancelDuringTheHoldLeavesNoTrailOpen: 500 agents each give up
+// while the plane files its hold, in the store or in the journal. Every hold
+// is still filed whole, so each trail stands at its request for approval with
+// its records kept, none is left open with its request id reserved, and the
+// sink is not blamed.
+func TestAnAgentsCancelDuringTheHoldLeavesNoTrailOpen(t *testing.T) {
+	for _, where := range []string{"store", "journal"} {
+		t.Run(where, func(t *testing.T) {
+			store := &cancellingStore{MemoryApprovals: &gateway.MemoryApprovals{}, onHold: where == "store"}
+			journal := &cancellingJournal{MemoryHoldJournal: &gateway.MemoryHoldJournal{}, onRecord: where == "journal"}
+			h := build(t, modeEnforce, snapshot(t, approveRefunds), func(c *gateway.Config) {
+				c.Approvals, c.Journal, c.MaxHeld = store, journal, 2*cancelledHolds
+			})
+			pending, standing := 0, 0
+			for i := range cancelledHolds {
+				ctx, cancel := context.WithCancel(context.Background())
+				store.cancel, journal.cancel = cancel, cancel
+				args := []byte(`{"amount": ` + strconv.Itoa(i+1) + `, "currency": "EUR"}`)
+				env := refundEnvelope(t, args)
+				env.RequestId = "h-" + strconv.Itoa(i)
+				if d := h.p.Admit(ctx, admission(env, args)); d.Action == core.AwaitApproval {
+					pending++
+				}
+				cancel()
+				if slices.Equal(kindsOf(h.trailOf(env.RequestId)), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested}) {
+					standing++
+				}
+			}
+			if pending != cancelledHolds || standing != cancelledHolds {
+				t.Errorf("%d answered pending and %d trails standing at their request for approval, want %d of each", pending, standing, cancelledHolds)
+			}
+			expectNoSinkFailure(t, h)
+			if s := h.p.Stats(); s.Held != cancelledHolds || s.JournalRefusals != 0 {
+				t.Errorf("Stats: %d held, %d journal refusals; want %d and 0", s.Held, s.JournalRefusals, cancelledHolds)
+			}
+			if got := len(journal.Entries()); got != cancelledHolds {
+				t.Errorf("the journal keeps %d entries, want %d", got, cancelledHolds)
+			}
+		})
+	}
+}
+
+// TestAnAgentsCancelAfterTheConsumeStillStartsTheCall: the approval is spent
+// once Consume returns, so an agent that gives up right then still has the
+// answer and the start written on the held trail, its journal entry flipped,
+// and the execution handed out for its adapter to close or abort.
+func TestAnAgentsCancelAfterTheConsumeStillStartsTheCall(t *testing.T) {
+	store := &cancellingStore{MemoryApprovals: &gateway.MemoryApprovals{}}
+	journal := &gateway.MemoryHoldJournal{}
+	h := build(t, modeEnforce, snapshot(t, approveRefunds), func(c *gateway.Config) { c.Approvals, c.Journal = store, journal })
+	first := hold(t, h)
+	if err := store.Answer(first.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store.cancel, store.consume = cancel, true
+	d := h.p.Admit(ctx, admission(retry(t, "req-2"), refundArgs()))
+	if d.Action != core.Execute && d.Action != core.ExecuteWithObligations {
+		t.Errorf("the resumed call: %s %v, want it handed out", d.Decision.GetVerdict(), d.Decision.GetReasonCodes())
+	}
+	expectKinds(t, kindsOf(h.trailOf("req-1")), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested, kindApprovalDecided, kindStarted})
+	if entry, kept := journal.Entries()["req-1"]; !kept || entry.State != gateway.HoldResuming {
+		t.Errorf("the journal entry: kept %v in state %d, want it resuming", kept, entry.State)
+	}
+	if err := h.p.Abort(ctx, d, gateway.AbortUntranslatable); err != nil {
+		t.Errorf("Abort: %v", err)
+	}
+	if err := evidence.ValidateChain(h.trailOf("req-1")); err != nil {
+		t.Errorf("ValidateChain: %v", err)
+	}
+	expectNoSinkFailure(t, h)
 }

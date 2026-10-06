@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"context"
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -54,8 +53,6 @@ func (c *call) lapsedWhileStarting() (controlv1.Verdict, string, bool) {
 // after ACTION_STARTED. A record the sink refuses leaves the trail open with
 // its request id and its journal entry, as blockUnrecorded does.
 func (c *call) lapsedAfterStart(trail *evidence.Builder, ex *execution, verdict controlv1.Verdict, code string) Disposition {
-	// ACTION_STARTED is written, so the abort is too, whatever the agent does.
-	c.ctx = context.WithoutCancel(c.ctx)
 	aborted := ex.stamp(nil)
 	aborted.Status = resultBlocked
 	aborted.ToolProtocolStatus = code

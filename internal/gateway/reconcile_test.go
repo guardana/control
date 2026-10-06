@@ -255,6 +255,12 @@ func TestTheReconciliationClosesAnAnswerItCannotReadOrTrustAsUnknown(t *testing.
 		{"a state no answer has", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
 			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.State = controlv1.ApprovalState(99) })
 		}},
+		{"an answer of another major", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.SchemaVersion = "9.0" })
+		}},
+		{"an answer decided after the reading", base().Add(time.Minute), func(t *testing.T, store *fakeStore, pending gateway.Disposition) {
+			answeredThen(t, store, pending, func(a *controlv1.Approval) { a.DecidedAt = timestamppb.New(base().Add(time.Minute + time.Nanosecond)) })
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeStore()
