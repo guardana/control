@@ -29,6 +29,7 @@ type Config struct {
 	Approvals ApprovalsConfig
 	Pause     PauseConfig
 	Runs      RunsConfig
+	Reaction  ReactionConfig
 	Flow      FlowConfig
 	Evidence  EvidenceConfig
 	Export    ExportConfig

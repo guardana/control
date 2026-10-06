@@ -13,6 +13,7 @@ import (
 	"github.com/guardana/control/internal/metrics"
 	"github.com/guardana/control/internal/pause"
 	"github.com/guardana/control/internal/policywatch"
+	"github.com/guardana/control/internal/reaction"
 )
 
 // healthAnswer is what GET /healthz says about the plane. It carries no
@@ -39,7 +40,10 @@ type healthAnswer struct {
 	Exporter map[string]any `json:"exporter"`
 	// Pause is the operator's pause state as a call admitted now would be
 	// decided under it.
-	Pause    pauseAnswer `json:"pause"`
+	Pause pauseAnswer `json:"pause"`
+	// Stops is the stop state as a call admitted now would be decided
+	// under it.
+	Stops    stopsAnswer `json:"stops"`
 	Problems []string    `json:"problems,omitempty"`
 }
 
@@ -124,6 +128,9 @@ func (p *plane) metrics(src gateway.PauseSource, clock func() time.Time) ([]byte
 	if p.poller != nil {
 		r.Pause = p.poller.Stats()
 	}
+	if p.stops != nil {
+		r.Stops = p.stops.poller.Stats()
+	}
 	r.PolicyFreshness, _, r.PolicySecondsLeft = p.freshness(p.holder.Current(), clock())
 	if p.policy != nil && p.policy.refresher != nil {
 		r.Policy = metrics.RefreshOf(p.policy.refresher.Stats())
@@ -141,15 +148,17 @@ func (p *plane) serveHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, p.logger, status, answer)
 }
 
-// health reads every seam's counters, the pause state from src before the
+// health reads every seam's counters, the pause and stop states before the
 // clock, as a call takes them. ok is false when the plane takes no material
 // call, either halt of ADR-0013 or a spool that cannot answer, and when it
-// takes no call at all because its pause state is unknown. An operator's
-// pause is not a problem, and a policy that is not confirmed is degraded:
-// every mode but OBSERVE blocks material calls under it, and a restart does
-// not fix it.
+// takes no call at all because its pause or stop state is unknown. An
+// operator's pause and a stop are not problems; a policy that is not
+// confirmed is degraded, since every mode but OBSERVE blocks material calls
+// under it and a restart does not fix it, and so is a stop list past nine
+// tenths of a bound.
 func (p *plane) health(src gateway.PauseSource, clock func() time.Time) (healthAnswer, bool) {
 	snap := src.Current()
+	stops := p.stopSource().Current()
 	now := clock()
 	stats := p.pipeline.Stats()
 	answer := healthAnswer{
@@ -185,6 +194,11 @@ func (p *plane) health(src gateway.PauseSource, clock func() time.Time) (healthA
 		answer.Problems = append(answer.Problems,
 			"pause: the pause state is unknown ("+answer.Pause.Cause+"), so every call is blocked")
 	}
+	answer.Stops = p.stopsAnswer(stops, now)
+	if answer.Stops.State == reaction.Unknown.String() {
+		answer.Problems = append(answer.Problems,
+			"stops: the stop state is unknown ("+answer.Stops.Cause+"), so every call is blocked")
+	}
 	if reason := p.stopped.Load(); reason != nil {
 		answer.Exporter["stopped"] = (*reason).Error()
 	}
@@ -205,9 +219,9 @@ func (p *plane) health(src gateway.PauseSource, clock func() time.Time) (healthA
 	case answer.Halted || len(answer.Problems) > 0:
 		answer.Status = "halted"
 		return answer, false
-	case answer.Policy.Freshness != policywatch.Confirmed.String():
-		// Not a problem that halts: a restart cannot confirm a policy, and
-		// the plane still answers what it blocks and why.
+	case answer.Policy.Freshness != policywatch.Confirmed.String() || answer.Stops.Degraded:
+		// Not a problem that halts: a restart cannot confirm a policy or
+		// empty a list, and the plane still answers what it blocks and why.
 		answer.Status = "degraded"
 	}
 	return answer, true

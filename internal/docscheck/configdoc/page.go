@@ -131,10 +131,15 @@ func lead(listDefault string) string {
 		"may be negative. `runs.dir` may not be, hold or sit inside the spool, the\n" +
 		"approvals directory, the hold journal or the pause file's directory, needs a\n" +
 		"`listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a\n" +
-		"plane keeps in memory. Every `pdp.` key is refused while `pdp.identifier` is empty,\n" +
+		"plane keeps in memory. `reaction.route`, `reaction.public_key`, `reaction.floor_dir` and\n" +
+		"`reaction.stops` are set together or not at all; a route needs `runs.dir`,\n" +
+		"`reaction.poll_interval` takes 100ms to a minute, and the stops directory may not be,\n" +
+		"hold or sit inside the runs directory, the spool, the approvals directory, the hold\n" +
+		"journal, either floor directory or the pause file's directory, compared through\n" +
+		"symbolic links too. Every `pdp.` key is refused while `pdp.identifier` is empty,\n" +
 		"since it would apply to no decision point, and the identifier is written into every\n" +
 		"decision that consulted the decision point, so a credential goes in `pdp.headers`,\n" +
-		"never in it. Directories are compared as paths and not as what they\n" +
+		"never in it. Other directories are compared as paths and not as what they\n" +
 		"reach: two paths that are one directory through a symbolic link are not refused, and\n" +
 		"a pair this build cannot compare, such as one across volumes, is refused rather than\n" +
 		"allowed.\n\n" +

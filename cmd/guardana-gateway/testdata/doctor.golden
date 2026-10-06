@@ -46,6 +46,11 @@ ok      configuration <tree>/doctor.yaml parses, 24 key(s) set, the rest at thei
        pause.poll_interval          1s                       (default)
        runs.dir                                              (default)
        flow.max_runs                64                       (default)
+       reaction.route                                        (default)
+       reaction.public_key                                   (default)
+       reaction.floor_dir                                    (default)
+       reaction.stops                                        (default)
+       reaction.poll_interval       1s                       (default)
        evidence.dir                 spool                    (<tree>/doctor.yaml:31)
        evidence.max_bytes           1073741824               (default)
        evidence.segment_bytes       67108864                 (default)
@@ -73,6 +78,7 @@ ok      evidence      <tree>/spool locks and is writable; 0 segment(s), 0 byte(s
 ok      approvals     held requests are kept in process memory under the memory provider: nothing outside this process answers one, and a hold lost to a restart is never closed
 ok      pause         disabled: pause.file is not set, so no call can be paused without a restart
 ok      runs          local: one run per principal and agent, kept in memory, so a new process starts clean (ADR-0021)
+ok      reaction      disabled: reaction.route is not set, so no finding stops a run
 ok      export        OTLP/HTTP JSON logs to http://127.0.0.1:4318/v1/logs, 0 header(s), at most 128 record(s) per request, 4 in flight
 ok      secrets       upstream answers are scanned for 0 configured value(s); 0 value(s) shorter than 8 bytes are not
 ok      seams         the mcp adapter declares observe_request, observe_result, block, see_resource_ids, which covers what OBSERVE needs; at most 128 held and 256 open, an approval lasts 15m0s and a retry is asked for after 30s

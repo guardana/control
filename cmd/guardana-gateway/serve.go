@@ -139,10 +139,12 @@ func (p *plane) prune(ctx context.Context, stdout io.Writer) {
 	writeLine(stdout, fmt.Sprintf("expired approval records: %d forgotten", forgotten))
 }
 
-// run starts the exporter, the pause file's reader, the policy's refresher,
-// the health answers and the listener, and returns when ctx ends or a listener stops on its own.
+// run starts the exporter, the pause file's and the stop list's readers, the
+// policy's refresher, the health answers and the listener, and returns when
+// ctx ends or a listener stops on its own.
 // listen binds each address the configuration names, or hands over one bound
-// already. The pause file is read once more before anything is bound: the
+// already. The pause file and the stop list are read once more before
+// anything is bound: the
 // read the start made is as old as the start took, which can be past what it
 // answers for. Once the listeners are shut and the calls in flight have
 // closed, the exporter is given up to drain to ship what the spool holds
@@ -156,6 +158,9 @@ func (p *plane) run(ctx context.Context, stdout io.Writer, listen listenFunc, dr
 	if p.poller != nil {
 		p.poller.Poll()
 		p.warnStray()
+	}
+	if p.stops != nil {
+		p.stops.poller.Poll()
 	}
 	bound, err := p.bind(stdout, listen)
 	if err != nil {
@@ -194,8 +199,8 @@ func (p *plane) run(ctx context.Context, stdout io.Writer, listen listenFunc, dr
 }
 
 // startReaders runs what feeds a serving plane: the exporter until exportCtx
-// ends, and until ctx ends the pause file's reader and the policy's
-// refresher, each counted in wg.
+// ends, and until ctx ends the pause file's and the stop list's readers and
+// the policy's refresher, each counted in wg.
 func (p *plane) startReaders(ctx, exportCtx context.Context, wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
@@ -210,6 +215,15 @@ func (p *plane) startReaders(ctx, exportCtx context.Context, wg *sync.WaitGroup)
 		go func() {
 			defer wg.Done()
 			p.poller.Run(ctx)
+		}()
+	}
+	if p.stops != nil {
+		// As the pause file's reader: one that stopped blocks every call
+		// once its last read is three intervals old.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p.stops.poller.Run(ctx)
 		}()
 	}
 	if p.policy != nil && p.policy.refresher != nil {

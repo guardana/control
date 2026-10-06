@@ -12,6 +12,7 @@ import (
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/pause"
 	"github.com/guardana/control/internal/policywatch"
+	"github.com/guardana/control/internal/reaction/stoplist"
 	"github.com/guardana/control/internal/spool"
 )
 
@@ -42,7 +43,10 @@ type Reading struct {
 	// decided under, and the entries in force in it.
 	PauseState   pause.State
 	PauseEntries int
-	Spool        spool.Stats
+	// Stops is what the stop list's reader counted; zero where no route is
+	// configured.
+	Stops stoplist.PollStats
+	Spool spool.Stats
 	// SpoolBroken says the spool reported an error instead of its
 	// statistics, so Spool holds nothing and its metrics are left out.
 	SpoolBroken bool

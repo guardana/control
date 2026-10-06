@@ -28,12 +28,7 @@ import (
 
 // listenerTenant is the tenant of the listener's principal: its own, or the
 // plane's.
-func listenerTenant(cfg *gatewayconfig.Config) string {
-	if cfg.Listener.PrincipalTenant != "" {
-		return cfg.Listener.PrincipalTenant
-	}
-	return cfg.TenantID
-}
+func listenerTenant(cfg *gatewayconfig.Config) string { return cfg.ListenerTenant() }
 
 // sessionCap is the cap on live sessions of a listener that keeps them; any
 // other carries none, whatever the key's default says.

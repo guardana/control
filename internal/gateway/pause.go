@@ -95,7 +95,7 @@ func (c *call) takeStates() {
 	if _, disabled := c.p.cfg.Stops.(disabledStops); stops.State() == reaction.Disabled && !disabled {
 		stops = reaction.Snapshot{}
 	}
-	c.stops = stops.At(c.now)
+	c.stops = stops
 }
 
 // blockedNow takes the pause and stop states and the clock again right
@@ -118,23 +118,25 @@ func (c *call) blockedNow() bool {
 // they stand, the pause and stop states the call took last and the run it
 // took when it started. A stop matches the opened run as the listener
 // resolved it and the plane checked it against the envelope, never a run id
-// the agent sent or a local run the plane minted.
+// the agent sent or a local run the plane minted: a call with no opened run
+// asks about the empty run id, which no line of a list can name.
 func (c *call) planeState() planeState {
 	sink, mismatch := c.p.counts.halts()
 	action := c.in.Envelope.GetAction()
 	state := c.pause.State()
-	stopped := false
+	var runID, tenantID string
 	if run := c.flow.opened; run != nil {
-		stopped = c.stops.Active(run.ID, run.Who.TenantID, c.now, c.floor)
+		runID, tenantID = run.ID, run.Who.TenantID
 	}
+	stops, _ := c.stops.ForCall(runID, tenantID, c.now, c.floor)
 	return planeState{
 		mode:         c.p.cfg.Mode,
 		material:     contract.IsMaterial(action.GetEffect()),
 		unclassified: errors.Is(c.in.Refusal, ErrUnclassified),
 		paused:       state == pause.Paused && c.pause.Covers(action.GetKind(), action.GetProvider(), action.GetName()),
 		pauseUnknown: state == pause.Unknown,
-		stopped:      stopped,
-		stopUnknown:  c.stops.State() == reaction.Unknown,
+		stopped:      stops == reaction.Stopped,
+		stopUnknown:  stops == reaction.Unknown,
 		sinkHalt:     sink,
 		mismatchHalt: mismatch,
 		runRefused:   c.flow.kind == flowUnnamed || c.flow.kind == flowUnavailable,

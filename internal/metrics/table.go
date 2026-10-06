@@ -16,7 +16,7 @@ import (
 
 // table is the one list of metrics: Render writes it, the reference page
 // lists it, and the tests walk the statistics against it.
-var table = slices.Concat(seamRows, policyRows, storeRows)
+var table = slices.Concat(seamRows, stopRows, policyRows, storeRows)
 
 // seamRows are the pipeline's, the decision point's, the adapter's and the
 // pause file reader's.

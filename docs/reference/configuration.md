@@ -29,10 +29,15 @@ own bound of `30s`, longer than the key's `10s` default, and no duration
 may be negative. `runs.dir` may not be, hold or sit inside the spool, the
 approvals directory, the hold journal or the pause file's directory, needs a
 `listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a
-plane keeps in memory. Every `pdp.` key is refused while `pdp.identifier` is empty,
+plane keeps in memory. `reaction.route`, `reaction.public_key`, `reaction.floor_dir` and
+`reaction.stops` are set together or not at all; a route needs `runs.dir`,
+`reaction.poll_interval` takes 100ms to a minute, and the stops directory may not be,
+hold or sit inside the runs directory, the spool, the approvals directory, the hold
+journal, either floor directory or the pause file's directory, compared through
+symbolic links too. Every `pdp.` key is refused while `pdp.identifier` is empty,
 since it would apply to no decision point, and the identifier is written into every
 decision that consulted the decision point, so a credential goes in `pdp.headers`,
-never in it. Directories are compared as paths and not as what they
+never in it. Other directories are compared as paths and not as what they
 reach: two paths that are one directory through a symbolic link are not refused, and
 a pair this build cannot compare, such as one across volumes, is refused rather than
 allowed.
@@ -89,6 +94,11 @@ Rendered from the field table in `internal/gatewayconfig`. Rebuild it with
 | `pause.poll_interval` | `GUARDANA_CONTROL_PAUSE_POLL_INTERVAL` | duration | `1s` | no |  |
 | `runs.dir` | `GUARDANA_CONTROL_RUNS_DIR` | string |  | no |  |
 | `flow.max_runs` | `GUARDANA_CONTROL_FLOW_MAX_RUNS` | integer | `64` | no |  |
+| `reaction.route` | `GUARDANA_CONTROL_REACTION_ROUTE` | string |  | no |  |
+| `reaction.public_key` | `GUARDANA_CONTROL_REACTION_PUBLIC_KEY` | string |  | no |  |
+| `reaction.floor_dir` | `GUARDANA_CONTROL_REACTION_FLOOR_DIR` | string |  | no |  |
+| `reaction.stops` | `GUARDANA_CONTROL_REACTION_STOPS` | string |  | no |  |
+| `reaction.poll_interval` | `GUARDANA_CONTROL_REACTION_POLL_INTERVAL` | duration | `1s` | no |  |
 | `evidence.dir` | `GUARDANA_CONTROL_EVIDENCE_DIR` | string |  | yes |  |
 | `evidence.max_bytes` | `GUARDANA_CONTROL_EVIDENCE_MAX_BYTES` | bytes, plain or with KiB, MiB, GiB | `1GiB` | no |  |
 | `evidence.segment_bytes` | `GUARDANA_CONTROL_EVIDENCE_SEGMENT_BYTES` | bytes, plain or with KiB, MiB, GiB | `64MiB` | no |  |

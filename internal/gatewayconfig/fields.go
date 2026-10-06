@@ -102,6 +102,12 @@ var configFields = []field[Config]{
 	filePath(stringField("runs.dir", "", false, func(c *Config) *string { return &c.Runs.Dir })),
 	intField("flow.max_runs", "64", func(c *Config) *int { return &c.Flow.MaxRuns }),
 
+	filePath(stringField("reaction.route", "", false, func(c *Config) *string { return &c.Reaction.Route })),
+	filePath(stringField("reaction.public_key", "", false, func(c *Config) *string { return &c.Reaction.PublicKey })),
+	filePath(stringField("reaction.floor_dir", "", false, func(c *Config) *string { return &c.Reaction.FloorDir })),
+	filePath(stringField("reaction.stops", "", false, func(c *Config) *string { return &c.Reaction.Stops })),
+	durationField("reaction.poll_interval", "1s", func(c *Config) *time.Duration { return &c.Reaction.PollInterval }),
+
 	filePath(stringField("evidence.dir", "", true, func(c *Config) *string { return &c.Evidence.Dir })),
 	bytesField("evidence.max_bytes", "1GiB", func(c *Config) *int64 { return &c.Evidence.MaxBytes }),
 	bytesField("evidence.segment_bytes", "64MiB", func(c *Config) *int64 { return &c.Evidence.SegmentBytes }),

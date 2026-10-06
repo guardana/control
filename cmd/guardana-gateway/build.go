@@ -54,6 +54,10 @@ type plane struct {
 	// poller reads the operator's pause file, and is nil where none is
 	// configured: the pipeline is then handed the disabled source.
 	poller *pause.Poller
+	// stops is the route and the stop list's reader of a serving plane with a
+	// route, and nil otherwise: the pipeline is then handed the disabled
+	// source.
+	stops *planeStops
 	// runsDir is the runs directory a serving plane opened, nil where runs
 	// are local; runToken is a stdio plane's one token.
 	runsDir  *runs.Plane
@@ -117,8 +121,8 @@ func build(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time, r role
 // reconciliation writes evidence and resolves records, and `run` is the one
 // command that calls for it (ADR-0016).
 //
-// An inspecting plane opens no runs directory and serves local runs; doctor
-// examines the directory on its own.
+// An inspecting plane opens no runs directory and serves local runs, and
+// reads no route and no stop list; doctor examines each on its own.
 func (p *plane) open(r role, tokenPath string) error {
 	if r == roleInspect {
 		p.store = &gateway.MemoryApprovals{}
@@ -129,6 +133,9 @@ func (p *plane) open(r role, tokenPath string) error {
 		return err
 	}
 	p.runsDir, p.runToken = dir, token
+	if p.stops, err = openStops(p.cfg, p.logger); err != nil {
+		return err
+	}
 	store, records, err := openApprovals(p.cfg)
 	if err != nil {
 		return err
@@ -204,7 +211,7 @@ func (p *plane) pipelineConfig(adapter *adaptermcp.Adapter, mode controlv1.Enfor
 		},
 		Policy:               p.holder,
 		Pause:                p.pauseSource(),
-		Stops:                gateway.StopsDisabled(),
+		Stops:                p.stopSource(),
 		Sink:                 p.spool,
 		Approvals:            p.store,
 		Journal:              p.holds,

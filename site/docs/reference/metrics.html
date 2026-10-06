@@ -446,6 +446,27 @@ edit made here does not survive the next run.</p>
 <td>Pause entries in force.</td>
 </tr>
 <tr>
+<td><code>guardana_control_stops_polls_total</code></td>
+<td>counter</td>
+<td></td>
+<td><code>Stops.Polls</code></td>
+<td>Reads of the stop list, the first included.</td>
+</tr>
+<tr>
+<td><code>guardana_control_stops_poll_failures_total</code></td>
+<td>counter</td>
+<td><code>cause</code></td>
+<td><code>Stops.Failed</code></td>
+<td>Reads of the stop list whose state was unknown, by cause; each blocked every call until a read was whole again; a cause the reader does not declare is counted under other.</td>
+</tr>
+<tr>
+<td><code>guardana_control_stops_active_entries</code></td>
+<td>gauge</td>
+<td></td>
+<td><code>Stops.Active</code></td>
+<td>Stops active at the clock of the last read of the stop list.</td>
+</tr>
+<tr>
 <td><code>guardana_control_policy_freshness</code></td>
 <td>gauge</td>
 <td><code>state</code></td>

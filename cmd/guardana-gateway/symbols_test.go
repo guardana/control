@@ -46,11 +46,19 @@ var (
 		brand.ModulePath + "/internal/policystate.Reset",
 		brand.ModulePath + "/internal/policystate.(*dir).writeMarker",
 		brand.ModulePath + "/internal/policystate.onlyLeftovers",
+		// Making a route floor is the operator's too (ADR-0046); a plane
+		// only reads and raises one.
+		brand.ModulePath + "/internal/policystate.InitRoute",
+		brand.ModulePath + "/internal/policystate.(*dir).claimRoute",
+		brand.ModulePath + "/internal/policystate.(*dir).writeRouteMarker",
 	}
 	gatewayHolds = []string{
 		brand.ModulePath + "/internal/approvals.(*Plane)",
 		brand.ModulePath + "/internal/runs.(*Plane)",
 		brand.ModulePath + "/internal/policykey.SignBundle",
+		brand.ModulePath + "/internal/reaction.VerifyRoute",
+		brand.ModulePath + "/internal/policystate.RaiseRoute",
+		brand.ModulePath + "/internal/reaction/stoplist.(*Poller)",
 	}
 	// The standard library's private-key parsers, under the names a program
 	// that calls them holds.

@@ -376,7 +376,7 @@ func TestNamesFollowTheConventions(t *testing.T) {
 		wantLabel := map[string]string{
 			"Pipeline.Blocks": "code", "Pause.Failed": "cause", "PauseState": "state",
 			"Adapter.RunsRefusedAtRequest": "cause", "Adapter.RunsRefusedAtMessage": "cause",
-			"Policy.Refused": "cause", "PolicyFreshness": "state",
+			"Policy.Refused": "cause", "PolicyFreshness": "state", "Stops.Failed": "cause",
 		}[m.Reads]
 		if m.Label != wantLabel {
 			t.Errorf("%s reads %s and has label %q, want %q", m.Name, m.Reads, m.Label, wantLabel)
