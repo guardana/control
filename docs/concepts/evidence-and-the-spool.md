@@ -68,7 +68,7 @@ unset, so a gap looks like a gap and never like an empty decision.
 | `ACTION_COMPLETED` | the bytes sent were the authorized ones and the result succeeded | the result, with `executed_action_digest` equal to the decision's action digest |
 | `ACTION_FAILED` | the result was not a success, the bytes sent were not the authorized ones, or the adapter did not send | the result; `tool_protocol_status: EXECUTED_ARGS_MISMATCH` on a mismatch; on an abort a `BLOCKED` result carrying the cause's code and no executed digest |
 | `ACTION_BLOCKED` | the call was stopped | the decision that stopped it: the kernel's, or the enforcement point's own with `pdp_type: gateway` |
-| `POLICY_RELOADED` | defined for a bundle taken into use; this plane writes none yet | the bundle reference; its content never enters the trail |
+| `POLICY_RELOADED` | defined for a bundle taken into use; this plane writes none | the bundle reference; its content never enters the trail |
 | `FINDING_RAISED` | defined for a detector reporting after the fact; this plane writes none, and `supervise` keeps its findings in a log of its own | the finding; it annotates and never grants or denies |
 
 ## Before an effect and after

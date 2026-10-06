@@ -37,11 +37,11 @@ that cites its evidence; an alert from a local notifier; and a stop that
 refuses that run's next call, no other's.
 
 A procedure is a versioned document a run names: its steps, their order, the
-required ones, the exceptions it allows and its deadline. The supervisor reports steps outside the procedure or out of order,
-skipped required steps, runs past their deadline, runs that carry on after a
-failed step, and attempts to use a tool, resource or permission the run does
-not hold, a denied action retried in another form included. It runs beside
-the decision path and changes no verdict. Missing evidence is unknown,
+required ones, the exceptions it allows and its deadline. Beyond the checks of
+one run that exist ([docs/status.md](docs/status.md)), the supervisor reports
+a procedure's exceptions and attempts to use a resource or permission the run
+does not hold, a denied action retried in another form included. It runs
+beside the decision path and changes no verdict. Missing evidence is unknown,
 never a pass. Observations already name their source and its trust; a
 finding on one never passes for a decision the plane enforced.
 

@@ -5,7 +5,9 @@ Date: 2026-10-02
 
 Builds on [ADR-0007](0007-repository-layout-and-dependency-rule.md),
 [ADR-0026](0026-first-value-and-external-extension-paths.md) and
-[ADR-0035](0035-a-versioned-evidence-export-and-a-bounded-query.md).
+[ADR-0035](0035-a-versioned-evidence-export-and-a-bounded-query.md). Amends
+ADR-0007: `examples/evidence-report` is a module of its own, and the gate runs
+over every module.
 
 ## Context
 

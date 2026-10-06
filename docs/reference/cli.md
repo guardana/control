@@ -2,7 +2,7 @@
 title: Command line
 summary: The two binaries, what each prints as its help, and the exit statuses they share.
 type: reference
-covers: [cmd/guardana-control/**, cmd/guardana-gateway/**]
+covers: [cmd/guardana-control/**, cmd/guardana-gateway/**, internal/policykey/**, internal/pause/**, internal/trailfile/**]
 ---
 
 # Command line
@@ -16,8 +16,8 @@ without this page fails the gate.
 | Exit status | Means |
 | --- | --- |
 | 0 | The command did what it was asked. |
-| 1 | The input was refused or a case failed: stderr says why, one line each; `policy test`, a scenario and `coverage` print what failed. |
-| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail or observation export refused or cut short, an incomplete `observe import`, or a refused `coverage` input. |
+| 1 | The input was refused or a case failed: stderr says why, one line each; `policy test`, a scenario, `coverage` and `supervise` print what failed. So do a whole `trail export` with a gap and a failed `notify` delivery. |
+| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail or observation export refused or cut short, an incomplete `observe import`, or a refused `coverage`, `supervise` or `notify` input. |
 
 Without arguments either binary prints its version and one status line on
 stdout and exits 0.
@@ -71,8 +71,7 @@ rename, `sign` reports the failure although the new bundle may already be in
 place.
 
 The key reaches the command only as a path, and no refusal quotes it. Both
-commands refuse
-on a platform without permission bits
+refuse on a platform without permission bits
 ([ADR-0018](../adr/0018-keys-and-bundles-on-disk.md)).
 
 Both answering commands require `--approver-id`, a claim nothing checks;
@@ -106,8 +105,7 @@ refuses a name that is taken. `pause add` takes exactly one scope: `--global`,
 every call; `--provider <p>`, every call to that upstream by its configured
 name; or `--action <k>` with `--provider <p>`, where `<k>` is `tool`, `prompt`
 or `resource` and a tool also takes `--name <n>`, the name the plane routes
-by. A prompt or a resource takes no name. `<f>` is the pause file, a relative path read from the working
-directory. It prints
+by. A prompt or a resource takes no name. `<f>` is the pause file, relative to the working directory. It prints
 the id it drew for the entry and nothing else, and `pause remove <file> <id>`
 takes that id; removing the last entry leaves a file that pauses nothing,
 because a missing file blocks every call. `pause list` prints one line per
@@ -122,15 +120,15 @@ cannot hold, and a 65th entry, each on one line that does not repeat the
 value. A writer waits up to ten seconds for another writer's lock; a
 running plane takes none. A pause blocks every call not yet handed out for
 execution when the plane reads it, within one `pause.poll_interval`; it cancels
-nothing already running,
-and a hold outlives it: a held request whose retry was paused resumes after
-the lift if its approval has not expired.
+nothing already running.
 
 The `runs` commands open, close and list the runs a plane with `runs.dir`
 serves: [runs.md](runs.md).
 
 The `observe` commands import an agent runtime's OpenTelemetry spans into an
-observation log and export it: [observations.md](observations.md).
+observation log and export it: [observations.md](observations.md). `coverage`
+is [coverage.md](coverage.md), `supervise` and `notify`
+[supervision.md](supervision.md).
 
 `console` serves a page that answers approvals and writes pauses:
 [console.md](console.md).

@@ -149,7 +149,7 @@ plane mints or, under <code>runs.dir</code>, the id of the run the operator open
 </tr>
 <tr>
 <td><code>resource</code></td>
-<td>the override's <code>type</code>, and <code>id</code>: the string or number at the override's <code>resource_from</code> pointer into the arguments, none for another value, the URI of a <code>resources/read</code>, or the name of a <code>prompts/get</code>; the upstream's <code>tenant_id</code> and <code>environment</code></td>
+<td>the override's <code>type</code>, and <code>id</code>: the string or number at the override's <code>resource_from</code> pointer into the arguments, none for another value, the URI of a <code>resources/read</code>, or the name of a <code>prompts/get</code>; the upstream's <code>tenant_id</code> and <code>environment</code>. An action name or resource id refused as over-long is recorded as <code>overlong:sha256:</code> and the hex SHA-256 of what was sent</td>
 </tr>
 <tr>
 <td><code>destination</code></td>
@@ -278,6 +278,26 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <td>anyone who reaches <code>health.address</code>, which takes no credential</td>
 </tr>
 <tr>
+<td>the observation log, <code>observe import --log</code></td>
+<td>per observation its source and trust, its times, the tool name and server address it names, and its correlation ids; never a prompt, an output or reasoning</td>
+<td>the operator's account: the directory is owner-only and the log <code>0600</code></td>
+</tr>
+<tr>
+<td>the findings log, <code>supervise --findings</code></td>
+<td>per finding the tenant, project, procedure, rule, verdict and the ids of the events and observations it cites</td>
+<td>the operator's account: the directory is owner-only and the log <code>0600</code></td>
+</tr>
+<tr>
+<td>notify's state, <code>notify --state</code></td>
+<td>the keys delivered and the digest of the findings log's first line</td>
+<td>the operator's account: owner-only, files <code>0600</code></td>
+</tr>
+<tr>
+<td>the program <code>notify</code> runs</td>
+<td>each alert finding's record, one JSON line on its standard input</td>
+<td>that program, and wherever it sends it</td>
+</tr>
+<tr>
 <td>the plane's log, on stderr</td>
 <td>messages with ids such as <code>request_id</code>, <code>execution_id</code> and an upstream's name, and error text, never an upstream's or a collector's URL past its scheme and host, an upstream's error message, which is logged by its code, nor a transport error's text, which is logged by its type; header values are never printed</td>
 <td>wherever the operator sends stderr</td>
@@ -308,7 +328,7 @@ the plane. A plane in <code>OBSERVE</code> sends the proposed ones.</p>
 </tr>
 <tr>
 <td>the trail file</td>
-<td>never: it is not rotated or pruned, and <code>trail</code> reads at most 100,000 events</td>
+<td>never: it is not rotated or pruned, and <code>trail</code> reads at most 100,000 lines</td>
 <td>stop <code>collect</code>, move the file, start <code>collect</code> again; a file moved under a running collector stops it taking records</td>
 </tr>
 <tr>
@@ -330,6 +350,16 @@ the plane. A plane in <code>OBSERVE</code> sends the proposed ones.</p>
 <td>the collector's copy, the log</td>
 <td>as the operator's systems keep them</td>
 <td>the operator's retention</td>
+</tr>
+<tr>
+<td>the observation log and the findings log</td>
+<td>never: neither is rotated or pruned, and each is refused past 1 GiB</td>
+<td>move the directory aside and start a new one</td>
+</tr>
+<tr>
+<td>notify's state</td>
+<td>never</td>
+<td>delete it; <code>notify --init</code> on a new state delivers every alert again</td>
 </tr>
 <tr>
 <td>a <code>dev</code> state directory</td>

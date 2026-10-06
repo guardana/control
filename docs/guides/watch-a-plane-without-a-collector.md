@@ -123,7 +123,7 @@ lines, repeated ones included, and refuses a longer file with exit 1.
   loopback port can write evidence into the trail, including a chain made up
   to pass the check.
 - `trail` checks each chain's shape: its links, its order and its identifiers.
-  There is no hash chain yet, so a record changed to keep that shape passes.
+  There is no hash chain, so a record changed to keep that shape passes.
 - The collector reads what this repository's exporter sends and nothing more:
   a member OTLP defines that the exporter never writes is refused rather than
   ignored.

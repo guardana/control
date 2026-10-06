@@ -138,12 +138,12 @@ guardana-control policy state init --kind plane --bundle-id orders-policy floors
 <p><code>--bundle-id</code> is the document's <code>id</code>. Keep <code>floors</code> on a disk that outlives
 the plane: a floor made anew takes any older bundle.</p>
 <h3 id="2-write-a-configuration">2. Write a configuration</h3>
-<p>Every path in the file resolves against the file's directory. Every key has
-an environment variable under <code>GUARDANA_CONTROL_</code>, the key in capitals with
+<p>Every path in the file resolves against its directory. Every key has an
+environment variable under <code>GUARDANA_CONTROL_</code>, the key in capitals with
 underscores for dots, which wins over the file. An unknown key is refused.
 <a href="/docs/reference/configuration">configuration.md</a> lists every key. The plane
-refuses the file when it, or a directory or link on its path, is another
-account's than its own or root's, or others may write it.</p>
+refuses the file if it, or a directory or link on its path, belongs to an
+account but its own or root, or others may write it.</p>
 <pre><code class="language-yaml">mode: OBSERVE
 project_id: orders
 tenant_id: acme

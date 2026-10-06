@@ -51,7 +51,7 @@ report and left out.
 
 An evidence export is read only when it is a regular file of this account
 that the group and others cannot write, as the procedure and the descriptors
-are. A `CONFIRMED` finding rests on the export being the plane's, and today
+are. A `CONFIRMED` finding rests on the export being the plane's, and
 nothing but that file's owner and mode protects it.
 
 ## The rules

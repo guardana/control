@@ -108,7 +108,9 @@ any public SDK; the former second milestone, runs and evidence other tools can
 read, is delivered, its consumer in a module of its own.</p>
 <p>Builds on <a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>,
 <a href="/docs/adr/0009-open-core-boundary">ADR-0009</a> and
-<a href="/docs/adr/0024-control-and-guardana-are-independent">ADR-0024</a>.</p>
+<a href="/docs/adr/0024-control-and-guardana-are-independent">ADR-0024</a>. Amends ADR-0007 on
+the public packages: only <code>pkg/contract</code> exists, and the other three are
+reserved names.</p>
 <h2 id="context">Context</h2>
 <p>The project is meant to supervise an organization's AI agents. Today there is an
 experimental MCP gateway and its demo, run from a checkout. An outside review

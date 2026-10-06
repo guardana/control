@@ -2,7 +2,7 @@
 title: Failure modes
 summary: What a plane does when its collector, spool, decision point, an upstream, its pause file, freshness statement or clock fails, or it is killed holding calls.
 type: reference
-covers: [cmd/guardana-gateway/serve.go, cmd/guardana-gateway/adapter.go, cmd/guardana-gateway/chaos_*_test.go, adapters/mcp/middleware.go, adapters/mcp/answer.go, adapters/authzen/**, adapters/otel/**, internal/spool/**, internal/pause/**, internal/gateway/close.go, internal/gateway/decisionpoint.go, internal/gateway/lapse.go, internal/gateway/resume.go, internal/core/clock.go, internal/policy/policy.go, internal/policywatch/**]
+covers: [cmd/guardana-gateway/serve.go, cmd/guardana-gateway/adapter.go, cmd/guardana-gateway/chaos_*_test.go, adapters/mcp/middleware.go, adapters/mcp/answer.go, adapters/authzen/**, adapters/otel/**, internal/spool/**, internal/pause/**, internal/gateway/close.go, internal/gateway/decisionpoint.go, internal/gateway/lapse.go, internal/gateway/resume.go, internal/core/clock.go, internal/core/clock_test.go, internal/gateway/e2e/**, internal/gateway/reconcile.go, internal/policy/policy.go, internal/policywatch/**, internal/policystate/**]
 ---
 
 # Failure modes
@@ -14,7 +14,7 @@ failure happen. The sections after the table say what the trail holds.
 
 The tests in the `chaos_` files of `cmd/guardana-gateway/` run the built
 binary as a process in `ENFORCE`, against listeners, files and a child
-process that really fail. Nothing here is a security boundary yet
+process that really fail. Nothing here is a security boundary
 ([status](../status.md)).
 
 | Failure | The call | Reason code | The agent gets | Recovers by itself | Test |
@@ -111,20 +111,20 @@ well. `/healthz` answers `503` with `pause.state: unknown` and the cause
 
 ## A policy that is not confirmed
 
-Every poll rereads the bundle and the statement. What it refuses is
+Every poll rereads the bundle and the statement. A refusal is
 logged and counted under its cause in
 `guardana_control_policy_refresh_refused_total`: `bundle_unreadable`,
 `bundle_invalid`, `bundle_id`, `bundle_budget`, `rollback`, `serial_reused`,
 `statement_missing`, `statement_unreadable`, `statement_invalid`,
 `statement_unbound`, `statement_future`, `statement_expired`, `below_floor`,
 `clock_behind_floor`, `clock_back`, `withdrawn`, `floor` or `unknown`. The
-bundle in use keeps its confirmation. A bundle file refused stops the renewals
-of the bundle in use too, since each poll pairs the statement with the file,
-so the plane turns stale when the last statement's budget runs out. While
+bundle in use keeps its confirmation. A refused bundle file stops the renewals
+of the bundle in use too, since each poll pairs the statement with the file:
+the plane turns stale when the last statement's budget ends. While
 the policy is not confirmed, each call's `POLICY_DECIDED` carries
 `POLICY_STALE` and `policy_freshness` `STALE`, `/healthz` answers
-`"status":"degraded"`, and outside `OBSERVE` a material call is blocked
-with `ACTION_BLOCKED`.
+`"status":"degraded"`, and outside `OBSERVE` a call is blocked with
+`ACTION_BLOCKED`, a read too unless `policy.fail_open_read`.
 
 ## A clock that cannot be read as now
 

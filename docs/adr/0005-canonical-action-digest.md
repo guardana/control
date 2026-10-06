@@ -6,6 +6,10 @@ Date: 2026-09-09
 Amended by [ADR-0010](0010-digest-domain-separation.md) and
 [ADR-0011](0011-contract-corrections-before-publication.md).
 
+Amended by [ADR-0029](0029-exact-fractions-in-the-canonical-form.md): a number
+with a fraction is taken when a double holds its exact value, rather than
+refused.
+
 ## Context
 
 An approval, a replay and an SDK written in another language all have to agree

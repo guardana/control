@@ -11,7 +11,9 @@ read, is delivered, its consumer in a module of its own.
 
 Builds on [ADR-0007](0007-repository-layout-and-dependency-rule.md),
 [ADR-0009](0009-open-core-boundary.md) and
-[ADR-0024](0024-control-and-guardana-are-independent.md).
+[ADR-0024](0024-control-and-guardana-are-independent.md). Amends ADR-0007 on
+the public packages: only `pkg/contract` exists, and the other three are
+reserved names.
 
 ## Context
 

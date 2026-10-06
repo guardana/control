@@ -52,8 +52,10 @@ neither calls it nor needs it
 ## The containers
 
 Two binaries. `guardana-gateway` runs the plane; `guardana-control` is the
-author's tool for a policy document and its key, and the operator's for a held
-call and a pause; the one thing it serves is the local approvals page.
+author's tool for a policy document and its key, the operator's for a held
+call, a pause and an opened run, and the reader of files after the fact:
+`observe`, `coverage`, `supervise` and `notify`. The one thing it serves is the
+local approvals page.
 
 ```mermaid
 flowchart TB
@@ -112,7 +114,7 @@ Sources: `cmd/guardana-gateway/build.go`, `cmd/guardana-control/main.go`,
 | OTLP exporter | `adapters/otel/` | Drains the spool to a collector and acknowledges only the protocol's own answer. |
 | Approval store | `internal/approvals/` | Reads and checks the records in the directory an approver answers in; the pipeline compares an answer with its own record of the hold. |
 | Hold journal | `internal/holdjournal/` | The plane's own durable record of its holds, so the next start closes the trail of one it lost, or counts it left open. |
-| Commands | `cmd/guardana-control/` | The `policy`, `approvals`, `pause` and `runs` commands and the `console` page, without a plane. |
+| Commands | `cmd/guardana-control/` | The `policy`, `approvals`, `pause` and `runs` commands and the `console` page, without a plane; `observe`, `coverage`, `supervise` and `notify` read files after the fact. |
 
 ## The request path
 
@@ -338,7 +340,7 @@ Sources: `ROADMAP.md`, `internal/gateway/pause.go`, `adapters/authzen/client.go`
   pause, a stop applies after the kernel decides, and it never cuts a call
   already running.
 - **Extensions** are separate programs speaking versioned data contracts, and
-  definitions (policies, scenarios, and later procedures, detector rules and
+  definitions (policies, scenarios, procedures, and later detector rules and
   routes) are documents a team writes and tests. An external decision point
   can already veto over AuthZEN (`experimental`).
   [extending/adapters.md](../extending/adapters.md) is the first guide.
@@ -373,7 +375,7 @@ Sources: `ROADMAP.md`, `internal/gateway/pause.go`, `adapters/authzen/client.go`
 | `internal/brand/` | The product name every other package reads | `implemented` |
 | `internal/approvals/`, `internal/holdjournal/` | The file approval provider and the plane's hold journal, [ADR-0016](../adr/0016-approval-providers-and-the-lost-hold.md) | `experimental` |
 | `cmd/guardana-control/` | The `policy` commands | `implemented` |
-| `cmd/guardana-control/` | The `approvals` and `pause` commands and the `console` page | `experimental` |
+| `cmd/guardana-control/` | The `approvals`, `pause`, `runs`, `observe`, `coverage`, `supervise` and `notify` commands and the `console` page | `experimental` |
 | `cmd/guardana-gateway/` | The plane: `run`, `doctor`, `collect`, `trail`, `scenario` and `dev` | `experimental` |
 | `Makefile`, `scripts/`, `.golangci.yml` | The one quality gate | `implemented` |
 | `internal/docscheck/` | The documentation gate, run by `make docs-check` | `implemented` |

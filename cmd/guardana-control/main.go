@@ -24,7 +24,7 @@ import (
 // cannot back up.
 var version = "dev"
 
-const statusLine = "the policy, approvals, pause, runs, observe and console commands are implemented; the rest is in docs/status.md"
+const statusLine = "docs/status.md says what this build does and what it does not"
 
 // Exit statuses. A usage error is neither a pass nor a refusal of the input,
 // so it has the third status the Go flag package uses for one.

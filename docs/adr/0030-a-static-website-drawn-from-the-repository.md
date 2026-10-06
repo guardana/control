@@ -4,7 +4,11 @@ Status: accepted
 Date: 2026-09-28
 
 Builds on [ADR-0015](0015-documentation-structure-and-checks.md) and
-[ADR-0024](0024-control-and-guardana-are-independent.md).
+[ADR-0024](0024-control-and-guardana-are-independent.md). Amends
+[ADR-0009](0009-open-core-boundary.md) on licensing: the site's IBM Plex fonts
+are under the SIL Open Font License 1.1; ADR-0015 on its deferral: a landing
+page comes first; and ADR-0024 on Control's visual system, a copy it owns, while
+independence is unchanged.
 
 Amended by [ADR-0031](0031-the-documentation-is-served-on-the-website.md): the
 documentation is rendered into the site, and the landing page links to it

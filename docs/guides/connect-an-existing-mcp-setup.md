@@ -25,16 +25,22 @@ and the MCP inspector's command line as the client. The plane is
   checkout of this repository for the profile and the policy pack, which the
   archives do not carry.
 - Node.js with `npm`, for this server; another server needs whatever it runs on.
+- Go 1.27.1 or later, to build the report program.
 - A client that connects to a server by URL over Streamable HTTP, protocol
   `2025-11-25` or older. A client that only starts servers as commands can
   start the plane instead (step 7).
 
 ## Steps
 
-### 1. Copy the profile and install the server beside it
+### 1. Copy the profile and the policy, and install the server
+
+From the checkout's root:
 
 ```
-cp -R examples/connect-a-filesystem-server ~/files-plane && cd ~/files-plane
+cp -R examples/connect-a-filesystem-server ~/files-plane
+cp examples/starter-packs/approval-for-writes/policy.json ~/files-plane/
+go -C examples/evidence-report build -o ~/files-plane/bin/ .
+cd ~/files-plane
 npm install @modelcontextprotocol/server-filesystem@2026.8.31
 mkdir -m 700 spool approvals holds
 ```
@@ -59,11 +65,7 @@ guardana-control policy state init --kind plane --bundle-id starter-approval-for
 that says the bundle is current. `floors` is the plane's: it keeps the highest
 serial the plane took, so a restart cannot go back to an older bundle.
 
-`policy.json` is the approval-for-writes pack's document, which release
-archives do not carry: take it from `examples/starter-packs/` in a checkout or
-on the repository's page.
-
-The approval-for-writes pack allows reads, holds every write for a person,
+The approval-for-writes pack, copied in step 1, allows reads, holds every write for a person,
 denies deletes in `prod` and a confidential message out after untrusted input
 ([reference/starter-packs.md](../reference/starter-packs.md)). Keep `keys`,
 `freshness`, `signer-floors` and your copy of the bundle off the machine that
@@ -176,9 +178,7 @@ guardana-gateway trail export trail.jsonl | bin/evidence-report
 ```
 
 `trail` checks that each request's events form an unbroken chain.
-`evidence-report`, built at the repository's root with
-`go -C examples/evidence-report build -o ~/files-plane/bin/ .`, prints a
-row per request: the tool, the verdict and codes, whether it was held and how
+`evidence-report`, built in step 1, prints a row per request: the tool, the verdict and codes, whether it was held and how
 the approval ended, and how the call ended
 ([read-the-evidence-from-a-program.md](read-the-evidence-from-a-program.md)).
 

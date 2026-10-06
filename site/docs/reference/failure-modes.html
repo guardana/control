@@ -105,7 +105,7 @@ whether the plane recovers without an operator, and the test that makes the
 failure happen. The sections after the table say what the trail holds.</p>
 <p>The tests in the <code>chaos_</code> files of <code>cmd/guardana-gateway/</code> run the built
 binary as a process in <code>ENFORCE</code>, against listeners, files and a child
-process that really fail. Nothing here is a security boundary yet
+process that really fail. Nothing here is a security boundary
 (<a href="/docs/status">status</a>).</p>
 <table>
 <thead>
@@ -284,20 +284,20 @@ well. <code>/healthz</code> answers <code>503</code> with <code>pause.state: unk
 (<code>TestHealthAnswers503OnEveryUnknownState</code>), and the trail of each call ends
 <code>ACTION_BLOCKED</code> with the code.</p>
 <h2 id="a-policy-that-is-not-confirmed">A policy that is not confirmed</h2>
-<p>Every poll rereads the bundle and the statement. What it refuses is
+<p>Every poll rereads the bundle and the statement. A refusal is
 logged and counted under its cause in
 <code>guardana_control_policy_refresh_refused_total</code>: <code>bundle_unreadable</code>,
 <code>bundle_invalid</code>, <code>bundle_id</code>, <code>bundle_budget</code>, <code>rollback</code>, <code>serial_reused</code>,
 <code>statement_missing</code>, <code>statement_unreadable</code>, <code>statement_invalid</code>,
 <code>statement_unbound</code>, <code>statement_future</code>, <code>statement_expired</code>, <code>below_floor</code>,
 <code>clock_behind_floor</code>, <code>clock_back</code>, <code>withdrawn</code>, <code>floor</code> or <code>unknown</code>. The
-bundle in use keeps its confirmation. A bundle file refused stops the renewals
-of the bundle in use too, since each poll pairs the statement with the file,
-so the plane turns stale when the last statement's budget runs out. While
+bundle in use keeps its confirmation. A refused bundle file stops the renewals
+of the bundle in use too, since each poll pairs the statement with the file:
+the plane turns stale when the last statement's budget ends. While
 the policy is not confirmed, each call's <code>POLICY_DECIDED</code> carries
 <code>POLICY_STALE</code> and <code>policy_freshness</code> <code>STALE</code>, <code>/healthz</code> answers
-<code>&quot;status&quot;:&quot;degraded&quot;</code>, and outside <code>OBSERVE</code> a material call is blocked
-with <code>ACTION_BLOCKED</code>.</p>
+<code>&quot;status&quot;:&quot;degraded&quot;</code>, and outside <code>OBSERVE</code> a call is blocked with
+<code>ACTION_BLOCKED</code>, a read too unless <code>policy.fail_open_read</code>.</p>
 <h2 id="a-clock-that-cannot-be-read-as-now">A clock that cannot be read as now</h2>
 <p>The kernel judges no expiry and no bundle's age by a reading before 1970,
 after 9999-12-31, or behind the

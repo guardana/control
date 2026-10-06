@@ -106,9 +106,10 @@ policy (invariant 7). The MCP adapter in <code>adapters/mcp/</code> is the worke
 and the only one today.</p>
 <p>An adapter is the enforcement point among the five ports of
 <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>: it sees a call before
-its effect. A sensor, a detector, a reaction and a notifier are <code>planned</code>, as
-separate programs speaking versioned data contracts rather than code compiled
-into the plane, so this guide does not cover them.</p>
+its effect. Sensors, detectors, reactions and notifiers run as separate
+programs speaking versioned data contracts, never as code compiled into the
+plane (<a href="/docs/status">status.md</a> says which exist), so this guide does not
+cover them.</p>
 <h2 id="the-seam">The seam</h2>
 <p>The seam is internal, in <code>internal/gateway</code>:</p>
 <pre><code class="language-go">type Adapter interface {
@@ -263,8 +264,9 @@ reads:</p>
 </tr>
 </tbody>
 </table>
-<p>An obligation marked advisory that the adapter cannot satisfy is skipped and
-the call proceeds, and nothing records the skip; a non-advisory one stops it,
+<p>An obligation the adapter cannot satisfy, including one carrying a parameter
+its type does not read, is skipped when it is marked advisory and the call
+proceeds, and nothing records the skip; a non-advisory one stops it,
 and the closing record says the obligation refused it. A rewrite that changes
 the member a tool's <code>resource_from</code> reads is aborted, not sent. The plane applies the rewriting types (<code>redact_fields</code>,
 <code>cap_amount</code>) itself, before the decision that is recorded, because they change
@@ -311,6 +313,10 @@ protocol, in the adapter's own package:</p>
 <tr>
 <td><code>SeeResourceIDs</code></td>
 <td>the resource id in the envelope is the one the call names</td>
+</tr>
+<tr>
+<td><code>PresentsRuns</code></td>
+<td>a call carrying an opened run's token is decided under that run, and a refused token never reaches the plane</td>
 </tr>
 <tr>
 <td>each obligation type</td>

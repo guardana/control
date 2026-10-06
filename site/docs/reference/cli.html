@@ -118,11 +118,11 @@ without this page fails the gate.</p>
 </tr>
 <tr>
 <td>1</td>
-<td>The input was refused or a case failed: stderr says why, one line each; <code>policy test</code>, a scenario and <code>coverage</code> print what failed.</td>
+<td>The input was refused or a case failed: stderr says why, one line each; <code>policy test</code>, a scenario, <code>coverage</code> and <code>supervise</code> print what failed. So do a whole <code>trail export</code> with a gap and a failed <code>notify</code> delivery.</td>
 </tr>
 <tr>
 <td>2</td>
-<td>A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail or observation export refused or cut short, an incomplete <code>observe import</code>, or a refused <code>coverage</code> input.</td>
+<td>A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail or observation export refused or cut short, an incomplete <code>observe import</code>, or a refused <code>coverage</code>, <code>supervise</code> or <code>notify</code> input.</td>
 </tr>
 </tbody>
 </table>
@@ -170,8 +170,7 @@ whatever <code>a/link</code> points at. When syncing the directory fails after t
 rename, <code>sign</code> reports the failure although the new bundle may already be in
 place.</p>
 <p>The key reaches the command only as a path, and no refusal quotes it. Both
-commands refuse
-on a platform without permission bits
+refuse on a platform without permission bits
 (<a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>).</p>
 <p>Both answering commands require <code>--approver-id</code>, a claim nothing checks;
 flags come before the directory and the approval id.</p>
@@ -200,8 +199,7 @@ refuses a name that is taken. <code>pause add</code> takes exactly one scope: <c
 every call; <code>--provider &lt;p&gt;</code>, every call to that upstream by its configured
 name; or <code>--action &lt;k&gt;</code> with <code>--provider &lt;p&gt;</code>, where <code>&lt;k&gt;</code> is <code>tool</code>, <code>prompt</code>
 or <code>resource</code> and a tool also takes <code>--name &lt;n&gt;</code>, the name the plane routes
-by. A prompt or a resource takes no name. <code>&lt;f&gt;</code> is the pause file, a relative path read from the working
-directory. It prints
+by. A prompt or a resource takes no name. <code>&lt;f&gt;</code> is the pause file, relative to the working directory. It prints
 the id it drew for the entry and nothing else, and <code>pause remove &lt;file&gt; &lt;id&gt;</code>
 takes that id; removing the last entry leaves a file that pauses nothing,
 because a missing file blocks every call. <code>pause list</code> prints one line per
@@ -215,13 +213,13 @@ cannot hold, and a 65th entry, each on one line that does not repeat the
 value. A writer waits up to ten seconds for another writer's lock; a
 running plane takes none. A pause blocks every call not yet handed out for
 execution when the plane reads it, within one <code>pause.poll_interval</code>; it cancels
-nothing already running,
-and a hold outlives it: a held request whose retry was paused resumes after
-the lift if its approval has not expired.</p>
+nothing already running.</p>
 <p>The <code>runs</code> commands open, close and list the runs a plane with <code>runs.dir</code>
 serves: <a href="/docs/reference/runs">runs.md</a>.</p>
 <p>The <code>observe</code> commands import an agent runtime's OpenTelemetry spans into an
-observation log and export it: <a href="/docs/reference/observations">observations.md</a>.</p>
+observation log and export it: <a href="/docs/reference/observations">observations.md</a>. <code>coverage</code>
+is <a href="/docs/reference/coverage">coverage.md</a>, <code>supervise</code> and <code>notify</code>
+<a href="/docs/reference/supervision">supervision.md</a>.</p>
 <p><code>console</code> serves a page that answers approvals and writes pauses:
 <a href="/docs/reference/console">console.md</a>.</p>
 <pre><code>usage:

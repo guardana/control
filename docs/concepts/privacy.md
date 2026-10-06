@@ -2,7 +2,7 @@
 title: Privacy
 summary: What the plane records about a call, where each record goes and who can read it, how long it stays, and that nothing goes to the project.
 type: explanation
-covers: [internal/evidence/**, adapters/mcp/translate.go, adapters/mcp/answer.go, adapters/mcp/trace.go, adapters/mcp/adapter.go, internal/gateway/authorize.go, internal/gateway/flow.go, internal/spool/**, adapters/otel/**, internal/trailfile/**, internal/metrics/**, internal/approvals/**, internal/holdjournal/**, internal/pause/**, internal/console/**, adapters/authzen/mapping.go, cmd/guardana-gateway/**]
+covers: [internal/evidence/**, adapters/mcp/translate.go, adapters/mcp/answer.go, adapters/mcp/trace.go, adapters/mcp/adapter.go, internal/gateway/authorize.go, internal/gateway/flow.go, internal/spool/**, adapters/otel/**, internal/trailfile/**, internal/metrics/**, internal/approvals/**, internal/holdjournal/**, internal/pause/**, internal/console/**, adapters/authzen/mapping.go, cmd/guardana-gateway/**, internal/observelog/**, internal/findinglog/**, internal/notify/**]
 ---
 
 # Privacy
@@ -42,7 +42,7 @@ plane mints or, under `runs.dir`, the id of the run the operator opened. `execut
 | `principal` | `id`, `type` and `tenant_id` from `listener.principal`; no end user, since no key wires an authenticator |
 | `agent` | `id`, `framework` and `version` from `listener.agent` |
 | `action` | `kind` (`tool`, `resource` or `prompt`), `name` (the tool's name, the resource's URI or the prompt's name), `protocol` `mcp`, the effect class, and `provider`, the upstream's name |
-| `resource` | the override's `type`, and `id`: the string or number at the override's `resource_from` pointer into the arguments, none for another value, the URI of a `resources/read`, or the name of a `prompts/get`; the upstream's `tenant_id` and `environment` |
+| `resource` | the override's `type`, and `id`: the string or number at the override's `resource_from` pointer into the arguments, none for another value, the URI of a `resources/read`, or the name of a `prompts/get`; the upstream's `tenant_id` and `environment`. An action name or resource id refused as over-long is recorded as `overlong:sha256:` and the hex SHA-256 of what was sent |
 | `destination` | the override's trust zone, when it names one |
 | `arguments` | `canonical_hash` only: a SHA-256 of the canonical arguments |
 | `trace_id`, `span_id` | the trace id and the parent id of a version `00` `traceparent` in the request's `_meta`, the client's claim; empty without one |
@@ -111,6 +111,10 @@ to the plane, no field of the contract holds it, and no adapter reads it.
 | the pause file | each entry's scope and its optional reason | the plane's account, and any account the file's and directory's modes let read it |
 | the decision point at `pdp.identifier` | the principal, the action, the resource with its id, the destination, the data labels and the ids; never the arguments, their hash or a digest | whoever runs it, and a proxy configured for it ([ADR-0017](../adr/0017-an-external-decision-point-can-veto.md)) |
 | `/metrics` and `/healthz` | counts and states; `/healthz` also the mode, the bundle's id, version, digest and serial, its confirmation and expiry times, and the ids of pause entries that match no listed tool. No metric label carries an identifier, a digest or free text; `pipeline_blocks_total` is labelled with a reason code ([reference/metrics](../reference/metrics.md)) | anyone who reaches `health.address`, which takes no credential |
+| the observation log, `observe import --log` | per observation its source and trust, its times, the tool name and server address it names, and its correlation ids; never a prompt, an output or reasoning | the operator's account: the directory is owner-only and the log `0600` |
+| the findings log, `supervise --findings` | per finding the tenant, project, procedure, rule, verdict and the ids of the events and observations it cites | the operator's account: the directory is owner-only and the log `0600` |
+| notify's state, `notify --state` | the keys delivered and the digest of the findings log's first line | the operator's account: owner-only, files `0600` |
+| the program `notify` runs | each alert finding's record, one JSON line on its standard input | that program, and wherever it sends it |
 | the plane's log, on stderr | messages with ids such as `request_id`, `execution_id` and an upstream's name, and error text, never an upstream's or a collector's URL past its scheme and host, an upstream's error message, which is logged by its code, nor a transport error's text, which is logged by its type; header values are never printed | wherever the operator sends stderr |
 
 The upstream server receives the authorized arguments, as it would without
@@ -122,11 +126,13 @@ the plane. A plane in `OBSERVE` sends the proposed ones.
 | --- | --- | --- |
 | a spool segment | every record in it is accepted by the collector or moved to `quarantine.log` | nothing; `evidence.max_bytes` bounds what waits |
 | `quarantine.log` in the spool | never: the plane does not remove it, and its bytes count against the budget | decide what to keep; nothing in this build prunes it |
-| the trail file | never: it is not rotated or pruned, and `trail` reads at most 100,000 events | stop `collect`, move the file, start `collect` again; a file moved under a running collector stops it taking records |
+| the trail file | never: it is not rotated or pruned, and `trail` reads at most 100,000 lines | stop `collect`, move the file, start `collect` again; a file moved under a running collector stops it taking records |
 | an approval record and its projection | at a plane's start, once its approval has expired, whether it was consumed or not | nothing removes them while a plane runs; a directory left to grow refuses holds at `approvals.max_records` |
 | a hold journal entry | when its trail can take nothing more | nothing |
 | a pause entry | when an operator removes it; the file keeps no history | nothing |
 | the collector's copy, the log | as the operator's systems keep them | the operator's retention |
+| the observation log and the findings log | never: neither is rotated or pruned, and each is refused past 1 GiB | move the directory aside and start a new one |
+| notify's state | never | delete it; `notify --init` on a new state delivers every alert again |
 | a `dev` state directory | never: it is left behind when `dev` stops | delete it |
 
 No command finds or deletes the records about one person. A plane without

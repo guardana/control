@@ -45,9 +45,14 @@ the bundle digest, so a list shaped under one bundle is never served under
 another.
 
 Amended by [ADR-0042](0042-an-answer-that-quotes-a-configured-credential-is-withheld.md):
-an upstream's answer, wire error, listed item or tool definition that quotes a
-credential the plane sends reaches the agent as a fixed answer of the plane's,
-never with the upstream's message, data or content.
+an upstream's answer, wire error or listed item that quotes a credential the
+plane sends reaches the agent as a fixed answer of the plane's, never with the
+upstream's message, data or content, and such a tool definition is never
+classified or listed.
+
+Amended by [ADR-0034](0034-a-run-the-operator-opens-has-an-identity-of-its-own.md):
+a retry resumes a held request only from the run that was held; a retry from
+another opened run is held anew.
 
 ## Context
 

@@ -107,9 +107,18 @@ Date: 2026-09-21</p>
 <a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a>.
 Amends <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a> on what becomes
 of a hold the plane loses and on what may be said of a record it does not hold.</p>
+<p>Amended once doctor named it: doctor opens the evidence spool as <code>run</code> does,
+and that open cuts a torn tail, which doctor's evidence line now names in bytes;
+the validation's &quot;doctor writes nothing&quot; holds for the approvals directory and
+the hold journal, not for a torn spool tail.</p>
 <p>Amended by <a href="/docs/adr/0023-a-local-page-answers-through-the-directory">ADR-0023</a>: both
 handles open the directory once and reach every file through it, and judge it
 again at every call, not only at <code>Open</code>, refusing one that changed since.</p>
+<p>Amended by <a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a> and
+<a href="/docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold">ADR-0027</a>: an
+approval consumed before a pause read in the last moment, or found expired at
+hand-out, is spent although nothing ran, so an identical call then reads
+<code>APPROVAL_ALREADY_USED</code>; this narrows the validation below.</p>
 <p>Amended by <a href="/docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold">ADR-0027</a>: a
 lost hold whose answer the store cannot give, or gives in a form the checks
 refuse, is closed <code>INDETERMINATE</code> with <code>APPROVAL_STATE_UNKNOWN</code>, not

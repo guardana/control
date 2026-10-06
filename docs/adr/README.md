@@ -1,7 +1,7 @@
 # Architecture decision records
 
 A record states one decision already made and either the check that enforces it
-or the session that brings one. Required for a change to authorization
+or the change that brings one. Required for a change to authorization
 semantics, a public contract, the layout rule, or release and licensing.
 
 To add one: copy `0000-template.md` to the next free number, open the pull
@@ -17,7 +17,7 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0006](0006-product-name-switch.md) | The name is a working name and can be switched |
 | [0007](0007-repository-layout-and-dependency-rule.md) | The decision path imports no adapter, storage or server |
 | [0008](0008-branching-and-release-policy.md) | Protected `main`, DCO, semver, releases built by CI |
-| [0009](0009-open-core-boundary.md) | Everything here is Apache-2.0 and stays open |
+| [0009](0009-open-core-boundary.md) | Everything here is Apache-2.0 and stays open; the site's fonts are under the SIL Open Font License |
 | [0010](0010-digest-domain-separation.md) | The digest domain tag is fixed and carries no product name |
 | [0011](0011-contract-corrections-before-publication.md) | The v1 contract is corrected once, before it is first published |
 | [0012](0012-policy-kernel-semantics.md) | How the built-in policy kernel decides |

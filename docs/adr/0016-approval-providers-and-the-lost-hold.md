@@ -10,9 +10,20 @@ Builds on [ADR-0004](0004-evidence-and-privacy-defaults.md),
 Amends [ADR-0013](0013-mcp-interception-approvals-and-modes.md) on what becomes
 of a hold the plane loses and on what may be said of a record it does not hold.
 
+Amended once doctor named it: doctor opens the evidence spool as `run` does,
+and that open cuts a torn tail, which doctor's evidence line now names in bytes;
+the validation's "doctor writes nothing" holds for the approvals directory and
+the hold journal, not for a torn spool tail.
+
 Amended by [ADR-0023](0023-a-local-page-answers-through-the-directory.md): both
 handles open the directory once and reach every file through it, and judge it
 again at every call, not only at `Open`, refusing one that changed since.
+
+Amended by [ADR-0019](0019-an-operator-can-pause-calls.md) and
+[ADR-0027](0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md): an
+approval consumed before a pause read in the last moment, or found expired at
+hand-out, is spent although nothing ran, so an identical call then reads
+`APPROVAL_ALREADY_USED`; this narrows the validation below.
 
 Amended by [ADR-0027](0027-expiry-at-hand-out-and-an-unreadable-lost-hold.md): a
 lost hold whose answer the store cannot give, or gives in a form the checks

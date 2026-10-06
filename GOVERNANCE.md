@@ -36,7 +36,7 @@ Two independent approvals are required for a change that touches any of:
 - cryptography, including the canonical action digest;
 - a public wire schema with security meaning;
 - redaction and evidence content defaults;
-- release signing, provenance, or the security of a workflow.
+- release signing, provenance, workflow security, or the gate's checks.
 
 "Independent" means the two approvers did not write the change and did not pair
 on it.

@@ -25,8 +25,12 @@ what exists is [status](../status.md); this page keeps no list of its own.
 - The policy key, `policy keygen`, `policy sign` and the signed bundle a plane
   loads; the freshness key, `policy renew`, the statement it writes and the
   serial floors that keep a bundle current.
-- The release archives and what proves where they came from
-  ([RELEASING.md](../../RELEASING.md)).
+- The runs directory and the `runs` commands: a record there is the
+  authority to open a run ([reference/runs](../reference/runs.md)).
+- `observe`, `coverage`, `supervise` and `notify`, which read files after the
+  fact and decide nothing; `notify` runs a program the operator names.
+- The release archives, the container image, and what proves where they came
+  from ([RELEASING.md](../../RELEASING.md)).
 
 The agent, its model, the MCP servers and a collector someone else runs are
 outside the plane. They appear below as parties the plane has to deal with.
@@ -62,7 +66,7 @@ flowchart TD
         subgraph Own["One account: the plane's user"]
             Plane["Gateway process"]
             Child["stdio upstream: a child given a fixed few variables and its env list"]
-            Files["Approvals directory, pause file, hold journal, trail file, key"]
+            Files["Approvals, runs and floor directories, pause file, hold journal, trail file, key"]
             Spool["Spool"]
             Page["Approvals page and commands"]
             Collect["collect"]
@@ -265,6 +269,14 @@ What it does not do:
 
 What the plane does today:
 
+- The configuration file is refused when it, or any directory or link on its
+  path from the root, is owned by an account other than the plane's or root,
+  or others may write it (a sticky directory, or one on a read-only mount,
+  excepted), and when it has a second name. Group write is allowed, so a member
+  of the file's group can change the configuration; on macOS every local
+  account shares the `staff` group (`internal/gatewayconfig/pathwalk.go`;
+  `TestEveryDirectoryOnThePathIsJudged`, `TestALinkIsJudgedWhereItLies`,
+  `TestAFileWithASecondNameIsRefused`).
 - The approvals directory is refused when another account owns it or the
   group or the world may write it. It is judged again at every call, and a
   change of owner or of directory is refused too; each record is `0600`
@@ -299,8 +311,8 @@ What the plane does today:
 
 What it does not do:
 
-- **The MCP listener and the health listener take no credential**, but for a
-  run token under `runs.dir`. Any account that can reach them calls tools as
+- **The health listener takes no credential, and the MCP listener none but a
+  run token under `runs.dir`.** Any account that can reach them calls tools as
   the listener's principal, under any run whose token it holds, and reads the
   counters. Both default to `127.0.0.1`, which every local account can reach.
 - **`collect` takes no credential.** Any account that reaches its port can

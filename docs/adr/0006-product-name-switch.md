@@ -6,6 +6,9 @@ Date: 2026-09-09
 Amended by [ADR-0025](0025-public-repository-merges-and-releases.md): the
 first release fixes the name; renaming after it needs a record of its own.
 
+Amended by [ADR-0010](0010-digest-domain-separation.md): the digest's domain
+tags no longer hold the product's name, so a rename changes no digest.
+
 The name was decided on 2026-09-10: Guardana Control, `guardana/control`, and
 the tree was renamed with the script below. The record stays because the
 mechanisms do: a rename before the first tagged release is still cheap, and

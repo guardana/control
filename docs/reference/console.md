@@ -48,8 +48,9 @@ stderr.
 
 It serves until interrupted. With `--until-stdin-closes` it also stops when
 its standard input ends, which lets the process that started it stop it by
-closing a pipe. Either way it exits 0, or 1 when the page or the approvals
-store cannot be closed cleanly.
+closing a pipe. A request still running a second into the stop is dropped.
+Either way it exits 0, or 1 when the page or the approvals store cannot be
+closed cleanly.
 
 ## What it refuses
 
@@ -70,6 +71,8 @@ store cannot be closed cleanly.
 - An answer to an id the store cannot hold, or to a record the listing names
   among its problems, a record file the page cannot open included: 409, in
   the store's own sentence, or for a record the one its problem carries.
+- An answer to an id a listing cut short at its bound does not name: 409, saying
+  whether it is held is unknown, and nothing is written.
 - An answer, and the listing, once the approvals directory changed since the
   page opened it: another directory at its name, another owner, or a group or
   world write bit. An answer is refused with 409 and the listing fails, both

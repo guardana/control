@@ -92,10 +92,10 @@ When a call has more than one of the first six causes, or one of them and
 `LOCKDOWN` on a material call, the decision on the block lists every one, in
 this order: `PAUSED`, `EXECUTED_ARGS_MISMATCH`, `LOCKDOWN`,
 `PAUSE_STATE_UNAVAILABLE`, `EVIDENCE_UNAVAILABLE` (once, for a sink halt, a
-run or both), `ACTION_UNCLASSIFIED`. A forged flow tag is a refusal of the
-call itself, which the kernel decides without asking anyone. Its
-verdict is `DENY` when any of them denies, and its first code is the one the
-block counters count. The kernel still decides such a
+run or both), `ACTION_UNCLASSIFIED`. The block's verdict is `DENY` when any of
+them denies, and its first code is the one the block counters count. A forged
+flow tag is a refusal of the call itself, which the kernel decides without
+asking anyone. The kernel still decides such a
 call, and `POLICY_DECIDED` records that decision, but an external decision
 point is not asked: the question would leave the plane for nothing, during
 the incident the pause or the halt stands for

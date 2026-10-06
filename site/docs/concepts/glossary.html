@@ -137,8 +137,8 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>coverage</td>
-<td>for each path an operator declared, whether it is enforced, decided but not enforced, observed with its source's trust, inferred or not covered; paths nobody declared are unknown, and it is never a percentage</td>
-<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>planned</code></td>
+<td>for each path an operator declared, whether it is enforced, decided but not enforced, observed with its source's trust, unknown or not covered; paths nobody declared are unknown too, and it is never a percentage</td>
+<td><code>internal/coverage/</code>, run by <code>guardana-control coverage</code>, <code>experimental</code></td>
 </tr>
 <tr>
 <td>decision</td>
@@ -178,7 +178,7 @@ for the same thing; the right column is where the code defines it.</p>
 <tr>
 <td>export cursor</td>
 <td>where an evidence export stopped: the digest of the file's first line, an offset after a newline and the digest of the line that ends there; refused when the file's first line or the line ending at the offset differs. Not the exporter's cursor in the spool</td>
-<td><code>cursor</code> in <code>internal/trailfile/cursor.go</code></td>
+<td><code>cursor</code> in <code>internal/lineexport/cursor.go</code></td>
 </tr>
 <tr>
 <td>external decision point</td>
@@ -192,8 +192,8 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>finding</td>
-<td>what a detector concludes about a run, confirmed, suspected or unknown, citing the evidence and observations it rests on; it never grants authority and never changes a verdict</td>
-<td><code>Finding</code> in <code>finding.proto</code>; raised by nothing yet, <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></td>
+<td>what a detector concludes about a run, <code>CONFIRMED</code>, <code>SUSPECTED</code> or <code>INDETERMINATE</code>, citing the evidence and observations it rests on; it never grants authority and never changes a verdict</td>
+<td><code>Finding</code> in <code>finding.proto</code>, inside the <code>FindingRecord</code> that <code>guardana-control supervise</code> writes, <code>experimental</code></td>
 </tr>
 <tr>
 <td>freshness statement</td>
@@ -223,7 +223,7 @@ for the same thing; the right column is where the code defines it.</p>
 <tr>
 <td>notifier</td>
 <td>a port that delivers findings to a tool an operator watches, at least once, each with a stable id a receiver drops repeats by; it holds no authority over a plane</td>
-<td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>, <code>planned</code></td>
+<td><code>internal/notify/</code>, run by <code>guardana-control notify</code>, which hands alerts to a local program, <code>experimental</code>; other notifiers <code>planned</code></td>
 </tr>
 <tr>
 <td>obligation</td>

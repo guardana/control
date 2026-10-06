@@ -65,7 +65,7 @@ counted. A span's name and its status message are never copied.
 
 ## What an import drops
 
-No content is kept in `0.1`: there is no redaction yet to apply to it, and a
+No content is kept in `0.1`: there is no redaction to apply to it, and a
 capture setting is refused. Every content attribute (`gen_ai.input.messages`,
 `gen_ai.output.messages`, `gen_ai.system_instructions`,
 `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`,
@@ -125,6 +125,6 @@ a header, `observation` and `import_report` records, gaps (`malformed`,
 `unsupported_version`, `carriage_return`, `conflicting_observation_id`,
 `too_long`, `partial_tail`),
 duplicates and a trailer with the cursor to resume from, and the same exit
-codes. It has no filters yet. It reads only a file the writer would open: a
+codes. It has no filters. It reads only a file the writer would open: a
 regular file of this account, not a link, that the group and others cannot
 reach, with no other name.

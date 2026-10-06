@@ -16,9 +16,9 @@ make bootstrap
 make quality
 ```
 
-`make bootstrap` compares every tool the gate needs against the version pinned
-in `scripts/tool-versions.env`, installs a missing one where it can, and fails
-on a mismatch. The Go toolchain is pinned separately, in `go.mod`. A tool that
+`make bootstrap` compares every binary tool the gate needs with its pin in
+`scripts/tool-versions.env`, installs a missing one where it can, and fails on
+a mismatch. `go.mod` pins Go and the Go tools. A tool that
 cannot be installed is a failure, never a skipped step.
 
 `make quality` is the whole gate, and `ci.yml` runs exactly that target. Use

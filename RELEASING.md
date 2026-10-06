@@ -14,15 +14,16 @@ maintainer's approval or the admin's bypass.
 ## Cutting a release
 
 1. Give the version its section in `CHANGELOG.md`, with the date:
-   `## [0.1.0-alpha] - 2026-09-25`. The workflow publishes that section as the
+   `## [X.Y.Z-alpha] - YYYY-MM-DD`. The workflow publishes that section as the
    release notes and fails if it is missing, undated or empty.
-   `scripts/release-notes.sh v0.1.0-alpha` prints it.
+   `scripts/release-notes.sh vX.Y.Z-alpha` prints it.
 2. Commit that on `main`, and let CI and Security finish green on it.
 3. Tag the commit and push the tag:
 
    ```sh
-   git tag -a v0.1.0-alpha -m "Guardana Control 0.1.0-alpha"
-   git push origin v0.1.0-alpha
+   version=X.Y.Z-alpha
+   git tag -a "v${version}" -m "Guardana Control ${version}"
+   git push origin "v${version}"
    ```
 
 4. Approve the waiting run: the tag's Release run, Review deployments.
@@ -100,17 +101,18 @@ tag.
 Anyone with write access to the repository or package can overwrite a
 registry tag or a release's notes. Take the digest from the notes and check it
 with cosign v3 or later. The signature covers the index, not each platform's
-image. For `v0.2.0`:
+image. For `vX.Y.Z-alpha`:
 
 ```sh
+tag=vX.Y.Z-alpha
 image=ghcr.io/guardana/control-gateway@sha256:<the digest in the release notes>
 
 cosign verify "$image" \
-  --certificate-identity "https://github.com/guardana/control/.github/workflows/release.yml@refs/tags/v0.2.0" \
+  --certificate-identity "https://github.com/guardana/control/.github/workflows/release.yml@refs/tags/${tag}" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 gh attestation verify "oci://$image" \
   --repo guardana/control \
-  --cert-identity "https://github.com/guardana/control/.github/workflows/release.yml@refs/tags/v0.2.0" \
-  --source-ref refs/tags/v0.2.0 --deny-self-hosted-runners
+  --cert-identity "https://github.com/guardana/control/.github/workflows/release.yml@refs/tags/${tag}" \
+  --source-ref "refs/tags/${tag}" --deny-self-hosted-runners
 ```

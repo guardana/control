@@ -111,7 +111,7 @@ can take the records written since the last tick.
 One run of `scripts/bench.sh --publish` with `COUNT=5 BENCHTIME=1s`, at commit
 `95816d1`, whose results file
 [bench/results/20261005T211214Z-darwin-arm64.txt](../../bench/results/20261005T211214Z-darwin-arm64.txt)
-holds every other measurement on this page.
+holds the other measurements on this page.
 
 | Item | Value |
 | --- | --- |

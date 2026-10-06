@@ -226,7 +226,7 @@ counted. A span's name and its status message are never copied.</p>
 </tbody>
 </table>
 <h2 id="what-an-import-drops">What an import drops</h2>
-<p>No content is kept in <code>0.1</code>: there is no redaction yet to apply to it, and a
+<p>No content is kept in <code>0.1</code>: there is no redaction to apply to it, and a
 capture setting is refused. Every content attribute (<code>gen_ai.input.messages</code>,
 <code>gen_ai.output.messages</code>, <code>gen_ai.system_instructions</code>,
 <code>gen_ai.tool.call.arguments</code>, <code>gen_ai.tool.call.result</code>,
@@ -280,7 +280,7 @@ a header, <code>observation</code> and <code>import_report</code> records, gaps 
 <code>unsupported_version</code>, <code>carriage_return</code>, <code>conflicting_observation_id</code>,
 <code>too_long</code>, <code>partial_tail</code>),
 duplicates and a trailer with the cursor to resume from, and the same exit
-codes. It has no filters yet. It reads only a file the writer would open: a
+codes. It has no filters. It reads only a file the writer would open: a
 regular file of this account, not a link, that the group and others cannot
 reach, with no other name.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/observations.md">docs/reference/observations.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>

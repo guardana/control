@@ -16,9 +16,10 @@ and the only one today.
 
 An adapter is the enforcement point among the five ports of
 [ADR-0039](../adr/0039-many-channels-into-one-core.md): it sees a call before
-its effect. A sensor, a detector, a reaction and a notifier are `planned`, as
-separate programs speaking versioned data contracts rather than code compiled
-into the plane, so this guide does not cover them.
+its effect. Sensors, detectors, reactions and notifiers run as separate
+programs speaking versioned data contracts, never as code compiled into the
+plane ([status.md](../status.md) says which exist), so this guide does not
+cover them.
 
 ## The seam
 
@@ -110,8 +111,9 @@ reads:
 | `shorten_timeout` | `ms` (a positive integer) | bounds this call by the shortest timeout the obligations ask for |
 | `deny_external_sink` | none | refuses a call whose destination trust zone is untrusted |
 
-An obligation marked advisory that the adapter cannot satisfy is skipped and
-the call proceeds, and nothing records the skip; a non-advisory one stops it,
+An obligation the adapter cannot satisfy, including one carrying a parameter
+its type does not read, is skipped when it is marked advisory and the call
+proceeds, and nothing records the skip; a non-advisory one stops it,
 and the closing record says the obligation refused it. A rewrite that changes
 the member a tool's `resource_from` reads is aborted, not sent. The plane applies the rewriting types (`redact_fields`,
 `cap_amount`) itself, before the decision that is recorded, because they change
@@ -140,6 +142,7 @@ protocol, in the adapter's own package:
 | `Authenticates`, `BindEndUser` | the principal is the credential's user, and a request with no user is refused |
 | `SeeDelegation` | the chain in the call reaches the envelope |
 | `SeeResourceIDs` | the resource id in the envelope is the one the call names |
+| `PresentsRuns` | a call carrying an opened run's token is decided under that run, and a refused token never reaches the plane |
 | each obligation type | a call the obligation refuses does not reach the upstream, and one it permits does |
 
 Beyond the capabilities, an adapter that is worth trusting also has an

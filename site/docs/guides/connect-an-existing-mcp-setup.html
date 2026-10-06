@@ -115,13 +115,18 @@ and the MCP inspector's command line as the client. The plane is
 checkout of this repository for the profile and the policy pack, which the
 archives do not carry.</li>
 <li>Node.js with <code>npm</code>, for this server; another server needs whatever it runs on.</li>
+<li>Go 1.27.1 or later, to build the report program.</li>
 <li>A client that connects to a server by URL over Streamable HTTP, protocol
 <code>2025-11-25</code> or older. A client that only starts servers as commands can
 start the plane instead (step 7).</li>
 </ul>
 <h2 id="steps">Steps</h2>
-<h3 id="1-copy-the-profile-and-install-the-server-beside-it">1. Copy the profile and install the server beside it</h3>
-<pre><code>cp -R examples/connect-a-filesystem-server ~/files-plane &amp;&amp; cd ~/files-plane
+<h3 id="1-copy-the-profile-and-the-policy-and-install-the-server">1. Copy the profile and the policy, and install the server</h3>
+<p>From the checkout's root:</p>
+<pre><code>cp -R examples/connect-a-filesystem-server ~/files-plane
+cp examples/starter-packs/approval-for-writes/policy.json ~/files-plane/
+go -C examples/evidence-report build -o ~/files-plane/bin/ .
+cd ~/files-plane
 npm install @modelcontextprotocol/server-filesystem@2026.8.31
 mkdir -m 700 spool approvals holds
 </code></pre>
@@ -140,10 +145,7 @@ guardana-control policy state init --kind plane --bundle-id starter-approval-for
 <p><code>keys</code> signs the bundle and <code>freshness</code>, a second pair, signs the statement
 that says the bundle is current. <code>floors</code> is the plane's: it keeps the highest
 serial the plane took, so a restart cannot go back to an older bundle.</p>
-<p><code>policy.json</code> is the approval-for-writes pack's document, which release
-archives do not carry: take it from <code>examples/starter-packs/</code> in a checkout or
-on the repository's page.</p>
-<p>The approval-for-writes pack allows reads, holds every write for a person,
+<p>The approval-for-writes pack, copied in step 1, allows reads, holds every write for a person,
 denies deletes in <code>prod</code> and a confidential message out after untrusted input
 (<a href="/docs/reference/starter-packs">reference/starter-packs.md</a>). Keep <code>keys</code>,
 <code>freshness</code>, <code>signer-floors</code> and your copy of the bundle off the machine that
@@ -223,9 +225,7 @@ held anew after; an approval covers one exact call.</p>
 guardana-gateway trail export trail.jsonl | bin/evidence-report
 </code></pre>
 <p><code>trail</code> checks that each request's events form an unbroken chain.
-<code>evidence-report</code>, built at the repository's root with
-<code>go -C examples/evidence-report build -o ~/files-plane/bin/ .</code>, prints a
-row per request: the tool, the verdict and codes, whether it was held and how
+<code>evidence-report</code>, built in step 1, prints a row per request: the tool, the verdict and codes, whether it was held and how
 the approval ended, and how the call ended
 (<a href="/docs/guides/read-the-evidence-from-a-program">read-the-evidence-from-a-program.md</a>).</p>
 <h2 id="what-this-covers-and-what-it-assumes">What this covers and what it assumes</h2>

@@ -47,8 +47,8 @@ verdicts:
 | `ALLOW_WITH_OBLIGATIONS` | The action proceeds under conditions, enforced unless advisory. |
 | `INDETERMINATE` | The decision could not be made. It is never an allow. |
 
-It enforces the verdict except in `OBSERVE`; `APPROVE` and a pause can be
-stricter. Nothing runs unrecorded unless the operator let a read do so. The
+It enforces the verdict except in `OBSERVE`; `APPROVE`, `LOCKDOWN` and a
+pause can be stricter. Nothing runs unrecorded unless the operator let a read do so. The
 record says who acted, on
 whose behalf, on what, what was decided, which policy version decided it, how
 the call ended, and a hash of any answer it could encode, never its content.
@@ -79,8 +79,8 @@ flowchart LR
 ```
 
 The enforcement point is the only component this project adds to the request
-path. Evidence goes to a local spool before export, so decisions do not wait
-for the exporter. If the spool fills, calls block, except a read the operator
+path. Evidence goes to a local spool first, so decisions do not wait for the
+exporter. If the spool fills, calls block, except a read the operator
 let run unrecorded, which is counted.
 
 ## Where it is going
@@ -91,14 +91,14 @@ MCP is one channel of several ([ROADMAP.md](ROADMAP.md),
 | Today, `experimental` | `Planned` |
 | --- | --- |
 | An MCP gateway deciding each call before it runs | Proxy and process sensors |
-| Signed policy, approvals, pause, evidence trail | A supervisor: procedures, detectors, coverage |
-| A report and local alerts from the evidence export | Notifiers, and stopping one run where allowed |
-| Runtime traces kept as observations | |
+| Signed policy, approvals, pause, evidence trail | Framework hooks |
+| Runtime traces kept as observations, a coverage map | Alerts beyond a local program |
+| One run checked against its procedure, alerts to a program | Stopping one run where allowed |
 
 ```mermaid
 flowchart TB
     accTitle: Where Guardana Control is going
-    accDescr: Agents act through enforcement points, the MCP gateway today and framework hooks through an enforcement API next, which decide each call before it runs and record evidence. Sensors bring in what runtimes, proxies and processes report after the fact. A supervisor compares the evidence and the observations with procedures and permissions, maps which paths it covers, and raises findings. Findings go out as alerts, to OpenTelemetry and a SIEM, and to a run graph. Where the operator allowed it, a reaction stops one run at the enforcement points.
+    accDescr: Agents act through enforcement points, the MCP gateway today and framework hooks through an enforcement API later, which decide each call before it runs and record evidence. Sensors bring in what runtimes, proxies and processes report after the fact. A supervisor compares the evidence and the observations with procedures and permissions, maps which paths it covers, and raises findings. Findings go out as alerts, to OpenTelemetry and a SIEM, and to a run graph. Where the operator allowed it, a reaction stops one run at the enforcement points.
     AG[Agents]
     subgraph EP[Enforcement points]
         MCP["MCP gateway, today"]
@@ -149,8 +149,8 @@ binaries, `guardana-gateway` and `guardana-control`. Download one from the
 the signed `checksums.txt` as [RELEASING.md](RELEASING.md) shows, and put the
 binaries on your `PATH`.
 
-With Go 1.27.1 or later, build them from source instead; such a binary reports
-its version as `dev`:
+With Go 1.27.1 or later, build from source; such a binary reports version
+`dev`:
 
 ```bash
 go install github.com/guardana/control/cmd/guardana-gateway@latest

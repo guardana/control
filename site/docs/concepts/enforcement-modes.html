@@ -277,10 +277,10 @@ them:</p>
 <code>LOCKDOWN</code> on a material call, the decision on the block lists every one, in
 this order: <code>PAUSED</code>, <code>EXECUTED_ARGS_MISMATCH</code>, <code>LOCKDOWN</code>,
 <code>PAUSE_STATE_UNAVAILABLE</code>, <code>EVIDENCE_UNAVAILABLE</code> (once, for a sink halt, a
-run or both), <code>ACTION_UNCLASSIFIED</code>. A forged flow tag is a refusal of the
-call itself, which the kernel decides without asking anyone. Its
-verdict is <code>DENY</code> when any of them denies, and its first code is the one the
-block counters count. The kernel still decides such a
+run or both), <code>ACTION_UNCLASSIFIED</code>. The block's verdict is <code>DENY</code> when any of
+them denies, and its first code is the one the block counters count. A forged
+flow tag is a refusal of the call itself, which the kernel decides without
+asking anyone. The kernel still decides such a
 call, and <code>POLICY_DECIDED</code> records that decision, but an external decision
 point is not asked: the question would leave the plane for nothing, during
 the incident the pause or the halt stands for

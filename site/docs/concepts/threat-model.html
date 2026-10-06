@@ -116,8 +116,12 @@ reads one.</li>
 <li>The policy key, <code>policy keygen</code>, <code>policy sign</code> and the signed bundle a plane
 loads; the freshness key, <code>policy renew</code>, the statement it writes and the
 serial floors that keep a bundle current.</li>
-<li>The release archives and what proves where they came from
-(<a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a>).</li>
+<li>The runs directory and the <code>runs</code> commands: a record there is the
+authority to open a run (<a href="/docs/reference/runs">reference/runs</a>).</li>
+<li><code>observe</code>, <code>coverage</code>, <code>supervise</code> and <code>notify</code>, which read files after the
+fact and decide nothing; <code>notify</code> runs a program the operator names.</li>
+<li>The release archives, the container image, and what proves where they came
+from (<a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a>).</li>
 </ul>
 <p>The agent, its model, the MCP servers and a collector someone else runs are
 outside the plane. They appear below as parties the plane has to deal with.</p>
@@ -175,7 +179,7 @@ the plane's own account, someone on the network, and a tampered release.</p>
         subgraph Own[&#34;One account: the plane&#39;s user&#34;]
             Plane[&#34;Gateway process&#34;]
             Child[&#34;stdio upstream: a child given a fixed few variables and its env list&#34;]
-            Files[&#34;Approvals directory, pause file, hold journal, trail file, key&#34;]
+            Files[&#34;Approvals, runs and floor directories, pause file, hold journal, trail file, key&#34;]
             Spool[&#34;Spool&#34;]
             Page[&#34;Approvals page and commands&#34;]
             Collect[&#34;collect&#34;]
@@ -370,6 +374,14 @@ out of the arguments, that is argument content.</li>
 <h2 id="another-local-account">Another local account</h2>
 <p>What the plane does today:</p>
 <ul>
+<li>The configuration file is refused when it, or any directory or link on its
+path from the root, is owned by an account other than the plane's or root,
+or others may write it (a sticky directory, or one on a read-only mount,
+excepted), and when it has a second name. Group write is allowed, so a member
+of the file's group can change the configuration; on macOS every local
+account shares the <code>staff</code> group (<code>internal/gatewayconfig/pathwalk.go</code>;
+<code>TestEveryDirectoryOnThePathIsJudged</code>, <code>TestALinkIsJudgedWhereItLies</code>,
+<code>TestAFileWithASecondNameIsRefused</code>).</li>
 <li>The approvals directory is refused when another account owns it or the
 group or the world may write it. It is judged again at every call, and a
 change of owner or of directory is refused too; each record is <code>0600</code>
@@ -404,8 +416,8 @@ leaves the record pending (<code>internal/console/</code>;
 </ul>
 <p>What it does not do:</p>
 <ul>
-<li><strong>The MCP listener and the health listener take no credential</strong>, but for a
-run token under <code>runs.dir</code>. Any account that can reach them calls tools as
+<li><strong>The health listener takes no credential, and the MCP listener none but a
+run token under <code>runs.dir</code>.</strong> Any account that can reach them calls tools as
 the listener's principal, under any run whose token it holds, and reads the
 counters. Both default to <code>127.0.0.1</code>, which every local account can reach.</li>
 <li><strong><code>collect</code> takes no credential.</strong> Any account that reaches its port can

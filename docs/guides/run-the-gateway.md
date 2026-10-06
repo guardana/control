@@ -59,12 +59,12 @@ the plane: a floor made anew takes any older bundle.
 
 ### 2. Write a configuration
 
-Every path in the file resolves against the file's directory. Every key has
-an environment variable under `GUARDANA_CONTROL_`, the key in capitals with
+Every path in the file resolves against its directory. Every key has an
+environment variable under `GUARDANA_CONTROL_`, the key in capitals with
 underscores for dots, which wins over the file. An unknown key is refused.
 [configuration.md](../reference/configuration.md) lists every key. The plane
-refuses the file when it, or a directory or link on its path, is another
-account's than its own or root's, or others may write it.
+refuses the file if it, or a directory or link on its path, belongs to an
+account but its own or root, or others may write it.
 
 ```yaml
 mode: OBSERVE

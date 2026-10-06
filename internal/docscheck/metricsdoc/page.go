@@ -102,7 +102,8 @@ func lead() string {
 		"`" + metrics.Prefix() + "pipeline_halted` is not the only thing that stops calls. While it\n" +
 		"reads 0, an unknown pause state takes no call at all, which `" + metrics.Prefix() + "pause_state`\n" +
 		"reports under `state=\"unknown\"`; in every mode but OBSERVE a policy that is not\n" +
-		"confirmed blocks every material call, which `" + metrics.Prefix() + "policy_freshness`\n" +
+		"confirmed blocks every call but a read under `policy.fail_open_read`, which\n" +
+		"`" + metrics.Prefix() + "policy_freshness`\n" +
 		"reports; and a refused evidence append\n" +
 		"blocks the call it records, which `" + metrics.Prefix() + "pipeline_sink_failures_before_effect_total`\n" +
 		"counts.\n\n" +

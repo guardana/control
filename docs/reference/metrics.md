@@ -23,7 +23,8 @@ three, or counts outside a label's closed set that sum past a counter's range.
 `guardana_control_pipeline_halted` is not the only thing that stops calls. While it
 reads 0, an unknown pause state takes no call at all, which `guardana_control_pause_state`
 reports under `state="unknown"`; in every mode but OBSERVE a policy that is not
-confirmed blocks every material call, which `guardana_control_policy_freshness`
+confirmed blocks every call but a read under `policy.fail_open_read`, which
+`guardana_control_policy_freshness`
 reports; and a refused evidence append
 blocks the call it records, which `guardana_control_pipeline_sink_failures_before_effect_total`
 counts.

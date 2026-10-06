@@ -154,7 +154,7 @@ records are files; whoever can write them can answer a held request.
 <code>approver_id</code> on an answer is an unauthenticated claim, recorded as given
 because an operator reading the evidence months later wants a name, and worth
 exactly what the directory's permissions are worth. Nothing in the plane
-treats it as an identity, and no authenticated provider exists yet. The
+treats it as an identity, and no authenticated provider exists. The
 directory is refused at open when another account owns it or a group or the
 world may write it, and each record is written <code>0600</code>.</p>
 <p>A writer of that directory chooses nothing else. A record answers about one
@@ -164,7 +164,7 @@ trail. Beside each record sits a projection for a person to read, which the
 plane never reads back as truth.</p>
 <h2 id="a-hold-the-plane-loses">A hold the plane loses</h2>
 <p>A hold does not survive a restart, and the window between a request and an
-answer is now as long as a person takes, so a plane that dies holding a call
+answer is as long as a person takes, so a plane that dies holding a call
 is an ordinary event rather than a rare one. The plane therefore keeps its own
 journal of its own holds, in its own directory, under its own lock, written by
 no other process: <code>approvals.hold_journal_dir</code>. It is as trusted as the
@@ -399,8 +399,13 @@ one the retry equals, oldest first.</p>
 </tr>
 <tr>
 <td>a retry finds the approver rejected it</td>
-<td><code>APPROVAL_DECIDED</code> with the answer, <code>ACTION_BLOCKED</code> with <code>DENY</code>, <code>APPROVAL_REJECTED</code>; a rejection nobody retries after is closed at the expiry like an unanswered hold</td>
+<td><code>APPROVAL_DECIDED</code> with the answer, <code>ACTION_BLOCKED</code> with <code>DENY</code>, <code>APPROVAL_REJECTED</code>; a rejection that fails a check below is recorded as the enforcement point's own approval, <code>APPROVAL_EXPIRED</code>; a rejection nobody retries after is closed at the expiry like an unanswered hold</td>
 <td>that block</td>
+</tr>
+<tr>
+<td>the agent gave up on its retry before the approval was consumed or the call handed out</td>
+<td>this call's own trail: <code>ACTION_PROPOSED</code>, <code>POLICY_DECIDED</code>, <code>ACTION_BLOCKED</code> with <code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code>; nothing is spent and the hold stands; after the consume, the execution is aborted unsent and the approval is spent</td>
+<td>nothing: the agent is gone</td>
 </tr>
 <tr>
 <td>the store would not keep the hold, or <code>MaxHeld</code> holds stand</td>
@@ -429,8 +434,9 @@ the effect may have happened; that failure is a new request.</p>
 <h2 id="what-is-checked-before-the-held-request-runs">What is checked before the held request runs</h2>
 <p>The enforcement point never trusts the store's answer. Every field an
 approval is honoured on is compared with the enforcement point's own record of
-the hold; the rest, <code>requested_at</code>, <code>decided_at</code>, <code>reason</code>, the value of
-<code>approver_id</code> and the schema version, are recorded as the store gave them:</p>
+the hold, and <code>reason</code> and the value of <code>approver_id</code> are recorded as the store
+gave them. An answer that fails a check is recorded as the enforcement point's
+own approval, <code>APPROVAL_EXPIRED</code>, never as decided:</p>
 <table>
 <thead>
 <tr>
@@ -441,6 +447,10 @@ the hold; the rest, <code>requested_at</code>, <code>decided_at</code>, <code>re
 <tbody>
 <tr>
 <td>the answer exists, is <code>APPROVED</code>, names an <code>approver_id</code>, carries the held <code>approval_id</code> and <code>request_id</code>, and is not multi-use</td>
+<td><code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td>its schema version is <code>MAJOR.MINOR</code> of major 1, its <code>requested_at</code> is the held one, and it was decided at or after that time and not after now</td>
 <td><code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code></td>
 </tr>
 <tr>
@@ -489,22 +499,22 @@ only an approved, unconsumed record passes.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>ApprovalTTL</code></td>
+<td><code>approvals.ttl</code></td>
 <td>how long a requested approval can be answered and consumed; <code>expires_at</code> is the hold's clock reading plus it</td>
 <td>expired</td>
 </tr>
 <tr>
-<td><code>RetryAfter</code></td>
+<td><code>approvals.retry_after</code></td>
 <td>what the agent is told to wait before retrying, in whole seconds rounded up</td>
 <td>nothing: a retry before an answer is told to retry again</td>
 </tr>
 <tr>
-<td><code>MaxHeld</code></td>
+<td><code>approvals.max_held</code></td>
 <td>the requests held and not yet expired</td>
 <td>the hold is refused with <code>EVIDENCE_UNAVAILABLE</code></td>
 </tr>
 <tr>
-<td><code>MaxOpen</code></td>
+<td><code>approvals.max_open</code></td>
 <td>the executions handed out and not yet closed</td>
 <td>the call, resumed or not, blocks with <code>EVIDENCE_UNAVAILABLE</code></td>
 </tr>

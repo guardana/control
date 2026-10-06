@@ -136,8 +136,10 @@ neither calls it nor needs it
 (<a href="/docs/adr/0024-control-and-guardana-are-independent">ADR-0024</a>).</p>
 <h2 id="the-containers">The containers</h2>
 <p>Two binaries. <code>guardana-gateway</code> runs the plane; <code>guardana-control</code> is the
-author's tool for a policy document and its key, and the operator's for a held
-call and a pause; the one thing it serves is the local approvals page.</p>
+author's tool for a policy document and its key, the operator's for a held
+call, a pause and an opened run, and the reader of files after the fact:
+<code>observe</code>, <code>coverage</code>, <code>supervise</code> and <code>notify</code>. The one thing it serves is the
+local approvals page.</p>
 <figure class="dg-text" id="diagram-2"><figcaption>The containers</figcaption><p>Inside guardana-gateway the MCP adapter hands calls to the pipeline, which asks the decision kernel, records evidence through the spool and its exporter, and keeps holds in the approval store; guardana-control lints policy and answers approvals through the approvals directory. <a href="https://github.com/guardana/control/blob/main/docs/concepts/architecture.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TB
     accTitle: The containers
     accDescr: Inside guardana-gateway the MCP adapter hands calls to the pipeline, which asks the decision kernel, records evidence through the spool and its exporter, and keeps holds in the approval store; guardana-control lints policy and answers approvals through the approvals directory.
@@ -250,7 +252,7 @@ call and a pause; the one thing it serves is the local approvals page.</p>
 <tr>
 <td>Commands</td>
 <td><code>cmd/guardana-control/</code></td>
-<td>The <code>policy</code>, <code>approvals</code>, <code>pause</code> and <code>runs</code> commands and the <code>console</code> page, without a plane.</td>
+<td>The <code>policy</code>, <code>approvals</code>, <code>pause</code> and <code>runs</code> commands and the <code>console</code> page, without a plane; <code>observe</code>, <code>coverage</code>, <code>supervise</code> and <code>notify</code> read files after the fact.</td>
 </tr>
 </tbody>
 </table>
@@ -425,7 +427,7 @@ and only from a finding the operator allowed to stop anything. Like a
 pause, a stop applies after the kernel decides, and it never cuts a call
 already running.</li>
 <li><strong>Extensions</strong> are separate programs speaking versioned data contracts, and
-definitions (policies, scenarios, and later procedures, detector rules and
+definitions (policies, scenarios, procedures, and later detector rules and
 routes) are documents a team writes and tests. An external decision point
 can already veto over AuthZEN (<code>experimental</code>).
 <a href="/docs/extending/adapters">extending/adapters.md</a> is the first guide.</li>
@@ -528,7 +530,7 @@ and audited by someone who did not write it.</li>
 </tr>
 <tr>
 <td><code>cmd/guardana-control/</code></td>
-<td>The <code>approvals</code> and <code>pause</code> commands and the <code>console</code> page</td>
+<td>The <code>approvals</code>, <code>pause</code>, <code>runs</code>, <code>observe</code>, <code>coverage</code>, <code>supervise</code> and <code>notify</code> commands and the <code>console</code> page</td>
 <td><code>experimental</code></td>
 </tr>
 <tr>

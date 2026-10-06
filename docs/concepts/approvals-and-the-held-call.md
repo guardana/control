@@ -70,7 +70,7 @@ records are files; whoever can write them can answer a held request.
 `approver_id` on an answer is an unauthenticated claim, recorded as given
 because an operator reading the evidence months later wants a name, and worth
 exactly what the directory's permissions are worth. Nothing in the plane
-treats it as an identity, and no authenticated provider exists yet. The
+treats it as an identity, and no authenticated provider exists. The
 directory is refused at open when another account owns it or a group or the
 world may write it, and each record is written `0600`.
 
@@ -83,7 +83,7 @@ plane never reads back as truth.
 ## A hold the plane loses
 
 A hold does not survive a restart, and the window between a request and an
-answer is now as long as a person takes, so a plane that dies holding a call
+answer is as long as a person takes, so a plane that dies holding a call
 is an ordinary event rather than a rare one. The plane therefore keeps its own
 journal of its own holds, in its own directory, under its own lock, written by
 no other process: `approvals.hold_journal_dir`. It is as trusted as the
@@ -202,7 +202,8 @@ Sources: `internal/gateway/approve.go`, `internal/gateway/resume.go`,
 | an approved retry whose approval expires before the call is handed out | `APPROVAL_DECIDED`, then `ACTION_BLOCKED` with `DENY`, `APPROVAL_EXPIRED`, or `ACTION_STARTED` and `ACTION_FAILED` naming it when the expiry passed during that append; the approval stays spent | `DENY`, `APPROVAL_EXPIRED`, and nothing is sent |
 | the next identical call after the held one ran | its own trail: `ACTION_PROPOSED`, `POLICY_DECIDED`, `ACTION_BLOCKED` | `DENY`, `APPROVAL_ALREADY_USED`: the approval was spent, which is not by itself a statement that the earlier call ran ([reference/reason-codes](../reference/reason-codes.md)); once the spent approval has expired, the same call is held anew |
 | nobody answered before `expires_at` | `APPROVAL_EXPIRED`, `ACTION_BLOCKED` with `DENY`, `APPROVAL_EXPIRED`; written by the next call that opens a trail, at most `maxSweep` holds per call, before the request id is freed | a retry after the expiry is a new request with a new hold |
-| a retry finds the approver rejected it | `APPROVAL_DECIDED` with the answer, `ACTION_BLOCKED` with `DENY`, `APPROVAL_REJECTED`; a rejection nobody retries after is closed at the expiry like an unanswered hold | that block |
+| a retry finds the approver rejected it | `APPROVAL_DECIDED` with the answer, `ACTION_BLOCKED` with `DENY`, `APPROVAL_REJECTED`; a rejection that fails a check below is recorded as the enforcement point's own approval, `APPROVAL_EXPIRED`; a rejection nobody retries after is closed at the expiry like an unanswered hold | that block |
+| the agent gave up on its retry before the approval was consumed or the call handed out | this call's own trail: `ACTION_PROPOSED`, `POLICY_DECIDED`, `ACTION_BLOCKED` with `INDETERMINATE`, `EVIDENCE_UNAVAILABLE`; nothing is spent and the hold stands; after the consume, the execution is aborted unsent and the approval is spent | nothing: the agent is gone |
 | the store would not keep the hold, or `MaxHeld` holds stand | `APPROVAL_EXPIRED`, `ACTION_BLOCKED` with `INDETERMINATE`, `EVIDENCE_UNAVAILABLE`: the window the enforcement point opened is closed first, since the chain lets nothing else follow a request for approval | that block |
 | the store cannot answer, or the hold was dropped or resumed between the lookup and the flip to running | this call's own trail: `ACTION_PROPOSED`, `POLICY_DECIDED`, `ACTION_BLOCKED` with `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` | that block |
 | the trail cannot be written | nothing more: the block is not recorded either | `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` |
@@ -215,12 +216,14 @@ the effect may have happened; that failure is a new request.
 
 The enforcement point never trusts the store's answer. Every field an
 approval is honoured on is compared with the enforcement point's own record of
-the hold; the rest, `requested_at`, `decided_at`, `reason`, the value of
-`approver_id` and the schema version, are recorded as the store gave them:
+the hold, and `reason` and the value of `approver_id` are recorded as the store
+gave them. An answer that fails a check is recorded as the enforcement point's
+own approval, `APPROVAL_EXPIRED`, never as decided:
 
 | Check | If it fails |
 | --- | --- |
 | the answer exists, is `APPROVED`, names an `approver_id`, carries the held `approval_id` and `request_id`, and is not multi-use | `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` |
+| its schema version is `MAJOR.MINOR` of major 1, its `requested_at` is the held one, and it was decided at or after that time and not after now | `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` |
 | its action digest is the held one | `DENY`, `APPROVAL_DIGEST_MISMATCH` |
 | its bundle digest is the held one | `DENY`, `APPROVAL_BUNDLE_MISMATCH` |
 | its expiry is set and after now | `DENY`, `APPROVAL_EXPIRED` |
@@ -246,10 +249,10 @@ only an approved, unconsumed record passes.
 
 | Setting | Bounds | Past it |
 | --- | --- | --- |
-| `ApprovalTTL` | how long a requested approval can be answered and consumed; `expires_at` is the hold's clock reading plus it | expired |
-| `RetryAfter` | what the agent is told to wait before retrying, in whole seconds rounded up | nothing: a retry before an answer is told to retry again |
-| `MaxHeld` | the requests held and not yet expired | the hold is refused with `EVIDENCE_UNAVAILABLE` |
-| `MaxOpen` | the executions handed out and not yet closed | the call, resumed or not, blocks with `EVIDENCE_UNAVAILABLE` |
+| `approvals.ttl` | how long a requested approval can be answered and consumed; `expires_at` is the hold's clock reading plus it | expired |
+| `approvals.retry_after` | what the agent is told to wait before retrying, in whole seconds rounded up | nothing: a retry before an answer is told to retry again |
+| `approvals.max_held` | the requests held and not yet expired | the hold is refused with `EVIDENCE_UNAVAILABLE` |
+| `approvals.max_open` | the executions handed out and not yet closed | the call, resumed or not, blocks with `EVIDENCE_UNAVAILABLE` |
 | `maxSweep` | the expired holds one call closes on its way in | the rest wait for the next call |
 | `approvals.max_records` | the records the approvals directory may hold, and the entries the journal may hold | a hold is refused, and a listing says it is incomplete |
 | `approvals.max_record_bytes` | one record's body, and one journal entry's | the record or the entry is refused, in either direction |

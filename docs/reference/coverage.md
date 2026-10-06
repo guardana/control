@@ -92,7 +92,7 @@ printed as not checked, with the reason, when:
   not at its end, with a gap, or filtered by a cursor or a query;
 - the observation has no trace or span id, or no event time;
 - its time is outside the span an export's events cover;
-- no proposal joins it and one at its span, or below it, names the same call
+- no proposal joins it, but one at or below its span names the same call
   (tenant, project, tool and upstream, of kind tool) in an envelope the
   contract refuses for more than a missing effect class: the plane saw that
   call, and its record cannot be joined;

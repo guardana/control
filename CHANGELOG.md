@@ -35,8 +35,8 @@ verify one.
   image's user.
 - Each agent connection gets a 64 KiB send buffer, so on Linux, as on macOS,
   the answer bound measures a slow client's progress in steps of that size.
-  Linux grows a connection's buffer to megabytes, which cut a client reading
-  steadily but slowly.
+  Linux grows a connection's buffer to megabytes, which cut off a client
+  reading steadily but slowly.
 
 ### Fixed
 
