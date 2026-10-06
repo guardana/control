@@ -268,11 +268,11 @@ func (p *plane) bind(stdout io.Writer, listen listenFunc) ([]listening, error) {
 			}
 			return p.calls.wrap(h), nil
 		}
-		wanted = append(wanted, wantedServer{p.cfg.Listener.Address, agents, "listening for agents on ", 0})
+		wanted = append(wanted, wantedServer{p.cfg.Listener.Address, agents, "listening for agents on ", 0, p.boundSendBuffer})
 	}
 	if p.cfg.Health.Address != "" {
 		health := func() (http.Handler, error) { return p.healthMux(), nil }
-		wanted = append(wanted, wantedServer{p.cfg.Health.Address, health, "answering /healthz, /metrics and /brand on ", healthReadTimeout})
+		wanted = append(wanted, wantedServer{p.cfg.Health.Address, health, "answering /healthz, /metrics and /brand on ", healthReadTimeout, nil})
 	}
 	var out []listening
 	for _, w := range wanted {
@@ -284,13 +284,35 @@ func (p *plane) bind(stdout io.Writer, listen listenFunc) ([]listening, error) {
 		if err != nil {
 			return nil, errors.Join(err, closeListeners(out))
 		}
-		out = append(out, listening{
-			server:   newServer(w.addr, handler, idleTimeout, w.read),
-			listener: listener,
-		})
+		server := newServer(w.addr, handler, idleTimeout, w.read)
+		server.ConnState = w.conns
+		out = append(out, listening{server: server, listener: listener})
 		writeLine(stdout, w.says+listener.Addr().String())
 	}
 	return out, nil
+}
+
+// agentSendBuffer is the send buffer an agent's connection keeps. The answer
+// bound gives each 64 KiB slice of an answer its deadline, and Linux grows a
+// send buffer to megabytes and wakes a blocked write only once much of it has
+// drained, so a slice would otherwise wait on far more of the agent's reading
+// than its own.
+const agentSendBuffer = 64 << 10
+
+// boundSendBuffer gives a connection the server has just accepted the agent's
+// send buffer. One that cannot take it is served as it is, its answer bound
+// then measuring progress in larger steps, and the log says so.
+func (p *plane) boundSendBuffer(c net.Conn, state http.ConnState) {
+	if state != http.StateNew {
+		return
+	}
+	conn, ok := c.(interface{ SetWriteBuffer(bytes int) error })
+	if !ok {
+		return
+	}
+	if err := conn.SetWriteBuffer(agentSendBuffer); err != nil {
+		p.logger.Warn("an agent's connection keeps the system's send buffer, so its answer bound measures progress in larger steps", "err", err)
+	}
 }
 
 // newServer answers on addr with the plane's connection bounds; a read above
@@ -299,14 +321,15 @@ func newServer(addr string, handler http.Handler, idle, read time.Duration) *htt
 	return &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: readHeaderTimeout, ReadTimeout: read, IdleTimeout: idle}
 }
 
-// wantedServer is one address this configuration asks to be answered on, and
-// the bound on reading a request there: zero where the handler bounds a body
-// itself.
+// wantedServer is one address this configuration asks to be answered on, the
+// bound on reading a request there, zero where the handler bounds a body
+// itself, and what each of its connections is set to as it changes state.
 type wantedServer struct {
 	addr    string
 	handler func() (http.Handler, error)
 	says    string
 	read    time.Duration
+	conns   func(net.Conn, http.ConnState)
 }
 
 func closeListeners(bound []listening) error {

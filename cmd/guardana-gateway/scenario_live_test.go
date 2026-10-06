@@ -213,12 +213,12 @@ func TestADifferenceOutranksAScenarioThatCouldNotRun(t *testing.T) {
 	}
 }
 
-// TestArgumentsCanonRefusesAreSaidToBeUncompared: an integer canon cannot
-// hash reaches the plane, which blocks the call, and the step compares every
-// member but args and says on a line of its own that args was not compared.
-// A number past float64 never reaches a trail: the plane answers with no
-// request, and the step could not run, which the line would not add to.
-func TestArgumentsCanonRefusesAreSaidToBeUncompared(t *testing.T) {
+// TestArgumentsCanonRefusesAreComparedWithNone: an integer canon cannot hash
+// reaches the plane, which blocks the call and records no hash, and the step
+// holds that to the none the runner could compute, so the scenario passes
+// with every member compared. A number past float64 never reaches a trail:
+// the plane answers with no request, and the step could not run.
+func TestArgumentsCanonRefusesAreComparedWithNone(t *testing.T) {
 	t.Parallel()
 	const blocked = `{"kind":"agent-scenario/v1alpha1","about":"arguments canon cannot hash","run":"continues",
 "plane":{"mode":"APPROVE","bundle":{"id":"scenario-fixture"}},
@@ -232,8 +232,6 @@ func TestArgumentsCanonRefusesAreSaidToBeUncompared(t *testing.T) {
 	}{
 		{"12345678901234567890", exitOK, []string{
 			"huge.json identity: principal agent-runner, agent orders-assistant",
-			"huge.json step[0].args: not compared: canon cannot hash the arguments sent: " +
-				`authorizedArguments: canon: unsupported value at "/n": integer is outside the JSON-safe range +/-(2^53-1)`,
 			"huge.json step[0] call: ok",
 			"huge.json passed",
 		}},

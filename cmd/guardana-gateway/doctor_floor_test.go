@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -151,5 +152,50 @@ func TestAMissingStatementNamesItsKeyAndItsCauseOnce(t *testing.T) {
 		"open <tree>/policy.statement: no such file or directory"
 	if !slices.Contains(strings.Split(tr.output(out.String()), "\n"), want) {
 		t.Errorf("doctor's policy line is not\n%s\nin:\n%s", want, tr.output(out.String()))
+	}
+}
+
+// closeRefused is a floor directory, read through the real one, whose close
+// fails.
+type closeRefused struct{ floorReader }
+
+func (c closeRefused) Close() error {
+	return errors.Join(c.floorReader.Close(), errors.New("the directory handle would not close"))
+}
+
+// TestDoctorDoesNotPassAFloorDirectoryThatWouldNotClose: every other part of
+// the policy check holds, and a close of the floor directory that fails is
+// not ok: the run stops at the check and says why.
+func TestDoctorDoesNotPassAFloorDirectoryThatWouldNotClose(t *testing.T) {
+	tr := newTree(t)
+	opened := openFloors
+	openFloors = func(dir string) (floorReader, error) {
+		r, err := opened(dir)
+		if err != nil {
+			return nil, err
+		}
+		return closeRefused{r}, nil
+	}
+	t.Cleanup(func() { openFloors = opened })
+	var out bytes.Buffer
+	if status := doctor(context.Background(), tr.config, &out, &out); status == exitOK {
+		t.Fatalf("doctor passed:\n%s", out.String())
+	}
+	want := "unknown policy        the floor directory was read and did not close: the directory handle would not close"
+	if !slices.Contains(strings.Split(out.String(), "\n"), want) {
+		t.Errorf("the policy line is not\n%s\nin:\n%s", want, out.String())
+	}
+	if strings.Contains(out.String(), "\nok      policy ") || strings.Contains(out.String(), "\nok      evidence ") {
+		t.Errorf("the check passed, or the run went on past it:\n%s", out.String())
+	}
+
+	// A check that fails on its own keeps its failure and adds the close.
+	tr.unconfirmed(t)
+	line := doctorLine(t, tr, "fail    policy ")
+	if want := "no verified statement"; !strings.Contains(line, want) {
+		t.Errorf("the policy line %q lost the failure %q", line, want)
+	}
+	if want := "; and the floor directory did not close: the directory handle would not close"; !strings.HasSuffix(line, want) {
+		t.Errorf("the policy line %q does not end %q", line, want)
 	}
 }

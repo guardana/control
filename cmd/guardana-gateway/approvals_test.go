@@ -62,14 +62,26 @@ func (tr tree) fileProvider(t *testing.T) (records, holds string) {
 // cannot take its expected values from the code that would close it.
 func lostHold(t *testing.T, records, holds string, expires time.Time) approval.Binding {
 	t.Helper()
-	digest, binding, err := approval.Bind(readEnvelope(), []byte("{}"), fixtureBundleDigest)
+	return lostHoldOf(t, records, holds, expires, lostCall{lostApproval, lostRequest, lostEvent, readEnvelope()})
+}
+
+// lostCall is the ids and the envelope of one lost hold.
+type lostCall struct {
+	approval, request, event string
+	envelope                 *controlv1.ActionEnvelope
+}
+
+// lostHoldOf is lostHold for the call lost names.
+func lostHoldOf(t *testing.T, records, holds string, expires time.Time, lost lostCall) approval.Binding {
+	t.Helper()
+	digest, binding, err := approval.Bind(lost.envelope, []byte("{}"), fixtureBundleDigest)
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
 	}
 	held := &controlv1.Approval{
 		SchemaVersion:      "1.0",
-		ApprovalId:         lostApproval,
-		RequestId:          lostRequest,
+		ApprovalId:         lost.approval,
+		RequestId:          lost.request,
 		ActionDigest:       string(digest),
 		PolicyBundleDigest: fixtureBundleDigest,
 		State:              controlv1.ApprovalState_APPROVAL_STATE_PENDING,
@@ -83,7 +95,7 @@ func lostHold(t *testing.T, records, holds string, expires time.Time) approval.B
 	}
 	err = store.Hold(ctx, approvals.Hold{
 		Approval: held, Binding: binding,
-		Envelope: readEnvelope(), Decision: &controlv1.Decision{RequestId: lostRequest},
+		Envelope: lost.envelope, Decision: &controlv1.Decision{RequestId: lost.request},
 	}, expires.Add(-time.Minute))
 	if closeErr := store.Close(); err == nil {
 		err = closeErr
@@ -98,8 +110,8 @@ func lostHold(t *testing.T, records, holds string, expires time.Time) approval.B
 	err = journal.Record(ctx, holdjournal.Entry{
 		SchemaVersion: "1.0",
 		State:         holdjournal.StateHeld,
-		IDs:           evidence.IDs{RequestID: lostRequest, ProjectID: "orders", TenantID: "acme"},
-		LastEventID:   lostEvent,
+		IDs:           evidence.IDs{RequestID: lost.request, ProjectID: "orders", TenantID: "acme"},
+		LastEventID:   lost.event,
 		Binding:       binding,
 		Approval:      held,
 		Expires:       expires,

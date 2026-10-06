@@ -120,13 +120,20 @@ func judgePlane(seen callSeen, plane planeFacts, add func(member, want, got stri
 		add("answer.approval_id", requestedApproval(seen.trail), seen.answer.approvalID)
 	}
 	proposed := withKind(seen.trail, controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED)
-	if plane.sentHash != "" && len(proposed) > 0 {
-		add("args", plane.sentHash, proposed[0].GetProposed().GetArguments().GetCanonicalHash())
+	if len(proposed) > 0 {
+		add("args", hashName(plane.sentHash), hashName(proposed[0].GetProposed().GetArguments().GetCanonicalHash()))
 	}
 	if plane.fresh {
 		return judgeFresh(proposed, add)
 	}
 	return nil
+}
+
+func hashName(hash string) string {
+	if hash == "" {
+		return "none"
+	}
+	return hash
 }
 
 // judgeFresh holds the first proposal of a scenario to the flow state of a

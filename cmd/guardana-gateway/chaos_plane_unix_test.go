@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"testing"
 
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 )
 
@@ -213,6 +215,68 @@ func goneAddress(t *testing.T) string {
 	return addr
 }
 
+// fillSpool makes writes until the first is blocked for the spool being full,
+// holds the number that ran to the budget, and returns it.
+func fillSpool(t *testing.T, plane *chaosPlane, agent *sdk.ClientSession) int {
+	t.Helper()
+	const fillBound = 200
+	runs, before, trail := 0, spoolBytes(t, plane), int64(0)
+	for ; runs < fillBound; runs++ {
+		res, err := chaosCall(t, agent, toolPostEntry, "e-"+strconv.Itoa(runs))
+		if err == nil && res.IsError {
+			blockedWith(t, res, err, "EVIDENCE_UNAVAILABLE", "the write that found the spool full")
+			break
+		}
+		ran(t, res, err, "a write while the spool has room")
+		if runs == 0 {
+			trail = spoolBytes(t, plane) - before
+		}
+	}
+	if runs == 0 || runs == fillBound {
+		t.Fatalf("%d write(s) ran before the first block; the budget should stop a handful short of %d", runs, fillBound)
+	}
+	checkFilledAtTheBudget(t, runs, before, trail, spoolBytes(t, plane))
+	return runs
+}
+
+// The evidence budget the full-spool test configures, and how far one trail's
+// size may stray from the first one's, its ids and times spelled longer.
+const (
+	fullBudget  = 32 << 10
+	fullReserve = 4 << 10
+	trailSlack  = 32
+)
+
+// checkFilledAtTheBudget holds the writes that ran before the first block to
+// the configured budget: their trails fit in it, and one more trail with its
+// closing reservation would not have, so a budget twice as large, or half,
+// lets a different number run. before is the spool's size before the first
+// write, and onDisk its size at the block.
+func checkFilledAtTheBudget(t *testing.T, runs int, before, trail, onDisk int64) {
+	t.Helper()
+	if trail <= trailSlack {
+		t.Fatalf("one write's trail measured %d bytes, which bounds nothing", trail)
+	}
+	n := int64(runs)
+	if before+n*(trail-trailSlack) > fullBudget || onDisk > fullBudget {
+		t.Errorf("%d write(s) of a %d-byte trail ran and the spool holds %d bytes, past the %d-byte budget", runs, trail, onDisk, fullBudget)
+	}
+	if before+(n+1)*(trail+trailSlack)+fullReserve <= fullBudget {
+		t.Errorf("only %d write(s) of a %d-byte trail ran, and one more with its %d-byte reservation fits in the %d-byte budget",
+			runs, trail, fullReserve, fullBudget)
+	}
+}
+
+// spoolBytes is what the plane's spool holds on disk, as /healthz says.
+func spoolBytes(t *testing.T, plane *chaosPlane) int64 {
+	t.Helper()
+	bytes, ok := member(plane.healthz(t), "spool", "bytes").(float64)
+	if !ok {
+		t.Fatal("/healthz names no spool bytes")
+	}
+	return int64(bytes)
+}
+
 // collectorBackAt starts a collector that accepts everything at addr, the
 // address a plane was exporting to while nothing listened there.
 func collectorBackAt(t *testing.T, addr string) *acceptingCollector {
@@ -248,19 +312,7 @@ func TestAFullSpoolBlocksCallsUntilTheCollectorDrainsIt(t *testing.T) {
 	})
 	agent := connectAgent(t, plane.listen)
 
-	const fillBound = 200
-	runs := 0
-	for ; runs < fillBound; runs++ {
-		res, err := chaosCall(t, agent, toolPostEntry, "e-"+strconv.Itoa(runs))
-		if err == nil && res.IsError {
-			blockedWith(t, res, err, "EVIDENCE_UNAVAILABLE", "the write that found the spool full")
-			break
-		}
-		ran(t, res, err, "a write while the spool has room")
-	}
-	if runs == 0 || runs == fillBound {
-		t.Fatalf("%d write(s) ran before the first block; the budget should stop a handful short of %d", runs, fillBound)
-	}
+	runs := fillSpool(t, plane, agent)
 	if got := ledger.count(toolPostEntry.Name); got != runs {
 		t.Fatalf("the upstream ran %d write(s) and the agent saw %d run", got, runs)
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -164,6 +165,37 @@ func TestFailOpenReadReachesTheKernel(t *testing.T) {
 			}
 			if got := slices.Contains(codes, "FAIL_OPEN_READ_CONFIGURED"); got != (setting == "true") {
 				t.Errorf("the decision under fail_open_read=%s carries %v", setting, codes)
+			}
+		})
+	}
+}
+
+// TestMaxStaleReachesTheKernel: the plane starts on a statement inside every
+// budget, and with no refresher running its confirmation only ages. Four
+// seconds after the statement was issued, well inside the document's ten
+// minutes, a read is stale under a policy.max_stale of three seconds and
+// fresh under thirty, as it would be under four times three: the start
+// checked the statement against the same key, so only the kernel's budget
+// can tell the two apart.
+func TestMaxStaleReachesTheKernel(t *testing.T) {
+	for _, c := range []struct {
+		maxStale string
+		stale    bool
+	}{{"3s", true}, {"30s", false}} {
+		t.Run(c.maxStale, func(t *testing.T) {
+			tr := newTree(t)
+			issued := time.Now().Truncate(time.Second)
+			writeStatement(t, filepath.Join(tr.dir, "policy.statement"), filepath.Join(tr.dir, "policy.bundle"), issued)
+			setEnv(t, "policy.poll_interval", "1s")
+			setEnv(t, "policy.max_stale", c.maxStale)
+			p := tr.plane(t)
+			time.Sleep(time.Until(issued.Add(4 * time.Second)))
+			d := p.pipeline.Admit(context.Background(), gateway.Admission{
+				Envelope: readEnvelope(), Arguments: []byte(`{}`),
+			})
+			if got := slices.Contains(d.Decision.GetReasonCodes(), "POLICY_STALE"); got != c.stale {
+				t.Errorf("under policy.max_stale %s a read confirmed four seconds ago is decided %v, want POLICY_STALE %t",
+					c.maxStale, d.Decision.GetReasonCodes(), c.stale)
 			}
 		})
 	}

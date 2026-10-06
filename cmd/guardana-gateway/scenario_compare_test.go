@@ -92,6 +92,10 @@ func TestEachMemberIsComparedOnItsOwn(t *testing.T) {
 			"step[3].answer.decision_id: want one of [d1], got d9"},
 		{"args", compareCall, func(_ *callSeen, p *planeFacts) { p.sentHash = "sha256:ab" },
 			"step[3].args: want sha256:ab, got sha256:aa"},
+		{"args canon cannot hash", compareCall, func(_ *callSeen, p *planeFacts) { p.sentHash = "" },
+			"step[3].args: want none, got sha256:aa"},
+		{"args the plane recorded none of", compareCall, func(s *callSeen, _ *planeFacts) { s.trail[0].GetProposed().Arguments = nil },
+			"step[3].args: want sha256:aa, got none"},
 		{"run", compareCall, func(s *callSeen, _ *planeFacts) {
 			s.trail[0].GetProposed().Context.Tags[1] = "flow.v1.untrusted=true"
 		}, "step[3].run: want fresh (flow.v1.untrusted=false, flow.v1.max_read=PUBLIC), got flow.v1.untrusted=true, flow.v1.max_read=PUBLIC"},

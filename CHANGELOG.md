@@ -27,6 +27,10 @@ verify one.
   write unless the directory is sticky; a link is followed and the file it
   reaches is judged. The file names the policy keys, the pause file and the
   credentials the plane sends, and was read whatever its owner and mode.
+- Each agent connection gets a 64 KiB send buffer, so on Linux, as on macOS,
+  the answer bound measures a slow client's progress in steps of that size.
+  Linux grows a connection's buffer to megabytes, which cut a client reading
+  steadily but slowly.
 
 ### Fixed
 
@@ -39,6 +43,12 @@ verify one.
 - A rejection the approval store returns is checked as an approval is; one that
   does not check out is recorded as the plane's own expired approval, never as
   decided.
+- `doctor` judges the approvals and hold journal directories for owner and
+  mode as `run` does; it reported ok for a directory `run` refuses. It also
+  names the bytes of a torn evidence tail it cut, and a floor directory that
+  would not close is no longer ok.
+- A scenario step whose arguments canon cannot hash compares the recorded
+  proposal's hash with none, where it printed "not compared" and passed.
 - The runs directory's reader refuses a string that is not valid Unicode. It
   read an unpaired surrogate or a bad byte as U+FFFD, so two different files
   could read as one record.

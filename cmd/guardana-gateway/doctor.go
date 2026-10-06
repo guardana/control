@@ -15,6 +15,7 @@ import (
 	"time"
 
 	adaptermcp "github.com/guardana/control/adapters/mcp"
+	"github.com/guardana/control/internal/files"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/holdjournal"
@@ -177,7 +178,8 @@ func capabilityList(c gateway.Capabilities) string {
 }
 
 // evidence opens the spool where it will run: the directory has to exist, take
-// the lock, take a file, and whatever is already in it has to check.
+// the lock, take a file, and whatever is already in it has to check. Opening
+// cuts a torn tail, as a start would, and the line names what that cut.
 func (d *examination) evidence(context.Context) (string, string, string) {
 	dir := d.cfg.Resolve(d.cfg.Evidence.Dir)
 	sp, err := openSpool(d.cfg)
@@ -195,8 +197,10 @@ func (d *examination) evidence(context.Context) (string, string, string) {
 	if err := writable(dir); err != nil {
 		return verdictFail, "evidence", err.Error()
 	}
-	return verdictOK, "evidence", fmt.Sprintf("%s locks and is writable; %d segment(s), %d byte(s) unacknowledged, %d reserved, %d quarantined; on_unwritable %s",
-		filepath.ToSlash(dir), stats.Segments, stats.Unacknowledged, stats.Reserved, stats.QuarantinedRecords, d.cfg.Evidence.OnUnwritable)
+	return verdictOK, "evidence", fmt.Sprintf("%s locks and is writable; %d segment(s), %d byte(s) unacknowledged, %d reserved, %d quarantined; "+
+		"opening it cut a torn tail of %d byte(s); on_unwritable %s",
+		filepath.ToSlash(dir), stats.Segments, stats.Unacknowledged, stats.Reserved, stats.QuarantinedRecords, stats.Truncated,
+		d.cfg.Evidence.OnUnwritable)
 }
 
 // writable proves the directory takes a file and gives it back, because the
@@ -225,8 +229,9 @@ func writable(dir string) error {
 // The records themselves are not read here. The one handle on that directory
 // that takes no lock is the approver's, and it carries the method that answers
 // an approval, which this binary must not hold; the plane's own handle takes
-// the lock and makes an unused directory a store. So the directory's lock, its
-// permissions and its records are checked where they are used, at `run`.
+// the lock and makes an unused directory a store. So each directory is judged
+// from its metadata as `run`'s open judges it, and its lock and its records are
+// checked where they are used, at `run`.
 func (d *examination) approvals(ctx context.Context) (string, string, string) {
 	if d.cfg.Approvals.Provider != gatewayconfig.ProviderFile {
 		return verdictOK, "approvals", fmt.Sprintf(
@@ -237,15 +242,35 @@ func (d *examination) approvals(ctx context.Context) (string, string, string) {
 		{"approvals.dir", d.cfg.Resolve(d.cfg.Approvals.Dir)},
 		{"approvals.hold_journal_dir", d.cfg.Resolve(d.cfg.Approvals.HoldJournalDir)},
 	} {
-		info, err := os.Stat(named.dir)
-		if err != nil {
+		if err := judgeDirectory(named.dir); err != nil {
 			return verdictFail, "approvals", fmt.Sprintf("%s: %v", named.key, err)
-		}
-		if !info.IsDir() {
-			return verdictFail, "approvals", fmt.Sprintf("%s: %s is not a directory", named.key, filepath.ToSlash(named.dir))
 		}
 	}
 	return d.holdJournal(ctx)
+}
+
+// writableByOthers is the mode bits that make a directory's approvals or holds
+// a group's or the world's, which `run` refuses.
+const writableByOthers os.FileMode = 0o022
+
+// judgeDirectory refuses what `run`'s open of an approvals or a hold journal
+// directory refuses, with a link followed as that open follows one: anything
+// but a directory, a mode a group or the world may write, and an owner other
+// than this process's account.
+func judgeDirectory(dir string) error {
+	info, err := os.Stat(dir)
+	switch {
+	case err != nil:
+		return err
+	case !info.IsDir():
+		return fmt.Errorf("%s is not a directory", filepath.ToSlash(dir))
+	case info.Mode().Perm()&writableByOthers != 0:
+		return fmt.Errorf("%s: %w: mode %04o, which a group or the world may write", filepath.ToSlash(dir), files.ErrMode, info.Mode().Perm())
+	}
+	if err := files.CheckOwnedBy(info, os.Geteuid()); err != nil {
+		return fmt.Errorf("%s: %w", filepath.ToSlash(dir), err)
+	}
+	return nil
 }
 
 // holdJournal reports the holds a reconciliation would close, read through a

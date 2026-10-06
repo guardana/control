@@ -103,9 +103,8 @@ func (p *play) call(ctx context.Context, i int, c *scenario.Call) ([]difference,
 	if err != nil {
 		return nil, err
 	}
-	// Arguments canon cannot hash leave the recorded proposal nothing to be
-	// held to: the check is left out, and the step says so rather than passing
-	// it in silence.
+	// Arguments canon cannot hash have no hash, and the recorded proposal is
+	// held to that: a plane that recorded one differs on args.
 	sentHash, hashErr := canon.ArgumentsHashV1(args)
 	if hashErr != nil {
 		sentHash = ""
@@ -128,9 +127,6 @@ func (p *play) call(ctx context.Context, i int, c *scenario.Call) ([]difference,
 	seen := callSeen{answer: a, trail: trail, others: others, request: requestOf(a.requestID, c.Trail.Request, p.requests[:i], p.before)}
 	facts := planeFacts{mode: p.base.mode, digest: p.base.digest, fresh: p.calls == 1 && p.s.Run == scenario.RunFresh, sentHash: sentHash}
 	diffs, err := judgeCall(i, c, seen, facts)
-	if err == nil && hashErr != nil {
-		p.r.line(p.s, fmt.Sprintf("step[%d].args: not compared: canon cannot hash the arguments sent: %s", i, oneLine(hashErr.Error())))
-	}
 	p.requests[i], p.answers[i] = a.requestID, a
 	return diffs, err
 }

@@ -257,9 +257,8 @@ answers it. The first call's
 <code>flow.v1.max_read=PUBLIC</code> unless <code>run</code> is <code>continues</code>. Where canon can hash
 the arguments sent, the trail's first <code>ACTION_PROPOSED</code> must carry that hash,
 which for <code>step[n]</code> is the held call's, or the step differs on <code>args</code>. Where
-canon cannot, as for an integer past 2^53-1, the step prints
-<code>&lt;id&gt; step[&lt;i&gt;].args: not compared:</code> with canon's reason, and compares every
-other member. The runner prints the principal and agent that first proposal names.</p>
+canon cannot, as for an integer past 2^53-1, the proposal must carry no hash,
+or the step differs on <code>args</code>. The runner prints the principal and agent that first proposal names.</p>
 <p>An operator step runs <code>guardana-control approvals approve|reject</code> or
 <code>pause add|remove</code>: the binary named by <code>--control</code>, a bare name meaning the
 file in the working directory, or the one beside <code>guardana-gateway</code>, never
@@ -289,7 +288,7 @@ differs, <code>&lt;id&gt; step[&lt;i&gt;].&lt;member&gt;: want &lt;x&gt;, got &l
 <tbody>
 <tr>
 <td>0</td>
-<td>No member of any scenario differed. A step whose arguments canon could not hash says <code>args: not compared</code>, and that member was not checked.</td>
+<td>No member of any scenario differed.</td>
 </tr>
 <tr>
 <td>1</td>

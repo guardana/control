@@ -9,20 +9,39 @@ import (
 	"github.com/guardana/control/internal/policywatch"
 )
 
+// floorReader is the floor directory as doctor holds it: read, then closed.
+type floorReader interface {
+	policy.FloorStore
+	Close() error
+}
+
+// openFloors opens the floor directory the policy check reads.
+var openFloors = func(dir string) (floorReader, error) {
+	return policystate.Open(dir, policystate.KindPlane)
+}
+
 // policy judges the bundle, the statement and the floor as a start would,
 // and raises nothing: the floor is read, its bytes and its time left as they
 // are. A bundle the start would refuse, or install unconfirmed, fails, as does
-// a statement whose budget has run out.
+// a statement whose budget has run out. A floor directory that does not close
+// is not a pass either.
 func (d *examination) policy(ctx context.Context) (string, string, string) {
-	store, err := policystate.Open(d.cfg.Resolve(d.cfg.Policy.StateDir), policystate.KindPlane)
+	store, err := openFloors(d.cfg.Resolve(d.cfg.Policy.StateDir))
 	if err != nil {
 		return verdictFail, "policy", "policy.state_dir: " + err.Error()
 	}
-	defer func() {
-		if err := store.Close(); err != nil {
-			writeLine(d.out, "       the floor directory did not close cleanly: "+oneLine(err.Error()))
-		}
-	}()
+	verdict, name, found := d.judgePolicy(ctx, store)
+	closeErr := store.Close()
+	switch {
+	case closeErr == nil:
+		return verdict, name, found
+	case verdict == verdictOK:
+		return verdictUnknown, name, "the floor directory was read and did not close: " + closeErr.Error()
+	}
+	return verdict, name, found + "; and the floor directory did not close: " + closeErr.Error()
+}
+
+func (d *examination) judgePolicy(ctx context.Context, store policy.FloorStore) (string, string, string) {
 	o, err := policyOptions(d.cfg, nil, store, nil)
 	if err != nil {
 		return verdictFail, "policy", err.Error()

@@ -113,9 +113,8 @@ answers it. The first call's
 `flow.v1.max_read=PUBLIC` unless `run` is `continues`. Where canon can hash
 the arguments sent, the trail's first `ACTION_PROPOSED` must carry that hash,
 which for `step[n]` is the held call's, or the step differs on `args`. Where
-canon cannot, as for an integer past 2^53-1, the step prints
-`<id> step[<i>].args: not compared:` with canon's reason, and compares every
-other member. The runner prints the principal and agent that first proposal names.
+canon cannot, as for an integer past 2^53-1, the proposal must carry no hash,
+or the step differs on `args`. The runner prints the principal and agent that first proposal names.
 
 An operator step runs `guardana-control approvals approve|reject` or
 `pause add|remove`: the binary named by `--control`, a bare name meaning the
@@ -141,7 +140,7 @@ differs, `<id> step[<i>].<member>: want <x>, got <y>`; then `<id> passed`,
 
 | Exit | Means |
 | --- | --- |
-| 0 | No member of any scenario differed. A step whose arguments canon could not hash says `args: not compared`, and that member was not checked. |
+| 0 | No member of any scenario differed. |
 | 1 | A member of some scenario differed. |
 | 2 | None differed, and some scenario could not run: no scenario, a file refused, a precondition, an answer naming no trail, a barrier past its bound, another client, a `guardana-control` missing or of another version, a trail file that is not the plane's. A gate treats 2 as a failure. |
 
