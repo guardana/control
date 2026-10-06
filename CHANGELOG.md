@@ -68,8 +68,9 @@ verify one.
 - An observation import refuses a write that would take the log past its
   1 GiB bound, which the reader then refused.
 - Coverage counts a source's records only in the tenant and project its
-  descriptor names; bounds its walk of a trace's spans, printing a join cut
-  short as not checked; and prints a join as not checked where the plane's
+  descriptor names; bounds each walk of a trace's spans on its own, walking a
+  long chain once, and a walk cut at its bound reads not checked and exits 1,
+  since an agent can cut one on purpose; and prints a join as not checked where the plane's
   record of that call does not validate, rather than as joined or as a call
   around the plane.
 - Supervision tells no order between two steps whose proposals, in two

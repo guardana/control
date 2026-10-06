@@ -117,9 +117,11 @@ func (x *Export) index(ev *controlv1.Event) {
 	x.proposals[k] = append(x.proposals[k], ev)
 }
 
-// lacksEffect is Validate's refusal of an envelope that passed every bound and
-// required field but has no effect class: a call nothing classifies, which a
-// plane records as proposed and, in OBSERVE, lets run.
+// lacksEffect is Validate's refusal of an envelope with no effect class: a
+// call nothing classifies, which a plane records as proposed and, in OBSERVE,
+// lets run. Validate stops there, so such an envelope passed the size, schema
+// version and field bounds and carries its ids and time, but its delegation,
+// destination host, labels and arguments were not checked.
 func lacksEffect(err error) bool {
 	var ve *contract.ValidationError
 	return errors.As(err, &ve) && ve.Field == "action.effect" && errors.Is(err, contract.ErrMissingField)

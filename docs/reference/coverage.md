@@ -25,13 +25,13 @@ guardana-control coverage --inventory <file> [--plane <config> [--evidence <expo
 | Flag | What it reads |
 | --- | --- |
 | `--inventory` | the operator's inventory below, once; a file another account or a group can write is refused |
-| `--plane` | a plane's configuration, read without the environment of the shell running the command, which is not the plane's |
+| `--plane` | a plane's configuration, refused unless this account or root owns it and its directory and others cannot write them; read without this shell's environment |
 | `--source`, `--log` | a source descriptor and its observation log's directory, paired in order ([observations](observations.md)) |
 | `--evidence` | the evidence export of the `--plane` before it, as `guardana-gateway trail export` writes it ([contracts](../contracts.md#the-evidence-export)); at most one per plane, refused when another account or a group can write it |
 
 A descriptor that is absent turns its paths not covered, never observed. A log
 directory without a log is a source never heard. Any other input that cannot
-be read or does not parse exits 2, and no map is printed.
+be read or does not parse is refused.
 
 ## The inventory
 
@@ -96,7 +96,7 @@ printed as not checked, with the reason, when:
   (tenant, project, tool and upstream, of kind tool) in an envelope the
   contract refuses for more than a missing effect class: the plane saw that
   call, and its record cannot be joined;
-- the walk down its trace ran out of the 1,048,576 span steps one map takes;
+- more than 65,536 spans are at or below its own in its trace, which cuts its walk;
 - the path names no source.
 
 ## Output and exit status
@@ -107,6 +107,6 @@ lines for each plane, each source and the joins, and last the line
 
 | Exit | When |
 | --- | --- |
-| 0 | every declared path is at least observed and no call around the plane was found |
-| 1 | a path is unknown or not covered, or a call around the plane was found |
+| 0 | every declared path is at least observed, and no call around the plane or cut walk was found; a join not checked for another reason, such as no export, is the operator's to close |
+| 1 | a path is unknown or not covered, or a call around the plane or a cut walk was found: an agent chooses its spans, so it can cut a walk on purpose |
 | 2 | an input was refused; nothing is printed on standard output |

@@ -14,8 +14,8 @@ const (
 	// ExitCovered: every declared path is at least observed and no
 	// observation is a call around the plane.
 	ExitCovered = 0
-	// ExitGaps: some path is weaker than observed, or a call went around the
-	// plane.
+	// ExitGaps: some path is weaker than observed, a call went around the
+	// plane, or a walk down a trace was cut at its bound.
 	ExitGaps = 1
 	// ExitRefused: an input was refused and no map was made.
 	ExitRefused = 2
@@ -126,6 +126,8 @@ type JoinCheck struct {
 	Join          Join
 	// Why says why the join was not checked.
 	Why string
+	// Cut is a join not checked because its walk passed MaxWalkSpans.
+	Cut bool
 }
 
 // Map states coverage for every declared path. It refuses, with ErrInput, an
@@ -138,9 +140,9 @@ func Map(in Input) (*Report, error) {
 		return nil, err
 	}
 	r := &Report{Paths: make([]PathCoverage, 0, len(in.Inventory.Paths))}
-	steps := 0
+	walked := families{}
 	for _, p := range in.Inventory.Paths {
-		r.Paths = append(r.Paths, in.path(p, sources, &steps))
+		r.Paths = append(r.Paths, in.path(p, sources, walked))
 	}
 	return r, nil
 }
@@ -174,7 +176,7 @@ func (in Input) check() (map[string]*Source, error) {
 	return sources, nil
 }
 
-func (in Input) path(p Path, sources map[string]*Source, steps *int) PathCoverage {
+func (in Input) path(p Path, sources map[string]*Source, walked families) PathCoverage {
 	pc := PathCoverage{Path: p}
 	planeState, counting := NotCovered, []Plane(nil)
 	if p.Kind == KindMCPTool {
@@ -196,7 +198,7 @@ func (in Input) path(p Path, sources map[string]*Source, steps *int) PathCoverag
 		pc.Trust = trust
 	}
 	if planeState >= Decided {
-		pc.Joins = joins(p, pc.State, sources, counting, steps)
+		pc.Joins = joins(p, pc.State, sources, counting, walked)
 	}
 	return pc
 }
@@ -211,9 +213,8 @@ func planeNames(planes []Plane) string {
 
 // joins checks every observation of the path, from any source the path
 // names, live or not, against the exports of the planes in front of it: an
-// old call around the plane is still one. The span walks draw on steps, which
-// MaxJoinSteps bounds across the map.
-func joins(p Path, state State, sources map[string]*Source, planes []Plane, steps *int) []JoinCheck {
+// old call around the plane is still one.
+func joins(p Path, state State, sources map[string]*Source, planes []Plane, walked families) []JoinCheck {
 	need := modeDecides
 	if state == Enforced {
 		need = modeEnforces
@@ -224,9 +225,9 @@ func joins(p Path, state State, sources map[string]*Source, planes []Plane, step
 		if src == nil {
 			continue
 		}
-		f := familyOf(src)
+		j := joiner{f: walked.of(src), path: p, need: need, planes: planes, seen: map[int]verdict{}}
 		for _, o := range observationsOf(src, ps) {
-			out = append(out, joinOf(o, f, p, need, planes, steps))
+			out = append(out, j.join(o))
 		}
 	}
 	return out
@@ -234,8 +235,8 @@ func joins(p Path, state State, sources map[string]*Source, planes []Plane, step
 
 // ExitStatus is the command's exit status for a map and the error that
 // stopped it: ExitRefused on an error or a map of no path, ExitCovered when
-// every path is at least observed and none went around the plane, ExitGaps
-// otherwise.
+// every path is at least observed, none went around the plane and no walk was
+// cut, ExitGaps otherwise.
 func ExitStatus(r *Report, err error) int {
 	if err != nil || r == nil || len(r.Paths) == 0 {
 		return ExitRefused
@@ -245,7 +246,7 @@ func ExitStatus(r *Report, err error) int {
 			return ExitGaps
 		}
 		for _, j := range p.Joins {
-			if j.Join == JoinAround {
+			if j.Join == JoinAround || j.Cut {
 				return ExitGaps
 			}
 		}

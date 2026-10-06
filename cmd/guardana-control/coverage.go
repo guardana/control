@@ -91,8 +91,8 @@ func coverageFlagSet(command string, out io.Writer) *flag.FlagSet {
 // coverageCommand prints, for each declared path, what covers it and on what
 // basis, then the standing row for undeclared paths. It exits 0 when every
 // declared path is at least observed and no call went around a plane, 1 when
-// one is weaker or one did, and 2 when an input was refused, with no map
-// printed.
+// one is weaker, one did or a walk down a trace was cut at its bound, and 2
+// when an input was refused, with no map printed.
 func coverageCommand(args []string, stdout, stderr io.Writer) int {
 	flags, a := coverageFlags(coverageName, io.Discard)
 	err := flags.Parse(args)

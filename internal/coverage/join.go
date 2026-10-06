@@ -7,70 +7,31 @@ import (
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 )
 
-// MaxJoinSteps bounds the span steps one map walks to join observations to
-// proposals. A join whose walk the bound cut is not checked, never joined or
-// a call around the plane.
-const MaxJoinSteps = 1 << 20
-
 // actionKindTool is how an envelope's action kind names a tool call. A prompt
 // or a resource read through the plane under a tool's name is not the call.
 const actionKindTool = "tool"
 
-// spanKey is a span of one trace among one tenant's project's observations.
-type spanKey struct{ tenant, project, trace, span string }
-
-// family indexes one source's observations by tenant, project, trace and
-// parent span, so the descendants of a span are found without a scan per
-// observation, and never among another tenant's or project's observations.
-type family map[spanKey][]string
-
-func familyOf(src *Source) family {
-	f := family{}
-	for _, r := range src.Records {
-		o := r.GetObservation()
-		c := o.GetCorrelation()
-		if o == nil || o.GetSource().GetSourceId() != src.Descriptor.GetSourceId() ||
-			c.GetTraceId() == "" || c.GetParentSpanId() == "" || c.GetSpanId() == "" {
-			continue
-		}
-		key := spanKey{o.GetTenantId(), o.GetProjectId(), c.GetTraceId(), c.GetParentSpanId()}
-		f[key] = append(f[key], c.GetSpanId())
-	}
-	return f
+// joiner checks one path's observations from one source against the exports
+// of the planes that count for it. It keeps each group's verdict: every span
+// a group reaches is in the trace, tenant and project of any observation
+// reaching it, so the verdict holds for each of them.
+type joiner struct {
+	f      *family
+	path   Path
+	need   modeClass
+	planes []Plane
+	seen   map[int]verdict
 }
 
-// spans is o's span and every span below it in its trace, among the
-// observations of its tenant and project. Each span taken is one of the map's
-// steps; ok is false when the steps ran out before the walk ended.
-func (f family) spans(o *observev1.Observation, steps *int) (out []string, ok bool) {
-	root := spanKey{o.GetTenantId(), o.GetProjectId(), o.GetCorrelation().GetTraceId(), o.GetCorrelation().GetSpanId()}
-	seen := map[string]bool{}
-	take := func(span string) bool {
-		if *steps >= MaxJoinSteps {
-			return false
-		}
-		*steps++
-		seen[span] = true
-		out = append(out, span)
-		return true
-	}
-	if !take(root.span) {
-		return nil, false
-	}
-	for i := 0; i < len(out); i++ {
-		parent := root
-		parent.span = out[i]
-		for _, child := range f[parent] {
-			if !seen[child] && !take(child) {
-				return nil, false
-			}
-		}
-	}
-	return out, true
+// verdict is what the proposals at and below a group say of the path's call:
+// whether one joins it, and the first plane whose record of it at one of
+// those spans does not validate, len(planes) when none.
+type verdict struct {
+	joined  bool
+	refused int
 }
 
-// joinOf checks one observation of path against the exports of the planes
-// that classify it. It joins when a proposal in a whole export, recorded in a
+// join checks o. It joins when a proposal in a whole export, recorded in a
 // mode at least as strong as need, carries its trace id and its own or a
 // descendant's span id, in its tenant and project, for a call of the path's
 // tool on its upstream: an enforced path joins only an enforcing plane's
@@ -78,43 +39,89 @@ func (f family) spans(o *observev1.Observation, steps *int) (out []string, ok bo
 // one. Nothing joins on an empty id, and a trace id alone joins nothing. A
 // join needs no event time: the time only bounds calling a call one around
 // the plane.
-func joinOf(o *observev1.Observation, f family, path Path, need modeClass, planes []Plane, steps *int) JoinCheck {
+func (j *joiner) join(o *observev1.Observation) JoinCheck {
 	check := JoinCheck{ObservationID: o.GetObservationId()}
 	trace, span := o.GetCorrelation().GetTraceId(), o.GetCorrelation().GetSpanId()
 	if trace == "" || span == "" {
 		check.Why = "no trace or span id"
 		return check
 	}
-	spans, ok := f.spans(o, steps)
-	if !ok {
-		check.Why = fmt.Sprintf("the span walk stopped at its bound of %d steps", MaxJoinSteps)
+	g := j.f.walk(spanKey{o.GetTenantId(), o.GetProjectId(), trace, span})
+	if j.f.groups[g].size > MaxWalkSpans {
+		check.Why = fmt.Sprintf("the walk down its trace passed its bound of %d spans", MaxWalkSpans)
+		check.Cut = true
 		return check
 	}
-	for _, p := range planes {
-		if x := p.Export; x != nil && x.Whole && x.holds(o, trace, spans, path, need) {
-			check.Join = Joined
-			return check
-		}
+	switch v := j.verdict(o, g); {
+	case v.joined:
+		check.Join = Joined
+	case v.refused < len(j.planes):
+		check.Why = "the record of a call at its span in the export of plane " + printable(j.planes[v.refused].Name) + " does not validate"
+	default:
+		check.Join, check.Why = unjoined(o, j.planes)
 	}
-	for _, p := range planes {
-		if x := p.Export; x != nil && x.refusedAt(o, trace, spans, path) {
-			check.Why = "the record of a call at its span in the export of plane " + printable(p.Name) + " does not validate"
-			return check
-		}
-	}
-	check.Join, check.Why = unjoined(o, planes)
 	return check
 }
 
-// refusedAt reports a proposal the contract refuses under the trace and one
-// of the spans that names o's call as a valid one would, whatever its mode:
-// the plane saw that call, but its record cannot be joined.
-func (x *Export) refusedAt(o *observev1.Observation, trace string, spans []string, path Path) bool {
-	for _, span := range spans {
-		for _, ev := range x.refused[proposalKey{trace, span}] {
-			if names(ev, o, path) {
-				return true
+// verdict is group g's verdict for o, each group below it judged first and
+// once. No group below one within the bound is past it.
+func (j *joiner) verdict(o *observev1.Observation, g int) verdict {
+	stack := []int{g}
+	for len(stack) > 0 {
+		top := stack[len(stack)-1]
+		if _, done := j.seen[top]; done {
+			stack = stack[:len(stack)-1]
+			continue
+		}
+		ready := true
+		for _, b := range j.f.groups[top].below {
+			if _, done := j.seen[b]; !done {
+				stack, ready = append(stack, b), false
 			}
+		}
+		if !ready {
+			continue
+		}
+		v := j.at(o, j.f.groups[top].spans)
+		for _, b := range j.f.groups[top].below {
+			v.joined = v.joined || j.seen[b].joined
+			v.refused = min(v.refused, j.seen[b].refused)
+		}
+		j.seen[top] = v
+		stack = stack[:len(stack)-1]
+	}
+	return j.seen[g]
+}
+
+// at is the verdict of the proposals at spans alone.
+func (j *joiner) at(o *observev1.Observation, spans []string) verdict {
+	v := verdict{refused: len(j.planes)}
+	trace := o.GetCorrelation().GetTraceId()
+	for _, span := range spans {
+		k := proposalKey{trace, span}
+		for i, p := range j.planes {
+			x := p.Export
+			if x == nil {
+				continue
+			}
+			if x.Whole && x.holds(o, k, j.path, j.need) {
+				v.joined = true
+			}
+			if i < v.refused && x.refusedAt(o, k, j.path) {
+				v.refused = i
+			}
+		}
+	}
+	return v
+}
+
+// refusedAt reports a proposal the contract refuses at k that names o's call
+// as a valid one would, whatever its mode: the plane saw that call, but its
+// record cannot be joined.
+func (x *Export) refusedAt(o *observev1.Observation, k proposalKey, path Path) bool {
+	for _, ev := range x.refused[k] {
+		if names(ev, o, path) {
+			return true
 		}
 	}
 	return false
@@ -144,12 +151,10 @@ func unjoined(o *observev1.Observation, planes []Plane) (Join, string) {
 	return JoinAround, ""
 }
 
-func (x *Export) holds(o *observev1.Observation, trace string, spans []string, path Path, need modeClass) bool {
-	for _, span := range spans {
-		for _, ev := range x.proposals[proposalKey{trace, span}] {
-			if proposes(ev, o, path, need) {
-				return true
-			}
+func (x *Export) holds(o *observev1.Observation, k proposalKey, path Path, need modeClass) bool {
+	for _, ev := range x.proposals[k] {
+		if proposes(ev, o, path, need) {
+			return true
 		}
 	}
 	return false

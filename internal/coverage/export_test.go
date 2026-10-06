@@ -197,6 +197,7 @@ func TestAProposalThatDoesNotValidateLeavesItsJoinNotChecked(t *testing.T) {
 	ev := proposal{trace: traceA, span: spanA}.line()
 	unclassified := proposal{trace: traceA, span: spanA, unclassified: true}.line()
 	noRequest := strings.Replace(ev, `"requestId":"r1",`, ``, 1)
+	const badHost = `"destination":{"host":"files..example"},"resource":`
 	child := obs{id: "obs-child", kind: observev1.SubjectKind_SUBJECT_KIND_MODEL, name: "m", trace: traceA, span: spanB, parent: spanA}
 	cases := []struct {
 		name    string
@@ -213,6 +214,9 @@ func TestAProposalThatDoesNotValidateLeavesItsJoinNotChecked(t *testing.T) {
 			coverage.JoinNotChecked, why},
 		{"unclassified and no request id", []string{strings.Replace(unclassified, `"requestId":"r1",`, ``, 1)}, nil,
 			coverage.JoinNotChecked, why},
+		{"a destination host refused", []string{strings.Replace(ev, `"resource":`, badHost, 1)}, nil, coverage.JoinNotChecked, why},
+		{"unclassified, its destination host unchecked", []string{strings.Replace(unclassified, `"resource":`, badHost, 1)}, nil,
+			coverage.Joined, ""},
 		{"refused at a descendant's span", []string{strings.Replace(proposal{trace: traceA, span: spanB}.line(), `"requestId":"r1",`, ``, 1)},
 			[]*observev1.Record{child.record()}, coverage.JoinNotChecked, why},
 		{"refused at a span of another trace", []string{strings.Replace(proposal{trace: traceB, span: spanA}.line(), `"requestId":"r1",`, ``, 1)},
