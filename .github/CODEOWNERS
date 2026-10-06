@@ -14,8 +14,10 @@
 # Paths that carry authorization meaning: the decision path, the enforcement
 # pipeline, the approvals store, the policy keys, the digest an approval binds
 # to, the evidence record, contract validation, the judgement of a run against
-# its procedure, the policy provider interface, the wire schema and the fixtures
-# that pin them. Every tree scripts/lib/dependency-rule.sh guards is among them.
+# its procedure, the route and lift signatures and the stop judge, the policy and
+# route floors, the configuration's owner and mode checks, the policy provider
+# interface, the wire schema and the fixtures that pin them. Every tree
+# scripts/lib/dependency-rule.sh guards is among them.
 /internal/core/        @guardana/security-maintainers
 /internal/policy/      @guardana/security-maintainers
 /internal/canon/       @guardana/security-maintainers
@@ -24,6 +26,9 @@
 /internal/gateway/     @guardana/security-maintainers
 /internal/approvals/   @guardana/security-maintainers
 /internal/policykey/   @guardana/security-maintainers
+/internal/reaction/    @guardana/security-maintainers
+/internal/policystate/ @guardana/security-maintainers
+/internal/gatewayconfig/ @guardana/security-maintainers
 /pkg/contract/         @guardana/security-maintainers
 /pkg/policyprovider/   @guardana/security-maintainers
 /api/proto/            @guardana/security-maintainers

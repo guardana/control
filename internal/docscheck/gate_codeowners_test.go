@@ -2,6 +2,7 @@ package docscheck
 
 import (
 	"fmt"
+	"os/exec"
 	"path"
 	"slices"
 	"strings"
@@ -13,10 +14,17 @@ const securityTeam = "@guardana/security-maintainers"
 // The gate's own Go code, held to the review the scripts beside it are.
 var gateTrees = []string{"internal/testreport", "internal/docscheck"}
 
-// Every tree the dependency rule guards, and the gate's Go trees, are owned by
-// the security maintainers in CODEOWNERS and need their two approvals in the
-// ruleset github-bootstrap.sh creates. A guarded tree added to
-// scripts/lib/dependency-rule.sh without both fails here.
+// Trees outside the dependency rule that carry authorization semantics or
+// cryptography: route and lift signatures and the stop judge, the policy and
+// route floors, and the configuration's owner and mode checks.
+var authorizationTrees = []string{"internal/reaction", "internal/policystate", "internal/gatewayconfig"}
+
+// Every tree the dependency rule guards, the gate's Go trees and the other
+// authorization trees need the security maintainers' two approvals in the
+// ruleset github-bootstrap.sh creates, and every file under a two-approval path
+// is theirs in CODEOWNERS. A guarded tree added to
+// scripts/lib/dependency-rule.sh without both fails here, and so does a later
+// CODEOWNERS rule that gives one file of such a tree to someone else.
 func TestCodeownersCoverTheGuardedTrees(t *testing.T) {
 	fsys := repoFS(t)
 	guarded, err := bareArray(readLines(t, fsys, "scripts/lib/dependency-rule.sh"), "guarded")
@@ -31,13 +39,92 @@ func TestCodeownersCoverTheGuardedTrees(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scripts/github-bootstrap.sh: %v", err)
 	}
-	for _, tree := range slices.Concat(guarded, gateTrees) {
-		if owners := ownersOf(rules, tree+"/file.go"); !slices.Contains(owners, securityTeam) {
-			t.Errorf(".github/CODEOWNERS gives %s/ to %q, not to %s", tree, owners, securityTeam)
-		}
+	required := slices.Concat(guarded, gateTrees, authorizationTrees)
+	for _, tree := range required {
 		if !slices.Contains(twoApproval, tree+"/**") {
 			t.Errorf("scripts/github-bootstrap.sh: TWO_APPROVAL_PATHS holds no %q", tree+"/**")
 		}
+	}
+	for _, problem := range ownershipProblems(rules, repoFileList(t), required, twoApproval) {
+		t.Errorf(".github/CODEOWNERS: %s", problem)
+	}
+}
+
+// ownershipProblems names every file under a required tree or a two-approval
+// path whose last matching CODEOWNERS rule is not the security maintainers',
+// and a required tree that holds no file, which would leave nothing checked. A
+// two-approval path that holds no file yet is judged by a file it could hold.
+func ownershipProblems(rules []codeownersRule, files, required, twoApproval []string) []string {
+	var problems []string
+	paths := slices.Clone(required)
+	for _, entry := range twoApproval {
+		if p := strings.TrimSuffix(entry, "/**"); !slices.Contains(paths, p) {
+			paths = append(paths, p)
+		}
+	}
+	for _, p := range paths {
+		under := slices.DeleteFunc(slices.Clone(files), func(f string) bool { return f != p && !strings.HasPrefix(f, p+"/") })
+		switch {
+		case len(under) == 0 && slices.Contains(required, p):
+			problems = append(problems, fmt.Sprintf("%s holds no file, so its ownership was not checked", p))
+		case len(under) == 0:
+			under = []string{p + "/file.go"}
+		}
+		for _, f := range under {
+			if owners := ownersOf(rules, f); !slices.Contains(owners, securityTeam) {
+				problems = append(problems, fmt.Sprintf("gives %s to %q, not to %s", f, owners, securityTeam))
+			}
+		}
+	}
+	return problems
+}
+
+// repoFileList lists the repository's files the way the gate's scripts do:
+// git's tracked and unignored files in a work tree, the commit's own list or a
+// walk in an export.
+func repoFileList(t *testing.T) []string {
+	t.Helper()
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Fatalf("bash is not on PATH, so scripts/lib/repo-files.sh cannot list the files: %v", err)
+	}
+	cmd := exec.Command(bash, "-c", `. scripts/lib/repo-files.sh && repo_files`) //nolint:gosec // G204: bash from PATH sourcing this repository's own script
+	cmd.Dir = repoRoot(t)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("repo_files failed: %v", err)
+	}
+	files := strings.Split(strings.TrimSuffix(string(out), "\n"), "\n")
+	if len(files) < minRepoFiles {
+		t.Fatalf("repo_files listed %d file(s), want at least %d; the listing stopped working", len(files), minRepoFiles)
+	}
+	return files
+}
+
+// Far fewer files than the repository holds means the listing broke.
+const minRepoFiles = 500
+
+func TestOwnershipProblemsJudgesEveryFile(t *testing.T) {
+	rules, err := codeownersRules([]string{
+		"*                 @all",
+		"/internal/a/      " + securityTeam,
+		"/internal/a/x.go  @all",
+		"/internal/b/      " + securityTeam,
+		"/reserved/        " + securityTeam,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := []string{"internal/a/w.go", "internal/a/x.go", "internal/a/y.go", "internal/b/z.go", "internal/c/v.go", "loose.go"}
+	got := ownershipProblems(rules, files, []string{"internal/a", "internal/empty"}, []string{"internal/b/**", "internal/c/**", "reserved/**", "loose.go"})
+	want := []string{
+		`gives internal/a/x.go to ["@all"], not to ` + securityTeam,
+		"internal/empty holds no file, so its ownership was not checked",
+		`gives internal/c/v.go to ["@all"], not to ` + securityTeam,
+		`gives loose.go to ["@all"], not to ` + securityTeam,
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("problems = %q\nwant       %q", got, want)
 	}
 }
 

@@ -239,7 +239,7 @@ var gitleaksAllowlistKeys = []string{"description", "targetrules", "regextarget"
 // and allowlist plus exceptions that name a rule or a pattern: an [extend]
 // that loads the defaults and nothing else, [[rules]] entries that only name
 // a default rule to attach an allowlist to, and allowlists without paths or
-// commits whose every regex matches something.
+// commits whose every regex and stopword excepts none of the planted secrets.
 func gitleaksConfigProblems(text string) []string {
 	tables, err := parseGitleaksTOML(text)
 	if err != nil {
@@ -308,22 +308,10 @@ func gitleaksAllowlistProblems(t tomlTable, where string) []string {
 		switch v.key {
 		case "paths", "commits":
 			problems = append(problems, fmt.Sprintf("line %d: an allowlist entry by %s, which excepts every rule there", v.line, v.key))
-		case "regexes":
-			for _, expr := range v.strs {
-				re, err := regexp.Compile(expr)
-				switch {
-				case err != nil:
-					problems = append(problems, fmt.Sprintf("line %d: regex %q does not compile: %v", v.line, expr, err))
-				case re.MatchString(""):
-					problems = append(problems, fmt.Sprintf("line %d: regex %q matches the empty string, so it excepts every finding", v.line, expr))
-				default:
-					narrows = true
-				}
-			}
-		case "stopwords":
-			for _, word := range v.strs {
-				if word == "" {
-					problems = append(problems, fmt.Sprintf("line %d: an empty stopword", v.line))
+		case "regexes", "stopwords":
+			for _, entry := range v.strs {
+				if problem := allowlistEntryProblem(v.key, entry); problem != "" {
+					problems = append(problems, fmt.Sprintf("line %d: %s", v.line, problem))
 				} else {
 					narrows = true
 				}
@@ -334,6 +322,25 @@ func gitleaksAllowlistProblems(t tomlTable, where string) []string {
 		problems = append(problems, where+" holds no regex or stopword to narrow by")
 	}
 	return problems
+}
+
+// allowlistEntryProblem judges one regex or stopword: it must be one gitleaks
+// reads and except none of the planted secrets.
+func allowlistEntryProblem(key, entry string) string {
+	if key == "stopwords" {
+		if entry == "" {
+			return "an empty stopword"
+		}
+		return plantedStopwordProblem(entry)
+	}
+	re, err := regexp.Compile(entry)
+	switch {
+	case err != nil:
+		return fmt.Sprintf("regex %q does not compile: %v", entry, err)
+	case re.MatchString(""):
+		return fmt.Sprintf("regex %q matches the empty string, so it excepts every finding", entry)
+	}
+	return plantedRegexProblem(re)
 }
 
 // tomlKeyProblems refuses a key outside allowed, a key written twice, and a
@@ -416,6 +423,14 @@ func TestGitleaksConfigProblems(t *testing.T) {
 		"a rule allowlist alone":       {"[[rules]]\nid = \"github-pat\"\n", "", "follows no [[rules]]"},
 		"a number":                     {"useDefault = true", "useDefault = 1", "is not a boolean, a string or an array of strings"},
 		"an unclosed array":            {"  \"^other\\\\.value$\",\n]", "  \"^other\\\\.value$\",\n", "is not a boolean, a string or an array of strings"},
+		"a regex of one character":     {"'''^fixture-[0-9]+$'''", "'''.'''", "excepts the planted"},
+		"every line, as a line target": {"targetRules = [\"generic-api-key\"]\nregexes = [\n  '''^fixture-[0-9]+$''',", "regexTarget = \"line\"\nregexes = [\n  '''(?s).+''',", "excepts the planted"},
+		"a rule's own prefix":          {"'''^fixture-[0-9]+$'''", "'''^ghp_'''", "excepts the planted github-pat"},
+		"the key name, as a match":     {"'''^fixture-[0-9]+$'''", "'''api_key'''", "excepts the planted generic-api-key"},
+		"a line's own text":            {"'''^fixture-[0-9]+$'''", "'''export VALUE='''", "excepts the planted"},
+		"a one-letter stopword":        {"stopwords = ['''example''']", "stopwords = ['e']", "excepts the planted"},
+		"an upper-case stopword":       {"stopwords = ['''example''']", "stopwords = ['E']", "excepts the planted"},
+		"a stopword of a rule prefix":  {"stopwords = ['''example''']", "stopwords = ['akia']", "excepts the planted aws-access-token"},
 	}
 	for name, c := range cases {
 		text := replaceOnce(t, gitleaksFixture, c.old, c.replacement)

@@ -109,7 +109,9 @@ func collectTree(fsys fs.FS, cfg docsconfig.Config) (docsTree, error) {
 			if err != nil {
 				return docsTree{}, fmt.Errorf("reading %s: %w", rel, err)
 			}
-			tree.tests.add(rel, data)
+			if err := tree.tests.add(rel, data); err != nil {
+				return docsTree{}, err
+			}
 		}
 		if cfg.Excludes(rel) {
 			continue

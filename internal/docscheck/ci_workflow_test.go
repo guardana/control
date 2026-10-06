@@ -22,18 +22,25 @@ var (
 	ciStepKeys = []string{"name", "run"}
 )
 
+// The variables make and go take flags and settings from. An earlier step that
+// writes one to $GITHUB_ENV changes what the gate step runs without touching
+// it.
+var ciLooseningNames = []string{"MAKEFLAGS", "MFLAGS", "GNUMAKEFLAGS", "GOFLAGS", "GOENV"}
+
 // yamlNode is one mapping key or sequence item ("-") of a block-style YAML
-// document, with the scalar written after its colon.
+// document, with the scalar written after its colon and the lines of a block
+// scalar.
 type yamlNode struct {
 	line  int
 	key   string
 	value string
+	block []string
 	kids  []*yamlNode
 }
 
 // parseBlockYAML reads the block layout a workflow uses: mappings, sequences
-// of mappings and scalars, with block scalars (| and >) skipped whole. A line
-// it cannot read is an error, never a key it drops.
+// of mappings and scalars, with a block scalar (| or >) kept as its raw lines.
+// A line it cannot read is an error, never a key it drops.
 func parseBlockYAML(lines []string) (*yamlNode, error) {
 	root := &yamlNode{}
 	p := &yamlParser{stack: []yamlFrame{{-1, root}}}
@@ -52,6 +59,7 @@ func parseBlockYAML(lines []string) (*yamlNode, error) {
 		if node != nil && (strings.HasPrefix(node.value, "|") || strings.HasPrefix(node.value, ">")) {
 			for i+1 < len(lines) && (strings.TrimSpace(lines[i+1]) == "" || len(lines[i+1])-len(strings.TrimLeft(lines[i+1], " ")) > indent) {
 				i++
+				node.block = append(node.block, lines[i])
 			}
 		}
 	}
@@ -149,7 +157,7 @@ func ciGateProblems(lines []string) []string {
 	if err != nil {
 		return []string{err.Error()}
 	}
-	problems := workflowLevelProblems(root)
+	problems := slices.Concat(workflowLevelProblems(root), triggerProblems(root))
 	var jobs []*yamlNode
 	for _, j := range root.children("jobs") {
 		jobs = append(jobs, j.children(ciGateJob)...)
@@ -166,6 +174,7 @@ func ciGateProblems(lines []string) []string {
 			if slices.ContainsFunc(step.kids, func(k *yamlNode) bool { return k.key == "run" && k.value == ciGateCommand }) {
 				gate = append(gate, step)
 			}
+			problems = append(problems, looseningProblems(step)...)
 		}
 	}
 	switch len(gate) {
@@ -199,6 +208,105 @@ func workflowLevelProblems(root *yamlNode) []string {
 		}
 	}
 	return problems
+}
+
+// looseningProblems refuses a step of the gate job whose text names a
+// variable make or go reads its flags from. Any mention is refused, not only
+// a write to $GITHUB_ENV: a step can save the file's path for a later one, or
+// hand the name to a write through its env.
+func looseningProblems(step *yamlNode) []string {
+	var problems []string
+	text := step.text()
+	for _, name := range ciLooseningNames {
+		if strings.Contains(text, name) {
+			problems = append(problems, fmt.Sprintf("line %d: a step of the %s job names %s, which a write to $GITHUB_ENV hands to the gate step", step.line, ciGateJob, name))
+		}
+	}
+	return problems
+}
+
+// text is everything written under n: its keys, scalars and block lines.
+func (n *yamlNode) text() string {
+	var b strings.Builder
+	b.WriteString(n.key + ": " + n.value + "\n")
+	for _, line := range n.block {
+		b.WriteString(line + "\n")
+	}
+	for _, kid := range n.kids {
+		b.WriteString(kid.text())
+	}
+	return b.String()
+}
+
+// triggerProblems refuses an on: that no longer runs the workflow on every
+// pull request and on every push to main: a missing event, a filter on the
+// pull request, or a push filter other than branches naming main.
+func triggerProblems(root *yamlNode) []string {
+	ons := root.children("on")
+	if len(ons) != 1 {
+		return []string{fmt.Sprintf("found %d on key(s), want 1", len(ons))}
+	}
+	on := ons[0]
+	if on.value != "" {
+		var problems []string
+		for _, event := range []string{"push", "pull_request"} {
+			if !slices.Contains(flowList(on.value), event) {
+				problems = append(problems, fmt.Sprintf("line %d: the workflow does not run on %s", on.line, event))
+			}
+		}
+		return problems
+	}
+	var problems []string
+	for _, event := range []string{"push", "pull_request"} {
+		triggers := on.children(event)
+		if len(triggers) != 1 {
+			problems = append(problems, fmt.Sprintf("line %d: the workflow does not run on %s exactly once", on.line, event))
+			continue
+		}
+		trigger := triggers[0]
+		where := fmt.Sprintf("line %d: the %s trigger", trigger.line, event)
+		if trigger.value != "" {
+			problems = append(problems, where+" is not bare")
+		}
+		for _, kid := range trigger.kids {
+			if event == "pull_request" || kid.key != "branches" {
+				problems = append(problems, fmt.Sprintf("%s carries %s", where, kid.key))
+			} else if !slices.Contains(sequence(kid), "main") {
+				problems = append(problems, where+" runs on no main branch")
+			}
+		}
+	}
+	return problems
+}
+
+// sequence is the scalars of n's value as a flow list, or of its block items.
+func sequence(n *yamlNode) []string {
+	if n.value != "" {
+		return flowList(n.value)
+	}
+	var items []string
+	for _, kid := range n.kids {
+		if kid.key == "-" && len(kid.kids) == 0 {
+			items = append(items, unquote(kid.value))
+		}
+	}
+	return items
+}
+
+// flowList reads "[a, 'b']" or a single scalar into its unquoted items.
+func flowList(value string) []string {
+	inner, ok := strings.CutPrefix(value, "[")
+	if ok {
+		inner, ok = strings.CutSuffix(inner, "]")
+	}
+	if !ok {
+		return []string{unquote(value)}
+	}
+	var items []string
+	for _, item := range strings.Split(inner, ",") {
+		items = append(items, unquote(item))
+	}
+	return items
 }
 
 // keyProblems refuses any key of n outside allowed, and any allowed key
@@ -286,6 +394,7 @@ func TestCIGateProblems(t *testing.T) {
 	}
 	gateStep := "      - name: Run the quality gate\n        run: make quality\n"
 	jobHead := "    name: Quality gate\n"
+	pinsWrite := "          grep -E 'x' file >>\"$GITHUB_ENV\"\n"
 	cases := map[string]struct{ old, replacement, want string }{
 		"the quick gate":                {"run: make quality\n\n", "run: make quality-quick\n\n", `no step of the quality job runs exactly "make quality"`},
 		"the gate with a fallback":      {"run: make quality\n\n", "run: make quality || true\n\n", "runs exactly"},
@@ -311,12 +420,34 @@ func TestCIGateProblems(t *testing.T) {
 		"two gate jobs":                 {"  other:\n", "  quality:\n", "found 2 quality job(s)"},
 		"a tab":                         {"    runs-on: ubuntu-24.04\n", "\truns-on: ubuntu-24.04\n", "indented with a tab"},
 		"a plain scalar over two lines": {"    runs-on: ubuntu-24.04\n", "    runs-on: ubuntu-24.04\n      more text\n", `"more text" is not a key`},
+		"MAKEFLAGS through GITHUB_ENV":  {pinsWrite, pinsWrite + "          echo 'MAKEFLAGS=-k' >>\"$GITHUB_ENV\"\n", "names MAKEFLAGS"},
+		"MFLAGS through GITHUB_ENV":     {pinsWrite, pinsWrite + "          echo MFLAGS=-i >>\"$GITHUB_ENV\"\n", "names MFLAGS"},
+		"GNUMAKEFLAGS in a printf":      {pinsWrite, pinsWrite + "          printf '%s\\n' GNUMAKEFLAGS=-n >>$GITHUB_ENV\n", "names GNUMAKEFLAGS"},
+		"GOFLAGS in an inline step":     {gateStep, "      - run: echo GOFLAGS=-tags=skip >> $GITHUB_ENV\n" + gateStep, "names GOFLAGS"},
+		"GOENV in a step's env":         {gateStep, "      - name: x\n        env:\n          NAME: GOENV\n        run: echo \"$NAME=/tmp/env\" >>\"$GITHUB_ENV\"\n" + gateStep, "names GOENV"},
+		"no pull_request trigger":       {"  pull_request:\n", "", "does not run on pull_request"},
+		"a pull_request filter":         {"  pull_request:\n", "  pull_request:\n    paths: [docs/**]\n", "the pull_request trigger carries paths"},
+		"pull_request types":            {"  pull_request:\n", "  pull_request: {types: [closed]}\n", "the pull_request trigger is not bare"},
+		"no push trigger":               {"  push:\n    branches: [main]\n", "", "does not run on push"},
+		"push to another branch":        {"branches: [main]", "branches: [release]", "push trigger runs on no main branch"},
+		"a push paths filter":           {"    branches: [main]\n", "    branches: [main]\n    paths-ignore: ['**.md']\n", "the push trigger carries paths-ignore"},
+		"a single trigger":              {"on:\n  push:\n    branches: [main]\n  pull_request:\n", "on: push\n", "does not run on pull_request"},
+		"no on":                         {"on:\n  push:\n    branches: [main]\n  pull_request:\n", "", "found 0 on key(s)"},
 	}
 	for name, c := range cases {
 		text := replaceOnce(t, ciFixture, c.old, c.replacement)
 		problems := ciGateProblems(strings.Split(text, "\n"))
 		if !slices.ContainsFunc(problems, func(s string) bool { return strings.Contains(s, c.want) }) {
 			t.Errorf("%s: want a problem containing %q, got %q", name, c.want, problems)
+		}
+	}
+	trigger := "on:\n  push:\n    branches: [main]\n  pull_request:\n"
+	for name, replacement := range map[string]string{
+		"every push and pull request": "on: [push, pull_request]\n",
+		"branches as a block list":    "on:\n  push:\n    branches:\n      - release\n      - 'main'\n  pull_request:\n  workflow_dispatch:\n",
+	} {
+		if problems := ciGateProblems(strings.Split(replaceOnce(t, ciFixture, trigger, replacement), "\n")); len(problems) != 0 {
+			t.Errorf("%s: reported %q", name, problems)
 		}
 	}
 }

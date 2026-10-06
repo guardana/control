@@ -2,10 +2,17 @@ package docscheck
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"maps"
 	"path"
 	"regexp"
 	"slices"
 	"strings"
+	"testing"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/guardana/control/internal/docscheck/frontmatter"
 )
@@ -216,14 +223,88 @@ func recipeProblems(runs []genRun, pages []parsedPage, claims []blockClaim) []st
 // _test.go files.
 type testIndex map[string][]string
 
-var (
-	testFunc = regexp.MustCompile(`(?m)^func (Test\w*)\(\w+ \*testing\.T\)`)
-	testName = regexp.MustCompile(`^Test\w*$`)
-)
+var testName = regexp.MustCompile(`^Test\w*$`)
 
-func (ix testIndex) add(rel string, data []byte) {
+// add indexes the top-level functions go test runs from one file's syntax
+// tree, so a test name written in a string or a comment indexes nothing. A
+// file that does not parse is an error rather than a file with no tests.
+func (ix testIndex) add(rel string, data []byte) error {
+	file, err := parser.ParseFile(token.NewFileSet(), rel, data, parser.SkipObjectResolution)
+	if err != nil {
+		return fmt.Errorf("parsing %s: %w", rel, err)
+	}
+	pkg := testingName(file)
 	dir := path.Dir(rel)
-	for _, m := range testFunc.FindAllSubmatch(data, -1) {
-		ix[dir] = append(ix[dir], string(m[1]))
+	for _, decl := range file.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && isGoTest(fn, pkg) {
+			ix[dir] = append(ix[dir], fn.Name.Name)
+		}
+	}
+	return nil
+}
+
+// testingName is the name a file refers to package testing by.
+func testingName(file *ast.File) string {
+	for _, imp := range file.Imports {
+		if imp.Path.Value == `"testing"` && imp.Name != nil {
+			return imp.Name.Name
+		}
+	}
+	return "testing"
+}
+
+// isGoTest reports the shape go test runs: func TestXxx(*testing.T), no
+// receiver, no type parameters, no results, and no lower-case letter after
+// Test.
+func isGoTest(fn *ast.FuncDecl, pkg string) bool {
+	name, ok := strings.CutPrefix(fn.Name.Name, "Test")
+	if !ok || fn.Recv != nil || fn.Type.TypeParams != nil || fn.Type.Results != nil {
+		return false
+	}
+	if r, _ := utf8.DecodeRuneInString(name); name != "" && unicode.IsLower(r) {
+		return false
+	}
+	return takesTestingT(fn.Type.Params.List, pkg)
+}
+
+// takesTestingT reports a parameter list that is one *testing.T, with
+// testing spelled pkg.
+func takesTestingT(params []*ast.Field, pkg string) bool {
+	if len(params) != 1 || len(params[0].Names) > 1 {
+		return false
+	}
+	star, ok := params[0].Type.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := star.X.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	x, ok := sel.X.(*ast.Ident)
+	return ok && x.Name == pkg && sel.Sel.Name == "T"
+}
+
+func TestTestIndexHoldsOnlyDeclaredTests(t *testing.T) {
+	src := "package thing\n\nimport tt \"testing\"\n\n" +
+		"func TestDeclared(t *tt.T) {}\n" +
+		"var text = `\nfunc TestInAString(t *testing.T) {}\n`\n" +
+		"/*\nfunc TestInAComment(t *testing.T) {}\n*/\n" +
+		"func TestTwoParams(t *tt.T, n int) {}\n" +
+		"func Testlower(t *tt.T) {}\n" +
+		"func TestGeneric[P any](t *tt.T) {}\n" +
+		"func TestBench(b *tt.B) {}\n" +
+		"func TestResult(t *tt.T) error { return nil }\n" +
+		"func (s suite) TestMethod(t *tt.T) {}\n" +
+		"func Test(t *tt.T) {}\n"
+	ix := testIndex{}
+	if err := ix.add("internal/thing/a_test.go", []byte(src)); err != nil {
+		t.Fatal(err)
+	}
+	if want := (testIndex{"internal/thing": {"TestDeclared", "Test"}}); !maps.EqualFunc(ix, want, slices.Equal) {
+		t.Errorf("tests = %q, want %q", ix, want)
+	}
+	if err := ix.add("internal/thing/b_test.go", []byte("package thing\nfunc TestCut(t *testing.T) {\n")); err == nil {
+		t.Error("a test file that does not parse was indexed without an error")
 	}
 }
