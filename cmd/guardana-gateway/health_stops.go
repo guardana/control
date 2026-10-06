@@ -71,7 +71,9 @@ func (p *plane) stopsAnswer(snap reaction.Snapshot, now time.Time) stopsAnswer {
 	route := p.stops.route
 	out.Route = &routeAnswer{ID: route.ID(), Serial: route.Serial(), Digest: route.Digest()}
 	out.Floor = routeFloorText(p.stops.floor)
-	out.ListID = snap.Header().ListID
+	// The list the plane holds, which an unknown read leaves in place.
+	held := snap.AcceptedList()
+	out.ListID = held.Header().ListID
 	if !snap.ReadAt().IsZero() {
 		age := now.Sub(snap.ReadAt()).Milliseconds()
 		out.AgeMS = &age
@@ -85,7 +87,7 @@ func (p *plane) stopsAnswer(snap reaction.Snapshot, now time.Time) stopsAnswer {
 		})
 	}
 	out.UnheldRuns, out.UnreadRuns = unheldRuns(p.runsDir, entries)
-	if u := snap.Usage(); u != (reaction.Usage{}) {
+	if u := held.Usage(); u != (reaction.Usage{}) {
 		out.Usage = &usageAnswer{Bytes: u.Bytes, MaxBytes: reaction.MaxListBytes, Lines: u.Lines, MaxLines: reaction.MaxListLines}
 		out.Degraded = u.Degraded()
 	}

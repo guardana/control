@@ -67,16 +67,18 @@ func AppendLift(ctx context.Context, dir string, route reaction.Route, l reactio
 	return appendLine(ctx, dir, route, now, fixed(l.Marshal()))
 }
 
-// AppendFinding appends, for the finding s names, s itself when the list
-// holds no stop of its run and tenant active at the writer's clock now, and a
-// covered line of that finding when it holds one. The choice is made under
-// the lock, over the list as it stands, so two writers never give one run two
-// active stops. It returns the line number and whether the line is covered.
+// AppendFinding appends, for the finding s names, a covered line of that
+// finding when the list holds a stop of its run and tenant active at the
+// writer's clock now that lasts at least as long as s, and s itself when it
+// holds none: a stop with a longer lifetime is never cut short by covering
+// it under a shorter one. The choice is made under the lock, over the list as
+// it stands, so two writers never stop one run twice for one lifetime. It
+// returns the line number and whether the line is covered.
 func AppendFinding(ctx context.Context, dir string, route reaction.Route, s reaction.Stop, now time.Time) (int64, bool, error) {
 	covered := false
 	n, err := appendLine(ctx, dir, route, now, func(list reaction.List) ([]byte, error) {
 		covered = slices.ContainsFunc(list.Entries(), func(e reaction.Entry) bool {
-			return e.RunID == s.RunID && e.TenantID == s.TenantID && e.ActiveAt(now, time.Time{})
+			return e.RunID == s.RunID && e.TenantID == s.TenantID && e.ActiveAt(now, time.Time{}) && !e.ExpiresAt.Before(s.ExpiresAt)
 		})
 		if covered {
 			return reaction.Covered{FindingID: s.FindingID, TenantID: s.TenantID, RunID: s.RunID, CreatedAt: s.CreatedAt}.Marshal()

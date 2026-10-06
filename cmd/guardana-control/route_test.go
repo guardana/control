@@ -104,7 +104,7 @@ func TestRouteSignReplacesNothingButASignedRoute(t *testing.T) {
 	for _, out := range []string{tr.routeKey, doc, tr.findings} {
 		before, _ := os.ReadFile(out) //nolint:gosec // G304: this test's own directory
 		code, stdout, stderr := invoke(t, signArgs(tr.routeKey, out, doc)...)
-		if code != exitFail || stdout != "" || !strings.Contains(stderr, "is not a signed route") {
+		if code != exitFail || stdout != "" || !strings.Contains(stderr, "is not a route's envelope") {
 			t.Errorf("--out %s: route sign answered %d: %q %q", out, code, stdout, stderr)
 		}
 		if after, _ := os.ReadFile(out); string(after) != string(before) { //nolint:gosec // G304: this test's own directory

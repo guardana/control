@@ -210,7 +210,7 @@ func TestStopsCarryBringsNoOldFindingBack(t *testing.T) {
 func TestStopsListPrintsEachStopAsAPlaneJudgesIt(t *testing.T) {
 	tr := newStopTree(t)
 	now := time.Now()
-	log := tr.findingsDir(t, "log", finding(1, tr.open, denial, confirmed), finding(2, tr.open, outside, confirmed),
+	log := tr.findingsDir(t, "log", finding(1, tr.open, denial, confirmed), finding(2, tr.open, denial, confirmed),
 		finding(3, tr.second, outside, confirmed))
 	if code, stdout, stderr := tr.react(t, log, now); code != exitOK {
 		t.Fatalf("react answered %d: %q %q", code, stdout, stderr)

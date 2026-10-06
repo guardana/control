@@ -56,9 +56,9 @@ plane's machine.
 
 The route floor keeps, per route id, the highest serial a plane took and its
 digest, in a directory of its own that `policy state init --kind route` makes.
-At start a plane refuses a route below its floor's serial, or at it with
-another digest, and a missing floor, and raises the floor once the list's
-first read is served, before it listens; it never makes one. A plane reads the route at start only: a stale route can
+At start a plane refuses a missing floor, a route below the floor's serial,
+and a route at that serial with another digest. It raises the floor once the
+list's first read is served, before it listens, and never makes one. A plane reads the route at start only: a stale route can
 only stop too much, never grant. Changing it takes a carried list and a
 restart.
 
@@ -92,8 +92,9 @@ clock would judge it.
 `react` verifies the route, refuses a list whose header names another route,
 reads the findings log and looks each finding's run up in the runs directory,
 which it never writes. It holds no key and never lifts. For each finding the
-list does not name yet, it writes a `stop` when the run has no active stop
-and a `covered` line when it has one, as the list stands under its lock, if:
+list does not name yet, it writes a `covered` line when the run has an active
+stop lasting at least as long as the new one would, and a `stop` otherwise,
+as the list stands under its lock, if:
 
 - the finding is `DETERMINISTIC` and `CONFIRMED`; a suspected, indeterminate
   or model's finding stops nothing, and no setting changes that;
@@ -151,9 +152,10 @@ decision point is asked, in this order of the plane's causes: `PAUSED`,
 
 `doctor` reads the route, the floor and the list as a start would, takes no
 lock and leaves the floor as it was. It prints the route's id, serial and
-digest, the floor, the list's id, state and age, each active stop, each of
-those naming a run the runs directory does not hold, and each rule whose
-lifetime ends a stop before its run can end. `/healthz` answers the same
+digest, the floor, the list's id, state and age, the count of active stops
+and the first 64 of them, each of those naming a run the runs directory does
+not hold, and each rule whose lifetime ends a stop before its run can end; a
+listed stop whose run's record cannot be read leaves it unknown. `/healthz` answers the same
 under `stops`, with the unknown state's cause, the list's use of its bounds
 and the reads it made; an unknown state answers `503`, and a list past nine
 tenths of a bound is `degraded`. `/metrics` counts the reads, the failed ones

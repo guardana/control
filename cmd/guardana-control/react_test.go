@@ -15,6 +15,7 @@ import (
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/findinglog"
 	"github.com/guardana/control/internal/runs"
 )
 
@@ -58,25 +59,29 @@ func reacted(t *testing.T, code int, stdout, stderr string, want ...string) {
 }
 
 // TestReactStopsARunOnceAndCoversItsOtherFindings: three confirmed findings
-// of one run give one stop and two covered lines, a finding of a second run
-// is that run's own stop, a rule's lifetime ends a stop before its run does
-// and a rule with none ends it with its run.
+// of one run under one rule give one stop and two covered lines, a finding of
+// a second run is that run's own stop, a rule's lifetime ends a stop before
+// its run does and a rule with none ends it with its run, and a finding whose
+// stop would outlast the run's active one is a stop of its own, never covered
+// under the shorter.
 func TestReactStopsARunOnceAndCoversItsOtherFindings(t *testing.T) {
 	tr := newStopTree(t)
 	now := time.Now()
 	log := tr.findingsDir(t, "log",
-		finding(1, tr.open, denial, confirmed), finding(2, tr.open, outside, confirmed),
-		finding(3, tr.open, outside, confirmed), finding(4, tr.second, outside, confirmed))
+		finding(1, tr.open, denial, confirmed), finding(2, tr.open, denial, confirmed),
+		finding(3, tr.open, denial, confirmed), finding(4, tr.second, outside, confirmed),
+		finding(5, tr.open, outside, confirmed))
 	code, stdout, stderr := tr.react(t, log, now)
 	reacted(t, code, stdout, stderr,
 		"stop line 2 run "+tr.open+" finding "+fid(1)+" rule REPEATED_DENIAL expires_at "+lineTime(now.Add(600*time.Second)),
 		"covered line 3 run "+tr.open+" finding "+fid(2),
 		"covered line 4 run "+tr.open+" finding "+fid(3),
 		"stop line 5 run "+tr.second+" finding "+fid(4)+" rule STEP_OUTSIDE_PROCEDURE expires_at "+runEnd(tr.runExpiry(t, tr.second)),
-		"stops 2, covered 2, already named 0, not stopping 0, not written 0")
+		"stop line 6 run "+tr.open+" finding "+fid(5)+" rule STEP_OUTSIDE_PROCEDURE expires_at "+runEnd(tr.runExpiry(t, tr.open)),
+		"stops 3, covered 2, already named 0, not stopping 0, not written 0")
 	entries := tr.judged(t, now).Entries()
-	if len(entries) != 2 || entries[0].RunID != tr.open || entries[1].RunID != tr.second {
-		t.Fatalf("entries %+v, want one stop of each run", entries)
+	if len(entries) != 3 || entries[0].RunID != tr.open || entries[1].RunID != tr.second || entries[2].RunID != tr.open {
+		t.Fatalf("entries %+v, want a stop of each run and the open run's longer one", entries)
 	}
 }
 
@@ -190,8 +195,8 @@ func TestALiftHoldsAndOnlyANewFindingStopsAgain(t *testing.T) {
 		"stop line 2 run "+tr.open+" finding "+fid(1)+" rule REPEATED_DENIAL expires_at "+lineTime(now.Add(600*time.Second)),
 		"stops 1, covered 0, already named 0, not stopping 0, not written 0")
 
-	appendLog(t, log, finding(2, tr.open, outside, confirmed), finding(3, tr.open, outside, confirmed),
-		finding(4, tr.open, outside, confirmed))
+	appendLog(t, log, finding(2, tr.open, denial, confirmed), finding(3, tr.open, denial, confirmed),
+		finding(4, tr.open, denial, confirmed))
 	code, stdout, stderr = tr.react(t, log, now)
 	reacted(t, code, stdout, stderr,
 		"covered line 3 run "+tr.open+" finding "+fid(2),
@@ -309,4 +314,31 @@ func treeState(t *testing.T, dir string) map[string]string {
 		t.Fatal(err)
 	}
 	return out
+}
+
+// TestAFindingAnotherReactNamedIsAlreadyNamed: a react that read the list
+// before another wrote a finding's line takes the writer's refusal of that
+// finding as already named, not as a line it could not write.
+func TestAFindingAnotherReactNamedIsAlreadyNamed(t *testing.T) {
+	tr := newStopTree(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	stale := tr.judged(t, now)
+	log := tr.findingsDir(t, "log", finding(1, tr.open, denial, confirmed))
+	if code, stdout, stderr := tr.react(t, log, now); code != exitOK {
+		t.Fatalf("the other react answered %d: %q %q", code, stdout, stderr)
+	}
+	records, err := findinglog.ReadFile(filepath.Join(log, findinglog.FileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plane, err := runs.OpenPlane(tr.runs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = plane.Close() }()
+	r := newReactor(context.Background(), tr.parsed, stale, plane.Lookup, tr.stops, now)
+	if err := r.each(records); err != nil || r.alreadyNamed != 1 || r.stops+r.covered != 0 || len(r.unwritten) != 0 {
+		t.Errorf("the late react: %v, %d already named, %d stops, %d covered, unwritten %q; want the finding already named",
+			err, r.alreadyNamed, r.stops, r.covered, r.unwritten)
+	}
 }

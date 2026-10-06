@@ -101,6 +101,21 @@ func TestDoctorReportsTheRouteAndLeavesItsFloor(t *testing.T) {
 	}
 }
 
+// TestDoctorCannotSayWhetherAStoppedRunIsHeld: an active stop whose run's
+// record cannot be read leaves the check unknown, never ok.
+func TestDoctorCannotSayWhetherAStoppedRunIsHeld(t *testing.T) {
+	tr := newTree(t)
+	route := tr.withReaction(t)
+	if err := os.WriteFile(filepath.Join(tr.dir, "runs", unheldRun+".run.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	appendStop(t, tr.dir, route, unheldRun)
+	line := doctorLine(t, tr, "unknown reaction ")
+	if !strings.Contains(line, "whether each listed stop's run is held is unknown") {
+		t.Errorf("the reaction line is %q", line)
+	}
+}
+
 // TestDoctorFailsARouteBelowItsFloor: what the start refuses, doctor fails.
 func TestDoctorFailsARouteBelowItsFloor(t *testing.T) {
 	tr := newTree(t)
@@ -156,9 +171,13 @@ func TestHealthAnswersTheStopStateAnd503WhenTheListIsRewritten(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Errorf("/healthz over a rewritten list answers %d, want 503", rec.Code)
 	}
+	held := answer.Stops.ListID
 	answer, _ = p.health(p.pauseSource(), time.Now)
 	if answer.Stops.State != "unknown" || answer.Stops.Cause != string(reaction.CauseHeader) {
 		t.Errorf("the stop state over a rewritten list is %s (%s), want unknown (%s)", answer.Stops.State, answer.Stops.Cause, reaction.CauseHeader)
+	}
+	if answer.Stops.ListID == "" || answer.Stops.ListID != held || answer.Stops.Usage == nil {
+		t.Errorf("over a rewritten list /healthz names list %q with usage %+v, want the list the plane holds, %q, and its usage", answer.Stops.ListID, answer.Stops.Usage, held)
 	}
 }
 

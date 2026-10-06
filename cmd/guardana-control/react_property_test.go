@@ -101,7 +101,7 @@ func reactProperty(t *testing.T, rng *rand.Rand) {
 }
 
 // checkNamed holds list to naming exactly the findings want says may stop,
-// with no run stopped twice at now.
+// with each active stop of a run, in line order, outlasting the one before.
 func checkNamed(t *testing.T, list reaction.List, want map[string]bool, now time.Time) {
 	t.Helper()
 	for id, may := range want {
@@ -109,13 +109,14 @@ func checkNamed(t *testing.T, list reaction.List, want map[string]bool, now time
 			t.Fatalf("the list names %s: %v, want %v", id, list.Names(id), may)
 		}
 	}
-	active := map[string]bool{}
+	last := map[string]time.Time{}
 	for _, e := range list.Entries() {
-		if now.Before(e.ExpiresAt) {
-			if active[e.RunID] {
-				t.Fatalf("run %s has two active stops", e.RunID)
-			}
-			active[e.RunID] = true
+		if !now.Before(e.ExpiresAt) {
+			continue
 		}
+		if prev, ok := last[e.RunID]; ok && !e.ExpiresAt.After(prev) {
+			t.Fatalf("run %s has a stop on line %d that does not outlast its active one, ending %s", e.RunID, e.Line, prev)
+		}
+		last[e.RunID] = e.ExpiresAt
 	}
 }

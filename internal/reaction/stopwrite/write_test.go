@@ -243,8 +243,10 @@ func TestATornTailIsRepairedByTheNextWriter(t *testing.T) {
 }
 
 // TestAppendFindingStopsARunOnce: a finding of a run with no active stop is
-// written as a stop, one of a run with an active stop as covered; a run whose
-// stop expired, and one whose stop a lift ended, take a stop again.
+// written as a stop, one of a run with an active stop that lasts as long as
+// its own as covered, and one whose stop would outlast every active one as a
+// stop; a run whose stop expired, and one whose stop a lift ended, take a
+// stop again.
 func TestAppendFindingStopsARunOnce(t *testing.T) {
 	r := testRoute(t)
 	dir, h := initDir(t, r)
@@ -263,6 +265,7 @@ func TestAppendFindingStopsARunOnce(t *testing.T) {
 		{"f-4", "run-3", false, 6, false},
 		{"", "run-1", true, 7, false},
 		{"f-5", "run-1", false, 8, false},
+		{"f-6", "run-1", false, 9, true},
 	} {
 		if c.lift {
 			if _, err := stopwrite.AppendLift(bg, dir, r, liftOf(t, liftKey(), r, h.ListID, c.run, 6), clock0); err != nil {
@@ -274,5 +277,30 @@ func TestAppendFindingStopsARunOnce(t *testing.T) {
 		if err != nil || n != c.line || covered != c.covered {
 			t.Errorf("step %d, %s of %s: line %d, covered %v, %v; want line %d, covered %v", i, c.finding, c.run, n, covered, err, c.line, c.covered)
 		}
+	}
+}
+
+// TestAppendFindingNeverCutsALongerStopShort: a finding whose stop would last
+// longer than the run's active one is written as a stop, so the run stays
+// stopped until the later expiry; one that would end sooner is covered.
+func TestAppendFindingNeverCutsALongerStopShort(t *testing.T) {
+	r := routeOf(t, 3, true)
+	dir, _ := initDir(t, r)
+	short := stopOf(t, "f-short", "run-1", clock0)
+	short.ExpiresAt = clock0.Add(10 * time.Minute)
+	long := stopOf(t, "f-long", "run-1", clock0)
+	long.RuleID, long.ExpiresAt = "DEADLINE_EXCEEDED", clock0.Add(5*time.Hour)
+	shorter := stopOf(t, "f-shorter", "run-1", clock0)
+	shorter.ExpiresAt = clock0.Add(time.Minute)
+	for i, c := range []struct {
+		s       reaction.Stop
+		covered bool
+	}{{short, false}, {long, false}, {shorter, true}} {
+		if _, covered, err := stopwrite.AppendFinding(bg, dir, r, c.s, clock0); err != nil || covered != c.covered {
+			t.Errorf("finding %d, %s: covered %v, %v; want covered %v", i, c.s.FindingID, covered, err, c.covered)
+		}
+	}
+	if s := planeOn(t, dir, r).Current(); !s.Active("run-1", "acme", clock0.Add(time.Hour), time.Time{}) {
+		t.Error("run-1 is not stopped an hour on, after the short stop ended and while the long one holds")
 	}
 }

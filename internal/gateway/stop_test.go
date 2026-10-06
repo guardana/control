@@ -297,6 +297,21 @@ func TestAStopDuringTheApprovalLookupBlocksTheResume(t *testing.T) {
 	}
 }
 
+// TestAStopDuringTheLookupOfANewRequestBlocksItsHold: a stop written while
+// the store looks up a request nothing holds yet blocks it on its own trail
+// instead of holding it.
+func TestAStopDuringTheLookupOfANewRequestBlocksItsHold(t *testing.T) {
+	var store *stepStore
+	src := newStopSource(stopped(t))
+	h := stopPlane(t, modeEnforce, []string{approveRefunds}, src, withStepStore(&store))
+	store.onFind = func() { src.set(stopped(t, "run-a")) }
+	d := h.admit(refundEnvelope(t, refundArgs()), refundArgs())
+	expectPlaneBlock(t, h, d, verdictDeny, codeRunStopped)
+	if s := h.p.Stats(); s.Held != 0 || s.Pending != 0 {
+		t.Errorf("Held = %d, Pending = %d; want nothing held", s.Held, s.Pending)
+	}
+}
+
 // TestAStopWrittenDuringTheAskBitesThatCall: the stop read after the ask
 // decides the call; with nothing written during the ask the write runs.
 func TestAStopWrittenDuringTheAskBitesThatCall(t *testing.T) {

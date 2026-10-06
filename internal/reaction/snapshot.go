@@ -159,6 +159,10 @@ func (s Snapshot) ReadAt() time.Time { return s.readAt }
 // Accepted is the prefix the next read is judged from.
 func (s Snapshot) Accepted() Prefix { return s.accepted.prefix }
 
+// AcceptedList is the list the plane accepted last, which an unknown read
+// keeps: the list it holds, whatever the last read found.
+func (s Snapshot) AcceptedList() List { return s.accepted }
+
 // Header is the header of the list read; the zero Header unless the list was
 // accepted.
 func (s Snapshot) Header() Header { return s.list.header }

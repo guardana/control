@@ -183,10 +183,12 @@ bound rather than cut lines it did not read; the plane links only the reader.</p
 <p><strong>The emitter adds and never lifts.</strong> <code>guardana-control react --findings &lt;dir&gt; --runs &lt;dir&gt; --route &lt;file&gt; --public-key &lt;file&gt; --stops &lt;dir&gt;</code> verifies the
 route, refuses one whose digest is not the header's, reads the findings log as
 <code>notify</code> does, and appends, for each finding <code>Eligible</code> and the route permit
-and the list does not name yet, a <code>stop</code> when its run has no active stop and a
-<code>covered</code> line when it has one, the writer choosing under its lock over the
-list as it stands, so two emitters never stop one run twice. A finding the
-list names, in any line, writes
+and the list does not name yet, a <code>covered</code> line when its run has an active
+stop that lasts at least as long as the stop would, so a longer lifetime is
+never cut short under a shorter one, and a <code>stop</code> otherwise, the writer
+choosing under its lock over the list as it stands, so two emitters never
+stop one run twice for one lifetime. A finding the list names, in any line,
+writes
 nothing again, so a lift holds: what an agent does while stopped is covered,
 and only a new finding after a lift stops the run again. <code>expires_at</code> is its
 clock plus the rule's lifetime and never later than the run's expiry rounded
@@ -314,8 +316,9 @@ and a new finding after the lift writes one stop.</li>
 <li>A lift under the lift key ends its run's stops through its line; an unsigned
 one, one under another key, one of another list or route, one naming a later
 line, and a repeated one make the state unknown; the emitter writes none.</li>
-<li>N confirmed findings of one run give one active stop, and another run's stop
-is still written; at the bound <code>react</code> exits 1 naming each finding.</li>
+<li>N confirmed findings of one run under one rule give one active stop, one
+whose stop would outlast it is a stop of its own, and another run's stop is
+still written; at the bound <code>react</code> exits 1 naming each finding.</li>
 <li>Every line <code>react</code> writes is accepted by the plane's judge, as a property.</li>
 <li>Every value of the finding's source and verdict, the zero and an unknown
 number included, is eligible only as <code>DETERMINISTIC</code> and <code>CONFIRMED</code>; a rule

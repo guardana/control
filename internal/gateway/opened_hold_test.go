@@ -63,8 +63,12 @@ func (s *scripted) read() time.Time {
 
 // approveReading is which reading of the clock approve() takes when a first
 // call under an opened run reaches it: the call's own, the kernel's, and the
-// one approve() takes afresh last.
-const approveReading = 6
+// one approve() takes afresh last. A call held anew reads it once more, with
+// the pause and stop states, after the store's search: heldReadings.
+const (
+	approveReading = 6
+	heldReadings   = approveReading + 1
+)
 
 // TestARunThatLapsesBeforeTheHoldIsNotHeld: a run alive at the call's first
 // reading and the kernel's, and expired, or not vouched for, at the reading
@@ -99,6 +103,24 @@ func TestARunThatLapsesBeforeTheHoldIsNotHeld(t *testing.T) {
 	}
 }
 
+// TestARunThatLapsesDuringTheStoresSearchIsNotHeld: the reading taken with
+// the plane's state after the store's search judges the run again, so a run
+// that expires at that reading is blocked, with nothing held.
+func TestARunThatLapsesDuringTheStoresSearchIsNotHeld(t *testing.T) {
+	ms := func(n int) time.Time { return base().Add(time.Duration(n) * time.Millisecond) }
+	s := &scripted{at: ms}
+	h := build(t, modeEnforce, snapshot(t, approveRefunds), withRuns(newRuns("root-1")), func(cf *gateway.Config) { cf.Clock = s.read })
+	run := opened("run-a", "root-1")
+	run.Expires = ms(heldReadings)
+	d := h.admitA(under(admission(refundEnvelope(t, refundArgs()), refundArgs()), run))
+	if s.n != heldReadings {
+		t.Fatalf("the call read the clock %d times, want %d", s.n, heldReadings)
+	}
+	if d.Action != core.Block || d.Pending != nil || h.p.Stats().Held != 0 {
+		t.Errorf("Action = %d, pending %+v, held %d; want a block and nothing held", d.Action, d.Pending, h.p.Stats().Held)
+	}
+}
+
 // TestAClockSetBackAfterApprovesReadingSpendsNothing: approve() relies on its
 // fresh reading, so a later reading behind it, though after the kernel's and
 // the hold's, vouches for nothing and the approval is not spent.
@@ -106,7 +128,7 @@ func TestAClockSetBackAfterApprovesReadingSpendsNothing(t *testing.T) {
 	retrying := false
 	s := &scripted{}
 	s.at = func(n int) time.Time {
-		if retrying && n == 2*approveReading {
+		if retrying && n == heldReadings+approveReading {
 			return base().Add(30 * time.Second)
 		}
 		return base().Add(time.Duration(n) * time.Millisecond)
@@ -114,8 +136,8 @@ func TestAClockSetBackAfterApprovesReadingSpendsNothing(t *testing.T) {
 	h := build(t, modeEnforce, snapshot(t, approveRefunds), withRuns(newRuns("root-1")), func(cf *gateway.Config) { cf.Clock = s.read })
 	run := opened("run-a", "root-1")
 	first := h.admitA(under(admission(refundEnvelope(t, refundArgs()), refundArgs()), run))
-	if first.Pending == nil || s.n != approveReading {
-		t.Fatalf("the first call: pending %+v after %d readings, want held after %d", first.Pending, s.n, approveReading)
+	if first.Pending == nil || s.n != heldReadings {
+		t.Fatalf("the first call: pending %+v after %d readings, want held after %d", first.Pending, s.n, heldReadings)
 	}
 	if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base().Add(time.Millisecond)); err != nil {
 		t.Fatal(err)

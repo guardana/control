@@ -130,9 +130,11 @@ func supervisedRules(r reaction.Route) error {
 }
 
 // checkRouteOut refuses an output path whose directory is missing, and one
-// that exists and is not a regular file holding a signed route: route sign
-// replaces an earlier route and nothing else, the key and the document among
-// what it refuses.
+// that exists and is not a regular file holding a route's envelope: route
+// sign replaces an earlier route and nothing else, the key and the document
+// among what it refuses. The envelope's signature is not checked: this keeps
+// a mistyped path from replacing another file, and whoever may write the path
+// may write any file there.
 func checkRouteOut(out string) error {
 	info, err := os.Lstat(out)
 	switch {
@@ -144,7 +146,7 @@ func checkRouteOut(out string) error {
 	case err != nil:
 		return fmt.Errorf("--out %s: %w", out, err)
 	}
-	notARoute := fmt.Errorf("--out %s exists and is not a signed route, and route sign replaces nothing else", out)
+	notARoute := fmt.Errorf("--out %s exists and is not a route's envelope, and route sign replaces nothing else", out)
 	if !info.Mode().IsRegular() {
 		return notARoute
 	}

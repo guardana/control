@@ -236,6 +236,10 @@ func (r *reactor) write(id string, c reaction.StopClaim, runID string) error {
 		RuleID: c.RuleID, RuleVersion: c.RuleVersion, CreatedAt: c.CreatedAt, ExpiresAt: c.ExpiresAt}
 	n, covered, err := stopwrite.AppendFinding(r.ctx, r.dir, r.route, s, r.now)
 	switch {
+	case errors.Is(err, reaction.ErrFindingAgain):
+		// Another writer named it after this pass read the list.
+		r.alreadyNamed++
+		return nil
 	case errors.Is(err, stopwrite.ErrFull), errors.Is(err, stopwrite.ErrRefused):
 		r.unwritten = append(r.unwritten, fmt.Sprintf("not written: finding %s run %s: %s", oneLine(id), oneLine(runID), oneLine(err.Error())))
 		return nil

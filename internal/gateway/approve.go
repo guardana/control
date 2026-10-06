@@ -52,9 +52,23 @@ func (c *call) approve(snap *policy.Snapshot) Disposition {
 		}
 	}
 	if len(matches) == 0 {
-		return c.holdOrUsed(binding, unheld)
+		return c.holdAnew(binding, unheld)
 	}
 	return c.resume(matches, binding)
+}
+
+// holdAnew is the branch for a call no hold matched. A pause or a stop
+// written while the store searched blocks it, as one written during the ask
+// does, and the clock read with them judges its run again.
+func (c *call) holdAnew(binding approval.Binding, unheld []Held) Disposition {
+	if c.blockedNow() {
+		return c.freshBlock()
+	}
+	if c.runLapsed() {
+		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
+		return c.freshBlock()
+	}
+	return c.holdOrUsed(binding, unheld)
 }
 
 // holdOrUsed holds this call anew, unless a record the store keeps for a

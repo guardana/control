@@ -97,10 +97,12 @@ bound rather than cut lines it did not read; the plane links only the reader.
 --runs <dir> --route <file> --public-key <file> --stops <dir>` verifies the
 route, refuses one whose digest is not the header's, reads the findings log as
 `notify` does, and appends, for each finding `Eligible` and the route permit
-and the list does not name yet, a `stop` when its run has no active stop and a
-`covered` line when it has one, the writer choosing under its lock over the
-list as it stands, so two emitters never stop one run twice. A finding the
-list names, in any line, writes
+and the list does not name yet, a `covered` line when its run has an active
+stop that lasts at least as long as the stop would, so a longer lifetime is
+never cut short under a shorter one, and a `stop` otherwise, the writer
+choosing under its lock over the list as it stands, so two emitters never
+stop one run twice for one lifetime. A finding the list names, in any line,
+writes
 nothing again, so a lift holds: what an agent does while stopped is covered,
 and only a new finding after a lift stops the run again. `expires_at` is its
 clock plus the rule's lifetime and never later than the run's expiry rounded
@@ -239,8 +241,9 @@ lift's payload and the two codes, and `docs/status.md` the stop.
 - A lift under the lift key ends its run's stops through its line; an unsigned
   one, one under another key, one of another list or route, one naming a later
   line, and a repeated one make the state unknown; the emitter writes none.
-- N confirmed findings of one run give one active stop, and another run's stop
-  is still written; at the bound `react` exits 1 naming each finding.
+- N confirmed findings of one run under one rule give one active stop, one
+  whose stop would outlast it is a stop of its own, and another run's stop is
+  still written; at the bound `react` exits 1 naming each finding.
 - Every line `react` writes is accepted by the plane's judge, as a property.
 - Every value of the finding's source and verdict, the zero and an unknown
   number included, is eligible only as `DETERMINISTIC` and `CONFIRMED`; a rule

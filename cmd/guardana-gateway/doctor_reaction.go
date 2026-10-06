@@ -41,7 +41,7 @@ func (d *examination) reaction(context.Context) (string, string, string) {
 	snap := poller.Current()
 	now := time.Now()
 	entries, active := snap.ActiveEntries(now, now)
-	d.printStops(entries)
+	checked := d.printStops(entries)
 	for _, r := range route.Rules() {
 		if r.Lifetime != 0 && r.Lifetime < runs.MaxTTL {
 			writeLine(d.out, fmt.Sprintf("       rule %s %s of procedure %s %s ends a stop after %s, before its run can end at %s",
@@ -57,22 +57,30 @@ func (d *examination) reaction(context.Context) (string, string, string) {
 	if usage.Degraded() {
 		found += "; degraded: past nine tenths of a bound, so few more stops can be written"
 	}
+	if !checked {
+		return verdictUnknown, "reaction", found + "; whether each listed stop's run is held is unknown"
+	}
 	return verdictOK, "reaction", found
 }
 
 // printStops prints each listed active stop and, where the runs directory can
 // be read, each naming a run it does not hold, which that stop never matches.
-func (d *examination) printStops(entries []reaction.Entry) {
+// It reports false when a stop's run could not be checked: the directory did
+// not open or close, or a record did not read.
+func (d *examination) printStops(entries []reaction.Entry) (checked bool) {
+	checked = true
 	var dir *runs.Plane
 	if d.cfg.Runs.Dir != "" {
 		opened, err := runs.OpenPlane(d.cfg.Resolve(d.cfg.Runs.Dir))
 		if err != nil {
 			writeLine(d.out, "       the runs directory cannot be opened, so no stop's run is checked: "+oneLine(err.Error()))
+			checked = len(entries) == 0
 		} else {
 			dir = opened
 			defer func() {
 				if err := opened.Close(); err != nil {
 					writeLine(d.out, "       the runs directory did not close: "+oneLine(err.Error()))
+					checked = false
 				}
 			}()
 		}
@@ -88,6 +96,8 @@ func (d *examination) printStops(entries []reaction.Entry) {
 	if dir != nil {
 		for _, id := range unread {
 			writeLine(d.out, fmt.Sprintf("       stop of run %s: the run's record cannot be read, so whether it is held is unknown", oneLine(id)))
+			checked = false
 		}
 	}
+	return checked
 }
