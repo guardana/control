@@ -211,6 +211,7 @@ func newPlane(t *testing.T, o options) *plane {
 		KernelOptions:        core.Options{MaxStale: 10 * time.Minute, FailOpenRead: o.failOpenRead},
 		Policy:               holder(t, o.confirmedAt(), o.rules...),
 		Pause:                o.pause,
+		Stops:                gateway.StopsDisabled(),
 		Sink:                 p.sink,
 		Approvals:            p.approvals,
 		Clock:                time.Now,

@@ -147,6 +147,7 @@ func fuzzListener(f *testing.F, v *victim) string {
 		KernelOptions: core.Options{MaxStale: time.Hour},
 		Policy:        fixedPolicy{snap: fuzzSnapshot(f)},
 		Pause:         gateway.PauseDisabled(),
+		Stops:         gateway.StopsDisabled(),
 		Sink:          discardingSink{},
 		Approvals:     &gateway.MemoryApprovals{},
 		Clock:         time.Now,

@@ -386,6 +386,18 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <td><code>INDETERMINATE</code></td>
 <td>The enforcement point could not read or trust the approver's answer for a lost hold, so the call was never run.</td>
 </tr>
+<tr>
+<td><code>RUN_STOPPED</code></td>
+<td>45</td>
+<td><code>DENY</code></td>
+<td>A stop the operator's route allows names the opened run this call belongs to, so the enforcement point blocked it whatever the policy decided.</td>
+</tr>
+<tr>
+<td><code>STOP_STATE_UNAVAILABLE</code></td>
+<td>46</td>
+<td><code>INDETERMINATE</code></td>
+<td>The enforcement point could not read or trust the stop list, so it blocked the call rather than assume that no run is stopped.</td>
+</tr>
 </tbody>
 </table>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/reason-codes.md">docs/reference/reason-codes.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>

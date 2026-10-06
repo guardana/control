@@ -34,6 +34,13 @@ const (
 	// ErrNoPause is a nil pause source: a plane with no pause file is handed
 	// PauseDisabled, so a source nobody set never reads as nothing paused.
 	ErrNoPause Error = "gateway: no pause source; a plane without a pause file takes PauseDisabled"
+	// ErrNoStops is a nil stop source: a plane with no route is handed
+	// StopsDisabled, so a source nobody set never reads as nothing stopped.
+	ErrNoStops Error = "gateway: no stop source; a plane without a route takes StopsDisabled"
+	// ErrStopsWithoutRuns is a stop source other than StopsDisabled on a
+	// plane that serves no opened run: a stop names an opened run, and every
+	// call there runs under a run no stop can name.
+	ErrStopsWithoutRuns Error = "gateway: a stop source is configured and no runs directory serves opened runs"
 	// ErrNoSink is a nil evidence sink: a plane with nowhere to write refuses
 	// to start rather than decide unrecorded.
 	ErrNoSink Error = "gateway: no evidence sink"

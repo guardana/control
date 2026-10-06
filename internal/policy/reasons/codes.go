@@ -297,4 +297,16 @@ var codes = [...]Code{
 		Verdict: controlv1.Verdict_VERDICT_INDETERMINATE,
 		Summary: "The enforcement point could not read or trust the approver's answer for a lost hold, so the call was never run.",
 	},
+	{
+		ID:      "RUN_STOPPED",
+		Num:     45,
+		Verdict: controlv1.Verdict_VERDICT_DENY,
+		Summary: "A stop the operator's route allows names the opened run this call belongs to, so the enforcement point blocked it whatever the policy decided.",
+	},
+	{
+		ID:      "STOP_STATE_UNAVAILABLE",
+		Num:     46,
+		Verdict: controlv1.Verdict_VERDICT_INDETERMINATE,
+		Summary: "The enforcement point could not read or trust the stop list, so it blocked the call rather than assume that no run is stopped.",
+	},
 }

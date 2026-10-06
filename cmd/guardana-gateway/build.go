@@ -204,6 +204,7 @@ func (p *plane) pipelineConfig(adapter *adaptermcp.Adapter, mode controlv1.Enfor
 		},
 		Policy:               p.holder,
 		Pause:                p.pauseSource(),
+		Stops:                gateway.StopsDisabled(),
 		Sink:                 p.spool,
 		Approvals:            p.store,
 		Journal:              p.holds,

@@ -6,18 +6,23 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/pause"
+	"github.com/guardana/control/internal/reaction"
 	"github.com/guardana/control/pkg/contract"
 )
 
 // planeState is what the plane's own causes to block a call are a function
-// of: the call, the mode, the pause snapshot the call took, the halts, and
-// whether the call's run is one the plane can vouch for.
+// of: the call, the mode, the pause and stop snapshots the call took, the
+// halts, and whether the call's run is one the plane can vouch for.
 type planeState struct {
 	mode         controlv1.EnforcementMode
 	material     bool
 	unclassified bool
 	paused       bool
 	pauseUnknown bool
+	// stopped: an active stop names the opened run the plane vouched for,
+	// in its tenant (ADR-0046).
+	stopped      bool
+	stopUnknown  bool
 	sinkHalt     bool
 	mismatchHalt bool
 	// runRefused: the call needs an opened run the plane cannot vouch for or
@@ -34,7 +39,8 @@ type cause struct {
 
 // planeCauses names, in the order a decision lists them, every cause the
 // plane has to block a call whatever the policy says: the DENY causes first,
-// then the INDETERMINATE ones (ADR-0019). None means the policy decides.
+// then the INDETERMINATE ones (ADR-0019, ADR-0046). None means the policy
+// decides.
 func planeCauses(s planeState) []cause {
 	var out []cause
 	for _, c := range []struct {
@@ -42,9 +48,11 @@ func planeCauses(s planeState) []cause {
 		cause
 	}{
 		{s.paused, cause{codePaused, verdictDeny}},
+		{s.stopped, cause{codeRunStopped, verdictDeny}},
 		{s.material && s.mismatchHalt, cause{codeExecutedArgsMismatch, verdictDeny}},
 		{s.material && s.mode == modeLockdown, cause{codeLockdown, verdictDeny}},
 		{s.pauseUnknown, cause{codePauseStateUnavailable, verdictIndeterminate}},
+		{s.stopUnknown, cause{codeStopStateUnavailable, verdictIndeterminate}},
 		{(s.material && s.sinkHalt) || s.runRefused, cause{codeEvidenceUnavailable, verdictIndeterminate}},
 		{s.unclassified && s.mode != modeObserve, cause{codeActionUnclassified, verdictIndeterminate}},
 	} {
@@ -65,33 +73,40 @@ func verdictOf(causes []cause) controlv1.Verdict {
 	return verdictIndeterminate
 }
 
-// newCall starts one admission under the pause state and the clock as it
-// takes them now.
+// newCall starts one admission under the pause and stop states and the
+// clock as it takes them now.
 func (p *Pipeline) newCall(ctx context.Context, a Admission) *call {
 	c := &call{p: p, ctx: ctx, in: a}
-	c.takePause()
+	c.takeStates()
 	return c
 }
 
-// takePause takes the pause state and then reads the clock the call judges
-// its age by. The other order would let a poll published between the two
-// date the state ahead of the call and block it as unreadable.
-func (c *call) takePause() {
+// takeStates takes the pause and stop states and then reads the clock the
+// call judges their age by. The other order would let a poll published
+// between the two date a state ahead of the call and block it as unreadable.
+// A disabled stop state served by a source other than StopsDisabled is one
+// the plane cannot vouch for.
+func (c *call) takeStates() {
 	snap := c.p.cfg.Pause.Current()
+	stops := c.p.cfg.Stops.Current()
 	c.now = c.p.cfg.Clock()
 	c.reliedOn(c.now)
 	c.pause = snap.At(c.now)
+	if _, disabled := c.p.cfg.Stops.(disabledStops); stops.State() == reaction.Disabled && !disabled {
+		stops = reaction.Snapshot{}
+	}
+	c.stops = stops.At(c.now)
 }
 
-// pausedNow takes the pause state and the clock again right before an
-// irreversible step, a resume consuming its approval or an execution handed
-// out, since a store or a sink that syncs can outlast a snapshot. A state that
-// covers the call or cannot be read blocks it there, listing every cause the
-// plane names now, and reports so.
-func (c *call) pausedNow() bool {
-	c.takePause()
+// blockedNow takes the pause and stop states and the clock again right
+// before an irreversible step, a resume consuming its approval or an
+// execution handed out, since a store or a sink that syncs can outlast a
+// snapshot. A state that covers the call or cannot be read blocks it there,
+// listing every cause the plane names now, and reports so.
+func (c *call) blockedNow() bool {
+	c.takeStates()
 	state := c.planeState()
-	if !state.paused && !state.pauseUnknown {
+	if !state.paused && !state.pauseUnknown && !state.stopped && !state.stopUnknown {
 		return false
 	}
 	c.causes = planeCauses(state)
@@ -100,18 +115,26 @@ func (c *call) pausedNow() bool {
 }
 
 // planeState is this call's state as the plane sees it now: the halts as
-// they stand, the pause state the call took last and the run it took when it
-// started.
+// they stand, the pause and stop states the call took last and the run it
+// took when it started. A stop matches the opened run as the listener
+// resolved it and the plane checked it against the envelope, never a run id
+// the agent sent or a local run the plane minted.
 func (c *call) planeState() planeState {
 	sink, mismatch := c.p.counts.halts()
 	action := c.in.Envelope.GetAction()
 	state := c.pause.State()
+	stopped := false
+	if run := c.flow.opened; run != nil {
+		stopped = c.stops.Active(run.ID, run.Who.TenantID, c.now, c.floor)
+	}
 	return planeState{
 		mode:         c.p.cfg.Mode,
 		material:     contract.IsMaterial(action.GetEffect()),
 		unclassified: errors.Is(c.in.Refusal, ErrUnclassified),
 		paused:       state == pause.Paused && c.pause.Covers(action.GetKind(), action.GetProvider(), action.GetName()),
 		pauseUnknown: state == pause.Unknown,
+		stopped:      stopped,
+		stopUnknown:  c.stops.State() == reaction.Unknown,
 		sinkHalt:     sink,
 		mismatchHalt: mismatch,
 		runRefused:   c.flow.kind == flowUnnamed || c.flow.kind == flowUnavailable,

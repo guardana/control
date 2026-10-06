@@ -17,12 +17,13 @@ import (
 	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/pause"
+	"github.com/guardana/control/internal/reaction"
 )
 
 // planeCase is a set of the plane's own causes to block a call, each raised
 // the way a running plane raises it.
 type planeCase struct {
-	paused, mismatch, lockdown, unknown, sink, unclassified bool
+	paused, stopped, mismatch, lockdown, unknown, stopUnknown, sink, unclassified bool
 }
 
 // haltOnMismatch runs a read and closes it with other bytes.
@@ -44,15 +45,17 @@ func haltOnSink(t *testing.T, h *harness) {
 	}
 }
 
-// admitUnder builds a plane over rules, raises the causes of c in an order
-// that leaves every one standing, and admits one material call as req-x.
+// admitUnder builds a plane over rules that serves opened runs under a stop
+// list, raises the causes of c in an order that leaves every one standing,
+// and admits one material call of run-a as req-x.
 func (c planeCase) admitUnder(t *testing.T, rules []string, mut ...func(*gateway.Config)) (*harness, gateway.Disposition) {
 	t.Helper()
 	mode := modeEnforce
 	if c.lockdown {
 		mode = modeLockdown
 	}
-	h := build(t, mode, snapshot(t, rules...), mut...)
+	stops := newStopSource(stopped(t))
+	h := stopPlane(t, mode, rules, stops, mut...)
 	if c.mismatch {
 		haltOnMismatch(t, h)
 	}
@@ -65,17 +68,25 @@ func (c planeCase) admitUnder(t *testing.T, rules []string, mut ...func(*gateway
 	case c.unknown:
 		h.pause.set(pause.Snapshot{})
 	}
+	switch {
+	case c.stopped:
+		stops.set(stopped(t, "run-a"))
+	case c.stopUnknown:
+		stops.set(reaction.Snapshot{})
+	}
 	a := admission(requestNamed(tool(writeEnvelope()), "req-x"), []byte(`{"k":1}`))
 	if c.unclassified {
 		a = unclassified([]byte(`{"k":1}`))
 		a.Envelope.RequestId = "req-x"
 	}
+	a.Run = h.run
 	return h, h.p.Admit(context.Background(), a)
 }
 
 // planeCases is every cause alone and every pair that can stand at once: a
-// pause state is paused or unknown, never both. The codes and verdicts are
-// written out, in the order the decision has to list them.
+// pause state is paused or unknown, never both, and so is a stop state. The
+// codes and verdicts are written out, in the order the decision has to list
+// them.
 var planeCases = []struct {
 	name    string
 	c       planeCase
@@ -83,24 +94,38 @@ var planeCases = []struct {
 	codes   []string
 }{
 	{"P", planeCase{paused: true}, verdictDeny, []string{codePaused}},
+	{"S", planeCase{stopped: true}, verdictDeny, []string{codeRunStopped}},
 	{"M", planeCase{mismatch: true}, verdictDeny, []string{codeExecutedArgsMismatch}},
 	{"L", planeCase{lockdown: true}, verdictDeny, []string{codeLockdown}},
 	{"U", planeCase{unknown: true}, verdictIndeterminate, []string{codePauseStateUnavailable}},
+	{"K", planeCase{stopUnknown: true}, verdictIndeterminate, []string{codeStopStateUnavailable}},
 	{"E", planeCase{sink: true}, verdictIndeterminate, []string{codeEvidenceUnavailable}},
 	{"C", planeCase{unclassified: true}, verdictIndeterminate, []string{codeActionUnclassified}},
+	{"PS", planeCase{paused: true, stopped: true}, verdictDeny, []string{codePaused, codeRunStopped}},
 	{"PM", planeCase{paused: true, mismatch: true}, verdictDeny, []string{codePaused, codeExecutedArgsMismatch}},
 	{"PL", planeCase{paused: true, lockdown: true}, verdictDeny, []string{codePaused, codeLockdown}},
+	{"PK", planeCase{paused: true, stopUnknown: true}, verdictDeny, []string{codePaused, codeStopStateUnavailable}},
 	{"PE", planeCase{paused: true, sink: true}, verdictDeny, []string{codePaused, codeEvidenceUnavailable}},
 	{"PC", planeCase{paused: true, unclassified: true}, verdictDeny, []string{codePaused, codeActionUnclassified}},
+	{"SM", planeCase{stopped: true, mismatch: true}, verdictDeny, []string{codeRunStopped, codeExecutedArgsMismatch}},
+	{"SL", planeCase{stopped: true, lockdown: true}, verdictDeny, []string{codeRunStopped, codeLockdown}},
+	{"SU", planeCase{stopped: true, unknown: true}, verdictDeny, []string{codeRunStopped, codePauseStateUnavailable}},
+	{"SE", planeCase{stopped: true, sink: true}, verdictDeny, []string{codeRunStopped, codeEvidenceUnavailable}},
+	{"SC", planeCase{stopped: true, unclassified: true}, verdictDeny, []string{codeRunStopped, codeActionUnclassified}},
 	{"ML", planeCase{mismatch: true, lockdown: true}, verdictDeny, []string{codeExecutedArgsMismatch, codeLockdown}},
 	{"MU", planeCase{mismatch: true, unknown: true}, verdictDeny, []string{codeExecutedArgsMismatch, codePauseStateUnavailable}},
+	{"MK", planeCase{mismatch: true, stopUnknown: true}, verdictDeny, []string{codeExecutedArgsMismatch, codeStopStateUnavailable}},
 	{"ME", planeCase{mismatch: true, sink: true}, verdictDeny, []string{codeExecutedArgsMismatch, codeEvidenceUnavailable}},
 	{"MC", planeCase{mismatch: true, unclassified: true}, verdictDeny, []string{codeExecutedArgsMismatch, codeActionUnclassified}},
 	{"LU", planeCase{lockdown: true, unknown: true}, verdictDeny, []string{codeLockdown, codePauseStateUnavailable}},
+	{"LK", planeCase{lockdown: true, stopUnknown: true}, verdictDeny, []string{codeLockdown, codeStopStateUnavailable}},
 	{"LE", planeCase{lockdown: true, sink: true}, verdictDeny, []string{codeLockdown, codeEvidenceUnavailable}},
 	{"LC", planeCase{lockdown: true, unclassified: true}, verdictDeny, []string{codeLockdown, codeActionUnclassified}},
+	{"UK", planeCase{unknown: true, stopUnknown: true}, verdictIndeterminate, []string{codePauseStateUnavailable, codeStopStateUnavailable}},
 	{"UE", planeCase{unknown: true, sink: true}, verdictIndeterminate, []string{codePauseStateUnavailable, codeEvidenceUnavailable}},
 	{"UC", planeCase{unknown: true, unclassified: true}, verdictIndeterminate, []string{codePauseStateUnavailable, codeActionUnclassified}},
+	{"KE", planeCase{stopUnknown: true, sink: true}, verdictIndeterminate, []string{codeStopStateUnavailable, codeEvidenceUnavailable}},
+	{"KC", planeCase{stopUnknown: true, unclassified: true}, verdictIndeterminate, []string{codeStopStateUnavailable, codeActionUnclassified}},
 	{"EC", planeCase{sink: true, unclassified: true}, verdictIndeterminate, []string{codeEvidenceUnavailable, codeActionUnclassified}},
 }
 

@@ -212,6 +212,8 @@ type harness struct {
 	pause  *pauseSource
 	clock  *clock
 	ids    *atomic.Int64
+	// run is the opened run admit sends every call under; nil sends none.
+	run *gateway.OpenedRun
 }
 
 func newIDs(n *atomic.Int64) func() string {
@@ -229,6 +231,7 @@ func validConfig(t *testing.T) gateway.Config {
 		KernelOptions: core.Options{MaxStale: time.Minute},
 		Policy:        &snapshotSource{},
 		Pause:         gateway.PauseDisabled(),
+		Stops:         gateway.StopsDisabled(),
 		Sink:          &evidence.MemorySink{},
 		Approvals:     &gateway.MemoryApprovals{},
 		Clock:         func() time.Time { return base() },
@@ -260,6 +263,7 @@ func build(t *testing.T, mode controlv1.EnforcementMode, snap *policy.Snapshot, 
 		KernelOptions: core.Options{MaxStale: 10 * time.Minute},
 		Policy:        h.policy,
 		Pause:         h.pause,
+		Stops:         gateway.StopsDisabled(),
 		Sink:          h.sink,
 		Approvals:     h.store,
 		Clock:         h.clock.read,
@@ -282,7 +286,9 @@ func build(t *testing.T, mode controlv1.EnforcementMode, snap *policy.Snapshot, 
 }
 
 func (h *harness) admit(env *controlv1.ActionEnvelope, args []byte) gateway.Disposition {
-	return h.p.Admit(context.Background(), admission(env, args))
+	a := admission(env, args)
+	a.Run = h.run
+	return h.p.Admit(context.Background(), a)
 }
 
 func admission(env *controlv1.ActionEnvelope, args []byte) gateway.Admission {

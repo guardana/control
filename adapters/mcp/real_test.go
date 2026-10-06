@@ -84,6 +84,7 @@ func (r *rig) plan(t *testing.T, a *mcp.Adapter, o rigOptions) mcp.Pipeline {
 		KernelOptions: core.Options{MaxStale: 10 * time.Minute},
 		Policy:        policyOf(t, o),
 		Pause:         gateway.PauseDisabled(),
+		Stops:         gateway.StopsDisabled(),
 		Sink:          r.sink,
 		Approvals:     r.approvals,
 		Clock:         time.Now,

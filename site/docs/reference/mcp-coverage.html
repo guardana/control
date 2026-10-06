@@ -362,8 +362,12 @@ point's own.</p>
 <td>an operator's pause covers the call: <code>global</code>, its upstream, or its kind, upstream and name; in every mode, reads included, and never in a listing</td>
 </tr>
 <tr>
-<td><code>PAUSE_STATE_UNAVAILABLE</code></td>
-<td>the plane has a pause file and cannot read it, or its last read is older than three poll intervals or dated ahead; every call is blocked until a read succeeds</td>
+<td><code>RUN_STOPPED</code></td>
+<td>a stop names the call's opened run, reads included</td>
+</tr>
+<tr>
+<td><code>PAUSE_STATE_UNAVAILABLE</code>, <code>STOP_STATE_UNAVAILABLE</code></td>
+<td>the pause file or stop list is unreadable or untrusted, or its last read is stale or dated ahead; every call is blocked</td>
 </tr>
 <tr>
 <td><code>EVIDENCE_UNAVAILABLE</code></td>

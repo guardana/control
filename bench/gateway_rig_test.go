@@ -277,6 +277,7 @@ func newRig(tb testing.TB, mode fsyncMode, record bool) *rig {
 		KernelOptions: core.Options{MaxStale: time.Hour},
 		Policy:        rtHolder(tb),
 		Pause:         gateway.PauseDisabled(),
+		Stops:         gateway.StopsDisabled(),
 		Sink:          sink,
 		Approvals:     &gateway.MemoryApprovals{},
 		Clock:         time.Now,

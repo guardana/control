@@ -9,6 +9,7 @@ import (
 	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/pause"
 	"github.com/guardana/control/internal/policy"
+	"github.com/guardana/control/internal/reaction"
 	"github.com/guardana/control/pkg/contract"
 )
 
@@ -28,6 +29,9 @@ type call struct {
 	// ask, at the clock read after it. Every decision after the ask, the
 	// second one on the rewrite path included, is made under that one.
 	pause pause.Snapshot
+	// stops is the stop state as this call took it, each time it took the
+	// pause state.
+	stops reaction.Snapshot
 	// causes are the plane's own causes to block this call, named once
 	// before any ask and, after one, once more. Whatever the mode does is
 	// done under these; nothing names them again.
@@ -128,9 +132,9 @@ func (c *call) run() Disposition {
 // ask is set and the kernel reports that its decision turns on the decision
 // point's answer, and that decision is not a DENY no answer can lift, it asks
 // the decision point once and decides again with the answer, in every mode.
-// After the ask the call takes the pause state and the clock again and names
-// the plane's causes once more, since a pause, a halt or an expiry can come
-// while the ask waits.
+// After the ask the call takes the pause and stop states and the clock again
+// and names the plane's causes once more, since a pause, a stop, a halt or an
+// expiry can come while the ask waits.
 func (c *call) decideProposed(snap *policy.Snapshot, ask bool) {
 	req := core.Request{
 		Envelope: c.in.Envelope, Refusal: c.in.Refusal, AuthorizedArgs: c.in.Arguments, Flow: c.flow.state,
@@ -138,7 +142,7 @@ func (c *call) decideProposed(snap *policy.Snapshot, ask bool) {
 	out := c.p.kernel.Decide(c.ctx, req, snap)
 	if ask && out.NeedsExternal && out.Decision.GetVerdict() != verdictDeny {
 		c.external = c.p.ask(c.ctx, c.in.Envelope)
-		c.takePause()
+		c.takeStates()
 		c.causes = planeCauses(c.planeState())
 		req.External = c.external
 		out = c.p.kernel.Decide(c.ctx, req, snap)

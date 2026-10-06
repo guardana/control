@@ -64,6 +64,7 @@ func internalPipeline(t *testing.T) (*Pipeline, *policy.Snapshot) {
 		KernelOptions: core.Options{MaxStale: 10 * time.Minute},
 		Policy:        staticPolicy{snap},
 		Pause:         PauseDisabled(),
+		Stops:         StopsDisabled(),
 		Sink:          &evidence.MemorySink{},
 		Approvals:     &MemoryApprovals{},
 		Clock:         internalClock,

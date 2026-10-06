@@ -18,10 +18,12 @@ const PDPType = "gateway"
 // The reason codes the enforcement point emits, as literals: nothing on the
 // decision path reads the registry, and codes_test.go holds each one to its
 // entry and to the verdict it is minted with. The kernel and the matcher
-// never emit the first five.
+// never emit the first seven.
 const (
 	codePaused                 = "PAUSED"
 	codePauseStateUnavailable  = "PAUSE_STATE_UNAVAILABLE"
+	codeRunStopped             = "RUN_STOPPED"
+	codeStopStateUnavailable   = "STOP_STATE_UNAVAILABLE"
 	codeLockdown               = "LOCKDOWN"
 	codeEvidenceUnavailable    = "EVIDENCE_UNAVAILABLE"
 	codeActionUnclassified     = "ACTION_UNCLASSIFIED"

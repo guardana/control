@@ -29,7 +29,7 @@ func pipelineConfig(a gateway.Adapter, mode controlv1.EnforcementMode) gateway.C
 	var n atomic.Int64
 	return gateway.Config{
 		Mode: mode, Adapter: a,
-		KernelOptions: core.Options{MaxStale: time.Minute}, Policy: noPolicy{}, Pause: gateway.PauseDisabled(), Sink: &evidence.MemorySink{},
+		KernelOptions: core.Options{MaxStale: time.Minute}, Policy: noPolicy{}, Pause: gateway.PauseDisabled(), Stops: gateway.StopsDisabled(), Sink: &evidence.MemorySink{},
 		Approvals: &gateway.MemoryApprovals{}, Clock: time.Now,
 		NewID:       func() string { return "id-" + strconv.FormatInt(n.Add(1), 10) },
 		ApprovalTTL: time.Minute, RetryAfter: time.Second, MaxHeld: 16, MaxOpen: 16, MaxRuns: 16,

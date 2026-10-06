@@ -11,6 +11,7 @@ import (
 	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/pause"
 	"github.com/guardana/control/internal/policy"
+	"github.com/guardana/control/internal/reaction"
 )
 
 // PolicySource serves the snapshot a call is decided against; a Holder is one.
@@ -32,6 +33,20 @@ func PauseDisabled() PauseSource { return disabledPause{} }
 type disabledPause struct{}
 
 func (disabledPause) Current() pause.Snapshot { return pause.DisabledSnapshot() }
+
+// StopSource serves the stop state a call is decided under (ADR-0046); a stop
+// list's poller is one. A call reads it each time it reads the pause source.
+type StopSource interface {
+	Current() reaction.Snapshot
+}
+
+// StopsDisabled is the source of a plane configured with no route. It is a
+// choice the caller states: a nil source is refused, never read as this.
+func StopsDisabled() StopSource { return disabledStops{} }
+
+type disabledStops struct{}
+
+func (disabledStops) Current() reaction.Snapshot { return reaction.DisabledSnapshot() }
 
 // Config configures a Pipeline once, at New.
 type Config struct {
@@ -62,6 +77,11 @@ type Config struct {
 	// file is configured. A snapshot it serves that nobody read, or that is
 	// older than it answers for, blocks every call.
 	Pause PauseSource
+	// Stops serves the stop state; StopsDisabled where no route is
+	// configured, and any other source only with Runs, since a stop names an
+	// opened run. A snapshot nobody read, or one older than it answers for,
+	// blocks every call.
+	Stops StopSource
 	// Sink takes every event of every trail.
 	Sink evidence.Sink
 	// Approvals holds requests and consumes approvals.
@@ -211,7 +231,9 @@ type openTrail struct {
 // a mode this build does not know or enforce, an adapter that lacks what the
 // mode needs, an end-user binding on a listener that authenticates nobody,
 // runs presented without a runs directory or a runs directory nobody presents
-// runs to, a nil policy source, pause source, sink, approval store, clock or id source,
+// runs to, a nil policy source, pause source, stop source, sink, approval
+// store, clock or id source, a stop source other than StopsDisabled on a plane
+// that serves no opened run,
 // an id source that returns an empty id or one id twice, a lifetime, retry
 // interval or bound that is not positive, a decision point the current policy
 // does not read or a policy that reads one none is configured for, a decision point
@@ -249,6 +271,9 @@ func checkConfig(cfg Config) error {
 	if err := checkSources(cfg); err != nil {
 		return err
 	}
+	if _, disabled := cfg.Stops.(disabledStops); !disabled && cfg.Runs == nil {
+		return ErrStopsWithoutRuns
+	}
 	if err := checkBounds(cfg); err != nil {
 		return err
 	}
@@ -258,14 +283,16 @@ func checkConfig(cfg Config) error {
 	return nil
 }
 
-// checkSources refuses a nil policy source, pause source, sink, approval
-// store, clock or id source.
+// checkSources refuses a nil policy source, pause source, stop source, sink,
+// approval store, clock or id source.
 func checkSources(cfg Config) error {
 	switch {
 	case cfg.Policy == nil:
 		return ErrNoPolicy
 	case cfg.Pause == nil:
 		return ErrNoPause
+	case cfg.Stops == nil:
+		return ErrNoStops
 	case cfg.Sink == nil:
 		return ErrNoSink
 	case cfg.Approvals == nil:
@@ -304,13 +331,13 @@ func checkBounds(cfg Config) error {
 // nil or zero Pipeline answers with the decision of a kernel nobody built:
 // INDETERMINATE, POLICY_UNAVAILABLE, Block.
 //
-// The order is fixed: the pause state is taken, then the clock, then the
+// The order is fixed: the pause and stop states are taken, then the clock, then the
 // policy snapshot and the flow state of the call's run, which every decision
 // of the call is made under and ACTION_PROPOSED records (ADR-0021), and which
 // a refused call reads without minting a run unless the mode is OBSERVE; the
 // plane's own causes to block the call are named; the
 // kernel decides against that snapshot, and asks the decision point nothing
-// when the plane named a cause (ADR-0019); after an ask the pause state and
+// when the plane named a cause (ADR-0019); after an ask the pause and stop states and
 // the clock are taken again and the causes named once more; those causes and
 // the mode are applied to the action, never to the decision; the rewriting obligations produce the authorized arguments,
 // and when they changed them the kernel decides the authorized envelope again
@@ -342,8 +369,9 @@ func withArguments(a Admission) Admission {
 // kernel's, then the mode's and the halts', such as LOCKDOWN's DENY on a
 // material call. It rewrites nothing, records nothing, holds nothing,
 // executes nothing and asks the decision point nothing, which is what shaping
-// a listing needs. It reads no pause state: a paused tool stays listed, and a
-// call to it reads PAUSED (ADR-0019). It reads no run either: a listing is
+// a listing needs. It reads no pause or stop state: a paused tool stays
+// listed, and a call to it reads PAUSED (ADR-0019); a stopped run's listing
+// is the listing of any other run, and its call reads RUN_STOPPED (ADR-0046). It reads no run either: a listing is
 // cached per principal and outlives any flow state, so a flow rule is
 // undetermined here. A nil or zero Pipeline answers the decision of a kernel
 // nobody built.
@@ -351,7 +379,10 @@ func (p *Pipeline) Preview(ctx context.Context, a Admission) *controlv1.Decision
 	if p == nil || p.kernel == nil {
 		return unbuilt(ctx, a).Decision
 	}
-	c := &call{p: p, ctx: ctx, in: withArguments(a), now: p.cfg.Clock(), pause: pause.DisabledSnapshot()}
+	c := &call{
+		p: p, ctx: ctx, in: withArguments(a), now: p.cfg.Clock(),
+		pause: pause.DisabledSnapshot(), stops: reaction.DisabledSnapshot(),
+	}
 	c.refuseFlowTags()
 	c.stampFlow()
 	c.causes = planeCauses(c.planeState())

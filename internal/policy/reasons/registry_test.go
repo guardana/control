@@ -109,6 +109,10 @@ var wantTriples = []triple{
 	// 44 is INDETERMINATE and not APPROVAL_EXPIRED: an answer the plane could
 	// not read or trust says nothing about whether the approval lapsed.
 	{"APPROVAL_STATE_UNKNOWN", 44, controlv1.Verdict_VERDICT_INDETERMINATE},
+	{"RUN_STOPPED", 45, controlv1.Verdict_VERDICT_DENY},
+	// 46 is INDETERMINATE and not RUN_STOPPED: a stop list the plane cannot
+	// read or trust says nothing about which run is stopped.
+	{"STOP_STATE_UNAVAILABLE", 46, controlv1.Verdict_VERDICT_INDETERMINATE},
 }
 
 // wantTriples names verdicts by symbol, and a symbol is only worth pinning if
@@ -241,6 +245,29 @@ func TestThePauseCodesTellAnOperatorFromAFault(t *testing.T) {
 	}
 	if found != len(want) {
 		t.Errorf("the registry holds %d of the %d pause codes", found, len(want))
+	}
+}
+
+// The two stop codes say who blocked the call: a stop of its run, or a stop
+// list nobody could read or trust. Neither may read as the other.
+func TestTheStopCodesTellAStopFromAFault(t *testing.T) {
+	want := map[string]string{
+		"RUN_STOPPED":            "A stop the operator's route allows names the opened run this call belongs to, so the enforcement point blocked it whatever the policy decided.",
+		"STOP_STATE_UNAVAILABLE": "The enforcement point could not read or trust the stop list, so it blocked the call rather than assume that no run is stopped.",
+	}
+	found := 0
+	for _, code := range registry(t) {
+		summary, ok := want[code.ID]
+		if !ok {
+			continue
+		}
+		found++
+		if code.Summary != summary {
+			t.Errorf("%s says %q, want %q", code.ID, code.Summary, summary)
+		}
+	}
+	if found != len(want) {
+		t.Errorf("the registry holds %d of the %d stop codes", found, len(want))
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -26,6 +27,8 @@ import (
 var minted = map[string]controlv1.Verdict{
 	codePaused:                  verdictDeny,
 	codePauseStateUnavailable:   verdictIndeterminate,
+	codeRunStopped:              verdictDeny,
+	codeStopStateUnavailable:    verdictIndeterminate,
 	codeLockdown:                verdictDeny,
 	codeEvidenceUnavailable:     verdictIndeterminate,
 	codeExecutedArgsMismatch:    verdictDeny,
@@ -102,10 +105,11 @@ func TestTheAbortCausesAreExactlyTheTable(t *testing.T) {
 	}
 }
 
-// TestNoRuleMaySpellThePauseCodes: a bundle cannot dress a denial of its own
-// as an operator's pause, or as a pause state the plane could not read.
-func TestNoRuleMaySpellThePauseCodes(t *testing.T) {
-	for _, code := range []string{codePaused, codePauseStateUnavailable} {
+// TestNoRuleMaySpellThePlaneCodes: a bundle cannot dress a denial of its own
+// as an operator's pause or a run's stop, or as a pause or stop state the
+// plane could not read.
+func TestNoRuleMaySpellThePlaneCodes(t *testing.T) {
+	for _, code := range []string{codePaused, codePauseStateUnavailable, codeRunStopped, codeStopStateUnavailable} {
 		for _, effect := range []string{"DENY", "ALLOW"} {
 			rule := `{"id":"r","effect":"` + effect + `","reason":"` + code + `","when":{"action":{"effect":["WRITE"]}}}`
 			if _, err := policy.Sign(document(rule), key(), "k1"); err == nil {
@@ -146,11 +150,32 @@ func TestSourceSpellsOnlyRegisteredCodes(t *testing.T) {
 	}
 }
 
+// TestTheKernelSpellsNoStopCode: the kernel's production source, which spells
+// every code it emits as a literal, spells neither stop code, so only the
+// plane names a stop.
+func TestTheKernelSpellsNoStopCode(t *testing.T) {
+	kernel := codeLiteralsIn(t, filepath.Join("..", "core"))
+	if !slices.Contains(kernel, codePolicyUnavailable) {
+		t.Fatalf("the kernel's source spells %q and not POLICY_UNAVAILABLE; the wrong source was examined", kernel)
+	}
+	for _, code := range []string{codeRunStopped, codeStopStateUnavailable} {
+		if slices.Contains(kernel, code) {
+			t.Errorf("the kernel's source spells %s", code)
+		}
+	}
+}
+
 // codeLiterals returns, sorted and once each, every string literal in the
 // production files that is all capitals: the shape of a reason code.
 func codeLiterals(t *testing.T) []string {
 	t.Helper()
-	entries, err := os.ReadDir(".")
+	return codeLiteralsIn(t, ".")
+}
+
+// codeLiteralsIn is codeLiterals over the production files of dir.
+func codeLiteralsIn(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("reading the package directory: %v", err)
 	}
@@ -162,7 +187,7 @@ func codeLiterals(t *testing.T) []string {
 			continue
 		}
 		files++
-		found = append(found, literalsIn(t, name)...)
+		found = append(found, literalsIn(t, filepath.Join(dir, name))...)
 	}
 	if files < 5 || len(found) == 0 {
 		t.Fatalf("read %d production file(s) and found %d code literal(s); the source was not examined", files, len(found))

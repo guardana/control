@@ -63,9 +63,9 @@ type resumption struct {
 // The approval id the plane minted goes with the request id, so a record some
 // other writer filed under the same binding is never the one spent (ADR-0016).
 func (c *call) try(own *heldRequest, binding approval.Binding, r *resumption) (Disposition, bool) {
-	if c.pausedNow() {
+	if c.blockedNow() {
 		// Blocked on this call's own trail with nothing consumed, so the hold
-		// stands for a retry after the lift.
+		// stands for a retry after the pause or the stop ends.
 		return c.freshBlock(), true
 	}
 	if requested := own.approval.GetRequestedAt().AsTime(); unvouched(c.now, c.floor) || c.now.Before(requested) {
