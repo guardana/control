@@ -232,8 +232,16 @@ func checkUpstreams(upstreams []Upstream) (map[string]bool, error) {
 	return names, nil
 }
 
+// checkOverrides refuses an entry that cannot classify, and a second entry
+// for one upstream's tool, which the manifest would let replace the first.
 func checkOverrides(overrides []Override, names map[string]bool) error {
+	type key struct{ upstream, tool string }
+	seen := make(map[key]int, len(overrides))
 	for i, o := range overrides {
+		if first, ok := seen[key{o.Upstream, o.Tool}]; ok {
+			return fmt.Errorf("%w: Overrides[%d] classifies the tool Overrides[%d] does", ErrOverride, i, first)
+		}
+		seen[key{o.Upstream, o.Tool}] = i
 		switch {
 		case !names[o.Upstream]:
 			return fmt.Errorf("%w: Overrides[%d] names no configured upstream", ErrOverride, i)

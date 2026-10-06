@@ -107,8 +107,20 @@
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.8.0-alpha...HEAD">Unreleased</a></h2>
+<h3 id="changed">Changed</h3>
+<ul>
+<li>An upstream that answers a call, a read or a prompt with <code>input_required</code> ends
+that call as failed, with a fixed answer the gateway does not relay. The
+library had sent the same call to the upstream again on its own, up to ten
+times, for the one call the plane decided and recorded.</li>
+<li>A second override of the same tool on one upstream is refused at start. The
+last one won, so an <code>effect: READ</code> after an <code>effect: DELETE</code> classified a
+delete as a read.</li>
+</ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li>With an authenticator that names no user, the forwarded resource, template
+and prompt lists are refused as the tool list is.</li>
 <li>An approval whose own schema version is not of major 1 is refused when it is
 held, answered or read, and an answer dated after the moment it would be
 spent, or with no date, is not yet an answer.</li>
@@ -169,7 +181,7 @@ suspected at most, and a skipped step is never confirmed. No plane reads a
 finding, and no finding stops a run. <code>examples/refund-supervision/</code> runs it
 on a live plane.</li>
 </ul>
-<h3 id="changed">Changed</h3>
+<h3 id="changed-1">Changed</h3>
 <ul>
 <li>An upstream's answer, wire error, listed item or tool definition that quotes
 a credential the plane sends reaches the agent as a fixed answer, never with
@@ -238,7 +250,7 @@ envelope's <code>trace_id</code> and <code>span_id</code>, so a trail can be joi
 runtime's traces. A missing or malformed value leaves both empty and changes
 nothing else.</li>
 </ul>
-<h3 id="changed-1">Changed</h3>
+<h3 id="changed-2">Changed</h3>
 <ul>
 <li>The plan follows <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>:
 MCP is one channel of several. The next milestone is one task under
@@ -386,7 +398,7 @@ refuses the key. <code>/metrics</code> carries
 <li><code>guardana-control policy explain</code> prints a <code>clock</code> line: <code>usable</code>, or why
 the clock stopped the decision.</li>
 </ul>
-<h3 id="changed-2">Changed</h3>
+<h3 id="changed-3">Changed</h3>
 <ul>
 <li>
 <p><strong>Breaking:</strong> a plane's configuration needs five more keys:
@@ -626,7 +638,7 @@ restart, and a held call resumes only from its own run. A refused token is
 answered with HTTP 401 or the JSON-RPC error <code>-31102</code>, and the refusals are
 counted by cause. A plane without <code>runs.dir</code> is unchanged.</li>
 </ul>
-<h3 id="changed-3">Changed</h3>
+<h3 id="changed-4">Changed</h3>
 <ul>
 <li>The release job waits for a maintainer to approve it in the <code>release</code>
 environment before it builds; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> has the step.</li>
@@ -648,7 +660,7 @@ are a demo archive that runs without Go, an evidence export another program
 resumes by cursor, and the documentation on the website.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="changed-4">Changed</h3>
+<h3 id="changed-5">Changed</h3>
 <ul>
 <li><code>mode</code> has no default: a configuration that names no enforcement mode is
 refused at load instead of starting a plane in <code>OBSERVE</code>, which stops nothing
@@ -746,7 +758,7 @@ and where it stops; what a record holds, where it goes and how long it
 stays (<a href="/docs/concepts/threat-model">docs/concepts/threat-model.md</a>,
 <a href="/docs/concepts/privacy">docs/concepts/privacy.md</a>).</li>
 </ul>
-<h3 id="changed-5">Changed</h3>
+<h3 id="changed-6">Changed</h3>
 <ul>
 <li>A stdio upstream no longer inherits the plane's environment. It gets
 <code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code>, each where the

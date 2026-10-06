@@ -113,7 +113,7 @@ func named(res mcp.Result, d *controlv1.Decision) mcp.Result {
 func namedError(err error, d *controlv1.Decision) error {
 	var werr *jsonrpc.Error
 	if !errors.As(err, &werr) {
-		return upstreamFailed()
+		return upstreamFailed(err)
 	}
 	out := &jsonrpc.Error{Code: werr.Code, Message: werr.Message, Data: werr.Data}
 	var data map[string]json.RawMessage
@@ -246,7 +246,7 @@ func dataOf(r *mcp.CallToolResult, answer string) json.RawMessage {
 func upstreamError(err error) error {
 	var werr *jsonrpc.Error
 	if !errors.As(err, &werr) {
-		return upstreamFailed()
+		return upstreamFailed(err)
 	}
 	out := &jsonrpc.Error{Code: werr.Code, Message: werr.Message, Data: werr.Data}
 	var data map[string]json.RawMessage
@@ -271,10 +271,42 @@ func upstreamError(err error) error {
 }
 
 // upstreamFailed answers a call that ended in no wire error of the
-// upstream's, a timeout or a broken connection: a fixed code and message,
-// because the error's own text can quote the endpoint, credential and all.
-func upstreamFailed() error {
+// upstream's, a timeout, a broken connection or an input request: a fixed
+// code and message, because the error's own text can quote the endpoint,
+// credential and all.
+func upstreamFailed(err error) error {
+	if errors.Is(err, errInputRequired) {
+		return &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: errInputRequired.Error()}
+	}
 	return &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: "the upstream did not answer"}
+}
+
+// errInputRequired ends a call whose upstream answered input_required. The
+// requests are not relayed, since nothing decides what an upstream asks of
+// the agent, and the call is not sent again, since the plane admitted one.
+var errInputRequired = errors.New("the upstream asked for input this gateway does not relay")
+
+// complete is an upstream's answer to a call, a read or a prompt, with an
+// answer of input_required turned into errInputRequired.
+func complete(res mcp.Result, err error) (mcp.Result, error) {
+	if err == nil && needsInput(res) {
+		return nil, errInputRequired
+	}
+	return res, err
+}
+
+// needsInput reports whether res is a call's, a read's or a prompt's answer
+// of input_required.
+func needsInput(res mcp.Result) bool {
+	switch r := res.(type) {
+	case *mcp.CallToolResult:
+		return r != nil && r.NeedsInput()
+	case *mcp.ReadResourceResult:
+		return r != nil && r.NeedsInput()
+	case *mcp.GetPromptResult:
+		return r != nil && r.NeedsInput()
+	}
+	return false
 }
 
 // codeRejectedByTransport is the code the SDK's HTTP client wraps around a
@@ -322,6 +354,9 @@ func resultOf(d gateway.Disposition, started, ended time.Time, ans answer) *cont
 		}
 		sum := sha256.Sum256(ans.encoding)
 		out.ResultHash = "sha256:" + hex.EncodeToString(sum[:])
+	case errors.Is(err, errInputRequired):
+		out.Status = controlv1.ResultStatus_RESULT_STATUS_FAILURE
+		out.ToolProtocolStatus = "input_required"
 	case errors.Is(err, context.DeadlineExceeded):
 		out.Status = controlv1.ResultStatus_RESULT_STATUS_TIMEOUT
 		out.ToolProtocolStatus = "timeout"

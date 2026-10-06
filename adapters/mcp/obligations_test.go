@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/guardana/control/adapters/mcp"
@@ -274,6 +276,55 @@ func TestAuthenticatorWithoutUserBlocks(t *testing.T) {
 	}
 	if n := r.victim.count("read_file"); n != 0 {
 		t.Fatalf("victim ran %d times", n)
+	}
+}
+
+// TestAuthenticatorWithoutUserListsNothing: a request an authenticator let
+// through with no user is refused every list, the forwarded ones as
+// tools/list, and no upstream is asked for one; a request naming a user is
+// answered from the upstream.
+func TestAuthenticatorWithoutUserListsNothing(t *testing.T) {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	for _, tc := range []struct {
+		name    string
+		auth    func(http.Handler) http.Handler
+		refused bool
+		asked   int64
+	}{
+		{"no user", passThrough, true, 0},
+		{"a user", bearer(), false, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := newVictim()
+			var asked atomic.Int64
+			v.server.AddReceivingMiddleware(func(next sdk.MethodHandler) sdk.MethodHandler {
+				return func(ctx context.Context, m string, req sdk.Request) (sdk.Result, error) {
+					if m == "resources/list" || m == "resources/templates/list" || m == "prompts/list" {
+						asked.Add(1)
+					}
+					return next(ctx, m, req)
+				}
+			})
+			r := newRigOver(t, v, mcp.KindStatelessHTTP, rigOptions{auth: tc.auth})
+			agent := r.connect(t, "agent-a")
+			ctx := ctxT(t)
+			for method, list := range map[string]func() error{
+				"tools/list":               func() error { _, err := agent.ListTools(ctx, nil); return err },
+				"resources/list":           func() error { _, err := agent.ListResources(ctx, nil); return err },
+				"resources/templates/list": func() error { _, err := agent.ListResourceTemplates(ctx, nil); return err },
+				"prompts/list":             func() error { _, err := agent.ListPrompts(ctx, nil); return err },
+			} {
+				err := list()
+				var werr *jsonrpc.Error
+				blocked := errors.As(err, &werr) && werr.Code == mcp.CodeBlocked
+				if blocked != tc.refused || (!tc.refused && err != nil) {
+					t.Errorf("%s answered %v; want refused as blocked: %t", method, err, tc.refused)
+				}
+			}
+			if n := asked.Load(); n != tc.asked {
+				t.Errorf("the upstream was asked for %d list(s), want %d", n, tc.asked)
+			}
+		})
 	}
 }
 

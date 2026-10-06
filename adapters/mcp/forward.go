@@ -12,11 +12,15 @@ import (
 // A list is not a call: it names what could be read, and the read is what
 // the policy decides. The merged list carries the adapter's own cache
 // scope, never an upstream's, and nothing under the gateway's own _meta
-// namespace that an upstream put there.
-func (a *Adapter) forwardList(ctx context.Context, method string) (mcp.Result, error) {
+// namespace that an upstream put there. A request whose caller the listener
+// cannot name is refused as a tools/list is, before any upstream is asked.
+func (a *Adapter) forwardList(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 	_, sessions, err := a.started()
 	if err != nil {
 		return nil, err
+	}
+	if _, _, err := a.identity(req); err != nil {
+		return nil, blockedError(nil, map[string]any{keyReasonCodes: []string{"REQUIRED_FIELD_ABSENT"}})
 	}
 	ctx, cancel := context.WithTimeout(ctx, a.listTimeout())
 	defer cancel()

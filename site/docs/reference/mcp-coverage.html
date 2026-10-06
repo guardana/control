@@ -194,16 +194,16 @@ child process (<code>upstreams[].command</code>).</p>
 </thead>
 <tbody>
 <tr>
-<td>Elicitation (<code>input_required</code>)</td>
-<td>The shape needs a handler registered per tool, which this interception does not have; <code>planned</code> with the approval providers (ADR-0013)</td>
+<td>Elicitation and multi-round requests (<code>input_required</code>)</td>
+<td><code>planned</code> (<a href="/docs/status">status.md</a>). A call, read or prompt the upstream answers <code>input_required</code> is sent once, recorded failed, and told <code>-32603</code> <code>the upstream asked for input this gateway does not relay</code></td>
 </tr>
 <tr>
 <td>The Tasks extension</td>
-<td>Not implemented by the library, and no test here pins how its result decodes; do not use it</td>
+<td><code>planned</code> (<a href="/docs/status">status.md</a>)</td>
 </tr>
 <tr>
 <td><code>notifications/tools/list_changed</code> toward the agent</td>
-<td>The library emits it only for its own registry, and the gateway registers no tools, so the listener declares it does not send one and an agent refreshes when <code>list.ttl</code> runs out</td>
+<td>The library emits it only for its own registry, which is empty here, so the listener declares it does not send one; an agent refreshes when <code>list.ttl</code> runs out</td>
 </tr>
 <tr>
 <td>An upstream's own notifications and server-initiated requests, other than a changed tool list</td>
@@ -227,7 +227,7 @@ child process (<code>upstreams[].command</code>).</p>
 </tr>
 <tr>
 <td>What a run read outside the gateway</td>
-<td>A run, without <code>runs.dir</code>, is the listener's principal and starts clean at each restart; on stdio the gateway ends with its client's connection, so a run lasts one connection there. The user's prompt, tool descriptions and tools not behind the gateway are not tracked, and a call carries no data label, so a <code>flow</code> rule blocks every untrusted destination after untrusted input. A <code>resources/read</code> and a <code>prompts/get</code> carry no declared result, so each leaves its run untrusted and unknown for the rest of the run (ADR-0021)</td>
+<td>A run, without <code>runs.dir</code>, is the listener's principal and starts clean at each restart; on stdio a run lasts its client's one connection. The user's prompt, tool descriptions and tools not behind the gateway are not tracked, and a call carries no data label, so a <code>flow</code> rule blocks every untrusted destination after untrusted input. A <code>resources/read</code> and a <code>prompts/get</code> carry no declared result, so each leaves its run untrusted and unknown for the rest of the run (ADR-0021)</td>
 </tr>
 </tbody>
 </table>
@@ -289,6 +289,11 @@ error, outside the protocol's reserved range and the library's private code.</p>
 <td><code>-31101</code></td>
 <td>an approval is pending</td>
 <td><code>reason_code: APPROVAL_PENDING</code>, <code>approval_id</code>, <code>action_digest</code>, <code>expires_at</code>, <code>retry_after</code></td>
+</tr>
+<tr>
+<td><code>-31102</code></td>
+<td>a <a href="/docs/reference/runs#what-a-plane-does-with-a-token">run token</a> was refused; one message for every cause</td>
+<td>none</td>
 </tr>
 <tr>
 <td><code>-31103</code></td>
@@ -394,7 +399,7 @@ point's own.</p>
 </tr>
 <tr>
 <td><code>REQUIRED_FIELD_ABSENT</code></td>
-<td>a <code>tools/list</code> on a listener whose authenticator established no end user</td>
+<td>any list on a listener whose authenticator established no end user</td>
 </tr>
 </tbody>
 </table>

@@ -169,7 +169,7 @@ func withheldResult(res mcp.Result, e *Entry) *mcp.CallToolResult {
 func withheldError(err error, d *controlv1.Decision) error {
 	var werr *jsonrpc.Error
 	if !errors.As(err, &werr) {
-		return upstreamFailed()
+		return upstreamFailed(err)
 	}
 	return &jsonrpc.Error{Code: werr.Code, Message: messageErrorWithheld, Data: withheldData(d)}
 }

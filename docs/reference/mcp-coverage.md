@@ -45,15 +45,15 @@ child process (`upstreams[].command`).
 
 | Not covered | Why |
 | --- | --- |
-| Elicitation (`input_required`) | The shape needs a handler registered per tool, which this interception does not have; `planned` with the approval providers (ADR-0013) |
-| The Tasks extension | Not implemented by the library, and no test here pins how its result decodes; do not use it |
-| `notifications/tools/list_changed` toward the agent | The library emits it only for its own registry, and the gateway registers no tools, so the listener declares it does not send one and an agent refreshes when `list.ttl` runs out |
+| Elicitation and multi-round requests (`input_required`) | `planned` ([status.md](../status.md)). A call, read or prompt the upstream answers `input_required` is sent once, recorded failed, and told `-32603` `the upstream asked for input this gateway does not relay` |
+| The Tasks extension | `planned` ([status.md](../status.md)) |
+| `notifications/tools/list_changed` toward the agent | The library emits it only for its own registry, which is empty here, so the listener declares it does not send one; an agent refreshes when `list.ttl` runs out |
 | An upstream's own notifications and server-initiated requests, other than a changed tool list | Only a changed tool list is handled, by refreshing the manifest; sampling, roots and progress from an upstream reach no agent |
 | Resuming a hold the plane lost | A hold does not survive a restart, and its call never runs. With a hold journal the next start closes its trail, with the approver's answer and `APPROVAL_NOT_RESUMED` or as expired, or counts it left open; without one it stays open. The agent and the approver start over (ADR-0016) |
 | Telling one approver from another | Write access to the approvals directory is the approval authority, and `approver_id` on a record is a claim recorded as given; no authenticated provider exists yet (ADR-0016) |
 | A client other than the library's own | Not exercised; the conformance tests drive the reference implementation |
 | A tool classified `SPAWN_OR_DELEGATE` | The contract requires a delegation chain for that class and the listener carries none, so every such call is refused as `REQUIRED_FIELD_ABSENT` before a rule or a decision point is read |
-| What a run read outside the gateway | A run, without `runs.dir`, is the listener's principal and starts clean at each restart; on stdio the gateway ends with its client's connection, so a run lasts one connection there. The user's prompt, tool descriptions and tools not behind the gateway are not tracked, and a call carries no data label, so a `flow` rule blocks every untrusted destination after untrusted input. A `resources/read` and a `prompts/get` carry no declared result, so each leaves its run untrusted and unknown for the rest of the run (ADR-0021) |
+| What a run read outside the gateway | A run, without `runs.dir`, is the listener's principal and starts clean at each restart; on stdio a run lasts its client's one connection. The user's prompt, tool descriptions and tools not behind the gateway are not tracked, and a call carries no data label, so a `flow` rule blocks every untrusted destination after untrusted input. A `resources/read` and a `prompts/get` carry no declared result, so each leaves its run untrusted and unknown for the rest of the run (ADR-0021) |
 
 ## List shaping under each mode
 
@@ -84,6 +84,7 @@ error, outside the protocol's reserved range and the library's private code.
 | --- | --- | --- |
 | `-31100` | the gateway blocked the call | `reason_codes`, `decision_id`, and `refused` with what the refusal said when the envelope could not be built |
 | `-31101` | an approval is pending | `reason_code: APPROVAL_PENDING`, `approval_id`, `action_digest`, `expires_at`, `retry_after` |
+| `-31102` | a [run token](runs.md#what-a-plane-does-with-a-token) was refused; one message for every cause | none |
 | `-31103` | an answer was [withheld](../concepts/mcp-gateway.md#an-answer-that-quotes-a-credential) | `<ns>/answer: withheld` |
 
 An upstream's own wire error passes through with its code and message, unless
@@ -129,4 +130,4 @@ point's own.
 | `OBLIGATION_NOT_UNDERSTOOD` | an obligation the plane cannot apply, or whose parameters it cannot read, or a rewrite changed the member `resource_from` reads |
 | `INVALID_FIELD_VALUE`, `MALFORMED_INPUT` | the call, classified or not, could not be translated into a valid envelope; `INVALID_FIELD_VALUE` also when its request id names a trail still open in the gateway |
 | `POLICY_UNAVAILABLE` | a block reached the adapter with a decision naming no cause; it answers with the kernel's code for an absent policy rather than invent a second fail-closed answer |
-| `REQUIRED_FIELD_ABSENT` | a `tools/list` on a listener whose authenticator established no end user |
+| `REQUIRED_FIELD_ABSENT` | any list on a listener whose authenticator established no end user |

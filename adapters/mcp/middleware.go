@@ -76,7 +76,7 @@ func (a *Adapter) middleware(next mcp.MethodHandler) mcp.MethodHandler {
 			c.admission.Run = run
 			return a.readThrough(ctx, c, promptSender(r.Params.Name))
 		case methodListResources, methodListTemplates, methodListPrompts:
-			return a.forwardList(ctx, method)
+			return a.forwardList(ctx, method, req)
 		}
 		return next(ctx, method, req)
 	}
@@ -227,7 +227,7 @@ func (a *Adapter) run(ctx context.Context, c call, send sender) (outcome, error)
 	defer cancel()
 	started := a.cfg.Clock()
 	a.sent.Add(1)
-	res, callErr := do(sendCtx, cs)
+	res, callErr := complete(do(sendCtx, cs))
 	ended := a.cfg.Clock()
 	ans := a.scan(d, &c, res, callErr)
 	a.close(ctx, p, d, sent, resultOf(d, started, ended, ans))

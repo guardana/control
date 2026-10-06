@@ -11,8 +11,20 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- An upstream that answers a call, a read or a prompt with `input_required` ends
+  that call as failed, with a fixed answer the gateway does not relay. The
+  library had sent the same call to the upstream again on its own, up to ten
+  times, for the one call the plane decided and recorded.
+- A second override of the same tool on one upstream is refused at start. The
+  last one won, so an `effect: READ` after an `effect: DELETE` classified a
+  delete as a read.
+
 ### Fixed
 
+- With an authenticator that names no user, the forwarded resource, template
+  and prompt lists are refused as the tool list is.
 - An approval whose own schema version is not of major 1 is refused when it is
   held, answered or read, and an answer dated after the moment it would be
   spent, or with no date, is not yet an answer.

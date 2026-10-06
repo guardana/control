@@ -233,6 +233,9 @@ func (a *Adapter) refresh(ctx context.Context, upstream string, cs *mcp.ClientSe
 
 func (a *Adapter) connect(ctx context.Context, up Upstream) (*mcp.ClientSession, error) {
 	client := mcp.NewClient(&mcp.Implementation{Name: brand.Gateway, Version: "0"}, &mcp.ClientOptions{
+		// The library would answer an upstream's input request itself and
+		// send the admitted call again; the plane decided one send.
+		MultiRoundTrip: &mcp.MultiRoundTripOptions{Disabled: true},
 		ToolListChangedHandler: func(ctx context.Context, req *mcp.ToolListChangedRequest) {
 			if err := a.refresh(ctx, up.Name, req.Session); err != nil {
 				a.refreshFailures.Add(1)

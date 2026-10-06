@@ -3,6 +3,7 @@ package mcp_test
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -65,6 +66,74 @@ func TestFingerprintCoversTheWholeDefinition(t *testing.T) {
 	if _, err := mcp.Fingerprint(nil); err == nil {
 		t.Errorf("a nil tool got a fingerprint")
 	}
+}
+
+// TestFingerprintCoversEveryWireMember: each member the library's tool type
+// puts on the wire, found by reflection rather than named here, changes the
+// fingerprint when it is set, so a member a library update adds cannot sit
+// outside it.
+func TestFingerprintCoversEveryWireMember(t *testing.T) {
+	base := sdk.Tool{Name: "t", InputSchema: map[string]any{"type": "object"}}
+	want, err := mcp.Fingerprint(&base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	typ := reflect.TypeFor[sdk.Tool]()
+	members := 0
+	for i := range typ.NumField() {
+		f := typ.Field(i)
+		tag, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if !f.IsExported() || tag == "-" {
+			continue
+		}
+		members++
+		x := base
+		if !setNonZero(reflect.ValueOf(&x).Elem().Field(i)) {
+			t.Errorf("the member %q has kind %v, which this test cannot set", tag, f.Type.Kind())
+			continue
+		}
+		got, err := mcp.Fingerprint(&x)
+		if err != nil {
+			t.Errorf("the member %q set: %v", tag, err)
+			continue
+		}
+		if got == want {
+			t.Errorf("setting the member %q left the fingerprint unchanged", tag)
+		}
+	}
+	if members == 0 {
+		t.Fatal("reflection found no wire member of the tool type, so nothing was compared")
+	}
+}
+
+// setNonZero gives v a value other than the base tool's that encodes as
+// something, and reports whether it knew how.
+func setNonZero(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.String:
+		v.SetString(v.String() + "-changed")
+	case reflect.Bool:
+		v.SetBool(!v.Bool())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		v.SetInt(v.Int() + 1)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		v.SetUint(v.Uint() + 1)
+	case reflect.Float32, reflect.Float64:
+		v.SetFloat(v.Float() + 1)
+	case reflect.Pointer:
+		v.Set(reflect.New(v.Type().Elem()))
+	case reflect.Slice:
+		v.Set(reflect.MakeSlice(v.Type(), 1, 1))
+	case reflect.Map:
+		m := reflect.MakeMap(v.Type())
+		m.SetMapIndex(reflect.ValueOf("changed").Convert(v.Type().Key()), reflect.Zero(v.Type().Elem()))
+		v.Set(m)
+	case reflect.Interface:
+		v.Set(reflect.ValueOf(map[string]any{"changed": true}))
+	default:
+		return false
+	}
+	return true
 }
 
 // TestOverrideMustPinTheFingerprint: an override under another fingerprint
@@ -193,6 +262,35 @@ func TestNewRefusesEachMisconfiguration(t *testing.T) {
 	cfg.CallTimeout = 0
 	if _, err := mcp.New(cfg); err != nil {
 		t.Errorf("a call timeout of zero, which is no bound of the adapter's own, was refused: %v", err)
+	}
+}
+
+// TestNewRefusesASecondOverrideOfOneTool: a second classification of one
+// upstream's tool is refused, naming both, rather than replacing the first,
+// which would let a later READ entry turn a DELETE into a read. The same
+// tool name on another upstream is another tool and is accepted.
+func TestNewRefusesASecondOverrideOfOneTool(t *testing.T) {
+	v := newVictim()
+	ct, _ := sdk.NewInMemoryTransports()
+	cfg := newConfig(t, v, mcp.KindStdio, ct, rigOptions{})
+	second := cfg.Overrides[1]
+	second.Effect = effectRead
+	cfg.Overrides = append(cfg.Overrides, second)
+	a, err := mcp.New(cfg)
+	if a != nil || !errors.Is(err, mcp.ErrOverride) {
+		t.Fatalf("New with delete_file classified twice: adapter built %t, error %v; want none and ErrOverride", a != nil, err)
+	}
+	if msg := err.Error(); !strings.Contains(msg, "Overrides[5]") || !strings.Contains(msg, "Overrides[1]") {
+		t.Errorf("the refusal %q does not name both entries, Overrides[1] and Overrides[5]", msg)
+	}
+
+	cfg = newConfig(t, v, mcp.KindStdio, ct, rigOptions{})
+	cfg.Upstreams = append(cfg.Upstreams, mcp.Upstream{Name: "other", Transport: ct, TenantID: "t1", Environment: "prod"})
+	other := cfg.Overrides[1]
+	other.Upstream, other.Effect = "other", effectRead
+	cfg.Overrides = append(cfg.Overrides, other)
+	if _, err := mcp.New(cfg); err != nil {
+		t.Errorf("one tool name classified on two upstreams was refused: %v", err)
 	}
 }
 
