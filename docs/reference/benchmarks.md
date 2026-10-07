@@ -95,9 +95,9 @@ The columns are those of [Decide](#decide), in microseconds; `B/op` and
 
 | Row | µs/op low | Median | High | p50 µs | p99 µs (highest) | B/op | allocs/op |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `direct` | 63.4 | 66.9 | 69.9 | 37.5 | 209.3 (239.3) | 389540 to 389558 | 230 |
-| `plane/fsync=every_record` | 16134.9 | 16281.3 | 16845.5 | 16011.0 | 18268.0 (22154.7) | 4173863 to 4179807 | 2302 to 2319 |
-| `plane/fsync=interval_100ms` | 549.6 | 568.6 | 585.9 | 512.1 | 1240.3 (1676.2) | 4167054 to 4168426 | 2296 to 2298 |
+| `direct` | 64.3 | 65.0 | 70.7 | 37.2 | 194.9 (236.7) | 389501 to 389553 | 230 |
+| `plane/fsync=every_record` | 15853.4 | 16089.9 | 16126.6 | 16006.9 | 19510.5 (20357.3) | 4169751 to 4177715 | 2304 to 2326 |
+| `plane/fsync=interval_100ms` | 545.5 | 570.8 | 593.5 | 511.5 | 1205.0 (1205.0) | 4167205 to 4168497 | 2296 to 2299 |
 
 Forcing each record to disk is most of a call under the default: 16 ms at the
 median, against 0.57 ms when the timer forces them. The four records are
@@ -109,8 +109,8 @@ can take the records written since the last tick.
 ## The machine
 
 One run of `scripts/bench.sh --publish` with `COUNT=5 BENCHTIME=1s`, at commit
-`95816d1`, whose results file
-[bench/results/20261005T211214Z-darwin-arm64.txt](../../bench/results/20261005T211214Z-darwin-arm64.txt)
+`d326e70`, whose results file
+[bench/results/20261007T050316Z-darwin-arm64.txt](../../bench/results/20261007T050316Z-darwin-arm64.txt)
 holds the other measurements on this page.
 
 | Item | Value |
@@ -118,7 +118,7 @@ holds the other measurements on this page.
 | CPU | Apple M5, 10 cores (4 performance, 6 efficiency), 24 GiB |
 | OS | Darwin 25.6.0 arm64 (macOS 26.6.2) |
 | Go | go1.27.1 darwin/arm64 |
-| Load | 4.52 over the minute it started, 7.90 over five |
+| Load | 3.98 over the minute it started, 10.70 over five |
 
 The machine was not idle.
 
@@ -130,20 +130,20 @@ all five.
 
 | Benchmark | ns/op low | Median | High | B/op | allocs/op |
 | --- | --- | --- | --- | --- | --- |
-| `BenchmarkValidateEnvelope/minimal` | 1835 | 1846 | 1856 | 1232 | 16 |
-| `BenchmarkValidateEnvelope/refund_prod` | 8066 | 8631 | 8843 | 3912 | 134 |
-| `BenchmarkValidateEnvelope/delegated` | 6157 | 6220 | 7566 | 2416 | 67 |
-| `BenchmarkValidateEnvelope/mutated_amount` | 8280 | 8967 | 9382 | 3912 | 134 |
-| `BenchmarkDigestV1/minimal` | 6989 | 7331 | 10616 | 9630 | 124 |
-| `BenchmarkDigestV1/refund_prod` | 16297 | 17289 | 17505 | 21092 | 311 |
-| `BenchmarkDigestV1/delegated` | 12277 | 12382 | 12942 | 16133 | 229 |
-| `BenchmarkDigestV1/mutated_amount` | 16506 | 16781 | 18409 | 21095 | 311 |
+| `BenchmarkValidateEnvelope/minimal` | 1811 | 1833 | 1931 | 1232 | 16 |
+| `BenchmarkValidateEnvelope/refund_prod` | 8188 | 8195 | 8269 | 3912 | 134 |
+| `BenchmarkValidateEnvelope/delegated` | 6096 | 6146 | 6606 | 2416 | 67 |
+| `BenchmarkValidateEnvelope/mutated_amount` | 8201 | 8271 | 8824 | 3912 | 134 |
+| `BenchmarkDigestV1/minimal` | 7077 | 7126 | 7232 | 9630 | 124 |
+| `BenchmarkDigestV1/refund_prod` | 16096 | 16303 | 17661 | 21092 | 311 |
+| `BenchmarkDigestV1/delegated` | 12268 | 12311 | 12486 | 16133 | 229 |
+| `BenchmarkDigestV1/mutated_amount` | 16249 | 16474 | 16927 | 21095 | 311 |
 
 Read the spread before the numbers. `refund_prod` and `mutated_amount` carry
 the same envelope and differ only in one argument value, so both functions do
 the same work on both: identical allocations, and for the digest two more
-bytes of input. `BenchmarkValidateEnvelope` puts them at medians of 8631 and
-8967 and highs of 8843 and 9382: 4% apart at the median and 6% at the high, for
+bytes of input. `BenchmarkValidateEnvelope` puts them at medians of 8195 and
+8271 and highs of 8269 and 8824: 1% apart at the median and 7% at the high, for
 two rows that do the same work. A difference of that size between two other
 rows in this run is within the variation it shows for identical work.
 
@@ -157,18 +157,18 @@ come from. Nothing has been tuned; no profile has been taken.
 `ns/op` is the mean over the repetition, lowest, middle and highest of the
 five; `p50` and `p99` are the per-call percentiles, middle repetition of the
 five, with the highest p99 in parentheses. Allocation counts were identical in
-all five; B/op varied by up to nine bytes, and the table gives the middle
+all five; B/op varied by one byte at most, and the table gives the middle
 repetition's.
 
 | Benchmark | ns/op low | Median | High | p50 ns | p99 ns (highest) | B/op | allocs/op |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `BenchmarkDecide/rules=10` | 12123 | 12217 | 14082 | 9917 | 75916 (85291) | 12477 | 165 |
-| `BenchmarkDecide/rules=100` | 13736 | 13846 | 14548 | 11000 | 83833 (89167) | 15007 | 168 |
-| `BenchmarkDecide/rules=1000` | 27028 | 27599 | 28419 | 20791 | 137375 (140958) | 37902 | 171 |
-| `BenchmarkDecide/obligations=100` | 93942 | 94784 | 95615 | 66417 | 299875 (301917) | 210199 | 1787 |
+| `BenchmarkDecide/rules=10` | 12160 | 12195 | 12423 | 9958 | 72958 (73958) | 12477 | 165 |
+| `BenchmarkDecide/rules=100` | 13824 | 14012 | 14381 | 11167 | 82375 (84208) | 15007 | 168 |
+| `BenchmarkDecide/rules=1000` | 27129 | 27315 | 29181 | 20875 | 129833 (146041) | 37902 | 171 |
+| `BenchmarkDecide/obligations=100` | 92844 | 93693 | 96346 | 66750 | 290833 (302833) | 210200 | 1787 |
 
-In the middle repetition the p99 is 6.6 to 7.7 times the p50 on the three
-rules rows and 4.5 times on the obligations row, and it includes the scheduler
+In the middle repetition the p99 is 6.2 to 7.4 times the p50 on the three
+rules rows and 4.4 times on the obligations row, and it includes the scheduler
 and the other work on the host as well as the code. Compare medians rather than
 tails.
 

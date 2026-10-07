@@ -1,0 +1,94 @@
+date:      2026-10-07T05:03:16Z
+commit:    d326e70
+cpu:       Apple M5
+cores:     10 (4 performance, 6 efficiency)
+memory:    24.0 GiB (25769803776 bytes)
+os:        macOS 26.6.2
+host:      Darwin 25.6.0 arm64
+usable:    10 logical CPUs, cgroup cpu.max none
+go:        go version go1.27.1 darwin/arm64
+goenv:     GOFLAGS= GOEXPERIMENT= CGO_ENABLED=1 GOAMD64= GOARM64=v8.0 GODEBUG unset GOMAXPROCS unset GOWORK=
+benchtime: 1s, count 5
+load:      7:03  up 26 days, 16:18, 26 users, load averages: 3.98 10.70 23.23
+
+goos: darwin
+goarch: arm64
+pkg: github.com/guardana/control/bench
+cpu: Apple M5
+BenchmarkValidateEnvelope/minimal-10         	  651390	      1833 ns/op	    1232 B/op	      16 allocs/op
+BenchmarkValidateEnvelope/minimal-10         	  676656	      1811 ns/op	    1232 B/op	      16 allocs/op
+BenchmarkValidateEnvelope/minimal-10         	  665442	      1884 ns/op	    1232 B/op	      16 allocs/op
+BenchmarkValidateEnvelope/minimal-10         	  671750	      1813 ns/op	    1232 B/op	      16 allocs/op
+BenchmarkValidateEnvelope/minimal-10         	  671887	      1931 ns/op	    1232 B/op	      16 allocs/op
+BenchmarkValidateEnvelope/refund_prod-10     	  146878	      8192 ns/op	    3912 B/op	     134 allocs/op
+BenchmarkValidateEnvelope/refund_prod-10     	  146413	      8188 ns/op	    3912 B/op	     134 allocs/op
+BenchmarkValidateEnvelope/refund_prod-10     	  145735	      8195 ns/op	    3912 B/op	     134 allocs/op
+BenchmarkValidateEnvelope/refund_prod-10     	  138630	      8269 ns/op	    3912 B/op	     134 allocs/op
+BenchmarkValidateEnvelope/refund_prod-10     	  145854	      8242 ns/op	    3912 B/op	     134 allocs/op
+BenchmarkValidateEnvelope/delegated-10       	  195187	      6096 ns/op	    2416 B/op	      67 allocs/op
+BenchmarkValidateEnvelope/delegated-10       	  190780	      6162 ns/op	    2416 B/op	      67 allocs/op
+BenchmarkValidateEnvelope/delegated-10       	  194618	      6146 ns/op	    2416 B/op	      67 allocs/op
+BenchmarkValidateEnvelope/delegated-10       	  192184	      6123 ns/op	    2416 B/op	      67 allocs/op
+BenchmarkValidateEnvelope/delegated-10       	  198399	      6606 ns/op	    2416 B/op	      67 allocs/op
+BenchmarkValidateEnvelope/mutated_amount-10  	  144948	      8824 ns/op	    3912 B/op	     134 allocs/op
+BenchmarkValidateEnvelope/mutated_amount-10  	  148106	      8271 ns/op	    3912 B/op	     134 allocs/op
+BenchmarkValidateEnvelope/mutated_amount-10  	  144654	      8201 ns/op	    3912 B/op	     134 allocs/op
+BenchmarkValidateEnvelope/mutated_amount-10  	  145554	      8233 ns/op	    3912 B/op	     134 allocs/op
+BenchmarkValidateEnvelope/mutated_amount-10  	  138622	      8301 ns/op	    3912 B/op	     134 allocs/op
+BenchmarkDigestV1/minimal-10                 	  171324	      7103 ns/op	    9630 B/op	     124 allocs/op
+BenchmarkDigestV1/minimal-10                 	  147393	      7232 ns/op	    9630 B/op	     124 allocs/op
+BenchmarkDigestV1/minimal-10                 	  171339	      7126 ns/op	    9630 B/op	     124 allocs/op
+BenchmarkDigestV1/minimal-10                 	  170318	      7077 ns/op	    9630 B/op	     124 allocs/op
+BenchmarkDigestV1/minimal-10                 	  171430	      7138 ns/op	    9630 B/op	     124 allocs/op
+BenchmarkDigestV1/refund_prod-10             	   74342	     16096 ns/op	   21092 B/op	     311 allocs/op
+BenchmarkDigestV1/refund_prod-10             	   72549	     16235 ns/op	   21092 B/op	     311 allocs/op
+BenchmarkDigestV1/refund_prod-10             	   73282	     16303 ns/op	   21092 B/op	     311 allocs/op
+BenchmarkDigestV1/refund_prod-10             	   68364	     16401 ns/op	   21092 B/op	     311 allocs/op
+BenchmarkDigestV1/refund_prod-10             	   68475	     17661 ns/op	   21092 B/op	     311 allocs/op
+BenchmarkDigestV1/delegated-10               	   93331	     12433 ns/op	   16133 B/op	     229 allocs/op
+BenchmarkDigestV1/delegated-10               	   97377	     12289 ns/op	   16133 B/op	     229 allocs/op
+BenchmarkDigestV1/delegated-10               	   97676	     12268 ns/op	   16133 B/op	     229 allocs/op
+BenchmarkDigestV1/delegated-10               	   98918	     12486 ns/op	   16133 B/op	     229 allocs/op
+BenchmarkDigestV1/delegated-10               	   96600	     12311 ns/op	   16133 B/op	     229 allocs/op
+BenchmarkDigestV1/mutated_amount-10          	   72984	     16309 ns/op	   21095 B/op	     311 allocs/op
+BenchmarkDigestV1/mutated_amount-10          	   75201	     16721 ns/op	   21095 B/op	     311 allocs/op
+BenchmarkDigestV1/mutated_amount-10          	   74791	     16474 ns/op	   21095 B/op	     311 allocs/op
+BenchmarkDigestV1/mutated_amount-10          	   73848	     16249 ns/op	   21095 B/op	     311 allocs/op
+BenchmarkDigestV1/mutated_amount-10          	   75050	     16927 ns/op	   21095 B/op	     311 allocs/op
+BenchmarkGatewayRoundTrip/direct-10          	   16374	     70747 ns/op	     50291 p50-ns/op	    236708 p99-ns/op	  389513 B/op	     230 allocs/op
+BenchmarkGatewayRoundTrip/direct-10          	   18226	     66486 ns/op	     37375 p50-ns/op	    202625 p99-ns/op	  389513 B/op	     230 allocs/op
+BenchmarkGatewayRoundTrip/direct-10          	   18265	     64739 ns/op	     36459 p50-ns/op	    195500 p99-ns/op	  389536 B/op	     230 allocs/op
+BenchmarkGatewayRoundTrip/direct-10          	   18696	     64311 ns/op	     36458 p50-ns/op	    188333 p99-ns/op	  389553 B/op	     230 allocs/op
+BenchmarkGatewayRoundTrip/direct-10          	   17972	     64971 ns/op	     37209 p50-ns/op	    194875 p99-ns/op	  389501 B/op	     230 allocs/op
+BenchmarkGatewayRoundTrip/plane/fsync=every_record-10         	      74	  16027858 ns/op	  15986667 p50-ns/op	  17700292 p99-ns/op	 4177715 B/op	    2319 allocs/op
+BenchmarkGatewayRoundTrip/plane/fsync=every_record-10         	      75	  15853446 ns/op	  15966042 p50-ns/op	  16906750 p99-ns/op	 4175616 B/op	    2306 allocs/op
+BenchmarkGatewayRoundTrip/plane/fsync=every_record-10         	      74	  16089872 ns/op	  16006917 p50-ns/op	  19510459 p99-ns/op	 4169751 B/op	    2326 allocs/op
+BenchmarkGatewayRoundTrip/plane/fsync=every_record-10         	      73	  16123206 ns/op	  16020584 p50-ns/op	  19107083 p99-ns/op	 4176338 B/op	    2304 allocs/op
+BenchmarkGatewayRoundTrip/plane/fsync=every_record-10         	      74	  16126559 ns/op	  16016792 p50-ns/op	  20357291 p99-ns/op	 4175996 B/op	    2312 allocs/op
+BenchmarkGatewayRoundTrip/plane/fsync=interval_100ms-10       	    2182	    545510 ns/op	    499084 p50-ns/op	    935792 p99-ns/op	 4168484 B/op	    2298 allocs/op
+BenchmarkGatewayRoundTrip/plane/fsync=interval_100ms-10       	    1806	    562814 ns/op	    510166 p50-ns/op	   1068584 p99-ns/op	 4168127 B/op	    2297 allocs/op
+BenchmarkGatewayRoundTrip/plane/fsync=interval_100ms-10       	    2055	    593477 ns/op	    529125 p50-ns/op	   1186583 p99-ns/op	 4168497 B/op	    2299 allocs/op
+BenchmarkGatewayRoundTrip/plane/fsync=interval_100ms-10       	    2077	    580191 ns/op	    518667 p50-ns/op	   1078458 p99-ns/op	 4167205 B/op	    2296 allocs/op
+BenchmarkGatewayRoundTrip/plane/fsync=interval_100ms-10       	    2101	    570754 ns/op	    511500 p50-ns/op	   1205042 p99-ns/op	 4167987 B/op	    2297 allocs/op
+BenchmarkDecide/rules=10-10                                   	   94485	     12173 ns/op	      9917 p50-ns/op	     73416 p99-ns/op	   12477 B/op	     165 allocs/op
+BenchmarkDecide/rules=10-10                                   	   98301	     12340 ns/op	     10041 p50-ns/op	     73291 p99-ns/op	   12477 B/op	     165 allocs/op
+BenchmarkDecide/rules=10-10                                   	   97657	     12160 ns/op	      9917 p50-ns/op	     71500 p99-ns/op	   12477 B/op	     165 allocs/op
+BenchmarkDecide/rules=10-10                                   	   97696	     12195 ns/op	      9958 p50-ns/op	     72958 p99-ns/op	   12477 B/op	     165 allocs/op
+BenchmarkDecide/rules=10-10                                   	   98374	     12423 ns/op	     10000 p50-ns/op	     73958 p99-ns/op	   12477 B/op	     165 allocs/op
+BenchmarkDecide/rules=100-10                                  	   86990	     13935 ns/op	     11084 p50-ns/op	     82208 p99-ns/op	   15007 B/op	     168 allocs/op
+BenchmarkDecide/rules=100-10                                  	   86293	     14012 ns/op	     11167 p50-ns/op	     82375 p99-ns/op	   15007 B/op	     168 allocs/op
+BenchmarkDecide/rules=100-10                                  	   83460	     14381 ns/op	     11291 p50-ns/op	     82875 p99-ns/op	   15008 B/op	     168 allocs/op
+BenchmarkDecide/rules=100-10                                  	   85580	     14364 ns/op	     11292 p50-ns/op	     84208 p99-ns/op	   15007 B/op	     168 allocs/op
+BenchmarkDecide/rules=100-10                                  	   87033	     13824 ns/op	     11000 p50-ns/op	     82167 p99-ns/op	   15007 B/op	     168 allocs/op
+BenchmarkDecide/rules=1000-10                                 	   43416	     27129 ns/op	     20875 p50-ns/op	    126542 p99-ns/op	   37902 B/op	     171 allocs/op
+BenchmarkDecide/rules=1000-10                                 	   44820	     27315 ns/op	     20875 p50-ns/op	    129833 p99-ns/op	   37902 B/op	     171 allocs/op
+BenchmarkDecide/rules=1000-10                                 	   44360	     27163 ns/op	     20708 p50-ns/op	    127000 p99-ns/op	   37902 B/op	     171 allocs/op
+BenchmarkDecide/rules=1000-10                                 	   41992	     27499 ns/op	     20667 p50-ns/op	    132875 p99-ns/op	   37902 B/op	     171 allocs/op
+BenchmarkDecide/rules=1000-10                                 	   44780	     29181 ns/op	     20958 p50-ns/op	    146041 p99-ns/op	   37902 B/op	     171 allocs/op
+BenchmarkDecide/obligations=100-10                            	   12434	     96346 ns/op	     67208 p50-ns/op	    302833 p99-ns/op	  210200 B/op	    1787 allocs/op
+BenchmarkDecide/obligations=100-10                            	   12930	     92844 ns/op	     66459 p50-ns/op	    291292 p99-ns/op	  210200 B/op	    1787 allocs/op
+BenchmarkDecide/obligations=100-10                            	   12840	     93693 ns/op	     66750 p50-ns/op	    290833 p99-ns/op	  210200 B/op	    1787 allocs/op
+BenchmarkDecide/obligations=100-10                            	   12685	     94258 ns/op	     66834 p50-ns/op	    293334 p99-ns/op	  210200 B/op	    1787 allocs/op
+BenchmarkDecide/obligations=100-10                            	   12909	     93020 ns/op	     66500 p50-ns/op	    287250 p99-ns/op	  210200 B/op	    1787 allocs/op
+PASS
+ok  	github.com/guardana/control/bench	93.295s

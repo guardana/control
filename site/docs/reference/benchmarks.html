@@ -297,33 +297,33 @@ the exporter's share of the machine together, not the pipeline alone.</p>
 <tbody>
 <tr>
 <td><code>direct</code></td>
-<td>63.4</td>
-<td>66.9</td>
-<td>69.9</td>
-<td>37.5</td>
-<td>209.3 (239.3)</td>
-<td>389540 to 389558</td>
+<td>64.3</td>
+<td>65.0</td>
+<td>70.7</td>
+<td>37.2</td>
+<td>194.9 (236.7)</td>
+<td>389501 to 389553</td>
 <td>230</td>
 </tr>
 <tr>
 <td><code>plane/fsync=every_record</code></td>
-<td>16134.9</td>
-<td>16281.3</td>
-<td>16845.5</td>
-<td>16011.0</td>
-<td>18268.0 (22154.7)</td>
-<td>4173863 to 4179807</td>
-<td>2302 to 2319</td>
+<td>15853.4</td>
+<td>16089.9</td>
+<td>16126.6</td>
+<td>16006.9</td>
+<td>19510.5 (20357.3)</td>
+<td>4169751 to 4177715</td>
+<td>2304 to 2326</td>
 </tr>
 <tr>
 <td><code>plane/fsync=interval_100ms</code></td>
-<td>549.6</td>
-<td>568.6</td>
-<td>585.9</td>
-<td>512.1</td>
-<td>1240.3 (1676.2)</td>
-<td>4167054 to 4168426</td>
-<td>2296 to 2298</td>
+<td>545.5</td>
+<td>570.8</td>
+<td>593.5</td>
+<td>511.5</td>
+<td>1205.0 (1205.0)</td>
+<td>4167205 to 4168497</td>
+<td>2296 to 2299</td>
 </tr>
 </tbody>
 </table>
@@ -335,8 +335,8 @@ operating system has been measured. Under <code>fsync=interval_100ms</code> a po
 can take the records written since the last tick.</p>
 <h2 id="the-machine">The machine</h2>
 <p>One run of <code>scripts/bench.sh --publish</code> with <code>COUNT=5 BENCHTIME=1s</code>, at commit
-<code>95816d1</code>, whose results file
-<a href="https://github.com/guardana/control/blob/main/bench/results/20261005T211214Z-darwin-arm64.txt">bench/results/20261005T211214Z-darwin-arm64.txt</a>
+<code>d326e70</code>, whose results file
+<a href="https://github.com/guardana/control/blob/main/bench/results/20261007T050316Z-darwin-arm64.txt">bench/results/20261007T050316Z-darwin-arm64.txt</a>
 holds the other measurements on this page.</p>
 <table>
 <thead>
@@ -360,7 +360,7 @@ holds the other measurements on this page.</p>
 </tr>
 <tr>
 <td>Load</td>
-<td>4.52 over the minute it started, 7.90 over five</td>
+<td>3.98 over the minute it started, 10.70 over five</td>
 </tr>
 </tbody>
 </table>
@@ -383,65 +383,65 @@ all five.</p>
 <tbody>
 <tr>
 <td><code>BenchmarkValidateEnvelope/minimal</code></td>
-<td>1835</td>
-<td>1846</td>
-<td>1856</td>
+<td>1811</td>
+<td>1833</td>
+<td>1931</td>
 <td>1232</td>
 <td>16</td>
 </tr>
 <tr>
 <td><code>BenchmarkValidateEnvelope/refund_prod</code></td>
-<td>8066</td>
-<td>8631</td>
-<td>8843</td>
+<td>8188</td>
+<td>8195</td>
+<td>8269</td>
 <td>3912</td>
 <td>134</td>
 </tr>
 <tr>
 <td><code>BenchmarkValidateEnvelope/delegated</code></td>
-<td>6157</td>
-<td>6220</td>
-<td>7566</td>
+<td>6096</td>
+<td>6146</td>
+<td>6606</td>
 <td>2416</td>
 <td>67</td>
 </tr>
 <tr>
 <td><code>BenchmarkValidateEnvelope/mutated_amount</code></td>
-<td>8280</td>
-<td>8967</td>
-<td>9382</td>
+<td>8201</td>
+<td>8271</td>
+<td>8824</td>
 <td>3912</td>
 <td>134</td>
 </tr>
 <tr>
 <td><code>BenchmarkDigestV1/minimal</code></td>
-<td>6989</td>
-<td>7331</td>
-<td>10616</td>
+<td>7077</td>
+<td>7126</td>
+<td>7232</td>
 <td>9630</td>
 <td>124</td>
 </tr>
 <tr>
 <td><code>BenchmarkDigestV1/refund_prod</code></td>
-<td>16297</td>
-<td>17289</td>
-<td>17505</td>
+<td>16096</td>
+<td>16303</td>
+<td>17661</td>
 <td>21092</td>
 <td>311</td>
 </tr>
 <tr>
 <td><code>BenchmarkDigestV1/delegated</code></td>
-<td>12277</td>
-<td>12382</td>
-<td>12942</td>
+<td>12268</td>
+<td>12311</td>
+<td>12486</td>
 <td>16133</td>
 <td>229</td>
 </tr>
 <tr>
 <td><code>BenchmarkDigestV1/mutated_amount</code></td>
-<td>16506</td>
-<td>16781</td>
-<td>18409</td>
+<td>16249</td>
+<td>16474</td>
+<td>16927</td>
 <td>21095</td>
 <td>311</td>
 </tr>
@@ -450,8 +450,8 @@ all five.</p>
 <p>Read the spread before the numbers. <code>refund_prod</code> and <code>mutated_amount</code> carry
 the same envelope and differ only in one argument value, so both functions do
 the same work on both: identical allocations, and for the digest two more
-bytes of input. <code>BenchmarkValidateEnvelope</code> puts them at medians of 8631 and
-8967 and highs of 8843 and 9382: 4% apart at the median and 6% at the high, for
+bytes of input. <code>BenchmarkValidateEnvelope</code> puts them at medians of 8195 and
+8271 and highs of 8269 and 8824: 1% apart at the median and 7% at the high, for
 two rows that do the same work. A difference of that size between two other
 rows in this run is within the variation it shows for identical work.</p>
 <p>Both functions allocate more than the message they read. The digest builds a
@@ -462,7 +462,7 @@ come from. Nothing has been tuned; no profile has been taken.</p>
 <p><code>ns/op</code> is the mean over the repetition, lowest, middle and highest of the
 five; <code>p50</code> and <code>p99</code> are the per-call percentiles, middle repetition of the
 five, with the highest p99 in parentheses. Allocation counts were identical in
-all five; B/op varied by up to nine bytes, and the table gives the middle
+all five; B/op varied by one byte at most, and the table gives the middle
 repetition's.</p>
 <table>
 <thead>
@@ -480,48 +480,48 @@ repetition's.</p>
 <tbody>
 <tr>
 <td><code>BenchmarkDecide/rules=10</code></td>
-<td>12123</td>
-<td>12217</td>
-<td>14082</td>
-<td>9917</td>
-<td>75916 (85291)</td>
+<td>12160</td>
+<td>12195</td>
+<td>12423</td>
+<td>9958</td>
+<td>72958 (73958)</td>
 <td>12477</td>
 <td>165</td>
 </tr>
 <tr>
 <td><code>BenchmarkDecide/rules=100</code></td>
-<td>13736</td>
-<td>13846</td>
-<td>14548</td>
-<td>11000</td>
-<td>83833 (89167)</td>
+<td>13824</td>
+<td>14012</td>
+<td>14381</td>
+<td>11167</td>
+<td>82375 (84208)</td>
 <td>15007</td>
 <td>168</td>
 </tr>
 <tr>
 <td><code>BenchmarkDecide/rules=1000</code></td>
-<td>27028</td>
-<td>27599</td>
-<td>28419</td>
-<td>20791</td>
-<td>137375 (140958)</td>
+<td>27129</td>
+<td>27315</td>
+<td>29181</td>
+<td>20875</td>
+<td>129833 (146041)</td>
 <td>37902</td>
 <td>171</td>
 </tr>
 <tr>
 <td><code>BenchmarkDecide/obligations=100</code></td>
-<td>93942</td>
-<td>94784</td>
-<td>95615</td>
-<td>66417</td>
-<td>299875 (301917)</td>
-<td>210199</td>
+<td>92844</td>
+<td>93693</td>
+<td>96346</td>
+<td>66750</td>
+<td>290833 (302833)</td>
+<td>210200</td>
 <td>1787</td>
 </tr>
 </tbody>
 </table>
-<p>In the middle repetition the p99 is 6.6 to 7.7 times the p50 on the three
-rules rows and 4.5 times on the obligations row, and it includes the scheduler
+<p>In the middle repetition the p99 is 6.2 to 7.4 times the p50 on the three
+rules rows and 4.4 times on the obligations row, and it includes the scheduler
 and the other work on the host as well as the code. Compare medians rather than
 tails.</p>
 <p>Ten rules to a thousand more than doubles the median: the fixed cost of a
