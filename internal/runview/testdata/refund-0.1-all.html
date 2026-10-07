@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<!-- run view 1 -->
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run run-0123456789abcdef0123456789abcdef against refund version 1</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --grid-bg: #d1d9e0;
+  --enforced: #1a7f37;
+  --decided: #8a5a00;
+  --observed: #0969da;
+  --excepted: #8250df;
+  --blocked: #cf222e;
+  --notseen: #59636e;
+}
+@media (prefers-color-scheme: dark) {
+:root {
+  --bg: #0d1117;
+  --fg: #e6edf3;
+  --muted: #9198a1;
+  --grid-bg: #3d444d;
+  --enforced: #3fb950;
+  --decided: #d29922;
+  --observed: #4493f8;
+  --excepted: #ab7df8;
+  --blocked: #f85149;
+  --notseen: #9198a1;
+}
+}
+body { background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; margin: 0; padding: 16px; }
+main { max-width: 1200px; margin: 0 auto; }
+h1 { font-size: 1.3em; margin: 0 0 .5em; }
+h2 { font-size: 1.1em; margin: 1.6em 0 .5em; }
+p, li { max-width: 72ch; }
+code { font: .92em ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.cut, .muted, .mk-detail { color: var(--muted); }
+.cut { font-style: italic; margin-left: .25em; }
+.notice { border-left: 4px solid var(--blocked); padding-left: .6em; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border-bottom: 1px solid var(--grid-bg); padding: .3em .5em; text-align: left; vertical-align: top; }
+th { font-weight: 600; }
+tr.gap td { color: var(--muted); font-style: italic; }
+.mk { vertical-align: -3px; margin-right: .35em; }
+.s-enforced { fill: var(--enforced); stroke: var(--enforced); }
+.s-decided { fill: none; stroke: var(--decided); }
+.s-observed { fill: none; stroke: var(--observed); }
+.s-excepted { fill: var(--excepted); fill-opacity: .3; stroke: var(--excepted); }
+.s-blocked { fill: none; stroke: var(--blocked); }
+.s-notseen { fill: none; stroke: var(--notseen); }
+.mk-label { font-weight: 600; }
+td.mark { min-width: 14em; }
+</style>
+</head>
+<body>
+<main>
+<h1>Run <code>run-0123456789abcdef0123456789abcdef</code></h1>
+<p>Tenant <code>t1</code>, project <code>p1</code>, against procedure <code>refund</code> version <code>1</code>, digest <code>c5f8c68405a63f0be8c3eb4bed6115d9a233d1ed759be6f4c85702adcb3a770a</code>.</p>
+<p>Read: events: 34 taken, 0 left out; observations: 1 taken, 0 left out; exports: 2 whole, 0 not whole. Plane blocks that are no denial: <code>PAUSED</code> 1.</p>
+
+<h2>Expected steps</h2>
+<div class="scroll"><table>
+<thead><tr><th>Step</th><th>Tool</th><th>Required</th><th>Calls</th></tr></thead>
+<tbody>
+<tr class="step"><td><code>lookup</code></td><td><code>get_order</code> on <code>shop</code></td><td>required</td><td>#1</td></tr>
+<tr class="step"><td><code>refund</code></td><td><code>issue_refund</code> on <code>pay</code></td><td>required</td><td>#6, #7</td></tr>
+<tr class="step"><td><code>notify</code></td><td><code>send_mail</code> on <code>mail</code></td><td>optional</td><td><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><polygon class="s-notseen" points="4.5,2 11.5,2 15,8 11.5,14 4.5,14 1,8" stroke-width="1.2" stroke-dasharray="2 3"/></svg><span class="mk-label">not seen</span> <span class="mk-detail">no call of this step</span></td></tr>
+</tbody>
+</table></div>
+
+<h2>Findings</h2>
+<ol class="findings">
+<li>F1: <code>STEP_OUTSIDE_PROCEDURE</code>, confirmed, alert; id <code>fnd-ba350102bba7247097f506af3ff176ae</code>. Calls cited: #5.</li>
+<li>F2: <code>STEP_OUTSIDE_PROCEDURE</code>, suspected, alert; id <code>fnd-a16d3a267b418d1bed52c27f75fd4109</code>. Calls cited: #10.</li>
+</ol>
+
+<h2>Observed calls</h2>
+<p>Drawn: every call, 10 of 10.</p>
+<div class="scroll"><table>
+<thead><tr><th>#</th><th>Mark</th><th>Request</th><th>Call</th><th>Run</th><th>Time</th><th>Outcome</th><th>Resource</th><th>Findings</th></tr></thead>
+<tbody>
+<tr class="call"><td class="n">#1</td><td class="mark"><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect class="s-enforced" x="2" y="2" width="12" height="12" stroke-width="1.5"/></svg><span class="mk-label">enforced</span> <span class="mk-detail">mode ENFORCE</span></td><td class="id"><code>r1</code></td><td><code>get_order</code> on <code>shop</code>; step <code>lookup</code></td><td><code>run-0123456789abcdef0123456789abcdef</code></td><td>2026-10-05T09:00:00Z; export 1</td><td>completed; <code>RULE_ALLOW</code></td><td>none named</td><td></td></tr>
+<tr class="call"><td class="n">#2</td><td class="mark"><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><polygon class="s-decided" points="8,1.5 14.5,14 1.5,14" stroke-width="1.5" stroke-dasharray="3 1.5"/></svg><span class="mk-label">decided, not enforced</span> <span class="mk-detail">mode OBSERVE</span></td><td class="id"><code>s1</code></td><td><code>search_docs</code> on <code>docs</code>; no step</td><td><code>run-0123456789abcdef0123456789abcdef</code></td><td>2026-10-05T09:00:05Z; export 2</td><td>completed; <code>RULE_ALLOW</code></td><td>none named</td><td></td></tr>
+<tr class="call"><td class="n">#3</td><td class="mark"><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><polygon class="s-decided" points="8,1.5 14.5,14 1.5,14" stroke-width="1.5" stroke-dasharray="3 1.5"/></svg><span class="mk-label">decided, not enforced</span> <span class="mk-detail">mode OBSERVE</span></td><td class="id"><code>s2</code></td><td><code>search_docs</code> on <code>docs</code>; no step</td><td><code>run-0123456789abcdef0123456789abcdef</code></td><td>2026-10-05T09:00:10Z; export 2</td><td>completed; <code>RULE_ALLOW</code></td><td>none named</td><td></td></tr>
+<tr class="call"><td class="n">#4</td><td class="mark"><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><polygon class="s-decided" points="8,1.5 14.5,14 1.5,14" stroke-width="1.5" stroke-dasharray="3 1.5"/></svg><span class="mk-label">decided, not enforced</span> <span class="mk-detail">mode OBSERVE</span></td><td class="id"><code>s3</code></td><td><code>search_docs</code> on <code>docs</code>; no step</td><td><code>run-0123456789abcdef0123456789abcdef</code></td><td>2026-10-05T09:00:15Z; export 2</td><td>completed; <code>RULE_ALLOW</code></td><td>none named</td><td></td></tr>
+<tr class="call"><td class="n">#5</td><td class="mark"><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path class="s-blocked" d="M3 3 L13 13 M13 3 L3 13" stroke-width="3" stroke-dasharray="6 1"/></svg><span class="mk-label">blocked</span> <span class="mk-detail">denied by the policy</span></td><td class="id"><code>d1</code></td><td><code>delete_customer</code> on <code>crm</code>; no step</td><td><code>run-0123456789abcdef0123456789abcdef</code></td><td>2026-10-05T09:00:30Z; export 1</td><td>denied; <code>RULE_DENY</code></td><td>none named</td><td>F1</td></tr>
+<tr class="call"><td class="n">#6</td><td class="mark"><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect class="s-enforced" x="2" y="2" width="12" height="12" stroke-width="1.5"/></svg><span class="mk-label">enforced</span> <span class="mk-detail">mode ENFORCE</span></td><td class="id"><code>r2</code></td><td><code>issue_refund</code> on <code>pay</code>; step <code>refund</code></td><td><code>run-0123456789abcdef0123456789abcdef</code></td><td>2026-10-05T09:00:40Z; export 1</td><td>completed; <code>RULE_ALLOW</code></td><td>none named</td><td></td></tr>
+<tr class="call"><td class="n">#7</td><td class="mark"><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path class="s-blocked" d="M3 3 L13 13 M13 3 L3 13" stroke-width="3" stroke-dasharray="6 1"/></svg><span class="mk-label">blocked</span> <span class="mk-detail">blocked by the plane</span></td><td class="id"><code>p1</code></td><td><code>issue_refund</code> on <code>pay</code>; step <code>refund</code></td><td><code>run-0123456789abcdef0123456789abcdef</code></td><td>2026-10-05T09:00:50Z; export 1</td><td>blocked by the plane; <code>PAUSED</code></td><td>none named</td><td></td></tr>
+<tr class="call"><td class="n">#8</td><td class="mark"><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><polygon class="s-decided" points="8,1.5 14.5,14 1.5,14" stroke-width="1.5" stroke-dasharray="3 1.5"/></svg><span class="mk-label">decided, not enforced</span> <span class="mk-detail">mode OBSERVE</span></td><td class="id"><code>s4</code></td><td><code>search_docs</code> on <code>docs</code>; no step</td><td><code>run-0123456789abcdef0123456789abcdef</code></td><td>2026-10-05T09:01:00Z; export 2</td><td>completed; <code>RULE_ALLOW</code></td><td>none named</td><td></td></tr>
+<tr class="call"><td class="n">#9</td><td class="mark"><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><polygon class="s-decided" points="8,1.5 14.5,14 1.5,14" stroke-width="1.5" stroke-dasharray="3 1.5"/></svg><span class="mk-label">decided, not enforced</span> <span class="mk-detail">mode OBSERVE</span></td><td class="id"><code>s5</code></td><td><code>search_docs</code> on <code>docs</code>; no step</td><td><code>run-0123456789abcdef0123456789abcdef</code></td><td>2026-10-05T09:01:10Z; export 2</td><td>completed; <code>RULE_ALLOW</code></td><td>none named</td><td></td></tr>
+<tr class="call"><td class="n">#10</td><td class="mark"><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle class="s-observed" cx="8" cy="8" r="6" stroke-width="2" stroke-dasharray="0.5 2.5" stroke-linecap="round"/></svg><span class="mk-label">observed</span> <span class="mk-detail">self-reported by source <code>s1</code></span></td><td class="id"><code>obs-1</code></td><td><code>export_csv</code>; no step</td><td><code>run-0123456789abcdef0123456789abcdef</code></td><td>2026-10-05T09:01:30Z <span class="muted">(the source&#39;s clock, not ordered against the planes&#39;)</span>; report of source <code>s1</code></td><td>outcome unknown</td><td>none named</td><td>F2</td></tr>
+</tbody>
+</table></div>
+
+<h2>Not seen</h2>
+<p>Every source given was read and heard. Steps with no call are marked above.</p>
+
+<h2>Rules</h2>
+<div class="scroll"><table>
+<thead><tr><th>Rule</th><th>State</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>REPEATED_DENIAL</code></td><td>checked</td><td></td></tr>
+<tr><td><code>STEP_OUTSIDE_PROCEDURE</code></td><td>checked</td><td></td></tr>
+<tr><td><code>DEADLINE_EXCEEDED</code></td><td>checked</td><td></td></tr>
+<tr><td><code>REQUIRED_STEP_SKIPPED</code></td><td>checked</td><td></td></tr>
+<tr><td><code>STEP_OUT_OF_ORDER</code></td><td>checked</td><td></td></tr>
+<tr><td><code>CONTINUED_AFTER_FAILURE</code></td><td>checked</td><td></td></tr>
+</tbody>
+</table></div>
+
+<h2>Legend</h2>
+<p>Each mark is a shape and a line style as well as a colour, and its label is written beside it.</p>
+<div class="scroll"><table>
+<tbody>
+<tr class="legend"><td><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect class="s-enforced" x="2" y="2" width="12" height="12" stroke-width="1.5"/></svg><span class="mk-label">enforced</span></td><td>A plane decided the call and enforced its decision.</td></tr>
+<tr class="legend"><td><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><polygon class="s-decided" points="8,1.5 14.5,14 1.5,14" stroke-width="1.5" stroke-dasharray="3 1.5"/></svg><span class="mk-label">decided, not enforced</span></td><td>A plane decided the call and did not enforce the decision, or nothing read shows it did.</td></tr>
+<tr class="legend"><td><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle class="s-observed" cx="8" cy="8" r="6" stroke-width="2" stroke-dasharray="0.5 2.5" stroke-linecap="round"/></svg><span class="mk-label">observed</span></td><td>Only a source reported the call, with the trust its source declared; no plane decided it.</td></tr>
+<tr class="legend"><td><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><polygon class="s-excepted" points="8,1 15,8 8,15 1,8" stroke-width="1.5" stroke-dasharray="4 1.5 1 1.5"/></svg><span class="mk-label">exception or approval</span></td><td>An exception the procedure states was taken on the call, or the approvals store granted it.</td></tr>
+<tr class="legend"><td><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path class="s-blocked" d="M3 3 L13 13 M13 3 L3 13" stroke-width="3" stroke-dasharray="6 1"/></svg><span class="mk-label">blocked</span></td><td>The policy denied the call, or the plane blocked it: a pause, a stop, an approval refused or expired.</td></tr>
+<tr class="legend"><td><svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><polygon class="s-notseen" points="4.5,2 11.5,2 15,8 11.5,14 4.5,14 1,8" stroke-width="1.2" stroke-dasharray="2 3"/></svg><span class="mk-label">not seen</span></td><td>An expected step with no call, or a source that was silent, never heard or not read.</td></tr>
+</tbody>
+</table></div>
+</main>
+</body>
+</html>

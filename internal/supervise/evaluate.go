@@ -94,6 +94,11 @@ type Result struct {
 	// own, and the kernel's on a verdict other than DENY, by the first reason
 	// code of the decision each carries.
 	PlaneBlocks map[string]uint64
+	// Instances are the calls judged: the run's tool calls in the order
+	// first read, then the reports no plane call joins. Rests[i] holds the
+	// places in Instances of the calls Findings[i] cites.
+	Instances []Instance
+	Rests     [][]int
 }
 
 // Evaluate checks one run against its procedure. It refuses a run id that is

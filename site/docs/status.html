@@ -70,6 +70,7 @@
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
@@ -316,7 +317,7 @@ already holds a package doc and a test holds nothing that decides.</li>
 <tr>
 <td>Supervision of one opened run against its procedure, and a notifier</td>
 <td><code>experimental</code></td>
-<td><code>internal/supervise/</code> (a guarded tree: the procedure, what belongs to the run, six rules, the verdict, the finding id), <code>internal/findinglog/</code>, <code>internal/notify/</code>, <code>supervise</code> and <code>notify</code> in <code>cmd/guardana-control/</code>, the contract <code>guardana.control.finding.v1alpha1</code>, <code>examples/refund-supervision/</code>, <a href="/docs/reference/supervision">reference/supervision.md</a>, <a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>. It reads exports and logs when an operator runs it; nothing in a plane reads a finding, and <code>react</code> turns a confirmed one into a stop of its run (row below). A finding resting on what a runtime reported is suspected at most; a skipped step is never confirmed</td>
+<td><code>internal/supervise/</code> (a guarded tree: the procedure, what belongs to the run, six rules, the verdict, the finding id), <code>internal/findinglog/</code>, <code>internal/notify/</code>, <code>supervise</code> and <code>notify</code> in <code>cmd/guardana-control/</code>, the contract <code>guardana.control.finding.v1alpha1</code>, <code>examples/refund-supervision/</code>, <code>internal/runview/</code> (one run as a static page, <code>supervise --view</code>), <a href="/docs/reference/supervision">reference/supervision.md</a>, <a href="/docs/reference/run-view">reference/run-view.md</a>, <a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>. It reads exports and logs when an operator runs it; nothing in a plane reads a finding, and <code>react</code> turns a confirmed one into a stop of its run (row below). A finding resting on what a runtime reported is suspected at most; a skipped step is never confirmed</td>
 </tr>
 <tr>
 <td>A confirmed finding stops one opened run, through a signed route</td>
@@ -331,7 +332,7 @@ already holds a package doc and a test holds nothing that decides.</li>
 <tr>
 <td>Web UI</td>
 <td><code>planned</code></td>
-<td>no path chosen yet; a run's view is B22 in <a href="/docs/backlog">backlog.md</a></td>
+<td>no path chosen yet; one run's static page is <code>supervise --view</code> (row above)</td>
 </tr>
 <tr>
 <td>Notifiers beyond the local program, and channels beyond MCP and the OpenTelemetry trace sensor</td>
@@ -399,7 +400,7 @@ this:</p>
 </tr>
 <tr>
 <td>A run drawn as a graph</td>
-<td>None; <code>guardana-gateway trail</code> checks each trail's chain</td>
+<td>A static page per run from <code>supervise --view</code>: the expected steps beside the calls observed, each marked by shape and line as well as colour; a table, not a graph, and not live</td>
 </tr>
 </tbody>
 </table>
@@ -502,6 +503,7 @@ never withheld from the open build, whatever its status above.</p>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>

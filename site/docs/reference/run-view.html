@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Run view · Guardana Control</title>
+<meta name="description" content="The page guardana-control supervise --view draws for one run, what each mark on it means, and what the command refuses to overwrite."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/run-view"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.9.0-alpha</span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a class="hide-s" href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span class="hide-s">GitHub</span></a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<details class="mnav">
+<summary>Menu · <b>Run view</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/run-view" aria-current="page">Run view</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</details>
+<main id="main" class="prose">
+<h1 id="run-view">Run view</h1>
+<p><code>guardana-control supervise --view &lt;file&gt;</code> draws the run it has just
+supervised as one HTML page, beside the findings it appended to the log
+(<a href="/docs/reference/supervision">supervision.md</a>). The page is drawn from what the
+supervision returned and nothing else: it decides no mark of its own, and the
+record behind it is
+<a href="/docs/adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor">ADR-0048</a>.</p>
+<h2 id="what-the-page-shows">What the page shows</h2>
+<ul>
+<li>The run, its tenant and project, the procedure's id, version and digest,
+and under a <code>0.2</code> procedure the children mode and the run tree.</li>
+<li>What was read: events and observations taken and left out, exports whole
+and not whole, and the plane's blocks that are no denial.</li>
+<li>The expected steps in the procedure's order, each with the numbers of its
+calls, or marked not seen.</li>
+<li>Each finding with its rule, verdict, escalation, id, under a <code>0.2</code>
+procedure the run it names, and the numbers of the calls it cites.</li>
+<li>The observed calls: number, mark, request or observation id, tool and
+upstream, step, run, time, export, outcome with the approval and the reason
+codes, resource, and the findings that cite the call.</li>
+<li>Every source the run was not checked against, and the state of every rule.</li>
+</ul>
+<p>Calls are ordered by the time their plane recorded the proposal, calls with
+no time last. A time another export shares is marked &quot;order not told&quot;: two
+planes' clocks do not order two calls of one instant. A source's report is
+marked with &quot;the source's clock&quot;: it is never ordered against a plane's.</p>
+<h2 id="marks">Marks</h2>
+<p>Each mark is a shape and a line style as well as a colour, and its label is
+written beside it, so the page reads the same without colour and to a screen
+reader. The legend at the foot of the page repeats this table.</p>
+<table>
+<thead>
+<tr>
+<th>Mark</th>
+<th>Shape and line</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>enforced</td>
+<td>filled square, solid</td>
+<td>A plane decided the call in <code>ENFORCE</code>, <code>APPROVE</code> or <code>LOCKDOWN</code> mode and its trail is one coherent chain.</td>
+</tr>
+<tr>
+<td>decided, not enforced</td>
+<td>triangle, dashed</td>
+<td>A plane decided the call in another mode, recorded no mode, or the trail is in doubt.</td>
+</tr>
+<tr>
+<td>observed</td>
+<td>circle, dotted</td>
+<td>Only a source reported the call, with the trust its descriptor declared.</td>
+</tr>
+<tr>
+<td>exception or approval</td>
+<td>diamond, dash and dot</td>
+<td>An <code>EXCEPTION_TAKEN</code> finding cites the call, or the approvals store granted it.</td>
+</tr>
+<tr>
+<td>blocked</td>
+<td>cross, long dashes</td>
+<td>The policy denied the call, or the plane blocked it: a pause, a stop, an approval refused or expired, a verdict other than DENY.</td>
+</tr>
+<tr>
+<td>not seen</td>
+<td>hexagon, sparse dashes</td>
+<td>A step with no call, or a source never heard, silent or not read.</td>
+</tr>
+</tbody>
+</table>
+<p>A call takes the first mark of blocked, exception or approval, enforced and
+decided that fits. A plane call is never marked enforced on less than a
+recorded mode that acts on its decision. No mark says &quot;inferred&quot;: no source
+of an inferred step exists that a test could hold to.</p>
+<p>Colours come in a light and a dark scheme, chosen by the reader's system
+setting. A test holds every colour on the page to at least 4.5:1 against its
+background in both.</p>
+<h2 id="which-calls-are-drawn">Which calls are drawn</h2>
+<p>By default the page draws, for each finding, the calls it cites and the call
+just before and just after each, and counts the calls between as not drawn. A
+run with no finding that cites a call draws no call. <code>--view-all</code> draws every
+call of the run. Either way the page draws at most 1000 calls, and when it
+stops there it says so and counts what it left out.</p>
+<h2 id="a-string-an-input-chose">A string an input chose</h2>
+<p>Tool names, upstreams, resource fields, reason codes, request, run,
+observation, source and finding ids, and every other string a run's records
+carry are written as text and never as an attribute, a link or a style. Each
+is cut at 80 characters with <code>[cut]</code> written apart from it, and a character
+that does not print, such as a line break or a direction override, is written
+as an escape like <code>‮</code>; a backslash is written as <code>\</code>, so an escape
+on the page is never the string's own text.</p>
+<p>The page carries a <code>Content-Security-Policy</code> meta tag that allows inline
+style alone: no script runs on it and it fetches nothing. Nothing on it moves
+and nothing reads a clock, so one supervision draws the same bytes twice.</p>
+<h2 id="the-file">The file</h2>
+<table>
+<thead>
+<tr>
+<th><code>--view</code> path</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>does not exist, in a directory that does</td>
+<td>the page is written there</td>
+</tr>
+<tr>
+<td>a page supervise drew, a regular file this account owns</td>
+<td>it is replaced</td>
+</tr>
+<tr>
+<td>any other file, a link, a directory, a path in a missing directory, or a file another account owns</td>
+<td>refused with status 2 before any input is read</td>
+</tr>
+</tbody>
+</table>
+<p>The page is written with mode <code>0600</code> whatever an old page's mode was, after
+the findings log, by a rename that leaves the old page or the new and never a
+torn one. A failure to write it then exits 2 and says the log was written.
+What <code>supervise</code> prints and its exit status are the same with <code>--view</code> as
+without it. <code>--view-all</code> without <code>--view</code>, and <code>--view</code> given twice, are usage
+errors.</p>
+<p>The page holds what the findings log holds and more: tool names, resource
+ids and reasons a run's agent chose. Share it as you would share the log.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/run-view.md">docs/reference/run-view.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/run-view" aria-current="page">Run view</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

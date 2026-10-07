@@ -119,6 +119,7 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 		}
 		res.Steps = append(res.Steps, m)
 	}
+	res.Instances, res.Rests = e.instancesOf(res.Findings)
 	return res
 }
 

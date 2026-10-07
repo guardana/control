@@ -21,13 +21,15 @@ import (
 const (
 	superviseName = "supervise"
 	superviseForm = "--procedure <file> --runs <dir> --run <run-id> --findings <dir>\n" +
-		"      [--evidence <export>]... [--source <descriptor> --log <dir>]..."
+		"      [--evidence <export>]... [--source <descriptor> --log <dir>]...\n" +
+		"      [--view <file> [--view-all]]"
 	superviseUsage = "takes --procedure, --runs, --run and --findings once each, any --evidence, " +
-		"and each --source with its --log, in order"
+		"each --source with its --log, in order, and --view at most once"
 )
 
 type superviseArgs struct {
-	procedure, runs, run, findings, evidence, sources, logs valueList
+	procedure, runs, run, findings, evidence, sources, logs, view valueList
+	viewAll                                                       bool
 }
 
 func superviseFlags(command string, out io.Writer) (*flag.FlagSet, *superviseArgs) {
@@ -40,6 +42,8 @@ func superviseFlags(command string, out io.Writer) (*flag.FlagSet, *superviseArg
 	flags.Var(&a.sources, "source", "a source descriptor `file`, paired in order with --log; one that does not exist is left out; repeatable")
 	flags.Var(&a.logs, "log", "the observation log `dir` of the --source in the same place; one with no log yet was never heard; repeatable")
 	flags.Var(&a.findings, "findings", "the findings log `dir`, owner-only; given once")
+	flags.Var(&a.view, "view", "a `file` to draw the run in as one page, mode 0600, replacing only a page drawn before; given once")
+	flags.BoolVar(&a.viewAll, "view-all", false, "draw every call on the --view page, up to its bound, not each finding's neighbourhood")
 	return flags, a
 }
 
@@ -55,7 +59,9 @@ func superviseFlagSet(command string, out io.Writer) *flag.FlagSet {
 // printing nothing, on a refused input or an edited procedure, both refused
 // before the log is opened, or on a log it could not open or write, whose
 // unfinished write no reader takes. A failure once the write is committed,
-// closing the log or writing the output, is 2 too, with the write kept.
+// closing the log, writing the --view page or writing the output, is 2 too,
+// with the write kept. A --view path it may not replace is refused before
+// any input is read.
 func superviseCommand(args []string, stdout, stderr io.Writer) int {
 	flags, a := superviseFlags(superviseName, io.Discard)
 	err := flags.Parse(args)
@@ -66,6 +72,10 @@ func superviseCommand(args []string, stdout, stderr io.Writer) int {
 		len(a.findings) != 1 || len(a.sources) != len(a.logs):
 		return refuseSupervise(stderr, superviseUsage)
 	}
+	view, err := viewPath(a)
+	if err != nil {
+		return refuseSupervise(stderr, err.Error())
+	}
 	in, err := readSuperviseInput(a)
 	if err != nil {
 		return refuseSupervise(stderr, err.Error())
@@ -74,9 +84,22 @@ func superviseCommand(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return refuseSupervise(stderr, err.Error())
 	}
+	return recordSupervision(a, view, in, res, stdout, stderr)
+}
+
+// recordSupervision draws the --view page if one was asked for, appends
+// res to the findings log, writes the page, then prints.
+func recordSupervision(a *superviseArgs, view string, in supervise.Input, res *supervise.Result, stdout, stderr io.Writer) int {
+	page, err := drawView(view, in.Procedure, res, a.viewAll)
+	if err != nil {
+		return refuseSupervise(stderr, err.Error())
+	}
 	logged, err := appendFindings(a.findings[0], in.Procedure, res)
 	if err != nil {
 		return refuseSupervise(stderr, refusedInput("findings", a.findings[0], err).Error())
+	}
+	if err := writeView(view, page); err != nil {
+		return refuseSupervise(stderr, err.Error()+"; the findings log was written")
 	}
 	unread := unreadSources(in, res)
 	text := strings.Join(superviseLines(in, res, unread, logged), "\n") + "\n"

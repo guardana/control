@@ -1,0 +1,171 @@
+{{define "t"}}<code>{{.S}}</code>{{if .Cut}}<span class="cut">[cut]</span>{{end}}{{end -}}
+{{define "list"}}{{range $i, $x := .Items}}{{if $i}}, {{end}}{{template "t" $x}}{{end}}{{if .More}} and {{.More}} more{{end}}{{end -}}
+{{define "nums"}}{{range $i, $x := .Items}}{{if $i}}, {{end}}{{$x}}{{end}}{{if .More}} and {{.More}} more{{end}}{{end -}}
+{{define "shape"}}{{if eq . 1}}<rect class="s-enforced" x="2" y="2" width="12" height="12" stroke-width="1.5"/>
+{{- else if eq . 2}}<polygon class="s-decided" points="8,1.5 14.5,14 1.5,14" stroke-width="1.5" stroke-dasharray="3 1.5"/>
+{{- else if eq . 3}}<circle class="s-observed" cx="8" cy="8" r="6" stroke-width="2" stroke-dasharray="0.5 2.5" stroke-linecap="round"/>
+{{- else if eq . 4}}<polygon class="s-excepted" points="8,1 15,8 8,15 1,8" stroke-width="1.5" stroke-dasharray="4 1.5 1 1.5"/>
+{{- else if eq . 5}}<path class="s-blocked" d="M3 3 L13 13 M13 3 L3 13" stroke-width="3" stroke-dasharray="6 1"/>
+{{- else if eq . 6}}<polygon class="s-notseen" points="4.5,2 11.5,2 15,8 11.5,14 4.5,14 1,8" stroke-width="1.2" stroke-dasharray="2 3"/>
+{{- end}}{{end -}}
+{{define "mark"}}<svg class="mk" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">{{template "shape" .Mark}}</svg><span class="mk-label">{{.Label}}</span>
+{{- if or .Pre .Code .Post}} <span class="mk-detail">{{.Pre}}{{with .Code}}{{template "t" .}}{{end}}{{.Post}}</span>{{end}}{{end -}}
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run {{.Run.S}} against {{.Procedure.S}} version {{.Version.S}}</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --grid-bg: #d1d9e0;
+  --enforced: #1a7f37;
+  --decided: #8a5a00;
+  --observed: #0969da;
+  --excepted: #8250df;
+  --blocked: #cf222e;
+  --notseen: #59636e;
+}
+@media (prefers-color-scheme: dark) {
+:root {
+  --bg: #0d1117;
+  --fg: #e6edf3;
+  --muted: #9198a1;
+  --grid-bg: #3d444d;
+  --enforced: #3fb950;
+  --decided: #d29922;
+  --observed: #4493f8;
+  --excepted: #ab7df8;
+  --blocked: #f85149;
+  --notseen: #9198a1;
+}
+}
+body { background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; margin: 0; padding: 16px; }
+main { max-width: 1200px; margin: 0 auto; }
+h1 { font-size: 1.3em; margin: 0 0 .5em; }
+h2 { font-size: 1.1em; margin: 1.6em 0 .5em; }
+p, li { max-width: 72ch; }
+code { font: .92em ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.cut, .muted, .mk-detail { color: var(--muted); }
+.cut { font-style: italic; margin-left: .25em; }
+.notice { border-left: 4px solid var(--blocked); padding-left: .6em; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border-bottom: 1px solid var(--grid-bg); padding: .3em .5em; text-align: left; vertical-align: top; }
+th { font-weight: 600; }
+tr.gap td { color: var(--muted); font-style: italic; }
+.mk { vertical-align: -3px; margin-right: .35em; }
+.s-enforced { fill: var(--enforced); stroke: var(--enforced); }
+.s-decided { fill: none; stroke: var(--decided); }
+.s-observed { fill: none; stroke: var(--observed); }
+.s-excepted { fill: var(--excepted); fill-opacity: .3; stroke: var(--excepted); }
+.s-blocked { fill: none; stroke: var(--blocked); }
+.s-notseen { fill: none; stroke: var(--notseen); }
+.mk-label { font-weight: 600; }
+td.mark { min-width: 14em; }
+</style>
+</head>
+<body>
+<main>
+<h1>Run {{template "t" .Run}}</h1>
+<p>Tenant {{template "t" .Tenant}}, project {{template "t" .Project}}, against procedure {{template "t" .Procedure}} version {{template "t" .Version}}, digest {{template "t" .Digest}}.</p>
+{{- if .Children}}
+<p>Children: {{.Children}}.</p>
+<ul>
+{{- range .Tree}}
+<li>{{template "t" .Run}}{{with .Parent}} under {{template "t" .}}{{end}}</li>
+{{- end}}
+</ul>
+{{- end}}
+<p>Read: {{range $i, $x := .Read}}{{if $i}}; {{end}}{{$x}}{{end}}.{{if .Blocks}} Plane blocks that are no denial: {{range $i, $b := .Blocks}}{{if $i}}, {{end}}{{template "t" $b.What}} {{$b.N}}{{end}}.{{end}}</p>
+
+<h2>Expected steps</h2>
+<div class="scroll"><table>
+<thead><tr><th>Step</th><th>Tool</th><th>Required</th><th>Calls</th></tr></thead>
+<tbody>
+{{- range .Steps}}
+<tr class="step"><td>{{template "t" .ID}}</td><td>{{template "t" .Tool}} on {{template "t" .Upstream}}</td><td>{{if .Required}}required{{else}}optional{{end}}</td><td>{{with .Mark}}{{template "mark" .}}{{else}}{{template "nums" .Calls}}{{end}}</td></tr>
+{{- end}}
+</tbody>
+</table></div>
+
+<h2>Findings</h2>
+{{- if .Findings}}
+<ol class="findings">
+{{- range .Findings}}
+<li>F{{.N}}: {{template "t" .Rule}}, {{.Verdict}}, {{.Escalation}}{{if .NamesRun}}, run {{template "t" .Run}}{{end}}; id {{template "t" .ID}}. {{if .Calls.Items}}Calls cited: {{template "nums" .Calls}}.{{else}}It cites no call.{{end}}{{if .LeftOut}} {{.LeftOut}} more records left out of the finding.{{end}}</li>
+{{- end}}
+</ol>
+{{- if .FindingsLeftOut}}
+<p class="notice">{{.FindingsLeftOut}} more findings are not listed; the findings log holds them.</p>
+{{- end}}
+{{- else}}
+<p>No finding.</p>
+{{- end}}
+
+<h2>Observed calls</h2>
+{{- if .All}}
+<p>Drawn: every call, {{.Drawn}} of {{.Total}}.</p>
+{{- else}}
+<p>Drawn: the calls each finding cites and the calls just before and after each, {{.Drawn}} of {{.Total}}.</p>
+{{- end}}
+{{- if .Short}}
+<p class="notice">The page stopped short: it draws at most {{.Drawn}} calls, and {{.Short}} more were not drawn.</p>
+{{- end}}
+{{- if .NoCall}}
+<p>No call of the run was read.</p>
+{{- else if .NoCallCited}}
+<p>No finding cites a call, so no call is drawn.</p>
+{{- end}}
+{{- if .Rows}}
+<div class="scroll"><table>
+<thead><tr><th>#</th><th>Mark</th><th>Request</th><th>Call</th><th>Run</th><th>Time</th><th>Outcome</th><th>Resource</th><th>Findings</th></tr></thead>
+<tbody>
+{{- range .Rows}}
+{{- if .Gap}}
+<tr class="gap"><td colspan="9">{{.Gap}}</td></tr>
+{{- else}}
+<tr class="call"><td class="n">#{{.N}}</td><td class="mark">{{template "mark" .Mark}}</td><td class="id">{{template "t" .ID}}</td><td>{{template "t" .Tool}}{{if .Source}}{{else}} on {{template "t" .Upstream}}{{end}}; {{with .Step}}step {{template "t" .}}{{else}}no step{{end}}</td><td>{{template "t" .Run}}</td><td>{{.When}}{{if .Clock}} <span class="muted">({{.Clock}})</span>{{end}}; {{with .Source}}report of source {{template "t" .}}{{else}}export {{.Export}}{{end}}</td><td>{{.Outcome}}{{if .Approval}}, {{.Approval}}{{end}}{{if .Reasons.Items}}; {{template "list" .Reasons}}{{end}}</td><td>{{with .Resource}}{{template "t" .Type}} {{template "t" .ID}} of tenant {{template "t" .Tenant}} in {{template "t" .Environment}}{{else}}none named{{end}}</td><td>{{template "nums" .Findings}}</td></tr>
+{{- end}}
+{{- end}}
+</tbody>
+</table></div>
+{{- end}}
+
+<h2>Not seen</h2>
+{{- if .NotSeen}}
+<ul>
+{{- range .NotSeen}}
+<li>{{template "mark" .Mark}}</li>
+{{- end}}
+</ul>
+{{- else}}
+<p>Every source given was read and heard. Steps with no call are marked above.</p>
+{{- end}}
+
+<h2>Rules</h2>
+<div class="scroll"><table>
+<thead><tr><th>Rule</th><th>State</th><th>Why</th></tr></thead>
+<tbody>
+{{- range .Rules}}
+<tr><td>{{template "t" .Rule}}</td><td>{{.State}}</td><td>{{if .Why.S}}{{template "t" .Why}}{{end}}</td></tr>
+{{- end}}
+</tbody>
+</table></div>
+
+<h2>Legend</h2>
+<p>Each mark is a shape and a line style as well as a colour, and its label is written beside it.</p>
+<div class="scroll"><table>
+<tbody>
+{{- range .Legend}}
+<tr class="legend"><td>{{template "mark" .Mark}}</td><td>{{.Meaning}}</td></tr>
+{{- end}}
+</tbody>
+</table></div>
+</main>
+</body>
+</html>

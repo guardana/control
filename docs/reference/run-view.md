@@ -1,0 +1,99 @@
+---
+title: Run view
+summary: The page guardana-control supervise --view draws for one run, what each mark on it means, and what the command refuses to overwrite.
+type: reference
+covers: [internal/runview/**, internal/supervise/instances.go, cmd/guardana-control/supervise_view.go]
+---
+
+# Run view
+
+`guardana-control supervise --view <file>` draws the run it has just
+supervised as one HTML page, beside the findings it appended to the log
+([supervision.md](supervision.md)). The page is drawn from what the
+supervision returned and nothing else: it decides no mark of its own, and the
+record behind it is
+[ADR-0048](../adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor.md).
+
+## What the page shows
+
+- The run, its tenant and project, the procedure's id, version and digest,
+  and under a `0.2` procedure the children mode and the run tree.
+- What was read: events and observations taken and left out, exports whole
+  and not whole, and the plane's blocks that are no denial.
+- The expected steps in the procedure's order, each with the numbers of its
+  calls, or marked not seen.
+- Each finding with its rule, verdict, escalation, id, under a `0.2`
+  procedure the run it names, and the numbers of the calls it cites.
+- The observed calls: number, mark, request or observation id, tool and
+  upstream, step, run, time, export, outcome with the approval and the reason
+  codes, resource, and the findings that cite the call.
+- Every source the run was not checked against, and the state of every rule.
+
+Calls are ordered by the time their plane recorded the proposal, calls with
+no time last. A time another export shares is marked "order not told": two
+planes' clocks do not order two calls of one instant. A source's report is
+marked with "the source's clock": it is never ordered against a plane's.
+
+## Marks
+
+Each mark is a shape and a line style as well as a colour, and its label is
+written beside it, so the page reads the same without colour and to a screen
+reader. The legend at the foot of the page repeats this table.
+
+| Mark | Shape and line | Means |
+| --- | --- | --- |
+| enforced | filled square, solid | A plane decided the call in `ENFORCE`, `APPROVE` or `LOCKDOWN` mode and its trail is one coherent chain. |
+| decided, not enforced | triangle, dashed | A plane decided the call in another mode, recorded no mode, or the trail is in doubt. |
+| observed | circle, dotted | Only a source reported the call, with the trust its descriptor declared. |
+| exception or approval | diamond, dash and dot | An `EXCEPTION_TAKEN` finding cites the call, or the approvals store granted it. |
+| blocked | cross, long dashes | The policy denied the call, or the plane blocked it: a pause, a stop, an approval refused or expired, a verdict other than DENY. |
+| not seen | hexagon, sparse dashes | A step with no call, or a source never heard, silent or not read. |
+
+A call takes the first mark of blocked, exception or approval, enforced and
+decided that fits. A plane call is never marked enforced on less than a
+recorded mode that acts on its decision. No mark says "inferred": no source
+of an inferred step exists that a test could hold to.
+
+Colours come in a light and a dark scheme, chosen by the reader's system
+setting. A test holds every colour on the page to at least 4.5:1 against its
+background in both.
+
+## Which calls are drawn
+
+By default the page draws, for each finding, the calls it cites and the call
+just before and just after each, and counts the calls between as not drawn. A
+run with no finding that cites a call draws no call. `--view-all` draws every
+call of the run. Either way the page draws at most 1000 calls, and when it
+stops there it says so and counts what it left out.
+
+## A string an input chose
+
+Tool names, upstreams, resource fields, reason codes, request, run,
+observation, source and finding ids, and every other string a run's records
+carry are written as text and never as an attribute, a link or a style. Each
+is cut at 80 characters with `[cut]` written apart from it, and a character
+that does not print, such as a line break or a direction override, is written
+as an escape like `‮`; a backslash is written as `\`, so an escape
+on the page is never the string's own text.
+
+The page carries a `Content-Security-Policy` meta tag that allows inline
+style alone: no script runs on it and it fetches nothing. Nothing on it moves
+and nothing reads a clock, so one supervision draws the same bytes twice.
+
+## The file
+
+| `--view` path | What happens |
+| --- | --- |
+| does not exist, in a directory that does | the page is written there |
+| a page supervise drew, a regular file this account owns | it is replaced |
+| any other file, a link, a directory, a path in a missing directory, or a file another account owns | refused with status 2 before any input is read |
+
+The page is written with mode `0600` whatever an old page's mode was, after
+the findings log, by a rename that leaves the old page or the new and never a
+torn one. A failure to write it then exits 2 and says the log was written.
+What `supervise` prints and its exit status are the same with `--view` as
+without it. `--view-all` without `--view`, and `--view` given twice, are usage
+errors.
+
+The page holds what the findings log holds and more: tool names, resource
+ids and reasons a run's agent chose. Share it as you would share the log.

@@ -67,7 +67,7 @@ one that exists and is not a policy bundle, so no other file, another key
 included, is replaced; and a bundle the loader would refuse. `--out` is
 cleaned as text before anything reads it, so `a/link/../x` names `a/x`
 whatever `a/link` points at. When syncing the directory fails after the
-rename, `sign` reports the failure although the new bundle may already be in
+rename, `sign` reports the failure although the new bundle may be in
 place.
 
 The key reaches the command only as a path, and no refusal quotes it. Both
@@ -85,7 +85,7 @@ record holds; the listing says so above the records. A listing the store
 reports incomplete exits 1 and names what it could not read.
 
 `approvals approve` and `approvals reject` write the answer whether or not a
-plane is running, and exit 0 either way: the record waits for the next
+plane runs, and exit 0 either way: the record waits for the next
 plane. Where no plane holds the directory they say so on stderr: no held
 call waits for the answer, since a hold does not outlive its plane, and a
 plane that keeps a hold journal records it on that call's trail as too late.
@@ -126,7 +126,7 @@ serves: [runs.md](runs.md).
 The `observe` commands import an agent runtime's OpenTelemetry spans into an
 observation log and export it: [observations.md](observations.md). `coverage`
 is [coverage.md](coverage.md), `supervise`, `notify` and `findings export`
-[supervision.md](supervision.md), `procedure`
+[supervision.md](supervision.md), `--view` [run-view.md](run-view.md), `procedure`
 [guides/test-a-procedure.md](../guides/test-a-procedure.md), and `route`, `stops`
 and `react`, which turn a confirmed finding into a stop of its run,
 [reaction.md](reaction.md).
@@ -165,6 +165,7 @@ usage:
   guardana-control procedure test <cases>
   guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --findings <dir>
       [--evidence <export>]... [--source <descriptor> --log <dir>]...
+      [--view <file> [--view-all]]
   guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <duration>]
       -- <program> [<arg>]...
   guardana-control findings export --findings <dir> [--after <cursor>] [--limit <n>]
