@@ -78,8 +78,9 @@ ACTIONS_APP_ID=15368
 # The paths where GOVERNANCE.md asks for two independent approvals: the
 # decision path, the enforcement pipeline, the approvals store, the digest and
 # the keys, the evidence record, the judgement of a run against its procedure,
-# the route and lift signatures and the stop judge, the policy and route floors,
-# the configuration's owner and mode checks, the wire contracts and their
+# the route and lift signatures and the stop judge, the policy and route floors
+# and their refresh, the owner and mode checks of the configuration and of every
+# store, the wire contracts and their
 # fixtures, the gate's Go code that reports test results and checks the
 # documents, and the release and workflow definitions with the tool digests
 # the release job trusts. Each must be owned by
@@ -97,6 +98,8 @@ TWO_APPROVAL_PATHS=(
   "internal/reaction/**"
   "internal/policystate/**"
   "internal/gatewayconfig/**"
+  "internal/files/**"
+  "internal/policywatch/**"
   "pkg/contract/**"
   "pkg/policyprovider/**"
   "api/proto/**"
@@ -554,7 +557,7 @@ fi
 run_json PATCH "repos/${REPO}" <<JSON
 {
   "description": ${DESCRIPTION_JSON},
-  "homepage": "",
+  "homepage": "https://control.guardana.dev",
   "default_branch": "${DEFAULT_BRANCH}",
   "has_issues": true,
   "has_wiki": false,
