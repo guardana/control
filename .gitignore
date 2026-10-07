@@ -32,8 +32,3 @@ go.work.sum
 
 # Local override of the project law, per developer
 /AGENTS.local.md
-
-# Local planning material, not part of the project
-/docs/foundation/
-/docs/plans/
-/docs/design/foundation-decisions.md

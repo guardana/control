@@ -7,7 +7,8 @@
 //
 // Everything this program decides lives in internal/docscheck/indexdoc, which
 // the gate compiles, vets, lints and tests. What is left here is argument
-// handling, a read of docs/docs.json for the exclusions, a walk and a write.
+// handling, a read of docs/docs.json for the exclusions, the repository's file
+// list, a walk and a write.
 package main
 
 import (
@@ -16,6 +17,7 @@ import (
 	"os"
 
 	"github.com/guardana/control/internal/docscheck/docsconfig"
+	"github.com/guardana/control/internal/docscheck/impact"
 	"github.com/guardana/control/internal/docscheck/indexdoc"
 )
 
@@ -35,7 +37,11 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	pages, records, err := indexdoc.Collect(os.DirFS("."), cfg.Excludes)
+	files, err := impact.RepositoryFiles(".", os.Environ())
+	if err != nil {
+		fail(err)
+	}
+	pages, records, err := indexdoc.Collect(os.DirFS("."), impact.LeftOut(files.Paths, cfg.Excludes))
 	if err != nil {
 		fail(err)
 	}

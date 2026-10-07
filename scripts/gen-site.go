@@ -22,6 +22,7 @@ import (
 	"slices"
 
 	"github.com/guardana/control/internal/docscheck/docsconfig"
+	"github.com/guardana/control/internal/docscheck/impact"
 	"github.com/guardana/control/internal/docscheck/sitedoc"
 	"github.com/guardana/control/internal/docscheck/sitedoc/docsite"
 )
@@ -71,7 +72,11 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	files, err := docsite.Build(os.DirFS("."), cfg.Excludes)
+	listed, err := impact.RepositoryFiles(".", os.Environ())
+	if err != nil {
+		fail(err)
+	}
+	files, err := docsite.Build(os.DirFS("."), impact.LeftOut(listed.Paths, cfg.Excludes))
 	if err != nil {
 		fail(err)
 	}

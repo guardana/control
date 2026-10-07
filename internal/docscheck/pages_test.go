@@ -2,8 +2,9 @@
 // admits, is titled by its one heading, sits where its type says, covers code
 // that exists, stays within its budget, draws diagrams the counter can read
 // and names the generator that wrote it. docs.json's excluded selects which
-// pages are judged, never which files a page may cover; the walk is fatal
-// when it finds fewer pages than exist today.
+// pages are judged, never which files a page may cover. Both come from what
+// the repository lists, and a list holding fewer pages than exist today is
+// fatal.
 package docscheck
 
 import (
@@ -81,7 +82,7 @@ func loadTree(t *testing.T) docsTree {
 	if err != nil {
 		t.Fatalf("%s: %v", docsConfigPath, err)
 	}
-	tree, err := collectTree(fsys, cfg)
+	tree, err := collectTree(fsys, cfg, repoFiles(t, repoRoot(t)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,14 +95,10 @@ func loadTree(t *testing.T) docsTree {
 	return tree
 }
 
-// collectTree walks fsys once and sorts what it found: every file a covers
-// glob or a Sources path may name, and the pages and readmes docs.json does
-// not exclude, which are the ones judged.
-func collectTree(fsys fs.FS, cfg docsconfig.Config) (docsTree, error) {
-	files, err := walkFiles(fsys)
-	if err != nil {
-		return docsTree{}, err
-	}
+// collectTree sorts files, what the repository holds, and reads them from
+// fsys: every one is a file a covers glob or a Sources path may name, and the
+// pages and readmes docs.json does not exclude are the ones judged.
+func collectTree(fsys fs.FS, cfg docsconfig.Config, files []string) (docsTree, error) {
 	tree := docsTree{config: cfg, files: files, tests: testIndex{}}
 	for _, rel := range files {
 		if strings.HasSuffix(rel, "_test.go") {
@@ -128,31 +125,6 @@ func collectTree(fsys fs.FS, cfg docsconfig.Config) (docsTree, error) {
 		}
 	}
 	return tree, nil
-}
-
-// walkFiles lists every file as a repository-relative slash path. It prunes
-// hidden directories but .github, and node_modules; nothing docs.json
-// excludes is pruned, so a page may cover a workflow or a record.
-func walkFiles(fsys fs.FS) ([]string, error) {
-	var found []string
-	err := fs.WalkDir(fsys, ".", func(rel string, d fs.DirEntry, walkErr error) error {
-		switch {
-		case walkErr != nil:
-			return walkErr
-		case d.IsDir():
-			hidden := strings.HasPrefix(d.Name(), ".") && rel != ".github"
-			if rel != "." && (hidden || d.Name() == "node_modules") {
-				return fs.SkipDir
-			}
-		default:
-			found = append(found, rel)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("walking the repository: %w", err)
-	}
-	return found, nil
 }
 
 func isPage(rel string) bool {
@@ -340,38 +312,42 @@ func TestPageProblemsFrontmatter(t *testing.T) {
 	judgeEdits(t, cfg, fixtureFiles, nil, nil, cases)
 }
 
-// The walk answers two questions from two lists: excluded selects what is
+// The tree answers two questions from two lists: excluded selects what is
 // judged, and the file list a covers glob or a Sources path is matched
-// against holds every file but hidden directories and node_modules.
+// against holds every file the repository lists, excluded or not. A file on
+// disk the list does not hold, one git ignores, is in neither.
 func TestCollectTreeSeparatesJudgedFromCovered(t *testing.T) {
 	cfg, err := docsconfig.Parse([]byte(replaceOnce(t, fixtureConfig, `"page_types"`,
-		`"excluded": [".github/", "docs/adr/", "CHANGELOG.md", "docs/plans/"], "page_types"`)))
+		`"excluded": [".github/", "docs/adr/", "CHANGELOG.md", "docs/notes/"], "page_types"`)))
 	if err != nil {
 		t.Fatal(err)
 	}
+	listed := []string{
+		".github/README.md", ".github/workflows/ci.yml", "CHANGELOG.md", "README.md", "bench/README.md",
+		"docs/adr/0001-record.md", "docs/guides/g.md", "docs/index.md", "docs/notes/p.md", "internal/thing/a.go",
+		"internal/thing/a_test.go", "internal/thing/deep/b_test.go",
+	}
 	fsys := fstest.MapFS{}
-	for _, rel := range []string{
-		".github/workflows/ci.yml", ".github/README.md", ".hidden/x.md", "node_modules/m/index.js",
-		"docs/adr/0001-record.md", "docs/plans/p.md", "CHANGELOG.md", "docs/index.md", "docs/guides/g.md",
-		"README.md", "bench/README.md", "internal/thing/a.go",
-	} {
+	for _, rel := range append(slices.Clone(listed), "docs/local/l.md", "local/README.md") {
 		fsys[rel] = &fstest.MapFile{Data: []byte("# x\n")}
 	}
 	fsys["internal/thing/a_test.go"] = &fstest.MapFile{Data: []byte("package thing\n\n" +
 		"func TestA(t *testing.T) {}\nfunc helper(t *testing.T) {}\nfunc TestHelper(n int) {}\n" +
 		"// func TestComment(t *testing.T) {}\nfunc TestB(tb *testing.T) {\n}\n")}
 	fsys["internal/thing/deep/b_test.go"] = &fstest.MapFile{Data: []byte("package deep\n\nfunc TestDeep(t *testing.T) {}\n")}
-	tree, err := collectTree(fsys, cfg)
+	tree, err := collectTree(fsys, cfg, listed)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantFiles := []string{
-		".github/README.md", ".github/workflows/ci.yml", "CHANGELOG.md", "README.md", "bench/README.md",
-		"docs/adr/0001-record.md", "docs/guides/g.md", "docs/index.md", "docs/plans/p.md", "internal/thing/a.go",
-		"internal/thing/a_test.go", "internal/thing/deep/b_test.go",
+	for _, rel := range []string{".github/workflows/ci.yml", "CHANGELOG.md", "docs/adr/0001-record.md", "docs/notes/p.md"} {
+		if !slices.Contains(tree.files, rel) {
+			t.Errorf("files lack %s: excluded must not take a file from what a page may cover", rel)
+		}
 	}
-	if !slices.Equal(tree.files, wantFiles) {
-		t.Errorf("files = %q, want %q", tree.files, wantFiles)
+	for _, rel := range []string{"docs/local/l.md", "local/README.md"} {
+		if slices.Contains(tree.files, rel) {
+			t.Errorf("files hold %s, which the repository does not list", rel)
+		}
 	}
 	if want := (testIndex{"internal/thing": {"TestA", "TestB"}, "internal/thing/deep": {"TestDeep"}}); !maps.EqualFunc(tree.tests, want, slices.Equal) {
 		t.Errorf("tests = %q, want %q", tree.tests, want)

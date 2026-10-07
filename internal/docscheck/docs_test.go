@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/guardana/control/internal/docscheck/impact"
 )
 
 const (
@@ -20,10 +22,6 @@ const (
 	minMarkdownFiles = 5
 	minComponentRows = 10 // fewer means the table was not parsed, not that it emptied
 )
-
-// Local planning material: not part of the project, so its links and claims are
-// out of scope. Repository-relative slash paths.
-var skipped = []string{"docs/foundation", "docs/plans", "docs/design/foundation-decisions.md", "node_modules"}
 
 var (
 	linkTarget     = regexp.MustCompile(`\]\(([^)]*)\)`)
@@ -57,33 +55,30 @@ func repoRoot(t *testing.T) string {
 	return root
 }
 
-// markdownFiles returns every Markdown file as a repository-relative slash
-// path. It walks the directory, not the repository: a Markdown file .gitignore
-// names is judged in a work tree and absent in an export. A false red in a work
-// tree is accepted because the alternative, dropping files by a hand-mirrored
-// ignore list, would let a tracked page escape the check.
-func markdownFiles(t *testing.T, fsys fs.FS) []string {
+// repoFiles is what the repository at root holds: git's list in a work tree,
+// tracked and untracked files alike but none it ignores, and a walk of a tree
+// with no .git, an export, which holds nothing else. A .git that git cannot
+// list fails the test: the walk would judge local files git ignores.
+func repoFiles(t *testing.T, root string) []string {
+	t.Helper()
+	files, err := impact.RepositoryFiles(root, os.Environ())
+	if err != nil {
+		t.Fatalf("listing the repository: %v", err)
+	}
+	slices.Sort(files.Paths)
+	return files.Paths
+}
+
+// markdownFiles returns every Markdown file the repository at root holds, as a
+// repository-relative slash path. A page nobody has added yet is judged; a
+// file git ignores, such as local notes, is not.
+func markdownFiles(t *testing.T, root string) []string {
 	t.Helper()
 	var found []string
-	err := fs.WalkDir(fsys, ".", func(rel string, d fs.DirEntry, walkErr error) error {
-		switch {
-		case walkErr != nil:
-			return walkErr
-		case d.IsDir():
-			// Dot-directories are pruned generically, with .github the one named
-			// exception, as in scripts/lib/repo-files.sh: its templates ship
-			// publicly and rot like any other document.
-			hidden := strings.HasPrefix(d.Name(), ".") && rel != ".github"
-			if rel != "." && (hidden || slices.Contains(skipped, rel)) {
-				return fs.SkipDir
-			}
-		case strings.HasSuffix(rel, ".md") && !slices.Contains(skipped, rel):
+	for _, rel := range repoFiles(t, root) {
+		if strings.HasSuffix(rel, ".md") {
 			found = append(found, rel)
 		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walking the repository: %v", err)
 	}
 	return found
 }
@@ -137,13 +132,22 @@ func TestAgentsFileStaysShort(t *testing.T) {
 // a path that does not exist, a #fragment that names no heading of the
 // Markdown file it points into, and a reference no definition names.
 func TestLocalMarkdownLinksResolve(t *testing.T) {
-	fsys := repoFS(t)
-	anchors := newAnchorIndex(fsys)
-	for _, rel := range markdownFiles(t, fsys) {
-		for _, problem := range markdownLinkProblems(anchors, rel, readLines(t, fsys, rel)) {
-			t.Error(problem)
-		}
+	for _, problem := range brokenLinks(t, repoRoot(t)) {
+		t.Error(problem)
 	}
+}
+
+// brokenLinks is every link problem of every Markdown file the repository at
+// root holds.
+func brokenLinks(t *testing.T, root string) []string {
+	t.Helper()
+	fsys := os.DirFS(root)
+	anchors := newAnchorIndex(fsys)
+	var problems []string
+	for _, rel := range markdownFiles(t, root) {
+		problems = append(problems, markdownLinkProblems(anchors, rel, readLines(t, fsys, rel))...)
+	}
+	return problems
 }
 
 // TestCapabilityClaims fails a capability sentence carrying no status label, in
@@ -159,7 +163,7 @@ func TestLocalMarkdownLinksResolve(t *testing.T) {
 // because the sentence that lies need not contain any of these verbs.
 func TestCapabilityClaims(t *testing.T) {
 	fsys := repoFS(t)
-	for _, rel := range markdownFiles(t, fsys) {
+	for _, rel := range markdownFiles(t, repoRoot(t)) {
 		for _, problem := range capabilityClaimProblems(rel, readLines(t, fsys, rel)) {
 			t.Error(problem)
 		}
@@ -170,7 +174,7 @@ func TestCapabilityClaims(t *testing.T) {
 // that found nothing must never read as documentation in order.
 func TestGateExaminedSomething(t *testing.T) {
 	fsys := repoFS(t)
-	if n := len(markdownFiles(t, fsys)); n < minMarkdownFiles {
+	if n := len(markdownFiles(t, repoRoot(t))); n < minMarkdownFiles {
 		t.Errorf("walk found %d Markdown files, want at least %d", n, minMarkdownFiles)
 	}
 	for _, rel := range []string{"README.md", "AGENTS.md", "ROADMAP.md", "docs/status.md"} {

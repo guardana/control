@@ -54,8 +54,8 @@ type page struct {
 
 // Build renders every page from fsys, rooted at the repository, and returns
 // what it writes keyed by repository path: each page under Dir and the
-// sitemap. excluded names the paths the docs check skips, as docs/docs.json
-// lists them.
+// sitemap. excluded names the paths the docs check skips: what docs/docs.json
+// lists and what the repository does not hold.
 func Build(fsys fs.FS, excluded func(string) bool) (map[string][]byte, error) {
 	pages, err := collect(fsys, excluded)
 	if err != nil {

@@ -81,11 +81,15 @@ func execute(o options, stdin io.Reader, stdout io.Writer, run Runner, fsys fs.F
 	if err != nil {
 		return 0, err
 	}
-	pages, broken, err := WalkPages(fsys, docsDir, cfg.Excluded)
+	git := Repository(run, wd)
+	files, err := TreeFiles(git, fsys)
 	if err != nil {
 		return 0, err
 	}
-	git := Repository(run, wd)
+	pages, broken, err := WalkPages(fsys, docsDir, LeftOut(files.Paths, cfg.Excludes))
+	if err != nil {
+		return 0, err
+	}
 	var text string
 	switch {
 	case o.forPath != "":
@@ -93,7 +97,7 @@ func execute(o options, stdin io.Reader, stdout io.Writer, run Runner, fsys fs.F
 	case o.stale:
 		text, err = staleText(git, pages)
 	default:
-		text, err = reportText(stdin, cfg, pages, git, fsys, o)
+		text, err = reportText(stdin, cfg, pages, files, git, fsys, o)
 	}
 	if err != nil {
 		return 0, err
@@ -150,12 +154,8 @@ func readChanged(stdin io.Reader, git Runner, fsys fs.FS, o options) ([]string, 
 	return ParseNameOnly(data)
 }
 
-func reportText(stdin io.Reader, cfg docsconfig.Config, pages []Page, git Runner, fsys fs.FS, o options) (string, error) {
+func reportText(stdin io.Reader, cfg docsconfig.Config, pages []Page, files Files, git Runner, fsys fs.FS, o options) (string, error) {
 	paths, err := readChanged(stdin, git, fsys, o)
-	if err != nil {
-		return "", err
-	}
-	files, err := ListFiles(git, func() ([]string, error) { return WalkFiles(fsys) })
 	if err != nil {
 		return "", err
 	}

@@ -106,7 +106,7 @@ func ListFiles(run Runner, walk func() ([]string, error)) (Files, error) {
 	if err != nil {
 		paths, walkErr := walk()
 		if walkErr != nil {
-			return Files{}, walkErr
+			return Files{}, fmt.Errorf("%w; git ls-files: %w", walkErr, err)
 		}
 		return Files{Paths: paths, Source: fmt.Sprintf("a walk of the tree; git ls-files: %v", err)}, nil
 	}

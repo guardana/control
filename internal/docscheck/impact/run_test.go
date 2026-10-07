@@ -17,7 +17,7 @@ const config = `{
   "directories": {"docs": {"type": "project"}, "docs/guides": {"type": "how-to"}},
   "page_types": {},
   "frozen": ["Makefile"],
-  "excluded": ["docs/plans/"],
+  "excluded": ["docs/notes/"],
   "surfaces": ["cmd/**", "adapters/**"]
 }
 `
@@ -30,7 +30,7 @@ func tree() fstest.MapFS {
 		"go.mod":              {Data: []byte("module x\n")},
 		"docs/docs.json":      {Data: []byte(config)},
 		"docs/guides/run.md":  {Data: []byte(goodPage)},
-		"docs/plans/plan.md":  {Data: []byte("not a page\n")},
+		"docs/notes/plan.md":  {Data: []byte("not a page\n")},
 		"cmd/gw/main.go":      {Data: []byte("package main\n")},
 		"adapters/mcp/mcp.go": {Data: []byte("package mcp\n")},
 		"Makefile":            {Data: []byte("all:\n")},
@@ -134,7 +134,7 @@ func TestRunWalksTheTreeWhenGitCannotList(t *testing.T) {
 	r := noGit(errors.New("fatal: not a git repository"))
 	runTool(t, []string{"--changed", "-"}, "", r, tree(), wd).expect(t, 0, []string{
 		"0 pages to review of 1 examined",
-		"0 covers globs matching no file, of 1 pages and 7 files examined (a walk of the tree; git ls-files: fatal: not a git repository)",
+		"0 covers globs matching no file, of 1 pages and 8 files examined (a walk of the tree; git ls-files: fatal: not a git repository)",
 	}, nil)
 }
 
@@ -160,7 +160,7 @@ func TestRunIsNotMeasuredFromAnotherRepositorysTopLevel(t *testing.T) {
 	runTool(t, []string{"--range", "main..HEAD"}, "", r, tree(), wd).expect(t, 2, nil, []string{"NOT MEASURED", "top level"})
 	runTool(t, []string{"--stale"}, "", r, tree(), wd).expect(t, 2, nil, []string{"NOT MEASURED", "top level"})
 	runTool(t, []string{"--changed", "-"}, "", r, tree(), wd).expect(t, 0, []string{
-		"7 files examined (a walk of the tree; git ls-files: NOT MEASURED",
+		"8 files examined (a walk of the tree; git ls-files: NOT MEASURED",
 	}, nil)
 }
 
@@ -183,7 +183,9 @@ func TestRunPrintsStalenessAndTheCoveringPages(t *testing.T) {
 
 func TestRunExitsOneWhenAPageDoesNotParse(t *testing.T) {
 	wd := t.TempDir()
-	r, _ := git(t, repository(t, wd))
+	answers := repository(t, wd)
+	answers[lsArgs] += "docs/guides/bad.md\x00"
+	r, _ := git(t, answers)
 	fsys := tree()
 	fsys["docs/guides/bad.md"] = &fstest.MapFile{Data: []byte("# no frontmatter\n")}
 	runTool(t, []string{"--changed", "-"}, "cmd/gw/main.go\n", r, fsys, wd).expect(t, 1, []string{
@@ -191,6 +193,33 @@ func TestRunExitsOneWhenAPageDoesNotParse(t *testing.T) {
 		"1 pages did not parse and are missing above",
 		"  docs/guides/bad.md: ",
 	}, nil)
+}
+
+// A file on disk that git does not list, one it ignores, is no page of the
+// repository: it is neither judged nor counted.
+func TestRunJudgesOnlyThePagesGitLists(t *testing.T) {
+	wd := t.TempDir()
+	r, _ := git(t, repository(t, wd))
+	fsys := tree()
+	fsys["docs/local/draft.md"] = &fstest.MapFile{Data: []byte("# no frontmatter\n")}
+	fsys["docs/guides/draft.md"] = &fstest.MapFile{Data: []byte("# no frontmatter\n")}
+	out := runTool(t, []string{"--changed", "-"}, "cmd/gw/main.go\n", r, fsys, wd)
+	out.expect(t, 0, []string{"1 pages to review of 1 examined", "7 files examined (git ls-files)"}, nil)
+	if strings.Contains(out.stdout, "draft.md") {
+		t.Errorf("a file git does not list was judged:\n%s", out.stdout)
+	}
+}
+
+func TestRunRefusesATreeHoldingGitThatGitCannotList(t *testing.T) {
+	wd := t.TempDir()
+	fsys := tree()
+	fsys[".git/HEAD"] = &fstest.MapFile{Data: []byte("ref: refs/heads/main\n")}
+	fsys["docs/local/draft.md"] = &fstest.MapFile{Data: []byte("# no frontmatter\n")}
+	out := runTool(t, []string{"--for", "cmd/gw/main.go"}, "", noGit(errors.New("fatal: not a git repository")), fsys, wd)
+	out.expect(t, 2, nil, []string{"NOT MEASURED", "holds .git", "not a git repository"})
+	if out.stdout != "" {
+		t.Errorf("stdout = %q, want nothing beside the refusal", out.stdout)
+	}
 }
 
 func TestRunRefusesWhatItCannotRun(t *testing.T) {

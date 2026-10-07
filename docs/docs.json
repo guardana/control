@@ -42,10 +42,6 @@
     "CHANGELOG.md",
     "CODE_OF_CONDUCT.md",
     "docs/adr/",
-    "docs/design/foundation-decisions.md",
-    "docs/foundation/",
-    "docs/plans/",
-    "docs/work/",
     "internal/docscheck/testdata/",
     "node_modules/"
   ],

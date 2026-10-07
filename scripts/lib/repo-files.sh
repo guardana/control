@@ -56,8 +56,10 @@ _repo_files_export() {
 
 # _repo_files_find root
 # Walks the tree with find for the no-git-yet fallback. The exclusions mirror
-# .gitignore by hand; keep the two in sync when either changes. Fails, having
-# printed nothing, when find does: a walk that stopped part way is no listing.
+# .gitignore by hand; keep the two in sync when either changes. Local material
+# is ignored through .git/info/exclude, which only a work tree has, so this
+# walk names none of it. Fails, having printed nothing, when find does: a walk
+# that stopped part way is no listing.
 _repo_files_find() {
   local root="$1" raw path
   raw="$(mktemp)" || return 1
@@ -72,8 +74,7 @@ _repo_files_find() {
       find . -mindepth 1 \( \
           \( -type d -name '.*' ! -name '.github' \) -o \
           -path ./bin -o -path ./dist -o -path ./coverage -o \
-          -path ./node_modules -o -path ./docs/foundation -o \
-          -path ./docs/plans \
+          -path ./node_modules \
         \) -prune -o -type f \
           ! -name '.DS_Store' \
           ! -name '*.out' \
@@ -82,7 +83,6 @@ _repo_files_find() {
           ! \( -name '.env.*' ! -name '.env.example' \) \
           ! -name 'go.work' \
           ! -name 'go.work.sum' \
-          ! -path ./docs/design/foundation-decisions.md \
           ! -path ./AGENTS.local.md \
           ! \( -path './bench/results/*' ! -path ./bench/results/.keep \
             ! \( -name '[0-9]*T[0-9]*Z-*-*.txt' ! -path './bench/results/*/*' \) \) \

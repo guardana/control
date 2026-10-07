@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/guardana/control/internal/docscheck/docsconfig"
+	"github.com/guardana/control/internal/docscheck/impact"
 	"github.com/guardana/control/internal/docscheck/indexdoc"
 )
 
@@ -21,7 +22,7 @@ func TestIndexIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pages, records, err := indexdoc.Collect(fsys, cfg.Excludes)
+	pages, records, err := indexdoc.Collect(fsys, impact.LeftOut(repoFiles(t, repoRoot(t)), cfg.Excludes))
 	if err != nil {
 		t.Fatal(err)
 	}

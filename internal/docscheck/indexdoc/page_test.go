@@ -28,7 +28,7 @@ func tree() fstest.MapFS {
 		"docs/adr/0002-second.md":   {Data: record("ADR-0002: Second", "proposed")},
 		"docs/adr/0000-template.md": {Data: record("ADR-NNNN: Title", "proposed")},
 		"docs/adr/README.md":        {Data: []byte("# Records\n")},
-		"docs/plans/secret.md":      {Data: page("Secret", "project")},
+		"docs/notes/secret.md":      {Data: page("Secret", "project")},
 		"docs/.hidden/h.md":         {Data: page("Hidden", "project")},
 		"docs/notes.txt":            {Data: []byte("not a page")},
 		"internal/x/README.md":      {Data: []byte("# not under docs\n")},
@@ -36,7 +36,7 @@ func tree() fstest.MapFS {
 }
 
 func excluded(rel string) bool {
-	return strings.HasPrefix(rel, "docs/plans/") || strings.HasPrefix(rel, "docs/adr/")
+	return strings.HasPrefix(rel, "docs/notes/") || strings.HasPrefix(rel, "docs/adr/")
 }
 
 func TestCollectListsPagesAndRecordsAndNothingElse(t *testing.T) {

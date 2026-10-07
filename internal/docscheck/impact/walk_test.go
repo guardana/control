@@ -15,11 +15,15 @@ func TestWalkPagesParsesEveryPageTheConfigurationAdmits(t *testing.T) {
 		"docs/guides/run.md":    {Data: []byte(goodPage)},
 		"docs/README.md":        {Data: []byte("# no frontmatter here\n")},
 		"docs/notes.txt":        {Data: []byte(goodPage)},
-		"docs/plans/plan.md":    {Data: []byte("not a page\n")},
-		"docs/foundation.md":    {Data: []byte("not a page\n")},
+		"docs/notes/plan.md":    {Data: []byte("not a page\n")},
+		"docs/draft.md":         {Data: []byte("not a page\n")},
 		"docs/reference/bad.md": {Data: []byte("# missing frontmatter\n")},
+		"docs/local/x.md":       {Data: []byte("not a page\n")},
+		"docs/guides/local.md":  {Data: []byte("not a page\n")},
 	}
-	pages, broken, err := WalkPages(fsys, "docs", []string{"docs/plans/", "docs/foundation.md"})
+	listed := []string{"docs/guides/run.md", "docs/README.md", "docs/notes.txt", "docs/notes/plan.md", "docs/draft.md", "docs/reference/bad.md"}
+	excluded := func(rel string) bool { return rel == "docs/notes/" || rel == "docs/draft.md" }
+	pages, broken, err := WalkPages(fsys, "docs", LeftOut(listed, excluded))
 	if err != nil {
 		t.Fatalf("WalkPages: %v", err)
 	}
@@ -31,6 +35,8 @@ func TestWalkPagesParsesEveryPageTheConfigurationAdmits(t *testing.T) {
 	}
 }
 
+func nothing(string) bool { return false }
+
 func TestWalkPagesNamesEveryBrokenPageWhenNoneParsed(t *testing.T) {
 	fsys := fstest.MapFS{
 		"docs/a.md":          {Data: []byte("# a\n")},
@@ -38,7 +44,7 @@ func TestWalkPagesNamesEveryBrokenPageWhenNoneParsed(t *testing.T) {
 		"docs/sub/c.md":      {Data: []byte("---\nbogus: c\n---\n")},
 		"docs/sub/README.md": {Data: []byte("# readme\n")},
 	}
-	_, _, err := WalkPages(fsys, "docs", nil)
+	_, _, err := WalkPages(fsys, "docs", nothing)
 	if !errors.Is(err, ErrInvalid) {
 		t.Fatalf("WalkPages = %v, want ErrInvalid", err)
 	}
@@ -51,11 +57,11 @@ func TestWalkPagesNamesEveryBrokenPageWhenNoneParsed(t *testing.T) {
 
 func TestWalkPagesRefusesADirectoryWithNoPage(t *testing.T) {
 	fsys := fstest.MapFS{"docs/README.md": {Data: []byte("# readme\n")}}
-	_, _, err := WalkPages(fsys, "docs", nil)
+	_, _, err := WalkPages(fsys, "docs", nothing)
 	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "no page") {
 		t.Errorf("WalkPages = %v, want ErrInvalid saying no page", err)
 	}
-	if _, _, err := WalkPages(fsys, "missing", nil); err == nil {
+	if _, _, err := WalkPages(fsys, "missing", nothing); err == nil {
 		t.Error("WalkPages over a directory that does not exist passed")
 	}
 }
@@ -73,11 +79,10 @@ func walkKept() []string {
 func walkDropped() []string {
 	return []string{
 		".git/HEAD", ".tooling/x", "bin/gw", "dist/gw", "coverage/c.out", "node_modules/m/i.js",
-		"docs/foundation/spec.md", "docs/plans/p.md", "cmd/.DS_Store", "cmd/gw.test",
+		"cmd/.DS_Store", "cmd/gw.test",
 		"cmd/cover.out", ".env", ".env.local", "go.work", "go.work.sum", "AGENTS.local.md",
 		"bench/results/run.txt", "bench/results/deep/run.txt", "bench/results/local/20260927T010203Z.txt",
 		"bench/results/local/a-b-c.txt", "bench/results/local/.keep", "bench/results/my-bench-notes.txt",
-		"docs/design/foundation-decisions.md",
 	}
 }
 

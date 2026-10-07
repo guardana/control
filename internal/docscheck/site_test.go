@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/guardana/control/internal/docscheck/docsconfig"
+	"github.com/guardana/control/internal/docscheck/impact"
 	"github.com/guardana/control/internal/docscheck/sitedoc"
 	"github.com/guardana/control/internal/docscheck/sitedoc/docsite"
 )
@@ -101,7 +102,7 @@ func docsFiles(t *testing.T) map[string][]byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	built, err := docsite.Build(fsys, cfg.Excludes)
+	built, err := docsite.Build(fsys, impact.LeftOut(repoFiles(t, repoRoot(t)), cfg.Excludes))
 	if err != nil {
 		t.Fatal(err)
 	}

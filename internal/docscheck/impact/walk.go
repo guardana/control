@@ -16,12 +16,12 @@ type Unparsed struct {
 	Err  error
 }
 
-// WalkPages parses every page under dir that excluded does not name, a
+// WalkPages parses every page under dir that leftOut does not name, a
 // directory as "dir/" and a file as its path. README.md files carry no
 // frontmatter by the configuration's own rule and are not pages. A page that
 // does not parse is returned as broken, never skipped; when no page parsed
 // at all the run cannot be made and the error names every broken one.
-func WalkPages(fsys fs.FS, dir string, excluded []string) ([]Page, []Unparsed, error) {
+func WalkPages(fsys fs.FS, dir string, leftOut func(string) bool) ([]Page, []Unparsed, error) {
 	var pages []Page
 	var broken []Unparsed
 	err := fs.WalkDir(fsys, dir, func(rel string, d fs.DirEntry, walkErr error) error {
@@ -29,11 +29,11 @@ func WalkPages(fsys fs.FS, dir string, excluded []string) ([]Page, []Unparsed, e
 		case walkErr != nil:
 			return walkErr
 		case d.IsDir():
-			if slices.Contains(excluded, rel+"/") {
+			if leftOut(rel + "/") {
 				return fs.SkipDir
 			}
 			return nil
-		case !strings.HasSuffix(rel, ".md"), d.Name() == "README.md", slices.Contains(excluded, rel):
+		case !strings.HasSuffix(rel, ".md"), d.Name() == "README.md", leftOut(rel):
 			return nil
 		}
 		data, err := fs.ReadFile(fsys, rel)
@@ -66,13 +66,13 @@ func describe(broken []Unparsed) string {
 	return strings.Join(lines, "\n")
 }
 
-// What a walk leaves out when git cannot be asked, mirroring the find
-// fallback of scripts/lib/repo-files.sh: dot-directories but .github, the
-// build directories, and the files .gitignore names.
+// What a walk of a tree with no .git leaves out, mirroring the find fallback
+// of scripts/lib/repo-files.sh: dot-directories but .github, the build
+// directories, and the files .gitignore names.
 var (
-	prunedDirs   = []string{"bin", "dist", "coverage", "node_modules", "docs/foundation", "docs/plans"}
+	prunedDirs   = []string{"bin", "dist", "coverage", "node_modules"}
 	ignoredNames = []string{".DS_Store", "*.out", "*.test", ".env", "go.work", "go.work.sum"}
-	ignoredPaths = []string{"docs/design/foundation-decisions.md", "AGENTS.local.md"}
+	ignoredPaths = []string{"AGENTS.local.md"}
 )
 
 // WalkFiles lists every file under fsys that the repository would hold. It
