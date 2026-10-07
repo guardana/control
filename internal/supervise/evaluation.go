@@ -60,12 +60,20 @@ type evaluation struct {
 	neverHeard  []string
 	lapsed      []string
 	orderFired  map[int]bool
+	// firsts holds firstOf's answer by step: the rules ask it per instance,
+	// and the instances do not change once read.
+	firsts map[int]first
+}
+
+type first struct {
+	in   *instance
+	told bool
 }
 
 func newEvaluation(in Input, rd *read) *evaluation {
 	e := &evaluation{in: in, p: in.Procedure, ix: indexOf(in.Procedure), rd: rd,
 		byRequest: map[string]*request{}, ofStep: map[int][]*instance{}, stepIndex: map[string]int{},
-		joinDoubt: map[string]bool{}, reported: map[int][]string{}}
+		joinDoubt: map[string]bool{}, reported: map[int][]string{}, firsts: map[int]first{}}
 	for i, s := range e.p.steps {
 		e.stepIndex[s.ID] = i
 	}
@@ -163,6 +171,15 @@ func (e *evaluation) add(in *instance) {
 // instance that another export's ties is untold too. The order exports are
 // read in decides neither. The step must have an instance.
 func (e *evaluation) firstOf(step int) (*instance, bool) {
+	f, ok := e.firsts[step]
+	if !ok {
+		f.in, f.told = e.findFirst(step)
+		e.firsts[step] = f
+	}
+	return f.in, f.told
+}
+
+func (e *evaluation) findFirst(step int) (*instance, bool) {
 	var untimed *instance
 	for _, in := range e.ofStep[step] {
 		if !in.timed && (untimed == nil || in.request < untimed.request) {
@@ -225,7 +242,20 @@ func (e *evaluation) obsRef(o *observev1.Observation) ref {
 	}}}
 }
 
+// apply runs one rule, its drafts carrying the rule's version from the table.
 func (e *evaluation) apply(rule string) []draft {
+	row, known := ruleOf(rule)
+	if !known {
+		return nil
+	}
+	out := e.drafts(rule)
+	for i := range out {
+		out[i].version = row.version
+	}
+	return out
+}
+
+func (e *evaluation) drafts(rule string) []draft {
 	switch rule {
 	case RuleRepeatedDenial:
 		return e.repeatedDenial()

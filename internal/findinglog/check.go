@@ -141,15 +141,15 @@ func checkFirstParent(mode findingv1alpha1.ChildrenMode, parent string) error {
 // so the fields that would say it again stay empty.
 func checkFinding(r *findingv1alpha1.FindingRecord) error {
 	named, unnamed := eventRuns(r.GetRefs())
-	added := ""
-	if named > 0 {
-		added = "refs.event.run_id"
-	}
+	added := findingAdded(r, named)
 	if err := checkOrigin(r.GetSchemaVersion(), added, r.GetTenantId(), r.GetProjectId()); err != nil {
 		return err
 	}
 	if err := checkEventRuns(r.GetRefs(), unnamed); err != nil {
 		return err
+	}
+	if added != "" && unnamed > 0 {
+		return fieldError(`refs.event.run_id: absent from an event of a "0.2" record`)
 	}
 	if !known(int32(r.GetEscalation()), findingv1alpha1.Escalation_name) {
 		return fieldError("escalation: neither inform nor alert")
@@ -168,6 +168,18 @@ func checkFinding(r *findingv1alpha1.FindingRecord) error {
 		return fieldError("finding.severity: not set")
 	}
 	return checkSaidOnce(f)
+}
+
+// findingAdded is the first member of a finding record that "0.1" does
+// not have, given how many of its events name their run, or "".
+func findingAdded(r *findingv1alpha1.FindingRecord, named int) string {
+	switch {
+	case r.GetRefsLeftOut() != 0:
+		return "refs_left_out"
+	case named > 0:
+		return "refs.event.run_id"
+	}
+	return ""
 }
 
 func checkSaidOnce(f *controlv1.Finding) error {

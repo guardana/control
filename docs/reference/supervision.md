@@ -123,13 +123,14 @@ member `0.1` lacks
 | Member | In `0.2` |
 | --- | --- |
 | `EventRef.run_id` | the run of each plane event a finding rests on, on every event of the record |
+| `FindingRecord.refs_left_out` | references cut past ten, doubtful ones kept; the verdict weighed all |
 | `SuperviseReport.children` | `CHILDREN_MODE_INHERIT` (the root's whole tree judged) or `CHILDREN_MODE_SEPARATE` (the run's own calls only) |
 | `SuperviseReport.run_tree` | each member's run id and parent: the supervised run first, every other run after its parent; under separate, the children not judged |
 | `LogHeader` | the first line of a log this release creates: `log_id` is `log-` and 32 hex digits of 128 random bits |
 
 A log made before this release has no header, keeps none and is read as it
-is; an empty one gains a header when opened. A header that a crash cut short
-is cut like any torn line, and the log starts again with a new one. The
+is; an empty one gains a header when opened. A torn header is cut like any
+torn line. The
 reader refuses an unknown schema or a member its schema lacks, naming the
 field; a 0.9 reader refuses every `0.2` line, by the field it does not know.
 

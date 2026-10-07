@@ -291,7 +291,12 @@ type FindingRecord struct {
 	// The records the finding rests on; the finding's evidence_refs and request_id stay empty.
 	Refs []*Reference `protobuf:"bytes,6,rep,name=refs,proto3" json:"refs,omitempty"`
 	// Its finding_id is "fnd-" and 32 lowercase hex digits of run, procedure, rule and anchor.
-	Finding       *v1.Finding `protobuf:"bytes,7,opt,name=finding,proto3" json:"finding,omitempty"`
+	Finding *v1.Finding `protobuf:"bytes,7,opt,name=finding,proto3" json:"finding,omitempty"`
+	// How many records the finding rests on that refs does not cite, past the
+	// bound on how many it cites; its verdict was decided over all of them.
+	// Zero, as in every "0.1" record, means refs cites every one; a record
+	// that sets it is "0.2".
+	RefsLeftOut   uint64 `protobuf:"varint,8,opt,name=refs_left_out,json=refsLeftOut,proto3" json:"refs_left_out,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -373,6 +378,13 @@ func (x *FindingRecord) GetFinding() *v1.Finding {
 		return x.Finding
 	}
 	return nil
+}
+
+func (x *FindingRecord) GetRefsLeftOut() uint64 {
+	if x != nil {
+		return x.RefsLeftOut
+	}
+	return 0
 }
 
 // The first line of a findings log, written once when the log is created and
@@ -549,7 +561,7 @@ const file_guardana_control_finding_v1alpha1_record_proto_rawDesc = "" +
 	"\tReference\x12C\n" +
 	"\x05event\x18\x01 \x01(\v2+.guardana.control.finding.v1alpha1.EventRefH\x00R\x05event\x12U\n" +
 	"\vobservation\x18\x02 \x01(\v21.guardana.control.finding.v1alpha1.ObservationRefH\x00R\vobservationB\x05\n" +
-	"\x03ref\"\x8a\x03\n" +
+	"\x03ref\"\xae\x03\n" +
 	"\rFindingRecord\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\tR\rschemaVersion\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1d\n" +
@@ -560,7 +572,8 @@ const file_guardana_control_finding_v1alpha1_record_proto_rawDesc = "" +
 	"escalation\x18\x05 \x01(\x0e2-.guardana.control.finding.v1alpha1.EscalationR\n" +
 	"escalation\x12@\n" +
 	"\x04refs\x18\x06 \x03(\v2,.guardana.control.finding.v1alpha1.ReferenceR\x04refs\x126\n" +
-	"\afinding\x18\a \x01(\v2\x1c.guardana.control.v1.FindingR\afinding\"I\n" +
+	"\afinding\x18\a \x01(\v2\x1c.guardana.control.v1.FindingR\afinding\x12\"\n" +
+	"\rrefs_left_out\x18\b \x01(\x04R\vrefsLeftOut\"I\n" +
 	"\tLogHeader\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\tR\rschemaVersion\x12\x15\n" +
 	"\x06log_id\x18\x02 \x01(\tR\x05logId\"\x9d\x02\n" +

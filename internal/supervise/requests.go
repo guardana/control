@@ -111,7 +111,7 @@ func (rq *request) ref(ev *controlv1.Event) ref {
 	if rq.doubt {
 		v = controlv1.FindingVerdict_FINDING_VERDICT_INDETERMINATE
 	}
-	return ref{v: v, r: &findingv1alpha1.Reference{Ref: &findingv1alpha1.Reference_Event{
+	return ref{v: v, run: ev.GetRunId(), r: &findingv1alpha1.Reference{Ref: &findingv1alpha1.Reference_Event{
 		Event: &findingv1alpha1.EventRef{EventId: ev.GetEventId(), RequestId: rq.id},
 	}}}
 }

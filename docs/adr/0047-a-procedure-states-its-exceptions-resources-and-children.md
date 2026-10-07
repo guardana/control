@@ -51,7 +51,9 @@ keep `"1"`, so a route signed under 0.9 still names what it named. One table in
 never a run an observation claims. A rule about one call names the run that
 made it. A rule that crosses a threshold (`REPEATED_DENIAL`,
 `DEADLINE_EXCEEDED`) names the run of the event that crossed it, and that run
-is part of its anchor. A rule about the procedure as a whole (a skipped step,
+is part of its anchor; when that event's place cannot be told (its time
+unknown, or tied with another run's), the finding is `INDETERMINATE`. A rule
+about the procedure as a whole (a skipped step,
 the order, carrying on after a failure) names the supervised run; none of
 these is ever `CONFIRMED`. A stop therefore lands on the run that acted, never
 on a parent for a child's act.
@@ -122,8 +124,8 @@ route still chooses which of these stop and for how long.
 
 **Bounded findings.** A finding's verdict is decided over all its evidence;
 then it cites at most a fixed number of references, the doubtful ones first,
-and states how many it left out, so its record fits the log's line bound
-whatever the run did. A finding 0.9 could write is unchanged; one past the
+and states how many it left out in `refs_left_out`, so its record fits the
+log's line bound whatever the run did. A finding 0.9 could write is unchanged; one past the
 bound, which 0.9 refused with the whole write, is now written.
 
 **Children.** `children` is `inherit` or `separate`; a reader refuses another
@@ -142,8 +144,9 @@ finding's tenant. A stop still names one run, matched exactly by the plane: a
 child's stop leaves its parent and siblings running, and a root's leaves its
 children running.
 
-**Contracts.** `guardana.control.finding.v1alpha1` gains `EventRef.run_id` and
-the run tree in the report; a record that carries either is schema `"0.2"`. A
+**Contracts.** `guardana.control.finding.v1alpha1` gains `EventRef.run_id`,
+`FindingRecord.refs_left_out` and the run tree in the report; a record that
+carries any of them is schema `"0.2"`. A
 reader of 0.9 refuses such a line by name, as invariant 3 asks.
 
 **Room for programs of the operator's own.** Supervise's rule ids match
@@ -170,7 +173,10 @@ function filters reports by tenant and project as coverage does (a source may
 turn silent). A changed verdict is a new log record and so a second alert.
 Stopping a child widens what a route reaches to one run the operator opened
 under another; a whole tree is still out of reach, and an orchestrator can
-open a new child after one is stopped, which the rules judge again.
+open a new child after one is stopped, which the rules judge again. Under
+`inherit` a threshold is counted over the tree and stops the run that crossed
+it, so runs that share denials can steer which run that is; the tree as a
+whole is not stopped.
 
 ## Alternatives considered
 

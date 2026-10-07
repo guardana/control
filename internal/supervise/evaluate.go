@@ -10,8 +10,8 @@ import (
 	"github.com/guardana/control/internal/observe"
 )
 
-// RecordSchemaVersion is the version of the finding records Evaluate writes
-// and of a 0.1 procedure's report.
+// RecordSchemaVersion is the version of a 0.1 procedure's report and of each
+// finding record that carries no member of 0.2.
 const RecordSchemaVersion = "0.1"
 
 // Run is an opened run, as its record says.

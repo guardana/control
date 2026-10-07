@@ -25,6 +25,7 @@ const (
 	report01  = `{"superviseReport":{"schemaVersion":"0.1","tenantId":"tenant-a","projectId":"project-a","runId":"run-00112233445566778899aabbccddeeff","procedure":{"procedureId":"refund","version":"1","digest":"aa"},"read":{"eventsTaken":"4","eventsLeftOut":{"another run":"2"}},"rules":[{"ruleId":"repeated_denial","ruleVersion":"1","state":"RULE_STATE_CHECKED"}],"findingsWritten":"1"}}` + "\n"
 	finding02 = `{"findingRecord":{"schemaVersion":"0.2","tenantId":"tenant-a","projectId":"project-a","procedure":{"procedureId":"refund","version":"1","digest":"aa"},"escalation":"ESCALATION_ALERT","refs":[{"event":{"eventId":"evt-1","requestId":"req-1","runId":"run-ffeeddccbbaa99887766554433221100"}}],"finding":{"findingId":"fnd-0123456789abcdef0123456789abcdef","ruleId":"REPEATED_DENIAL","ruleVersion":"1","severity":"FINDING_SEVERITY_HIGH","verdict":"FINDING_VERDICT_CONFIRMED","runId":"run-ffeeddccbbaa99887766554433221100","source":"FINDING_SOURCE_DETERMINISTIC"}}}` + "\n"
 	report02  = `{"superviseReport":{"schemaVersion":"0.2","tenantId":"tenant-a","projectId":"project-a","runId":"run-00112233445566778899aabbccddeeff","procedure":{"procedureId":"refund","version":"1","digest":"aa"},"read":{"eventsTaken":"4","eventsLeftOut":{"another run":"2"}},"rules":[{"ruleId":"repeated_denial","ruleVersion":"1","state":"RULE_STATE_CHECKED"}],"findingsWritten":"1","children":"CHILDREN_MODE_INHERIT","runTree":[{"runId":"run-00112233445566778899aabbccddeeff"},{"runId":"run-ffeeddccbbaa99887766554433221100","parentRunId":"run-00112233445566778899aabbccddeeff"}]}}` + "\n"
+	cut02     = `{"findingRecord":{"schemaVersion":"0.2","tenantId":"tenant-a","projectId":"project-a","procedure":{"procedureId":"refund","version":"1","digest":"aa"},"escalation":"ESCALATION_ALERT","refs":[{"event":{"eventId":"evt-1","requestId":"req-1","runId":"run-ffeeddccbbaa99887766554433221100"}}],"finding":{"findingId":"fnd-0123456789abcdef0123456789abcdef","ruleId":"REPEATED_DENIAL","ruleVersion":"1","severity":"FINDING_SEVERITY_HIGH","verdict":"FINDING_VERDICT_CONFIRMED","runId":"run-ffeeddccbbaa99887766554433221100","source":"FINDING_SOURCE_DETERMINISTIC"},"refsLeftOut":"9999"}}` + "\n"
 	header02  = `{"logHeader":{"schemaVersion":"0.2","logId":"log-0123456789abcdef0123456789abcdef"}}` + "\n"
 )
 
@@ -35,6 +36,13 @@ func finding02Record() *findingv1alpha1.FindingRecord {
 	f.SchemaVersion = "0.2"
 	f.Refs[0].GetEvent().RunId = childID
 	f.Finding.RunId = childID
+	return f
+}
+
+// cut02Record is finding02Record citing one record of ten thousand.
+func cut02Record() *findingv1alpha1.FindingRecord {
+	f := finding02Record()
+	f.RefsLeftOut = 9999
 	return f
 }
 
@@ -83,6 +91,15 @@ func TestALineOfEitherSchemaReads(t *testing.T) {
 	}
 }
 
+// TestALineThatLeavesReferencesOutReads: the count reads as the literal
+// spells it, beside the one reference cited.
+func TestALineThatLeavesReferencesOutReads(t *testing.T) {
+	r, err := unmarshalLine([]byte(cut02))
+	if err != nil || r.GetFindingRecord().GetRefsLeftOut() != 9999 || len(r.GetFindingRecord().GetRefs()) != 1 {
+		t.Fatalf("unmarshalLine = %v, %v", r, err)
+	}
+}
+
 // TestTheWriterSpellsEachSchemaAsTheLiterals: a record of either schema is
 // written byte for byte as its literal.
 func TestTheWriterSpellsEachSchemaAsTheLiterals(t *testing.T) {
@@ -97,6 +114,7 @@ func TestTheWriterSpellsEachSchemaAsTheLiterals(t *testing.T) {
 		"a 0.1 finding": {findingRecord(finding(idA, confirmed, "REPEATED_DENIAL")), finding01},
 		"a 0.1 report":  {reportRecord(r01), report01},
 		"a 0.2 finding": {findingRecord(finding02Record()), finding02},
+		"a 0.2 cut":     {findingRecord(cut02Record()), cut02},
 		"a 0.2 report":  {reportRecord(r02), report02},
 	} {
 		if got := line(t, c.r); got != c.want {
@@ -124,6 +142,10 @@ func TestARecordIsOfTheSchemaItsMembersCallFor(t *testing.T) {
 			f.Refs = append(f.Refs, &findingv1alpha1.Reference{Ref: &findingv1alpha1.Reference_Event{Event: &findingv1alpha1.EventRef{EventId: "evt-2", RequestId: "req-2"}}})
 		})), "refs.event.run_id"},
 		"a 0.2 finding with a run of another form": {findingRecord(change02(func(f *findingv1alpha1.FindingRecord) { f.Refs[0].GetEvent().RunId = "run-1" })), "refs.event.run_id"},
+		"a 0.1 finding with references left out":   {findingRecord(change01(func(f *findingv1alpha1.FindingRecord) { f.RefsLeftOut = 1 })), "refs_left_out"},
+		"a 0.2 cut whose event names no run": {findingRecord(change02(func(f *findingv1alpha1.FindingRecord) {
+			f.RefsLeftOut, f.Refs[0].GetEvent().RunId = 1, ""
+		})), "refs.event.run_id"},
 		"a 0.3 finding":              {findingRecord(change02(func(f *findingv1alpha1.FindingRecord) { f.SchemaVersion = "0.3" })), "schema_version"},
 		"a 0.1 report with children": {reportRecord(changeReport(report(), func(r *findingv1alpha1.SuperviseReport) { r.Children = separate })), "children"},
 		"a 0.1 report with a tree": {reportRecord(changeReport(report(), func(r *findingv1alpha1.SuperviseReport) {
@@ -173,7 +195,13 @@ func TestARecordIsOfTheSchemaItsMembersCallFor(t *testing.T) {
 	})
 	for name, r := range map[string]*findingv1alpha1.Record{
 		"a 0.2 finding": findingRecord(finding02Record()),
-		"a 0.2 report":  reportRecord(report02Record()),
+		"a 0.2 cut":     findingRecord(cut02Record()),
+		"a 0.2 cut citing observations alone": findingRecord(change02(func(f *findingv1alpha1.FindingRecord) {
+			f.RefsLeftOut = 3
+			f.Refs = []*findingv1alpha1.Reference{{Ref: &findingv1alpha1.Reference_Observation{
+				Observation: &findingv1alpha1.ObservationRef{SourceId: "s1", ObservationId: "obs-0123456789abcdef0123456789abcdef"}}}}
+		})),
+		"a 0.2 report": reportRecord(report02Record()),
 		"a deeper inherit tree": reportRecord(changeReport(report02Record(), func(r *findingv1alpha1.SuperviseReport) {
 			r.RunTree = append(r.RunTree, member(third, childID))
 		})),
@@ -236,7 +264,8 @@ func TestAZeroNineReaderRefusesEveryLineOfSchema02ByName(t *testing.T) {
 			t.Fatalf("the 0.9 reader refuses a 0.1 line: %v", err)
 		}
 	}
-	for line, name := range map[string]string{finding02: `"runId"`, report02: `"children"`, header02: `"logHeader"`} {
+	cutOnly := strings.Replace(cut02, `,"runId":"run-ffeeddccbbaa99887766554433221100"}}]`, `}}]`, 1)
+	for line, name := range map[string]string{finding02: `"runId"`, report02: `"children"`, header02: `"logHeader"`, cutOnly: `"refsLeftOut"`} {
 		if err := read(line); err == nil || !strings.Contains(err.Error(), "unknown field "+name) {
 			t.Errorf("the 0.9 reader on %s: %v; want it to refuse the field %s by name", line, err, name)
 		}
@@ -274,6 +303,7 @@ func zeroNineRecord(t *testing.T) protoreflect.MessageDescriptor {
 	dropFields(t, report.MessageType, "SuperviseReport", "children", "run_tree")
 	record.MessageType = dropMessage(record.MessageType, "LogHeader")
 	dropFields(t, record.MessageType, "EventRef", "run_id")
+	dropFields(t, record.MessageType, "FindingRecord", "refs_left_out")
 	dropFields(t, record.MessageType, "Record", "log_header")
 	files := &protoregistry.Files{}
 	v1, err := protoregistry.GlobalFiles.FindFileByPath("guardana/control/v1/finding.proto")

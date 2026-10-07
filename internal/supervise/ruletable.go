@@ -23,7 +23,8 @@ const (
 	RuleExceptionTaken               = "EXCEPTION_TAKEN"
 )
 
-// RuleVersion is the version of every rule a 0.1 procedure configures.
+// RuleVersion is the version the six rules of schema 0.1 share; each rule's
+// own is RuleVersionOf.
 const RuleVersion = "1"
 
 // ruleRow is one rule. version is the version of the rule's code, so a

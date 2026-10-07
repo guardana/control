@@ -2,6 +2,7 @@ package supervise
 
 import (
 	"maps"
+	"slices"
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 )
@@ -22,13 +23,20 @@ func off(member string) ruleState {
 	return ruleState{state: findingv1alpha1.RuleState_RULE_STATE_OFF, why: "the procedure leaves " + member + " out"}
 }
 
+// notApplied is a rule the procedure's schema knows that this build does
+// not apply.
+var notApplied = notChecked("this build does not apply the rule")
+
 // states says which rules apply. With no event of the run none does. A rule
 // that rests on something not seen applies only once nothing more can arrive
 // and nothing was left out of what did: on a closed run, from exports that
 // are all whole. With no event that has a time, no time and no order can be
 // told.
 func (e *evaluation) states() map[string]ruleState {
-	out := make(map[string]ruleState, len(ruleIDs))
+	out := make(map[string]ruleState, len(ruleTable))
+	for _, id := range RuleIDsOf(e.p.schema) {
+		out[id] = notApplied
+	}
 	base := checked
 	if len(e.rd.events) == 0 {
 		base = notChecked("no plane event of the run")
@@ -89,9 +97,11 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 		SchemaVersion: RecordSchemaVersion, TenantId: s.tenant, ProjectId: s.project, RunId: s.run,
 		Procedure: s.procedureRef(), Read: e.rd.counts, FindingsWritten: uint64(len(res.Findings)),
 	}
-	for _, id := range ruleIDs {
-		res.Report.Rules = append(res.Report.Rules, &findingv1alpha1.RuleResult{
-			RuleId: id, RuleVersion: RuleVersion, State: states[id].state, Why: states[id].why})
+	for _, r := range ruleTable {
+		if slices.Contains(r.schemas, e.p.schema) {
+			res.Report.Rules = append(res.Report.Rules, &findingv1alpha1.RuleResult{
+				RuleId: r.id, RuleVersion: r.version, State: states[r.id].state, Why: states[r.id].why})
+		}
 	}
 	e.reportTree(res.Report)
 	for _, rq := range e.reqs {
