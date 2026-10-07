@@ -63,6 +63,10 @@ type evaluation struct {
 	// firsts holds firstOf's answer by step: the rules ask it per instance,
 	// and the instances do not change once read.
 	firsts map[int]first
+	// retry, places and bound are built once, when a rule first asks.
+	retry  *retryIndex
+	places map[string][]place
+	bound  map[string][]*request
 }
 
 type first struct {
@@ -232,14 +236,18 @@ func leastRequest(ins map[int]*instance) *instance {
 // missed it.
 func (e *evaluation) obsRef(o *observev1.Observation) ref {
 	id := o.GetObservationId()
-	src := e.rd.obsSource[id]
-	v := suspected
-	if e.rd.obsDoubt[id] || e.joinDoubt[id] || e.silent[src.SourceID] {
-		v = indeterminate
-	}
-	return ref{v: v, r: &findingv1alpha1.Reference{Ref: &findingv1alpha1.Reference_Observation{
-		Observation: &findingv1alpha1.ObservationRef{SourceId: src.SourceID, ObservationId: id},
+	return ref{v: e.obsVerdict(o), r: &findingv1alpha1.Reference{Ref: &findingv1alpha1.Reference_Observation{
+		Observation: &findingv1alpha1.ObservationRef{SourceId: e.rd.obsSource[id].SourceID, ObservationId: id},
 	}}}
+}
+
+// obsVerdict is the verdict obsRef cites o at.
+func (e *evaluation) obsVerdict(o *observev1.Observation) controlv1.FindingVerdict {
+	id := o.GetObservationId()
+	if e.rd.obsDoubt[id] || e.joinDoubt[id] || e.silent[e.rd.obsSource[id].SourceID] {
+		return indeterminate
+	}
+	return suspected
 }
 
 // apply runs one rule, its drafts carrying the rule's version from the table.
@@ -271,6 +279,14 @@ func (e *evaluation) drafts(rule string) []draft {
 		return out
 	case RuleContinuedAfterFailure:
 		return e.continued(e.orderFired)
+	case RuleResourceOutsideRun:
+		return e.resourceOutside()
+	case RuleDeniedActionRetriedArguments:
+		return e.retriedArguments()
+	case RuleDeniedActionRetriedResource:
+		return e.retriedResource()
+	case RuleDeniedActionRetriedAround:
+		return e.retriedAround()
 	}
 	return nil
 }

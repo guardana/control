@@ -303,7 +303,7 @@ func TestA02ReportListsEveryRuleItsSchemaKnows(t *testing.T) {
 		t.Fatalf("report rules %q, want %q", ids, want)
 	}
 	got := rules(res)
-	for _, rule := range want[6:] {
+	for _, rule := range want[10:] {
 		if got[rule] != "RULE_STATE_NOT_CHECKED:this build does not apply the rule" {
 			t.Errorf("%s is %s", rule, got[rule])
 		}

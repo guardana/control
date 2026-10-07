@@ -64,6 +64,7 @@ func (e *evaluation) states() map[string]ruleState {
 	if e.p.deadlineSeconds == 0 {
 		out[RuleDeadlineExceeded] = off("deadline_seconds")
 	}
+	e.states02(out, base)
 	return out
 }
 
@@ -87,6 +88,7 @@ func (e *evaluation) absenceState() ruleState {
 }
 
 func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result {
+	drafts = append(drafts, e.apply02(states)...)
 	s := scope{tenant: e.in.Run.Tenant, project: e.rd.project, run: e.in.Run.ID, proc: e.p}
 	res := &Result{PlaneBlocks: map[string]uint64{}, SourcesNotRead: e.in.SourcesNotRead,
 		NeverHeard: e.neverHeard, Silent: e.lapsed}

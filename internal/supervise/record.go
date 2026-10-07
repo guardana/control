@@ -62,12 +62,14 @@ func rank(v controlv1.FindingVerdict) int {
 
 // draft is one finding before it is a record: its rule and the rule's
 // version, what it is about, the strongest verdict the rule allows, what it
-// rests on, and the run it names, "" for the supervised run.
+// rests on, and the run it names, "" for the supervised run. leftOut counts
+// what it rests on that a refSet kept out of refs.
 type draft struct {
 	rule, version string
 	anchor        []string
 	cap           controlv1.FindingVerdict
 	refs          []ref
+	leftOut       uint64
 	run           string
 }
 
@@ -116,6 +118,7 @@ func (s scope) record(d draft) *findingv1alpha1.FindingRecord {
 		verdict = weaker(verdict, r.v)
 	}
 	kept, leftOut := cut(d.refs)
+	leftOut += d.leftOut
 	namesRuns := s.proc.schema == ProcedureSchema02 || leftOut > 0
 	schema := RecordSchemaVersion
 	if leftOut > 0 {

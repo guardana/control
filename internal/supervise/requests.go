@@ -16,8 +16,15 @@ type request struct {
 	doubt    bool
 	proposal *controlv1.Event
 	kernel   *controlv1.Decision
+	// decided is the POLICY_DECIDED event kernel was read from.
+	decided  *controlv1.Event
 	terminal *controlv1.Event
 	seq      int
+	// waiting is true while an approval the trail requested is neither
+	// decided nor expired, and approval is the state of its first
+	// APPROVAL_DECIDED.
+	waiting  bool
+	approval controlv1.ApprovalState
 }
 
 // requestsOf groups the run's events by request id, in the order each request
@@ -51,8 +58,17 @@ func (rq *request) note(ev *controlv1.Event) {
 		}
 	case controlv1.EventKind_EVENT_KIND_POLICY_DECIDED:
 		if rq.kernel == nil {
-			rq.kernel = ev.GetDecision()
+			rq.kernel, rq.decided = ev.GetDecision(), ev
 		}
+	case controlv1.EventKind_EVENT_KIND_APPROVAL_REQUESTED:
+		rq.waiting = true
+	case controlv1.EventKind_EVENT_KIND_APPROVAL_DECIDED:
+		rq.waiting = false
+		if rq.approval == controlv1.ApprovalState_APPROVAL_STATE_UNSPECIFIED {
+			rq.approval = ev.GetApproval().GetState()
+		}
+	case controlv1.EventKind_EVENT_KIND_APPROVAL_EXPIRED:
+		rq.waiting = false
 	case controlv1.EventKind_EVENT_KIND_ACTION_COMPLETED, controlv1.EventKind_EVENT_KIND_ACTION_FAILED,
 		controlv1.EventKind_EVENT_KIND_ACTION_BLOCKED:
 		rq.terminal = ev
@@ -105,13 +121,17 @@ func (rq *request) blockCode() string {
 	return codes[0]
 }
 
+// verdict is the strongest verdict the trail supports.
+func (rq *request) verdict() controlv1.FindingVerdict {
+	if rq.doubt {
+		return controlv1.FindingVerdict_FINDING_VERDICT_INDETERMINATE
+	}
+	return controlv1.FindingVerdict_FINDING_VERDICT_CONFIRMED
+}
+
 // ref cites ev of rq at the strongest verdict the trail supports.
 func (rq *request) ref(ev *controlv1.Event) ref {
-	v := controlv1.FindingVerdict_FINDING_VERDICT_CONFIRMED
-	if rq.doubt {
-		v = controlv1.FindingVerdict_FINDING_VERDICT_INDETERMINATE
-	}
-	return ref{v: v, run: ev.GetRunId(), r: &findingv1alpha1.Reference{Ref: &findingv1alpha1.Reference_Event{
+	return ref{v: rq.verdict(), run: ev.GetRunId(), r: &findingv1alpha1.Reference{Ref: &findingv1alpha1.Reference_Event{
 		Event: &findingv1alpha1.EventRef{EventId: ev.GetEventId(), RequestId: rq.id},
 	}}}
 }
