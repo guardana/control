@@ -141,12 +141,23 @@ func mustDo(t testing.TB, err error) {
 	}
 }
 
-// readBack is what ReadFile returns for the log in dir.
-func readBack(t *testing.T, dir string) []*findingv1alpha1.Record {
+// readAll is what ReadFile returns for the log in dir.
+func readAll(t *testing.T, dir string) []*findingv1alpha1.Record {
 	t.Helper()
 	got, err := ReadFile(filepath.Join(dir, FileName))
 	mustDo(t, err)
 	return got
+}
+
+// readBack is what ReadFile returns for the log in dir after its header,
+// which a log this package created starts with.
+func readBack(t *testing.T, dir string) []*findingv1alpha1.Record {
+	t.Helper()
+	got := readAll(t, dir)
+	if len(got) == 0 || !prefixedHex(got[0].GetLogHeader().GetLogId(), "log-") {
+		t.Fatalf("the log does not start with a header: %v", got)
+	}
+	return got[1:]
 }
 
 // sameRecords fails t unless got holds want's records, in order.

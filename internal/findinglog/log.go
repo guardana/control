@@ -1,6 +1,8 @@
 package findinglog
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -64,10 +66,15 @@ type Result struct {
 //
 // Every line is read and the keys indexed, so a log file past MaxLogBytes is
 // refused as ErrTooLarge. Every write ends with its report, so what follows
-// the last whole report is what a crash in the middle of a write left, none
-// of it reported written. Open cuts it, but only when the writer could have
-// left it; a log the writer does not leave is ErrDamaged, naming the line and
-// its byte offset but none of its bytes, and is left as it is.
+// the last whole report, or the header when no report follows it, is what a
+// crash in the middle of a write left, none of it reported written. Open
+// cuts it, but only when the writer could have left it; a log the writer
+// does not leave is ErrDamaged, naming the line and its byte offset but none
+// of its bytes, and is left as it is. A log holding no line after the cut
+// is given a header with a new random log id, synced before Open returns,
+// and a header that does not reach the disk is cut back and fails the Open
+// as ErrWrite. A log that holds a line and no header, as one made before
+// schema "0.2" does, is never given one.
 func Open(dir string) (*Log, error) { return open(dir, osOps) }
 
 func open(dir string, ops fileOps) (*Log, error) {
@@ -127,6 +134,30 @@ func (l *Log) claim() error {
 		}
 	}
 	l.keys, l.size = keys, committed
+	if committed == 0 {
+		return l.writeHeader()
+	}
+	return nil
+}
+
+// writeHeader starts an empty log with a header of a new random log id. A
+// log that already holds a line keeps the identity it has.
+func (l *Log) writeHeader() error {
+	var id [16]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		return fmt.Errorf("drawing the log id: %w", err)
+	}
+	line, err := marshalLine(&findingv1alpha1.Record{Record: &findingv1alpha1.Record_LogHeader{LogHeader: &findingv1alpha1.LogHeader{
+		SchemaVersion: SchemaVersion02,
+		LogId:         "log-" + hex.EncodeToString(id[:]),
+	}}})
+	if err != nil {
+		return err
+	}
+	if err := l.writeSynced(line); err != nil {
+		return l.cutBack(err)
+	}
+	l.size = int64(len(line))
 	return nil
 }
 

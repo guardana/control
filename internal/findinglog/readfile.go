@@ -10,9 +10,10 @@ import (
 	"github.com/guardana/control/internal/files"
 )
 
-// ReadFile returns, in file order, the records of the log file at path that
-// a report closes. It takes no lock, writes nothing and creates nothing, so
-// it reads a log a writer holds as the file stood when opened.
+// ReadFile returns, in file order, the log's header when it has one, then
+// the records of the log file at path that a report closes. It takes no
+// lock, writes nothing and creates nothing, so it reads a log a writer holds
+// as the file stood when opened.
 //
 // The file must pass the writer's own judgement: a regular file of this
 // account that the group and others cannot reach, with no other name and no
@@ -53,7 +54,7 @@ func ReadFile(path string) ([]*findingv1alpha1.Record, error) {
 }
 
 // readCommitted reads the first size bytes of r as Open judges them and
-// returns the records of every write a report closes.
+// returns the header and the records of every write a report closes.
 func readCommitted(r io.ReaderAt, size int64) ([]*findingv1alpha1.Record, error) {
 	end, err := lastLineEnd(r, size)
 	if err != nil {

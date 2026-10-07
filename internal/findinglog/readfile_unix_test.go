@@ -63,7 +63,7 @@ func TestReadFileNamesADamagedLineByItsOffsetAndNeverItsBytes(t *testing.T) {
 			t.Errorf("%s: ReadFile = %v, %v; want ErrDamaged", name, got, err)
 			continue
 		}
-		if want := fmt.Sprintf("line 3, at byte %d", whole); strings.HasSuffix(tail, "\n") && !strings.Contains(err.Error(), want) {
+		if want := fmt.Sprintf("line 4, at byte %d", whole); strings.HasSuffix(tail, "\n") && !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: %q does not name %q", name, err, want)
 		}
 		if strings.Contains(err.Error(), "planted") {

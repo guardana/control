@@ -1,5 +1,7 @@
-// Unstable finding contract; schema_version is "0.1". Outside the v1 promise:
-// a reader takes exactly the minors it knows. See ADR-0045.
+// Unstable finding contract; schema_version is "0.1" or "0.2". Outside the v1
+// promise: a reader takes exactly the minors it knows, and a record is "0.2"
+// exactly when it carries a member "0.1" does not have. See ADR-0045 and
+// ADR-0047.
 //
 // An unspecified enum, or a number a reader does not know, reads as its most
 // restrictive meaning, written beside each enum.
@@ -18,6 +20,25 @@ enum RuleState {
   RULE_STATE_NOT_CHECKED = 2;
   // The procedure leaves the rule out.
   RULE_STATE_OFF = 3;
+}
+
+// How a supervision treated the supervised run's children. Unspecified, as in
+// every "0.1" report, reads as children neither judged nor listed.
+enum ChildrenMode {
+  CHILDREN_MODE_UNSPECIFIED = 0;
+  // The supervised run is a root, and every run of its tree was judged.
+  CHILDREN_MODE_INHERIT = 1;
+  // Only the supervised run's own calls were judged; its children are listed
+  // and not judged.
+  CHILDREN_MODE_SEPARATE = 2;
+}
+
+// One run of a supervised tree.
+message RunTreeMember {
+  // "run-" and 32 lowercase hex digits.
+  string run_id = 1;
+  // The run it was opened under, in the same form; empty for a root.
+  string parent_run_id = 2;
 }
 
 // The procedure a run was checked against.
@@ -71,4 +92,11 @@ message SuperviseReport {
   repeated RuleResult rules = 7;
   // Finding records this supervision appended to the log.
   uint64 findings_written = 8;
+  // Set in every "0.2" report, never in a "0.1" one.
+  ChildrenMode children = 9;
+  // The supervised run first, then each other member after its parent. Under
+  // inherit the first is the root and the list is its whole tree; under
+  // separate the rest are its children, none of them judged. Set in every
+  // "0.2" report, never in a "0.1" one.
+  repeated RunTreeMember run_tree = 10;
 }

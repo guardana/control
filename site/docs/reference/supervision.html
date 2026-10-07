@@ -261,6 +261,40 @@ the run, the procedure, the rule and what it is about, so running the command
 again finds the same ids. The log is one JSON Lines file, <code>findings.jsonl</code>, in
 an owner-only directory; each run of the command ends its write with a
 <code>SuperviseReport</code>, and a write without one is never read.</p>
+<p>A record is schema <code>0.1</code> or <code>0.2</code>, and it is <code>0.2</code> exactly when it carries a
+member <code>0.1</code> lacks
+(<a href="/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047</a>):</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>In <code>0.2</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EventRef.run_id</code></td>
+<td>the run of each plane event a finding rests on, on every event of the record</td>
+</tr>
+<tr>
+<td><code>SuperviseReport.children</code></td>
+<td><code>CHILDREN_MODE_INHERIT</code> (the root's whole tree judged) or <code>CHILDREN_MODE_SEPARATE</code> (the run's own calls only)</td>
+</tr>
+<tr>
+<td><code>SuperviseReport.run_tree</code></td>
+<td>each member's run id and parent: the supervised run first, every other run after its parent; under separate, the children not judged</td>
+</tr>
+<tr>
+<td><code>LogHeader</code></td>
+<td>the first line of a log this release creates: <code>log_id</code> is <code>log-</code> and 32 hex digits of 128 random bits</td>
+</tr>
+</tbody>
+</table>
+<p>A log made before this release has no header, keeps none and is read as it
+is; an empty one gains a header when opened. A header that a crash cut short
+is cut like any torn line, and the log starts again with a new one. The
+reader refuses an unknown schema or a member its schema lacks, naming the
+field; a 0.9 reader refuses every <code>0.2</code> line, by the field it does not know.</p>
 <h2 id="notify">notify</h2>
 <p><code>notify</code> hands each <code>alert</code> record, in log order and as one line on its
 standard input, to the program after <code>--</code>, without a shell, and kills its

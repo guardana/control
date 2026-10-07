@@ -27,7 +27,10 @@ func readLog(t *testing.T, dir string) []*findingv1alpha1.Record {
 	if err != nil {
 		t.Fatalf("reading the findings log: %v", err)
 	}
-	return records
+	if len(records) == 0 || records[0].GetLogHeader() == nil {
+		t.Fatalf("a log supervise created starts with no header: %v", records)
+	}
+	return records[1:]
 }
 
 // TestSuperviseAConformingRunExitsZero: a closed run that keeps to its

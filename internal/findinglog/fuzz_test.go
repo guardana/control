@@ -4,16 +4,21 @@ import (
 	"bytes"
 	"testing"
 
+	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 	"google.golang.org/protobuf/proto"
 )
 
 // FuzzReadLog: whatever a file holds, the reader returns whole writes only,
-// each ending with its report, and every record it returns the writer
-// writes again into a log the reader reads back the same.
+// each ending with its report, after at most one header, and every record
+// it returns the writer writes again into a log the reader reads back the
+// same.
 func FuzzReadLog(f *testing.F) {
 	a := line(f, findingRecord(finding(idA, confirmed, "repeated_denial")))
 	b := line(f, findingRecord(finding(idB, suspected, "a\u0085b\u202ec")))
 	r := line(f, writtenReport(1))
+	f.Add([]byte(header02 + a + r + b + r))
+	f.Add([]byte(header02 + a))
+	f.Add([]byte(finding02 + report02))
 	f.Add([]byte(a + r + b + r))
 	f.Add([]byte(a + r + b + r[:30]))
 	f.Add([]byte(a + b))
@@ -24,9 +29,7 @@ func FuzzReadLog(f *testing.F) {
 		if err != nil {
 			return
 		}
-		if len(got) > 0 && got[len(got)-1].GetSuperviseReport() == nil {
-			t.Fatalf("the last record returned is no report: %v", got[len(got)-1])
-		}
+		wholeWrites(t, got)
 		var again []byte
 		for _, rec := range got {
 			l, err := marshalLine(rec)
@@ -45,4 +48,22 @@ func FuzzReadLog(f *testing.F) {
 			}
 		}
 	})
+}
+
+// wholeWrites fails t unless got is at most one header, then whole writes,
+// the last of them ending with its report.
+func wholeWrites(t *testing.T, got []*findingv1alpha1.Record) {
+	t.Helper()
+	writes := got
+	if len(got) > 0 && got[0].GetLogHeader() != nil {
+		writes = got[1:]
+	}
+	if len(writes) > 0 && writes[len(writes)-1].GetSuperviseReport() == nil {
+		t.Fatalf("the last record returned is no report: %v", writes[len(writes)-1])
+	}
+	for _, rec := range writes {
+		if rec.GetLogHeader() != nil {
+			t.Fatalf("a header after the first record: %v", got)
+		}
+	}
 }

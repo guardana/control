@@ -12,16 +12,21 @@ import (
 )
 
 // lineFault is a line the reader refuses: over MaxLineBytes, or judged and
-// found damaged. Its cause can quote the line, so it is worded without it.
+// found damaged. Its cause can quote the line, so it is worded without it,
+// naming at most the field a fieldError names.
 type lineFault struct {
 	number int
 	offset int64
 	over   bool
+	field  fieldError
 }
 
 func (f *lineFault) Error() string {
-	if f.over {
+	switch {
+	case f.over:
 		return fmt.Sprintf("%s: line %d, at byte %d, is over %d bytes", ErrDamaged, f.number, f.offset, MaxLineBytes)
+	case f.field != "":
+		return fmt.Sprintf("%s: line %d, at byte %d: %s", ErrDamaged, f.number, f.offset, f.field)
 	}
 	return fmt.Sprintf("%s: line %d, at byte %d", ErrDamaged, f.number, f.offset)
 }
@@ -29,13 +34,15 @@ func (f *lineFault) Error() string {
 func (f *lineFault) Unwrap() error { return ErrDamaged }
 
 // scanLog reads r as whole log lines and returns the index of the findings
-// every report closes, with the length up to the end of the last report.
-// The findings after it are a write a crash cut before its report, so they
-// are read and judged but not indexed. A line that is not one record in the
-// writer's form, a carriage return, a key carried twice and a report whose
-// findings written is not the number of findings of its write are
-// ErrDamaged: the writer leaves none of them. When keep is not nil, it is handed each
-// write's records once the write's report closes it.
+// every report closes, with the length up to the end of the last report, or
+// of the log's header when no report follows it. The findings after it are a
+// write a crash cut before its report, so they are read and judged but not
+// indexed. A line that is not one record in the writer's form, a carriage
+// return, a key carried twice, a report whose findings written is not the
+// number of findings of its write and a header after the first line are
+// ErrDamaged: the writer leaves none of them. When keep is not nil, it is
+// handed the header, then each write's records once the write's report
+// closes it.
 func scanLog(r io.Reader, keep func([]*findingv1alpha1.Record)) (index, int64, error) {
 	reader := bufio.NewReaderSize(r, MaxLineBytes+1)
 	ids, pending := index{}, index{}
@@ -51,15 +58,17 @@ func scanLog(r io.Reader, keep func([]*findingv1alpha1.Record)) (index, int64, e
 		case err != nil:
 			return nil, 0, fmt.Errorf("reading line %d: %w", number, err)
 		}
-		record, err := ids.read(pending, line)
+		record, err := ids.read(pending, line, number == 1)
 		if err != nil {
-			return nil, 0, &lineFault{number: number, offset: offset}
+			fault := &lineFault{number: number, offset: offset}
+			errors.As(err, &fault.field)
+			return nil, 0, fault
 		}
 		offset += int64(len(line))
 		if keep != nil {
 			write = append(write, record)
 		}
-		if record.GetSuperviseReport() != nil {
+		if record.GetSuperviseReport() != nil || record.GetLogHeader() != nil {
 			ids.add(pending)
 			clear(pending)
 			committed = offset
@@ -72,11 +81,15 @@ func scanLog(r io.Reader, keep func([]*findingv1alpha1.Record)) (index, int64, e
 }
 
 // read judges one whole line and adds a finding to pending. A report must
-// count the findings of its write, pending, as the writer sets it.
-func (ids index) read(pending index, line []byte) (*findingv1alpha1.Record, error) {
+// count the findings of its write, pending, as the writer sets it, and only
+// the first line may be the header.
+func (ids index) read(pending index, line []byte, first bool) (*findingv1alpha1.Record, error) {
 	r, err := unmarshalLine(line)
 	if err != nil {
 		return nil, err
+	}
+	if r.GetLogHeader() != nil && !first {
+		return nil, fieldError("log_header: not the first line")
 	}
 	if rep := r.GetSuperviseReport(); rep != nil && rep.GetFindingsWritten() != uint64(len(pending)) {
 		return nil, errors.New("a report that miscounts its write")
@@ -114,39 +127,48 @@ func lastLineEnd(f io.ReaderAt, size int64) (int64, error) {
 		return 0, err
 	}
 	start := bytes.LastIndexByte(tail, '\n') + 1
+	end := size - window + int64(start)
 	switch {
 	case start == 0 && size > MaxLineBytes:
 		return 0, fmt.Errorf("%w: more than %d bytes follow the last newline", ErrDamaged, MaxLineBytes)
-	case start < len(tail) && !torn(tail[start:]):
+	case start < len(tail) && !torn(tail[start:], end == 0):
 		return 0, fmt.Errorf("%w: the bytes after the last newline are not the start of a log line", ErrDamaged)
 	}
-	return size - window + int64(start), nil
+	return end, nil
 }
 
-// openings are the ways a line the writer writes can begin: an object whose
-// one member is a record's kind, in its JSON name and with no space.
-var openings = func() [][]byte {
+// opening is a way a line the writer writes can begin: an object whose one
+// member is a record's kind, in its JSON name and with no space.
+type opening struct {
+	prefix []byte
+	header bool
+}
+
+var openings = func() []opening {
 	fields := (&findingv1alpha1.Record{}).ProtoReflect().Descriptor().Fields()
-	out := make([][]byte, 0, fields.Len())
+	header := (&findingv1alpha1.Record{}).ProtoReflect().Descriptor().Fields().ByName("log_header")
+	out := make([]opening, 0, fields.Len())
 	for i := range fields.Len() {
-		out = append(out, []byte(`{"`+fields.Get(i).JSONName()+`":`))
+		fd := fields.Get(i)
+		out = append(out, opening{prefix: []byte(`{"` + fd.JSONName() + `":`), header: fd == header})
 	}
 	return out
 }()
 
 // torn reports whether tail can be what a crash left of a line the writer
-// wrote. A whole JSON value can, only when it reads as one record in the
-// writer's form: the write was cut between the object and its newline.
-// Anything shorter can only when it agrees with one opening as far as either
-// goes and is a proper prefix of one JSON value.
-func torn(tail []byte) bool {
+// wrote; first says whether it starts the file, the one place the writer
+// writes a header. A whole JSON value can, only when it reads as one record
+// in the writer's form: the write was cut between the object and its
+// newline. Anything shorter can only when it agrees with one opening as far
+// as either goes and is a proper prefix of one JSON value.
+func torn(tail []byte, first bool) bool {
 	if json.Valid(tail) {
-		_, err := unmarshalLine(tail)
-		return err == nil
+		r, err := unmarshalLine(tail)
+		return err == nil && (first || r.GetLogHeader() == nil)
 	}
-	for _, opening := range openings {
-		n := min(len(tail), len(opening))
-		if bytes.Equal(tail[:n], opening[:n]) {
+	for _, o := range openings {
+		n := min(len(tail), len(o.prefix))
+		if bytes.Equal(tail[:n], o.prefix[:n]) && (first || !o.header) {
 			return prefixOfOneValue(tail)
 		}
 	}

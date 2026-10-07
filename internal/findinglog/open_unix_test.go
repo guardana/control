@@ -15,8 +15,8 @@ func TestOpenTakesAnOwnerOnlyDirectoryAndCreatesTheFileOwnerOnly(t *testing.T) {
 	openLog(t, dir)
 	info, err := os.Lstat(filepath.Join(dir, "findings.jsonl"))
 	mustDo(t, err)
-	if !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 || info.Size() != 0 {
-		t.Errorf("the log file is %v of %d bytes, want an empty regular file of mode 0600", info.Mode(), info.Size())
+	if !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 || info.Size() != int64(len(header02)) {
+		t.Errorf("the log file is %v of %d bytes, want a regular file of mode 0600 holding its header", info.Mode(), info.Size())
 	}
 }
 

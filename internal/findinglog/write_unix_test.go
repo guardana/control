@@ -151,10 +151,11 @@ func TestWriteRefusesARecordItWillNotWriteAndWritesNothing(t *testing.T) {
 	for name, refused := range cases {
 		dir := logDir(t)
 		l := openLog(t, dir)
+		opened := contents(t, filepath.Join(dir, FileName))
 		if err := refused(l); !errors.Is(err, ErrRecord) {
 			t.Errorf("%s: Write = %v, want ErrRecord", name, err)
 		}
-		if b := contents(t, filepath.Join(dir, FileName)); len(b) != 0 {
+		if b := contents(t, filepath.Join(dir, FileName)); !bytes.Equal(b, opened) {
 			t.Errorf("%s: the refused Write left %q", name, b)
 		}
 		if got := write(t, l, finding(idA, confirmed, "repeated_denial"), finding(idB, suspected, "outside")); got.Written != 2 {
@@ -191,7 +192,7 @@ func TestAWriteThatWouldPassTheFileBoundIsRefused(t *testing.T) {
 		if !errors.Is(err, c.want) || (err == nil) != (c.want == nil) {
 			t.Errorf("limit %d: Write = %v, want %v", c.limit, err, c.want)
 		}
-		if got := int64(len(contents(t, filepath.Join(dir, FileName)))); (c.want == nil) != (got == size) || (c.want != nil && got != 0) {
+		if got := int64(len(contents(t, filepath.Join(dir, FileName)))); (c.want == nil) != (got == size) || (c.want != nil && got != int64(len(header02))) {
 			t.Errorf("limit %d: the log holds %d bytes", c.limit, got)
 		}
 	}
@@ -200,6 +201,7 @@ func TestAWriteThatWouldPassTheFileBoundIsRefused(t *testing.T) {
 func TestAClosedLogRefusesAWrite(t *testing.T) {
 	dir := logDir(t)
 	l := openLog(t, dir)
+	opened := contents(t, filepath.Join(dir, FileName))
 	mustDo(t, l.Close())
 	mustDo(t, l.Close())
 	if _, err := l.Write(nil, report()); !errors.Is(err, ErrClosed) {
@@ -208,7 +210,7 @@ func TestAClosedLogRefusesAWrite(t *testing.T) {
 	if _, err := (&Log{}).Write(nil, report()); !errors.Is(err, ErrClosed) {
 		t.Errorf("a zero Log: Write = %v, want ErrClosed", err)
 	}
-	if b := contents(t, filepath.Join(dir, FileName)); len(b) != 0 {
+	if b := contents(t, filepath.Join(dir, FileName)); !bytes.Equal(b, opened) {
 		t.Errorf("the refused writes left %q", b)
 	}
 }
@@ -219,8 +221,9 @@ func TestAClosedLogRefusesAWrite(t *testing.T) {
 func TestLineIsTheBytesTheWriterWrites(t *testing.T) {
 	dir := logDir(t)
 	a, b := finding(idA, confirmed, "repeated\u0085denial"), finding(idB, suspected, "outside")
-	write(t, openLog(t, dir), a, b)
-	var want []byte
+	l := openLog(t, dir)
+	want := contents(t, filepath.Join(dir, FileName))
+	write(t, l, a, b)
 	for _, r := range []*findingv1alpha1.Record{findingRecord(a), findingRecord(b), writtenReport(2)} {
 		l, err := Line(r)
 		mustDo(t, err)

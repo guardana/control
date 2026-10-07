@@ -129,11 +129,12 @@ func TestALogChangedAfterItWasReadStopsTheRun(t *testing.T) {
 		old, new  string
 		want      error
 	}{
-		"nothing changed":      {true, 1, "", "", nil},
-		"an undelivered alert": {false, 0, `"ruleId":"repeated_denial"`, `"ruleId":"repeated_denials"`, ErrChanged},
-		"an alert re-spelled":  {false, 0, `"tenantId":"tenant-a",`, `"tenantId":"tenant-a", `, ErrChanged},
-		"a delivered alert":    {true, 1, `"ruleId":"repeated_denial"`, `"ruleId":"repeated_denials"`, ErrChanged},
-		"the report":           {true, 2, `"tenantId":"tenant-a"`, `"tenantId":"tenant-b"`, ErrChanged},
+		"nothing changed":      {true, 2, "", "", nil},
+		"the header":           {true, 0, `"logId":"log-`, `"logId":"log-0`, ErrChanged},
+		"an undelivered alert": {false, 1, `"ruleId":"repeated_denial"`, `"ruleId":"repeated_denials"`, ErrChanged},
+		"an alert re-spelled":  {false, 1, `"tenantId":"tenant-a",`, `"tenantId":"tenant-a", `, ErrChanged},
+		"a delivered alert":    {true, 2, `"ruleId":"repeated_denial"`, `"ruleId":"repeated_denials"`, ErrChanged},
+		"the report":           {true, 3, `"tenantId":"tenant-a"`, `"tenantId":"tenant-b"`, ErrChanged},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := newRig(t)

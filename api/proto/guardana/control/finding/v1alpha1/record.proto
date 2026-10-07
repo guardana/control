@@ -1,5 +1,5 @@
-// Unstable finding contract; schema_version is "0.1". See report.proto for the
-// version and enum rules, and ADR-0045.
+// Unstable finding contract; schema_version is "0.1" or "0.2". See
+// report.proto for the version and enum rules, ADR-0045 and ADR-0047.
 
 syntax = "proto3";
 
@@ -22,6 +22,10 @@ enum Escalation {
 message EventRef {
   string event_id = 1;
   string request_id = 2;
+  // The run of the plane event, "run-" and 32 lowercase hex digits. Absent
+  // from every event of a "0.1" record, which does not say; present on every
+  // event of a "0.2" record.
+  string run_id = 3;
 }
 
 // An observation a finding rests on.
@@ -53,10 +57,23 @@ message FindingRecord {
   guardana.control.v1.Finding finding = 7;
 }
 
+// The first line of a findings log, written once when the log is created and
+// never again. A log without one was made before schema "0.2" and has no
+// identity but its content.
+message LogHeader {
+  // Always "0.2".
+  string schema_version = 1;
+  // "log-" and 32 lowercase hex digits from 128 random bits, drawn when the
+  // log was created: two logs never share one, and a copy keeps its
+  // original's.
+  string log_id = 2;
+}
+
 // One line of a findings log: exactly one of its members.
 message Record {
   oneof record {
     FindingRecord finding_record = 1;
     SuperviseReport supervise_report = 2;
+    LogHeader log_header = 3;
   }
 }

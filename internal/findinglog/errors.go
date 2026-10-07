@@ -39,8 +39,11 @@ const (
 	// line that is not one record this build reads in the form the writer
 	// writes it, a line with a carriage return, bytes after the last newline
 	// that cannot be the start of a line the writer writes or are longer than
-	// any line it writes, one finding id and verdict carried twice, or a
-	// report whose findings written miscounts the findings of its write.
+	// any line it writes, one finding id and verdict carried twice, a
+	// report whose findings written miscounts the findings of its write, or
+	// a header anywhere but the first line. A record of a schema this build
+	// does not read, or carrying a member its schema does not have, is
+	// refused naming that field.
 	ErrDamaged Error = "findinglog: the log is damaged"
 	// ErrRecord is a finding or a report the log will not write, or none given
 	// where one is required. Nothing of the call is written.
