@@ -55,3 +55,5 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0044](0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md) | Coverage judges each plane and joins only a whole export |
 | [0045](0045-one-run-is-supervised-against-its-procedure.md) | One run is supervised against its procedure |
 | [0046](0046-a-finding-stops-one-run-through-a-signed-route.md) | A finding stops one run through a signed route |
+| [0047](0047-a-procedure-states-its-exceptions-resources-and-children.md) | A procedure states its exceptions, resources and children |
+| [0048](0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor.md) | One run drawn as a page, and findings exported with a cursor |

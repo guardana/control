@@ -115,6 +115,10 @@ trees&quot;, which now reads &quot;the plane's trees&quot;.</p>
 a finding can stop a run. <code>guardana-control react</code> turns a deterministic,
 confirmed finding a signed route allows into a stop of its run, which a plane
 with that route reads; no plane reads a finding itself.</p>
+<p>Amended by <a href="/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047</a>:
+a procedure of schema <code>0.2</code> states exceptions, resource bindings and how
+children are judged; each rule has a version of its own; a run's children can
+be supervised with it or on their own.</p>
 <h2 id="context">Context</h2>
 <p>A plane decides each call on its own. Whether a run as a whole kept to the
 procedure it was meant to follow (the steps it took, their order, the steps it

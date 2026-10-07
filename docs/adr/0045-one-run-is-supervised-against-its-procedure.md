@@ -18,6 +18,11 @@ a finding can stop a run. `guardana-control react` turns a deterministic,
 confirmed finding a signed route allows into a stop of its run, which a plane
 with that route reads; no plane reads a finding itself.
 
+Amended by [ADR-0047](0047-a-procedure-states-its-exceptions-resources-and-children.md):
+a procedure of schema `0.2` states exceptions, resource bindings and how
+children are judged; each rule has a version of its own; a run's children can
+be supervised with it or on their own.
+
 ## Context
 
 A plane decides each call on its own. Whether a run as a whole kept to the

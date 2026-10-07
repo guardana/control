@@ -11,6 +11,10 @@ Builds on [ADR-0019](0019-an-operator-can-pause-calls.md),
 ADR-0019 on the order of the plane's causes, and ADR-0045 on "no finding stops
 anything": one can, through this record's route.
 
+Amended by [ADR-0047](0047-a-procedure-states-its-exceptions-resources-and-children.md):
+`Eligible` admits an open child of the finding's tenant, still one run's stop;
+`route sign` and `react` both refuse a rule that may not stop.
+
 ## Context
 
 ADR-0039 decided that a reaction turns a finding into a stop of one run's later

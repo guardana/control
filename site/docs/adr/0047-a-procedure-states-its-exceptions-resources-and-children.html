@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0047: A procedure states its exceptions, resources and children · Guardana Control</title>
+<meta name="description" content="Decision record, proposed."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.9.0-alpha</span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a class="hide-s" href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span class="hide-s">GitHub</span></a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<details class="mnav">
+<summary>Menu · <b>ADR-0047: A procedure states its exceptions, resources and children</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</details>
+<main id="main" class="prose">
+<h1 id="adr-0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047: A procedure states its exceptions, resources and children</h1>
+<p>Status: proposed
+Date: 2026-10-07</p>
+<p>Builds on <a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>,
+<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>,
+<a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>,
+<a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a> and
+<a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a>. Amends
+ADR-0045 on the procedure's schema, the rules and a run's children, and
+ADR-0046 on what may stop and on a child run.</p>
+<h2 id="context">Context</h2>
+<p>Milestone 2 asks the supervisor to report a procedure's exceptions and the
+attempts to use a resource or permission the run does not hold, a denied
+action retried in another form included. ADR-0045's procedure (schema <code>0.1</code>)
+has steps, an order, extra tools, six rules, a denial count and a deadline.
+It has no exceptions, an approved call reads as a planned one, and nothing
+reads the <code>resource</code> every proposed action carries. <code>REPEATED_DENIAL</code> counts
+denials of one tool; nothing links a denial to a later call in another form.
+A child run cannot be supervised, and <code>Eligible</code> refuses to stop one, so an
+agent that acts from a child is out of reach of both.</p>
+<p>Three constraints shape the answer. Every signed route names a procedure by
+digest and a rule by id and version, and a finding's id hashes the rule's
+version, so a change that alters what an existing rule finds in an unchanged
+document re-ids findings and voids routes. Anything the agent can cause, such
+as a failed step or a denial's reason, must not grant it an exception from a
+rule that can stop it. And the maintainer asked that what stops a run, and
+how children are judged, stay the operator's configuration, with room for
+programs of their own.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>Schema <code>0.2</code> beside <code>0.1</code>.</strong> A <code>0.1</code> document reads as before, with the same
+digest, rules and findings. <code>0.2</code> adds <code>bindings</code>, a <code>binds</code> member on steps
+and on <code>allow</code> entries, <code>exceptions</code> and <code>children</code>, all required, each list
+with a stated bound. A tool in two bindings, a <code>binds</code> naming no binding and an
+exception on a rule that refuses one are refused.</p>
+<p><strong>A version per rule.</strong> A rule's <code>rule_version</code> is the version of its code;
+what a document configures is named by the document's digest. The six rules
+keep <code>&quot;1&quot;</code>, so a route signed under 0.9 still names what it named. One table in
+<code>internal/supervise</code> holds each rule's id, version, whether it can be
+<code>CONFIRMED</code>, whether it may stop a run, and the schemas that know it. Under
+<code>0.1</code> a report lists the six rules and a record keeps schema <code>&quot;0.1&quot;</code>.</p>
+<p><strong>Which run a finding names.</strong> Always a run from a plane event's <code>run_id</code>,
+never a run an observation claims. A rule about one call names the run that
+made it. A rule that crosses a threshold (<code>REPEATED_DENIAL</code>,
+<code>DEADLINE_EXCEEDED</code>) names the run of the event that crossed it, and that run
+is part of its anchor. A rule about the procedure as a whole (a skipped step,
+the order, carrying on after a failure) names the supervised run; none of
+these is ever <code>CONFIRMED</code>. A stop therefore lands on the run that acted, never
+on a parent for a child's act.</p>
+<p><strong>Bindings and <code>RESOURCE_OUTSIDE_RUN</code>.</strong> <code>bindings</code> names each binding with the
+<code>resource_type</code> it holds. A step or allowed tool with <code>binds: &lt;name&gt;</code> belongs
+to it. The rule fires when the calls of one binding, across the run or its
+tree and whatever their outcome, carry more than one distinct resource,
+compared as exact bytes of type, id, resource tenant and environment. No call
+fixes the binding, so the agent's first choice does not decide what the run
+holds, and a denied probe of another id counts. One finding is raised per run
+that called the binding; its anchor is the binding and that run. It is
+<code>CONFIRMED</code> when two distinct ids come from trails not in doubt, whatever other
+calls carry; <code>INDETERMINATE</code> when one id is seen beside calls with none or of
+another type; the rule is not checked, with the reason, when no call carries an
+id. Ids are not normalised: <code>&quot;042&quot;</code> and <code>&quot;42&quot;</code> are two resources, and an agent
+that spells one id two ways through two tools is caught only by a binding that
+holds both tools.</p>
+<p><strong>A denied action retried, in three rules.</strong> A denial is the policy's, read
+from the decision's own reason codes: never a plane block, <code>RUN_STOPPED</code>, or a
+refusal of an approval. After it, across the run or its tree:</p>
+<ul>
+<li><code>DENIED_ACTION_RETRIED_ARGUMENTS</code>: the same tool and upstream with another
+arguments hash;</li>
+<li><code>DENIED_ACTION_RETRIED_RESOURCE</code>: another tool or upstream on the same
+non-empty resource, where a read after the denial of anything but a read
+does not count;</li>
+<li><code>DENIED_ACTION_RETRIED_AROUND</code>: a source's report of the denied tool, by a
+name its step or entry lists, that no plane call joins; <code>SUSPECTED</code> at most,
+<code>INDETERMINATE</code> with no event time or a join in doubt.</li>
+</ul>
+<p>A retry whose trail holds an approved decision of the approvals store is not
+one. &quot;After&quot; is decided within the export both events were read from, by its
+sequence: <code>CONFIRMED</code> only there; across exports, whose clocks may differ,
+<code>SUSPECTED</code>; passing a redundant export changes nothing. A variant proposed
+before the denial was decided is not a retry; <code>REPEATED_DENIAL</code> is the
+backstop. Each finding names the retry's run, and its anchor is the denied
+request and that run, so further retries of one denial keep the id, a new
+denial gives a new one, and after a lift or an expiry a new denial followed by
+a retry stops again. A corrected argument after a refusal cannot be told from
+evasion; whether <code>_ARGUMENTS</code> stops a run is the route's choice.</p>
+<p><strong>Exceptions and <code>EXCEPTION_TAKEN</code>.</strong> Each exception has an <code>id</code>, the one rule
+it waives, the step or tool it covers and one condition: <code>approval: granted</code>
+(an <code>APPROVAL_DECIDED</code> approved in that call's trail), <code>step_failed: &lt;step&gt;</code>
+(that step's <code>ACTION_FAILED</code>) or <code>reason: &lt;code&gt;</code> (a reason code of that
+call's policy decision). A condition is met, not met or unknown. Unknown takes
+no waiver and raises the finding the rule would raise, at most
+<code>INDETERMINATE</code> while the evidence can still arrive: a held approval confirms
+nothing until it is refused or expires. Exceptions may waive
+<code>STEP_OUTSIDE_PROCEDURE</code> (only on <code>approval: granted</code>, since it may stop),
+<code>REQUIRED_STEP_SKIPPED</code>, <code>STEP_OUT_OF_ORDER</code> and <code>CONTINUED_AFTER_FAILURE</code>;
+any other rule refuses one in <code>0.2</code>. A waiver taken raises <code>EXCEPTION_TAKEN</code>
+with the severity and escalation the procedure gives it and a verdict no
+stronger than the finding it waived; it never stops a run and is never
+waived. An approval is what the approvals store records (ADR-0016); this
+record does not prove that its approver was a person rather than an account
+with write access to that store.</p>
+<p><strong>What may stop.</strong> <code>REPEATED_DENIAL</code>, <code>STEP_OUTSIDE_PROCEDURE</code>,
+<code>DEADLINE_EXCEEDED</code>, <code>RESOURCE_OUTSIDE_RUN</code>, <code>DENIED_ACTION_RETRIED_ARGUMENTS</code>
+and <code>DENIED_ACTION_RETRIED_RESOURCE</code>. One table of these ids lives in
+<code>internal/reaction</code>, held equal to supervise's by a test. <code>route sign</code> refuses
+a route naming another; <code>react</code> and the plane refuse such a route whole when
+they load it, so a route signed by any other means cannot widen the set. The
+route still chooses which of these stop and for how long.</p>
+<p><strong>Bounded findings.</strong> A finding's verdict is decided over all its evidence;
+then it cites at most a fixed number of references, the doubtful ones first,
+and states how many it left out, so its record fits the log's line bound
+whatever the run did. A finding 0.9 could write is unchanged; one past the
+bound, which 0.9 refused with the whole write, is now written.</p>
+<p><strong>Children.</strong> <code>children</code> is <code>inherit</code> or <code>separate</code>; a reader refuses another
+value.</p>
+<ul>
+<li><code>inherit</code>: <code>--run</code> must be a root. The tree is every record whose <code>Root</code> is
+it, read by that filter and bounded by the tree's own size, not the runs
+directory's. Supervise refuses a tree past its bound, a member of another
+tenant and a parent chain that does not reach the root. The tree counts as
+closed when every member is.</li>
+<li><code>separate</code>: any opened run, its own calls only; the report lists the
+children it did not judge, each of which can be supervised on its own.</li>
+</ul>
+<p><strong>A child can be stopped.</strong> <code>Eligible</code> admits an open, unexpired child of the
+finding's tenant. A stop still names one run, matched exactly by the plane: a
+child's stop leaves its parent and siblings running, and a root's leaves its
+children running.</p>
+<p><strong>Contracts.</strong> <code>guardana.control.finding.v1alpha1</code> gains <code>EventRef.run_id</code> and
+the run tree in the report; a record that carries either is schema <code>&quot;0.2&quot;</code>. A
+reader of 0.9 refuses such a line by name, as invariant 3 asks.</p>
+<p><strong>Room for programs of the operator's own.</strong> Supervise's rule ids match
+<code>^[A-Z][A-Z0-9_]*$</code>. A later route kind may carry a structured <code>detector</code>
+member, absent meaning supervise; no detector is named inside a rule id. The
+run tree and each reference's run are in the record, so an outside program can
+judge children its own way. Not decided here: a detector registry, a stop from
+an outside detector's finding, a stop of a whole tree.</p>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>No verdict changes and no language model is read (invariants 1 and 2): every
+rule is a function of the exports and logs given. A stop still needs a
+deterministic, confirmed finding, a signed route that names its rule, and an
+eligible run; the rules that may stop are one table, checked where a route is
+signed, where <code>react</code> loads it and where a plane loads it. The agent can induce
+failures and reasons, so neither waives a rule that may stop; a held approval
+and a condition not yet known never confirm (invariant 4). A finding names the
+run whose event it rests on, so a child cannot push a stop onto its parent.
+Under <code>0.1</code> the confirmed findings are unchanged. Two changes in the same
+release move only findings below <code>CONFIRMED</code>: each span walk is bounded on its
+own and in total (an observation once in doubt may join), and one liveness
+function filters reports by tenant and project as coverage does (a source may
+turn silent). A changed verdict is a new log record and so a second alert.
+Stopping a child widens what a route reaches to one run the operator opened
+under another; a whole tree is still out of reach, and an orchestrator can
+open a new child after one is stopped, which the rules judge again.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li><strong>Replace <code>0.1</code>.</strong> Voids every signed route.</li>
+<li><strong>Optional members in <code>0.1</code>.</strong> One version naming two documents, and a 0.9
+reader refuses them.</li>
+<li><strong>One version bump for all rules.</strong> Re-ids every finding and voids routes.</li>
+<li><strong>The first call fixes a binding.</strong> The agent chooses what the run holds,
+and a tool outside the binding reaches any id.</li>
+<li><strong>A grant on the run record (<code>runs open --resource</code>).</strong> Truer to &quot;the run
+holds&quot;, but changes ADR-0034's record and asks the operator for ids up front.</li>
+<li><strong>One retry rule with the form in its anchor.</strong> A route takes all forms or
+none.</li>
+<li><strong>Anchor a retry on the denied tool.</strong> After a lift or an expiry the agent
+retries freely, since the list already names the finding.</li>
+<li><strong>Tree rules name the root.</strong> The stop lands on the orchestrator while the
+child that acted runs on, or on nothing when the root is closed.</li>
+<li><strong>Exceptions as alternative step sequences.</strong> More expressive, a larger
+format and evaluator; later, if named waivers prove short.</li>
+<li><strong>Rule ids namespaced by detector.</strong> Packs two names into one string, which
+the envelope's own action name already forbids.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>An operator who keeps <code>0.1</code> documents sees findings past the old line bound
+written, and nothing else new. A <code>0.2</code> document names its resources,
+exceptions and child mode, and its routes are signed again, its digest being
+new. A retry of a corrected call may raise <code>_ARGUMENTS</code>; the route decides
+whether that stops. Every run of a tree that called a binding holding two ids
+is named, the one that used the right id included; a route that cannot
+accept that leaves <code>RESOURCE_OUTSIDE_RUN</code> out. A child the operator opens can
+now be stopped on its own.</p>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>A corpus of <code>0.1</code> inputs gives byte-identical <code>CONFIRMED</code> findings before and
+after; other differences only where a join was cut, a source was silent, or
+a finding passed the old bound.</li>
+<li>Ids 42 then 43 under one binding fire, and 43 then 42 with the same ids; a
+denied first call counts; two ids beside calls with none stay <code>CONFIRMED</code>; one
+id beside calls with none is <code>INDETERMINATE</code>; no id is &quot;not checked&quot;; <code>&quot;042&quot;</code>
+and <code>&quot;42&quot;</code> through two tools of one binding fire.</li>
+<li>Each retry form fires on its own input and on none of the others; an
+approved retry, a pause block, <code>RUN_STOPPED</code> and a variant sent before the
+denial do not; two exports give <code>SUSPECTED</code>, a redundant third changes
+nothing; after a lift, a new denial and a retry stop again.</li>
+<li>Under <code>inherit</code>: a denial in child A and a retry in child B name and stop B;
+42 in A and 43 in B name both; a child's <code>REPEATED_DENIAL</code> names the child;
+a root closed with an open child keeps the tree open; a tree past its bound,
+another tenant and a chain that misses the root are refused; 1 001 runs of
+other tenants do not refuse a small tree.</li>
+<li>A child's confirmed finding stops the child's next call and neither its
+parent's nor a sibling's, on a live plane.</li>
+<li>An exception with an approval waives and raises <code>EXCEPTION_TAKEN</code>; a held
+approval gives <code>INDETERMINATE</code>, then a refusal confirms; <code>step_failed</code> on
+<code>STEP_OUTSIDE_PROCEDURE</code> and any exception on <code>RESOURCE_OUTSIDE_RUN</code> are
+refused. A table test runs every rule that may stop against every condition
+the agent can induce.</li>
+<li>A route naming <code>EXCEPTION_TAKEN</code>, <code>_AROUND</code>, a rule never confirmed or an
+unknown id is refused by <code>route sign</code>, by <code>react</code> and at plane start, also
+when signed directly with the route key; a mutant that admits one fails.</li>
+<li>Ten thousand denials give one finding line under the bound, written, in
+linear time; a doubtful reference past the bound keeps the finding
+<code>INDETERMINATE</code>.</li>
+<li>A 0.9 reader refuses a <code>&quot;0.2&quot;</code> record by name; <code>buf breaking</code> passes on
+<code>finding/v1alpha1</code> and holds v1.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children.md">docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>
