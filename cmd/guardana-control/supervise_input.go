@@ -6,9 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
-	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/coverage"
 	"github.com/guardana/control/internal/observe"
@@ -17,48 +15,61 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// readRun reads the opened run's record. A local run's id, a run no record
-// holds and a child run are refused: a child's events carry its own id, so
-// supervising one alone would judge part of a task as the whole.
-func readRun(dir, id string) (supervise.Run, error) {
+// readRun reads the opened run's record and the runs its procedure's
+// children mode reads beside it. Under inherit the run is a root and the tree
+// all of it; under separate any opened run is read with its children. A 0.1
+// procedure reads a root run alone, and refuses a child: a child's events
+// carry its own id, so supervising one alone would judge part of a task as
+// the whole. Only the records of the run's own tree bound the read, never
+// how many other runs the directory holds.
+func readRun(dir, id string, mode supervise.Children) (supervise.Run, []supervise.Run, error) {
 	if !observe.ValidRunID(id) {
-		return supervise.Run{}, refusedInput("run", id, supervise.ErrRunID)
+		return supervise.Run{}, nil, refusedInput("run", id, supervise.ErrRunID)
 	}
 	admin, err := runs.OpenAdmin(dir)
 	if err != nil {
-		return supervise.Run{}, refusedInput("runs", dir, err)
+		return supervise.Run{}, nil, refusedInput("runs", dir, err)
 	}
-	rec, found, err := findRecord(admin, id)
-	if err = errors.Join(err, admin.Close()); err != nil {
-		return supervise.Run{}, refusedInput("runs", dir, err)
-	}
+	recs, err := readFamily(admin, id, mode)
+	err = errors.Join(err, admin.Close())
 	switch {
-	case !found:
-		return supervise.Run{}, refusedInput("run", id, errors.New("no record of it in the runs directory"))
-	case rec.Parent != "":
-		return supervise.Run{}, refusedInput("run", id, errors.New("a child run is not supervised on its own"))
+	case errors.Is(err, runs.ErrNoRun):
+		return supervise.Run{}, nil, refusedInput("run", id, errors.New("no record of it in the runs directory"))
+	case errors.Is(err, runs.ErrNotRoot) && mode == supervise.ChildrenInherit:
+		return supervise.Run{}, nil, refusedInput("run", id,
+			errors.New("a child run is not supervised on its own: children inherit judges a root and its whole tree"))
+	case errors.Is(err, runs.ErrNotRoot):
+		return supervise.Run{}, nil, refusedInput("run", id, errors.New("a child run is not supervised on its own"))
+	case err != nil:
+		return supervise.Run{}, nil, refusedInput("runs", dir, err)
 	}
-	return supervise.Run{ID: rec.ID, Tenant: rec.Who.TenantID, Closed: rec.Closed()}, nil
+	tree := make([]supervise.Run, 0, len(recs))
+	for _, r := range recs {
+		tree = append(tree, supervise.Run{ID: r.ID, Tenant: r.Who.TenantID, Closed: r.Closed(), Parent: r.Parent})
+	}
+	if mode == supervise.ChildrenUnstated {
+		return tree[0], nil, nil
+	}
+	return tree[0], tree, nil
 }
 
-// findRecord is id's record, and false when a complete listing holds none. A
-// listing the bound stopped cannot say a run is absent.
-func findRecord(admin *runs.Admin, id string) (runs.Record, bool, error) {
+// readFamily is the records mode reads of run id, id's first.
+func readFamily(admin *runs.Admin, id string, mode supervise.Children) ([]runs.Record, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), runsLockWait)
 	defer cancel()
-	l, err := admin.List(ctx, runsListBound)
-	if err != nil {
-		return runs.Record{}, false, err
-	}
-	for _, r := range l.Records {
-		if r.ID == id {
-			return r, true, nil
+	switch mode {
+	case supervise.ChildrenInherit:
+		return admin.Tree(ctx, id, supervise.MaxTreeRuns)
+	case supervise.ChildrenSeparate:
+		return admin.Children(ctx, id, supervise.MaxTreeRuns)
+	case supervise.ChildrenUnstated:
+		rec, err := admin.Lookup(ctx, id)
+		if err == nil && rec.Parent != "" {
+			err = fmt.Errorf("%w: %s", runs.ErrNotRoot, id)
 		}
+		return []runs.Record{rec}, err
 	}
-	if !l.Complete {
-		return runs.Record{}, false, fmt.Errorf("%w; it stops at %d runs", errIncomplete, runsListBound)
-	}
-	return runs.Record{}, false, nil
+	return nil, fmt.Errorf("children mode %d is not one this build reads", mode)
 }
 
 // readSupervisedExport reads an export as coverage does, then takes its
@@ -118,36 +129,13 @@ func readSupervisedSource(descriptor, logDir string) (supervise.Source, bool, er
 		SourceID:         src.Descriptor.GetSourceId(),
 		HeartbeatSeconds: src.Descriptor.GetHeartbeatSeconds(),
 	}
-	out.LastHeard, out.Heard = lastHeard(out.SourceID, src.Records)
+	out.LastHeard, out.Heard = observe.LastHeard(src.Descriptor, src.Records)
 	for _, r := range src.Records {
 		if o := r.GetObservation(); o != nil {
 			out.Observations = append(out.Observations, o)
 		}
 	}
 	return out, true, nil
-}
-
-// lastHeard is the newest event time an import report of the source names,
-// each taken no later than its report's receive time, as coverage computes
-// it; a report without both times does not count.
-func lastHeard(sourceID string, records []*observev1.Record) (time.Time, bool) {
-	var last time.Time
-	heard := false
-	for _, r := range records {
-		rep := r.GetImportReport()
-		latest, received := rep.GetLatestEventTime(), rep.GetReceivedTime()
-		if rep.GetSource().GetSourceId() != sourceID || !latest.IsValid() || !received.IsValid() {
-			continue
-		}
-		t := latest.AsTime()
-		if rt := received.AsTime(); t.After(rt) {
-			t = rt
-		}
-		if !heard || t.After(last) {
-			last, heard = t, true
-		}
-	}
-	return last, heard
 }
 
 // unreadSources names each --source the run could not be judged against: a

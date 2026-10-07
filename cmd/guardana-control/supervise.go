@@ -174,7 +174,7 @@ func readSuperviseInput(a *superviseArgs) (supervise.Input, error) {
 	if in.Procedure, err = supervise.ReadProcedure(raw); err != nil {
 		return in, refusedInput("procedure", a.procedure[0], err)
 	}
-	if in.Run, err = readRun(a.runs[0], a.run[0]); err != nil {
+	if in.Run, in.Tree, err = readRun(a.runs[0], a.run[0], in.Procedure.Children()); err != nil {
 		return in, err
 	}
 	for _, path := range a.evidence {

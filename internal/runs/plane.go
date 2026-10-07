@@ -110,15 +110,7 @@ func (p *Plane) Lookup(ctx context.Context, id string) (Record, error) {
 		return Record{}, err
 	}
 	defer end()
-	rec, err := p.d.readRecord(id)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return Record{}, fmt.Errorf("%w: %s", ErrNoRun, id)
-	case err != nil:
-		return Record{}, err
-	}
-	rec.SecretSHA256 = ""
-	return rec, nil
+	return p.d.lookup(id)
 }
 
 // State reads root's state. A missing or unreadable state file is an error:

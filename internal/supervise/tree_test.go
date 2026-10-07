@@ -1,0 +1,294 @@
+package supervise_test
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
+	"github.com/guardana/control/internal/supervise"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+)
+
+const (
+	grandchildRun = "run-22222222222222222222222222222222"
+	outsiderRun   = "run-ffffffffffffffffffffffffffffffff"
+)
+
+func inheritProc(t *testing.T) *supervise.Procedure {
+	t.Helper()
+	p, err := supervise.ReadProcedure([]byte(v02Doc(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func separateProc(t *testing.T) *supervise.Procedure {
+	t.Helper()
+	p, err := supervise.ReadProcedure([]byte(v02With(t, `"children": "inherit"`, `"children": "separate"`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// family is the root runID, its child and the child's child, every one
+// open unless closed names it.
+func family(closed ...string) []supervise.Run {
+	tree := []supervise.Run{
+		{ID: runID, Tenant: tenant},
+		{ID: childRun, Tenant: tenant, Parent: runID},
+		{ID: grandchildRun, Tenant: tenant, Parent: childRun},
+	}
+	for i := range tree {
+		for _, c := range closed {
+			tree[i].Closed = tree[i].Closed || tree[i].ID == c
+		}
+	}
+	return tree
+}
+
+// treeEvaluate is EvaluateAnySchema with the tree's first run supervised.
+func treeEvaluate(t *testing.T, in supervise.Input) *supervise.Result {
+	t.Helper()
+	if len(in.Tree) > 0 {
+		in.Run = in.Tree[0]
+	}
+	res, err := supervise.EvaluateAnySchema(in)
+	if err != nil {
+		t.Fatalf("EvaluateAnySchema: %v", err)
+	}
+	return res
+}
+
+// spread is lookup in the root, then a denied refund in each of the root, the
+// child, the grandchild and a run outside the tree, ten seconds apart.
+func spread() []call {
+	return []call{
+		{req: "r1", tool: "get_order", upstream: "shop"},
+		{req: "d1", tool: "issue_refund", upstream: "pay", at: 10 * time.Second, outcome: "deny"},
+		{req: "d2", tool: "issue_refund", upstream: "pay", at: 20 * time.Second, outcome: "deny", run: childRun},
+		{req: "d3", tool: "issue_refund", upstream: "pay", at: 30 * time.Second, outcome: "deny", run: grandchildRun},
+		{req: "d4", tool: "issue_refund", upstream: "pay", at: 40 * time.Second, outcome: "deny", run: outsiderRun},
+	}
+}
+
+func deniedRequests(res *supervise.Result) string {
+	var out []string
+	for _, f := range res.Findings {
+		if f.GetFinding().GetRuleId() != supervise.RuleRepeatedDenial {
+			continue
+		}
+		for _, r := range f.GetRefs() {
+			out = append(out, r.GetEvent().GetRequestId())
+		}
+	}
+	return strings.Join(out, " ")
+}
+
+// TestAGrandchildsEventCountsUnderInherit: under inherit the denials of the
+// root, its child and its grandchild are three, and at a bound of three they
+// fire; the outside run's is left out. Under separate, and under 0.1, only
+// the supervised run's own events are read.
+func TestAGrandchildsEventCountsUnderInherit(t *testing.T) {
+	x := export(spread()...)
+	inherit := treeEvaluate(t, supervise.Input{Procedure: procAt3(t, inheritProc(t)), Tree: family(), Exports: []supervise.Export{x}})
+	if got := inherit.Report.GetRead(); got.GetEventsTaken() != 13 || got.GetEventsLeftOut()["another run"] != 3 {
+		t.Fatalf("inherit read %v; want 13 events taken and the outside run's 3 left out", got)
+	}
+	if got := deniedRequests(inherit); got != "d1 d2 d3" {
+		t.Fatalf("inherit: REPEATED_DENIAL rests on %q, want d1 d2 d3", got)
+	}
+
+	separate := treeEvaluate(t, supervise.Input{Procedure: procAt3(t, separateProc(t)), Tree: family()[:2],
+		Exports: []supervise.Export{x}})
+	if got := separate.Report.GetRead(); got.GetEventsTaken() != 7 || got.GetEventsLeftOut()["another run"] != 9 {
+		t.Fatalf("separate read %v; want the root's 7 events taken and 9 left out", got)
+	}
+	if got := deniedRequests(separate); got != "" {
+		t.Fatalf("separate: REPEATED_DENIAL rests on %q, want none", got)
+	}
+
+	old := evaluate(t, supervise.Input{Procedure: procWith(t, `"max_denials":4`, `"max_denials":3`), Exports: []supervise.Export{x}})
+	if got := old.Report.GetRead(); got.GetEventsTaken() != 7 || deniedRequests(old) != "" {
+		t.Fatalf("0.1 read %v, denials %q; want the root's 7 events and no finding", got, deniedRequests(old))
+	}
+}
+
+// procAt3 is p with max_denials 3. The fixtures state 4, so a test that
+// leaves this out fires nothing at three denials.
+func procAt3(t *testing.T, p *supervise.Procedure) *supervise.Procedure {
+	t.Helper()
+	doc := v02Doc(t)
+	if p.Children() == supervise.ChildrenSeparate {
+		doc = v02With(t, `"children": "inherit"`, `"children": "separate"`)
+	}
+	at3, err := supervise.ReadProcedure([]byte(strings.Replace(doc, `"max_denials": 4`, `"max_denials": 3`, 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return at3
+}
+
+// TestAnObservationOfAChildIsTheTreesUnderInherit: a source's report of a
+// call it claims for the grandchild is read under inherit and left out
+// under separate.
+func TestAnObservationOfAChildIsTheTreesUnderInherit(t *testing.T) {
+	src := source(ob{id: "obs-1", name: "search_docs", run: grandchildRun, span: "1111111111111111"})
+	x := export(conforming()...)
+	inherit := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(), Exports: []supervise.Export{x},
+		Sources: []supervise.Source{src}})
+	separate := treeEvaluate(t, supervise.Input{Procedure: separateProc(t), Tree: family()[:2], Exports: []supervise.Export{x},
+		Sources: []supervise.Source{src}})
+	if got := inherit.Report.GetRead().GetObservationsTaken(); got != 1 {
+		t.Errorf("inherit took %d observations, want 1", got)
+	}
+	if got := separate.Report.GetRead(); got.GetObservationsTaken() != 0 || got.GetObservationsLeftOut()["another run"] != 1 {
+		t.Errorf("separate read %v, want the grandchild's observation left out", got)
+	}
+}
+
+// TestARootClosedWithAnOpenChildKeepsTheTreeOpen: under inherit the rules
+// that rest on what was not seen wait for every run of the tree; under
+// separate the children are not judged, so the root's close is enough.
+func TestARootClosedWithAnOpenChildKeepsTheTreeOpen(t *testing.T) {
+	x := export(conforming()...)
+	absence := []string{"REQUIRED_STEP_SKIPPED", "STEP_OUT_OF_ORDER", "CONTINUED_AFTER_FAILURE"}
+	for name, c := range map[string]struct {
+		p    *supervise.Procedure
+		tree []supervise.Run
+		want string
+	}{
+		"inherit, the root closed":     {inheritProc(t), family(runID), "RULE_STATE_NOT_CHECKED:run " + childRun + " of the tree is open"},
+		"inherit, the grandchild open": {inheritProc(t), family(runID, childRun), "RULE_STATE_NOT_CHECKED:run " + grandchildRun + " of the tree is open"},
+		"inherit, the root open":       {inheritProc(t), family(childRun, grandchildRun), "RULE_STATE_NOT_CHECKED:the run is open"},
+		"inherit, every run closed":    {inheritProc(t), family(runID, childRun, grandchildRun), checked},
+		"separate, the root closed":    {separateProc(t), family(runID)[:2], checked},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := rules(treeEvaluate(t, supervise.Input{Procedure: c.p, Tree: c.tree, Exports: []supervise.Export{x}}))
+			for _, rule := range absence {
+				if got[rule] != c.want {
+					t.Errorf("%s is %s, want %s", rule, got[rule], c.want)
+				}
+			}
+		})
+	}
+}
+
+// TestTheReportNamesTheTreeUnder02Only: a 0.2 report carries the children
+// mode and the tree, the supervised run first; a 0.1 report carries neither.
+func TestTheReportNamesTheTreeUnder02Only(t *testing.T) {
+	x := export(conforming()...)
+	member := func(id, parent string) *findingv1alpha1.RunTreeMember {
+		return &findingv1alpha1.RunTreeMember{RunId: id, ParentRunId: parent}
+	}
+	inherit := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(), Exports: []supervise.Export{x}}).Report
+	wantInherit := []*findingv1alpha1.RunTreeMember{member(runID, ""), member(childRun, runID), member(grandchildRun, childRun)}
+	sameTree(t, "inherit", inherit, "0.2", findingv1alpha1.ChildrenMode_CHILDREN_MODE_INHERIT, wantInherit)
+
+	child := []supervise.Run{{ID: childRun, Tenant: tenant, Parent: runID}, {ID: grandchildRun, Tenant: tenant, Parent: childRun}}
+	separate := treeEvaluate(t, supervise.Input{Procedure: separateProc(t), Tree: child, Exports: []supervise.Export{x}}).Report
+	sameTree(t, "separate", separate, "0.2", findingv1alpha1.ChildrenMode_CHILDREN_MODE_SEPARATE,
+		[]*findingv1alpha1.RunTreeMember{member(childRun, runID), member(grandchildRun, childRun)})
+
+	old := evaluate(t, supervise.Input{Procedure: procWith(t), Exports: []supervise.Export{x}}).Report
+	sameTree(t, "0.1", old, "0.1", findingv1alpha1.ChildrenMode_CHILDREN_MODE_UNSPECIFIED, nil)
+}
+
+func sameTree(t *testing.T, name string, r *findingv1alpha1.SuperviseReport, schema string,
+	mode findingv1alpha1.ChildrenMode, tree []*findingv1alpha1.RunTreeMember) {
+	t.Helper()
+	if r.GetSchemaVersion() != schema || r.GetChildren() != mode || len(r.GetRunTree()) != len(tree) {
+		t.Fatalf("%s: report %s; want schema %s, %s and %d members", name, protojson.Format(r), schema, mode, len(tree))
+	}
+	for i := range tree {
+		if !proto.Equal(r.GetRunTree()[i], tree[i]) {
+			t.Fatalf("%s: member %d is %v, want %v", name, i, r.GetRunTree()[i], tree[i])
+		}
+	}
+}
+
+// TestATreeItCannotJudgeIsRefused: each refusal against the same input with
+// one thing changed, which the first case shows is accepted.
+func TestATreeItCannotJudgeIsRefused(t *testing.T) {
+	x := []supervise.Export{export(conforming()...)}
+	edit := func(f func([]supervise.Run) []supervise.Run) []supervise.Run { return f(family()) }
+	for name, c := range map[string]struct {
+		p      *supervise.Procedure
+		run    *supervise.Run
+		tree   []supervise.Run
+		refuse bool
+	}{
+		"the tree as given": {inheritProc(t), nil, family(), false},
+		"a member of another tenant": {inheritProc(t), nil,
+			edit(func(r []supervise.Run) []supervise.Run { r[2].Tenant = "t2"; return r }), true},
+		"a member before its parent": {inheritProc(t), nil,
+			edit(func(r []supervise.Run) []supervise.Run { r[1], r[2] = r[2], r[1]; return r }), true},
+		"a member whose parent is outside": {inheritProc(t), nil,
+			edit(func(r []supervise.Run) []supervise.Run { r[2].Parent = outsiderRun; return r }), true},
+		"a member twice": {inheritProc(t), nil,
+			edit(func(r []supervise.Run) []supervise.Run { return append(r, r[2]) }), true},
+		"a member that is no opened run": {inheritProc(t), nil,
+			edit(func(r []supervise.Run) []supervise.Run { r[2].ID = "run-1"; return r }), true},
+		"a child as the root of an inherited tree": {inheritProc(t), nil, family()[1:2], true},
+		"a tree that starts at another run": {separateProc(t), &supervise.Run{ID: childRun, Tenant: tenant, Parent: runID},
+			family()[:2], true},
+		"a grandchild under separate": {separateProc(t), nil, family(), true},
+		"a separate run whose parent is no opened run": {separateProc(t), nil,
+			[]supervise.Run{{ID: childRun, Tenant: tenant, Parent: "run-1"}}, true},
+		"a child under separate": {separateProc(t), nil, family()[:2], false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			in := supervise.Input{Procedure: c.p, Tree: c.tree, Exports: x}
+			in.Run = c.tree[0]
+			if c.run != nil {
+				in.Run = *c.run
+			}
+			_, err := supervise.EvaluateAnySchema(in)
+			refused := errors.Is(err, supervise.ErrInput) || errors.Is(err, supervise.ErrRunID)
+			if refused != c.refuse || (!c.refuse && err != nil) {
+				t.Fatalf("EvaluateAnySchema = %v, refused %t; want refused %t", err, refused, c.refuse)
+			}
+		})
+	}
+}
+
+// TestA01ProcedureJudgesOneRootRun: a 0.1 procedure takes neither a tree
+// beyond the run nor a child as the run.
+func TestA01ProcedureJudgesOneRootRun(t *testing.T) {
+	x := []supervise.Export{export(conforming()...)}
+	for name, in := range map[string]supervise.Input{
+		"a tree":  {Run: family()[0], Tree: family()},
+		"a child": {Run: family()[1]},
+	} {
+		in.Procedure, in.Exports = procWith(t), x
+		if _, err := supervise.Evaluate(in); !errors.Is(err, supervise.ErrInput) {
+			t.Errorf("%s: Evaluate = %v, want ErrInput", name, err)
+		}
+	}
+	if _, err := supervise.Evaluate(supervise.Input{Procedure: procWith(t), Run: family()[0], Tree: family()[:1], Exports: x}); err != nil {
+		t.Errorf("the run alone as its tree: %v", err)
+	}
+}
+
+// TestATreeIsBoundedByMaxTreeRuns: a tree of MaxTreeRuns is judged and one
+// more is refused.
+func TestATreeIsBoundedByMaxTreeRuns(t *testing.T) {
+	tree := []supervise.Run{{ID: runID, Tenant: tenant}}
+	for i := 1; i < supervise.MaxTreeRuns; i++ {
+		tree = append(tree, supervise.Run{ID: fmt.Sprintf("run-%032x", i), Tenant: tenant, Parent: runID})
+	}
+	x := []supervise.Export{export(conforming()...)}
+	if _, err := supervise.EvaluateAnySchema(supervise.Input{Procedure: inheritProc(t), Run: tree[0], Tree: tree, Exports: x}); err != nil {
+		t.Fatalf("a tree of %d: %v", len(tree), err)
+	}
+	tree = append(tree, supervise.Run{ID: fmt.Sprintf("run-%032x", supervise.MaxTreeRuns), Tenant: tenant, Parent: runID})
+	if _, err := supervise.EvaluateAnySchema(supervise.Input{Procedure: inheritProc(t), Run: tree[0], Tree: tree, Exports: x}); !errors.Is(err, supervise.ErrInput) {
+		t.Fatalf("a tree of %d: %v, want ErrInput", len(tree), err)
+	}
+}

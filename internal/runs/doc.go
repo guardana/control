@@ -3,8 +3,9 @@
 // that it outlives the process that served it.
 //
 // Two handles open one directory and the compiler keeps them apart. OpenAdmin
-// is the operator's: it opens, closes and lists runs, each under the
-// directory's exclusive lock, and it is the only code that encodes a record;
+// is the operator's: it opens, closes and lists runs and reads a run's tree,
+// each under the directory's exclusive lock, and it is the only code that
+// encodes a record;
 // InitAdmin opens it the same way after making an empty directory a runs
 // directory.
 // OpenPlane is the plane's: it resolves a token, reads a root's state and

@@ -93,6 +93,16 @@ const (
 	ErrExists Error = "runs: the run's files exist already"
 	// ErrBound is a listing bound that is not positive.
 	ErrBound Error = "runs: the listing bound is not positive"
+	// ErrNotRoot is a tree asked for by a run opened under another.
+	ErrNotRoot Error = "runs: the run is not a root"
+	// ErrTreeBound is a tree, or a run's children, past the bound asked for.
+	ErrTreeBound Error = "runs: the tree holds more runs than its bound"
+	// ErrTreeTenant is a run of a tree opened for another tenant than its
+	// root, which only a writer of the directory can make.
+	ErrTreeTenant Error = "runs: a run of the tree belongs to another tenant"
+	// ErrTreeBroken is a run whose chain of parents does not reach its
+	// tree's root within the tree.
+	ErrTreeBroken Error = "runs: a run's parents do not reach its root"
 	// ErrState is a state this build cannot write: a sensitivity it cannot
 	// name.
 	ErrState Error = "runs: the state cannot be written"

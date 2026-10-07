@@ -63,6 +63,13 @@ func (e *evaluation) absenceState() ruleState {
 	if !e.in.Run.Closed {
 		return notChecked("the run is open")
 	}
+	if e.p.children == ChildrenInherit {
+		for _, r := range treeOf(e.in) {
+			if !r.Closed {
+				return notChecked("run " + r.ID + " of the tree is open")
+			}
+		}
+	}
 	for _, x := range e.in.Exports {
 		if !x.Whole {
 			return notChecked("an export is not whole: " + x.NotWhole)
@@ -86,6 +93,7 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 		res.Report.Rules = append(res.Report.Rules, &findingv1alpha1.RuleResult{
 			RuleId: id, RuleVersion: RuleVersion, State: states[id].state, Why: states[id].why})
 	}
+	e.reportTree(res.Report)
 	for _, rq := range e.reqs {
 		if rq.terminal.GetKind() == blocked && !rq.denied() {
 			res.PlaneBlocks[rq.blockCode()]++
@@ -100,4 +108,26 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 		res.Steps = append(res.Steps, m)
 	}
 	return res
+}
+
+// reportSchema02 is the version of a report that carries the children mode
+// and the run tree, which a 0.2 procedure's report always does.
+const reportSchema02 = "0.2"
+
+var childrenModes = map[Children]findingv1alpha1.ChildrenMode{
+	ChildrenInherit:  findingv1alpha1.ChildrenMode_CHILDREN_MODE_INHERIT,
+	ChildrenSeparate: findingv1alpha1.ChildrenMode_CHILDREN_MODE_SEPARATE,
+}
+
+// reportTree names the children mode and the tree in a 0.2 procedure's
+// report, the supervised run first and each other run after its parent; a
+// 0.1 report names neither.
+func (e *evaluation) reportTree(r *findingv1alpha1.SuperviseReport) {
+	if e.p.schema != ProcedureSchema02 {
+		return
+	}
+	r.SchemaVersion, r.Children = reportSchema02, childrenModes[e.p.children]
+	for _, run := range treeOf(e.in) {
+		r.RunTree = append(r.RunTree, &findingv1alpha1.RunTreeMember{RunId: run.ID, ParentRunId: run.Parent})
+	}
 }

@@ -1,6 +1,7 @@
 package supervise
 
 import (
+	"fmt"
 	"time"
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
@@ -9,17 +10,23 @@ import (
 	"github.com/guardana/control/internal/observe"
 )
 
-// RecordSchemaVersion is the version of the finding records and reports
-// Evaluate writes.
+// RecordSchemaVersion is the version of the finding records Evaluate writes
+// and of a 0.1 procedure's report.
 const RecordSchemaVersion = "0.1"
 
-// Run is the opened run under supervision, as its record says.
+// Run is an opened run, as its record says.
 type Run struct {
 	// ID is "run-" and 32 lowercase hex digits.
 	ID     string
 	Tenant string
 	Closed bool
+	// Parent is the run this one was opened under, or empty for a root.
+	Parent string
 }
+
+// MaxTreeRuns bounds the runs one supervision reads as its tree, the
+// supervised run included.
+const MaxTreeRuns = 1024
 
 // Export is one evidence export's events. Whole is true when it holds every
 // line of its trail; NotWhole says why it does not.
@@ -30,9 +37,8 @@ type Export struct {
 }
 
 // Source is one observation source with the observations of its log.
-// LastHeard is the newest event time its import reports name, each taken no
-// later than its report's receive time, and Heard is false when none names
-// one.
+// LastHeard and Heard are what observe.LastHeard reads from its import
+// reports.
 type Source struct {
 	SourceID         string
 	HeartbeatSeconds uint32
@@ -45,8 +51,15 @@ type Source struct {
 // caller named them, the sources it was given whose descriptor it did not
 // find: each is in doubt as a silent source is.
 type Input struct {
-	Procedure      *Procedure
-	Run            Run
+	Procedure *Procedure
+	// Run is the supervised run.
+	Run Run
+	// Tree is Run and the runs the procedure's children mode reads beside
+	// it, Run first and each other run after its parent. Under inherit Run is
+	// a root, Tree its whole tree and every run of it judged; under separate
+	// the others are Run's children, listed and not judged. Empty is Run
+	// alone, all a 0.1 procedure reads.
+	Tree           []Run
 	Exports        []Export
 	Sources        []Source
 	SourcesNotRead []string
@@ -85,17 +98,26 @@ type Result struct {
 
 // Evaluate checks one run against its procedure. It refuses a run id that is
 // not an opened run's with ErrRunID, and a procedure ReadProcedure did not
-// make, a run with no tenant, a source given twice, or a run whose events
-// name two projects with ErrInput.
+// make, a run with no tenant, a tree its procedure does not read, a source
+// given twice, or a run whose events name two projects with ErrInput.
 func Evaluate(in Input) (*Result, error) {
+	// A 0.2 document configures rules this build does not apply yet; judging it
+	// by the 0.1 rules alone would report them as never fired.
+	if in.Procedure != nil && in.Procedure.schema != ProcedureSchema01 {
+		return nil, ErrInput.with("procedure schema " + in.Procedure.schema + " is not supervised by this build")
+	}
+	return evaluate(in)
+}
+
+func evaluate(in Input) (*Result, error) {
 	if err := checkInput(in); err != nil {
 		return nil, err
 	}
-	rd := newRead()
-	if err := rd.takeEvents(in.Run, in.Exports); err != nil {
+	rd := newRead(judged(in), in.Run.Tenant)
+	if err := rd.takeEvents(in.Exports); err != nil {
 		return nil, err
 	}
-	rd.takeObservations(in.Run, in.Sources)
+	rd.takeObservations(in.Sources)
 	e := newEvaluation(in, rd)
 	states := e.states()
 	var drafts []draft
@@ -111,11 +133,6 @@ func checkInput(in Input) error {
 	if in.Procedure == nil || in.Procedure.digest == "" {
 		return ErrInput.with("no procedure ReadProcedure accepted")
 	}
-	// A 0.2 document configures rules this build does not apply yet; judging it
-	// by the 0.1 rules alone would report them as never fired.
-	if in.Procedure.schema != ProcedureSchema01 {
-		return ErrInput.with("procedure schema " + in.Procedure.schema + " is not supervised by this build")
-	}
 	if !observe.ValidRunID(in.Run.ID) {
 		return ErrRunID
 	}
@@ -129,5 +146,72 @@ func checkInput(in Input) error {
 		}
 		seen[s.SourceID] = true
 	}
+	return checkTree(in)
+}
+
+// treeOf is the input's tree: Run alone when none is given.
+func treeOf(in Input) []Run {
+	if len(in.Tree) == 0 {
+		return []Run{in.Run}
+	}
+	return in.Tree
+}
+
+// checkTree holds the tree to the procedure's children mode: Run first and
+// every run of Run's tenant, given once. Under inherit Run is a root and
+// every other run comes after its parent; under separate every other run is
+// Run's child; a 0.1 procedure reads a root run alone.
+func checkTree(in Input) error {
+	tree, mode := treeOf(in), in.Procedure.children
+	switch {
+	case len(tree) > MaxTreeRuns:
+		return ErrInput.with(fmt.Sprintf("the run tree holds %d runs, bound %d", len(tree), MaxTreeRuns))
+	case tree[0] != in.Run:
+		return ErrInput.with("the run tree does not start at the supervised run")
+	case in.Run.Parent != "" && !observe.ValidRunID(in.Run.Parent):
+		return ErrRunID
+	case in.Run.Parent != "" && mode != ChildrenSeparate:
+		return ErrInput.with("a child run is supervised on its own only when children are separate")
+	case len(tree) > 1 && mode == ChildrenUnstated:
+		return ErrInput.with("a 0.1 procedure reads one run")
+	}
+	listed := make(map[string]bool, len(tree))
+	listed[in.Run.ID] = true
+	for _, r := range tree[1:] {
+		if err := checkMember(in.Run, mode, r, listed); err != nil {
+			return err
+		}
+		listed[r.ID] = true
+	}
 	return nil
+}
+
+// checkMember holds one run of the tree after the first to the supervised
+// run, given the runs listed before it.
+func checkMember(run Run, mode Children, r Run, listed map[string]bool) error {
+	switch {
+	case !observe.ValidRunID(r.ID):
+		return ErrRunID
+	case r.Tenant != run.Tenant:
+		return ErrInput.with("a run of the tree belongs to another tenant")
+	case listed[r.ID]:
+		return ErrInput.with("a run of the tree is given twice")
+	case mode == ChildrenSeparate && r.Parent != run.ID:
+		return ErrInput.with("a run listed beside a separate run is not its child")
+	case !listed[r.Parent]:
+		return ErrInput.with("a run of the tree comes before its parent")
+	}
+	return nil
+}
+
+// judged is the runs whose events and observations are read: the whole
+// tree under inherit, else the supervised run alone.
+func judged(in Input) map[string]bool {
+	out := map[string]bool{in.Run.ID: true}
+	if in.Procedure.children == ChildrenInherit {
+		for _, r := range treeOf(in) {
+			out[r.ID] = true
+		}
+	}
+	return out
 }

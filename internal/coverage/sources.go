@@ -35,30 +35,6 @@ func ownedBy(src *Source, source, tenant, project string) bool {
 	return source == d.GetSourceId() && tenant == d.GetTenantId() && project == d.GetProjectId()
 }
 
-// lastHeard is the newest event time an import report of the source names,
-// each taken no later than its report's receive time. A report without both
-// times does not count.
-func lastHeard(src *Source) (time.Time, bool) {
-	var last time.Time
-	heard := false
-	for _, r := range src.Records {
-		rep := r.GetImportReport()
-		latest, received := rep.GetLatestEventTime(), rep.GetReceivedTime()
-		if !ownedBy(src, rep.GetSource().GetSourceId(), rep.GetTenantId(), rep.GetProjectId()) ||
-			!latest.IsValid() || !received.IsValid() {
-			continue
-		}
-		t := latest.AsTime()
-		if rt := received.AsTime(); t.After(rt) {
-			t = rt
-		}
-		if !heard || t.After(last) {
-			last, heard = t, true
-		}
-	}
-	return last, heard
-}
-
 // observationsOf are the source's own observations that name the path as ps
 // says: a tool of that name, at that server address when one is given.
 func observationsOf(src *Source, ps PathSource) []*observev1.Observation {
@@ -85,17 +61,16 @@ func sourceLine(ps PathSource, src *Source, now time.Time, absent []string) Sour
 		line.Basis = notGiven(absent)
 		return line
 	}
-	last, heard := lastHeard(src)
-	heartbeat := time.Duration(src.Descriptor.GetHeartbeatSeconds()) * time.Second
+	last, heard := observe.LastHeard(src.Descriptor, src.Records)
 	when := fmt.Sprintf("last heard %s, heartbeat %d s", last.UTC().Format(time.RFC3339), src.Descriptor.GetHeartbeatSeconds())
-	switch {
-	case !heard:
+	switch observe.LivenessAt(last, heard, src.Descriptor.GetHeartbeatSeconds(), now) {
+	case observe.NeverHeard:
 		line.State, line.Basis = Unknown, "never heard: no import report with an event time"
 		return line
-	case last.After(now):
+	case observe.Ahead:
 		line.State, line.Basis = Unknown, when+": after now, so the clocks disagree"
 		return line
-	case now.Sub(last) > heartbeat:
+	case observe.Lapsed:
 		line.State, line.Basis = Unknown, "past its heartbeat: "+when
 		return line
 	}

@@ -4,10 +4,15 @@ import (
 	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 )
 
-// MaxJoinSteps bounds the span steps one supervision walks to join
-// observations to plane calls. An observation the walk did not reach before
-// the bound is in doubt, never taken as unjoined.
-const MaxJoinSteps = 1 << 20
+// MaxWalkSteps bounds the span steps one plane call's walk takes, and
+// MaxJoinSteps those of every walk of one supervision together. Bounded on
+// its own, one deep chain cannot spend the steps every other walk needs. An
+// observation a walk did not reach before either bound is in doubt, never
+// taken as unjoined.
+const (
+	MaxWalkSteps = 1 << 16
+	MaxJoinSteps = 1 << 20
+)
 
 // noStep marks an entry of the procedure that is allowed, not a step.
 const noStep = -1
@@ -112,7 +117,7 @@ func (g *spanGraph) add(trace, span string) int {
 //
 // Each proposal marks its key on its span and every ancestor span once, so
 // the walk is linear in the spans times the distinct calls of a trace, and
-// MaxJoinSteps bounds it.
+// MaxWalkSteps and MaxJoinSteps bound it.
 type joiner struct {
 	ix     index
 	keys   []callKey
@@ -183,16 +188,18 @@ func (j *joiner) graph(src *Source) *spanGraph {
 // walk marks key on n and every span above it not yet marked with it.
 func (j *joiner) walk(g *spanGraph, n, key int) {
 	stack := []int{n}
+	steps := 0
 	for len(stack) > 0 {
 		n := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		if g.seen[[2]int{n, key}] {
 			continue
 		}
-		if j.steps >= MaxJoinSteps {
+		if steps >= MaxWalkSteps || j.steps >= MaxJoinSteps {
 			g.cut[g.trace[n]] = true
 			return
 		}
+		steps++
 		j.steps++
 		g.seen[[2]int{n, key}] = true
 		g.keysAt[n] = append(g.keysAt[n], key)

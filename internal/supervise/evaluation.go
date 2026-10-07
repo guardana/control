@@ -7,6 +7,7 @@ import (
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/observe"
 )
 
 // instance is one call of a step: a plane request. An observation no plane
@@ -112,9 +113,10 @@ func (e *evaluation) hearSources() {
 	e.anySilent = len(e.in.SourcesNotRead) > 0
 	for _, s := range e.in.Sources {
 		silent := !s.Heard
-		if e.last != nil && !silent {
-			deadline := s.LastHeard.Add(time.Duration(s.HeartbeatSeconds) * time.Second)
-			silent = deadline.Before(e.last.GetOccurredAt().AsTime())
+		if e.last != nil {
+			// A source heard after the run's last event was live as of it.
+			l := observe.LivenessAt(s.LastHeard, s.Heard, s.HeartbeatSeconds, e.last.GetOccurredAt().AsTime())
+			silent = l == observe.NeverHeard || l == observe.Lapsed
 		}
 		switch {
 		case !s.Heard:

@@ -37,13 +37,15 @@ func decoys(span, last string) []call {
 }
 
 // On a chain of 16385 spans, each decoy walks the 16384 spans from spanAt(16383)
-// up to the root once. When r-last starts there too, the walks take 64 times
-// 16384 steps, MaxJoinSteps, and the root's observation joins it. When r-last
-// starts one span deeper, they take one step more, the root is not reached,
-// and its observation is in doubt rather than unjoined.
-func TestTheJoinWalksEachSpanOncePerCallAndIsBounded(t *testing.T) {
-	if supervise.MaxJoinSteps != 1<<20 {
-		t.Fatalf("MaxJoinSteps %d: the chain below is sized for 1<<20", supervise.MaxJoinSteps)
+// up to the root once, each walk within MaxWalkSteps. When r-last starts there
+// too, the walks take 64 times 16384 steps, MaxJoinSteps, and the root's
+// observation joins it. When r-last starts one span deeper, they take one step
+// more, the root is not reached, and its observation is in doubt rather than
+// unjoined.
+func TestTheJoinWalksEachSpanOncePerCallAndIsBoundedInTotal(t *testing.T) {
+	if supervise.MaxJoinSteps != 1<<20 || supervise.MaxWalkSteps < 16385 {
+		t.Fatalf("MaxJoinSteps %d, MaxWalkSteps %d: the chain below is sized for 1<<20 and walks of 16385",
+			supervise.MaxJoinSteps, supervise.MaxWalkSteps)
 	}
 	p := procWith(t)
 	src := chain(16385, ob{id: "obs-top", name: "wipe_disk"}, observev1.SubjectKind_SUBJECT_KIND_AGENT, "mcp_call")
@@ -71,6 +73,30 @@ func TestTheJoinWalksEachSpanOncePerCallAndIsBounded(t *testing.T) {
 					dump([]*findingv1alpha1.FindingRecord{f}))
 			}
 		}
+	}
+}
+
+// TestOneWalkIsBoundedOnItsOwn: one call at the foot of a chain walks it to
+// the top in MaxWalkSteps steps and joins the top's observation; one span
+// more and the walk is cut far below MaxJoinSteps, so the observation is in
+// doubt, never unjoined.
+func TestOneWalkIsBoundedOnItsOwn(t *testing.T) {
+	if supervise.MaxWalkSteps >= supervise.MaxJoinSteps {
+		t.Fatalf("MaxWalkSteps %d is not below MaxJoinSteps %d", supervise.MaxWalkSteps, supervise.MaxJoinSteps)
+	}
+	p := procWith(t)
+	plane := want(p, "STEP_OUTSIDE_PROCEDURE", medium, alert, confirmed, id("STEP_OUTSIDE_PROCEDURE", "wipe_disk", "ops"),
+		evRef("r5-e1", "r5"))
+	for _, n := range []int{supervise.MaxWalkSteps, supervise.MaxWalkSteps + 1} {
+		src := chain(n, ob{id: "obs-top", name: "wipe_disk"}, observev1.SubjectKind_SUBJECT_KIND_AGENT, "mcp_call")
+		res := evaluate(t, supervise.Input{Procedure: p, Sources: []supervise.Source{src}, Exports: []supervise.Export{
+			export(call{req: "r5", tool: "wipe_disk", upstream: "ops", span: spanAt(n - 1)})}})
+		if n == supervise.MaxWalkSteps {
+			sameFindings(t, res.Findings, plane)
+			continue
+		}
+		sameFindings(t, res.Findings, plane, want(p, "STEP_OUTSIDE_PROCEDURE", medium, alert, indetermin,
+			id("STEP_OUTSIDE_PROCEDURE", "wipe_disk"), obsRef("s1", "obs-top")))
 	}
 }
 

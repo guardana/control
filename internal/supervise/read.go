@@ -39,20 +39,24 @@ type read struct {
 	// those taken, and the run's observations of a subject other than a tool.
 	spans  map[*Source][]*observev1.Observation
 	counts *findingv1alpha1.ReadCounts
+	// runs are the runs read, all of tenant.
+	runs   map[string]bool
+	tenant string
 }
 
-func newRead() *read {
+func newRead(runs map[string]bool, tenant string) *read {
 	return &read{
+		runs: runs, tenant: tenant,
 		doubtful: map[string]bool{}, exportOf: map[*controlv1.Event]int{}, obsSource: map[string]*Source{}, obsDoubt: map[string]bool{},
 		spans:  map[*Source][]*observev1.Observation{},
 		counts: &findingv1alpha1.ReadCounts{EventsLeftOut: map[string]uint64{}, ObservationsLeftOut: map[string]uint64{}},
 	}
 }
 
-// takeEvents keeps the events of the run in the run's tenant, each event id
-// once. A second copy of an event is left out; a second content under one
+// takeEvents keeps the events of the runs read in their tenant, each event
+// id once. A second copy of an event is left out; a second content under one
 // event id puts both requests in doubt.
-func (r *read) takeEvents(run Run, exports []Export) error {
+func (r *read) takeEvents(exports []Export) error {
 	seen := map[string]*controlv1.Event{}
 	for i, x := range exports {
 		if x.Whole {
@@ -61,7 +65,7 @@ func (r *read) takeEvents(run Run, exports []Export) error {
 			r.counts.ExportsNotWhole++
 		}
 		for _, ev := range x.Events {
-			why := eventOutside(ev, run)
+			why := r.eventOutside(ev)
 			if first, ok := seen[ev.GetEventId()]; ok && why == "" {
 				why = outDuplicate
 				if !proto.Equal(first, ev) {
@@ -82,13 +86,13 @@ func (r *read) takeEvents(run Run, exports []Export) error {
 	return r.takeProject()
 }
 
-func eventOutside(ev *controlv1.Event, run Run) string {
+func (r *read) eventOutside(ev *controlv1.Event) string {
 	switch {
 	case ev == nil:
 		return outNotRecord
-	case ev.GetRunId() != run.ID:
+	case !r.runs[ev.GetRunId()]:
 		return outAnotherRun
-	case ev.GetTenantId() != run.Tenant:
+	case ev.GetTenantId() != r.tenant:
 		return outAnotherTenant
 	}
 	return ""
@@ -109,14 +113,14 @@ func (r *read) takeProject() error {
 	return nil
 }
 
-// takeObservations keeps the tool observations that claim the run, in its
-// tenant and project, each observation id once.
-func (r *read) takeObservations(run Run, sources []Source) {
+// takeObservations keeps the tool observations that claim a run read, in
+// its tenant and project, each observation id once.
+func (r *read) takeObservations(sources []Source) {
 	digests := map[string]string{}
 	for i := range sources {
 		src := &sources[i]
 		for _, o := range src.Observations {
-			why := r.observationOutside(o, src, run)
+			why := r.observationOutside(o, src)
 			if why == outNotTool {
 				r.spans[src] = append(r.spans[src], o)
 			}
@@ -141,9 +145,10 @@ func (r *read) takeObservations(run Run, sources []Source) {
 	r.counts.ObservationsTaken = uint64(len(r.obs))
 }
 
-// observationOutside says why o is not a tool observation of the run. The
-// subject is judged last, so an observation outside only by it is the run's.
-func (r *read) observationOutside(o *observev1.Observation, src *Source, run Run) string {
+// observationOutside says why o is not a tool observation of a run read.
+// The subject is judged last, so an observation outside only by it is the
+// run's.
+func (r *read) observationOutside(o *observev1.Observation, src *Source) string {
 	c := o.GetCorrelation()
 	switch {
 	case o == nil:
@@ -152,9 +157,9 @@ func (r *read) observationOutside(o *observev1.Observation, src *Source, run Run
 		return outAnotherSource
 	case observe.BasisOf(c.GetBasis()) != observev1.Basis_BASIS_CLAIMED:
 		return outNotClaimed
-	case c.GetRunId() != run.ID:
+	case !r.runs[c.GetRunId()]:
 		return outAnotherRun
-	case o.GetTenantId() != run.Tenant:
+	case o.GetTenantId() != r.tenant:
 		return outAnotherTenant
 	case o.GetProjectId() != r.project:
 		return outAnotherProject
