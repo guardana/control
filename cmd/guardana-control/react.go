@@ -59,12 +59,16 @@ func reactCommand(args []string, stdout, stderr io.Writer) int {
 
 // react appends to the list in --stops a stop or a covered line for each
 // finding of the log the route allows to stop a run and the list does not
-// name yet. It holds no key and never lifts.
+// name yet. A route naming a rule that may not stop a run is refused whole
+// before the list or a finding is read. It holds no key and never lifts.
 func react(a reactArgs, now time.Time, stdout, stderr io.Writer) int {
 	now = now.UTC().Truncate(time.Second)
 	route, err := a.verified()
 	if err != nil {
 		return fail(stderr, reactName, err)
+	}
+	if err := reaction.CheckStopping(route); err != nil {
+		return fail(stderr, reactName, fmt.Errorf("--route %s: %w", a.route, err))
 	}
 	list, _, err := judgedList(a.stops, route, now)
 	if err != nil {
@@ -190,7 +194,7 @@ func (r *reactor) run(id string) (reaction.RunFacts, error) {
 	case err != nil:
 		return reaction.RunFacts{}, fmt.Errorf("--runs: run %s: %w", oneLine(id), err)
 	}
-	facts := reaction.RunFacts{RunID: rec.ID, TenantID: rec.Who.TenantID, Root: rec.Root,
+	facts := reaction.RunFacts{RunID: rec.ID, TenantID: rec.Who.TenantID,
 		Open: rec.ID != "" && !rec.Closed(), ExpiresAt: rec.ExpiresAt}
 	r.runFacts[id] = facts
 	return facts, nil

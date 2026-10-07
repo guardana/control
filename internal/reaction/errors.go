@@ -37,6 +37,7 @@ const (
 	ErrRouteRuleRepeated Error = "reaction: the route names one rule twice"
 	ErrRouteLifetime     Error = "reaction: a rule's expires_seconds is not an integer from 60 to the longest run lifetime"
 	ErrRouteNotCanonical Error = "reaction: the signed route is not its own canonical form"
+	ErrRouteRuleStops    Error = "reaction: the route names a rule that may not stop a run"
 )
 
 // The lift payload's refusals.
@@ -82,7 +83,6 @@ const (
 	ErrRunUnknown     Error = "reaction: the finding names no opened run the runs directory holds"
 	ErrRunTenant      Error = "reaction: the finding's tenant is not its run's"
 	ErrRunClosed      Error = "reaction: the finding's run is closed"
-	ErrRunChild       Error = "reaction: the finding's run was opened under another"
 	ErrRunExpired     Error = "reaction: the finding's run is expired at the time given"
 	ErrRunExpiry      Error = "reaction: the finding's run holds no usable expiry"
 	ErrClock          Error = "reaction: the time given is not a usable time"

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -14,6 +15,9 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/findinglog"
 	"github.com/guardana/control/internal/reaction"
 )
 
@@ -49,6 +53,93 @@ func TestAStopRefusesItsRunsNextCallAndNoOthers(t *testing.T) {
 	state := stopsHealth(t, sp.health)
 	if state.State != "stopped" || state.Active != 1 || len(state.Entries) != 1 || state.Entries[0].RunID != first.id || len(state.UnheldRuns) != 0 {
 		t.Errorf("/healthz stops = %+v", state)
+	}
+}
+
+// TestAChildsFindingStopsTheChildAndNotItsParentOrASibling runs the built
+// plane with a root and two children opened under it: react, run as the
+// operator runs it over a confirmed finding of the first child, writes a stop
+// of that child, whose next call is refused RUN_STOPPED, while the root's and
+// the sibling's calls still run.
+func TestAChildsFindingStopsTheChildAndNotItsParentOrASibling(t *testing.T) {
+	rp := newRunsPlane(t, "stateless_http")
+	rp.withRoute()
+	sp := rp.start()
+	root := rp.open()
+	child, sibling := rp.open("--parent", root.id, "--ttl", "30m"), rp.open("--parent", root.id, "--ttl", "30m")
+	if child.root != root.id || sibling.root != root.id {
+		t.Fatalf("runs open gave root %+v, children %+v and %+v", root, child, sibling)
+	}
+	agents := map[string]*sdk.ClientSession{}
+	for name, run := range map[string]openedRun{"root": root, "child": child, "sibling": sibling} {
+		agents[name] = agentUnder(t, sp.listen, run.token)
+		expectRan(t, "the "+name+"'s call before the stop", callTool(t, agents[name], toolReadTicket))
+	}
+
+	rp.reactTo(child.id)
+	res, ran := rp.untilBlocked(agents["child"])
+	codes, _ := planeFields(res.Meta)["reason_codes"].([]any)
+	if !res.IsError || !slices.Contains(codes, any(codeRunStopped)) {
+		t.Fatalf("the stopped child's call: isError %v, codes %v", res.IsError, codes)
+	}
+	if n := rp.up.count(toolReadTicket); n != ran {
+		t.Errorf("the stopped call reached the upstream: %d runs, %d before it", n, ran)
+	}
+	for _, name := range []string{"root", "sibling"} {
+		expectRan(t, "the "+name+"'s call under the child's stop", callTool(t, agents[name], toolReadTicket))
+	}
+	if n := rp.up.count(toolReadTicket); n != ran+2 {
+		t.Errorf("the root's and the sibling's calls ran the upstream %d times, want 2", n-ran)
+	}
+	state := stopsHealth(t, sp.health)
+	if state.Active != 1 || len(state.Entries) != 1 || state.Entries[0].RunID != child.id {
+		t.Errorf("/healthz stops = %+v, want the child's stop alone", state)
+	}
+}
+
+// reactTo writes a confirmed finding about run into a findings log and runs
+// the built react over it, failing unless it writes that run's stop.
+func (rp *runsPlane) reactTo(run string) {
+	rp.t.Helper()
+	findings := filepath.Join(rp.dir, "findings")
+	writeFinding(rp.t, findings, run)
+	out, err := runBinary(rp.control, "react", "--findings", findings, "--runs", rp.runs,
+		"--route", filepath.Join(rp.dir, "route.json"), "--public-key", filepath.Join(rp.dir, "route.pub"),
+		"--stops", filepath.Join(rp.dir, "stops"))
+	if err != nil || !strings.HasPrefix(out, "stop line 2 run "+run+" finding "+childFinding+" rule "+fixtureRule+" ") {
+		rp.t.Fatalf("react: %v\n%s", err, out)
+	}
+}
+
+// childFinding is a finding id as supervise spells one.
+const childFinding = "fnd-0123456789abcdef0123456789abcdef"
+
+// writeFinding writes, into a new owner-only findings log at dir, one
+// deterministic, confirmed finding about run that the fixture's route names.
+func writeFinding(t *testing.T, dir, run string) {
+	t.Helper()
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	log, err := findinglog.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = log.Close() }()
+	proc := func() *findingv1alpha1.ProcedureRef {
+		return &findingv1alpha1.ProcedureRef{ProcedureId: "refund", Version: "3", Digest: fixtureProcedure}
+	}
+	f := &findingv1alpha1.FindingRecord{
+		SchemaVersion: "0.1", TenantId: runsTenant, ProjectId: "orders", Procedure: proc(),
+		Escalation: findingv1alpha1.Escalation_ESCALATION_ALERT,
+		Finding: &controlv1.Finding{FindingId: childFinding, RuleId: fixtureRule, RuleVersion: "1",
+			Severity: controlv1.FindingSeverity_FINDING_SEVERITY_HIGH, RunId: run,
+			Verdict: controlv1.FindingVerdict_FINDING_VERDICT_CONFIRMED, Source: controlv1.FindingSource_FINDING_SOURCE_DETERMINISTIC},
+	}
+	report := &findingv1alpha1.SuperviseReport{SchemaVersion: "0.1", TenantId: runsTenant, ProjectId: "orders",
+		RunId: run, Procedure: proc(), Read: &findingv1alpha1.ReadCounts{EventsTaken: 1}}
+	if _, err := log.Write([]*findingv1alpha1.FindingRecord{f}, report); err != nil {
+		t.Fatal(err)
 	}
 }
 

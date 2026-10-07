@@ -90,8 +90,9 @@ func openStopList(cfg *gatewayconfig.Config, route reaction.Route, logger *slog.
 }
 
 // readRoute reads the route file and the route key the configuration names,
-// verifies the route under that key and holds it to the configuration: its
-// tenant and the four keys apart.
+// verifies the route under that key, refuses it whole when a rule it names
+// may not stop a run, and holds it to the configuration: its tenant and the
+// four keys apart.
 func readRoute(cfg *gatewayconfig.Config) (reaction.Route, error) {
 	raw, err := readBounded(cfg.Resolve(cfg.Reaction.Route), reaction.MaxRouteFileBytes)
 	if err != nil {
@@ -107,6 +108,9 @@ func readRoute(cfg *gatewayconfig.Config) (reaction.Route, error) {
 	}
 	route, err := reaction.VerifyRoute(env, pub)
 	if err != nil {
+		return reaction.Route{}, fmt.Errorf("reaction.route: %w", err)
+	}
+	if err := reaction.CheckStopping(route); err != nil {
 		return reaction.Route{}, fmt.Errorf("reaction.route: %w", err)
 	}
 	if err := cfg.CheckRoute(route, pub); err != nil {

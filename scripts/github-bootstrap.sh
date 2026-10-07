@@ -78,7 +78,8 @@ ACTIONS_APP_ID=15368
 # The paths where GOVERNANCE.md asks for two independent approvals: the
 # decision path, the enforcement pipeline, the approvals store, the digest and
 # the keys, the evidence record, the judgement of a run against its procedure,
-# the route and lift signatures and the stop judge, the policy and route floors
+# the route and lift signatures and the stop judge, the commands that sign a
+# route and turn findings into stops, the policy and route floors
 # and their refresh, the owner and mode checks of the configuration and of every
 # store, the wire contracts and their
 # fixtures, the gate's Go code that reports test results and checks the
@@ -100,6 +101,8 @@ TWO_APPROVAL_PATHS=(
   "internal/gatewayconfig/**"
   "internal/files/**"
   "internal/policywatch/**"
+  "cmd/guardana-control/route*.go"
+  "cmd/guardana-control/react*.go"
   "pkg/contract/**"
   "pkg/policyprovider/**"
   "api/proto/**"

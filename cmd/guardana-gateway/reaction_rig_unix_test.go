@@ -40,10 +40,16 @@ func liftSigningKey() ed25519.PrivateKey {
 
 // routeDocument is a route of tenant at serial, written out by hand.
 func routeDocument(tenant string, serial int64) string {
+	return routeDocumentOf(tenant, serial, fixtureRule)
+}
+
+// routeDocumentOf is a route of tenant at serial whose one rule is rule of
+// the refund procedure, at rule version "1".
+func routeDocumentOf(tenant string, serial int64, rule string) string {
 	lift := base64.StdEncoding.EncodeToString(liftSigningKey().Public().(ed25519.PublicKey))
 	return `{"kind":"reaction-route/v1alpha1","route_id":"` + fixtureRouteID + `","serial":` + strconv.FormatInt(serial, 10) +
 		`,"tenant_id":"` + tenant + `","scope":"run","lift_public_key":"` + lift + `","rules":[` +
-		`{"procedure_id":"refund","version":"3","digest":"` + fixtureProcedure + `","rule_id":"` + fixtureRule +
+		`{"procedure_id":"refund","version":"3","digest":"` + fixtureProcedure + `","rule_id":"` + rule +
 		`","rule_version":"1","expires_seconds":3600}]}`
 }
 

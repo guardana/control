@@ -61,7 +61,7 @@ func reactProperty(t *testing.T, rng *rand.Rand) {
 	tr := newStopTree(t)
 	m := &findingMaker{rng: rng, want: map[string]bool{}, next: 1,
 		pool:    []string{tr.open, tr.second, tr.open, tr.second, tr.child, tr.closed, tr.alien, "run-" + strings.Repeat("e", 32)},
-		mayStop: map[string]bool{tr.open: true, tr.second: true}}
+		mayStop: map[string]bool{tr.open: true, tr.second: true, tr.child: true}}
 	poller, err := stoplist.Open(stoplist.Options{Dir: tr.stops, Route: tr.parsed, Interval: time.Second, Clock: time.Now})
 	if err != nil {
 		t.Fatal(err)

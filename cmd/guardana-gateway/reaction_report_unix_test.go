@@ -129,6 +129,19 @@ func TestDoctorFailsARouteBelowItsFloor(t *testing.T) {
 	}
 }
 
+// TestDoctorFailsARouteNamingARuleThatMayNotStop: doctor fails what the
+// start refuses, and says which rule and why.
+func TestDoctorFailsARouteNamingARuleThatMayNotStop(t *testing.T) {
+	tr := newTree(t)
+	tr.withReaction(t)
+	signedDirectly(t, tr, "EXCEPTION_TAKEN")
+	line := doctorLine(t, tr, "fail    reaction ")
+	want := "reaction.route: rules[0]: reaction: the route names a rule that may not stop a run; run refuses to start on it"
+	if !strings.HasSuffix(line, want) {
+		t.Errorf("the reaction line is %q, want it to end %q", line, want)
+	}
+}
+
 // TestDoctorSaysAPlaneWithoutARouteStopsNothing is the check's disabled side.
 func TestDoctorSaysAPlaneWithoutARouteStopsNothing(t *testing.T) {
 	line := doctorLine(t, newTree(t), "ok      reaction ")

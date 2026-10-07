@@ -16,14 +16,14 @@ func eligibleFacts() (reaction.FindingFacts, reaction.RunFacts) {
 		Source: controlv1.FindingSource_FINDING_SOURCE_DETERMINISTIC, Verdict: controlv1.FindingVerdict_FINDING_VERDICT_CONFIRMED,
 		TenantID: "acme", RunID: runID,
 	}, reaction.RunFacts{
-		RunID: runID, TenantID: "acme", Root: runID, Open: true, ExpiresAt: now.Add(time.Hour),
+		RunID: runID, TenantID: "acme", Open: true, ExpiresAt: now.Add(time.Hour),
 	}
 }
 
 func eligibleRefusals() []error {
 	return []error{
 		reaction.ErrFindingSource, reaction.ErrFindingVerdict, reaction.ErrRunUnknown, reaction.ErrRunTenant,
-		reaction.ErrRunClosed, reaction.ErrRunChild, reaction.ErrRunExpired, reaction.ErrRunExpiry, reaction.ErrClock,
+		reaction.ErrRunClosed, reaction.ErrRunExpired, reaction.ErrRunExpiry, reaction.ErrClock,
 	}
 }
 
@@ -66,16 +66,11 @@ func TestEligibleRefusesARunItCannotStop(t *testing.T) {
 		want error
 	}{
 		{"no run found", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { *r = reaction.RunFacts{} }, now, reaction.ErrRunUnknown},
-		{"another run's record", func(_ *reaction.FindingFacts, r *reaction.RunFacts) {
-			r.RunID = "run-ffffffffffffffffffffffffffffffff"
-			r.Root = r.RunID
-		}, now, reaction.ErrRunUnknown},
-		{"a finding naming no run", func(f *reaction.FindingFacts, r *reaction.RunFacts) { f.RunID, r.RunID, r.Root = "", "", "" }, now, reaction.ErrRunUnknown},
+		{"another run's record", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.RunID = "run-ffffffffffffffffffffffffffffffff" }, now, reaction.ErrRunUnknown},
+		{"a finding naming no run", func(f *reaction.FindingFacts, r *reaction.RunFacts) { f.RunID, r.RunID = "", "" }, now, reaction.ErrRunUnknown},
 		{"another tenant's run", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.TenantID = "other" }, now, reaction.ErrRunTenant},
 		{"no tenant on either", func(f *reaction.FindingFacts, r *reaction.RunFacts) { f.TenantID, r.TenantID = "", "" }, now, reaction.ErrRunTenant},
 		{"a closed run", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.Open = false }, now, reaction.ErrRunClosed},
-		{"a child run", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.Root = "run-ffffffffffffffffffffffffffffffff" }, now, reaction.ErrRunChild},
-		{"a run with no root copied", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.Root = "" }, now, reaction.ErrRunChild},
 		{"a run expiring now", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.ExpiresAt = now }, now, reaction.ErrRunExpired},
 		{"a run with no expiry copied", func(_ *reaction.FindingFacts, r *reaction.RunFacts) { r.ExpiresAt = time.Time{} }, now, reaction.ErrRunExpiry},
 		{"a run expiring past what a record holds", func(_ *reaction.FindingFacts, r *reaction.RunFacts) {

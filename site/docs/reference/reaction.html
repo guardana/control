@@ -104,8 +104,9 @@
 of the run it is about, under a route the operator signed. A plane with that
 route refuses the run's later calls <code>RUN_STOPPED</code>, and no other run's. It is
 <code>experimental</code>: <a href="/docs/status">status.md</a> is the inventory,
-<a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a> the
-record, and <a href="/docs/contracts#the-reaction-route-and-the-stop-list">contracts.md</a>
+<a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a> and
+<a href="/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047</a>
+the records, and <a href="/docs/contracts#the-reaction-route-and-the-stop-list">contracts.md</a>
 gives the formats. <code>examples/refund-supervision/</code> runs it on a live plane.</p>
 <pre><code>guardana-control route sign --key &lt;file&gt; --out &lt;file&gt; &lt;route.json&gt;
 guardana-control policy state init --kind route --route-id &lt;id&gt; &lt;dir&gt;
@@ -123,11 +124,13 @@ lifetime for the stops it allows. Without one a stop lasts as long as its run.
 <code>route sign</code> signs it with a key of its own, writes the file mode <code>0644</code>,
 replacing only an earlier signed route, and prints <code>route_id</code>, <code>serial</code>,
 <code>digest</code>, <code>key_id</code> and <code>out</code>. It refuses a rule id supervise does not have, a
-<code>rule_version</code> that is not supervise's, and the three rules supervise never
-raises as <code>CONFIRMED</code>: <code>REQUIRED_STEP_SKIPPED</code>, <code>STEP_OUT_OF_ORDER</code> and
-<code>CONTINUED_AFTER_FAILURE</code>. The route also names the lift key, whose holder
-alone can lift a stop while a plane runs, and which need not be on the
-plane's machine.</p>
+<code>rule_version</code> that is not that rule's, and any rule but the six whose finding
+may stop a run: <code>REPEATED_DENIAL</code>, <code>STEP_OUTSIDE_PROCEDURE</code>,
+<code>DEADLINE_EXCEEDED</code>, <code>RESOURCE_OUTSIDE_RUN</code>, <code>DENIED_ACTION_RETRIED_ARGUMENTS</code>
+and <code>DENIED_ACTION_RETRIED_RESOURCE</code>. <code>react</code> and a plane refuse such a route
+whole, however signed. The route also names the lift key, whose holder alone
+can lift a stop while a plane runs, and which need not be on the plane's
+machine.</p>
 <p>The route floor keeps, per route id, the highest serial a plane took and its
 digest, in a directory of its own that <code>policy state init --kind route</code> makes.
 At start a plane refuses a missing floor, a route below the floor's serial,
@@ -158,8 +161,9 @@ header, each stop no lift ended and whether it is active, the covered lines
 and lifts counted and the list's use of its bounds, as a plane with a trusted
 clock would judge it.</p>
 <h2 id="what-react-writes">What react writes</h2>
-<p><code>react</code> verifies the route, refuses a list whose header names another route,
-reads the findings log and looks each finding's run up in the runs directory,
+<p><code>react</code> verifies the route, refuses one naming a rule outside the six before
+reading a finding, refuses a list whose header names another route, reads the
+findings log and looks each finding's run up in the runs directory,
 which it never writes. It holds no key and never lifts. For each finding the
 list does not name yet, it writes a <code>covered</code> line when the run has an active
 stop lasting at least as long as the new one would, and a <code>stop</code> otherwise,
@@ -167,7 +171,7 @@ as the list stands under its lock, if:</p>
 <ul>
 <li>the finding is <code>DETERMINISTIC</code> and <code>CONFIRMED</code>; a suspected, indeterminate
 or model's finding stops nothing, and no setting changes that;</li>
-<li>its run is an opened run, open, unexpired and no child;</li>
+<li>its run is an opened run of its tenant, open and unexpired, a child included;</li>
 <li>the route permits it: its tenant, procedure and rule are a rule's.</li>
 </ul>
 <p>A finding the list names in any line writes nothing again, so a lift holds:
@@ -182,10 +186,10 @@ while the run is open.</p>
 <p>At start, a plane with <code>reaction.route</code> refuses to serve unless all four of
 <code>reaction.route</code>, <code>reaction.public_key</code>, <code>reaction.floor_dir</code> and
 <code>reaction.stops</code> are set, with <code>runs.dir</code>; the route verifies under the key
-<code>reaction.public_key</code> names; its tenant is the listener's; the route key, the
-lift key, the policy key and the freshness key are four keys, compared as
-points up to their sign; the floor takes the route; and the first read of the
-list finds a state it can serve.</p>
+<code>reaction.public_key</code> names; its rules are among the six; its tenant is the
+listener's; the route key, the lift key, the policy key and the freshness key
+are four keys, compared as points up to their sign; the floor takes the route;
+and the first read of the list finds a state it can serve.</p>
 <p>It reads the list every <code>reaction.poll_interval</code> into a snapshot, as it reads
 the pause file. A read must extend the bytes it accepted before, with the
 same header; a list that is missing, a link, owned by another account,
@@ -197,10 +201,10 @@ cannot be undone. An active stop whose run and tenant are the call's opened
 run, as its token resolved, blocks it. A stop is active until a lift ends it,
 or until the call's clock, usable and not behind the floor, reaches its
 <code>expires_at</code>; a clock the plane cannot trust keeps it active. The tool
-listing and another run's calls, a stopped run's children included, are not
-stopped. A stopped retry of a held request consumes nothing, and the hold
-resumes after the stop ends; a stop read after the approval was consumed
-closes the held trail and spends the approval.</p>
+listing and another run's calls, a stopped run's parent and children
+included, are not stopped. A stopped retry of a held request consumes nothing,
+and the hold resumes after the stop ends; a stop read after the approval was
+consumed closes the held trail and spends the approval.</p>
 <table>
 <thead>
 <tr>
@@ -232,11 +236,11 @@ decision point is asked, in this order of the plane's causes: <code>PAUSED</code
 <code>ACTION_UNCLASSIFIED</code>. A decision names no stop.</p>
 <h2 id="what-reports-it">What reports it</h2>
 <p><code>doctor</code> reads the route, the floor and the list as a start would, takes no
-lock and leaves the floor as it was. It prints the route's id, serial and
-digest, the floor, the list's id, state and age, the count of active stops
-and the first 64 of them, each of those naming a run the runs directory does
-not hold, and each rule whose lifetime ends a stop before its run can end; a
-listed stop whose run's record cannot be read leaves it unknown. <code>/healthz</code> answers the same
+lock and leaves the floor as it was; what the start refuses fails. It prints
+the route's id, serial and digest, the floor, the list's id, state and age,
+the count of active stops and the first 64 of them, each of those naming a run
+the runs directory does not hold, and each rule whose lifetime ends a stop
+before its run can end; a listed stop whose run's record cannot be read leaves it unknown. <code>/healthz</code> answers the same
 under <code>stops</code>, with the unknown state's cause, the list's use of its bounds
 and the reads it made; an unknown state answers <code>503</code>, and a list past nine
 tenths of a bound is <code>degraded</code>. <code>/metrics</code> counts the reads, the failed ones
@@ -248,7 +252,7 @@ stop that becomes active, expires or is lifted, with its finding id.
 <li>A call already handed out for execution when the stop is read is not cut:
 the stop bites on the run's next call, within one poll interval of the line
 being written.</li>
-<li>A stopped run's children are not stopped.</li>
+<li>A stop names one run: a stopped run's parent and children run on.</li>
 <li>Any process of the plane's account can add a stop the route allows for any
 opened run of its tenant, or block every call by writing a line the route
 refuses. It cannot lift a stop without the lift key, nor shorten the list

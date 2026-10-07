@@ -233,6 +233,44 @@ func TestARouteTheConfigurationDoesNotServeRefusesTheStart(t *testing.T) {
 	})
 }
 
+// signedDirectly replaces the tree's route with a route of rule, signed
+// with the route key by other means than route sign, and starts the stop
+// list over under it, so only the start's check of the rule stands between
+// the route and a serving plane.
+func signedDirectly(t *testing.T, tr tree, rule string) {
+	t.Helper()
+	route := readRouteDocument(t, routeDocumentOf(runsTenant, 1, rule))
+	writeRouteFile(t, tr.dir, route, routeSigningKey(), routeSigningKey().Public().(ed25519.PublicKey))
+	if err := os.Remove(filepath.Join(tr.dir, "stops", stoplist.FileName)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stopwrite.Init(context.Background(), filepath.Join(tr.dir, "stops"), route, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestARouteNamingARuleThatMayNotStopRefusesTheStart: a route naming a rule
+// whose finding may not stop a run, or no rule supervise has, is refused
+// before the floor is touched. A 0.9 route naming REPEATED_DENIAL version
+// "1" is the control, and starts.
+func TestARouteNamingARuleThatMayNotStopRefusesTheStart(t *testing.T) {
+	for _, rule := range []string{"EXCEPTION_TAKEN", "DENIED_ACTION_RETRIED_AROUND", "REQUIRED_STEP_SKIPPED", "NO_SUCH_RULE"} {
+		t.Run(rule, func(t *testing.T) {
+			tr := newTree(t)
+			tr.withReaction(t)
+			signedDirectly(t, tr, rule)
+			refusesStart(t, tr, reaction.ErrRouteRuleStops, "reaction.route: rules[0]")
+			unraised(t, tr)
+		})
+	}
+	tr := newTree(t)
+	tr.withReaction(t)
+	signedDirectly(t, tr, "REPEATED_DENIAL")
+	if _, err := buildServing(t, tr); err != nil {
+		t.Fatalf("the 0.9 route: %v", err)
+	}
+}
+
 // TestAStopListThatCannotBeServedRefusesTheStart: a list that is not there,
 // and one whose header names another route, are refused at the first read,
 // and leave the route floor as it was.

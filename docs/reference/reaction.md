@@ -11,8 +11,9 @@ covers: [internal/reaction/**, internal/policystate/route.go, cmd/guardana-contr
 of the run it is about, under a route the operator signed. A plane with that
 route refuses the run's later calls `RUN_STOPPED`, and no other run's. It is
 `experimental`: [status.md](../status.md) is the inventory,
-[ADR-0046](../adr/0046-a-finding-stops-one-run-through-a-signed-route.md) the
-record, and [contracts.md](../contracts.md#the-reaction-route-and-the-stop-list)
+[ADR-0046](../adr/0046-a-finding-stops-one-run-through-a-signed-route.md) and
+[ADR-0047](../adr/0047-a-procedure-states-its-exceptions-resources-and-children.md)
+the records, and [contracts.md](../contracts.md#the-reaction-route-and-the-stop-list)
 gives the formats. `examples/refund-supervision/` runs it on a live plane.
 
 ```
@@ -48,11 +49,13 @@ lifetime for the stops it allows. Without one a stop lasts as long as its run.
 `route sign` signs it with a key of its own, writes the file mode `0644`,
 replacing only an earlier signed route, and prints `route_id`, `serial`,
 `digest`, `key_id` and `out`. It refuses a rule id supervise does not have, a
-`rule_version` that is not supervise's, and the three rules supervise never
-raises as `CONFIRMED`: `REQUIRED_STEP_SKIPPED`, `STEP_OUT_OF_ORDER` and
-`CONTINUED_AFTER_FAILURE`. The route also names the lift key, whose holder
-alone can lift a stop while a plane runs, and which need not be on the
-plane's machine.
+`rule_version` that is not that rule's, and any rule but the six whose finding
+may stop a run: `REPEATED_DENIAL`, `STEP_OUTSIDE_PROCEDURE`,
+`DEADLINE_EXCEEDED`, `RESOURCE_OUTSIDE_RUN`, `DENIED_ACTION_RETRIED_ARGUMENTS`
+and `DENIED_ACTION_RETRIED_RESOURCE`. `react` and a plane refuse such a route
+whole, however signed. The route also names the lift key, whose holder alone
+can lift a stop while a plane runs, and which need not be on the plane's
+machine.
 
 The route floor keeps, per route id, the highest serial a plane took and its
 digest, in a directory of its own that `policy state init --kind route` makes.
@@ -89,8 +92,9 @@ clock would judge it.
 
 ## What react writes
 
-`react` verifies the route, refuses a list whose header names another route,
-reads the findings log and looks each finding's run up in the runs directory,
+`react` verifies the route, refuses one naming a rule outside the six before
+reading a finding, refuses a list whose header names another route, reads the
+findings log and looks each finding's run up in the runs directory,
 which it never writes. It holds no key and never lifts. For each finding the
 list does not name yet, it writes a `covered` line when the run has an active
 stop lasting at least as long as the new one would, and a `stop` otherwise,
@@ -98,7 +102,7 @@ as the list stands under its lock, if:
 
 - the finding is `DETERMINISTIC` and `CONFIRMED`; a suspected, indeterminate
   or model's finding stops nothing, and no setting changes that;
-- its run is an opened run, open, unexpired and no child;
+- its run is an opened run of its tenant, open and unexpired, a child included;
 - the route permits it: its tenant, procedure and rule are a rule's.
 
 A finding the list names in any line writes nothing again, so a lift holds:
@@ -115,10 +119,10 @@ while the run is open.
 At start, a plane with `reaction.route` refuses to serve unless all four of
 `reaction.route`, `reaction.public_key`, `reaction.floor_dir` and
 `reaction.stops` are set, with `runs.dir`; the route verifies under the key
-`reaction.public_key` names; its tenant is the listener's; the route key, the
-lift key, the policy key and the freshness key are four keys, compared as
-points up to their sign; the floor takes the route; and the first read of the
-list finds a state it can serve.
+`reaction.public_key` names; its rules are among the six; its tenant is the
+listener's; the route key, the lift key, the policy key and the freshness key
+are four keys, compared as points up to their sign; the floor takes the route;
+and the first read of the list finds a state it can serve.
 
 It reads the list every `reaction.poll_interval` into a snapshot, as it reads
 the pause file. A read must extend the bytes it accepted before, with the
@@ -132,10 +136,10 @@ cannot be undone. An active stop whose run and tenant are the call's opened
 run, as its token resolved, blocks it. A stop is active until a lift ends it,
 or until the call's clock, usable and not behind the floor, reaches its
 `expires_at`; a clock the plane cannot trust keeps it active. The tool
-listing and another run's calls, a stopped run's children included, are not
-stopped. A stopped retry of a held request consumes nothing, and the hold
-resumes after the stop ends; a stop read after the approval was consumed
-closes the held trail and spends the approval.
+listing and another run's calls, a stopped run's parent and children
+included, are not stopped. A stopped retry of a held request consumes nothing,
+and the hold resumes after the stop ends; a stop read after the approval was
+consumed closes the held trail and spends the approval.
 
 | Code | Number | Verdict | When |
 | --- | --- | --- | --- |
@@ -151,11 +155,11 @@ decision point is asked, in this order of the plane's causes: `PAUSED`,
 ## What reports it
 
 `doctor` reads the route, the floor and the list as a start would, takes no
-lock and leaves the floor as it was. It prints the route's id, serial and
-digest, the floor, the list's id, state and age, the count of active stops
-and the first 64 of them, each of those naming a run the runs directory does
-not hold, and each rule whose lifetime ends a stop before its run can end; a
-listed stop whose run's record cannot be read leaves it unknown. `/healthz` answers the same
+lock and leaves the floor as it was; what the start refuses fails. It prints
+the route's id, serial and digest, the floor, the list's id, state and age,
+the count of active stops and the first 64 of them, each of those naming a run
+the runs directory does not hold, and each rule whose lifetime ends a stop
+before its run can end; a listed stop whose run's record cannot be read leaves it unknown. `/healthz` answers the same
 under `stops`, with the unknown state's cause, the list's use of its bounds
 and the reads it made; an unknown state answers `503`, and a list past nine
 tenths of a bound is `degraded`. `/metrics` counts the reads, the failed ones
@@ -168,7 +172,7 @@ stop that becomes active, expires or is lifted, with its finding id.
 - A call already handed out for execution when the stop is read is not cut:
   the stop bites on the run's next call, within one poll interval of the line
   being written.
-- A stopped run's children are not stopped.
+- A stop names one run: a stopped run's parent and children run on.
 - Any process of the plane's account can add a stop the route allows for any
   opened run of its tenant, or block every call by writing a line the route
   refuses. It cannot lift a stop without the lift key, nor shorten the list

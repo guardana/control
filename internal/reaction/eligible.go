@@ -21,9 +21,6 @@ type FindingFacts struct {
 type RunFacts struct {
 	RunID    string
 	TenantID string
-	// Root is the run whose state the run shares; a run opened with no
-	// parent is its own root.
-	Root string
 	// Open is true while the record holds no close.
 	Open      bool
 	ExpiresAt time.Time
@@ -31,10 +28,11 @@ type RunFacts struct {
 
 // Eligible returns nil when a finding may become a stop of its run at now: the
 // finding is DETERMINISTIC and CONFIRMED, and its run is an opened run of its
-// tenant that is open, no child, and not expired at now. Any other value of
-// either enum, the zero and a number this build does not know among them, is
-// refused, and so is a now or a run expiry that is not a usable time. A
-// finding's escalation is not read: the route decides.
+// tenant, a root or a child, that is open and not expired at now. The stop
+// names that run alone, so a child's leaves its parent and siblings running.
+// Any other value of either enum, the zero and a number this build does not
+// know among them, is refused, and so is a now or a run expiry that is not a
+// usable time. A finding's escalation is not read: the route decides.
 func Eligible(f FindingFacts, r RunFacts, now time.Time) error {
 	switch {
 	case f.Source != controlv1.FindingSource_FINDING_SOURCE_DETERMINISTIC:
@@ -47,8 +45,6 @@ func Eligible(f FindingFacts, r RunFacts, now time.Time) error {
 		return ErrRunTenant
 	case !r.Open:
 		return ErrRunClosed
-	case r.Root != r.RunID:
-		return ErrRunChild
 	case !policy.UsableTime(now):
 		return ErrClock
 	case !policy.UsableTime(r.ExpiresAt):

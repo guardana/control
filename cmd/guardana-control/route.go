@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 
 	ondisk "github.com/guardana/control/internal/files"
@@ -109,21 +108,21 @@ func routeSign(keyPath, out, document string, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
-// supervisedRules refuses a rule a finding of supervise can never meet: a
-// rule id supervise does not have, a rule version that is not supervise's,
-// and a rule supervise never raises as CONFIRMED, which would stop nothing
-// and read as though it could.
+// supervisedRules refuses a rule no finding of supervise can stop a run
+// with: a rule id supervise does not have, a rule version that is not that
+// rule's, and a rule outside the table of those that may stop, which react
+// and a plane would refuse when they load the route.
 func supervisedRules(r reaction.Route) error {
-	known := supervise.RuleIDs()
 	for i, rule := range r.Rules() {
+		version, known := supervise.RuleVersionOf(rule.RuleID)
 		switch {
-		case !slices.Contains(known, rule.RuleID):
+		case !known:
 			return fmt.Errorf("rules[%d]: rule_id %s is no rule supervise has", i, strconv.Quote(rule.RuleID))
-		case rule.RuleVersion != supervise.RuleVersion:
+		case rule.RuleVersion != version:
 			return fmt.Errorf("rules[%d]: rule_version %s is not supervise's %s", i,
-				strconv.Quote(rule.RuleVersion), strconv.Quote(supervise.RuleVersion))
-		case !supervise.CanConfirm(rule.RuleID):
-			return fmt.Errorf("rules[%d]: %s is never CONFIRMED, so no finding of it can stop a run", i, rule.RuleID)
+				strconv.Quote(rule.RuleVersion), strconv.Quote(version))
+		case !reaction.MayStop(rule.RuleID):
+			return fmt.Errorf("rules[%d]: %s: %w", i, rule.RuleID, reaction.ErrRouteRuleStops)
 		}
 	}
 	return nil
