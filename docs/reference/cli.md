@@ -16,8 +16,8 @@ without this page fails the gate.
 | Exit status | Means |
 | --- | --- |
 | 0 | The command did what it was asked. |
-| 1 | The input was refused or a case failed: stderr says why, one line each; `policy test`, a scenario, `coverage` and `supervise` print what failed. So do a whole export with a gap and a failed `notify` delivery. |
-| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, an export refused or cut short, an incomplete `observe import`, or a refused `coverage`, `supervise` or `notify` input. |
+| 1 | Input refused or a case failed: stderr says why, one line each; `policy test`, `procedure test`, a scenario, `coverage` and `supervise` print what failed. So do an export with a gap and a failed `notify` delivery. |
+| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, an export refused or cut short, an incomplete `observe import`, or a refused `coverage`, `supervise`, `notify` or `procedure` input. |
 
 Without arguments either binary prints its version and one status line on
 stdout and exits 0.
@@ -126,8 +126,10 @@ serves: [runs.md](runs.md).
 The `observe` commands import an agent runtime's OpenTelemetry spans into an
 observation log and export it: [observations.md](observations.md). `coverage`
 is [coverage.md](coverage.md), `supervise`, `notify` and `findings export`
-[supervision.md](supervision.md), and `route`, `stops` and `react`, which
-turn a confirmed finding into a stop of its run, [reaction.md](reaction.md).
+[supervision.md](supervision.md), `procedure`
+[guides/test-a-procedure.md](../guides/test-a-procedure.md), and `route`, `stops`
+and `react`, which turn a confirmed finding into a stop of its run,
+[reaction.md](reaction.md).
 
 `console` serves a page that answers approvals and writes pauses:
 [console.md](console.md).
@@ -159,6 +161,8 @@ usage:
   guardana-control observe export [--after] [--limit] [--max-bytes] <file>
   guardana-control coverage --inventory <file> [--plane <config> [--evidence <export>]]...
       [--source <descriptor> --log <dir>]...
+  guardana-control procedure lint <file>
+  guardana-control procedure test <cases>
   guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --findings <dir>
       [--evidence <export>]... [--source <descriptor> --log <dir>]...
   guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <duration>]

@@ -1,0 +1,62 @@
+{
+  "schema_version": "0.1",
+  "procedure": "refund-0.1.json",
+  "cases": [
+    {
+      "name": "the procedure kept",
+      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "t1", "parent": "", "closed": true},
+      "tree": [],
+      "evidence": [
+        {"path": "conforming.export.jsonl"}
+      ],
+      "expect": {
+        "rules": {"REPEATED_DENIAL": "CHECKED", "STEP_OUTSIDE_PROCEDURE": "CHECKED", "DEADLINE_EXCEEDED": "CHECKED", "REQUIRED_STEP_SKIPPED": "CHECKED", "STEP_OUT_OF_ORDER": "CHECKED", "CONTINUED_AFTER_FAILURE": "CHECKED"},
+        "findings": []
+      }
+    },
+    {
+      "name": "a tool outside the procedure",
+      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "t1", "parent": "", "closed": true},
+      "tree": [],
+      "evidence": [
+        {"whole": true, "events": [
+          {"eventId": "r1-e1", "kind": "EVENT_KIND_ACTION_PROPOSED", "requestId": "r1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:00Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "proposed": {"schemaVersion": "1.0", "requestId": "r1", "projectId": "orders", "tenantId": "t1", "action": {"kind": "tool", "name": "get_order", "provider": "shop"}}},
+          {"eventId": "r1-e2", "kind": "EVENT_KIND_POLICY_DECIDED", "requestId": "r1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:01Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "r1-e1", "decision": {"schemaVersion": "1.0", "decisionId": "r1-k", "requestId": "r1", "verdict": "VERDICT_ALLOW", "reasonCodes": ["RULE_ALLOW"]}},
+          {"eventId": "r1-e3", "kind": "EVENT_KIND_ACTION_STARTED", "requestId": "r1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:02Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "r1-e2", "executionId": "r1-x"},
+          {"eventId": "r1-e4", "kind": "EVENT_KIND_ACTION_COMPLETED", "requestId": "r1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:03Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "r1-e3", "executionId": "r1-x"},
+          {"eventId": "r2-e1", "kind": "EVENT_KIND_ACTION_PROPOSED", "requestId": "r2", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:10Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "proposed": {"schemaVersion": "1.0", "requestId": "r2", "projectId": "orders", "tenantId": "t1", "action": {"kind": "tool", "name": "issue_refund", "provider": "pay"}}},
+          {"eventId": "r2-e2", "kind": "EVENT_KIND_POLICY_DECIDED", "requestId": "r2", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:11Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "r2-e1", "decision": {"schemaVersion": "1.0", "decisionId": "r2-k", "requestId": "r2", "verdict": "VERDICT_ALLOW", "reasonCodes": ["RULE_ALLOW"]}},
+          {"eventId": "r2-e3", "kind": "EVENT_KIND_ACTION_STARTED", "requestId": "r2", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:12Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "r2-e2", "executionId": "r2-x"},
+          {"eventId": "r2-e4", "kind": "EVENT_KIND_ACTION_COMPLETED", "requestId": "r2", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:13Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "r2-e3", "executionId": "r2-x"},
+          {"eventId": "x1-e1", "kind": "EVENT_KIND_ACTION_PROPOSED", "requestId": "x1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:20Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "proposed": {"schemaVersion": "1.0", "requestId": "x1", "projectId": "orders", "tenantId": "t1", "action": {"kind": "tool", "name": "wipe_disk", "provider": "ops"}}},
+          {"eventId": "x1-e2", "kind": "EVENT_KIND_POLICY_DECIDED", "requestId": "x1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:21Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "x1-e1", "decision": {"schemaVersion": "1.0", "decisionId": "x1-k", "requestId": "x1", "verdict": "VERDICT_ALLOW", "reasonCodes": ["RULE_ALLOW"]}},
+          {"eventId": "x1-e3", "kind": "EVENT_KIND_ACTION_STARTED", "requestId": "x1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:22Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "x1-e2", "executionId": "x1-x"},
+          {"eventId": "x1-e4", "kind": "EVENT_KIND_ACTION_COMPLETED", "requestId": "x1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:23Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "x1-e3", "executionId": "x1-x"}
+        ]}
+      ],
+      "expect": {
+        "rules": {"REPEATED_DENIAL": "CHECKED", "STEP_OUTSIDE_PROCEDURE": "CHECKED", "DEADLINE_EXCEEDED": "CHECKED", "REQUIRED_STEP_SKIPPED": "CHECKED", "STEP_OUT_OF_ORDER": "CHECKED", "CONTINUED_AFTER_FAILURE": "CHECKED"},
+        "findings": [
+          {"rule": "STEP_OUTSIDE_PROCEDURE", "verdict": "CONFIRMED", "run": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "requests": ["x1"]}
+        ]
+      }
+    },
+    {
+      "name": "a run still open",
+      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "t1", "parent": "", "closed": false},
+      "tree": [],
+      "evidence": [
+        {"whole": true, "events": [
+          {"eventId": "r1-e1", "kind": "EVENT_KIND_ACTION_PROPOSED", "requestId": "r1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:00Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "proposed": {"schemaVersion": "1.0", "requestId": "r1", "projectId": "orders", "tenantId": "t1", "action": {"kind": "tool", "name": "get_order", "provider": "shop"}}},
+          {"eventId": "r1-e2", "kind": "EVENT_KIND_POLICY_DECIDED", "requestId": "r1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:01Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "r1-e1", "decision": {"schemaVersion": "1.0", "decisionId": "r1-k", "requestId": "r1", "verdict": "VERDICT_ALLOW", "reasonCodes": ["RULE_ALLOW"]}},
+          {"eventId": "r1-e3", "kind": "EVENT_KIND_ACTION_STARTED", "requestId": "r1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:02Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "r1-e2", "executionId": "r1-x"},
+          {"eventId": "r1-e4", "kind": "EVENT_KIND_ACTION_COMPLETED", "requestId": "r1", "runId": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "projectId": "orders", "tenantId": "t1", "occurredAt": "2026-10-05T09:00:03Z", "schemaVersion": "1.0", "enforcementMode": "ENFORCEMENT_MODE_ENFORCE", "prevEventId": "r1-e3", "executionId": "r1-x"}
+        ]}
+      ],
+      "expect": {
+        "rules": {"REPEATED_DENIAL": "CHECKED", "STEP_OUTSIDE_PROCEDURE": "CHECKED", "DEADLINE_EXCEEDED": "CHECKED", "REQUIRED_STEP_SKIPPED": "NOT_CHECKED", "STEP_OUT_OF_ORDER": "NOT_CHECKED", "CONTINUED_AFTER_FAILURE": "NOT_CHECKED"},
+        "findings": []
+      }
+    }
+  ]
+}

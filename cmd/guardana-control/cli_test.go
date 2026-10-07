@@ -148,6 +148,8 @@ var ownRefusal = map[string]func(missing string) []string{
 	},
 	"observe export": func(m string) []string { return []string{m} },
 	"coverage":       func(m string) []string { return []string{"--inventory", m} },
+	"procedure lint": func(m string) []string { return []string{m} },
+	"procedure test": func(m string) []string { return []string{m} },
 	"supervise": func(m string) []string {
 		return []string{"--procedure", m, "--runs", m, "--run", "run-" + strings.Repeat("0", 32), "--findings", m}
 	},
@@ -170,11 +172,12 @@ var ownRefusal = map[string]func(missing string) []string{
 // coverage's 2 says no map was printed and 1 is a whole map with a gap, and
 // supervise's 2 says nothing was judged or written and 1 is a judged run that
 // is not a pass, notify's 2 says no program ran and 1 is a delivery that
-// failed, and findings export's 2 says nothing was exported and 1 is a whole
-// export with a gap.
+// failed, findings export's 2 says nothing was exported and 1 is a whole
+// export with a gap, and the procedure commands' 2 says nothing was judged
+// and 1 is a case that failed.
 var refusalStatus = map[string]int{
 	"observe import": exitUsage, "observe export": exitUsage, "coverage": exitUsage, "supervise": exitUsage,
-	"notify": exitUsage, "findings export": exitUsage,
+	"notify": exitUsage, "findings export": exitUsage, "procedure lint": exitUsage, "procedure test": exitUsage,
 }
 
 // TestEveryListedCommandDispatches: the list the help prints is the list run
@@ -237,7 +240,7 @@ func unlistedInvocations(missing string) [][]string {
 	}
 	return append(out, []string{"explain"}, []string{"policy"}, []string{"approvals"}, []string{"pause"}, []string{"runs"},
 		[]string{"policy", "state"}, []string{"policy", "state", missing}, []string{"route"}, []string{"stops"},
-		[]string{"stops", missing})
+		[]string{"stops", missing}, []string{"procedure"})
 }
 
 // TestHelpNamesEveryCommand: the help opens with one line per listed command,

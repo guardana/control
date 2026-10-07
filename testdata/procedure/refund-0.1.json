@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "procedure_id": "refund",
+  "version": "1",
+  "steps": [
+    {"id": "lookup", "tool": "get_order", "upstream": "shop", "observed_as": ["get_order"], "required": true},
+    {"id": "refund", "tool": "issue_refund", "upstream": "pay", "observed_as": ["issue_refund"], "required": true},
+    {"id": "notify", "tool": "send_mail", "upstream": "mail", "observed_as": ["send_mail"], "required": false}
+  ],
+  "order": {"refund": ["lookup"], "notify": ["refund"]},
+  "allow": [
+    {"tool": "search_docs", "upstream": "docs", "observed_as": ["search_docs"]}
+  ],
+  "max_denials": 4,
+  "deadline_seconds": 600,
+  "rules": {
+    "REPEATED_DENIAL": {"severity": "high", "escalation": "alert"},
+    "STEP_OUTSIDE_PROCEDURE": {"severity": "medium", "escalation": "alert"},
+    "DEADLINE_EXCEEDED": {"severity": "low", "escalation": "inform"},
+    "REQUIRED_STEP_SKIPPED": {"severity": "high", "escalation": "alert"},
+    "STEP_OUT_OF_ORDER": {"severity": "medium", "escalation": "inform"},
+    "CONTINUED_AFTER_FAILURE": {"severity": "critical", "escalation": "alert"}
+  }
+}

@@ -1,12 +1,12 @@
 // Command line entry point for the product. Without arguments it answers with
 // the version and the status line; the `policy` commands (lint, test,
 // explain, keygen, sign, renew and state), the `approvals` commands, the
-// `pause` commands, the `runs` commands, `observe`, `coverage`, `supervise`,
-// `notify`, `findings export`, `route sign`, the `stops` commands (init, lift
-// and list), `react`, and `console`, the page that answers approvals and
-// writes pauses, are the commands with behaviour, and
-// docs/guides/write-and-test-a-policy.md and docs/reference/cli.md are their
-// pages.
+// `pause` commands, the `runs` commands, `observe`, `coverage`, the
+// `procedure` commands (lint and test), `supervise`, `notify`, `findings
+// export`, `route sign`, the `stops` commands (init, lift and list), `react`,
+// and `console`, the page that answers approvals and writes pauses, are the
+// commands with behaviour, and docs/guides/write-and-test-a-policy.md,
+// docs/guides/test-a-procedure.md and docs/reference/cli.md are their pages.
 package main
 
 import (
@@ -120,6 +120,8 @@ var commands = []subcommand{
 	{"observe", "import", observeImportForm, observeImportFlagSet, observeImportCommand},
 	{"observe", "export", observeExportForm, observeExportFlagSet, observeExportCommand},
 	{"coverage", "", coverageForm, coverageFlagSet, coverageCommand},
+	{"procedure", "lint", "<file>", nil, func(args []string, stdout, stderr io.Writer) int { return procedureLint(args[0], stdout, stderr) }},
+	{"procedure", "test", "<cases>", nil, func(args []string, stdout, stderr io.Writer) int { return procedureTest(args[0], stdout, stderr) }},
 	{"supervise", "", superviseForm, superviseFlagSet, superviseCommand},
 	{"notify", "", notifyForm, notifyFlagSet, notifyCommand},
 	{"findings", "export", findingsExportForm, findingsExportFlagSet, findingsExportCommand},
