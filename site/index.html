@@ -113,11 +113,11 @@
   <h2>What is planned</h2>
   <p class="lede">All tasks below are <code>planned</code>. They name work to do, not capabilities to claim.</p>
   <ul class="items">
-    <li data-backlog="B22"><span class="id">B22</span><span class="t">Show one supervised run</span></li>
     <li data-backlog="B10"><span class="id">B10</span><span class="t">Specify and build the enforcement API</span></li>
     <li data-backlog="B11"><span class="id">B11</span><span class="t">Ship Python and one framework integration</span></li>
     <li data-backlog="B21"><span class="id">B21</span><span class="t">Add sensors independent of the agent</span></li>
     <li data-backlog="B12"><span class="id">B12</span><span class="t">Publish the port contracts and add TypeScript</span></li>
+    <li data-backlog="B13"><span class="id">B13</span><span class="t">Authenticate operators and scope authority</span></li>
   </ul>
   <a class="more" href="/docs/backlog">The delivery backlog</a>
 </div></section>
@@ -125,7 +125,7 @@
 <section class="s" id="going"><div class="wrap">
   <p class="eyebrow">ROADMAP.md</p>
   <h2>Where it is going</h2>
-  <p class="lede">Further work is <code>planned</code> in the <a href="/docs/roadmap">roadmap</a>. MCP is the first channel of several. Today the project keeps an agent's runtime traces as testimony, maps which declared paths a plane enforces, checks one run against its procedure, hands its alerts to a program, and stops one run on a confirmed finding where the operator allowed it. Planned next: sensors the agent cannot influence, such as the proxies it passes; a supervisor that also weighs permissions and exceptions; and alerts to the tools an operator already watches.</p>
+  <p class="lede">Further work is <code>planned</code> in the <a href="/docs/roadmap">roadmap</a>. MCP is the first channel of several. Today the project keeps an agent's runtime traces as testimony, maps which declared paths a plane enforces, checks one run, and its children where the procedure says so, against a procedure with its exceptions, draws that run as a page, hands its alerts to a program, and stops one run on a confirmed finding where the operator allowed it. Planned next: sensors the agent cannot influence, such as the proxies it passes, and alerts to the tools an operator already watches.</p>
   <figure class="fig" aria-labelledby="fig-going-cap">
     <div class="cols">
       <div><p class="colhead">What it watches</p><div class="stack">
@@ -152,7 +152,7 @@
   </figure>
   <figure class="fig">
     <table class="runtable">
-      <caption>Planned: one refund run, as meant and as seen. A step outside the procedure is a finding; a step nothing saw is unknown, never done.</caption>
+      <caption>One refund run, as meant and as seen. A step outside the procedure is a finding; a step nothing saw is unknown, never done.</caption>
       <thead><tr><th scope="col">Step</th><th scope="col">Meant</th><th scope="col">Seen</th></tr></thead>
       <tbody>
         <tr><td>Fetch the order</td><td><span class="m exp"><i aria-hidden="true"></i>expected</span></td><td><span class="m done"><i aria-hidden="true">✓</i>done</span></td></tr>

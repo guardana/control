@@ -51,6 +51,7 @@
 <li><a href="/docs/concepts/glossary">Glossary</a></li>
 <li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>
@@ -102,17 +103,19 @@
 </details>
 <main id="main" class="prose">
 <h1 id="supervision">Supervision</h1>
-<p><code>guardana-control supervise</code> checks one run an operator opened against the
-procedure it was meant to follow, from the plane's evidence and what the
-agent's runtime reported, and appends findings to a findings log.
+<p><code>guardana-control supervise</code> checks a run an operator opened against its
+procedure, from the plane's evidence and what the agent's runtime reported,
+and appends findings to a findings log.
 <code>guardana-control notify</code> hands each alert in that log to a program of the
 operator's, at least once. Both are <code>experimental</code>. Neither decides a call,
 and no plane reads what they write
 (<a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>);
 <code>react</code> turns a confirmed finding into a stop of its run, which a plane with
-a route reads (<a href="/docs/reference/reaction">reaction.md</a>).</p>
+a route reads (<a href="/docs/reference/reaction">reaction.md</a>). <code>--view</code> draws the run as a
+page (<a href="/docs/reference/run-view">run-view.md</a>).</p>
 <pre><code>guardana-control supervise --procedure &lt;file&gt; --runs &lt;dir&gt; --run &lt;run-id&gt; --findings &lt;dir&gt;
     [--evidence &lt;export&gt;]... [--source &lt;descriptor&gt; --log &lt;dir&gt;]...
+    [--view &lt;file&gt; [--view-all]]
 guardana-control notify --findings &lt;dir&gt; --state &lt;dir&gt; [--init] [--timeout &lt;duration&gt;]
     -- &lt;program&gt; [&lt;arg&gt;]...
 </code></pre>
@@ -131,7 +134,7 @@ another digest is refused.</p>
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>0.1</code>, or <code>0.2</code> with <code>bindings</code>, <code>exceptions</code> and <code>children</code></td>
+<td><code>0.1</code>, or <code>0.2</code>, which requires <code>bindings</code>, <code>exceptions</code>, <code>children</code> and <code>binds</code></td>
 </tr>
 <tr>
 <td><code>procedure_id</code>, <code>version</code></td>
@@ -139,7 +142,7 @@ another digest is refused.</p>
 </tr>
 <tr>
 <td><code>steps</code></td>
-<td>each an <code>id</code>, the <code>tool</code> and <code>upstream</code> a plane sees, the names a runtime reports it under (<code>observed_as</code>), and <code>required</code></td>
+<td>each an <code>id</code>, the <code>tool</code> and <code>upstream</code> a plane sees, the names a runtime reports it under (<code>observed_as</code>), <code>required</code>, and <code>binds</code></td>
 </tr>
 <tr>
 <td><code>order</code></td>
@@ -147,7 +150,19 @@ another digest is refused.</p>
 </tr>
 <tr>
 <td><code>allow</code></td>
-<td>tools the run may also call, each with <code>tool</code>, <code>upstream</code> and <code>observed_as</code></td>
+<td>tools the run may also call, each with <code>tool</code>, <code>upstream</code>, <code>observed_as</code> and <code>binds</code></td>
+</tr>
+<tr>
+<td><code>bindings</code></td>
+<td>each binding's name and its calls' resource type; a <code>binds</code> lists at most one</td>
+</tr>
+<tr>
+<td><code>exceptions</code></td>
+<td>each an <code>id</code>, the rule it <code>waives</code>, a <code>step</code>, or for <code>STEP_OUTSIDE_PROCEDURE</code> a <code>tool</code> and <code>upstream</code> the procedure lacks, and one <code>condition</code>: <code>approval: granted</code>, <code>step_failed: &lt;step&gt;</code> or <code>reason: &lt;code&gt;</code>. Only that rule, on an approval, and the three about steps take one</td>
+</tr>
+<tr>
+<td><code>children</code></td>
+<td><code>inherit</code> or <code>separate</code>, below</td>
 </tr>
 <tr>
 <td><code>rules</code></td>
@@ -161,12 +176,16 @@ another digest is refused.</p>
 </table>
 <h2 id="what-belongs-to-the-run">What belongs to the run</h2>
 <p>Only a run opened in a runs directory is supervised; a plane's local run is
-refused, and a child unless <code>children</code> says how. Plane events count when their run id and tenant
-are the run's. Observations count when their correlation is claimed, with that
-run id, tenant and project. Only a tool call is a step: a prompt or a resource
-read through the plane never counts as one. An observation joined to a plane
-event by trace and span id is that call, not a second one. Everything else is counted in the
-report and left out.</p>
+refused. Under <code>0.1</code> and <code>inherit</code> the run must be a root. <code>inherit</code> reads
+the root's tree, up to a fixed bound, and refuses a member of another tenant
+or a parent chain that misses the root; every member is judged, and
+the tree is closed when every member is. <code>separate</code> takes any opened run and
+lists its children, not judged. Plane events count when their run is judged
+and their tenant the run's. Observations count when their correlation is
+claimed, with such a run id, tenant and project. Only a tool call is a
+step, never a prompt or a resource read. An observation joined to a plane
+event by trace and span id is that call, not a second one. Everything else is
+counted in the report and left out.</p>
 <p>An evidence export is read only when it is a regular file of this account
 that the group and others cannot write, as the procedure and the descriptors
 are. A <code>CONFIRMED</code> finding rests on the export being the plane's, and
@@ -182,7 +201,7 @@ nothing but that file's owner and mode protects it.</p>
 <tbody>
 <tr>
 <td><code>REPEATED_DENIAL</code></td>
-<td>one tool on one upstream is denied by policy <code>max_denials</code> times; a block of the plane's own (a pause, an unclassified tool, a spent or expired approval) is counted apart</td>
+<td>one tool on one upstream is denied by policy <code>max_denials</code> times; the plane's own blocks are counted apart</td>
 </tr>
 <tr>
 <td><code>STEP_OUTSIDE_PROCEDURE</code></td>
@@ -198,7 +217,7 @@ nothing but that file's owner and mode protects it.</p>
 </tr>
 <tr>
 <td><code>STEP_OUT_OF_ORDER</code></td>
-<td>a step comes before one it must follow; indeterminate, never a pass, when the order cannot be told</td>
+<td>a step comes before one it must follow; indeterminate when the order cannot be told</td>
 </tr>
 <tr>
 <td><code>CONTINUED_AFTER_FAILURE</code></td>
@@ -234,18 +253,17 @@ toward <code>REPEATED_DENIAL</code>, and an approval belongs to the step it held
 <p>The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it <code>CONFIRMED</code>; an observation makes it <code>SUSPECTED</code>; a record in doubt (a
 conflicting id, a broken chain, a source silent past its heartbeat) makes it
-<code>INDETERMINATE</code>. The last three rules rest on something not seen: they are
-<code>SUSPECTED</code> at most, <code>INDETERMINATE</code> while a <code>--source</code> given is silent,
+<code>INDETERMINATE</code>. The three rules about steps rest on something not seen: they
+are <code>SUSPECTED</code> at most, <code>INDETERMINATE</code> while a <code>--source</code> given is silent,
 never heard or has no descriptor at its path, and checked only on a closed
 run whose exports are whole; otherwise the report says not checked and why.</p>
 <h2 id="output-and-exit-status">Output and exit status</h2>
-<p>Under a <code>0.2</code> procedure the run's line is followed by its children mode and a
-<code>tree:</code> line per run, each after its parent, <code>not judged</code> under <code>separate</code>.
-Then one line per step: its requests, and apart the observations of it no
-plane call joins, never an instance of it. Then one line per finding, naming
-its run under <code>0.2</code> and how many references it left out, and one per rule;
-then <code>not checked: source &lt;id&gt; absent</code>, <code>never heard</code> or <code>silent</code> for each
-<code>--source</code> the run could not be judged against.</p>
+<p>After the run's line come, under <code>0.2</code>, its children mode and a <code>tree:</code> line
+per run, each after its parent, <code>not judged</code> under <code>separate</code>; one line per
+step, with its requests and apart the observations no plane call joins; one
+per finding, with its run under <code>0.2</code> and the references it left out; one per
+rule; and <code>not checked: source &lt;id&gt; absent</code>, <code>never heard</code> or <code>silent</code> for
+each <code>--source</code> not judged against.</p>
 <table>
 <thead>
 <tr>
@@ -268,9 +286,9 @@ then <code>not checked: source &lt;id&gt; absent</code>, <code>never heard</code
 </tr>
 </tbody>
 </table>
-<p>The log is opened, and <code>findings.jsonl</code> created empty where absent, only once
-every input is accepted. A failure after the write commits, in closing the
-log or writing the output, exits 2 and keeps the write.</p>
+<p>The log is opened, and <code>findings.jsonl</code> created where absent, only once every
+input is accepted. A failure after the write commits exits 2 and keeps the
+write.</p>
 <h2 id="the-finding-record-and-its-log">The finding record and its log</h2>
 <p><code>guardana.control.finding.v1alpha1</code>, outside the v1 promise. A
 <code>FindingRecord</code> holds the tenant, project, procedure (id, version, digest),
@@ -278,11 +296,10 @@ escalation, typed references (a plane event by event and request id, an
 observation by source and observation id) and a v1 finding with its id, rule,
 severity, verdict and run. Its id is <code>fnd-</code> and 32 hex digits, a function of
 the run, the procedure, the rule and what it is about, so running the command
-again finds the same ids. The log is one JSON Lines file, <code>findings.jsonl</code>, in
-an owner-only directory; each run of the command ends its write with a
+again finds the same ids. The log, <code>findings.jsonl</code>, is JSON Lines in an
+owner-only directory; each run of the command ends its write with a
 <code>SuperviseReport</code>, and a write without one is never read.</p>
-<p>A record is schema <code>0.1</code> or <code>0.2</code>, and it is <code>0.2</code> exactly when it carries a
-member <code>0.1</code> lacks
+<p>A record is schema <code>0.2</code> exactly when it carries a member <code>0.1</code> lacks
 (<a href="/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047</a>):</p>
 <table>
 <thead>
@@ -294,7 +311,7 @@ member <code>0.1</code> lacks
 <tbody>
 <tr>
 <td><code>EventRef.run_id</code></td>
-<td>the run of each plane event a finding rests on, on every event of the record</td>
+<td>the run of each plane event cited</td>
 </tr>
 <tr>
 <td><code>FindingRecord.refs_left_out</code></td>
@@ -302,23 +319,22 @@ member <code>0.1</code> lacks
 </tr>
 <tr>
 <td><code>SuperviseReport.children</code></td>
-<td><code>CHILDREN_MODE_INHERIT</code> (the root's whole tree judged) or <code>CHILDREN_MODE_SEPARATE</code> (the run's own calls only)</td>
+<td><code>CHILDREN_MODE_INHERIT</code> or <code>CHILDREN_MODE_SEPARATE</code>, the procedure's <code>children</code></td>
 </tr>
 <tr>
 <td><code>SuperviseReport.run_tree</code></td>
-<td>each member's run id and parent: the supervised run first, every other run after its parent; under separate, the children not judged</td>
+<td>each run's id and parent, the supervised run first and every other after its parent</td>
 </tr>
 <tr>
 <td><code>LogHeader</code></td>
-<td>the first line of a log this release creates: <code>log_id</code> is <code>log-</code> and 32 hex digits of 128 random bits</td>
+<td>a new log's first line: <code>log_id</code>, <code>log-</code> and 32 hex digits of 128 random bits</td>
 </tr>
 </tbody>
 </table>
-<p>A log made before this release has no header, keeps none and is read as it
-is; an empty one gains a header when opened. A torn header is cut like any
-torn line. The
-reader refuses an unknown schema or a member its schema lacks, naming the
-field; a 0.9 reader refuses every <code>0.2</code> line, by the field it does not know.</p>
+<p>A log made before this release keeps no header and is read as it is; an
+empty one gains one when opened. The reader refuses an unknown schema or a
+member its schema lacks, naming the field, as a 0.9 reader refuses every
+<code>0.2</code> line.</p>
 <h2 id="notify">notify</h2>
 <p><code>notify</code> hands each <code>alert</code> record, in log order and as one line on its
 standard input, to the program after <code>--</code>, without a shell, and kills its
@@ -326,29 +342,28 @@ process group at the timeout (30 s by default) and again once the program
 has exited, so no child it started outlives the delivery. A delivery is keyed on the
 finding id and verdict and marked in the state only after the program exits
 0, so a crash delivers that one record again: a receiver drops a key it has
-seen. The state is an owner-only directory, locked while a run holds it;
-<code>--init</code> starts one where none is and is refused over one. A failed delivery
-is retried by the next run. Nothing replays a delivered record but a new
-state, which delivers every alert again. Exit 0 when nothing failed; 1 when a delivery
-failed, on an interrupt, or when the run stopped after a program had run (a
-mark that did not reach the disk, a log that changed under it); 2, printing
-nothing, when the state or the log is refused before any program ran.</p>
+seen. The state is an owner-only directory, locked while in use; <code>--init</code>
+starts one and is refused over one. The next run retries a failed delivery;
+only a new state delivers a delivered alert again. Exit 0 when nothing
+failed; 1 when a delivery failed, on an interrupt, or when the run stopped
+after a program had run (a mark that did not reach the disk, a log that
+changed under it); 2, printing nothing, when the state or the log is refused
+before any program ran.</p>
 <h2 id="findings-export">findings export</h2>
 <pre><code>guardana-control findings export --findings &lt;dir&gt; [--after &lt;cursor&gt;] [--limit &lt;n&gt;]
     [--max-bytes &lt;n&gt;]
 </code></pre>
-<p><code>findings export</code> writes the log as JSON Lines in the shape of the evidence
-export, format <code>guardana.control.findings-export</code> version <code>0.1</code>, unstable as
-the records are
+<p><code>findings export</code> writes the log as JSON Lines in the evidence export's
+shape, format <code>guardana.control.findings-export</code> <code>0.1</code>, unstable as the
+records are
 (<a href="/docs/adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor">ADR-0048</a>):
-<code>header</code>, then <code>finding_record</code> and <code>supervise_report</code> each carrying its log
-line, <code>gap</code>, <code>duplicate</code> and <code>trailer</code>. The log is judged as <code>notify</code> reads it,
-under no lock, and exported only to the last write a report closes; a write
-still open is the trailer's <code>tail_bytes</code>, and a gap when no writer holds the
-log. A cursor holds in its own log only: by the header's <code>log_id</code>, or by the
-first line of a log with no header. The trailer's <code>identity</code> says which:
-<code>log_id</code>, <code>content</code> or <code>none</code>. Exit 0, 1 for a whole export with a gap, 2
-refused or cut short.</p>
+<code>header</code>, <code>finding_record</code> and <code>supervise_report</code> each carrying its log line,
+<code>gap</code>, <code>duplicate</code> and <code>trailer</code>. Read as <code>notify</code> reads it, under no lock,
+the log is exported to the last write a report closes; a write still open is
+the trailer's <code>tail_bytes</code>, or a gap when no writer holds the log. A cursor
+holds only in its own log, known by the header's <code>log_id</code> or else by its
+first line; the trailer's <code>identity</code> says <code>log_id</code>, <code>content</code> or <code>none</code>. Exit
+0, 1 for a whole export with a gap, 2 refused or cut short.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/supervision.md">docs/reference/supervision.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
 <nav class="side" aria-label="Documentation">
@@ -375,6 +390,7 @@ refused or cut short.</p>
 <li><a href="/docs/concepts/glossary">Glossary</a></li>
 <li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>

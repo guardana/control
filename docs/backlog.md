@@ -29,24 +29,7 @@ issue. Completion requires code, documentation and the applicable checks.
 | --- | --- | --- | --- |
 | B06 | Connect an existing MCP setup | none | Copyable client/server instructions and a local profile work with an independently maintained server. Classification remains operator-owned; missing classification and unsupported methods are visible. At least three new users attempt the guide; time and help are recorded |
 
-## Milestone 2: one task under supervision, across two channels
-
-[ADR-0039](adr/0039-many-channels-into-one-core.md) sets the vocabulary: an
-enforcement point decides before the effect, a sensor reports after it, a
-detector raises findings over exports, a reaction stops within a scope, a
-notifier delivers. Observations stay apart from enforcement evidence, and every
-view says what it did not see.
-
-| ID | Work | Depends on | Acceptance |
-| --- | --- | --- | --- |
-| B22 | Show one supervised run | ADR-0045 | A run's view answers what was meant, what happened, where a boundary was crossed, what was stopped and what was not seen; it marks a step done as planned, an exception or approval, a block and missing data by shape and line as well as colour, works without motion, and shows one run and the neighbourhood of a deviation by default. Procedures are tested with cases as policies are, a run's children are supervised with it, and findings are exported with a cursor. Nothing in it decides or stops a call |
-
-The existing event wire format is reused where it suffices. A query response
-or delivery wrapper has its own version; do not quietly add unknown fields to
-a strict v1 decoder. OTLP logs and traces need separate, tested destination
-mappings.
-
-## Milestone 3: integrations without a fork
+## Milestone 2: integrations without a fork
 
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
@@ -60,14 +43,19 @@ requirements. Select the first framework integration with adopters and test the 
 resume behavior. Transport retries may not replay a material tool execution.
 Custom policy-provider work preserves ADR-0017's veto-only semantics.
 
-## Milestone 4: a small team
+The existing event wire format is reused where it suffices. A query response
+or delivery wrapper has its own version; do not quietly add unknown fields to
+a strict v1 decoder. OTLP logs and traces need separate, tested destination
+mappings.
+
+## Milestone 3: a small team
 
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |
 | B13 | Authenticate operators and scope authority | B10 | Reader/operator/admin capabilities are receiver-enforced; approval authority comes from authentication. Cross-project reads and operations are refused; a pause or a stop names its actual run, agent or principal scope, and only an authenticated author may sign a reaction route. Two users and overlapping runs pass adversarial tests. MCP upstream credentials remain separate from inbound credentials |
 | B14 | Add retention and recovery | none | Rotation, disk budget, cursor expiry, duplicates, interrupted export and backup/restore are tested for evidence and observations. A restored process cannot reuse spent approval authority or forget its rollback floor. Read-only inspection cannot mutate recovery state without saying so |
 
-## Milestone 5: a fleet and wider protocols
+## Milestone 4: a fleet and wider protocols
 
 | ID | Work | Depends on | Acceptance |
 | --- | --- | --- | --- |

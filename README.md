@@ -93,7 +93,7 @@ MCP is one channel of several ([ROADMAP.md](ROADMAP.md),
 | An MCP gateway deciding each call before it runs | Proxy and process sensors |
 | Signed policy, approvals, pause, evidence trail | Framework hooks |
 | Runtime traces kept as observations, a coverage map | Alerts beyond a local program |
-| One run checked against its procedure, alerts to a program | Stopping one run where allowed |
+| One run checked against its procedure, stopped where a signed route allows | Operators with scoped rights |
 
 ```mermaid
 flowchart TB

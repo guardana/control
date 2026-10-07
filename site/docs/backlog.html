@@ -51,6 +51,7 @@
 <li><a href="/docs/concepts/glossary">Glossary</a></li>
 <li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>
@@ -148,35 +149,7 @@ issue. Completion requires code, documentation and the applicable checks.</p>
 </tr>
 </tbody>
 </table>
-<h2 id="milestone-2-one-task-under-supervision-across-two-channels">Milestone 2: one task under supervision, across two channels</h2>
-<p><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a> sets the vocabulary: an
-enforcement point decides before the effect, a sensor reports after it, a
-detector raises findings over exports, a reaction stops within a scope, a
-notifier delivers. Observations stay apart from enforcement evidence, and every
-view says what it did not see.</p>
-<table>
-<thead>
-<tr>
-<th>ID</th>
-<th>Work</th>
-<th>Depends on</th>
-<th>Acceptance</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>B22</td>
-<td>Show one supervised run</td>
-<td>ADR-0045</td>
-<td>A run's view answers what was meant, what happened, where a boundary was crossed, what was stopped and what was not seen; it marks a step done as planned, an exception or approval, a block and missing data by shape and line as well as colour, works without motion, and shows one run and the neighbourhood of a deviation by default. Procedures are tested with cases as policies are, a run's children are supervised with it, and findings are exported with a cursor. Nothing in it decides or stops a call</td>
-</tr>
-</tbody>
-</table>
-<p>The existing event wire format is reused where it suffices. A query response
-or delivery wrapper has its own version; do not quietly add unknown fields to
-a strict v1 decoder. OTLP logs and traces need separate, tested destination
-mappings.</p>
-<h2 id="milestone-3-integrations-without-a-fork">Milestone 3: integrations without a fork</h2>
+<h2 id="milestone-2-integrations-without-a-fork">Milestone 2: integrations without a fork</h2>
 <table>
 <thead>
 <tr>
@@ -217,7 +190,11 @@ mappings.</p>
 requirements. Select the first framework integration with adopters and test the framework's
 resume behavior. Transport retries may not replay a material tool execution.
 Custom policy-provider work preserves ADR-0017's veto-only semantics.</p>
-<h2 id="milestone-4-a-small-team">Milestone 4: a small team</h2>
+<p>The existing event wire format is reused where it suffices. A query response
+or delivery wrapper has its own version; do not quietly add unknown fields to
+a strict v1 decoder. OTLP logs and traces need separate, tested destination
+mappings.</p>
+<h2 id="milestone-3-a-small-team">Milestone 3: a small team</h2>
 <table>
 <thead>
 <tr>
@@ -242,7 +219,7 @@ Custom policy-provider work preserves ADR-0017's veto-only semantics.</p>
 </tr>
 </tbody>
 </table>
-<h2 id="milestone-5-a-fleet-and-wider-protocols">Milestone 5: a fleet and wider protocols</h2>
+<h2 id="milestone-4-a-fleet-and-wider-protocols">Milestone 4: a fleet and wider protocols</h2>
 <table>
 <thead>
 <tr>
@@ -300,6 +277,7 @@ sessions and feedback, consistent with the no-phone-home decision.</p>
 <li><a href="/docs/concepts/glossary">Glossary</a></li>
 <li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>

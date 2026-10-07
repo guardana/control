@@ -51,6 +51,7 @@
 <li><a href="/docs/concepts/glossary">Glossary</a></li>
 <li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>
@@ -123,22 +124,7 @@ archive: a target to measure, not a measured result.</p>
 <p>A guide connects an existing MCP client and server, states what it covers and
 the identity it assumes, and ends in a local report. No setup step widens
 authority silently.</p>
-<h2 id="2-one-task-under-supervision-across-two-channels">2. One task under supervision, across two channels</h2>
-<p>Done when a user runs the demo's plane beside an agent that emits
-OpenTelemetry traces and asks it to refund an order. For that run the user
-sees the expected and observed steps, each marked enforced, observed or inferred; a
-coverage map that names a path the agent took around the plane; a finding
-that cites its evidence; an alert from a local notifier; and a stop that
-refuses that run's next call, no other's.</p>
-<p>A procedure is a versioned document a run names: its steps, their order, the
-required ones, the exceptions it allows and its deadline. Beyond one run's
-checks and stop that exist (<a href="/docs/status">docs/status.md</a>), the supervisor reports
-a procedure's exceptions and attempts to use a resource or permission the run
-does not hold, a denied action retried in another form included. It runs
-beside the decision path and changes no verdict. Missing evidence is unknown,
-never a pass. Observations already name their source and its trust; a
-finding on one never passes for a decision the plane enforced.</p>
-<h2 id="3-integrations-without-a-fork">3. Integrations without a fork</h2>
+<h2 id="2-integrations-without-a-fork">2. Integrations without a fork</h2>
 <p>Done when a language-neutral enforcement API and a Python client wrap a
 custom tool with admission, authorized arguments, completion and abort. They
 bind identity and run, consume an approval once and never retry an uncertain
@@ -149,13 +135,13 @@ reactions and notifiers get published data contracts and conformance suites
 any language can run, once two consumers have used each, and every port
 states the paths it covers. A Go seam becomes public only after two consumers
 use it and its record is accepted.</p>
-<h2 id="4-a-small-team">4. A small team</h2>
+<h2 id="3-a-small-team">3. A small team</h2>
 <p>Done when authenticated principals hold scoped rights to read, approve, pause
 and stop; a stop can name an agent or a principal as well as a run; and
 evidence and observations can be retained, rotated, exported and recovered,
 without a managed service. Cross-project access, forged
 identity, approval replay and policy outage have adversarial tests.</p>
-<h2 id="5-a-fleet-and-wider-protocols-when-adopters-need-them">5. A fleet and wider protocols, when adopters need them</h2>
+<h2 id="4-a-fleet-and-wider-protocols-when-adopters-need-them">4. A fleet and wider protocols, when adopters need them</h2>
 <p>Done when many planes report to one self-hosted control plane that holds the
 inventory of agents, tools, sources and procedures, distributes signed policy
 and definitions and keeps tenants apart, and when HTTP tool APIs and
@@ -202,6 +188,7 @@ of features alone cannot meet this gate.</p>
 <li><a href="/docs/concepts/glossary">Glossary</a></li>
 <li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>

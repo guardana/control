@@ -51,6 +51,7 @@
 <li><a href="/docs/concepts/glossary">Glossary</a></li>
 <li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>
@@ -110,6 +111,71 @@
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.9.0-alpha...HEAD">Unreleased</a></h2>
+<h3 id="added">Added</h3>
+<ul>
+<li>Procedure schema <code>0.2</code>, read beside <code>0.1</code>
+(<a href="/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047</a>).
+<code>bindings</code> name the resource type each binding holds and <code>binds</code> ties a
+step or an allowed tool to one; <code>exceptions</code> waive one rule for one step or
+tool, on a granted approval, a failed step or a reason code; <code>children</code> is
+<code>inherit</code>, which judges a root run and its whole tree, or <code>separate</code>, which
+judges one run's own calls and lists its children. A rule that may stop a
+run is waived only on an approval. A <code>0.1</code> document reads as before, with
+the same digest and the same confirmed findings.</li>
+<li>Under a <code>0.2</code> procedure <code>supervise</code> reports <code>RESOURCE_OUTSIDE_RUN</code> when one
+binding's calls carry more than one resource, and
+<code>DENIED_ACTION_RETRIED_ARGUMENTS</code>, <code>_RESOURCE</code> and <code>_AROUND</code> when a policy
+denial is followed by the same tool with other arguments, another tool on
+the same resource, or a source's report of the denied tool that no plane
+call joins. An exception taken raises <code>EXCEPTION_TAKEN</code>, never stronger than
+the finding it waived. A finding names the run whose call it rests on, a
+child included, and the report lists the run tree.</li>
+<li>A child run can be stopped. <code>react</code> writes a stop for a confirmed finding
+about an open child of the finding's tenant, and a plane refuses that
+child's next call while its parent and siblings run on.</li>
+<li><code>guardana-control findings export</code> writes the findings log with a cursor,
+in the format <code>guardana.control.findings-export</code> <code>0.1</code>, up to the last
+write a report closed
+(<a href="/docs/adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor">ADR-0048</a>).
+A log this release creates starts with a header holding a random <code>log_id</code>,
+which its cursors bind to; an older log is known by its first line.</li>
+<li><code>guardana-control procedure lint</code> prints a procedure's id, version, digest,
+children mode and each rule with its version and whether it may stop a run;
+<code>procedure test</code> runs a document of cases against it and passes a case only
+on an exact match (<a href="/docs/guides/test-a-procedure">guide</a>).</li>
+<li><code>supervise --view &lt;file&gt;</code> draws the run as one static HTML page: the
+expected steps beside the calls observed, each marked enforced, decided not
+enforced, observed, exception or approval, blocked or not seen, by shape and
+line as well as colour. It shows each finding's calls and their neighbours,
+or with <code>--view-all</code> every call up to a bound
+(<a href="/docs/reference/run-view">run view</a>).</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><code>route sign</code>, <code>react</code> and a plane at start refuse a route that names a rule
+outside the six whose finding may stop a run: <code>REPEATED_DENIAL</code>,
+<code>STEP_OUTSIDE_PROCEDURE</code>, <code>DEADLINE_EXCEEDED</code>, <code>RESOURCE_OUTSIDE_RUN</code>,
+<code>DENIED_ACTION_RETRIED_ARGUMENTS</code> and <code>DENIED_ACTION_RETRIED_RESOURCE</code>.
+Only <code>route sign</code> checked a route's rules before, so a route signed by other
+means could name any rule.</li>
+<li>A finding record that carries a run on its event references, a count of
+references left out, a children mode or a run tree is schema <code>0.2</code>, and a
+0.9 reader refuses it by name. Read a findings log this release writes with
+this release's <code>notify</code> and <code>react</code>.</li>
+<li><code>supervise</code> reads from the runs directory only the run's own tree, so a
+directory holding more than 1000 runs no longer refuses a supervision.</li>
+<li><code>supervise</code> counts a source as heard only from import reports of its
+descriptor's tenant and project, as <code>coverage</code> does, and bounds each span
+walk on its own as well as in total. Either can move a finding below
+<code>CONFIRMED</code>; a changed verdict is a new record, and so a second alert.</li>
+</ul>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li>A finding that rests on many events, such as ten thousand denials, was past
+the log's line bound and refused the whole write. It now cites ten
+references, the most doubtful first, and counts the rest; its verdict is
+still weighed over all of them.</li>
+</ul>
 <h2 id="090-alpha---2026-10-07"><a href="https://github.com/guardana/control/releases/tag/v0.9.0-alpha">0.9.0-alpha</a> - 2026-10-07</h2>
 <p>A confirmed finding can now stop the run it is about. An operator signs a
 route that says which findings may stop a run and which key lifts a stop,
@@ -129,7 +195,7 @@ when it has a second name: a checkout under a umask of 002 needs
 user. An upstream that asks for more input ends the call as failed. A second
 override of one tool is refused at start. <code>runs open --parent</code> refuses a
 child whose expiry would pass its parent's.</p>
-<h3 id="added">Added</h3>
+<h3 id="added-1">Added</h3>
 <ul>
 <li>A confirmed finding can stop the run it is about
 (<a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a>).
@@ -148,7 +214,7 @@ stopped run's children are not stopped. <code>doctor</code>, <code>/healthz</cod
 report the route and the list; <code>examples/refund-supervision/</code> stops one of
 two runs on a live plane and lifts the stop.</li>
 </ul>
-<h3 id="changed">Changed</h3>
+<h3 id="changed-1">Changed</h3>
 <ul>
 <li>The policy key and the freshness key, in the configuration and in
 <code>guardana-control policy renew</code>, are compared as points up to their sign:
@@ -180,7 +246,7 @@ the answer bound measures a slow client's progress in steps of that size.
 Linux grows a connection's buffer to megabytes, which cut off a client
 reading steadily but slowly.</li>
 </ul>
-<h3 id="fixed">Fixed</h3>
+<h3 id="fixed-1">Fixed</h3>
 <ul>
 <li>A plane whose policy floor is read back below the statement it confirmed,
 a copy restored from before its raise, counts the poll as refused under
@@ -275,7 +341,7 @@ observed tool call, and supervision let the runtime's own report of a step
 count as the step. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 <ul>
 <li><code>guardana-control coverage</code> prints, for each path an operator declares in an
 inventory, whether a plane enforces it, decides it without enforcing it, a
@@ -300,7 +366,7 @@ suspected at most, and a skipped step is never confirmed. No plane reads a
 finding, and no finding stops a run. <code>examples/refund-supervision/</code> runs it
 on a live plane.</li>
 </ul>
-<h3 id="changed-1">Changed</h3>
+<h3 id="changed-2">Changed</h3>
 <ul>
 <li>An upstream's answer, wire error, listed item or tool definition that quotes
 a credential the plane sends reaches the agent as a fixed answer, never with
@@ -315,7 +381,7 @@ closing record keeps the upstream's outcome and hash, with <code>withheld:</code
 its protocol status. <code>doctor</code> names the values too short to scan, and
 <code>/metrics</code> counts withheld answers.</li>
 </ul>
-<h3 id="fixed-1">Fixed</h3>
+<h3 id="fixed-2">Fixed</h3>
 <ul>
 <li>A call that needs an approval, under a run an operator opened, was blocked
 with <code>EVIDENCE_UNAVAILABLE</code> on a live plane instead of held: the run's expiry
@@ -352,7 +418,7 @@ accepted another account's directory; and the commit gate could stamp a
 commit that broke the wire contract. <a href="/docs/status">docs/status.md</a> says
 what is <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security
 boundary yet.</p>
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 <ul>
 <li>Observations: <code>guardana-control observe import</code> reads an agent runtime's
 OpenTelemetry GenAI spans (OTLP/JSON, conventions 1.41.0) for one source an
@@ -369,7 +435,7 @@ envelope's <code>trace_id</code> and <code>span_id</code>, so a trail can be joi
 runtime's traces. A missing or malformed value leaves both empty and changes
 nothing else.</li>
 </ul>
-<h3 id="changed-2">Changed</h3>
+<h3 id="changed-3">Changed</h3>
 <ul>
 <li>The plan follows <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>:
 MCP is one channel of several. The next milestone is one task under
@@ -385,7 +451,7 @@ release, which <code>make docs-gen</code> takes from this file. Documentation pa
 a menu above the content on narrow screens, and a wide table scrolls inside
 itself instead of breaking words.</li>
 </ul>
-<h3 id="fixed-2">Fixed</h3>
+<h3 id="fixed-3">Fixed</h3>
 <ul>
 <li>A stateful listener near its <code>listener.max_sessions</code> cap no longer refuses
 an open while the previous open's answer is still being written: a session
@@ -472,7 +538,7 @@ release gate counted a pull request run and could be passed by a tag named
 another account owned; and a stateful listener kept any number of sessions
 open. <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 <ul>
 <li><code>examples/evidence-report -state &lt;dir&gt;</code> follows a trail one export after
 another and raises local alerts: a JSON line each, appended to
@@ -517,7 +583,7 @@ refuses the key. <code>/metrics</code> carries
 <li><code>guardana-control policy explain</code> prints a <code>clock</code> line: <code>usable</code>, or why
 the clock stopped the decision.</li>
 </ul>
-<h3 id="changed-3">Changed</h3>
+<h3 id="changed-4">Changed</h3>
 <ul>
 <li>
 <p><strong>Breaking:</strong> a plane's configuration needs five more keys:
@@ -610,7 +676,7 @@ seconds, which <code>doctor</code> now prints.</p>
 <code>policy.fail_open_read</code> lets a read run while the policy is unavailable.</p>
 </li>
 </ul>
-<h3 id="fixed-3">Fixed</h3>
+<h3 id="fixed-4">Fixed</h3>
 <ul>
 <li><code>runs list</code> and <code>runs close</code> no longer make an empty directory a runs
 directory; they refuse it, and only <code>runs open</code> makes one. A temporary file
@@ -684,7 +750,7 @@ refusal printed a header credential; and some MCP clients refused the plane's
 answers as schema errors. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added-4">Added</h3>
+<h3 id="added-5">Added</h3>
 <ul>
 <li><code>guardana-control policy explain &lt;case&gt;</code> decides one case as <code>policy test</code>
 does and says how: the decision's verdict, action, mode, policy digest and
@@ -704,7 +770,7 @@ use, and a profile for the MCP project's reference filesystem server that
 classifies its 14 tools and holds every write for approval
 (<a href="/docs/guides/connect-an-existing-mcp-setup">guides/connect-an-existing-mcp-setup.md</a>).</li>
 </ul>
-<h3 id="fixed-4">Fixed</h3>
+<h3 id="fixed-5">Fixed</h3>
 <ul>
 <li>A <code>tools/call</code> the plane blocked or held for a tool that declares an output
 schema reached the agent as a schema error from any client that checks
@@ -744,7 +810,7 @@ plane without <code>runs.dir</code> behaves as before. A stdio plane no longer w
 start lines into the protocol stream.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-5">Added</h3>
+<h3 id="added-6">Added</h3>
 <ul>
 <li>Runs an operator opens
 (<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>):
@@ -757,12 +823,12 @@ restart, and a held call resumes only from its own run. A refused token is
 answered with HTTP 401 or the JSON-RPC error <code>-31102</code>, and the refusals are
 counted by cause. A plane without <code>runs.dir</code> is unchanged.</li>
 </ul>
-<h3 id="changed-4">Changed</h3>
+<h3 id="changed-5">Changed</h3>
 <ul>
 <li>The release job waits for a maintainer to approve it in the <code>release</code>
 environment before it builds; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> has the step.</li>
 </ul>
-<h3 id="fixed-5">Fixed</h3>
+<h3 id="fixed-6">Fixed</h3>
 <ul>
 <li>A plane with a stdio listener wrote its start lines, the mode and the count
 of held calls lost to a restart among them, to standard output, which is the agent's protocol stream,
@@ -779,7 +845,7 @@ are a demo archive that runs without Go, an evidence export another program
 resumes by cursor, and the documentation on the website.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="changed-5">Changed</h3>
+<h3 id="changed-6">Changed</h3>
 <ul>
 <li><code>mode</code> has no default: a configuration that names no enforcement mode is
 refused at load instead of starting a plane in <code>OBSERVE</code>, which stops nothing
@@ -790,7 +856,7 @@ default (<a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</
 <code>dev --decision-point=silent</code>, which the old command lacks and now needs.
 <code>dev</code> refuses a system without process groups before it starts anything.</li>
 </ul>
-<h3 id="added-6">Added</h3>
+<h3 id="added-7">Added</h3>
 <ul>
 <li>A website for <code>control.guardana.dev</code> in <code>site/</code>: one static page with
 no script and nothing loaded from another host, whose diagrams
@@ -815,7 +881,7 @@ cannot read, and a trailer; <code>examples/evidence-report</code> rebuilds each 
 lifecycle from it without importing the project's internals
 (<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>).</li>
 </ul>
-<h3 id="fixed-6">Fixed</h3>
+<h3 id="fixed-7">Fixed</h3>
 <ul>
 <li>A <code>restrict_resources</code> obligation with a <code>prefix</code> let a resource id such
 as <code>/srv/data/../../etc/passwd</code>, <code>/srv/data/%2e%2e/etc</code> or
@@ -851,7 +917,7 @@ the gateway beside the archives, and pages that say what the plane
 protects, what it records and which failures it survives.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-7">Added</h3>
+<h3 id="added-8">Added</h3>
 <ul>
 <li>Reason code <code>APPROVAL_STATE_UNKNOWN</code> (44, <code>INDETERMINATE</code>): a lost hold
 whose approval the plane could not read or trust closes with it, where
@@ -877,7 +943,7 @@ and where it stops; what a record holds, where it goes and how long it
 stays (<a href="/docs/concepts/threat-model">docs/concepts/threat-model.md</a>,
 <a href="/docs/concepts/privacy">docs/concepts/privacy.md</a>).</li>
 </ul>
-<h3 id="changed-6">Changed</h3>
+<h3 id="changed-7">Changed</h3>
 <ul>
 <li>A stdio upstream no longer inherits the plane's environment. It gets
 <code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code>, each where the
@@ -894,7 +960,7 @@ literal only, as <code>pdp.allow_plaintext</code> already did and as
 states. A plaintext endpoint on any other host, a name such as <code>localhost</code>
 included, is refused at start.</li>
 </ul>
-<h3 id="fixed-7">Fixed</h3>
+<h3 id="fixed-8">Fixed</h3>
 <ul>
 <li>A tool whose definition holds a fractional number, such as
 <code>&quot;default&quot;: 0.7</code>, is fingerprinted and can be classified, and a call
@@ -918,7 +984,7 @@ Such an answer could be read as refused or as unavailable instead.</li>
 <p>The first public release. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added-8">Added</h3>
+<h3 id="added-9">Added</h3>
 <ul>
 <li>Wire contracts, frozen at <code>1.0</code>: eight protobuf files for the action
 envelope, the decision, approvals, results, events, findings, policy bundles
@@ -999,6 +1065,7 @@ independence of this project from Guardana
 <li><a href="/docs/concepts/glossary">Glossary</a></li>
 <li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>

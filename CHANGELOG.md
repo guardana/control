@@ -11,6 +11,71 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- Procedure schema `0.2`, read beside `0.1`
+  ([ADR-0047](docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children.md)).
+  `bindings` name the resource type each binding holds and `binds` ties a
+  step or an allowed tool to one; `exceptions` waive one rule for one step or
+  tool, on a granted approval, a failed step or a reason code; `children` is
+  `inherit`, which judges a root run and its whole tree, or `separate`, which
+  judges one run's own calls and lists its children. A rule that may stop a
+  run is waived only on an approval. A `0.1` document reads as before, with
+  the same digest and the same confirmed findings.
+- Under a `0.2` procedure `supervise` reports `RESOURCE_OUTSIDE_RUN` when one
+  binding's calls carry more than one resource, and
+  `DENIED_ACTION_RETRIED_ARGUMENTS`, `_RESOURCE` and `_AROUND` when a policy
+  denial is followed by the same tool with other arguments, another tool on
+  the same resource, or a source's report of the denied tool that no plane
+  call joins. An exception taken raises `EXCEPTION_TAKEN`, never stronger than
+  the finding it waived. A finding names the run whose call it rests on, a
+  child included, and the report lists the run tree.
+- A child run can be stopped. `react` writes a stop for a confirmed finding
+  about an open child of the finding's tenant, and a plane refuses that
+  child's next call while its parent and siblings run on.
+- `guardana-control findings export` writes the findings log with a cursor,
+  in the format `guardana.control.findings-export` `0.1`, up to the last
+  write a report closed
+  ([ADR-0048](docs/adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor.md)).
+  A log this release creates starts with a header holding a random `log_id`,
+  which its cursors bind to; an older log is known by its first line.
+- `guardana-control procedure lint` prints a procedure's id, version, digest,
+  children mode and each rule with its version and whether it may stop a run;
+  `procedure test` runs a document of cases against it and passes a case only
+  on an exact match ([guide](docs/guides/test-a-procedure.md)).
+- `supervise --view <file>` draws the run as one static HTML page: the
+  expected steps beside the calls observed, each marked enforced, decided not
+  enforced, observed, exception or approval, blocked or not seen, by shape and
+  line as well as colour. It shows each finding's calls and their neighbours,
+  or with `--view-all` every call up to a bound
+  ([run view](docs/reference/run-view.md)).
+
+### Changed
+
+- `route sign`, `react` and a plane at start refuse a route that names a rule
+  outside the six whose finding may stop a run: `REPEATED_DENIAL`,
+  `STEP_OUTSIDE_PROCEDURE`, `DEADLINE_EXCEEDED`, `RESOURCE_OUTSIDE_RUN`,
+  `DENIED_ACTION_RETRIED_ARGUMENTS` and `DENIED_ACTION_RETRIED_RESOURCE`.
+  Only `route sign` checked a route's rules before, so a route signed by other
+  means could name any rule.
+- A finding record that carries a run on its event references, a count of
+  references left out, a children mode or a run tree is schema `0.2`, and a
+  0.9 reader refuses it by name. Read a findings log this release writes with
+  this release's `notify` and `react`.
+- `supervise` reads from the runs directory only the run's own tree, so a
+  directory holding more than 1000 runs no longer refuses a supervision.
+- `supervise` counts a source as heard only from import reports of its
+  descriptor's tenant and project, as `coverage` does, and bounds each span
+  walk on its own as well as in total. Either can move a finding below
+  `CONFIRMED`; a changed verdict is a new record, and so a second alert.
+
+### Fixed
+
+- A finding that rests on many events, such as ten thousand denials, was past
+  the log's line bound and refused the whole write. It now cites ten
+  references, the most doubtful first, and counts the rest; its verdict is
+  still weighed over all of them.
+
 ## [0.9.0-alpha] - 2026-10-07
 
 A confirmed finding can now stop the run it is about. An operator signs a

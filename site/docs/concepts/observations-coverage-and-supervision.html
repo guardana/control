@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Observations · Guardana Control</title>
-<meta name="description" content="The source descriptor, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export."/>
-<link rel="canonical" href="https://control.guardana.dev/docs/reference/observations"/>
+<title>Observations, coverage, supervision and a stop · Guardana Control</title>
+<meta name="description" content="How what a source reports, the coverage map, the supervisor&#39;s findings and a stop of one run fit together, and what each promises and does not."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/concepts/observations-coverage-and-supervision"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
 <link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
@@ -26,7 +26,7 @@
 </div></header>
 <div class="wrap shell">
 <details class="mnav">
-<summary>Menu · <b>Observations</b></summary>
+<summary>Menu · <b>Observations, coverage, supervision and a stop</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
 <h2>Get started</h2><ul>
@@ -51,7 +51,7 @@
 <li><a href="/docs/concepts/glossary">Glossary</a></li>
 <li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
-<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision" aria-current="page">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>
@@ -66,7 +66,7 @@
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
-<li><a href="/docs/reference/observations" aria-current="page">Observations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
@@ -102,192 +102,117 @@
 </nav>
 </details>
 <main id="main" class="prose">
-<h1 id="observations">Observations</h1>
-<p>An observation is what a source says an agent did: testimony, never a
-decision. The plane never reads one, and nothing in it grants or refuses a
-call (<a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>). The record is
-<code>guardana.control.observe.v1alpha1</code>, version <code>0.1</code>, outside the v1
-compatibility promise (<a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a>).
-It is <code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory.</p>
-<h2 id="the-source-descriptor">The source descriptor</h2>
-<p>A JSON file in which the operator describes one source, read under the
-same owner checks as the stores. Every member is matched exactly; an unknown member, a
-member given twice or <code>null</code> is refused, naming the member.</p>
+<h1 id="observations-coverage-supervision-and-a-stop">Observations, coverage, supervision and a stop</h1>
+<p>Four parts work after a plane has decided an agent's calls, or where no
+plane stands. An observation records what a source said the agent did. The
+coverage map says, for each path the operator declares, how much of it anyone
+can see. Supervision compares one run with its procedure and raises findings.
+A stop turns one confirmed finding into a refusal of that run's next call.
+None of them changes a decision the plane made, and only the stop reaches a
+plane at all.</p>
+<figure class="dg-text" id="diagram-1"><figcaption>How the four parts fit together</figcaption><p>An agent&#39;s calls pass a plane, which writes evidence; the agent&#39;s runtime reports spans, which observe import keeps as observations. coverage reads the evidence and the observations and maps each declared path. supervise reads them with the procedure and writes findings. notify hands alerts to a program; react reads findings with a signed route and writes the stop list, which the plane reads. <a href="https://github.com/guardana/control/blob/main/docs/concepts/observations-coverage-and-supervision.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart LR
+    accTitle: How the four parts fit together
+    accDescr: An agent&#39;s calls pass a plane, which writes evidence; the agent&#39;s runtime reports spans, which observe import keeps as observations. coverage reads the evidence and the observations and maps each declared path. supervise reads them with the procedure and writes findings. notify hands alerts to a program; react reads findings with a signed route and writes the stop list, which the plane reads.
+    AG[Agent] --&gt;|tool calls| PL[Plane]
+    PL --&gt;|evidence export| EV[(Evidence)]
+    AG -.-&gt;|spans, through observe import| OL[(Observations)]
+    EV --&gt; CO[coverage]
+    OL --&gt; CO
+    EV --&gt; SV[supervise]
+    OL --&gt; SV
+    PR[(Procedure)] --&gt; SV
+    SV --&gt; FL[(Findings log)]
+    FL --&gt; NO[notify]
+    FL --&gt; RE[react]
+    RO[(Signed route)] --&gt; RE
+    RE --&gt; SL[(Stop list)]
+    SL --&gt; PL
+</code></pre></details></figure>
+<p>Sources: <code>cmd/guardana-control/observe.go</code>, <code>cmd/guardana-control/coverage.go</code>,
+<code>cmd/guardana-control/supervise.go</code>, <code>cmd/guardana-control/react.go</code>,
+<code>internal/reaction/stoplist/poller.go</code>.</p>
+<h2 id="what-each-promises-and-what-it-does-not">What each promises, and what it does not</h2>
 <table>
 <thead>
 <tr>
-<th>Member</th>
-<th>Required</th>
-<th>Value</th>
+<th>Part</th>
+<th>Promises</th>
+<th>Does not promise</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>schema_version</code></td>
-<td>yes</td>
-<td><code>0.1</code></td>
+<td>An observation</td>
+<td>what one source reported, with the source and the trust its descriptor declares; kept apart from the plane's evidence, and without content</td>
+<td>that the call happened as reported, or at all: a runtime that writes its own spans can omit, sample or invent them</td>
 </tr>
 <tr>
-<td><code>source_id</code></td>
-<td>yes</td>
-<td>1 to 128 characters of <code>A-Z a-z 0-9 . _ : -</code></td>
+<td>The coverage map</td>
+<td>one state per declared path: enforced, decided not enforced, observed, unknown or not covered</td>
+<td>that a plane runs the configuration it read, or that an undeclared path does not exist; it reads files and contacts no plane</td>
 </tr>
 <tr>
-<td><code>kind</code></td>
-<td>yes</td>
-<td><code>otel-genai-traces</code></td>
+<td>Supervision</td>
+<td>each finding cites its evidence and takes the weakest verdict of it; what it could not check is reported as not checked or indeterminate</td>
+<td>that a run without findings followed its procedure: it sees only the exports and logs it is given, when an operator runs it</td>
 </tr>
 <tr>
-<td><code>trust</code></td>
-<td>yes</td>
-<td><code>TRUST_SELF_REPORTED</code> or <code>TRUST_PLATFORM</code>; an agent's own process writes these spans, so <code>TRUST_INDEPENDENT</code> is refused</td>
-</tr>
-<tr>
-<td><code>convention</code></td>
-<td>yes</td>
-<td><code>{&quot;name&quot;: &quot;opentelemetry.gen_ai&quot;, &quot;version&quot;: &quot;1.41.0&quot;}</code>; the conventions are still in development, so no other version is read</td>
-</tr>
-<tr>
-<td><code>otlp_version</code></td>
-<td>yes</td>
-<td><code>1.11.1</code></td>
-</tr>
-<tr>
-<td><code>select.service_name</code></td>
-<td>yes</td>
-<td>the <code>service.name</code> of the resource whose spans are this source's; spans of any other resource are not imported</td>
-</tr>
-<tr>
-<td><code>sampling</code></td>
-<td>no</td>
-<td><code>SAMPLING_COMPLETE</code> or <code>SAMPLING_PARTIAL</code>; absent or <code>SAMPLING_UNSPECIFIED</code> reads as partial</td>
-</tr>
-<tr>
-<td><code>heartbeat_seconds</code></td>
-<td>yes</td>
-<td>1 to 604800: how long the source may stay silent before its paths are unknown; <code>guardana-control coverage</code> reads it (<a href="/docs/reference/coverage">coverage</a>)</td>
-</tr>
-<tr>
-<td><code>tenant_id</code>, <code>project_id</code></td>
-<td>yes</td>
-<td>as <code>source_id</code></td>
-</tr>
-<tr>
-<td><code>run_attribute</code></td>
-<td>no</td>
-<td>the span attribute that names a run; never a content attribute</td>
+<td>A stop</td>
+<td>a plane with the route refuses the stopped run's next call <code>RUN_STOPPED</code>, and every call while it cannot read or trust the list</td>
+<td>that a call already running is cut, or that any run other than the one named stops: a stop names one run, a root or a child, never its tree, agent or principal</td>
 </tr>
 </tbody>
 </table>
-<p>Text values may not hold a control or format character, nor be only
-whitespace, nor pass 256 bytes.</p>
-<h2 id="what-an-import-keeps">What an import keeps</h2>
-<p>A span of the selected resource becomes an observation when its
-<code>gen_ai.operation.name</code> is <code>execute_tool</code> (a tool, named by
-<code>gen_ai.tool.name</code>), <code>invoke_agent</code> or <code>create_agent</code> (an agent,
-<code>gen_ai.agent.name</code>), or <code>chat</code>, <code>generate_content</code>, <code>text_completion</code> or
-<code>embeddings</code> (a model, <code>gen_ai.request.model</code>). Any other span is skipped and
-counted by reason: <code>no_operation</code>, <code>unmapped_operation</code>, or one of the two
-operations the conventions name that this importer does not map,
-<code>operation:retrieval</code> and <code>operation:invoke_workflow</code>.</p>
-<p>Only these are copied: the operation, the name above, <code>gen_ai.provider.name</code>,
-<code>server.address</code>, <code>error.type</code> and the run attribute. A copied string longer
-than 256 bytes, made only of whitespace, or holding a control, format,
-separator, private-use or noncharacter code point or U+FFFD, is dropped and
-counted. A span's name and its status message are never copied.</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>From the span</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>event_time</code></td>
-<td>its end time; absent when it has none, never the time it was read</td>
-</tr>
-<tr>
-<td><code>received_time</code></td>
-<td>the import's own clock reading, the same on every record of one import</td>
-</tr>
-<tr>
-<td><code>stage</code></td>
-<td>failed when the status is error or <code>error.type</code> is present, completed when it ended, unknown otherwise</td>
-</tr>
-<tr>
-<td><code>outcome.status</code></td>
-<td>the status as sent: unset, ok or error</td>
-</tr>
-<tr>
-<td><code>correlation.trace_id</code>, <code>span_id</code>, <code>parent_span_id</code></td>
-<td>the span's ids, lowercase hex as the gateway records a call's trace; a span with a missing, zero or upper-case id, or a status code outside 0 to 2, is refused</td>
-</tr>
-<tr>
-<td><code>correlation.basis</code></td>
-<td><code>BASIS_CLAIMED</code> when the run attribute holds <code>run-</code> and 32 lowercase hex digits, the form of a run an operator opened; any other value is dropped and counted, and the basis is <code>BASIS_NONE</code>. Whether the run exists is not checked</td>
-</tr>
-</tbody>
-</table>
-<h2 id="what-an-import-drops">What an import drops</h2>
-<p>No content is kept in <code>0.1</code>: there is no redaction to apply to it, and a
-capture setting is refused. Every content attribute (<code>gen_ai.input.messages</code>,
-<code>gen_ai.output.messages</code>, <code>gen_ai.system_instructions</code>,
-<code>gen_ai.tool.call.arguments</code>, <code>gen_ai.tool.call.result</code>,
-<code>gen_ai.tool.definitions</code>, <code>gen_ai.prompt</code>, <code>gen_ai.completion</code>) and every other <code>gen_ai.*</code> attribute outside the
-list above is dropped and counted, on a span and on its events, and in the
-report wherever else the selected resource carries one; so is
-<code>gen_ai.request.model</code> on a span that is not a model's. Message parts are
-parsed only to count reasoning: a part of type <code>reasoning</code> or <code>thinking</code> is
-counted and nothing of it is kept; a value that is not an array of messages
-whose parts each name a type is counted as unparsed, never as none.</p>
-<h2 id="the-log">The log</h2>
-<p>One file, <code>observations.jsonl</code>, in a directory of the operator's account that
-no other account can reach, held by one writer at a time. Each line holds one
-observation or one import report. An observation's id is derived from its
-tenant, project, source, trace and span, so importing the same spans again
-writes nothing new: a span already in the log with the same content is a
-duplicate. One whose content differs, apart from its receive time and the
-descriptor's digest, is a conflict: it is not written, and the import exits</p>
-<ol>
-<li>The observations an import keeps
-and its report are appended together and synced, the report last; after a crash
-in that append, the next open cuts everything after the last whole report;
-a tail no writer of this package leaves is refused, not cut. An append that
-would take the file past 1 GiB is refused and writes nothing: the log is then
-rotated by hand.</li>
-</ol>
-<p>Each import ends with one report: the source, the descriptor's SHA-256, the
-receive time, the input's first-line digest and size, every count above, and
-the earliest and latest event time. A source was last heard at its newest
-event time not later than a report's receive time.</p>
-<h2 id="commands">Commands</h2>
-<pre><code>guardana-control observe import --source &lt;descriptor&gt; --log &lt;dir&gt; &lt;file&gt;
-guardana-control observe export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] &lt;file&gt;
-</code></pre>
-<p><code>import</code> reads OTLP/JSON trace lines, one <code>TracesData</code> object per line as an
-OpenTelemetry collector's file exporter writes them, up to the last newline;
-the bytes after it are left for the next import, since the exporter may still
-be writing them. A line with an unknown member, a member twice, an attribute
-twice, a <code>null</code>, an enum spelled as a string, nesting deeper than 32 or more
-than 262,144 array elements is refused, and every span in it is counted as
-refused. A line over 16 MiB is read through and refused without being held. An input over 256 MiB is
-refused whole. Exit 0: every span read was imported, skipped or a
-duplicate. Exit 1: something was refused or conflicted; the report says
-what. Exit 2: the import did not complete, for a usage error, a descriptor or
-a log refused, or a write that failed; a write refused only after its sync, or
-a log that would not close, can leave the import in the log, and an import of
-the same file counts it as duplicates.</p>
-<p><code>export</code> writes <code>guardana.control.observation-export</code> version <code>0.1</code>, in the
-evidence export's shape (<a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>):
-a header, <code>observation</code> and <code>import_report</code> records, gaps (<code>malformed</code>,
-<code>unsupported_version</code>, <code>carriage_return</code>, <code>conflicting_observation_id</code>,
-<code>too_long</code>, <code>partial_tail</code>),
-duplicates and a trailer with the cursor to resume from, and the same exit
-codes. It has no filters. It reads only a file the writer would open: a
-regular file of this account, not a link, that the group and others cannot
-reach, with no other name.</p>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/observations.md">docs/reference/observations.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+<p>The details are on each part's reference page:
+<a href="/docs/reference/observations">observations</a>,
+<a href="/docs/reference/coverage">coverage</a>,
+<a href="/docs/reference/supervision">supervision</a>,
+<a href="/docs/reference/run-view">the run view</a> and
+<a href="/docs/reference/reaction">reaction</a>.</p>
+<h2 id="how-trust-flows-from-one-part-to-the-next">How trust flows from one part to the next</h2>
+<p>A finding is as strong as the weakest thing it rests on. Plane events in an
+unbroken chain can make it <code>CONFIRMED</code>. An observation makes it <code>SUSPECTED</code>
+at most, because a source testifies and a plane decides. A record in doubt,
+such as a broken chain or a source silent past its heartbeat, makes it
+<code>INDETERMINATE</code>. The rules about the steps as a whole (a skipped step, the
+order, carrying on after a failure) rest on something not seen, so none of
+them is ever <code>CONFIRMED</code>.</p>
+<p>Only a stop acts, and it takes the strongest case alone: a deterministic,
+<code>CONFIRMED</code> finding of one of the rules that may stop a run, under a route
+the operator signed, about a run that is still open. A finding that rests on
+an observation therefore never stops a run, and neither does an exception
+taken or a denied tool reported around the plane. Every other finding stays
+in the log, for <code>notify</code>, <code>findings export</code> and the run view.</p>
+<h2 id="where-the-parts-meet">Where the parts meet</h2>
+<p>Observations and plane events meet by trace and span id: a joined
+observation is the plane's call, not a second one. Coverage and supervision
+read a source's liveness from the same import reports and heartbeat, and
+each treats a silent source as unknown, never as one with nothing to report.</p>
+<p>Coverage answers a different question from supervision. It says which paths
+could be seen at all; supervision judges one run by what was seen, and does
+not read the map. A run with no finding says nothing about a path the map
+shows as unknown or not covered.</p>
+<p>A supervision runs when the operator runs it, and a stop is written when the
+operator runs <code>react</code>. A call the run made before then has already happened;
+the stop refuses the next one, once the plane has read the list.</p>
+<h2 id="why">Why</h2>
+<ul>
+<li>Observations are testimony, kept apart from decisions:
+<a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>.</li>
+<li>Coverage is judged per declared path and says what it could not see:
+<a href="/docs/adr/0041-coverage-per-declared-path">ADR-0041</a>.</li>
+<li>Supervision runs beside the decision path and changes no verdict:
+<a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a>,
+<a href="/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047</a>.</li>
+<li>A stop needs a signed route and names one run:
+<a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a>.</li>
+</ul>
+<h2 id="where-the-code-lives">Where the code lives</h2>
+<p><code>internal/observe/</code> holds the observation record and the liveness rule,
+<code>internal/coverage/</code> the map, <code>internal/supervise/</code> the procedure and the
+rules, <code>internal/findinglog/</code> the findings log and its export, and
+<code>internal/reaction/</code> the route and the stop list.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/observations-coverage-and-supervision.md">docs/concepts/observations-coverage-and-supervision.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -313,7 +238,7 @@ reach, with no other name.</p>
 <li><a href="/docs/concepts/glossary">Glossary</a></li>
 <li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
-<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision" aria-current="page">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>
@@ -328,7 +253,7 @@ reach, with no other name.</p>
 <li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
-<li><a href="/docs/reference/observations" aria-current="page">Observations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>

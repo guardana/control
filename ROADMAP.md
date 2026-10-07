@@ -27,25 +27,7 @@ A guide connects an existing MCP client and server, states what it covers and
 the identity it assumes, and ends in a local report. No setup step widens
 authority silently.
 
-## 2. One task under supervision, across two channels
-
-Done when a user runs the demo's plane beside an agent that emits
-OpenTelemetry traces and asks it to refund an order. For that run the user
-sees the expected and observed steps, each marked enforced, observed or inferred; a
-coverage map that names a path the agent took around the plane; a finding
-that cites its evidence; an alert from a local notifier; and a stop that
-refuses that run's next call, no other's.
-
-A procedure is a versioned document a run names: its steps, their order, the
-required ones, the exceptions it allows and its deadline. Beyond one run's
-checks and stop that exist ([docs/status.md](docs/status.md)), the supervisor reports
-a procedure's exceptions and attempts to use a resource or permission the run
-does not hold, a denied action retried in another form included. It runs
-beside the decision path and changes no verdict. Missing evidence is unknown,
-never a pass. Observations already name their source and its trust; a
-finding on one never passes for a decision the plane enforced.
-
-## 3. Integrations without a fork
+## 2. Integrations without a fork
 
 Done when a language-neutral enforcement API and a Python client wrap a
 custom tool with admission, authorized arguments, completion and abort. They
@@ -58,7 +40,7 @@ any language can run, once two consumers have used each, and every port
 states the paths it covers. A Go seam becomes public only after two consumers
 use it and its record is accepted.
 
-## 4. A small team
+## 3. A small team
 
 Done when authenticated principals hold scoped rights to read, approve, pause
 and stop; a stop can name an agent or a principal as well as a run; and
@@ -66,7 +48,7 @@ evidence and observations can be retained, rotated, exported and recovered,
 without a managed service. Cross-project access, forged
 identity, approval replay and policy outage have adversarial tests.
 
-## 5. A fleet and wider protocols, when adopters need them
+## 4. A fleet and wider protocols, when adopters need them
 
 Done when many planes report to one self-hosted control plane that holds the
 inventory of agents, tools, sources and procedures, distributes signed policy
