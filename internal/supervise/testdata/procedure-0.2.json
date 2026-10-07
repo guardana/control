@@ -1,0 +1,38 @@
+{
+  "schema_version": "0.2",
+  "procedure_id": "refund",
+  "version": "2",
+  "bindings": {"order": "shop_order", "customer": "crm_customer"},
+  "steps": [
+    {"id": "lookup", "tool": "get_order", "upstream": "shop", "observed_as": ["get_order"], "required": true, "binds": ["order"]},
+    {"id": "refund", "tool": "issue_refund", "upstream": "pay", "observed_as": ["issue_refund"], "required": true, "binds": ["order"]},
+    {"id": "notify", "tool": "send_mail", "upstream": "mail", "observed_as": [], "required": false, "binds": ["customer"]}
+  ],
+  "order": {"refund": ["lookup"], "notify": ["refund"]},
+  "allow": [
+    {"tool": "search_docs", "upstream": "docs", "observed_as": ["search_docs"], "binds": []},
+    {"tool": "get_customer", "upstream": "crm", "observed_as": [], "binds": ["customer"]}
+  ],
+  "exceptions": [
+    {"id": "manual_refund_approved", "waives": "STEP_OUTSIDE_PROCEDURE", "tool": "refund_manual", "upstream": "pay", "condition": {"approval": "granted"}},
+    {"id": "no_refund_after_failed_lookup", "waives": "REQUIRED_STEP_SKIPPED", "step": "refund", "condition": {"step_failed": "lookup"}},
+    {"id": "early_mail_approved", "waives": "STEP_OUT_OF_ORDER", "step": "notify", "condition": {"approval": "granted"}},
+    {"id": "lookup_denied", "waives": "CONTINUED_AFTER_FAILURE", "step": "lookup", "condition": {"reason": "RULE_DENY"}}
+  ],
+  "children": "inherit",
+  "max_denials": 4,
+  "deadline_seconds": 600,
+  "rules": {
+    "REPEATED_DENIAL": {"severity": "high", "escalation": "alert"},
+    "STEP_OUTSIDE_PROCEDURE": {"severity": "medium", "escalation": "alert"},
+    "DEADLINE_EXCEEDED": {"severity": "low", "escalation": "inform"},
+    "REQUIRED_STEP_SKIPPED": {"severity": "high", "escalation": "alert"},
+    "STEP_OUT_OF_ORDER": {"severity": "medium", "escalation": "inform"},
+    "CONTINUED_AFTER_FAILURE": {"severity": "critical", "escalation": "alert"},
+    "RESOURCE_OUTSIDE_RUN": {"severity": "critical", "escalation": "alert"},
+    "DENIED_ACTION_RETRIED_ARGUMENTS": {"severity": "medium", "escalation": "inform"},
+    "DENIED_ACTION_RETRIED_RESOURCE": {"severity": "high", "escalation": "alert"},
+    "DENIED_ACTION_RETRIED_AROUND": {"severity": "low", "escalation": "inform"},
+    "EXCEPTION_TAKEN": {"severity": "info", "escalation": "inform"}
+  }
+}

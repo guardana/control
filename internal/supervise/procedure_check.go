@@ -1,9 +1,13 @@
 package supervise
 
-import "errors"
+import (
+	"errors"
+	"slices"
+)
 
-// check refuses a procedure whose entries cannot be told apart, or whose
-// order names an unknown step or cannot be followed.
+// check refuses a procedure whose entries cannot be told apart, whose order
+// names an unknown step or cannot be followed, or whose binds or exceptions
+// name what the procedure lacks.
 func (p *Procedure) check() error {
 	if len(p.steps) == 0 {
 		return errors.New("no step")
@@ -18,7 +22,13 @@ func (p *Procedure) check() error {
 	if err := p.checkNames(); err != nil {
 		return err
 	}
-	return p.checkOrder(ids)
+	if err := p.checkOrder(ids); err != nil {
+		return err
+	}
+	if err := p.checkBinds(); err != nil {
+		return err
+	}
+	return p.checkExceptions(ids)
 }
 
 // checkNames refuses a tool on an upstream, or a name a source reports, that
@@ -83,4 +93,55 @@ func (p *Procedure) allRemoved(step string, removed map[string]bool) bool {
 		}
 	}
 	return true
+}
+
+// checkBinds refuses a binds naming no binding.
+func (p *Procedure) checkBinds() error {
+	for _, b := range slices.Concat(p.stepBinds, p.allowBinds) {
+		if b != "" && !slices.ContainsFunc(p.bindings, func(x Binding) bool { return x.Name == b }) {
+			return errors.New("a binds names no binding")
+		}
+	}
+	return nil
+}
+
+func (p *Procedure) checkExceptions(steps map[string]bool) error {
+	ids := make(map[string]bool, len(p.exceptions))
+	for _, e := range p.exceptions {
+		if ids[e.ID] {
+			return errors.New("an exception id is named twice")
+		}
+		ids[e.ID] = true
+		if err := p.checkException(e, steps); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkException refuses an exception the rule it names cannot take. A rule
+// that may stop a run is waived only on an approval, since the agent can
+// make a step fail or draw a reason code itself.
+func (p *Procedure) checkException(e Exception, steps map[string]bool) error {
+	rule, known := ruleOf(e.Waives)
+	switch {
+	case !known:
+		return errors.New("an exception waives no rule")
+	case !rule.waivable:
+		return errors.New("an exception waives a rule no exception may waive")
+	case rule.mayStop && e.When != WhenApprovalGranted:
+		return errors.New("an exception on a rule that may stop a run is taken only on an approval")
+	case e.When == WhenStepFailed && !steps[e.Subject]:
+		return errors.New("an exception's failed step is no step")
+	}
+	if e.Waives == RuleStepOutsideProcedure {
+		if _, held := p.entry(e.Tool, e.Upstream); e.Step != "" || held {
+			return errors.New("an exception on " + RuleStepOutsideProcedure + " names a step or a tool the procedure holds")
+		}
+		return nil
+	}
+	if !steps[e.Step] {
+		return errors.New("an exception on a rule about steps names no step")
+	}
+	return nil
 }

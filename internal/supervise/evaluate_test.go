@@ -2,6 +2,8 @@ package supervise_test
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -92,6 +94,18 @@ func TestOnlyAnOpenedRunsIDIsSupervised(t *testing.T) {
 	}
 	if _, err := supervise.Evaluate(supervise.Input{Procedure: p, Run: supervise.Run{ID: runID}}); !errors.Is(err, supervise.ErrInput) {
 		t.Errorf("no tenant: Evaluate = %v, want ErrInput", err)
+	}
+	v02, err := os.ReadFile(filepath.Join("testdata", "procedure-0.2.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p02, err := supervise.ReadProcedure(v02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := supervise.Evaluate(supervise.Input{Procedure: p02, Run: supervise.Run{ID: runID, Tenant: tenant},
+		Exports: []supervise.Export{export(conforming()...)}}); !errors.Is(err, supervise.ErrInput) {
+		t.Errorf("a 0.2 procedure: Evaluate = %v, want ErrInput", err)
 	}
 	twice := []supervise.Source{source(), source()}
 	if _, err := supervise.Evaluate(supervise.Input{Procedure: p, Run: supervise.Run{ID: runID, Tenant: tenant},

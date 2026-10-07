@@ -1,0 +1,52 @@
+package supervise
+
+import (
+	"maps"
+	"slices"
+	"testing"
+)
+
+// TestTheTableIsWhole reads the table itself rather than an id list derived
+// from it, so a row no schema lists cannot hide from the may-stop set.
+func TestTheTableIsWhole(t *testing.T) {
+	stops := map[string]bool{}
+	seen := map[string]bool{}
+	for _, r := range ruleTable {
+		if seen[r.id] {
+			t.Errorf("rule %s has two rows", r.id)
+		}
+		seen[r.id] = true
+		if len(r.schemas) == 0 {
+			t.Errorf("rule %s is known to no schema", r.id)
+		}
+		if r.mayStop {
+			stops[r.id] = true
+			if !r.canConfirm {
+				t.Errorf("rule %s may stop but is never CONFIRMED", r.id)
+			}
+		}
+	}
+	want := []string{
+		"DEADLINE_EXCEEDED", "DENIED_ACTION_RETRIED_ARGUMENTS", "DENIED_ACTION_RETRIED_RESOURCE",
+		"REPEATED_DENIAL", "RESOURCE_OUTSIDE_RUN", "STEP_OUTSIDE_PROCEDURE",
+	}
+	if got := slices.Sorted(maps.Keys(stops)); !slices.Equal(got, want) {
+		t.Fatalf("may stop: %q, want %q", got, want)
+	}
+	waivable := []string{}
+	for _, r := range ruleTable {
+		if r.waivable {
+			waivable = append(waivable, r.id)
+		}
+	}
+	slices.Sort(waivable)
+	if want := []string{"CONTINUED_AFTER_FAILURE", "REQUIRED_STEP_SKIPPED", "STEP_OUTSIDE_PROCEDURE", "STEP_OUT_OF_ORDER"}; !slices.Equal(waivable, want) {
+		t.Fatalf("waivable: %q, want %q", waivable, want)
+	}
+}
+
+func TestRuleIDsIsTheTablesSchema01Rows(t *testing.T) {
+	if !slices.Equal(ruleIDs, RuleIDsOf(ProcedureSchema01)) {
+		t.Fatalf("ruleIDs = %q", ruleIDs)
+	}
+}

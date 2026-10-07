@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "procedure_id": "invoice-close",
+  "version": "7",
+  "steps": [
+    {"id": "fetch", "tool": "get_invoice", "upstream": "billing", "observed_as": ["get_invoice", "invoice.get"], "required": true},
+    {"id": "check", "tool": "validate_invoice", "upstream": "billing", "observed_as": [], "required": false},
+    {"id": "close", "tool": "close_invoice", "upstream": "ledger", "observed_as": ["close_invoice"], "required": true}
+  ],
+  "order": {"close": ["fetch", "check"]},
+  "allow": [
+    {"tool": "search", "upstream": "kb", "observed_as": ["kb.search"]},
+    {"tool": "get_invoice", "upstream": "archive", "observed_as": []}
+  ],
+  "max_denials": 3,
+  "rules": {
+    "REPEATED_DENIAL": {"severity": "high", "escalation": "alert"},
+    "STEP_OUTSIDE_PROCEDURE": {"severity": "critical", "escalation": "alert"},
+    "DEADLINE_EXCEEDED": {"severity": "info", "escalation": "inform"},
+    "REQUIRED_STEP_SKIPPED": {"severity": "medium", "escalation": "inform"},
+    "STEP_OUT_OF_ORDER": {"severity": "low", "escalation": "inform"},
+    "CONTINUED_AFTER_FAILURE": {"severity": "high", "escalation": "alert"}
+  }
+}

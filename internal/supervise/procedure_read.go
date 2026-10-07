@@ -53,10 +53,16 @@ func (r *reader) fail(err error) {
 }
 
 func (r *reader) object(raw []byte, where string, members ...string) strictjson.Object {
+	return r.objectOf(raw, where, members, members)
+}
+
+// objectOf reads raw as an object holding only known members and every one
+// of required.
+func (r *reader) objectOf(raw []byte, where string, known, required []string) strictjson.Object {
 	if r.err != nil {
 		return nil
 	}
-	o, err := object(raw, members, members)
+	o, err := object(raw, known, required)
 	if err != nil {
 		r.fail(fmt.Errorf("%s: %w", where, err))
 	}
@@ -74,9 +80,17 @@ func (r *reader) identOf(raw json.RawMessage, where string) string {
 		return ""
 	}
 	s, ok := strictjson.String(raw)
-	switch {
-	case !ok:
+	if !ok {
 		r.fail(fmt.Errorf("%s is not a string", where))
+		return s
+	}
+	return r.identText(s, where)
+}
+
+// identText checks s as a contract identifier.
+func (r *reader) identText(s, where string) string {
+	switch {
+	case r.err != nil:
 	case s == "" || len(s) > contract.MaxStringBytes:
 		r.fail(fmt.Errorf("%s is %d bytes, bounds 1 and %d", where, len(s), contract.MaxStringBytes))
 	default:
@@ -113,12 +127,18 @@ func (r *reader) names(raw json.RawMessage, where string) []string {
 	return out
 }
 
-func (r *reader) steps(raw json.RawMessage) []Step {
+// steps reads the steps and, in 0.2, the binding each binds.
+func (r *reader) steps(raw json.RawMessage, v02 bool) ([]Step, []string) {
 	items := r.array(raw, "steps")
 	out := make([]Step, 0, len(items))
+	var binds []string
+	members := []string{"id", "tool", "upstream", "observed_as", "required"}
+	if v02 {
+		members = append(members, "binds")
+	}
 	for i, item := range items {
 		where := "step " + strconv.Itoa(i+1)
-		o := r.object(item, where, "id", "tool", "upstream", "observed_as", "required")
+		o := r.object(item, where, members...)
 		s := Step{ID: r.ident(o, "id"), Tool: r.ident(o, "tool"), Upstream: r.ident(o, "upstream"),
 			ObservedAs: r.names(o["observed_as"], where+" observed_as")}
 		switch string(o["required"]) {
@@ -129,20 +149,32 @@ func (r *reader) steps(raw json.RawMessage) []Step {
 			r.fail(errors.New(where + ": required is not true or false"))
 		}
 		out = append(out, s)
+		if v02 {
+			binds = append(binds, r.binds(o, where))
+		}
 	}
-	return out
+	return out, binds
 }
 
-func (r *reader) allowed(raw json.RawMessage) []Allowed {
+// allowed reads the allowed tools and, in 0.2, the binding each binds.
+func (r *reader) allowed(raw json.RawMessage, v02 bool) ([]Allowed, []string) {
 	items := r.array(raw, "allow")
 	out := make([]Allowed, 0, len(items))
+	var binds []string
+	members := []string{"tool", "upstream", "observed_as"}
+	if v02 {
+		members = append(members, "binds")
+	}
 	for i, item := range items {
 		where := "allow " + strconv.Itoa(i+1)
-		o := r.object(item, where, "tool", "upstream", "observed_as")
+		o := r.object(item, where, members...)
 		out = append(out, Allowed{Tool: r.ident(o, "tool"), Upstream: r.ident(o, "upstream"),
 			ObservedAs: r.names(o["observed_as"], where+" observed_as")})
+		if v02 {
+			binds = append(binds, r.binds(o, where))
+		}
 	}
-	return out
+	return out, binds
 }
 
 // order reads each step's predecessors; a step listed with none is refused,
@@ -182,10 +214,12 @@ func (r *reader) count(o strictjson.Object, name string) uint32 {
 	return uint32(n)
 }
 
-func (r *reader) rules(raw json.RawMessage) map[string]RuleSpec {
-	o := r.object(raw, "rules", ruleIDs[:]...)
-	out := make(map[string]RuleSpec, len(ruleIDs))
-	for _, id := range ruleIDs {
+// rules reads the severity and escalation of each of ids, which are every
+// rule the document's schema knows.
+func (r *reader) rules(raw json.RawMessage, ids []string) map[string]RuleSpec {
+	o := r.object(raw, "rules", ids...)
+	out := make(map[string]RuleSpec, len(ids))
+	for _, id := range ids {
 		spec := r.object(o[id], "rule "+id, "severity", "escalation")
 		sev, sevOK := severities[r.ident(spec, "severity")]
 		esc, escOK := escalations[r.ident(spec, "escalation")]

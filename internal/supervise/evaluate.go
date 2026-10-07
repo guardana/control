@@ -111,6 +111,11 @@ func checkInput(in Input) error {
 	if in.Procedure == nil || in.Procedure.digest == "" {
 		return ErrInput.with("no procedure ReadProcedure accepted")
 	}
+	// A 0.2 document configures rules this build does not apply yet; judging it
+	// by the 0.1 rules alone would report them as never fired.
+	if in.Procedure.schema != ProcedureSchema01 {
+		return ErrInput.with("procedure schema " + in.Procedure.schema + " is not supervised by this build")
+	}
 	if !observe.ValidRunID(in.Run.ID) {
 		return ErrRunID
 	}

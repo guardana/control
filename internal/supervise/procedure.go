@@ -10,47 +10,11 @@ import (
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/policy/strictjson"
 )
-
-// ProcedureSchemaVersion is the one procedure version this package reads.
-const ProcedureSchemaVersion = "0.1"
 
 // MaxProcedureBytes bounds a procedure document.
 const MaxProcedureBytes = 65536
-
-// The rules a procedure configures, in the order a report lists them.
-const (
-	RuleRepeatedDenial        = "REPEATED_DENIAL"
-	RuleStepOutsideProcedure  = "STEP_OUTSIDE_PROCEDURE"
-	RuleDeadlineExceeded      = "DEADLINE_EXCEEDED"
-	RuleRequiredStepSkipped   = "REQUIRED_STEP_SKIPPED"
-	RuleStepOutOfOrder        = "STEP_OUT_OF_ORDER"
-	RuleContinuedAfterFailure = "CONTINUED_AFTER_FAILURE"
-)
-
-// RuleVersion is the version of every rule above; a change to what a rule
-// fires on is a new version, and so a new finding id.
-const RuleVersion = "1"
-
-var ruleIDs = [...]string{
-	RuleRepeatedDenial, RuleStepOutsideProcedure, RuleDeadlineExceeded,
-	RuleRequiredStepSkipped, RuleStepOutOfOrder, RuleContinuedAfterFailure,
-}
-
-// RuleIDs is every rule a procedure configures, in the order a report lists
-// them. The slice is a copy.
-func RuleIDs() []string { return slices.Clone(ruleIDs[:]) }
-
-// CanConfirm reports whether a finding of rule id can be CONFIRMED. The
-// three rules that rest on something not seen are capped by absenceCap, so
-// none of them ever is, and an id that is no rule's never is.
-func CanConfirm(id string) bool {
-	switch id {
-	case RuleRepeatedDenial, RuleStepOutsideProcedure, RuleDeadlineExceeded:
-		return true
-	}
-	return false
-}
 
 // Step is one step of a procedure: the tool and upstream a plane sees it as,
 // and the names a source reports it under.
@@ -87,6 +51,15 @@ type Procedure struct {
 	deadlineSeconds uint32
 	rules           map[string]RuleSpec
 	digest          string
+
+	schema   string
+	children Children
+	// bindings is sorted by name.
+	bindings []Binding
+	// stepBinds and allowBinds are the binding of steps[i] and allow[i],
+	// "" for none.
+	stepBinds, allowBinds []string
+	exceptions            []Exception
 }
 
 // ID is the procedure's id.
@@ -102,11 +75,59 @@ func (p *Procedure) Digest() string { return p.digest }
 // Steps are the procedure's steps in document order.
 func (p *Procedure) Steps() []Step { return p.steps }
 
-// ReadProcedure reads a procedure document strictly: one JSON object of at
-// most MaxProcedureBytes, every member required and none unknown or named
-// twice, except max_denials and deadline_seconds, whose absence turns their
-// rule off. A cycle in the order, a step it names that the steps lack, and a
-// tool, upstream or reported name that two entries share are refused.
+// Schema is the document's schema_version.
+func (p *Procedure) Schema() string { return p.schema }
+
+// Children is how the procedure judges a run's children; a 0.1 document
+// states none.
+func (p *Procedure) Children() Children { return p.children }
+
+// Bindings are the procedure's bindings sorted by name. The slice is a copy.
+func (p *Procedure) Bindings() []Binding { return slices.Clone(p.bindings) }
+
+// Exceptions are the procedure's exceptions in document order. The slice is
+// a copy.
+func (p *Procedure) Exceptions() []Exception { return slices.Clone(p.exceptions) }
+
+// BindingOf is the binding of the step or allowed tool on upstream, and
+// false when that entry binds none or no entry names the tool.
+func (p *Procedure) BindingOf(tool, upstream string) (string, bool) {
+	binding, _ := p.entry(tool, upstream)
+	return binding, binding != ""
+}
+
+// entry is the binding of the step or allowed tool on upstream, and whether
+// the procedure names that tool at all.
+func (p *Procedure) entry(tool, upstream string) (string, bool) {
+	for i, s := range p.steps {
+		if s.Tool == tool && s.Upstream == upstream {
+			return bindingAt(p.stepBinds, i), true
+		}
+	}
+	for i, a := range p.allow {
+		if a.Tool == tool && a.Upstream == upstream {
+			return bindingAt(p.allowBinds, i), true
+		}
+	}
+	return "", false
+}
+
+// bindingAt is binds[i], or "" where a 0.1 document has no binds.
+func bindingAt(binds []string, i int) string {
+	if i < len(binds) {
+		return binds[i]
+	}
+	return ""
+}
+
+// ReadProcedure reads a procedure document of schema 0.1 or 0.2 strictly:
+// one JSON object of at most MaxProcedureBytes, every member of its schema
+// required and none unknown or named twice, except max_denials and
+// deadline_seconds, whose absence turns their rule off. A cycle in the
+// order, a step it names that the steps lack, and a tool, upstream or
+// reported name that two entries share are refused; so, in 0.2, are a binds
+// naming no binding, a tool in two bindings, and an exception on a rule, a
+// step or a tool it cannot cover, or on a condition the rule refuses.
 func ReadProcedure(b []byte) (*Procedure, error) {
 	p, err := readProcedure(b)
 	if err != nil {
@@ -116,8 +137,10 @@ func ReadProcedure(b []byte) (*Procedure, error) {
 }
 
 var (
-	procedureMembers = []string{
-		"schema_version", "procedure_id", "version", "steps", "order", "allow", "rules",
+	procedureMembers = map[string][]string{
+		ProcedureSchema01: {"schema_version", "procedure_id", "version", "steps", "order", "allow", "rules"},
+		ProcedureSchema02: {"schema_version", "procedure_id", "version", "bindings", "steps", "order", "allow",
+			"exceptions", "children", "rules"},
 	}
 	procedureOptional = []string{"max_denials", "deadline_seconds"}
 )
@@ -130,21 +153,26 @@ func readProcedure(b []byte) (*Procedure, error) {
 	if err != nil {
 		return nil, err
 	}
-	o, err := object(b, slices.Concat(procedureMembers, procedureOptional), procedureMembers)
+	o, err := strictjson.ReadObject(b)
 	if err != nil {
 		return nil, err
 	}
 	r := &reader{}
-	if r.ident(o, "schema_version") != ProcedureSchemaVersion && r.err == nil {
-		return nil, errors.New("schema_version is not " + ProcedureSchemaVersion)
+	schema := r.ident(o, "schema_version")
+	members, known := procedureMembers[schema]
+	switch {
+	case r.err != nil:
+		return nil, r.err
+	case !known:
+		return nil, errors.New("schema_version is neither " + ProcedureSchema01 + " nor " + ProcedureSchema02)
 	}
-	p := &Procedure{id: r.ident(o, "procedure_id"), version: r.ident(o, "version")}
-	p.steps = r.steps(o["steps"])
-	p.allow = r.allowed(o["allow"])
-	p.after = r.order(o["order"])
-	p.maxDenials = r.count(o, "max_denials")
-	p.deadlineSeconds = r.count(o, "deadline_seconds")
-	p.rules = r.rules(o["rules"])
+	if err := o.Only(slices.Concat(members, procedureOptional)...); err != nil {
+		return nil, err
+	}
+	if err := o.Require(members...); err != nil {
+		return nil, err
+	}
+	p := r.procedure(o, schema)
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -154,4 +182,24 @@ func readProcedure(b []byte) (*Procedure, error) {
 	sum := sha256.Sum256(canonical)
 	p.digest = hex.EncodeToString(sum[:])
 	return p, nil
+}
+
+// procedure reads the members of o, a document of schema.
+func (r *reader) procedure(o strictjson.Object, schema string) *Procedure {
+	v02 := schema == ProcedureSchema02
+	p := &Procedure{schema: schema, id: r.ident(o, "procedure_id"), version: r.ident(o, "version")}
+	if v02 {
+		p.bindings = r.bindings(o["bindings"])
+	}
+	p.steps, p.stepBinds = r.steps(o["steps"], v02)
+	p.allow, p.allowBinds = r.allowed(o["allow"], v02)
+	p.after = r.order(o["order"])
+	p.maxDenials = r.count(o, "max_denials")
+	p.deadlineSeconds = r.count(o, "deadline_seconds")
+	p.rules = r.rules(o["rules"], RuleIDsOf(schema))
+	if v02 {
+		p.exceptions = r.exceptions(o["exceptions"])
+		p.children = r.children(o["children"])
+	}
+	return p
 }
