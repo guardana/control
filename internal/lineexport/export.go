@@ -1,9 +1,9 @@
 // Package lineexport writes a JSON Lines file that a writer appends to as an
-// export: a header, one record per whole line up to the last newline, and a
-// trailer, resumable after any line by a cursor that holds only in the file it
-// was taken from. A format names its records, supplies its refusals and
-// judges each line; the reading, the bounds, the cursor and the duplicates
-// are this package's.
+// export: a header, one record per whole line up to the last newline, or to
+// the last write the writer committed, and a trailer, resumable after any
+// line by a cursor that holds only in the file it was taken from. A format
+// names its records, supplies its refusals and judges each line; the
+// reading, the bounds, the cursor and the duplicates are this package's.
 package lineexport
 
 import (
@@ -24,8 +24,17 @@ type Source struct {
 	// Size is the file's length when it was opened; nothing past it is read.
 	Size int64
 	// Held asks whether a writer holds the file. It is asked only when bytes
-	// follow the last newline; nil answers no.
+	// follow the end the export reads to; nil answers no.
 	Held func() (bool, error)
+	// Committed, for a file its writer appends to in writes that each end
+	// at a commit, says where the last committed write ends: at a line's
+	// end, at or before the last newline. The lines after it belong to a
+	// write still open, are never read, and count with the bytes after the
+	// last newline as the tail. Nil ends at the last newline.
+	Committed func() (int64, error)
+	// Identity says what the file's first line, which names it to a cursor,
+	// holds; the trailer repeats it. Empty writes no such member.
+	Identity string
 }
 
 // Query is where an export starts and how much it writes.
@@ -61,13 +70,17 @@ type Verdict struct {
 	// Type is one of the format's Lines, or Gap with a Reason.
 	Type, Reason string
 	// Pass is a line of a Lines type the format's filters pass by: it writes
-	// no record and takes none of the limit, and its id still counts.
+	// no record and takes none of the limit, and its id still counts. With no
+	// Type and no ID it is a line the format writes no record for at all.
 	Pass bool
 	// ID is the line's id, empty for none. Two lines of one type with one id
 	// are the same when their Content is, and a conflict otherwise.
 	ID      string
 	Content Digest
 }
+
+// noRecord is a line passed by that no format type names.
+func (v Verdict) noRecord() bool { return v.Pass && v.Type == "" && v.ID == "" }
 
 // Judge says what one line is.
 type Judge func(Line) Verdict
@@ -77,11 +90,12 @@ type Trailer struct {
 	// NextCursor is where the next export starts, empty when the file has no
 	// whole line.
 	NextCursor string
-	// EndReached is every line to the last newline read, and the bytes after
-	// it reported.
+	// EndReached is every line to the end the export reads to read, and the
+	// bytes after it reported.
 	EndReached bool
-	// TailBytes is the bytes after the last newline, and WriterHeld whether a
-	// writer held the file when it was asked.
+	// TailBytes is the bytes after that end: after the last newline, or
+	// after the last committed write. WriterHeld is whether a writer held the
+	// file when it was asked.
 	TailBytes  int64
 	WriterHeld bool
 	// Counts are the records written by type, a key for every type.
@@ -95,7 +109,8 @@ type Trailer struct {
 // asking judge; one whose type and id a line this export read carries with
 // other content is a gap; one whose type and id a record this export wrote
 // carries with the same content is a duplicate. The bytes after the last
-// newline are a gap only when Held says no writer holds the file.
+// newline, or after src.Committed, are a gap only when Held says no writer
+// holds the file.
 //
 // A refused format, query or cursor writes nothing. An error after the header
 // leaves the output without its trailer, which is how a reader knows it was
@@ -122,7 +137,8 @@ func Export(f Format, src Source, q Query, judge Judge, w io.Writer) (Trailer, e
 
 // open checks the format, the query and the cursor against src and asks about
 // a writer, all before a byte is written, and returns where the scan starts
-// and ends: after the cursor's line, and at the last newline.
+// and ends: after the cursor's line, and at the last newline or the
+// committed end.
 func open(f Format, src Source, q Query, judge Judge, w io.Writer) (*exporter, int64, int64, error) {
 	if err := f.check(); err != nil {
 		return nil, 0, 0, err
@@ -131,7 +147,7 @@ func open(f Format, src Source, q Query, judge Judge, w io.Writer) (*exporter, i
 		return nil, 0, 0, err
 	}
 	in := file{r: src.R, rf: f.Refusals}
-	end, err := in.lastNewline(src.Size)
+	end, err := in.end(src)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -149,7 +165,7 @@ func open(f Format, src Source, q Query, judge Judge, w io.Writer) (*exporter, i
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	x := &exporter{f: f, q: q, judge: judge, in: in, first: first, identified: identified,
+	x := &exporter{f: f, q: q, judge: judge, in: in, first: first, identified: identified, identity: src.Identity,
 		out: bufio.NewWriter(w), seen: map[seenKey]seenAt{},
 		tr: Trailer{NextCursor: q.After, TailBytes: src.Size - end, Counts: f.zeroCounts()}}
 	if x.tr.TailBytes > 0 && src.Held != nil {
@@ -167,6 +183,38 @@ func checkCall(src Source, q Query, judge Judge, w io.Writer) error {
 		return fmt.Errorf("%w: limit %d, byte bound %d, size %d, or no judge, reader, writer or echo", ErrInvalid, q.Limit, q.MaxBytes, src.Size)
 	}
 	return nil
+}
+
+// end is where the lines an export reads end: the last newline, or the end
+// of the last committed write when src says where that is.
+func (f file) end(src Source) (int64, error) {
+	end, err := f.lastNewline(src.Size)
+	if err != nil || src.Committed == nil {
+		return end, err
+	}
+	return f.committed(end, src.Committed)
+}
+
+// committed is the end the committed lines reach, refused unless it ends a
+// line at or before end, the last newline.
+func (f file) committed(end int64, at func() (int64, error)) (int64, error) {
+	c, err := at()
+	switch {
+	case err != nil:
+		return 0, fmt.Errorf("finding the end of the last committed write: %w", err)
+	case c < 0 || c > end:
+		return 0, fmt.Errorf("%w: a committed end at %d, the last newline ends at %d", ErrInvalid, c, end)
+	case c == 0:
+		return 0, nil
+	}
+	var before [1]byte
+	if err := f.readFull(before[:], c-1); err != nil {
+		return 0, err
+	}
+	if before[0] != '\n' {
+		return 0, fmt.Errorf("%w: a committed end at %d is not the end of a line", ErrInvalid, c)
+	}
+	return c, nil
 }
 
 // resume is the offset an export after the cursor after starts at, 0 with no
@@ -206,6 +254,7 @@ type exporter struct {
 	in         file
 	first      Digest
 	identified bool
+	identity   string
 	out        *bufio.Writer
 	seen       map[seenKey]seenAt
 	tr         Trailer
@@ -272,6 +321,8 @@ func (x *exporter) decide(l Line) (Verdict, int64, error) {
 	switch {
 	case v.Type == Gap && v.Reason != "":
 		return Verdict{Type: Gap, Reason: v.Reason}, 0, nil
+	case v.noRecord():
+		return v, 0, nil
 	case !x.f.carries(v.Type):
 		return Verdict{}, 0, fmt.Errorf("%w: the line at offset %d was judged %q with reason %q", ErrInvalid, l.Offset, v.Type, v.Reason)
 	}
@@ -305,7 +356,7 @@ func (x *exporter) record(v Verdict, next string, l Line, first int64) error {
 	return x.line(v.Type, l.Offset, next, l.Body())
 }
 
-// tail reports the bytes after the last newline as a gap, once every whole
+// tail reports the bytes after the end as a gap, once every whole
 // line is read, when no writer holds the file. The gap takes a record, and an
 // export with no room left for it has not reached the end.
 func (x *exporter) tail(end int64) error {

@@ -148,3 +148,23 @@ state, which delivers every alert again. Exit 0 when nothing failed; 1 when a de
 failed, on an interrupt, or when the run stopped after a program had run (a
 mark that did not reach the disk, a log that changed under it); 2, printing
 nothing, when the state or the log is refused before any program ran.
+
+## findings export
+
+```
+guardana-control findings export --findings <dir> [--after <cursor>] [--limit <n>]
+    [--max-bytes <n>]
+```
+
+`findings export` writes the log as JSON Lines in the shape of the evidence
+export, format `guardana.control.findings-export` version `0.1`, unstable as
+the records are
+([ADR-0048](../adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor.md)):
+`header`, then `finding_record` and `supervise_report` each carrying its log
+line, `gap`, `duplicate` and `trailer`. The log is judged as `notify` reads it,
+under no lock, and exported only to the last write a report closes; a write
+still open is the trailer's `tail_bytes`, and a gap when no writer holds the
+log. A cursor holds in its own log only: by the header's `log_id`, or by the
+first line of a log with no header. The trailer's `identity` says which:
+`log_id`, `content` or `none`. Exit 0, 1 for a whole export with a gap, 2
+refused or cut short.

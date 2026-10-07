@@ -37,6 +37,7 @@ type trailerRecord struct {
 	Counts       counts `json:"counts"`
 	ScannedBytes int64  `json:"scanned_bytes"`
 	DedupScope   string `json:"dedup_scope"`
+	Identity     string `json:"identity,omitempty"`
 }
 
 // counts are the trailer's counts in a fixed order: the format's line types,
@@ -103,7 +104,8 @@ func (x *exporter) duplicate(offset int64, id string, first int64) error {
 func (x *exporter) trailer() error {
 	err := x.write(trailerRecord{Type: "trailer", NextCursor: x.tr.NextCursor, EndReached: x.tr.EndReached,
 		TailBytes: x.tr.TailBytes, WriterHeld: x.tr.WriterHeld, ScannedBytes: x.tr.ScannedBytes, DedupScope: "export",
-		Counts: counts{order: append(slices.Clone(x.f.Lines), Gap, Duplicate), n: x.tr.Counts}})
+		Identity: x.identity,
+		Counts:   counts{order: append(slices.Clone(x.f.Lines), Gap, Duplicate), n: x.tr.Counts}})
 	if err != nil {
 		return err
 	}

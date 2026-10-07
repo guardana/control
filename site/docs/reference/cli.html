@@ -119,11 +119,11 @@ without this page fails the gate.</p>
 </tr>
 <tr>
 <td>1</td>
-<td>The input was refused or a case failed: stderr says why, one line each; <code>policy test</code>, a scenario, <code>coverage</code> and <code>supervise</code> print what failed. So do a whole <code>trail export</code> with a gap and a failed <code>notify</code> delivery.</td>
+<td>The input was refused or a case failed: stderr says why, one line each; <code>policy test</code>, a scenario, <code>coverage</code> and <code>supervise</code> print what failed. So do a whole export with a gap and a failed <code>notify</code> delivery.</td>
 </tr>
 <tr>
 <td>2</td>
-<td>A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail or observation export refused or cut short, an incomplete <code>observe import</code>, or a refused <code>coverage</code>, <code>supervise</code> or <code>notify</code> input.</td>
+<td>A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, an export refused or cut short, an incomplete <code>observe import</code>, or a refused <code>coverage</code>, <code>supervise</code> or <code>notify</code> input.</td>
 </tr>
 </tbody>
 </table>
@@ -217,7 +217,7 @@ nothing already running.</p>
 serves: <a href="/docs/reference/runs">runs.md</a>.</p>
 <p>The <code>observe</code> commands import an agent runtime's OpenTelemetry spans into an
 observation log and export it: <a href="/docs/reference/observations">observations.md</a>. <code>coverage</code>
-is <a href="/docs/reference/coverage">coverage.md</a>, <code>supervise</code> and <code>notify</code>
+is <a href="/docs/reference/coverage">coverage.md</a>, <code>supervise</code>, <code>notify</code> and <code>findings export</code>
 <a href="/docs/reference/supervision">supervision.md</a>, and <code>route</code>, <code>stops</code> and <code>react</code>, which
 turn a confirmed finding into a stop of its run, <a href="/docs/reference/reaction">reaction.md</a>.</p>
 <p><code>console</code> serves a page that answers approvals and writes pauses:
@@ -251,6 +251,8 @@ turn a confirmed finding into a stop of its run, <a href="/docs/reference/reacti
       [--evidence &lt;export&gt;]... [--source &lt;descriptor&gt; --log &lt;dir&gt;]...
   guardana-control notify --findings &lt;dir&gt; --state &lt;dir&gt; [--init] [--timeout &lt;duration&gt;]
       -- &lt;program&gt; [&lt;arg&gt;]...
+  guardana-control findings export --findings &lt;dir&gt; [--after &lt;cursor&gt;] [--limit &lt;n&gt;]
+      [--max-bytes &lt;n&gt;]
   guardana-control route sign --key &lt;file&gt; --out &lt;file&gt; &lt;route.json&gt;
   guardana-control stops init --route &lt;file&gt; --public-key &lt;file&gt;
       [--carry &lt;dir&gt; --carry-route &lt;file&gt;] &lt;dir&gt;

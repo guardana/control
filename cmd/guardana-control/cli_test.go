@@ -151,9 +151,10 @@ var ownRefusal = map[string]func(missing string) []string{
 	"supervise": func(m string) []string {
 		return []string{"--procedure", m, "--runs", m, "--run", "run-" + strings.Repeat("0", 32), "--findings", m}
 	},
-	"notify":     func(m string) []string { return []string{"--findings", m, "--state", m, "--", m} },
-	"route sign": func(m string) []string { return []string{"--key", m, "--out", m + ".route", m} },
-	"stops init": func(m string) []string { return []string{"--route", m, "--public-key", m, m} },
+	"notify":          func(m string) []string { return []string{"--findings", m, "--state", m, "--", m} },
+	"findings export": func(m string) []string { return []string{"--findings", m} },
+	"route sign":      func(m string) []string { return []string{"--key", m, "--out", m + ".route", m} },
+	"stops init":      func(m string) []string { return []string{"--route", m, "--public-key", m, m} },
 	"stops lift": func(m string) []string {
 		return []string{"--route", m, "--public-key", m, "--key", m, "--run", "run-" + strings.Repeat("0", 32), m}
 	},
@@ -168,11 +169,12 @@ var ownRefusal = map[string]func(missing string) []string{
 // 2 says nothing was written and 1 is a whole result that holds a refusal, and
 // coverage's 2 says no map was printed and 1 is a whole map with a gap, and
 // supervise's 2 says nothing was judged or written and 1 is a judged run that
-// is not a pass, and notify's 2 says no program ran and 1 is a delivery that
-// failed.
+// is not a pass, notify's 2 says no program ran and 1 is a delivery that
+// failed, and findings export's 2 says nothing was exported and 1 is a whole
+// export with a gap.
 var refusalStatus = map[string]int{
 	"observe import": exitUsage, "observe export": exitUsage, "coverage": exitUsage, "supervise": exitUsage,
-	"notify": exitUsage,
+	"notify": exitUsage, "findings export": exitUsage,
 }
 
 // TestEveryListedCommandDispatches: the list the help prints is the list run

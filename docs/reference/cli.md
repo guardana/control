@@ -16,8 +16,8 @@ without this page fails the gate.
 | Exit status | Means |
 | --- | --- |
 | 0 | The command did what it was asked. |
-| 1 | The input was refused or a case failed: stderr says why, one line each; `policy test`, a scenario, `coverage` and `supervise` print what failed. So do a whole `trail export` with a gap and a failed `notify` delivery. |
-| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, a trail or observation export refused or cut short, an incomplete `observe import`, or a refused `coverage`, `supervise` or `notify` input. |
+| 1 | The input was refused or a case failed: stderr says why, one line each; `policy test`, a scenario, `coverage` and `supervise` print what failed. So do a whole export with a gap and a failed `notify` delivery. |
+| 2 | A usage error (stderr carries the help below or names the flag or argument), a scenario that could not run, an export refused or cut short, an incomplete `observe import`, or a refused `coverage`, `supervise` or `notify` input. |
 
 Without arguments either binary prints its version and one status line on
 stdout and exits 0.
@@ -125,7 +125,7 @@ serves: [runs.md](runs.md).
 
 The `observe` commands import an agent runtime's OpenTelemetry spans into an
 observation log and export it: [observations.md](observations.md). `coverage`
-is [coverage.md](coverage.md), `supervise` and `notify`
+is [coverage.md](coverage.md), `supervise`, `notify` and `findings export`
 [supervision.md](supervision.md), and `route`, `stops` and `react`, which
 turn a confirmed finding into a stop of its run, [reaction.md](reaction.md).
 
@@ -163,6 +163,8 @@ usage:
       [--evidence <export>]... [--source <descriptor> --log <dir>]...
   guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <duration>]
       -- <program> [<arg>]...
+  guardana-control findings export --findings <dir> [--after <cursor>] [--limit <n>]
+      [--max-bytes <n>]
   guardana-control route sign --key <file> --out <file> <route.json>
   guardana-control stops init --route <file> --public-key <file>
       [--carry <dir> --carry-route <file>] <dir>

@@ -2,10 +2,11 @@
 // the version and the status line; the `policy` commands (lint, test,
 // explain, keygen, sign, renew and state), the `approvals` commands, the
 // `pause` commands, the `runs` commands, `observe`, `coverage`, `supervise`,
-// `notify`, `route sign`, the `stops` commands (init, lift and list),
-// `react`, and `console`, the page that answers approvals and writes pauses,
-// are the commands with behaviour, and docs/guides/write-and-test-a-policy.md
-// and docs/reference/cli.md are their pages.
+// `notify`, `findings export`, `route sign`, the `stops` commands (init, lift
+// and list), `react`, and `console`, the page that answers approvals and
+// writes pauses, are the commands with behaviour, and
+// docs/guides/write-and-test-a-policy.md and docs/reference/cli.md are their
+// pages.
 package main
 
 import (
@@ -121,6 +122,7 @@ var commands = []subcommand{
 	{"coverage", "", coverageForm, coverageFlagSet, coverageCommand},
 	{"supervise", "", superviseForm, superviseFlagSet, superviseCommand},
 	{"notify", "", notifyForm, notifyFlagSet, notifyCommand},
+	{"findings", "export", findingsExportForm, findingsExportFlagSet, findingsExportCommand},
 	{"route", "sign", routeSignForm, routeSignFlagSet, routeSignCommand},
 	{"stops", "init", stopsInitForm, stopsInitFlagSet, stopsInitCommand},
 	{"stops", "lift", stopsLiftForm, stopsLiftFlagSet, stopsLiftCommand},
