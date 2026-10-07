@@ -27,24 +27,24 @@ guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <dura
 ## The procedure
 
 A strict JSON document of at most 64 KiB: an unknown or repeated member is
-refused, and so is a cycle in the order or a step it does not know. Its digest is recorded with
+refused, as are a cycle in the order and an unknown step. Its digest is recorded with
 every finding; a procedure id and version the findings log has seen under
 another digest is refused.
 
 | Member | Meaning |
 | --- | --- |
-| `schema_version` | `0.1` |
+| `schema_version` | `0.1`, or `0.2` with `bindings`, `exceptions` and `children` |
 | `procedure_id`, `version` | what the findings name |
 | `steps` | each an `id`, the `tool` and `upstream` a plane sees, the names a runtime reports it under (`observed_as`), and `required` |
 | `order` | each step id and the steps it must follow |
 | `allow` | tools the run may also call, each with `tool`, `upstream` and `observed_as` |
-| `rules` | for each of the six rules, a `severity` (`info` to `critical`) and an `escalation` (`inform` or `alert`) |
+| `rules` | for each rule of its schema, a `severity` (`info` to `critical`) and an `escalation` (`inform` or `alert`) |
 | `max_denials`, `deadline_seconds` | at least 1 each; leaving one out turns its rule off, and the report says so |
 
 ## What belongs to the run
 
-Only a run opened in a runs directory is supervised; a plane's local run and a
-run's children are refused. Plane events count when their run id and tenant
+Only a run opened in a runs directory is supervised; a plane's local run is
+refused, and a child unless `children` says how. Plane events count when their run id and tenant
 are the run's. Observations count when their correlation is claimed, with that
 run id, tenant and project. Only a tool call is a step: a prompt or a resource
 read through the plane never counts as one. An observation joined to a plane
@@ -60,12 +60,17 @@ nothing but that file's owner and mode protects it.
 
 | Rule | Fires when |
 | --- | --- |
-| `REPEATED_DENIAL` | one tool on one upstream is denied by policy `max_denials` times; a block of the plane's own (a pause, an unclassified tool, a spent or expired approval) is counted, not a denial |
+| `REPEATED_DENIAL` | one tool on one upstream is denied by policy `max_denials` times; a block of the plane's own (a pause, an unclassified tool, a spent or expired approval) is counted apart |
 | `STEP_OUTSIDE_PROCEDURE` | a tool neither a step nor allowed is called, or reported and not joined to a plane call |
 | `DEADLINE_EXCEEDED` | the run's events span more than `deadline_seconds` |
 | `REQUIRED_STEP_SKIPPED` | a required step has no instance |
-| `STEP_OUT_OF_ORDER` | a step comes before a step it must follow; an order that cannot be told is indeterminate, never a pass |
-| `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure, before any retry of it; the first instance of a step found out of order is that finding, not this one; an order that cannot be told makes it indeterminate |
+| `STEP_OUT_OF_ORDER` | a step comes before one it must follow; indeterminate, never a pass, when the order cannot be told |
+| `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure, before a retry of it, unless it is the first instance of a step out of order; indeterminate when the order cannot be told |
+| `RESOURCE_OUTSIDE_RUN` | one binding's calls carry more than one resource; indeterminate for a binding called with no id of its type |
+| `DENIED_ACTION_RETRIED_ARGUMENTS` | a denied tool is called again with other arguments |
+| `DENIED_ACTION_RETRIED_RESOURCE` | another tool is called on a denied call's resource |
+| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool and no plane call joins it |
+| `EXCEPTION_TAKEN` | an exception waived a finding, at that finding's verdict at most |
 
 An order cannot be told when a proposal or a failure has no time, or between
 two exports' proposals of one instant; within one export the plane's append
@@ -84,25 +89,23 @@ run whose exports are whole; otherwise the report says not checked and why.
 
 ## Output and exit status
 
-One line per step with the requests matched and, apart, the observations of
-it no plane call joins, which are reported by the runtime only and never an
-instance of the step; then one line per finding and per rule, then
-`not checked: source <id> absent`, `never heard` or `silent` for each
-`--source` the run could not be judged against: a descriptor not at its path
-(named by the path), a source with no import report, or one whose heartbeat
-ran out before the run's last plane event.
+Under a `0.2` procedure the run's line is followed by its children mode and a
+`tree:` line per run, each after its parent, `not judged` under `separate`.
+Then one line per step: its requests, and apart the observations of it no
+plane call joins, never an instance of it. Then one line per finding, naming
+its run under `0.2` and how many references it left out, and one per rule;
+then `not checked: source <id> absent`, `never heard` or `silent` for each
+`--source` the run could not be judged against.
 
 | Exit | When |
 | --- | --- |
-| 0 | every rule checked or turned off, no finding, at least one plane event of the run read, and every `--source` read and heard within its heartbeat |
-| 1 | a finding, a rule not checked, no event of the run, or a `--source` absent, never heard or silent |
-| 2 | an input refused, or a procedure edited under its version: nothing on standard output and the log not opened; or a log that could not be opened or written: nothing on standard output, and a write cut short is one no reader takes |
+| 0 | no finding, every rule checked or off, a plane event of the run read, every `--source` read and heard in time |
+| 1 | otherwise |
+| 2 | nothing printed: an input refused, a procedure edited under its version (the log not opened), or a log not opened or written (a cut write no reader takes) |
 
-The log is opened only after every input is accepted. Opening it judges its
-directory and creates `findings.jsonl` empty when it is absent, even when no
-event of the run was read and so nothing is written. A failure after the
-write is committed, closing the log or writing the output, also exits 2, and
-the write is kept.
+The log is opened, and `findings.jsonl` created empty where absent, only once
+every input is accepted. A failure after the write commits, in closing the
+log or writing the output, exits 2 and keeps the write.
 
 ## The finding record and its log
 

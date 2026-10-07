@@ -67,6 +67,9 @@ type evaluation struct {
 	retry  *retryIndex
 	places map[string][]place
 	bound  map[string][]*request
+	// waived is what each exception took away, filled as the rules it waives
+	// are applied.
+	waived map[waiverKey]*waiver
 }
 
 type first struct {
@@ -77,7 +80,7 @@ type first struct {
 func newEvaluation(in Input, rd *read) *evaluation {
 	e := &evaluation{in: in, p: in.Procedure, ix: indexOf(in.Procedure), rd: rd,
 		byRequest: map[string]*request{}, ofStep: map[int][]*instance{}, stepIndex: map[string]int{},
-		joinDoubt: map[string]bool{}, reported: map[int][]string{}, firsts: map[int]first{}}
+		joinDoubt: map[string]bool{}, reported: map[int][]string{}, firsts: map[int]first{}, waived: map[waiverKey]*waiver{}}
 	for i, s := range e.p.steps {
 		e.stepIndex[s.ID] = i
 	}
@@ -250,13 +253,14 @@ func (e *evaluation) obsVerdict(o *observev1.Observation) controlv1.FindingVerdi
 	return suspected
 }
 
-// apply runs one rule, its drafts carrying the rule's version from the table.
+// apply runs one rule, less what its exceptions waive, its drafts carrying
+// the rule's version from the table.
 func (e *evaluation) apply(rule string) []draft {
 	row, known := ruleOf(rule)
 	if !known {
 		return nil
 	}
-	out := e.drafts(rule)
+	out := e.except(rule, e.drafts(rule))
 	for i := range out {
 		out[i].version = row.version
 	}
@@ -280,13 +284,15 @@ func (e *evaluation) drafts(rule string) []draft {
 	case RuleContinuedAfterFailure:
 		return e.continued(e.orderFired)
 	case RuleResourceOutsideRun:
-		return e.resourceOutside()
+		return append(e.resourceOutside(), e.unjudged()...)
 	case RuleDeniedActionRetriedArguments:
 		return e.retriedArguments()
 	case RuleDeniedActionRetriedResource:
 		return e.retriedResource()
 	case RuleDeniedActionRetriedAround:
 		return e.retriedAround()
+	case RuleExceptionTaken:
+		return e.exceptionsTaken()
 	}
 	return nil
 }

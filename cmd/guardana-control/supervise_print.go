@@ -13,20 +13,22 @@ import (
 	"github.com/guardana/control/internal/supervise"
 )
 
-// superviseLines is what the command prints: the run, what was read and left
-// out, each source, each step's instances, each finding with what it rests
-// on, each rule's state, each source the run was not checked against, and
-// what the log took. Every value an input chose
-// goes through oneLine.
+// superviseLines is what the command prints: the run, under a 0.2 procedure
+// its children mode and tree, what was read and left out, each source, each
+// step's instances, each finding with what it rests on, each rule's state,
+// each source the run was not checked against, and what the log took. Every
+// value an input chose goes through oneLine.
 func superviseLines(in supervise.Input, res *supervise.Result, unread []string, logged *findinglog.Result) []string {
 	r := res.Report
-	out := []string{
+	out := append([]string{
 		"run " + oneLine(r.GetRunId()) + " tenant " + oneLine(r.GetTenantId()) + " project " + oneLine(r.GetProjectId()) +
 			" procedure " + oneLine(r.GetProcedure().GetProcedureId()) + " version " + oneLine(r.GetProcedure().GetVersion()),
-		"events: " + countedOut(r.GetRead().GetEventsTaken(), r.GetRead().GetEventsLeftOut()),
-		"observations: " + countedOut(r.GetRead().GetObservationsTaken(), r.GetRead().GetObservationsLeftOut()),
+	}, treeLines(r)...)
+	out = append(out,
+		"events: "+countedOut(r.GetRead().GetEventsTaken(), r.GetRead().GetEventsLeftOut()),
+		"observations: "+countedOut(r.GetRead().GetObservationsTaken(), r.GetRead().GetObservationsLeftOut()),
 		fmt.Sprintf("exports: %d whole, %d not whole", r.GetRead().GetExportsWhole(), r.GetRead().GetExportsNotWhole()),
-	}
+	)
 	if blocks := r.GetRead().GetPlaneBlocks(); len(blocks) > 0 {
 		var parts []string
 		for _, code := range slices.Sorted(maps.Keys(blocks)) {
@@ -44,7 +46,7 @@ func superviseLines(in supervise.Input, res *supervise.Result, unread []string, 
 		out = append(out, stepLine(s))
 	}
 	for _, f := range res.Findings {
-		out = append(out, findingLine(f))
+		out = append(out, findingLine(f, len(r.GetRunTree()) > 0))
 	}
 	for _, rule := range r.GetRules() {
 		out = append(out, supervisedRuleLine(rule))
@@ -109,22 +111,49 @@ func joinedIDs(ids []string) string {
 	return strings.Join(out, ", ")
 }
 
-// findingLine is the rule, verdict, escalation and id of a finding, then each
-// record it rests on by its ids.
-func findingLine(f *findingv1alpha1.FindingRecord) string {
+// treeLines names a 0.2 report's children mode and its tree, the supervised
+// run first and each other run after its parent; a 0.1 report has neither.
+func treeLines(r *findingv1alpha1.SuperviseReport) []string {
+	members := r.GetRunTree()
+	if len(members) == 0 {
+		return nil
+	}
+	mode, notJudged := "children: inherit, every run of the tree judged", ""
+	if r.GetChildren() == findingv1alpha1.ChildrenMode_CHILDREN_MODE_SEPARATE {
+		mode, notJudged = "children: separate, the run's own calls judged", ", not judged"
+	}
+	out := []string{mode, "tree: " + oneLine(members[0].GetRunId())}
+	for _, m := range members[1:] {
+		out = append(out, "tree: "+oneLine(m.GetRunId())+" under "+oneLine(m.GetParentRunId())+notJudged)
+	}
+	return out
+}
+
+// findingLine is the rule, verdict, escalation and id of a finding, the run
+// it names when runs are, then each record it rests on by its ids and how
+// many more it left out.
+func findingLine(f *findingv1alpha1.FindingRecord, namesRuns bool) string {
 	fd := f.GetFinding()
 	line := fmt.Sprintf("finding %s %s %s %s", oneLine(fd.GetRuleId()),
 		enumWord(fd.GetVerdict().String(), "FINDING_VERDICT_"), enumWord(f.GetEscalation().String(), "ESCALATION_"),
 		oneLine(fd.GetFindingId()))
+	if namesRuns {
+		line += " run " + oneLine(fd.GetRunId())
+	}
 	var refs []string
 	for _, r := range f.GetRefs() {
-		switch {
-		case r.GetEvent() != nil:
-			refs = append(refs, "event "+oneLine(r.GetEvent().GetEventId())+" (request "+oneLine(r.GetEvent().GetRequestId())+")")
+		switch e := r.GetEvent(); {
+		case e != nil && e.GetRunId() != "":
+			refs = append(refs, "event "+oneLine(e.GetEventId())+" (request "+oneLine(e.GetRequestId())+", run "+oneLine(e.GetRunId())+")")
+		case e != nil:
+			refs = append(refs, "event "+oneLine(e.GetEventId())+" (request "+oneLine(e.GetRequestId())+")")
 		case r.GetObservation() != nil:
 			refs = append(refs, "observation "+oneLine(r.GetObservation().GetObservationId())+
 				" (source "+oneLine(r.GetObservation().GetSourceId())+")")
 		}
+	}
+	if n := f.GetRefsLeftOut(); n > 0 {
+		refs = append(refs, fmt.Sprintf("%d more left out", n))
 	}
 	if len(refs) == 0 {
 		return line

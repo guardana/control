@@ -52,15 +52,15 @@ func family(closed ...string) []supervise.Run {
 	return tree
 }
 
-// treeEvaluate is EvaluateAnySchema with the tree's first run supervised.
+// treeEvaluate is Evaluate with the tree's first run supervised.
 func treeEvaluate(t *testing.T, in supervise.Input) *supervise.Result {
 	t.Helper()
 	if len(in.Tree) > 0 {
 		in.Run = in.Tree[0]
 	}
-	res, err := supervise.EvaluateAnySchema(in)
+	res, err := supervise.Evaluate(in)
 	if err != nil {
-		t.Fatalf("EvaluateAnySchema: %v", err)
+		t.Fatalf("Evaluate: %v", err)
 	}
 	return res
 }
@@ -249,10 +249,10 @@ func TestATreeItCannotJudgeIsRefused(t *testing.T) {
 			if c.run != nil {
 				in.Run = *c.run
 			}
-			_, err := supervise.EvaluateAnySchema(in)
+			_, err := supervise.Evaluate(in)
 			refused := errors.Is(err, supervise.ErrInput) || errors.Is(err, supervise.ErrRunID)
 			if refused != c.refuse || (!c.refuse && err != nil) {
-				t.Fatalf("EvaluateAnySchema = %v, refused %t; want refused %t", err, refused, c.refuse)
+				t.Fatalf("Evaluate = %v, refused %t; want refused %t", err, refused, c.refuse)
 			}
 		})
 	}
@@ -284,11 +284,11 @@ func TestATreeIsBoundedByMaxTreeRuns(t *testing.T) {
 		tree = append(tree, supervise.Run{ID: fmt.Sprintf("run-%032x", i), Tenant: tenant, Parent: runID})
 	}
 	x := []supervise.Export{export(conforming()...)}
-	if _, err := supervise.EvaluateAnySchema(supervise.Input{Procedure: inheritProc(t), Run: tree[0], Tree: tree, Exports: x}); err != nil {
+	if _, err := supervise.Evaluate(supervise.Input{Procedure: inheritProc(t), Run: tree[0], Tree: tree, Exports: x}); err != nil {
 		t.Fatalf("a tree of %d: %v", len(tree), err)
 	}
 	tree = append(tree, supervise.Run{ID: fmt.Sprintf("run-%032x", supervise.MaxTreeRuns), Tenant: tenant, Parent: runID})
-	if _, err := supervise.EvaluateAnySchema(supervise.Input{Procedure: inheritProc(t), Run: tree[0], Tree: tree, Exports: x}); !errors.Is(err, supervise.ErrInput) {
+	if _, err := supervise.Evaluate(supervise.Input{Procedure: inheritProc(t), Run: tree[0], Tree: tree, Exports: x}); !errors.Is(err, supervise.ErrInput) {
 		t.Fatalf("a tree of %d: %v, want ErrInput", len(tree), err)
 	}
 }

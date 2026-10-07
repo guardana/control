@@ -136,22 +136,37 @@ func conformingCalls() []supCall {
 // returns its path.
 func (tr supTree) export(t *testing.T, run string, base time.Time, calls ...supCall) string {
 	t.Helper()
+	return tr.exportRuns(t, base, runCalls{run: run, calls: calls})
+}
+
+// runCalls is calls made under one run.
+type runCalls struct {
+	run   string
+	calls []supCall
+}
+
+// exportRuns writes a whole export of the events of each part's calls under
+// its run, in order, at base, and returns its path.
+func (tr supTree) exportRuns(t *testing.T, base time.Time, parts ...runCalls) string {
+	t.Helper()
 	lines := []string{fmt.Sprintf(`{"type":"header","format":%q,"version":"1.0","file":"gateway.trail",`+
 		`"source":"57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c997e2a3","query":{"limit":1000}}`,
 		brand.OTelNamespace+".evidence-export")}
-	n := 0
-	for _, c := range calls {
-		for _, ev := range c.events(run, base) {
-			raw, err := protojson.Marshal(ev)
-			if err != nil {
-				t.Fatal(err)
-			}
-			lines = append(lines, fmt.Sprintf(`{"type":"event","offset":%d,"cursor":"c%d","event":%s}`, n, n, raw))
-			n++
+	var events []*controlv1.Event
+	for _, p := range parts {
+		for _, c := range p.calls {
+			events = append(events, c.events(p.run, base)...)
 		}
 	}
+	for n, ev := range events {
+		raw, err := protojson.Marshal(ev)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines = append(lines, fmt.Sprintf(`{"type":"event","offset":%d,"cursor":"c%d","event":%s}`, n, n, raw))
+	}
 	lines = append(lines, fmt.Sprintf(`{"type":"trailer","next_cursor":"c","end_reached":true,"tail_bytes":0,`+
-		`"writer_held":false,"counts":{"event":%d,"gap":0,"duplicate":0},"scanned_bytes":0,"dedup_scope":"export"}`, n))
+		`"writer_held":false,"counts":{"event":%d,"gap":0,"duplicate":0},"scanned_bytes":0,"dedup_scope":"export"}`, len(events)))
 	path := filepath.Join(tr.dir, "export.jsonl")
 	writeFixture(t, path, strings.Join(lines, "\n")+"\n")
 	return path

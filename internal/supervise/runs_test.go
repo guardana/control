@@ -285,8 +285,8 @@ func TestNoEventOfA01RecordNamesItsRun(t *testing.T) {
 }
 
 // TestA02ReportListsEveryRuleItsSchemaKnows: the report of a 0.2 procedure
-// names the eleven rules in the table's order, those this build does not
-// apply yet as not checked with the reason.
+// names the eleven rules in the table's order, each with a state of its
+// own: none is left as one this build does not apply.
 func TestA02ReportListsEveryRuleItsSchemaKnows(t *testing.T) {
 	res := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(), Exports: []supervise.Export{export(conforming()...)}})
 	var ids []string
@@ -303,8 +303,8 @@ func TestA02ReportListsEveryRuleItsSchemaKnows(t *testing.T) {
 		t.Fatalf("report rules %q, want %q", ids, want)
 	}
 	got := rules(res)
-	for _, rule := range want[10:] {
-		if got[rule] != "RULE_STATE_NOT_CHECKED:this build does not apply the rule" {
+	for _, rule := range want {
+		if strings.Contains(got[rule], "does not apply") {
 			t.Errorf("%s is %s", rule, got[rule])
 		}
 	}

@@ -6,14 +6,15 @@ import (
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 )
 
-// rules02 are the rules a 0.2 procedure adds that this build applies, in
-// the order a report lists them.
+// rules02 are the rules a 0.2 procedure adds that rest on the calls seen, in
+// the order a report lists them; EXCEPTION_TAKEN follows them and rests on
+// what the rules applied before it waived.
 var rules02 = []string{RuleResourceOutsideRun, RuleDeniedActionRetriedArguments,
 	RuleDeniedActionRetriedResource, RuleDeniedActionRetriedAround}
 
 // states02 says which of rules02 apply, from base, the state of a rule that
 // rests on what was seen: an open run or an export not whole leaves each as
-// base says.
+// base says. EXCEPTION_TAKEN follows the rules its exceptions waive.
 func (e *evaluation) states02(out map[string]ruleState, base ruleState) {
 	if e.p.schema != ProcedureSchema02 {
 		return
@@ -28,6 +29,7 @@ func (e *evaluation) states02(out map[string]ruleState, base ruleState) {
 		out[RuleResourceOutsideRun] = ruleState{state: findingv1alpha1.RuleState_RULE_STATE_OFF,
 			why: "no step or allowed tool binds a resource"}
 	}
+	out[RuleExceptionTaken] = e.takenState(out, base)
 }
 
 // uncheckable02 marks those of rules02 that have nothing to compare, or more
@@ -46,14 +48,18 @@ func (e *evaluation) uncheckable02(out map[string]ruleState) {
 	}
 }
 
-// apply02 applies those of rules02 that are checked; evaluate applies the
-// rules of 0.1.
+// apply02 applies those of rules02 that are checked, then reports the
+// exceptions taken by every rule applied before; evaluate applies the rules
+// of 0.1.
 func (e *evaluation) apply02(states map[string]ruleState) []draft {
+	if e.p.schema != ProcedureSchema02 {
+		return nil
+	}
 	var out []draft
 	for _, id := range rules02 {
-		if s, ok := states[id]; ok && s.state == checked.state {
+		if states[id].state == checked.state {
 			out = append(out, e.apply(id)...)
 		}
 	}
-	return out
+	return append(out, e.apply(RuleExceptionTaken)...)
 }

@@ -176,8 +176,7 @@ func TestSuperviseRunsOfOtherTenantsBoundNoTree(t *testing.T) {
 }
 
 // TestSuperviseInputOfA02ProcedureHoldsTheTree: the input a 0.2 procedure
-// reads holds its tree, and Evaluate still refuses the procedure, whose
-// rules this build does not apply.
+// reads holds its tree, which Evaluate judges and its report names.
 func TestSuperviseInputOfA02ProcedureHoldsTheTree(t *testing.T) {
 	tr := newSupTree(t)
 	f := tr.family(t)
@@ -191,8 +190,16 @@ func TestSuperviseInputOfA02ProcedureHoldsTheTree(t *testing.T) {
 		!slices.Equal(treeOf(in.Tree), []string{f.root + "<", f.child + "<" + f.root, f.grandchild + "<" + f.child}) {
 		t.Fatalf("input run %+v, tree %v", in.Run, treeOf(in.Tree))
 	}
-	if _, err := supervise.Evaluate(in); !errors.Is(err, supervise.ErrInput) {
-		t.Fatalf("Evaluate = %v, want the 0.2 procedure refused", err)
+	res, err := supervise.Evaluate(in)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	var tree []string
+	for _, m := range res.Report.GetRunTree() {
+		tree = append(tree, m.GetRunId()+"<"+m.GetParentRunId())
+	}
+	if !slices.Equal(tree, []string{f.root + "<", f.child + "<" + f.root, f.grandchild + "<" + f.child}) {
+		t.Fatalf("the report names the tree %v", tree)
 	}
 }
 

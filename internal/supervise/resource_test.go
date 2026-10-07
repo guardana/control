@@ -213,3 +213,40 @@ func TestAFindingInDoubtCitesWhatLeavesItSo(t *testing.T) {
 		t.Fatalf("findings:\n%s", dump(res.Findings))
 	}
 }
+
+// TestABindingCalledWithNoIdIsNeverReadAsChecked: beside a binding whose
+// calls carry ids, one whose calls carry none of its type is a finding of
+// that binding, indeterminate, per run that called it. The agent chooses
+// whether a call carries an id, so leaving one out must neither pass for
+// that binding nor turn the rule off for another binding that fires.
+func TestABindingCalledWithNoIdIsNeverReadAsChecked(t *testing.T) {
+	mail := act{call: call{req: "b1", tool: "send_mail", upstream: "mail", at: 20 * time.Second, run: siblingRun}}
+	otherType := mail
+	otherType.res = orderNo("7")
+	for name, c := range map[string]struct {
+		x    supervise.Export
+		want []string
+	}{
+		"beside a binding that fires": {acts(lookupOf("a1", 0, orderNo("42")).in(childRun),
+			refundOf("a2", 10*time.Second, orderNo("43")).in(childRun), mail),
+			[]string{childRun + " FINDING_VERDICT_CONFIRMED", siblingRun + " FINDING_VERDICT_INDETERMINATE"}},
+		"beside one that holds one id": {acts(lookupOf("a1", 0, orderNo("42")).in(childRun), mail),
+			[]string{siblingRun + " FINDING_VERDICT_INDETERMINATE"}},
+		"an id of another type": {acts(lookupOf("a1", 0, orderNo("42")).in(childRun), otherType),
+			[]string{siblingRun + " FINDING_VERDICT_INDETERMINATE"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			res := supervise02(t, siblings(), c.x)
+			if got := rules(res)[ruleResource]; got != checked {
+				t.Fatalf("%s is %q", ruleResource, got)
+			}
+			if got := verdicts(res, ruleResource); !slices.Equal(got, c.want) {
+				t.Fatalf("findings %q, want %q:\n%s", got, c.want, dump(res.Findings))
+			}
+			customer := only(res, ruleResource)[len(c.want)-1]
+			if f := customer.GetFinding(); f.GetFindingId() != id02(ruleResource, "customer", siblingRun) || citedEvents(customer) != "b1-e1" {
+				t.Fatalf("the customer binding's finding is %s citing %q", f.GetFindingId(), citedEvents(customer))
+			}
+		})
+	}
+}

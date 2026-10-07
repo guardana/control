@@ -116,7 +116,7 @@ guardana-control notify --findings &lt;dir&gt; --state &lt;dir&gt; [--init] [--t
 </code></pre>
 <h2 id="the-procedure">The procedure</h2>
 <p>A strict JSON document of at most 64 KiB: an unknown or repeated member is
-refused, and so is a cycle in the order or a step it does not know. Its digest is recorded with
+refused, as are a cycle in the order and an unknown step. Its digest is recorded with
 every finding; a procedure id and version the findings log has seen under
 another digest is refused.</p>
 <table>
@@ -129,7 +129,7 @@ another digest is refused.</p>
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>0.1</code></td>
+<td><code>0.1</code>, or <code>0.2</code> with <code>bindings</code>, <code>exceptions</code> and <code>children</code></td>
 </tr>
 <tr>
 <td><code>procedure_id</code>, <code>version</code></td>
@@ -149,7 +149,7 @@ another digest is refused.</p>
 </tr>
 <tr>
 <td><code>rules</code></td>
-<td>for each of the six rules, a <code>severity</code> (<code>info</code> to <code>critical</code>) and an <code>escalation</code> (<code>inform</code> or <code>alert</code>)</td>
+<td>for each rule of its schema, a <code>severity</code> (<code>info</code> to <code>critical</code>) and an <code>escalation</code> (<code>inform</code> or <code>alert</code>)</td>
 </tr>
 <tr>
 <td><code>max_denials</code>, <code>deadline_seconds</code></td>
@@ -158,8 +158,8 @@ another digest is refused.</p>
 </tbody>
 </table>
 <h2 id="what-belongs-to-the-run">What belongs to the run</h2>
-<p>Only a run opened in a runs directory is supervised; a plane's local run and a
-run's children are refused. Plane events count when their run id and tenant
+<p>Only a run opened in a runs directory is supervised; a plane's local run is
+refused, and a child unless <code>children</code> says how. Plane events count when their run id and tenant
 are the run's. Observations count when their correlation is claimed, with that
 run id, tenant and project. Only a tool call is a step: a prompt or a resource
 read through the plane never counts as one. An observation joined to a plane
@@ -180,7 +180,7 @@ nothing but that file's owner and mode protects it.</p>
 <tbody>
 <tr>
 <td><code>REPEATED_DENIAL</code></td>
-<td>one tool on one upstream is denied by policy <code>max_denials</code> times; a block of the plane's own (a pause, an unclassified tool, a spent or expired approval) is counted, not a denial</td>
+<td>one tool on one upstream is denied by policy <code>max_denials</code> times; a block of the plane's own (a pause, an unclassified tool, a spent or expired approval) is counted apart</td>
 </tr>
 <tr>
 <td><code>STEP_OUTSIDE_PROCEDURE</code></td>
@@ -196,11 +196,31 @@ nothing but that file's owner and mode protects it.</p>
 </tr>
 <tr>
 <td><code>STEP_OUT_OF_ORDER</code></td>
-<td>a step comes before a step it must follow; an order that cannot be told is indeterminate, never a pass</td>
+<td>a step comes before one it must follow; indeterminate, never a pass, when the order cannot be told</td>
 </tr>
 <tr>
 <td><code>CONTINUED_AFTER_FAILURE</code></td>
-<td>another step is proposed after a step's failure, before any retry of it; the first instance of a step found out of order is that finding, not this one; an order that cannot be told makes it indeterminate</td>
+<td>another step is proposed after a step's failure, before a retry of it, unless it is the first instance of a step out of order; indeterminate when the order cannot be told</td>
+</tr>
+<tr>
+<td><code>RESOURCE_OUTSIDE_RUN</code></td>
+<td>one binding's calls carry more than one resource; indeterminate for a binding called with no id of its type</td>
+</tr>
+<tr>
+<td><code>DENIED_ACTION_RETRIED_ARGUMENTS</code></td>
+<td>a denied tool is called again with other arguments</td>
+</tr>
+<tr>
+<td><code>DENIED_ACTION_RETRIED_RESOURCE</code></td>
+<td>another tool is called on a denied call's resource</td>
+</tr>
+<tr>
+<td><code>DENIED_ACTION_RETRIED_AROUND</code></td>
+<td>a source reports the denied tool and no plane call joins it</td>
+</tr>
+<tr>
+<td><code>EXCEPTION_TAKEN</code></td>
+<td>an exception waived a finding, at that finding's verdict at most</td>
 </tr>
 </tbody>
 </table>
@@ -217,13 +237,13 @@ conflicting id, a broken chain, a source silent past its heartbeat) makes it
 never heard or has no descriptor at its path, and checked only on a closed
 run whose exports are whole; otherwise the report says not checked and why.</p>
 <h2 id="output-and-exit-status">Output and exit status</h2>
-<p>One line per step with the requests matched and, apart, the observations of
-it no plane call joins, which are reported by the runtime only and never an
-instance of the step; then one line per finding and per rule, then
-<code>not checked: source &lt;id&gt; absent</code>, <code>never heard</code> or <code>silent</code> for each
-<code>--source</code> the run could not be judged against: a descriptor not at its path
-(named by the path), a source with no import report, or one whose heartbeat
-ran out before the run's last plane event.</p>
+<p>Under a <code>0.2</code> procedure the run's line is followed by its children mode and a
+<code>tree:</code> line per run, each after its parent, <code>not judged</code> under <code>separate</code>.
+Then one line per step: its requests, and apart the observations of it no
+plane call joins, never an instance of it. Then one line per finding, naming
+its run under <code>0.2</code> and how many references it left out, and one per rule;
+then <code>not checked: source &lt;id&gt; absent</code>, <code>never heard</code> or <code>silent</code> for each
+<code>--source</code> the run could not be judged against.</p>
 <table>
 <thead>
 <tr>
@@ -234,23 +254,21 @@ ran out before the run's last plane event.</p>
 <tbody>
 <tr>
 <td>0</td>
-<td>every rule checked or turned off, no finding, at least one plane event of the run read, and every <code>--source</code> read and heard within its heartbeat</td>
+<td>no finding, every rule checked or off, a plane event of the run read, every <code>--source</code> read and heard in time</td>
 </tr>
 <tr>
 <td>1</td>
-<td>a finding, a rule not checked, no event of the run, or a <code>--source</code> absent, never heard or silent</td>
+<td>otherwise</td>
 </tr>
 <tr>
 <td>2</td>
-<td>an input refused, or a procedure edited under its version: nothing on standard output and the log not opened; or a log that could not be opened or written: nothing on standard output, and a write cut short is one no reader takes</td>
+<td>nothing printed: an input refused, a procedure edited under its version (the log not opened), or a log not opened or written (a cut write no reader takes)</td>
 </tr>
 </tbody>
 </table>
-<p>The log is opened only after every input is accepted. Opening it judges its
-directory and creates <code>findings.jsonl</code> empty when it is absent, even when no
-event of the run was read and so nothing is written. A failure after the
-write is committed, closing the log or writing the output, also exits 2, and
-the write is kept.</p>
+<p>The log is opened, and <code>findings.jsonl</code> created empty where absent, only once
+every input is accepted. A failure after the write commits, in closing the
+log or writing the output, exits 2 and keeps the write.</p>
 <h2 id="the-finding-record-and-its-log">The finding record and its log</h2>
 <p><code>guardana.control.finding.v1alpha1</code>, outside the v1 promise. A
 <code>FindingRecord</code> holds the tenant, project, procedure (id, version, digest),

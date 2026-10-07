@@ -139,7 +139,7 @@ func TestTheBoundHoldsForTheLongestIdentifiers(t *testing.T) {
 			t.Fatalf("an event id of %d bytes", len(ev.GetEventId()))
 		}
 	}
-	res, err := supervise.EvaluateAnySchema(supervise.Input{Procedure: p, Run: supervise.Run{ID: runID, Tenant: long("t")},
+	res, err := supervise.Evaluate(supervise.Input{Procedure: p, Run: supervise.Run{ID: runID, Tenant: long("t")},
 		Exports: []supervise.Export{x}})
 	if err != nil {
 		t.Fatal(err)

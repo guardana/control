@@ -101,15 +101,6 @@ type Result struct {
 // make, a run with no tenant, a tree its procedure does not read, a source
 // given twice, or a run whose events name two projects with ErrInput.
 func Evaluate(in Input) (*Result, error) {
-	// A 0.2 document configures rules this build does not apply yet; judging it
-	// by the 0.1 rules alone would report them as never fired.
-	if in.Procedure != nil && in.Procedure.schema != ProcedureSchema01 {
-		return nil, ErrInput.with("procedure schema " + in.Procedure.schema + " is not supervised by this build")
-	}
-	return evaluate(in)
-}
-
-func evaluate(in Input) (*Result, error) {
 	if err := checkInput(in); err != nil {
 		return nil, err
 	}
