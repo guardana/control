@@ -11,6 +11,27 @@ verify one.
 
 ## [Unreleased]
 
+## [0.9.0-alpha] - 2026-10-07
+
+A confirmed finding can now stop the run it is about. An operator signs a
+route that says which findings may stop a run and which key lifts a stop,
+and starts a stop list; after `guardana-control supervise`,
+`guardana-control react` writes a stop for each deterministic, confirmed
+finding the route allows about an opened run that is still open. A plane
+configured with the route refuses that run's later calls, and no other
+run's, and blocks every call while it cannot read or trust the list. A call
+already running is not cut, and only a lift signed with the route's lift key
+ends a stop while a plane runs. The refund example shows it on a live plane
+with two runs. The other changes and fixes come from an audit of 0.8.0, and
+four of them matter on upgrade. The gateway refuses a configuration file
+when it, or a directory or link on its path, belongs to an account other
+than its own or root, when another account or its group may write it, or
+when it has a second name: a checkout under a umask of 002 needs
+`chmod g-w`, and a container's configuration has to be owned by the image's
+user. An upstream that asks for more input ends the call as failed. A second
+override of one tool is refused at start. `runs open --parent` refuses a
+child whose expiry would pass its parent's.
+
 ### Added
 
 - A confirmed finding can stop the run it is about
@@ -36,7 +57,6 @@ verify one.
   `guardana-control policy renew`, are compared as points up to their sign:
   one private key signs for a point and its negation, so two keys that
   differ only there were taken as two authorities.
-
 - An upstream that answers a call, a read or a prompt with `input_required`, or
   with input requests of any kind, ends that call as failed, with a fixed
   answer the gateway does not relay. The
@@ -54,10 +74,10 @@ verify one.
   link on its path, is owned by an account other than its own or root, or
   another account may write it (a sticky directory, or root's on a read-only
   mount, excepted), and a file with a second name. Its group may not write it
-  either: a checkout under a umask of 002 needs `chmod g-w`. The file names the policy keys,
-  the pause file and the credentials the plane sends, and was read whatever
-  its owner and mode. A container's configuration now has to be owned by the
-  image's user.
+  either: a checkout under a umask of 002 needs `chmod g-w`. The file names
+  the policy keys, the pause file and the credentials the plane sends, and was
+  read whatever its owner and mode. A container's configuration now has to be
+  owned by the image's user.
 - Each agent connection gets a 64 KiB send buffer, so on Linux, as on macOS,
   the answer bound measures a slow client's progress in steps of that size.
   Linux grows a connection's buffer to megabytes, which cut off a client
@@ -852,7 +872,8 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.8.0-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.9.0-alpha...HEAD
+[0.9.0-alpha]: https://github.com/guardana/control/releases/tag/v0.9.0-alpha
 [0.8.0-alpha]: https://github.com/guardana/control/releases/tag/v0.8.0-alpha
 [0.7.0-alpha]: https://github.com/guardana/control/releases/tag/v0.7.0-alpha
 [0.6.0-alpha]: https://github.com/guardana/control/releases/tag/v0.6.0-alpha

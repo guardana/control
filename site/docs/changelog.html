@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.8.0-alpha</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.9.0-alpha</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -107,7 +107,26 @@
 <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
-<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.8.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.9.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="090-alpha---2026-10-07"><a href="https://github.com/guardana/control/releases/tag/v0.9.0-alpha">0.9.0-alpha</a> - 2026-10-07</h2>
+<p>A confirmed finding can now stop the run it is about. An operator signs a
+route that says which findings may stop a run and which key lifts a stop,
+and starts a stop list; after <code>guardana-control supervise</code>,
+<code>guardana-control react</code> writes a stop for each deterministic, confirmed
+finding the route allows about an opened run that is still open. A plane
+configured with the route refuses that run's later calls, and no other
+run's, and blocks every call while it cannot read or trust the list. A call
+already running is not cut, and only a lift signed with the route's lift key
+ends a stop while a plane runs. The refund example shows it on a live plane
+with two runs. The other changes and fixes come from an audit of 0.8.0, and
+four of them matter on upgrade. The gateway refuses a configuration file
+when it, or a directory or link on its path, belongs to an account other
+than its own or root, when another account or its group may write it, or
+when it has a second name: a checkout under a umask of 002 needs
+<code>chmod g-w</code>, and a container's configuration has to be owned by the image's
+user. An upstream that asks for more input ends the call as failed. A second
+override of one tool is refused at start. <code>runs open --parent</code> refuses a
+child whose expiry would pass its parent's.</p>
 <h3 id="added">Added</h3>
 <ul>
 <li>A confirmed finding can stop the run it is about
@@ -129,49 +148,35 @@ two runs on a live plane and lifts the stop.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
-<li>
-<p>The policy key and the freshness key, in the configuration and in
+<li>The policy key and the freshness key, in the configuration and in
 <code>guardana-control policy renew</code>, are compared as points up to their sign:
 one private key signs for a point and its negation, so two keys that
-differ only there were taken as two authorities.</p>
-</li>
-<li>
-<p>An upstream that answers a call, a read or a prompt with <code>input_required</code>, or
+differ only there were taken as two authorities.</li>
+<li>An upstream that answers a call, a read or a prompt with <code>input_required</code>, or
 with input requests of any kind, ends that call as failed, with a fixed
 answer the gateway does not relay. The
 library had sent the same call to the upstream again on its own, up to ten
-times, for the one call the plane decided and recorded.</p>
-</li>
-<li>
-<p>A second override of the same tool on one upstream is refused at start. The
+times, for the one call the plane decided and recorded.</li>
+<li>A second override of the same tool on one upstream is refused at start. The
 last one won, so an <code>effect: READ</code> after an <code>effect: DELETE</code> classified a
-delete as a read.</p>
-</li>
-<li>
-<p><code>guardana-control runs open --parent</code> refuses a child whose expiry would
-pass its parent's.</p>
-</li>
-<li>
-<p>The MCP adapter refuses an obligation that carries a parameter its type does
+delete as a read.</li>
+<li><code>guardana-control runs open --parent</code> refuses a child whose expiry would
+pass its parent's.</li>
+<li>The MCP adapter refuses an obligation that carries a parameter its type does
 not read, as the gateway already did; a non-advisory one stops the call. The
-obligations page lists the parameters each type reads.</p>
-</li>
-<li>
-<p>The gateway refuses a configuration file when the file, or any directory or
+obligations page lists the parameters each type reads.</li>
+<li>The gateway refuses a configuration file when the file, or any directory or
 link on its path, is owned by an account other than its own or root, or
 another account may write it (a sticky directory, or root's on a read-only
 mount, excepted), and a file with a second name. Its group may not write it
-either: a checkout under a umask of 002 needs <code>chmod g-w</code>. The file names the policy keys,
-the pause file and the credentials the plane sends, and was read whatever
-its owner and mode. A container's configuration now has to be owned by the
-image's user.</p>
-</li>
-<li>
-<p>Each agent connection gets a 64 KiB send buffer, so on Linux, as on macOS,
+either: a checkout under a umask of 002 needs <code>chmod g-w</code>. The file names
+the policy keys, the pause file and the credentials the plane sends, and was
+read whatever its owner and mode. A container's configuration now has to be
+owned by the image's user.</li>
+<li>Each agent connection gets a 64 KiB send buffer, so on Linux, as on macOS,
 the answer bound measures a slow client's progress in steps of that size.
 Linux grows a connection's buffer to megabytes, which cut off a client
-reading steadily but slowly.</p>
-</li>
+reading steadily but slowly.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
