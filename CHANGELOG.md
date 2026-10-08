@@ -25,8 +25,8 @@ verify one.
 - Under a `0.2` procedure `supervise` reports `RESOURCE_OUTSIDE_RUN` when one
   binding's calls carry more than one resource, and
   `DENIED_ACTION_RETRIED_ARGUMENTS`, `_RESOURCE` and `_AROUND` when a policy
-  denial is followed by the same tool with other arguments, another tool on
-  the same resource, or a source's report of the denied tool that no plane
+  denial is followed by the same tool with other arguments, another tool or
+  upstream on the same resource (not a read after a denied non-read), or a source's report of the denied tool that no plane
   call joins. An exception taken raises `EXCEPTION_TAKEN`, never stronger than
   the finding it waived. A finding names the run whose call it rests on, a
   child included, and the report lists the run tree.

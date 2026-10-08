@@ -126,8 +126,8 @@ the same digest and the same confirmed findings.</li>
 <li>Under a <code>0.2</code> procedure <code>supervise</code> reports <code>RESOURCE_OUTSIDE_RUN</code> when one
 binding's calls carry more than one resource, and
 <code>DENIED_ACTION_RETRIED_ARGUMENTS</code>, <code>_RESOURCE</code> and <code>_AROUND</code> when a policy
-denial is followed by the same tool with other arguments, another tool on
-the same resource, or a source's report of the denied tool that no plane
+denial is followed by the same tool with other arguments, another tool or
+upstream on the same resource (not a read after a denied non-read), or a source's report of the denied tool that no plane
 call joins. An exception taken raises <code>EXCEPTION_TAKEN</code>, never stronger than
 the finding it waived. A finding names the run whose call it rests on, a
 child included, and the report lists the run tree.</li>

@@ -223,7 +223,7 @@ the export being the plane's, and nothing else protects that.</p>
 </tr>
 <tr>
 <td><code>CONTINUED_AFTER_FAILURE</code></td>
-<td>another step is proposed after a step's failure, before a retry of it, unless it is the first instance of a step out of order</td>
+<td>another step proposed after a step's failure, before its retry, unless it is a step's first instance out of order</td>
 </tr>
 <tr>
 <td><code>RESOURCE_OUTSIDE_RUN</code></td>
@@ -235,11 +235,11 @@ the export being the plane's, and nothing else protects that.</p>
 </tr>
 <tr>
 <td><code>DENIED_ACTION_RETRIED_RESOURCE</code></td>
-<td>another tool is called on a denied call's resource</td>
+<td>another tool or upstream on a denied call's resource, not a read after a denied non-read</td>
 </tr>
 <tr>
 <td><code>DENIED_ACTION_RETRIED_AROUND</code></td>
-<td>a source reports the denied tool after the denial and no plane call joins it; not checked with no <code>--source</code>, or one absent, never heard or silent</td>
+<td>a source reports the denied tool after the denial, joined to no plane call; not checked with no <code>--source</code> or one unread or unheard</td>
 </tr>
 <tr>
 <td><code>EXCEPTION_TAKEN</code></td>

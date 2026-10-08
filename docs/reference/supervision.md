@@ -75,11 +75,11 @@ the export being the plane's, and nothing else protects that.
 | `DEADLINE_EXCEEDED` | events span over `deadline_seconds`; `0.2`: one per run with an event past it, timed from the tree's first event |
 | `REQUIRED_STEP_SKIPPED` | a required step has no instance |
 | `STEP_OUT_OF_ORDER` | a step comes before one it must follow |
-| `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure, before a retry of it, unless it is the first instance of a step out of order |
+| `CONTINUED_AFTER_FAILURE` | another step proposed after a step's failure, before its retry, unless it is a step's first instance out of order |
 | `RESOURCE_OUTSIDE_RUN` | one binding's calls carry more than one resource; indeterminate for a binding called with no id of its type |
 | `DENIED_ACTION_RETRIED_ARGUMENTS` | a denied tool is called again with other arguments |
-| `DENIED_ACTION_RETRIED_RESOURCE` | another tool is called on a denied call's resource |
-| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool after the denial and no plane call joins it; not checked with no `--source`, or one absent, never heard or silent |
+| `DENIED_ACTION_RETRIED_RESOURCE` | another tool or upstream on a denied call's resource, not a read after a denied non-read |
+| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool after the denial, joined to no plane call; not checked with no `--source` or one unread or unheard |
 | `EXCEPTION_TAKEN` | an exception waived a finding, at that finding's verdict at most |
 
 An order is untold, its finding `INDETERMINATE`, when a proposal or a failure
