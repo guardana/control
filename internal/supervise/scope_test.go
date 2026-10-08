@@ -116,3 +116,41 @@ func TestADenialFromAnotherClockIsNeverLeftOut(t *testing.T) {
 		t.Fatalf("findings %q:\n%s", got, dump(res.Findings))
 	}
 }
+
+// TestAnUntimedDenialLeavesNoRunOut: in one export, a denial with no time
+// could stand anywhere in the order, so no run's timed denials are known to
+// come before the one that crossed the bound; a run's own three still
+// confirm it.
+func TestAnUntimedDenialLeavesNoRunOut(t *testing.T) {
+	root2 := []call{deny("a0", "", 10*time.Second), deny("a1", "", 20*time.Second)}
+	root3 := append(slices.Clone(root2), deny("a2", "", 30*time.Second))
+	for name, c := range map[string]struct {
+		x    supervise.Export
+		want []string
+	}{
+		"the child's only denial": {untimedIn(export(append(slices.Clone(root2), deny("b0", childRun, 0))...), "b0"),
+			[]string{rootI, childI}},
+		"the child's second denial": {untimedIn(export(append(slices.Clone(root2), deny("b0", childRun, 30*time.Second),
+			deny("b1", childRun, 0))...), "b1"), []string{rootI, childI}},
+		"the root's own three": {untimedIn(export(append(slices.Clone(root3), deny("b0", childRun, 0))...), "b0"),
+			[]string{rootC, childI}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			res := treeEvaluate(t, supervise.Input{Procedure: procAt3(t, inheritProc(t)), Tree: siblings(),
+				Exports: []supervise.Export{c.x}})
+			if got := verdicts(res, supervise.RuleRepeatedDenial); !slices.Equal(got, c.want) {
+				t.Fatalf("findings %q, want %q:\n%s", got, c.want, dump(res.Findings))
+			}
+		})
+	}
+}
+
+// untimedIn is x with no time on the events of request req.
+func untimedIn(x supervise.Export, req string) supervise.Export {
+	for _, ev := range x.Events {
+		if ev.GetRequestId() == req {
+			ev.OccurredAt = nil
+		}
+	}
+	return x
+}

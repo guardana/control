@@ -67,9 +67,9 @@ type Instance struct {
 	Step string
 	Run  string
 	// At is when the call was proposed, or reported, when Timed. Told is
-	// true for a call with a time no other call shares, so the planes'
-	// clocks order it against every call with a time; a report's time is its
-	// source's clock, which the view says.
+	// true for a plane call with a time no other call shares when every
+	// timed call comes from one export, whose clock then orders it against
+	// each of them; a report's time is its source's clock, never told.
 	At          time.Time
 	Timed, Told bool
 	// Export is the place in Input.Exports of the call's proposal, -1 for a
@@ -194,22 +194,25 @@ func approvalOf(rq *request) Approval {
 	return ApprovalNone
 }
 
-// tell marks told each call with a time no other call shares. Two calls of
-// one instant are untold even in one export, whose order is the order its
-// batches arrived in, not the plane's.
+// tell marks told each call with a time no other call shares, when every
+// call with a time comes from one export. Two calls of one instant are
+// untold even in one export, whose order is the order its batches arrived
+// in, not the plane's; two exports' clocks are not one, so neither orders a
+// call against the other's.
 func tell(ins []Instance) {
 	type instant struct {
 		sec  int64
 		nsec int
 	}
-	calls := map[instant]int{}
+	calls, exports := map[instant]int{}, map[int]bool{}
 	for _, in := range ins {
 		if in.Timed {
 			calls[instant{in.At.Unix(), in.At.Nanosecond()}]++
+			exports[in.Export] = true
 		}
 	}
 	for i := range ins {
-		ins[i].Told = ins[i].Timed && calls[instant{ins[i].At.Unix(), ins[i].At.Nanosecond()}] == 1
+		ins[i].Told = ins[i].Timed && len(exports) == 1 && calls[instant{ins[i].At.Unix(), ins[i].At.Nanosecond()}] == 1
 	}
 }
 

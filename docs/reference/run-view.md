@@ -30,8 +30,9 @@ returned and judges nothing itself
 - Every source the run was not checked against, and the state of every rule.
 
 Calls are ordered by the time their plane recorded the proposal, calls with
-no time last. A plane call with no time, or whose time another call shares,
-in any export, is marked "order not told". A source's report is placed by its
+no time last. A plane call with no time, whose time another call shares, or
+read beside timed calls of another export, whose clock is not its plane's, is
+marked "order not told". A source's report is placed by its
 source's time and marked "the source's clock, not ordered against the
 planes'": its place beside a plane call says nothing of which came first.
 

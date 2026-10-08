@@ -70,7 +70,8 @@ func (g *lcg) pick(n int) int {
 }
 
 // fuzzTrail is one request's trail: its run, tool, resource, hash and effect
-// drawn from small sets so that keys, ties and missing times repeat.
+// drawn from small sets so that keys, near keys, ties, times a nanosecond
+// apart and missing times repeat.
 func fuzzTrail(g *lcg, i int) []*controlv1.Event {
 	req := fmt.Sprintf("q%03d", i)
 	run := fuzzRuns[g.pick(len(fuzzRuns))].ID
@@ -79,7 +80,7 @@ func fuzzTrail(g *lcg, i int) []*controlv1.Event {
 		controlv1.EffectClass_EFFECT_CLASS_UNSPECIFIED, controlv1.EffectClass(99)}[g.pick(4)]
 	env := &controlv1.ActionEnvelope{SchemaVersion: "1.0", RequestId: req, TenantId: "t", ProjectId: "p",
 		Action:    &controlv1.Action{Kind: "tool", Name: []string{"issue_refund", "refund_manual"}[g.pick(2)], Provider: "pay", Effect: effect},
-		Resource:  &controlv1.Resource{Type: "shop_order", Id: []string{"42", "43"}[g.pick(2)], TenantId: "t", Environment: "prod"},
+		Resource:  fuzzResource(g),
 		Arguments: &controlv1.Arguments{CanonicalHash: hash}}
 	kernel := &controlv1.Decision{SchemaVersion: "1.0", DecisionId: req + "-k", RequestId: req, Verdict: controlv1.Verdict_VERDICT_ALLOW}
 	k := controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED
@@ -104,7 +105,7 @@ func fuzzTrail(g *lcg, i int) []*controlv1.Event {
 	for j, kind := range kinds {
 		ev := &controlv1.Event{EventId: fmt.Sprintf("%s-e%d", req, j+1), Kind: kind, RequestId: req, RunId: run, TenantId: "t",
 			ProjectId: "p", SchemaVersion: "1.0", EnforcementMode: controlv1.EnforcementMode_ENFORCEMENT_MODE_ENFORCE,
-			OccurredAt: timestamppb.New(time.Unix(int64(start+j), 0))}
+			OccurredAt: timestamppb.New(time.Unix(int64(start+j), fuzzNanos[g.pick(len(fuzzNanos))]))}
 		if j > 0 {
 			ev.PrevEventId = out[j-1].GetEventId()
 		}
@@ -126,6 +127,28 @@ func fuzzTrail(g *lcg, i int) []*controlv1.Event {
 		out[len(out)-1].PrevEventId = "elsewhere"
 	}
 	return out
+}
+
+// fuzzNanos puts an event on its second, a nanosecond after it, or a
+// nanosecond before the next, so a decision and a call fall a nanosecond
+// apart within one second and across two.
+var fuzzNanos = []int64{0, 0, 1, 999999999}
+
+// fuzzResource is order 42 or 43 of the tenant's production environment,
+// now and then of another type, tenant or environment, so that keys differ
+// in one field only.
+func fuzzResource(g *lcg) *controlv1.Resource {
+	r := &controlv1.Resource{Type: "shop_order", Id: []string{"42", "43"}[g.pick(2)], TenantId: "t", Environment: "prod"}
+	if g.pick(6) == 0 {
+		r.Type = "shop_refund"
+	}
+	if g.pick(6) == 0 {
+		r.TenantId = "u"
+	}
+	if g.pick(6) == 0 {
+		r.Environment = "staging"
+	}
+	return r
 }
 
 // fuzzInput is n trails spread over one to three exports, each export's

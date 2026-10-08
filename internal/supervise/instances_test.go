@@ -94,7 +94,8 @@ func TestInstancesNameEachCallAsItsTrailEnded(t *testing.T) {
 
 // TestInstancesCarryTheApprovalTheResourceAndTheMode: an approval granted,
 // one refused, the envelope's resource, and the mode the plane recorded
-// with its decision, which an OBSERVE plane's export names.
+// with its decision, which an OBSERVE plane's export names; from two
+// exports no time is told.
 func TestInstancesCarryTheApprovalTheResourceAndTheMode(t *testing.T) {
 	observed := acts(lookupOf("o1", 0, orderNo("42")))
 	for _, ev := range observed.Events {
@@ -104,35 +105,57 @@ func TestInstancesCarryTheApprovalTheResourceAndTheMode(t *testing.T) {
 		acts(manualRefund(approved), act{call: call{req: "m2", tool: "refund_manual", upstream: "pay", at: 30 * time.Second},
 			approval: rejected}))
 	sameLines(t, lines(res),
-		`o1 get_order@shop step="lookup" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_OBSERVE told 0s res=shop_order/42/t1/prod reasons=RULE_ALLOW`,
-		`m1 refund_manual@pay step="" run=1111 export=1 completed granted ENFORCEMENT_MODE_ENFORCE told 20s reasons=APPROVAL_REQUIRED excepted`,
-		`m2 refund_manual@pay step="" run=cdef export=1 blocked asked ENFORCEMENT_MODE_ENFORCE told 30s reasons=APPROVAL_REJECTED`,
+		`o1 get_order@shop step="lookup" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_OBSERVE untold 0s res=shop_order/42/t1/prod reasons=RULE_ALLOW`,
+		`m1 refund_manual@pay step="" run=1111 export=1 completed granted ENFORCEMENT_MODE_ENFORCE untold 20s reasons=APPROVAL_REQUIRED excepted`,
+		`m2 refund_manual@pay step="" run=cdef export=1 blocked asked ENFORCEMENT_MODE_ENFORCE untold 30s reasons=APPROVAL_REJECTED`,
 	)
 }
 
 // TestAnInstanceIsToldOnlyWhenItsTimeOrdersIt: two calls of one instant are
-// untold, in two exports or in one, one alone at its instant is told, and a
-// call with no time is neither timed nor told.
+// untold, in two exports or in one; one alone at its instant is told only
+// when every call with a time comes from one export, since two exports'
+// clocks are not one; a call with no time is neither timed nor told, and
+// its export does not count.
 func TestAnInstanceIsToldOnlyWhenItsTimeOrdersIt(t *testing.T) {
 	untimed := export(call{req: "u1", tool: "send_mail", upstream: "mail", at: 90 * time.Second})
 	for _, ev := range untimed.Events {
 		ev.OccurredAt = nil
 	}
-	res := evaluate(t, supervise.Input{Procedure: procWith(t), Exports: []supervise.Export{
-		export(call{req: "r1", tool: "get_order", upstream: "shop"}, call{req: "a1", tool: "issue_refund", upstream: "pay", at: 10 * time.Second}),
-		export(call{req: "a2", tool: "issue_refund", upstream: "pay", at: 10 * time.Second},
-			call{req: "b1", tool: "send_mail", upstream: "mail", at: 30 * time.Second},
-			call{req: "b2", tool: "send_mail", upstream: "mail", at: 30 * time.Second}),
-		untimed,
-	}})
-	sameLines(t, lines(res),
-		`r1 get_order@shop step="lookup" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_ENFORCE told 0s reasons=RULE_ALLOW`,
-		`a1 issue_refund@pay step="refund" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 10s reasons=RULE_ALLOW`,
-		`a2 issue_refund@pay step="refund" run=cdef export=1 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 10s reasons=RULE_ALLOW`,
-		`b1 send_mail@mail step="notify" run=cdef export=1 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 30s reasons=RULE_ALLOW`,
-		`b2 send_mail@mail step="notify" run=cdef export=1 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 30s reasons=RULE_ALLOW`,
-		`u1 send_mail@mail step="notify" run=cdef export=2 completed no-approval ENFORCEMENT_MODE_ENFORCE untimed reasons=RULE_ALLOW`,
-	)
+	const u1 = `u1 send_mail@mail step="notify" run=cdef export=%d completed no-approval ENFORCEMENT_MODE_ENFORCE untimed reasons=RULE_ALLOW`
+	for name, c := range map[string]struct {
+		exports []supervise.Export
+		want    []string
+	}{
+		"two exports": {[]supervise.Export{
+			export(call{req: "r1", tool: "get_order", upstream: "shop"}, call{req: "a1", tool: "issue_refund", upstream: "pay", at: 10 * time.Second}),
+			export(call{req: "a2", tool: "issue_refund", upstream: "pay", at: 10 * time.Second},
+				call{req: "b1", tool: "send_mail", upstream: "mail", at: 30 * time.Second},
+				call{req: "b2", tool: "send_mail", upstream: "mail", at: 30 * time.Second}),
+			untimed,
+		}, []string{
+			`r1 get_order@shop step="lookup" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 0s reasons=RULE_ALLOW`,
+			`a1 issue_refund@pay step="refund" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 10s reasons=RULE_ALLOW`,
+			`a2 issue_refund@pay step="refund" run=cdef export=1 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 10s reasons=RULE_ALLOW`,
+			`b1 send_mail@mail step="notify" run=cdef export=1 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 30s reasons=RULE_ALLOW`,
+			`b2 send_mail@mail step="notify" run=cdef export=1 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 30s reasons=RULE_ALLOW`,
+			fmt.Sprintf(u1, 2),
+		}},
+		"one timed export": {[]supervise.Export{
+			export(call{req: "r1", tool: "get_order", upstream: "shop"}, call{req: "a1", tool: "issue_refund", upstream: "pay", at: 10 * time.Second},
+				call{req: "a2", tool: "issue_refund", upstream: "pay", at: 10 * time.Second}),
+			untimed,
+		}, []string{
+			`r1 get_order@shop step="lookup" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_ENFORCE told 0s reasons=RULE_ALLOW`,
+			`a1 issue_refund@pay step="refund" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 10s reasons=RULE_ALLOW`,
+			`a2 issue_refund@pay step="refund" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 10s reasons=RULE_ALLOW`,
+			fmt.Sprintf(u1, 1),
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			res := evaluate(t, supervise.Input{Procedure: procWith(t), Exports: c.exports})
+			sameLines(t, lines(res), c.want...)
+		})
+	}
 }
 
 // TestAnInstanceInDoubtHasNoOutcome: a trail read with two contents under

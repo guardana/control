@@ -69,21 +69,20 @@ func (e *evaluation) repeatedByRun(tool [2]string, denials []*request) []draft {
 	for _, rq := range denials {
 		own[rq.terminal.GetRunId()] = append(own[rq.terminal.GetRunId()], rq)
 	}
-	c, told := crossing(denials, e.p.maxDenials)
-	tree, late := suspected, atOrAfter(denials, c)
-	switch {
-	case !e.oneExportHolds(denials):
-		// Two exports' clocks are not one, so no run's denial is known to come
-		// before the one that crossed the bound.
-		tree, late = indeterminate, maps.Collect(func(yield func(string, bool) bool) {
-			for run := range own {
-				if !yield(run, true) {
-					return
-				}
-			}
-		})
-	case !told:
-		tree = indeterminate
+	tree, late := indeterminate, map[string]bool{}
+	if e.oneExportHolds(denials) && !slices.ContainsFunc(denials, untimed) {
+		c, told := crossing(denials, e.p.maxDenials)
+		late = atOrAfter(denials, c)
+		if told {
+			tree = suspected
+		}
+	} else {
+		// Two exports' clocks are not one, and a denial with no time could
+		// stand anywhere, so no run's denial is known to come before the one
+		// that crossed the bound.
+		for run := range own {
+			late[run] = true
+		}
 	}
 	var out []draft
 	for _, run := range slices.Sorted(maps.Keys(own)) {
@@ -111,35 +110,29 @@ func (e *evaluation) repeatedByRun(tool [2]string, denials []*request) []draft {
 	return out
 }
 
+// untimed reports a denial whose block has no time.
+func untimed(rq *request) bool { return !rq.terminal.GetOccurredAt().IsValid() }
+
 // crossing is the denial that brought the count to n, by the order of the
-// blocks. There are at least n denials. It is not told when its block has no
-// time, when a block of another run shares its time, or when the denials
-// span two runs and one block has no time, which could stand anywhere in the
-// order.
+// blocks, every one of which has a time. There are at least n denials. It is
+// not told when a block of another run shares its time.
 func crossing(denials []*request, n uint32) (*request, bool) {
 	sorted := slices.SortedFunc(slices.Values(denials), func(a, b *request) int { return eventOrder(a.terminal, b.terminal) })
 	c := sorted[n-1]
-	if !c.terminal.GetOccurredAt().IsValid() {
-		return c, false
-	}
-	twoRuns, untimed := false, false
 	for _, rq := range denials {
-		other := rq.terminal.GetRunId() != c.terminal.GetRunId()
-		twoRuns = twoRuns || other
-		untimed = untimed || !rq.terminal.GetOccurredAt().IsValid()
-		if other && tied(rq.terminal, c.terminal) {
+		if rq.terminal.GetRunId() != c.terminal.GetRunId() && tied(rq.terminal, c.terminal) {
 			return c, false
 		}
 	}
-	return c, !twoRuns || !untimed
+	return c, true
 }
 
-// atOrAfter is the runs with a denial at or after c, or one that could be:
-// one of c's time, or with no time.
+// atOrAfter is the runs with a denial at or after c, one of c's time
+// included.
 func atOrAfter(denials []*request, c *request) map[string]bool {
 	out := map[string]bool{}
 	for _, rq := range denials {
-		if eventOrder(rq.terminal, c.terminal) >= 0 || tied(rq.terminal, c.terminal) || !rq.terminal.GetOccurredAt().IsValid() {
+		if eventOrder(rq.terminal, c.terminal) >= 0 || tied(rq.terminal, c.terminal) {
 			out[rq.terminal.GetRunId()] = true
 		}
 	}
