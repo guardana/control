@@ -186,10 +186,13 @@ the operator signed, about a run that is still open. So a finding that rests
 on an observation never stops a run. Neither does <code>EXCEPTION_TAKEN</code>, an
 exception the procedure allows, or <code>DENIED_ACTION_RETRIED_AROUND</code>, a denied
 tool a source reports called around the plane. Within a tree of runs, a
-finding is confirmed only on the named run's own calls: one run's denial or
-resource cannot get another run stopped, and a finding that needs another
-run's call is suspected at most. Every other finding stays in the log, for
-<code>notify</code>, <code>findings export</code> and the run view.</p>
+finding is confirmed only on the named run's own calls, so another run's
+denial or resource cannot get it stopped, and a finding that needs another
+run's call is suspected at most. There are two exceptions: a retry by a
+descendant of the denied run counts as its own, since it acts for that run,
+and each run's deadline is timed from the tree's first event, which may be
+another run's. Every other finding stays in the log, for <code>notify</code>,
+<code>findings export</code> and the run view.</p>
 <h2 id="where-the-parts-meet">Where the parts meet</h2>
 <p>Observations and plane events meet by trace and span id: a joined
 observation is the plane's call, not a second one. Coverage and supervision

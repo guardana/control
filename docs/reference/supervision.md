@@ -8,14 +8,14 @@ covers: [internal/supervise/**, internal/findinglog/**, internal/notify/**, cmd/
 # Supervision
 
 `guardana-control supervise` checks a run an operator opened against its
-procedure, from the plane's evidence and what the agent's runtime reported,
-and appends findings to a findings log.
+procedure, from the plane's evidence and the agent runtime's reports, and
+appends findings to a findings log.
 `guardana-control notify` hands each alert in that log to a program of the
 operator's, at least once. Both are `experimental`. Neither decides a call,
 and no plane reads what they write
 ([ADR-0045](../adr/0045-one-run-is-supervised-against-its-procedure.md));
-`react` turns a confirmed finding into a stop of its run, which a plane with
-a route reads ([reaction.md](reaction.md)). `--view` draws the run as a
+`react` turns a confirmed finding into a stop a plane reads
+([reaction.md](reaction.md)). `--view` draws the run as a
 page ([run-view.md](run-view.md)).
 
 ```
@@ -28,8 +28,8 @@ guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <dura
 
 ## The procedure
 
-A strict JSON document of at most 64 KiB: an unknown or repeated member is
-refused, as are a cycle in the order and an unknown step. Its digest is recorded with
+A strict JSON document of at most 64 KiB: an unknown or repeated member, a
+cycle in the order and an unknown step are refused. Its digest is recorded with
 every finding; a procedure id and version the findings log has seen under
 another digest is refused.
 
@@ -40,8 +40,8 @@ another digest is refused.
 | `steps` | each an `id`, the `tool` and `upstream` a plane sees, the names a runtime reports it under (`observed_as`), `required`, and `binds` |
 | `order` | each step id and the steps it must follow |
 | `allow` | tools the run may also call, each with `tool`, `upstream`, `observed_as` and `binds` |
-| `bindings` | each binding's name and its calls' resource type; a `binds` lists at most one |
-| `exceptions` | each an `id`, the rule it `waives`, a `step`, or for `STEP_OUTSIDE_PROCEDURE` a `tool` and `upstream` the procedure lacks, and one `condition`: `approval: granted`, `step_failed: <step>` or `reason: <code>`. Only that rule, on an approval, and the three about steps take one, a skipped step not on an approval |
+| `bindings` | at most 64, each a name and its calls' resource type; a `binds` lists at most one |
+| `exceptions` | at most 128, each an `id`, the rule it `waives`, a `step`, or for `STEP_OUTSIDE_PROCEDURE` a `tool` and `upstream` the procedure lacks, and one `condition`: `approval: granted`, `step_failed: <step>` or `reason: <code>`, a registered reason code. Only that rule, on an approval, and the three about steps take one, a skipped step not on an approval |
 | `children` | `inherit` or `separate`, below |
 | `rules` | for each rule of its schema, a `severity` (`info` to `critical`) and an `escalation` (`inform` or `alert`) |
 | `max_denials`, `deadline_seconds` | at least 1 each; leaving one out turns its rule off |
@@ -62,10 +62,9 @@ leaves `STEP_OUTSIDE_PROCEDURE` and `DENIED_ACTION_RETRIED_AROUND` not
 checked, findings kept. Everything else is counted in the report and
 left out.
 
-An evidence export is read only when it is a regular file of this account
-that the group and others cannot write, as the procedure and the descriptors
-are. A `CONFIRMED` finding rests on the export being the plane's, and
-nothing but that file's owner and mode protects it.
+The procedure, descriptors and evidence exports must be regular
+files of this account that only it can write: a `CONFIRMED` finding rests on
+the export being the plane's, and nothing else protects that.
 
 ## The rules
 
@@ -73,46 +72,47 @@ nothing but that file's owner and mode protects it.
 | --- | --- |
 | `REPEATED_DENIAL` | one tool on one upstream is denied by policy `max_denials` times; the plane's own blocks are counted apart |
 | `STEP_OUTSIDE_PROCEDURE` | a tool neither a step nor allowed is called, or reported and not joined to a plane call |
-| `DEADLINE_EXCEEDED` | events span over `deadline_seconds`; `0.2`: one per late run |
+| `DEADLINE_EXCEEDED` | events span over `deadline_seconds`; `0.2`: one per run with an event past it, timed from the tree's first event |
 | `REQUIRED_STEP_SKIPPED` | a required step has no instance |
-| `STEP_OUT_OF_ORDER` | a step comes before one it must follow; indeterminate when the order cannot be told |
-| `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure, before a retry of it, unless it is the first instance of a step out of order; indeterminate when the order cannot be told |
+| `STEP_OUT_OF_ORDER` | a step comes before one it must follow |
+| `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure, before a retry of it, unless it is the first instance of a step out of order |
 | `RESOURCE_OUTSIDE_RUN` | one binding's calls carry more than one resource; indeterminate for a binding called with no id of its type |
 | `DENIED_ACTION_RETRIED_ARGUMENTS` | a denied tool is called again with other arguments |
 | `DENIED_ACTION_RETRIED_RESOURCE` | another tool is called on a denied call's resource |
-| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool and no plane call joins it; not checked while a `--source` is absent, never heard or silent |
+| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool after the denial and no plane call joins it; not checked with no `--source`, or one absent, never heard or silent |
 | `EXCEPTION_TAKEN` | an exception waived a finding, at that finding's verdict at most |
 
-An order cannot be told when a proposal or a failure has no time, or between
-two proposals of one instant. A retry continues nothing, though each denial of
-it counts toward `REPEATED_DENIAL`, and an approval belongs to the step it
-held. Every rule orders by the plane's times, never by place in an export; a
-retry confirms only when one export holds both.
+An order is untold, its finding `INDETERMINATE`, when a proposal or a failure
+has no time, or between two of one instant. A retry continues nothing, though
+each denial of it counts toward `REPEATED_DENIAL`, and an approval belongs to
+the step it held. Every rule orders by the plane's times, never by place in
+an export; a retry confirms only when one export holds both.
 
 ## The verdict
 
 The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it `CONFIRMED`; an observation makes it `SUSPECTED`; a record in doubt (a
-conflicting id, a broken chain, a source silent past its heartbeat) makes it
-`INDETERMINATE`. The three rules about steps rest on something not seen: they
-are `SUSPECTED` at most, `INDETERMINATE` while a `--source` given is silent,
-never heard or has no descriptor at its path, and checked only on a closed
-run whose exports are whole; otherwise the report says not checked and why.
+conflicting id, a broken chain, a silent source) makes it
+`INDETERMINATE`. The three rules about steps rest on something not seen:
+`SUSPECTED` at most, `INDETERMINATE` while a `--source` is absent, never
+heard or silent, and checked only on a closed run whose exports are whole.
+Under `0.2` a finding confirms on its run's own events alone, save the
+deadline and a retry by a descendant of the denied run; one that needs
+another run's events is `SUSPECTED` at most.
 
 ## Output and exit status
 
 After the run's line come, under `0.2`, its children mode and a `tree:` line
-per run, `not judged` under `separate`; one line per
-step, with its requests and apart the observations no plane call joins; one
-per finding, with its run under `0.2` and the references it left out; one per
-rule; and `not checked: source <id> absent`, `never heard` or `silent` for
-each `--source` not judged against.
+per run; a line per step, its requests apart from the observations no plane
+call joins; per finding, with its run under `0.2` and the references it left
+out; per rule; and `not checked: source <path> absent`, `<id> never heard`
+or `<id> silent` for each `--source` not judged against.
 
 | Exit | When |
 | --- | --- |
 | 0 | no finding, every rule checked or off, a plane event of the run read, every `--source` read and heard in time |
 | 1 | otherwise |
-| 2 | nothing printed: an input refused, a procedure edited under its version (the log not opened), or a log not opened or written (a cut write no reader takes) |
+| 2 | nothing printed: an input refused, or a log not opened or written (a cut write no reader takes) |
 
 The log is opened, and `findings.jsonl` created where absent, only once every
 input is accepted. A failure after the write commits exits 2 and keeps the
@@ -122,12 +122,13 @@ write.
 
 `guardana.control.finding.v1alpha1`, outside the v1 promise. A
 `FindingRecord` holds the tenant, project, procedure (id, version, digest),
-escalation, typed references to plane events and observations and a v1
-finding with its id, rule, severity, verdict and run. Its id is `fnd-` and 32
-hex digits, a function of the run, the procedure, the rule and what it is
-about, so a rerun finds the same ids. The log, `findings.jsonl`, is JSON Lines in an
-owner-only directory; each run of the command ends its write with a
-`SuperviseReport`, and a write without one is never read.
+escalation, references to plane events and observations and a v1
+finding with its id, rule, severity, verdict and run. Its id is
+`fnd-` and 32 hex digits, a function of the run, the procedure, the rule and
+its version, and what it is about, so a rerun finds the same ids. The log,
+`findings.jsonl`, is JSON Lines in an owner-only directory. A run of the command writes only when it read an event
+of the run, and ends its write with a `SuperviseReport`; a write without one
+is never read.
 
 A record is schema `0.2` exactly when it carries a member `0.1` lacks
 ([ADR-0047](../adr/0047-a-procedure-states-its-exceptions-resources-and-children.md)):
@@ -136,12 +137,13 @@ A record is schema `0.2` exactly when it carries a member `0.1` lacks
 | --- | --- |
 | `EventRef.run_id` | the run of each plane event cited |
 | `FindingRecord.refs_left_out` | references cut past ten, doubtful ones kept; the verdict weighed all |
-| `SuperviseReport.children` | `CHILDREN_MODE_INHERIT` or `CHILDREN_MODE_SEPARATE`, the procedure's `children` |
-| `SuperviseReport.run_tree` | each run's id and parent, the supervised run first and every other after its parent |
+| `SuperviseReport.children` | the procedure's `children`, as `CHILDREN_MODE_INHERIT` or `_SEPARATE` |
+| `SuperviseReport.run_tree` | each run's id and parent, the supervised run first, each other after its parent |
 | `LogHeader` | a new log's first line: `log_id`, `log-` and 32 hex digits of 128 random bits |
 
 A log with no header is read as it is; an empty one gains one when opened.
-The reader refuses an unknown schema or a member its schema lacks, as a 0.9 reader refuses every `0.2` line.
+The reader refuses an unknown schema or a member its schema lacks, so a
+reader of schema `0.1` alone refuses every `0.2` line.
 
 ## notify
 
@@ -152,8 +154,8 @@ has exited. A delivery is keyed on the
 finding id and verdict and marked in the state only after the program exits
 0, so a crash delivers that record again: a receiver drops a key it has
 seen. The state is an owner-only directory, locked while in use; `--init`
-starts one and is refused over one. The next run retries a failed delivery;
-only a new state delivers a delivered alert again. Exit 0 when nothing
+starts one and is refused over one. The next run retries a failed delivery,
+and only a new state repeats a delivered one. Exit 0 when nothing
 failed; 1 when a delivery failed, on an interrupt, or when the run stopped
 after a program had run (a mark not on disk, a log
 changed under it); 2, printing nothing, when the state or the log is refused

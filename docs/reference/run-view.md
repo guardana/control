@@ -30,16 +30,16 @@ returned and judges nothing itself
 - Every source the run was not checked against, and the state of every rule.
 
 Calls are ordered by the time their plane recorded the proposal, calls with
-no time last. A call with no time, or whose time a call of another export
-shares, is marked "order not told": two planes' clocks cannot order two calls
-of one instant. A source's report is
-marked with "the source's clock": it is never ordered against a plane's.
+no time last. A plane call with no time, or whose time another call shares,
+in any export, is marked "order not told". A source's report is placed by its
+source's time and marked "the source's clock, not ordered against the
+planes'": its place beside a plane call says nothing of which came first.
 
 ## Marks
 
 Each mark is a shape and a line style as well as a colour, and its label is
 written beside it, so the page reads the same without colour and to a screen
-reader. The legend at the foot of the page repeats this table.
+reader. The legend at the foot of the page summarises this table.
 
 | Mark | Shape and line | Means |
 | --- | --- | --- |
@@ -50,9 +50,10 @@ reader. The legend at the foot of the page repeats this table.
 | blocked | cross, long dashes | The policy denied the call, or the plane blocked it: a pause, a stop, an approval refused or expired, or a verdict such as `INDETERMINATE`. |
 | not seen | hexagon, sparse dashes | A step with no call, or a source never heard, silent or not read. |
 
-A source's report is marked observed. A plane's call takes the first mark of
-blocked, exception or approval, enforced and decided that fits. A plane call is never marked enforced on less than a
-recorded mode that acts on its decision. No mark says "inferred": the page draws a
+A source's report is marked observed. A plane's call is marked blocked when
+it was denied or blocked; else decided when its trail is in doubt; else
+exception or approval; else enforced when its recorded mode acts on its
+decision; else decided. No mark says "inferred": the page draws a
 call only from a plane's or a source's record, never from a guess.
 
 Colours come in a light and a dark scheme, chosen by the reader's system

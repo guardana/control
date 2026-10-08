@@ -69,6 +69,13 @@ verify one.
   descriptor's tenant and project, as `coverage` does, and bounds each span
   walk on its own as well as in total. Either can move a finding below
   `CONFIRMED`; a changed verdict is a new record, and so a second alert.
+- `STEP_OUT_OF_ORDER` and `CONTINUED_AFTER_FAILURE` are version `2`. Two
+  proposals of one instant are now untold even within one export, since a
+  plane ships several batches at a time, so a finding that rested on their
+  place in the export is indeterminate. The rule version is part of a
+  finding's id, so supervising a run again writes their findings as new
+  records and alerts again. Neither may stop a run; the six that may stay at
+  version `1`, so a route signed before still holds.
 
 ### Fixed
 
@@ -82,7 +89,9 @@ verify one.
   `RESOURCE_OUTSIDE_RUN` on the root, and a closed child took the tree's
   `REPEATED_DENIAL` and deadline. A finding is now confirmed only on the named
   run's own calls (a retry by a descendant of the denied run included); one
-  that needs another run's call is suspected and stops nothing.
+  that needs another run's call is suspected at most and stops nothing. Each
+  run's deadline is still timed from the tree's first event, which may be
+  another run's.
 - The retry rules turned themselves off past about a thousand denials; they
   now judge every denial. A tree is bounded at 400 runs, where its report
   still fits the log's line.

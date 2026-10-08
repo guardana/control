@@ -131,6 +131,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>canon.ApprovalBinding</code>, <code>approval.Bind</code> in <code>internal/core/approval/</code></td>
 </tr>
 <tr>
+<td>binding</td>
+<td>a name a <code>0.2</code> procedure gives one resource type; the steps and allowed tools that list it in <code>binds</code> must keep to one resource of that type, or <code>RESOURCE_OUTSIDE_RUN</code> fires. Not an approval binding</td>
+<td><code>Binding</code> in <code>internal/supervise/procedure_v02.go</code>, <a href="/docs/reference/supervision">reference/supervision</a></td>
+</tr>
+<tr>
 <td>bundle</td>
 <td>a signed policy document with its reference, <code>bundle_id</code>, <code>version</code> and <code>digest</code>, and a serial inside the signed document; verified before it is trusted and installed as a snapshot</td>
 <td><code>PolicyBundle</code> in <code>api/proto/guardana/control/v1/bundle.proto</code>, <code>internal/policy/bundle/</code></td>
@@ -139,6 +144,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td>channel</td>
 <td>a way an agent's actions reach Control: through an enforcement point, which decides before the effect, or a sensor, which reports after it; MCP is the first, and the OpenTelemetry GenAI trace importer the first sensor</td>
 <td><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>; the importer <code>experimental</code>, other channels <code>planned</code></td>
+</tr>
+<tr>
+<td>children mode</td>
+<td>what a <code>0.2</code> procedure's <code>children</code> says of the runs opened under the supervised one: <code>inherit</code> judges a root run and its whole run tree, <code>separate</code> judges one run's own calls and lists its children</td>
+<td><code>Children</code> in <code>internal/supervise/procedure_v02.go</code>, <code>ChildrenMode</code> in <code>api/proto/guardana/control/finding/v1alpha1/report.proto</code></td>
 </tr>
 <tr>
 <td>coverage</td>
@@ -176,6 +186,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>evidence.Builder</code> in <code>internal/evidence/event.go</code>, validated by <code>internal/evidence/chain.go</code></td>
 </tr>
 <tr>
+<td>exception</td>
+<td>a <code>0.2</code> procedure's waiver of one rule for one step, or for <code>STEP_OUTSIDE_PROCEDURE</code> one tool on one upstream, taken on one condition: an approval granted, a step failed or a reason code; taking one raises <code>EXCEPTION_TAKEN</code>, never a stronger finding than the one it waived</td>
+<td><code>Exception</code> in <code>internal/supervise/procedure_v02.go</code>, applied in <code>internal/supervise/exceptions.go</code></td>
+</tr>
+<tr>
 <td>execution</td>
 <td>one run of an authorized call, named by the <code>execution_id</code> that <code>ACTION_STARTED</code> carries and the closing event repeats; a trail allows one</td>
 <td><code>Builder.Started</code> in <code>internal/evidence/event.go</code>, kept by <code>internal/gateway/trails.go</code></td>
@@ -199,6 +214,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td>finding</td>
 <td>what a detector concludes about a run, <code>CONFIRMED</code>, <code>SUSPECTED</code> or <code>INDETERMINATE</code>, citing the evidence and observations it rests on; it never grants authority and never changes a verdict</td>
 <td><code>Finding</code> in <code>finding.proto</code>, inside the <code>FindingRecord</code> that <code>guardana-control supervise</code> writes, <code>experimental</code></td>
+</tr>
+<tr>
+<td>findings log</td>
+<td>one directory's <code>findings.jsonl</code>, to which <code>supervise</code> appends a run's findings and its report under an exclusive lock; what <code>notify</code>, <code>react</code> and <code>findings export</code> read</td>
+<td><code>findinglog.Log</code> in <code>internal/findinglog/log.go</code></td>
 </tr>
 <tr>
 <td>freshness statement</td>
@@ -256,6 +276,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td><code>Principal</code> in <code>action_envelope.proto</code>, <code>identity</code> in <code>adapters/mcp/translate.go</code></td>
 </tr>
 <tr>
+<td>procedure</td>
+<td>the operator's JSON document of a run's steps, their order, the tools it may also call and each rule's severity and escalation; what <code>supervise</code> judges one opened run against, recorded by its digest</td>
+<td><code>Procedure</code>, <code>ReadProcedure</code> in <code>internal/supervise/procedure.go</code>, <a href="/docs/reference/supervision">reference/supervision</a></td>
+</tr>
+<tr>
 <td>quarantine</td>
 <td>the spool's file for records a collector refused for good, appended to and never released, so the exporter's cursor passes them without dropping them</td>
 <td><code>Reader.Quarantine</code> in <code>internal/spool/quarantine.go</code></td>
@@ -274,6 +299,16 @@ for the same thing; the right column is where the code defines it.</p>
 <td>record</td>
 <td>one event as the spool writes it to disk, a header and one JSON line, checksummed; the unit the spool appends, reads, acknowledges and quarantines</td>
 <td><code>internal/spool/frame.go</code></td>
+</tr>
+<tr>
+<td>run tree</td>
+<td>the runs a <code>0.2</code> report lists with the supervised run, each naming its parent: under <code>inherit</code> the root's whole tree, every member judged; under <code>separate</code> the run's children, not judged</td>
+<td><code>RunTreeMember</code> in <code>api/proto/guardana/control/finding/v1alpha1/report.proto</code></td>
+</tr>
+<tr>
+<td>run view</td>
+<td>the static HTML page <code>supervise --view</code> draws of one supervised run, its steps, findings and marked calls; it judges nothing itself</td>
+<td><code>runview.Page</code> in <code>internal/runview/view.go</code>, <a href="/docs/reference/run-view">reference/run-view</a></td>
 </tr>
 <tr>
 <td>sensor</td>

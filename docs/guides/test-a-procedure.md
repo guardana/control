@@ -39,13 +39,22 @@ version: 2
 digest: 3bdccd18fb0503f6168a59a8bae712b9b37be7e4435f796b111be409f7d59dd6
 children: inherit
 rule: REPEATED_DENIAL version 1, may stop
-...
+rule: STEP_OUTSIDE_PROCEDURE version 1, may stop
+rule: DEADLINE_EXCEEDED version 1, may stop
+rule: REQUIRED_STEP_SKIPPED version 1, never stops
+rule: STEP_OUT_OF_ORDER version 2, never stops
+rule: CONTINUED_AFTER_FAILURE version 2, never stops
+rule: RESOURCE_OUTSIDE_RUN version 1, may stop
+rule: DENIED_ACTION_RETRIED_ARGUMENTS version 1, may stop
+rule: DENIED_ACTION_RETRIED_RESOURCE version 1, may stop
+rule: DENIED_ACTION_RETRIED_AROUND version 1, never stops
 rule: EXCEPTION_TAKEN version 1, never stops
 ```
 
 The digest is the one `supervise` records, so an edit shows as a new digest.
 Each rule of the schema is listed with its version and whether a confirmed
-finding of it may stop a run; a route may name only those that may. A
+finding of it may stop a run; a route may name only those that may, at the
+version listed. A
 document the reader refuses exits 2 with its reason on one line and nothing
 on stdout:
 

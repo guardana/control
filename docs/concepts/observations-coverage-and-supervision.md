@@ -73,10 +73,13 @@ the operator signed, about a run that is still open. So a finding that rests
 on an observation never stops a run. Neither does `EXCEPTION_TAKEN`, an
 exception the procedure allows, or `DENIED_ACTION_RETRIED_AROUND`, a denied
 tool a source reports called around the plane. Within a tree of runs, a
-finding is confirmed only on the named run's own calls: one run's denial or
-resource cannot get another run stopped, and a finding that needs another
-run's call is suspected at most. Every other finding stays in the log, for
-`notify`, `findings export` and the run view.
+finding is confirmed only on the named run's own calls, so another run's
+denial or resource cannot get it stopped, and a finding that needs another
+run's call is suspected at most. There are two exceptions: a retry by a
+descendant of the denied run counts as its own, since it acts for that run,
+and each run's deadline is timed from the tree's first event, which may be
+another run's. Every other finding stays in the log, for `notify`,
+`findings export` and the run view.
 
 ## Where the parts meet
 

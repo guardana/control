@@ -170,6 +170,13 @@ directory holding more than 1000 runs no longer refuses a supervision.</li>
 descriptor's tenant and project, as <code>coverage</code> does, and bounds each span
 walk on its own as well as in total. Either can move a finding below
 <code>CONFIRMED</code>; a changed verdict is a new record, and so a second alert.</li>
+<li><code>STEP_OUT_OF_ORDER</code> and <code>CONTINUED_AFTER_FAILURE</code> are version <code>2</code>. Two
+proposals of one instant are now untold even within one export, since a
+plane ships several batches at a time, so a finding that rested on their
+place in the export is indeterminate. The rule version is part of a
+finding's id, so supervising a run again writes their findings as new
+records and alerts again. Neither may stop a run; the six that may stay at
+version <code>1</code>, so a route signed before still holds.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
@@ -183,7 +190,9 @@ confirmed retry, a child's probe of another order confirmed
 <code>RESOURCE_OUTSIDE_RUN</code> on the root, and a closed child took the tree's
 <code>REPEATED_DENIAL</code> and deadline. A finding is now confirmed only on the named
 run's own calls (a retry by a descendant of the denied run included); one
-that needs another run's call is suspected and stops nothing.</li>
+that needs another run's call is suspected at most and stops nothing. Each
+run's deadline is still timed from the tree's first event, which may be
+another run's.</li>
 <li>The retry rules turned themselves off past about a thousand denials; they
 now judge every denial. A tree is bounded at 400 runs, where its report
 still fits the log's line.</li>

@@ -110,9 +110,9 @@ func TestInstancesCarryTheApprovalTheResourceAndTheMode(t *testing.T) {
 	)
 }
 
-// TestAnInstanceIsToldOnlyWhenItsTimeOrdersIt: two calls of one instant in
-// two exports are untold, one alone at its instant is told, and a call with
-// no time is neither timed nor told.
+// TestAnInstanceIsToldOnlyWhenItsTimeOrdersIt: two calls of one instant are
+// untold, in two exports or in one, one alone at its instant is told, and a
+// call with no time is neither timed nor told.
 func TestAnInstanceIsToldOnlyWhenItsTimeOrdersIt(t *testing.T) {
 	untimed := export(call{req: "u1", tool: "send_mail", upstream: "mail", at: 90 * time.Second})
 	for _, ev := range untimed.Events {
@@ -120,13 +120,17 @@ func TestAnInstanceIsToldOnlyWhenItsTimeOrdersIt(t *testing.T) {
 	}
 	res := evaluate(t, supervise.Input{Procedure: procWith(t), Exports: []supervise.Export{
 		export(call{req: "r1", tool: "get_order", upstream: "shop"}, call{req: "a1", tool: "issue_refund", upstream: "pay", at: 10 * time.Second}),
-		export(call{req: "a2", tool: "issue_refund", upstream: "pay", at: 10 * time.Second}),
+		export(call{req: "a2", tool: "issue_refund", upstream: "pay", at: 10 * time.Second},
+			call{req: "b1", tool: "send_mail", upstream: "mail", at: 30 * time.Second},
+			call{req: "b2", tool: "send_mail", upstream: "mail", at: 30 * time.Second}),
 		untimed,
 	}})
 	sameLines(t, lines(res),
 		`r1 get_order@shop step="lookup" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_ENFORCE told 0s reasons=RULE_ALLOW`,
 		`a1 issue_refund@pay step="refund" run=cdef export=0 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 10s reasons=RULE_ALLOW`,
 		`a2 issue_refund@pay step="refund" run=cdef export=1 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 10s reasons=RULE_ALLOW`,
+		`b1 send_mail@mail step="notify" run=cdef export=1 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 30s reasons=RULE_ALLOW`,
+		`b2 send_mail@mail step="notify" run=cdef export=1 completed no-approval ENFORCEMENT_MODE_ENFORCE untold 30s reasons=RULE_ALLOW`,
 		`u1 send_mail@mail step="notify" run=cdef export=2 completed no-approval ENFORCEMENT_MODE_ENFORCE untimed reasons=RULE_ALLOW`,
 	)
 }
