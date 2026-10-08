@@ -70,11 +70,21 @@ func (e *evaluation) repeatedByRun(tool [2]string, denials []*request) []draft {
 		own[rq.terminal.GetRunId()] = append(own[rq.terminal.GetRunId()], rq)
 	}
 	c, told := crossing(denials, e.p.maxDenials)
-	tree := suspected
-	if !told || !e.oneExportHolds(denials) {
+	tree, late := suspected, atOrAfter(denials, c)
+	switch {
+	case !e.oneExportHolds(denials):
+		// Two exports' clocks are not one, so no run's denial is known to come
+		// before the one that crossed the bound.
+		tree, late = indeterminate, maps.Collect(func(yield func(string, bool) bool) {
+			for run := range own {
+				if !yield(run, true) {
+					return
+				}
+			}
+		})
+	case !told:
 		tree = indeterminate
 	}
-	late := atOrAfter(denials, c)
 	var out []draft
 	for _, run := range slices.Sorted(maps.Keys(own)) {
 		d := draft{rule: RuleRepeatedDenial, anchor: tool[:], cap: confirmed}

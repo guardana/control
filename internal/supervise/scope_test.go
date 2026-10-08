@@ -103,3 +103,16 @@ func TestACrossingFromAnotherExportIsUntold(t *testing.T) {
 		t.Fatalf("findings %q:\n%s", got, dump(res.Findings))
 	}
 }
+
+// TestADenialFromAnotherClockIsNeverLeftOut: two exports do not share a
+// clock, so a child's denial timed before the root's in its own export may
+// still be the one that crossed the bound; it is indeterminate, not dropped.
+func TestADenialFromAnotherClockIsNeverLeftOut(t *testing.T) {
+	root := []call{deny("a0", "", 10*time.Second), deny("a1", "", 20*time.Second)}
+	child := deny("b0", childRun, 5*time.Second)
+	res := treeEvaluate(t, supervise.Input{Procedure: procAt3(t, inheritProc(t)), Tree: siblings(),
+		Exports: []supervise.Export{export(root...), export(child)}})
+	if got := verdicts(res, supervise.RuleRepeatedDenial); !slices.Equal(got, []string{rootI, childI}) {
+		t.Fatalf("findings %q:\n%s", got, dump(res.Findings))
+	}
+}

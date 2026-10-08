@@ -87,7 +87,9 @@ func TestARepeatedDenialConfirmsOnARunsOwnDenials(t *testing.T) {
 
 // TestARepeatedDenialWhoseCrossingIsUntoldIsIndeterminate: when the
 // fourth denial shares its time with another run's, or has none, which runs
-// denied at or after it is untold; a run's own four still confirm it.
+// denied at or after it is untold, and so is every run's when the denials
+// come from two exports, whose clocks are not one; a run's own four still
+// confirm it.
 func TestARepeatedDenialWhoseCrossingIsUntoldIsIndeterminate(t *testing.T) {
 	untimed := untimedBy(deny("c1", childRun, 40*time.Second))
 	for name, c := range map[string]struct {
@@ -99,10 +101,10 @@ func TestARepeatedDenialWhoseCrossingIsUntoldIsIndeterminate(t *testing.T) {
 		"a tie within one run": {[]supervise.Export{export(deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second),
 			deny("d3", "", 30*time.Second), deny("d4", "", 30*time.Second))}, []string{rootC}},
 		"the fourth with no time": {[]supervise.Export{export(deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second),
-			deny("d3", "", 30*time.Second)), untimed}, []string{childI}},
+			deny("d3", "", 30*time.Second)), untimed}, []string{rootI, childI}},
 		"the fourth with no time, after another with none": {[]supervise.Export{export(deny("d1", "", 10*time.Second),
 			deny("d2", "", 20*time.Second)), untimedBy(deny("a1", grandchildRun, 0), deny("x1", childRun, 0))},
-			[]string{childI, grandchildRun + " FINDING_VERDICT_INDETERMINATE"}},
+			[]string{rootI, childI, grandchildRun + " FINDING_VERDICT_INDETERMINATE"}},
 		"one with no time before the fourth": {[]supervise.Export{export(deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second),
 			deny("d3", "", 30*time.Second), deny("d4", "", 50*time.Second)), untimed}, []string{rootC, childI}},
 		"told": {[]supervise.Export{export(deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second),
