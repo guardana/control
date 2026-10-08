@@ -182,19 +182,21 @@ func TestAPauseBitesTheCallRightAfterIt(t *testing.T) {
 }
 
 // TestADevScenarioPastTheBudgetStaysFresh: under a document whose budget is
-// six seconds, a scenario that runs more than twice that long keeps every
+// twelve seconds, a scenario that runs more than twice that long keeps every
 // verdict and never decides a call stale, since dev renews the statement
 // every third of the budget; every decision names the one bundle digest, and
 // the confirmations they carry moved forward without a new bundle.
 func TestADevScenarioPastTheBudgetStaysFresh(t *testing.T) {
 	t.Parallel()
-	const budget = 6 * time.Second
+	// Dev renews every third of the budget, so twelve seconds leaves room for a
+	// renewal held up eight seconds by a loaded machine before a call goes stale.
+	const budget = 12 * time.Second
 	d := writeDemo(t, newLiveUpstream(t).url, "5ms", "")
-	rewrite(t, d.policy, `"maxStaleSeconds":600`, `"maxStaleSeconds":6`)
+	rewrite(t, d.policy, `"maxStaleSeconds":600`, `"maxStaleSeconds":12`)
 	state := filepath.Join(t.TempDir(), "state")
 	started := time.Now()
 	code, stdout, stderr := runDevToEnd(t, 5*time.Minute, "--config", d.config, "--policy", d.policy,
-		"--state", state, "--scenario", pauseThenCall(t, 30))
+		"--state", state, "--scenario", pauseThenCall(t, 80))
 	took := time.Since(started)
 	if code != exitOK || !strings.HasSuffix(stdout, "pause-then-call.json passed\n") {
 		t.Fatalf("exit %d after %v, want 0 and passed:\n%s\n%s", code, took, stdout, stderr)
@@ -203,8 +205,8 @@ func TestADevScenarioPastTheBudgetStaysFresh(t *testing.T) {
 		t.Fatalf("the scenario took %v, not past twice the %v budget, so it examined no renewal", took, budget)
 	}
 	decisions, digests, confirmed := decisionsOn(t, filepath.Join(state, "1-pause-then-call.json", "trail.jsonl"))
-	if decisions < 30 || len(digests) != 1 {
-		t.Errorf("%d decisions name %d bundle digest(s), want at least 30 naming one", decisions, len(digests))
+	if decisions < 80 || len(digests) != 1 {
+		t.Errorf("%d decisions name %d bundle digest(s), want at least 80 naming one", decisions, len(digests))
 	}
 	if len(confirmed) < 3 {
 		t.Errorf("the decisions carry %d confirmation time(s) over %v; the statement was not renewed", len(confirmed), took)
