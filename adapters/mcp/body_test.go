@@ -260,7 +260,12 @@ func (w *watchedWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 func TestAnAnswerTheClientDoesNotReadIsCut(t *testing.T) {
 	closed := make(chan string, 16)
 	r, watch := bigAnswerRig(t, bodyBound, watchCloses(closed))
-	res, err := callTool(t, r.connect(t, "agent-a"), "slow", map[string]any{"path": "/x"})
+	// Twelve MiB through the plane under -race beside a whole module's tests
+	// can outlast the shared twenty seconds; what is checked is that a
+	// reader gets the whole answer, not how fast.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	res, err := r.connect(t, "agent-a").CallTool(ctx, &sdk.CallToolParams{Name: "slow", Arguments: map[string]any{"path": "/x"}})
 	if err != nil || len(res.Content) != 1 || !strings.HasSuffix(res.Content[0].(*sdk.TextContent).Text, "END-OF-ANSWER") {
 		t.Fatalf("an agent that reads did not get the whole answer: %v", err)
 	}
