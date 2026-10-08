@@ -1,6 +1,6 @@
 # ADR-0047: A procedure states its exceptions, resources and children
 
-Status: proposed
+Status: accepted
 Date: 2026-10-07
 
 Builds on [ADR-0016](0016-approval-providers-and-the-lost-hold.md),

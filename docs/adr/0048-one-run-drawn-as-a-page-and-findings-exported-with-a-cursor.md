@@ -1,6 +1,6 @@
 # ADR-0048: One run drawn as a page, and findings exported with a cursor
 
-Status: proposed
+Status: accepted
 Date: 2026-10-07
 
 Builds on [ADR-0035](0035-a-versioned-evidence-export-and-a-bounded-query.md),

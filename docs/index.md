@@ -134,5 +134,5 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0044: Coverage judges each plane and joins only a whole export](adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export.md): accepted
 - [ADR-0045: One run is supervised against its procedure](adr/0045-one-run-is-supervised-against-its-procedure.md): accepted
 - [ADR-0046: A finding stops one run through a signed route](adr/0046-a-finding-stops-one-run-through-a-signed-route.md): accepted
-- [ADR-0047: A procedure states its exceptions, resources and children](adr/0047-a-procedure-states-its-exceptions-resources-and-children.md): proposed
-- [ADR-0048: One run drawn as a page, and findings exported with a cursor](adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor.md): proposed
+- [ADR-0047: A procedure states its exceptions, resources and children](adr/0047-a-procedure-states-its-exceptions-resources-and-children.md): accepted
+- [ADR-0048: One run drawn as a page, and findings exported with a cursor](adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor.md): accepted

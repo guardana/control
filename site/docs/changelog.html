@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.9.0-alpha</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.10.0-alpha</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -111,7 +111,17 @@
 <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
-<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.9.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.10.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="0100-alpha---2026-10-08"><a href="https://github.com/guardana/control/releases/tag/v0.10.0-alpha">0.10.0-alpha</a> - 2026-10-08</h2>
+<p>One supervised run is now whole. A procedure of schema <code>0.2</code> names the
+resources its steps bind, the exceptions it allows and how a run's children
+are judged; <code>supervise</code> reports a resource outside the run, a denied action
+retried in another form and an exception taken, judges a run's tree, and
+draws one run as a static page. A finding is confirmed only on the named
+run's own calls, so no run can get another one stopped, and a child run can
+now be stopped on its own. <code>procedure lint</code> and <code>procedure test</code> check a
+procedure with cases, and <code>findings export</code> reads the findings log with a
+cursor. The fixes come from an audit of this release's own changes.</p>
 <h3 id="added">Added</h3>
 <ul>
 <li>Procedure schema <code>0.2</code>, read beside <code>0.1</code>

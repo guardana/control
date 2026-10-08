@@ -11,6 +11,18 @@ verify one.
 
 ## [Unreleased]
 
+## [0.10.0-alpha] - 2026-10-08
+
+One supervised run is now whole. A procedure of schema `0.2` names the
+resources its steps bind, the exceptions it allows and how a run's children
+are judged; `supervise` reports a resource outside the run, a denied action
+retried in another form and an exception taken, judges a run's tree, and
+draws one run as a static page. A finding is confirmed only on the named
+run's own calls, so no run can get another one stopped, and a child run can
+now be stopped on its own. `procedure lint` and `procedure test` check a
+procedure with cases, and `findings export` reads the findings log with a
+cursor. The fixes come from an audit of this release's own changes.
+
 ### Added
 
 - Procedure schema `0.2`, read beside `0.1`
@@ -962,7 +974,8 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.9.0-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.10.0-alpha...HEAD
+[0.10.0-alpha]: https://github.com/guardana/control/releases/tag/v0.10.0-alpha
 [0.9.0-alpha]: https://github.com/guardana/control/releases/tag/v0.9.0-alpha
 [0.8.0-alpha]: https://github.com/guardana/control/releases/tag/v0.8.0-alpha
 [0.7.0-alpha]: https://github.com/guardana/control/releases/tag/v0.7.0-alpha
