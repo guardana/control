@@ -145,8 +145,8 @@ from the ones on this page; use yours.
 
 ### 6. Make the agent's calls
 
-The agent is a `curl` that presents the run's token. Define it in the
-terminal you opened the runs in:
+Here `curl` stands in for the agent and presents the run's token. Define it
+in the terminal you opened the runs in:
 
 ```
 call() {
@@ -221,10 +221,12 @@ rule DENIED_ACTION_RETRIED_AROUND not checked: no observation source was read
 findings log: 3 written, 0 already held
 ```
 
-It exits 1, since there are findings. The update of `ord-2` is another tool
-on the denied refund's order; the calls bound to one order reached two; the
-approved export is an exception the procedure allows, reported for
-information. The rules about what is missing wait for the run to close.
+It exits 1 because it made findings, which is what this run should produce.
+`RESOURCE_OUTSIDE_RUN`: the calls bound to one order reached two, `ord-1` and
+`ord-2`. `DENIED_ACTION_RETRIED_RESOURCE`: once the refund of `ord-2` was
+denied, another tool updated that order. `EXCEPTION_TAKEN`: the approved
+export is an exception the procedure allows, reported for information. The
+rules about what is missing wait for the run to close.
 
 Open `run.html` in a browser; it runs no script. It shows the expected steps
 with their calls, the three findings with the calls each cites, the four
@@ -273,8 +275,8 @@ data: {…"text":"order ord-1: 2 items, paid, ships to Jane Roe, 1 Main Street"}
 
 ### 11. Test the procedure
 
-The example's cases state runs and every finding `supervise` must make
-([test-a-procedure.md](test-a-procedure.md)):
+Each of the example's test cases describes a run and every finding
+`supervise` must report on it ([test-a-procedure.md](test-a-procedure.md)):
 
 ```
 $ guardana-control procedure test refund-0.2.cases.json

@@ -7,13 +7,14 @@ covers: [internal/observe/**, internal/coverage/**, internal/supervise/**, inter
 
 # Observations, coverage, supervision and a stop
 
-Four parts work after a plane has decided an agent's calls, or where no
-plane stands. An observation records what a source said the agent did. The
-coverage map says, for each path the operator declares, how much of it anyone
-can see. Supervision compares one run with its procedure and raises findings.
-A stop turns one confirmed finding into a refusal of that run's next call.
-None of them changes a decision the plane made, and only the stop reaches a
-plane at all.
+A plane is a running `guardana-gateway`: it decides each of an agent's calls
+before the call runs ([architecture.md](architecture.md)). Four parts work
+after a plane has decided, or on calls that pass no plane. An observation
+records what a source said the agent did. The coverage map says, for each path
+the operator declares, how much of it anyone can see. Supervision compares one
+run with its procedure and raises findings. A stop turns one confirmed finding
+into a refusal of that run's next call. None of them changes a decision the
+plane made, and only the stop reaches a plane at all.
 
 ```mermaid
 flowchart LR
@@ -62,14 +63,16 @@ unbroken chain can make it `CONFIRMED`. An observation makes it `SUSPECTED`
 at most, because a source testifies and a plane decides. A record in doubt,
 such as a broken chain or a source silent past its heartbeat, makes it
 `INDETERMINATE`. The rules about the steps as a whole (a skipped step, the
-order, carrying on after a failure) rest on something not seen, so none of
-them is ever `CONFIRMED`.
+order, carrying on after a failure) conclude from a call that was not seen,
+and an unseen call may still have happened, so none of them is ever
+`CONFIRMED`.
 
 Only a stop acts, and it takes the strongest case alone: a deterministic,
 `CONFIRMED` finding of one of the rules that may stop a run, under a route
-the operator signed, about a run that is still open. A finding that rests on
-an observation therefore never stops a run, and neither does an exception
-taken or a denied tool reported around the plane. Within a tree of runs, a
+the operator signed, about a run that is still open. So a finding that rests
+on an observation never stops a run. Neither does `EXCEPTION_TAKEN`, an
+exception the procedure allows, or `DENIED_ACTION_RETRIED_AROUND`, a denied
+tool a source reports called around the plane. Within a tree of runs, a
 finding is confirmed only on the named run's own calls: one run's denial or
 resource cannot get another run stopped, and a finding that needs another
 run's call is suspected at most. Every other finding stays in the log, for
@@ -87,9 +90,10 @@ could be seen at all; supervision judges one run by what was seen, and does
 not read the map. A run with no finding says nothing about a path the map
 shows as unknown or not covered.
 
-A supervision runs when the operator runs it, and a stop is written when the
-operator runs `react`. A call the run made before then has already happened;
-the stop refuses the next one, once the plane has read the list.
+Supervision runs only when the operator runs `supervise`, and a stop is
+written only when the operator runs `react`. A call the run made before then
+has already happened; the stop refuses the next one, once the plane has read
+the list.
 
 ## Why
 

@@ -206,8 +206,8 @@ token: run-9d9ad942e8427a0e36f6abd3fa8ced08.2sz2oVvp-yKBaXtfq47Gb133ucR_keAinwKS
 <p>Run it again for the second run. Your ids, tokens and approval id differ
 from the ones on this page; use yours.</p>
 <h3 id="6-make-the-agents-calls">6. Make the agent's calls</h3>
-<p>The agent is a <code>curl</code> that presents the run's token. Define it in the
-terminal you opened the runs in:</p>
+<p>Here <code>curl</code> stands in for the agent and presents the run's token. Define it
+in the terminal you opened the runs in:</p>
 <pre><code>call() {
   curl -sS http://127.0.0.1:8080 -H &#34;Run-Token: $TOKEN&#34; \
     -H &#39;Content-Type: application/json&#39; -H &#39;Accept: application/json, text/event-stream&#39; \
@@ -263,10 +263,12 @@ rule DENIED_ACTION_RETRIED_AROUND not checked: no observation source was read
 …
 findings log: 3 written, 0 already held
 </code></pre>
-<p>It exits 1, since there are findings. The update of <code>ord-2</code> is another tool
-on the denied refund's order; the calls bound to one order reached two; the
-approved export is an exception the procedure allows, reported for
-information. The rules about what is missing wait for the run to close.</p>
+<p>It exits 1 because it made findings, which is what this run should produce.
+<code>RESOURCE_OUTSIDE_RUN</code>: the calls bound to one order reached two, <code>ord-1</code> and
+<code>ord-2</code>. <code>DENIED_ACTION_RETRIED_RESOURCE</code>: once the refund of <code>ord-2</code> was
+denied, another tool updated that order. <code>EXCEPTION_TAKEN</code>: the approved
+export is an exception the procedure allows, reported for information. The
+rules about what is missing wait for the run to close.</p>
 <p>Open <code>run.html</code> in a browser; it runs no script. It shows the expected steps
 with their calls, the three findings with the calls each cites, the four
 calls with a mark each (enforced, blocked, exception or approval), and every
@@ -299,8 +301,8 @@ $ call read_order &#39;{&#34;id&#34;:&#34;ord-1&#34;}&#39;
 data: {…&#34;text&#34;:&#34;order ord-1: 2 items, paid, ships to Jane Roe, 1 Main Street&#34;}],&#34;resultType&#34;:&#34;complete&#34;}}
 </code></pre>
 <h3 id="11-test-the-procedure">11. Test the procedure</h3>
-<p>The example's cases state runs and every finding <code>supervise</code> must make
-(<a href="/docs/guides/test-a-procedure">test-a-procedure.md</a>):</p>
+<p>Each of the example's test cases describes a run and every finding
+<code>supervise</code> must report on it (<a href="/docs/guides/test-a-procedure">test-a-procedure.md</a>):</p>
 <pre><code>$ guardana-control procedure test refund-0.2.cases.json
 ok   the refund retried as an update: RESOURCE_OUTSIDE_RUN CONFIRMED, DENIED_ACTION_RETRIED_RESOURCE CONFIRMED
 ok   the export approved: EXCEPTION_TAKEN CONFIRMED
