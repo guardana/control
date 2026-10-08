@@ -221,7 +221,10 @@ func (tr tree) expectStoppedTrail(t *testing.T, request, run string) {
 			blocked = e.GetDecision().GetReasonCodes()
 		}
 	}
-	want := []string{"EVENT_KIND_ACTION_PROPOSED", "EVENT_KIND_POLICY_DECIDED", "EVENT_KIND_ACTION_BLOCKED"}
+	// The export holds the trail in the order the plane's batches landed,
+	// which need not be the order its links give.
+	slices.Sort(kinds)
+	want := []string{"EVENT_KIND_ACTION_BLOCKED", "EVENT_KIND_ACTION_PROPOSED", "EVENT_KIND_POLICY_DECIDED"}
 	if !slices.Equal(kinds, want) || !slices.Equal(blocked, []string{"RUN_STOPPED"}) {
 		t.Fatalf("the refused call's trail is %q, blocked with %q; want %q, blocked with RUN_STOPPED", kinds, blocked, want)
 	}

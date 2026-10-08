@@ -11,8 +11,8 @@ import (
 type request struct {
 	id     string
 	events []*controlv1.Event
-	// doubt is true when its trail is not one coherent chain, or an event id
-	// in it was read with two contents.
+	// doubt is true when its trail is not one coherent chain in the order its
+	// links give, or an event id in it was read with two contents.
 	doubt    bool
 	proposal *controlv1.Event
 	kernel   *controlv1.Decision
@@ -42,12 +42,44 @@ func requestsOf(events []*controlv1.Event, doubtful map[string]bool) []*request 
 		rq.events = append(rq.events, ev)
 	}
 	for _, rq := range out {
-		rq.doubt = doubtful[rq.id] || trailchain.Validate(rq.events) != nil
+		var chained bool
+		rq.events, chained = linked(rq.events)
+		rq.doubt = doubtful[rq.id] || !chained || trailchain.Validate(rq.events) != nil
 		for _, ev := range rq.events {
 			rq.note(ev)
 		}
 	}
 	return out
+}
+
+// linked is events in the order their links give, the event that links to
+// nothing first, and true when that order takes each event exactly once. A
+// plane ships several batches at a time, so an export can hold a request's
+// later batch first. Links that make no one chain, a second head or none, a
+// fork, a gap, an id read twice or a cycle, return events as read and false.
+func linked(events []*controlv1.Event) ([]*controlv1.Event, bool) {
+	next := make(map[string]*controlv1.Event, len(events))
+	var head *controlv1.Event
+	for _, ev := range events {
+		if prev := ev.GetPrevEventId(); prev != "" {
+			next[prev] = ev
+		} else {
+			head = ev
+		}
+	}
+	out := make([]*controlv1.Event, 0, len(events))
+	seen := make(map[string]bool, len(events))
+	for ev := head; ev != nil; ev = next[ev.GetEventId()] {
+		if seen[ev.GetEventId()] {
+			return events, false
+		}
+		seen[ev.GetEventId()] = true
+		out = append(out, ev)
+	}
+	if len(out) != len(events) {
+		return events, false
+	}
+	return out, true
 }
 
 func (rq *request) note(ev *controlv1.Event) {
