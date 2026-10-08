@@ -60,20 +60,24 @@ func ranLater() act {
 	return r
 }
 
-// TestOnlyACopyOrdersAnEventInAnExport: exports that order a denial and a
-// retry both ways leave the order untold, and an event of other content
-// under the retry's id orders nothing.
-func TestOnlyACopyOrdersAnEventInAnExport(t *testing.T) {
+// TestOnlyACopyPutsAnEventInAnExport: exports that list a denial and a
+// retry both ways still hold both, and the plane's times confirm the retry;
+// an event of other content under the retry's id puts nothing beside the
+// denial, and leaves the retry in doubt.
+func TestOnlyACopyPutsAnEventInAnExport(t *testing.T) {
 	forged := again().events()
 	forged[0].GetProposed().Arguments.CanonicalHash = hashOf('f')
-	for name, exports := range map[string][]supervise.Export{
-		"both ways": {acts(denial(), again()), acts(again(), denial())},
-		"a conflicting copy before the denial": {acts(denial()), acts(again()),
-			{Whole: true, Events: slices.Concat(forged[:1], denial().events())}},
+	for name, c := range map[string]struct {
+		exports []supervise.Export
+		want    string
+	}{
+		"both ways": {[]supervise.Export{acts(denial(), again()), acts(again(), denial())}, "FINDING_VERDICT_CONFIRMED"},
+		"a conflicting copy before the denial": {[]supervise.Export{acts(denial()), acts(again()),
+			{Whole: true, Events: slices.Concat(forged[:1], denial().events())}}, "FINDING_VERDICT_INDETERMINATE"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			res := retrySupervise(t, source(), exports...)
-			if got := verdicts(res, ruleArgs); !slices.Equal(got, []string{runID + " FINDING_VERDICT_INDETERMINATE"}) {
+			res := retrySupervise(t, source(), c.exports...)
+			if got := verdicts(res, ruleArgs); !slices.Equal(got, []string{runID + " " + c.want}) {
 				t.Fatalf("findings %q:\n%s", got, dump(res.Findings))
 			}
 		})

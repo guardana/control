@@ -249,11 +249,10 @@ nothing but that file's owner and mode protects it.</p>
 </tbody>
 </table>
 <p>An order cannot be told when a proposal or a failure has no time, or between
-two exports' proposals of one instant; within one export the plane's append
-order holds. A retry continues nothing, though each denial of it counts
-toward <code>REPEATED_DENIAL</code>, and an approval belongs to the step it held. A
-retry rule compares at most 2^20 pairs; each denial past them is
-<code>INDETERMINATE</code>.</p>
+two exports' proposals of one instant. A retry continues nothing, though each
+denial of it counts toward <code>REPEATED_DENIAL</code>, and an approval belongs to the
+step it held. A retry rule orders by the plane's times, not by place in an
+export, and confirms only when one export holds both.</p>
 <h2 id="the-verdict">The verdict</h2>
 <p>The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it <code>CONFIRMED</code>; an observation makes it <code>SUSPECTED</code>; a record in doubt (a

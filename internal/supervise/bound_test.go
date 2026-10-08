@@ -59,85 +59,65 @@ func TestManyDenialsOfOneCallAreStillRetried(t *testing.T) {
 	}
 }
 
-// TestRetryPairsAreBounded: n denials of one tool, each with its own
-// arguments, are n(n-1)/2 pairs of a denial and a later call. 1448 are
-// 1 047 628, within MaxRetryPairs, and each but the last is retried. 1449
-// are 1 049 076: denial k compares 1448-k calls, so after the first 1416
-// the 28 pairs left judge only the denial of 28 calls, d1420, and the last,
-// of none; the 31 others give the root an indeterminate finding each, rather
-// than a rule turned off.
-func TestRetryPairsAreBounded(t *testing.T) {
-	if supervise.MaxRetryPairs != 1<<20 {
-		t.Fatalf("MaxRetryPairs %d: the runs below are sized for 1<<20", supervise.MaxRetryPairs)
+// spacedDenials is n denials of the refund on order 42, each with its own
+// arguments, two seconds apart, so each is proposed after the one before was
+// decided.
+func spacedDenials(n int) []act {
+	var as []act
+	for i := range n {
+		as = append(as, act{call: call{req: fmt.Sprintf("d%04d", i), tool: "issue_refund", upstream: "pay",
+			at: 2 * time.Duration(i) * time.Second, outcome: "deny"}, hash: "sha256:" + fmt.Sprintf("%064x", i), res: orderNo("42")})
 	}
-	for _, c := range []struct {
-		n                   int
-		confirmed, unjudged int
-	}{{1448, 1447, 0}, {1449, 1417, 31}} {
-		var as []act
-		for i := range c.n {
-			as = append(as, act{call: call{req: fmt.Sprintf("d%04d", i), tool: "issue_refund", upstream: "pay",
-				at: time.Duration(i) * time.Second, outcome: "deny"}, hash: "sha256:" + fmt.Sprintf("%064x", i)})
+	return as
+}
+
+// TestEveryDenialIsJudgedHoweverMany: 1449 denials of one tool, each with
+// its own arguments, are each retried by every denial after it, more than
+// a million pairs; each but the last is confirmed. The first rests on 1448
+// retries: it cites the first ten read and counts the other 1438.
+func TestEveryDenialIsJudgedHoweverMany(t *testing.T) {
+	res := retrySupervise(t, source(), acts(spacedDenials(1449)...))
+	got := countVerdicts(res, ruleArgs)
+	if rules(res)[ruleArgs] != checked || fmt.Sprint(got) != "map[FINDING_VERDICT_CONFIRMED:1448]" {
+		t.Fatalf("%s with %v", rules(res)[ruleArgs], got)
+	}
+	for _, f := range only(res, ruleArgs) {
+		if f.GetFinding().GetFindingId() != id02(ruleArgs, "d0000", runID) {
+			continue
 		}
-		res := retrySupervise(t, source(), acts(as...))
-		got := countVerdicts(res, ruleArgs)
-		if rules(res)[ruleArgs] != checked || got["FINDING_VERDICT_CONFIRMED"] != c.confirmed ||
-			got["FINDING_VERDICT_INDETERMINATE"] != c.unjudged || len(only(res, ruleArgs)) != c.confirmed+c.unjudged {
-			t.Fatalf("at %d: %s with %v", c.n, rules(res)[ruleArgs], got)
-		}
-		if c.n == 1449 {
-			byID := map[string]string{}
-			for _, f := range only(res, ruleArgs) {
-				byID[f.GetFinding().GetFindingId()] = f.GetFinding().GetVerdict().String() + " " + citedEvents(f)
-			}
-			for req, w := range map[string]string{"d1415": "FINDING_VERDICT_CONFIRMED", "d1416": "FINDING_VERDICT_INDETERMINATE d1416-e2",
-				"d1420": "FINDING_VERDICT_CONFIRMED", "d1447": "FINDING_VERDICT_INDETERMINATE d1447-e2"} {
-				if g := byID[id02(ruleArgs, req, runID)]; !strings.HasPrefix(g, w) {
-					t.Errorf("the finding on %s is %q, want %q", req, g, w)
-				}
-			}
+		want := "d0000-e2 d0001-e1 d0002-e1 d0003-e1 d0004-e1 d0005-e1 d0006-e1 d0007-e1 d0008-e1 d0009-e1"
+		if citedEvents(f) != want || f.GetRefsLeftOut() != 1439 {
+			t.Errorf("the finding on d0000 cites %q and leaves out %d", citedEvents(f), f.GetRefsLeftOut())
 		}
 	}
 }
 
-// TestEachRetryFormIsBoundedOnItsOwn: 1024 reports of the refund and n
-// denials of it on one order, each with its own arguments. The report around
-// each denial is 1024 pairs: at 1024 denials exactly MaxRetryPairs, all
-// judged; at 1025 the last denial is not, and is indeterminate. Within the
-// same input the plane forms stay judged: other arguments are n(n-1)/2
-// pairs, and one tool on one order is no retry of itself.
-func TestEachRetryFormIsBoundedOnItsOwn(t *testing.T) {
+// TestEveryReportAroundADenialIsWeighed: 1024 reports of the refund after
+// 1025 denials of it on one order: each denial is retried around by all of
+// them, citing ten of the reports and counting the rest with the denial,
+// and in the plane forms each but the last is retried by
+// the denials after it, while one tool on one order is no retry of itself.
+func TestEveryReportAroundADenialIsWeighed(t *testing.T) {
 	var reports []ob
 	for i := range 1024 {
 		reports = append(reports, ob{id: fmt.Sprintf("obs-%04d", i), name: "issue_refund", at: 5000 * time.Second})
 	}
-	src := source(reports...)
-	for _, n := range []int{1024, 1025} {
-		var as []act
-		for i := range n {
-			as = append(as, act{call: call{req: fmt.Sprintf("d%04d", i), tool: "issue_refund", upstream: "pay",
-				at: time.Duration(i) * time.Second, outcome: "deny"}, hash: "sha256:" + fmt.Sprintf("%064x", i), res: orderNo("42")})
+	res := retrySupervise(t, source(reports...), acts(spacedDenials(1025)...))
+	want := map[string]string{
+		ruleArgs:   "map[FINDING_VERDICT_CONFIRMED:1024]",
+		ruleRes:    "map[]",
+		ruleAround: "map[FINDING_VERDICT_SUSPECTED:1025]",
+	}
+	for _, rule := range retryRules {
+		if got := countVerdicts(res, rule); rules(res)[rule] != checked || fmt.Sprint(got) != want[rule] {
+			t.Errorf("%s is %s with %v; want %v", rule, rules(res)[rule], got, want[rule])
 		}
-		res := retrySupervise(t, src, acts(as...))
-		want := map[string]map[string]int{
-			ruleArgs:   {"FINDING_VERDICT_CONFIRMED": n - 1},
-			ruleRes:    {},
-			ruleAround: {"FINDING_VERDICT_SUSPECTED": 1024},
-		}
-		if n == 1025 {
-			want[ruleAround]["FINDING_VERDICT_INDETERMINATE"] = 1
-		}
-		for _, rule := range retryRules {
-			got := countVerdicts(res, rule)
-			if rules(res)[rule] != checked || fmt.Sprint(got) != fmt.Sprint(want[rule]) {
-				t.Errorf("at %d: %s is %s with %v; want %v", n, rule, rules(res)[rule], got, want[rule])
-			}
-		}
-		if around := only(res, ruleAround); n == 1025 && len(around) == n {
-			last := around[n-1]
-			if last.GetFinding().GetFindingId() != id02(ruleAround, "d1024", runID) || citedEvents(last) != "d1024-e2" {
-				t.Errorf("the denial left unjudged gives %s citing %q", last.GetFinding().GetFindingId(), citedEvents(last))
-			}
+	}
+	for _, f := range only(res, ruleAround) {
+		if f.GetFinding().GetFindingId() == id02(ruleAround, "d1024", runID) &&
+			(citedEvents(f) != "obs-0000 obs-0001 obs-0002 obs-0003 obs-0004 obs-0005 obs-0006 obs-0007 obs-0008 obs-0009" ||
+				f.GetRefsLeftOut() != 1015) {
+			t.Errorf("the last denial cites %q and leaves out %d", citedEvents(f), f.GetRefsLeftOut())
 		}
 	}
 }
@@ -173,5 +153,46 @@ func TestAReportAtTheTreeBoundIsWritten(t *testing.T) {
 	t.Logf("the report takes %d bytes of %d", len(line), findinglog.MaxLineBytes)
 	if len(line) > findinglog.MaxLineBytes*7/8 {
 		t.Fatalf("a report of %d bytes, more than seven eighths of %d", len(line), findinglog.MaxLineBytes)
+	}
+}
+
+// floodOf is a closed child's n denials of the refund on order 42, each with
+// its own arguments and each followed by the order refunded by hand, all
+// before the root's denial at ten seconds.
+func floodOf(n int) []act {
+	var as []act
+	for i := range n {
+		at := time.Duration(i) * time.Millisecond
+		as = append(as,
+			act{call: call{req: fmt.Sprintf("c%04d", i), tool: "issue_refund", upstream: "pay", at: at, outcome: "deny", run: childRun},
+				res: orderNo("42"), hash: "sha256:" + fmt.Sprintf("%064x", i), effect: transact},
+			act{call: call{req: fmt.Sprintf("c%04dm", i), tool: "refund_manual", upstream: "pay", at: at, run: childRun},
+				res: orderNo("42"), hash: "sha256:" + fmt.Sprintf("%064x", n+i), effect: transact})
+	}
+	return as
+}
+
+// TestAnotherRunsFloodLeavesARetryJudged: a closed child's 4 096 denials and
+// calls of the denied tool and of another on the order come first; the
+// root's own denial and its retry in each form are still judged on the
+// root's calls alone, confirmed by the plane and suggested by a source.
+func TestAnotherRunsFloodLeavesARetryJudged(t *testing.T) {
+	var reports []ob
+	for i := range 512 {
+		reports = append(reports, ob{id: fmt.Sprintf("obs-%04d", i), name: "issue_refund", at: 5000 * time.Second})
+	}
+	res := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(childRun),
+		Exports: []supervise.Export{acts(append(floodOf(4096), denial(), again(), manual())...)}, Sources: []supervise.Source{source(reports...)}})
+	for rule, want := range map[string]string{ruleArgs: "FINDING_VERDICT_CONFIRMED", ruleRes: "FINDING_VERDICT_CONFIRMED",
+		ruleAround: "FINDING_VERDICT_SUSPECTED"} {
+		var got []string
+		for _, f := range only(res, rule) {
+			if f.GetFinding().GetFindingId() == id02(rule, "d1", runID) {
+				got = append(got, f.GetFinding().GetVerdict().String())
+			}
+		}
+		if rules(res)[rule] != checked || len(got) != 1 || got[0] != want {
+			t.Errorf("%s is %s; the root's finding on d1 is %q, want %s", rule, rules(res)[rule], got, want)
+		}
 	}
 }

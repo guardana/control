@@ -3,7 +3,6 @@ package supervise
 import (
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // place is where an export holds an event: the export's place in the input
@@ -35,42 +34,28 @@ func (e *evaluation) placesOf() map[string][]place {
 	return e.places
 }
 
-// after reports whether then came after first, and the verdict that order
-// allows. An export that holds both orders them by its sequence, and only
-// that confirms; exports that order them both ways leave it untold. When no
-// export holds both, their times may come from planes whose clocks differ.
-func (e *evaluation) after(first, then *controlv1.Event) (controlv1.FindingVerdict, bool) {
-	places := e.placesOf()
-	later, earlier := false, false
-	for _, p := range places[first.GetEventId()] {
-		for _, q := range places[then.GetEventId()] {
-			if p.export == q.export {
-				later, earlier = later || q.index > p.index, earlier || q.index < p.index
-			}
-		}
+// exportsOf is the places in the input of the exports that hold ev, in
+// order.
+func (e *evaluation) exportsOf(ev *controlv1.Event) []int {
+	ps := e.placesOf()[ev.GetEventId()]
+	out := make([]int, len(ps))
+	for i, p := range ps {
+		out[i] = p.export
 	}
-	switch {
-	case later && earlier:
-		return indeterminate, true
-	case later:
-		return confirmed, true
-	case earlier:
-		return indeterminate, false
-	}
-	return timedAfter(first.GetOccurredAt(), then.GetOccurredAt())
+	return out
 }
 
-// timedAfter places then after first by two clocks that may differ: a later
-// time suggests, the same time or none is untold, an earlier time is not
-// after.
-func timedAfter(first, then *timestamppb.Timestamp) (controlv1.FindingVerdict, bool) {
-	switch {
-	case !first.IsValid() || !then.IsValid():
-		return indeterminate, true
-	case then.AsTime().After(first.AsTime()):
-		return suspected, true
-	case then.AsTime().Equal(first.AsTime()):
-		return indeterminate, true
+// shareOne reports whether two ordered lists of exports name one in common.
+func shareOne(a, b []int) bool {
+	for i, j := 0, 0; i < len(a) && j < len(b); {
+		switch {
+		case a[i] == b[j]:
+			return true
+		case a[i] < b[j]:
+			i++
+		default:
+			j++
+		}
 	}
-	return indeterminate, false
+	return false
 }

@@ -96,10 +96,11 @@ func TestEachRetryFormFiresOnItsOwnInputOnly(t *testing.T) {
 }
 
 // interleaved is the denial and the retry with the retry proposed after the
-// denial was proposed and before it was decided.
+// denial was proposed and before it was decided, listed after it all.
 func interleaved() supervise.Export {
-	d, r := denial().events(), again().events()
-	return supervise.Export{Whole: true, Events: slices.Concat(d[:1], r[:1], d[1:], r[1:])}
+	r := again()
+	r.at = 10*time.Second + 500*time.Millisecond
+	return acts(denial(), r)
 }
 
 // TestWhatIsNoRetry: a block that is not the policy's denial, a retry an
@@ -162,11 +163,14 @@ func TestARetryHeldForApprovalIsIndeterminate(t *testing.T) {
 	}
 }
 
-// TestAfterIsTheSequenceOfTheExportBothCameFrom: within one export its
-// sequence orders the two, whatever their times say; across exports a later
-// time only suggests, an equal or missing one is untold, an earlier one is
-// no retry, and a redundant export changes nothing.
-func TestAfterIsTheSequenceOfTheExportBothCameFrom(t *testing.T) {
+// TestAfterIsThePlanesTimeWithinTheExportBothCameFrom: a later batch of an
+// export may land before an earlier one, so its sequence orders nothing.
+// Within one export the plane's times order the two and confirm; a retry
+// listed before the denial but proposed after its decision is one, and one
+// listed after it but proposed before is none; the same time or none is
+// untold. Across exports a later time only suggests, and a redundant export
+// changes nothing.
+func TestAfterIsThePlanesTimeWithinTheExportBothCameFrom(t *testing.T) {
 	earlyTime := again()
 	earlyTime.at = time.Second
 	untimed := acts(again())
@@ -175,18 +179,26 @@ func TestAfterIsTheSequenceOfTheExportBothCameFrom(t *testing.T) {
 	}
 	atDecision := again()
 	atDecision.at = 11 * time.Second
+	listedFirst := slices.Concat(again().events(), denial().events())
+	untimedWithin := acts(denial(), again())
+	for _, ev := range untimedWithin.Events[3:] {
+		ev.OccurredAt = nil
+	}
 	for name, c := range map[string]struct {
 		exports []supervise.Export
 		want    []string
 	}{
-		"one export, an earlier time":    {[]supervise.Export{acts(denial(), earlyTime)}, []string{runID + " FINDING_VERDICT_CONFIRMED"}},
-		"two exports":                    {[]supervise.Export{acts(denial()), acts(again())}, []string{runID + " FINDING_VERDICT_SUSPECTED"}},
-		"a redundant copy of the denial": {[]supervise.Export{acts(denial()), acts(again()), acts(denial())}, []string{runID + " FINDING_VERDICT_SUSPECTED"}},
-		"a redundant copy of the retry":  {[]supervise.Export{acts(denial()), acts(again()), acts(again())}, []string{runID + " FINDING_VERDICT_SUSPECTED"}},
-		"an export holding both":         {[]supervise.Export{acts(denial()), acts(again()), acts(denial(), again())}, []string{runID + " FINDING_VERDICT_CONFIRMED"}},
-		"two exports, an earlier time":   {[]supervise.Export{acts(denial()), acts(earlyTime)}, nil},
-		"two exports, the decision time": {[]supervise.Export{acts(denial()), acts(atDecision)}, []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
-		"two exports, no time":           {[]supervise.Export{acts(denial()), untimed}, []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
+		"one export, listed after, proposed before": {[]supervise.Export{acts(denial(), earlyTime)}, nil},
+		"one export, listed before, proposed after": {[]supervise.Export{{Whole: true, Events: listedFirst}}, []string{runID + " FINDING_VERDICT_CONFIRMED"}},
+		"one export, the decision time":             {[]supervise.Export{acts(denial(), atDecision)}, []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
+		"one export, no time":                       {[]supervise.Export{untimedWithin}, []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
+		"two exports":                               {[]supervise.Export{acts(denial()), acts(again())}, []string{runID + " FINDING_VERDICT_SUSPECTED"}},
+		"a redundant copy of the denial":            {[]supervise.Export{acts(denial()), acts(again()), acts(denial())}, []string{runID + " FINDING_VERDICT_SUSPECTED"}},
+		"a redundant copy of the retry":             {[]supervise.Export{acts(denial()), acts(again()), acts(again())}, []string{runID + " FINDING_VERDICT_SUSPECTED"}},
+		"an export holding both":                    {[]supervise.Export{acts(denial()), acts(again()), acts(denial(), again())}, []string{runID + " FINDING_VERDICT_CONFIRMED"}},
+		"two exports, an earlier time":              {[]supervise.Export{acts(denial()), acts(earlyTime)}, nil},
+		"two exports, the decision time":            {[]supervise.Export{acts(denial()), acts(atDecision)}, []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
+		"two exports, no time":                      {[]supervise.Export{acts(denial()), untimed}, []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			res := retrySupervise(t, source(), c.exports...)

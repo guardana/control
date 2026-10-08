@@ -101,16 +101,17 @@ refusal of an approval. After it, across the run or its tree:
   findings kept.
 
 A retry whose trail holds an approved decision of the approvals store is not
-one. "After" is decided within the export both events were read from, by its
-sequence: `CONFIRMED` only there; across exports, whose clocks may differ,
-`SUSPECTED`; passing a redundant export changes nothing. A variant proposed
-before the denial was decided is not a retry; `REPEATED_DENIAL` is the
-backstop. Each finding names the retry's run, and its anchor is the denied
-request and that run; a retry by any run but the denied one or its descendant
-is `SUSPECTED` at most. Each denial is compared only with the calls after it,
-in time linear in the calls; if a bound still bites, the rule raises an
-`INDETERMINATE` finding for each run it could not judge rather than turning
-itself off, so further retries of one denial keep the id, a new
+one. "After" is decided by the plane's own event times within the export both
+events were read from, never by their place in it: a plane ships several
+batches at a time, so a later batch can be listed first. A later time there
+is `CONFIRMED`, the same time or none `INDETERMINATE`; across exports, whose
+clocks may differ, `SUSPECTED`; passing a redundant export changes nothing. A
+variant proposed before the denial was decided is not a retry;
+`REPEATED_DENIAL` is the backstop. Each finding names the retry's run, and its
+anchor is the denied request and that run; a retry by any run but the denied
+one or its descendant is `SUSPECTED` at most. Each run's retries of a denial
+are found on that run's own calls by indexed lookups, with no budget one run
+can spend for another, so further retries of one denial keep the id, a new
 denial gives a new one, and after a lift or an expiry a new denial followed by
 a retry stops again. A corrected argument after a refusal cannot be told from
 evasion; whether `_ARGUMENTS` stops a run is the route's choice.
@@ -254,7 +255,9 @@ now be stopped on its own.
   past its bound, another tenant and a chain that misses the root are
   refused; a report at the bound is written; 1 001 runs of other tenants do
   not refuse a small tree.
-- 1 025 denials of one tool and then a retry still give a retry finding.
+- 1 025 denials of one tool and then a retry still give a retry finding; a
+  closed child's 4 096 denials and calls leave another run's own retry
+  confirmed; a call proposed before a denial but listed after it is no retry.
 - A child's confirmed finding stops the child's next call and neither its
   parent's nor a sibling's, on a live plane.
 - An exception with an approval waives and raises `EXCEPTION_TAKEN`; a held

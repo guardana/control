@@ -30,8 +30,6 @@ func (s *refSet) event(rq *request, ev *controlv1.Event) {
 	}
 }
 
-func (s *refSet) empty() bool { return len(s.refs) == 0 && s.leftOut == 0 }
-
 // into puts what s gathered into d after d's own refs.
 func (s *refSet) into(d *draft) {
 	d.refs = append(d.refs, s.refs...)
