@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,7 +110,8 @@ func TestSuperviseViewAllDrawsEveryCall(t *testing.T) {
 
 // TestSuperviseViewReplacesOnlyAPage: a path that holds anything but a page
 // it drew, a link, a directory or a path in a missing directory is refused
-// before the findings log is opened, and the file is left as it was.
+// before the findings log is opened, and the path is left as it was: its
+// type, its mode and what it holds.
 func TestSuperviseViewReplacesOnlyAPage(t *testing.T) {
 	tr := newSupTree(t)
 	x := tr.export(t, tr.run, supBase, deviating()...)
@@ -129,15 +132,15 @@ func TestSuperviseViewReplacesOnlyAPage(t *testing.T) {
 		"the findings log": filepath.Join(tr.findings, findinglog.FileName),
 	} {
 		t.Run(name, func(t *testing.T) {
-			before, _ := os.ReadFile(path) //nolint:gosec // G304: a path in this test's own directory
+			before := pathState(t, path)
 			findings := filepath.Join(tr.dir, "log-"+strings.ReplaceAll(name, " ", "-"))
 			if err := os.Mkdir(findings, 0o700); err != nil {
 				t.Fatal(err)
 			}
 			supRefused(t, []string{"supervise", "--procedure", tr.procedure, "--runs", tr.runs, "--run", tr.run,
 				"--findings", findings, "--evidence", x, "--view", path}, "--view")
-			if after, _ := os.ReadFile(path); string(after) != string(before) { //nolint:gosec // G304: as above
-				t.Errorf("the refused path changed")
+			if after := pathState(t, path); after != before {
+				t.Errorf("the refused path changed from %q to %q", before, after)
 			}
 			if _, err := os.Stat(filepath.Join(findings, findinglog.FileName)); !os.IsNotExist(err) {
 				t.Errorf("the findings log was written: %v", err)
@@ -150,4 +153,37 @@ func TestSuperviseViewReplacesOnlyAPage(t *testing.T) {
 			t.Errorf("%v: exit %d, stdout %q, stderr %q", args, code, stdout, stderr)
 		}
 	}
+}
+
+// pathState is what path is without following a link: its type and mode,
+// then a file's bytes, a link's target or a directory's names, or "absent".
+// Any other error reading it fails the test.
+func pathState(t *testing.T, path string) string {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "absent"
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var held string
+	switch {
+	case info.Mode()&fs.ModeSymlink != 0:
+		held, err = os.Readlink(path)
+	case info.IsDir():
+		var entries []fs.DirEntry
+		entries, err = os.ReadDir(path)
+		for _, e := range entries {
+			held += e.Name() + "\n"
+		}
+	default:
+		var raw []byte
+		raw, err = os.ReadFile(path) //nolint:gosec // G304: a path in this test's own directory
+		held = string(raw)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Mode().String() + "\n" + held
 }

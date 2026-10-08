@@ -46,7 +46,7 @@ reader. The legend at the foot of the page repeats this table.
 | enforced | filled square, solid | A plane decided the call in `ENFORCE`, `APPROVE` or `LOCKDOWN` mode and its trail is one coherent chain. |
 | decided, not enforced | triangle, dashed | A plane decided the call in another mode, recorded no mode, or the trail is in doubt. |
 | observed | circle, dotted | Only a source reported the call, with the trust its descriptor declared. |
-| exception or approval | diamond, dash and dot | An `EXCEPTION_TAKEN` finding cites the call, or the approvals store granted it. |
+| exception or approval | diamond, dash and dot | An exception waived the call, or the approvals store granted it. |
 | blocked | cross, long dashes | The policy denied the call, or the plane blocked it: a pause, a stop, an approval refused or expired, or a verdict such as `INDETERMINATE`. |
 | not seen | hexagon, sparse dashes | A step with no call, or a source never heard, silent or not read. |
 

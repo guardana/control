@@ -118,8 +118,10 @@ func Evaluate(in Input) (*Result, error) {
 	e := newEvaluation(in, rd)
 	states := e.states()
 	var drafts []draft
-	for _, id := range ruleIDs {
-		if states[id].state == findingv1alpha1.RuleState_RULE_STATE_CHECKED {
+	for _, id := range RuleIDsOf(e.p.schema) {
+		// The waivers of the rules that were checked are written whatever
+		// EXCEPTION_TAKEN's own state says of the others.
+		if states[id].state == findingv1alpha1.RuleState_RULE_STATE_CHECKED || id == RuleExceptionTaken {
 			drafts = append(drafts, e.apply(id)...)
 		}
 	}

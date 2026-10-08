@@ -32,9 +32,9 @@ func MayStop(id, version string) bool {
 }
 
 // CheckStopping refuses a route that names any rule outside StoppingRules.
-// VerifyRoute and the stop list's writers call it, so a route read from a
-// signed file or handed to a writer is held to the table however it was
-// signed. ParseRoute does not, so route sign can first say which of
+// VerifyRoute, Judge and the stop list's writers call it, so a route read
+// from a signed file, judged against or handed to a writer is held to the
+// table however it was signed. ParseRoute does not, so route sign can first say which of
 // supervise's own checks a rule fails.
 func CheckStopping(r Route) error {
 	for i, rule := range r.rules {

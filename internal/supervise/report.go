@@ -88,7 +88,7 @@ func (e *evaluation) absenceState() ruleState {
 }
 
 func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result {
-	drafts = append(drafts, e.apply02(states)...)
+	e.joinsCut(states)
 	s := scope{tenant: e.in.Run.Tenant, project: e.rd.project, run: e.in.Run.ID, proc: e.p}
 	res := &Result{PlaneBlocks: map[string]uint64{}, SourcesNotRead: e.in.SourcesNotRead,
 		NeverHeard: e.neverHeard, Silent: e.lapsed}
@@ -121,6 +121,21 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 	}
 	res.Instances, res.Rests = e.instancesOf(res.Findings)
 	return res
+}
+
+// joinsCut leaves the rules that read joins not checked when a span walk ran
+// out of steps before it could tell whether a report is a plane call. Their
+// findings stand, since a rule that may stop must not be silenced by a deep
+// span chain the agent can build.
+func (e *evaluation) joinsCut(states map[string]ruleState) {
+	if !slices.Contains(slices.Collect(maps.Values(e.joinDoubt)), true) {
+		return
+	}
+	for _, id := range []string{RuleStepOutsideProcedure, RuleDeniedActionRetriedAround} {
+		if s, on := states[id]; on && s.state == checked.state {
+			states[id] = notChecked("a span walk ran out of steps, so a source's report may be a plane call")
+		}
+	}
 }
 
 // reportSchema02 is the version of a report that carries the children mode

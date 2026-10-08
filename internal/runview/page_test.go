@@ -156,8 +156,8 @@ func TestTheDefaultViewDrawsEachFindingsNeighbourhood(t *testing.T) {
 // TestEnforcedNeedsACoherentTrailAndAModeThatActs: the same completed call
 // is enforced under ENFORCE, APPROVE and LOCKDOWN only; under any other mode,
 // with no mode recorded or with its trail in doubt it is decided, not
-// enforced; an approval granted marks it, and a report is observed whatever
-// its mode says.
+// enforced, an exception taken on it included; an approval granted or an
+// exception marks it, and a report is observed whatever its mode says.
 func TestEnforcedNeedsACoherentTrailAndAModeThatActs(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -173,6 +173,10 @@ func TestEnforcedNeedsACoherentTrailAndAModeThatActs(t *testing.T) {
 		{"undeclared mode", func(in *supervise.Instance) { in.Mode = 99 }, "decided, not enforced: mode 99"},
 		{"doubt", func(in *supervise.Instance) { in.Doubt, in.Outcome = true, supervise.OutcomeUnknown }, "decided, not enforced: trail in doubt"},
 		{"granted", func(in *supervise.Instance) { in.Approval = supervise.ApprovalGranted }, "exception or approval: approval granted"},
+		{"excepted", func(in *supervise.Instance) { in.Excepted = true }, "exception or approval: an exception taken"},
+		{"excepted in doubt", func(in *supervise.Instance) {
+			in.Excepted, in.Doubt, in.Outcome = true, true, supervise.OutcomeUnknown
+		}, "decided, not enforced: trail in doubt"},
 		{"asked", func(in *supervise.Instance) { in.Approval = supervise.ApprovalAsked }, "enforced: mode ENFORCE"},
 		{"report", func(in *supervise.Instance) { in.Observation, in.Source = "obs-9", "s9" }, "observed: self-reported by source <code>s9</code>"},
 	} {

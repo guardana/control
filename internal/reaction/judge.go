@@ -52,8 +52,9 @@ type judging struct {
 // Judge judges content, a stop list as read at the plane's clock now, against
 // route, given the prefix accepted before (the zero Prefix at first) and a
 // tolerance of one poll interval. Bytes after the last newline are a line
-// being written and are left out. It refuses a list over MaxListBytes or
-// MaxListLines; one whose header line is not the accepted one's, that is
+// being written and are left out. It refuses a route CheckStopping refuses,
+// however it was read; a list over MaxListBytes or MaxListLines; one whose
+// header line is not the accepted one's, that is
 // shorter than the accepted prefix or does not begin with it; a header that
 // is not line 1 alone or names another route; a line ParseLine refuses; a
 // finding id two lines name; a stop the route does not permit; a covered line
@@ -109,6 +110,9 @@ func JudgeFrom(route Route, from List, content []byte, now time.Time, tolerance 
 func judgeable(route Route, content []byte, now time.Time, tolerance time.Duration) ([]byte, int64, error) {
 	if route.digest == "" {
 		return nil, 0, fmt.Errorf("%w: no route was read", ErrListRoute)
+	}
+	if err := CheckStopping(route); err != nil {
+		return nil, 0, err
 	}
 	if !policy.UsableTime(now) || tolerance < 0 {
 		return nil, 0, ErrJudgeClock

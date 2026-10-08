@@ -168,3 +168,40 @@ func TestEachFindingNamesTheInstancesItCites(t *testing.T) {
 		t.Fatalf("rests %v, want %v", got, want)
 	}
 }
+
+// TestOnlyTheCallsAnExceptionWaivedAreExcepted: a waiver marks the call it
+// waived, never the evidence that met its condition nor another call its
+// finding cites: the failed lookup that excuses a skipped refund, and the
+// refund an early mail or a denied lookup came before, are not excepted.
+func TestOnlyTheCallsAnExceptionWaivedAreExcepted(t *testing.T) {
+	failed := call{req: "r1", tool: "get_order", upstream: "shop", outcome: "fail"}
+	denied := call{req: "r1", tool: "get_order", upstream: "shop", outcome: "deny"}
+	refund := call{req: "r2", tool: "issue_refund", upstream: "pay", at: 30 * time.Second}
+	early := act{call: call{req: "n1", tool: "send_mail", upstream: "mail", at: 10 * time.Second}, approval: approved}
+	for name, c := range map[string]struct {
+		x    supervise.Export
+		want string
+	}{
+		"a refund skipped after a failed lookup": {export(failed), ""},
+		"a denied lookup continued from":         {export(denied, refund), "r1"},
+		"an approved early mail":                 {acts(lookupCall(), early, act{call: refund}), "n1"},
+		"an approved call outside":               {acts(lookupCall(), manualRefund(approved)), "m1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			res := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: closedFamily(),
+				Exports: []supervise.Export{c.x}})
+			if len(only(res, ruleTaken)) != 1 {
+				t.Fatalf("%d exceptions taken:\n%s", len(only(res, ruleTaken)), dump(res.Findings))
+			}
+			var got []string
+			for _, in := range res.Instances {
+				if in.Excepted {
+					got = append(got, in.Request)
+				}
+			}
+			if strings.Join(got, " ") != c.want {
+				t.Fatalf("excepted %q, want %q", got, c.want)
+			}
+		})
+	}
+}

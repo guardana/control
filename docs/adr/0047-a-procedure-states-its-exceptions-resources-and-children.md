@@ -95,7 +95,10 @@ refusal of an approval. After it, across the run or its tree:
   does not count;
 - `DENIED_ACTION_RETRIED_AROUND`: a source's report of the denied tool, by a
   name its step or entry lists, that no plane call joins; `SUSPECTED` at most,
-  `INDETERMINATE` with no event time or a join in doubt.
+  `INDETERMINATE` with no event time or a join in doubt, and not checked while
+  any source is silent, never heard or not read. A span walk that runs out of
+  steps leaves this rule and `STEP_OUTSIDE_PROCEDURE` not checked, with their
+  findings kept.
 
 A retry whose trail holds an approved decision of the approvals store is not
 one. "After" is decided within the export both events were read from, by its

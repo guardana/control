@@ -190,30 +190,32 @@ func TestACasesDocumentItCannotReadIsRefused(t *testing.T) {
 		edit func(doc map[string]any)
 		want string
 	}{
-		"unknown at the top":    {"cases-0.2.json", func(d map[string]any) { d["extra"] = true }, "extra: a member the cases format does not have"},
-		"unknown in a case":     {"cases-0.2.json", func(d map[string]any) { caseOf(t, d, 1)["expected"] = true }, "cases.2.expected: a member"},
-		"unknown in an expect":  {"cases-0.2.json", func(d map[string]any) { expectedOf(t, d, 0)["verdict"] = "CONFIRMED" }, "cases.1.expect.verdict: a member"},
-		"unknown in a finding":  {"cases-0.2.json", func(d map[string]any) { findingOf(t, d, 0)["anchor"] = "x" }, "cases.1.expect.findings.1.anchor: a member"},
-		"version 0.2":           {"cases-0.2.json", func(d map[string]any) { d["schema_version"] = "0.2" }, "schema_version: not 0.1"},
-		"version as a number":   {"cases-0.2.json", func(d map[string]any) { d["schema_version"] = json.Number("0.1") }, "schema_version: want a string"},
-		"no expect":             {"cases-0.2.json", func(d map[string]any) { delete(caseOf(t, d, 0), "expect") }, "cases.1.expect: missing"},
-		"no expected findings":  {"cases-0.2.json", func(d map[string]any) { delete(expectedOf(t, d, 0), "findings") }, "cases.1.expect.findings: missing"},
-		"no expected rules":     {"cases-0.2.json", func(d map[string]any) { delete(expectedOf(t, d, 0), "rules") }, "cases.1.expect.rules: missing"},
-		"null findings":         {"cases-0.2.json", func(d map[string]any) { expectedOf(t, d, 0)["findings"] = nil }, "cases.1.expect.findings: want a list"},
-		"unknown verdict":       {"cases-0.2.json", func(d map[string]any) { findingOf(t, d, 0)["verdict"] = "PROBABLE" }, "cases.1.expect.findings.1.verdict: want"},
-		"unspecified verdict":   {"cases-0.2.json", func(d map[string]any) { findingOf(t, d, 0)["verdict"] = "UNSPECIFIED" }, "cases.1.expect.findings.1.verdict: want"},
-		"unknown rule state":    {"cases-0.2.json", func(d map[string]any) { rulesOf(t, d, 0)["EXCEPTION_TAKEN"] = "DONE" }, "cases.1.expect.rules.EXCEPTION_TAKEN: want"},
-		"a request twice":       {"cases-0.2.json", func(d map[string]any) { findingOf(t, d, 1)["requests"] = []any{"r1", "r1"} }, "cases.2.expect.findings.1.requests: r1 twice"},
-		"no case":               {"cases-0.2.json", func(d map[string]any) { d["cases"] = []any{} }, "cases: no case"},
-		"a name twice":          {"cases-0.2.json", func(d map[string]any) { caseOf(t, d, 1)["name"] = "a waiver taken" }, "cases.2.name: given to two cases"},
-		"an unknown event key":  {"cases-0.2.json", func(d map[string]any) { firstEvent(t, d)["eventID"] = "x" }, "cases.1.evidence.1.events.1: "},
-		"whole left out":        {"cases-0.2.json", func(d map[string]any) { delete(evidenceOf(t, d), "whole") }, "cases.1.evidence.1.whole: missing"},
-		"a path and events":     {"cases-0.2.json", func(d map[string]any) { evidenceOf(t, d)["path"] = "x.jsonl" }, "cases.1.evidence.1: a path or events, not both"},
-		"a closed run unstated": {"cases-0.2.json", func(d map[string]any) { delete(caseOf(t, d, 0)["run"].(map[string]any), "closed") }, "cases.1.run.closed: missing"},
-		"a local last_heard":    {"cases-0.2.json", func(d map[string]any) { sourceOf(t, d, 2)["last_heard"] = "2026-10-05T11:00:00+01:00" }, "cases.3.sources.1.last_heard: want a UTC time"},
-		"a missing procedure":   {"cases-0.2.json", func(d map[string]any) { d["procedure"] = "none.json" }, "none.json"},
-		"a refused procedure":   {"cases-0.2.json", func(d map[string]any) { d["procedure"] = "cases-0.1.json" }, "procedure refused"},
-		"a missing export":      {"cases-0.1.json", func(d map[string]any) { evidenceOf(t, d)["path"] = "none.jsonl" }, "none.jsonl"},
+		"unknown at the top":     {"cases-0.2.json", func(d map[string]any) { d["extra"] = true }, "extra: a member the cases format does not have"},
+		"unknown in a case":      {"cases-0.2.json", func(d map[string]any) { caseOf(t, d, 1)["expected"] = true }, "cases.2.expected: a member"},
+		"unknown in an expect":   {"cases-0.2.json", func(d map[string]any) { expectedOf(t, d, 0)["verdict"] = "CONFIRMED" }, "cases.1.expect.verdict: a member"},
+		"unknown in a finding":   {"cases-0.2.json", func(d map[string]any) { findingOf(t, d, 0)["anchor"] = "x" }, "cases.1.expect.findings.1.anchor: a member"},
+		"version 0.2":            {"cases-0.2.json", func(d map[string]any) { d["schema_version"] = "0.2" }, "schema_version: not 0.1"},
+		"version as a number":    {"cases-0.2.json", func(d map[string]any) { d["schema_version"] = json.Number("0.1") }, "schema_version: want a string"},
+		"no expect":              {"cases-0.2.json", func(d map[string]any) { delete(caseOf(t, d, 0), "expect") }, "cases.1.expect: missing"},
+		"no expected findings":   {"cases-0.2.json", func(d map[string]any) { delete(expectedOf(t, d, 0), "findings") }, "cases.1.expect.findings: missing"},
+		"no expected rules":      {"cases-0.2.json", func(d map[string]any) { delete(expectedOf(t, d, 0), "rules") }, "cases.1.expect.rules: missing"},
+		"null findings":          {"cases-0.2.json", func(d map[string]any) { expectedOf(t, d, 0)["findings"] = nil }, "cases.1.expect.findings: want a list"},
+		"unknown verdict":        {"cases-0.2.json", func(d map[string]any) { findingOf(t, d, 0)["verdict"] = "PROBABLE" }, "cases.1.expect.findings.1.verdict: want"},
+		"unspecified verdict":    {"cases-0.2.json", func(d map[string]any) { findingOf(t, d, 0)["verdict"] = "UNSPECIFIED" }, "cases.1.expect.findings.1.verdict: want"},
+		"unknown rule state":     {"cases-0.2.json", func(d map[string]any) { rulesOf(t, d, 0)["EXCEPTION_TAKEN"] = "DONE" }, "cases.1.expect.rules.EXCEPTION_TAKEN: want"},
+		"a request twice":        {"cases-0.2.json", func(d map[string]any) { findingOf(t, d, 1)["requests"] = []any{"r1", "r1"} }, "cases.2.expect.findings.1.requests: r1 twice"},
+		"a source silent twice":  {"cases-0.2.json", func(d map[string]any) { expectedOf(t, d, 2)["silent"] = []any{"s", "s"} }, "cases.3.expect.silent: s twice"},
+		"never_heard not a list": {"cases-0.2.json", func(d map[string]any) { expectedOf(t, d, 2)["never_heard"] = "s" }, "cases.3.expect.never_heard: "},
+		"no case":                {"cases-0.2.json", func(d map[string]any) { d["cases"] = []any{} }, "cases: no case"},
+		"a name twice":           {"cases-0.2.json", func(d map[string]any) { caseOf(t, d, 1)["name"] = "a waiver taken" }, "cases.2.name: given to two cases"},
+		"an unknown event key":   {"cases-0.2.json", func(d map[string]any) { firstEvent(t, d)["eventID"] = "x" }, "cases.1.evidence.1.events.1: "},
+		"whole left out":         {"cases-0.2.json", func(d map[string]any) { delete(evidenceOf(t, d), "whole") }, "cases.1.evidence.1.whole: missing"},
+		"a path and events":      {"cases-0.2.json", func(d map[string]any) { evidenceOf(t, d)["path"] = "x.jsonl" }, "cases.1.evidence.1: a path or events, not both"},
+		"a closed run unstated":  {"cases-0.2.json", func(d map[string]any) { delete(caseOf(t, d, 0)["run"].(map[string]any), "closed") }, "cases.1.run.closed: missing"},
+		"a local last_heard":     {"cases-0.2.json", func(d map[string]any) { sourceOf(t, d, 2)["last_heard"] = "2026-10-05T11:00:00+01:00" }, "cases.3.sources.1.last_heard: want a UTC time"},
+		"a missing procedure":    {"cases-0.2.json", func(d map[string]any) { d["procedure"] = "none.json" }, "none.json"},
+		"a refused procedure":    {"cases-0.2.json", func(d map[string]any) { d["procedure"] = "cases-0.1.json" }, "procedure refused"},
+		"a missing export":       {"cases-0.1.json", func(d map[string]any) { evidenceOf(t, d)["path"] = "none.jsonl" }, "none.jsonl"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			code, stdout, stderr := invoke(t, "procedure", "test", editedCases(t, c.file, c.edit))
@@ -257,4 +259,55 @@ func sourceOf(t *testing.T, doc map[string]any, i int) map[string]any {
 	}
 	s, _ := ss[0].(map[string]any)
 	return s
+}
+
+// TestACaseWhoseSourcesWentUnheardFailsUnlessItSaysSo: with the rule
+// states it changes expected, a source never heard, one silent past its
+// heartbeat, and one named and not read each fail the case, naming the
+// source; the case passes once its expect lists that source as such, and
+// fails when it lists one that was heard.
+func TestACaseWhoseSourcesWentUnheardFailsUnlessItSaysSo(t *testing.T) {
+	const name = "a denied refund retried with other arguments"
+	unheard := func(edit func(c, src map[string]any)) func(doc map[string]any) {
+		return func(doc map[string]any) {
+			rulesOf(t, doc, 2)["DENIED_ACTION_RETRIED_AROUND"] = "NOT_CHECKED"
+			edit(caseOf(t, doc, 2), sourceOf(t, doc, 2))
+		}
+	}
+	never := func(_, src map[string]any) { delete(src, "last_heard") }
+	silent := func(_, src map[string]any) { src["last_heard"] = "2026-10-05T08:00:00Z" }
+	notRead := func(c, _ map[string]any) { c["sources_not_read"] = []any{"ghost"} }
+	expecting := func(edit func(c, src map[string]any), key string, ids ...any) func(c, src map[string]any) {
+		return func(c, src map[string]any) {
+			edit(c, src)
+			c["expect"].(map[string]any)[key] = ids
+		}
+	}
+	for label, c := range map[string]struct {
+		edit func(c, src map[string]any)
+		want string
+	}{
+		"never heard":           {never, "never heard [agent-runtime], want []"},
+		"silent":                {silent, "silent [agent-runtime], want []"},
+		"not read":              {notRead, "not read [ghost], want []"},
+		"never heard as silent": {expecting(never, "silent", "agent-runtime"), "never heard [agent-runtime], want []"},
+		"heard, said silent": {expecting(func(_, _ map[string]any) {}, "silent", "agent-runtime"),
+			"silent [], want [agent-runtime]"},
+	} {
+		t.Run(label, func(t *testing.T) {
+			failedCase(t, editedCases(t, "cases-0.2.json", unheard(c.edit)), name, c.want)
+		})
+	}
+	for label, edit := range map[string]func(c, src map[string]any){
+		"never heard": expecting(never, "never_heard", "agent-runtime"),
+		"silent":      expecting(silent, "silent", "agent-runtime"),
+		"not read":    expecting(notRead, "not_read", "ghost"),
+	} {
+		t.Run(label+" and expected", func(t *testing.T) {
+			code, stdout, stderr := invoke(t, "procedure", "test", editedCases(t, "cases-0.2.json", unheard(edit)))
+			if code != exitOK || stderr != "" || !strings.Contains(stdout, "ok   "+name+": ") {
+				t.Fatalf("exit %d, stderr %q:\n%s", code, stderr, stdout)
+			}
+		})
+	}
 }

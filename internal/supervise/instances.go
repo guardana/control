@@ -87,13 +87,13 @@ type Instance struct {
 	// Doubt is true when the trail is not one coherent chain, or the report
 	// can suggest nothing.
 	Doubt bool
-	// Excepted is true when an exception the procedure states was taken on a
-	// finding that cites the call.
+	// Excepted is true when an exception the procedure states waived a
+	// finding about the call; a call that only met the condition is not.
 	Excepted bool
 }
 
 // instancesOf is every call judged, and for each finding the places of the
-// calls it cites, each once. A call an EXCEPTION_TAKEN cites is Excepted.
+// calls it cites, each once. A call an exception waived is Excepted.
 func (e *evaluation) instancesOf(findings []*findingv1alpha1.FindingRecord) ([]Instance, [][]int) {
 	out := make([]Instance, 0, len(e.reqs)+len(e.unjoined))
 	byRequest, byObservation := map[string]int{}, map[string]int{}
@@ -121,13 +121,21 @@ func (e *evaluation) instancesOf(findings []*findingv1alpha1.FindingRecord) ([]I
 				rests[i] = append(rests[i], n)
 			}
 		}
-		if f.GetFinding().GetRuleId() == RuleExceptionTaken {
-			for _, n := range rests[i] {
-				out[n].Excepted = true
+	}
+	e.markExcepted(out, byRequest)
+	return out, rests
+}
+
+// markExcepted marks each call an exception waived, found in ins by its
+// request's place.
+func (e *evaluation) markExcepted(ins []Instance, byRequest map[string]int) {
+	for _, w := range e.waived {
+		for _, id := range w.calls {
+			if n, ok := byRequest[id]; ok {
+				ins[n].Excepted = true
 			}
 		}
 	}
-	return out, rests
 }
 
 func (e *evaluation) callOf(rq *request, tool [2]string) Instance {

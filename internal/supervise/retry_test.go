@@ -321,4 +321,31 @@ func TestTheRetryRulesSayWhatTheyChecked(t *testing.T) {
 	if got := strings.Join(verdicts(unsourced, ruleArgs), ","); got != runID+" FINDING_VERDICT_CONFIRMED" {
 		t.Errorf("with no source %s fires %q", ruleArgs, got)
 	}
+	report := ob{id: "obs-1", name: "issue_refund", at: 30 * time.Second}
+	neverHeard := source(report)
+	neverHeard.Heard = false
+	lapsed := source(report)
+	lapsed.LastHeard = t0.Add(-time.Hour)
+	quiet := source()
+	quiet.SourceID, quiet.Heard = "s2", false
+	for name, c := range map[string]struct {
+		sources []supervise.Source
+		notRead []string
+		want    string
+	}{
+		"heard":               {[]supervise.Source{source(report)}, nil, "RULE_STATE_CHECKED:"},
+		"never heard":         {[]supervise.Source{neverHeard}, nil, "RULE_STATE_NOT_CHECKED:a source is silent, never heard or not read"},
+		"silent":              {[]supervise.Source{lapsed}, nil, "RULE_STATE_NOT_CHECKED:a source is silent, never heard or not read"},
+		"another not read":    {[]supervise.Source{source(report)}, []string{"s9"}, "RULE_STATE_NOT_CHECKED:a source is silent, never heard or not read"},
+		"another never heard": {[]supervise.Source{source(report), quiet}, nil, "RULE_STATE_NOT_CHECKED:a source is silent, never heard or not read"},
+	} {
+		res := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(),
+			Exports: []supervise.Export{acts(denial())}, Sources: c.sources, SourcesNotRead: c.notRead})
+		if got := rules(res)[ruleAround]; got != c.want {
+			t.Errorf("a source %s: %s is %q, want %q", name, ruleAround, got, c.want)
+		}
+		if c.want != "RULE_STATE_CHECKED:" && len(only(res, ruleAround)) != 0 {
+			t.Errorf("a source %s: %s not checked with findings:\n%s", name, ruleAround, dump(res.Findings))
+		}
+	}
 }

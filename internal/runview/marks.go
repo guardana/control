@@ -77,14 +77,14 @@ func markOf(in supervise.Instance) markCell {
 		return cell(markBlocked, "denied by the policy")
 	case in.Outcome == supervise.OutcomeBlocked:
 		return cell(markBlocked, "blocked by the plane")
+	case in.Doubt:
+		return cell(markDecided, "trail in doubt")
 	case in.Excepted && in.Approval == supervise.ApprovalGranted:
 		return cell(markExcepted, "an exception taken, approval granted")
 	case in.Excepted:
 		return cell(markExcepted, "an exception taken")
 	case in.Approval == supervise.ApprovalGranted:
 		return cell(markExcepted, "approval granted")
-	case in.Doubt:
-		return cell(markDecided, "trail in doubt")
 	case in.Mode == controlv1.EnforcementMode_ENFORCEMENT_MODE_UNSPECIFIED:
 		return cell(markDecided, "no mode recorded")
 	case enforcing[in.Mode]:

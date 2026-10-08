@@ -184,7 +184,9 @@ with the events as that export writes them.</li>
 <code>NOT_CHECKED</code> or <code>OFF</code>) and every finding: its rule, its verdict
 (<code>CONFIRMED</code>, <code>SUSPECTED</code> or <code>INDETERMINATE</code>), the run it names, the requests
 it cites and, if any, the observations it cites. <code>&quot;findings&quot;: []</code> says no
-finding is made.</p>
+finding is made. <code>never_heard</code>, <code>silent</code> and <code>not_read</code>, each optional and
+<code>[]</code> when left out, list the sources the run was not judged against for that
+reason, so a source that went unheard fails a case that does not list it.</p>
 <h3 id="3-run-the-cases">3. Run the cases</h3>
 <pre><code>$ go run ./cmd/guardana-control procedure test testdata/procedure/cases-0.2.json
 ok   a waiver taken: EXCEPTION_TAKEN CONFIRMED
@@ -192,11 +194,12 @@ ok   a resource outside the run: RESOURCE_OUTSIDE_RUN CONFIRMED
 ok   a denied refund retried with other arguments: DENIED_ACTION_RETRIED_ARGUMENTS CONFIRMED
 procedure refund version 2: 3 cases, 3 passed, 0 failed
 </code></pre>
-<p>A case passes only when every rule's state and the whole set of findings
-match. A failing case names each difference on its line: a field of a finding
-that differs, a finding missing or unexpected, a rule whose state differs or
-that the expectation leaves out, or <code>refused:</code> and the reason when <code>supervise</code>
-refuses the case's input:</p>
+<p>A case passes only when every rule's state, the whole set of findings and
+the sources not judged against match. A failing case names each difference on
+its line: a field of a finding that differs, a finding missing or unexpected,
+a rule whose state differs or that the expectation leaves out, a list of
+sources that differs, or <code>refused:</code> and the reason when <code>supervise</code> refuses
+the case's input:</p>
 <pre><code>FAIL a resource outside the run: finding RESOURCE_OUTSIDE_RUN SUSPECTED run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa [r1 r2]: verdict CONFIRMED, want SUSPECTED
 </code></pre>
 <h2 id="verify">Verify</h2>

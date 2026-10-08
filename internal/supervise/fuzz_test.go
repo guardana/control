@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/guardana/control/internal/canon"
@@ -58,21 +57,7 @@ func checkAccepted(t *testing.T, raw []byte, p *supervise.Procedure) {
 		t.Fatalf("digest %s is not of the canonical form", p.Digest())
 	}
 	again, err := supervise.ReadProcedure(form)
-	if err != nil || !sameProcedure(again, p) {
+	if err != nil || !supervise.SameProcedure(again, p) {
 		t.Fatalf("the canonical form reads otherwise: %v", err)
 	}
-}
-
-// sameProcedure compares every member a procedure hands out, the binding of
-// each step included.
-func sameProcedure(a, b *supervise.Procedure) bool {
-	same := a.Digest() == b.Digest() && a.ID() == b.ID() && a.Version() == b.Version() &&
-		a.Schema() == b.Schema() && a.Children() == b.Children() && reflect.DeepEqual(a.Steps(), b.Steps()) &&
-		reflect.DeepEqual(a.Bindings(), b.Bindings()) && reflect.DeepEqual(a.Exceptions(), b.Exceptions())
-	for _, s := range b.Steps() {
-		ba, oka := a.BindingOf(s.Tool, s.Upstream)
-		bb, okb := b.BindingOf(s.Tool, s.Upstream)
-		same = same && ba == bb && oka == okb
-	}
-	return same
 }

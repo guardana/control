@@ -76,6 +76,21 @@ verify one.
   the log's line bound and refused the whole write. It now cites ten
   references, the most doubtful first, and counts the rest; its verdict is
   still weighed over all of them.
+- Under a `0.2` procedure judging a run's tree, one run's calls could confirm
+  a finding against another: a child's denial made the root's later call a
+  confirmed retry, a child's probe of another order confirmed
+  `RESOURCE_OUTSIDE_RUN` on the root, and a closed child took the tree's
+  `REPEATED_DENIAL` and deadline. A finding is now confirmed only on the named
+  run's own calls (a retry by a descendant of the denied run included); one
+  that needs another run's call is suspected and stops nothing.
+- The retry rules turned themselves off past about a thousand denials; they
+  now judge every denial. A tree is bounded at 400 runs, where its report
+  still fits the log's line.
+- `DENIED_ACTION_RETRIED_AROUND` read as checked with a source never heard,
+  silent or not read, and so did `STEP_OUTSIDE_PROCEDURE` when a span walk ran
+  out of steps; both read not checked now, and `procedure test` compares the
+  sources a case expects to be unheard.
+- A rule that is never confirmed could be recorded as confirmed; it is capped.
 
 ## [0.9.0-alpha] - 2026-10-07
 

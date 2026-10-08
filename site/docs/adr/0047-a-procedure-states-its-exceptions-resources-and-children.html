@@ -190,7 +190,10 @@ non-empty resource, where a read after the denial of anything but a read
 does not count;</li>
 <li><code>DENIED_ACTION_RETRIED_AROUND</code>: a source's report of the denied tool, by a
 name its step or entry lists, that no plane call joins; <code>SUSPECTED</code> at most,
-<code>INDETERMINATE</code> with no event time or a join in doubt.</li>
+<code>INDETERMINATE</code> with no event time or a join in doubt, and not checked while
+any source is silent, never heard or not read. A span walk that runs out of
+steps leaves this rule and <code>STEP_OUTSIDE_PROCEDURE</code> not checked, with their
+findings kept.</li>
 </ul>
 <p>A retry whose trail holds an approved decision of the approvals store is not
 one. &quot;After&quot; is decided within the export both events were read from, by its

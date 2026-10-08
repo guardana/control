@@ -50,3 +50,13 @@ func TestRuleIDsIsTheTablesSchema01Rows(t *testing.T) {
 		t.Fatalf("ruleIDs = %q", ruleIDs)
 	}
 }
+
+// TestRules02IsTheTablesRowsOnlySchema02Knows: the rules a 0.2 procedure
+// adds on the calls seen, in report order, without EXCEPTION_TAKEN.
+func TestRules02IsTheTablesRowsOnlySchema02Knows(t *testing.T) {
+	want := []string{"RESOURCE_OUTSIDE_RUN", "DENIED_ACTION_RETRIED_ARGUMENTS", "DENIED_ACTION_RETRIED_RESOURCE",
+		"DENIED_ACTION_RETRIED_AROUND"}
+	if !slices.Equal(rules02, want) {
+		t.Fatalf("rules02 = %q, want %q", rules02, want)
+	}
+}

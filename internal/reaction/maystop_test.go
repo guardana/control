@@ -143,3 +143,24 @@ func TestVerifyRouteRefusesARuleThatMayNotStop(t *testing.T) {
 		expectOnly(t, r.ID+" "+r.Version, err, reaction.ErrRouteRuleStops, append(routeRefusals(), envelopeRefusals()...))
 	}
 }
+
+// TestJudgeRefusesARouteThatNamesARuleThatMayNotStop: a route parsed, never
+// verified, that names one rule outside the table judges no list, from the
+// start or from a list accepted before; the same list under the six rules
+// that may stop is accepted.
+func TestJudgeRefusesARouteThatNamesARuleThatMayNotStop(t *testing.T) {
+	control := routeNaming(t, mayStop...)
+	if _, err := reaction.Judge(control, reaction.Prefix{}, newList(t, control).bytes(), clock0, poll); err != nil {
+		t.Fatalf("the six at their versions: %v", err)
+	}
+	for _, r := range insertable() {
+		route := routeNaming(t, mayStop[0], r)
+		content := newList(t, route).bytes()
+		_, err := reaction.Judge(route, reaction.Prefix{}, content, clock0, poll)
+		expectOnly(t, "Judge under "+r.ID+" "+r.Version, err, reaction.ErrRouteRuleStops,
+			append(routeRefusals(), reaction.ErrRouteRuleStops, reaction.ErrListRoute))
+		_, err = reaction.JudgeFrom(route, reaction.List{}, content, clock0, poll)
+		expectOnly(t, "JudgeFrom under "+r.ID+" "+r.Version, err, reaction.ErrRouteRuleStops,
+			append(routeRefusals(), reaction.ErrRouteRuleStops, reaction.ErrListRoute))
+	}
+}

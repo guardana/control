@@ -140,8 +140,18 @@ func (p *Procedure) checkException(e Exception, steps map[string]bool) error {
 		}
 		return nil
 	}
-	if !steps[e.Step] {
+	return checkStepException(e, steps)
+}
+
+// checkStepException refuses an exception on a rule about steps that names
+// no step, and one on a step skipped taken on an approval, which no call of
+// a step skipped can hold.
+func checkStepException(e Exception, steps map[string]bool) error {
+	switch {
+	case !steps[e.Step]:
 		return errors.New("an exception on a rule about steps names no step")
+	case e.Waives == RuleRequiredStepSkipped && e.When == WhenApprovalGranted:
+		return errors.New("an exception on " + RuleRequiredStepSkipped + " is never taken on an approval: a step skipped has no call")
 	}
 	return nil
 }

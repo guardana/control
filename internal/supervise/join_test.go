@@ -182,3 +182,45 @@ func BenchmarkJoinAChainOf10000Observations(b *testing.B) {
 	}
 	b.ReportMetric(10000, "observations/op")
 }
+
+// TestACutWalkLeavesTheRuleThatReadsJoinsNotChecked: a call of the allowed
+// search_docs at the foot of a chain joins the source's report of it at the
+// top when the walk reaches it, and the report says every rule was checked.
+// One span more and the walk is cut: no rule fires on an allowed name, so
+// only STEP_OUTSIDE_PROCEDURE's state can say the report may be a call the
+// plane never saw.
+func TestACutWalkLeavesTheRuleThatReadsJoinsNotChecked(t *testing.T) {
+	p := procWith(t)
+	for _, n := range []int{supervise.MaxWalkSteps, supervise.MaxWalkSteps + 1} {
+		src := chain(n, ob{id: "obs-top", name: "search_docs"}, observev1.SubjectKind_SUBJECT_KIND_AGENT, "mcp_call")
+		res := evaluate(t, supervise.Input{Procedure: p, Sources: []supervise.Source{src}, Exports: []supervise.Export{
+			export(call{req: "r5", tool: "search_docs", upstream: "docs", span: spanAt(n - 1)})}})
+		sameFindings(t, res.Findings)
+		want := "RULE_STATE_CHECKED:"
+		if n > supervise.MaxWalkSteps {
+			want = "RULE_STATE_NOT_CHECKED:a span walk ran out of steps, so a source's report may be a plane call"
+		}
+		if got := rules(res)[supervise.RuleStepOutsideProcedure]; got != want {
+			t.Errorf("a chain of %d: STEP_OUTSIDE_PROCEDURE is %q, want %q", n, got, want)
+		}
+	}
+}
+
+// TestACutWalkKeepsTheFindingsOfTheRuleItLeavesNotChecked: a tool outside
+// the procedure called at the foot of a cut chain is still CONFIRMED on its
+// plane call, beside the report the cut left in doubt.
+func TestACutWalkKeepsTheFindingsOfTheRuleItLeavesNotChecked(t *testing.T) {
+	p := procWith(t)
+	n := supervise.MaxWalkSteps + 1
+	src := chain(n, ob{id: "obs-top", name: "wipe_disk"}, observev1.SubjectKind_SUBJECT_KIND_AGENT, "mcp_call")
+	res := evaluate(t, supervise.Input{Procedure: p, Sources: []supervise.Source{src}, Exports: []supervise.Export{
+		export(call{req: "r5", tool: "wipe_disk", upstream: "ops", span: spanAt(n - 1)})}})
+	sameFindings(t, res.Findings,
+		want(p, "STEP_OUTSIDE_PROCEDURE", medium, alert, confirmed, id("STEP_OUTSIDE_PROCEDURE", "wipe_disk", "ops"),
+			evRef("r5-e1", "r5")),
+		want(p, "STEP_OUTSIDE_PROCEDURE", medium, alert, indetermin, id("STEP_OUTSIDE_PROCEDURE", "wipe_disk"),
+			obsRef("s1", "obs-top")))
+	if got := rules(res)[supervise.RuleStepOutsideProcedure]; got != "RULE_STATE_NOT_CHECKED:a span walk ran out of steps, so a source's report may be a plane call" {
+		t.Errorf("STEP_OUTSIDE_PROCEDURE is %q", got)
+	}
+}

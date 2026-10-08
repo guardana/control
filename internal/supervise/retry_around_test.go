@@ -47,7 +47,8 @@ func TestAReportAroundADenialIsPlacedByTimeOnly(t *testing.T) {
 // TestAReportAroundADenialInDoubtOfItsJoinIsIndeterminate: on a span chain
 // the join walks to its end the report joins the denied call itself and is
 // no retry; one span more and the walk is cut, so the report may be that
-// call or another, and the finding is indeterminate.
+// call or another, the finding is indeterminate and the rule, with
+// STEP_OUTSIDE_PROCEDURE, reads not checked.
 func TestAReportAroundADenialInDoubtOfItsJoinIsIndeterminate(t *testing.T) {
 	for _, n := range []int{supervise.MaxWalkSteps, supervise.MaxWalkSteps + 1} {
 		src := chain(n, ob{id: "obs-top", name: "issue_refund", at: 20 * time.Second}, observev1.SubjectKind_SUBJECT_KIND_AGENT, "mcp_call")
@@ -60,6 +61,15 @@ func TestAReportAroundADenialInDoubtOfItsJoinIsIndeterminate(t *testing.T) {
 		}
 		if got := verdicts(res, ruleAround); !slices.Equal(got, want) {
 			t.Fatalf("at %d spans: findings %q, want %q:\n%s", n, got, want, dump(res.Findings))
+		}
+		state := "RULE_STATE_CHECKED:"
+		if n > supervise.MaxWalkSteps {
+			state = "RULE_STATE_NOT_CHECKED:a span walk ran out of steps, so a source's report may be a plane call"
+		}
+		for _, id := range []string{ruleAround, supervise.RuleStepOutsideProcedure} {
+			if got := rules(res)[id]; got != state {
+				t.Errorf("at %d spans: %s is %q, want %q", n, id, got, state)
+			}
 		}
 	}
 }

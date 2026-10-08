@@ -101,7 +101,9 @@ the format does not have is refused:
 `NOT_CHECKED` or `OFF`) and every finding: its rule, its verdict
 (`CONFIRMED`, `SUSPECTED` or `INDETERMINATE`), the run it names, the requests
 it cites and, if any, the observations it cites. `"findings": []` says no
-finding is made.
+finding is made. `never_heard`, `silent` and `not_read`, each optional and
+`[]` when left out, list the sources the run was not judged against for that
+reason, so a source that went unheard fails a case that does not list it.
 
 ### 3. Run the cases
 
@@ -113,11 +115,12 @@ ok   a denied refund retried with other arguments: DENIED_ACTION_RETRIED_ARGUMEN
 procedure refund version 2: 3 cases, 3 passed, 0 failed
 ```
 
-A case passes only when every rule's state and the whole set of findings
-match. A failing case names each difference on its line: a field of a finding
-that differs, a finding missing or unexpected, a rule whose state differs or
-that the expectation leaves out, or `refused:` and the reason when `supervise`
-refuses the case's input:
+A case passes only when every rule's state, the whole set of findings and
+the sources not judged against match. A failing case names each difference on
+its line: a field of a finding that differs, a finding missing or unexpected,
+a rule whose state differs or that the expectation leaves out, a list of
+sources that differs, or `refused:` and the reason when `supervise` refuses
+the case's input:
 
 ```
 FAIL a resource outside the run: finding RESOURCE_OUTSIDE_RUN SUSPECTED run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa [r1 r2]: verdict CONFIRMED, want SUSPECTED

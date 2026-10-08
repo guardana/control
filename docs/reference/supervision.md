@@ -41,10 +41,10 @@ another digest is refused.
 | `order` | each step id and the steps it must follow |
 | `allow` | tools the run may also call, each with `tool`, `upstream`, `observed_as` and `binds` |
 | `bindings` | each binding's name and its calls' resource type; a `binds` lists at most one |
-| `exceptions` | each an `id`, the rule it `waives`, a `step`, or for `STEP_OUTSIDE_PROCEDURE` a `tool` and `upstream` the procedure lacks, and one `condition`: `approval: granted`, `step_failed: <step>` or `reason: <code>`. Only that rule, on an approval, and the three about steps take one |
+| `exceptions` | each an `id`, the rule it `waives`, a `step`, or for `STEP_OUTSIDE_PROCEDURE` a `tool` and `upstream` the procedure lacks, and one `condition`: `approval: granted`, `step_failed: <step>` or `reason: <code>`. Only that rule, on an approval, and the three about steps take one, a skipped step not on an approval |
 | `children` | `inherit` or `separate`, below |
 | `rules` | for each rule of its schema, a `severity` (`info` to `critical`) and an `escalation` (`inform` or `alert`) |
-| `max_denials`, `deadline_seconds` | at least 1 each; leaving one out turns its rule off, and the report says so |
+| `max_denials`, `deadline_seconds` | at least 1 each; leaving one out turns its rule off |
 
 ## What belongs to the run
 
@@ -57,8 +57,10 @@ lists its children, not judged. Plane events count when their run is judged
 and their tenant the run's. Observations count when their correlation is
 claimed, with such a run id, tenant and project. Only a tool call is a
 step, never a prompt or a resource read. An observation joined to a plane
-event by trace and span id is that call, not a second one. Everything else is
-counted in the report and left out.
+event by trace and span id is that call, not a second one; a join cut short
+leaves `STEP_OUTSIDE_PROCEDURE` and `DENIED_ACTION_RETRIED_AROUND` not
+checked, findings kept. Everything else is counted in the report and
+left out.
 
 An evidence export is read only when it is a regular file of this account
 that the group and others cannot write, as the procedure and the descriptors
@@ -78,7 +80,7 @@ nothing but that file's owner and mode protects it.
 | `RESOURCE_OUTSIDE_RUN` | one binding's calls carry more than one resource; indeterminate for a binding called with no id of its type |
 | `DENIED_ACTION_RETRIED_ARGUMENTS` | a denied tool is called again with other arguments |
 | `DENIED_ACTION_RETRIED_RESOURCE` | another tool is called on a denied call's resource |
-| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool and no plane call joins it |
+| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool and no plane call joins it; not checked while a `--source` is absent, never heard or silent |
 | `EXCEPTION_TAKEN` | an exception waived a finding, at that finding's verdict at most |
 
 An order cannot be told when a proposal or a failure has no time, or between
@@ -101,7 +103,7 @@ run whose exports are whole; otherwise the report says not checked and why.
 ## Output and exit status
 
 After the run's line come, under `0.2`, its children mode and a `tree:` line
-per run, each after its parent, `not judged` under `separate`; one line per
+per run, `not judged` under `separate`; one line per
 step, with its requests and apart the observations no plane call joins; one
 per finding, with its run under `0.2` and the references it left out; one per
 rule; and `not checked: source <id> absent`, `never heard` or `silent` for
@@ -124,7 +126,7 @@ write.
 escalation, typed references to plane events and observations and a v1
 finding with its id, rule, severity, verdict and run. Its id is `fnd-` and 32
 hex digits, a function of the run, the procedure, the rule and what it is
-about, so running the command again finds the same ids. The log, `findings.jsonl`, is JSON Lines in an
+about, so a rerun finds the same ids. The log, `findings.jsonl`, is JSON Lines in an
 owner-only directory; each run of the command ends its write with a
 `SuperviseReport`, and a write without one is never read.
 
@@ -140,22 +142,21 @@ A record is schema `0.2` exactly when it carries a member `0.1` lacks
 | `LogHeader` | a new log's first line: `log_id`, `log-` and 32 hex digits of 128 random bits |
 
 A log with no header is read as it is; an empty one gains one when opened.
-The reader refuses an unknown schema or a member its schema lacks, naming
-the field, as a 0.9 reader refuses every `0.2` line.
+The reader refuses an unknown schema or a member its schema lacks, as a 0.9 reader refuses every `0.2` line.
 
 ## notify
 
-`notify` hands each `alert` record, in log order and as one line on its
+`notify` hands each `alert` record, in log order, one line on its
 standard input, to the program after `--`, without a shell, and kills its
 process group at the timeout (30 s by default) and again once the program
-has exited, so no child it started outlives the delivery. A delivery is keyed on the
+has exited. A delivery is keyed on the
 finding id and verdict and marked in the state only after the program exits
-0, so a crash delivers that one record again: a receiver drops a key it has
+0, so a crash delivers that record again: a receiver drops a key it has
 seen. The state is an owner-only directory, locked while in use; `--init`
 starts one and is refused over one. The next run retries a failed delivery;
 only a new state delivers a delivered alert again. Exit 0 when nothing
 failed; 1 when a delivery failed, on an interrupt, or when the run stopped
-after a program had run (a mark that did not reach the disk, a log that
+after a program had run (a mark not on disk, a log
 changed under it); 2, printing nothing, when the state or the log is refused
 before any program ran.
 

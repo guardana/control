@@ -29,11 +29,12 @@ type waiverKey struct {
 
 // waiver is what one exception took away for one run: the weakest verdict
 // of the findings it waived, what they rested on and what met the
-// condition.
+// condition, and the requests of the calls it waived.
 type waiver struct {
-	cap  controlv1.FindingVerdict
-	refs []ref
-	seen map[string]bool
+	cap   controlv1.FindingVerdict
+	refs  []ref
+	seen  map[string]bool
+	calls []string
 }
 
 func (w *waiver) add(r ref) {
@@ -84,7 +85,7 @@ func (e *evaluation) exceptCalls(d draft) (draft, bool) {
 		x, h, evidence := e.firstMet(xs, e.byRequest[r.r.GetEvent().GetRequestId()])
 		switch h {
 		case met:
-			e.waive(x, d.run, d.cap, []ref{r}, evidence)
+			e.waive(x, d.run, d.cap, []ref{r}, evidence, r.r.GetEvent().GetRequestId())
 			continue
 		case notMet:
 			certain = true
@@ -112,7 +113,11 @@ func (e *evaluation) exceptStep(rule string, d draft) (draft, bool) {
 	x, h, evidence := e.firstMet(xs, call)
 	switch h {
 	case met:
-		e.waive(x, d.run, d.cap, d.refs, evidence)
+		var waived []string
+		if call != nil {
+			waived = append(waived, call.id)
+		}
+		e.waive(x, d.run, d.cap, d.refs, evidence, waived...)
 		return d, false
 	case unknown:
 		d.cap = weaker(d.cap, indeterminate)
@@ -237,8 +242,9 @@ func (e *evaluation) stepFailed(step string) (holding, *ref) {
 }
 
 // waive records that exception x took away a finding naming run that could
-// say verdict at most and rested on refs; evidence met the condition.
-func (e *evaluation) waive(x int, run string, verdict controlv1.FindingVerdict, refs []ref, evidence *ref) {
+// say verdict at most and rested on refs; evidence met the condition, and
+// calls are the requests the finding was about.
+func (e *evaluation) waive(x int, run string, verdict controlv1.FindingVerdict, refs []ref, evidence *ref, calls ...string) {
 	key := waiverKey{exception: x, run: run}
 	w := e.waived[key]
 	if w == nil {
@@ -252,6 +258,7 @@ func (e *evaluation) waive(x int, run string, verdict controlv1.FindingVerdict, 
 	if evidence != nil {
 		w.add(*evidence)
 	}
+	w.calls = append(w.calls, calls...)
 }
 
 // exceptionsTaken is one EXCEPTION_TAKEN per exception and run whose

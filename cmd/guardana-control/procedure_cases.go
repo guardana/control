@@ -296,7 +296,7 @@ func (c *casesReader) source(raw json.RawMessage, where string) supervise.Source
 }
 
 func (c *casesReader) expect(raw json.RawMessage, where string) caseExpect {
-	m := c.object(raw, where, []string{"rules", "findings"}, nil)
+	m := c.object(raw, where, []string{"rules", "findings"}, []string{"never_heard", "silent", "not_read"})
 	if c.err != nil {
 		return caseExpect{}
 	}
@@ -314,6 +314,14 @@ func (c *casesReader) expect(raw json.RawMessage, where string) caseExpect {
 	}
 	for i, item := range c.list(m["findings"], where+".findings") {
 		e.findings = append(e.findings, c.finding(item, at(where+".findings", i)))
+	}
+	for _, l := range []struct {
+		key string
+		ids *[]string
+	}{{"never_heard", &e.neverHeard}, {"silent", &e.silent}, {"not_read", &e.notRead}} {
+		if _, stated := m[l.key]; stated {
+			*l.ids = c.ids(m, where, l.key)
+		}
 	}
 	return e
 }

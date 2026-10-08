@@ -8,13 +8,16 @@ import (
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/supervise"
 )
 
 // caseExpect is what a case expects: the state of every rule the report
-// lists, and every finding.
+// lists, every finding, and every source never heard, silent or not read,
+// each list sorted.
 type caseExpect struct {
-	rules    map[string]findingv1alpha1.RuleState
-	findings []caseFinding
+	rules                       map[string]findingv1alpha1.RuleState
+	findings                    []caseFinding
+	neverHeard, silent, notRead []string
 }
 
 // caseFinding is a finding as a case states it: its rule, its verdict, the
@@ -134,6 +137,27 @@ func compareFindings(want, got []caseFinding) []string {
 	}
 	for _, g := range got {
 		out = append(out, "unexpected finding "+g.String())
+	}
+	return out
+}
+
+// compareSources names each list of sources the supervision did not judge
+// against that differs from the one expected: a source unheard fails a case
+// that does not say so, since every rule that rests on it was weakened.
+func compareSources(want caseExpect, res *supervise.Result) []string {
+	var out []string
+	for _, c := range []struct {
+		what      string
+		got, want []string
+	}{
+		{"never heard", res.NeverHeard, want.neverHeard},
+		{"silent", res.Silent, want.silent},
+		{"not read", res.SourcesNotRead, want.notRead},
+	} {
+		got := slices.Sorted(slices.Values(c.got))
+		if !slices.Equal(got, c.want) {
+			out = append(out, fmt.Sprintf("%s [%s], want [%s]", c.what, strings.Join(got, " "), strings.Join(c.want, " ")))
+		}
 	}
 	return out
 }

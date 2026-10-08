@@ -177,6 +177,21 @@ walk on its own as well as in total. Either can move a finding below
 the log's line bound and refused the whole write. It now cites ten
 references, the most doubtful first, and counts the rest; its verdict is
 still weighed over all of them.</li>
+<li>Under a <code>0.2</code> procedure judging a run's tree, one run's calls could confirm
+a finding against another: a child's denial made the root's later call a
+confirmed retry, a child's probe of another order confirmed
+<code>RESOURCE_OUTSIDE_RUN</code> on the root, and a closed child took the tree's
+<code>REPEATED_DENIAL</code> and deadline. A finding is now confirmed only on the named
+run's own calls (a retry by a descendant of the denied run included); one
+that needs another run's call is suspected and stops nothing.</li>
+<li>The retry rules turned themselves off past about a thousand denials; they
+now judge every denial. A tree is bounded at 400 runs, where its report
+still fits the log's line.</li>
+<li><code>DENIED_ACTION_RETRIED_AROUND</code> read as checked with a source never heard,
+silent or not read, and so did <code>STEP_OUTSIDE_PROCEDURE</code> when a span walk ran
+out of steps; both read not checked now, and <code>procedure test</code> compares the
+sources a case expects to be unheard.</li>
+<li>A rule that is never confirmed could be recorded as confirmed; it is capped.</li>
 </ul>
 <h2 id="090-alpha---2026-10-07"><a href="https://github.com/guardana/control/releases/tag/v0.9.0-alpha">0.9.0-alpha</a> - 2026-10-07</h2>
 <p>A confirmed finding can now stop the run it is about. An operator signs a

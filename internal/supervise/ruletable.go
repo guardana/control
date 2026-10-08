@@ -23,10 +23,6 @@ const (
 	RuleExceptionTaken               = "EXCEPTION_TAKEN"
 )
 
-// RuleVersion is the version the six rules of schema 0.1 share; each rule's
-// own is RuleVersionOf.
-const RuleVersion = "1"
-
 // ruleRow is one rule. version is the version of the rule's code, so a
 // change to what it fires on in an unchanged document is a new version and
 // so a new finding id; what a document configures is named by its digest.

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/guardana/control/internal/supervise"
@@ -93,7 +94,8 @@ func runProcedureCase(p *supervise.Procedure, c procedureCase) (string, bool) {
 		return "refused: " + err.Error(), false
 	}
 	got := foundOf(res.Findings)
-	diffs := append(compareRules(c.expect.rules, res.Report.GetRules()), compareFindings(c.expect.findings, got)...)
+	diffs := slices.Concat(compareRules(c.expect.rules, res.Report.GetRules()), compareFindings(c.expect.findings, got),
+		compareSources(c.expect, res))
 	if len(diffs) > 0 {
 		return strings.Join(diffs, "; "), false
 	}

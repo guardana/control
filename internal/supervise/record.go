@@ -114,6 +114,9 @@ func (s scope) procedureRef() *findingv1alpha1.ProcedureRef {
 func (s scope) record(d draft) *findingv1alpha1.FindingRecord {
 	spec := s.proc.rules[d.rule]
 	verdict := d.cap
+	if !CanConfirm(d.rule) {
+		verdict = weaker(verdict, suspected)
+	}
 	for _, r := range d.refs {
 		verdict = weaker(verdict, r.v)
 	}

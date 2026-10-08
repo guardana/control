@@ -109,6 +109,8 @@ func TestASchema02ProcedureIsRefused(t *testing.T) {
 	for _, cond := range []string{stepFailed, reasonDeny} {
 		cases["STEP_OUTSIDE_PROCEDURE waived when "+cond] = withException(t, exception("STEP_OUTSIDE_PROCEDURE", onTool, cond))
 	}
+	// A step skipped has no call whose trail could hold an approval.
+	cases["REQUIRED_STEP_SKIPPED waived on an approval"] = withException(t, exception("REQUIRED_STEP_SKIPPED", onStep, approval))
 	for name, doc := range cases {
 		p, err := supervise.ReadProcedure([]byte(doc))
 		if !errors.Is(err, supervise.ErrProcedure) || p != nil {
@@ -134,7 +136,9 @@ func TestSchema02AdmitsWhatItsRefusalsBorderOn(t *testing.T) {
 	}
 	for _, rule := range []string{"REQUIRED_STEP_SKIPPED", "STEP_OUT_OF_ORDER", "CONTINUED_AFTER_FAILURE"} {
 		for _, cond := range []string{approval, stepFailed, reasonDeny} {
-			cases[rule+" waived when "+cond] = withException(t, exception(rule, onStep, cond))
+			if rule != "REQUIRED_STEP_SKIPPED" || cond != approval {
+				cases[rule+" waived when "+cond] = withException(t, exception(rule, onStep, cond))
+			}
 		}
 	}
 	for name, doc := range cases {

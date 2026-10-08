@@ -159,7 +159,7 @@ another digest is refused.</p>
 </tr>
 <tr>
 <td><code>exceptions</code></td>
-<td>each an <code>id</code>, the rule it <code>waives</code>, a <code>step</code>, or for <code>STEP_OUTSIDE_PROCEDURE</code> a <code>tool</code> and <code>upstream</code> the procedure lacks, and one <code>condition</code>: <code>approval: granted</code>, <code>step_failed: &lt;step&gt;</code> or <code>reason: &lt;code&gt;</code>. Only that rule, on an approval, and the three about steps take one</td>
+<td>each an <code>id</code>, the rule it <code>waives</code>, a <code>step</code>, or for <code>STEP_OUTSIDE_PROCEDURE</code> a <code>tool</code> and <code>upstream</code> the procedure lacks, and one <code>condition</code>: <code>approval: granted</code>, <code>step_failed: &lt;step&gt;</code> or <code>reason: &lt;code&gt;</code>. Only that rule, on an approval, and the three about steps take one, a skipped step not on an approval</td>
 </tr>
 <tr>
 <td><code>children</code></td>
@@ -171,7 +171,7 @@ another digest is refused.</p>
 </tr>
 <tr>
 <td><code>max_denials</code>, <code>deadline_seconds</code></td>
-<td>at least 1 each; leaving one out turns its rule off, and the report says so</td>
+<td>at least 1 each; leaving one out turns its rule off</td>
 </tr>
 </tbody>
 </table>
@@ -185,8 +185,10 @@ lists its children, not judged. Plane events count when their run is judged
 and their tenant the run's. Observations count when their correlation is
 claimed, with such a run id, tenant and project. Only a tool call is a
 step, never a prompt or a resource read. An observation joined to a plane
-event by trace and span id is that call, not a second one. Everything else is
-counted in the report and left out.</p>
+event by trace and span id is that call, not a second one; a join cut short
+leaves <code>STEP_OUTSIDE_PROCEDURE</code> and <code>DENIED_ACTION_RETRIED_AROUND</code> not
+checked, findings kept. Everything else is counted in the report and
+left out.</p>
 <p>An evidence export is read only when it is a regular file of this account
 that the group and others cannot write, as the procedure and the descriptors
 are. A <code>CONFIRMED</code> finding rests on the export being the plane's, and
@@ -238,7 +240,7 @@ nothing but that file's owner and mode protects it.</p>
 </tr>
 <tr>
 <td><code>DENIED_ACTION_RETRIED_AROUND</code></td>
-<td>a source reports the denied tool and no plane call joins it</td>
+<td>a source reports the denied tool and no plane call joins it; not checked while a <code>--source</code> is absent, never heard or silent</td>
 </tr>
 <tr>
 <td><code>EXCEPTION_TAKEN</code></td>
@@ -262,7 +264,7 @@ never heard or has no descriptor at its path, and checked only on a closed
 run whose exports are whole; otherwise the report says not checked and why.</p>
 <h2 id="output-and-exit-status">Output and exit status</h2>
 <p>After the run's line come, under <code>0.2</code>, its children mode and a <code>tree:</code> line
-per run, each after its parent, <code>not judged</code> under <code>separate</code>; one line per
+per run, <code>not judged</code> under <code>separate</code>; one line per
 step, with its requests and apart the observations no plane call joins; one
 per finding, with its run under <code>0.2</code> and the references it left out; one per
 rule; and <code>not checked: source &lt;id&gt; absent</code>, <code>never heard</code> or <code>silent</code> for
@@ -298,7 +300,7 @@ write.</p>
 escalation, typed references to plane events and observations and a v1
 finding with its id, rule, severity, verdict and run. Its id is <code>fnd-</code> and 32
 hex digits, a function of the run, the procedure, the rule and what it is
-about, so running the command again finds the same ids. The log, <code>findings.jsonl</code>, is JSON Lines in an
+about, so a rerun finds the same ids. The log, <code>findings.jsonl</code>, is JSON Lines in an
 owner-only directory; each run of the command ends its write with a
 <code>SuperviseReport</code>, and a write without one is never read.</p>
 <p>A record is schema <code>0.2</code> exactly when it carries a member <code>0.1</code> lacks
@@ -334,20 +336,19 @@ owner-only directory; each run of the command ends its write with a
 </tbody>
 </table>
 <p>A log with no header is read as it is; an empty one gains one when opened.
-The reader refuses an unknown schema or a member its schema lacks, naming
-the field, as a 0.9 reader refuses every <code>0.2</code> line.</p>
+The reader refuses an unknown schema or a member its schema lacks, as a 0.9 reader refuses every <code>0.2</code> line.</p>
 <h2 id="notify">notify</h2>
-<p><code>notify</code> hands each <code>alert</code> record, in log order and as one line on its
+<p><code>notify</code> hands each <code>alert</code> record, in log order, one line on its
 standard input, to the program after <code>--</code>, without a shell, and kills its
 process group at the timeout (30 s by default) and again once the program
-has exited, so no child it started outlives the delivery. A delivery is keyed on the
+has exited. A delivery is keyed on the
 finding id and verdict and marked in the state only after the program exits
-0, so a crash delivers that one record again: a receiver drops a key it has
+0, so a crash delivers that record again: a receiver drops a key it has
 seen. The state is an owner-only directory, locked while in use; <code>--init</code>
 starts one and is refused over one. The next run retries a failed delivery;
 only a new state delivers a delivered alert again. Exit 0 when nothing
 failed; 1 when a delivery failed, on an interrupt, or when the run stopped
-after a program had run (a mark that did not reach the disk, a log that
+after a program had run (a mark not on disk, a log
 changed under it); 2, printing nothing, when the state or the log is refused
 before any program ran.</p>
 <h2 id="findings-export">findings export</h2>
