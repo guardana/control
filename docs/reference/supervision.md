@@ -50,7 +50,7 @@ another digest is refused.
 
 Only a run opened in a runs directory is supervised; a plane's local run is
 refused. Under `0.1` and `inherit` the run must be a root. `inherit` reads
-the root's tree, up to a fixed bound, and refuses a member of another tenant
+the root's tree, up to 400 runs, and refuses a member of another tenant
 or a parent chain that misses the root; every member is judged, and
 the tree is closed when every member is. `separate` takes any opened run and
 lists its children, not judged. Plane events count when their run is judged
@@ -71,7 +71,7 @@ nothing but that file's owner and mode protects it.
 | --- | --- |
 | `REPEATED_DENIAL` | one tool on one upstream is denied by policy `max_denials` times; the plane's own blocks are counted apart |
 | `STEP_OUTSIDE_PROCEDURE` | a tool neither a step nor allowed is called, or reported and not joined to a plane call |
-| `DEADLINE_EXCEEDED` | the run's events span more than `deadline_seconds` |
+| `DEADLINE_EXCEEDED` | events span over `deadline_seconds`; `0.2`: one per late run |
 | `REQUIRED_STEP_SKIPPED` | a required step has no instance |
 | `STEP_OUT_OF_ORDER` | a step comes before one it must follow; indeterminate when the order cannot be told |
 | `CONTINUED_AFTER_FAILURE` | another step is proposed after a step's failure, before a retry of it, unless it is the first instance of a step out of order; indeterminate when the order cannot be told |
@@ -84,7 +84,9 @@ nothing but that file's owner and mode protects it.
 An order cannot be told when a proposal or a failure has no time, or between
 two exports' proposals of one instant; within one export the plane's append
 order holds. A retry continues nothing, though each denial of it counts
-toward `REPEATED_DENIAL`, and an approval belongs to the step it held.
+toward `REPEATED_DENIAL`, and an approval belongs to the step it held. A
+retry rule compares at most 2^20 pairs; each denial past them is
+`INDETERMINATE`.
 
 ## The verdict
 
@@ -119,11 +121,10 @@ write.
 
 `guardana.control.finding.v1alpha1`, outside the v1 promise. A
 `FindingRecord` holds the tenant, project, procedure (id, version, digest),
-escalation, typed references (a plane event by event and request id, an
-observation by source and observation id) and a v1 finding with its id, rule,
-severity, verdict and run. Its id is `fnd-` and 32 hex digits, a function of
-the run, the procedure, the rule and what it is about, so running the command
-again finds the same ids. The log, `findings.jsonl`, is JSON Lines in an
+escalation, typed references to plane events and observations and a v1
+finding with its id, rule, severity, verdict and run. Its id is `fnd-` and 32
+hex digits, a function of the run, the procedure, the rule and what it is
+about, so running the command again finds the same ids. The log, `findings.jsonl`, is JSON Lines in an
 owner-only directory; each run of the command ends its write with a
 `SuperviseReport`, and a write without one is never read.
 
@@ -138,10 +139,9 @@ A record is schema `0.2` exactly when it carries a member `0.1` lacks
 | `SuperviseReport.run_tree` | each run's id and parent, the supervised run first and every other after its parent |
 | `LogHeader` | a new log's first line: `log_id`, `log-` and 32 hex digits of 128 random bits |
 
-A log made before this release keeps no header and is read as it is; an
-empty one gains one when opened. The reader refuses an unknown schema or a
-member its schema lacks, naming the field, as a 0.9 reader refuses every
-`0.2` line.
+A log with no header is read as it is; an empty one gains one when opened.
+The reader refuses an unknown schema or a member its schema lacks, naming
+the field, as a 0.9 reader refuses every `0.2` line.
 
 ## notify
 

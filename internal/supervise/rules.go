@@ -28,7 +28,7 @@ func byTool(reqs []*request, keep func(*request) bool) ([][2]string, map[[2]stri
 }
 
 // repeatedDenial fires for a tool on an upstream whose calls the policy
-// denied max_denials times or more.
+// denied max_denials times or more; under 0.2 per run, as repeatedByRun says.
 func (e *evaluation) repeatedDenial() []draft {
 	keys, groups := byTool(e.reqs, (*request).denied)
 	var out []draft
@@ -37,16 +37,13 @@ func (e *evaluation) repeatedDenial() []draft {
 		if uint64(len(denials)) < uint64(e.p.maxDenials) {
 			continue
 		}
+		if e.namesRuns() {
+			out = append(out, e.repeatedByRun(tool, denials)...)
+			continue
+		}
 		d := draft{rule: RuleRepeatedDenial, anchor: tool[:], cap: confirmed}
 		for _, rq := range denials {
 			d.refs = append(d.refs, rq.ref(rq.terminal))
-		}
-		if e.namesRuns() {
-			c, told := crossing(denials, e.p.maxDenials)
-			d.named(c.terminal.GetRunId())
-			if !told {
-				d.cap = indeterminate
-			}
 		}
 		out = append(out, d)
 	}
@@ -97,31 +94,23 @@ func (e *evaluation) outsideProcedure() []draft {
 
 // deadline fires when the run's plane events span more than
 // deadline_seconds. Events from more than one export may come from planes
-// whose clocks differ, so then it only suggests. A 0.2 finding cites the
-// first event and the earliest past the deadline, and names that one's run,
-// indeterminate when another run's event shares its time; a 0.1 finding
-// cites the first and the last.
+// whose clocks differ, so then it only suggests. A 0.1 finding cites the
+// first event and the last; under 0.2 deadlineByRun gives each run its own.
 func (e *evaluation) deadline() []draft {
 	limit := time.Duration(e.p.deadlineSeconds) * time.Second
 	if e.first == nil || e.last.GetOccurredAt().AsTime().Sub(e.first.GetOccurredAt().AsTime()) <= limit {
 		return nil
 	}
-	d := draft{rule: RuleDeadlineExceeded, cap: confirmed}
+	most := confirmed
 	if len(e.in.Exports) != 1 {
-		d.cap = suspected
+		most = suspected
 	}
-	cited := []*controlv1.Event{e.first, e.last}
 	if e.namesRuns() {
-		var told bool
-		cited[1], told = e.pastDeadline(limit)
-		d.named(cited[1].GetRunId())
-		if !told {
-			d.cap = indeterminate
-		}
+		return e.deadlineByRun(limit, most)
 	}
-	for _, ev := range cited {
-		rq := e.byRequest[ev.GetRequestId()]
-		d.refs = append(d.refs, rq.ref(ev))
+	d := draft{rule: RuleDeadlineExceeded, cap: most}
+	for _, ev := range []*controlv1.Event{e.first, e.last} {
+		d.refs = append(d.refs, e.byRequest[ev.GetRequestId()].ref(ev))
 	}
 	return []draft{d}
 }

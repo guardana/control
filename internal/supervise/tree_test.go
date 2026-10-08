@@ -3,6 +3,7 @@ package supervise_test
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -92,16 +93,18 @@ func deniedRequests(res *supervise.Result) string {
 
 // TestAGrandchildsEventCountsUnderInherit: under inherit the denials of the
 // root, its child and its grandchild are three, and at a bound of three they
-// fire; the outside run's is left out. Under separate, and under 0.1, only
-// the supervised run's own events are read.
+// fire on the grandchild, whose denial is the third, citing its own first;
+// the outside run's is left out. Under separate, and under 0.1, only the
+// supervised run's own events are read.
 func TestAGrandchildsEventCountsUnderInherit(t *testing.T) {
 	x := export(spread()...)
 	inherit := treeEvaluate(t, supervise.Input{Procedure: procAt3(t, inheritProc(t)), Tree: family(), Exports: []supervise.Export{x}})
 	if got := inherit.Report.GetRead(); got.GetEventsTaken() != 13 || got.GetEventsLeftOut()["another run"] != 3 {
 		t.Fatalf("inherit read %v; want 13 events taken and the outside run's 3 left out", got)
 	}
-	if got := deniedRequests(inherit); got != "d1 d2 d3" {
-		t.Fatalf("inherit: REPEATED_DENIAL rests on %q, want d1 d2 d3", got)
+	if got, run := deniedRequests(inherit), verdicts(inherit, supervise.RuleRepeatedDenial); got != "d3 d1 d2" ||
+		!slices.Equal(run, []string{grandchildRun + " FINDING_VERDICT_SUSPECTED"}) {
+		t.Fatalf("inherit: REPEATED_DENIAL is %q resting on %q, want the grandchild suspected on d3 d1 d2", run, got)
 	}
 
 	separate := treeEvaluate(t, supervise.Input{Procedure: procAt3(t, separateProc(t)), Tree: family()[:2],

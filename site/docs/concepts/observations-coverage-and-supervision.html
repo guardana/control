@@ -182,8 +182,11 @@ them is ever <code>CONFIRMED</code>.</p>
 <code>CONFIRMED</code> finding of one of the rules that may stop a run, under a route
 the operator signed, about a run that is still open. A finding that rests on
 an observation therefore never stops a run, and neither does an exception
-taken or a denied tool reported around the plane. Every other finding stays
-in the log, for <code>notify</code>, <code>findings export</code> and the run view.</p>
+taken or a denied tool reported around the plane. Within a tree of runs, a
+finding is confirmed only on the named run's own calls: one run's denial or
+resource cannot get another run stopped, and a finding that needs another
+run's call is suspected at most. Every other finding stays in the log, for
+<code>notify</code>, <code>findings export</code> and the run view.</p>
 <h2 id="where-the-parts-meet">Where the parts meet</h2>
 <p>Observations and plane events meet by trace and span id: a joined
 observation is the plane's call, not a second one. Coverage and supervision

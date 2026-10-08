@@ -132,7 +132,8 @@ func TestEachByteOfAResourceTellsItApart(t *testing.T) {
 // TestEveryRunThatCalledABindingIsNamed: under inherit 42 in one child and
 // 43 in its sibling name both, each by its own anchor and citing its own
 // calls first, then the first call of each other resource; a run that called
-// the binding with no id is named too.
+// the binding with no id is named too. No run's own calls carry two ids, so
+// each finding needs another run's call and is suspected.
 func TestEveryRunThatCalledABindingIsNamed(t *testing.T) {
 	res := supervise02(t, siblings(), acts(lookupOf("a1", 0, orderNo("42")).in(childRun),
 		refundOf("b1", 10*time.Second, orderNo("43")).in(siblingRun), lookupOf("r1", 20*time.Second, nil),
@@ -144,7 +145,7 @@ func TestEveryRunThatCalledABindingIsNamed(t *testing.T) {
 	}
 	for i, w := range want {
 		f := got[i].GetFinding()
-		if f.GetRunId() != w.run || f.GetFindingId() != id02(ruleResource, "order", w.run) || f.GetVerdict() != confirmed ||
+		if f.GetRunId() != w.run || f.GetFindingId() != id02(ruleResource, "order", w.run) || f.GetVerdict() != suspected ||
 			citedEvents(got[i]) != w.cites {
 			t.Errorf("finding %d names %s with id %s, %s, citing %q; want %s citing %q", i, f.GetRunId(), f.GetFindingId(),
 				f.GetVerdict(), citedEvents(got[i]), w.run, w.cites)
@@ -193,8 +194,9 @@ func TestManyResourcesWriteBoundedRecords(t *testing.T) {
 		t.Fatalf("%d findings:\n%s", len(got), dump(res.Findings))
 	}
 	for _, f := range got {
-		// Each run's 150 calls, and the 150 of the other run that each name an id.
-		if len(f.GetRefs()) != supervise.MaxFindingRefs || f.GetRefsLeftOut() != 300-supervise.MaxFindingRefs {
+		// Each run's own 150 calls carry 150 ids and confirm it alone.
+		if len(f.GetRefs()) != supervise.MaxFindingRefs || f.GetRefsLeftOut() != 150-supervise.MaxFindingRefs ||
+			f.GetFinding().GetVerdict() != confirmed {
 			t.Errorf("%s cites %d and leaves out %d", f.GetFinding().GetRunId(), len(f.GetRefs()), f.GetRefsLeftOut())
 		}
 		lineOf(t, f)

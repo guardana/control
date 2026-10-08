@@ -69,8 +69,11 @@ Only a stop acts, and it takes the strongest case alone: a deterministic,
 `CONFIRMED` finding of one of the rules that may stop a run, under a route
 the operator signed, about a run that is still open. A finding that rests on
 an observation therefore never stops a run, and neither does an exception
-taken or a denied tool reported around the plane. Every other finding stays
-in the log, for `notify`, `findings export` and the run view.
+taken or a denied tool reported around the plane. Within a tree of runs, a
+finding is confirmed only on the named run's own calls: one run's denial or
+resource cannot get another run stopped, and a finding that needs another
+run's call is suspected at most. Every other finding stays in the log, for
+`notify`, `findings export` and the run view.
 
 ## Where the parts meet
 

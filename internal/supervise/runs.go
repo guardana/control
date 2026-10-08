@@ -2,6 +2,7 @@ package supervise
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 	"time"
 
@@ -57,11 +58,54 @@ func eventOrder(a, b *controlv1.Event) int {
 		cmp.Compare(a.GetEventId(), b.GetEventId()))
 }
 
+// repeatedByRun is REPEATED_DENIAL under 0.2 for the denials of one tool
+// across the tree, which reach max_denials. A run whose own denials reach it
+// is confirmed on them alone. Otherwise a run with a denial at or after the
+// one that brought the tree's count there is suspected: its finding needs
+// other runs' denials. When that order is untold, it is indeterminate.
+func (e *evaluation) repeatedByRun(tool [2]string, denials []*request) []draft {
+	n := uint64(e.p.maxDenials)
+	own := map[string][]*request{}
+	for _, rq := range denials {
+		own[rq.terminal.GetRunId()] = append(own[rq.terminal.GetRunId()], rq)
+	}
+	c, told := crossing(denials, e.p.maxDenials)
+	tree := suspected
+	if !told || !e.oneExportHolds(denials) {
+		tree = indeterminate
+	}
+	late := atOrAfter(denials, c)
+	var out []draft
+	for _, run := range slices.Sorted(maps.Keys(own)) {
+		d := draft{rule: RuleRepeatedDenial, anchor: tool[:], cap: confirmed}
+		s := &refSet{}
+		for _, rq := range own[run] {
+			s.event(rq, rq.terminal)
+		}
+		switch {
+		case uint64(len(own[run])) >= n:
+		case late[run]:
+			d.cap = tree
+			for _, rq := range denials {
+				if rq.terminal.GetRunId() != run {
+					s.event(rq, rq.terminal)
+				}
+			}
+		default:
+			continue
+		}
+		s.into(&d)
+		d.named(run)
+		out = append(out, d)
+	}
+	return out
+}
+
 // crossing is the denial that brought the count to n, by the order of the
-// blocks: the one a stop must land on. There are at least n denials. It is
-// not told when its block has no time, when a block of another run shares
-// its time, or when the denials span two runs and one block has no time,
-// which could stand anywhere in the order.
+// blocks. There are at least n denials. It is not told when its block has no
+// time, when a block of another run shares its time, or when the denials
+// span two runs and one block has no time, which could stand anywhere in the
+// order.
 func crossing(denials []*request, n uint32) (*request, bool) {
 	sorted := slices.SortedFunc(slices.Values(denials), func(a, b *request) int { return eventOrder(a.terminal, b.terminal) })
 	c := sorted[n-1]
@@ -80,28 +124,62 @@ func crossing(denials []*request, n uint32) (*request, bool) {
 	return c, !twoRuns || !untimed
 }
 
+// atOrAfter is the runs with a denial at or after c, or one that could be:
+// one of c's time, or with no time.
+func atOrAfter(denials []*request, c *request) map[string]bool {
+	out := map[string]bool{}
+	for _, rq := range denials {
+		if eventOrder(rq.terminal, c.terminal) >= 0 || tied(rq.terminal, c.terminal) || !rq.terminal.GetOccurredAt().IsValid() {
+			out[rq.terminal.GetRunId()] = true
+		}
+	}
+	return out
+}
+
+// oneExportHolds reports whether one export holds every one of the denials'
+// blocks: only then do their times share a clock.
+func (e *evaluation) oneExportHolds(denials []*request) bool {
+	held := map[int]int{}
+	for _, rq := range denials {
+		for _, p := range e.placesOf()[rq.terminal.GetEventId()] {
+			held[p.export]++
+		}
+	}
+	for _, n := range held {
+		if n == len(denials) {
+			return true
+		}
+	}
+	return false
+}
+
 // tied reports two events with a time, the same one.
 func tied(a, b *controlv1.Event) bool {
 	return a.GetOccurredAt().IsValid() && b.GetOccurredAt().IsValid() &&
 		a.GetOccurredAt().AsTime().Equal(b.GetOccurredAt().AsTime())
 }
 
-// pastDeadline is the earliest event of the run more than limit after its
-// first, and whether no event of another run shares its time; the run's
-// last event is past the limit, so there is one.
-func (e *evaluation) pastDeadline(limit time.Duration) (*controlv1.Event, bool) {
+// deadlineByRun gives each run with an event more than limit after the
+// tree's first its own finding, citing that first event and the run's own
+// earliest past the limit, at most most.
+func (e *evaluation) deadlineByRun(limit time.Duration, most controlv1.FindingVerdict) []draft {
 	start := e.first.GetOccurredAt().AsTime()
-	var out *controlv1.Event
+	past := map[string]*controlv1.Event{}
 	for _, ev := range e.rd.events {
+		run := ev.GetRunId()
 		if ev.GetOccurredAt().IsValid() && ev.GetOccurredAt().AsTime().Sub(start) > limit &&
-			(out == nil || eventOrder(ev, out) < 0) {
-			out = ev
+			(past[run] == nil || eventOrder(ev, past[run]) < 0) {
+			past[run] = ev
 		}
 	}
-	for _, ev := range e.rd.events {
-		if ev.GetRunId() != out.GetRunId() && tied(ev, out) {
-			return out, false
+	out := make([]draft, 0, len(past))
+	for _, run := range slices.Sorted(maps.Keys(past)) {
+		d := draft{rule: RuleDeadlineExceeded, cap: most}
+		for _, ev := range []*controlv1.Event{e.first, past[run]} {
+			d.refs = append(d.refs, e.byRequest[ev.GetRequestId()].ref(ev))
 		}
+		d.named(run)
+		out = append(out, d)
 	}
-	return out, true
+	return out
 }

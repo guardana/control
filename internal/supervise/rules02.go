@@ -1,10 +1,6 @@
 package supervise
 
-import (
-	"fmt"
-
-	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
-)
+import findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 
 // rules02 are the rules a 0.2 procedure adds that rest on the calls seen, in
 // the order a report lists them; EXCEPTION_TAKEN follows them and rests on
@@ -32,16 +28,10 @@ func (e *evaluation) states02(out map[string]ruleState, base ruleState) {
 	out[RuleExceptionTaken] = e.takenState(out, base)
 }
 
-// uncheckable02 marks those of rules02 that have nothing to compare, or more
-// than they may.
+// uncheckable02 marks those of rules02 that have nothing to compare.
 func (e *evaluation) uncheckable02(out map[string]ruleState) {
 	if !e.anyHeld() {
 		out[RuleResourceOutsideRun] = notChecked("no call of a binding carries a resource id of its type")
-	}
-	for _, id := range rules02[1:] {
-		if n := e.retryIx().pairs(id); n > MaxRetryPairs {
-			out[id] = notChecked(fmt.Sprintf("%d pairs of a denial and a call to compare, bound %d", n, MaxRetryPairs))
-		}
 	}
 	if len(e.in.Sources) == 0 {
 		out[RuleDeniedActionRetriedAround] = notChecked("no observation source was read")

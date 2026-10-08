@@ -1,7 +1,6 @@
 package supervise_test
 
 import (
-	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -110,41 +109,6 @@ func TestTheOrderExportsAreReadInDecidesNoRetry(t *testing.T) {
 	for i := range ab {
 		if !proto.Equal(ab[i], ba[i]) || ab[i].GetFinding().GetFindingId() != id02(ruleArgs, []string{"c1", "d1"}[i], runID) {
 			t.Fatalf("finding %d:\n%s\n%s", i, dump(ab), dump(ba))
-		}
-	}
-}
-
-// TestEachRetryFormIsBoundedOnItsOwn: n denials of one tool on one resource
-// are n(n-1) pairs for each plane form, and with 1024 reports of the tool
-// n*1024 for the report around it. At 1024 denials every form is within
-// MaxRetryPairs; at 1025 each is not checked and says why.
-func TestEachRetryFormIsBoundedOnItsOwn(t *testing.T) {
-	if supervise.MaxRetryPairs != 1<<20 {
-		t.Fatalf("MaxRetryPairs %d: the runs below are sized for 1<<20", supervise.MaxRetryPairs)
-	}
-	var reports []ob
-	for i := range 1024 {
-		reports = append(reports, ob{id: fmt.Sprintf("obs-%04d", i), name: "issue_refund", at: 5000 * time.Second})
-	}
-	src := source(reports...)
-	for _, n := range []int{1024, 1025} {
-		var as []act
-		for i := range n {
-			as = append(as, act{call: call{req: fmt.Sprintf("d%04d", i), tool: "issue_refund", upstream: "pay",
-				at: time.Duration(i) * time.Second, outcome: "deny"}, hash: "sha256:" + fmt.Sprintf("%064x", i), res: orderNo("42")})
-		}
-		res := retrySupervise(t, src, acts(as...))
-		want := map[string]string{ruleArgs: checked, ruleRes: checked, ruleAround: checked}
-		fired := map[string]int{ruleArgs: n - 1, ruleRes: 0, ruleAround: n}
-		if n == 1025 {
-			for rule := range want {
-				want[rule], fired[rule] = "RULE_STATE_NOT_CHECKED:1049600 pairs of a denial and a call to compare, bound 1048576", 0
-			}
-		}
-		for _, rule := range retryRules {
-			if got := rules(res)[rule]; got != want[rule] || len(only(res, rule)) != fired[rule] {
-				t.Errorf("at %d: %s is %s with %d findings; want %s with %d", n, rule, got, len(only(res, rule)), want[rule], fired[rule])
-			}
 		}
 	}
 }

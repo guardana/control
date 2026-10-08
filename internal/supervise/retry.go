@@ -9,11 +9,6 @@ import (
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 )
 
-// MaxRetryPairs bounds the pairs of a denial and a call, or a report, one
-// retry rule compares. Past it the rule is not checked, never judged in
-// part.
-const MaxRetryPairs = 1 << 20
-
 // resourceKey is a call's resource as its bytes say. No id is normalised:
 // "042" and "42" are two resources.
 type resourceKey struct{ typ, id, tenant, env string }
@@ -24,35 +19,46 @@ func resourceOf(rq *request) resourceKey {
 }
 
 // retryIndex is what the retry rules compare: the policy's denials of a tool
-// call, by request id, and the run's tool calls by tool and by resource and
-// its reports no plane call joins by name, each in reading order.
+// call, by request id, the run's tool calls by tool and by resource, its
+// reports no plane call joins by name, and where each event was read.
 type retryIndex struct {
 	denials    []*request
-	byTool     map[[2]string][]*request
-	byResource map[resourceKey][]*request
+	byTool     map[[2]string]*retryGroup
+	byResource map[resourceKey]*retryGroup
 	reported   map[string][]*observev1.Observation
 	// names are the names a source reports each entry's tool under.
 	names map[[2]string][]string
+	pos   map[*controlv1.Event]int
 }
 
 func (e *evaluation) retryIx() *retryIndex {
 	if e.retry != nil {
 		return e.retry
 	}
-	x := &retryIndex{byTool: map[[2]string][]*request{}, byResource: map[resourceKey][]*request{},
-		reported: map[string][]*observev1.Observation{}, names: map[[2]string][]string{}}
+	x := &retryIndex{byTool: map[[2]string]*retryGroup{}, byResource: map[resourceKey]*retryGroup{},
+		reported: map[string][]*observev1.Observation{}, names: map[[2]string][]string{}, pos: map[*controlv1.Event]int{}}
+	for i, ev := range e.rd.events {
+		x.pos[ev] = i
+	}
+	tools, resources := map[[2]string][]*request{}, map[resourceKey][]*request{}
 	for _, rq := range e.reqs {
 		tool, ok := rq.tool()
 		if !ok {
 			continue
 		}
-		x.byTool[tool] = append(x.byTool[tool], rq)
+		tools[tool] = append(tools[tool], rq)
 		if k := resourceOf(rq); k.id != "" {
-			x.byResource[k] = append(x.byResource[k], rq)
+			resources[k] = append(resources[k], rq)
 		}
 		if rq.denied() {
 			x.denials = append(x.denials, rq)
 		}
+	}
+	for tool, calls := range tools {
+		x.byTool[tool] = newRetryGroup(calls, hashOf, x.pos)
+	}
+	for k, calls := range resources {
+		x.byResource[k] = newRetryGroup(calls, toolKey, x.pos)
 	}
 	slices.SortStableFunc(x.denials, func(a, b *request) int { return cmp.Compare(a.id, b.id) })
 	for _, o := range e.unjoined {
@@ -71,24 +77,15 @@ func toolOf(rq *request) [2]string {
 	return tool
 }
 
-// pairs is how many pairs of a denial and a call or a report rule compares.
-func (x *retryIndex) pairs(rule string) uint64 {
-	var n uint64
-	for _, d := range x.denials {
-		switch rule {
-		case RuleDeniedActionRetriedArguments:
-			n += uint64(len(x.byTool[toolOf(d)])) - 1
-		case RuleDeniedActionRetriedResource:
-			if group := x.byResource[resourceOf(d)]; len(group) > 0 {
-				n += uint64(len(group)) - 1
-			}
-		case RuleDeniedActionRetriedAround:
-			for _, name := range x.names[toolOf(d)] {
-				n += uint64(len(x.reported[name]))
-			}
-		}
-	}
-	return n
+// hashOf keys a call by its arguments hash, "" when it carries none.
+func hashOf(rq *request) string {
+	return rq.proposal.GetProposed().GetArguments().GetCanonicalHash()
+}
+
+// toolKey keys a call by its tool and upstream; it is never "".
+func toolKey(rq *request) string {
+	t := toolOf(rq)
+	return t[0] + "\x00" + t[1]
 }
 
 // retryFinding gathers the retries of one denial from one run by the verdict
@@ -125,33 +122,43 @@ func retryDrafts(rule string, d *request, byRun map[string]*retryFinding) []draf
 
 // retried fires for each denial with a call of its group that form names a
 // retry of it, proposed after the denial was decided, per run that made one.
-func (e *evaluation) retried(rule string, group func(*request) []*request,
+// A run that is neither the denied run nor its descendant suggests at most.
+func (e *evaluation) retried(rule string, group func(*request) *retryGroup, keyOf func(*request) string,
 	form func(d, r *request) (controlv1.FindingVerdict, bool)) []draft {
 	var out []draft
+	budget := uint64(MaxRetryPairs)
 	for _, d := range e.retryIx().denials {
+		g := group(d)
+		if g == nil {
+			continue
+		}
 		byRun := map[string]*retryFinding{}
-		for _, r := range group(d) {
-			if r == d {
-				continue
-			}
+		judged := g.scan(d, keyOf(d), e.startOf(g, d), &budget, func(r *request) {
 			v, ok := form(d, r)
 			if !ok {
-				continue
+				return
 			}
 			w, ok := r.unapproved()
 			if !ok {
-				continue
+				return
 			}
 			o, ok := e.after(d.decided, r.proposal)
 			if !ok {
-				continue
+				return
 			}
 			v = weaker(weaker(v, w), weaker(o, r.verdict()))
 			run := r.proposal.GetRunId()
+			if !e.ownScope(d.proposal.GetRunId(), run) {
+				v = weaker(v, suspected)
+			}
 			if byRun[run] == nil {
 				byRun[run] = &retryFinding{}
 			}
 			byRun[run].by[rank(v)].event(r, r.proposal)
+		})
+		if !judged {
+			out = append(out, unjudgedDrafts(rule, d, g.mayRetry(d, keyOf(d)))...)
+			continue
 		}
 		out = append(out, retryDrafts(rule, d, byRun)...)
 	}
@@ -176,7 +183,7 @@ func (rq *request) unapproved() (controlv1.FindingVerdict, bool) {
 // repeated.
 func (e *evaluation) retriedArguments() []draft {
 	x := e.retryIx()
-	return e.retried(RuleDeniedActionRetriedArguments, func(d *request) []*request { return x.byTool[toolOf(d)] },
+	return e.retried(RuleDeniedActionRetriedArguments, func(d *request) *retryGroup { return x.byTool[toolOf(d)] }, hashOf,
 		func(d, r *request) (controlv1.FindingVerdict, bool) {
 			hd, hr := d.proposal.GetProposed().GetArguments().GetCanonicalHash(), r.proposal.GetProposed().GetArguments().GetCanonicalHash()
 			switch {
@@ -195,7 +202,7 @@ func (e *evaluation) retriedArguments() []draft {
 // know, might be either.
 func (e *evaluation) retriedResource() []draft {
 	x := e.retryIx()
-	return e.retried(RuleDeniedActionRetriedResource, func(d *request) []*request { return x.byResource[resourceOf(d)] },
+	return e.retried(RuleDeniedActionRetriedResource, func(d *request) *retryGroup { return x.byResource[resourceOf(d)] }, toolKey,
 		func(d, r *request) (controlv1.FindingVerdict, bool) {
 			if toolOf(d) == toolOf(r) {
 				return indeterminate, false
@@ -228,7 +235,17 @@ func isRead(rq *request) (bool, bool) {
 func (e *evaluation) retriedAround() []draft {
 	x := e.retryIx()
 	var out []draft
+	budget := uint64(MaxRetryPairs)
 	for _, d := range x.denials {
+		var reports uint64
+		for _, name := range x.names[toolOf(d)] {
+			reports += uint64(len(x.reported[name]))
+		}
+		if reports > budget {
+			out = append(out, unjudgedDrafts(RuleDeniedActionRetriedAround, d, []string{d.decided.GetRunId()})...)
+			continue
+		}
+		budget -= reports
 		f := &retryFinding{}
 		for _, name := range x.names[toolOf(d)] {
 			for _, o := range x.reported[name] {

@@ -66,8 +66,10 @@ func (e *evaluation) resourceOutside() []draft {
 }
 
 // outsideBinding judges the calls of b, one finding per run that made one.
-// It cites the run's own calls first, then the calls that show the
-// resources.
+// A run is confirmed only when its own calls carry two resources; one whose
+// finding needs another run's call is suspected at most. It cites the calls
+// that show the run's own resources, the rest of its calls, then, unless its
+// own confirm it, the calls of other runs that show the resources.
 func (e *evaluation) outsideBinding(b Binding, calls []*request) []draft {
 	most, fires := bindingVerdict(b, calls)
 	if !fires {
@@ -84,29 +86,48 @@ func (e *evaluation) outsideBinding(b Binding, calls []*request) []draft {
 	}
 	out := make([]draft, 0, len(byRun))
 	for _, run := range slices.Sorted(maps.Keys(byRun)) {
-		d := draft{rule: RuleResourceOutsideRun, anchor: []string{b.Name}, cap: runVerdict(most, byRun[run])}
+		own := byRun[run]
+		v, _ := bindingVerdict(b, own)
+		d := draft{rule: RuleResourceOutsideRun, anchor: []string{b.Name}, cap: runVerdict(most, own)}
+		if v != confirmed {
+			d.cap = weaker(d.cap, suspected)
+		}
 		s := &refSet{}
-		for _, rq := range byRun[run] {
-			if rank(rq.verdict()) >= rank(d.cap) {
+		shown := map[*request]bool{}
+		for _, rq := range shownBy(own, b, true) {
+			shown[rq] = true
+			s.event(rq, rq.proposal)
+		}
+		for _, rq := range own {
+			if rank(rq.verdict()) >= rank(d.cap) && !shown[rq] {
 				s.event(rq, rq.proposal)
 			}
 		}
-		var offered uint64
-		for _, rq := range proof {
-			if offered == MaxFindingRefs {
-				break
-			}
-			if rq.proposal.GetRunId() != run {
-				s.event(rq, rq.proposal)
-				offered++
-			}
+		if d.cap != confirmed {
+			offerOthers(s, proof, run, inProof[run])
 		}
-		s.leftOut += uint64(len(proof)) - inProof[run] - offered
 		s.into(&d)
 		d.named(run)
 		out = append(out, d)
 	}
 	return out
+}
+
+// offerOthers offers s the calls of proof another run than run made, at most
+// MaxFindingRefs of them, and counts the rest; mine is how many of proof are
+// run's.
+func offerOthers(s *refSet, proof []*request, run string, mine uint64) {
+	var offered uint64
+	for _, rq := range proof {
+		if offered == MaxFindingRefs {
+			break
+		}
+		if rq.proposal.GetRunId() != run {
+			s.event(rq, rq.proposal)
+			offered++
+		}
+	}
+	s.leftOut += uint64(len(proof)) - mine - offered
 }
 
 // bindingVerdict is the most the calls of b say, and whether they fire. Two

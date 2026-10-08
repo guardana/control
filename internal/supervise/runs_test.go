@@ -7,7 +7,6 @@ import (
 	"time"
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
-	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/findinglog"
 	"github.com/guardana/control/internal/supervise"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -46,107 +45,124 @@ func deny(req, run string, at time.Duration) call {
 	return call{req: req, tool: "issue_refund", upstream: "pay", at: at, outcome: "deny", run: run}
 }
 
-// TestARepeatedDenialNamesTheRunWhoseDenialCrossedTheBound: of four denials
-// the fourth in time names its run, whichever run made the others, whatever
-// came after it and in whatever order the exports are read.
-func TestARepeatedDenialNamesTheRunWhoseDenialCrossedTheBound(t *testing.T) {
+// Each run of the family as a finding's run and verdict renders it.
+var (
+	rootC, rootS, rootI    = runID + " FINDING_VERDICT_CONFIRMED", runID + " FINDING_VERDICT_SUSPECTED", runID + " FINDING_VERDICT_INDETERMINATE"
+	childC, childS, childI = childRun + " FINDING_VERDICT_CONFIRMED", childRun + " FINDING_VERDICT_SUSPECTED", childRun + " FINDING_VERDICT_INDETERMINATE"
+)
+
+// TestARepeatedDenialConfirmsOnARunsOwnDenials: four denials of one run
+// confirm it; when only the tree's reach four, each run with a denial at or
+// after the fourth is suspected, and indeterminate when its exports' clocks
+// leave that order untold. Each finding's id names its run.
+func TestARepeatedDenialConfirmsOnARunsOwnDenials(t *testing.T) {
 	root3 := []call{deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second), deny("d3", "", 30*time.Second)}
+	root4 := append(slices.Clone(root3), deny("d4", "", 40*time.Second))
 	for name, c := range map[string]struct {
 		exports []supervise.Export
-		run     string
+		want    []string
 	}{
-		"the child's denial is the fourth": {[]supervise.Export{export(append(root3, deny("d4", childRun, 40*time.Second))...)}, childRun},
-		"the root's denial is the fourth": {[]supervise.Export{export(deny("c1", childRun, 5*time.Second),
-			deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second), deny("d3", "", 30*time.Second))}, runID},
-		"the child's denial is the fifth": {[]supervise.Export{export(append(root3, deny("d4", "", 40*time.Second),
-			deny("c1", childRun, 50*time.Second))...)}, runID},
-		"the fourth in time is read first": {[]supervise.Export{export(deny("c1", childRun, 35*time.Second)),
-			export(append(root3, deny("d4", "", 40*time.Second))...)}, childRun},
+		"the child's denial is the fourth": {[]supervise.Export{export(append(root3, deny("d4", childRun, 40*time.Second))...)},
+			[]string{childS}},
+		"the root's denial is the fourth": {[]supervise.Export{export(append([]call{deny("c1", childRun, 5*time.Second)}, root3...)...)},
+			[]string{rootS}},
+		"the root's own four, then the child's": {[]supervise.Export{export(append(root4, deny("c1", childRun, 50*time.Second))...)},
+			[]string{rootC, childS}},
+		"the child's read first, from another export": {[]supervise.Export{export(deny("c1", childRun, 35*time.Second)), export(root4...)},
+			[]string{rootC, childI}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			res := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(), Exports: c.exports})
-			names(t, res, supervise.RuleRepeatedDenial, c.run, id02("REPEATED_DENIAL", "issue_refund", "pay", c.run))
+			if got := verdicts(res, supervise.RuleRepeatedDenial); !slices.Equal(got, c.want) {
+				t.Fatalf("findings %q, want %q:\n%s", got, c.want, dump(res.Findings))
+			}
+			for _, f := range only(res, supervise.RuleRepeatedDenial) {
+				if run := f.GetFinding().GetRunId(); f.GetFinding().GetFindingId() != id02("REPEATED_DENIAL", "issue_refund", "pay", run) {
+					t.Errorf("the finding of %s has id %s", run, f.GetFinding().GetFindingId())
+				}
+			}
 		})
 	}
 }
 
 // TestARepeatedDenialWhoseCrossingIsUntoldIsIndeterminate: when the
-// fourth denial shares its time with another run's, or has none, the run it
-// names may not be the one that crossed the bound; a tie within one run
-// changes nothing.
+// fourth denial shares its time with another run's, or has none, which runs
+// denied at or after it is untold; a run's own four still confirm it.
 func TestARepeatedDenialWhoseCrossingIsUntoldIsIndeterminate(t *testing.T) {
-	untimed := export(deny("c1", childRun, 40*time.Second))
-	for _, ev := range untimed.Events {
-		ev.OccurredAt = nil
-	}
+	untimed := untimedBy(deny("c1", childRun, 40*time.Second))
 	for name, c := range map[string]struct {
 		exports []supervise.Export
-		verdict controlv1.FindingVerdict
+		want    []string
 	}{
 		"a tie with another run": {[]supervise.Export{export(deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second),
-			deny("d3", "", 30*time.Second), deny("c1", childRun, 30*time.Second))}, indetermin},
+			deny("d3", "", 30*time.Second), deny("c1", childRun, 30*time.Second))}, []string{rootI, childI}},
 		"a tie within one run": {[]supervise.Export{export(deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second),
-			deny("d3", "", 30*time.Second), deny("d4", "", 30*time.Second))}, confirmed},
+			deny("d3", "", 30*time.Second), deny("d4", "", 30*time.Second))}, []string{rootC}},
 		"the fourth with no time": {[]supervise.Export{export(deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second),
-			deny("d3", "", 30*time.Second)), untimed}, indetermin},
+			deny("d3", "", 30*time.Second)), untimed}, []string{childI}},
+		"the fourth with no time, after another with none": {[]supervise.Export{export(deny("d1", "", 10*time.Second),
+			deny("d2", "", 20*time.Second)), untimedBy(deny("a1", grandchildRun, 0), deny("x1", childRun, 0))},
+			[]string{childI, grandchildRun + " FINDING_VERDICT_INDETERMINATE"}},
 		"one with no time before the fourth": {[]supervise.Export{export(deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second),
-			deny("d3", "", 30*time.Second), deny("d4", "", 50*time.Second)), untimed}, indetermin},
+			deny("d3", "", 30*time.Second), deny("d4", "", 50*time.Second)), untimed}, []string{rootC, childI}},
 		"told": {[]supervise.Export{export(deny("d1", "", 10*time.Second), deny("d2", "", 20*time.Second),
-			deny("d3", "", 30*time.Second), deny("c1", childRun, 40*time.Second))}, confirmed},
+			deny("d3", "", 30*time.Second), deny("c1", childRun, 40*time.Second))}, []string{childS}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			res := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(), Exports: c.exports})
-			got := only(res, supervise.RuleRepeatedDenial)
-			if len(got) != 1 || got[0].GetFinding().GetVerdict() != c.verdict {
-				t.Fatalf("want one %s finding:\n%s", c.verdict, dump(res.Findings))
+			if got := verdicts(res, supervise.RuleRepeatedDenial); !slices.Equal(got, c.want) {
+				t.Fatalf("findings %q, want %q:\n%s", got, c.want, dump(res.Findings))
 			}
 		})
 	}
 }
 
-// TestADeadlineWhoseCrossingIsUntoldIsIndeterminate: two runs' events at the
-// first instant past the deadline leave the run that crossed it untold.
-func TestADeadlineWhoseCrossingIsUntoldIsIndeterminate(t *testing.T) {
-	lookup := call{req: "r1", tool: "get_order", upstream: "shop"}
-	for name, c := range map[string]struct {
-		other   string
-		verdict controlv1.FindingVerdict
-	}{
-		"a tie with another run": {childRun, indetermin},
-		"a tie within one run":   {"", confirmed},
-	} {
-		t.Run(name, func(t *testing.T) {
-			x := export(lookup, call{req: "r2", tool: "search_docs", upstream: "docs", at: 700 * time.Second},
-				call{req: "r3", tool: "search_docs", upstream: "docs", at: 700 * time.Second, run: c.other})
-			res := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(), Exports: []supervise.Export{x}})
-			got := only(res, supervise.RuleDeadlineExceeded)
-			if len(got) != 1 || got[0].GetFinding().GetVerdict() != c.verdict {
-				t.Fatalf("want one %s finding:\n%s", c.verdict, dump(res.Findings))
-			}
-		})
+// untimedBy is one export of calls whose events carry no time.
+func untimedBy(calls ...call) supervise.Export {
+	x := export(calls...)
+	for _, ev := range x.Events {
+		ev.OccurredAt = nil
 	}
+	return x
 }
 
-// TestADeadlineNamesTheRunWhoseEventCrossedIt: the first event past
-// deadline_seconds names its run, and is cited, not the last event.
-func TestADeadlineNamesTheRunWhoseEventCrossedIt(t *testing.T) {
+// TestEachRunPastTheDeadlineGetsItsOwn: every run with an event past
+// deadline_seconds from the tree's first gets a finding citing that first
+// event and its own earliest past it, a tie between runs included; from two
+// exports each only suggests.
+func TestEachRunPastTheDeadlineGetsItsOwn(t *testing.T) {
 	lookup := call{req: "r1", tool: "get_order", upstream: "shop"}
+	docs := func(req, run string, at time.Duration) call {
+		return call{req: req, tool: "search_docs", upstream: "docs", at: at, run: run}
+	}
 	for name, c := range map[string]struct {
-		calls      []call
-		run, cites string
+		exports []supervise.Export
+		want    []string
+		cites   []string
 	}{
-		"a child's event crosses it": {[]call{lookup,
-			{req: "c1", tool: "search_docs", upstream: "docs", at: 700 * time.Second, run: childRun}}, childRun, "c1-e1"},
-		"the root's event crosses it before the child's": {[]call{lookup,
-			{req: "r2", tool: "search_docs", upstream: "docs", at: 650 * time.Second},
-			{req: "c1", tool: "search_docs", upstream: "docs", at: 700 * time.Second, run: childRun}}, runID, "r2-e1"},
+		"a child's event crosses it": {[]supervise.Export{export(lookup, docs("c1", childRun, 700*time.Second))},
+			[]string{childC}, []string{"r1-e1 c1-e1"}},
+		"the root's, then the child's": {[]supervise.Export{export(lookup, docs("r2", "", 650*time.Second), docs("c1", childRun, 700*time.Second))},
+			[]string{rootC, childC}, []string{"r1-e1 r2-e1", "r1-e1 c1-e1"}},
+		"a tie with another run": {[]supervise.Export{export(lookup, docs("r2", "", 700*time.Second), docs("c1", childRun, 700*time.Second))},
+			[]string{rootC, childC}, []string{"r1-e1 r2-e1", "r1-e1 c1-e1"}},
+		"a tie within one run": {[]supervise.Export{export(lookup, docs("r2", "", 700*time.Second), docs("r3", "", 700*time.Second))},
+			[]string{rootC}, []string{"r1-e1 r2-e1"}},
+		"the child's, then the root's much later": {[]supervise.Export{export(lookup, docs("c1", childRun, 601*time.Second),
+			docs("r2", "", 5000*time.Second))}, []string{rootC, childC}, []string{"r1-e1 r2-e1", "r1-e1 c1-e1"}},
+		"two exports": {[]supervise.Export{export(lookup), export(docs("c1", childRun, 700*time.Second))},
+			[]string{childS}, []string{"r1-e1 c1-e1"}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			res := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(), Exports: []supervise.Export{export(c.calls...)}})
-			names(t, res, supervise.RuleDeadlineExceeded, c.run, id02("DEADLINE_EXCEEDED", c.run))
-			refs := only(res, supervise.RuleDeadlineExceeded)[0].GetRefs()
-			if len(refs) != 2 || refs[0].GetEvent().GetEventId() != "r1-e1" || refs[1].GetEvent().GetEventId() != c.cites {
-				t.Fatalf("cites %v; want r1-e1 and %s", refs, c.cites)
+			res := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(), Exports: c.exports})
+			if got := verdicts(res, supervise.RuleDeadlineExceeded); !slices.Equal(got, c.want) {
+				t.Fatalf("findings %q, want %q:\n%s", got, c.want, dump(res.Findings))
+			}
+			for i, f := range only(res, supervise.RuleDeadlineExceeded) {
+				run := f.GetFinding().GetRunId()
+				if citedEvents(f) != c.cites[i] || f.GetFinding().GetFindingId() != id02("DEADLINE_EXCEEDED", run) {
+					t.Errorf("the finding of %s cites %q with id %s; want %q", run, citedEvents(f), f.GetFinding().GetFindingId(), c.cites[i])
+				}
 			}
 		})
 	}

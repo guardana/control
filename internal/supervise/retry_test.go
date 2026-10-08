@@ -1,7 +1,6 @@
 package supervise_test
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -303,30 +302,6 @@ func TestArgumentsNotHashedAreNoPass(t *testing.T) {
 				t.Fatalf("findings %q:\n%s", got, dump(res.Findings))
 			}
 		})
-	}
-}
-
-// TestRetryPairsAreBounded: n denials of one tool are n(n-1) pairs to
-// compare. At 1024 they are within MaxRetryPairs and fire; at 1025 the rule
-// is not checked and says why, rather than judging some of them.
-func TestRetryPairsAreBounded(t *testing.T) {
-	if supervise.MaxRetryPairs != 1<<20 {
-		t.Fatalf("MaxRetryPairs %d: the runs below are sized for 1<<20", supervise.MaxRetryPairs)
-	}
-	for _, n := range []int{1024, 1025} {
-		var as []act
-		for i := range n {
-			as = append(as, act{call: call{req: fmt.Sprintf("d%04d", i), tool: "issue_refund", upstream: "pay",
-				at: time.Duration(i) * time.Second, outcome: "deny"}, hash: "sha256:" + fmt.Sprintf("%064x", i)})
-		}
-		res := retrySupervise(t, source(), acts(as...))
-		state, fired := rules(res)[ruleArgs], len(only(res, ruleArgs))
-		switch {
-		case n == 1024 && (state != checked || fired != n-1):
-			t.Fatalf("at %d: %s with %d findings", n, state, fired)
-		case n == 1025 && (state != "RULE_STATE_NOT_CHECKED:1049600 pairs of a denial and a call to compare, bound 1048576" || fired != 0):
-			t.Fatalf("at %d: %s with %d findings", n, state, fired)
-		}
 	}
 }
 

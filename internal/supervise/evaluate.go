@@ -25,8 +25,9 @@ type Run struct {
 }
 
 // MaxTreeRuns bounds the runs one supervision reads as its tree, the
-// supervised run included.
-const MaxTreeRuns = 1024
+// supervised run included, so the report that lists them fits a findings
+// log line with every string it carries at the contract's longest.
+const MaxTreeRuns = 400
 
 // Export is one evidence export's events. Whole is true when it holds every
 // line of its trail; NotWhole says why it does not.

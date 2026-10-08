@@ -47,16 +47,27 @@ keep `"1"`, so a route signed under 0.9 still names what it named. One table in
 `CONFIRMED`, whether it may stop a run, and the schemas that know it. Under
 `0.1` a report lists the six rules and a record keeps schema `"0.1"`.
 
-**Which run a finding names.** Always a run from a plane event's `run_id`,
-never a run an observation claims. A rule about one call names the run that
-made it. A rule that crosses a threshold (`REPEATED_DENIAL`,
-`DEADLINE_EXCEEDED`) names the run of the event that crossed it, and that run
-is part of its anchor; when that event's place cannot be told (its time
-unknown, or tied with another run's), the finding is `INDETERMINATE`. A rule
-about the procedure as a whole (a skipped step,
-the order, carrying on after a failure) names the supervised run; none of
-these is ever `CONFIRMED`. A stop therefore lands on the run that acted, never
-on a parent for a child's act.
+**Which run a finding names, and on whose evidence.** Always a run from a
+plane event's `run_id`, never a run an observation claims, and that run is
+part of the anchor under `0.2`. A finding is `CONFIRMED` only on the named
+run's own plane events; one that needs another run's event is `SUSPECTED` at
+most. The one exception is a retry by a descendant of the denied run, which is
+the denied run acting through its own subtree. So no run's calls can confirm a
+finding against another run, and no run can get another one stopped.
+
+- A rule about one call names the run that made it.
+- `REPEATED_DENIAL` under `0.2`: a run whose own denials of one tool reach
+  `max_denials` gets a confirmed finding; when only the tree's denials reach
+  it, each run that made a denial at or after that point gets a suspected one.
+- `DEADLINE_EXCEEDED` under `0.2`: each run with an event past the deadline
+  gets a finding on its own first such event. The deadline is measured from
+  the tree's first event, which may be another run's; it gives only the start,
+  no run can move it, and the finding still rests on the late run's own event,
+  so it can be confirmed.
+- A rule about the procedure as a whole (a skipped step, the order, carrying
+  on after a failure) names the supervised run; none of these is ever
+  `CONFIRMED`, and a rule the table marks as never confirmed is capped where
+  the record is made, whatever the rule computed.
 
 **Bindings and `RESOURCE_OUTSIDE_RUN`.** `bindings` names each binding with the
 `resource_type` it holds. A step or allowed tool with `binds: <name>` belongs
@@ -66,8 +77,8 @@ compared as exact bytes of type, id, resource tenant and environment. No call
 fixes the binding, so the agent's first choice does not decide what the run
 holds, and a denied probe of another id counts. One finding is raised per run
 that called the binding; its anchor is the binding and that run. It is
-`CONFIRMED` when two distinct ids come from trails not in doubt, whatever other
-calls carry; `INDETERMINATE` when one id is seen beside calls with none or of
+`CONFIRMED` when that run's own calls, in trails not in doubt, carry two
+distinct ids; `SUSPECTED` when the two ids need another run's call; `INDETERMINATE` when one id is seen beside calls with none or of
 another type; the rule is not checked, with the reason, when no call carries an
 id. Ids are not normalised: `"042"` and `"42"` are two resources, and an agent
 that spells one id two ways through two tools is caught only by a binding that
@@ -92,7 +103,11 @@ sequence: `CONFIRMED` only there; across exports, whose clocks may differ,
 `SUSPECTED`; passing a redundant export changes nothing. A variant proposed
 before the denial was decided is not a retry; `REPEATED_DENIAL` is the
 backstop. Each finding names the retry's run, and its anchor is the denied
-request and that run, so further retries of one denial keep the id, a new
+request and that run; a retry by any run but the denied one or its descendant
+is `SUSPECTED` at most. Each denial is compared only with the calls after it,
+in time linear in the calls; if a bound still bites, the rule raises an
+`INDETERMINATE` finding for each run it could not judge rather than turning
+itself off, so further retries of one denial keep the id, a new
 denial gives a new one, and after a lift or an expiry a new denial followed by
 a retry stops again. A corrected argument after a refusal cannot be told from
 evasion; whether `_ARGUMENTS` stops a run is the route's choice.
@@ -135,7 +150,8 @@ value.
 
 - `inherit`: `--run` must be a root. The tree is every record whose `Root` is
   it, read by that filter and bounded by the tree's own size, not the runs
-  directory's. Supervise refuses a tree past its bound, a member of another
+  directory's, at a bound whose report still fits the log's line. A tree past
+  it is refused loudly; whoever may open runs can make a tree that large. Supervise refuses a tree past its bound, a member of another
   tenant and a parent chain that does not reach the root. The tree counts as
   closed when every member is.
 - `separate`: any opened run, its own calls only; the report lists the
@@ -176,9 +192,10 @@ turn silent). A changed verdict is a new log record and so a second alert.
 Stopping a child widens what a route reaches to one run the operator opened
 under another; a whole tree is still out of reach, and an orchestrator can
 open a new child after one is stopped, which the rules judge again. Under
-`inherit` a threshold is counted over the tree and stops the run that crossed
-it, so runs that share denials can steer which run that is; the tree as a
-whole is not stopped.
+`inherit` a threshold counted only over the tree, with no run reaching it
+alone, suspects the runs that took part and stops none; runs that share their
+denials stay below a stop, which the alert names. The tree as a whole is not
+stopped.
 
 ## Alternatives considered
 
@@ -225,11 +242,16 @@ now be stopped on its own.
   approved retry, a pause block, `RUN_STOPPED` and a variant sent before the
   denial do not; two exports give `SUSPECTED`, a redundant third changes
   nothing; after a lift, a new denial and a retry stop again.
-- Under `inherit`: a denial in child A and a retry in child B name and stop B;
-  42 in A and 43 in B name both; a child's `REPEATED_DENIAL` names the child;
-  a root closed with an open child keeps the tree open; a tree past its bound,
-  another tenant and a chain that misses the root are refused; 1 001 runs of
-  other tenants do not refuse a small tree.
+- Under `inherit`: a denial in the root and a retry in its child confirm the
+  child; a denial in child A and a retry in its sibling B, or in the root, are
+  `SUSPECTED` on the retrying run; 42 and 43 in one run confirm it, 42 in A
+  and 43 in B suspect both; a closed child's three denials and the root's
+  later ones give the root a finding of its own; each run past the deadline
+  gets its own; a root closed with an open child keeps the tree open; a tree
+  past its bound, another tenant and a chain that misses the root are
+  refused; a report at the bound is written; 1 001 runs of other tenants do
+  not refuse a small tree.
+- 1 025 denials of one tool and then a retry still give a retry finding.
 - A child's confirmed finding stops the child's next call and neither its
   parent's nor a sibling's, on a live plane.
 - An exception with an approval waives and raises `EXCEPTION_TAKEN`; a held

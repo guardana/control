@@ -67,6 +67,9 @@ type evaluation struct {
 	retry  *retryIndex
 	places map[string][]place
 	bound  map[string][]*request
+	// parents is each run's parent in the tree, and scopes ownScope's answers.
+	parents map[string]string
+	scopes  map[[2]string]bool
 	// waived is what each exception took away, filled as the rules it waives
 	// are applied.
 	waived map[waiverKey]*waiver
@@ -80,7 +83,8 @@ type first struct {
 func newEvaluation(in Input, rd *read) *evaluation {
 	e := &evaluation{in: in, p: in.Procedure, ix: indexOf(in.Procedure), rd: rd,
 		byRequest: map[string]*request{}, ofStep: map[int][]*instance{}, stepIndex: map[string]int{},
-		joinDoubt: map[string]bool{}, reported: map[int][]string{}, firsts: map[int]first{}, waived: map[waiverKey]*waiver{}}
+		joinDoubt: map[string]bool{}, reported: map[int][]string{}, firsts: map[int]first{}, waived: map[waiverKey]*waiver{},
+		scopes: map[[2]string]bool{}}
 	for i, s := range e.p.steps {
 		e.stepIndex[s.ID] = i
 	}
