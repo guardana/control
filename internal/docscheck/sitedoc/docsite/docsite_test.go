@@ -2,9 +2,13 @@ package docsite
 
 import (
 	"errors"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/guardana/control/internal/docscheck/impact"
 )
 
 const pageHead = "---\ntitle: A page\nsummary: What the page is for.\ntype: explanation\ncovers: [x/**]\n---\n\n"
@@ -26,7 +30,17 @@ func fixture(body string) fstest.MapFS {
 
 func build(t *testing.T, body string) (map[string][]byte, error) {
 	t.Helper()
-	return Build(fixture(body), func(string) bool { return false })
+	return buildAll(fixture(body))
+}
+
+// buildAll builds fsys with every file it holds listed and none excluded.
+func buildAll(fsys fstest.MapFS) (map[string][]byte, error) {
+	return Build(fsys, listingOf(fsys))
+}
+
+func listingOf(fsys fstest.MapFS, unlisted ...string) impact.Listing {
+	paths := slices.DeleteFunc(slices.Collect(maps.Keys(fsys)), func(rel string) bool { return slices.Contains(unlisted, rel) })
+	return impact.LeftOut(paths, func(string) bool { return false })
 }
 
 func renderA(t *testing.T, body string) string {
@@ -134,6 +148,26 @@ func TestCodeIsEscaped(t *testing.T) {
 	}
 }
 
+// A record the repository does not list, such as a local draft git ignores,
+// is neither rendered nor in the sitemap; once listed, it is both.
+func TestOnlyAListedRecordIsRendered(t *testing.T) {
+	fsys := fixture("# A\n")
+	fsys["docs/adr/0002-draft.md"] = &fstest.MapFile{Data: []byte("# ADR-0002: Draft\n\nStatus: proposed\n")}
+	files, err := Build(fsys, listingOf(fsys, "docs/adr/0002-draft.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := files[Dir+"/adr/0002-draft.html"]; ok || strings.Contains(string(files[Sitemap]), "/docs/adr/0002-draft") {
+		t.Errorf("the unlisted record was rendered: %d files, sitemap\n%s", len(files), files[Sitemap])
+	}
+	if files, err = buildAll(fsys); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := files[Dir+"/adr/0002-draft.html"]; !ok || !strings.Contains(string(files[Sitemap]), "<loc>"+Origin+"/docs/adr/0002-draft</loc>") {
+		t.Errorf("the listed record was not rendered: %d files, sitemap\n%s", len(files), files[Sitemap])
+	}
+}
+
 func TestEveryPageIsWrittenAndListed(t *testing.T) {
 	files, err := build(t, "# A\n")
 	if err != nil {
@@ -198,7 +232,7 @@ func TestThePageCarriesTheHeaderAndTheMenu(t *testing.T) {
 func TestAChangelogWithNoReleaseIsRefused(t *testing.T) {
 	fsys := fixture("# A\n")
 	fsys["CHANGELOG.md"] = &fstest.MapFile{Data: []byte("# Changelog\n\n## [Unreleased]\n")}
-	if _, err := Build(fsys, func(string) bool { return false }); !errors.Is(err, ErrSite) || !strings.Contains(err.Error(), "CHANGELOG.md holds no dated release section") {
+	if _, err := buildAll(fsys); !errors.Is(err, ErrSite) || !strings.Contains(err.Error(), "CHANGELOG.md holds no dated release section") {
 		t.Errorf("err = %v, want the missing release named", err)
 	}
 }
@@ -206,7 +240,7 @@ func TestAChangelogWithNoReleaseIsRefused(t *testing.T) {
 func TestARootPageNeedsItsTitle(t *testing.T) {
 	fsys := fixture("# A\n")
 	fsys["ROADMAP.md"] = &fstest.MapFile{Data: []byte("Planned.\n")}
-	if _, err := Build(fsys, func(string) bool { return false }); err == nil || !strings.Contains(err.Error(), "ROADMAP.md: the first line is not the page's title") {
+	if _, err := buildAll(fsys); err == nil || !strings.Contains(err.Error(), "ROADMAP.md: the first line is not the page's title") {
 		t.Errorf("err = %v, want the roadmap's missing title named", err)
 	}
 }

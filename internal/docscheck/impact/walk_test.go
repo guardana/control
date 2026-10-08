@@ -23,7 +23,7 @@ func TestWalkPagesParsesEveryPageTheConfigurationAdmits(t *testing.T) {
 	}
 	listed := []string{"docs/guides/run.md", "docs/README.md", "docs/notes.txt", "docs/notes/plan.md", "docs/draft.md", "docs/reference/bad.md"}
 	excluded := func(rel string) bool { return rel == "docs/notes/" || rel == "docs/draft.md" }
-	pages, broken, err := WalkPages(fsys, "docs", LeftOut(listed, excluded))
+	pages, broken, err := WalkPages(fsys, "docs", LeftOut(listed, excluded).Skips)
 	if err != nil {
 		t.Fatalf("WalkPages: %v", err)
 	}

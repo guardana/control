@@ -86,7 +86,7 @@ func execute(o options, stdin io.Reader, stdout io.Writer, run Runner, fsys fs.F
 	if err != nil {
 		return 0, err
 	}
-	pages, broken, err := WalkPages(fsys, docsDir, LeftOut(files.Paths, cfg.Excludes))
+	pages, broken, err := WalkPages(fsys, docsDir, LeftOut(files.Paths, cfg.Excludes).Skips)
 	if err != nil {
 		return 0, err
 	}

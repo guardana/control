@@ -11,7 +11,7 @@ import (
 func TestACharacterReferenceXHTMLCannotCarryIsRefused(t *testing.T) {
 	for _, body := range []string{"&#1;", "&#x1F;", "&#xFFFE;", "a `x` &#8; b"} {
 		t.Run(body, func(t *testing.T) {
-			_, err := Build(fixture("# A\n\n"+body+"\n"), func(string) bool { return false })
+			_, err := buildAll(fixture("# A\n\n" + body + "\n"))
 			if !errors.Is(err, ErrSite) {
 				t.Fatalf("Build with %q: %v, want ErrSite", body, err)
 			}

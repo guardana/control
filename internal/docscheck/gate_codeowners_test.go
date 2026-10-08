@@ -57,17 +57,40 @@ func TestCodeownersCoverTheGuardedTrees(t *testing.T) {
 
 // ownershipProblems names every file under a required tree or a two-approval
 // path whose last matching CODEOWNERS rule is not the security maintainers',
-// and a required tree that holds no file, which would leave nothing checked. A
-// two-approval path that holds no file yet is judged by a file it could hold.
+// and a required tree or a two-approval pattern that holds no file, which
+// would leave nothing checked. A two-approval tree, dir/**, that holds no file
+// yet is judged by a file it could hold; any other entry is a path.Match
+// pattern over the files, judged by every file it matches.
 func ownershipProblems(rules []codeownersRule, files, required, twoApproval []string) []string {
-	var problems []string
-	paths := slices.Clone(required)
+	trees, patterns, problems := splitTwoApproval(required, twoApproval)
+	problems = append(problems, treeProblems(rules, files, required, trees)...)
+	return append(problems, patternProblems(rules, files, patterns)...)
+}
+
+// splitTwoApproval returns the required trees followed by every two-approval
+// dir/** tree not already among them, the other two-approval entries as
+// patterns, and an entry that is neither as a problem.
+func splitTwoApproval(required, twoApproval []string) (trees, patterns, problems []string) {
+	trees = slices.Clone(required)
 	for _, entry := range twoApproval {
-		if p := strings.TrimSuffix(entry, "/**"); !slices.Contains(paths, p) {
-			paths = append(paths, p)
+		tree, isTree := strings.CutSuffix(entry, "/**")
+		switch {
+		case isTree && !strings.Contains(tree, "*"):
+			if !slices.Contains(trees, tree) {
+				trees = append(trees, tree)
+			}
+		case strings.Contains(entry, "**"):
+			problems = append(problems, fmt.Sprintf("two-approval path %q is neither dir/** nor a pattern without **", entry))
+		default:
+			patterns = append(patterns, entry)
 		}
 	}
-	for _, p := range paths {
+	return trees, patterns, problems
+}
+
+func treeProblems(rules []codeownersRule, files, required, trees []string) []string {
+	var problems []string
+	for _, p := range trees {
 		under := slices.DeleteFunc(slices.Clone(files), func(f string) bool { return f != p && !strings.HasPrefix(f, p+"/") })
 		switch {
 		case len(under) == 0 && slices.Contains(required, p):
@@ -75,13 +98,50 @@ func ownershipProblems(rules []codeownersRule, files, required, twoApproval []st
 		case len(under) == 0:
 			under = []string{p + "/file.go"}
 		}
-		for _, f := range under {
-			if owners := ownersOf(rules, f); !slices.Contains(owners, securityTeam) {
-				problems = append(problems, fmt.Sprintf("gives %s to %q, not to %s", f, owners, securityTeam))
-			}
+		problems = append(problems, ownedElsewhere(rules, under)...)
+	}
+	return problems
+}
+
+func patternProblems(rules []codeownersRule, files, patterns []string) []string {
+	var problems []string
+	for _, pattern := range patterns {
+		matched, err := matchFiles(pattern, files)
+		switch {
+		case err != nil:
+			problems = append(problems, fmt.Sprintf("two-approval path %q: %v", pattern, err))
+		case len(matched) == 0:
+			problems = append(problems, fmt.Sprintf("two-approval path %s matches no file, so its ownership was not checked", pattern))
+		}
+		problems = append(problems, ownedElsewhere(rules, matched)...)
+	}
+	return problems
+}
+
+// ownedElsewhere names every file whose last matching rule is not the
+// security maintainers'.
+func ownedElsewhere(rules []codeownersRule, files []string) []string {
+	var problems []string
+	for _, f := range files {
+		if owners := ownersOf(rules, f); !slices.Contains(owners, securityTeam) {
+			problems = append(problems, fmt.Sprintf("gives %s to %q, not to %s", f, owners, securityTeam))
 		}
 	}
 	return problems
+}
+
+func matchFiles(pattern string, files []string) ([]string, error) {
+	var matched []string
+	for _, f := range files {
+		ok, err := path.Match(pattern, f)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			matched = append(matched, f)
+		}
+	}
+	return matched, nil
 }
 
 // repoFileList lists the repository's files the way the gate's scripts do:
@@ -116,17 +176,30 @@ func TestOwnershipProblemsJudgesEveryFile(t *testing.T) {
 		"/internal/a/x.go  @all",
 		"/internal/b/      " + securityTeam,
 		"/reserved/        " + securityTeam,
+		"/cmd/route*.go    " + securityTeam,
+		"/cmd/route.go     @all",
+		"/cmd/stops.go     " + securityTeam,
+		"/cmd/gone.go      " + securityTeam,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	files := []string{"internal/a/w.go", "internal/a/x.go", "internal/a/y.go", "internal/b/z.go", "internal/c/v.go", "loose.go"}
-	got := ownershipProblems(rules, files, []string{"internal/a", "internal/empty"}, []string{"internal/b/**", "internal/c/**", "reserved/**", "loose.go"})
+	files := []string{
+		"cmd/route.go", "cmd/route_test.go", "cmd/routes/x.go", "cmd/stops.go", "internal/a/w.go", "internal/a/x.go", "internal/a/y.go",
+		"internal/b/z.go", "internal/c/v.go", "loose.go",
+	}
+	got := ownershipProblems(rules, files, []string{"internal/a", "internal/empty"}, []string{
+		"internal/b/**", "internal/c/**", "reserved/**", "loose.go", "cmd/route*.go", "cmd/stops.go", "cmd/gone.go", "cmd/**/x.go", "cmd/[.go",
+	})
 	want := []string{
+		`two-approval path "cmd/**/x.go" is neither dir/** nor a pattern without **`,
 		`gives internal/a/x.go to ["@all"], not to ` + securityTeam,
 		"internal/empty holds no file, so its ownership was not checked",
 		`gives internal/c/v.go to ["@all"], not to ` + securityTeam,
 		`gives loose.go to ["@all"], not to ` + securityTeam,
+		`gives cmd/route.go to ["@all"], not to ` + securityTeam,
+		"two-approval path cmd/gone.go matches no file, so its ownership was not checked",
+		`two-approval path "cmd/[.go": syntax error in pattern`,
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("problems = %q\nwant       %q", got, want)

@@ -54,10 +54,10 @@ type page struct {
 
 // Build renders every page from fsys, rooted at the repository, and returns
 // what it writes keyed by repository path: each page under Dir and the
-// sitemap. excluded names the paths the docs check skips: what docs/docs.json
-// lists and what the repository does not hold.
-func Build(fsys fs.FS, excluded func(string) bool) (map[string][]byte, error) {
-	pages, err := collect(fsys, excluded)
+// sitemap. listing says which files are read: never one the repository does
+// not list, and no page docs/docs.json excludes.
+func Build(fsys fs.FS, listing indexdoc.Listing) (map[string][]byte, error) {
+	pages, err := collect(fsys, listing)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +93,8 @@ func Build(fsys fs.FS, excluded func(string) bool) (map[string][]byte, error) {
 
 // collect reads the index, every page and record the index lists, the roadmap
 // and the changelog.
-func collect(fsys fs.FS, excluded func(string) bool) ([]*page, error) {
-	docs, records, err := indexdoc.Collect(fsys, excluded)
+func collect(fsys fs.FS, listing indexdoc.Listing) ([]*page, error) {
+	docs, records, err := indexdoc.Collect(fsys, listing)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrSite, err)
 	}

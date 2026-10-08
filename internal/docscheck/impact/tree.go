@@ -34,10 +34,15 @@ func RepositoryFiles(root string, environ []string) (Files, error) {
 	return TreeFiles(Repository(Git(abs, environ), abs), os.DirFS(abs))
 }
 
-// LeftOut is the predicate a walk of the tree skips by: rel, a file or a
-// directory spelled with a trailing slash, is left out when excluded names it
-// or when no file of paths is rel or lies under it.
-func LeftOut(paths []string, excluded func(string) bool) func(string) bool {
+// Listing is what a walk of the tree may read: the files the repository lists
+// and, apart from them, what docs.json excludes from the page checks.
+type Listing struct {
+	held     map[string]bool
+	excluded func(string) bool
+}
+
+// LeftOut is the listing of paths with excluded on top.
+func LeftOut(paths []string, excluded func(string) bool) Listing {
 	held := make(map[string]bool, 2*len(paths))
 	for _, p := range paths {
 		held[p] = true
@@ -45,5 +50,15 @@ func LeftOut(paths []string, excluded func(string) bool) func(string) bool {
 			held[p[:i+1]] = true
 		}
 	}
-	return func(rel string) bool { return excluded(rel) || !held[rel] }
+	return Listing{held: held, excluded: excluded}
+}
+
+// Lists reports whether rel, a file or a directory spelled with a trailing
+// slash, is a listed file or holds one.
+func (l Listing) Lists(rel string) bool { return l.held[rel] }
+
+// Skips reports whether a walk leaves rel out: the listing does not hold it,
+// or excluded names it. A Listing that LeftOut did not build skips everything.
+func (l Listing) Skips(rel string) bool {
+	return !l.held[rel] || l.excluded == nil || l.excluded(rel)
 }

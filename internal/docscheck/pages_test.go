@@ -331,6 +331,7 @@ func TestCollectTreeSeparatesJudgedFromCovered(t *testing.T) {
 	for _, rel := range append(slices.Clone(listed), "docs/local/l.md", "local/README.md") {
 		fsys[rel] = &fstest.MapFile{Data: []byte("# x\n")}
 	}
+	fsys["internal/thing/local_test.go"] = &fstest.MapFile{Data: []byte("package thing\n\nfunc TestLocal(t *testing.T) {}\n")}
 	fsys["internal/thing/a_test.go"] = &fstest.MapFile{Data: []byte("package thing\n\n" +
 		"func TestA(t *testing.T) {}\nfunc helper(t *testing.T) {}\nfunc TestHelper(n int) {}\n" +
 		"// func TestComment(t *testing.T) {}\nfunc TestB(tb *testing.T) {\n}\n")}
@@ -342,11 +343,6 @@ func TestCollectTreeSeparatesJudgedFromCovered(t *testing.T) {
 	for _, rel := range []string{".github/workflows/ci.yml", "CHANGELOG.md", "docs/adr/0001-record.md", "docs/notes/p.md"} {
 		if !slices.Contains(tree.files, rel) {
 			t.Errorf("files lack %s: excluded must not take a file from what a page may cover", rel)
-		}
-	}
-	for _, rel := range []string{"docs/local/l.md", "local/README.md"} {
-		if slices.Contains(tree.files, rel) {
-			t.Errorf("files hold %s, which the repository does not list", rel)
 		}
 	}
 	if want := (testIndex{"internal/thing": {"TestA", "TestB"}, "internal/thing/deep": {"TestDeep"}}); !maps.EqualFunc(tree.tests, want, slices.Equal) {

@@ -24,7 +24,7 @@ func FuzzRenderBody(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, body string) {
-		files, err := Build(fixture(body), func(string) bool { return false })
+		files, err := buildAll(fixture(body))
 		if err != nil {
 			if !errors.Is(err, ErrSite) {
 				t.Fatalf("a refusal that is not ErrSite: %v", err)

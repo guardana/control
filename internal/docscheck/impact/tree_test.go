@@ -207,22 +207,26 @@ func extract(t *testing.T, archive []byte, dir string) {
 }
 
 func TestLeftOutKeepsWhatTheListHoldsAndExcludedAdmits(t *testing.T) {
-	leftOut := LeftOut([]string{"README.md", "docs/guides/run.md", "docs/notes/n.md"},
-		func(rel string) bool { return rel == "docs/notes/" })
-	for rel, want := range map[string]bool{
-		"README.md":          false,
-		"docs/":              false,
-		"docs/guides/":       false,
-		"docs/guides/run.md": false,
-		"docs/notes/":        true,
-		"docs/local/":        true,
-		"docs/local/x.md":    true,
-		"docs/guides":        true,
-		"docs/guides/r":      true,
-		"guides/":            true,
+	listing := LeftOut([]string{"README.md", "docs/guides/run.md", "docs/notes/n.md"},
+		func(rel string) bool { return rel == "docs/notes/" || rel == "docs/notes/n.md" })
+	for rel, want := range map[string][2]bool{
+		"README.md":          {true, false},
+		"docs/":              {true, false},
+		"docs/guides/":       {true, false},
+		"docs/guides/run.md": {true, false},
+		"docs/notes/":        {true, true},
+		"docs/notes/n.md":    {true, true},
+		"docs/local/":        {false, true},
+		"docs/local/x.md":    {false, true},
+		"docs/guides":        {false, true},
+		"docs/guides/r":      {false, true},
+		"guides/":            {false, true},
 	} {
-		if got := leftOut(rel); got != want {
-			t.Errorf("LeftOut(%q) = %v, want %v", rel, got, want)
+		if got := [2]bool{listing.Lists(rel), listing.Skips(rel)}; got != want {
+			t.Errorf("Lists, Skips(%q) = %v, want %v", rel, got, want)
 		}
+	}
+	if !LeftOut([]string{"README.md"}, nil).Skips("README.md") || !(Listing{}).Skips("README.md") {
+		t.Error("a listing with no excluded predicate reads a file")
 	}
 }

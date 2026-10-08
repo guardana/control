@@ -46,55 +46,82 @@ var sections = map[string]string{
 // Section is the heading the index lists a page of type typ under.
 func Section(typ string) string { return sections[typ] }
 
-// Collect reads every page under docs/ but the records and the index itself,
-// and every record, from fsys, which is rooted at the repository. A page that
-// does not parse is a refusal, never a page left out.
-func Collect(fsys fs.FS, excluded func(string) bool) ([]Page, []Record, error) {
-	var pages []Page
-	var records []Record
-	err := fs.WalkDir(fsys, "docs", func(rel string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if d.IsDir() {
-			return dirAction(rel, d.Name(), excluded)
-		}
-		if !strings.HasSuffix(rel, ".md") || rel == Index {
-			return nil
-		}
-		if strings.HasPrefix(rel, "docs/adr/") {
-			record, ok, err := readRecord(fsys, rel)
-			if ok {
-				records = append(records, record)
-			}
-			return err
-		}
-		if excluded(rel) {
-			return nil
-		}
-		page, err := readPage(fsys, rel)
-		if err != nil {
-			return err
-		}
-		pages = append(pages, page)
-		return nil
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %w", ErrIndex, err)
-	}
-	if len(pages) == 0 || len(records) == 0 {
-		return nil, nil, fmt.Errorf("%w: found %d page(s) and %d record(s), so the map would be empty", ErrIndex, len(pages), len(records))
-	}
-	return pages, records, nil
+// Listing says which files under docs/ the map may read. Lists is whether the
+// repository lists rel, a file or a directory spelled with a trailing slash,
+// and Skips is also true for what docs.json excludes from the page checks.
+type Listing interface {
+	Lists(rel string) bool
+	Skips(rel string) bool
 }
 
-// dirAction skips a hidden or excluded directory. The records are excluded
+// Collect reads every page under docs/ but the records and the index itself,
+// and every record, from fsys, which is rooted at the repository. A file the
+// repository does not list is never read. A page that does not parse is a
+// refusal, never a page left out.
+func Collect(fsys fs.FS, listing Listing) ([]Page, []Record, error) {
+	c := &collector{fsys: fsys, listing: listing}
+	if err := fs.WalkDir(fsys, "docs", c.visit); err != nil {
+		return nil, nil, fmt.Errorf("%w: %w", ErrIndex, err)
+	}
+	if len(c.pages) == 0 || len(c.records) == 0 {
+		return nil, nil, fmt.Errorf("%w: found %d page(s) and %d record(s), so the map would be empty", ErrIndex, len(c.pages), len(c.records))
+	}
+	return c.pages, c.records, nil
+}
+
+type collector struct {
+	fsys    fs.FS
+	listing Listing
+	pages   []Page
+	records []Record
+}
+
+func (c *collector) visit(rel string, d fs.DirEntry, walkErr error) error {
+	if walkErr != nil {
+		return walkErr
+	}
+	if d.IsDir() {
+		return dirAction(rel, d.Name(), c.listing)
+	}
+	if !strings.HasSuffix(rel, ".md") || rel == Index {
+		return nil
+	}
+	if strings.HasPrefix(rel, "docs/adr/") {
+		return c.addRecord(rel)
+	}
+	return c.addPage(rel)
+}
+
+func (c *collector) addRecord(rel string) error {
+	if !c.listing.Lists(rel) {
+		return nil
+	}
+	record, ok, err := readRecord(c.fsys, rel)
+	if ok {
+		c.records = append(c.records, record)
+	}
+	return err
+}
+
+func (c *collector) addPage(rel string) error {
+	if c.listing.Skips(rel) {
+		return nil
+	}
+	page, err := readPage(c.fsys, rel)
+	if err != nil {
+		return err
+	}
+	c.pages = append(c.pages, page)
+	return nil
+}
+
+// dirAction skips a hidden or skipped directory. The records are excluded
 // from the page checks and listed here all the same.
-func dirAction(rel, name string, excluded func(string) bool) error {
+func dirAction(rel, name string, listing Listing) error {
 	if rel == "docs" || rel == "docs/adr" {
 		return nil
 	}
-	if excluded(rel+"/") || strings.HasPrefix(name, ".") {
+	if listing.Skips(rel+"/") || strings.HasPrefix(name, ".") {
 		return fs.SkipDir
 	}
 	return nil

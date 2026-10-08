@@ -2,10 +2,12 @@ package indexdoc_test
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
 
+	"github.com/guardana/control/internal/docscheck/impact"
 	"github.com/guardana/control/internal/docscheck/indexdoc"
 )
 
@@ -28,6 +30,8 @@ func tree() fstest.MapFS {
 		"docs/adr/0002-second.md":   {Data: record("ADR-0002: Second", "proposed")},
 		"docs/adr/0000-template.md": {Data: record("ADR-NNNN: Title", "proposed")},
 		"docs/adr/README.md":        {Data: []byte("# Records\n")},
+		"docs/adr/0003-local.md":    {Data: record("ADR-0003: Local", "proposed")},
+		"docs/guides/local.md":      {Data: page("Local", "how-to")},
 		"docs/notes/secret.md":      {Data: page("Secret", "project")},
 		"docs/.hidden/h.md":         {Data: page("Hidden", "project")},
 		"docs/notes.txt":            {Data: []byte("not a page")},
@@ -39,8 +43,23 @@ func excluded(rel string) bool {
 	return strings.HasPrefix(rel, "docs/notes/") || strings.HasPrefix(rel, "docs/adr/")
 }
 
+// unlisted lie on disk but not in the repository's list, as a file git
+// ignores does.
+var unlisted = []string{"docs/adr/0003-local.md", "docs/guides/local.md"}
+
+// listing lists every file of m but the unlisted ones and those of also.
+func listing(m fstest.MapFS, also ...string) impact.Listing {
+	var paths []string
+	for rel := range m {
+		if !slices.Contains(unlisted, rel) || slices.Contains(also, rel) {
+			paths = append(paths, rel)
+		}
+	}
+	return impact.LeftOut(paths, excluded)
+}
+
 func TestCollectListsPagesAndRecordsAndNothingElse(t *testing.T) {
-	pages, records, err := indexdoc.Collect(tree(), excluded)
+	pages, records, err := indexdoc.Collect(tree(), listing(tree()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,6 +72,18 @@ func TestCollectListsPagesAndRecordsAndNothingElse(t *testing.T) {
 	}
 	if len(records) != 2 || records[0].Title != "ADR-0001: First" || records[0].Status != "accepted" || records[1].Path != "docs/adr/0002-second.md" {
 		t.Errorf("records = %+v", records)
+	}
+}
+
+func TestCollectReadsARecordOnlyOnceTheRepositoryListsIt(t *testing.T) {
+	_, records, err := indexdoc.Collect(tree(), listing(tree(), "docs/adr/0003-local.md"))
+	if err != nil || len(records) != 3 || records[2].Path != "docs/adr/0003-local.md" || records[2].Title != "ADR-0003: Local" {
+		t.Errorf("records once the new record is listed = %+v, %v", records, err)
+	}
+	broken := tree()
+	broken["docs/adr/0003-local.md"] = &fstest.MapFile{Data: []byte("no title\n")}
+	if _, records, err := indexdoc.Collect(broken, listing(broken)); err != nil || len(records) != 2 {
+		t.Errorf("an unlisted record that does not parse was read: %+v, %v", records, err)
 	}
 }
 
@@ -78,7 +109,7 @@ func TestCollectRefusals(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			m := tree()
 			edit(m)
-			if pages, records, err := indexdoc.Collect(m, excluded); !errors.Is(err, indexdoc.ErrIndex) {
+			if pages, records, err := indexdoc.Collect(m, listing(m)); !errors.Is(err, indexdoc.ErrIndex) {
 				t.Errorf("Collect = %v, %v, %v", pages, records, err)
 			}
 		})
@@ -86,7 +117,7 @@ func TestCollectRefusals(t *testing.T) {
 }
 
 func TestRenderGroupsByTypeInOrderAndSortsWithin(t *testing.T) {
-	pages, records, err := indexdoc.Collect(tree(), excluded)
+	pages, records, err := indexdoc.Collect(tree(), listing(tree()))
 	if err != nil {
 		t.Fatal(err)
 	}
