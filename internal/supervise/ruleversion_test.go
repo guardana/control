@@ -26,7 +26,7 @@ func TestAFindingCarriesItsOwnRulesVersion(t *testing.T) {
 		t.Fatalf("STEP_OUTSIDE_PROCEDURE at %q with id %s", f.GetRuleVersion(), f.GetFindingId())
 	}
 	for _, r := range res.Report.GetRules() {
-		want := map[bool]string{true: "7", false: "1"}[r.GetRuleId() == supervise.RuleRepeatedDenial]
+		want := map[bool]string{true: "7", false: ruleVersions[r.GetRuleId()]}[r.GetRuleId() == supervise.RuleRepeatedDenial]
 		if r.GetRuleVersion() != want {
 			t.Errorf("report: %s at %q, want %q", r.GetRuleId(), r.GetRuleVersion(), want)
 		}

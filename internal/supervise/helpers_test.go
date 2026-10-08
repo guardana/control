@@ -248,13 +248,22 @@ func obsRef(src, id string) *findingv1alpha1.Reference {
 }
 
 // want is the finding record a rule of the refund procedure writes.
+// ruleVersions is each rule's version, spelled here rather than read from the
+// package's table.
+var ruleVersions = map[string]string{
+	"REPEATED_DENIAL": "1", "STEP_OUTSIDE_PROCEDURE": "1", "DEADLINE_EXCEEDED": "1",
+	"REQUIRED_STEP_SKIPPED": "1", "STEP_OUT_OF_ORDER": "2", "CONTINUED_AFTER_FAILURE": "2",
+	"RESOURCE_OUTSIDE_RUN": "1", "DENIED_ACTION_RETRIED_ARGUMENTS": "1", "DENIED_ACTION_RETRIED_RESOURCE": "1",
+	"DENIED_ACTION_RETRIED_AROUND": "1", "EXCEPTION_TAKEN": "1",
+}
+
 func want(p *supervise.Procedure, rule string, sev controlv1.FindingSeverity, esc findingv1alpha1.Escalation,
 	verdict controlv1.FindingVerdict, id string, refs ...*findingv1alpha1.Reference) *findingv1alpha1.FindingRecord {
 	return &findingv1alpha1.FindingRecord{
 		SchemaVersion: "0.1", TenantId: tenant, ProjectId: proj,
 		Procedure:  &findingv1alpha1.ProcedureRef{ProcedureId: "refund", Version: "1", Digest: p.Digest()},
 		Escalation: esc, Refs: refs,
-		Finding: &controlv1.Finding{FindingId: id, RuleId: rule, RuleVersion: "1", Severity: sev,
+		Finding: &controlv1.Finding{FindingId: id, RuleId: rule, RuleVersion: ruleVersions[rule], Severity: sev,
 			Verdict: verdict, RunId: runID, Source: controlv1.FindingSource_FINDING_SOURCE_DETERMINISTIC},
 	}
 }

@@ -41,8 +41,12 @@ with a stated bound. A tool in two bindings, a `binds` naming no binding and an
 exception on a rule that refuses one are refused.
 
 **A version per rule.** A rule's `rule_version` is the version of its code;
-what a document configures is named by the document's digest. The six rules
-keep `"1"`, so a route signed under 0.9 still names what it named. One table in
+what a document configures is named by the document's digest. The rules that
+may stop keep `"1"`, so a route signed under 0.9 still names what it named.
+`STEP_OUT_OF_ORDER` and `CONTINUED_AFTER_FAILURE` are `"2"`: an order between
+two proposals of one instant, or with a time missing, cannot be told, and a
+place in an export never tells it, since a plane ships several batches at a
+time; before, a tie within one export was told by that place. One table in
 `internal/supervise` holds each rule's id, version, whether it can be
 `CONFIRMED`, whether it may stop a run, and the schemas that know it. Under
 `0.1` a report lists the six rules and a record keeps schema `"0.1"`.

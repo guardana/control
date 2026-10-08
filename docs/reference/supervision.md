@@ -84,10 +84,10 @@ nothing but that file's owner and mode protects it.
 | `EXCEPTION_TAKEN` | an exception waived a finding, at that finding's verdict at most |
 
 An order cannot be told when a proposal or a failure has no time, or between
-two exports' proposals of one instant. A retry continues nothing, though each
-denial of it counts toward `REPEATED_DENIAL`, and an approval belongs to the
-step it held. A retry rule orders by the plane's times, not by place in an
-export, and confirms only when one export holds both.
+two proposals of one instant. A retry continues nothing, though each denial of
+it counts toward `REPEATED_DENIAL`, and an approval belongs to the step it
+held. Every rule orders by the plane's times, never by place in an export; a
+retry confirms only when one export holds both.
 
 ## The verdict
 

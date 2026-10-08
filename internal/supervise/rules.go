@@ -139,9 +139,9 @@ func (e *evaluation) skipped() []draft {
 // outOfOrder fires for a step that ran before a step it must follow: its
 // first instance comes before the first of that step, or that step has no
 // instance at all. An order that cannot be told, because an instance of
-// either side has no time or the first of each side shares its time with one
-// of another export, is no pass: the finding is then indeterminate. It
-// returns the steps found out of order.
+// either side has no time, or a first instance shares its time with another
+// of its step or with the other side's first, is no pass: the finding is
+// then indeterminate. It returns the steps found out of order.
 func (e *evaluation) outOfOrder() ([]draft, map[int]bool) {
 	var out []draft
 	fired := map[int]bool{}
@@ -173,9 +173,9 @@ func (e *evaluation) order(i int, id string) (*draft, bool) {
 		}
 		before, beforeTold := e.firstOf(j)
 		switch {
-		case !told || !beforeTold || before.untoldFrom(first):
+		case !told || !beforeTold || before.at.Equal(first.at):
 			untold = append(untold, before.start)
-		case !before.before(first):
+		case before.at.After(first.at):
 			broken = true
 			d.refs = append(d.refs, before.start)
 		}

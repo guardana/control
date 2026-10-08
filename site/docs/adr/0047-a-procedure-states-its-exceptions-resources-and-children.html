@@ -138,8 +138,12 @@ and on <code>allow</code> entries, <code>exceptions</code> and <code>children</c
 with a stated bound. A tool in two bindings, a <code>binds</code> naming no binding and an
 exception on a rule that refuses one are refused.</p>
 <p><strong>A version per rule.</strong> A rule's <code>rule_version</code> is the version of its code;
-what a document configures is named by the document's digest. The six rules
-keep <code>&quot;1&quot;</code>, so a route signed under 0.9 still names what it named. One table in
+what a document configures is named by the document's digest. The rules that
+may stop keep <code>&quot;1&quot;</code>, so a route signed under 0.9 still names what it named.
+<code>STEP_OUT_OF_ORDER</code> and <code>CONTINUED_AFTER_FAILURE</code> are <code>&quot;2&quot;</code>: an order between
+two proposals of one instant, or with a time missing, cannot be told, and a
+place in an export never tells it, since a plane ships several batches at a
+time; before, a tie within one export was told by that place. One table in
 <code>internal/supervise</code> holds each rule's id, version, whether it can be
 <code>CONFIRMED</code>, whether it may stop a run, and the schemas that know it. Under
 <code>0.1</code> a report lists the six rules and a record keeps schema <code>&quot;0.1&quot;</code>.</p>

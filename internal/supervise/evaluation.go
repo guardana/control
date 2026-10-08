@@ -12,27 +12,24 @@ import (
 
 // instance is one call of a step: a plane request. An observation no plane
 // call joins is the runtime's claim alone and never an instance. at is when
-// it was proposed, and its seq orders it after another of the same time in
-// its export; endAt is when its terminal event happened.
+// it was proposed and endAt when its terminal event happened. Two proposals
+// of one instant are untold against each other wherever they were read: a
+// plane ships several batches at a time, so a place in an export is not the
+// plane's order.
 type instance struct {
 	step            int
 	at, endAt       time.Time
 	timed, endTimed bool
-	seq, export     int
 	failed          bool
 	start, end      ref
 	request         string
 }
 
-func (a *instance) before(b *instance) bool {
-	return cmp.Or(a.at.Compare(b.at), cmp.Compare(a.seq, b.seq)) < 0
-}
-
-// untoldFrom reports two proposals of one instant from two exports: the
-// planes' clocks tell no order within it, and the order the exports were
-// read in must not.
-func (a *instance) untoldFrom(b *instance) bool {
-	return a.at.Equal(b.at) && a.export != b.export
+// byProposal orders instances by proposal time, then by request id, so a
+// list of them reads the same whatever order the evidence was read in. The
+// request id says nothing of which came first.
+func byProposal(a, b *instance) int {
+	return cmp.Or(a.at.Compare(b.at), cmp.Compare(a.request, b.request))
 }
 
 // evaluation is one run's inputs as the rules read them.
@@ -156,8 +153,8 @@ func (e *evaluation) instances() {
 			continue
 		}
 		at := rq.proposal.GetOccurredAt()
-		in := &instance{step: en.step, at: at.AsTime(), timed: at.IsValid(), seq: rq.seq, failed: rq.failed(),
-			start: rq.ref(rq.proposal), request: rq.id, export: e.rd.exportOf[rq.proposal]}
+		in := &instance{step: en.step, at: at.AsTime(), timed: at.IsValid(), failed: rq.failed(),
+			start: rq.ref(rq.proposal), request: rq.id}
 		if rq.terminal != nil {
 			end := rq.terminal.GetOccurredAt()
 			in.end, in.endAt, in.endTimed = rq.ref(rq.terminal), end.AsTime(), end.IsValid()
@@ -179,8 +176,8 @@ func (e *evaluation) add(in *instance) {
 // firstOf is a step's first instance and whether it is told: its earliest
 // instance when every one has a time, or else the one with no time of the
 // least request id, which may have come before any timed one. An earliest
-// instance that another export's ties is untold too. The order exports are
-// read in decides neither. The step must have an instance.
+// instance another instance of the step ties is untold too. Where evidence
+// was read decides neither. The step must have an instance.
 func (e *evaluation) firstOf(step int) (*instance, bool) {
 	f, ok := e.firsts[step]
 	if !ok {
@@ -204,9 +201,8 @@ func (e *evaluation) findFirst(step int) (*instance, bool) {
 }
 
 // firstTimed is a step's earliest instance with a time, or nil, and whether
-// it is told: whether no other export holds one of the same time. Of earliest
-// instances in two exports it is the first in its export of the least request
-// id.
+// it is told: whether no other instance of the step has the same time. Of
+// tied earliest instances it is the one of the least request id.
 func (e *evaluation) firstTimed(step int) (*instance, bool) {
 	var earliest *instance
 	for _, in := range e.ofStep[step] {
@@ -217,18 +213,18 @@ func (e *evaluation) firstTimed(step int) (*instance, bool) {
 	if earliest == nil {
 		return nil, true
 	}
-	firsts := map[int]*instance{}
+	var tied []*instance
 	for _, in := range e.ofStep[step] {
-		if f := firsts[in.export]; in.timed && in.at.Equal(earliest.at) && (f == nil || in.seq < f.seq) {
-			firsts[in.export] = in
+		if in.timed && in.at.Equal(earliest.at) {
+			tied = append(tied, in)
 		}
 	}
-	return leastRequest(firsts), len(firsts) == 1
+	return leastRequest(tied), len(tied) == 1
 }
 
 // leastRequest is the instance of the least request id, so which of untold
-// instances a finding cites does not follow the order exports were read in.
-func leastRequest(ins map[int]*instance) *instance {
+// instances a finding cites does not follow the order evidence was read in.
+func leastRequest(ins []*instance) *instance {
 	var least *instance
 	for _, in := range ins {
 		if least == nil || in.request < least.request {

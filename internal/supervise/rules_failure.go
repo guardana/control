@@ -1,7 +1,6 @@
 package supervise
 
 import (
-	"cmp"
 	"slices"
 	"time"
 
@@ -25,7 +24,7 @@ func (e *evaluation) continued(outOfOrder map[int]bool) []draft {
 			unplaced = append(unplaced, in)
 		}
 	}
-	slices.SortStableFunc(line, func(a, b *instance) int { return cmp.Or(a.at.Compare(b.at), cmp.Compare(a.seq, b.seq)) })
+	slices.SortFunc(line, byProposal)
 	excused := func(in *instance) bool {
 		first, _ := e.firstOf(in.step)
 		return outOfOrder[in.step] && first == in
@@ -50,13 +49,13 @@ func (e *evaluation) continued(outOfOrder map[int]bool) []draft {
 
 // afterFailure is the first instance of line, ordered by proposal, that
 // follows failed's failure and is other, before any retry proposed after the
-// failure, and the verdict the pair allows. One
-// proposed at the failure's own time, or the next proposed when the failure
-// has no time, may have come before it, so the pair is then indeterminate. A
-// failure with no time whose proposal has none either has no place in line.
-// Proposals of one time in two exports are untold against each other: when a
-// retry may have come first the pair is indeterminate, and of several next
-// instances the one of the least request id is cited.
+// failure, and the verdict the pair allows. One proposed at the failure's own
+// time, or the next proposed when the failure has no time, may have come
+// before it, so the pair is then indeterminate. A failure with no time whose
+// proposal has none either has no place in line. Proposals of one time are
+// untold against each other wherever they were read: when a retry may have
+// come first the pair is indeterminate, and of several next instances the
+// one of the least request id is cited.
 func (e *evaluation) afterFailure(line []*instance, failed *instance, other func(*instance) bool) (*instance, controlv1.FindingVerdict) {
 	from := failed.endAt
 	switch {
@@ -66,47 +65,40 @@ func (e *evaluation) afterFailure(line []*instance, failed *instance, other func
 	default:
 		return nil, indeterminate
 	}
-	// With no failure time, only what may follow the proposal counts: not the
-	// proposal itself, nor one its own export appended before it at that instant.
-	follows := func(in *instance) bool {
-		return failed.endTimed || in != failed && (in.export != failed.export || !in.at.Equal(failed.at) || in.seq > failed.seq)
-	}
 	i, _ := slices.BinarySearchFunc(line, from, func(in *instance, t time.Time) int { return in.at.Compare(t) })
-	ends, nexts := firstAfter(line[i:], failed, follows, other)
-	if len(nexts) == 0 {
+	retry, next := firstAfter(line[i:], failed, other)
+	if next == nil {
 		return nil, indeterminate
 	}
-	next := leastRequest(nexts)
-	if len(ends) > 0 || !failed.endTimed || next.at.Equal(failed.endAt) {
+	if retry || !failed.endTimed || next.at.Equal(failed.endAt) {
 		return next, indeterminate
 	}
 	return next, e.absenceCap()
 }
 
-// firstAfter takes the earliest instant of line at which an instance that
-// follows failed is a retry of it or other, and returns, by export, the first
-// such instance of that instant in each: a retry in ends, else in nexts.
-func firstAfter(line []*instance, failed *instance, follows, other func(*instance) bool) (ends, nexts map[int]*instance) {
-	ends, nexts = map[int]*instance{}, map[int]*instance{}
+// firstAfter takes the earliest instant of line at which an instance is a
+// retry of failed or other, and returns whether a retry is among that
+// instant's instances and the first of them that is other, if any.
+func firstAfter(line []*instance, failed *instance, other func(*instance) bool) (retry bool, next *instance) {
 	var at time.Time
+	found := false
 	for _, in := range line {
-		retry := retried(failed, in)
-		if !follows(in) || !retry && !other(in) {
+		isRetry := retried(failed, in)
+		if !isRetry && !other(in) {
 			continue
 		}
-		if len(ends)+len(nexts) > 0 && !in.at.Equal(at) {
+		if found && !in.at.Equal(at) {
 			break
 		}
-		at = in.at
+		found, at = true, in.at
 		switch {
-		case ends[in.export] != nil || nexts[in.export] != nil:
-		case retry:
-			ends[in.export] = in
-		default:
-			nexts[in.export] = in
+		case isRetry:
+			retry = true
+		case next == nil:
+			next = in
 		}
 	}
-	return ends, nexts
+	return retry, next
 }
 
 // retried reports in a retry of failed's step proposed after its failure.

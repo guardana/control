@@ -55,7 +55,7 @@ func TestAConformingRunGivesNoFindingAndChecksEveryRule(t *testing.T) {
 	}
 	for _, id := range []string{"REPEATED_DENIAL", "STEP_OUTSIDE_PROCEDURE", "DEADLINE_EXCEEDED",
 		"REQUIRED_STEP_SKIPPED", "STEP_OUT_OF_ORDER", "CONTINUED_AFTER_FAILURE"} {
-		wantReport.Rules = append(wantReport.Rules, &findingv1alpha1.RuleResult{RuleId: id, RuleVersion: "1",
+		wantReport.Rules = append(wantReport.Rules, &findingv1alpha1.RuleResult{RuleId: id, RuleVersion: ruleVersions[id],
 			State: findingv1alpha1.RuleState_RULE_STATE_CHECKED})
 	}
 	if !proto.Equal(res.Report, wantReport) {

@@ -18,7 +18,7 @@ const (
 )
 
 func id(rule string, anchor ...string) string {
-	return handID(append([]string{tenant, proj, runID, "refund", "1", rule, "1"}, anchor...)...)
+	return handID(append([]string{tenant, proj, runID, "refund", "1", rule, ruleVersions[rule]}, anchor...)...)
 }
 
 // skipped is lookup and notify with no refund between them.

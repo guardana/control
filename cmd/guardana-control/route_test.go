@@ -81,8 +81,8 @@ func TestRouteSignRefusesARuleThatMayNotStop(t *testing.T) {
 		{first + `,"rule_version":"1"`, first + `,"rule_version":"01"`, `rules[0]: rule_version "01" is not supervise's "1"`},
 		{first + `,"rule_version":"1"`, first + `,"rule_version":"9"`, `rules[0]: rule_version "9" is not supervise's "1"`},
 		{first, `"rule_id":"REQUIRED_STEP_SKIPPED"`, "rules[0]: REQUIRED_STEP_SKIPPED: reaction: the route names a rule that " + refused},
-		{first, `"rule_id":"STEP_OUT_OF_ORDER"`, "rules[0]: STEP_OUT_OF_ORDER: reaction: the route names a rule that " + refused},
-		{second, `"rule_id":"CONTINUED_AFTER_FAILURE"`, "rules[1]: CONTINUED_AFTER_FAILURE: reaction: the route names a rule that " + refused},
+		{first + `,"rule_version":"1"`, `"rule_id":"STEP_OUT_OF_ORDER","rule_version":"2"`, "rules[0]: STEP_OUT_OF_ORDER: reaction: the route names a rule that " + refused},
+		{second + `,"rule_version":"1"`, `"rule_id":"CONTINUED_AFTER_FAILURE","rule_version":"2"`, "rules[1]: CONTINUED_AFTER_FAILURE: reaction: the route names a rule that " + refused},
 		{second, `"rule_id":"DENIED_ACTION_RETRIED_AROUND"`, "rules[1]: DENIED_ACTION_RETRIED_AROUND: reaction: the route names a rule that " + refused},
 		{first, `"rule_id":"EXCEPTION_TAKEN"`, "rules[0]: EXCEPTION_TAKEN: reaction: the route names a rule that " + refused},
 	} {

@@ -39,10 +39,15 @@ func TestEachSchemaKnowsItsRulesInReportOrder(t *testing.T) {
 	}
 }
 
-func TestEveryRuleIsAtVersionOne(t *testing.T) {
+// TestEveryRuleIsAtItsVersion: each rule is at the version ruleVersions
+// spells, and no other id is a rule's.
+func TestEveryRuleIsAtItsVersion(t *testing.T) {
+	if len(ruleVersions) != len(schema02Rules) {
+		t.Fatalf("%d versions spelled for %d rules", len(ruleVersions), len(schema02Rules))
+	}
 	for _, id := range schema02Rules {
-		if v, ok := supervise.RuleVersionOf(id); !ok || v != "1" {
-			t.Errorf("RuleVersionOf(%q) = %q, %v; want \"1\"", id, v, ok)
+		if v, ok := supervise.RuleVersionOf(id); !ok || v != ruleVersions[id] {
+			t.Errorf("RuleVersionOf(%q) = %q, %v; want %q", id, v, ok, ruleVersions[id])
 		}
 	}
 	for _, id := range []string{"", "repeated_denial", "REPEATED_DENIAL ", "DENIED_ACTION_RETRIED", "RESOURCE_OUTSIDE"} {

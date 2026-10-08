@@ -19,7 +19,6 @@ type request struct {
 	// decided is the POLICY_DECIDED event kernel was read from.
 	decided  *controlv1.Event
 	terminal *controlv1.Event
-	seq      int
 	// waiting is true while an approval the trail requested is neither
 	// decided nor expired, and approval is the state of its first
 	// APPROVAL_DECIDED.
@@ -35,7 +34,7 @@ func requestsOf(events []*controlv1.Event, doubtful map[string]bool) []*request 
 	for _, ev := range events {
 		rq := byID[ev.GetRequestId()]
 		if rq == nil {
-			rq = &request{id: ev.GetRequestId(), seq: len(out)}
+			rq = &request{id: ev.GetRequestId()}
 			byID[rq.id] = rq
 			out = append(out, rq)
 		}

@@ -15,7 +15,7 @@ import (
 // id02 is a finding id of the 0.2 refund fixture, version 2, about the tree
 // whose root is runID.
 func id02(rule string, anchor ...string) string {
-	return handID(append([]string{tenant, proj, runID, "refund", "2", rule, "1"}, anchor...)...)
+	return handID(append([]string{tenant, proj, runID, "refund", "2", rule, ruleVersions[rule]}, anchor...)...)
 }
 
 // only is the findings of rule in res.
@@ -308,7 +308,7 @@ func TestA02ReportListsEveryRuleItsSchemaKnows(t *testing.T) {
 	var ids []string
 	for _, r := range res.Report.GetRules() {
 		ids = append(ids, r.GetRuleId())
-		if r.GetRuleVersion() != "1" {
+		if r.GetRuleVersion() != ruleVersions[r.GetRuleId()] {
 			t.Errorf("%s at version %q", r.GetRuleId(), r.GetRuleVersion())
 		}
 	}

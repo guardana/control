@@ -28,7 +28,7 @@ func TestA02ProcedureIsJudgedByEveryRuleItConfigures(t *testing.T) {
 	}
 	var judged []string
 	for _, r := range res.Report.GetRules() {
-		if r.GetRuleVersion() != "1" || r.GetState().String()+":"+r.GetWhy() != checked {
+		if r.GetRuleVersion() != ruleVersions[r.GetRuleId()] || r.GetState().String()+":"+r.GetWhy() != checked {
 			t.Errorf("%s at version %q is %s: %s", r.GetRuleId(), r.GetRuleVersion(), r.GetState(), r.GetWhy())
 		}
 		judged = append(judged, r.GetRuleId())

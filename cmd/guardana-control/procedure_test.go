@@ -24,8 +24,8 @@ func TestProcedureLintPrintsWhatTheProcedureConfigures(t *testing.T) {
 			"rule: STEP_OUTSIDE_PROCEDURE version 1, may stop\n" +
 			"rule: DEADLINE_EXCEEDED version 1, may stop\n" +
 			"rule: REQUIRED_STEP_SKIPPED version 1, never stops\n" +
-			"rule: STEP_OUT_OF_ORDER version 1, never stops\n" +
-			"rule: CONTINUED_AFTER_FAILURE version 1, never stops\n"},
+			"rule: STEP_OUT_OF_ORDER version 2, never stops\n" +
+			"rule: CONTINUED_AFTER_FAILURE version 2, never stops\n"},
 		{"refund-0.2.json", "schema_version: 0.2\nprocedure_id: refund\nversion: 2\n" +
 			"digest: 3bdccd18fb0503f6168a59a8bae712b9b37be7e4435f796b111be409f7d59dd6\n" +
 			"children: inherit\n" +
@@ -33,8 +33,8 @@ func TestProcedureLintPrintsWhatTheProcedureConfigures(t *testing.T) {
 			"rule: STEP_OUTSIDE_PROCEDURE version 1, may stop\n" +
 			"rule: DEADLINE_EXCEEDED version 1, may stop\n" +
 			"rule: REQUIRED_STEP_SKIPPED version 1, never stops\n" +
-			"rule: STEP_OUT_OF_ORDER version 1, never stops\n" +
-			"rule: CONTINUED_AFTER_FAILURE version 1, never stops\n" +
+			"rule: STEP_OUT_OF_ORDER version 2, never stops\n" +
+			"rule: CONTINUED_AFTER_FAILURE version 2, never stops\n" +
 			"rule: RESOURCE_OUTSIDE_RUN version 1, may stop\n" +
 			"rule: DENIED_ACTION_RETRIED_ARGUMENTS version 1, may stop\n" +
 			"rule: DENIED_ACTION_RETRIED_RESOURCE version 1, may stop\n" +
