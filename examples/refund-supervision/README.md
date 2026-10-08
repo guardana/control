@@ -1,36 +1,41 @@
 # A refund run, supervised and stopped
 
-An operator opens a run for an agent's refund on a live plane; the run is
-checked against its procedure and stopped on a confirmed finding.
-[supervision.md](../../docs/reference/supervision.md) and
-[reaction.md](../../docs/reference/reaction.md) are the references.
+An operator opens a run for an agent's refund on a live plane, checks it
+against its procedure and stops it on a confirmed finding. The `*_test.go`
+files run every step on a Unix-like system;
+[supervision.md](../../docs/reference/supervision.md),
+[reaction.md](../../docs/reference/reaction.md) and
+[run-view.md](../../docs/reference/run-view.md) are the references.
 
 | File | Holds |
 | --- | --- |
-| `plane.yaml` | The plane: `ENFORCE`, `runs.dir`, file approvals, a route, and the orders server of [vulnerable-mcp-agent](../vulnerable-mcp-agent/) |
-| `policy.json` | Order `ord-1` may be read, `ord-2` to `ord-5` are denied, a refund waits for an approval |
-| `refund.procedure.json` | Fetch the order, then refund it; four denials of one tool are the limit |
-| `route.json` | A confirmed `REPEATED_DENIAL` of this procedure may stop a run |
-| `runtime.source.json` | The agent runtime's spans, self-reported |
-| `*_test.go` | Every step below, with its exact commands, on a Unix-like system |
+| `plane.yaml` | The plane and the orders server of [vulnerable-mcp-agent](../vulnerable-mcp-agent/) |
+| `policy.json` | `ord-1` may be read, and refunded once approved; `ord-2` to `ord-5` neither; a status may be set; a customer export needs an approval |
+| `refund.procedure.json` | `0.1`: fetch the order, then refund it |
+| `refund-0.2.procedure.json` | `0.2`: the same, bound to one order, with an approved export waived |
+| `refund-0.2.cases.json` | `procedure test` cases |
+| `route.json` | Findings that may stop a run |
+| `runtime.source.json` | The runtime's spans |
 
-`<gateway>` and `<control>` are a release archive's two binaries.
+Each test signs the policy and the route as
+[run-the-gateway.md](../../docs/guides/run-the-gateway.md) shows, opens two
+runs, starts a collector and the plane, and after the agent's calls exports
+the trail and imports the runtime's spans.
 
-1. Sign the policy and fill in `plane.yaml`'s keys as
-   [run-the-gateway.md](../../docs/guides/run-the-gateway.md) shows. Put a
-   lift key's line into `route.json`, sign it with `<control> route sign`
-   under a route key, and make the route floor and stop list with
-   `<control> policy state init --kind route` and `<control> stops init`,
-   each where `plane.yaml` names it.
-2. Open two runs with `<control> runs open`; start a collector and the plane.
-3. Under the first run, read `ord-1`, then `ord-2` to `ord-5` (denied), then
-   refund, approve and retry.
-4. Export the plane's trail with `<gateway> trail export` while it runs, and
-   import the runtime's spans, one an upload the plane never saw, with
-   `<control> observe import`.
-5. `<control> supervise` finds `REPEATED_DENIAL` confirmed and
-   `STEP_OUTSIDE_PROCEDURE` suspected, resting on the runtime's word.
-6. `<control> react` writes one stop, of the first run. Within a poll
-   interval its next call is refused `RUN_STOPPED`, and the second run's calls go on.
-7. `<control> stops lift`, with the lift key, ends the stop.
-8. `<control> notify --init` hands each alert to a program once.
+**Under `0.1`.** The agent reads `ord-1`, then `ord-2` to `ord-5` (denied),
+then refunds. `supervise` confirms `REPEATED_DENIAL` and suspects an upload
+the plane never saw. `react` stops the first run: its next call is refused
+`RUN_STOPPED`, the second run's go on. `stops lift` ends the stop; `notify`
+delivers each alert once.
+
+**Under `0.2`.** The agent reads `ord-1`, exports the customer's orders once
+a person approves, is denied a refund of `ord-2`, and sets `ord-2`'s status
+to `refunded` instead. `supervise --view` confirms
+`DENIED_ACTION_RETRIED_RESOURCE`, `RESOURCE_OUTSIDE_RUN` and
+`EXCEPTION_TAKEN` (the export) and draws a page without script.
+`findings export` writes them. `react` stops the first run on the retry
+alone; the second run's call runs. `procedure test` passes three cases.
+
+Not shown: a child run, the rules about what is missing (both runs stay
+open), the other retry forms, and an exception on a step. Whoever can write
+the approvals directory approves.

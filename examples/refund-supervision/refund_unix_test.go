@@ -54,22 +54,31 @@ func (ra *refundAgent) work(t *testing.T, tr tree) requests {
 		}
 		rq.reads, rq.denied = append(rq.reads, a.meta("request_id")), append(rq.denied, a.meta("request_id"))
 	}
-	id, start, args := newSpan(len(ra.spans)+1), time.Now(), map[string]string{"id": "ord-1", "amount": "12.00"}
-	held := ra.call(t, id, "refund", args)
-	if held.meta("answer") != "pending" || held.meta("approval_id") == "" || held.meta("request_id") == "" {
-		t.Fatalf("the refund answered %+v, want pending with an approval id", held)
-	}
-	must(t, tr.dir, tr.control, "approvals", "approve", "--approver-id", "supervisor", "state/approvals", held.meta("approval_id"))
-	done := ra.call(t, id, "refund", args)
-	if done.Result.IsError || done.text() != "refunded 12.00 on order ord-1" || done.meta("request_id") != held.meta("request_id") {
-		t.Fatalf("the approved retry answered %+v, want the refund on request %s", done, held.meta("request_id"))
-	}
-	rq.refund = held.meta("request_id")
-	ra.spans = append(ra.spans, span{id: id, tool: "refund", start: start, end: time.Now()})
-	start = time.Now()
+	rq.refund = ra.approved(t, tr, "refund", map[string]string{"id": "ord-1", "amount": "12.00"}, "refunded 12.00 on order ord-1")
+	start := time.Now()
 	ra.spans = append(ra.spans, span{id: newSpan(len(ra.spans) + 1), tool: "upload_file", server: "files.example.net",
 		start: start, end: start.Add(40 * time.Millisecond)})
 	return rq
+}
+
+// approved makes a call the policy holds for an approval, approves it
+// through the approvals store as a person does, and makes it again under the
+// same span: the plane runs it on the held request, answering want. It
+// returns that request's id.
+func (ra *refundAgent) approved(t *testing.T, tr tree, tool string, args map[string]string, want string) string {
+	t.Helper()
+	id, start := newSpan(len(ra.spans)+1), time.Now()
+	held := ra.call(t, id, tool, args)
+	if held.meta("answer") != "pending" || held.meta("approval_id") == "" || held.meta("request_id") == "" {
+		t.Fatalf("%s answered %+v, want pending with an approval id", tool, held)
+	}
+	must(t, tr.dir, tr.control, "approvals", "approve", "--approver-id", "supervisor", "state/approvals", held.meta("approval_id"))
+	done := ra.call(t, id, tool, args)
+	if done.Result.IsError || done.text() != want || done.meta("request_id") != held.meta("request_id") {
+		t.Fatalf("the approved %s answered %+v, want %q on request %s", tool, done, want, held.meta("request_id"))
+	}
+	ra.spans = append(ra.spans, span{id: id, tool: tool, start: start, end: time.Now()})
+	return held.meta("request_id")
 }
 
 // supervision is one run of supervise and the findings its log holds.
@@ -81,10 +90,18 @@ type supervision struct {
 }
 
 // supervise imports the agent's spans, each claiming the run runOf names,
-// into an observation log of its own, supervises runID against the procedure
-// with the plane's export and that log into a findings log of its own, and
-// reads the findings back from the log.
+// into an observation log of its own, supervises runID against the 0.1
+// procedure with the plane's export and that log into a findings log of its
+// own, and reads the findings back from the log.
 func (tr tree) supervise(t *testing.T, name, runID string, ra *refundAgent, runOf func(span) string) supervision {
+	t.Helper()
+	return tr.superviseUnder(t, "refund.procedure.json", name, runID, ra, runOf)
+}
+
+// superviseUnder is supervise against procedure, with extra arguments to
+// supervise.
+func (tr tree) superviseUnder(t *testing.T, procedure, name, runID string, ra *refundAgent, runOf func(span) string,
+	extra ...string) supervision {
 	t.Helper()
 	dir := filepath.Join(tr.root, name)
 	for _, d := range []string{dir, filepath.Join(dir, "observations"), filepath.Join(dir, "findings")} {
@@ -96,9 +113,9 @@ func (tr tree) supervise(t *testing.T, name, runID string, ra *refundAgent, runO
 	writeFile(t, spans, otlpSpans(t, ra.trace, "refund-agent", "app.run_id", ra.spans, runOf))
 	must(t, tr.dir, tr.control, "observe", "import", "--source", "runtime.source.json", "--log", filepath.Join(dir, "observations"), spans)
 	s := supervision{dir: filepath.Join(dir, "findings")}
-	s.code, s.out = run(t, tr.dir, tr.control, "supervise", "--procedure", "refund.procedure.json", "--runs", "state/runs",
+	s.code, s.out = run(t, tr.dir, tr.control, append([]string{"supervise", "--procedure", procedure, "--runs", "state/runs",
 		"--run", runID, "--findings", s.dir, "--evidence", filepath.Join(tr.root, "plane.export.jsonl"),
-		"--source", "runtime.source.json", "--log", filepath.Join(dir, "observations"))
+		"--source", "runtime.source.json", "--log", filepath.Join(dir, "observations")}, extra...)...)
 	records, err := findinglog.ReadFile(filepath.Join(s.dir, findinglog.FileName))
 	if err != nil {
 		t.Fatalf("%s: reading the findings log: %v\n%s", name, err, s.out)
@@ -164,7 +181,7 @@ func TestARefundRunIsSupervisedAgainstItsProcedure(t *testing.T) {
 	agents := "http://" + plane.after(t, "listening for agents on ")
 	ra := newAgent(t, agents, first.token)
 	rq := ra.work(t, tr)
-	tr.waitForTrails(t, "trail/plane.jsonl", 6)
+	tr.waitForTrails(t, 6)
 	writeFile(t, filepath.Join(tr.root, "plane.export.jsonl"), must(t, tr.dir, tr.gateway, "trail", "export", "trail/plane.jsonl"))
 
 	claimed := tr.supervise(t, "claimed", runID, ra, func(span) string { return runID })
@@ -188,7 +205,7 @@ func TestARefundRunIsSupervisedAgainstItsProcedure(t *testing.T) {
 
 	pl := livePlane{health: plane.after(t, "answering /healthz, /metrics and /brand on "), first: ra, second: newAgent(t, agents, second.token)}
 	refused := tr.stopAndLift(t, pl, first, claimed, liftKey)
-	tr.waitForTrails(t, "trail/plane.jsonl", 9)
+	tr.waitForTrails(t, 9)
 	plane.interrupt(t)
 	collector.interrupt(t)
 	own := `{"call":"read_order","args":{"id":"ord-1"}}` + "\n"

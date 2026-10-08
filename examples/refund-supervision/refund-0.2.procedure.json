@@ -1,0 +1,34 @@
+{
+  "schema_version": "0.2",
+  "procedure_id": "refund",
+  "version": "2",
+  "bindings": {"order": "order"},
+  "steps": [
+    {"id": "fetch-order", "tool": "read_order", "upstream": "orders", "observed_as": ["read_order"], "required": true, "binds": ["order"]},
+    {"id": "refund", "tool": "refund", "upstream": "orders", "observed_as": ["refund"], "required": true, "binds": ["order"]}
+  ],
+  "order": {"refund": ["fetch-order"]},
+  "allow": [
+    {"tool": "update_order", "upstream": "orders", "observed_as": ["update_order"], "binds": ["order"]}
+  ],
+  "exceptions": [
+    {"id": "customer-export-approved", "waives": "STEP_OUTSIDE_PROCEDURE", "tool": "export_orders", "upstream": "orders",
+      "condition": {"approval": "granted"}}
+  ],
+  "children": "inherit",
+  "max_denials": 4,
+  "deadline_seconds": 900,
+  "rules": {
+    "REPEATED_DENIAL": {"severity": "high", "escalation": "alert"},
+    "STEP_OUTSIDE_PROCEDURE": {"severity": "high", "escalation": "alert"},
+    "DEADLINE_EXCEEDED": {"severity": "medium", "escalation": "inform"},
+    "REQUIRED_STEP_SKIPPED": {"severity": "medium", "escalation": "inform"},
+    "STEP_OUT_OF_ORDER": {"severity": "medium", "escalation": "inform"},
+    "CONTINUED_AFTER_FAILURE": {"severity": "low", "escalation": "inform"},
+    "RESOURCE_OUTSIDE_RUN": {"severity": "high", "escalation": "alert"},
+    "DENIED_ACTION_RETRIED_ARGUMENTS": {"severity": "medium", "escalation": "inform"},
+    "DENIED_ACTION_RETRIED_RESOURCE": {"severity": "critical", "escalation": "alert"},
+    "DENIED_ACTION_RETRIED_AROUND": {"severity": "medium", "escalation": "inform"},
+    "EXCEPTION_TAKEN": {"severity": "info", "escalation": "inform"}
+  }
+}

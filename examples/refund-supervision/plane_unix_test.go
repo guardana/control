@@ -61,7 +61,7 @@ func newTree(t *testing.T) tree {
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"plane.yaml", "policy.json", "refund.procedure.json", "runtime.source.json", "route.json"} {
+	for _, name := range []string{"plane.yaml", "policy.json", "refund.procedure.json", procedure02, casesFile, "runtime.source.json", "route.json"} {
 		writeFile(t, tr.path(name), readFile(t, name))
 	}
 	return tr
@@ -123,8 +123,8 @@ func values(out string) map[string]string {
 // sign makes the bundle key and the freshness key, signs the policy, vouches
 // that the bundle is current, makes the plane's floor and state directories,
 // and writes the plane's configuration with the keys and addresses filled
-// in. It returns the plane's configuration as written.
-func (tr tree) sign(t *testing.T, collector string) string {
+// in.
+func (tr tree) sign(t *testing.T, collector string) {
 	t.Helper()
 	keys := values(must(t, tr.root, tr.control, "policy", "keygen", "--out", "keys/bundle"))
 	fresh := values(must(t, tr.root, tr.control, "policy", "keygen", "--out", "keys/freshness"))
@@ -151,7 +151,6 @@ func (tr tree) sign(t *testing.T, collector string) string {
 		config = strings.Replace(config, old, new, 1)
 	}
 	writeFile(t, tr.path("plane.yaml"), config)
-	return config
 }
 
 // openedRun is what runs open printed for one run.
@@ -263,14 +262,15 @@ func (p *process) interrupt(t *testing.T) {
 	}
 }
 
-// waitForTrails runs the trail command until the trail file holds n whole
-// trails, the plane's spool having shipped them, within ten seconds.
-func (tr tree) waitForTrails(t *testing.T, file string, n int) {
+// waitForTrails runs the trail command until the collector's trail file
+// holds n whole trails, the plane's spool having shipped them, within ten
+// seconds.
+func (tr tree) waitForTrails(t *testing.T, n int) {
 	t.Helper()
 	want := fmt.Sprintf("trails %d: ok %d,", n, n)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		code, out := run(t, tr.dir, tr.gateway, "trail", file)
+		code, out := run(t, tr.dir, tr.gateway, "trail", "trail/plane.jsonl")
 		if code == 0 && strings.Contains(out, want) {
 			return
 		}

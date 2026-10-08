@@ -76,6 +76,26 @@ overrides:
       trust: TRUSTED_INTERNAL
       sensitivity: CONFIDENTIAL
   - upstream: orders
+    tool: update_order
+    fingerprint: sha256:513c1d0feb8958a5e893bda5e8751ed6a6f70c9c4bbed4a42e844dc9a8993d02
+    effect: WRITE
+    resource_type: order
+    resource_from: /id
+    trust_zone: TRUSTED_INTERNAL
+    returns:
+      trust: TRUSTED_INTERNAL
+      sensitivity: CONFIDENTIAL
+  - upstream: orders
+    tool: export_orders
+    fingerprint: sha256:e54df40251fa8b4833475de641c0fc3deed16a97b6b381adf1d26724ddbbf03f
+    effect: READ
+    resource_type: customer
+    resource_from: /id
+    trust_zone: TRUSTED_INTERNAL
+    returns:
+      trust: TRUSTED_INTERNAL
+      sensitivity: CONFIDENTIAL
+  - upstream: orders
     tool: refund
     fingerprint: sha256:ce1c752bfcc4980977fde7d5c08ca406ce25825d04c508235a4f7a60be94e51b
     effect: TRANSACT

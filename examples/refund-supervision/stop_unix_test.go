@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -57,21 +58,12 @@ type livePlane struct {
 	first, second *refundAgent
 }
 
-// stopAndLift turns the supervision's findings into a stop of the first run
-// while the plane serves both, then lifts it: once the plane reads the stop,
-// the first run's next call is refused RUN_STOPPED and the second run's call
-// runs; once it reads the lift, the first run's call runs again. It returns
-// the refused call's request id.
+// stopAndLift stops the first run on the supervision's REPEATED_DENIAL, then
+// lifts the stop: once the plane reads the lift, the first run's call runs
+// again. It returns the refused call's request id.
 func (tr tree) stopAndLift(t *testing.T, pl livePlane, first openedRun, s supervision, liftKey string) string {
 	t.Helper()
-	tr.react(t, first, s)
-	waitForStops(t, pl.health, "stopped", first.id)
-	refused := pl.first.call(t, newSpan(90), "read_order", map[string]string{"id": "ord-1"})
-	if !refused.Result.IsError || refused.codes() != `["RUN_STOPPED"]` || refused.meta("request_id") == "" {
-		t.Fatalf("the stopped run's call answered %+v, want a block by RUN_STOPPED", refused)
-	}
-	expectOwnOrder(t, "the other run's call under the stop", pl.second.call(t, newSpan(1), "read_order", map[string]string{"id": "ord-1"}))
-
+	refused := tr.stop(t, pl, first, s, "REPEATED_DENIAL", 1)
 	lift := append(append([]string{"stops", "lift"}, routeFlags...), "--key", liftKey, "--run", first.id, "state/stops")
 	if out := must(t, tr.dir, tr.control, lift...); out != "lift line 3 run "+first.id+" through line 2\n" {
 		t.Fatalf("stops lift printed %q, want a lift of run %s through line 2", out, first.id)
@@ -81,14 +73,30 @@ func (tr tree) stopAndLift(t *testing.T, pl livePlane, first openedRun, s superv
 	}
 	waitForStops(t, pl.health, "clear", "")
 	expectOwnOrder(t, "the first run's call after the lift", pl.first.call(t, newSpan(91), "read_order", map[string]string{"id": "ord-1"}))
+	return refused
+}
+
+// stop turns the supervision's confirmed finding of rule into a stop of the
+// first run while the plane serves both runs: once the plane reads the stop,
+// the first run's next call is refused RUN_STOPPED and the second run's call
+// runs. It returns the refused call's request id.
+func (tr tree) stop(t *testing.T, pl livePlane, first openedRun, s supervision, rule string, notStopping int) string {
+	t.Helper()
+	tr.react(t, first, s, rule, notStopping)
+	waitForStops(t, pl.health, "stopped", first.id)
+	refused := pl.first.call(t, newSpan(90), "read_order", map[string]string{"id": "ord-1"})
+	if !refused.Result.IsError || refused.codes() != `["RUN_STOPPED"]` || refused.meta("request_id") == "" {
+		t.Fatalf("the stopped run's call answered %+v, want a block by RUN_STOPPED", refused)
+	}
+	expectOwnOrder(t, "the other run's call under the stop", pl.second.call(t, newSpan(1), "read_order", map[string]string{"id": "ord-1"}))
 	return refused.meta("request_id")
 }
 
 // react runs react over the supervision's findings twice: the first writes
-// one stop of the first run, for the confirmed REPEATED_DENIAL and not the
-// suspected finding, lasting as long as the run, and the second writes
+// one stop of the first run, for the confirmed finding of rule and none of
+// the notStopping others, lasting as long as the run, and the second writes
 // nothing. stops list then shows the stop active.
-func (tr tree) react(t *testing.T, first openedRun, s supervision) {
+func (tr tree) react(t *testing.T, first openedRun, s supervision, rule string, notStopping int) {
 	t.Helper()
 	react := append([]string{"react", "--findings", s.dir, "--runs", "state/runs", "--stops", "state/stops"}, routeFlags...)
 	expires, err := time.Parse(time.RFC3339Nano, first.expiresAt)
@@ -101,13 +109,13 @@ func (tr tree) react(t *testing.T, first openedRun, s supervision) {
 		expires = expires.Truncate(time.Second).Add(time.Second)
 	}
 	until := expires.UTC().Format("2006-01-02T15:04:05Z")
-	finding := s.finding("REPEATED_DENIAL").GetFinding().GetFindingId()
-	stop := "stop line 2 run " + first.id + " finding " + finding + " rule REPEATED_DENIAL"
+	finding := s.finding(rule).GetFinding().GetFindingId()
+	stop := "stop line 2 run " + first.id + " finding " + finding + " rule " + rule
 	if out := must(t, tr.dir, tr.control, react...); out != stop+" expires_at "+until+"\n"+
-		"stops 1, covered 0, already named 0, not stopping 1, not written 0\n" {
+		fmt.Sprintf("stops 1, covered 0, already named 0, not stopping %d, not written 0\n", notStopping) {
 		t.Fatalf("react printed %q, want one stop of run %s until %s", out, first.id, until)
 	}
-	if out := must(t, tr.dir, tr.control, react...); out != "stops 0, covered 0, already named 1, not stopping 1, not written 0\n" {
+	if out := must(t, tr.dir, tr.control, react...); out != fmt.Sprintf("stops 0, covered 0, already named 1, not stopping %d, not written 0\n", notStopping) {
 		t.Fatalf("react run again printed %q, want nothing written", out)
 	}
 	if out := tr.stops(t); !strings.Contains(out, "\n"+stop+" created_at ") ||
