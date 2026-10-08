@@ -1,7 +1,7 @@
 # A refund run, supervised and stopped
 
-An operator opens a run for an agent's refund on a live plane, checks it
-against its procedure and stops it on a confirmed finding. The `*_test.go`
+[An operator opens a run for an agent's refund on a live plane, checks it
+against its procedure and stops it on a confirmed finding](../../docs/guides/supervise-and-stop-a-run.md). The `*_test.go`
 files run every step on a Unix-like system;
 [supervision.md](../../docs/reference/supervision.md),
 [reaction.md](../../docs/reference/reaction.md) and

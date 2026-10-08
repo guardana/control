@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Supervise and stop a run · Guardana Control</title>
+<meta name="description" content="Run the refund example by hand on a live plane, supervise the run against its procedure, read its page, and stop it on a confirmed finding."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/guides/supervise-and-stop-a-run"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.9.0-alpha</span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a class="hide-s" href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span class="hide-s">GitHub</span></a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<details class="mnav">
+<summary>Menu · <b>Supervise and stop a run</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/supervise-and-stop-a-run" aria-current="page">Supervise and stop a run</a></li>
+<li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/run-view">Run view</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</details>
+<main id="main" class="prose">
+<h1 id="supervise-and-stop-a-run">Supervise and stop a run</h1>
+<h2 id="when-to-use-this">When to use this</h2>
+<p>You want to see supervision work end to end before you write a procedure of
+your own: a plane decides an agent's calls under an opened run, <code>supervise</code>
+compares the run with its procedure, and <code>react</code> turns a confirmed finding
+into a stop that refuses the run's next call and no other run's. This guide
+does by hand what <a href="https://github.com/guardana/control/tree/main/examples/refund-supervision">examples/refund-supervision/</a>
+does under its <code>0.2</code> procedure. Every command here is <code>experimental</code>
+(<a href="/docs/status">status.md</a>). How the parts fit is in
+<a href="/docs/concepts/observations-coverage-and-supervision">observations-coverage-and-supervision.md</a>.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>A checkout of this repository on a Unix-like system, and the Go toolchain
+<code>go.mod</code> names, used once to build the binaries. Nothing after that needs Go.</li>
+<li><code>curl</code> and <code>jq</code>.</li>
+<li>Ports 8080 and 8081 (the plane) and 4318 (the collector) free on
+127.0.0.1. If one is taken, change it in <code>plane.yaml</code> and in the commands
+below.</li>
+</ul>
+<h2 id="steps">Steps</h2>
+<h3 id="1-lay-out-the-example">1. Lay out the example</h3>
+<p>From the repository root, build the gateway, the control command and the
+orders server into a directory of your own, and copy the example's files
+below them as the repository lays them out: <code>plane.yaml</code> starts the server
+from <code>../../bin/</code>.</p>
+<pre><code>export WORK=&#34;$HOME/refund&#34;
+go build -o &#34;$WORK/bin/&#34; ./cmd/guardana-gateway ./cmd/guardana-control ./examples/vulnerable-mcp-agent
+mkdir -p &#34;$WORK/examples/refund-supervision&#34; &#34;$WORK/keys&#34;
+cp examples/refund-supervision/plane.yaml examples/refund-supervision/*.json &#34;$WORK/examples/refund-supervision/&#34;
+export PATH=&#34;$WORK/bin:$PATH&#34;
+</code></pre>
+<p>Set <code>WORK</code> and <code>PATH</code> the same way in every terminal you open below.</p>
+<h3 id="2-sign-the-policy">2. Sign the policy</h3>
+<p>Make four keys: the policy's, the freshness statement's, the route's and the
+lift key, which signs the end of a stop. Here they sit on one machine,
+outside the plane's state; in use, keep the private keys off the plane's host.</p>
+<pre><code>$ cd &#34;$WORK&#34;
+$ guardana-control policy keygen --out keys/bundle
+key_id: ed25519-640a7a9ba6644930
+public_key: btJ7DbxTY7wR79k4SxrHAl0BExSlmABGUQkDnm2e59o=
+$ guardana-control policy keygen --out keys/freshness
+$ guardana-control policy keygen --out keys/route
+$ guardana-control policy keygen --out keys/lift
+</code></pre>
+<p>Sign the policy, vouch that it is current, and make the plane's directories,
+as <a href="/docs/guides/run-the-gateway">run-the-gateway.md</a> explains:</p>
+<pre><code>cd examples/refund-supervision
+mkdir -m 700 state trail state/spool state/runs state/approvals state/holds state/stops
+guardana-control policy sign --key ../../keys/bundle/signing.key --out state/policy.bundle policy.json
+guardana-control policy state init --kind signer --bundle-id refund-supervision ../../keys/signer-floors
+guardana-control policy renew --key ../../keys/freshness/signing.key --bundle state/policy.bundle \
+    --bundle-public-key ../../keys/bundle/signing.pub --floor ../../keys/signer-floors --out state/policy.statement
+guardana-control policy state init --kind plane --bundle-id refund-supervision state/floors
+</code></pre>
+<p>In <code>plane.yaml</code>, replace the four <code>..._FROM_KEYGEN</code> values with the
+<code>key_id</code> and <code>public_key</code> lines keygen printed for <code>keys/bundle</code> and
+<code>keys/freshness</code>.</p>
+<h3 id="3-sign-the-route-and-start-the-stop-list">3. Sign the route and start the stop list</h3>
+<p>The route names the findings that may stop a run: <code>REPEATED_DENIAL</code> under
+the <code>0.1</code> procedure and <code>DENIED_ACTION_RETRIED_RESOURCE</code> under <code>0.2</code>, each
+bound to its procedure's digest. <code>plane.yaml</code> names the route, so the plane
+refuses to start until it exists. In <code>route.json</code>, replace
+<code>LIFT_PUBLIC_KEY_FROM_KEYGEN</code> with the <code>public_key</code> keygen printed for
+<code>keys/lift</code>, then:</p>
+<pre><code>$ guardana-control route sign --key ../../keys/route/signing.key --out state/route.signed.json route.json
+route_id: refunds
+serial: 1
+…
+$ cp ../../keys/route/signing.pub state/route.pub
+$ guardana-control policy state init --kind route --route-id refunds state/routefloor
+$ guardana-control stops init --route state/route.signed.json --public-key state/route.pub state/stops
+list_id: lst-d0eda7d074d9ee922e9e326bfde153a1
+route_id: refunds
+…
+</code></pre>
+<h3 id="4-start-the-collector-and-the-plane">4. Start the collector and the plane</h3>
+<p>Work in <code>$WORK/examples/refund-supervision</code> from here on. Start the collector
+in a terminal of its own:</p>
+<pre><code>guardana-gateway collect --listen 127.0.0.1:4318 --out trail/plane.jsonl
+</code></pre>
+<p>Check the configuration; every check line should begin <code>ok</code>:</p>
+<pre><code>$ guardana-gateway doctor --config plane.yaml
+…
+ok      upstreams     1 upstream(s) answered, 4 tool(s) listed, 4 classified, 0 unclassified
+…
+</code></pre>
+<p>Then start the plane in another terminal:</p>
+<pre><code>$ guardana-gateway run --config plane.yaml
+…
+listening for agents on 127.0.0.1:8080
+answering /healthz, /metrics and /brand on 127.0.0.1:8081
+</code></pre>
+<h3 id="5-open-two-runs">5. Open two runs</h3>
+<p>Every call needs a run the operator opened (<a href="/docs/reference/runs">runs.md</a>).
+Open one for the agent and a second to show that a stop stays in its run:</p>
+<pre><code>$ guardana-control runs open --tenant acme --principal-type service --principal agent-runner --agent refund-assistant --ttl 1h state/runs
+run_id: run-9d9ad942e8427a0e36f6abd3fa8ced08
+…
+token: run-9d9ad942e8427a0e36f6abd3fa8ced08.2sz2oVvp-yKBaXtfq47Gb133ucR_keAinwKSnlBvQkQ
+</code></pre>
+<p>Run it again for the second run. Your ids, tokens and approval id differ
+from the ones on this page; use yours.</p>
+<h3 id="6-make-the-agents-calls">6. Make the agent's calls</h3>
+<p>The agent is a <code>curl</code> that presents the run's token. Define it in the
+terminal you opened the runs in:</p>
+<pre><code>call() {
+  curl -sS http://127.0.0.1:8080 -H &#34;Run-Token: $TOKEN&#34; \
+    -H &#39;Content-Type: application/json&#39; -H &#39;Accept: application/json, text/event-stream&#39; \
+    -H &#39;MCP-Protocol-Version: 2026-07-28&#39; -H &#39;Mcp-Method: tools/call&#39; -H &#34;Mcp-Name: $1&#34; \
+    -d &#39;{&#34;jsonrpc&#34;:&#34;2.0&#34;,&#34;id&#34;:1,&#34;method&#34;:&#34;tools/call&#34;,&#34;params&#34;:{&#34;name&#34;:&#34;&#39;&#34;$1&#34;&#39;&#34;,&#34;arguments&#34;:&#39;&#34;$2&#34;&#39;,
+        &#34;_meta&#34;:{&#34;io.modelcontextprotocol/protocolVersion&#34;:&#34;2026-07-28&#34;,&#34;io.modelcontextprotocol/clientCapabilities&#34;:{}}}}&#39;
+}
+TOKEN=run-9d9ad942e8427a0e36f6abd3fa8ced08.2sz2oVvp-yKBaXtfq47Gb133ucR_keAinwKSnlBvQkQ
+</code></pre>
+<p>Read the customer's order, then ask for the customer's export, which the
+policy holds for a person:</p>
+<pre><code>$ call read_order &#39;{&#34;id&#34;:&#34;ord-1&#34;}&#39;
+event: message
+data: {…&#34;text&#34;:&#34;order ord-1: 2 items, paid, ships to Jane Roe, 1 Main Street&#34;}],&#34;resultType&#34;:&#34;complete&#34;}}
+$ call export_orders &#39;{&#34;id&#34;:&#34;cus-1&#34;}&#39;
+event: message
+data: {…&#34;guardana.control/answer&#34;:&#34;pending&#34;,&#34;guardana.control/approval_id&#34;:&#34;NJ2LS54YEXMJJDH3LK4GFOUSYM&#34;,…&#34;text&#34;:&#34;APPROVAL_PENDING&#34;}],&#34;isError&#34;:true}}
+</code></pre>
+<p>Approve it as a person would, and make the same call again; it runs on the
+held request:</p>
+<pre><code>$ guardana-control approvals approve --approver-id supervisor state/approvals NJ2LS54YEXMJJDH3LK4GFOUSYM
+approval NJ2LS54YEXMJJDH3LK4GFOUSYM: approved by supervisor
+$ call export_orders &#39;{&#34;id&#34;:&#34;cus-1&#34;}&#39;
+data: {…&#34;text&#34;:&#34;customer cus-1: ord-1, ord-2, ord-3&#34;}],&#34;resultType&#34;:&#34;complete&#34;}}
+</code></pre>
+<p>Now the agent goes wrong: it is denied a refund of another customer's order
+and marks that order refunded instead.</p>
+<pre><code>$ call refund &#39;{&#34;id&#34;:&#34;ord-2&#34;,&#34;amount&#34;:&#34;12.00&#34;}&#39;
+data: {…&#34;guardana.control/reason_codes&#34;:[&#34;RULE_DENY&#34;],…&#34;isError&#34;:true}}
+$ call update_order &#39;{&#34;id&#34;:&#34;ord-2&#34;,&#34;status&#34;:&#34;refunded&#34;}&#39;
+data: {…&#34;text&#34;:&#34;order ord-2 is now refunded&#34;}],&#34;resultType&#34;:&#34;complete&#34;}}
+</code></pre>
+<h3 id="7-export-the-trail">7. Export the trail</h3>
+<p>Wait until the collector holds the four calls' trails, then export them:</p>
+<pre><code>$ guardana-gateway trail trail/plane.jsonl
+…
+trails 4: ok 4, open 0, failed 0, indeterminate 0; …
+$ guardana-gateway trail export trail/plane.jsonl &gt; plane.export.jsonl
+</code></pre>
+<h3 id="8-supervise-the-run-and-read-its-page">8. Supervise the run and read its page</h3>
+<pre><code>$ mkdir -m 700 findings
+$ guardana-control supervise --procedure refund-0.2.procedure.json --runs state/runs \
+    --run run-9d9ad942e8427a0e36f6abd3fa8ced08 --findings findings --evidence plane.export.jsonl --view run.html
+run run-9d9ad942e8427a0e36f6abd3fa8ced08 tenant acme project refunds procedure refund version 2
+…
+finding RESOURCE_OUTSIDE_RUN confirmed alert fnd-61fa48842c3a3a5c790cf3226fa121d6 …
+finding DENIED_ACTION_RETRIED_RESOURCE confirmed alert fnd-56e33295fb4e204153fa79d1ea12bd3e …
+finding EXCEPTION_TAKEN confirmed inform fnd-36927c0a79d5afba83b765f2dc206201 …
+…
+rule REQUIRED_STEP_SKIPPED not checked: the run is open
+…
+rule DENIED_ACTION_RETRIED_AROUND not checked: no observation source was read
+…
+findings log: 3 written, 0 already held
+</code></pre>
+<p>It exits 1, since there are findings. The update of <code>ord-2</code> is another tool
+on the denied refund's order; the calls bound to one order reached two; the
+approved export is an exception the procedure allows, reported for
+information. The rules about what is missing wait for the run to close.</p>
+<p>Open <code>run.html</code> in a browser; it runs no script. It shows the expected steps
+with their calls, the three findings with the calls each cites, the four
+calls with a mark each (enforced, blocked, exception or approval), and every
+rule's state (<a href="/docs/reference/run-view">run-view.md</a>).</p>
+<h3 id="9-export-the-findings">9. Export the findings</h3>
+<pre><code>$ guardana-control findings export --findings findings &gt; findings.export.jsonl
+$ cut -c1-60 findings.export.jsonl
+{&#34;type&#34;:&#34;header&#34;,&#34;format&#34;:&#34;guardana.control.findings-export&#34;
+{&#34;type&#34;:&#34;finding_record&#34;,&#34;offset&#34;:85,&#34;cursor&#34;:&#34;v1:714ceed807
+…
+{&#34;type&#34;:&#34;supervise_report&#34;,&#34;offset&#34;:2637,&#34;cursor&#34;:&#34;v1:714cee
+{&#34;type&#34;:&#34;trailer&#34;,&#34;next_cursor&#34;:&#34;v1:714ceed807678d837cf64ff2
+</code></pre>
+<h3 id="10-stop-the-run">10. Stop the run</h3>
+<p><code>react</code> writes a stop for each confirmed finding the route allows:</p>
+<pre><code>$ guardana-control react --findings findings --runs state/runs --stops state/stops \
+    --route state/route.signed.json --public-key state/route.pub
+stop line 2 run run-9d9ad942e8427a0e36f6abd3fa8ced08 finding fnd-56e33295fb4e204153fa79d1ea12bd3e rule DENIED_ACTION_RETRIED_RESOURCE expires_at 2026-10-08T04:59:58Z
+stops 1, covered 0, already named 0, not stopping 2, not written 0
+</code></pre>
+<p>The plane reads the list every second:</p>
+<pre><code>$ curl -s http://127.0.0.1:8081/healthz | jq .stops.state
+&#34;stopped&#34;
+</code></pre>
+<p>The first run's next call is refused; the second run's call runs:</p>
+<pre><code>$ call read_order &#39;{&#34;id&#34;:&#34;ord-1&#34;}&#39;
+data: {…&#34;guardana.control/reason_codes&#34;:[&#34;RUN_STOPPED&#34;],…&#34;isError&#34;:true}}
+$ TOKEN=run-ccb6fca62cbadb0bfbea3143ec9d407c.JKKS1krX4V3ePWdUzYJm4JlEurwexvY94LbYDwfloDo
+$ call read_order &#39;{&#34;id&#34;:&#34;ord-1&#34;}&#39;
+data: {…&#34;text&#34;:&#34;order ord-1: 2 items, paid, ships to Jane Roe, 1 Main Street&#34;}],&#34;resultType&#34;:&#34;complete&#34;}}
+</code></pre>
+<h3 id="11-test-the-procedure">11. Test the procedure</h3>
+<p>The example's cases state runs and every finding <code>supervise</code> must make
+(<a href="/docs/guides/test-a-procedure">test-a-procedure.md</a>):</p>
+<pre><code>$ guardana-control procedure test refund-0.2.cases.json
+ok   the refund retried as an update: RESOURCE_OUTSIDE_RUN CONFIRMED, DENIED_ACTION_RETRIED_RESOURCE CONFIRMED
+ok   the export approved: EXCEPTION_TAKEN CONFIRMED
+ok   the export without an approval: STEP_OUTSIDE_PROCEDURE CONFIRMED
+procedure refund version 2: 3 cases, 3 passed, 0 failed
+</code></pre>
+<h2 id="verify">Verify</h2>
+<p>The refused call's trail shows the plane blocked it before the server saw it,
+under a policy that allowed it. Use the request id its answer named:</p>
+<pre><code>$ guardana-gateway trail export --request SGVSUQB3K4E54GEEGBA2VDBOOP trail/plane.jsonl | grep -o &#39;&#34;kind&#34;:&#34;[A-Z_]*&#34;\|&#34;reasonCodes&#34;:\[[^]]*\]&#39;
+&#34;kind&#34;:&#34;EVENT_KIND_ACTION_PROPOSED&#34;
+&#34;kind&#34;:&#34;EVENT_KIND_POLICY_DECIDED&#34;
+&#34;reasonCodes&#34;:[&#34;RULE_ALLOW&#34;]
+&#34;kind&#34;:&#34;EVENT_KIND_ACTION_BLOCKED&#34;
+&#34;reasonCodes&#34;:[&#34;RUN_STOPPED&#34;]
+</code></pre>
+<p><code>stops list --route state/route.signed.json --public-key state/route.pub state/stops</code> shows the stop <code>active</code>.</p>
+<h2 id="roll-back">Roll back</h2>
+<p>Lift the stop with the lift key; the plane reads it within a second, and the
+first run's calls run again. <code>react</code> never writes a stop for the same finding
+again (<a href="/docs/reference/reaction">reaction.md</a>).</p>
+<pre><code>$ guardana-control stops lift --route state/route.signed.json --public-key state/route.pub \
+    --key ../../keys/lift/signing.key --run run-9d9ad942e8427a0e36f6abd3fa8ced08 state/stops
+lift line 3 run run-9d9ad942e8427a0e36f6abd3fa8ced08 through line 2
+</code></pre>
+<p>Close both runs, stop the plane and the collector with Ctrl-C, and remove
+<code>$WORK</code>:</p>
+<pre><code>$ guardana-control runs close state/runs run-9d9ad942e8427a0e36f6abd3fa8ced08
+closed run-9d9ad942e8427a0e36f6abd3fa8ced08
+$ guardana-control runs close state/runs run-ccb6fca62cbadb0bfbea3143ec9d407c
+closed run-ccb6fca62cbadb0bfbea3143ec9d407c
+</code></pre>
+<h2 id="what-this-guide-does-not-show">What this guide does not show</h2>
+<p>The example's tests also import the agent runtime's own spans as
+observations, which is how <code>supervise</code> suspects an upload the plane never saw.
+The tests write those spans themselves; by hand there is no runtime to report
+them, so this guide supervises from the plane's trail alone, and
+<code>DENIED_ACTION_RETRIED_AROUND</code> is not checked. Observations and the coverage
+map have their own pages: <a href="/docs/reference/observations">observations.md</a> and
+<a href="/docs/reference/coverage">coverage.md</a>. The example's README describes its
+<code>0.1</code> run; <code>notify</code> and child runs are in
+<a href="/docs/reference/supervision">supervision.md</a>.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/supervise-and-stop-a-run.md">docs/guides/supervise-and-stop-a-run.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/supervise-and-stop-a-run" aria-current="page">Supervise and stop a run</a></li>
+<li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/run-view">Run view</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>
