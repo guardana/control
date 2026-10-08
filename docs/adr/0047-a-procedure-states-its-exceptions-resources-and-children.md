@@ -116,10 +116,12 @@ with write access to that store.
 
 **What may stop.** `REPEATED_DENIAL`, `STEP_OUTSIDE_PROCEDURE`,
 `DEADLINE_EXCEEDED`, `RESOURCE_OUTSIDE_RUN`, `DENIED_ACTION_RETRIED_ARGUMENTS`
-and `DENIED_ACTION_RETRIED_RESOURCE`. One table of these ids lives in
-`internal/reaction`, held equal to supervise's by a test. `route sign` refuses
-a route naming another; `react` and the plane refuse such a route whole when
-they load it, so a route signed by any other means cannot widen the set. The
+and `DENIED_ACTION_RETRIED_RESOURCE`, each at its rule version. One table of these
+ids and versions lives in `internal/reaction`, held equal to supervise's by a
+test. Verifying a route refuses one that names another rule or version, so
+`route sign`, `react`, the plane, doctor and the `stops` commands all refuse it
+whole, and the stop-list writer refuses it even from an unsigned route: a route
+signed by any other means cannot widen the set. The
 route still chooses which of these stop and for how long.
 
 **Bounded findings.** A finding's verdict is decided over all its evidence;

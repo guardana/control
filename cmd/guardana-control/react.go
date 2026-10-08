@@ -67,9 +67,6 @@ func react(a reactArgs, now time.Time, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(stderr, reactName, err)
 	}
-	if err := reaction.CheckStopping(route); err != nil {
-		return fail(stderr, reactName, fmt.Errorf("--route %s: %w", a.route, err))
-	}
 	list, _, err := judgedList(a.stops, route, now)
 	if err != nil {
 		return fail(stderr, reactName, err)

@@ -11,6 +11,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +20,6 @@ import (
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/findinglog"
 	"github.com/guardana/control/internal/reaction/stoplist"
-	"github.com/guardana/control/internal/reaction/stopwrite"
 	"github.com/guardana/control/internal/runs"
 )
 
@@ -169,16 +169,24 @@ func TestReactStopsAChild(t *testing.T) {
 
 // TestReactRefusesARouteNamingARuleThatMayNotStop: a route signed with the
 // route key by other means than route sign, naming a rule that may not stop
-// a run beside one that may, is refused whole before a finding is read, over
-// a list started under that very route, so only the check stands between it
-// and a stop. A route of 0.9 naming REPEATED_DENIAL version "1" is the
-// control: it writes the stop.
+// a run, or a stopping rule at another version, beside one that may, is
+// refused whole before a finding is read. The log holds a confirmed finding
+// of that very rule at that version and the list is one the judge accepts
+// under the route, so only the check stands between it and a stop. A route
+// of 0.9 naming REPEATED_DENIAL version "1" is the control: it writes the
+// stop.
 func TestReactRefusesARouteNamingARuleThatMayNotStop(t *testing.T) {
 	tr := newStopTree(t)
 	log := tr.findingsDir(t, "log", finding(1, tr.open, denial, confirmed))
+	findingOf := func(n int, id, version string) *findingv1alpha1.FindingRecord {
+		f := finding(n, tr.open, id, confirmed)
+		f.Finding.RuleVersion = version
+		return f
+	}
 	lift := base64.StdEncoding.EncodeToString(seeded(0x4c).Public().(ed25519.PublicKey))
-	rule := func(id string) string {
-		return `{"procedure_id":"refund","version":"1","digest":"` + stopProcDigest + `","rule_id":"` + id + `","rule_version":"1"}`
+	rule := func(id, version string) string {
+		return `{"procedure_id":"refund","version":"1","digest":"` + stopProcDigest + `","rule_id":"` + id +
+			`","rule_version":"` + version + `"}`
 	}
 	doc := func(rules ...string) string {
 		return `{"kind":"reaction-route/v1alpha1","route_id":"direct","serial":1,"tenant_id":"acme","scope":"run",` +
@@ -187,33 +195,30 @@ func TestReactRefusesARouteNamingARuleThatMayNotStop(t *testing.T) {
 	setUp := func(name, body string) reactArgs {
 		route := filepath.Join(tr.dir, name+".signed")
 		parsed := signRouteFile(t, route, body, seeded(0x52))
-		stops := ownerDir(t, filepath.Join(tr.dir, "stops-"+name))
-		if _, err := stopwrite.Init(context.Background(), stops, parsed, time.Now()); err != nil {
-			t.Fatal(err)
-		}
 		a := tr.reactArgs(log)
-		a.route, a.stops = route, stops
+		a.route, a.stops = route, tr.listUnder(t, "stops-"+name, parsed, tr.second)
 		return a
 	}
-	for _, id := range []string{"EXCEPTION_TAKEN", "DENIED_ACTION_RETRIED_AROUND", "REQUIRED_STEP_SKIPPED", "NO_SUCH_RULE"} {
-		a := setUp(id, doc(rule(denial), rule(id)))
-		for _, findings := range []string{log, filepath.Join(tr.dir, "no-findings-here")} {
+	for i, c := range mayNotStop {
+		a := setUp("refused-"+strconv.Itoa(i), doc(rule(outside, "1"), rule(c.id, c.version)))
+		own := tr.findingsDir(t, "log-"+strconv.Itoa(i), findingOf(10+i, c.id, c.version))
+		for _, findings := range []string{own, filepath.Join(tr.dir, "no-findings-here")} {
 			a.findings = findings
 			before := readList(t, a.stops)
 			var out, errOut bytes.Buffer
 			code := react(a, time.Now(), &out, &errOut)
-			want := "react: --route " + a.route + ": rules[1]: reaction: the route names a rule that may not stop a run"
+			want := "react: --route " + a.route + ": " + mayNotStopRefusal(1, c.id, c.version)
 			if code != exitFail || out.Len() != 0 || !strings.Contains(errOut.String(), want) {
-				t.Errorf("%s over %s: react answered %d: %q %q, want 1 and %q", id, findings, code, out.String(), errOut.String(), want)
+				t.Errorf("%s %s over %s: react answered %d: %q %q, want 1 and %q", c.id, c.version, findings, code, out.String(), errOut.String(), want)
 			}
 			if !bytes.Equal(readList(t, a.stops), before) {
-				t.Errorf("%s: a refused route changed the list", id)
+				t.Errorf("%s %s: a refused route changed the list", c.id, c.version)
 			}
 		}
 	}
-	a := setUp("control", doc(rule(denial)))
+	a := setUp("control", doc(rule(outside, "1"), rule(denial, "1")))
 	var out, errOut bytes.Buffer
-	if code := react(a, time.Now(), &out, &errOut); code != exitOK || !strings.HasPrefix(out.String(), "stop line 2 run "+tr.open+" ") {
+	if code := react(a, time.Now(), &out, &errOut); code != exitOK || !strings.HasPrefix(out.String(), "stop line 3 run "+tr.open+" ") {
 		t.Fatalf("the 0.9 route: react answered %d: %q %q", code, out.String(), errOut.String())
 	}
 }

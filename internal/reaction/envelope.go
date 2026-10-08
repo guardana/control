@@ -67,7 +67,8 @@ func SignRoute(r Route, key ed25519.PrivateKey) (Envelope, error) {
 // MaxRouteBytes; the keyid is policykey's id of pub; the signature verifies
 // over the pre-authentication encoding of the route type and the body; the
 // body is a route (ParseRoute) and its own canonical form; its lift key is not
-// pub as DistinctKeys compares.
+// pub as DistinctKeys compares; every rule it names may stop a run
+// (CheckStopping).
 func VerifyRoute(env Envelope, pub ed25519.PublicKey) (Route, error) {
 	body, err := open(env, pub, envelopeRefusals{
 		payloadType: RoutePayloadType, limit: MaxRouteBytes, wrongType: ErrRoutePayloadType,
@@ -85,6 +86,9 @@ func VerifyRoute(env Envelope, pub ed25519.PublicKey) (Route, error) {
 	}
 	if policykey.SameKey(pub, r.liftKey) {
 		return Route{}, fmt.Errorf("%w: the route key is the route's lift key", ErrKeysEqual)
+	}
+	if err := CheckStopping(r); err != nil {
+		return Route{}, err
 	}
 	return r, nil
 }

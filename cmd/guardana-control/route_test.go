@@ -79,6 +79,7 @@ func TestRouteSignRefusesARuleThatMayNotStop(t *testing.T) {
 		{first, `"rule_id":"NO_SUCH_RULE"`, `rules[0]: rule_id "NO_SUCH_RULE" is no rule supervise has`},
 		{second + `,"rule_version":"1"`, second + `,"rule_version":"2"`, `rules[1]: rule_version "2" is not supervise's "1"`},
 		{first + `,"rule_version":"1"`, first + `,"rule_version":"01"`, `rules[0]: rule_version "01" is not supervise's "1"`},
+		{first + `,"rule_version":"1"`, first + `,"rule_version":"9"`, `rules[0]: rule_version "9" is not supervise's "1"`},
 		{first, `"rule_id":"REQUIRED_STEP_SKIPPED"`, "rules[0]: REQUIRED_STEP_SKIPPED: reaction: the route names a rule that " + refused},
 		{first, `"rule_id":"STEP_OUT_OF_ORDER"`, "rules[0]: STEP_OUT_OF_ORDER: reaction: the route names a rule that " + refused},
 		{second, `"rule_id":"CONTINUED_AFTER_FAILURE"`, "rules[1]: CONTINUED_AFTER_FAILURE: reaction: the route names a rule that " + refused},
@@ -122,15 +123,24 @@ func TestRouteSignSignsEveryRuleThatMayStop(t *testing.T) {
 
 // TestTheStoppingRulesAreSupervisesMayStop holds reaction's table, which a
 // plane reads without linking supervise, equal to supervise's own: every
-// rule a procedure of either schema configures may stop in one exactly when
-// it may in the other, and the table names no rule supervise lacks.
+// rule a procedure of either schema configures may stop, at supervise's
+// version of it, in one exactly when it may in the other, and at any other
+// version in neither; and the table names no rule, and no version, supervise
+// lacks.
 func TestTheStoppingRulesAreSupervisesMayStop(t *testing.T) {
 	known := slices.Compact(slices.Sorted(slices.Values(slices.Concat(
 		supervise.RuleIDsOf(supervise.ProcedureSchema01), supervise.RuleIDsOf(supervise.ProcedureSchema02)))))
 	stopping, notStopping := 0, 0
 	for _, id := range known {
-		if reaction.MayStop(id) != supervise.MayStop(id) {
-			t.Errorf("%s: reaction.MayStop %v, supervise.MayStop %v", id, reaction.MayStop(id), supervise.MayStop(id))
+		version, ok := supervise.RuleVersionOf(id)
+		if !ok {
+			t.Fatalf("supervise lists %s and has no version of it", id)
+		}
+		if reaction.MayStop(id, version) != supervise.MayStop(id) {
+			t.Errorf("%s %s: reaction.MayStop %v, supervise.MayStop %v", id, version, reaction.MayStop(id, version), supervise.MayStop(id))
+		}
+		if reaction.MayStop(id, version+"0") {
+			t.Errorf("%s: reaction.MayStop at version %s, which is not supervise's %s", id, version+"0", version)
 		}
 		if supervise.MayStop(id) {
 			stopping++
@@ -141,9 +151,9 @@ func TestTheStoppingRulesAreSupervisesMayStop(t *testing.T) {
 	if stopping == 0 || notStopping == 0 {
 		t.Fatalf("supervise listed %d rule(s), %d that may stop; the comparison saw one side only", len(known), stopping)
 	}
-	for _, id := range reaction.StoppingRules() {
-		if _, ok := supervise.RuleVersionOf(id); !ok || !supervise.MayStop(id) {
-			t.Errorf("reaction's table names %s, which supervise does not let stop a run", id)
+	for _, r := range reaction.StoppingRules() {
+		if version, ok := supervise.RuleVersionOf(r.ID); !ok || version != r.Version || !supervise.MayStop(r.ID) {
+			t.Errorf("reaction's table names %s %s, which supervise does not let stop a run at that version", r.ID, r.Version)
 		}
 	}
 }

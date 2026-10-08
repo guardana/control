@@ -233,39 +233,52 @@ func TestARouteTheConfigurationDoesNotServeRefusesTheStart(t *testing.T) {
 	})
 }
 
-// signedDirectly replaces the tree's route with a route of rule, signed
-// with the route key by other means than route sign, and starts the stop
-// list over under it, so only the start's check of the rule stands between
-// the route and a serving plane.
-func signedDirectly(t *testing.T, tr tree, rule string) {
+// signedDirectly replaces the tree's route with a route of rule at version,
+// signed with the route key by other means than route sign, and replaces the
+// stop list with one holding that route's header, written here since no
+// writer starts a list under a route naming a rule that may not stop, so
+// only the start's check of the rule stands between the route and a serving
+// plane.
+func signedDirectly(t *testing.T, tr tree, rule, version string) {
 	t.Helper()
-	route := readRouteDocument(t, routeDocumentOf(runsTenant, 1, rule))
+	route := readRouteDocument(t, routeDocumentOf(runsTenant, 1, rule, version))
 	writeRouteFile(t, tr.dir, route, routeSigningKey(), routeSigningKey().Public().(ed25519.PublicKey))
-	if err := os.Remove(filepath.Join(tr.dir, "stops", stoplist.FileName)); err != nil {
+	header, err := reaction.HeaderFor(route, "lst-0123456789abcdef0123456789abcdef").Marshal()
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := stopwrite.Init(context.Background(), filepath.Join(tr.dir, "stops"), route, time.Now()); err != nil {
+	if err := os.WriteFile(filepath.Join(tr.dir, "stops", stoplist.FileName), append(header, '\n'), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
 
+// mayNotStop is each rule, at a version, a route may not name: rules whose
+// finding may not stop a run, an id no rule has, and two that may stop at a
+// version that is not their own.
+var mayNotStop = []struct{ rule, version string }{
+	{"EXCEPTION_TAKEN", "1"}, {"DENIED_ACTION_RETRIED_AROUND", "1"}, {"REQUIRED_STEP_SKIPPED", "1"},
+	{"NO_SUCH_RULE", "1"}, {"REPEATED_DENIAL", "9"}, {"STEP_OUTSIDE_PROCEDURE", "2"},
+}
+
 // TestARouteNamingARuleThatMayNotStopRefusesTheStart: a route naming a rule
-// whose finding may not stop a run, or no rule supervise has, is refused
-// before the floor is touched. A 0.9 route naming REPEATED_DENIAL version
-// "1" is the control, and starts.
+// whose finding may not stop a run, no rule supervise has, or a stopping rule
+// at another version, is refused before the floor is touched. A 0.9 route
+// naming REPEATED_DENIAL version "1" over a list written the same way is the
+// control, and starts.
 func TestARouteNamingARuleThatMayNotStopRefusesTheStart(t *testing.T) {
-	for _, rule := range []string{"EXCEPTION_TAKEN", "DENIED_ACTION_RETRIED_AROUND", "REQUIRED_STEP_SKIPPED", "NO_SUCH_RULE"} {
-		t.Run(rule, func(t *testing.T) {
+	for _, c := range mayNotStop {
+		t.Run(c.rule+" "+c.version, func(t *testing.T) {
 			tr := newTree(t)
 			tr.withReaction(t)
-			signedDirectly(t, tr, rule)
-			refusesStart(t, tr, reaction.ErrRouteRuleStops, "reaction.route: rules[0]")
+			signedDirectly(t, tr, c.rule, c.version)
+			refusesStart(t, tr, reaction.ErrRouteRuleStops,
+				`reaction.route: rules[0]: reaction: the route names a rule that may not stop a run: rule_id "`+c.rule+`" rule_version "`+c.version+`"`)
 			unraised(t, tr)
 		})
 	}
 	tr := newTree(t)
 	tr.withReaction(t)
-	signedDirectly(t, tr, "REPEATED_DENIAL")
+	signedDirectly(t, tr, "REPEATED_DENIAL", "1")
 	if _, err := buildServing(t, tr); err != nil {
 		t.Fatalf("the 0.9 route: %v", err)
 	}

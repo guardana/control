@@ -110,8 +110,8 @@ func routeSign(keyPath, out, document string, stdout, stderr io.Writer) int {
 
 // supervisedRules refuses a rule no finding of supervise can stop a run
 // with: a rule id supervise does not have, a rule version that is not that
-// rule's, and a rule outside the table of those that may stop, which react
-// and a plane would refuse when they load the route.
+// rule's, and a rule outside the table of those that may stop, which every
+// reader of a signed route refuses.
 func supervisedRules(r reaction.Route) error {
 	for i, rule := range r.Rules() {
 		version, known := supervise.RuleVersionOf(rule.RuleID)
@@ -121,7 +121,7 @@ func supervisedRules(r reaction.Route) error {
 		case rule.RuleVersion != version:
 			return fmt.Errorf("rules[%d]: rule_version %s is not supervise's %s", i,
 				strconv.Quote(rule.RuleVersion), strconv.Quote(version))
-		case !reaction.MayStop(rule.RuleID):
+		case !reaction.MayStop(rule.RuleID, rule.RuleVersion):
 			return fmt.Errorf("rules[%d]: %s: %w", i, rule.RuleID, reaction.ErrRouteRuleStops)
 		}
 	}

@@ -16,8 +16,13 @@ var gateTrees = []string{"internal/testreport", "internal/docscheck"}
 
 // Trees outside the dependency rule that carry authorization semantics or
 // cryptography: route and lift signatures and the stop judge, the policy and
-// route floors, and the configuration's owner and mode checks.
-var authorizationTrees = []string{"internal/reaction", "internal/policystate", "internal/gatewayconfig"}
+// route floors and their refresh, the owner and mode checks of the
+// configuration and of every store, the runs a stop names and the findings a
+// stop rests on.
+var authorizationTrees = []string{
+	"internal/reaction", "internal/policystate", "internal/gatewayconfig", "internal/files", "internal/policywatch",
+	"internal/runs", "internal/findinglog",
+}
 
 // Every tree the dependency rule guards, the gate's Go trees and the other
 // authorization trees need the security maintainers' two approvals in the

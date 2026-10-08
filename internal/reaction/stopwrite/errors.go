@@ -21,7 +21,9 @@ const (
 	// each judge the list without the other's line.
 	ErrNoLock Error = "stopwrite: this platform has no file lock for the stop list"
 	// ErrRefused is a write the plane's judge would refuse the list for,
-	// wrapping the judge's refusal; nothing is written.
+	// wrapping the judge's refusal, or one under a route naming a rule that
+	// may not stop a run, which a plane refuses to start on; nothing is
+	// written.
 	ErrRefused Error = "stopwrite: the plane's judge would refuse the list this write makes"
 	// ErrNamed is a finding AppendFinding was given that the list names
 	// already, by another writer since its caller read the list; nothing is

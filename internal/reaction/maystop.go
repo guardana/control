@@ -5,33 +5,41 @@ import (
 	"slices"
 )
 
-// stoppingRules is every supervise rule a confirmed finding of which may stop
-// a run, and so every rule_id a route may name. It copies supervise's MayStop
-// set, since a plane links no supervision code; a test of the route command
-// holds the two equal.
-var stoppingRules = [...]string{
-	"REPEATED_DENIAL",
-	"STEP_OUTSIDE_PROCEDURE",
-	"DEADLINE_EXCEEDED",
-	"RESOURCE_OUTSIDE_RUN",
-	"DENIED_ACTION_RETRIED_ARGUMENTS",
-	"DENIED_ACTION_RETRIED_RESOURCE",
+// StoppingRule is a supervise rule at one version.
+type StoppingRule struct{ ID, Version string }
+
+// stoppingRules is every supervise rule, at its version, a confirmed finding
+// of which may stop a run, and so every rule a route may name. It copies
+// supervise's table, since a plane links no supervision code; a test of the
+// route command holds the two equal. A rule's next version changes what it
+// fires on, so a route naming it is refused until this table names it too.
+var stoppingRules = [...]StoppingRule{
+	{"REPEATED_DENIAL", "1"},
+	{"STEP_OUTSIDE_PROCEDURE", "1"},
+	{"DEADLINE_EXCEEDED", "1"},
+	{"RESOURCE_OUTSIDE_RUN", "1"},
+	{"DENIED_ACTION_RETRIED_ARGUMENTS", "1"},
+	{"DENIED_ACTION_RETRIED_RESOURCE", "1"},
 }
 
-// StoppingRules is a copy of every rule id a route may name.
-func StoppingRules() []string { return slices.Clone(stoppingRules[:]) }
+// StoppingRules is a copy of every rule a route may name.
+func StoppingRules() []StoppingRule { return slices.Clone(stoppingRules[:]) }
 
-// MayStop reports whether a route may name rule id, compared byte for byte.
-func MayStop(id string) bool { return slices.Contains(stoppingRules[:], id) }
+// MayStop reports whether a route may name rule id at version, both compared
+// byte for byte.
+func MayStop(id, version string) bool {
+	return slices.Contains(stoppingRules[:], StoppingRule{id, version})
+}
 
 // CheckStopping refuses a route that names any rule outside StoppingRules.
-// ParseRoute and VerifyRoute do not refuse one, so whatever acts on a route
-// calls this when it loads it: a route signed by other means than route sign
-// is held to the same set.
+// VerifyRoute and the stop list's writers call it, so a route read from a
+// signed file or handed to a writer is held to the table however it was
+// signed. ParseRoute does not, so route sign can first say which of
+// supervise's own checks a rule fails.
 func CheckStopping(r Route) error {
 	for i, rule := range r.rules {
-		if !MayStop(rule.RuleID) {
-			return fmt.Errorf("rules[%d]: %w", i, ErrRouteRuleStops)
+		if !MayStop(rule.RuleID, rule.RuleVersion) {
+			return fmt.Errorf("rules[%d]: %w: rule_id %q rule_version %q", i, ErrRouteRuleStops, rule.RuleID, rule.RuleVersion)
 		}
 	}
 	return nil

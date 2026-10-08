@@ -112,6 +112,9 @@ func fixed(line []byte, err error) lineFor {
 // written. Bytes after the last newline are a line a writer did not finish,
 // and are cut before the append. A refused write changes nothing.
 func appendLine(ctx context.Context, dir string, route reaction.Route, now time.Time, build lineFor) (int64, error) {
+	if err := stopping(route); err != nil {
+		return 0, err
+	}
 	var n int64
 	err := locked(ctx, dir, func(root *os.Root) error {
 		named, err := stoplist.Named(root)
@@ -178,6 +181,9 @@ func appendTo(f *os.File, named fs.FileInfo, route reaction.Route, now time.Time
 // create writes lines as a new list in dir, under the lock, once the judge
 // accepts them; the name is never replaced.
 func create(ctx context.Context, dir string, route reaction.Route, now time.Time, lines [][]byte) error {
+	if err := stopping(route); err != nil {
+		return err
+	}
 	body := append(bytes.Join(lines, []byte{'\n'}), '\n')
 	if _, err := reaction.Judge(route, reaction.Prefix{}, body, now, 0); err != nil {
 		return refusal(err)
@@ -191,6 +197,16 @@ func create(ctx context.Context, dir string, route reaction.Route, now time.Time
 		}
 		return nil
 	})
+}
+
+// stopping refuses a route naming a rule that may not stop a run. A caller
+// may hand a writer a route no signed file held, so the writer checks it
+// rather than trust that the caller verified it.
+func stopping(route reaction.Route) error {
+	if err := reaction.CheckStopping(route); err != nil {
+		return fmt.Errorf("%w: %w", ErrRefused, err)
+	}
+	return nil
 }
 
 // refusal wraps a judge's refusal of the list a write would make.

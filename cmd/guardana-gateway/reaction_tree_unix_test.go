@@ -95,7 +95,7 @@ func TestAChildsRetryIsSupervisedOverTheTreeAndStopsTheChild(t *testing.T) {
 func routeOfRule(t *testing.T, p *supervise.Procedure, rule string) string {
 	t.Helper()
 	fixture := `"procedure_id":"refund","version":"3","digest":"` + fixtureProcedure + `"`
-	doc := routeDocumentOf(runsTenant, 1, rule)
+	doc := routeDocumentOf(runsTenant, 1, rule, "1")
 	if !strings.Contains(doc, fixture) {
 		t.Fatalf("the fixture's route names no %s", fixture)
 	}

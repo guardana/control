@@ -13,7 +13,8 @@ anything": one can, through this record's route.
 
 Amended by [ADR-0047](0047-a-procedure-states-its-exceptions-resources-and-children.md):
 `Eligible` admits an open child of the finding's tenant, still one run's stop;
-`route sign` and `react` both refuse a rule that may not stop.
+verifying a route refuses a rule or version that may not stop, so every reader
+of a route refuses it.
 
 ## Context
 

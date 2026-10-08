@@ -79,9 +79,11 @@ ACTIONS_APP_ID=15368
 # decision path, the enforcement pipeline, the approvals store, the digest and
 # the keys, the evidence record, the judgement of a run against its procedure,
 # the route and lift signatures and the stop judge, the commands that sign a
-# route and turn findings into stops, the policy and route floors
-# and their refresh, the owner and mode checks of the configuration and of every
-# store, the wire contracts and their
+# route, turn findings into stops and start, list, carry and lift a stop list,
+# the plane's reading of its route, the reading of a run's evidence for
+# supervision, the runs directory and the findings log, the policy and route
+# floors and their refresh, the owner and mode checks of the configuration and
+# of every store, the wire contracts and their
 # fixtures, the gate's Go code that reports test results and checks the
 # documents, and the release and workflow definitions with the tool digests
 # the release job trusts. Each must be owned by
@@ -101,8 +103,13 @@ TWO_APPROVAL_PATHS=(
   "internal/gatewayconfig/**"
   "internal/files/**"
   "internal/policywatch/**"
+  "internal/runs/**"
+  "internal/findinglog/**"
   "cmd/guardana-control/route*.go"
   "cmd/guardana-control/react*.go"
+  "cmd/guardana-control/stops.go"
+  "cmd/guardana-control/supervise_input.go"
+  "cmd/guardana-gateway/reaction.go"
   "pkg/contract/**"
   "pkg/policyprovider/**"
   "api/proto/**"

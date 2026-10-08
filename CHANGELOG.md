@@ -52,12 +52,13 @@ verify one.
 
 ### Changed
 
-- `route sign`, `react` and a plane at start refuse a route that names a rule
-  outside the six whose finding may stop a run: `REPEATED_DENIAL`,
+- Every reader of a route (`route sign`, `react`, a plane at start, `doctor` and
+  the `stops` commands) refuses one that names a rule or a rule version outside
+  the six whose finding may stop a run: `REPEATED_DENIAL`,
   `STEP_OUTSIDE_PROCEDURE`, `DEADLINE_EXCEEDED`, `RESOURCE_OUTSIDE_RUN`,
-  `DENIED_ACTION_RETRIED_ARGUMENTS` and `DENIED_ACTION_RETRIED_RESOURCE`.
-  Only `route sign` checked a route's rules before, so a route signed by other
-  means could name any rule.
+  `DENIED_ACTION_RETRIED_ARGUMENTS` and `DENIED_ACTION_RETRIED_RESOURCE`, each
+  at version `1`. Only `route sign` checked a route's rules before, so a route
+  signed by other means could name any rule.
 - A finding record that carries a run on its event references, a count of
   references left out, a children mode or a run tree is schema `0.2`, and a
   0.9 reader refuses it by name. Read a findings log this release writes with

@@ -49,11 +49,11 @@ lifetime for the stops it allows. Without one a stop lasts as long as its run.
 `route sign` signs it with a key of its own, writes the file mode `0644`,
 replacing only an earlier signed route, and prints `route_id`, `serial`,
 `digest`, `key_id` and `out`. It refuses a rule id supervise does not have, a
-`rule_version` that is not that rule's, and any rule but the six whose finding
-may stop a run: `REPEATED_DENIAL`, `STEP_OUTSIDE_PROCEDURE`,
+`rule_version` that is not that rule's, and any rule but the six, at version
+`1`, whose finding may stop a run: `REPEATED_DENIAL`, `STEP_OUTSIDE_PROCEDURE`,
 `DEADLINE_EXCEEDED`, `RESOURCE_OUTSIDE_RUN`, `DENIED_ACTION_RETRIED_ARGUMENTS`
-and `DENIED_ACTION_RETRIED_RESOURCE`. `react` and a plane refuse such a route
-whole, however signed. The route also names the lift key, whose holder alone
+and `DENIED_ACTION_RETRIED_RESOURCE`. Every reader of a signed route refuses
+one naming another. The route also names the lift key, whose holder alone
 can lift a stop while a plane runs, and which need not be on the plane's
 machine.
 

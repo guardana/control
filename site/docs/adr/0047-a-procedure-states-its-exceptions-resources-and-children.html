@@ -208,10 +208,12 @@ record does not prove that its approver was a person rather than an account
 with write access to that store.</p>
 <p><strong>What may stop.</strong> <code>REPEATED_DENIAL</code>, <code>STEP_OUTSIDE_PROCEDURE</code>,
 <code>DEADLINE_EXCEEDED</code>, <code>RESOURCE_OUTSIDE_RUN</code>, <code>DENIED_ACTION_RETRIED_ARGUMENTS</code>
-and <code>DENIED_ACTION_RETRIED_RESOURCE</code>. One table of these ids lives in
-<code>internal/reaction</code>, held equal to supervise's by a test. <code>route sign</code> refuses
-a route naming another; <code>react</code> and the plane refuse such a route whole when
-they load it, so a route signed by any other means cannot widen the set. The
+and <code>DENIED_ACTION_RETRIED_RESOURCE</code>, each at its rule version. One table of these
+ids and versions lives in <code>internal/reaction</code>, held equal to supervise's by a
+test. Verifying a route refuses one that names another rule or version, so
+<code>route sign</code>, <code>react</code>, the plane, doctor and the <code>stops</code> commands all refuse it
+whole, and the stop-list writer refuses it even from an unsigned route: a route
+signed by any other means cannot widen the set. The
 route still chooses which of these stop and for how long.</p>
 <p><strong>Bounded findings.</strong> A finding's verdict is decided over all its evidence;
 then it cites at most a fixed number of references, the doubtful ones first,

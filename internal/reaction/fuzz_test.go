@@ -14,8 +14,9 @@ import (
 
 // FuzzParseRoute: for any bytes, ParseRoute returns a route or exactly one of
 // its refusals and never panics. A route it accepts is held to its bounds,
-// reads back from its canonical bytes as the same route, signs and verifies,
-// and permits a claim of each of its rules.
+// reads back from its canonical bytes as the same route, signs, verifies
+// exactly when every rule it names may stop a run, and permits a claim of
+// each of its rules.
 func FuzzParseRoute(f *testing.F) {
 	doc := withLift(routeTemplate)
 	f.Add([]byte(doc))
@@ -23,7 +24,7 @@ func FuzzParseRoute(f *testing.F) {
 	f.Add([]byte(routeWith("r", "t", []string{ruleJSON("p"), ruleJSON("q")})))
 	f.Add([]byte(strings.Replace(doc, `"serial": 7`, `"serial": 9007199254740991`, 1)))
 	f.Add([]byte(strings.Replace(doc, `"serial": 7,`, `"serial": 7, "serial": 8,`, 1)))
-	f.Add([]byte(strings.Replace(doc, `"STEP_OUT_OF_ORDER"`, `"STEP_OUTSIDE_PROCEDURE"`, 1)))
+	f.Add([]byte(strings.Replace(doc, `"DEADLINE_EXCEEDED"`, `"STEP_OUTSIDE_PROCEDURE"`, 1)))
 	f.Add([]byte(strings.Replace(doc, `"scope": "run"`, `"scope": "agent"`, 1)))
 	f.Add([]byte(strings.Replace(doc, `3600`, `2592001`, 1)))
 	f.Add([]byte(strings.Replace(doc, `"refunds"`, `"ref\ud800unds"`, 1)))
@@ -80,7 +81,11 @@ func checkSignedAndPermits(t *testing.T, r reaction.Route) {
 	if err != nil {
 		t.Fatalf("SignRoute: %v", err)
 	}
-	if v, err := reaction.VerifyRoute(env, pubOf(routeKey())); err != nil || v.Digest() != r.Digest() {
+	v, err := reaction.VerifyRoute(env, pubOf(routeKey()))
+	if !namesOnlyStoppingRules(r) {
+		expectOnly(t, "VerifyRoute of a signed route naming a rule that may not stop", err, reaction.ErrRouteRuleStops,
+			append(routeRefusals(), envelopeRefusals()...))
+	} else if err != nil || v.Digest() != r.Digest() {
 		t.Fatalf("VerifyRoute of the signed route: %v", err)
 	}
 	for _, rule := range r.Rules() {

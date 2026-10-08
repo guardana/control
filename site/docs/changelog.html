@@ -153,12 +153,13 @@ or with <code>--view-all</code> every call up to a bound
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
-<li><code>route sign</code>, <code>react</code> and a plane at start refuse a route that names a rule
-outside the six whose finding may stop a run: <code>REPEATED_DENIAL</code>,
+<li>Every reader of a route (<code>route sign</code>, <code>react</code>, a plane at start, <code>doctor</code> and
+the <code>stops</code> commands) refuses one that names a rule or a rule version outside
+the six whose finding may stop a run: <code>REPEATED_DENIAL</code>,
 <code>STEP_OUTSIDE_PROCEDURE</code>, <code>DEADLINE_EXCEEDED</code>, <code>RESOURCE_OUTSIDE_RUN</code>,
-<code>DENIED_ACTION_RETRIED_ARGUMENTS</code> and <code>DENIED_ACTION_RETRIED_RESOURCE</code>.
-Only <code>route sign</code> checked a route's rules before, so a route signed by other
-means could name any rule.</li>
+<code>DENIED_ACTION_RETRIED_ARGUMENTS</code> and <code>DENIED_ACTION_RETRIED_RESOURCE</code>, each
+at version <code>1</code>. Only <code>route sign</code> checked a route's rules before, so a route
+signed by other means could name any rule.</li>
 <li>A finding record that carries a run on its event references, a count of
 references left out, a children mode or a run tree is schema <code>0.2</code>, and a
 0.9 reader refuses it by name. Read a findings log this release writes with

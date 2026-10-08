@@ -113,8 +113,12 @@ type part struct {
 // only where nothing left out could be a stop the old list was meant to hold:
 // a refused header, a line refused for a created_at past the writer's clock,
 // which another writer whose clock runs ahead wrote in good faith, and a stop
-// or covered line after the refused line each refuse the carry.
+// or covered line after the refused line each refuse the carry, as does a
+// route naming a rule that may not stop a run.
 func acceptedPart(route reaction.Route, old []byte, now time.Time) (part, error) {
+	if err := stopping(route); err != nil {
+		return part{}, err
+	}
 	list, err := reaction.Judge(route, reaction.Prefix{}, old, now, 0)
 	if err == nil {
 		return part{list: list, accepted: old}, nil

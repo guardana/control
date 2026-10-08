@@ -15,7 +15,9 @@
 # pipeline, the approvals store, the policy keys, the digest an approval binds
 # to, the evidence record, contract validation, the judgement of a run against
 # its procedure, the route and lift signatures and the stop judge, the commands
-# that sign a route and turn findings into stops, the policy and
+# that sign a route, turn findings into stops and start, list, carry and lift a
+# stop list, the plane's reading of its route, the reading of a run's evidence
+# for supervision, the runs directory and the findings log, the policy and
 # route floors and their refresh, the owner and mode checks of the configuration
 # and of every store, the policy provider interface, the wire schema and the
 # fixtures that pin them. Every tree
@@ -33,8 +35,13 @@
 /internal/gatewayconfig/ @guardana/security-maintainers
 /internal/files/       @guardana/security-maintainers
 /internal/policywatch/ @guardana/security-maintainers
+/internal/runs/        @guardana/security-maintainers
+/internal/findinglog/  @guardana/security-maintainers
 /cmd/guardana-control/route*.go @guardana/security-maintainers
 /cmd/guardana-control/react*.go @guardana/security-maintainers
+/cmd/guardana-control/stops.go @guardana/security-maintainers
+/cmd/guardana-control/supervise_input.go @guardana/security-maintainers
+/cmd/guardana-gateway/reaction.go @guardana/security-maintainers
 /pkg/contract/         @guardana/security-maintainers
 /pkg/policyprovider/   @guardana/security-maintainers
 /api/proto/            @guardana/security-maintainers
