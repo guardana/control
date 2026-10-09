@@ -206,7 +206,7 @@ func TestReactRefusesARouteNamingARuleThatMayNotStop(t *testing.T) {
 			a.findings = findings
 			before := readList(t, a.stops)
 			var out, errOut bytes.Buffer
-			code := react(a, time.Now(), &out, &errOut)
+			code := react(context.Background(), a, time.Now(), &out, &errOut)
 			want := "react: --route " + a.route + ": " + mayNotStopRefusal(1, c.id, c.version)
 			if code != exitFail || out.Len() != 0 || !strings.Contains(errOut.String(), want) {
 				t.Errorf("%s %s over %s: react answered %d: %q %q, want 1 and %q", c.id, c.version, findings, code, out.String(), errOut.String(), want)
@@ -218,7 +218,7 @@ func TestReactRefusesARouteNamingARuleThatMayNotStop(t *testing.T) {
 	}
 	a := setUp("control", doc(rule(outside, "1"), rule(denial, "1")))
 	var out, errOut bytes.Buffer
-	if code := react(a, time.Now(), &out, &errOut); code != exitOK || !strings.HasPrefix(out.String(), "stop line 3 run "+tr.open+" ") {
+	if code := react(context.Background(), a, time.Now(), &out, &errOut); code != exitOK || !strings.HasPrefix(out.String(), "stop line 3 run "+tr.open+" ") {
 		t.Fatalf("the 0.9 route: react answered %d: %q %q", code, out.String(), errOut.String())
 	}
 }
@@ -326,7 +326,7 @@ func TestReactRefusesARouteItCannotTrust(t *testing.T) {
 		a := tr.reactArgs(log)
 		a.route = route
 		var out, errOut bytes.Buffer
-		if code := react(a, time.Now(), &out, &errOut); code != exitFail || out.Len() != 0 || !strings.Contains(errOut.String(), want) {
+		if code := react(context.Background(), a, time.Now(), &out, &errOut); code != exitFail || out.Len() != 0 || !strings.Contains(errOut.String(), want) {
 			t.Errorf("react with %s answered %d: %q %q, want 1 and %q", route, code, out.String(), errOut.String(), want)
 		}
 	}

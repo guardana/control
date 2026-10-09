@@ -70,8 +70,8 @@ restart.
 `stops.jsonl` in an owner-only directory: a header naming the route, then
 `stop`, `covered` and `lift` lines, appended and never rewritten, at most
 4 MiB and 20 000 lines. Only the `stops` commands and `react` write it, each
-under the list's lock, waiting up to ten seconds for another writer; a plane
-takes no lock. A writer cuts a torn last line back to its last newline before
+line under the list's lock, waiting up to ten seconds for another writer; a
+plane takes no lock. A writer cuts a torn last line back to its last newline before
 it appends, and refuses a write past the bound rather than cut a line it did
 not read.
 
@@ -110,9 +110,10 @@ what a run did while stopped is covered, and only a new finding after the lift
 stops it again. A stop expires at `react`'s clock plus the rule's lifetime,
 never after the run's expiry rounded up to the second. `react` prints each line it wrote and one
 count line, and exits 0 when every finding the route allows is on the list,
-and 1 on any refusal, naming each finding it could not write.
-Nothing runs it: a stop comes when the operator runs `supervise` and `react`
-while the run is open.
+and 1 on any refusal, naming each finding it could not write. An interrupt, or
+a lock wait that runs out, ends the pass after the lines it wrote.
+Nothing runs it: the operator runs `supervise` and `react` while the run is
+open.
 
 ## What a plane checks
 
@@ -124,8 +125,8 @@ listener's; the route key, the lift key, the policy key and the freshness key
 are four keys, compared as points up to their sign; the floor takes the route;
 and the first read of the list finds a state it can serve.
 
-It reads the list every `reaction.poll_interval` into a snapshot, as it reads
-the pause file. A read must extend the bytes it accepted before, with the
+It reads the list every `reaction.poll_interval` into a snapshot, like the
+pause file. A read must extend the bytes it accepted before, with the
 same header; a list that is missing, a link, owned by another account,
 writable by the group or others, too large, refused by the judge, shrunk or
 rewritten, and a snapshot older than three intervals, are an unknown state.
@@ -172,7 +173,6 @@ stop that becomes active, expires or is lifted, with its finding id.
 - A call already handed out for execution when the stop is read is not cut:
   the stop bites on the run's next call, within one poll interval of the line
   being written.
-- A stop names one run: a stopped run's parent and children run on.
 - Any process of the plane's account can add a stop the route allows for any
   opened run of its tenant, or block every call by writing a line the route
   refuses. It cannot lift a stop without the lift key, nor shorten the list

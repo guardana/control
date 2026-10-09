@@ -6,8 +6,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"slices"
+	"syscall"
 	"time"
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
@@ -28,11 +31,14 @@ const (
 type reactArgs struct {
 	routeFlags
 	findings, runs, stops string
+	// lockWait bounds each wait for another writer's lock on --stops, and
+	// nothing else.
+	lockWait time.Duration
 }
 
 func reactFlags(command string, out io.Writer) (*flag.FlagSet, *reactArgs) {
 	flags := commandFlags(command, out)
-	a := &reactArgs{}
+	a := &reactArgs{lockWait: stopsLockWait}
 	a.declare(flags)
 	flags.StringVar(&a.findings, "findings", "", "the findings log directory supervise writes")
 	flags.StringVar(&a.runs, "runs", "", "the runs directory, read and never written")
@@ -54,14 +60,18 @@ func reactCommand(args []string, stdout, stderr io.Writer) int {
 		a.findings == "" || a.runs == "" || a.stops == "" {
 		return usageError(stderr, reactName, "takes --findings, --runs, --route, --public-key and --stops, and no argument")
 	}
-	return react(*a, time.Now(), stdout, stderr)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return react(ctx, *a, time.Now(), stdout, stderr)
 }
 
 // react appends to the list in --stops a stop or a covered line for each
 // finding of the log the route allows to stop a run and the list does not
 // name yet. A route naming a rule that may not stop a run is refused whole
 // before the list or a finding is read. It holds no key and never lifts.
-func react(a reactArgs, now time.Time, stdout, stderr io.Writer) int {
+// When ctx ends, or a lock wait runs out, the pass stops with the lines it
+// wrote and its summary.
+func react(ctx context.Context, a reactArgs, now time.Time, stdout, stderr io.Writer) int {
 	now = now.UTC().Truncate(time.Second)
 	route, err := a.verified()
 	if err != nil {
@@ -79,9 +89,8 @@ func react(a reactArgs, now time.Time, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(stderr, reactName, fmt.Errorf("--runs %s: %w", a.runs, err))
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), stopsLockWait)
-	defer cancel()
 	r := newReactor(ctx, route, list, plane.Lookup, a.stops, now)
+	r.lockWait = a.lockWait
 	err = r.each(records)
 	if cerr := plane.Close(); cerr != nil {
 		err = errors.Join(err, fmt.Errorf("--runs %s: %w", a.runs, cerr))
@@ -106,32 +115,41 @@ type lookupRun func(ctx context.Context, id string) (runs.Record, error)
 
 // reactor is one pass over a findings log.
 type reactor struct {
-	ctx    context.Context
-	route  reaction.Route
-	list   reaction.List
-	lookup lookupRun
-	dir    string
-	now    time.Time
+	ctx      context.Context
+	lockWait time.Duration
+	route    reaction.Route
+	list     reaction.List
+	lookup   lookupRun
+	dir      string
+	now      time.Time
 
 	runFacts map[string]reaction.RunFacts
 	// named is the finding ids this pass wrote.
 	named map[string]bool
+	// full is the list's refusal of a line for its bounds, as text. The list
+	// only grows, so every later line is refused without taking the lock,
+	// which would otherwise shut other writers out for the rest of the pass.
+	full string
 
 	written, unwritten                    []string
 	stops, covered, alreadyNamed, skipped int
 }
 
 func newReactor(ctx context.Context, route reaction.Route, list reaction.List, lookup lookupRun, dir string, now time.Time) *reactor {
-	return &reactor{ctx: ctx, route: route, list: list, lookup: lookup, dir: dir, now: now,
+	return &reactor{ctx: ctx, lockWait: stopsLockWait, route: route, list: list, lookup: lookup, dir: dir, now: now,
 		runFacts: map[string]reaction.RunFacts{}, named: map[string]bool{}}
 }
 
 // each takes the findings of records in file order. A run it cannot look up
 // for a reason other than there being no such run stops it, as does a write
-// refused for a reason other than the list's bound or the judge.
+// refused for a reason other than the list's bound or the judge, and so does
+// the end of the pass's context.
 func (r *reactor) each(records []*findingv1alpha1.Record) error {
 	for _, rec := range records {
 		if fr := rec.GetFindingRecord(); fr != nil {
+			if err := r.ctx.Err(); err != nil {
+				return fmt.Errorf("stopped before finding %s: %w", oneLine(fr.GetFinding().GetFindingId()), err)
+			}
 			if err := r.finding(fr); err != nil {
 				return err
 			}
@@ -235,17 +253,28 @@ func (r *reactor) write(id string, c reaction.StopClaim, runID string) error {
 	s := reaction.Stop{EntryID: reaction.EntryID(id), TenantID: c.TenantID, RunID: runID, FindingID: id,
 		ProcedureID: c.ProcedureID, ProcedureVersion: c.ProcedureVersion, ProcedureDigest: c.ProcedureDigest,
 		RuleID: c.RuleID, RuleVersion: c.RuleVersion, CreatedAt: c.CreatedAt, ExpiresAt: c.ExpiresAt}
-	n, covered, err := stopwrite.AppendFinding(r.ctx, r.dir, r.route, s, r.now)
+	if r.full != "" {
+		r.unwritten = append(r.unwritten, fmt.Sprintf("not written: finding %s run %s: %s", oneLine(id), oneLine(runID), r.full))
+		return nil
+	}
+	// The wait is the lock's alone: reading and judging a list near its bound
+	// is work, and a pass over many findings must not spend one budget on it.
+	ctx, cancel := context.WithTimeout(r.ctx, r.lockWait)
+	n, covered, err := stopwrite.AppendFinding(ctx, r.dir, r.route, s, r.now)
+	cancel()
 	switch {
 	case errors.Is(err, stopwrite.ErrNamed):
 		// Another writer named it after this pass read the list.
 		r.alreadyNamed++
 		return nil
 	case errors.Is(err, stopwrite.ErrFull), errors.Is(err, stopwrite.ErrRefused):
+		if errors.Is(err, stopwrite.ErrFull) {
+			r.full = oneLine(err.Error())
+		}
 		r.unwritten = append(r.unwritten, fmt.Sprintf("not written: finding %s run %s: %s", oneLine(id), oneLine(runID), oneLine(err.Error())))
 		return nil
 	case err != nil:
-		return err
+		return fmt.Errorf("finding %s run %s: %w", oneLine(id), oneLine(runID), err)
 	}
 	r.named[id] = true
 	if covered {

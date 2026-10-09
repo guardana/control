@@ -130,14 +130,14 @@ func (tr stopTree) routeArgs() []string {
 
 func (tr stopTree) reactArgs(findings string) reactArgs {
 	return reactArgs{routeFlags: routeFlags{route: tr.route, publicKey: tr.routePub},
-		findings: findings, runs: tr.runs, stops: tr.stops}
+		findings: findings, runs: tr.runs, stops: tr.stops, lockWait: stopsLockWait}
 }
 
 // react runs react over the log in findings at now.
 func (tr stopTree) react(t *testing.T, findings string, now time.Time) (int, string, string) {
 	t.Helper()
 	var out, errOut bytes.Buffer
-	code := react(tr.reactArgs(findings), now, &out, &errOut)
+	code := react(context.Background(), tr.reactArgs(findings), now, &out, &errOut)
 	return code, out.String(), errOut.String()
 }
 

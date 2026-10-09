@@ -11,6 +11,18 @@ verify one.
 
 ## [Unreleased]
 
+### Fixed
+
+- `react` gave its whole pass the ten seconds meant for waiting on another
+  writer's lock, so a pass over a list near its bound, judged again before
+  each line, could end with `context deadline exceeded` while no other writer
+  ran. Each line now waits up to ten seconds for the lock and nothing else is
+  timed. A wait that runs out, or an interrupt, now ends the pass after the
+  lines already written; `react` prints them and its count line, then exits 1.
+  Once the list refuses a line for its bounds, `react` names every later
+  finding as not written without taking the lock again, so a long pass over
+  a full list no longer shuts out `stops lift`.
+
 ## [0.10.0-alpha] - 2026-10-08
 
 One supervised run is now whole. A procedure of schema `0.2` names the
