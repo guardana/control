@@ -122,6 +122,14 @@ run's own calls, so no run can get another one stopped, and a child run can
 now be stopped on its own. <code>procedure lint</code> and <code>procedure test</code> check a
 procedure with cases, and <code>findings export</code> reads the findings log with a
 cursor. The fixes come from an audit of this release's own changes.</p>
+<h3 id="security">Security</h3>
+<ul>
+<li>Built with Go 1.27.2, which fixes GO-2026-6599, GO-2026-6600, GO-2026-6603,
+GO-2026-6604, GO-2026-6605, GO-2026-6607, GO-2026-6608 and GO-2026-6610 in
+<code>crypto/tls</code>, <code>net/http</code> and its HTTP/2 code, <code>html/template</code>,
+<code>mime/multipart</code> and <code>os</code>; <code>govulncheck</code> found the plane's calls reaching
+the HTTP/2 ones under 1.27.1.</li>
+</ul>
 <h3 id="added">Added</h3>
 <ul>
 <li>Procedure schema <code>0.2</code>, read beside <code>0.1</code>

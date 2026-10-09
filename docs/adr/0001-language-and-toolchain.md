@@ -12,8 +12,9 @@ and in CI, or a security fix in the compiler becomes invisible.
 
 ## Decision
 
-Go, with the compiler version pinned to exactly `1.27.1` by the `go` directive
-in `go.mod`. That directive is the single source: `scripts/bootstrap.sh` reads
+Go, with the compiler version pinned to one exact patch release by the `go`
+directive in `go.mod`. That directive is the single source, and the pin moves
+when Go ships a security release: `scripts/bootstrap.sh` reads
 the version out of it, and CI resolves the compiler from the same file with
 `go-version-file: go.mod`, so no workflow and no pin file repeats the version as
 a literal. There is no `toolchain` directive: `go mod

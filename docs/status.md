@@ -25,7 +25,7 @@ Nothing here is a security boundary. Do not deploy it as one.
 
 | Component | Status | Where |
 | --- | --- | --- |
-| Go module and pinned toolchain | `implemented` | `go.mod` (`go 1.27.1`), `scripts/bootstrap.sh` |
+| Go module and pinned toolchain | `implemented` | `go.mod` (`go 1.27.2`), `scripts/bootstrap.sh` |
 | Quality gate, including the documentation and dependency checks | `implemented` | `Makefile`, `.golangci.yml`, `internal/testreport/` (the test reporter the gate reads), `scripts/`, `internal/docscheck/`, `internal/core/layering_test.go`. The dependency rule is an allowlist over six trees, all examined, and every package of this module they reach is held to the same refusals by name; `make check-imports-probe` plants a violation in each and fails unless every mechanism refuses it. The documentation check judges every page's frontmatter, type, `covers`, budget and diagrams and pins every rendered page and block to its generator ([ADR-0015](adr/0015-documentation-structure-and-checks.md)); `make docs-impact` names the pages a change makes suspect |
 | Brand indirection and one-command rename | `implemented` | `internal/brand/`, `scripts/check-brand.sh`, `scripts/rename-product.sh` |
 | Architecture decision records | `implemented` | `docs/adr/` |

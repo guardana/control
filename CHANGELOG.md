@@ -23,6 +23,14 @@ now be stopped on its own. `procedure lint` and `procedure test` check a
 procedure with cases, and `findings export` reads the findings log with a
 cursor. The fixes come from an audit of this release's own changes.
 
+### Security
+
+- Built with Go 1.27.2, which fixes GO-2026-6599, GO-2026-6600, GO-2026-6603,
+  GO-2026-6604, GO-2026-6605, GO-2026-6607, GO-2026-6608 and GO-2026-6610 in
+  `crypto/tls`, `net/http` and its HTTP/2 code, `html/template`,
+  `mime/multipart` and `os`; `govulncheck` found the plane's calls reaching
+  the HTTP/2 ones under 1.27.1.
+
 ### Added
 
 - Procedure schema `0.2`, read beside `0.1`
