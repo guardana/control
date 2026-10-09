@@ -254,14 +254,14 @@ func TestHealthIsDegradedPastNineTenthsOfTheListsLines(t *testing.T) {
 		t.Run(fmt.Sprint(c.lines), func(t *testing.T) {
 			tr := newTree(t)
 			tr.withReaction(t)
+			// The case judges the bound, not freshness: at the rig's interval a
+			// read goes stale after 300 ms, which a loaded run can outlast.
+			setEnv(t, "reaction.poll_interval", "1m")
 			fillList(t, filepath.Join(tr.dir, "stops", stoplist.FileName), c.lines)
 			p, err := buildServing(t, tr)
 			if err != nil {
 				t.Fatalf("build: %v", err)
 			}
-			// Read again now: the start's read of a list this long can be
-			// past three poll intervals old by the time the build returns.
-			p.stops.poller.Poll()
 			answer, ok := p.health(p.pauseSource(), time.Now)
 			if !ok || answer.Stops.Degraded != c.degraded || answer.Stops.Usage.Lines != int64(c.lines) {
 				t.Fatalf("%d lines: ok %v, stops %+v", c.lines, ok, answer.Stops)
