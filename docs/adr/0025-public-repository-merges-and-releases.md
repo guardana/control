@@ -12,6 +12,11 @@ Amended after `v0.3.0-alpha`: the `release` environment also requires the
 `maintainers` team's approval before the release job runs; one maintainer may
 approve their own tag, and the admin may bypass the wait.
 
+Amended after `v0.10.0-alpha`: the settings are declared in
+`scripts/lib/github-settings.sh`, which the bootstrap applies and a read-only
+check compares with GitHub, and the two-approval paths are spread over rulesets
+of at most 15 patterns each, GitHub's limit per reviewer.
+
 ## Context
 
 ADR-0008 set the rules before the repository existed. Every change would reach
@@ -34,7 +39,7 @@ publish a version, and GitHub has to enforce it.
   maintainers on the paths that carry authorization meaning, resolved
   conversations, the required status checks on an up-to-date branch, and no
   CodeQL alert of high severity or above. The two-approval paths are listed in
-  `scripts/github-bootstrap.sh`; beside ADR-0008's list they hold the
+  `scripts/lib/github-settings.sh`; beside ADR-0008's list they hold the
   enforcement pipeline, the approvals store, the policy keys, the release
   configuration and the tool digests the release job trusts.
 - The repository admin, today Konrad Karauda, may push to `main` directly and
@@ -57,8 +62,9 @@ publish a version, and GitHub has to enforce it.
   to the same rules by the admin alone.
 - The name is fixed from the first release. Renaming after it breaks the module
   path and the proto package, and needs a record of its own.
-- `scripts/github-bootstrap.sh` holds the repository's settings, teams and
-  rulesets. A change goes into the script first, then GitHub.
+- `scripts/lib/github-settings.sh` declares the repository's settings, teams
+  and rulesets, and `scripts/github-bootstrap.sh` applies them. A change goes
+  into the declarations first, then GitHub.
 
 ## Security / compatibility impact
 
@@ -107,7 +113,9 @@ download.
 ## Validation
 
 `scripts/github-bootstrap.sh` applies the rulesets, and
-`gh api repos/guardana/control/rulesets` shows what is live. The pull request
+`scripts/github-settings-check.sh` compares every declared setting with what is
+live without changing it: it exits 0 when all match, 1 on drift, and 2 when
+nothing drifted but something could not be read. The pull request
 workflow refuses a non-conforming title or a commit without a sign-off. The
 release workflow refuses to publish an asset whose signature or attestation
 does not verify. [RELEASING.md](../../RELEASING.md) shows how anyone checks a

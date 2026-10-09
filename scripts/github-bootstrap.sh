@@ -1,130 +1,33 @@
 #!/usr/bin/env bash
+# shellcheck source-path=SCRIPTDIR
 #
 # Applies the GitHub configuration of guardana/control that ADR-0025 and
 # GOVERNANCE.md describe: repository settings, security features, Actions
 # permissions, the two teams, labels, milestones, the release environment and
-# six rulesets. Every step is idempotent: a run sets what this file names, and
+# the rulesets. What it sets is declared in scripts/lib/github-settings.sh,
+# which scripts/github-settings-check.sh compares with GitHub without changing
+# anything. Every step is idempotent: a run sets what that file names, and
 # replaces a ruleset or the environment's tag policy of the same name, but it
-# leaves a label, a ruleset or a team it does not name as it found it. A change
-# to the configuration starts here.
+# leaves a label, a ruleset or a team it does not name as it found it, apart
+# from the retired labels it deletes, the retired milestones it closes and a
+# two-approval part the declarations no longer need, which it deletes. A
+# change to the configuration starts there.
 #
 # Nothing calls this file. It is not part of `make quality` and no workflow
 # runs it: it changes a public repository, so a maintainer with the admin role
-# runs it by hand, after reading the diff to this file.
+# runs it by hand, after reading the diff to this file and to the declarations.
 #
 #   CONFIRM=i-understand scripts/github-bootstrap.sh
 #
 # gh must be signed in with the repo and admin:org scopes, because the teams
-# belong to the organization. The repository must exist and hold main; this
+# belong to the organization, and jq must be on PATH for the preflight. The repository must exist and hold main; this
 # script creates neither.
 set -euo pipefail
 
 # Resolved from this file's location, so the script works from any directory.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
-
-OWNER="${OWNER:-guardana}"
-REPO_NAME="${REPO_NAME:-control}"
-REPO="${OWNER}/${REPO_NAME}"
-DEFAULT_BRANCH="main"
-# The admin both teams start with, as a team maintainer.
-ADMIN_LOGIN="${ADMIN_LOGIN:-karauda}"
-
-DESCRIPTION="Watch what your AI agents do, decide before they act, step in only where you allow it. Today: an MCP gateway with signed policies, approvals, pause and an evidence trail. Open source, Go."
-TOPICS=(
-  ai-agents
-  agentic-ai
-  agent-security
-  ai-security
-  mcp
-  model-context-protocol
-  mcp-gateway
-  authorization
-  policy-engine
-  policy-as-code
-  authzen
-  human-in-the-loop
-  opentelemetry
-  audit-trail
-  golang
-  llm-security
-  ai-governance
-  security-tools
-)
-
-# Status checks the main ruleset requires. A check-run context is a workflow
-# job's `name` when it sets one and its job id otherwise.
-#
-# A required check has to report on every pull request or the merge waits for
-# a run that never happens. Three contexts this repository produces are absent
-# for that reason: `Supply-chain score`, whose workflow has no pull_request
-# trigger; `actionlint, zizmor, pins`, whose pull_request trigger is filtered to
-# .github/workflows/**; and the release workflow's jobs, which run on a tag.
-REQUIRED_CHECKS=(
-  "Quality gate"
-  "Wire contract compatibility"
-  "CodeQL"
-  "Known Go vulnerabilities"
-  "Dependency advisories"
-  "Secret scan"
-  "Dependency review"
-  "Conventional title"
-  "Sign-off"
-)
-
-# The GitHub Actions app. A required check names the app that must report it,
-# so a check run of the same name from any other app does not satisfy it.
-ACTIONS_APP_ID=15368
-
-# The paths where GOVERNANCE.md asks for two independent approvals: the
-# decision path, the enforcement pipeline, the approvals store, the digest and
-# the keys, the evidence record, the judgement of a run against its procedure,
-# the route and lift signatures and the stop judge, the commands that sign a
-# route, turn findings into stops and start, list, carry and lift a stop list,
-# the plane's reading of its route, the reading of a run's evidence for
-# supervision, the runs directory and the findings log, the policy and route
-# floors and their refresh, the owner and mode checks of the configuration and
-# of every store, the wire contracts and their
-# fixtures, the gate's Go code that reports test results and checks the
-# documents, and the release and workflow definitions with the tool digests
-# the release job trusts. Each must be owned by
-# @guardana/security-maintainers in .github/CODEOWNERS, so the team that has to
-# approve is also the team a pull request asks.
-TWO_APPROVAL_PATHS=(
-  "internal/core/**"
-  "internal/policy/**"
-  "internal/canon/**"
-  "internal/evidence/**"
-  "internal/supervise/**"
-  "internal/gateway/**"
-  "internal/approvals/**"
-  "internal/policykey/**"
-  "internal/reaction/**"
-  "internal/policystate/**"
-  "internal/gatewayconfig/**"
-  "internal/files/**"
-  "internal/policywatch/**"
-  "internal/runs/**"
-  "internal/findinglog/**"
-  "cmd/guardana-control/route*.go"
-  "cmd/guardana-control/react*.go"
-  "cmd/guardana-control/stops.go"
-  "cmd/guardana-control/supervise_input.go"
-  "cmd/guardana-gateway/reaction.go"
-  "pkg/contract/**"
-  "pkg/policyprovider/**"
-  "api/proto/**"
-  "testdata/**"
-  "internal/testreport/**"
-  "internal/docscheck/**"
-  ".github/workflows/**"
-  ".goreleaser.yaml"
-  "scripts/tool-versions.env"
-  "scripts/release-notes.sh"
-)
-
-# Repository roles as the rulesets API numbers them.
-ROLE_MAINTAIN=2
-ROLE_ADMIN=5
+# shellcheck source=lib/github-settings.sh
+. "${REPO_ROOT}/scripts/lib/github-settings.sh"
 
 if [[ "${CONFIRM:-}" != "i-understand" ]]; then
   cat >&2 <<MSG
@@ -241,50 +144,48 @@ require_security_owned() {
   printf 'preflight: every two-approval path is owned by @guardana/security-maintainers\n'
 }
 
-# json_strings <value>...; prints a JSON array of strings. A value holding a
-# quote, a backslash or a control character is refused rather than escaped:
-# every value here is a name this file controls.
-json_strings() {
-  local separator="" value
-  printf '['
-  for value in "$@"; do
-    case "${value}" in
-      *[\"\\]* | *[[:cntrl:]]*)
-        printf 'github-bootstrap: refusing to encode %s\n' "${value}" >&2
-        return 1
-        ;;
-    esac
-    printf '%s"%s"' "${separator}" "${value}"
-    separator=", "
-  done
-  printf ']'
-}
+# GitHub takes at most this many file patterns per required reviewer. It is
+# written here rather than read from the declarations, so a change to their
+# chunk size cannot also move the check of it.
+GITHUB_REVIEWER_PATTERN_LIMIT=15
 
-# checks_json; REQUIRED_CHECKS as the ruleset's required_status_checks array,
-# each bound to the Actions app, so the list checked above and the list applied
-# cannot drift apart.
-checks_json() {
-  local separator="" context
-  printf '['
-  for context in "${REQUIRED_CHECKS[@]}"; do
-    printf '%s{ "context": "%s", "integration_id": %d }' \
-      "${separator}" "${context}" "${ACTIONS_APP_ID}"
-    separator=", "
-  done
-  printf ']'
+# require_reviewer_limits; refuses, before any GitHub call, a ruleset body
+# GitHub would refuse with a 422 halfway through a run.
+require_reviewer_limits() {
+  local problems
+  if ! command -v jq >/dev/null 2>&1; then
+    printf 'github-bootstrap: jq is not on PATH, and the preflight reads the ruleset bodies with it\n' >&2
+    exit 1
+  fi
+  problems="$(reviewer_limit_problems "${GITHUB_REVIEWER_PATTERN_LIMIT}")"
+  if [[ -n "${problems}" ]]; then
+    printf '%s\n' "${problems}" | sed 's/^/github-bootstrap: /' >&2
+    printf 'github-bootstrap: refusing to send a ruleset GitHub would refuse.\n' >&2
+    exit 1
+  fi
+  printf 'preflight: no required reviewer holds more than %d patterns, and the rulesets hold every two-approval path once\n' \
+    "${GITHUB_REVIEWER_PATTERN_LIMIT}"
 }
 
 require_contexts_exist "${REPO_ROOT}/.github/workflows"
 require_security_owned
+require_reviewer_limits
 
-# Every JSON fragment is built here, by assignment, so a refusal stops the run.
-# Inside a here-document a failed substitution would be silently empty.
-TOPICS_JSON="$(json_strings "${TOPICS[@]}")"
-SECURITY_PATTERNS_JSON="$(json_strings "${TWO_APPROVAL_PATHS[@]}")"
-CHECKS_JSON="$(checks_json)"
-DESCRIPTION_JSON="$(json_strings "${DESCRIPTION}")"
-DESCRIPTION_JSON="${DESCRIPTION_JSON#[}"
-DESCRIPTION_JSON="${DESCRIPTION_JSON%]}"
+# Every body is built here, by assignment, so a refusal stops the run before
+# any GitHub call. The two that need a team id are built once with a stand-in
+# id for that reason, and again once the id is known.
+REPOSITORY_BODY="$(repository_json)"
+TOPICS_BODY="$(topics_json)"
+SECURITY_CONFIGURATION="$(security_configuration_json)"
+TAG_POLICY_BODY="$(environment_tag_policy_json)"
+LABEL_LINES="$(labels)"
+TEAM_LINES="$(teams)"
+MEMBER_LINES="$(team_members)"
+RULESET_NAMES="$(ruleset_names)"
+while IFS= read -r ruleset; do
+  ruleset_json "${ruleset}" 0 >/dev/null
+done <<<"${RULESET_NAMES}"
+environment_json 0 >/dev/null
 
 command -v gh >/dev/null 2>&1 || {
   printf 'github-bootstrap: gh is not on PATH\n' >&2
@@ -352,30 +253,29 @@ ensure_team() {
     run_quiet gh api --method POST "orgs/${OWNER}/teams" \
       -f "name=${slug}" -f "description=${description}" -f privacy=closed
   fi
-  run_quiet gh api --method PUT "orgs/${OWNER}/teams/${slug}/memberships/${ADMIN_LOGIN}" \
-    -f role=maintainer
   run_quiet gh api --method PUT "orgs/${OWNER}/teams/${slug}/repos/${REPO}" \
     -f "permission=${permission}"
 }
 
-ensure_team maintainers maintain \
-  "Maintainers of guardana/control: merge reviewed pull requests and cut releases; see GOVERNANCE.md."
+while IFS='|' read -r team_slug team_permission team_description; do
+  [[ -n "${team_slug}" ]] || continue
+  ensure_team "${team_slug}" "${team_permission}" "${team_description}" </dev/null
+done <<<"${TEAM_LINES}"
+# The bootstrap adds the declared members and removes nobody: a member it does
+# not know is for a maintainer to look at, and the check reports one.
+while IFS='|' read -r team_slug member_login member_role; do
+  [[ -n "${team_slug}" ]] || continue
+  run_quiet gh api --method PUT "orgs/${OWNER}/teams/${team_slug}/memberships/${member_login}" \
+    -f "role=${member_role}" </dev/null
+done <<<"${MEMBER_LINES}"
 MAINTAINERS_TEAM_ID="$(gh api "orgs/${OWNER}/teams/maintainers" --jq .id)"
-if [[ ! "${MAINTAINERS_TEAM_ID}" =~ ^[0-9]+$ ]]; then
-  printf 'github-bootstrap: no numeric id for the maintainers team\n' >&2
-  exit 1
-fi
-# Write access, because a code owner without it is ignored.
-ensure_team security-maintainers push \
-  "Code owners of the paths in guardana/control that carry authorization meaning."
+require_id "the maintainers team" "${MAINTAINERS_TEAM_ID}"
 SECURITY_TEAM_ID="$(gh api "orgs/${OWNER}/teams/security-maintainers" --jq .id)"
-if [[ ! "${SECURITY_TEAM_ID}" =~ ^[0-9]+$ ]]; then
-  printf 'github-bootstrap: no numeric id for the security-maintainers team\n' >&2
-  exit 1
-fi
+require_id "the security-maintainers team" "${SECURITY_TEAM_ID}"
 
 # apply_ruleset <name>; reads the ruleset on stdin and creates it, or replaces
-# the repository's ruleset of that name, so a re-run converges on this file.
+# the repository's ruleset of that name, so a re-run converges on the
+# declarations.
 apply_ruleset() {
   local name="$1" id
   id="$(gh api "repos/${REPO}/rulesets?includes_parents=false" --paginate \
@@ -390,227 +290,58 @@ apply_ruleset() {
   fi
 }
 
-# Rulesets come first after the teams, the simple ones before the one that
-# uses the newest rule types, so a setting GitHub refuses further down never
-# leaves main or a release tag unprotected.
-# No role bypasses this one: nobody deletes main, force-pushes it or merges
-# into it with a merge commit.
-apply_ruleset "main: history" <<'JSON'
-{
-  "name": "main: history",
-  "target": "branch",
-  "enforcement": "active",
-  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
-  "bypass_actors": [],
-  "rules": [
-    { "type": "deletion" },
-    { "type": "non_fast_forward" },
-    { "type": "required_linear_history" }
-  ]
-}
-JSON
+# Rulesets come first after the teams, in the order ruleset_names gives.
+while IFS= read -r ruleset; do
+  body="$(ruleset_json "${ruleset}" "${SECURITY_TEAM_ID}")"
+  apply_ruleset "${ruleset}" <<<"${body}"
+done <<<"${RULESET_NAMES}"
+# A two-approval part beyond the count the declarations need is left over from
+# a longer list. Only a ruleset named exactly as a part is deleted; its paths
+# are held by the parts applied above.
+existing_rulesets="$(gh api "repos/${REPO}/rulesets?includes_parents=false" --paginate \
+  --jq '.[] | "\(.id)\t\(.name)"' </dev/null)"
+while IFS=$'\t' read -r ruleset_id ruleset_name; do
+  [[ "${ruleset_name}" == "${TWO_APPROVAL_PART_PREFIX}"* ]] || continue
+  [[ "${ruleset_name#"${TWO_APPROVAL_PART_PREFIX}"}" =~ ^[0-9]+$ ]] || continue
+  if grep -qxF -- "${ruleset_name}" <<<"${RULESET_NAMES}"; then
+    continue
+  fi
+  if [[ ! "${ruleset_id}" =~ ^[0-9]+$ ]]; then
+    printf 'github-bootstrap: no numeric id for the ruleset %s\n' "${ruleset_name}" >&2
+    exit 1
+  fi
+  printf 'deleting the leftover ruleset %s: the two-approval paths need fewer parts\n' "${ruleset_name}"
+  run_quiet gh api --method DELETE "repos/${REPO}/rulesets/${ruleset_id}" </dev/null
+done <<<"${existing_rulesets}"
 
-# Only the admin and the maintain role create a release tag.
-apply_ruleset "release tags: create" <<JSON
-{
-  "name": "release tags: create",
-  "target": "tag",
-  "enforcement": "active",
-  "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
-  "bypass_actors": [
-    { "actor_id": ${ROLE_ADMIN}, "actor_type": "RepositoryRole", "bypass_mode": "always" },
-    { "actor_id": ${ROLE_MAINTAIN}, "actor_type": "RepositoryRole", "bypass_mode": "always" }
-  ],
-  "rules": [
-    { "type": "creation" }
-  ]
-}
-JSON
-
-# Only the admin and the maintain role create any other tag either, so no tag
-# can take a branch's name, which a tag push run reports as its head branch.
-apply_ruleset "other tags: create" <<JSON
-{
-  "name": "other tags: create",
-  "target": "tag",
-  "enforcement": "active",
-  "conditions": { "ref_name": { "include": ["~ALL"], "exclude": ["refs/tags/v*"] } },
-  "bypass_actors": [
-    { "actor_id": ${ROLE_ADMIN}, "actor_type": "RepositoryRole", "bypass_mode": "always" },
-    { "actor_id": ${ROLE_MAINTAIN}, "actor_type": "RepositoryRole", "bypass_mode": "always" }
-  ],
-  "rules": [
-    { "type": "creation" }
-  ]
-}
-JSON
-
-# No role moves or deletes a release tag once it exists.
-apply_ruleset "release tags: immutable" <<'JSON'
-{
-  "name": "release tags: immutable",
-  "target": "tag",
-  "enforcement": "active",
-  "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
-  "bypass_actors": [],
-  "rules": [
-    { "type": "update", "parameters": { "update_allows_fetch_and_merge": false } },
-    { "type": "deletion" },
-    { "type": "non_fast_forward" }
-  ]
-}
-JSON
-
-# Only the admin and the maintain role update main; the maintain role only by
-# merging a pull request. A collaborator with write access cannot merge.
-apply_ruleset "main: merges" <<JSON
-{
-  "name": "main: merges",
-  "target": "branch",
-  "enforcement": "active",
-  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
-  "bypass_actors": [
-    { "actor_id": ${ROLE_ADMIN}, "actor_type": "RepositoryRole", "bypass_mode": "always" },
-    { "actor_id": ${ROLE_MAINTAIN}, "actor_type": "RepositoryRole", "bypass_mode": "pull_request" }
-  ],
-  "rules": [
-    { "type": "update", "parameters": { "update_allows_fetch_and_merge": false } }
-  ]
-}
-JSON
-
-# A change reaches main by squash-merged pull request, reviewed and green. The
-# admin bypasses this ruleset, and only this one, to push directly.
-apply_ruleset "main: pull requests" <<JSON
-{
-  "name": "main: pull requests",
-  "target": "branch",
-  "enforcement": "active",
-  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
-  "bypass_actors": [
-    { "actor_id": ${ROLE_ADMIN}, "actor_type": "RepositoryRole", "bypass_mode": "always" }
-  ],
-  "rules": [
-    {
-      "type": "pull_request",
-      "parameters": {
-        "required_approving_review_count": 1,
-        "dismiss_stale_reviews_on_push": true,
-        "require_code_owner_review": true,
-        "require_last_push_approval": true,
-        "required_review_thread_resolution": true,
-        "allowed_merge_methods": ["squash"],
-        "required_reviewers": [
-          {
-            "minimum_approvals": 2,
-            "file_patterns": ${SECURITY_PATTERNS_JSON},
-            "reviewer": { "id": ${SECURITY_TEAM_ID}, "type": "Team" }
-          }
-        ]
-      }
-    },
-    {
-      "type": "required_status_checks",
-      "parameters": {
-        "strict_required_status_checks_policy": true,
-        "do_not_enforce_on_create": false,
-        "required_status_checks": ${CHECKS_JSON}
-      }
-    },
-    {
-      "type": "code_scanning",
-      "parameters": {
-        "code_scanning_tools": [
-          { "tool": "CodeQL", "security_alerts_threshold": "high_or_higher", "alerts_threshold": "errors" }
-        ]
-      }
-    }
-  ]
-}
-JSON
-
-# The release job deploys to this environment, only from a v* tag, and waits
-# for a maintainer to approve it. One maintainer may approve their own tag, and
-# the admin may bypass the wait.
-run_json PUT "repos/${REPO}/environments/release" <<JSON
-{
-  "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true },
-  "reviewers": [ { "type": "Team", "id": ${MAINTAINERS_TEAM_ID} } ],
-  "prevent_self_review": false,
-  "can_admins_bypass": true
-}
-JSON
+ENVIRONMENT_BODY="$(environment_json "${MAINTAINERS_TEAM_ID}")"
+run_json PUT "repos/${REPO}/environments/${ENVIRONMENT}" <<<"${ENVIRONMENT_BODY}"
 # Any other policy on the environment would let another ref deploy to it, so
 # every policy but the one for v* tags is removed.
 # Read by assignment, so a failed listing stops the run instead of leaving a
 # stray policy in place behind a report of success.
-policies="$(gh api "repos/${REPO}/environments/release/deployment-branch-policies" --paginate \
+policies="$(gh api "repos/${REPO}/environments/${ENVIRONMENT}/deployment-branch-policies" --paginate \
   --jq '.branch_policies[] | "\(.id) \(.type) \(.name)"' </dev/null)"
 have_tag_policy=0
 while read -r policy_id policy_type policy_name; do
   [[ -n "${policy_id}" ]] || continue
-  if [[ "${policy_type}" == "tag" && "${policy_name}" == 'v*' ]]; then
+  if [[ "${policy_type}" == "tag" && "${policy_name}" == "${ENVIRONMENT_TAG_POLICY}" ]]; then
     have_tag_policy=1
   else
     run_quiet gh api --method DELETE \
-      "repos/${REPO}/environments/release/deployment-branch-policies/${policy_id}" </dev/null
+      "repos/${REPO}/environments/${ENVIRONMENT}/deployment-branch-policies/${policy_id}" </dev/null
   fi
 done <<<"${policies}"
 if ((have_tag_policy == 1)); then
-  printf 'environment release already takes v* tags\n'
+  printf 'environment %s already takes %s tags\n' "${ENVIRONMENT}" "${ENVIRONMENT_TAG_POLICY}"
 else
-  run_json POST "repos/${REPO}/environments/release/deployment-branch-policies" <<'JSON'
-{ "name": "v*", "type": "tag" }
-JSON
+  run_json POST "repos/${REPO}/environments/${ENVIRONMENT}/deployment-branch-policies" <<<"${TAG_POLICY_BODY}"
 fi
 
-run_json PATCH "repos/${REPO}" <<JSON
-{
-  "description": ${DESCRIPTION_JSON},
-  "homepage": "https://control.guardana.dev",
-  "default_branch": "${DEFAULT_BRANCH}",
-  "has_issues": true,
-  "has_wiki": false,
-  "has_projects": false,
-  "has_discussions": false,
-  "allow_squash_merge": true,
-  "allow_merge_commit": false,
-  "allow_rebase_merge": false,
-  "squash_merge_commit_title": "PR_TITLE",
-  "squash_merge_commit_message": "COMMIT_MESSAGES",
-  "delete_branch_on_merge": true,
-  "allow_update_branch": true,
-  "allow_auto_merge": false,
-  "web_commit_signoff_required": true
-}
-JSON
+run_json PATCH "repos/${REPO}" <<<"${REPOSITORY_BODY}"
 
-run_json PUT "repos/${REPO}/topics" <<JSON
-{ "names": ${TOPICS_JSON} }
-JSON
+run_json PUT "repos/${REPO}/topics" <<<"${TOPICS_BODY}"
 
-# The security features come from an organization configuration attached to
-# this repository alone, enforced so they cannot drift at the repository. A new
-# public repository has no dependency graph, and without it the required
-# "Dependency review" check cannot run. Code scanning's default setup stays
-# off: security.yml runs CodeQL itself, and GitHub refuses the results of one
-# while the other is on. GitHub refuses secret scanning in a configuration that
-# leaves advanced_security off; on a public repository it costs nothing.
-read -r -d '' SECURITY_CONFIGURATION <<JSON || true
-{
-  "name": "${REPO_NAME}",
-  "description": "The security settings of ${REPO}, applied by its scripts/github-bootstrap.sh.",
-  "advanced_security": "enabled",
-  "dependency_graph": "enabled",
-  "dependabot_alerts": "enabled",
-  "dependabot_security_updates": "enabled",
-  "code_scanning_default_setup": "disabled",
-  "secret_scanning": "enabled",
-  "secret_scanning_push_protection": "enabled",
-  "private_vulnerability_reporting": "enabled",
-  "enforcement": "enforced"
-}
-JSON
 configuration_id="$(gh api "orgs/${OWNER}/code-security/configurations" --paginate \
   --jq ".[] | select(.name == \"${REPO_NAME}\") | .id" </dev/null)"
 if [[ -z "${configuration_id}" ]]; then
@@ -638,19 +369,9 @@ JSON
 # A published release keeps its tag and its assets as they were published.
 run gh api --method PUT "repos/${REPO}/immutable-releases"
 
-# Every action must be pinned to a commit, as scripts/check-actions-pinned.sh
-# already requires of this tree. A workflow that needs to write asks for it in
-# its own job. A first-time contributor's pull request runs its workflows only
-# after a maintainer approves the run.
-run_json PUT "repos/${REPO}/actions/permissions" <<'JSON'
-{ "enabled": true, "allowed_actions": "all", "sha_pinning_required": true }
-JSON
-run_json PUT "repos/${REPO}/actions/permissions/workflow" <<'JSON'
-{ "default_workflow_permissions": "read", "can_approve_pull_request_reviews": false }
-JSON
-run_json PUT "repos/${REPO}/actions/permissions/fork-pr-contributor-approval" <<'JSON'
-{ "approval_policy": "first_time_contributors" }
-JSON
+actions_permissions_json | run_json PUT "repos/${REPO}/actions/permissions"
+actions_workflow_json | run_json PUT "repos/${REPO}/actions/permissions/workflow"
+actions_fork_approval_json | run_json PUT "repos/${REPO}/actions/permissions/fork-pr-contributor-approval"
 
 # --force updates a label that already exists instead of failing, so this is
 # safe to re-run after the label set changes.
@@ -658,43 +379,45 @@ while IFS='|' read -r name color description; do
   [[ -n "${name}" ]] || continue
   run gh label create "${name}" --repo "${REPO}" \
     --color "${color}" --description "${description}" --force </dev/null
-done <<'LABELS'
-area:core|1d76db|The decision path
-area:policy|1d76db|Policy model, matcher, external PDP
-area:mcp|1d76db|Model Context Protocol adapter and gateway
-area:a2a|1d76db|Agent-to-agent handoff and delegation
-area:otel|1d76db|OpenTelemetry export and evidence transport
-area:ui|1d76db|Web interface
-area:detector|1d76db|Detectors and their fixtures
-area:docs|1d76db|Documentation and decision records
-area:release|1d76db|Release pipeline, signing and provenance
-kind:bug|d73a4a|Behaves differently from what is documented
-kind:feature|0e8a16|A problem the project does not solve yet
-kind:security-hardening|b60205|Reduces attack surface; not a reported vulnerability
-kind:design|5319e7|Needs a design agreed before code
-good-first-issue|7057ff|Small, self-contained, well specified
-help-wanted|008672|Maintainers would welcome a contributor here
-needs-repro|fbca04|Waiting on a reproduction
-needs-adr|fbca04|Waiting on an architecture decision record
-blocked|e11d21|Waiting on something outside this issue
-breaking-change|b60205|Changes a public contract or a verdict's meaning
-security-sensitive|b60205|Touches authorization, identity, approvals or release
-LABELS
-
-# Named after the first three outcomes in ROADMAP.md, without their numbers.
-# That page has no dates, so neither do these.
-existing_milestones="$(gh api "repos/${REPO}/milestones?state=all" --paginate --jq '.[].title')"
-while IFS= read -r milestone; do
-  [[ -n "${milestone}" ]] || continue
-  if grep -qxF -- "${milestone}" <<<"${existing_milestones}"; then
-    printf 'milestone %s already exists\n' "${milestone}"
+done <<<"${LABEL_LINES}"
+# Read by assignment, so a failed listing stops the run rather than leaving a
+# retired label in place. A retired label an issue or a pull request still
+# holds is kept, so deleting it takes nothing off them unseen.
+existing_labels="$(gh api "repos/${REPO}/labels" --paginate --jq '.[].name' </dev/null)"
+for retired in "${RETIRED_LABELS[@]}"; do
+  name="$(awk -v n="${retired}" 'tolower($0) == tolower(n) { print; exit }' <<<"${existing_labels}")"
+  [[ -n "${name}" ]] || continue
+  holders="$(gh api --method GET "repos/${REPO}/issues" -f "labels=${name}" -f state=all -f per_page=100 \
+    --paginate --jq 'length' </dev/null | awk '{ n += $1 } END { print n + 0 }')"
+  if [[ "${holders}" != "0" ]]; then
+    printf 'label %s kept: %s issue(s) or pull request(s) hold it\n' "${name}" "${holders}"
   else
-    run_quiet gh api --method POST "repos/${REPO}/milestones" -f "title=${milestone}" </dev/null
+    run gh label delete "${name}" --repo "${REPO}" --yes </dev/null
   fi
-done <<'MILESTONES'
-First value in one project
-Runs and evidence other tools can read
-Procedures and a supervisor
-MILESTONES
+done
+
+existing_milestones="$(gh api "repos/${REPO}/milestones?state=all" --paginate \
+  --jq '.[] | "\(.number)\t\(.state)\t\(.title)"' </dev/null)"
+# milestone_field <title> <field number>; the number or the state of the
+# milestone of that title, empty when there is none.
+milestone_field() {
+  awk -F '\t' -v title="$1" -v field="$2" '$3 == title { print $field; exit }' <<<"${existing_milestones}"
+}
+for milestone in "${MILESTONES[@]}"; do
+  number="$(milestone_field "${milestone}" 1)"
+  if [[ -z "${number}" ]]; then
+    run_quiet gh api --method POST "repos/${REPO}/milestones" -f "title=${milestone}" </dev/null
+  elif [[ "$(milestone_field "${milestone}" 2)" != "open" ]]; then
+    run_quiet gh api --method PATCH "repos/${REPO}/milestones/${number}" -f state=open </dev/null
+  else
+    printf 'milestone %s already exists\n' "${milestone}"
+  fi
+done
+for milestone in "${RETIRED_MILESTONES[@]}"; do
+  number="$(milestone_field "${milestone}" 1)"
+  if [[ -n "${number}" && "$(milestone_field "${milestone}" 2)" == "open" ]]; then
+    run_quiet gh api --method PATCH "repos/${REPO}/milestones/${number}" -f state=closed </dev/null
+  fi
+done
 
 printf 'github-bootstrap: finished for %s\n' "${REPO}"

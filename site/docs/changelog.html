@@ -139,6 +139,16 @@ calls, states what it does not cover, and says what each planned task
 brings. It no longer says the product watches by default: the enforcement
 mode has no default
 (<a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</a>).</li>
+<li>The repository's GitHub settings are declared once, in
+<code>scripts/lib/github-settings.sh</code>: <code>scripts/github-bootstrap.sh</code> applies them,
+and <code>scripts/github-settings-check.sh</code> compares them with GitHub without
+writing (rulesets, required checks, bypasses, who holds maintain or admin,
+labels and milestones), exiting 1 on drift and 2 when something could not be
+read. Two approvals and code-owner review now also cover <code>adapters/authzen/</code>
+and <code>adapters/mcp/</code>; the paths are spread over rulesets of at most 15
+patterns each, GitHub's limit per reviewer, which the bootstrap checks
+before it writes anything. Milestones follow the roadmap, and labels use
+GitHub's <code>good first issue</code> and <code>help wanted</code>.</li>
 <li>CI's quality job may run 45 minutes; its fuzz smoke alone took 14 of the 30
 it had.</li>
 </ul>

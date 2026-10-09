@@ -18,15 +18,19 @@ var gateTrees = []string{"internal/testreport", "internal/docscheck"}
 // cryptography: route and lift signatures and the stop judge, the policy and
 // route floors and their refresh, the owner and mode checks of the
 // configuration and of every store, the runs a stop names and the findings a
-// stop rests on.
+// stop rests on, the external decision point's answer, which may only veto,
+// and the MCP adapter, which classifies a tool, sends the authorized bytes under
+// their obligations, names a call's run and withholds answers.
 var authorizationTrees = []string{
 	"internal/reaction", "internal/policystate", "internal/gatewayconfig", "internal/files", "internal/policywatch",
-	"internal/runs", "internal/findinglog",
+	"internal/runs", "internal/findinglog", "adapters/authzen", "adapters/mcp",
 }
+
+const githubSettings = "scripts/lib/github-settings.sh"
 
 // Every tree the dependency rule guards, the gate's Go trees and the other
 // authorization trees need the security maintainers' two approvals in the
-// ruleset github-bootstrap.sh creates, and every file under a two-approval path
+// ruleset scripts/lib/github-settings.sh declares, and every file under a two-approval path
 // is theirs in CODEOWNERS. A guarded tree added to
 // scripts/lib/dependency-rule.sh without both fails here, and so does a later
 // CODEOWNERS rule that gives one file of such a tree to someone else.
@@ -40,14 +44,14 @@ func TestCodeownersCoverTheGuardedTrees(t *testing.T) {
 	if err != nil {
 		t.Fatalf(".github/CODEOWNERS: %v", err)
 	}
-	twoApproval, err := quotedArray(readLines(t, fsys, "scripts/github-bootstrap.sh"), "TWO_APPROVAL_PATHS")
+	twoApproval, err := quotedArray(readLines(t, fsys, githubSettings), "TWO_APPROVAL_PATHS")
 	if err != nil {
-		t.Fatalf("scripts/github-bootstrap.sh: %v", err)
+		t.Fatalf("%s: %v", githubSettings, err)
 	}
 	required := slices.Concat(guarded, gateTrees, authorizationTrees)
 	for _, tree := range required {
 		if !slices.Contains(twoApproval, tree+"/**") {
-			t.Errorf("scripts/github-bootstrap.sh: TWO_APPROVAL_PATHS holds no %q", tree+"/**")
+			t.Errorf("%s: TWO_APPROVAL_PATHS holds no %q", githubSettings, tree+"/**")
 		}
 	}
 	for _, problem := range ownershipProblems(rules, repoFileList(t), required, twoApproval) {

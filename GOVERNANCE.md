@@ -9,24 +9,23 @@ Maintainers decide. A maintainer can merge, release, and say no. Today there is
 one, Konrad Karauda, which is worth stating plainly rather than hiding behind a
 plural.
 
-Disagreement between maintainers is settled in the issue or the pull request
-where it arose. If it cannot be settled there, it becomes an architecture
-decision record and the record carries the outcome and the rejected
-alternatives.
+Disagreement between maintainers is settled in the issue or pull request where
+it arose. If it cannot be settled there, it becomes an architecture decision
+record carrying the outcome and the rejected alternatives.
 
 ## How decisions are recorded
 
 - In public: issues, pull requests and architecture decision records in
-  `docs/adr/`. A decision that outlives the change that caused it is written
-  down as a record.
+  `docs/adr/`. A decision that outlives the change that caused it becomes a
+  record.
 - In private: only what cannot be discussed safely in public, which in practice
   means an unfixed vulnerability. See [SECURITY.md](SECURITY.md). Once a fix
   ships, the reasoning moves into the open.
 
 ## Review requirements
 
-A pull request needs one approving review from a maintainer other than the
-person who pushed its last change.
+A pull request needs one approving review from a maintainer other than its
+last pusher.
 
 Two independent approvals are required for a change that touches any of:
 
@@ -38,17 +37,16 @@ Two independent approvals are required for a change that touches any of:
 - redaction and evidence content defaults;
 - release signing, provenance, workflow security, or the gate's checks.
 
-"Independent" means the two approvers did not write the change and did not pair
-on it.
+"Independent" means the two approvers did not write the change or pair on it.
 
-The ruleset on `main` enforces what GitHub can: the review, code-owner review,
+The rulesets on `main` enforce what GitHub can: the review, code-owner review,
 resolved conversations, the required checks, and two approvals from
-`@guardana/security-maintainers` on the paths `scripts/github-bootstrap.sh`
+`@guardana/security-maintainers` on the paths `scripts/lib/github-settings.sh`
 lists. Whether two approvers paired stays a rule the maintainers apply and
 record in the pull request.
 
 With one maintainer, a change to those paths waits for a second maintainer or
-for a reviewer invited to the security maintainers for that change. Which of
+a reviewer invited to the security maintainers for it. Which of
 the two happened is written in the pull request, and a change that has not met
 it does not merge. A dependency update to the workflows is the exception: the
 admin merges it once its checks pass, and says so in the pull request.
@@ -66,9 +64,12 @@ change has no second reviewer, and CI runs the same gate on it.
 | Write | `@guardana/security-maintainers` | review as code owners of the authorization paths |
 | Everyone | anyone with a GitHub account | open issues, and pull requests from a fork |
 
-Nobody can force-push or delete `main`, or move or delete a release tag. The
-settings, teams and rulesets live in `scripts/github-bootstrap.sh`; a change to
-them starts there. How a release is cut is in [RELEASING.md](RELEASING.md).
+Nobody can force-push or delete `main`, or move or delete a release tag.
+Settings, teams and rulesets live in `scripts/lib/github-settings.sh`, where a
+change starts; `scripts/github-bootstrap.sh` applies them, and
+`scripts/github-settings-check.sh` compares them with GitHub without writing:
+exit 1 on drift, 2 when unsure. How a release is cut is in
+[RELEASING.md](RELEASING.md).
 
 ## Becoming a maintainer
 

@@ -1,9 +1,9 @@
 # scripts/github-bootstrap.sh creates both teams and gives them their roles.
 #
-# This file requests the right reviewer. Requiring the approval is the ruleset's
-# job, not this file's; the ruleset also requires two approvals from
+# This file requests the right reviewer. Requiring the approval is the rulesets'
+# job, not this file's; the rulesets on main also require two approvals from
 # @guardana/security-maintainers on the authorization paths among those below,
-# listed in scripts/github-bootstrap.sh. Who has to approve what is in
+# listed in scripts/lib/github-settings.sh. Who has to approve what is in
 # GOVERNANCE.md.
 #
 # Last matching pattern wins, so the specific paths below override the
@@ -19,9 +19,11 @@
 # stop list, the plane's reading of its route, the reading of a run's evidence
 # for supervision, the runs directory and the findings log, the policy and
 # route floors and their refresh, the owner and mode checks of the configuration
-# and of every store, the policy provider interface, the wire schema and the
-# fixtures that pin them. Every tree
-# scripts/lib/dependency-rule.sh guards is among them.
+# and of every store, the external decision point's answer, which may only veto,
+# the MCP adapter, which classifies a tool, sends only the authorized bytes under
+# their obligations, names the run a call belongs to and withholds or rewrites
+# answers, the policy provider interface, the wire schema and the fixtures that
+# pin them. Every tree scripts/lib/dependency-rule.sh guards is among them.
 /internal/core/        @guardana/security-maintainers
 /internal/policy/      @guardana/security-maintainers
 /internal/canon/       @guardana/security-maintainers
@@ -42,6 +44,8 @@
 /cmd/guardana-control/stops.go @guardana/security-maintainers
 /cmd/guardana-control/supervise_input.go @guardana/security-maintainers
 /cmd/guardana-gateway/reaction.go @guardana/security-maintainers
+/adapters/authzen/     @guardana/security-maintainers
+/adapters/mcp/         @guardana/security-maintainers
 /pkg/contract/         @guardana/security-maintainers
 /pkg/policyprovider/   @guardana/security-maintainers
 /api/proto/            @guardana/security-maintainers

@@ -114,6 +114,10 @@ immutable tag that CI builds, signs and attests. Amends
 <p>Amended after <code>v0.3.0-alpha</code>: the <code>release</code> environment also requires the
 <code>maintainers</code> team's approval before the release job runs; one maintainer may
 approve their own tag, and the admin may bypass the wait.</p>
+<p>Amended after <code>v0.10.0-alpha</code>: the settings are declared in
+<code>scripts/lib/github-settings.sh</code>, which the bootstrap applies and a read-only
+check compares with GitHub, and the two-approval paths are spread over rulesets
+of at most 15 patterns each, GitHub's limit per reviewer.</p>
 <h2 id="context">Context</h2>
 <p>ADR-0008 set the rules before the repository existed. Every change would reach
 <code>main</code> through a pull request with one approving review, code-owner review on
@@ -134,7 +138,7 @@ review where <code>.github/CODEOWNERS</code> names them, two approvals from the 
 maintainers on the paths that carry authorization meaning, resolved
 conversations, the required status checks on an up-to-date branch, and no
 CodeQL alert of high severity or above. The two-approval paths are listed in
-<code>scripts/github-bootstrap.sh</code>; beside ADR-0008's list they hold the
+<code>scripts/lib/github-settings.sh</code>; beside ADR-0008's list they hold the
 enforcement pipeline, the approvals store, the policy keys, the release
 configuration and the tool digests the release job trusts.</li>
 <li>The repository admin, today Konrad Karauda, may push to <code>main</code> directly and
@@ -157,8 +161,9 @@ and the sign-off of each of its commits; the admin's direct pushes are held
 to the same rules by the admin alone.</li>
 <li>The name is fixed from the first release. Renaming after it breaks the module
 path and the proto package, and needs a record of its own.</li>
-<li><code>scripts/github-bootstrap.sh</code> holds the repository's settings, teams and
-rulesets. A change goes into the script first, then GitHub.</li>
+<li><code>scripts/lib/github-settings.sh</code> declares the repository's settings, teams
+and rulesets, and <code>scripts/github-bootstrap.sh</code> applies them. A change goes
+into the declarations first, then GitHub.</li>
 </ul>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>The admin's direct pushes skip review by design. Each of them runs the full
@@ -200,7 +205,9 @@ interface. A mistake in a release costs a version number, never a replaced
 download.</p>
 <h2 id="validation">Validation</h2>
 <p><code>scripts/github-bootstrap.sh</code> applies the rulesets, and
-<code>gh api repos/guardana/control/rulesets</code> shows what is live. The pull request
+<code>scripts/github-settings-check.sh</code> compares every declared setting with what is
+live without changing it: it exits 0 when all match, 1 on drift, and 2 when
+nothing drifted but something could not be read. The pull request
 workflow refuses a non-conforming title or a commit without a sign-off. The
 release workflow refuses to publish an asset whose signature or attestation
 does not verify. <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how anyone checks a
