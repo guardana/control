@@ -41,6 +41,8 @@ code{font-family:var(--mono);font-size:.88em}
 .pill i{width:7px;height:7px;border-radius:50%;background:var(--high);box-shadow:0 0 0 4px color-mix(in srgb,var(--high) 22%,transparent)}
 h1{font-size:clamp(34px,6.2vw,64px);line-height:1.06;letter-spacing:-.035em;margin:0 0 24px;font-weight:700;overflow-wrap:break-word}
 h1 .accent{color:var(--brand)}
+.sub{font-size:clamp(18px,2.4vw,23px);font-weight:500;color:var(--ink);max-width:760px;margin:-8px auto 20px}
+.note{font-size:15px;color:var(--muted);max-width:720px;margin:22px auto 0}
 .warn{font-size:clamp(16px,2vw,19px);color:var(--muted);max-width:720px;margin:0 auto 34px}
 .warn strong{color:var(--ink);font-weight:600}
 .ctas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
@@ -79,6 +81,10 @@ h3{font-size:18px;letter-spacing:-.01em;margin:0 0 8px;font-weight:600}
 .items .st.implemented{color:var(--brand-ink);border-color:color-mix(in srgb,var(--brand) 45%,var(--line));background:var(--brand-soft)}
 .items .id{color:var(--brand-ink)}
 .items span.t{font-size:15.5px;min-width:0;overflow-wrap:anywhere}
+.items .tx{display:flex;flex-direction:column;gap:4px;min-width:0}
+.items span.d{font-size:14.5px;line-height:1.5;color:var(--muted)}
+.ask{margin-top:48px;padding:24px 26px;border:1px solid var(--line);border-radius:14px;background:var(--panel);max-width:740px}
+.ask p{margin:0;color:var(--muted)}
 .more{display:inline-block;margin-top:22px;font-weight:600;font-size:15px}
 
 .related{padding:72px 0}

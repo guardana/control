@@ -11,6 +11,23 @@ What exists in this repository today, component by component. Every other
 document points here rather than keeping its own list, so this is the only
 inventory in the project and the one that has to be right.
 
+In short:
+
+- What you can do today: put the gateway between an MCP client and its
+  servers and decide each tool call from a signed policy, allowing it,
+  blocking it or holding it for one approval of that exact call. Each decision
+  is recorded with the policy version that made it. You can also check one
+  opened run against its procedure, draw it as a page, hand its findings to a
+  program, and stop that run where a signed route allows it.
+- The limits: the gateway sees only the calls routed through it, the caller's
+  identity comes from its configuration rather than a login, and the evidence
+  trail is not tamper-evident. It is not a security boundary.
+- What to download: the
+  [latest release](https://github.com/guardana/control/releases)'s demo
+  archive runs the demo with no Go and no model key, its platform archive holds
+  `guardana-gateway` and `guardana-control`, and the image `ghcr.io/guardana/control-gateway` holds the
+  gateway. [The tutorial](get-started/try-the-demo.md) starts there.
+
 What the labels mean:
 
 - `implemented`: it exists and a command in this repository exercises it.

@@ -2,7 +2,9 @@
 
 # <img src="site/assets/control/mark.svg" height="30" alt=""> Guardana Control
 
-**Watch what your AI agents do. Decide before they act. Step in only where you allow it.**
+**Decide which MCP tool calls your AI agents can run.**
+
+Watch what they do, and step in only where you allow it.
 
 [![CI](https://github.com/guardana/control/actions/workflows/ci.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/ci.yml)
 [![Security](https://github.com/guardana/control/actions/workflows/security.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/security.yml)
@@ -20,10 +22,10 @@
 ## Status: alpha
 
 An `experimental` gateway decides and enforces an agent's tool calls over the
-Model Context Protocol (MCP). Do not deploy this as a security
-boundary. The goal is to supervise an organization's agents on many channels:
-[ROADMAP.md](ROADMAP.md) describes it and [docs/status.md](docs/status.md) lists
-what exists. To try it, follow [the tutorial](docs/get-started/try-the-demo.md).
+Model Context Protocol (MCP). Do not deploy this as a security boundary.
+[ROADMAP.md](ROADMAP.md) describes the goal, supervising an organization's
+agents on many channels; [docs/status.md](docs/status.md) lists what exists.
+[The tutorial](docs/get-started/try-the-demo.md) runs the demo.
 
 ## The problem
 

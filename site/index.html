@@ -4,10 +4,10 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Guardana Control</title>
-<meta name="description" content="Watch what your AI agents do. Decide before they act. Step in only where you allow it."/>
+<meta name="description" content="Decide which MCP tool calls your AI agents can run. Watch what they do, and step in only where you allow it."/>
 <link rel="canonical" href="https://control.guardana.dev/"/>
 <meta property="og:title" content="Guardana Control"/>
-<meta property="og:description" content="Watch what your AI agents do. Decide before they act. Step in only where you allow it."/>
+<meta property="og:description" content="Decide which MCP tool calls your AI agents can run. Watch what they do, and step in only where you allow it."/>
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="Guardana Control"/>
 <meta property="og:url" content="https://control.guardana.dev/"/>
@@ -15,7 +15,7 @@
 <meta property="og:image:type" content="image/png"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
-<meta property="og:image:alt" content="Guardana Control. Watch what your AI agents do. Decide before they act. Step in only where you allow it."/>
+<meta property="og:image:alt" content="Guardana Control. Decide which MCP tool calls your AI agents can run."/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:image" content="https://control.guardana.dev/og.png"/>
 <meta name="theme-color" content="#0B8F80"/>
@@ -38,13 +38,15 @@
 
 <main id="main">
 <section class="hero"><div class="wrap hero-inner">
-  <p class="pill"><i></i>Status: alpha</p>
-  <h1 class="tagline">Watch what your <span class="accent">AI agents</span> do. Decide before they act. Step in only where you allow it.</h1>
-  <p class="warn">Today: an <code class="st" data-status="Model Context Protocol (MCP) gateway">experimental</code> gateway decides and enforces the tool calls an agent makes over the Model Context Protocol (MCP), and an agent's runtime traces can be read beside it. <code>Planned</code>: framework hooks and proxy logs as further channels. <strong>Do not deploy this as a security boundary.</strong></p>
+  <p class="pill"><i></i>Open source · Experimental alpha</p>
+  <h1 class="tagline">Decide which MCP tool calls your <span class="accent">AI agents</span> can run.</h1>
+  <p class="sub">Watch what they do, and step in only where you allow it.</p>
+  <p class="warn">Put a local gateway between your MCP client and its servers. A signed policy decides each tool call: it runs, it is blocked with its reason, or that exact call waits for one approval. Each decision is recorded with the policy version that made it. The <code class="st" data-status="Model Context Protocol (MCP) gateway">experimental</code> gateway sees only the calls routed through it, and the caller's identity comes from its configuration, not from a login. <strong>Do not deploy this as a security boundary.</strong></p>
   <div class="ctas">
-    <a class="btn pri" href="/docs/get-started/try-the-demo">Try the demo</a>
-    <a class="btn sec" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn pri" href="/docs/get-started/try-the-demo">Run the local demo</a>
+    <a class="btn sec" href="/docs/guides/connect-an-existing-mcp-setup">Connect your MCP setup</a>
   </div>
+  <p class="note">The demo shows an allowed call, a blocked call and a one-time approval, with no Go and no model key. <a href="/docs/reference/mcp-coverage">What the gateway covers</a> · <a href="/docs/concepts/threat-model">What it does not protect</a></p>
 </div></section>
 
 <section class="s" id="what"><div class="wrap">
@@ -58,6 +60,7 @@
     <li><code>ALLOW_WITH_OBLIGATIONS</code><p>The action proceeds under conditions, enforced unless advisory.</p></li>
     <li><code>INDETERMINATE</code><p>The decision could not be made. It is never an allow.</p></li>
   </ul>
+  <p class="lede">No language model grants permission. Prompt and tool content capture is off by default, and hidden model reasoning is never stored.</p>
   <div class="verbs">
     <div class="verb"><p class="n">01</p><h3>Intercept</h3><p>The enforcement point sits between an agent and its MCP servers. It enforces the verdict except in <code>OBSERVE</code>; <code>APPROVE</code> and a pause can be stricter.</p><code class="cmd">guardana-gateway run --config &lt;file&gt;</code></div>
     <div class="verb"><p class="n">02</p><h3>Decide</h3><p>The built-in policy engine decides from signed policy bundles. An external decision point (PDP) can veto over AuthZEN but cannot grant. An approval lets one exact action run once, before it expires.</p><code class="cmd">guardana-control policy sign --key &lt;file&gt; --out &lt;file&gt; &lt;document&gt;</code></div>
@@ -108,21 +111,7 @@
   <a class="more" href="/docs/status">The full inventory</a>
 </div></section>
 
-<section class="s alt-bg" id="planned"><div class="wrap">
-  <p class="eyebrow">docs/backlog.md</p>
-  <h2>What is planned</h2>
-  <p class="lede">All tasks below are <code>planned</code>. They name work to do, not capabilities to claim.</p>
-  <ul class="items">
-    <li data-backlog="B10"><span class="id">B10</span><span class="t">Specify and build the enforcement API</span></li>
-    <li data-backlog="B11"><span class="id">B11</span><span class="t">Ship Python and one framework integration</span></li>
-    <li data-backlog="B21"><span class="id">B21</span><span class="t">Add sensors independent of the agent</span></li>
-    <li data-backlog="B12"><span class="id">B12</span><span class="t">Publish the port contracts and add TypeScript</span></li>
-    <li data-backlog="B13"><span class="id">B13</span><span class="t">Authenticate operators and scope authority</span></li>
-  </ul>
-  <a class="more" href="/docs/backlog">The delivery backlog</a>
-</div></section>
-
-<section class="s" id="going"><div class="wrap">
+<section class="s alt-bg" id="going"><div class="wrap">
   <p class="eyebrow">ROADMAP.md</p>
   <h2>Where it is going</h2>
   <p class="lede">Further work is <code>planned</code> in the <a href="/docs/roadmap">roadmap</a>. MCP is the first of several channels through which it sees what agents do. Today it keeps an agent's runtime traces as testimony: what the runtime says the agent did, never proof. It maps which declared paths a gateway enforces. It checks one run against its procedure and the exceptions the procedure allows, with the run's children where the procedure says so. It draws that run as a page, hands its alerts to a program, and stops one run on a confirmed finding where the operator allowed it. Planned next: sensors the agent cannot influence, such as the proxies its traffic passes through, and alerts to the tools an operator already watches.</p>
@@ -148,7 +137,7 @@
         <div class="card"><span class="k">Evidence export <span class="tag">experimental</span></span><span class="d">for your own programs to read</span></div>
       </div></div>
     </div>
-    <figcaption id="fig-going-cap">Watch by default, and step in only where you allow it.</figcaption>
+    <figcaption id="fig-going-cap">It watches the channels you connect, and steps in only where you allow it.</figcaption>
   </figure>
   <figure class="fig">
     <table class="runtable">
@@ -163,6 +152,24 @@
       </tbody>
     </table>
   </figure>
+</div></section>
+
+<section class="s" id="planned"><div class="wrap">
+  <p class="eyebrow">docs/backlog.md</p>
+  <h2>What is planned next</h2>
+  <p class="lede">All tasks below are <code>planned</code>. They name work to do, not capabilities to claim.</p>
+  <ul class="items">
+    <li data-backlog="B10"><span class="id">B10</span><span class="tx"><span class="t">Specify and build the enforcement API</span><span class="d">so a tool of your own, outside MCP, is decided the same way</span></span></li>
+    <li data-backlog="B11"><span class="id">B11</span><span class="tx"><span class="t">Ship Python and one framework integration</span><span class="d">so an agent written in Python is held to the same policy</span></span></li>
+    <li data-backlog="B21"><span class="id">B21</span><span class="tx"><span class="t">Add sensors independent of the agent</span><span class="d">so you see where its traffic went, from a source it cannot influence</span></span></li>
+    <li data-backlog="B12"><span class="id">B12</span><span class="tx"><span class="t">Publish the port contracts and add TypeScript</span><span class="d">so your own sensors and alerts plug in through published contracts</span></span></li>
+    <li data-backlog="B13"><span class="id">B13</span><span class="tx"><span class="t">Authenticate operators and scope authority</span><span class="d">so a small team works with one gateway, each person with their own rights</span></span></li>
+  </ul>
+  <a class="more" href="/docs/backlog">The delivery backlog</a>
+  <div class="ask">
+    <h3>Trying it with your own MCP setup?</h3>
+    <p>Tell us which client and server you use, where setup stopped, and which action you want to control. <a href="https://github.com/guardana/control/issues/new?template=try-it.md">Open a short report</a></p>
+  </div>
 </div></section>
 
 <section class="related alt-bg" id="related"><div class="wrap">

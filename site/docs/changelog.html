@@ -119,6 +119,8 @@ published: each binary of every archive and the image's binary for
 linux/amd64 and linux/arm64, with <code>govulncheck</code> in binary mode
 (<code>scripts/scan-binaries.sh</code>). A known vulnerability, or a scan that could
 not run, stops the release; the dry run scans its archives and image too.</li>
+<li>An issue template for a report from trying it with your own MCP client and
+server.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
@@ -127,6 +129,11 @@ release is out, rather than the newest dated section of this file, and each
 page's footer links that release's documentation at its tag
 (<a href="/docs/adr/0049-the-site-names-the-published-release">ADR-0049</a>). The site
 had named 0.10.0-alpha a day before it was published.</li>
+<li>The home page leads with what runs today, a gateway that decides MCP tool
+calls, states what it does not cover, and says what each planned task
+brings. It no longer says the product watches by default: the enforcement
+mode has no default
+(<a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</a>).</li>
 <li>CI's quality job may run 45 minutes; its fuzz smoke alone took 14 of the 30
 it had.</li>
 </ul>

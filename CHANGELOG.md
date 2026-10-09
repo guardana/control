@@ -18,6 +18,8 @@ verify one.
   linux/amd64 and linux/arm64, with `govulncheck` in binary mode
   (`scripts/scan-binaries.sh`). A known vulnerability, or a scan that could
   not run, stops the release; the dry run scans its archives and image too.
+- An issue template for a report from trying it with your own MCP client and
+  server.
 
 ### Changed
 
@@ -26,6 +28,11 @@ verify one.
   page's footer links that release's documentation at its tag
   ([ADR-0049](docs/adr/0049-the-site-names-the-published-release.md)). The site
   had named 0.10.0-alpha a day before it was published.
+- The home page leads with what runs today, a gateway that decides MCP tool
+  calls, states what it does not cover, and says what each planned task
+  brings. It no longer says the product watches by default: the enforcement
+  mode has no default
+  ([ADR-0032](docs/adr/0032-the-enforcement-mode-has-no-default.md)).
 - CI's quality job may run 45 minutes; its fuzz smoke alone took 14 of the 30
   it had.
 
