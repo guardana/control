@@ -177,6 +177,11 @@ func Read(path string, now time.Time, interval time.Duration) Snapshot {
 	return Snapshot{state: state, entries: doc.Entries, readAt: now, maxAge: interval}
 }
 
+// readAttempts is how many times a read starts again on a pause file replaced
+// between judging its name and opening it. A writer replaces the file whole,
+// and one replace racing a poll is no reason to block every call.
+const readAttempts = 3
+
 // load reads and parses the file at path with every check Read names.
 func load(path string) (Document, error) {
 	if !permissionBits {
@@ -187,7 +192,12 @@ func load(path string) (Document, error) {
 		return Document{}, err
 	}
 	defer func() { _ = root.Close() }()
-	return loadIn(root, path)
+	for attempt := 1; ; attempt++ {
+		doc, err := loadIn(root, path)
+		if !errors.Is(err, ErrFileChanged) || attempt == readAttempts {
+			return doc, err
+		}
+	}
 }
 
 // loadIn reads and parses the pause file at path through root, the directory

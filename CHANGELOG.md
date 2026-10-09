@@ -11,6 +11,16 @@ verify one.
 
 ## [Unreleased]
 
+### Fixed
+
+- A plane reading the pause file while a writer replaced it, as
+  `guardana-control pause add` and `remove` and most editors do, turned the
+  pause state unknown for a poll interval and blocked every call meanwhile. A
+  read that finds the file replaced between judging its name and opening it
+  now starts again, up to three times in all, with every check each time; a
+  link swapped in is still refused and a file replaced at every attempt is
+  still unknown.
+
 ## [0.10.1-alpha] - 2026-10-09
 
 Fixes and release tooling from an outside audit of 0.10.0-alpha, with no new
