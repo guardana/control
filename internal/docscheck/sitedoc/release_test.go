@@ -10,45 +10,59 @@ import (
 
 const changelogHead = "# Changelog\n\nNotes.\n\n## [Unreleased]\n\n### Changed\n\n- Something.\n\n"
 
-func TestReleaseIsTheNewestDatedSection(t *testing.T) {
-	for name, c := range map[string]struct{ changelog, want string }{
-		"after the unreleased section": {changelogHead + "## [0.6.0-alpha] - 2026-10-03\n\nText.\n\n## [0.5.0-alpha] - 2026-10-02\n", "0.6.0-alpha"},
-		"with no unreleased section":   {"# Changelog\n\n## [1.2.3] - 2026-01-02\n\n## [1.2.2] - 2026-01-01\n", "1.2.3"},
-		"a deeper heading is text":     {changelogHead + "### [9.9.9] - 2026-12-31\n\n## [0.1.0] - 2026-01-01\n", "0.1.0"},
-		"a link definition is text":    {changelogHead + "## [0.2.0] - 2026-01-02\n\n[0.3.0]: https://example.invalid\n", "0.2.0"},
+// The released version need not be the newest dated section: a section is
+// dated before its tag is pushed, and the site keeps naming the release that
+// is out.
+func TestPublishedAcceptsADatedSection(t *testing.T) {
+	for name, c := range map[string]struct{ changelog, version string }{
+		"the newest section":           {changelogHead + "## [0.6.0-alpha] - 2026-10-03\n\nText.\n\n## [0.5.0-alpha] - 2026-10-02\n", "0.6.0-alpha"},
+		"below a section in the works": {changelogHead + "## [0.7.0-alpha] - 2026-10-04\n\n## [0.6.0-alpha] - 2026-10-03\n", "0.6.0-alpha"},
+		"with no unreleased section":   {"# Changelog\n\n## [1.2.3] - 2026-01-02\n\n## [1.2.2] - 2026-01-01\n", "1.2.2"},
+		"with CRLF line ends":          {"# Changelog\r\n\r\n## [1.2.3] - 2026-01-02\r\n", "1.2.3"},
+		"with build metadata":          {changelogHead + "## [1.2.3+b.7] - 2026-01-02\n", "1.2.3+b.7"},
 	} {
-		got, err := Release([]byte(c.changelog))
-		if err != nil || got != c.want {
-			t.Errorf("%s: Release = %q, %v; want %q", name, got, err, c.want)
+		if err := Published([]byte(c.changelog), c.version); err != nil {
+			t.Errorf("%s: Published(%s) = %v, want nil", name, c.version, err)
 		}
 	}
 }
 
-// Every heading that could be the newest release and is not one read
-// exactly is refused, so a typo cannot hand the header an older version.
-func TestReleaseRefusesWhatItCannotReadExactly(t *testing.T) {
-	for name, c := range map[string]struct{ changelog, want string }{
-		"no released section":        {changelogHead, "no dated release section"},
-		"an empty file":              {"", "no dated release section"},
-		"an undated release":         {changelogHead + "## [0.7.0]\n\n## [0.6.0] - 2026-10-03\n", `line 11: "## [0.7.0]"`},
-		"a version with a v":         {changelogHead + "## [v0.7.0] - 2026-10-04\n", `"## [v0.7.0] - 2026-10-04"`},
-		"a version with two parts":   {changelogHead + "## [0.7] - 2026-10-04\n", `"## [0.7] - 2026-10-04"`},
-		"a leading zero":             {changelogHead + "## [0.07.0] - 2026-10-04\n", `"## [0.07.0] - 2026-10-04"`},
-		"a short date":               {changelogHead + "## [0.7.0] - 2026-1-04\n", `"## [0.7.0] - 2026-1-04"`},
-		"text after the date":        {changelogHead + "## [0.7.0] - 2026-10-04 (yanked)\n", `"## [0.7.0] - 2026-10-04 (yanked)"`},
-		"an unreleased in lowercase": {"# Changelog\n\n## [unreleased]\n\n## [0.6.0] - 2026-10-03\n", `"## [unreleased]"`},
+// A released version the changelog does not date exactly is refused, so the
+// header never names a release that has no notes.
+func TestPublishedRefusesAVersionWithNoDatedSection(t *testing.T) {
+	for name, c := range map[string]struct{ changelog, version, want string }{
+		"no section for it":           {changelogHead + "## [0.6.0] - 2026-10-03\n", "0.7.0", "CHANGELOG.md holds no section for 0.7.0"},
+		"only the unreleased section": {changelogHead, "0.7.0", "CHANGELOG.md holds no section for 0.7.0"},
+		"an empty file":               {"", "0.7.0", "CHANGELOG.md holds no section for 0.7.0"},
+		"an undated section":          {changelogHead + "## [0.7.0]\n\n## [0.6.0] - 2026-10-03\n", "0.7.0", `line 11: "## [0.7.0]" is not`},
+		"a short date":                {changelogHead + "## [0.7.0] - 2026-1-04\n", "0.7.0", `"## [0.7.0] - 2026-1-04" is not`},
+		"text after the date":         {changelogHead + "## [0.7.0] - 2026-10-04 (yanked)\n", "0.7.0", `"## [0.7.0] - 2026-10-04 (yanked)" is not`},
+		"the section twice":           {changelogHead + "## [0.7.0] - 2026-10-04\n\n## [0.7.0] - 2026-10-03\n", "0.7.0", "heads two sections: lines 11 and 13"},
+		"a deeper heading only":       {changelogHead + "### [0.7.0] - 2026-10-04\n", "0.7.0", "holds no section for 0.7.0"},
+		"a link definition only":      {changelogHead + "[0.7.0]: https://example.invalid\n", "0.7.0", "holds no section for 0.7.0"},
+		"a heading with a v":          {changelogHead + "## [v0.7.0] - 2026-10-04\n", "0.7.0", "holds no section for 0.7.0"},
+		"a longer version":            {changelogHead + "## [0.7.0-alpha] - 2026-10-04\n", "0.7.0", "holds no section for 0.7.0"},
+		"a version with a v":          {changelogHead + "## [v0.7.0] - 2026-10-04\n", "v0.7.0", `"v0.7.0" is not a version`},
+		"an empty version":            {changelogHead + "## [0.7.0] - 2026-10-04\n", "", `"" is not a version`},
 	} {
-		got, err := Release([]byte(c.changelog))
+		err := Published([]byte(c.changelog), c.version)
 		if !errors.Is(err, ErrSlot) || !strings.Contains(err.Error(), c.want) {
-			t.Errorf("%s: Release = %q, %v; want an error containing %s", name, got, err, c.want)
+			t.Errorf("%s: Published(%q) = %v; want an error containing %s", name, c.version, err, c.want)
 		}
 	}
 }
 
-func TestPillLinksTheReleasesPage(t *testing.T) {
-	want := `<a class="vlink" href="https://` + brand.ModulePath + `/releases"><span class="ver">v0.6.0-alpha</span></a>`
+func TestPillLinksTheReleasesTag(t *testing.T) {
+	want := `<a class="vlink" href="https://` + brand.ModulePath + `/releases/tag/v0.6.0-alpha"><span class="ver">v0.6.0-alpha</span></a>`
 	if got := Pill("0.6.0-alpha"); got != want {
 		t.Errorf("Pill = %s, want %s", got, want)
+	}
+}
+
+func TestTagDocsIsTheDocsTreeAtTheTag(t *testing.T) {
+	want := "https://" + brand.ModulePath + "/tree/v0.6.0-alpha/docs"
+	if got := TagDocs("0.6.0-alpha"); got != want {
+		t.Errorf("TagDocs = %s, want %s", got, want)
 	}
 }
 

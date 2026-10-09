@@ -8,49 +8,67 @@ import (
 	"strings"
 
 	"github.com/guardana/control/internal/brand"
+	"github.com/guardana/control/internal/docscheck/docsconfig"
 )
 
-// Changelog is the file whose newest dated section names the release the
-// header shows.
+// Changelog is the file that must date the release the header names.
 const Changelog = "CHANGELOG.md"
 
 const (
 	releaseOpen  = "<!-- release -->"
 	releaseClose = "<!-- /release -->"
-	unreleased   = "## [Unreleased]"
 )
 
-// releaseHeading is a dated section, its version semantic versioning 2.0.0.
-var releaseHeading = regexp.MustCompile(`^## \[((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$`)
+var (
+	version        = regexp.MustCompile(`^` + docsconfig.VersionPattern + `$`)
+	releaseHeading = regexp.MustCompile(`^## \[` + docsconfig.VersionPattern + `\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$`)
+)
 
-// Release returns the version of the changelog's newest dated section: the
-// first `## [` heading after any `## [Unreleased]`. That heading must read
-// `## [<version>] - <YYYY-MM-DD>` exactly; one that does not is refused rather
-// than passed over, so the header never falls back to an older release.
-func Release(changelog []byte) (string, error) {
+// Published checks that released, the version docs/docs.json names as
+// published, heads exactly one section of the changelog, read as
+// `## [<version>] - <YYYY-MM-DD>` exactly. Whether a newer section is dated
+// above it does not matter: a section is dated before its tag exists.
+func Published(changelog []byte, released string) error {
+	if !version.MatchString(released) {
+		return fmt.Errorf("%w: the released version %q is not a version", ErrSlot, released)
+	}
+	prefix := "## [" + released + "]"
+	found := 0
 	for i, line := range strings.Split(string(changelog), "\n") {
 		line = strings.TrimSuffix(line, "\r")
-		if !strings.HasPrefix(line, "## [") || line == unreleased {
+		if !strings.HasPrefix(line, prefix) {
 			continue
 		}
-		m := releaseHeading.FindStringSubmatch(line)
-		if m == nil {
-			return "", fmt.Errorf("%w: %s line %d: %q is the newest release heading and is not `## [<version>] - <YYYY-MM-DD>`", ErrSlot, Changelog, i+1, line)
+		if !releaseHeading.MatchString(line) {
+			return fmt.Errorf("%w: %s line %d: %q is not `## [<version>] - <YYYY-MM-DD>`", ErrSlot, Changelog, i+1, line)
 		}
-		return m[1], nil
+		if found > 0 {
+			return fmt.Errorf("%w: %s: %s heads two sections: lines %d and %d", ErrSlot, Changelog, released, found, i+1)
+		}
+		found = i + 1
 	}
-	return "", fmt.Errorf("%w: %s holds no dated release section", ErrSlot, Changelog)
+	if found == 0 {
+		return fmt.Errorf("%w: %s holds no section for %s, the released version", ErrSlot, Changelog, released)
+	}
+	return nil
 }
 
-// Pill is the header's link to the releases page, naming the version.
-func Pill(version string) string {
-	return `<a class="vlink" href="https://` + brand.ModulePath + `/releases"><span class="ver">v` +
-		html.EscapeString(version) + `</span></a>`
+// Pill is the header's link to the released version's page, naming it.
+func Pill(released string) string {
+	return `<a class="vlink" href="https://` + brand.ModulePath + `/releases/tag/v` + html.EscapeString(released) +
+		`"><span class="ver">v` + html.EscapeString(released) + `</span></a>`
+}
+
+// TagDocs is the documentation directory at the released version's tag. It
+// names the directory rather than a page, since a page added after the tag
+// has no copy there.
+func TagDocs(released string) string {
+	return "https://" + brand.ModulePath + "/tree/v" + released + "/docs"
 }
 
 // FillRelease returns the page with the body of its one release slot,
-// `<!-- release -->…<!-- /release -->`, replaced by the pill for version.
-func FillRelease(page []byte, version string) ([]byte, error) {
+// `<!-- release -->…<!-- /release -->`, replaced by the pill for released.
+func FillRelease(page []byte, released string) ([]byte, error) {
 	opens, closes := bytes.Count(page, []byte(releaseOpen)), bytes.Count(page, []byte(releaseClose))
 	switch {
 	case opens == 0:
@@ -67,6 +85,6 @@ func FillRelease(page []byte, version string) ([]byte, error) {
 	}
 	out := make([]byte, 0, len(page)+64)
 	out = append(out, page[:start]...)
-	out = append(out, Pill(version)...)
+	out = append(out, Pill(released)...)
 	return append(out, page[start+end:]...), nil
 }

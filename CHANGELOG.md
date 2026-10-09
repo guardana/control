@@ -21,6 +21,11 @@ verify one.
 
 ### Changed
 
+- The website names the published release, which `docs/docs.json` sets once a
+  release is out, rather than the newest dated section of this file, and each
+  page's footer links that release's documentation at its tag
+  ([ADR-0049](docs/adr/0049-the-site-names-the-published-release.md)). The site
+  had named 0.10.0-alpha a day before it was published.
 - CI's quality job may run 45 minutes; its fuzz smoke alone took 14 of the 30
   it had.
 

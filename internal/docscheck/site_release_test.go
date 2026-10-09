@@ -3,31 +3,32 @@ package docscheck
 import (
 	"bytes"
 	"fmt"
+	"io/fs"
 	"path"
-	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/guardana/control/internal/brand"
+	"github.com/guardana/control/internal/docscheck/docsconfig"
 	"github.com/guardana/control/internal/docscheck/sitedoc"
 )
 
-var versionShape = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
-
-// newestRelease reads the changelog's first section heading that is not
-// the unreleased one, and returns what its brackets hold.
-func newestRelease(lines []string) string {
-	for _, line := range lines {
-		if strings.HasPrefix(line, "## [") && line != "## [Unreleased]" {
-			version, _, _ := strings.Cut(strings.TrimPrefix(line, "## ["), "]")
-			return version
-		}
+// releasedVersion reads the version docs/docs.json names as published.
+func releasedVersion(t *testing.T) string {
+	t.Helper()
+	data, err := fs.ReadFile(repoFS(t), "docs/docs.json")
+	if err != nil {
+		t.Fatal(err)
 	}
-	return ""
+	cfg, err := docsconfig.Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg.Released
 }
 
 // pillProblems holds a page to one release pill that names version and
-// links the releases page.
+// links that version's release page.
 func pillProblems(doc *xnode, version string) []string {
 	var pills []*xnode
 	doc.walk(func(n *xnode) {
@@ -40,31 +41,74 @@ func pillProblems(doc *xnode, version string) []string {
 	}
 	var problems []string
 	if got, want := pills[0].text(), "v"+version; got != want {
-		problems = append(problems, fmt.Sprintf("the release pill says %q, want %q from %s", got, want, sitedoc.Changelog))
+		problems = append(problems, fmt.Sprintf("the release pill says %q, want %q, the released version in docs/docs.json", got, want))
 	}
-	if got, want := pills[0].attrs["href"], "https://"+brand.ModulePath+"/releases"; got != want {
+	if got, want := pills[0].attrs["href"], "https://"+brand.ModulePath+"/releases/tag/v"+version; got != want {
 		problems = append(problems, fmt.Sprintf("the release pill links %q, want %q", got, want))
 	}
 	return problems
 }
 
-// The header's pill names the newest dated section of the changelog on the
-// landing page and on every documentation page, so a release that lands
-// without `make docs-gen` fails here.
-func TestSiteShowsTheNewestRelease(t *testing.T) {
-	version := newestRelease(readLines(t, repoFS(t), sitedoc.Changelog))
-	if !versionShape.MatchString(version) {
-		t.Fatalf("%s: the newest release heading names %q, not a version", sitedoc.Changelog, version)
+// footProblems holds a documentation page to one source line that says it
+// describes main, names the released version and links the documentation
+// at that version's tag.
+func footProblems(doc *xnode, version string) []string {
+	var feet []*xnode
+	doc.walk(func(n *xnode) {
+		if n.name == "p" && n.hasClass("src") {
+			feet = append(feet, n)
+		}
+	})
+	if len(feet) != 1 {
+		return []string{fmt.Sprintf("holds %d source lines, want 1", len(feet))}
 	}
-	pages := 0
+	var problems []string
+	text := feet[0].text()
+	if !strings.Contains(text, " on main. ") {
+		problems = append(problems, fmt.Sprintf("the source line %q does not say the page describes main", text))
+	}
+	if want := "The latest release is v" + version + ","; !strings.Contains(text, want) {
+		problems = append(problems, fmt.Sprintf("the source line %q does not say %q", text, want))
+	}
+	tagDocs := "https://" + brand.ModulePath + "/tree/v" + version + "/docs"
+	var tagLinks int
+	feet[0].walk(func(n *xnode) {
+		if n.name == "a" && strings.Contains(n.attrs["href"], "/tree/v") {
+			tagLinks++
+			if n.attrs["href"] != tagDocs {
+				problems = append(problems, fmt.Sprintf("the source line links %q, want %q", n.attrs["href"], tagDocs))
+			}
+		}
+	})
+	if tagLinks != 1 {
+		problems = append(problems, fmt.Sprintf("the source line holds %d links to a tag, want 1 to %s", tagLinks, tagDocs))
+	}
+	return problems
+}
+
+// The header's pill names the released version on the landing page and on
+// every documentation page, and every documentation page's foot names it, so
+// a change to docs/docs.json that lands without `make docs-gen` fails here.
+func TestSiteShowsTheReleasedVersion(t *testing.T) {
+	version := releasedVersion(t)
+	if err := sitedoc.Published([]byte(strings.Join(readLines(t, repoFS(t), sitedoc.Changelog), "\n")), version); err != nil {
+		t.Errorf("docs/docs.json: %v", err)
+	}
+	pages, docs := 0, 0
 	for name, data := range loadSite(t) {
-		if path.Ext(name) == ".html" {
-			pages++
-			report(t, name, pillProblems(loadPage(t, data), version))
+		if path.Ext(name) != ".html" {
+			continue
+		}
+		pages++
+		doc := loadPage(t, data)
+		report(t, name, pillProblems(doc, version))
+		if strings.HasPrefix(name, "docs/") {
+			docs++
+			report(t, name, footProblems(doc, version))
 		}
 	}
-	if pages < minDocsPages {
-		t.Errorf("read %d pages, want at least %d", pages, minDocsPages)
+	if pages < minDocsPages || docs < minDocsPages-1 {
+		t.Errorf("read %d pages and %d documentation pages, want at least %d and %d", pages, docs, minDocsPages, minDocsPages-1)
 	}
 }
 
@@ -72,25 +116,40 @@ func TestPillProblems(t *testing.T) {
 	pill := func(text, href string) string {
 		return `<a class="vlink" href="` + href + `"><span class="ver">` + text + `</span></a>`
 	}
-	releases := "https://" + brand.ModulePath + "/releases"
+	tag := "https://" + brand.ModulePath + "/releases/tag/v1.2.3"
 	page := func(body string) *xnode { return loadPage(t, []byte("<html><body>"+body+"</body></html>")) }
-	wantNone(t, "the newest release", pillProblems(page(pill("v1.2.3", releases)), "1.2.3"))
+	wantNone(t, "the released version", pillProblems(page(pill("v1.2.3", tag)), "1.2.3"))
 	for name, c := range map[string]struct{ body, want string }{
-		"an older release":       {pill("v1.2.2", releases), `says "v1.2.2", want "v1.2.3"`},
-		"no leading v":           {pill("1.2.3", releases), `says "1.2.3"`},
-		"another target":         {pill("v1.2.3", releases+"/tag/v1.2.3"), "the release pill links"},
+		"a newer dated section":  {pill("v1.2.4", "https://"+brand.ModulePath+"/releases/tag/v1.2.4"), `says "v1.2.4", want "v1.2.3"`},
+		"an older release":       {pill("v1.2.2", tag), `says "v1.2.2", want "v1.2.3"`},
+		"no leading v":           {pill("1.2.3", tag), `says "1.2.3"`},
+		"the releases list":      {pill("v1.2.3", "https://"+brand.ModulePath+"/releases"), "the release pill links"},
+		"another tag":            {pill("v1.2.3", "https://"+brand.ModulePath+"/releases/tag/v1.2.4"), "the release pill links"},
 		"no pill":                {`<a href="/">x</a>`, "holds 0 release pills"},
-		"two pills":              {pill("v1.2.3", releases) + pill("v1.2.3", releases), "holds 2 release pills"},
+		"two pills":              {pill("v1.2.3", tag) + pill("v1.2.3", tag), "holds 2 release pills"},
 		"a pill of another kind": {`<span class="vlink">v1.2.3</span>`, "holds 0 release pills"},
 	} {
 		wantProblem(t, name, pillProblems(page(c.body), "1.2.3"), c.want)
 	}
 }
 
-func TestNewestReleaseSkipsTheUnreleasedSection(t *testing.T) {
-	lines := []string{"# Changelog", "## [Unreleased]", "### [9.9.9]", "## [0.6.0-alpha] - 2026-10-03", "## [0.5.0-alpha] - 2026-10-02"}
-	if got := newestRelease(lines); got != "0.6.0-alpha" {
-		t.Errorf("newestRelease = %q, want 0.6.0-alpha", got)
+func TestFootProblems(t *testing.T) {
+	tagDocs := "https://" + brand.ModulePath + "/tree/v1.2.3/docs"
+	foot := func(version, href string) string {
+		return `<p class="src">Rendered from <a href="x">x.md</a> on <code>main</code>. It describes the tree as it is now. ` +
+			`The latest release is v` + version + `, and <a href="` + href + `">its documentation</a> is in its tag.</p>`
+	}
+	page := func(body string) *xnode { return loadPage(t, []byte("<html><body>"+body+"</body></html>")) }
+	wantNone(t, "the released version", footProblems(page(foot("1.2.3", tagDocs)), "1.2.3"))
+	for name, c := range map[string]struct{ body, want string }{
+		"a newer dated section": {foot("1.2.4", "https://"+brand.ModulePath+"/tree/v1.2.4/docs"), `does not say "The latest release is v1.2.3,"`},
+		"the tag of another":    {foot("1.2.3", "https://"+brand.ModulePath+"/tree/v1.2.4/docs"), "the source line links"},
+		"no link to the tag":    {strings.Replace(foot("1.2.3", tagDocs), tagDocs, "https://"+brand.ModulePath+"/tree/main/docs", 1), "holds 0 links to a tag"},
+		"not on main":           {strings.Replace(foot("1.2.3", tagDocs), "<code>main</code>", "<code>v1.2.3</code>", 1), "does not say the page describes main"},
+		"no source line":        {`<p>Rendered.</p>`, "holds 0 source lines"},
+		"two source lines":      {foot("1.2.3", tagDocs) + foot("1.2.3", tagDocs), "holds 2 source lines"},
+	} {
+		wantProblem(t, name, footProblems(page(c.body), "1.2.3"), c.want)
 	}
 }
 

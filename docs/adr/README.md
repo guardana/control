@@ -57,3 +57,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0046](0046-a-finding-stops-one-run-through-a-signed-route.md) | A finding stops one run through a signed route |
 | [0047](0047-a-procedure-states-its-exceptions-resources-and-children.md) | A procedure states its exceptions, resources and children |
 | [0048](0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor.md) | One run drawn as a page, and findings exported with a cursor |
+| [0049](0049-the-site-names-the-published-release.md) | The site names the published release |

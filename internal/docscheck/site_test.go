@@ -102,7 +102,7 @@ func docsFiles(t *testing.T) map[string][]byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	built, err := docsite.Build(fsys, impact.LeftOut(repoFiles(t, repoRoot(t)), cfg.Excludes))
+	built, err := docsite.Build(fsys, impact.LeftOut(repoFiles(t, repoRoot(t)), cfg.Excludes), cfg.Released)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>ADR-0024: Guardana Control and Guardana are independent · Guardana Control</title>
-<meta name="description" content="Decision record, accepted."/>
-<link rel="canonical" href="https://control.guardana.dev/docs/adr/0024-control-and-guardana-are-independent"/>
+<title>ADR-0049: The site names the published release · Guardana Control</title>
+<meta name="description" content="Decision record, proposed."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0049-the-site-names-the-published-release"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
 <link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
@@ -26,7 +26,7 @@
 </div></header>
 <div class="wrap shell">
 <details class="mnav">
-<summary>Menu · <b>ADR-0024: Guardana Control and Guardana are independent</b></summary>
+<summary>Menu · <b>ADR-0049: The site names the published release</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
 <h2>Get started</h2><ul>
@@ -103,69 +103,74 @@
 </nav>
 </details>
 <main id="main" class="prose">
-<h1 id="adr-0024-guardana-control-and-guardana-are-independent">ADR-0024: Guardana Control and Guardana are independent</h1>
-<p>Status: accepted
-Date: 2026-09-25</p>
-<p>Amended by <a href="/docs/adr/0030-a-static-website-drawn-from-the-repository">ADR-0030</a>: the
-website's visual system is a copy of Guardana's brand that Control owns from
-the day it was taken; nothing in the site or its checks reads Guardana.</p>
+<h1 id="adr-0049-the-site-names-the-published-release">ADR-0049: The site names the published release</h1>
+<p>Status: proposed
+Date: 2026-10-09</p>
+<p>Amends <a href="/docs/adr/0030-a-static-website-drawn-from-the-repository">ADR-0030</a> on where
+the header's version comes from, and
+<a href="/docs/adr/0031-the-documentation-is-served-on-the-website">ADR-0031</a> on what a
+page's foot says about the release.</p>
 <h2 id="context">Context</h2>
-<p>Two open-source projects share the Guardana name and organization.
-<a href="https://github.com/guardana/guardana">Guardana</a> verifies: it scans artifacts,
-probes deployed systems and reads recorded traces, and it never sits in a
-request path. Guardana Control sits in the request path and decides each call.</p>
-<p>Early plans tied the two together: a trace format Guardana reads as a milestone
-of this project, a converter from Guardana's contract files to policies, a CI
-recipe that ran Guardana against this project's demo, and pages saying the two
-share the wire contract and its fixtures. None of that was built, and Guardana
-does not name this project anywhere. Left in the plans and the pages, it would
-make Control look incomplete without Guardana, and it would let one project's
-release wait on the other's.</p>
+<p>The site's header named the version of the newest dated section of
+<code>CHANGELOG.md</code>. <code>RELEASING.md</code> dates that section in a commit on <code>main</code> before
+the tag is pushed, and Cloudflare deploys <code>main</code> on every push. So the site
+named a release before it existed, and kept naming it if the release workflow
+then failed and published nothing. The pages describe <code>main</code> too, so a reader
+who took the header's version at its word could look for a command that the
+downloadable release does not have.</p>
 <h2 id="decision">Decision</h2>
 <ul>
-<li>Each project is complete on its own. Control builds, tests, runs and releases
-with no Guardana installed, configured or reachable, and loses nothing when
-Guardana is absent.</li>
-<li>Control depends on nothing from Guardana: no module, no binary, no service,
-no schema version and no fixture, in the product, its tests, the gate or the
-workflows.</li>
-<li>The two work together only through formats each one publishes for anyone.
-Here those are the v1 wire contracts, the OTLP log records and the trail
-file. Each project may describe the other and link to it.</li>
-<li>A bridge to Guardana is an optional module. That covers an exporter writing
-Control's evidence in a format Guardana reads, and a converter from a
-Guardana contract to a Control policy. Such a module is off unless an
-operator configures it, lives in its own package under <code>adapters/</code>, stays off
-the decision path and is imported by nothing else. Removing it changes
-nothing else in the tree.</li>
-<li>No release, milestone or roadmap item of either project waits on the other.
-Their versions are independent.</li>
+<li><code>docs/docs.json</code> holds <code>released</code>: the version the site names as published.
+A maintainer sets it in a commit after the release is published, never in
+the commit that dates its section. The reader of <code>docs/docs.json</code> requires
+it and refuses a value that is not a version as a <code>CHANGELOG.md</code> heading
+writes it, such as <code>1.2.3</code> or <code>1.2.3-alpha</code>.</li>
+<li>The header's pill, on the landing page and on every documentation page,
+shows <code>v&lt;released&gt;</code> and links that version's release page on GitHub. The
+render fails when <code>released</code> does not head exactly one section of
+<code>CHANGELOG.md</code> read as <code>## [&lt;version&gt;] - &lt;YYYY-MM-DD&gt;</code>. A newer dated section
+above it, the release being prepared, does not change what the site names.</li>
+<li>Each documentation page's foot still says it is rendered from <code>main</code> and
+links its source, and adds one sentence naming the release and linking the
+<code>docs/</code> directory at its tag. It links the directory, not the page, because
+a page added after the tag has no copy there.</li>
 </ul>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
-<p>A bridge is an adapter and translates, as every adapter does
-(<a href="/docs/adr/0007-repository-layout-and-dependency-rule">ADR-0007</a>). It adds no
-verdict, and a policy it produces is signed and loaded like any other. No
-guarantee this project makes depends on a verifier having run.</p>
+<p>No product code changes. A release whose publication fails changes nothing on
+the site, and preparing the next version's section does not announce it. The
+cost is one more commit per release: until a maintainer makes it, the site
+names the previous release, which is out of date and still true.</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
 <ul>
-<li>One product in two halves, sharing a schema repository. That couples two
-release trains in two languages and makes each half incomplete by definition.</li>
-<li>A bridge in the core, or on by default. It breaks invariant 8 and the layering
-rule of ADR-0007, and adds an optional tool to what has to be audited.</li>
-<li>Shared fixtures as a release condition. A change in Guardana could then fail
-this project's gate.</li>
+<li><strong>The newest dated section, as before.</strong> It announces a release before its
+tag exists and after a failed publication.</li>
+<li><strong>Reading git tags in the generator.</strong> The output would depend on which tags
+the clone has, and the gate runs on an export of the tree that holds none.</li>
+<li><strong>Deploying the site only from tags.</strong> A fix to a page would wait for the
+next release, and Cloudflare's setup would change.</li>
+<li><strong>Documentation per tag rendered on the site.</strong> Deferred, as ADR-0031
+deferred it; the foot links the tag's tree on GitHub instead.</li>
 </ul>
 <h2 id="consequences">Consequences</h2>
-<p>The roadmap keeps the bridge as a separate, optional item. The pages mention
-Guardana as a related project and never as a prerequisite. Once a bridge is
-built, someone who runs both projects can configure it; someone who runs one
-needs nothing from the other.</p>
+<p><code>RELEASING.md</code> gains a step after publication: set <code>released</code> and run
+<code>make docs-gen</code>. A <code>released</code> that names a version with no dated section, or
+one that heads two sections, fails <code>make docs-gen</code> and the gate. Forgetting
+the step leaves the site on the older release, which no check catches.</p>
 <h2 id="validation">Validation</h2>
-<p>The workflows install no Guardana package and call no Guardana binary, and they
-run the whole gate on a fresh runner, so a test that needed Guardana would fail
-there. <code>go.mod</code> requires no Guardana module. Review covers the rest: a change
-that makes Control need Guardana is refused under this record.</p>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0024-control-and-guardana-are-independent.md">docs/adr/0024-control-and-guardana-are-independent.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.10.0-alpha, and <a href="https://github.com/guardana/control/tree/v0.10.0-alpha/docs">its documentation</a> is in its tag.</p>
+<p>Tests in <code>internal/docscheck/</code> run in <code>make test</code> and <code>make docs-check</code>:</p>
+<ul>
+<li><code>docsconfig</code> refuses a missing, empty, null or malformed <code>released</code>;</li>
+<li><code>sitedoc.Published</code> refuses a version with no section, an undated or
+malformed section, a section given twice and a malformed version, and
+accepts one with a newer dated section above it;</li>
+<li><code>docsite.Build</code>, from a changelog whose newest dated section is newer than
+<code>released</code>, writes on every page one pill and one foot naming <code>released</code>,
+and nothing naming the newer section;</li>
+<li>over the committed site, every page's pill and every documentation page's
+foot name the <code>released</code> of <code>docs/docs.json</code> and link its tag, and that
+version heads a dated section of <code>CHANGELOG.md</code>.</li>
+</ul>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0049-the-site-names-the-published-release.md">docs/adr/0049-the-site-names-the-published-release.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.10.0-alpha, and <a href="https://github.com/guardana/control/tree/v0.10.0-alpha/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>

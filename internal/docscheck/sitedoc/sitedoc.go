@@ -6,7 +6,7 @@
 // A slot is `<!-- diagram: README.md <n> -->…<!-- /diagram -->`; its body is
 // replaced with the n-th Mermaid block drawn as a static figure. The one
 // `<!-- release -->…<!-- /release -->` slot takes the header's link to the
-// newest release CHANGELOG.md dates.
+// release docs/docs.json names as published, which CHANGELOG.md must date.
 package sitedoc
 
 import (

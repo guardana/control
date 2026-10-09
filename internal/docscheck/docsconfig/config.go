@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -41,6 +42,10 @@ type Config struct {
 	// Surfaces are the code globs a page must cover; the impact tool reports
 	// a change under one that no page covers.
 	Surfaces []string `json:"surfaces"`
+	// Released is the version the site names as published. A maintainer sets
+	// it once the release is out, since its changelog section is dated before
+	// the tag exists and the site deploys from main.
+	Released string `json:"released"`
 }
 
 // Excludes reports whether rel, a repository path, is one Excluded names: the
@@ -66,6 +71,12 @@ type Directory struct {
 	Type       string `json:"type"`
 	MayBeEmpty bool   `json:"may_be_empty"`
 }
+
+// VersionPattern is a semantic version 2.0.0 without a leading v, unanchored:
+// what CHANGELOG.md writes between the brackets of a release's heading.
+const VersionPattern = `(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?`
+
+var version = regexp.MustCompile(`^` + VersionPattern + `$`)
 
 // ErrInvalid is wrapped by every refusal.
 var ErrInvalid = errors.New("docs.json")
@@ -169,7 +180,7 @@ func last(stack []*frame) *frame {
 }
 
 func validate(c Config) error {
-	for _, check := range []func(Config) error{validateBudgets, validateExemptions, validateCeilings, validateDirectories, validatePageTypes, validateLists} {
+	for _, check := range []func(Config) error{validateBudgets, validateExemptions, validateCeilings, validateDirectories, validatePageTypes, validateLists, validateReleased} {
 		if err := check(c); err != nil {
 			return err
 		}
@@ -272,6 +283,16 @@ func validateLists(c Config) error {
 	}
 	if len(c.Surfaces) == 0 {
 		return errors.New("surfaces is empty, so no change would ever need a page")
+	}
+	return nil
+}
+
+func validateReleased(c Config) error {
+	switch {
+	case c.Released == "":
+		return errors.New("released is empty; it names the version the site shows as published")
+	case !version.MatchString(c.Released):
+		return fmt.Errorf("released: %q is not a version as a CHANGELOG.md heading writes it, such as 1.2.3 or 1.2.3-alpha", c.Released)
 	}
 	return nil
 }

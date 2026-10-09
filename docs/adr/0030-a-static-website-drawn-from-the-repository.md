@@ -14,6 +14,10 @@ Amended by [ADR-0031](0031-the-documentation-is-served-on-the-website.md): the
 documentation is rendered into the site, and the landing page links to it
 there rather than on GitHub.
 
+Amended by [ADR-0049](0049-the-site-names-the-published-release.md): the
+header's version is the `released` of `docs/docs.json`, set after a release is
+published, rather than the newest dated section of `CHANGELOG.md`.
+
 ## Context
 
 The project had no page of its own outside GitHub. A landing page has to say

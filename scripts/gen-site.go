@@ -1,8 +1,8 @@
 //go:build ignore
 
 // Command gen-site redraws the diagram slots of the site's landing page from
-// the README's Mermaid blocks, writes the newest release from CHANGELOG.md
-// into its release slot, and renders the documentation into site/docs/ with
+// the README's Mermaid blocks, writes the release docs/docs.json names as
+// published into its release slot, and renders the documentation into site/docs/ with
 // the sitemap.
 //
 //	go run scripts/gen-site.go -o site/index.html
@@ -53,17 +53,6 @@ func main() {
 	if err != nil {
 		fail(fmt.Errorf("%s: %w", *out, err))
 	}
-	notes, err := os.ReadFile(sitedoc.Changelog)
-	if err != nil {
-		fail(fmt.Errorf("reading %s: %w", sitedoc.Changelog, err))
-	}
-	release, err := sitedoc.Release(notes)
-	if err != nil {
-		fail(err)
-	}
-	if rendered, err = sitedoc.FillRelease(rendered, release); err != nil {
-		fail(fmt.Errorf("%s: %w", *out, err))
-	}
 	data, err := os.ReadFile(config)
 	if err != nil {
 		fail(fmt.Errorf("reading %s: %w", config, err))
@@ -72,11 +61,21 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	notes, err := os.ReadFile(sitedoc.Changelog)
+	if err != nil {
+		fail(fmt.Errorf("reading %s: %w", sitedoc.Changelog, err))
+	}
+	if err := sitedoc.Published(notes, cfg.Released); err != nil {
+		fail(err)
+	}
+	if rendered, err = sitedoc.FillRelease(rendered, cfg.Released); err != nil {
+		fail(fmt.Errorf("%s: %w", *out, err))
+	}
 	listed, err := impact.RepositoryFiles(".", os.Environ())
 	if err != nil {
 		fail(err)
 	}
-	files, err := docsite.Build(os.DirFS("."), impact.LeftOut(listed.Paths, cfg.Excludes))
+	files, err := docsite.Build(os.DirFS("."), impact.LeftOut(listed.Paths, cfg.Excludes), cfg.Released)
 	if err != nil {
 		fail(err)
 	}

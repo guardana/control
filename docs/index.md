@@ -136,3 +136,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0046: A finding stops one run through a signed route](adr/0046-a-finding-stops-one-run-through-a-signed-route.md): accepted
 - [ADR-0047: A procedure states its exceptions, resources and children](adr/0047-a-procedure-states-its-exceptions-resources-and-children.md): accepted
 - [ADR-0048: One run drawn as a page, and findings exported with a cursor](adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor.md): accepted
+- [ADR-0049: The site names the published release](adr/0049-the-site-names-the-published-release.md): proposed

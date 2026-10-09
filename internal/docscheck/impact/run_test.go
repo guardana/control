@@ -18,7 +18,8 @@ const config = `{
   "page_types": {},
   "frozen": ["Makefile"],
   "excluded": ["docs/notes/"],
-  "surfaces": ["cmd/**", "adapters/**"]
+  "surfaces": ["cmd/**", "adapters/**"],
+  "released": "1.0.0"
 }
 `
 

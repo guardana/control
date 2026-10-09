@@ -55,8 +55,9 @@ type page struct {
 // Build renders every page from fsys, rooted at the repository, and returns
 // what it writes keyed by repository path: each page under Dir and the
 // sitemap. listing says which files are read: never one the repository does
-// not list, and no page docs/docs.json excludes.
-func Build(fsys fs.FS, listing indexdoc.Listing) (map[string][]byte, error) {
+// not list, and no page docs/docs.json excludes. released is the version
+// docs/docs.json names as published, which every page's header and foot name.
+func Build(fsys fs.FS, listing indexdoc.Listing, released string) (map[string][]byte, error) {
 	pages, err := collect(fsys, listing)
 	if err != nil {
 		return nil, err
@@ -69,11 +70,9 @@ func Build(fsys fs.FS, listing indexdoc.Listing) (map[string][]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrSite, err)
 	}
-	release, err := sitedoc.Release(notes)
-	if err != nil {
+	if err := sitedoc.Published(notes, released); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrSite, err)
 	}
-	pill := sitedoc.Pill(release)
 	nav := buildNav(pages)
 	out := make(map[string][]byte, len(pages)+1)
 	for _, p := range pages {
@@ -81,7 +80,7 @@ func Build(fsys fs.FS, listing indexdoc.Listing) (map[string][]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: %s: %w", ErrSite, p.src, err)
 		}
-		page := layout(p, nav, pill, body)
+		page := layout(p, nav, released, body)
 		if err := uniqueIDs(page); err != nil {
 			return nil, fmt.Errorf("%w: %s: %w", ErrSite, p.src, err)
 		}

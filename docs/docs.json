@@ -55,5 +55,6 @@
     "internal/evidence/chain.go",
     "internal/trailchain/**",
     "scripts/lib/dependency-rule.sh"
-  ]
+  ],
+  "released": "0.10.0-alpha"
 }

@@ -8,6 +8,10 @@ Builds on [ADR-0015](0015-documentation-structure-and-checks.md) and
 deferral of a documentation site, and amends ADR-0030 on where the landing
 page's links lead.
 
+Amended by [ADR-0049](0049-the-site-names-the-published-release.md): each
+page's foot also names the published release and links the documentation at
+its tag.
+
 ## Context
 
 The landing page sends a reader to GitHub's file view for every page: the

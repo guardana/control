@@ -11,6 +11,10 @@ import (
 	"github.com/guardana/control/internal/docscheck/impact"
 )
 
+// released is older than the fixture changelog's newest dated section, as
+// while the next release is being prepared.
+const released = "0.1.0"
+
 const pageHead = "---\ntitle: A page\nsummary: What the page is for.\ntype: explanation\ncovers: [x/**]\n---\n\n"
 
 // fixture is a repository with the pages Build requires, a code file, a
@@ -35,7 +39,7 @@ func build(t *testing.T, body string) (map[string][]byte, error) {
 
 // buildAll builds fsys with every file it holds listed and none excluded.
 func buildAll(fsys fstest.MapFS) (map[string][]byte, error) {
-	return Build(fsys, listingOf(fsys))
+	return Build(fsys, listingOf(fsys), released)
 }
 
 func listingOf(fsys fstest.MapFS, unlisted ...string) impact.Listing {
@@ -153,7 +157,7 @@ func TestCodeIsEscaped(t *testing.T) {
 func TestOnlyAListedRecordIsRendered(t *testing.T) {
 	fsys := fixture("# A\n")
 	fsys["docs/adr/0002-draft.md"] = &fstest.MapFile{Data: []byte("# ADR-0002: Draft\n\nStatus: proposed\n")}
-	files, err := Build(fsys, listingOf(fsys, "docs/adr/0002-draft.md"))
+	files, err := Build(fsys, listingOf(fsys, "docs/adr/0002-draft.md"), released)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,13 +205,13 @@ func TestEveryPageIsWrittenAndListed(t *testing.T) {
 	}
 }
 
-// Every page wears the one header, with the newest release's pill, and
+// Every page wears the one header, with the released version's pill, and
 // carries the section list twice: the sidebar and the menu a narrow screen
 // shows above the content, both marking the current page.
 func TestThePageCarriesTheHeaderAndTheMenu(t *testing.T) {
 	a := renderA(t, "# A\n")
 	for _, want := range []string{
-		`<a class="vlink" href="https://github.com/guardana/control/releases"><span class="ver">v0.2.0</span></a>`,
+		`<a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.1.0"><span class="ver">v0.1.0</span></a>`,
 		`<a href="/docs/">Docs</a>`,
 		`<a href="/docs/status">Status</a>`,
 		`<a class="hide-s" href="/docs/roadmap">Roadmap</a>`,
@@ -227,13 +231,53 @@ func TestThePageCarriesTheHeaderAndTheMenu(t *testing.T) {
 	}
 }
 
-// A changelog whose newest release cannot be read stops the render: a
-// header showing no version, or an older one, is never written.
-func TestAChangelogWithNoReleaseIsRefused(t *testing.T) {
-	fsys := fixture("# A\n")
-	fsys["CHANGELOG.md"] = &fstest.MapFile{Data: []byte("# Changelog\n\n## [Unreleased]\n")}
-	if _, err := buildAll(fsys); !errors.Is(err, ErrSite) || !strings.Contains(err.Error(), "CHANGELOG.md holds no dated release section") {
-		t.Errorf("err = %v, want the missing release named", err)
+// Every rendered page names the released version, not the newest dated
+// section above it, in its header and in its foot, which links the
+// documentation at that version's tag.
+func TestEveryPageNamesTheReleasedVersion(t *testing.T) {
+	files, err := build(t, "# A\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pill := `<a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.1.0"><span class="ver">v0.1.0</span></a>`
+	foot := ` on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. ` +
+		`The latest release is v0.1.0, and <a href="https://github.com/guardana/control/tree/v0.1.0/docs">its documentation</a> is in its tag.</p>`
+	pages := 0
+	for name, data := range files {
+		if name == Sitemap {
+			continue
+		}
+		pages++
+		out := string(data)
+		if n := strings.Count(out, `class="vlink"`); n != 1 || !strings.Contains(out, pill) {
+			t.Errorf("%s: holds %d release pills, want one: %s", name, n, pill)
+		}
+		if n := strings.Count(out, `<p class="src">`); n != 1 || !strings.Contains(out, foot) {
+			t.Errorf("%s: holds %d source lines, want one ending %s", name, n, foot)
+		}
+		if strings.Contains(out, "v0.2.0") {
+			t.Errorf("%s: names v0.2.0, a section that is dated and not released", name)
+		}
+	}
+	if pages != 6 {
+		t.Errorf("checked %d pages, want the fixture's 6", pages)
+	}
+}
+
+// A released version the changelog does not date stops the render: a header
+// naming a release that has no notes is never written.
+func TestAReleasedVersionWithNoDatedSectionIsRefused(t *testing.T) {
+	for name, c := range map[string]struct{ changelog, released, want string }{
+		"a version with no section": {"# Changelog\n\n## [0.1.0] - 2026-01-01\n", "0.3.0", "CHANGELOG.md holds no section for 0.3.0"},
+		"an undated section":        {"# Changelog\n\n## [0.3.0]\n\n## [0.1.0] - 2026-01-01\n", "0.3.0", `CHANGELOG.md line 3: "## [0.3.0]" is not`},
+		"no released section":       {"# Changelog\n\n## [Unreleased]\n", released, "CHANGELOG.md holds no section for 0.1.0"},
+		"a malformed version":       {"# Changelog\n\n## [0.1.0] - 2026-01-01\n", "v0.1.0", `the released version "v0.1.0" is not a version`},
+	} {
+		fsys := fixture("# A\n")
+		fsys["CHANGELOG.md"] = &fstest.MapFile{Data: []byte(c.changelog)}
+		if _, err := Build(fsys, listingOf(fsys), c.released); !errors.Is(err, ErrSite) || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v, want %q", name, err, c.want)
+		}
 	}
 }
 

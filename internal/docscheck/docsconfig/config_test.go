@@ -22,7 +22,8 @@ const good = `{
   "page_types": {"docs/contracts.md": "spec"},
   "frozen": ["docs/contracts.md", "docs/adr/"],
   "excluded": [],
-  "surfaces": ["api/proto/**"]
+  "surfaces": ["api/proto/**"],
+  "released": "1.2.3-alpha.1"
 }
 `
 
@@ -48,6 +49,9 @@ func TestTheRepositoryFileParses(t *testing.T) {
 	if c.Budgets["how-to"] != 1200 || c.Readme.Root != 600 || c.Directories["docs/guides"].Type != "how-to" {
 		t.Errorf("docs/docs.json read as %+v", c)
 	}
+	if c.Released == "" {
+		t.Error("docs/docs.json names no released version")
+	}
 	if !c.Directories["docs/spec"].MayBeEmpty || c.Directories["docs/guides"].MayBeEmpty {
 		t.Errorf("may_be_empty read wrong: %+v", c.Directories)
 	}
@@ -58,7 +62,7 @@ func TestParseReadsEverySection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	if c.Ceilings["AGENTS.md"] != 1059 || c.PageTypes["docs/contracts.md"] != "spec" || len(c.Frozen) != 2 || c.Surfaces[0] != "api/proto/**" {
+	if c.Ceilings["AGENTS.md"] != 1059 || c.PageTypes["docs/contracts.md"] != "spec" || len(c.Frozen) != 2 || c.Surfaces[0] != "api/proto/**" || c.Released != "1.2.3-alpha.1" {
 		t.Errorf("Parse = %+v", c)
 	}
 }
@@ -96,6 +100,17 @@ func TestParseRefusals(t *testing.T) {
 		"a frozen path twice":            {edit(`["docs/contracts.md", "docs/adr/"]`, `["docs/contracts.md", "docs/contracts.md"]`), "listed twice"},
 		"an empty excluded entry":        {edit(`"excluded": []`, `"excluded": [""]`), "a path is empty"},
 		"no surfaces":                    {edit(`["api/proto/**"]`, `[]`), "surfaces is empty"},
+		"no released":                    {edit(",\n  \"released\": \"1.2.3-alpha.1\"", ""), "released is empty"},
+		"an empty released":              {edit(`"1.2.3-alpha.1"`, `""`), "released is empty"},
+		"a null released":                {edit(`"1.2.3-alpha.1"`, `null`), "released is empty"},
+		"a released number":              {edit(`"1.2.3-alpha.1"`, `1.2`), "cannot unmarshal number"},
+		"a released with a v":            {edit(`"1.2.3-alpha.1"`, `"v1.2.3-alpha.1"`), `released: "v1.2.3-alpha.1" is not a version`},
+		"a released of two parts":        {edit(`"1.2.3-alpha.1"`, `"1.2"`), `released: "1.2" is not a version`},
+		"a released with a leading zero": {edit(`"1.2.3-alpha.1"`, `"1.02.3"`), `released: "1.02.3" is not a version`},
+		"a released with a date":         {edit(`"1.2.3-alpha.1"`, `"1.2.3 - 2026-01-02"`), "is not a version"},
+		"a released with a space":        {edit(`"1.2.3-alpha.1"`, `" 1.2.3"`), "is not a version"},
+		"a released with a newline":      {edit(`"1.2.3-alpha.1"`, `"1.2.3\n"`), "is not a version"},
+		"an empty pre-release":           {edit(`"1.2.3-alpha.1"`, `"1.2.3-"`), "is not a version"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -127,7 +142,7 @@ func FuzzParse(f *testing.F) {
 			}
 			return
 		}
-		if len(c.Budgets) == 0 || len(c.Directories) == 0 || len(c.Surfaces) == 0 || c.Readme.Root <= 0 {
+		if len(c.Budgets) == 0 || len(c.Directories) == 0 || len(c.Surfaces) == 0 || c.Readme.Root <= 0 || c.Released == "" {
 			t.Fatalf("Parse accepted a document a check could not act on: %+v", c)
 		}
 	})

@@ -21,6 +21,9 @@ nothing is uploaded from a laptop.
 
 4. Approve the waiting run: the tag's Release run, Review deployments. Only a
    maintainer or the admin may push a `v*` tag or approve its run.
+5. Once the release is published, set `"released"` in `docs/docs.json` to the
+   version, run `make docs-gen` and commit. Only then does the website name
+   it; a dated section or a failed release changes nothing there.
 
 A version with a pre-release part (`-alpha`, `-rc.1`) is a pre-release.
 

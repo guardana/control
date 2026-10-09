@@ -217,7 +217,8 @@ const fixtureConfig = `{
     "docs/get-started": {"type": "tutorial"}
   },
   "page_types": {"docs/moved.md": "how-to"},
-  "surfaces": ["internal/**"]
+  "surfaces": ["internal/**"],
+  "released": "1.0.0"
 }`
 
 // fixtureTests is the test functions the fixture tree declares, by package.
