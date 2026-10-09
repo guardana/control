@@ -101,7 +101,7 @@ GO_SRC := . $(REPO_FILES); repo_files '*.go' | { grep -v '^api/gen/' || true; }
 
 .PHONY: bootstrap fmt fmt-check vet lint test test-race fuzz-smoke security \
         proto proto-check proto-breaking docs-check docs-gen docs-impact tidy-check check-brand \
-        release-snapshot check-demo-archive \
+        release-snapshot check-demo-archive scan-binaries scan-binaries-probe \
         check-imports check-imports-probe check-modules-probe check-sizes check-actions \
         check-shell quality-quick quality
 
@@ -271,6 +271,22 @@ release-snapshot:
 check-demo-archive:
 	$(CD) scripts/check-demo-archive.sh dist
 
+# govulncheck in binary mode over every binary of every archive in dist/ and
+# the binary of the image release-snapshot loaded, as the dry run scans them.
+# Not part of quality: it needs a built dist/, Docker and the vulnerability
+# database, which is a network fetch.
+scan-binaries:
+	$(CD) scripts/scan-binaries.sh archives dist
+	@$(RUN) \
+	image="goreleaser.ko.local:sha-$$(jq -r .commit dist/metadata.json)"; \
+	platform="$$(docker image inspect "$$image" --format '{{.Os}}/{{.Architecture}}')"; \
+	scripts/scan-binaries.sh image "$$image" "$$platform"
+
+# The negative control of scan-binaries: the script run against a stand-in go
+# and docker, which must pass a clean release and refuse each planted defect.
+scan-binaries-probe:
+	$(CD) scripts/scan-binaries-probe.sh
+
 check-imports:
 	$(CD) scripts/check-imports.sh
 
@@ -308,5 +324,5 @@ quality-quick: fmt-check vet test check-imports
 
 quality: fmt-check vet lint test test-race fuzz-smoke security proto-check \
          docs-check tidy-check check-imports check-imports-probe check-modules-probe check-brand \
-         check-sizes check-actions check-shell
+         check-sizes check-actions check-shell scan-binaries-probe
 	@echo "quality: green"

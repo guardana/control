@@ -11,6 +11,19 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- The release scans every binary it ships before anything is attested or
+  published: each binary of every archive and the image's binary for
+  linux/amd64 and linux/arm64, with `govulncheck` in binary mode
+  (`scripts/scan-binaries.sh`). A known vulnerability, or a scan that could
+  not run, stops the release; the dry run scans its archives and image too.
+
+### Changed
+
+- CI's quality job may run 45 minutes; its fuzz smoke alone took 14 of the 30
+  it had.
+
 ### Fixed
 
 - `react` gave its whole pass the ten seconds meant for waiting on another

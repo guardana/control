@@ -4,13 +4,6 @@ How a version is cut, and how anyone checks what was published.
 `.github/workflows/release.yml` builds, signs and publishes every release;
 nothing is uploaded from a laptop.
 
-## Who may release
-
-A maintainer with the maintain or admin role on `guardana/control`. The
-repository refuses a `v*` tag pushed by anyone else, and the release job runs
-in the `release` environment, which admits only `v*` tags, each after a
-maintainer's approval or the admin's bypass.
-
 ## Cutting a release
 
 1. Give the version its section in `CHANGELOG.md`, with the date:
@@ -26,45 +19,45 @@ maintainer's approval or the admin's bypass.
    git push origin "v${version}"
    ```
 
-4. Approve the waiting run: the tag's Release run, Review deployments.
+4. Approve the waiting run: the tag's Release run, Review deployments. Only a
+   maintainer or the admin may push a `v*` tag or approve its run.
 
 A version with a pre-release part (`-alpha`, `-rc.1`) is a pre-release.
 
 ## What the workflow does
 
-1. Builds the two binaries and the demo's victim servers for Linux and macOS
-   on amd64 and arm64, from the tagged commit.
-2. Packs per platform one `.tar.gz` with the two binaries, `LICENSE`, `NOTICE`,
-   `README.md` and `CHANGELOG.md`, and one demo archive with all three under
-   `bin/` and the demo's files, writes a CycloneDX bill of materials for each
-   archive and a `checksums.txt` with the SHA-256 of every file.
-3. Signs `checksums.txt` with cosign, keyless: the certificate names this
-   workflow and the tag. The signature is `checksums.txt.sigstore.json`.
-4. Pushes the image `ghcr.io/guardana/control-gateway` as the staging tag
-   `sha-<commit>`, for linux/amd64 and linux/arm64, `guardana-gateway` alone as
-   a nonroot user.
-5. Drafts the GitHub release with those files.
-6. Runs the demo from the runner's demo archive with no Go on `PATH`; a
-   missing file or a failed scenario leaves the draft unpublished.
-7. Signs the image, and records build provenance for it and for every file of
-   the release.
-8. Verifies all of it as a user would, tags the image with the version, then
+1. Builds the binaries for Linux and macOS on amd64 and arm64 from the tagged
+   commit, packs per platform an archive of the two binaries with `LICENSE`,
+   `NOTICE`, `README.md` and `CHANGELOG.md` and a demo archive that adds the
+   demo's server, each with a CycloneDX bill of materials, and writes
+   `checksums.txt`.
+2. Signs `checksums.txt` with cosign, keyless: the certificate names this
+   workflow and the tag.
+3. Pushes the image `ghcr.io/guardana/control-gateway`, `guardana-gateway`
+   alone as a nonroot user, for linux/amd64 and linux/arm64 under the staging
+   tag `sha-<commit>`, and drafts the release.
+4. Scans every binary of every archive, and the image's binary for each
+   platform, with `govulncheck -mode=binary` (`scripts/scan-binaries.sh`).
+5. Runs the demo archive with no Go on `PATH`, attests every file, and signs
+   and attests the image.
+6. Verifies it as a user would, tags the image with the version, and
    publishes the draft with the image's digest in its notes.
 
-The workflow refuses a tag whose commit is not on `main` or lacks a green CI
-and Security run, and publishes the draft only when it holds exactly the files
-it verified. A failure leaves no release, or an unpublished draft: delete the
-draft and the image's staging version, fix the cause, release the next
-version.
+A known-vulnerable symbol in a binary, called or not, or a scan that could not
+run, stops the release until Go or the module is upgraded. The workflow
+refuses a tag whose commit is not on `main` or lacks a green CI and Security
+run, and publishes the draft only when it holds exactly the files it verified. A failure leaves no release, or an
+unpublished draft: delete the draft and the image's staging version, fix the
+cause, release the next version.
 
 ## A dry run
 
 Run the workflow by hand with the tag the release will carry. It makes the
-same gate check, prints that version's notes, builds the archives as
-`0.0.0-snapshot.<commit>`, unsigned, for seven days, runs the image and the
-demo for the runner's platform, and publishes nothing.
-`make release-snapshot`, then `make check-demo-archive`, do the same locally,
-with Docker running.
+same gate check, prints the notes, builds and scans the archives and the image
+as `0.0.0-snapshot.<commit>`, unsigned, runs the image and the demo for the
+runner's platform, and publishes nothing. `make release-snapshot`,
+`make check-demo-archive` and `make scan-binaries` do the same locally, with
+Docker running.
 
 ## A tag never moves
 

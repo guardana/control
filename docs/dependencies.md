@@ -151,7 +151,7 @@ binary and none is in the request path.
 | --- | --- | --- | --- |
 | `protoc-gen-go` | `google.golang.org/protobuf` | `make proto`, `make proto-check` | BSD-3-Clause |
 | `goimports` | `golang.org/x/tools` | `make fmt`, `make fmt-check` | BSD-3-Clause |
-| `govulncheck` | `golang.org/x/vuln` | `make security` | BSD-3-Clause |
+| `govulncheck` | `golang.org/x/vuln` | `make security`; in binary mode, `scripts/scan-binaries.sh` over every binary of every release archive and the image's binary for each platform, before a release is attested or published | BSD-3-Clause |
 
 Every other module in `go.mod` is marked `// indirect` and arrives through
 those three or through the MCP module: `golang.org/x/mod`, `golang.org/x/sync`,
