@@ -20,6 +20,10 @@ verify one.
   not run, stops the release; the dry run scans its archives and image too.
 - An issue template for a report from trying it with your own MCP client and
   server.
+- [docs/reference/versions.md](docs/reference/versions.md) lists every format
+  a user writes or reads with the version this release writes, the versions it
+  reads and its stability, held to the code's constants by a test. The wire
+  contract's `1.0` is the one stable format; the product is still 0.x.
 
 ### Changed
 

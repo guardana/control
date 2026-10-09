@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>ADR-0029: The canonical form accepts a fraction a double holds exactly, and a tool definition any finite number · Guardana Control</title>
-<meta name="description" content="Decision record, accepted."/>
-<link rel="canonical" href="https://control.guardana.dev/docs/adr/0029-exact-fractions-in-the-canonical-form"/>
+<title>Format versions · Guardana Control</title>
+<meta name="description" content="Every versioned file and message a user writes or reads, the version this tree writes, the versions it reads, and how stable each is."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/reference/versions"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
 <link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
@@ -26,7 +26,7 @@
 </div></header>
 <div class="wrap shell">
 <details class="mnav">
-<summary>Menu · <b>ADR-0029: The canonical form accepts a fraction a double holds exactly, and a tool definition any finite number</b></summary>
+<summary>Menu · <b>Format versions</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
 <h2>Get started</h2><ul>
@@ -77,7 +77,7 @@
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
 <li><a href="/docs/reference/supervision">Supervision</a></li>
-<li><a href="/docs/reference/versions">Format versions</a></li>
+<li><a href="/docs/reference/versions" aria-current="page">Format versions</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
@@ -104,124 +104,215 @@
 </nav>
 </details>
 <main id="main" class="prose">
-<h1 id="adr-0029-the-canonical-form-accepts-a-fraction-a-double-holds-exactly-and-a-tool-definition-any-finite-number">ADR-0029: The canonical form accepts a fraction a double holds exactly, and a tool definition any finite number</h1>
-<p>Status: accepted
-Date: 2026-09-27</p>
-<p>Amends <a href="/docs/adr/0005-canonical-action-digest">ADR-0005</a> on its &quot;Floats are refused&quot;
-rule and its validation. Keeps the rule of
-<a href="/docs/adr/0010-digest-domain-separation">ADR-0010</a>: the domain tags do not change,
-and no input accepted before this record hashes to different bytes.</p>
-<h2 id="context">Context</h2>
-<p>ADR-0005 refused every number that was not an integer literal inside
-+/-(2^53 - 1). It named the cost itself: an argument such as
-<code>{&quot;temperature&quot;: 0.7}</code> has no digest, so it cannot be approved, and a material
-call carrying it is blocked.</p>
-<p>The cost reached further than arguments. The MCP adapter fingerprints each
-tool definition through the same canonical form. The MCP SDK decodes a schema
-into float64, so a definition holding <code>&quot;default&quot;: 0.7</code>, <code>&quot;multipleOf&quot;: 0.01</code>
-or a bound such as int64's maximum, which <code>json.Marshal</code> then writes as
-<code>9223372036854776000</code>, had no fingerprint. No override could classify it, and
-under ENFORCE every call to it was refused for good.</p>
-<h2 id="decision">Decision</h2>
-<p><strong>Arguments and the action digest: exact or refuse.</strong> A number literal is
-accepted when:</p>
-<ol>
-<li>it reads as a finite IEEE-754 double;</li>
-<li>that double is at most 2^53 - 1 in magnitude, so only the exponent form
-<code>e-</code> ever appears in the output, below 1e-6;</li>
-<li>the exact decimal value of the literal equals the value of that double's
-shortest round-trip decimal. This is a comparison of decimal strings after
-removing the sign, leading and trailing zeros and the decimal point, with
-the exponent kept.</li>
-</ol>
-<p>It is written as ECMAScript's <code>Number::toString</code> writes the double (RFC 8785
-section 3.2.2.3), with negative zero written <code>0</code>. An integer literal takes the
-path it took before, so every input accepted before this record has the same
-canonical bytes and the same digest. <code>1.0</code>, <code>1e0</code> and <code>10e-1</code> hash like <code>1</code>;
-<code>0.10</code> hashes like <code>0.1</code>. <code>Canonicalize</code> accepts a <code>json.Number</code> under the same
-rule; float64 and float32 stay refused, because a Go float no longer says what
-was written.</p>
-<p>The domain tags stay as they are. A new tag would change the digest of every
-action accepted today, which is what ADR-0010 forbids, and no accepted input
-changes its bytes.</p>
-<p><strong>Tool definitions: their own form.</strong> <code>canon.FingerprintJSON</code> keeps the sorting,
-escaping, UTF-8, duplicate-key and depth rules, writes every number as the
-finite double nearest to it with no range bound and no exactness check, and
-keeps member names that fold together, since a schema may name both <code>ID</code> and
-<code>id</code>. A definition is identified by its fingerprint, never authorized by its
-values. The tag <code>mcp-tool-fingerprint/v1\n</code> is unchanged, and a definition that
-had a fingerprint keeps it. The digest entry points have no switch to this
-form.</p>
-<p><strong>What follows from it.</strong></p>
+<h1 id="format-versions">Format versions</h1>
+<p>The product is <code>0.x</code>, with no compatibility promise between minor releases
+(<a href="/docs/changelog">CHANGELOG.md</a>, <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>),
+and each format below carries a version of its own. A reader refuses any
+version it does not read, a new major included, rather than read it as the
+newest it knows (invariant 3 in <a href="https://github.com/guardana/control/blob/main/AGENTS.md">AGENTS.md</a>).</p>
+<h2 id="the-formats">The formats</h2>
+<p>Written is what this tree writes, <code>—</code> where only the operator writes the
+file. Read is what this tree accepts: <code>1.x</code> is any minor of major 1, and <code>—</code>
+means nothing here reads the format back. <code>stable</code> is the frozen v1 wire
+contract alone; an <code>experimental</code> or alpha format may change without a major
+version. <a href="/docs/status">status.md</a> is the inventory.</p>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Written</th>
+<th>Read</th>
+<th>Stability</th>
+<th>Defined in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wire messages (<code>guardana.control.v1</code>, <code>schema_version</code>)</td>
+<td><code>1.0</code></td>
+<td><code>1.x</code></td>
+<td><code>stable</code></td>
+<td><a href="/docs/contracts#schema-versioning">contracts.md</a></td>
+</tr>
+<tr>
+<td>Evidence export (<code>guardana.control.evidence-export</code>)</td>
+<td><code>1.0</code></td>
+<td><code>1.x</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/contracts#the-evidence-export">contracts.md</a></td>
+</tr>
+<tr>
+<td>Policy document (<code>apiVersion</code>)</td>
+<td>—</td>
+<td><code>agent-policy/v1alpha1</code></td>
+<td>alpha</td>
+<td><a href="/docs/reference/policy-format#the-document">policy-format.md</a></td>
+</tr>
+<tr>
+<td>Freshness statement (<code>kind</code>)</td>
+<td><code>agent-policy-freshness/v1alpha1</code></td>
+<td><code>agent-policy-freshness/v1alpha1</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a></td>
+</tr>
+<tr>
+<td>Floor directories (<code>schema_version</code>)</td>
+<td><code>1.0</code></td>
+<td><code>1.x</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/cli#guardana-control">cli.md</a></td>
+</tr>
+<tr>
+<td>Scenario (<code>kind</code>)</td>
+<td>—</td>
+<td><code>agent-scenario/v1alpha1</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/scenario-format#the-document">scenario-format.md</a></td>
+</tr>
+<tr>
+<td>Pause file (<code>schema_version</code>)</td>
+<td><code>1</code></td>
+<td><code>1</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/cli#guardana-control">cli.md</a></td>
+</tr>
+<tr>
+<td>Approvals directory (<code>schema_version</code>)</td>
+<td><code>1.0</code></td>
+<td><code>1.x</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/concepts/approvals-and-the-held-call#what-is-held-and-by-whom">approvals</a></td>
+</tr>
+<tr>
+<td>Hold journal (<code>schema_version</code>)</td>
+<td><code>1.0</code></td>
+<td><code>1.x</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/concepts/approvals-and-the-held-call#a-hold-the-plane-loses">approvals</a></td>
+</tr>
+<tr>
+<td>Runs directory (<code>schema_version</code>)</td>
+<td><code>1.0</code></td>
+<td><code>1.x</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/contracts#the-runs-directory">contracts.md</a></td>
+</tr>
+<tr>
+<td>Observation records and log (<code>guardana.control.observe.v1alpha1</code>)</td>
+<td><code>0.1</code></td>
+<td><code>0.1</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/observations#the-log">observations.md</a></td>
+</tr>
+<tr>
+<td>Source descriptor (<code>schema_version</code>)</td>
+<td>—</td>
+<td><code>0.1</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/observations#the-source-descriptor">observations.md</a></td>
+</tr>
+<tr>
+<td>OpenTelemetry GenAI spans, imported</td>
+<td>—</td>
+<td>conventions <code>1.41.0</code>, OTLP <code>1.11.1</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/observations#what-an-import-keeps">observations.md</a></td>
+</tr>
+<tr>
+<td>Observation export (<code>guardana.control.observation-export</code>)</td>
+<td><code>0.1</code></td>
+<td>—</td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/observations#commands">observations.md</a></td>
+</tr>
+<tr>
+<td>Coverage inventory (<code>schema_version</code>)</td>
+<td>—</td>
+<td><code>0.1</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/coverage#the-inventory">coverage.md</a></td>
+</tr>
+<tr>
+<td>Procedure (<code>schema_version</code>)</td>
+<td>—</td>
+<td><code>0.1</code>, <code>0.2</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/supervision#the-procedure">supervision.md</a></td>
+</tr>
+<tr>
+<td>Procedure test cases (<code>schema_version</code>)</td>
+<td>—</td>
+<td><code>0.1</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/guides/test-a-procedure#2-write-a-case">test a procedure</a></td>
+</tr>
+<tr>
+<td>Finding records and log (<code>guardana.control.finding.v1alpha1</code>)</td>
+<td><code>0.1</code>, <code>0.2</code></td>
+<td><code>0.1</code>, <code>0.2</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/supervision#the-finding-record-and-its-log">supervision.md</a></td>
+</tr>
+<tr>
+<td>Findings export (<code>guardana.control.findings-export</code>)</td>
+<td><code>0.1</code></td>
+<td>—</td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/supervision#findings-export">supervision.md</a></td>
+</tr>
+<tr>
+<td>Reaction route (<code>kind</code>)</td>
+<td>—</td>
+<td><code>reaction-route/v1alpha1</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/contracts#the-route">contracts.md</a></td>
+</tr>
+<tr>
+<td>Stop list (<code>version</code>)</td>
+<td><code>1.0</code></td>
+<td><code>1.0</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/contracts#the-stop-list">contracts.md</a></td>
+</tr>
+<tr>
+<td>Lift (<code>kind</code>, <code>version</code>)</td>
+<td><code>reaction-lift/v1alpha1</code>, <code>1.0</code></td>
+<td><code>reaction-lift/v1alpha1</code>, <code>1.0</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/contracts#the-lift">contracts.md</a></td>
+</tr>
+</tbody>
+</table>
+<p>The gateway's configuration file and a <code>policy test</code> case carry no version.
+Each refuses a key it does not know, so a file that names a key a later
+release added is refused, not read in part.</p>
+<h2 id="reading-files-an-older-release-wrote">Reading files an older release wrote</h2>
 <ul>
-<li>The resource id an override reads from an argument is the number's canonical
-text: <code>42.0</code> names the resource <code>42</code>, so a rule on the id 42 also matches a
-call that writes 42.0.</li>
-<li><code>redact_fields</code> keeps a fraction it does not touch in its canonical form.
-<code>cap_amount</code> on a fractional amount is refused, as an obligation the plane
-cannot apply.</li>
-<li>A policy document stays integer-only. <code>internal/policy/rules</code> refuses a
-number with a fraction or an exponent itself, so <code>2.0</code> is not read as <code>2</code>.</li>
-<li>The gateway sends the agent's raw bytes upstream when no obligation rewrites
-them. The digest binds a number's value, not its spelling, its scale or
-whether it was written as an integer: a raw <code>1.0</code> and the digest's <code>1</code> are one
-value to it. An upstream that reads <code>1.0</code> as a float and <code>1</code> as an integer
-sees a difference the digest does not bind.</li>
+<li><strong>Wire messages, the evidence export, the runs directory, the approvals
+directory, the hold journal and the floor directories.</strong> Any minor of
+major 1 is read. A member the reader does not know is refused, so a file a
+later minor extended is refused when that member arrives, never read with
+it dropped.</li>
+<li><strong>Policy document, scenario, reaction route, freshness statement and
+lift.</strong> One exact <code>kind</code> is read; another is refused, never read as this
+one.</li>
+<li><strong>Procedure.</strong> A <code>0.1</code> document reads as before, with the same digest,
+rules and findings, and the records it gives keep schema <code>0.1</code>.</li>
+<li><strong>Finding log.</strong> A log with no header is read as it is; an empty one gains
+a header when it is opened. A reader of schema <code>0.1</code> alone, such as an
+earlier release's, refuses every <code>0.2</code> line by name.</li>
+<li><strong>Findings export.</strong> A cursor holds only in its own log, known by the
+header's <code>log_id</code>, or by its first line in a log that has no header; the
+trailer's <code>identity</code> says which.</li>
+<li><strong>Observation records and the source descriptor.</strong> Only the minors in the
+reader's table are read; another <code>0.x</code> is refused rather than read as the
+nearest one.</li>
 </ul>
-<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
-<p>Nothing that was accepted changes its bytes: the goldens in <code>testdata/digest/</code>
-are pinned by sha256, and a fixture of <code>refund_prod</code> with its integers written
-<code>1250.0</code>, <code>2e0</code> and <code>10e-1</code> has <code>refund_prod</code>'s digest. Input that was refused
-may now be accepted; that is the only change, and it invalidates no stored
-approval.</p>
-<p>The exactness rule is what keeps two implementations in agreement. Any reader
-that parses a literal into a double and writes it back as RFC 8785 says gets
-the canonical text, so the numeric value a digest covers is the value a
-JavaScript, Python or Go consumer reads. The digest binds that value only: not
-the literal's spelling, its scale (<code>0.10</code> against <code>0.1</code>) or whether a reader
-takes it as an integer or a float. A literal that rounds, such as
-<code>0.30000000000000001</code>, is refused rather than covered as something it does
-not say.</p>
-<p>A fingerprint can now collide where a definition differs only in digits a
-double does not hold, such as two bounds past 2^53 that round to one double.
-The SDK has already decoded the definition through float64 by the time it is
-fingerprinted, so the adapter never saw the digits that differ.</p>
-<h2 id="alternatives-considered">Alternatives considered</h2>
-<ul>
-<li><strong>Keep refusing fractions.</strong> Leaves every tool with a fractional default
-unclassifiable and every call carrying a fraction unapprovable.</li>
-<li><strong>Accept any finite double in the digest, rounding like the fingerprint.</strong>
-Gives <code>0.30000000000000001</code> and <code>0.3</code> one digest: an approval would cover a
-value nobody was shown.</li>
-<li><strong>Keep the literal's own spelling.</strong> Two producers writing one value
-differently would compute two digests, and every JSON library normalizes
-numbers differently.</li>
-<li><strong>A new domain tag.</strong> Changes the digest of every action accepted today and
-invalidates every stored approval, against ADR-0010, for no gain, since no
-accepted input changes its bytes.</li>
-<li><strong>Arbitrary precision with <code>math/big</code>.</strong> Not on the dependency rule's list
-for the canonical form's tree, and not needed: the comparison is between two
-decimal strings.</li>
-</ul>
-<h2 id="consequences">Consequences</h2>
-<p>A tool with fractions in its schema can be classified, and a call carrying a
-fraction can be decided, approved and recorded. A second implementation needs
-the shortest round-trip formatter of its language and a string comparison;
-<code>testdata/digest/numbers.json</code> lists literals it must accept and write, and
-literals it must refuse.</p>
-<h2 id="validation">Validation</h2>
-<p><code>go test ./internal/canon/</code> runs <code>numbers.json</code>, the <code>fractions</code> and
-<code>integral_spelled</code> fixtures, a sha256 pin of every golden file, the Appendix B
-vectors of RFC 8785 and a sample of numbers written by an ECMAScript engine,
-through both forms. <code>FuzzSafeIntegers</code> checks that every integer inside the
-JSON-safe range is written as its digits, and <code>FuzzCanonicalizeJSON</code> that the
-definition form gives the same bytes as the action form for every document the
-action form accepts. <code>go test ./adapters/mcp/</code> pins the fingerprint of a
-definition with fractions and of one with integers only, and denies a call
-naming the resource <code>42</code> written as <code>42.0</code>. <code>go test ./internal/gateway/</code> and
-<code>go test ./internal/policy/rules/</code> hold the rewrite and the policy format to
-the rules above.</p>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0029-exact-fractions-in-the-canonical-form.md">docs/adr/0029-exact-fractions-in-the-canonical-form.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.10.0-alpha, and <a href="https://github.com/guardana/control/tree/v0.10.0-alpha/docs">its documentation</a> is in its tag.</p>
+<p><code>internal/docscheck/versions_test.go</code> holds the table to the constants and
+readers in the code. It fails when a version changes there, when a format is
+missing from this page, and, for each reader it can call, when that reader
+accepts a version the page does not name.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/versions.md">docs/reference/versions.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.10.0-alpha, and <a href="https://github.com/guardana/control/tree/v0.10.0-alpha/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -273,7 +364,7 @@ the rules above.</p>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
 <li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
 <li><a href="/docs/reference/supervision">Supervision</a></li>
-<li><a href="/docs/reference/versions">Format versions</a></li>
+<li><a href="/docs/reference/versions" aria-current="page">Format versions</a></li>
 <li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
 <li><a href="/docs/reference/wire/approval">approval.proto</a></li>
 <li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>

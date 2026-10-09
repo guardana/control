@@ -63,6 +63,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [Scenario format](reference/scenario-format.md): Every member of an agent-scenario/v1alpha1 document, how scenario run holds a live plane to one, and what it exits with.
 - [Starter policy packs](reference/starter-packs.md): The read-only and approval-for-writes packs, what each decides, what it assumes about the plane, the cases that prove it, and what it leaves unguarded.
 - [Supervision](reference/supervision.md): The procedure document, what guardana-control supervise checks for one opened run, the finding record and its log, and how notify delivers findings.
+- [Format versions](reference/versions.md): Every versioned file and message a user writes or reads, the version this tree writes, the versions it reads, and how stable each is.
 - [action_envelope.proto](reference/wire/action_envelope.md): The messages and enums of action_envelope.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
 - [approval.proto](reference/wire/approval.md): The messages and enums of approval.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
 - [bundle.proto](reference/wire/bundle.md): The messages and enums of bundle.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
