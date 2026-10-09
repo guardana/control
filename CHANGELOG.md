@@ -11,6 +11,14 @@ verify one.
 
 ## [Unreleased]
 
+## [0.10.1-alpha] - 2026-10-09
+
+Fixes and release tooling from an outside audit of 0.10.0-alpha, with no new
+feature: `react` no longer times a whole pass by its lock wait, the release
+scans every binary it ships before attesting it, the website names the
+published release rather than the next one, and the repository's GitHub
+settings have a read-only check.
+
 ### Added
 
 - The release scans every binary it ships before anything is attested or
@@ -1033,7 +1041,8 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.10.0-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.10.1-alpha...HEAD
+[0.10.1-alpha]: https://github.com/guardana/control/releases/tag/v0.10.1-alpha
 [0.10.0-alpha]: https://github.com/guardana/control/releases/tag/v0.10.0-alpha
 [0.9.0-alpha]: https://github.com/guardana/control/releases/tag/v0.9.0-alpha
 [0.8.0-alpha]: https://github.com/guardana/control/releases/tag/v0.8.0-alpha

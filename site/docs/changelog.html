@@ -112,7 +112,13 @@
 <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
-<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.10.0-alpha...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.10.1-alpha...HEAD">Unreleased</a></h2>
+<h2 id="0101-alpha---2026-10-09"><a href="https://github.com/guardana/control/releases/tag/v0.10.1-alpha">0.10.1-alpha</a> - 2026-10-09</h2>
+<p>Fixes and release tooling from an outside audit of 0.10.0-alpha, with no new
+feature: <code>react</code> no longer times a whole pass by its lock wait, the release
+scans every binary it ships before attesting it, the website names the
+published release rather than the next one, and the repository's GitHub
+settings have a read-only check.</p>
 <h3 id="added">Added</h3>
 <ul>
 <li>The release scans every binary it ships before anything is attested or

@@ -1,6 +1,6 @@
 # ADR-0049: The site names the published release
 
-Status: proposed
+Status: accepted
 Date: 2026-10-09
 
 Amends [ADR-0030](0030-a-static-website-drawn-from-the-repository.md) on where
