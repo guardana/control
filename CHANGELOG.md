@@ -11,6 +11,14 @@ verify one.
 
 ## [Unreleased]
 
+### Fixed
+
+- `scripts/github-settings-check.sh` and the bootstrap, run by macOS's bash
+  3.2 on a loaded machine, could build a declared ruleset as nothing and
+  report it unknown: bash 3.2 fails a builtin's write to a pipe that a child's
+  exit interrupts ("printf: write error: Interrupted system call"). The
+  declarations are now printed through `cat`, which nothing interrupts.
+
 ## [0.10.2-alpha] - 2026-10-10
 
 Fixes and release tooling from an outside audit of 0.10.0-alpha, with no new

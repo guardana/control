@@ -68,7 +68,7 @@ func runSettingsCheck(t *testing.T, a answers, run settingsRun) (string, int, []
 	bin := settingsFakes(t, dir, a, run)
 	cmd := exec.Command(settingsTool(t, "bash"), slices.Concat([]string{filepath.Join(repoRoot(t), "scripts", "github-settings-check.sh")}, run.args)...) //nolint:gosec // G204: bash from PATH running this repository's own script
 	cmd.Env = append(slices.Clone(settingsEnv), "PATH="+bin, "FAKE_DIR="+dir, "FAKE_FAIL="+run.fail, "HOME="+dir, "TMPDIR="+dir)
-	out, err := cmd.CombinedOutput()
+	out, err := fileOutput(t, cmd, true)
 	code := exitCode(t, err)
 	calls, readErr := os.ReadFile(filepath.Join(dir, "calls")) //nolint:gosec // G304: the test's own temporary directory
 	if readErr != nil && !os.IsNotExist(readErr) {
@@ -78,7 +78,32 @@ func runSettingsCheck(t *testing.T, a answers, run settingsRun) (string, int, []
 	if len(calls) > 0 {
 		lines = strings.Split(strings.TrimSuffix(string(calls), "\n"), "\n")
 	}
-	return string(out), code, lines
+	return out, code, lines
+}
+
+// fileOutput runs cmd with its standard output, and with combined its
+// standard error too, written to a file rather than a pipe: bash 3.2 fails a
+// builtin's write to a pipe that a child's exit interrupts, which a loaded
+// machine makes likely.
+func fileOutput(t *testing.T, cmd *exec.Cmd, combined bool) (string, error) {
+	t.Helper()
+	f, err := os.CreateTemp(t.TempDir(), "output")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd.Stdout = f
+	if combined {
+		cmd.Stderr = f
+	}
+	runErr := cmd.Run()
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := os.ReadFile(f.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out), runErr
 }
 
 // settingsFakes writes the answers where the fake gh serves them from, and a

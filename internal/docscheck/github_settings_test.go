@@ -239,7 +239,7 @@ func expectVerdicts(t *testing.T, out string, want map[string]string, says strin
 }
 
 // stdoutLines drops the summary the check writes to standard error, which
-// CombinedOutput interleaves.
+// the run interleaves with standard output.
 func stdoutLines(out string) []string {
 	var lines []string
 	for _, line := range strings.Split(strings.TrimSuffix(out, "\n"), "\n") {
@@ -260,7 +260,7 @@ func settingsValues(t *testing.T, expr string) []string {
 	cmd := exec.Command(settingsTool(t, "bash"), "-c", `set -euo pipefail; . `+githubSettings+`; `+expr) //nolint:gosec // G204: bash from PATH sourcing this repository's own script
 	cmd.Dir = repoRoot(t)
 	cmd.Env = append(os.Environ(), settingsEnv...)
-	out, err := cmd.Output()
+	out, err := fileOutput(t, cmd, false)
 	if err != nil {
 		t.Fatalf("%s: %v", expr, err)
 	}

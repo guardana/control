@@ -143,8 +143,8 @@ TEAMS
 # holds the team's role on the repository, and the maintain role bypasses
 # rulesets, so the check reports any member not listed here.
 team_members() {
-  printf 'maintainers|%s|maintainer\n' "${ADMIN_LOGIN}"
-  printf 'security-maintainers|%s|maintainer\n' "${ADMIN_LOGIN}"
+  emit "maintainers|${ADMIN_LOGIN}|maintainer
+security-maintainers|${ADMIN_LOGIN}|maintainer"
 }
 
 # direct_collaborators; one per line: login|role, for each collaborator added
@@ -225,12 +225,18 @@ ENVIRONMENT="release"
 # The only ref pattern, as a tag policy, that may deploy to the environment.
 ENVIRONMENT_TAG_POLICY='v*'
 
+# emit <text>; prints text and a newline through cat. Callers read these
+# functions through pipes, and bash 3.2 fails a builtin's write to a pipe that
+# a child's exit interrupts; cat has no children, so nothing interrupts it.
+emit() {
+  cat <<<"$1"
+}
+
 # json_strings <value>...; prints a JSON array of strings. A value holding a
 # quote, a backslash or a control character is refused rather than escaped:
 # every value here is a name this file controls.
 json_strings() {
-  local separator="" value
-  printf '['
+  local separator="" value out="["
   for value in "$@"; do
     case "${value}" in
       *[\"\\]* | *[[:cntrl:]]*)
@@ -238,10 +244,10 @@ json_strings() {
         return 1
         ;;
     esac
-    printf '%s"%s"' "${separator}" "${value}"
+    out+="${separator}\"${value}\""
     separator=", "
   done
-  printf ']'
+  emit "${out}]"
 }
 
 # json_string <value>; one JSON string, refused as json_strings refuses.
@@ -249,22 +255,20 @@ json_string() {
   local encoded
   encoded="$(json_strings "$1")" || return 1
   encoded="${encoded#[}"
-  printf '%s' "${encoded%]}"
+  emit "${encoded%]}"
 }
 
 # checks_json; REQUIRED_CHECKS as the ruleset's required_status_checks array,
 # each bound to the Actions app, so the list the bootstrap checks against the
 # workflows and the list applied cannot drift apart.
 checks_json() {
-  local separator="" context
-  printf '['
+  local separator="" context out="["
   for context in "${REQUIRED_CHECKS[@]}"; do
     json_string "${context}" >/dev/null || return 1
-    printf '%s{ "context": "%s", "integration_id": %d }' \
-      "${separator}" "${context}" "${ACTIONS_APP_ID}"
+    out+="${separator}{ \"context\": \"${context}\", \"integration_id\": $((ACTIONS_APP_ID)) }"
     separator=", "
   done
-  printf ']'
+  emit "${out}]"
 }
 
 # require_id <what> <value>; refuses a team id that is not a number, which
@@ -278,7 +282,7 @@ require_id() {
 
 # two_approval_parts; how many parts TWO_APPROVAL_PATHS takes.
 two_approval_parts() {
-  printf '%d\n' $(((${#TWO_APPROVAL_PATHS[@]} + REVIEWER_PATTERN_LIMIT - 1) / REVIEWER_PATTERN_LIMIT))
+  emit "$(((${#TWO_APPROVAL_PATHS[@]} + REVIEWER_PATTERN_LIMIT - 1) / REVIEWER_PATTERN_LIMIT))"
 }
 
 # two_approval_patterns_json <part>; that part of TWO_APPROVAL_PATHS as a JSON
@@ -299,19 +303,17 @@ two_approval_patterns_json() {
 # The further two-approval parts come before "main: pull requests", so a path
 # that moves out of it is held by its new part before it leaves the old one.
 ruleset_names() {
-  local part parts
-  cat <<'NAMES'
-main: history
+  local part parts out
+  out="main: history
 release tags: create
 other tags: create
 release tags: immutable
-main: merges
-NAMES
-  parts="$(two_approval_parts)"
+main: merges"
+  parts=$(((${#TWO_APPROVAL_PATHS[@]} + REVIEWER_PATTERN_LIMIT - 1) / REVIEWER_PATTERN_LIMIT))
   for ((part = 2; part <= parts; part++)); do
-    printf '%s%d\n' "${TWO_APPROVAL_PART_PREFIX}" "${part}"
+    out+=$'\n'"${TWO_APPROVAL_PART_PREFIX}${part}"
   done
-  printf '%s\n' "main: pull requests"
+  emit "${out}"$'\n'"main: pull requests"
 }
 
 # pull_request_rule_json <patterns JSON> <security-maintainers team id>; the
@@ -555,7 +557,7 @@ JSON
 environment_tag_policy_json() {
   local policy
   policy="$(json_string "${ENVIRONMENT_TAG_POLICY}")" || return 1
-  printf '{ "name": %s, "type": "tag" }\n' "${policy}"
+  emit "{ \"name\": ${policy}, \"type\": \"tag\" }"
 }
 
 repository_json() {
@@ -587,7 +589,7 @@ JSON
 topics_json() {
   local names
   names="$(json_strings "${TOPICS[@]}")" || return 1
-  printf '{ "names": %s }\n' "${names}"
+  emit "{ \"names\": ${names} }"
 }
 
 # security_configuration_json; the security features come from an organization
@@ -624,11 +626,11 @@ JSON
 # its own job. A first-time contributor's pull request runs its workflows only
 # after a maintainer approves the run.
 actions_permissions_json() {
-  printf '%s\n' '{ "enabled": true, "allowed_actions": "all", "sha_pinning_required": true }'
+  emit '{ "enabled": true, "allowed_actions": "all", "sha_pinning_required": true }'
 }
 actions_workflow_json() {
-  printf '%s\n' '{ "default_workflow_permissions": "read", "can_approve_pull_request_reviews": false }'
+  emit '{ "default_workflow_permissions": "read", "can_approve_pull_request_reviews": false }'
 }
 actions_fork_approval_json() {
-  printf '%s\n' '{ "approval_policy": "first_time_contributors" }'
+  emit '{ "approval_policy": "first_time_contributors" }'
 }
