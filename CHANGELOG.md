@@ -11,28 +11,15 @@ verify one.
 
 ## [Unreleased]
 
-### Fixed
-
-- A plane reading the pause file while a writer replaced it, as
-  `guardana-control pause add` and `remove` and most editors do, turned the
-  pause state unknown for a poll interval and blocked every call meanwhile. A
-  read that finds the file replaced between judging its name and opening it
-  now starts again, up to three times in all, with every check each time; a
-  link swapped in is still refused and a file replaced at every attempt is
-  still unknown.
-- The release job's image scan pulled every platform of the image by the
-  index's digest, which Docker's default image store refuses for a second
-  platform ("cannot overwrite digest"), so 0.10.1-alpha's release stopped
-  before it attested or published anything. Each platform is now pulled by
-  its own manifest's digest.
-
-## [0.10.1-alpha] - 2026-10-09
+## [0.10.2-alpha] - 2026-10-10
 
 Fixes and release tooling from an outside audit of 0.10.0-alpha, with no new
 feature: `react` no longer times a whole pass by its lock wait, the release
 scans every binary it ships before attesting it, the website names the
-published release rather than the next one, and the repository's GitHub
-settings have a read-only check.
+published release rather than the next one, the repository's GitHub settings
+have a read-only check, and a pause file replaced during a read is read
+again. 0.10.1-alpha was tagged with most of these changes and never
+published: its release job stopped at the new image scan.
 
 ### Added
 
@@ -75,6 +62,18 @@ settings have a read-only check.
 
 ### Fixed
 
+- A plane reading the pause file while a writer replaced it, as
+  `guardana-control pause add` and `remove` and most editors do, turned the
+  pause state unknown for a poll interval and blocked every call meanwhile. A
+  read that finds the file replaced between judging its name and opening it
+  now starts again, up to three times in all, with every check each time; a
+  link swapped in is still refused and a file replaced at every attempt is
+  still unknown.
+- The release job's image scan pulled every platform of the image by the
+  index's digest, which Docker's default image store refuses for a second
+  platform ("cannot overwrite digest"), so 0.10.1-alpha's release stopped
+  before it attested or published anything. Each platform is now pulled by
+  its own manifest's digest.
 - `react` gave its whole pass the ten seconds meant for waiting on another
   writer's lock, so a pass over a list near its bound, judged again before
   each line, could end with `context deadline exceeded` while no other writer
@@ -84,6 +83,12 @@ settings have a read-only check.
   Once the list refuses a line for its bounds, `react` names every later
   finding as not written without taking the lock again, so a long pass over
   a full list no longer shuts out `stops lift`.
+
+## [0.10.1-alpha] - 2026-10-09
+
+Tagged and never published: the release job stopped at its new image scan
+before it attested or published anything. Its changes are listed under
+0.10.2-alpha.
 
 ## [0.10.0-alpha] - 2026-10-08
 
@@ -1056,7 +1061,8 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.10.1-alpha...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.10.2-alpha...HEAD
+[0.10.2-alpha]: https://github.com/guardana/control/releases/tag/v0.10.2-alpha
 [0.10.1-alpha]: https://github.com/guardana/control/releases/tag/v0.10.1-alpha
 [0.10.0-alpha]: https://github.com/guardana/control/releases/tag/v0.10.0-alpha
 [0.9.0-alpha]: https://github.com/guardana/control/releases/tag/v0.9.0-alpha
