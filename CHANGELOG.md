@@ -20,6 +20,11 @@ verify one.
   now starts again, up to three times in all, with every check each time; a
   link swapped in is still refused and a file replaced at every attempt is
   still unknown.
+- The release job's image scan pulled every platform of the image by the
+  index's digest, which Docker's default image store refuses for a second
+  platform ("cannot overwrite digest"), so 0.10.1-alpha's release stopped
+  before it attested or published anything. Each platform is now pulled by
+  its own manifest's digest.
 
 ## [0.10.1-alpha] - 2026-10-09
 

@@ -88,6 +88,8 @@ case "$1" in
   create)
     [[ "$2" == --pull && "$4" == --platform && $# -eq 6 ]] || exit 64
     [[ "${STUB_CREATE:-ok}" == ok ]] || { echo "stand-in docker: no such image" >&2; exit 1; }
+    # As the default image store does, refuse a second platform by the index's digest.
+    [[ "$6" != *"@sha256:$(printf '%064d' 0)" ]] || { echo "cannot overwrite digest" >&2; exit 1; }
     printf '%s\n' "$5" >"${STUB_DIR}/platform"
     echo "${cid}"
     ;;
@@ -103,7 +105,7 @@ case "$1" in
   buildx)
     [[ "$2" == imagetools && "$3" == inspect && "$4" == --raw && $# -eq 5 ]] || exit 64
     [[ "${STUB_INDEX:-}" != fail ]] || { echo "stand-in docker: unauthorized" >&2; exit 1; }
-    index='{"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"platform":{"architecture":"arm64","os":"linux","variant":"v8"}},{"platform":{"architecture":"amd64","os":"linux"}}]}'
+    index='{"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111","platform":{"architecture":"arm64","os":"linux","variant":"v8"}},{"digest":"sha256:2222222222222222222222222222222222222222222222222222222222222222","platform":{"architecture":"amd64","os":"linux"}}]}'
     printf '%s\n' "${STUB_INDEX:-${index}}"
     ;;
   rm) ;;
@@ -275,8 +277,11 @@ check "an image by digest" pass \
   "scan-binaries: 2 binaries from ${digest} for linux/amd64 linux/arm64, go1.99.0, vulnerability database of 2001-02-03T04:05:06Z" \
   -- image "${digest}" linux/amd64 linux/arm64
 scanned "an image by digest" 2
-[[ "$(grep -c '^create --pull always --platform linux/' "${tmp}/docker")" -eq 2 ]] ||
-  die "an image by digest: not pulled once per platform:"$'\n'"$(cat "${tmp}/docker")"
+for want in "linux/amd64 ghcr.io/example/probe@sha256:$(printf '2%.0s' {1..64})" \
+  "linux/arm64 ghcr.io/example/probe@sha256:$(printf '1%.0s' {1..64})"; do
+  grep -qxF "create --pull always --platform ${want}" "${tmp}/docker" ||
+    die "an image by digest: ${want%% *} not pulled by its own manifest's digest:"$'\n'"$(cat "${tmp}/docker")"
+done
 check "a local image" pass "1 binary from goreleaser.ko.local:sha-1 for linux/arm64" -- image goreleaser.ko.local:sha-1 linux/arm64
 grep -q '^create --pull never --platform linux/arm64 goreleaser.ko.local:sha-1$' "${tmp}/docker" ||
   die "a local image: pulled from a registry:"$'\n'"$(cat "${tmp}/docker")"
@@ -294,9 +299,10 @@ check "a platform that is not os/arch" fail "linux is not os/arch" -- image "${d
 check "a reference holding white space" fail "the image reference holds white space" -- image "${digest}"$'\n'"x" linux/amd64
 
 index() {
-  local m="" p
+  local m="" p n=2
   for p in "$@"; do
-    m+="${m:+,}{\"platform\":{\"os\":\"${p%/*}\",\"architecture\":\"${p#*/}\"}}"
+    n=$((n + 1))
+    m+="${m:+,}{\"digest\":\"sha256:$(printf "${n}%.0s" {1..64})\",\"platform\":{\"os\":\"${p%/*}\",\"architecture\":\"${p#*/}\"}}"
   done
   printf '{"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[%s]}' "${m}"
 }
@@ -309,6 +315,9 @@ check "an index with a platform fewer" fail \
   "STUB_INDEX=$(index linux/amd64)" -- image "${digest}" linux/amd64 linux/arm64
 check "a manifest where an index belongs" fail "the index of ${digest} could not be read as an image index" \
   'STUB_INDEX={"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{}}' -- image "${digest}" linux/amd64
+check "an index manifest with no digest" fail "the index of ${digest} could not be read as an image index" \
+  'STUB_INDEX={"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"platform":{"os":"linux","architecture":"amd64"}}]}' \
+  -- image "${digest}" linux/amd64
 check "an index that cannot be read" fail "the index of ${digest} could not be read as an image index" \
   STUB_INDEX=fail -- image "${digest}" linux/amd64 linux/arm64
 

@@ -122,6 +122,11 @@ read that finds the file replaced between judging its name and opening it
 now starts again, up to three times in all, with every check each time; a
 link swapped in is still refused and a file replaced at every attempt is
 still unknown.</li>
+<li>The release job's image scan pulled every platform of the image by the
+index's digest, which Docker's default image store refuses for a second
+platform (&quot;cannot overwrite digest&quot;), so 0.10.1-alpha's release stopped
+before it attested or published anything. Each platform is now pulled by
+its own manifest's digest.</li>
 </ul>
 <h2 id="0101-alpha---2026-10-09"><a href="https://github.com/guardana/control/releases/tag/v0.10.1-alpha">0.10.1-alpha</a> - 2026-10-09</h2>
 <p>Fixes and release tooling from an outside audit of 0.10.0-alpha, with no new

@@ -119,15 +119,21 @@ case "${mode}" in
       # A platform the index holds and nobody named would ship unscanned. A
       # variant is not compared, so two variants of one architecture refuse.
       command -v jq >/dev/null 2>&1 || die "jq is not on PATH, so the index of ${ref} cannot be read"
-      held="$(docker buildx imagetools inspect --raw "${ref}" | jq -r '
+      # Each platform is pulled by its own manifest's digest: the image store
+      # Docker uses by default keeps one platform per reference, and pulling a
+      # second platform by the index's digest is refused.
+      pairs="$(docker buildx imagetools inspect --raw "${ref}" | jq -r '
         if (.mediaType != "application/vnd.oci.image.index.v1+json"
           and .mediaType != "application/vnd.docker.distribution.manifest.list.v2+json")
           or (.manifests | type) != "array"
         then error("not an index")
         else .manifests[] | if (.platform.os | type) != "string" or (.platform.architecture | type) != "string"
           then error("a manifest names no platform")
-          else "\(.platform.os)/\(.platform.architecture)" end
+          elif (.digest | type) != "string" or (.digest | test("^sha256:[0-9a-f]{64}$") | not)
+          then error("a manifest names no digest")
+          else "\(.platform.os)/\(.platform.architecture) \(.digest)" end
         end' | LC_ALL=C sort)" || die "the index of ${ref} could not be read as an image index"
+      held="$(cut -d ' ' -f 1 <<<"${pairs}")"
       named="$(printf '%s\n' "$@" | LC_ALL=C sort)"
       [[ -n "${held}" && "${held}" == "${named}" ]] ||
         die "${ref} holds images for ${held//$'\n'/ }, and the scan names $*; every platform the index holds must be scanned, and only those"
@@ -135,7 +141,12 @@ case "${mode}" in
     n=0
     for platform in "$@"; do
       n=$((n + 1))
-      cid="$(docker create --pull "${pull}" --platform "${platform}" "${ref}")" ||
+      target="${ref}"
+      if [[ "${pull}" == always ]]; then
+        target="${ref%@*}@$(awk -v p="${platform}" '$1 == p { print $2 }' <<<"${pairs}")"
+        [[ "${target}" =~ @sha256:[0-9a-f]{64}$ ]] || die "the index of ${ref} names no single manifest for ${platform}"
+      fi
+      cid="$(docker create --pull "${pull}" --platform "${platform}" "${target}")" ||
         die "no container could be created from ${ref} for ${platform}"
       [[ "${cid}" =~ ^[0-9a-f]{12,64}$ ]] || die "docker create answered '${cid}' for ${ref} on ${platform}"
       containers+=("${cid}")
