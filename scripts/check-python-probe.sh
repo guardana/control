@@ -3,14 +3,21 @@
 # The negative control of scripts/check-python.sh. It stages the script, its
 # pins and the Python project in a scratch tree, plants one thing at a time
 # that would make the target examine something other than the commit, and
-# each case must be refused and say why:
-#   refused  a project file, a lock or a uv configuration above the project,
-#            which would make uv read another lock; bytecode, a path file, a
-#            start-up hook, a nested tool configuration, a second project
-#            file or lock inside the project; a runner that exits 0 without
-#            its verdict line, or with the verdict of another interpreter
-# The two runner cases put a stand-in go first on PATH, which writes two
-# empty commands, and install the locked tools as the target does.
+# requires the script to stop where the case says:
+#   lock      a workspace declared at the repository root or above it, a uv
+#             configuration beside the project and a project file its lock
+#             no longer matches: the first three are not obeyed, the last is
+#             refused
+#   stand-in  a symbolic link, bytecode, a stub, an extension module, a
+#             dot-name below the top and a directory a checker skips by name
+#   checks    a file an ignore file names or a directory name hides from the
+#             linter, and a nearer or differently named configuration of the
+#             linter, the formatter and the type checker
+#   runner    a runner that exits 0 without its verdict as the last line
+# A case that must get past the checks to the runner uses a stand-in runner
+# that passes them and a stand-in go that writes two empty commands. Not
+# controlled here: that a locked tool is never built from source, that Python
+# runs isolated, and that nothing is written into the tree.
 set -euo pipefail
 
 _PROBE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -29,7 +36,7 @@ command -v uv >/dev/null 2>&1 || die "uv is not on PATH; make bootstrap installs
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
-mkdir "${tmp}/standin"
+mkdir "${tmp}/standin" "${tmp}/elsewhere"
 cat >"${tmp}/standin/go" <<'GO'
 #!/usr/bin/env bash
 # Stands in for `go build -o <dir>/ ./cmd/...`: two empty commands.
@@ -47,7 +54,7 @@ chmod +x "${out}one-gateway" "${out}one"
 GO
 chmod +x "${tmp}/standin/go"
 
-# stage: a fresh copy of what the script reads, with no dot-directory and no
+# stage: a fresh copy of what the script reads, without the dot-names and the
 # bytecode a developer's own runs may have left in the work tree.
 stage() {
   rm -rf "${tmp}/tree"
@@ -61,15 +68,31 @@ stage() {
   project="${tree}/clients/python"
 }
 
+# plant <path in the project> [<content>]
+plant() {
+  mkdir -p "$(dirname "${project}/$1")"
+  printf '%b' "${2-}" >"${project}/$1"
+}
+
+# runner <line>: a stand-in runner that passes the linter, the formatter and
+# the type checker and writes <line>, {v} in it being the interpreter's own
+# version. The tests of the real runner go, since they import its names.
+runner() {
+  rm -f "${project}/tests/test_gate.py"
+  printf '"""Stands in for the runner."""\n\nimport platform\nimport sys\n\nLINE = "%s"\nsys.stdout.write(LINE.format(v=platform.python_version()))\n' \
+    "$1" >"${project}/run_tests.py"
+}
+
 cases=0
 failed=0
-# refused <what the script must say> <name>: runs the staged script.
-refused() {
+# stops <what the script must say> <name>: runs the staged script, which must
+# exit 1 and say it.
+stops() {
   local needle="$1" name="$2" out rc=0
   out="$(PATH="${tmp}/standin:${PATH}" /bin/bash "${tree}/scripts/check-python.sh" 2>&1)" || rc=$?
   cases=$((cases + 1))
   if [[ ${rc} -ne 1 ]]; then
-    printf 'FAIL %s: wanted a refusal, exit %d: %s\n' "${name}" "${rc}" "${out: -400}" >&2
+    printf 'FAIL %s: wanted exit 1, got %d: %s\n' "${name}" "${rc}" "${out: -400}" >&2
     failed=$((failed + 1))
   elif [[ "${out}" != *"${needle}"* ]]; then
     printf 'FAIL %s: nothing said "%s": %s\n' "${name}" "${needle}" "${out: -400}" >&2
@@ -79,45 +102,95 @@ refused() {
   fi
 }
 
-for above in pyproject.toml uv.lock uv.toml clients/pyproject.toml clients/uv.lock clients/uv.toml; do
-  stage
-  printf '[tool.uv.workspace]\nmembers = ["python"]\n' >"${tree}/${above}"
-  refused "${above} would stand in for" "${above} above the project"
-done
+silent="the runner's last line is not its verdict"
+pass='5 tests, 0 skipped, every required test ran'
 
-plant() {
-  stage
-  mkdir -p "$(dirname "${project}/$1")"
-  printf '%s\n' "${2-}" >"${project}/$1"
-}
+# The lock: each of the first three gets as far as the runner, which it would
+# not if uv had obeyed what was planted, since no other lock exists.
+stage
+runner ""
+printf '[tool.uv.workspace]\nmembers = ["clients/python"]\n' >"${tree}/pyproject.toml"
+stops "${silent}" "a workspace at the repository root does not take the project's lock away"
+stage
+runner ""
+printf '[tool.uv.workspace]\nmembers = ["tree/clients/python"]\n' >"${tmp}/pyproject.toml"
+stops "${silent}" "a workspace above the repository does not either"
+rm -f "${tmp}/pyproject.toml"
+stage
+runner ""
+plant uv.toml 'required-version = "==0.0.1"\n'
+stops "${silent}" "a uv configuration beside the project is not read"
+stage
+sed 's/^version = ".*"$/version = "9.9.9"/' "${root}/clients/python/pyproject.toml" >"${project}/pyproject.toml"
+stops "the locked tools could not be installed" "a project file the lock does not match"
+
+# What would stand in for a source, or hide from a check and still be imported.
+stage
+ln -s "${tmp}/elsewhere" "${project}/src/vendor"
+stops "./src/vendor" "a symbolic link"
+stage
 plant src/socketserver.pyc
-refused "src/socketserver.pyc" "bytecode with no source beside it"
+stops "./src/socketserver.pyc" "bytecode with no source beside it"
+stage
 plant tests/__pycache__/test_wire.cpython-314.pyc
-refused "tests/__pycache__" "a cache directory"
-plant src/extra.pth "import os"
-refused "src/extra.pth" "a path file"
-plant sitecustomize.py "raise SystemExit(0)"
-refused "sitecustomize.py" "a start-up hook"
-plant src/ruff.toml "[lint]"
-refused "src/ruff.toml" "a nested linter configuration"
-plant tests/mypy.ini "[mypy]"
-refused "tests/mypy.ini" "a nested type checker configuration"
-plant tests/pyproject.toml "[project]"
-refused "tests/pyproject.toml" "a second project file"
-plant tests/uv.lock "version = 1"
-refused "tests/uv.lock" "a second lock"
+stops "./tests/__pycache__/test_wire.cpython-314.pyc" "bytecode in a cache directory"
+stage
+plant tests/test_wire.pyi
+stops "./tests/test_wire.pyi" "a stub beside a source"
+stage
+plant src/fast.abi3.so
+stops "./src/fast.abi3.so" "an extension module"
+stage
+plant tests/.hidden/mod.py
+stops "./tests/.hidden" "a dot-name below the top"
+stage
+plant src/node_modules/mod.py
+stops "./src/node_modules" "a directory the type checker skips: node_modules"
+stage
+plant tests/site-packages/mod.py
+stops "./tests/site-packages" "a directory the type checker skips: site-packages"
 
+# The checks read every file, under the project file alone.
+unused='"""Planted."""\n\nimport os\n'
 stage
-printf 'raise SystemExit(0)\n' >"${project}/run_tests.py"
-refused "the runner's last line is not its verdict" "a runner that exits 0 and says nothing"
+plant tests/planted.py "${unused}"
+plant .ignore 'planted.py\n'
+stops "ruff check found problems" "a file an ignore file names is linted"
 stage
-printf 'print("run_tests: python 0.0.0: 5 tests, 0 skipped, every required test ran")\n' \
-  >"${project}/run_tests.py"
-refused "the runner's last line is not its verdict" "a runner with another interpreter's verdict"
+plant tests/dist/planted.py "${unused}"
+stops "ruff check found problems" "a directory the linter skips by default is linted"
 stage
-printf 'import platform\nprint(f"run_tests: python {platform.python_version()}: 0 tests, 0 skipped, every required test ran")\n' \
-  >"${project}/run_tests.py"
-refused "the runner's last line is not its verdict" "a runner that claims no test and a pass"
+plant tests/planted.py "${unused}"
+plant .ruff.toml 'extend = "pyproject.toml"\n[lint]\nselect = ["E9"]\n'
+stops "ruff check found problems" "a linter configuration of another name is not obeyed"
+stage
+plant tests/planted.py '"""Planted."""\n\nX = '"'a'"'\n'
+plant .ruff.toml 'extend = "pyproject.toml"\n[format]\nexclude = ["planted.py"]\n'
+stops "ruff format would change files" "a formatter configuration of another name is not obeyed"
+stage
+plant tests/planted.py '"""Planted."""\n\nBAD: int = "x"\n'
+plant mypy.ini '[mypy]\nfiles = src, tests, run_tests.py, check_wheel.py\nmypy_path = src, .\nignore_errors = True\n'
+stops "mypy found problems" "a type checker configuration of another name is not obeyed"
+
+# The runner's verdict is its last line, whole, for the interpreter that ran.
+stage
+runner ""
+stops "${silent}" "a runner that exits 0 and says nothing"
+stage
+runner "run_tests: python 0.0.0: ${pass}\\n"
+stops "${silent}" "a runner with another interpreter's verdict"
+stage
+runner "run_tests: python {v}: 0 tests, 0 skipped, every required test ran\\n"
+stops "${silent}" "a runner that claims no test and a pass"
+stage
+runner "run_tests: python {v}: 5 tests, 1 skipped, every required test ran\\n"
+stops "${silent}" "a runner that reports a skip"
+stage
+runner "run_tests: python {v}: 5 tests, 0 skipped, 2 required test(s) did not run\\n"
+stops "${silent}" "a runner whose line begins as a verdict and ends otherwise"
+stage
+runner "run_tests: python {v}: ${pass}\\nand more\\n"
+stops "${silent}" "a runner that writes a line after its verdict"
 
 [[ ${failed} -eq 0 ]] || die "${failed} of ${cases} cases did not go as named"
-printf 'check-python-probe: %d cases, each refused as named\n' "${cases}"
+printf 'check-python-probe: %d cases, each stopped as named\n' "${cases}"

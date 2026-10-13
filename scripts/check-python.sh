@@ -11,9 +11,14 @@
 # what is examined. A missing uv, interpreter or locked tool fails; nothing is
 # skipped. Virtual environments, bytecode and built files go to a scratch
 # directory (uv's download cache stays in the user's home): nothing is written
-# into the tree. A project file or a lock above the project, a nested tool
-# configuration and any bytecode in the project are refused, since uv, the
-# linter or Python would obey or run them in place of what the commit holds.
+# into the tree.
+#
+# What is examined is what the commit holds. The project file declares the
+# project its own workspace root, so no project file above it names another
+# lock; the linter and the type checker are given that file as their only
+# configuration, and it tells the linter to obey no ignore file; and what
+# would be loaded in place of a source, or skipped by a checker and still
+# imported, is refused. scripts/check-python-probe.sh plants each.
 #
 #   scripts/check-python.sh
 set -euo pipefail
@@ -39,24 +44,18 @@ floor="${CLIENT_PYTHON_FLOOR_VERSION}"
 newer="${CLIENT_PYTHON_VERSION}"
 [[ "${floor}" != "${newer}" ]] || die "the two interpreter pins are one version: ${floor}"
 
-# A project file, a lock or a uv configuration above the project makes it a
-# member of that workspace, whose lock uv then reads in place of the one
-# beside the project.
-for above in pyproject.toml uv.lock uv.toml clients/pyproject.toml clients/uv.lock clients/uv.toml; do
-  [[ ! -e "${root}/${above}" && ! -L "${root}/${above}" ]] ||
-    die "${above} would stand in for the client's own project file and lock; remove it"
-done
-# Inside the project, outside its dot-directories, nothing may reconfigure a
-# tool or stand in for a source: Python runs bytecode that has no source
-# beside it, and loads a path file or a start-up hook it finds.
-strays="$(cd "${project}" && find . -mindepth 1 -name '.*' -prune -o \( \
-  -name __pycache__ -o -name '*.pyc' -o -name '*.pyo' -o -name '*.pth' \
-  -o -name sitecustomize.py -o -name usercustomize.py \
-  -o -name ruff.toml -o -name mypy.ini -o -name setup.cfg -o -name tox.ini -o -name uv.toml \
-  -o \( -name pyproject.toml ! -path ./pyproject.toml \) -o \( -name uv.lock ! -path ./uv.lock \) \
+# Inside the project nothing may stand in for a source or hide from a check:
+# a symbolic link, bytecode (Python runs it with no source beside it), a stub
+# (the type checker reads it in place of the source), an extension module
+# (loaded before the source), and a directory the checkers skip by its name
+# while Python imports from it. Dot-names at the top are a developer's own
+# environment and caches, which no check reads.
+strays="$(cd "${project}" && find . -mindepth 1 -path './.*' -prune -o \( \
+  -name '.*' -o -type l -o -name '*.pyc' -o -name '*.pyi' -o -name '*.so' \
+  -o -type d \( -name node_modules -o -name site-packages \) \
   \) -print)" || die "listing ${project} failed"
 [[ -z "${strays}" ]] ||
-  die "clients/python holds what a check would obey or run in place of the sources; remove: ${strays//$'\n'/ }"
+  die "clients/python holds what would stand in for a source or hide from a check; remove: ${strays//$'\n'/ }"
 
 command -v go >/dev/null 2>&1 || die "go is not on PATH"
 command -v uv >/dev/null 2>&1 || die "uv is not on PATH; make bootstrap installs it"
@@ -98,18 +97,11 @@ for version in "${floor}" "${newer}"; do
   ran="$("${clean[@]}" "${venv}/bin/python" "${isolated[@]}" -c 'import platform; print(platform.python_version())')" ||
     die "python ${version}: the interpreter does not run"
   [[ "${ran}" == "${version}" ]] || die "python ${version}: the environment runs ${ran}"
-  log="${work}/tests-${version}.log"
-  "${clean[@]}" "${venv}/bin/python" "${isolated[@]}" "${project}/run_tests.py" --bin "${work}/bin" 2>&1 |
-    tee "${log}" || die "python ${version}: the tests failed"
-  # An exit status of 0 is what a run that left early also has; the verdict
-  # is the runner's last line.
-  last="$(tail -n 1 "${log}")"
-  verdict="^run_tests: python ${version//./\\.}: [1-9][0-9]* tests, 0 skipped, every required test ran\$"
-  [[ "${last}" =~ ${verdict} ]] || die "python ${version}: the runner's last line is not its verdict: ${last}"
 done
 
 # Each tool is given the project file by name, which is then its only
-# configuration: found by itself, it would also obey one nearer a file.
+# configuration: found by itself, it would obey one nearer a file or one of
+# another name beside it.
 venv="${work}/venv-${newer}"
 (cd "${project}" && "${clean[@]}" "${venv}/bin/ruff" check --no-cache --config pyproject.toml .) ||
   die "ruff check found problems"
@@ -117,6 +109,17 @@ venv="${work}/venv-${newer}"
   die "ruff format would change files"
 (cd "${project}" && "${clean[@]}" "${venv}/bin/mypy" --cache-dir=/dev/null --config-file pyproject.toml) ||
   die "mypy found problems"
+
+for version in "${floor}" "${newer}"; do
+  log="${work}/tests-${version}.log"
+  "${clean[@]}" "${work}/venv-${version}/bin/python" "${isolated[@]}" "${project}/run_tests.py" \
+    --bin "${work}/bin" 2>&1 | tee "${log}" || die "python ${version}: the tests failed"
+  # An exit status of 0 is what a run that left early also has; the verdict
+  # is the runner's last line.
+  last="$(tail -n 1 "${log}")"
+  verdict="^run_tests: python ${version//./\\.}: [1-9][0-9]* tests, 0 skipped, every required test ran\$"
+  [[ "${last}" =~ ${verdict} ]] || die "python ${version}: the runner's last line is not its verdict: ${last}"
+done
 
 "${clean[@]}" uv build --quiet "${project}" --python "${newer}" \
   --build-constraints "${project}/build-constraints.txt" --require-hashes -o "${work}/dist" ||

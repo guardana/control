@@ -43,12 +43,20 @@ exclude = ["tests/", "uv.lock", "build-constraints.txt"]
 [tool.uv]
 required-version = "==0.12.9"
 
+# This project is its own workspace root, so uv reads the lock beside it and
+# never one that a project file in a directory above would name.
+[tool.uv.workspace]
+members = []
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
-# Generated data: its lines are as long as the enums they hold.
-extend-exclude = ["src/guardana_control/enforce/_schema.py"]
+# Only a dot-name is left out and no ignore file is obeyed, so the linter
+# reads every file a test can import. The one file named is generated data,
+# whose lines are as long as the enums they hold.
+exclude = [".*", "src/guardana_control/enforce/_schema.py"]
+respect-gitignore = false
 
 [tool.ruff.lint]
 select = ["B", "C90", "E", "F", "I", "N", "PL", "RUF", "S", "SIM", "UP", "W"]

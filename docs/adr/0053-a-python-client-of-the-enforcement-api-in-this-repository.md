@@ -106,12 +106,16 @@ what it may depend on and how the gate runs it.
   run it. It runs `uv` in an emptied environment with no user configuration,
   managed interpreters only and the lock enforced, downloads no interpreter
   (`make bootstrap` installs both and its check verifies them), builds no
-  locked tool from source and runs Python isolated from the environment. It
-  refuses a project file or a lock above the project, a nested tool
-  configuration and bytecode in the project, each of which uv, the linter or
-  Python would obey or run in place of what the commit holds. It fails on zero tests, on any skip,
-  on a case or a vector that did not run on each interpreter, and when a test
-  this record or a page rests on did not run. It
+  locked tool from source and runs Python isolated from the environment.
+  What it examines is what the commit holds: the project file declares the
+  project its own workspace root, so no project file above it names another
+  lock; the linter and the type checker are given that file as their only
+  configuration, and the linter obeys no ignore file; and the target refuses,
+  inside the project, a symbolic link, bytecode, a stub, an extension module
+  and a directory a checker skips by its name. `scripts/check-python-probe.sh`
+  plants each. It fails on zero tests, on any skip, on a test whose body
+  never runs, on a case or a vector that did not run on each interpreter, and
+  when a test this record or a page rests on did not run. It
   builds the wheel and checks that it declares no requirement, carries the
   licence and has the release's version. It writes nothing into the tree.
 - **Releases.** The module's version equals the newest dated section of

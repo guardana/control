@@ -16,6 +16,7 @@ own pass: the tests run where the runner does. Review is the defence there.
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import os
 import platform
@@ -66,6 +67,30 @@ PROMISED = (
     f"{_TRANSPORT}.test_an_answer_at_the_bound_is_read_and_one_byte_past_it_is_not",
     f"{_TRANSPORT}.test_a_redirect_is_not_followed",
     f"{_TRANSPORT}.test_a_bound_on_the_head_or_on_a_chunk_ends_the_read_at_once",
+    f"{_TRANSPORT}.test_a_framing_a_stricter_reader_refuses_is_no_answer",
+    f"{_TRANSPORT}.test_the_framings_a_receiver_may_write_are_still_read",
+    f"{_RULES}.Nested.test_an_exception_of_a_call_the_tool_made_leaves_as_the_outer_calls_own",
+    f"{_RULES}.Nested.test_an_outer_complete_that_did_not_land_is_raised_from_the_outer_calls_own",
+    f"{_RULES}.Nested.test_a_group_holding_an_exception_of_a_call_leaves_as_the_outer_calls_own",
+    f"{_RULES}.Nested.test_a_group_that_holds_an_interrupt_leaves_as_raised",
+    f"{_RULES}.Nested.test_a_group_holding_no_exception_of_this_module_leaves_unchanged",
+    f"{_TRANSPORT}.test_a_trailer_that_never_ends_ends_the_call_by_the_timeout",
+    "tests.test_e2e.Commands.test_the_plane_is_named_gateway_and_the_command_is_the_other",
+    "tests.test_e2e.Commands.test_any_other_holding_is_refused_and_named",
+    "tests.test_imports.Imports.test_every_source_file_is_ascii",
+    "tests.test_harness.Comparison.test_requests_are_held_to_their_expectation",
+    "tests.test_harness.Receivers.test_a_request_the_script_does_not_hold_is_refused",
+    "tests.test_gate.Runner.test_a_test_whose_body_never_runs_is_a_problem",
+    "tests.test_gate.Runner.test_the_report_follows_the_judgement",
+)
+
+
+# What unittest calls, gets a coroutine or a generator back from, and counts
+# as passed without running a line of.
+_BODILESS = (
+    inspect.iscoroutinefunction,
+    inspect.isgeneratorfunction,
+    inspect.isasyncgenfunction,
 )
 
 
@@ -86,18 +111,24 @@ class Outcome(Protocol):
     def errors(self) -> Sized: ...
     @property
     def started(self) -> Collection[str]: ...
+    @property
+    def bodiless(self) -> Collection[str]: ...
 
 
 class _Recording(unittest.TextTestResult):
-    """A result that remembers the id of every test it started."""
+    """A result that remembers every test it started, and those that cannot run."""
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
         self.started: set[str] = set()
+        self.bodiless: set[str] = set()
 
     def startTest(self, test: unittest.TestCase) -> None:  # noqa: N802
         super().startTest(test)
         self.started.add(test.id())
+        method = getattr(test, getattr(test, "_testMethodName", ""), None)
+        if any(is_bodiless(method) for is_bodiless in _BODILESS):
+            self.bodiless.add(test.id())
 
 
 def _method(case_id: str) -> str:
@@ -134,6 +165,11 @@ def judge(outcome: Outcome, required: Collection[str]) -> list[str]:
         problems.append("a test is marked as an expected failure")
     if len(outcome.failures) or len(outcome.errors):
         problems.append(f"{len(outcome.failures)} failure(s), {len(outcome.errors)} error(s)")
+    if len(outcome.bodiless):
+        first = sorted(outcome.bodiless)[0]
+        problems.append(
+            f"{len(outcome.bodiless)} test(s) whose body never runs, the first: {first}"
+        )
     missing = sorted(name for name in required if name not in outcome.started)
     if missing:
         problems.append(f"{len(missing)} required test(s) did not run, the first: {missing[0]}")
@@ -162,12 +198,15 @@ def main() -> int:
     # The end-to-end test starts a real plane from these; it fails without them.
     os.environ["ENFORCE_E2E_BIN"] = str(Path(args.bin).resolve())
 
-    version = platform.python_version()
-    result = run(str(HERE / "tests"), str(HERE))
+    return report(run(str(HERE / "tests"), str(HERE)), required_tests(), platform.python_version())
+
+
+def report(result: Outcome | None, required: Collection[str], version: str) -> int:
+    """Prints the verdict of a run as its last line and returns the exit status."""
     if result is None:
         print(f"run_tests: python {version}: the run was cut short", file=sys.stderr)
         return 1
-    problems = judge(result, required_tests())
+    problems = judge(result, required)
     if problems:
         print(f"run_tests: python {version}: " + "; ".join(problems), file=sys.stderr)
         return 1

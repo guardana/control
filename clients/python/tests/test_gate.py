@@ -7,6 +7,7 @@ import io
 import tarfile
 import tempfile
 import unittest
+import warnings
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,11 +37,13 @@ class Shape:
     extra: tuple[str, ...] = ()
     without: tuple[str, ...] = ()
     altered: tuple[str, ...] = ()
+    stated: str = ""
 
 
 def _wheel(directory: Path, shape: Shape = Shape()) -> None:  # noqa: B008
     info = f"{DIST}-{shape.version}.dist-info"
-    head = f"Metadata-Version: 2.4\nName: {DIST}\nVersion: {shape.version}\n{shape.requires}"
+    stated = shape.stated or shape.version
+    head = f"Metadata-Version: 2.4\nName: {DIST}\nVersion: {stated}\n{shape.requires}"
     src = PROJECT / "src"
     members = {n: (src / n).read_bytes() for n in _module_files() if n not in shape.without}
     members |= {name: b"something else\n" for name in shape.altered}
@@ -78,6 +81,7 @@ class Runner(unittest.TestCase):
             "failures": [],
             "errors": [],
             "started": {"a.test_one", "a.test_two"},
+            "bodiless": set(),
         }
         return SimpleNamespace(**(clean | changed))
 
@@ -95,6 +99,10 @@ class Runner(unittest.TestCase):
             "a required test that did not run": (
                 {"started": {"a.test_one"}},
                 "1 required test(s) did not run, the first: a.test_two",
+            ),
+            "a test whose body never runs": (
+                {"bodiless": {"a.test_two"}},
+                "1 test(s) whose body never runs, the first: a.test_two",
             ),
         }
         for name, (changed, want) in cases.items():
@@ -135,6 +143,50 @@ class Runner(unittest.TestCase):
             self.fail("a run nothing cut short came back as cut short")
         self.assertEqual(run_tests.judge(whole, ["whole.test_it.T.test_x"]), [])
 
+    def test_a_test_whose_body_never_runs_is_a_problem(self) -> None:
+        source = (
+            "import unittest\n\n\n"
+            "class T(unittest.TestCase):\n"
+            "    async def test_awaited(self):\n        self.fail('never reached')\n\n"
+            "    def test_yielded(self):\n        yield\n        self.fail('never reached')\n\n"
+            "    def test_plain(self):\n        pass\n"
+        )
+        with tempfile.TemporaryDirectory() as top:
+            tests = Path(top) / "bodiless"
+            tests.mkdir()
+            (tests / "__init__.py").write_text("")
+            (tests / "test_it.py").write_text(source)
+            with contextlib.redirect_stderr(io.StringIO()), warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                finished = run_tests.run(str(tests), top)
+        if finished is None:
+            self.fail("the run came back as cut short")
+        self.assertEqual(
+            sorted(finished.bodiless),
+            ["bodiless.test_it.T.test_awaited", "bodiless.test_it.T.test_yielded"],
+        )
+        problems = run_tests.judge(finished, [])
+        self.assertTrue(any("2 test(s) whose body never runs" in p for p in problems), problems)
+
+    def test_the_report_follows_the_judgement(self) -> None:
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            clean = run_tests.report(self._run(), self.REQUIRED, "9.9.9")
+            failing = run_tests.report(self._run(failures=[1]), self.REQUIRED, "9.9.9")
+            missing = run_tests.report(self._run(started=set()), self.REQUIRED, "9.9.9")
+            cut = run_tests.report(None, self.REQUIRED, "9.9.9")
+        self.assertEqual((clean, failing, missing, cut), (0, 1, 1, 1))
+        self.assertEqual(
+            out.getvalue(),
+            "run_tests: python 9.9.9: 2 tests, 0 skipped, every required test ran\n",
+        )
+        self.assertIn("1 failure(s), 0 error(s)", err.getvalue())
+        self.assertIn("the run was cut short", err.getvalue())
+
+    def test_the_promised_tests_are_all_there(self) -> None:
+        self.assertEqual(len(run_tests.PROMISED), 42)
+        self.assertEqual(len(set(run_tests.PROMISED)), 42)
+
     def test_the_required_tests_hold_every_case_every_vector_and_the_promised_ones(self) -> None:
         required = run_tests.required_tests()
         for name in (
@@ -172,15 +224,21 @@ class Wheel(unittest.TestCase):
         self.assertEqual(self._problems(), [])
 
     def test_each_defect_of_the_built_files_is_refused(self) -> None:
-        first = _module_files()[0]
+        first, last = _module_files()[0], _module_files()[-1]
         wheels: dict[str, tuple[Shape, str]] = {
             "a requirement": (Shape(requires="Requires-Dist: anything"), "declares a requirement"),
+            "another requirement": (
+                Shape(requires="Requires-Dist: other-thing>=2"),
+                "declares a requirement",
+            ),
+            "a version stated otherwise inside": (Shape(stated="9.9.9"), "version is not 1.2.3"),
             "no licence": (Shape(licence=None), "carries no licence"),
             "another licence": (Shape(licence=b"other terms"), "licence is not the repository's"),
             "another version": (Shape(version="1.2.4"), "its version is not 1.2.3"),
             "a file src/ lacks": (Shape(extra=(f"{DIST}/stowaway.py",)), "differ from src/"),
             "a file of src/ missing": (Shape(without=(first,)), "differ from src/"),
             "a file of src/ altered": (Shape(altered=(first,)), "do not hold what src/ holds"),
+            "the last file altered": (Shape(altered=(last,)), "do not hold what src/ holds"),
             "an entry point": (Shape(extra=("INFO/entry_points.txt",)), "describes itself with"),
         }
         for name, (shape, want) in wheels.items():
@@ -201,6 +259,14 @@ class Wheel(unittest.TestCase):
                 _wheel(self.dist)
                 _sdist(self.dist, names=names)
                 self.assertTrue(any(want in p for p in self._problems()), self._problems())
+
+    def test_a_project_licence_that_is_not_the_repositorys_is_refused(self) -> None:
+        other = self.dist.parent / "LICENSE"
+        other.write_bytes(b"other terms\n")
+        _wheel(self.dist, Shape(licence=b"other terms\n"))
+        _sdist(self.dist)
+        problems = check_wheel.check_files(self.dist, other, self.changelog)
+        self.assertEqual(problems, ["clients/python/LICENSE is not the repository's LICENSE"])
 
     def test_two_wheels_are_refused(self) -> None:
         _wheel(self.dist)
