@@ -215,6 +215,20 @@ class Transport(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 30.0)
         self.assertEqual((self.ran, len(self.receiver.requests)), ([], 1))
 
+    def test_a_trailer_that_never_ends_ends_the_call_by_the_timeout(self) -> None:
+        def serve(connection: socket.socket, _number: int, _request: bytes) -> None:
+            connection.sendall(CHUNKED + b"5f\r\n" + EXECUTE + b"\r\n0\r\n")
+            self.receiver.released.wait(60)
+
+        self.assertEqual(len(EXECUTE), 0x5F)
+        client = self.raw(serve, timeout=0.2)
+        started = time.monotonic()
+        with self.assertRaisesRegex(NoAnswer, "admit") as raised:
+            client.call("t", ARGUMENTS, self.tool)
+        self.assertLess(time.monotonic() - started, 30.0)
+        self.assertEqual((raised.exception.answer.ran, self.ran), (False, []))
+        self.assertEqual(len(self.receiver.requests), 1)
+
     def test_an_unanswered_complete_is_not_sent_again(self) -> None:
         def serve(connection: socket.socket, number: int, _request: bytes) -> None:
             if number == 0:
@@ -300,11 +314,21 @@ class Transport(unittest.TestCase):
                 self.assertEqual(len(self.receiver.requests), 1)
 
     def test_a_framing_a_stricter_reader_refuses_is_no_answer(self) -> None:
-        """Each answer holds the whole body, so a looser reading of its framing runs the tool."""
+        """Each answer holds the whole body, so a looser reading of it runs the tool.
+
+        Go's client finds no answer in any of the framings. The statuses are
+        another matter: it reads a 204 and a 304 with an empty body and the
+        answer that follows a 1xx. The transport refuses those because the
+        contract has no such answer: the plane answers a POST only with 200,
+        400, 401, 404, 409 and 503.
+        """
         self.assertEqual(len(EXECUTE), 95)
         ok = b"HTTP/1.1 200 OK\r\n"
+        old = b"HTTP/1.0 200 OK\r\n"
         length = b"Content-Length: 95\r\n\r\n" + EXECUTE
         chunk = b"5f\r\n" + EXECUTE + b"\r\n0\r\n\r\n"
+        self.assertEqual(len(chunk), 106)
+        last = CHUNKED + b"5f\r\n" + EXECUTE + b"\r\n0\r\n"
         for name, answer in (
             ("a length after a vertical tab", ok + b"Content-Length:\x0b95\r\n\r\n" + EXECUTE),
             ("a length before a form feed", ok + b"Content-Length: 95\x0c\r\n\r\n" + EXECUTE),
@@ -350,6 +374,37 @@ class Transport(unittest.TestCase):
             ("a 100 before the answer", b"HTTP/1.1 100 Continue\r\n\r\n" + ok + length),
             ("a 103 before the answer", b"HTTP/1.1 103 Early Hints\r\n\r\n" + ok + length),
             ("a 199 with a body", b"HTTP/1.1 199 Odd\r\n" + length),
+            ("chunked under HTTP/1.0", old + b"Transfer-Encoding: chunked\r\n\r\n" + chunk),
+            (
+                "chunked under HTTP/1.0 beside the length of its chunks",
+                old + b"Transfer-Encoding: chunked\r\nContent-Length: 106\r\n\r\n" + chunk,
+            ),
+            ("a parenthesis in a header name", ok + b"X(a): b\r\n" + length),
+            ("a quote in a header name", ok + b'X"a: b\r\n' + length),
+            ("a slash in a header name", ok + b"X/y: b\r\n" + length),
+            ("an at sign in a header name", ok + b"X@y: b\r\n" + length),
+            ("a tab in a header name", ok + b"X\ty: b\r\n" + length),
+            ("a high byte in a header name", ok + b"X\x80: b\r\n" + length),
+            (
+                "a soft hyphen ending the name of a length",
+                ok + b"Content-Length\xad: 2\r\n\r\n" + EXECUTE,
+            ),
+            (
+                "a parenthesis ending the name of a coding beside a length",
+                ok + b"Transfer-Encoding(: chunked\r\n" + length,
+            ),
+            (
+                "a bare CR in a chunk extension",
+                CHUNKED + b"5f;a\rb\r\n" + EXECUTE + b"\r\n0\r\n\r\n",
+            ),
+            (
+                "a bare LF in a chunk extension",
+                CHUNKED + b"5f;a\nb\r\n" + EXECUTE + b"\r\n0\r\n\r\n",
+            ),
+            ("nothing after the last chunk", last),
+            ("a trailer cut before its blank line", last + b"X-T: 1\r\n"),
+            ("a trailer with no colon", last + b"garbage\r\n\r\n"),
+            ("a NUL in a trailer", last + b"X-T: \x00\r\n\r\n"),
         ):
             with self.subTest(answer=name):
                 client = self.raw(writing(answer, http_answer(200, RECORDED)))
@@ -379,6 +434,13 @@ class Transport(unittest.TestCase):
                 "a chunk size before a space and a tab",
                 CHUNKED + b"5f \t\r\n" + EXECUTE + b"\r\n0\r\n\r\n",
             ),
+            ("chunked with a trailer", CHUNKED + b"5f\r\n" + EXECUTE + b"\r\n0\r\nX-T: 1\r\n\r\n"),
+            ("a chunk extension", CHUNKED + b"5f;a=b\r\n" + EXECUTE + b"\r\n0\r\n\r\n"),
+            ("a length under HTTP/1.0", b"HTTP/1.0 200 OK\r\nContent-Length: 95\r\n\r\n" + EXECUTE),
+            (
+                "every byte a header name may hold",
+                ok + b"!#$%&'*+-.^_`|~09AZaz: b\r\nContent-Length: 95\r\n\r\n" + EXECUTE,
+            ),
         ):
             with self.subTest(answer=name):
                 client = self.raw(writing(answer, http_answer(200, RECORDED)))
@@ -395,6 +457,10 @@ class Transport(unittest.TestCase):
             (
                 "a chunk-size line within its limit",
                 CHUNKED + b"5f;pad=" + b"p" * 200 + b"\r\n" + EXECUTE + b"\r\n0\r\n\r\n",
+            ),
+            (
+                "a long trailer",
+                CHUNKED + b"5f\r\n" + EXECUTE + b"\r\n0\r\nX-Pad: " + b"p" * 60000 + b"\r\n\r\n",
             ),
         ):
             with self.subTest(answer=name):
@@ -422,6 +488,10 @@ class Transport(unittest.TestCase):
             (
                 "a chunk followed by two bytes that are not its end",
                 CHUNKED + b"5f\r\n" + EXECUTE + b"XX0\r\n\r\n",
+            ),
+            (
+                "two trailers that together pass the head's budget",
+                CHUNKED + b"5f\r\n" + EXECUTE + b"\r\n0\r\n" + b"".join(pads[:2]) + b"\r\n",
             ),
         ):
             with self.subTest(answer=name):

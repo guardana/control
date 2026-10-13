@@ -142,7 +142,9 @@ except CallPending as held:
 and the record landed. Everything else raises. Only an `EnforceError` says,
 in `answer.ran`, whether the tool was entered; any other exception is the
 tool's own, raised again after its run was reported `UNKNOWN`, or a
-`TypeError` or `ValueError` for a call misused before anything was sent.
+`TypeError` or `ValueError` for a call misused before anything was sent. When
+your function makes a call of its own and lets that call's exception out,
+`call` raises a `ToolRaised` from it, whose answer is the outer call's.
 
 ## Verify
 

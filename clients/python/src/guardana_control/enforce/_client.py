@@ -159,17 +159,25 @@ class _Run:
     problem: str = ""
 
 
+def _own(fault: BaseException | None) -> bool:
+    """Whether fault is an exception of this module or a group of exceptions holding one."""
+    if isinstance(fault, ExceptionGroup):
+        return fault.subgroup(EnforceError) is not None
+    return isinstance(fault, EnforceError)
+
+
 def _leaving(ran: _Run, raised: BaseException | None, answer: Answer) -> BaseException | None:
     """What leaves a call whose tool was entered, or None.
 
     An interrupt comes before the tool's own exception, and that before a
     BadResult for what the tool returned. An exception of this module carries
-    the answer of the call that raised it, so one the tool raised leaves as a
-    ToolRaised with this call's.
+    the answer of the call that raised it, so one the tool raised, alone or
+    in a group of exceptions, leaves as a ToolRaised with this call's. A group
+    that holds an interrupt is one, and leaves as raised.
     """
     if raised is not None and not isinstance(raised, Exception):
         return raised
-    if isinstance(ran.fault, EnforceError):
+    if _own(ran.fault):
         own = ToolRaised(f"the tool ran and raised {type(ran.fault).__name__}", answer)
         own.__cause__ = ran.fault
         return own
@@ -241,11 +249,11 @@ class Client:
         run gets exactly the authorized bytes, which differ from arguments
         when a rule rewrote them. It raises NotSent only when it knows the
         bytes never left; any other exception is reported as UNKNOWN and
-        raised again, one of this module's as the cause of a ToolRaised. A
-        return that is neither a Result nor None, or a Result that cannot be
-        reported, is reported as UNKNOWN and raises BadResult.
-        gone is read before admit and before the tool, and anything but False
-        ends the call there.
+        raised again, one of this module's or a group of exceptions that
+        holds one as the cause of a ToolRaised. A return that is neither a Result nor None, or
+        a Result that cannot be reported, is reported as UNKNOWN and raises
+        BadResult. gone is read before admit and before the tool, and
+        anything but False ends the call there.
 
         Returns only when the tool ran and the closing record landed, which
         is not to say the tool succeeded: answer.result.status says that.

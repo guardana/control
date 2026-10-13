@@ -12,7 +12,8 @@ _CHUNK_LINE_LIMIT: Final = 256
 _LONGEST_WAIT: Final = 1e9
 _FIRST_FINAL_STATUS: Final = 200
 _NO_BODY: Final = (204, 304)
-_STATUS = re.compile(rb"HTTP/1\.[01] ([0-9]{3})(?: .*)?")
+_STATUS = re.compile(rb"HTTP/1\.([01]) ([0-9]{3})(?: .*)?")
+_NAME = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
 _NUMBER = re.compile(rb"[0-9]{1,18}")
 _CHUNK_SIZE = re.compile(rb"[0-9A-Fa-f]{1,15}")
 _CONTROL = re.compile(rb"[\x00-\x08\x0a-\x1f\x7f]")
@@ -76,6 +77,7 @@ class _Stream:
 
 
 def _headers(stream: _Stream) -> dict[str, str]:
+    """The header lines up to the empty one, which a trailer section is read as too."""
     headers: dict[str, str] = {}
     left = _HEAD_LIMIT
     while line := stream.line(left):
@@ -83,9 +85,9 @@ def _headers(stream: _Stream) -> dict[str, str]:
         if _CONTROL.search(line):
             raise ValueError("a control byte in a header line")
         name, colon, value = line.partition(b":")
-        key = name.decode("latin-1").lower()
-        if not colon or key != key.strip() or not key:
-            raise ValueError("a header line without a name")
+        if not colon or not _NAME.fullmatch(name):
+            raise ValueError("a header line without a name that is a token")
+        key = name.decode("ascii").lower()
         text = value.decode("latin-1").strip(" \t")
         if key == "transfer-encoding" and key in headers:
             raise ValueError("two transfer codings for one answer")
@@ -97,11 +99,15 @@ def _headers(stream: _Stream) -> dict[str, str]:
 def _chunked(stream: _Stream, limit: int) -> bytes:
     body = bytearray()
     while len(body) < limit:
-        size_text = stream.line(_CHUNK_LINE_LIMIT).rstrip(b" \t").partition(b";")[0]
+        line = stream.line(_CHUNK_LINE_LIMIT)
+        if _CONTROL.search(line):
+            raise ValueError("a control byte in a chunk-size line")
+        size_text = line.rstrip(b" \t").partition(b";")[0]
         if not _CHUNK_SIZE.fullmatch(size_text):
             raise ValueError("a chunk without a size")
         size = int(size_text, 16)
         if size == 0:
+            _headers(stream)
             break
         take = min(size, limit - len(body))
         body += stream.exactly(take)
@@ -114,12 +120,14 @@ def _answer(stream: _Stream, limit: int) -> tuple[int, bytes]:
     status = _STATUS.fullmatch(stream.line(_HEAD_LIMIT))
     if status is None:
         raise ValueError("no HTTP/1 status line")
-    code = int(status.group(1))
+    code = int(status.group(2))
     if code < _FIRST_FINAL_STATUS or code in _NO_BODY:
         raise ValueError(f"status {code} carries no answer")
     headers = _headers(stream)
     coding = headers.get("transfer-encoding")
     if coding is not None:
+        if status.group(1) == b"0":
+            raise ValueError("a transfer coding under HTTP/1.0")
         if coding.lower() != "chunked":
             raise ValueError("a transfer coding other than chunked")
         return code, _chunked(stream, limit)

@@ -1374,3 +1374,141 @@ class Nested(Rules):
             self.sent(),
             [self.admitted, self.inner_admitted, self.completed("COMPLETION_STATUS_UNKNOWN")],
         )
+
+    def grouping(
+        self, client: Client, group: Callable[[EnforceError], BaseException]
+    ) -> Callable[[bytes], Result | None]:
+        """A tool that is entered, makes a blocked call, and raises what group makes of it."""
+
+        def tool(_authorized: bytes) -> Result:
+            self.entered = True
+            try:
+                client.call("inner", ARGUMENTS, self.untouched)
+            except CallBlocked as blocked:
+                raise group(blocked) from None
+            return Result(Status.SUCCESS)
+
+        return tool
+
+    def leaving(self, client: Client, tool: Callable[[bytes], Result | None]) -> BaseException:
+        """What a call raised, of whatever kind."""
+        try:
+            client.call("t", ARGUMENTS, tool)
+        except BaseException as left:
+            return left
+        self.fail("the call returned")
+
+    GROUPS: tuple[tuple[str, Callable[[EnforceError], BaseException]], ...] = (
+        ("a group of exceptions", lambda made: ExceptionGroup("calls", [made])),
+        (
+            "a group made as a base group",
+            lambda made: BaseExceptionGroup("calls", [made, ValueError("lost")]),
+        ),
+        (
+            "a group within a group",
+            lambda made: ExceptionGroup(
+                "calls", [ValueError("lost"), ExceptionGroup("more", [made])]
+            ),
+        ),
+    )
+
+    def test_a_group_holding_an_exception_of_a_call_leaves_as_the_outer_calls_own(self) -> None:
+        for name, group in self.GROUPS:
+            with self.subTest(group=name):
+                client = self.serve(admit(EXECUTE), admit(INNER_BLOCK), complete())
+                left = self.leaving(client, self.grouping(client, group))
+                if not isinstance(left, EnforceError):
+                    self.fail(f"the call raised {left!r}")
+                self.assertIs(type(left), ToolRaised)
+                self.assertEqual(left.answer, self.ran_unreported)
+                made = left.__cause__
+                if not isinstance(made, BaseExceptionGroup):
+                    self.fail(f"the outer call's exception was raised from {made!r}")
+                self.assertEqual(made.message, "calls")
+                self.assertEqual(
+                    self.sent(),
+                    [
+                        self.admitted,
+                        self.inner_admitted,
+                        self.completed("COMPLETION_STATUS_UNKNOWN"),
+                    ],
+                )
+
+    def test_a_group_over_a_complete_that_did_not_land_is_raised_from_the_outer_calls_own(
+        self,
+    ) -> None:
+        for name, group in self.GROUPS:
+            with self.subTest(group=name):
+                client = self.serve(
+                    admit(EXECUTE),
+                    admit(INNER_BLOCK),
+                    complete(b'{"ending":"ENDING_RECORD_FAILED"}'),
+                    complete(),
+                )
+                failure = self.leaving(client, self.grouping(client, group))
+                if not isinstance(failure, EnforceError):
+                    self.fail(f"the call raised {failure!r}")
+                own = failure.__cause__
+                if not isinstance(own, EnforceError):
+                    self.fail(f"the failure was raised from {own!r}")
+                self.assertEqual((type(failure), type(own)), (NotRecorded, ToolRaised))
+                for carried in (failure.answer, own.answer):
+                    self.assertEqual(
+                        (carried.ran, carried.result, carried.ending),
+                        (True, None, "ENDING_RECORD_FAILED"),
+                    )
+                self.assertIsInstance(own.__cause__, BaseExceptionGroup)
+                self.assertEqual(
+                    self.sent(),
+                    [
+                        self.admitted,
+                        self.inner_admitted,
+                        self.completed("COMPLETION_STATUS_UNKNOWN"),
+                    ],
+                )
+
+    def test_a_group_that_holds_an_interrupt_leaves_as_raised(self) -> None:
+        for name, closing in (
+            ("a complete that landed", complete()),
+            ("a complete that did not", complete(b'{"ending":"ENDING_RECORD_FAILED"}')),
+        ):
+            with self.subTest(closing=name):
+                client = self.serve(admit(EXECUTE), admit(INNER_BLOCK), closing, complete())
+                left = self.leaving(
+                    client,
+                    self.grouping(
+                        client,
+                        lambda made: BaseExceptionGroup("calls", [made, KeyboardInterrupt()]),
+                    ),
+                )
+                if isinstance(left, Exception) or not isinstance(left, BaseExceptionGroup):
+                    self.fail(f"the call raised {left!r}")
+                self.assertEqual(
+                    [type(held) for held in left.exceptions], [CallBlocked, KeyboardInterrupt]
+                )
+                self.assertEqual(
+                    self.sent(),
+                    [
+                        self.admitted,
+                        self.inner_admitted,
+                        self.completed("COMPLETION_STATUS_UNKNOWN"),
+                    ],
+                )
+
+    def test_a_group_holding_no_exception_of_this_module_leaves_unchanged(self) -> None:
+        for error in (
+            ExceptionGroup("calls", [ValueError("lost")]),
+            ExceptionGroup("calls", [ExceptionGroup("more", [TimeoutError("waiting")])]),
+            BaseExceptionGroup("calls", [ValueError("lost"), KeyboardInterrupt()]),
+        ):
+            with self.subTest(error=error):
+                client = self.serve(admit(EXECUTE), complete())
+
+                def tool(_authorized: bytes, error: BaseException = error) -> Result:
+                    self.entered = True
+                    raise error
+
+                self.assertIs(self.leaving(client, tool), error)
+                self.assertEqual(
+                    self.sent(), [self.admitted, self.completed("COMPLETION_STATUS_UNKNOWN")]
+                )
