@@ -122,8 +122,8 @@ what it may depend on and how the gate runs it.
   `CHANGELOG.md`, a preview suffix written as Python spells it; the release
   commit sets it and refreshes the lock. The release workflow builds the wheel
   and the source archive from the tag, through `scripts/build-python-dist.sh`
-  as the gate does, before anything is drafted, and attests them. Once the
-  release is published, a job of its own in the `pypi` environment, the one
+  as the gate does, and attests them before any other tool of the release job
+  runs. Once the release is published, a job of its own in the `pypi` environment, the one
   the index trusts, which admits `v*` tags and which a maintainer approves,
   verifies their provenance and commit and uploads them to the public package
   index through trusted publishing, with no stored token, then reads the
@@ -148,7 +148,11 @@ third-party code at run time; a wheel installs without building anything. The
 first upload claims the distribution name on the public package index; until
 it exists, an install by that name would fetch whatever a stranger put there,
 into a process that holds a run token. An upload cannot be replaced, so a
-broken one is followed by the next version, as a release is. The contract is
+broken one is followed by the next version, as a release is. If the release
+job fails after the release is public, the upload job does not run and that
+version's client is never uploaded; the next version carries it. The test
+index's publisher names no environment, so any job of the release workflow
+can upload there, and a file on the test index proves nothing. The contract is
 `v1alpha1`, so the module's interface may change with any release. A client
 is tested with the plane of its own release. With a newer plane it may refuse
 every answer, because a strict reader does not know a member or an enum name

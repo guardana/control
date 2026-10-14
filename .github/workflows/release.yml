@@ -134,7 +134,8 @@ jobs:
             echo "the client's project file says ${have}, not ${base}; the release commit sets it" >&2
             exit 1
           fi
-          version="${base}.dev${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+          # The attempt in two digits, so that no run and attempt spell another's.
+          version="${base}.dev${GITHUB_RUN_ID}$(printf '%02d' "${GITHUB_RUN_ATTEMPT}")"
           scripts/build-python-dist.sh "${RUNNER_TEMP}/python" "${version}"
           echo "version=${version}" >>"${GITHUB_OUTPUT}"
 
@@ -350,6 +351,24 @@ jobs:
           scripts/build-python-dist.sh "${RUNNER_TEMP}/python"
           echo "version=${version}" >>"${GITHUB_OUTPUT}"
 
+      - name: Attest the client's release files
+        # Straight after the build, before any other tool of this job runs and
+        # could rewrite them: the upload job takes what this attests.
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/python/*
+
+      - name: Keep the client's release files
+        # For the upload job, which runs only once the release is published
+        # and can be run again alone.
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python
+          path: ${{ runner.temp }}/python/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
+
       - name: Build and draft
         # ko pushes the gateway's image before the draft exists, under a
         # staging tag named after the commit; the version tag is added only
@@ -407,11 +426,6 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/checksums.txt
-
-      - name: Attest the client's release files
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: ${{ runner.temp }}/python/*
 
       - name: Sign the image
         # Keyless, as the checksum file is: the certificate names this workflow
@@ -474,17 +488,6 @@ jobs:
           gh attestation verify "oci://${IMAGE}@${DIGEST}" --repo "${GITHUB_REPOSITORY}" \
             --cert-identity "${identity}" \
             --source-ref "${GITHUB_REF}" --deny-self-hosted-runners
-
-      - name: Keep the client's release files
-        # For the upload job, which runs once the release is published and
-        # can be run again alone.
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: python
-          path: ${{ runner.temp }}/python/
-          if-no-files-found: error
-          overwrite: true
-          retention-days: 30
 
       - name: Tag the verified image
         # The registry is handed the index's own bytes, checked against the

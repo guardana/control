@@ -306,7 +306,7 @@ class Wheel(unittest.TestCase):
         ):
             with self.subTest(tag):
                 self.assertEqual(check_wheel.tag_version(tag), want)
-        for tag in ("2.0.0", "v2.0.0+build", "v2.0", "release-2.0.0", "v"):
+        for tag in ("2.0.0", "v2.0.0+build", "v2.0", "release-2.0.0", "v", "v2.0.0\n"):
             with self.subTest(tag), self.assertRaises(SystemExit):
                 check_wheel.tag_version(tag)
 

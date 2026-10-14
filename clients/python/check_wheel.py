@@ -37,7 +37,7 @@ _DESCRIBED = {"METADATA", "WHEEL", "RECORD", "licenses/LICENSE"}
 
 def spelled(version: str) -> str:
     """A release's version, such as 1.2.3-rc.1, as a Python version spells it."""
-    parts = _RELEASE.match(version)
+    parts = _RELEASE.fullmatch(version)
     if parts is None:
         raise SystemExit(f"check_wheel: {version} is no version this check can map")
     base, kind, number = parts.groups()
