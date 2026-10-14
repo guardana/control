@@ -2,7 +2,8 @@
 
 `.github/workflows/release.yml` builds, signs and publishes every release;
 no asset is uploaded from a laptop. Until 1.0 a release follows every one to
-three changes, then one every Monday; each follows an audit of the whole tree
+three changes, from 1.0 every Monday, an urgent fix out of turn, each after an
+audit of the whole tree
 ([ADR-0052](docs/adr/0052-a-change-is-gated-on-its-pull-request.md)).
 
 ## Cutting a release
@@ -19,8 +20,7 @@ three changes, then one every Monday; each follows an audit of the whole tree
    missing, undated or empty notes. Set that version in
    `clients/python/pyproject.toml` and run `uv lock` there.
 4. Gate the release commit cold with `scripts/gate-commit.sh`; the admin
-   pushes it to `main`. Wait for green CI
-   and Security.
+   pushes it to `main`. Wait for green CI and Security.
 5. Tag the commit and push:
 
    ```sh
