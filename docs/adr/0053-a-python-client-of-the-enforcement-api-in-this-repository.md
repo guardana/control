@@ -123,11 +123,14 @@ what it may depend on and how the gate runs it.
   commit sets it and refreshes the lock. The release workflow builds the wheel
   and the source archive from the tag, through `scripts/build-python-dist.sh`
   as the gate does, before anything is drafted, and attests them. Once the
-  release is published, a job of its own in the release environment, which a
-  maintainer approves, verifies their provenance and uploads them to the
-  public package index through trusted publishing, with no stored token, then
-  reads the index back. Run again alone, it skips what the index holds. The
-  dry run uploads a development release to the test index the same way.
+  release is published, a job of its own in the `pypi` environment, the one
+  the index trusts, which admits `v*` tags and which a maintainer approves,
+  verifies their provenance and commit and uploads them to the public package
+  index through trusted publishing, with no stored token, then reads the
+  index back. It is given the version the release job built and refuses files
+  of any other. Run again alone, it skips what the index holds. The dry run,
+  on a branch only, uploads a development release to the test index the same
+  way.
   Between releases the tree names the last release.
 - **Review.** `clients/` is not a two-approval path, since nothing in it
   decides, except the files at the top of the client's project: its project

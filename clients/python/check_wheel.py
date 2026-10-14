@@ -6,7 +6,8 @@
 
 ``files`` inspects one wheel and one source archive: no declared requirement,
 the licence the repository holds, the version given or else that of the
-newest dated section of the changelog, and exactly the module's own files.
+newest dated section of the changelog, in the wheel and in the source
+archive's name, and exactly the module's own files.
 ``import`` runs under an interpreter the wheel was installed for and imports
 the client from there. ``spell`` prints a release tag's version as Python
 spells it.
@@ -105,14 +106,26 @@ def check_files(
         if described != _DESCRIBED:
             problems.append(f"the wheel describes itself with other files: {sorted(described)}")
 
-    with tarfile.open(_one(dist, "*.tar.gz")) as sdist:
-        members = {m.name.split("/", 1)[1] for m in sdist.getmembers() if "/" in m.name}
-        if "LICENSE" not in members:
-            problems.append("the source archive carries no licence")
-        if any(m.startswith("tests/") for m in members):
-            problems.append("the source archive carries the tests")
+    problems += _archive_problems(dist, f"{name}-{want}")
     if (HERE / "LICENSE").read_bytes() != licence.read_bytes():
         problems.append("clients/python/LICENSE is not the repository's LICENSE")
+    return problems
+
+
+def _archive_problems(dist: Path, stem: str) -> list[str]:
+    problems: list[str] = []
+    archive = _one(dist, "*.tar.gz")
+    if archive.name != f"{stem}.tar.gz":
+        problems.append(f"the source archive is not named {stem}.tar.gz")
+    with tarfile.open(archive) as sdist:
+        entries = [m.name for m in sdist.getmembers()]
+    if {e.split("/", 1)[0] for e in entries} != {stem}:
+        problems.append(f"the source archive's files are not all under {stem}/")
+    members = {e.split("/", 1)[1] for e in entries if "/" in e}
+    if "LICENSE" not in members:
+        problems.append("the source archive carries no licence")
+    if any(m.startswith("tests/") for m in members):
+        problems.append("the source archive carries the tests")
     return problems
 
 

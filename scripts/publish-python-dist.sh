@@ -5,11 +5,12 @@
 # files, digest for digest. Run by the release workflow only: the index
 # accepts the job's identity in place of a token, and nothing else holds one.
 #
-#   scripts/publish-python-dist.sh <directory> pypi|testpypi
+#   scripts/publish-python-dist.sh <directory> pypi|testpypi <version>
 #
-# A file the index already holds with the same digest is skipped, so a job
-# that failed after an upload can be run again. An uploaded file is never
-# replaced.
+# The version is the one the job that built the files gave them; files of
+# any other are refused. A file the index already holds with the same digest
+# is skipped, so a job that failed after an upload can be run again. An
+# uploaded file is never replaced.
 set -euo pipefail
 
 _PUBLISH_PYTHON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -23,8 +24,11 @@ die() {
   exit 1
 }
 
-[[ $# -eq 2 ]] || die "usage: scripts/publish-python-dist.sh <directory> pypi|testpypi"
+[[ $# -eq 3 ]] || die "usage: scripts/publish-python-dist.sh <directory> pypi|testpypi <version>"
 dir="$1"
+want="$3"
+[[ "${want}" =~ ^[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?(\.dev[0-9]+)?$ ]] ||
+  die "${want} is not a version the build gives"
 case "$2" in
   pypi) host=pypi.org upload=https://upload.pypi.org/legacy/ ;;
   testpypi) host=test.pypi.org upload=https://test.pypi.org/legacy/ ;;
@@ -45,6 +49,9 @@ wheel="$(basename "${wheels[0]}")"
   die "${wheel} is not the pure wheel this project builds"
 name="${BASH_REMATCH[1]}"
 version="${BASH_REMATCH[2]}"
+[[ "${version}" == "${want}" ]] || die "${wheel} is not of version ${want}"
+[[ "$(basename "${archives[0]}")" == "${name}-${want}.tar.gz" ]] ||
+  die "$(basename "${archives[0]}") is not the source archive of ${name} ${want}"
 
 expected="$(cd "${dir}" && for f in "${wheel}" "$(basename "${archives[0]}")"; do
   printf '%s %s\n' "${f}" "$(sha256sum "${f}" | cut -d' ' -f1)"

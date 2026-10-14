@@ -29,13 +29,14 @@ audit of the whole tree
    git push origin "v${version}"
    ```
 
-6. Approve the tag's Release run, then its upload job, through Review
-   deployments. Only a maintainer or admin may push a `v*` tag or approve it.
+6. Approve the Release run (`release`), then its upload job (`pypi`), in
+   Review deployments. Only a maintainer or admin may push a `v*` tag or
+   approve.
 7. After publication, set `"released"` in `docs/docs.json`, regenerate and
    open a pull request; verify the live version, labels and links. Until
    then the website must not name the release.
 
-A version is a plain `X.Y.Z`; a suffix such as `-rc.1` marks a preview of it.
+A version is `X.Y.Z`; a suffix such as `-rc.1` marks a preview.
 
 ## What the workflow does
 
@@ -53,8 +54,8 @@ A version is a plain `X.Y.Z`; a suffix such as `-rc.1` marks a preview of it.
 6. Verifies downloads and image, adds the image's version tag, publishes the
    draft with its digest.
 7. Builds and attests the Python client's files before the draft; after
-   publication a second job, re-run alone if it fails, uploads them to PyPI
-   and reads them back.
+   publication a separate job, re-runnable alone, uploads them to PyPI and
+   reads them back.
 
 A known-vulnerable symbol, called or not, or an unavailable scan stops release.
 Only `main`'s head may release, with CI, Security and the newest CodeQL
@@ -66,7 +67,7 @@ release and reports recovery steps.
 
 ## A dry run
 
-Run the workflow manually with the intended tag. It checks the gate and notes,
+Run the workflow from `main` with the intended tag. It checks the gate and notes,
 builds and scans unsigned `0.0.0-snapshot.<commit>` archives and image, runs
 the image and demo on the runner's platform, and publishes only the Python
 client, to TestPyPI as `X.Y.Z.dev<run>`.

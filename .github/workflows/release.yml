@@ -3,7 +3,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
-  # A dry run: builds the snapshot a tag would build and publishes nothing.
+  # A dry run: builds the snapshot a tag would build and publishes nothing
+  # but the Python client's snapshot, to the test index.
   workflow_dispatch:
     inputs:
       version:
@@ -39,7 +40,18 @@ jobs:
       security-events: read # Check the gate: reads the open code scanning alerts on main
       id-token: write # Attest the client's snapshot: signs the provenance
       attestations: write # Attest the client's snapshot: stores the provenance
+    outputs:
+      client-version: ${{ steps.client.outputs.version }}
     steps:
+      - name: Check that the dry run is on a branch
+        # The client's snapshot is attested under the ref the run is on; on a
+        # tag it would carry the identity a release's own files carry.
+        run: |
+          if [[ "${GITHUB_REF}" != refs/heads/* ]]; then
+            echo "a dry run runs on a branch, not on ${GITHUB_REF}" >&2
+            exit 1
+          fi
+
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -108,6 +120,7 @@ jobs:
           "${bin}/uv" python install --no-config --no-bin "${CLIENT_PYTHON_FLOOR_VERSION}" "${CLIENT_PYTHON_VERSION}"
 
       - name: Build the client's snapshot
+        id: client
         # The version the tag would give the client, which the release commit
         # set in its project file, as a development release numbered by this
         # run: the test index keeps every file it was ever given.
@@ -121,7 +134,9 @@ jobs:
             echo "the client's project file says ${have}, not ${base}; the release commit sets it" >&2
             exit 1
           fi
-          scripts/build-python-dist.sh "${RUNNER_TEMP}/python" "${base}.dev${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+          version="${base}.dev${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+          scripts/build-python-dist.sh "${RUNNER_TEMP}/python" "${version}"
+          echo "version=${version}" >>"${GITHUB_OUTPUT}"
 
       - name: Attest the client's snapshot
         # So that the upload job verifies its files as the release's does.
@@ -130,11 +145,13 @@ jobs:
           subject-path: ${{ runner.temp }}/python/*
 
       - name: Keep the client's snapshot
+        # A run attempted again builds its own files under its own version.
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: python
           path: ${{ runner.temp }}/python/
           if-no-files-found: error
+          overwrite: true
           retention-days: 7
 
       - name: Build the snapshot
@@ -208,6 +225,8 @@ jobs:
       artifact-metadata: write # Attest the image: records which registry holds the image, the organization's linked artifacts
       actions: read # Check the gate: reads CI's and Security's runs of the tagged commit
       security-events: read # Check the gate: reads the open code scanning alerts on main
+    outputs:
+      client-version: ${{ steps.client.outputs.version }}
     env:
       # The repository .goreleaser.yaml's kos section pushes to.
       IMAGE: ghcr.io/guardana/control-gateway
@@ -315,18 +334,21 @@ jobs:
           fi
 
       - name: Build the client's release files
-        # Before anything is pushed or drafted. The script checks that the
-        # files carry the newest dated section's version; this, that the tag
-        # names the same one.
+        id: client
+        # Before anything is pushed or drafted, as the dry run builds its
+        # snapshot: the tag's version, which the release commit set in the
+        # project file. The script checks that the files carry the newest
+        # dated section's version, so the tag, the project and the notes agree.
         run: |
           python="$(UV_MANAGED_PYTHON=1 UV_PYTHON_DOWNLOADS=never uv python find --no-config "${CLIENT_PYTHON_VERSION}")"
-          want="$("${python}" -I -B clients/python/check_wheel.py spell "${GITHUB_REF_NAME}")"
-          scripts/build-python-dist.sh "${RUNNER_TEMP}/python"
-          found="$(find "${RUNNER_TEMP}/python" -name "*-${want}-py3-none-any.whl" | wc -l | tr -d ' ')"
-          if [[ "${found}" != 1 ]]; then
-            echo "the client's wheel is not of version ${want}, which ${GITHUB_REF_NAME} names" >&2
+          version="$("${python}" -I -B clients/python/check_wheel.py spell "${GITHUB_REF_NAME}")"
+          have="$(grep -E '^version = ' clients/python/pyproject.toml)"
+          if [[ "${have}" != "version = \"${version}\"" ]]; then
+            echo "the client's project file says ${have}, not ${version}; the release commit sets it" >&2
             exit 1
           fi
+          scripts/build-python-dist.sh "${RUNNER_TEMP}/python"
+          echo "version=${version}" >>"${GITHUB_OUTPUT}"
 
       - name: Build and draft
         # ko pushes the gateway's image before the draft exists, under a
@@ -461,6 +483,7 @@ jobs:
           name: python
           path: ${{ runner.temp }}/python/
           if-no-files-found: error
+          overwrite: true
           retention-days: 30
 
       - name: Tag the verified image
@@ -608,21 +631,26 @@ jobs:
           for f in "${RUNNER_TEMP}"/python/*; do
             gh attestation verify "${f}" --repo "${GITHUB_REPOSITORY}" \
               --cert-identity "${identity}" \
-              --source-ref "${GITHUB_REF}" --deny-self-hosted-runners
+              --source-ref "${GITHUB_REF}" --source-digest "${GITHUB_SHA}" \
+              --deny-self-hosted-runners
           done
 
       - name: Upload
-        run: scripts/publish-python-dist.sh "${RUNNER_TEMP}/python" testpypi
+        # The version comes from the job that built the files, not from them.
+        env:
+          VERSION: ${{ needs.snapshot.outputs.client-version }}
+        run: scripts/publish-python-dist.sh "${RUNNER_TEMP}/python" testpypi "${VERSION}"
 
   index:
     name: Upload the client to the package index
     needs: release
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    # The package index takes an upload only from this workflow in this
-    # environment, which admits v* tags and waits for a maintainer again. It
-    # runs once the release is published; failed, it can be run again alone.
-    environment: release
+    # The package index trusts an upload only from this workflow in the pypi
+    # environment, which admits v* tags and waits for a maintainer again;
+    # nothing the release job runs can mint a token the index takes. It runs
+    # once the release is published; failed, it can be run again alone.
+    environment: pypi
     permissions:
       contents: read
       attestations: read # Verify the files: reads their provenance
@@ -665,8 +693,12 @@ jobs:
           for f in "${RUNNER_TEMP}"/python/*; do
             gh attestation verify "${f}" --repo "${GITHUB_REPOSITORY}" \
               --cert-identity "${identity}" \
-              --source-ref "${GITHUB_REF}" --deny-self-hosted-runners
+              --source-ref "${GITHUB_REF}" --source-digest "${GITHUB_SHA}" \
+              --deny-self-hosted-runners
           done
 
       - name: Upload
-        run: scripts/publish-python-dist.sh "${RUNNER_TEMP}/python" pypi
+        # The version comes from the job that built the files, not from them.
+        env:
+          VERSION: ${{ needs.release.outputs.client-version }}
+        run: scripts/publish-python-dist.sh "${RUNNER_TEMP}/python" pypi "${VERSION}"
