@@ -1,12 +1,15 @@
-"""Checks the built distribution files for the gate.
+"""Checks the built distribution files for the gate and the release.
 
-    python -I -B check_wheel.py files --dist DIR --licence FILE --changelog FILE
+    python -I -B check_wheel.py files --dist DIR --licence FILE --changelog FILE [--version V]
     python -I -B check_wheel.py import
+    python -I -B check_wheel.py spell TAG
 
 ``files`` inspects one wheel and one source archive: no declared requirement,
-the licence the repository holds, the version of the newest dated section of
-the changelog, and exactly the module's own files. ``import`` runs under an
-interpreter the wheel was installed for and imports the client from there.
+the licence the repository holds, the version given or else that of the
+newest dated section of the changelog, and exactly the module's own files.
+``import`` runs under an interpreter the wheel was installed for and imports
+the client from there. ``spell`` prints a release tag's version as Python
+spells it.
 """
 
 from __future__ import annotations
@@ -31,16 +34,28 @@ _PREVIEW = {"alpha": "a", "beta": "b", "rc": "rc"}
 _DESCRIBED = {"METADATA", "WHEEL", "RECORD", "licenses/LICENSE"}
 
 
+def spelled(version: str) -> str:
+    """A release's version, such as 1.2.3-rc.1, as a Python version spells it."""
+    parts = _RELEASE.match(version)
+    if parts is None:
+        raise SystemExit(f"check_wheel: {version} is no version this check can map")
+    base, kind, number = parts.groups()
+    return base if kind is None else f"{base}{_PREVIEW[kind]}{number or 0}"
+
+
 def release_version(changelog: str) -> str:
     """The newest dated section's version, as a Python version spells it."""
     sections = _DATED.findall(changelog)
     if not sections:
         raise SystemExit("check_wheel: the changelog has no dated section")
-    parts = _RELEASE.match(sections[0])
-    if parts is None:
-        raise SystemExit(f"check_wheel: {sections[0]} is no version this check can map")
-    base, kind, number = parts.groups()
-    return base if kind is None else f"{base}{_PREVIEW[kind]}{number or 0}"
+    return spelled(sections[0])
+
+
+def tag_version(tag: str) -> str:
+    """A release tag's version, as a Python version spells it."""
+    if not tag.startswith("v"):
+        raise SystemExit(f"check_wheel: {tag} is no release tag")
+    return spelled(tag[1:])
 
 
 def _one(directory: Path, pattern: str) -> Path:
@@ -55,9 +70,11 @@ def _own_files() -> set[str]:
     return {p.relative_to(src).as_posix() for p in (src / MODULE).rglob("*") if p.is_file()}
 
 
-def check_files(dist: Path, licence: Path, changelog: Path) -> list[str]:
+def check_files(
+    dist: Path, licence: Path, changelog: Path, version: str | None = None
+) -> list[str]:
     problems: list[str] = []
-    want = release_version(changelog.read_text(encoding="utf-8"))
+    want = version or release_version(changelog.read_text(encoding="utf-8"))
     name = PROJECT["project"]["name"].replace("-", "_")
     info = f"{name}-{want}.dist-info"
 
@@ -116,11 +133,17 @@ def main() -> int:
     files.add_argument("--dist", type=Path, required=True)
     files.add_argument("--licence", type=Path, required=True)
     files.add_argument("--changelog", type=Path, required=True)
+    files.add_argument("--version", help="the version the files carry instead of the changelog's")
     commands.add_parser("import")
+    spell = commands.add_parser("spell")
+    spell.add_argument("tag")
     args = parser.parse_args()
 
+    if args.command == "spell":
+        print(tag_version(args.tag))
+        return 0
     if args.command == "files":
-        problems = check_files(args.dist, args.licence, args.changelog)
+        problems = check_files(args.dist, args.licence, args.changelog, args.version)
     else:
         problems = check_import()
     for problem in problems:

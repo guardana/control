@@ -37,6 +37,8 @@ jobs:
       contents: read
       actions: read # Check the gate: reads CI's and Security's runs of this commit
       security-events: read # Check the gate: reads the open code scanning alerts on main
+      id-token: write # Attest the client's snapshot: signs the provenance
+      attestations: write # Attest the client's snapshot: stores the provenance
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -90,6 +92,50 @@ jobs:
           tar -xzf "${dl}/goreleaser.tar.gz" -C "${bin}" goreleaser
           tar -xzf "${dl}/syft.tar.gz" -C "${bin}" syft
           echo "${bin}" >>"$GITHUB_PATH"
+
+      - name: Install uv and the client's interpreters
+        # As in ci.yml: uv from the digest pinned beside its version, and the
+        # Python client's two interpreters from uv's own list of builds, each
+        # checked against a digest that version of uv carries.
+        run: |
+          bin="${RUNNER_TEMP}/uv"
+          mkdir -p "${bin}"
+          curl -fsSL --retry 3 --retry-connrefused -o "${RUNNER_TEMP}/uv.tar.gz" \
+            "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz"
+          printf '%s  %s\n' "${UV_SHA256}" "${RUNNER_TEMP}/uv.tar.gz" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/uv.tar.gz" -C "${bin}" --strip-components=1 uv-x86_64-unknown-linux-gnu/uv
+          echo "${bin}" >>"$GITHUB_PATH"
+          "${bin}/uv" python install --no-config --no-bin "${CLIENT_PYTHON_FLOOR_VERSION}" "${CLIENT_PYTHON_VERSION}"
+
+      - name: Build the client's snapshot
+        # The version the tag would give the client, which the release commit
+        # set in its project file, as a development release numbered by this
+        # run: the test index keeps every file it was ever given.
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          python="$(UV_MANAGED_PYTHON=1 UV_PYTHON_DOWNLOADS=never uv python find --no-config "${CLIENT_PYTHON_VERSION}")"
+          base="$("${python}" -I -B clients/python/check_wheel.py spell "${VERSION}")"
+          have="$(grep -E '^version = ' clients/python/pyproject.toml)"
+          if [[ "${have}" != "version = \"${base}\"" ]]; then
+            echo "the client's project file says ${have}, not ${base}; the release commit sets it" >&2
+            exit 1
+          fi
+          scripts/build-python-dist.sh "${RUNNER_TEMP}/python" "${base}.dev${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+
+      - name: Attest the client's snapshot
+        # So that the upload job verifies its files as the release's does.
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/python/*
+
+      - name: Keep the client's snapshot
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python
+          path: ${{ runner.temp }}/python/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Build the snapshot
         # --parallelism=1 keeps the order of the binaries in each archive, and
@@ -230,6 +276,20 @@ jobs:
           install -m 0755 "${dl}/cosign" "${bin}/cosign"
           echo "${bin}" >>"$GITHUB_PATH"
 
+      - name: Install uv and the client's interpreters
+        # As in ci.yml: uv from the digest pinned beside its version, and the
+        # Python client's two interpreters from uv's own list of builds, each
+        # checked against a digest that version of uv carries.
+        run: |
+          bin="${RUNNER_TEMP}/uv"
+          mkdir -p "${bin}"
+          curl -fsSL --retry 3 --retry-connrefused -o "${RUNNER_TEMP}/uv.tar.gz" \
+            "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz"
+          printf '%s  %s\n' "${UV_SHA256}" "${RUNNER_TEMP}/uv.tar.gz" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/uv.tar.gz" -C "${bin}" --strip-components=1 uv-x86_64-unknown-linux-gnu/uv
+          echo "${bin}" >>"$GITHUB_PATH"
+          "${bin}/uv" python install --no-config --no-bin "${CLIENT_PYTHON_FLOOR_VERSION}" "${CLIENT_PYTHON_VERSION}"
+
       - name: Log in to the container registry
         # With the job's own token, scoped by packages: write above. ko, cosign,
         # the attest action and gh read the credential docker stores.
@@ -251,6 +311,20 @@ jobs:
           fi
           if grep -qF '<!--' "${notes}"; then
             echo "the notes for ${GITHUB_REF_NAME} hold an HTML comment (<!--), which could hide text" >&2
+            exit 1
+          fi
+
+      - name: Build the client's release files
+        # Before anything is pushed or drafted. The script checks that the
+        # files carry the newest dated section's version; this, that the tag
+        # names the same one.
+        run: |
+          python="$(UV_MANAGED_PYTHON=1 UV_PYTHON_DOWNLOADS=never uv python find --no-config "${CLIENT_PYTHON_VERSION}")"
+          want="$("${python}" -I -B clients/python/check_wheel.py spell "${GITHUB_REF_NAME}")"
+          scripts/build-python-dist.sh "${RUNNER_TEMP}/python"
+          found="$(find "${RUNNER_TEMP}/python" -name "*-${want}-py3-none-any.whl" | wc -l | tr -d ' ')"
+          if [[ "${found}" != 1 ]]; then
+            echo "the client's wheel is not of version ${want}, which ${GITHUB_REF_NAME} names" >&2
             exit 1
           fi
 
@@ -311,6 +385,11 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/checksums.txt
+
+      - name: Attest the client's release files
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/python/*
 
       - name: Sign the image
         # Keyless, as the checksum file is: the certificate names this workflow
@@ -373,6 +452,16 @@ jobs:
           gh attestation verify "oci://${IMAGE}@${DIGEST}" --repo "${GITHUB_REPOSITORY}" \
             --cert-identity "${identity}" \
             --source-ref "${GITHUB_REF}" --deny-self-hosted-runners
+
+      - name: Keep the client's release files
+        # For the upload job, which runs once the release is published and
+        # can be run again alone.
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python
+          path: ${{ runner.temp }}/python/
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Tag the verified image
         # The registry is handed the index's own bytes, checked against the
@@ -471,3 +560,113 @@ jobs:
             exit 1
           fi
           echo "published release ${id} for ${GITHUB_REF_NAME}"
+
+  test-index:
+    name: Upload the client's snapshot to the test index
+    needs: snapshot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      attestations: read # Verify the files: reads their provenance
+      id-token: write # Upload: the index takes this job's identity in place of a token
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Load pinned tool versions
+        # A name allowlist, not a shape filter. See ci.yml for the reasoning.
+        run: |
+          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env >>"$GITHUB_ENV"
+
+      - name: Install uv
+        run: |
+          bin="${RUNNER_TEMP}/uv"
+          mkdir -p "${bin}"
+          curl -fsSL --retry 3 --retry-connrefused -o "${RUNNER_TEMP}/uv.tar.gz" \
+            "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz"
+          printf '%s  %s\n' "${UV_SHA256}" "${RUNNER_TEMP}/uv.tar.gz" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/uv.tar.gz" -C "${bin}" --strip-components=1 uv-x86_64-unknown-linux-gnu/uv
+          echo "${bin}" >>"$GITHUB_PATH"
+
+      - name: Fetch the client's files
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: python
+          path: ${{ runner.temp }}/python
+
+      - name: Verify the files
+        # An artifact can be written by any job of this run, so what is
+        # uploaded is what the snapshot job built and attested.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          identity="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"
+          for f in "${RUNNER_TEMP}"/python/*; do
+            gh attestation verify "${f}" --repo "${GITHUB_REPOSITORY}" \
+              --cert-identity "${identity}" \
+              --source-ref "${GITHUB_REF}" --deny-self-hosted-runners
+          done
+
+      - name: Upload
+        run: scripts/publish-python-dist.sh "${RUNNER_TEMP}/python" testpypi
+
+  index:
+    name: Upload the client to the package index
+    needs: release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # The package index takes an upload only from this workflow in this
+    # environment, which admits v* tags and waits for a maintainer again. It
+    # runs once the release is published; failed, it can be run again alone.
+    environment: release
+    permissions:
+      contents: read
+      attestations: read # Verify the files: reads their provenance
+      id-token: write # Upload: the index takes this job's identity in place of a token
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Load pinned tool versions
+        # A name allowlist, not a shape filter. See ci.yml for the reasoning.
+        run: |
+          grep -E '^[A-Z][A-Z0-9_]*_VERSION=v?[0-9][A-Za-z0-9._+-]*$|^[A-Z][A-Z0-9_]*_SHA256=[0-9a-f]{64}$' \
+            scripts/tool-versions.env >>"$GITHUB_ENV"
+
+      - name: Install uv
+        run: |
+          bin="${RUNNER_TEMP}/uv"
+          mkdir -p "${bin}"
+          curl -fsSL --retry 3 --retry-connrefused -o "${RUNNER_TEMP}/uv.tar.gz" \
+            "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz"
+          printf '%s  %s\n' "${UV_SHA256}" "${RUNNER_TEMP}/uv.tar.gz" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/uv.tar.gz" -C "${bin}" --strip-components=1 uv-x86_64-unknown-linux-gnu/uv
+          echo "${bin}" >>"$GITHUB_PATH"
+
+      - name: Fetch the client's files
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: python
+          path: ${{ runner.temp }}/python
+
+      - name: Verify the files
+        # An artifact can be written by any job of this run, so what is
+        # uploaded is what the release job built, attested and verified.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          identity="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"
+          for f in "${RUNNER_TEMP}"/python/*; do
+            gh attestation verify "${f}" --repo "${GITHUB_REPOSITORY}" \
+              --cert-identity "${identity}" \
+              --source-ref "${GITHUB_REF}" --deny-self-hosted-runners
+          done
+
+      - name: Upload
+        run: scripts/publish-python-dist.sh "${RUNNER_TEMP}/python" pypi

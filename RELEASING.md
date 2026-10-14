@@ -9,17 +9,17 @@ three changes, then one every Monday; each follows an audit of the whole tree
 
 1. Reconcile `docs/status.md` with the candidate's exercised commands and
    tests. Move built work out of `planned`; promote `experimental` only when
-   documented readiness, compatibility and applicable security checks pass.
-   Record the proof and remaining limits. A version number promotes nothing.
-2. Update `README.md`, `site/index.html` and affected guides, concepts and
-   references to that inventory. Remove delivered roadmap/backlog tasks;
-   keep incomplete ones `planned`. Regenerate pages with `make docs-gen`.
+   documented readiness, compatibility and security checks pass. Record the
+   proof and remaining limits.
+2. Update `README.md`, `site/index.html` and affected pages to that
+   inventory. Remove delivered roadmap/backlog tasks; keep incomplete ones
+   `planned`. Regenerate pages with `make docs-gen`.
 3. Add the dated `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md`.
-   `scripts/release-notes.sh vX.Y.Z` prints it; the workflow publishes it
-   and refuses missing, undated or empty notes. Set that version in
+   `scripts/release-notes.sh vX.Y.Z` prints it; the workflow refuses
+   missing, undated or empty notes. Set that version in
    `clients/python/pyproject.toml` and run `uv lock` there.
-4. Commit (the release commit) and gate it cold with
-   `scripts/gate-commit.sh`; the admin pushes it to `main`. Wait for green CI
+4. Gate the release commit cold with `scripts/gate-commit.sh`; the admin
+   pushes it to `main`. Wait for green CI
    and Security.
 5. Tag the commit and push:
 
@@ -29,20 +29,20 @@ three changes, then one every Monday; each follows an audit of the whole tree
    git push origin "v${version}"
    ```
 
-6. Approve the tag's Release run through Review deployments. Only a
-   maintainer or admin may push a `v*` tag or approve it.
+6. Approve the tag's Release run, then its upload job, through Review
+   deployments. Only a maintainer or admin may push a `v*` tag or approve it.
 7. After publication, set `"released"` in `docs/docs.json`, regenerate and
-   open a pull request. Verify the live version, capability labels, download and guide
-   links. Before publication the website must not name the new release.
+   open a pull request; verify the live version, labels and links. Until
+   then the website must not name the release.
 
 A version is a plain `X.Y.Z`; a suffix such as `-rc.1` marks a preview of it.
 
 ## What the workflow does
 
 1. Builds `guardana-gateway` and `guardana-control` for Linux and macOS on
-   amd64 and arm64 from the tag. Each platform gets an archive of both
-   binaries and a demo archive including the server, each with a CycloneDX
-   bill of materials; writes `checksums.txt`.
+   amd64 and arm64 from the tag: per platform an archive of both and a demo
+   archive with the server, each with a CycloneDX bill of materials, listed
+   in `checksums.txt`.
 2. Cosign signs checksums keylessly; the certificate names this workflow and tag.
 3. Pushes `ghcr.io/guardana/control-gateway`: the gateway alone, nonroot,
    linux/amd64 and linux/arm64, under `sha-<commit>`; drafts the release.
@@ -52,6 +52,9 @@ A version is a plain `X.Y.Z`; a suffix such as `-rc.1` marks a preview of it.
    the image.
 6. Verifies downloads and image, adds the image's version tag, publishes the
    draft with its digest.
+7. Builds and attests the Python client's files before the draft; after
+   publication a second job, re-run alone if it fails, uploads them to PyPI
+   and reads them back.
 
 A known-vulnerable symbol, called or not, or an unavailable scan stops release.
 Only `main`'s head may release, with CI, Security and the newest CodeQL
@@ -65,7 +68,8 @@ release and reports recovery steps.
 
 Run the workflow manually with the intended tag. It checks the gate and notes,
 builds and scans unsigned `0.0.0-snapshot.<commit>` archives and image, runs
-the image and demo on the runner's platform, publishes nothing.
+the image and demo on the runner's platform, and publishes only the Python
+client, to TestPyPI as `X.Y.Z.dev<run>`.
 `make release-snapshot`, `make check-demo-archive` and `make scan-binaries`
 build, scan and run locally with Docker; they check neither gate nor notes.
 
@@ -93,16 +97,14 @@ gh attestation verify guardana-control_0.1.0-alpha_linux_amd64.tar.gz \
   --source-ref refs/tags/v0.1.0-alpha --deny-self-hosted-runners
 ```
 
-On macOS use `shasum -a 256 --ignore-missing -c checksums.txt`. The checksum
-binds the archive, the signature binds this repository's workflow and tag,
-and the attestation binds the build to that tag.
+On macOS use `shasum -a 256 --ignore-missing -c checksums.txt`. The signature
+and the attestation bind the checksummed archive to the workflow and tag.
 
 ## Checking the image
 
-Anyone with write access to the repository or package can overwrite a
-registry tag or release notes. Take the digest from the notes and check it
-with cosign v3 or later. The signature covers the index, not each platform's
-image. For `vX.Y.Z`:
+A writer can overwrite a registry tag or the notes. Check the notes' digest
+with cosign v3 or later; it signs the index, not each platform's image. For
+`vX.Y.Z`:
 
 ```sh
 tag=vX.Y.Z

@@ -121,11 +121,14 @@ what it may depend on and how the gate runs it.
 - **Releases.** The module's version equals the newest dated section of
   `CHANGELOG.md`, a preview suffix written as Python spells it; the release
   commit sets it and refreshes the lock. The release workflow builds the wheel
-  and the source archive from the tag and, once the release is published,
-  uploads them to the public package index through trusted publishing, with
-  no stored token; its dry run rehearses the upload against the test index.
-  That step is added in a change of its own, before the first release that
-  carries the module. Between releases the tree names the last release.
+  and the source archive from the tag, through `scripts/build-python-dist.sh`
+  as the gate does, before anything is drafted, and attests them. Once the
+  release is published, a job of its own in the release environment, which a
+  maintainer approves, verifies their provenance and uploads them to the
+  public package index through trusted publishing, with no stored token, then
+  reads the index back. Run again alone, it skips what the index holds. The
+  dry run uploads a development release to the test index the same way.
+  Between releases the tree names the last release.
 - **Review.** `clients/` is not a two-approval path, since nothing in it
   decides, except the files at the top of the client's project: its project
   file, lock and build constraints and the two programs the gate runs, which
@@ -210,7 +213,6 @@ files. A second client language has a place and a pattern.
   on a declared requirement, a missing licence or a version that is not the
   release's. Tests of the two programs hold both, and the runner requires
   those tests to have run.
-
-Planned, with the change that adds the upload: the release workflow's dry run
-builds both files, checks them and uploads a snapshot version to the test
-index.
+- The release workflow's dry run builds both files as a development
+  release, checks, attests and uploads them to the test index, and reads
+  them back.
