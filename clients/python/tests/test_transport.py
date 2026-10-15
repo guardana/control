@@ -101,6 +101,10 @@ class Transport(unittest.TestCase):
             ("one chunk", chunked(EXECUTE)),
             ("a chunk a byte", chunked(*(bytes([byte]) for byte in EXECUTE))),
             ("an extension, upper-case digits and a trailer", extended),
+            (
+                "beside a length that chunked overrides",
+                chunked(EXECUTE).replace(b"\r\n\r\n", b"\r\nContent-Length: 3\r\n\r\n", 1),
+            ),
         ):
             with self.subTest(answer=name):
                 client = self.raw(writing(answer, chunked(RECORDED[:5], RECORDED[5:])))
@@ -304,6 +308,14 @@ class Transport(unittest.TestCase):
             (
                 "a chunk with no size",
                 b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\n" + EXECUTE,
+            ),
+            (
+                "a chunked answer beside a length that is no number",
+                chunked(EXECUTE).replace(b"\r\n\r\n", b"\r\nContent-Length: nonsense\r\n\r\n", 1),
+            ),
+            (
+                "a chunked answer beside a negative length",
+                chunked(EXECUTE).replace(b"\r\n\r\n", b"\r\nContent-Length: -1\r\n\r\n", 1),
             ),
         ):
             with self.subTest(answer=name):

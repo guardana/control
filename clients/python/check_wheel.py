@@ -7,7 +7,7 @@
 ``files`` inspects one wheel and one source archive: no declared requirement,
 the licence the repository holds, the version given or else that of the
 newest dated section of the changelog, in the wheel and in the source
-archive's name, and exactly the module's own files.
+archive's name, and exactly the module's own files in both.
 ``import`` runs under an interpreter the wheel was installed for and imports
 the client from there. ``spell`` prints a release tag's version as Python
 spells it.
@@ -87,7 +87,8 @@ def check_files(
         head = metadata.split("\n\n", 1)[0].splitlines()
         if f"Version: {want}" not in head:
             problems.append(f"the wheel's version is not {want}")
-        required = [line for line in head if line.startswith("Requires-Dist:")]
+        # A header's name is matched without regard to case, as installers read it.
+        required = [line for line in head if line.lower().startswith("requires-dist:")]
         if required:
             problems.append(f"the wheel declares a requirement: {required[0]}")
         if f"{info}/licenses/LICENSE" not in names:
@@ -106,27 +107,50 @@ def check_files(
         if described != _DESCRIBED:
             problems.append(f"the wheel describes itself with other files: {sorted(described)}")
 
-    problems += _archive_problems(dist, f"{name}-{want}")
+    problems += _archive_problems(dist, f"{name}-{want}", licence.read_bytes())
     if (HERE / "LICENSE").read_bytes() != licence.read_bytes():
         problems.append("clients/python/LICENSE is not the repository's LICENSE")
     return problems
 
 
-def _archive_problems(dist: Path, stem: str) -> list[str]:
+def _archive_problems(dist: Path, stem: str, licence: bytes) -> list[str]:
     problems: list[str] = []
     archive = _one(dist, "*.tar.gz")
     if archive.name != f"{stem}.tar.gz":
         problems.append(f"the source archive is not named {stem}.tar.gz")
     with tarfile.open(archive) as sdist:
-        entries = [m.name for m in sdist.getmembers()]
-    if {e.split("/", 1)[0] for e in entries} != {stem}:
-        problems.append(f"the source archive's files are not all under {stem}/")
-    members = {e.split("/", 1)[1] for e in entries if "/" in e}
-    if "LICENSE" not in members:
+        entries = sdist.getmembers()
+        names = [e.name for e in entries]
+        if {n.split("/", 1)[0] for n in names} != {stem}:
+            problems.append(f"the source archive's files are not all under {stem}/")
+        if len(set(names)) != len(names):
+            problems.append("the source archive names a file twice")
+        if any(not (e.isfile() or e.isdir()) for e in entries):
+            problems.append("the source archive holds a link or a special file")
+        files = {e.name.split("/", 1)[1]: e for e in entries if e.isfile() and "/" in e.name}
+        read = [n for n in files if n == "LICENSE" or n.startswith("src/")]
+        content = {n: _read(sdist, files[n]) for n in read}
+    if "LICENSE" not in files:
         problems.append("the source archive carries no licence")
-    if any(m.startswith("tests/") for m in members):
+    elif content["LICENSE"] != licence:
+        problems.append("the source archive's licence is not the repository's")
+    if "pyproject.toml" not in files:
+        problems.append("the source archive carries no project file")
+    if any(n.startswith("tests/") for n in files):
         problems.append("the source archive carries the tests")
+    own = {"src/" + n for n in _own_files()}
+    held = {n for n in files if n.startswith("src/")}
+    if held != own:
+        problems.append(f"the source archive's sources differ from src/: {sorted(held ^ own)}")
+    changed = sorted(n for n in held & own if content[n] != (HERE / n).read_bytes())
+    if changed:
+        problems.append(f"the source archive's sources do not hold what src/ holds: {changed}")
     return problems
+
+
+def _read(archive: tarfile.TarFile, entry: tarfile.TarInfo) -> bytes:
+    data = archive.extractfile(entry)
+    return data.read() if data is not None else b""
 
 
 def check_import() -> list[str]:

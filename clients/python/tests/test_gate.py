@@ -60,17 +60,37 @@ def _wheel(directory: Path, shape: Shape = Shape()) -> None:  # noqa: B008
             archive.writestr(name, data)
 
 
-def _sdist(
-    directory: Path,
-    *,
-    version: str = VERSION,
-    top: str = "",
-    names: tuple[str, ...] = ("LICENSE", "pyproject.toml"),
-) -> None:
-    with tarfile.open(directory / f"{DIST}-{version}.tar.gz", "w:gz") as archive:
-        for name in names:
-            member = tarfile.TarInfo(f"{top or f'{DIST}-{version}'}/{name}")
-            archive.addfile(member, io.BytesIO(b""))
+@dataclass(frozen=True)
+class Archive:
+    """One hand-made source archive: the names given, and src/ as the project holds it."""
+
+    version: str = VERSION
+    top: str = ""
+    names: tuple[str, ...] = ("LICENSE", "pyproject.toml")
+    licence: bytes = b""
+    without: tuple[str, ...] = ()
+    altered: tuple[str, ...] = ()
+    link: str = ""
+    twice: str = ""
+
+
+def _sdist(directory: Path, shape: Archive = Archive()) -> None:  # noqa: B008
+    src = PROJECT / "src"
+    licence = shape.licence or LICENCE.read_bytes()
+    members = {n: licence if n == "LICENSE" else b"" for n in shape.names}
+    members |= {f"src/{n}": (src / n).read_bytes() for n in _module_files()}
+    members = {n: data for n, data in members.items() if n not in shape.without}
+    members |= {name: b"something else\n" for name in shape.altered}
+    stem = shape.top or f"{DIST}-{shape.version}"
+    with tarfile.open(directory / f"{DIST}-{shape.version}.tar.gz", "w:gz") as archive:
+        for name in [*members, *([shape.twice] if shape.twice else [])]:
+            member = tarfile.TarInfo(f"{stem}/{name}")
+            member.size = len(members[name])
+            archive.addfile(member, io.BytesIO(members[name]))
+        if shape.link:
+            member = tarfile.TarInfo(f"{stem}/{shape.link}")
+            member.type, member.linkname = tarfile.SYMTYPE, "/etc/passwd"
+            archive.addfile(member)
 
 
 class Runner(unittest.TestCase):
@@ -152,9 +172,14 @@ class Runner(unittest.TestCase):
     def test_a_test_whose_body_never_runs_is_a_problem(self) -> None:
         source = (
             "import unittest\n\n\n"
+            "def wrapped(f):\n"
+            "    def call(self):\n        return f(self)\n\n"
+            "    return call\n\n\n"
             "class T(unittest.TestCase):\n"
             "    async def test_awaited(self):\n        self.fail('never reached')\n\n"
             "    def test_yielded(self):\n        yield\n        self.fail('never reached')\n\n"
+            "    @wrapped\n"
+            "    async def test_wrapped(self):\n        self.fail('never reached')\n\n"
             "    def test_plain(self):\n        pass\n"
         )
         with tempfile.TemporaryDirectory() as top:
@@ -169,10 +194,14 @@ class Runner(unittest.TestCase):
             self.fail("the run came back as cut short")
         self.assertEqual(
             sorted(finished.bodiless),
-            ["bodiless.test_it.T.test_awaited", "bodiless.test_it.T.test_yielded"],
+            [
+                "bodiless.test_it.T.test_awaited",
+                "bodiless.test_it.T.test_wrapped",
+                "bodiless.test_it.T.test_yielded",
+            ],
         )
         problems = run_tests.judge(finished, [])
-        self.assertTrue(any("2 test(s) whose body never runs" in p for p in problems), problems)
+        self.assertTrue(any("3 test(s) whose body never runs" in p for p in problems), problems)
 
     def test_the_report_follows_the_judgement(self) -> None:
         out, err = io.StringIO(), io.StringIO()
@@ -237,6 +266,10 @@ class Wheel(unittest.TestCase):
                 Shape(requires="Requires-Dist: other-thing>=2"),
                 "declares a requirement",
             ),
+            "a requirement in lower case": (
+                Shape(requires="requires-dist: anything"),
+                "declares a requirement",
+            ),
             "a version stated otherwise inside": (Shape(stated="9.9.9"), "version is not 1.2.3"),
             "no licence": (Shape(licence=None), "carries no licence"),
             "another licence": (Shape(licence=b"other terms"), "licence is not the repository's"),
@@ -254,30 +287,38 @@ class Wheel(unittest.TestCase):
                 _wheel(self.dist, shape)
                 _sdist(self.dist)
                 self.assertTrue(any(want in p for p in self._problems()), self._problems())
-        archives: dict[str, tuple[tuple[str, ...], str]] = {
-            "the tests": (("LICENSE", "tests/test_x.py"), "carries the tests"),
-            "no licence": (("pyproject.toml",), "source archive carries no licence"),
+        first_src = f"src/{first}"
+        archives: dict[str, tuple[Archive, str]] = {
+            "the tests": (Archive(names=("LICENSE", "tests/test_x.py")), "carries the tests"),
+            "no licence": (Archive(names=("pyproject.toml",)), "source archive carries no licence"),
+            "another licence": (Archive(licence=b"other terms\n"), "archive's licence is not the"),
+            "no project file": (Archive(names=("LICENSE",)), "carries no project file"),
+            "a source missing": (Archive(without=(first_src,)), "sources differ from src/"),
+            "a source more": (Archive(altered=("src/extra.py",)), "sources differ from src/"),
+            "a source altered": (Archive(altered=(first_src,)), "sources do not hold what src/"),
+            "a file named twice": (Archive(twice="LICENSE"), "names a file twice"),
+            "a link": (Archive(link="src/link.py"), "holds a link or a special file"),
         }
-        for name, (names, want) in archives.items():
+        for name, (archive, want) in archives.items():
             with self.subTest(f"a source archive with {name}"):
                 for old in self.dist.iterdir():
                     old.unlink()
                 _wheel(self.dist)
-                _sdist(self.dist, names=names)
+                _sdist(self.dist, archive)
                 self.assertTrue(any(want in p for p in self._problems()), self._problems())
 
     def test_a_project_licence_that_is_not_the_repositorys_is_refused(self) -> None:
         other = self.dist.parent / "LICENSE"
         other.write_bytes(b"other terms\n")
         _wheel(self.dist, Shape(licence=b"other terms\n"))
-        _sdist(self.dist)
+        _sdist(self.dist, Archive(licence=b"other terms\n"))
         problems = check_wheel.check_files(self.dist, other, self.changelog)
         self.assertEqual(problems, ["clients/python/LICENSE is not the repository's LICENSE"])
 
     def test_a_version_given_is_the_one_the_files_must_carry(self) -> None:
         snapshot = "1.2.3.dev42"
         _wheel(self.dist, Shape(version=snapshot))
-        _sdist(self.dist, version=snapshot)
+        _sdist(self.dist, Archive(version=snapshot))
         given = check_wheel.check_files(self.dist, LICENCE, self.changelog, snapshot)
         self.assertEqual(given, [])
         self.assertTrue(any("its version is not 1.2.3" in p for p in self._problems()))
@@ -294,7 +335,7 @@ class Wheel(unittest.TestCase):
                 for old in self.dist.iterdir():
                     old.unlink()
                 _wheel(self.dist)
-                _sdist(self.dist, version=version, top=top)
+                _sdist(self.dist, Archive(version=version, top=top))
                 problems = self._problems()
                 self.assertTrue(any(want in p for p in problems), problems)
 

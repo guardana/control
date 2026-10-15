@@ -124,6 +124,11 @@ def _answer(stream: _Stream, limit: int) -> tuple[int, bytes]:
     if code < _FIRST_FINAL_STATUS or code in _NO_BODY:
         raise ValueError(f"status {code} carries no answer")
     headers = _headers(stream)
+    # Go's client refuses a malformed length even beside chunked, which then
+    # decides the framing.
+    length = headers.get("content-length")
+    if length is not None and not _NUMBER.fullmatch(length.encode("latin-1")):
+        raise ValueError("a length that is no number")
     coding = headers.get("transfer-encoding")
     if coding is not None:
         if status.group(1) == b"0":
@@ -131,11 +136,8 @@ def _answer(stream: _Stream, limit: int) -> tuple[int, bytes]:
         if coding.lower() != "chunked":
             raise ValueError("a transfer coding other than chunked")
         return code, _chunked(stream, limit)
-    length = headers.get("content-length")
     if length is None:
         return code, stream.rest(limit)
-    if not _NUMBER.fullmatch(length.encode("latin-1")):
-        raise ValueError("a length that is no number")
     return code, stream.exactly(min(int(length), limit))
 
 
