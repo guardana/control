@@ -58,6 +58,10 @@ verify one.
   connection to it is refused. A timeout, a full backlog or a permission
   error refuses the start with `ErrSocketInUse` and leaves the socket of a
   receiver that may still be live.
+- `supervise` reports `DEADLINE_EXCEEDED` not checked when an event of the
+  run has no time and the timed events stay within `deadline_seconds`; it
+  was reported checked on a span that may have been longer. A breach on the
+  timed events still fires.
 
 ## [0.11.0] - 2026-10-12
 
