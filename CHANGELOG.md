@@ -52,6 +52,13 @@ verify one.
   none. A `main` the remote does not hold yet counts every commit. The hook
   has a negative control, `make pre-push-probe`, in `make quality`.
 
+### Fixed
+
+- The enforcement receiver removes a socket left at its path only when a
+  connection to it is refused. A timeout, a full backlog or a permission
+  error refuses the start with `ErrSocketInUse` and leaves the socket of a
+  receiver that may still be live.
+
 ## [0.11.0] - 2026-10-12
 
 A tool outside MCP can now ask for a decision before it acts and report how
