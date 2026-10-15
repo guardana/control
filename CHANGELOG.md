@@ -71,6 +71,9 @@ verify one.
   `state.json` is now `1.1` and keeps each ended request's mode; a `1.0`
   state is still read, and an annotation after the end of a request it holds
   is unknown, since its mode was not kept.
+- The gateway's configuration reader keeps a double-quoted value whole when
+  it holds an escaped quote: `"a\" #b"` was cut at the `#` as a comment and
+  the file refused.
 
 ## [0.11.0] - 2026-10-12
 

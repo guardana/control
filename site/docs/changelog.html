@@ -176,6 +176,9 @@ report does: an undeclared or other mode is <code>lifecycle_unknown</code>. Its
 <code>state.json</code> is now <code>1.1</code> and keeps each ended request's mode; a <code>1.0</code>
 state is still read, and an annotation after the end of a request it holds
 is unknown, since its mode was not kept.</li>
+<li>The gateway's configuration reader keeps a double-quoted value whole when
+it holds an escaped quote: <code>&quot;a\&quot; #b&quot;</code> was cut at the <code>#</code> as a comment and
+the file refused.</li>
 </ul>
 <h2 id="0110---2026-10-12"><a href="https://github.com/guardana/control/releases/tag/v0.11.0">0.11.0</a> - 2026-10-12</h2>
 <p>A tool outside MCP can now ask for a decision before it acts and report how
