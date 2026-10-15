@@ -98,11 +98,11 @@ func ownSocket(path string) error {
 }
 
 // clearStale removes a socket of this user that refuses a connection, which a
-// plane that ended without closing its listener leaves behind. Only a refusal
-// proves nothing listens: a timeout, a full backlog, a permission error or
-// exhausted resources can come from a live receiver, so any other dial error
-// leaves the path and refuses with ErrSocketInUse, as does anything else at
-// the path.
+// plane that ended without closing its listener leaves behind. A timeout, a
+// full backlog on Linux, a permission error or exhausted resources can come
+// from a live receiver, so any other dial error leaves the path and refuses
+// with ErrSocketInUse, as does anything else at the path. On macOS a live
+// receiver whose backlog is full refuses too, so there a refusal is no proof.
 func clearStale(path string) error {
 	info, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {

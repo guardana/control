@@ -55,13 +55,16 @@ verify one.
 ### Fixed
 
 - The enforcement receiver removes a socket left at its path only when a
-  connection to it is refused. A timeout, a full backlog or a permission
-  error refuses the start with `ErrSocketInUse` and leaves the socket of a
-  receiver that may still be live.
+  connection to it is refused. A timeout, a full backlog on Linux or a
+  permission error refuses the start with `ErrSocketInUse` and leaves the
+  socket of a receiver that may still be live. On macOS a live receiver
+  whose backlog is full refuses connections too, so a second plane started
+  then can still take its path.
 - `supervise` reports `DEADLINE_EXCEEDED` not checked when an event of the
   run has no time and the timed events stay within `deadline_seconds`; it
   was reported checked on a span that may have been longer. A breach on the
-  timed events still fires.
+  timed events still fires; under a 0.2 procedure the rule is then checked
+  for the tree, and a run whose events have no time gets no finding.
 - `react` reads the clock for each stop it writes. A pass that ran longer
   than a rule's lifetime wrote a stop that had already expired, counted the
   finding as stopped, and never stopped the run for it again.
