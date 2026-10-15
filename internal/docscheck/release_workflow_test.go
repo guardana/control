@@ -3,6 +3,7 @@ package docscheck
 import (
 	"fmt"
 	"maps"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -14,16 +15,17 @@ const releaseWorkflowPath = ".github/workflows/release.yml"
 var releaseEnvironments = map[string]string{"release": "release", "index": "pypi", "test-index": "testpypi"}
 
 // releaseJobEnvironments maps each job of a workflow that names an
-// environment to it; a mapping without a name maps to "?". An anchor, an
-// alias or a merge key is refused: a job copied from another would carry its
-// environment past this reading.
+// environment to it; a mapping without a name maps to "?". What this reader
+// would take for something else is refused: a quoted or decorated key, a flow
+// mapping, a tag, an anchor, an alias or a merge key, any of which could
+// carry an environment past it.
 func releaseJobEnvironments(lines []string) (map[string]string, error) {
 	root, err := parseBlockYAML(lines)
 	if err != nil {
 		return nil, err
 	}
-	if n := aliased(root); n != nil {
-		return nil, fmt.Errorf("line %d: an anchor, an alias or a merge key", n.line+1)
+	if n := unread(root); n != nil {
+		return nil, fmt.Errorf("line %d: %q: %q is more YAML than this reader reads", n.line+1, n.key, n.value)
 	}
 	got := map[string]string{}
 	jobs := root.children("jobs")
@@ -45,12 +47,14 @@ func releaseJobEnvironments(lines []string) (map[string]string, error) {
 	return got, nil
 }
 
-func aliased(n *yamlNode) *yamlNode {
-	if n.key == "<<" || strings.HasPrefix(n.value, "&") || strings.HasPrefix(n.value, "*") {
+var plainKey = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+func unread(n *yamlNode) *yamlNode {
+	if (n.key != "" && n.key != "-" && !plainKey.MatchString(n.key)) || strings.ContainsAny(n.value[:min(len(n.value), 1)], "{!&*") {
 		return n
 	}
 	for _, kid := range n.kids {
-		if found := aliased(kid); found != nil {
+		if found := unread(kid); found != nil {
 			return found
 		}
 	}
@@ -90,6 +94,10 @@ jobs:
 		"a job copied by an alias":              {"  index:\n", "  copy: *upload\n  index:\n"},
 		"a job that anchors itself":             {"  index:\n", "  index: &upload\n"},
 		"a merge key":                           {"    runs-on: ubuntu-24.04\n", "    <<: *upload\n"},
+		"a flow mapping":                        {"  snapshot:\n    runs-on: ubuntu-24.04\n", "  snapshot: {environment: pypi}\n"},
+		"a quoted key":                          {"    runs-on: ubuntu-24.04\n", "    \"environment\": pypi\n"},
+		"an anchor on a key":                    {"    runs-on: ubuntu-24.04\n", "    &e environment: pypi\n"},
+		"a tagged anchor":                       {"  index:\n", "  index: !!map &upload\n"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			changed := strings.Replace(workflow, change[0], change[1], 1)
