@@ -62,25 +62,42 @@ def _wheel(directory: Path, shape: Shape = Shape()) -> None:  # noqa: B008
 
 @dataclass(frozen=True)
 class Archive:
-    """One hand-made source archive: the names given, and src/ as the project holds it."""
+    """One hand-made source archive, as a build of the project writes it unless told otherwise."""
 
     version: str = VERSION
     top: str = ""
-    names: tuple[str, ...] = ("LICENSE", "pyproject.toml")
     licence: bytes = b""
     without: tuple[str, ...] = ()
     altered: tuple[str, ...] = ()
+    raw: tuple[str, ...] = ()
     link: str = ""
     twice: str = ""
+    metadata: str = ""
 
 
-def _sdist(directory: Path, shape: Archive = Archive()) -> None:  # noqa: B008
+def _archived(shape: Archive) -> dict[str, bytes]:
+    project = (PROJECT / "pyproject.toml").read_text(encoding="utf-8").split("\n")
+    versioned = [
+        f'version = "{shape.version}"' if line.startswith('version = "') else line
+        for line in project
+    ]
+    head = f"Metadata-Version: 2.5\nName: guardana-control\nVersion: {shape.version}\n"
+    members = {
+        "LICENSE": shape.licence or LICENCE.read_bytes(),
+        "README.md": (PROJECT / "README.md").read_bytes(),
+        "pyproject.toml": "\n".join(versioned).encode(),
+        "PKG-INFO": f"{head}{shape.metadata}\n\ntext\n".encode(),
+    }
     src = PROJECT / "src"
-    licence = shape.licence or LICENCE.read_bytes()
-    members = {n: licence if n == "LICENSE" else b"" for n in shape.names}
     members |= {f"src/{n}": (src / n).read_bytes() for n in _module_files()}
     members = {n: data for n, data in members.items() if n not in shape.without}
     members |= {name: b"something else\n" for name in shape.altered}
+    members |= {name: b"x\n" for name in shape.raw}
+    return members
+
+
+def _sdist(directory: Path, shape: Archive = Archive()) -> None:  # noqa: B008
+    members = _archived(shape)
     stem = shape.top or f"{DIST}-{shape.version}"
     with tarfile.open(directory / f"{DIST}-{shape.version}.tar.gz", "w:gz") as archive:
         for name in [*members, *([shape.twice] if shape.twice else [])]:
@@ -175,11 +192,16 @@ class Runner(unittest.TestCase):
             "def wrapped(f):\n"
             "    def call(self):\n        return f(self)\n\n"
             "    return call\n\n\n"
+            "def dropped(f):\n"
+            "    def call(self):\n        f(self)\n\n"
+            "    return call\n\n\n"
             "class T(unittest.TestCase):\n"
             "    async def test_awaited(self):\n        self.fail('never reached')\n\n"
             "    def test_yielded(self):\n        yield\n        self.fail('never reached')\n\n"
             "    @wrapped\n"
             "    async def test_wrapped(self):\n        self.fail('never reached')\n\n"
+            "    @dropped\n"
+            "    async def test_dropped(self):\n        self.fail('never reached')\n\n"
             "    def test_plain(self):\n        pass\n"
         )
         with tempfile.TemporaryDirectory() as top:
@@ -196,12 +218,13 @@ class Runner(unittest.TestCase):
             sorted(finished.bodiless),
             [
                 "bodiless.test_it.T.test_awaited",
+                "bodiless.test_it.T.test_dropped",
                 "bodiless.test_it.T.test_wrapped",
                 "bodiless.test_it.T.test_yielded",
             ],
         )
         problems = run_tests.judge(finished, [])
-        self.assertTrue(any("3 test(s) whose body never runs" in p for p in problems), problems)
+        self.assertTrue(any("4 test(s) whose body never runs" in p for p in problems), problems)
 
     def test_the_report_follows_the_judgement(self) -> None:
         out, err = io.StringIO(), io.StringIO()
@@ -289,15 +312,27 @@ class Wheel(unittest.TestCase):
                 self.assertTrue(any(want in p for p in self._problems()), self._problems())
         first_src = f"src/{first}"
         archives: dict[str, tuple[Archive, str]] = {
-            "the tests": (Archive(names=("LICENSE", "tests/test_x.py")), "carries the tests"),
-            "no licence": (Archive(names=("pyproject.toml",)), "source archive carries no licence"),
-            "another licence": (Archive(licence=b"other terms\n"), "archive's licence is not the"),
-            "no project file": (Archive(names=("LICENSE",)), "carries no project file"),
-            "a source missing": (Archive(without=(first_src,)), "sources differ from src/"),
-            "a source more": (Archive(altered=("src/extra.py",)), "sources differ from src/"),
-            "a source altered": (Archive(altered=(first_src,)), "sources do not hold what src/"),
+            "the tests": (Archive(raw=("tests/test_x.py",)), "carries the tests"),
+            "no licence": (Archive(without=("LICENSE",)), "source archive carries no licence"),
+            "another licence": (Archive(licence=b"other terms\n"), "do not hold what the project"),
+            "no project file": (Archive(without=("pyproject.toml",)), "differ from the project's"),
+            "another project file": (Archive(altered=("pyproject.toml",)), "do not hold what"),
+            "another readme": (Archive(altered=("README.md",)), "do not hold what the project"),
+            "a source missing": (Archive(without=(first_src,)), "differ from the project's"),
+            "a source more": (Archive(raw=("src/extra.py",)), "differ from the project's"),
+            "a file more": (Archive(raw=("setup.py",)), "differ from the project's"),
+            "a source altered": (Archive(altered=(first_src,)), "do not hold what the project"),
             "a file named twice": (Archive(twice="LICENSE"), "names a file twice"),
-            "a link": (Archive(link="src/link.py"), "holds a link or a special file"),
+            "a source in another case": (Archive(raw=(f"SRC/{first}",)), "names a file twice"),
+            "a dotted name": (Archive(raw=(f"./{first_src}",)), "not plain"),
+            "a name above the top": (Archive(raw=("../outside.txt",)), "not plain"),
+            "a doubled slash": (Archive(raw=(f"src//{first}",)), "not plain"),
+            "a link": (Archive(link="src/link.py"), "holds a link"),
+            "metadata of another version": (Archive(altered=("PKG-INFO",)), "not of version"),
+            "a requirement": (
+                Archive(metadata="requires-dist: anything"),
+                "declares a requirement",
+            ),
         }
         for name, (archive, want) in archives.items():
             with self.subTest(f"a source archive with {name}"):
