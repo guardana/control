@@ -65,6 +65,12 @@ verify one.
 - `react` reads the clock for each stop it writes. A pass that ran longer
   than a rule's lifetime wrote a stop that had already expired, counted the
   finding as stopped, and never stopped the run for it again.
+- `examples/evidence-report -state` holds a finding or a policy reload linked
+  after a request's end to the request's enforcement mode, as the one-shot
+  report does: an undeclared or other mode is `lifecycle_unknown`. Its
+  `state.json` is now `1.1` and keeps each ended request's mode; a `1.0`
+  state is still read, and an annotation after the end of a request it holds
+  is unknown, since its mode was not kept.
 
 ## [0.11.0] - 2026-10-12
 
