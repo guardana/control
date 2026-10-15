@@ -16,6 +16,9 @@ spells it.
 from __future__ import annotations
 
 import argparse
+import email.parser
+import email.policy
+import gzip
 import importlib
 import posixpath
 import re
@@ -87,14 +90,7 @@ def check_files(
         names = set(wheel.namelist())
         if f"{info}/METADATA" not in names:
             return [f"the wheel holds no {info}/METADATA: its version is not {want}"]
-        metadata = wheel.read(f"{info}/METADATA").decode("utf-8")
-        head = metadata.split("\n\n", 1)[0].splitlines()
-        if f"Version: {want}" not in head:
-            problems.append(f"the wheel's version is not {want}")
-        # A header's name is matched without regard to case, as installers read it.
-        required = [line for line in head if line.lower().startswith("requires-dist:")]
-        if required:
-            problems.append(f"the wheel declares a requirement: {required[0]}")
+        problems += _metadata_problems("the wheel", wheel.read(f"{info}/METADATA"), want)
         if f"{info}/licenses/LICENSE" not in names:
             problems.append("the wheel carries no licence")
         elif wheel.read(f"{info}/licenses/LICENSE") != licence.read_bytes():
@@ -126,6 +122,16 @@ def _archive_problems(dist: Path, stem: str, want: str, licence: bytes) -> list[
     )
     with tarfile.open(archive) as sdist:
         files, found = _archive_files(sdist, stem)
+        end = sdist.offset
+    # tarfile stops at a header it cannot read, where another extractor skips
+    # on to the files behind it.
+    try:
+        with gzip.open(archive) as raw:
+            raw.seek(end)
+            if raw.read().strip(b"\0"):
+                found.append("the source archive holds bytes after its last file")
+    except OSError as exc:
+        found.append(f"the source archive is no gzip stream: {exc}")
     problems += found
     if any(n.startswith("tests/") for n in files):
         problems.append("the source archive carries the tests")
@@ -142,11 +148,23 @@ def _archive_problems(dist: Path, stem: str, want: str, licence: bytes) -> list[
     changed = sorted(n for n in set(files) & set(expected) if files[n] != expected[n])
     if changed:
         problems.append(f"the source archive's files do not hold what the project holds: {changed}")
-    head = files.get("PKG-INFO", b"").decode("utf-8", "replace").split("\n\n", 1)[0].splitlines()
-    if f"Version: {want}" not in head:
-        problems.append(f"the source archive's metadata is not of version {want}")
-    if any(line.lower().startswith("requires-dist:") for line in head):
-        problems.append("the source archive declares a requirement")
+    problems += _metadata_problems("the source archive", files.get("PKG-INFO", b""), want)
+    return problems
+
+
+def _metadata_problems(what: str, metadata: bytes, want: str) -> list[str]:
+    """Read as installers read it: header names without case, the first of a repeated one."""
+    headers = email.parser.BytesParser(policy=email.policy.compat32).parsebytes(
+        metadata, headersonly=True
+    )
+    problems = []
+    if headers.get_all("Version") != [want]:
+        problems.append(f"{what}'s version is not {want}: {headers.get_all('Version')}")
+    if headers.get_all("Name") != [PROJECT["project"]["name"]]:
+        problems.append(f"{what} names another project: {headers.get_all('Name')}")
+    required = headers.get_all("Requires-Dist")
+    if required:
+        problems.append(f"{what} declares a requirement: {required[0]}")
     return problems
 
 

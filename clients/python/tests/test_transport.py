@@ -342,6 +342,16 @@ class Transport(unittest.TestCase):
                 forty_byte_chunks(line=120),
             ),
             (
+                "a trailer named to carry the length",
+                chunked(EXECUTE).replace(b"\r\n\r\n", b"\r\nTrailer: Content-Length\r\n\r\n", 1),
+            ),
+            (
+                "a second trailer line naming the coding",
+                chunked(EXECUTE).replace(
+                    b"\r\n\r\n", b"\r\nTrailer: X-A\r\nTrailer: x-b, transfer-encoding\r\n\r\n", 1
+                ),
+            ),
+            (
                 "a chunked answer beside a length that is no number",
                 chunked(EXECUTE).replace(b"\r\n\r\n", b"\r\nContent-Length: nonsense\r\n\r\n", 1),
             ),
@@ -503,6 +513,10 @@ class Transport(unittest.TestCase):
                 CHUNKED + b"5f;pad=" + b"p" * 200 + b"\r\n" + EXECUTE + b"\r\n0\r\n\r\n",
             ),
             ("chunk extensions that 40-byte chunks of data outweigh", forty_byte_chunks(line=90)),
+            (
+                "a trailer named for another header",
+                chunked(EXECUTE).replace(b"\r\n\r\n", b"\r\nTrailer: X-Checksum\r\n\r\n", 1),
+            ),
             (
                 "a trailer within 4 KiB",
                 CHUNKED + b"5f\r\n" + EXECUTE + b"\r\n0\r\nX-Pad: " + b"p" * 4000 + b"\r\n\r\n",

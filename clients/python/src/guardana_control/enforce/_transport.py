@@ -97,6 +97,9 @@ def _headers(stream: _Stream, budget: int) -> dict[str, str]:
         text = value.decode("latin-1").strip(" \t")
         if key == "transfer-encoding" and key in headers:
             raise ValueError("two transfer codings for one answer")
+        if key == "trailer" and key in headers:
+            headers[key] += "," + text
+            continue
         if headers.setdefault(key, text) != text and key == "content-length":
             raise ValueError("two lengths for one answer")
     return headers
@@ -146,6 +149,9 @@ def _answer(stream: _Stream, limit: int) -> tuple[int, bytes]:
             raise ValueError("a transfer coding under HTTP/1.0")
         if coding.lower() != "chunked":
             raise ValueError("a transfer coding other than chunked")
+        named = {f.strip(" \t").lower() for f in headers.get("trailer", "").split(",")}
+        if named & {"transfer-encoding", "trailer", "content-length"}:
+            raise ValueError("a trailer named to carry the answer's own framing")
         return code, _chunked(stream, limit)
     if length is None:
         return code, stream.rest(limit)

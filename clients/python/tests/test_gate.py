@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import contextlib
+import gzip
 import io
 import tarfile
 import tempfile
+import tomllib
 import unittest
 import warnings
 import zipfile
@@ -19,6 +21,7 @@ import run_tests
 PROJECT = Path(__file__).resolve().parent.parent
 LICENCE = PROJECT / "LICENSE"
 DIST = check_wheel.MODULE
+NAME = tomllib.loads((PROJECT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["name"]
 VERSION = "1.2.3"
 
 
@@ -43,7 +46,7 @@ class Shape:
 def _wheel(directory: Path, shape: Shape = Shape()) -> None:  # noqa: B008
     info = f"{DIST}-{shape.version}.dist-info"
     stated = shape.stated or shape.version
-    head = f"Metadata-Version: 2.4\nName: {DIST}\nVersion: {stated}\n{shape.requires}"
+    head = f"Metadata-Version: 2.4\nName: {NAME}\nVersion: {stated}\n{shape.requires}"
     src = PROJECT / "src"
     members = {n: (src / n).read_bytes() for n in _module_files() if n not in shape.without}
     members |= {name: b"something else\n" for name in shape.altered}
@@ -73,6 +76,7 @@ class Archive:
     link: str = ""
     twice: str = ""
     metadata: str = ""
+    tail: bytes = b""
 
 
 def _archived(shape: Archive) -> dict[str, bytes]:
@@ -81,7 +85,7 @@ def _archived(shape: Archive) -> dict[str, bytes]:
         f'version = "{shape.version}"' if line.startswith('version = "') else line
         for line in project
     ]
-    head = f"Metadata-Version: 2.5\nName: guardana-control\nVersion: {shape.version}\n"
+    head = f"Metadata-Version: 2.5\nName: {NAME}\nVersion: {shape.version}\n"
     members = {
         "LICENSE": shape.licence or LICENCE.read_bytes(),
         "README.md": (PROJECT / "README.md").read_bytes(),
@@ -96,10 +100,19 @@ def _archived(shape: Archive) -> dict[str, bytes]:
     return members
 
 
+def _hidden(stem_name: str) -> bytes:
+    """A block no reader takes for a header, then a project file another extractor finds."""
+    data = b"[build-system]\nbuild-backend = 'elsewhere'\n"
+    member = tarfile.TarInfo(f"{stem_name}-{VERSION}/pyproject.toml")
+    member.size = len(data)
+    return b"x" * 512 + member.tobuf() + data + bytes(-len(data) % 512)
+
+
 def _sdist(directory: Path, shape: Archive = Archive()) -> None:  # noqa: B008
     members = _archived(shape)
     stem = shape.top or f"{DIST}-{shape.version}"
-    with tarfile.open(directory / f"{DIST}-{shape.version}.tar.gz", "w:gz") as archive:
+    raw = io.BytesIO()
+    with tarfile.open(fileobj=raw, mode="w") as archive:
         for name in [*members, *([shape.twice] if shape.twice else [])]:
             member = tarfile.TarInfo(f"{stem}/{name}")
             member.size = len(members[name])
@@ -108,6 +121,11 @@ def _sdist(directory: Path, shape: Archive = Archive()) -> None:  # noqa: B008
             member = tarfile.TarInfo(f"{stem}/{shape.link}")
             member.type, member.linkname = tarfile.SYMTYPE, "/etc/passwd"
             archive.addfile(member)
+        end = archive.offset
+    data = raw.getvalue()
+    if shape.tail:
+        data = data[:end] + shape.tail + bytes(1024)
+    (directory / f"{DIST}-{shape.version}.tar.gz").write_bytes(gzip.compress(data))
 
 
 class Runner(unittest.TestCase):
@@ -226,6 +244,24 @@ class Runner(unittest.TestCase):
         problems = run_tests.judge(finished, [])
         self.assertTrue(any("4 test(s) whose body never runs" in p for p in problems), problems)
 
+    def test_a_warning_a_test_raises_meets_the_runs_filters(self) -> None:
+        source = (
+            "import unittest\nimport warnings\n\n\n"
+            "class T(unittest.TestCase):\n"
+            "    def test_loud(self):\n        warnings.warn('loud', UserWarning)\n"
+        )
+        with tempfile.TemporaryDirectory() as top:
+            tests = Path(top) / "loud"
+            tests.mkdir()
+            (tests / "__init__.py").write_text("")
+            (tests / "test_it.py").write_text(source)
+            with contextlib.redirect_stderr(io.StringIO()), warnings.catch_warnings():
+                warnings.simplefilter("error")
+                finished = run_tests.run(str(tests), top)
+        if finished is None:
+            self.fail("the run came back as cut short")
+        self.assertEqual((len(finished.errors), sorted(finished.bodiless)), (1, []))
+
     def test_the_report_follows_the_judgement(self) -> None:
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -328,11 +364,14 @@ class Wheel(unittest.TestCase):
             "a name above the top": (Archive(raw=("../outside.txt",)), "not plain"),
             "a doubled slash": (Archive(raw=(f"src//{first}",)), "not plain"),
             "a link": (Archive(link="src/link.py"), "holds a link"),
-            "metadata of another version": (Archive(altered=("PKG-INFO",)), "not of version"),
+            "metadata of another version": (Archive(altered=("PKG-INFO",)), "version is not 1.2.3"),
+            "a second version": (Archive(metadata="Version: 9.9.9"), "version is not 1.2.3"),
+            "another name": (Archive(metadata="name: other"), "names another project"),
             "a requirement": (
                 Archive(metadata="requires-dist: anything"),
                 "declares a requirement",
             ),
+            "a file behind a broken header": (Archive(tail=_hidden(DIST)), "bytes after its last"),
         }
         for name, (archive, want) in archives.items():
             with self.subTest(f"a source archive with {name}"):

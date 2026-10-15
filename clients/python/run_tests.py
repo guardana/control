@@ -158,7 +158,8 @@ class _Recording(unittest.TextTestResult):
                 if dropped.fullmatch(str(warning.message)):
                     self.bodiless.add(test_id)
                 else:
-                    warnings.showwarning(
+                    # Again, through the filters the run was started with.
+                    warnings.warn_explicit(
                         warning.message, warning.category, warning.filename, warning.lineno
                     )
             if returned is not None:
