@@ -592,6 +592,10 @@ jobs:
     needs: snapshot
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # The test index trusts an upload only from this workflow in the testpypi
+    # environment, which admits main alone: no other job, the snapshot's
+    # among them, can mint a token it takes.
+    environment: testpypi
     permissions:
       contents: read
       attestations: read # Verify the files: reads their provenance
