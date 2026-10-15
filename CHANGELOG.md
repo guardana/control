@@ -62,6 +62,9 @@ verify one.
   run has no time and the timed events stay within `deadline_seconds`; it
   was reported checked on a span that may have been longer. A breach on the
   timed events still fires.
+- `react` reads the clock for each stop it writes. A pass that ran longer
+  than a rule's lifetime wrote a stop that had already expired, counted the
+  finding as stopped, and never stopped the run for it again.
 
 ## [0.11.0] - 2026-10-12
 
