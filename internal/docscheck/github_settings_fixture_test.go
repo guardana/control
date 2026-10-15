@@ -145,7 +145,7 @@ func matchingAnswers(t *testing.T) answers {
 			"total_count": 1, "branch_policies": []any{map[string]any{"id": 5, "name": "v*", "type": "tag"}},
 		},
 		"repos/acme/demo/environments/testpypi": map[string]any{
-			"id": 6, "name": "testpypi", "can_admins_bypass": true,
+			"id": 6, "name": "testpypi", "can_admins_bypass": false,
 			"deployment_branch_policy": map[string]any{"protected_branches": false, "custom_branch_policies": true},
 			"protection_rules":         []any{map[string]any{"id": 1, "type": "branch_policy"}},
 		},

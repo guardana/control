@@ -129,6 +129,9 @@ func TestSettingsCheckReportsWhoElseHoldsAuthority(t *testing.T) {
 		"the test environment open to every branch": {func(_ *testing.T, a answers) {
 			a.object("repos/acme/demo/environments/testpypi")["deployment_branch_policy"] = nil
 		}, "environment testpypi", "deployment_branch_policy"},
+		"the test environment an admin bypasses": {func(_ *testing.T, a answers) {
+			a.object("repos/acme/demo/environments/testpypi")["can_admins_bypass"] = true
+		}, "environment testpypi", "can_admins_bypass"},
 		"the test environment on another branch": {func(_ *testing.T, a answers) {
 			env := a.object("repos/acme/demo/environments/testpypi/deployment-branch-policies")
 			env["branch_policies"].([]any)[0].(map[string]any)["name"] = "release/*"

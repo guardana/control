@@ -591,13 +591,13 @@ environment_tag_policy_json() {
 }
 
 # test_environment_json; the test index's environment: a job deploys to it
-# from its one branch policy only, and waits for nobody.
+# from its one branch policy only, the admin's too, and waits for nobody.
 test_environment_json() {
   cat <<JSON
 {
   "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true },
   "reviewers": [],
-  "can_admins_bypass": true
+  "can_admins_bypass": false
 }
 JSON
 }
