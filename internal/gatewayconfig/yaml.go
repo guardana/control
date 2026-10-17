@@ -225,6 +225,10 @@ func scalar(raw string) (string, error) {
 			// Kept as text, a tag or a single-quoted value would reach the
 			// configuration with its marks, as a tenant id no run matches.
 			return "", fmt.Errorf("tags and single quotes are not read here; quote a value with double quotes")
+		case strings.Contains(raw, `"`):
+			// stripComment took the quote for one that opens a scalar, so
+			// what follows a '#' may still be on the value.
+			return "", fmt.Errorf(`a double quote inside a plain value is not read here; quote the whole value and write the quote as \"`)
 		}
 		return raw, nil
 	}
