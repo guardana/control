@@ -11,6 +11,14 @@ verify one.
 
 ## [Unreleased]
 
+### Fixed
+
+- The enforcement receiver holds a lock on `<socket>.lock` beside its socket
+  for as long as it listens, and a second plane on the same socket is refused
+  while the lock is held. On macOS a live receiver with a full backlog refuses
+  connections, so a second plane could remove its socket and take its clients
+  ([ADR-0054](docs/adr/0054-the-enforcement-receiver-holds-a-lock-beside-its-socket.md)).
+
 ## [0.12.0] - 2026-10-16
 
 The `experimental` enforcement API gets an `experimental` Python client,
