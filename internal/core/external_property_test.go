@@ -118,8 +118,12 @@ func TestNeedIsSound(t *testing.T) {
 	needed, skipped := 0, 0
 	rapid.Check(t, func(rt *rapid.T) {
 		s := drawScenario(rt, cov)
-		snap := loadAt(rt, s.doc, s.loadedAt)
-		for _, c := range s.batch {
+		snaps := make([]*policy.Snapshot, len(s.bundles))
+		for j, b := range s.bundles {
+			snaps[j] = loadAt(rt, b.doc, s.loadedAt)
+		}
+		for i, c := range s.batch {
+			snap := snaps[s.bundleOf(i)]
 			first := decideWith(rt, s, c, core.External{}, snap)
 			for _, a := range answers() {
 				out := decideWith(rt, s, c, a.external, snap)
@@ -155,21 +159,14 @@ func TestTheAnswerNeverGrants(t *testing.T) {
 	lifted := 0
 	rapid.Check(t, func(rt *rapid.T) {
 		s := drawScenario(rt, cov)
-		kept := slices.DeleteFunc(slices.Clone(s.rules), func(r poolRule) bool {
-			return r.id == "veto-reads" || r.id == "veto-gold" || r.id == "veto-all"
-		})
-		var without []byte
-		switch {
-		case s.doc == nil:
-		case len(kept) == 0:
-			without = document(s.maxStale, neverRule)
-		default:
-			without = documentOf(s.maxStale, kept)
+		snaps, snapsWithout := make([]*policy.Snapshot, len(s.bundles)), make([]*policy.Snapshot, len(s.bundles))
+		for j, b := range s.bundles {
+			snaps[j] = loadAt(rt, b.doc, s.loadedAt)
+			snapsWithout[j] = loadAt(rt, withoutVetoes(s.maxStale, b), s.loadedAt)
 		}
-		snap, snapWithout := loadAt(rt, s.doc, s.loadedAt), loadAt(rt, without, s.loadedAt)
-		for _, c := range s.batch {
-			allowed := decideWith(rt, s, c, core.ExternalAllowed(), snap)
-			bare := decideWith(rt, s, c, core.External{}, snapWithout)
+		for i, c := range s.batch {
+			allowed := decideWith(rt, s, c, core.ExternalAllowed(), snaps[s.bundleOf(i)])
+			bare := decideWith(rt, s, c, core.External{}, snapsWithout[s.bundleOf(i)])
 			a, b := allowed.Decision, bare.Decision
 			if a.GetVerdict() != b.GetVerdict() || allowed.Action != bare.Action ||
 				!slices.Equal(a.GetPolicyRuleIds(), b.GetPolicyRuleIds()) || !sameObligations(a, b) {
@@ -183,6 +180,20 @@ func TestTheAnswerNeverGrants(t *testing.T) {
 	if lifted == 0 {
 		t.Fatal("no drawn case consulted an answer; the property compared nothing a veto reads")
 	}
+}
+
+// withoutVetoes is b's document with every veto rule deleted.
+func withoutVetoes(maxStale int, b drawnBundle) []byte {
+	kept := slices.DeleteFunc(slices.Clone(b.rules), func(r poolRule) bool {
+		return r.id == "veto-reads" || r.id == "veto-gold" || r.id == "veto-all"
+	})
+	switch {
+	case b.doc == nil:
+		return nil
+	case len(kept) == 0:
+		return document(maxStale, neverRule)
+	}
+	return documentOf(maxStale, kept)
 }
 
 func sameObligations(a, b *controlv1.Decision) bool {
