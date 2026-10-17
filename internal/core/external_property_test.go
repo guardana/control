@@ -109,6 +109,15 @@ func loadAt(rt *rapid.T, doc []byte, loadedAt time.Time) *policy.Snapshot {
 	return snap
 }
 
+// loadBundles loads each bundle of s at its load time, nil for no bundle.
+func loadBundles(rt *rapid.T, s scenario) []*policy.Snapshot {
+	snaps := make([]*policy.Snapshot, len(s.bundles))
+	for j, b := range s.bundles {
+		snaps[j] = loadAt(rt, b.doc, s.loadedAt)
+	}
+	return snaps
+}
+
 // TestNeedIsSound decides every drawn case under every answer. Whether an
 // answer is needed never depends on the answer handed in; where none is
 // needed, every answer gives the same decision, byte for byte, which is what
@@ -118,10 +127,7 @@ func TestNeedIsSound(t *testing.T) {
 	needed, skipped := 0, 0
 	rapid.Check(t, func(rt *rapid.T) {
 		s := drawScenario(rt, cov)
-		snaps := make([]*policy.Snapshot, len(s.bundles))
-		for j, b := range s.bundles {
-			snaps[j] = loadAt(rt, b.doc, s.loadedAt)
-		}
+		snaps := loadBundles(rt, s)
 		for i, c := range s.batch {
 			snap := snaps[s.bundleOf(i)]
 			first := decideWith(rt, s, c, core.External{}, snap)
@@ -159,9 +165,8 @@ func TestTheAnswerNeverGrants(t *testing.T) {
 	lifted := 0
 	rapid.Check(t, func(rt *rapid.T) {
 		s := drawScenario(rt, cov)
-		snaps, snapsWithout := make([]*policy.Snapshot, len(s.bundles)), make([]*policy.Snapshot, len(s.bundles))
+		snaps, snapsWithout := loadBundles(rt, s), make([]*policy.Snapshot, len(s.bundles))
 		for j, b := range s.bundles {
-			snaps[j] = loadAt(rt, b.doc, s.loadedAt)
 			snapsWithout[j] = loadAt(rt, withoutVetoes(s.maxStale, b), s.loadedAt)
 		}
 		for i, c := range s.batch {
