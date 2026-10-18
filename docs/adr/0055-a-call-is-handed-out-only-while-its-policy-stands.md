@@ -78,6 +78,10 @@ changes; `POLICY_STALE`'s summary now names a replaced bundle and a reading
 behind one the call relied on. A replaced bundle now also withholds calls
 already decided but not yet handed out, which ADR-0038 left running.
 
+Only the policy is judged again: a delegation hop that expires between the
+decision and the hand-out is not, as before; a resumed hold's retry is decided
+afresh, which judges the chain at that time.
+
 Holds under a replaced bundle can no longer be resumed, but they count toward
 the bounds on held requests until they expire and the sweep closes them; a
 busy run can meet that bound sooner after a replacement. Hand-out blocks and
@@ -115,13 +119,13 @@ ACTION_STARTED.
 - `internal/core/recheck_test.go` holds `Recheck` to an independent
   computation: over the setting, a read and a write, a decision fresh and
   stale, hand-out readings at, inside and past the budget, and a renewal or
-  none, a call is `Current` exactly when deciding it again at that reading lets
-  it run and either the table opened it the first time or the second decision
-  is fresh. It also covers each standing, a zero basis and a kernel nobody
+  none, with the same envelope and bundle, a call is `Current` exactly when
+  deciding it again at that reading lets it run and either the table opened it
+  the first time or the second decision is fresh. It also covers each standing, a zero basis and a kernel nobody
   built.
 - `internal/gateway/handout_test.go`: a call stale at hand-out, stale while
-  ACTION_STARTED is appended, replaced in the window (and a renewal that is
-  not), a reading behind the decision or the verified time, each row of the
+  ACTION_STARTED is appended, replaced before or while ACTION_STARTED is
+  appended (and a renewal that is not), a reading behind the decision or the verified time, each row of the
   fail-closed table, `OBSERVE`, a hold stale before the consume (nothing
   spent, one run after re-confirmation) and one replaced after it (held anew,
   not refused as used). Removing any of the three checks, the `OBSERVE`
