@@ -118,6 +118,16 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.12.0...HEAD">Unreleased</a></h2>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li><code>guardana-control react</code> reads the clock for a stop once it holds the lock
+on the stop list. A stop no longer loses the time spent waiting for the lock,
+and a finding is no longer refused as &quot;not written&quot; because another <code>react</code>
+wrote a line with a later clock while this one waited.</li>
+<li>The gateway configuration refuses a double quote inside a plain value, with
+its line, instead of reading a <code>#</code> after it as part of the value. A
+configuration that holds one, such as an upstream argument <code>--name=&quot;x&quot;</code>, no
+longer loads: quote the whole value and write the quote as <code>\&quot;</code>.</li>
+<li>The evidence-report example reads a state of any earlier minor version and
+requires only the members that version had, comparing versions as numbers.</li>
 <li>The enforcement receiver holds a lock on <code>&lt;socket&gt;.lock</code> beside its socket
 for as long as it listens, and a second plane on the same socket is refused
 while the lock is held. On macOS a live receiver with a full backlog refuses
