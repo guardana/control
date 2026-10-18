@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 
@@ -115,6 +116,15 @@ func TestALockPathThatIsNotThePlanesIsRefused(t *testing.T) {
 				t.Fatal(err)
 			}
 		}},
+		{"a second name of another file", func(t *testing.T, lock string) {
+			other := filepath.Join(filepath.Dir(lock), "other")
+			if err := os.WriteFile(other, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Link(other, lock); err != nil {
+				t.Fatal(err)
+			}
+		}},
 		{"a file others may read", func(t *testing.T, lock string) {
 			if err := os.WriteFile(lock, nil, 0o600); err != nil {
 				t.Fatal(err)
@@ -134,5 +144,50 @@ func TestALockPathThatIsNotThePlanesIsRefused(t *testing.T) {
 				t.Fatalf("a socket was bound beside a refused lock: %v", err)
 			}
 		})
+	}
+}
+
+// TestALockCreatedUnderANarrowUmaskStaysUsable: a umask that clears the
+// owner's write bit still leaves a lock this receiver and the next can open,
+// rather than one that refuses every later start.
+func TestALockCreatedUnderANarrowUmaskStaysUsable(t *testing.T) {
+	socket := socketPath(t)
+	previous := syscall.Umask(0o277)
+	t.Cleanup(func() { syscall.Umask(previous) })
+	if err := listenAt(t, socket); err != nil {
+		t.Fatalf("Listen under umask 0277: %v", err)
+	}
+	info, err := os.Stat(socket + ".lock")
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("the lock is %v (%v), want mode 0600", info, err)
+	}
+}
+
+// TestServeReleasesTheLockWhenItEnds: once Serve returns on its context, the
+// lock is free and the next receiver binds the socket.
+func TestServeReleasesTheLockWhenItEnds(t *testing.T) {
+	socket := socketPath(t)
+	cfg := validConfig()
+	cfg.Socket = socket
+	a, err := enforce.New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln, err := a.Listen()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- a.Serve(ctx, ln) }()
+	if err := listenAt(t, socket); !errors.Is(err, enforce.ErrSocketInUse) {
+		t.Fatalf("Listen while serving = %v, want ErrSocketInUse", err)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("Serve: %v", err)
+	}
+	if err := listenAt(t, socket); err != nil {
+		t.Fatalf("Listen after Serve ended: %v", err)
 	}
 }

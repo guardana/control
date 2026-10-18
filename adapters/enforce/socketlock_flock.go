@@ -5,6 +5,7 @@ package enforce
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"syscall"
 )
@@ -17,7 +18,7 @@ import (
 // third still holds the old one.
 func lockSocket(socket string) (func() error, error) {
 	path := socket + ".lock"
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|syscall.O_NOFOLLOW, 0o600) //nolint:gosec // G304: the configured socket's own lock, in a directory ownDir checked
+	f, err := openLock(path)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrSocketInUse, err)
 	}
@@ -34,15 +35,33 @@ func lockSocket(socket string) (func() error, error) {
 	return f.Close, nil
 }
 
-// ownLock refuses an opened lock that is not a regular file this user owns
-// with mode 0600.
+// openLock creates the lock with mode 0600, whatever the umask leaves of it,
+// or opens the one a receiver before this one created. Neither follows a
+// link.
+func openLock(path string) (*os.File, error) {
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0o600) //nolint:gosec // G304: the configured socket's own lock, in a directory ownDir checked
+	if errors.Is(err, fs.ErrExist) {
+		return os.OpenFile(path, os.O_RDWR|syscall.O_NOFOLLOW, 0) //nolint:gosec // G304: as above
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := f.Chmod(0o600); err != nil {
+		return nil, errors.Join(err, f.Close())
+	}
+	return f, nil
+}
+
+// ownLock refuses an opened lock that is not a regular file of one name that
+// this user owns with mode 0600.
 func ownLock(f *os.File) error {
 	info, err := f.Stat()
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrSocketInUse, err)
 	}
-	if !info.Mode().IsRegular() || !ownedByMe(info) || info.Mode().Perm() != 0o600 {
-		return fmt.Errorf("%w: %s is not a file of this user with mode 0600: %v", ErrSocketInUse, f.Name(), info.Mode())
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !info.Mode().IsRegular() || !ownedByMe(info) || info.Mode().Perm() != 0o600 || !ok || st.Nlink != 1 {
+		return fmt.Errorf("%w: %s is not a file of this user with one name and mode 0600: %v", ErrSocketInUse, f.Name(), info.Mode())
 	}
 	return nil
 }

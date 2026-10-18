@@ -21,8 +21,9 @@ running and receive nothing.
 
 The receiver takes an exclusive `flock` on `<socket>.lock`, in the socket's
 own directory, before it touches the socket, and holds it until its listener
-is closed. The lock file is opened without following a link and must be a
-regular file of the plane's user with mode `0600`. A lock another process
+is closed. The lock file is opened without following a link, created with
+mode `0600` whatever the umask leaves, and must be a regular file of one name
+that the plane's user owns with mode `0600`. A lock another process
 holds refuses the bind with `ErrSocketInUse`, whatever a dial would say. With
 the lock held, the dial still runs: a socket something answers on is refused,
 and one that refuses a connection is removed, as before. The lock file is
@@ -61,6 +62,8 @@ lock file. The socket's directory holds `<socket>.lock` after the first start.
 
 `adapters/enforce/socketlock_unix_test.go`: a held lock keeps a socket that
 refuses connections and refuses the bind, and a free lock lets it be
-replaced; a listener holds the lock until it is closed; a link, a directory or
-a file others may read at the lock's path is refused. The first case fails
+replaced; a listener holds the lock until it is closed, and `Serve` releases
+it when it ends; a link, a directory, a second name of another file or a file
+others may read at the lock's path is refused; a lock created under umask
+`0277` is still `0600`. The first case fails
 without the lock, on both systems.
