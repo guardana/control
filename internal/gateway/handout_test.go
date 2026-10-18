@@ -90,6 +90,19 @@ func TestACallWhosePolicyGoesStaleWhileItStartsIsTakenBack(t *testing.T) {
 	}
 }
 
+// TestABundleReplacedWhileItStartsIsTakenBack: the policy is taken again
+// after ACTION_STARTED, so another bundle installed while that record is
+// appended aborts the call although the clock is well inside the budget.
+func TestABundleReplacedWhileItStartsIsTakenBack(t *testing.T) {
+	h := build(t, modeEnforce, snapshot(t, allowReads))
+	h.sink.hook(kindStarted, func() {
+		h.clock.set(base().Add(time.Minute))
+		h.policy.set(snapshot(t, allowReads, denyWrites))
+	})
+	expectWithheld(t, h.admit(readEnvelope(), nil))
+	expectKinds(t, kindsOf(h.trailOf("req-1")), []controlv1.EventKind{kindProposed, kindDecided, kindStarted, kindFailed})
+}
+
 // TestABundleReplacedBeforeTheHandOutRunsNothing: another bundle installed
 // while POLICY_DECIDED is appended withholds the call; a renewal of the same
 // bundle, or the same snapshot installed again, does not.
@@ -200,6 +213,21 @@ func TestObserveHandsOutWhatEnforceWouldWithhold(t *testing.T) {
 		expectRuns(t, h.admit(readEnvelope(), nil))
 		if s := h.p.Stats(); s.StaleHandedOut != 1 || s.Blocks[codePolicyStale] != 0 {
 			t.Errorf("StaleHandedOut %d, Blocks %v; want one counted and none blocked", s.StaleHandedOut, s.Blocks)
+		}
+	})
+	t.Run("stale, and the agent gone before the hand-out", func(t *testing.T) {
+		h := build(t, modeObserve, snapshot(t, allowReads))
+		ctx, cancel := context.WithCancel(context.Background())
+		h.sink.hook(kindDecided, func() {
+			h.clock.set(base().Add(handOutBudget + time.Second))
+			cancel()
+		})
+		d := h.p.Admit(ctx, admission(readEnvelope(), nil))
+		if d.Action != core.Block {
+			t.Fatalf("Action = %d, want the call blocked for the agent that left", d.Action)
+		}
+		if s := h.p.Stats(); s.StaleHandedOut != 0 || s.Executed != 0 {
+			t.Errorf("StaleHandedOut %d, Executed %d; want a call nobody was handed counted as neither", s.StaleHandedOut, s.Executed)
 		}
 	})
 	t.Run("stale and paused", func(t *testing.T) {

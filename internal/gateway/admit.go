@@ -35,9 +35,9 @@ type call struct {
 	// installed is the policy the plane held when the call took its states
 	// last, the one its decision is judged against again at hand-out.
 	installed *policy.Snapshot
-	// staleCounted: OBSERVE counted this call as handed out on a policy no
-	// longer current, which it counts once.
-	staleCounted bool
+	// staleSeen: OBSERVE found the policy this call's decision stood on no
+	// longer current at a hand-out check, and let it through.
+	staleSeen bool
 	// causes are the plane's own causes to block this call, named once
 	// before any ask and, after one, once more. Whatever the mode does is
 	// done under these; nothing names them again.
@@ -350,6 +350,9 @@ func (c *call) start(trail *evidence.Builder) Disposition {
 	c.p.took(c.flow, c.in.ResultTrust, c.in.ResultSensitivity)
 	c.requestID = ""
 	c.p.counts.add(func(s *Stats) *uint64 { return &s.Executed })
+	if c.staleSeen {
+		c.p.counts.add(func(s *Stats) *uint64 { return &s.StaleHandedOut })
+	}
 	return Disposition{
 		Action:           c.action,
 		Decision:         c.decision,

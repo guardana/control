@@ -67,27 +67,23 @@ func (c *call) policyWithheld(b core.Basis) bool {
 
 // withholds reports whether the kernel finds basis b no longer current at
 // now against installed. OBSERVE enforces no policy (ADR-0013), so there it
-// only counts the call it lets through. A current basis raises the call's
-// floor to the time the plane verified for installed.
+// only notes the call, which start counts if it hands the call out.
 func (c *call) withholds(b core.Basis, installed *policy.Snapshot, now time.Time) bool {
 	if c.p.kernel.Recheck(b, installed, now, c.floor) == core.StandingCurrent {
-		c.reliedOn(installed.NotBefore())
 		return false
 	}
 	if c.p.cfg.Mode == modeObserve {
-		if !c.staleCounted {
-			c.staleCounted = true
-			c.p.counts.add(func(s *Stats) *uint64 { return &s.StaleHandedOut })
-		}
+		c.staleSeen = true
 		return false
 	}
 	return true
 }
 
 // lapsedAfterStart closes the trail of an execution whose approval or opened
-// run expired while its ACTION_STARTED was appended, the way an adapter aborts
-// what it did not send: ACTION_FAILED with a BLOCKED result naming code, which
-// is APPROVAL_EXPIRED or EVIDENCE_UNAVAILABLE, and no executed digest. The call is blocked with a decision of the plane's own,
+// run expired, or whose policy stopped standing, while its ACTION_STARTED was
+// appended, the way an adapter aborts what it did not send: ACTION_FAILED with
+// a BLOCKED result naming code, which is APPROVAL_EXPIRED, EVIDENCE_UNAVAILABLE
+// or POLICY_STALE, and no executed digest. The call is blocked with a decision of the plane's own,
 // which no record carries, because the chain has no place for a decision
 // after ACTION_STARTED. A record the sink refuses leaves the trail open with
 // its request id and its journal entry, as blockUnrecorded does.
