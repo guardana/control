@@ -18,6 +18,8 @@ verify one.
   while the lock is held. On macOS a live receiver with a full backlog refuses
   connections, so a second plane could remove its socket and take its clients
   ([ADR-0054](docs/adr/0054-the-enforcement-receiver-holds-a-lock-beside-its-socket.md)).
+  Built for Solaris, illumos or AIX, which have no `flock`, the receiver now
+  refuses to listen, and `doctor` checks the lock file as `run` would.
 
 ## [0.12.0] - 2026-10-16
 

@@ -147,13 +147,17 @@ covered by the same owner-only check as the socket.</p>
 hand after a crash: safe, but every crash on macOS needs a manual step.</li>
 <li>Keep the dial alone and state the macOS limit: leaves a second plane able
 to take a live plane's clients without either saying so.</li>
+<li>A lock on the socket's directory, with no new file: an operator may keep
+several planes' sockets in one directory, and one plane would then refuse
+the others.</li>
 <li>A PID file: a recycled process id can make a dead plane look alive, and a
 live one dead after a PID namespace change; a kernel lock has neither
 failure.</li>
 </ul>
 <h2 id="consequences">Consequences</h2>
 <p><code>Listen</code> returns a listener whose <code>Close</code> releases the lock; <code>Serve</code> accepts
-it. An operator who points two planes at one socket gets a refusal naming the
+it. <code>CheckSocketDir</code>, which <code>doctor</code> runs, refuses without locking a lock file
+<code>Listen</code> would refuse. An operator who points two planes at one socket gets a refusal naming the
 lock file. The socket's directory holds <code>&lt;socket&gt;.lock</code> after the first start.</p>
 <h2 id="validation">Validation</h2>
 <p><code>adapters/enforce/socketlock_unix_test.go</code>: a held lock keeps a socket that

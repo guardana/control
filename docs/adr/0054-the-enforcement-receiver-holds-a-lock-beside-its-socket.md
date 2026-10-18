@@ -48,6 +48,9 @@ covered by the same owner-only check as the socket.
   hand after a crash: safe, but every crash on macOS needs a manual step.
 - Keep the dial alone and state the macOS limit: leaves a second plane able
   to take a live plane's clients without either saying so.
+- A lock on the socket's directory, with no new file: an operator may keep
+  several planes' sockets in one directory, and one plane would then refuse
+  the others.
 - A PID file: a recycled process id can make a dead plane look alive, and a
   live one dead after a PID namespace change; a kernel lock has neither
   failure.
@@ -55,7 +58,8 @@ covered by the same owner-only check as the socket.
 ## Consequences
 
 `Listen` returns a listener whose `Close` releases the lock; `Serve` accepts
-it. An operator who points two planes at one socket gets a refusal naming the
+it. `CheckSocketDir`, which `doctor` runs, refuses without locking a lock file
+`Listen` would refuse. An operator who points two planes at one socket gets a refusal naming the
 lock file. The socket's directory holds `<socket>.lock` after the first start.
 
 ## Validation
