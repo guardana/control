@@ -177,6 +177,8 @@ usage:
   guardana-control stops list --route <file> --public-key <file> <dir>
   guardana-control react --findings <dir> --runs <dir> --route <file> --public-key <file>
       --stops <dir>
+  guardana-control hook (--profile <id> | --profile-file <file>) --socket <path>
+      --state-dir <dir>
   guardana-control console --approvals <dir> [--pause <f>] --approver-id <id> [--until-stdin-closes]
 
 Write access to the approvals directory is the approval authority:
