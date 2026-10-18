@@ -41,12 +41,14 @@ cp -R examples/connect-a-filesystem-server ~/files-plane
 cp examples/starter-packs/approval-for-writes/policy.json ~/files-plane/
 go -C examples/evidence-report build -o ~/files-plane/bin/ .
 cd ~/files-plane
-npm install @modelcontextprotocol/server-filesystem@2026.8.31
+npm ci --ignore-scripts
 mkdir -m 700 spool approvals holds
 ```
 
-The configuration starts `node_modules/.bin/mcp-server-filesystem`, a path it
-resolves against its own directory. The plane gives the server only `PATH`,
+`npm ci` installs the server at 2026.8.31 from the profile's lockfile, every
+package checked against its hash. The configuration starts
+`node_modules/.bin/mcp-server-filesystem`, a path it resolves against its own
+directory. The plane gives the server only `PATH`,
 `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `USER` and what `env` names.
 
 ### 2. Make the keys, sign a policy and vouch for it

@@ -1,4 +1,5 @@
-# Weekly updates for Go modules and for the actions the workflows use.
+# Weekly updates for Go modules, the actions the workflows use, and the
+# Python and Node lockfiles the client and the external MCP client job pin.
 #
 # Minor and patch updates are grouped, because a batch of routine version
 # bumps is one review rather than five.
@@ -40,6 +41,42 @@ updates:
       prefix: "chore(ci)"
     groups:
       ci:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: uv
+    directories:
+      - "/clients/python"
+      - "/examples/connect-a-filesystem-server/client"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      python:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: "/examples/connect-a-filesystem-server"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    # The profile's fingerprints were taken from this server version; a new
+    # version is taken by hand, with its fingerprints.
+    ignore:
+      - dependency-name: "@modelcontextprotocol/server-filesystem"
+    groups:
+      node:
         patterns:
           - "*"
         update-types:
