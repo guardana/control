@@ -32,6 +32,12 @@ type call struct {
 	// stops is the stop state as this call took it, each time it took the
 	// pause state.
 	stops reaction.Snapshot
+	// installed is the policy the plane held when the call took its states
+	// last, the one its decision is judged against again at hand-out.
+	installed *policy.Snapshot
+	// staleCounted: OBSERVE counted this call as handed out on a policy no
+	// longer current, which it counts once.
+	staleCounted bool
 	// causes are the plane's own causes to block this call, named once
 	// before any ask and, after one, once more. Whatever the mode does is
 	// done under these; nothing names them again.
@@ -44,8 +50,9 @@ type call struct {
 
 	// kernel is the decision POLICY_DECIDED records: the kernel's about the
 	// proposed envelope, or about the authorized one when a rewrite changed
-	// the arguments.
+	// the arguments. basis is what it stood on, judged again at hand-out.
 	kernel   *controlv1.Decision
+	basis    core.Basis
 	action   core.EnforcementAction
 	decision *controlv1.Decision
 	material bool
@@ -147,7 +154,7 @@ func (c *call) decideProposed(snap *policy.Snapshot, ask bool) {
 		req.External = c.external
 		out = c.p.kernel.Decide(c.ctx, req, snap)
 	}
-	c.kernel, c.decision, c.action = out.Decision, out.Decision, out.Action
+	c.kernel, c.decision, c.action, c.basis = out.Decision, out.Decision, out.Action, out.Basis
 	c.reliedOnDecision(out.Decision, snap)
 	c.material = contract.IsMaterial(c.in.Envelope.GetAction().GetEffect())
 }

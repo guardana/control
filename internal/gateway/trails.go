@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/core/approval"
 	"github.com/guardana/control/internal/evidence"
 )
@@ -21,10 +22,12 @@ const maxSweep = 8
 // resumes only what this record holds and the store's answer is checked field
 // by field against it (ADR-0013).
 type heldRequest struct {
-	ids         evidence.IDs
-	approval    *controlv1.Approval
-	envelope    *controlv1.ActionEnvelope
-	decision    *controlv1.Decision
+	ids      evidence.IDs
+	approval *controlv1.Approval
+	envelope *controlv1.ActionEnvelope
+	decision *controlv1.Decision
+	// basis is what decision stood on, judged again before the consume.
+	basis       core.Basis
 	binding     approval.Binding
 	lastEventID string
 	expires     time.Time
