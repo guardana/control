@@ -123,8 +123,9 @@ on the stop list. A stop no longer loses the time spent waiting for the lock,
 and a finding is no longer refused as &quot;not written&quot; because another <code>react</code>
 wrote a line with a later clock while this one waited.</li>
 <li>The gateway configuration refuses a double quote inside a plain value, with
-its line, instead of reading a <code>#</code> after it as part of the value; quote the
-whole value and write the quote as <code>\&quot;</code>.</li>
+its line, instead of reading a <code>#</code> after it as part of the value. A
+configuration that holds one, such as an upstream argument <code>--name=&quot;x&quot;</code>, no
+longer loads: quote the whole value and write the quote as <code>\&quot;</code>.</li>
 <li>The evidence-report example reads a state of any earlier minor version and
 requires only the members that version had, comparing versions as numbers.</li>
 </ul>

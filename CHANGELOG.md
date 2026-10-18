@@ -18,8 +18,9 @@ verify one.
   and a finding is no longer refused as "not written" because another `react`
   wrote a line with a later clock while this one waited.
 - The gateway configuration refuses a double quote inside a plain value, with
-  its line, instead of reading a `#` after it as part of the value; quote the
-  whole value and write the quote as `\"`.
+  its line, instead of reading a `#` after it as part of the value. A
+  configuration that holds one, such as an upstream argument `--name="x"`, no
+  longer loads: quote the whole value and write the quote as `\"`.
 - The evidence-report example reads a state of any earlier minor version and
   requires only the members that version had, comparing versions as numbers.
 
