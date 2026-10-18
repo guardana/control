@@ -128,6 +128,12 @@ the input that ran, compared by value
 The hook only restricts: it never replies allow, ask or defer. The first
 built-in profile, <a href="/docs/reference/claude-code-hooks">for one coding runtime</a>,
 is decided with failure gaps and not yet qualified on the real runtime.</li>
+<li>A CI job runs the guide for connecting an existing MCP setup end to end with
+an MCP client outside the Go SDK, the MCP project's Python SDK, against the
+reference filesystem server, on every pull request
+(<a href="/docs/adr/0057-an-external-mcp-client-runs-the-guide-on-every-pull-request">ADR-0057</a>).
+The example now pins the server and its packages in a lockfile, and the
+guide installs it with <code>npm ci --ignore-scripts</code>.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
