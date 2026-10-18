@@ -82,6 +82,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 ## Extending
 
 - [Writing an adapter](extending/adapters.md): The internal seam a protocol adapter implements, the capabilities it declares, and the conformance each one owes.
+- [Adding a coding runtime's hooks](extending/runtime-profiles.md): The profile a coding runtime's hook protocol is described by, what the hook bridge does with it, and what a profile needs before its page may claim anything.
 
 ## Project
 
@@ -147,3 +148,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0053: A Python client of the enforcement API lives in this repository](adr/0053-a-python-client-of-the-enforcement-api-in-this-repository.md): accepted
 - [ADR-0054: The enforcement receiver holds a lock beside its socket](adr/0054-the-enforcement-receiver-holds-a-lock-beside-its-socket.md): accepted
 - [ADR-0055: A call is handed out only while the policy it was decided under stands](adr/0055-a-call-is-handed-out-only-while-its-policy-stands.md): accepted
+- [ADR-0056: A coding runtime's hooks reach the plane through one bridge, by value](adr/0056-a-coding-runtimes-hooks-reach-the-plane-through-one-bridge.md): accepted

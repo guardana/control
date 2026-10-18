@@ -99,6 +99,12 @@ func versionSpecs() map[string]versionSpec {
 				{"internal/holdjournal/codec.go#checkSchemaVersion/major", readsMajor},
 			},
 		},
+		"Hook bridge handles": {
+			cites: []versionCite{
+				{"internal/hookbridge/store.go#entryVersion", writes},
+				{"internal/hookbridge/store.go#parseEntry/major", readsMajor},
+			},
+		},
 		"Runs directory": {
 			cites: []versionCite{
 				{"internal/runs/strict.go#SchemaVersion", writes},
