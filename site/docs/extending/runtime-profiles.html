@@ -60,6 +60,7 @@
 </ul>
 <h2>Reference</h2><ul>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>
@@ -182,6 +183,7 @@ the bridge gets a new strategy, under review, and every profile can use it.</p>
 the runtime's events as fixtures beside it, with paths and ids scrubbed.</li>
 <li>Pass the fixture suite. It runs in every CI without the runtime: each
 fixture's exit status, standard output, admit body and the trail it leaves.
+The profile's <code>cases.json</code> states what each fixture must come to.
 Five mutant bridges must fail it.</li>
 <li>Qualify the profile against the runtime at a pinned version: a call
 blocked with no effect on a recorder the bridge cannot touch, a pending
@@ -239,6 +241,7 @@ the page names each gap. A claim no case backs reads as unknown.</p>
 </ul>
 <h2>Reference</h2><ul>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
 <li><a href="/docs/reference/cli">Command line</a></li>
 <li><a href="/docs/reference/configuration">Configuration</a></li>
 <li><a href="/docs/reference/console">The approvals page</a></li>

@@ -61,6 +61,7 @@ the bridge gets a new strategy, under review, and every profile can use it.
    the runtime's events as fixtures beside it, with paths and ids scrubbed.
 2. Pass the fixture suite. It runs in every CI without the runtime: each
    fixture's exit status, standard output, admit body and the trail it leaves.
+   The profile's `cases.json` states what each fixture must come to.
    Five mutant bridges must fail it.
 3. Qualify the profile against the runtime at a pinned version: a call
    blocked with no effect on a recorder the bridge cannot touch, a pending
