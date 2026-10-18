@@ -141,8 +141,9 @@ refuses to listen, and <code>doctor</code> checks the lock file as <code>run</co
 <li>A call is handed out only while the policy bundle it was decided under is
 still installed and fresh. A bundle replaced, or past its staleness budget,
 between the decision and the hand-out now blocks the call with
-<code>POLICY_STALE</code> outside <code>OBSERVE</code>, which counts it as <code>stale_handed_out</code>. A
-resume judges this before it consumes its approval, so nothing is spent
+<code>POLICY_STALE</code> outside <code>OBSERVE</code>, which counts it as <code>stale_handed_out</code>; a
+read <code>policy.fail_open_read</code> opened still runs while its bundle is the same.
+A resume judges this before it consumes its approval, so nothing is spent
 (<a href="/docs/adr/0055-a-call-is-handed-out-only-while-its-policy-stands">ADR-0055</a>).</li>
 </ul>
 <h2 id="0120---2026-10-16"><a href="https://github.com/guardana/control/releases/tag/v0.12.0">0.12.0</a> - 2026-10-16</h2>

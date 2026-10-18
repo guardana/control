@@ -133,8 +133,8 @@ at the hand-out reading. The kernel judges this, so the gateway holds no rule
 of its own:</p>
 <ul>
 <li>Every outcome carries a <code>Basis</code>: the bundle's digest, none where there was no
-bundle, and whether the fail-closed table let a read run under fail-open
-reads. Only the kernel makes one; the zero value stands on nothing.</li>
+bundle, whether that bundle was fresh then, and whether the fail-closed
+table let a read run under fail-open reads. Only the kernel makes one; the zero value stands on nothing.</li>
 <li><code>Kernel.Recheck(basis, installed, now, floor)</code> answers <code>Current</code>, <code>Stale</code>,
 <code>Replaced</code> or <code>Unknown</code>, and only <code>Current</code> lets the call go:
 <ul>
@@ -154,10 +154,12 @@ already relied on is <code>Unknown</code>.</li>
 </ul>
 </li>
 <li>The freshness rule itself lives once, as <code>Snapshot.FreshAt</code> in
-<code>internal/policy</code>, which the kernel, the policy watcher behind <code>/healthz</code> and
-the metrics, and the development signer's renewal schedule read.</li>
-<li>The gateway asks at three points, each after the checks it already made
-there: before a resume consumes its approval, so a moment of staleness
+<code>internal/policy</code>, which the kernel and the policy watcher behind <code>/healthz</code>
+and the metrics read; the development signer's renewal schedule reads its
+budget, <code>policy.Budget</code>.</li>
+<li>The gateway asks at three points, each after its pause, stop, approval and
+run checks there and before it asks whether the agent left: before a resume
+consumes its approval, so a moment of staleness
 spends nothing and the hold stands; before ACTION_STARTED; and after it, for
 every call, not only a held one or one in an opened run. The installed
 snapshot is taken before the clock, as the pause and stop states are.</li>
@@ -166,8 +168,9 @@ and freshness <code>STALE</code> on the plane's own decision: on its own trail b
 consume, as ACTION_BLOCKED before ACTION_STARTED, and as ACTION_FAILED with a
 BLOCKED result after it, as an expired approval is (ADR-0027).</li>
 <li><code>OBSERVE</code> enforces no policy (ADR-0013 applies a mode to the action), so
-there the call runs and <code>/healthz</code> and <code>/metrics</code> count it
-(<code>pipeline_stale_handed_out_total</code>). A pause, a stop and a run's expiry
+there the call runs, and <code>/healthz</code> and <code>/metrics</code> count it
+(<code>pipeline_stale_handed_out_total</code>) when its policy let it run when decided,
+which is what <code>ENFORCE</code> would have withheld at hand-out. A pause, a stop and a run's expiry
 still block it in every mode.</li>
 </ul>
 <p>An approval granted under a bundle since replaced is never consumed for an

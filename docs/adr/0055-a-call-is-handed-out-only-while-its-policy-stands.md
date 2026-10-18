@@ -30,8 +30,8 @@ at the hand-out reading. The kernel judges this, so the gateway holds no rule
 of its own:
 
 - Every outcome carries a `Basis`: the bundle's digest, none where there was no
-  bundle, and whether the fail-closed table let a read run under fail-open
-  reads. Only the kernel makes one; the zero value stands on nothing.
+  bundle, whether that bundle was fresh then, and whether the fail-closed
+  table let a read run under fail-open reads. Only the kernel makes one; the zero value stands on nothing.
 - `Kernel.Recheck(basis, installed, now, floor)` answers `Current`, `Stale`,
   `Replaced` or `Unknown`, and only `Current` lets the call go:
   - another digest than the decision's, or a bundle where there was none, is
@@ -48,10 +48,12 @@ of its own:
     verified for the installed bundle, or one earlier than an instant the call
     already relied on is `Unknown`.
 - The freshness rule itself lives once, as `Snapshot.FreshAt` in
-  `internal/policy`, which the kernel, the policy watcher behind `/healthz` and
-  the metrics, and the development signer's renewal schedule read.
-- The gateway asks at three points, each after the checks it already made
-  there: before a resume consumes its approval, so a moment of staleness
+  `internal/policy`, which the kernel and the policy watcher behind `/healthz`
+  and the metrics read; the development signer's renewal schedule reads its
+  budget, `policy.Budget`.
+- The gateway asks at three points, each after its pause, stop, approval and
+  run checks there and before it asks whether the agent left: before a resume
+  consumes its approval, so a moment of staleness
   spends nothing and the hold stands; before ACTION_STARTED; and after it, for
   every call, not only a held one or one in an opened run. The installed
   snapshot is taken before the clock, as the pause and stop states are.
@@ -60,8 +62,9 @@ of its own:
   consume, as ACTION_BLOCKED before ACTION_STARTED, and as ACTION_FAILED with a
   BLOCKED result after it, as an expired approval is (ADR-0027).
 - `OBSERVE` enforces no policy (ADR-0013 applies a mode to the action), so
-  there the call runs and `/healthz` and `/metrics` count it
-  (`pipeline_stale_handed_out_total`). A pause, a stop and a run's expiry
+  there the call runs, and `/healthz` and `/metrics` count it
+  (`pipeline_stale_handed_out_total`) when its policy let it run when decided,
+  which is what `ENFORCE` would have withheld at hand-out. A pause, a stop and a run's expiry
   still block it in every mode.
 
 An approval granted under a bundle since replaced is never consumed for an
