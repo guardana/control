@@ -72,9 +72,14 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     # The profile's fingerprints were taken from this server version; a new
-    # version is taken by hand, with its fingerprints.
+    # version is taken by hand, with its fingerprints. Security updates still
+    # open: a red fingerprint check is the alarm they should raise.
     ignore:
       - dependency-name: "@modelcontextprotocol/server-filesystem"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     groups:
       node:
         patterns:

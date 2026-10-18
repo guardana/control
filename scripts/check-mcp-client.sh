@@ -10,7 +10,7 @@
 # nothing; once approved, the same write runs once; retried, it is refused as
 # used; a write the approver rejects is refused; and the trail is an unbroken
 # chain the report program reads. It is not part of make quality; CI runs it
-# as its own required job (ADR-0057).
+# as a job of its own on every pull request (ADR-0057).
 #
 #   scripts/check-mcp-client.sh
 #
@@ -43,10 +43,24 @@ python_uv_pinned || die "uv is not the pinned one"
 
 work="$(mktemp -d)"
 pids=()
+# stop <pid> ends a process this script started, by force after five
+# seconds, and forgets it.
+stop() {
+  local pid="$1" left i
+  kill -TERM "${pid}" 2>/dev/null || true
+  for i in $(seq 1 50); do
+    kill -0 "${pid}" 2>/dev/null || break
+    sleep 0.1
+  done
+  kill -KILL "${pid}" 2>/dev/null || true
+  wait "${pid}" 2>/dev/null || true
+  left=()
+  for i in ${pids[@]+"${pids[@]}"}; do [[ "${i}" == "${pid}" ]] || left+=("${i}"); done
+  pids=(${left[@]+"${left[@]}"})
+}
 cleanup() {
   local pid
-  for pid in ${pids[@]+"${pids[@]}"}; do kill "${pid}" 2>/dev/null || true; done
-  for pid in ${pids[@]+"${pids[@]}"}; do wait "${pid}" 2>/dev/null || true; done
+  for pid in ${pids[@]+"${pids[@]}"}; do stop "${pid}"; done
   rm -rf "${work}"
 }
 trap cleanup EXIT
@@ -115,7 +129,7 @@ pids+=("${collect_pid}")
 
 say "step 5: the classification"
 doctor="$("${gateway}" doctor --config plane.yaml)" || die "doctor failed: ${doctor}"
-grep -q '14 tool(s) listed, 14 classified, 0 unclassified' <<<"${doctor}" ||
+grep -qE '(^|[^0-9])14 tool\(s\) listed, 14 classified, 0 unclassified' <<<"${doctor}" ||
   die "doctor did not classify all 14 tools: ${doctor}"
 
 say "step 6: the plane"
@@ -142,8 +156,9 @@ blocked_with() {
 say "step 7: the client connects"
 tools="$(drive tools)" || die "the client could not list the tools"
 [[ "$(field protocol "${tools}")" == "2025-11-25" ]] || die "negotiated another protocol: ${tools}"
-[[ "$("${py[@]}" -c 'import json, sys; print(len(json.loads(sys.argv[1])["tools"]))' "${tools}")" == 14 ]] ||
-  die "the client saw another tool count: ${tools}"
+profiled="$(sed -n 's/^    tool: //p' plane.yaml | LC_ALL=C sort | tr '\n' ' ')"
+listed="$("${py[@]}" -c 'import json, sys; print(" ".join(json.loads(sys.argv[1])["tools"]) + " ")' "${tools}")"
+[[ "${listed}" == "${profiled}" ]] || die "the client saw tools ${listed}, the profile classifies ${profiled}"
 
 say "step 8: a read and a write"
 read_answer="$(drive call read_text_file "{\"path\": \"${share}/hello.txt\"}")"
@@ -157,7 +172,9 @@ pending="$(drive call write_file "${write_args}")"
 [[ ! -e "${share}/written.txt" ]] || die "a held write reached the server"
 approval="$(field approval_id "${pending}")"
 [[ -n "${approval}" ]] || die "the held write names no approval: ${pending}"
-"${control}" approvals list approvals | grep -q "${approval}" || die "approvals list does not show ${approval}"
+"${control}" approvals list approvals |
+  awk -v id="${approval}" '$1 == "approval" { this = ($2 == id) } this && /state/ && /APPROVAL_STATE_PENDING/ { found = 1 } END { exit !found }' ||
+  die "approvals list does not show ${approval} pending"
 "${control}" approvals approve --approver-id check approvals "${approval}" >/dev/null
 
 ran="$(drive call write_file "${write_args}")"
@@ -171,25 +188,43 @@ blocked_with APPROVAL_ALREADY_USED "${used}" || die "a second run of one approva
 
 reject_args="{\"path\": \"${share}/rejected.txt\", \"content\": \"never written\"}"
 held="$(drive call write_file "${reject_args}")"
+[[ "$(field answer "${held}")" == pending && "$(field reason_code "${held}")" == APPROVAL_PENDING ]] ||
+  die "the second write was not held: ${held}"
 rejected_id="$(field approval_id "${held}")"
-[[ -n "${rejected_id}" ]] || die "the second write was not held: ${held}"
+[[ -n "${rejected_id}" ]] || die "the second write names no approval: ${held}"
 "${control}" approvals reject --approver-id check approvals "${rejected_id}" >/dev/null
 refused="$(drive call write_file "${reject_args}")"
 blocked_with APPROVAL_REJECTED "${refused}" || die "a rejected write was not refused: ${refused}"
 [[ ! -e "${share}/rejected.txt" ]] || die "a rejected write reached the server"
 
 say "step 9: the trail and the report"
+# The rows the steps above make, one per request, as action, verdict, block,
+# held, approval and end: the read, the approved write, the retry refused as
+# used on a trail of its own, and the rejected write.
+want_rows='read_text_file ALLOW - no - completed
+write_file REQUIRE_APPROVAL - yes approved completed
+write_file REQUIRE_APPROVAL DENY APPROVAL_ALREADY_USED no - blocked
+write_file REQUIRE_APPROVAL DENY APPROVAL_REJECTED yes rejected blocked'
+# report_rows succeeds when the report program reads every request as ended
+# and its rows are exactly the ones above.
+report_rows() {
+  report="$("${gateway}" trail export trail.jsonl | bin/evidence-report 2>&1)" || return 1
+  "${py[@]}" -c '
+import sys
+lines = [line.split("\t") for line in sys.argv[1].splitlines()]
+head = lines[0]
+cols = ["action", "verdict", "block", "held", "approval", "end"]
+rows = sorted(" ".join(dict(zip(head, line))[c] for c in cols) for line in lines[1:] if len(line) == len(head))
+sys.exit(rows != sorted(sys.argv[2].splitlines()))
+' "${report}" "${want_rows}"
+}
 # The exporter ships while the plane runs; a plane that stops leaves what it
 # did not ship in its spool for its next start, so the report is read first.
 for _ in $(seq 1 60); do
-  if report="$("${gateway}" trail export trail.jsonl | bin/evidence-report 2>&1)"; then break; fi
+  if report_rows; then break; fi
   sleep 0.5
 done
-"${gateway}" trail export trail.jsonl | bin/evidence-report >/dev/null 2>&1 ||
-  die "the report never read every request as ended: ${report}"
-for want in approved completed rejected; do
-  grep -q "${want}" <<<"${report}" || die "the report has no ${want} row: ${report}"
-done
+report_rows || die "the report never held exactly the rows the steps made: ${report}"
 "${gateway}" trail trail.jsonl >/dev/null || die "the trail is not one unbroken chain per request"
 kill -TERM "${plane_pid}"
 wait "${plane_pid}" || die "the plane did not stop cleanly: $(cat plane.log)"

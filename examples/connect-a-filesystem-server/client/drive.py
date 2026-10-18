@@ -60,7 +60,8 @@ def main() -> int:
     call.add_argument("tool")
     call.add_argument("arguments", help="the arguments as one JSON object")
     args = parser.parse_args()
-    json.dump(asyncio.run(run(args)), sys.stdout, sort_keys=True)
+    # A plane that never answers ends the step instead of the job's budget.
+    json.dump(asyncio.run(asyncio.wait_for(run(args), timeout=60)), sys.stdout, sort_keys=True)
     sys.stdout.write("\n")
     return 0
 

@@ -20,7 +20,8 @@ const (
 var subcommandWord = regexp.MustCompile(`^[a-z]+$`)
 
 // guideCommands is every command a code block of the guide runs through one
-// of the product's binaries, as the binary and its subcommand words.
+// of the product's binaries: the binary, its subcommand words and the token
+// after them, so "trail <file>" and "trail export" stay two commands.
 func guideCommands(t *testing.T, text string) []string {
 	t.Helper()
 	var out []string
@@ -36,10 +37,10 @@ func guideCommands(t *testing.T, text string) []string {
 		}
 		words := []string{fields[0]}
 		for _, f := range fields[1:] {
+			words = append(words, f)
 			if !subcommandWord.MatchString(f) {
 				break
 			}
-			words = append(words, f)
 		}
 		out = append(out, strings.Join(words, " "))
 	}
@@ -62,10 +63,15 @@ func TestTheMCPClientCheckRunsEveryCommandOfTheGuide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ran := strings.NewReplacer(`"${control}"`, brand.CLI, `"${gateway}"`, brand.Gateway).Replace(string(script))
+	var lines []string
+	for _, line := range strings.Split(string(script), "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "#") {
+			lines = append(lines, line)
+		}
+	}
+	ran := strings.NewReplacer(`"${control}"`, brand.CLI, `"${gateway}"`, brand.Gateway).Replace(strings.Join(lines, "\n"))
 	for _, command := range guideCommands(t, string(guide)) {
-		if !regexp.MustCompile(`(?m)^\s*`+regexp.QuoteMeta(command)+`(\s|$)`).MatchString(ran) &&
-			!regexp.MustCompile(`\$\(`+regexp.QuoteMeta(command)+`(\s|\))`).MatchString(ran) {
+		if !regexp.MustCompile(`(?m)(^\s*|\$\()` + regexp.QuoteMeta(command) + `(\s|\)|$)`).MatchString(ran) {
 			t.Errorf("%s runs %q, and %s does not", mcpClientGuide, command, mcpClientScript)
 		}
 	}
