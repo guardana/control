@@ -35,7 +35,8 @@ func (c *call) refusedBeforeStart() bool {
 
 // lapsedWhileStarting takes the installed policy and reads the clock once
 // more after ACTION_STARTED, whose append can outlast the approval, the run
-// or the policy's freshness, and names the block of one that lapsed.
+// or the policy, stale or replaced meanwhile, and names the block of one that
+// lapsed.
 func (c *call) lapsedWhileStarting() (controlv1.Verdict, string, bool) {
 	installed := c.p.cfg.Policy.Current()
 	now := c.p.cfg.Clock()
@@ -67,13 +68,14 @@ func (c *call) policyWithheld(b core.Basis) bool {
 
 // withholds reports whether the kernel finds basis b no longer current at
 // now against installed. OBSERVE enforces no policy (ADR-0013), so there it
-// only notes the call, which start counts if it hands the call out.
+// only notes a call whose policy let it run when decided and no longer does,
+// which start counts if it hands the call out.
 func (c *call) withholds(b core.Basis, installed *policy.Snapshot, now time.Time) bool {
 	if c.p.kernel.Recheck(b, installed, now, c.floor) == core.StandingCurrent {
 		return false
 	}
 	if c.p.cfg.Mode == modeObserve {
-		c.staleSeen = true
+		c.staleSeen = c.staleSeen || b.Stood()
 		return false
 	}
 	return true

@@ -231,3 +231,21 @@ func uncapture(event *controlv1.Event) {
 		r.RedactedResultPreview, r.RedactionProfile = "", ""
 	}
 }
+
+// newTrail builds the trail from the envelope's identifiers, timed at this
+// call's clock reading.
+func (c *call) newTrail() (*evidence.Builder, error) {
+	return evidence.NewBuilder(c.trailIDs(), c.p.cfg.Mode, func() time.Time { return c.now }, c.p.cfg.NewID)
+}
+
+// trailIDs names this call's trail from the envelope's identifiers and the
+// run the pipeline minted, never the run id the producer sent.
+func (c *call) trailIDs() evidence.IDs {
+	env := c.in.Envelope
+	return evidence.IDs{
+		RequestID: env.GetRequestId(),
+		RunID:     c.flow.runID(),
+		ProjectID: env.GetProjectId(),
+		TenantID:  env.GetTenantId(),
+	}
+}

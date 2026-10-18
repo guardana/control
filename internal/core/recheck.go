@@ -7,14 +7,21 @@ import (
 )
 
 // Basis is what a decision stood on: the bundle it was decided under, none
-// for no snapshot, and whether the fail-closed table let a read run under
-// FailOpenRead. Only the kernel makes one; the zero value stood on nothing,
-// and Recheck never hands out a call on it.
+// for no snapshot, whether that bundle was fresh then, and whether the
+// fail-closed table let a read run under FailOpenRead. Only the kernel makes
+// one; the zero value stood on nothing, and Recheck never hands out a call on
+// it.
 type Basis struct {
 	set    bool
 	digest string
+	fresh  bool
 	opened bool
 }
+
+// Stood reports whether the decision's policy let its call run when it was
+// made: the bundle was fresh, or the table let the read run. A call whose
+// basis did not stand was not let run by its policy in the first place.
+func (b Basis) Stood() bool { return b.set && (b.fresh || b.opened) }
 
 // Standing is how a decision's basis stands at a later reading.
 type Standing uint8

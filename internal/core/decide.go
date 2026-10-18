@@ -311,7 +311,7 @@ func (d *decision) outcome(k *Kernel) Outcome {
 		},
 		Action:        action,
 		NeedsExternal: d.needsExternal,
-		Basis:         Basis{set: true, digest: d.snap.Ref().GetDigest(), opened: opened},
+		Basis:         Basis{set: true, digest: d.snap.Ref().GetDigest(), fresh: !d.stale(), opened: opened},
 	}
 }
 

@@ -159,24 +159,6 @@ func (c *call) decideProposed(snap *policy.Snapshot, ask bool) {
 	c.material = contract.IsMaterial(c.in.Envelope.GetAction().GetEffect())
 }
 
-// newTrail builds the trail from the envelope's identifiers, timed at this
-// call's clock reading.
-func (c *call) newTrail() (*evidence.Builder, error) {
-	return evidence.NewBuilder(c.trailIDs(), c.p.cfg.Mode, func() time.Time { return c.now }, c.p.cfg.NewID)
-}
-
-// trailIDs names this call's trail from the envelope's identifiers and the
-// run the pipeline minted, never the run id the producer sent.
-func (c *call) trailIDs() evidence.IDs {
-	env := c.in.Envelope
-	return evidence.IDs{
-		RequestID: env.GetRequestId(),
-		RunID:     c.flow.runID(),
-		ProjectID: env.GetProjectId(),
-		TenantID:  env.GetTenantId(),
-	}
-}
-
 // applyMode applies the plane's causes and mode to the action and never to
 // the kernel's decision (ADR-0013). A call the plane named a cause of its own
 // to block is blocked whatever the mode, OBSERVE included, with every such
@@ -304,14 +286,14 @@ func (c *call) close() {
 // execution for Close and hands out what to send. An execution a pause taken
 // just now covers or cannot vouch for, a resumed one whose approval has
 // expired by the clock read with that pause, one whose opened run expired by
-// that clock, one that resumes nothing and whose agent gave up on it, or one
-// the pipeline cannot name, cannot keep under its own name, cannot keep
-// within MaxOpen, or whose opened run's state it cannot raise, is blocked
-// before it is recorded as started, and so is one those checks refuse when
-// they are made again after a raise that wrote; that block closes the trail,
-// so a resumed hold's entry is forgotten there, as Close would. A resumed one
-// whose approval expired while ACTION_STARTED was appended is aborted instead
-// of handed out.
+// that clock or whose decision's policy no longer stands, one that resumes
+// nothing and whose agent gave up on it, or one the pipeline cannot name,
+// cannot keep under its own name, cannot keep within MaxOpen, or whose opened
+// run's state it cannot raise, is blocked before it is recorded as started,
+// and so is one those checks refuse when they are made again after a raise
+// that wrote; that block closes the trail, so a resumed hold's entry is
+// forgotten there, as Close would. One whose approval, run or policy lapsed
+// while ACTION_STARTED was appended is aborted instead of handed out.
 func (c *call) start(trail *evidence.Builder) Disposition {
 	requestID := c.requestID
 	if c.refusedBeforeStart() {

@@ -78,6 +78,36 @@ func TestRecheckNeverStandsOnNothing(t *testing.T) {
 	}
 }
 
+// TestABasisStoodWhenItsPolicyLetTheCallRun: a decision under a fresh
+// bundle, and a read the table opened, stood; a write under a stale bundle,
+// and a read with no bundle and the setting off, did not.
+func TestABasisStoodWhenItsPolicyLetTheCallRun(t *testing.T) {
+	snap := snapshotAt(t, recheckDoc(allowReads, allowWrites), base())
+	stale := base().Add(recheckBudget + time.Minute)
+	for _, c := range []struct {
+		name  string
+		opts  core.Options
+		at    time.Time
+		write bool
+		snap  *policy.Snapshot
+		stood bool
+	}{
+		{"fresh", options(), base(), false, snap, true},
+		{"a read the table opened", failOpen(), stale, false, snap, true},
+		{"a write under a stale bundle", failOpen(), stale, true, snap, false},
+		{"a read with no bundle and the setting off", options(), base(), false, nil, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := basisAt(t, c.opts, c.at, c.write, c.snap).Basis.Stood(); got != c.stood {
+				t.Errorf("Stood = %v, want %v", got, c.stood)
+			}
+		})
+	}
+	if (core.Basis{}).Stood() {
+		t.Error("a zero basis stood")
+	}
+}
+
 // TestRecheckKeepsAnOpenedReadInItsRow: a read the fail-closed table let run
 // under a stale bundle stays current while the bundle is the same, and one
 // it let run with no bundle while there is still none; another bundle, or
