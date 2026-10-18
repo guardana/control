@@ -257,6 +257,8 @@ content, which a client would check against the tool's output schema.</li>
 <li>The read returns the file; the write is <code>pending</code> until approved and runs
 once after; the report lists both, the write <code>approved</code> and <code>completed</code>, and
 exits 0 once nothing is open.</li>
+<li><code>make check-mcp-client</code> runs these steps from a checkout with the MCP
+project's Python SDK as the client, and CI runs it on every pull request.</li>
 </ul>
 <h2 id="roll-back">Roll back</h2>
 <p>Point the client's entry back at the server and stop the plane. The spool,

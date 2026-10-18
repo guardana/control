@@ -62,5 +62,6 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0051](0051-a-tool-outside-mcp-is-admitted-completed-and-aborted-through-an-enforcement-api.md) | A tool outside MCP is admitted, completed and aborted through an enforcement API |
 | [0052](0052-a-change-is-gated-on-its-pull-request.md) | A change is gated on its pull request, and releases keep a rhythm |
 | [0053](0053-a-python-client-of-the-enforcement-api-in-this-repository.md) | A Python client of the enforcement API lives in this repository |
+| [0057](0057-an-external-mcp-client-runs-the-guide-on-every-pull-request.md) | An MCP client outside the Go SDK runs the guide on every pull request |
 | [0054](0054-the-enforcement-receiver-holds-a-lock-beside-its-socket.md) | The enforcement receiver holds a lock beside its socket |
 | [0055](0055-a-call-is-handed-out-only-while-its-policy-stands.md) | A call is handed out only while the policy it was decided under stands |

@@ -2,7 +2,7 @@
 title: Connect an existing MCP setup
 summary: Put the plane between an MCP client and a server you already use, classify the server's tools, hold its writes for approval, and end in a local report.
 type: how-to
-covers: [examples/connect-a-filesystem-server/**, cmd/guardana-gateway/profile_test.go, adapters/mcp/answer.go]
+covers: [examples/connect-a-filesystem-server/**, cmd/guardana-gateway/profile_test.go, adapters/mcp/answer.go, scripts/check-mcp-client.sh]
 ---
 
 # Connect an existing MCP setup
@@ -202,6 +202,8 @@ the approval ended, and how the call ended
 - The read returns the file; the write is `pending` until approved and runs
   once after; the report lists both, the write `approved` and `completed`, and
   exits 0 once nothing is open.
+- `make check-mcp-client` runs these steps from a checkout with the MCP
+  project's Python SDK as the client, and CI runs it on every pull request.
 
 ## Roll back
 
