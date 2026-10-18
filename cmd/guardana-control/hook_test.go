@@ -105,3 +105,30 @@ func TestACompletionNoAdmitOpenedExitsOne(t *testing.T) {
 		t.Fatalf("exit %d, stdout %q, stderr %q; want 1, nothing on stdout, and the unmatched completion named", code, stdout, stderr)
 	}
 }
+
+// TestACompletionNotRecordedExitsTheProfilesProblemCode: the status of a
+// completion the plane did not record is the profile's, not the command's.
+func TestACompletionNotRecordedExitsTheProfilesProblemCode(t *testing.T) {
+	raw, err := os.ReadFile(neutralProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const was = `"problem_exit_code": 1`
+	if bytes.Count(raw, []byte(was)) != 1 {
+		t.Fatalf("%s is not in the neutral profile once", was)
+	}
+	profile := filepath.Join(t.TempDir(), "profile.json")
+	if err := os.WriteFile(profile, bytes.Replace(raw, []byte(was), []byte(`"problem_exit_code": 3`), 1), 0o600); err != nil { //nolint:gosec // G703: a path in this test's own directory
+		t.Fatal(err)
+	}
+	t.Setenv(hookTokenVariable, "tok")
+	socket := filepath.Join(t.TempDir(), "no.sock")
+	code, stdout, _ := hookRun(t, completeEvent, "--profile-file", profile, "--socket", socket, "--state-dir", stateDir(t))
+	if code != 3 || stdout != "" {
+		t.Fatalf("exit %d, stdout %q; want 3 and nothing on stdout", code, stdout)
+	}
+	code, _, _ = hookRun(t, admitEvent, "--profile-file", profile, "--socket", socket, "--state-dir", stateDir(t))
+	if code != 2 {
+		t.Fatalf("an admit the plane did not answer exits %d, want the block status 2", code)
+	}
+}

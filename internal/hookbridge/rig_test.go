@@ -133,6 +133,8 @@ type planeOptions struct {
 	mode       controlv1.EnforcementMode
 	rules      []string
 	obligation bool
+	// tools replaces the plane's one tool, refund, when set.
+	tools []enforce.Tool
 }
 
 func newPlane(t *testing.T, o planeOptions) *plane {
@@ -145,6 +147,9 @@ func newPlane(t *testing.T, o planeOptions) *plane {
 	newID := func() string { return "id-" + strconv.FormatInt(ids.Add(1), 10) }
 	clock := pl.clock.read
 	r := &runs{state: gateway.RunState{Trusted: true, MaxRead: controlv1.Sensitivity_SENSITIVITY_PUBLIC}}
+	if o.tools == nil {
+		o.tools = []enforce.Tool{{Name: "refund", Effect: controlv1.EffectClass_EFFECT_CLASS_TRANSACT, Provider: "payments", ResourceType: "account", ResourceFrom: "/account"}}
+	}
 	a, err := enforce.New(enforce.Config{
 		Socket: pl.socket, ExecutionLifetime: time.Minute,
 		ProjectID: "proj-1", TenantID: "tenant-1", Environment: "prod",
@@ -153,7 +158,7 @@ func newPlane(t *testing.T, o planeOptions) *plane {
 			Agent:     &controlv1.Agent{Id: "agent-1"},
 		},
 		Runs:  r,
-		Tools: []enforce.Tool{{Name: "refund", Effect: controlv1.EffectClass_EFFECT_CLASS_TRANSACT, Provider: "payments", ResourceType: "account", ResourceFrom: "/account"}},
+		Tools: o.tools,
 		Clock: clock, NewID: newID,
 	})
 	if err != nil {

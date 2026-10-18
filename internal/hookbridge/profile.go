@@ -70,7 +70,7 @@ type Profile struct {
 	Claims        Claims
 }
 
-//go:embed all:profiles
+//go:embed profiles/*/profile.json
 var embedded embed.FS
 
 // LoadProfile reads the profile id from the profiles built into the binary.

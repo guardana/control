@@ -156,7 +156,7 @@ func TestAProfileIsBoundedAt64KiB(t *testing.T) {
 	}
 }
 
-func TestNoProfileIsBuiltIn(t *testing.T) {
+func TestAnIDNoBuiltInProfileHasIsRefused(t *testing.T) {
 	for _, id := range []string{"neutral", "../testdata/neutral", "", "Neutral"} {
 		if _, err := hookbridge.LoadProfile(id); !errors.Is(err, hookbridge.ErrUnknownProfile) {
 			t.Errorf("LoadProfile(%q) = %v, want ErrUnknownProfile", id, err)

@@ -57,8 +57,9 @@ func hookFlagSet(command string, out io.Writer) *flag.FlagSet {
 // lets run exits 0 and prints nothing; every other admit, and every refusal
 // before the event is read, exits with the profile's block status, 2 when
 // no profile was read, and one line on standard error. A completion exits 0
-// once the plane recorded it and 1 otherwise. Standard output is never
-// written: no reply allows, asks, defers or changes a call.
+// once the plane recorded it and with the profile's problem status otherwise.
+// Standard output is never written: no reply allows, asks, defers or changes
+// a call.
 func hookCommand(args []string, _, stderr io.Writer) int {
 	a, token, p, ev, code := hookEvent(args, stderr)
 	if p == nil {
@@ -125,13 +126,14 @@ func hookProfile(a hookArgs) (*hookbridge.Profile, error) {
 }
 
 // hookAnswer reports a failure once the event's phase is known: an admit is
-// blocked, a completion that was not recorded exits 1.
+// blocked, a completion that was not recorded exits with the profile's
+// problem status.
 func hookAnswer(stderr io.Writer, p *hookbridge.Profile, ev hookbridge.Event, err error) int {
 	writeLine(stderr, brand.CLI+": "+hookName+": "+oneLine(err.Error()))
 	if ev.Phase == hookbridge.PhaseAdmit {
 		return p.Reply.BlockExitCode
 	}
-	return exitFail
+	return p.Reply.ProblemExitCode
 }
 
 func hookRefused(stderr io.Writer, message string) int {
