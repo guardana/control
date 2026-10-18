@@ -111,8 +111,8 @@
 <p>Status: accepted
 Date: 2026-10-18</p>
 <p>Amends <a href="/docs/adr/0052-a-change-is-gated-on-its-pull-request">ADR-0052</a>: besides
-<code>make quality</code>, a pull request is gated on the job this record adds, run
-outside it.</p>
+<code>make quality</code>, a pull request is to be gated on the job this record adds,
+run outside it, once the job is a required check.</p>
 <h2 id="context">Context</h2>
 <p>The gateway is tested against clients and servers built from the Go SDK the
 gateway itself uses. Nothing in CI showed that a client from another
@@ -130,7 +130,10 @@ end to end with an MCP client this module does not contain:</p>
 <code>examples/connect-a-filesystem-server/client/uv.lock</code>;</li>
 <li>the reference filesystem server 2026.8.31, the version the profile's
 fingerprints were taken from, locked with integrity hashes in that
-example's <code>package-lock.json</code> and installed with <code>npm ci --ignore-scripts</code>;</li>
+example's <code>package-lock.json</code> and installed with <code>npm ci --ignore-scripts</code>.
+Its date-based versions are deprecated since the package resumed semantic
+versioning at 1.0.0, whose 14 tool definitions all fingerprint differently,
+so moving to it is a classification of the profile anew;</li>
 <li>Node.js 24.19.0, pinned with the digest of the asset CI downloads in
 <code>scripts/tool-versions.env</code>;</li>
 <li>a plane, a collector and the report program built from the tree, the
@@ -138,19 +141,24 @@ guide's keys, bundle, statement and floors made as the guide makes them,
 on loopback ports picked free.</li>
 </ul>
 <p>It holds the plane to the guide's verify list: <code>doctor</code> classifies all 14
-tools; the client negotiates 2025-11-25 and sees 14 tools; a read returns
-the file; a write is held pending and writes nothing; approved, the same
-write runs once; retried, it is refused as used; a write the approver
-rejects is refused; and the report reads every request as ended, with the
-trail one unbroken chain per request. A test holds the script to the guide:
-each command a code block of the guide runs, the script runs too.</p>
+tools; the client negotiates 2025-11-25 and lists exactly the tools the
+profile classifies; a read returns the file; a write is held pending, shown
+pending by <code>approvals list</code>, and writes nothing; approved, the same write runs
+once; retried, it is refused as used; a write the approver rejects is refused;
+and the report holds exactly one row per request, each with the verdict,
+block, approval and end the steps made, every request ended, with the trail
+one unbroken chain per request. A test holds the script to the guide: each
+command a code block of the guide runs, with the token after it, the script
+runs too.</p>
 <p>CI runs it as the job &quot;External MCP client&quot; in <code>ci.yml</code>, on every pull
 request and on <code>main</code>, with no condition and no path filter. It is not part
 of <code>make quality</code>, which runs on a machine with Go and the pinned tools alone
 and needs no network for the servers it starts. Once the job is green on
-<code>main</code> it joins the required checks the bootstrap applies.</p>
-<p>Dependabot watches both lockfiles, except the server itself, whose version
-is taken by hand with new fingerprints.</p>
+<code>main</code> it joins the required checks the bootstrap applies; until then a red
+run of it blocks no merge.</p>
+<p>Dependabot opens version updates for the client's lockfile and security
+updates for both. The server takes no version update, since its version is
+taken by hand with new fingerprints, but its security updates still open.</p>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>None on the product: the job builds the binaries and runs them, and nothing
 it installs ships. The two lockfiles join the advisory scans that already

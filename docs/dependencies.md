@@ -229,8 +229,11 @@ and none of it is in the release archives.
   ships no licence file), the server the profile's fingerprints were taken
   from. It and its 104 transitive packages are pinned with integrity hashes in
   `examples/connect-a-filesystem-server/package-lock.json` and installed with
-  `npm ci --ignore-scripts`. A newer server is taken by hand, with new
-  fingerprints. Maintained by the MCP project.
+  `npm ci --ignore-scripts`. The package resumed semantic versioning at 1.0.0
+  and marks its date-based versions deprecated; 1.0.0's 14 tool definitions
+  all fingerprint differently, so moving to it is a classification of the
+  profile anew, not a bump. Dependabot opens its security updates and no
+  version update.
 - `mcp` 1.30.0 (MIT), the MCP project's Python SDK, is the client. Its 1.x line
   speaks protocol 2025-11-25, the newest the gateway serves. It and its
   dependencies are locked with hashes in

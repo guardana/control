@@ -4,8 +4,8 @@ Status: accepted
 Date: 2026-10-18
 
 Amends [ADR-0052](0052-a-change-is-gated-on-its-pull-request.md): besides
-`make quality`, a pull request is gated on the job this record adds, run
-outside it.
+`make quality`, a pull request is to be gated on the job this record adds,
+run outside it, once the job is a required check.
 
 ## Context
 
@@ -27,7 +27,10 @@ end to end with an MCP client this module does not contain:
   `examples/connect-a-filesystem-server/client/uv.lock`;
 - the reference filesystem server 2026.8.31, the version the profile's
   fingerprints were taken from, locked with integrity hashes in that
-  example's `package-lock.json` and installed with `npm ci --ignore-scripts`;
+  example's `package-lock.json` and installed with `npm ci --ignore-scripts`.
+  Its date-based versions are deprecated since the package resumed semantic
+  versioning at 1.0.0, whose 14 tool definitions all fingerprint differently,
+  so moving to it is a classification of the profile anew;
 - Node.js 24.19.0, pinned with the digest of the asset CI downloads in
   `scripts/tool-versions.env`;
 - a plane, a collector and the report program built from the tree, the
@@ -35,21 +38,26 @@ end to end with an MCP client this module does not contain:
   on loopback ports picked free.
 
 It holds the plane to the guide's verify list: `doctor` classifies all 14
-tools; the client negotiates 2025-11-25 and sees 14 tools; a read returns
-the file; a write is held pending and writes nothing; approved, the same
-write runs once; retried, it is refused as used; a write the approver
-rejects is refused; and the report reads every request as ended, with the
-trail one unbroken chain per request. A test holds the script to the guide:
-each command a code block of the guide runs, the script runs too.
+tools; the client negotiates 2025-11-25 and lists exactly the tools the
+profile classifies; a read returns the file; a write is held pending, shown
+pending by `approvals list`, and writes nothing; approved, the same write runs
+once; retried, it is refused as used; a write the approver rejects is refused;
+and the report holds exactly one row per request, each with the verdict,
+block, approval and end the steps made, every request ended, with the trail
+one unbroken chain per request. A test holds the script to the guide: each
+command a code block of the guide runs, with the token after it, the script
+runs too.
 
 CI runs it as the job "External MCP client" in `ci.yml`, on every pull
 request and on `main`, with no condition and no path filter. It is not part
 of `make quality`, which runs on a machine with Go and the pinned tools alone
 and needs no network for the servers it starts. Once the job is green on
-`main` it joins the required checks the bootstrap applies.
+`main` it joins the required checks the bootstrap applies; until then a red
+run of it blocks no merge.
 
-Dependabot watches both lockfiles, except the server itself, whose version
-is taken by hand with new fingerprints.
+Dependabot opens version updates for the client's lockfile and security
+updates for both. The server takes no version update, since its version is
+taken by hand with new fingerprints, but its security updates still open.
 
 ## Security / compatibility impact
 
