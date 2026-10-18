@@ -70,3 +70,22 @@ func TestAStopIsTimedOnceTheLockIsHeld(t *testing.T) {
 		t.Fatalf("entries %+v, want this pass's stop created at %s", entries, later)
 	}
 }
+
+// TestARunThatExpiresDuringTheWaitIsNotStopping: a finding eligible before
+// the lock whose run has expired by the reading taken under it is counted as
+// not stopping, and nothing is written for it.
+func TestARunThatExpiresDuringTheWaitIsNotStopping(t *testing.T) {
+	tr := newStopTree(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	reading := now
+	beforeStopsLock = func() { reading = now.Add(2 * time.Hour) }
+	t.Cleanup(func() { beforeStopsLock = func() {} })
+	before := tr.listBytes(t)
+	log := tr.findingsDir(t, "log", finding(1, tr.open, denial, confirmed))
+	var out, errOut bytes.Buffer
+	code := react(context.Background(), tr.reactArgs(log), func() time.Time { return reading }, &out, &errOut)
+	reacted(t, code, out.String(), errOut.String(), "stops 0, covered 0, already named 0, not stopping 1, not written 0")
+	if !bytes.Equal(tr.listBytes(t), before) {
+		t.Error("a finding that no longer stops changed the list")
+	}
+}
