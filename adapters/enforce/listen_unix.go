@@ -34,11 +34,15 @@ func (a *Adapter) Listen() (net.Listener, error) {
 	return a.listen(nil)
 }
 
-// CheckSocketDir refuses, as Listen does and binding nothing, a socket
-// directory that is not a directory this process's user owns with no
-// permission for group or others.
+// CheckSocketDir refuses, as Listen does and binding and locking nothing, a
+// socket directory that is not a directory this process's user owns with no
+// permission for group or others, and a lock file beside the socket that
+// Listen would refuse to lock.
 func (a *Adapter) CheckSocketDir() error {
-	return ownDir(filepath.Dir(a.cfg.Socket))
+	if err := ownDir(filepath.Dir(a.cfg.Socket)); err != nil {
+		return err
+	}
+	return checkLock(a.cfg.Socket)
 }
 
 // listen is Listen with chmodded, when set, run between the chmod and the

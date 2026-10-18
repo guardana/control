@@ -28,6 +28,18 @@ func holdSocketLock(t *testing.T, socket string) func() {
 	return func() { _ = f.Close() }
 }
 
+// adapterAt is an adapter configured for socket.
+func adapterAt(t *testing.T, socket string) *enforce.Adapter {
+	t.Helper()
+	cfg := validConfig()
+	cfg.Socket = socket
+	a, err := enforce.New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
 // staleSocket leaves a socket at path that refuses every connection.
 func staleSocket(t *testing.T, path string) {
 	t.Helper()
@@ -106,7 +118,10 @@ func TestALockPathThatIsNotThePlanesIsRefused(t *testing.T) {
 		name    string
 		prepare func(t *testing.T, lock string)
 	}{
-		{"a link", func(t *testing.T, lock string) {
+		{"a link to a usable file", func(t *testing.T, lock string) {
+			if err := os.WriteFile(lock+".target", nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
 			if err := os.Symlink(lock+".target", lock); err != nil {
 				t.Fatal(err)
 			}
@@ -137,6 +152,9 @@ func TestALockPathThatIsNotThePlanesIsRefused(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			socket := socketPath(t)
 			tc.prepare(t, socket+".lock")
+			if err := adapterAt(t, socket).CheckSocketDir(); !errors.Is(err, enforce.ErrSocketInUse) {
+				t.Errorf("CheckSocketDir = %v, want ErrSocketInUse as Listen gives", err)
+			}
 			if err := listenAt(t, socket); !errors.Is(err, enforce.ErrSocketInUse) {
 				t.Fatalf("Listen = %v, want ErrSocketInUse", err)
 			}
@@ -189,5 +207,48 @@ func TestServeReleasesTheLockWhenItEnds(t *testing.T) {
 	}
 	if err := listenAt(t, socket); err != nil {
 		t.Fatalf("Listen after Serve ended: %v", err)
+	}
+}
+
+// TestARefusedListenReleasesTheLock: a Listen refused after it took the lock,
+// here for a file at the socket's path, leaves the lock free, so the next
+// Listen in the same process binds once the path is clear.
+func TestARefusedListenReleasesTheLock(t *testing.T) {
+	socket := socketPath(t)
+	if err := os.WriteFile(socket, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a := adapterAt(t, socket)
+	if ln, err := a.Listen(); !errors.Is(err, enforce.ErrSocketInUse) {
+		if ln != nil {
+			_ = ln.Close()
+		}
+		t.Fatalf("Listen over a regular file = %v, want ErrSocketInUse", err)
+	}
+	if err := os.Remove(socket); err != nil {
+		t.Fatal(err)
+	}
+	if err := listenAt(t, socket); err != nil {
+		t.Fatalf("Listen after a refusal: %v", err)
+	}
+}
+
+// TestTheSocketCheckPassesWhereListenWouldBind: no lock file yet, and the one
+// a closed listener left, are both what Listen takes.
+func TestTheSocketCheckPassesWhereListenWouldBind(t *testing.T) {
+	socket := socketPath(t)
+	a := adapterAt(t, socket)
+	if err := a.CheckSocketDir(); err != nil {
+		t.Fatalf("CheckSocketDir with no lock file: %v", err)
+	}
+	ln, err := a.Listen()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.CheckSocketDir(); err != nil {
+		t.Fatalf("CheckSocketDir with the lock a closed listener left: %v", err)
 	}
 }

@@ -52,6 +52,19 @@ func openLock(path string) (*os.File, error) {
 	return f, nil
 }
 
+// checkLock refuses, taking no lock, a file at the lock's path that
+// lockSocket would refuse. No file there is no refusal: Listen creates one.
+func checkLock(socket string) error {
+	f, err := os.OpenFile(socket+".lock", os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0) //nolint:gosec // G304: the configured socket's own lock, in a directory ownDir checked
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrSocketInUse, err)
+	}
+	return errors.Join(ownLock(f), f.Close())
+}
+
 // ownLock refuses an opened lock that is not a regular file of one name that
 // this user owns with mode 0600.
 func ownLock(f *os.File) error {
