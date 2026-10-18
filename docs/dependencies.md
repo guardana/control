@@ -227,13 +227,14 @@ and none of it is in the release archives.
 - `@modelcontextprotocol/server-filesystem` 2026.8.31 (MIT and Apache-2.0: the
   upstream repository is moving from the first to the second, and the package
   ships no licence file), the server the profile's fingerprints were taken
-  from. It and its 104 transitive packages are pinned with integrity hashes in
+  from. It and its 103 transitive packages are pinned with integrity hashes in
   `examples/connect-a-filesystem-server/package-lock.json` and installed with
   `npm ci --ignore-scripts`. The package resumed semantic versioning at 1.0.0
   and marks its date-based versions deprecated; 1.0.0's 14 tool definitions
   all fingerprint differently, so moving to it is a classification of the
-  profile anew, not a bump. Dependabot opens its security updates and no
-  version update.
+  profile anew, not a bump. Dependabot cannot propose a version for it, since
+  the 1.x line sorts below 2026.8.31; the advisory scan over the lockfile is
+  its alarm, and Dependabot's security updates cover the packages below it.
 - `mcp` 1.30.0 (MIT), the MCP project's Python SDK, is the client. Its 1.x line
   speaks protocol 2025-11-25, the newest the gateway serves. It and its
   dependencies are locked with hashes in

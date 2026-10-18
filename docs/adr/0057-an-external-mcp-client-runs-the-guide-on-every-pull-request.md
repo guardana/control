@@ -14,7 +14,7 @@ gateway itself uses. Nothing in CI showed that a client from another
 implementation could connect, list the tools, be held for an approval and
 resume, and the guide for connecting an existing MCP setup had been tried by
 hand once, with one version of the reference filesystem server. The guide
-installed that server by name, with nothing pinning its 104 transitive
+installed that server by name, with nothing pinning its 103 transitive
 packages.
 
 ## Decision
@@ -44,9 +44,9 @@ pending by `approvals list`, and writes nothing; approved, the same write runs
 once; retried, it is refused as used; a write the approver rejects is refused;
 and the report holds exactly one row per request, each with the verdict,
 block, approval and end the steps made, every request ended, with the trail
-one unbroken chain per request. A test holds the script to the guide: each
-command a code block of the guide runs, with the token after it, the script
-runs too.
+one unbroken chain per request. A test holds the script to the guide's text:
+the script names each command a code block of the guide runs, with the token
+after it and every flag the guide passes.
 
 CI runs it as the job "External MCP client" in `ci.yml`, on every pull
 request and on `main`, with no condition and no path filter. It is not part
@@ -55,9 +55,10 @@ and needs no network for the servers it starts. Once the job is green on
 `main` it joins the required checks the bootstrap applies; until then a red
 run of it blocks no merge.
 
-Dependabot opens version updates for the client's lockfile and security
-updates for both. The server takes no version update, since its version is
-taken by hand with new fingerprints, but its security updates still open.
+Dependabot opens version updates for the client's lockfile. It cannot
+propose one for the server, whose maintained 1.x line sorts below 2026.8.31;
+the advisory scans over the lockfile are the server's alarm, and Dependabot's
+security updates cover the packages below it.
 
 ## Security / compatibility impact
 
