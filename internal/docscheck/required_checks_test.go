@@ -109,6 +109,9 @@ func requiredCheckProblems(checks []string, jobs map[string][]workflowJob) []str
 func requiredJobProblems(check string, job workflowJob) []string {
 	where := fmt.Sprintf("%s: the job of %q", job.file, check)
 	problems := keyProblems(job.node, requiredJobKeys, where)
+	if job.node.value != "" {
+		problems = append(problems, where+" is written in flow style, which this check cannot read")
+	}
 	if !job.everyPR {
 		problems = append(problems, where+" is in a workflow that does not run on every pull request")
 	}
@@ -225,6 +228,10 @@ func TestARequiredCheckAPullRequestCanMissIsCaught(t *testing.T) {
 		if got := requiredCheckProblems([]string{"Gate"}, plantedJobs(t, doc)); len(got) != 1 {
 			t.Errorf("%s: %q, want one problem", name, got)
 		}
+	}
+	flowJob := "on:\n  pull_request:\njobs:\n  gate: {runs-on: ubuntu-latest, if: false, steps: [{run: make check}]}\n"
+	if got := requiredCheckProblems([]string{"gate"}, plantedJobs(t, flowJob)); len(got) != 1 {
+		t.Errorf("a job in flow style: %q, want one problem", got)
 	}
 	if got := requiredCheckProblems([]string{"Gate", "Gate"}, plantedJobs(t, good)); len(got) != 1 {
 		t.Errorf("a check listed twice: %q, want one problem", got)

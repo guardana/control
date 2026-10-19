@@ -320,6 +320,12 @@ def missing(*invs):
     return None
 
 
+def reason(said):
+    """The runtime's reason after the hook command it names, which holds
+    local paths and is left out."""
+    return said.rsplit("]: ", 1)[-1].splitlines()[0] if "]: " in said else ""
+
+
 def silent(admits):
     """Whether every admit the bridge let run was answered with nothing on
     standard output, which is the only reply that cannot widen a call."""
@@ -489,11 +495,12 @@ def judge_obligation(c, seeds):
                    "OBLIGATION code (aborted, never run)", observed, ok, why)
 
 
-def judge_effect(c, group, base, runs, expected, act, said=(), exit_status=None):
+def judge_effect(c, group, base, runs, expected, act, said=(), exit_status=None, printed=False):
     """A Write that runs, or not, as the case's PreToolUse hook makes it. Every
     PreToolUse hook of the Write must have been act's, so another hook's answer
     cannot stand in for it; a refusal must be in the runtime's words said; with
-    exit_status, every admit must also have exited with it."""
+    exit_status, every admit must also have exited with it; printed, the hook
+    must be recorded as having written to standard output and exited 0."""
     inv = c(group, "run")
     admits = inv.hook("PreToolUse", "Write", base)
     why = missing(inv) or not_called(inv, "Write", admits)
@@ -503,11 +510,13 @@ def judge_effect(c, group, base, runs, expected, act, said=(), exit_status=None)
     writes = [u for u in inv.calls() if u["name"] == "Write" and os.path.basename(str(u["input"].get("file_path"))) == base]
     if not why and not all(inv.in_project(u["input"].get("file_path")) for u in writes):
         why = "the model wrote %s outside the project" % base
+    if not why and printed and not all(e["meta"].get("exit") == 0 and e["meta"].get("stdout") for e in admits):
+        why = "the hook's exit and output were not recorded as written and 0"
     refused = bool(writes) and all(inv.refused(u["id"]) for u in writes)
-    worded = all(all(w in inv.said(u["id"]) for w in said) for u in writes)
+    worded = bool(writes) and all(all(w in inv.said(u["id"]) for w in said) for u in writes)
     observed = {"pre_hook": [(e["meta"].get("act"), e["meta"].get("exit")) for e in admits],
                 "file": inv.files.get(base), "runtime_returned": inv.returned(), "write_refused": refused,
-                "refusal_says": list(said) if said and worded else None}
+                "refusal": [reason(inv.said(u["id"])) for u in writes if inv.refused(u["id"])]}
     ok = (inv.returned() and (base in inv.files) == runs and refused != runs and worded
           and (exit_status is None or set(exits(admits)) == {exit_status}))
     return verdict(expected, observed, ok, why)
@@ -644,7 +653,8 @@ def judge(args):
                              ("garbage", True, "a PreToolUse hook that prints unreadable output and exits 0 "
                               "lets the Write run")):
         act, said = FAILING[group]
-        results.append((group, [c(group, "run")], judge_effect(c, group, group + ".txt", runs, how, act, said)))
+        results.append((group, [c(group, "run")], judge_effect(c, group, group + ".txt", runs, how, act, said,
+                                                              printed=act == "garbage")))
     results.append(("disabled", [c("disabled", "run")], judge_disabled(c)))
     rewrite = judge_rewrite(c("rewrite", "run"), seeds["replacement"])
     results.append(("rewrite", [c("rewrite", "run")], rewrite))
