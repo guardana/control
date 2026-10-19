@@ -35,6 +35,14 @@ def load_json(path, default=None):
         return default
 
 
+def read_text(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
 def lines(path):
     out = []
     try:
@@ -150,6 +158,8 @@ def events(path):
         out.append({
             "kind": ev.get("hook_event_name", ""),
             "tool": ev.get("tool_name", ""),
+            "call": ev.get("tool_use_id", ""),
+            "agent": ev.get("agent_id", ""),
             "input": ev.get("tool_input") if isinstance(ev.get("tool_input"), dict) else {},
             "meta": meta,
         })
@@ -166,6 +176,7 @@ class Inv:
 
     def __init__(self, cases, events_root, group, name):
         self.name = group + "/" + name
+        self.project = os.path.join(os.path.dirname(os.path.abspath(cases)), "p", group)
         d = self.dir = os.path.join(cases, group, name)
         self.skipped = os.path.exists(os.path.join(d, "skipped"))
         self.unselected = os.path.exists(os.path.join(d, "unselected"))
@@ -178,6 +189,37 @@ class Inv:
         self.health = load_json(os.path.join(d, "healthz.json"), {})
         self.health_before = load_json(os.path.join(d, "healthz.before.json"), {})
         self.approved = load_json(os.path.join(d, "approved.json"), {})
+        self.exits = [read_text(os.path.join(d, n)).strip() for n in names if re.fullmatch(r"runtime-\w+\.exit", n)]
+        self.stopped = any("stopped after" in read_text(os.path.join(d, n))
+                           for n in names if re.fullmatch(r"runtime-\w+\.err", n))
+
+    def returned(self):
+        """Whether every runtime invocation ended on its own, with status 0."""
+        return bool(self.exits) and all(x == "0" for x in self.exits) and not self.stopped
+
+    def calls(self):
+        """Every tool call in the stream: its name, id, the call it ran under, and its input."""
+        out = []
+        for line in self.stream:
+            content = (line.get("message") or {}).get("content") if line.get("type") == "assistant" else None
+            for item in content if isinstance(content, list) else []:
+                if isinstance(item, dict) and item.get("type") == "tool_use":
+                    out.append({"name": item.get("name"), "id": item.get("id"),
+                                "parent": line.get("parent_tool_use_id"), "input": item.get("input") or {}})
+        return out
+
+    def refused(self, call_id):
+        """Whether the runtime answered the tool call call_id with an error."""
+        for line in self.stream:
+            content = (line.get("message") or {}).get("content") if line.get("type") == "user" else None
+            for item in content if isinstance(content, list) else []:
+                if isinstance(item, dict) and item.get("type") == "tool_result" and item.get("tool_use_id") == call_id:
+                    return item.get("is_error") is True
+        return False
+
+    def in_project(self, path):
+        d = os.path.dirname(str(path))
+        return d in (self.project, self.project.removeprefix("/private"), "/private" + self.project)
 
     def tool_uses(self, prefix):
         out = []
@@ -236,6 +278,9 @@ class Inv:
 
     def started(self, digest):
         return sum(r["kinds"].count("ACTION_STARTED") for r in self.requests().values() if r.get("digest") == digest)
+
+    def completed(self, digest):
+        return sum(r["kinds"].count("ACTION_COMPLETED") for r in self.requests().values() if r.get("digest") == digest)
 
     def halted(self):
         before = (self.health_before.get("pipeline") or {}).get("runs_halted", 0)
@@ -341,13 +386,14 @@ def judge_pending(c, seeds):
     if not why and again and again != approval:
         why = "the retry was another call: it was held anew as " + again
     observed = {"admit_exits": exits(admits), "file": resumed.files.get("target.txt"),
-                "started_on_digest": resumed.started(digest) if digest else None}
+                "started_on_digest": resumed.started(digest) if digest else None,
+                "completed_on_digest": resumed.completed(digest) if digest else None}
     ok = (exits(admits) == [0] and resumed.files.get("target.txt") == edit_applied(seed, admits)
-          and resumed.started(digest) == 1)
+          and resumed.started(digest) == 1 and resumed.completed(digest) == 1)
     out.append(("pending-resumed", [resumed],
                 verdict("once approved, the identical retry runs once: its PreToolUse exits 0, the edit is "
-                        "applied, and one ACTION_STARTED follows a decision on the approval's digest",
-                        observed, ok, why)))
+                        "applied, and one ACTION_STARTED and one ACTION_COMPLETED follow a decision on the "
+                        "approval's digest", observed, ok, why)))
 
     admits = used.hook("PreToolUse", "Edit", "target.txt")
     why = missing(used) or not_called(used, "Edit", admits) or (None if digest else "no held approval was used")
@@ -423,9 +469,14 @@ def judge_effect(c, group, base, runs, expected, exit_status=None):
     inv = c(group, "run")
     admits = inv.hook("PreToolUse", "Write", base)
     why = missing(inv) or not_called(inv, "Write", admits)
+    writes = [u for u in inv.calls() if u["name"] == "Write" and os.path.basename(str(u["input"].get("file_path"))) == base]
+    if not why and not all(inv.in_project(u["input"].get("file_path")) for u in writes):
+        why = "the model wrote %s outside the project" % base
+    refused = bool(writes) and all(inv.refused(u["id"]) for u in writes)
     observed = {"pre_hook": [(e["meta"].get("act"), e["meta"].get("exit")) for e in admits],
-                "file": inv.files.get(base)}
-    ok = (base in inv.files) == runs and (exit_status is None or set(exits(admits)) == {exit_status})
+                "file": inv.files.get(base), "runtime_returned": inv.returned(), "write_refused": refused}
+    ok = (inv.returned() and (base in inv.files) == runs and refused != runs
+          and (exit_status is None or set(exits(admits)) == {exit_status}))
     return verdict(expected, observed, ok, why)
 
 
@@ -449,10 +500,11 @@ def judge_rewrite(inv, replacement):
                 "proposed": bridge[0]["input"].get("content") if bridge else None,
                 "completion_input": [e["input"].get("content") for e in posts],
                 "mismatch": mismatch, "run_halted": inv.halted()}
-    if not why and exits(bridge) != [0]:
+    proposed = observed["proposed"]
+    if not why and (exits(bridge) != [0] or written == proposed):
         return verdict(EXPECT_REWRITE, observed, False)
     if not why and written != replacement:
-        why = "the runtime did not write the replacement, so no completion could show it"
+        why = "the runtime wrote neither the proposed content nor the replacement"
     return verdict(EXPECT_REWRITE, observed, mismatch and inv.halted(), why)
 
 
@@ -491,20 +543,27 @@ def judge_mcp(c):
 
 def judge_subagent(c):
     inv = c("subagent", "run")
-    admits = inv.hook("PreToolUse", "Write", "sub.txt")
-    why = missing(inv) or (None if admits else "no PreToolUse event of a sub-agent's Write of sub.txt was recorded")
+    agents = {u["id"] for u in inv.calls() if u["name"] == "Agent" and not u["parent"]}
+    writes = {u["id"] for u in inv.calls() if u["name"] == "Write" and u["parent"] in agents}
+    admits = [e for e in inv.hook("PreToolUse", "Write", "sub.txt") if e["agent"] and e["call"] in writes]
+    why = (missing(inv) or (None if agents else "the model made no Agent call in " + inv.name)
+           or (None if writes else "no Write ran under the Agent call in " + inv.name)
+           or (None if admits else "no PreToolUse event of the sub-agent's Write of sub.txt was recorded"))
     reqs = inv.on("Write", "sub.txt")
-    observed = {"agent_calls": len(inv.tool_uses("Agent")), "admit_exits": exits(admits),
+    observed = {"agent_calls": len(agents), "sub_agent_writes": len(writes), "admit_exits": exits(admits),
                 "decided": [r.get("verdict") for r in reqs], "file": inv.files.get("sub.txt")}
     ok = bool(admits) and any(r.get("verdict") for r in reqs)
-    return verdict("a sub-agent's Write reaches the hook, and the plane decides it", observed, ok, why)
+    return verdict("a Write a sub-agent makes under the Agent call reaches the hook with the sub-agent's id, and "
+                   "the plane decides it", observed, ok, why)
 
 
-def control(inner, caught_when, expected):
+def control(inner, caught_when, expected, broke):
+    """A negative control passes when the case under the broken bridge is
+    judged caught_when for the reason the broken bridge gives: broke(observed)."""
     _, observed, v = inner
     if v == UNKNOWN:
         return expected, dict(observed, unknown="the expectation under the broken bridge was not judged"), UNKNOWN
-    return expected, dict(observed, judged=v), PASS if v == caught_when else FAIL
+    return expected, dict(observed, judged=v), PASS if v == caught_when and broke(observed) else FAIL
 
 
 def judge(args):
@@ -546,15 +605,22 @@ def judge(args):
     results.append(("subagent", [c("subagent", "run")], judge_subagent(c)))
     results.append(("control-allow-all", [c("control-allow-all", "run")],
                     control(judge_block(c("control-allow-all", "run")), FAIL,
-                            "the block case through a bridge that lets every call run is judged failed")))
+                            "the block case through a bridge that lets every call run is judged failed, "
+                            "because the marker was made", lambda o: o.get("marker") is True)))
     inner = judge_rewrite(c("control-report-proposed", "run"), seeds["replacement"])
     ctl = control(inner, FAIL, "the rewrite case through a bridge that reports the authorized input as the one "
-                               "that ran is judged failed, where the real bridge's mismatch was seen")
+                               "that ran is judged failed, because the replacement ran and no mismatch was "
+                               "recorded, where the real bridge's mismatch was seen",
+                  lambda o: o.get("bridge_exits") == [0] and o.get("written") == seeds["replacement"]
+                  and o.get("mismatch") is False)
     if rewrite[2] != PASS:
         ctl = (ctl[0], dict(ctl[1], unknown="the real bridge showed no mismatch in rewrite to compare with"), UNKNOWN)
     results.append(("control-report-proposed", [c("control-report-proposed", "run")], ctl))
 
     for case_id, invs, (expected, observed, v) in results:
+        observed = dict(observed, pre_tool_use=[
+            [e["tool"], e["meta"].get("exit"), e["meta"].get("stderr", "").strip()]
+            for i in invs for e in i.events if e["kind"] == "PreToolUse" and e["meta"].get("act") == "pass"])
         print(json.dumps({"id": case_id, "invocations": sum(i.ran for i in invs),
                           "expected": expected, "observed": observed, "verdict": v}))
 
@@ -566,6 +632,8 @@ def report(args):
     results = lines(args.results)
     meta = load_json(args.meta, {})
     doc = dict(meta, cases=results)
+    if args.judged_at:
+        doc["judged_at"] = args.judged_at
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(doc, f, indent=2)
         f.write("\n")
@@ -621,6 +689,7 @@ def main():
     p.add_argument("--results", required=True)
     p.add_argument("--meta", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--judged-at", help="the commit whose judge read the observations, when not the run's")
     p.set_defaults(fn=report)
     args = parser.parse_args()
     sys.exit(args.fn(args) or 0)

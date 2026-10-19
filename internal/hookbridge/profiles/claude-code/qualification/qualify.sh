@@ -402,10 +402,11 @@ launch() {
   (cd "${proj}" && exec env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT "${token_var}=${token}" "${cmd[@]}") \
     >"${d}/stream-${key}.jsonl" 2>"${d}/runtime-${key}.err" &
   local pid=$! ticks=0 status=0
+  pids+=("${pid}")
   while kill -0 "${pid}" 2>/dev/null; do
     if ((ticks >= 3000)); then
-      kill -TERM "${pid}" 2>/dev/null || true
       printf 'qualify: stopped after 300 s\n' >>"${d}/runtime-${key}.err"
+      stop "${pid}"
       break
     fi
     sleep 0.1
@@ -478,6 +479,7 @@ if reserve race 2; then
     launch race "${key}" 'Read Edit' "$(edit_prompt second.txt 'mode = draft' 'mode = final')" \
       Edit "$(edit_input second.txt 'mode = draft' 'mode = final')" &
     racers+=("$!")
+    pids+=("$!")
   done
   wait "${racers[@]}"
   gather race
