@@ -65,6 +65,9 @@ func TestAClaimReadsOnlyAnEntryThisStoreWrote(t *testing.T) {
 			if c, err := s.Claim("tok", "s", "c"); !errors.Is(err, hookbridge.ErrEntry) {
 				t.Fatalf("Claim = %+v, %v; want ErrEntry", c, err)
 			}
+			if left := names(t, dir); len(left) != 0 {
+				t.Fatalf("the entry it could not read was left as %v", left)
+			}
 		})
 	}
 }

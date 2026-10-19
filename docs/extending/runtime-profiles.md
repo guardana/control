@@ -22,7 +22,8 @@ For an event the profile maps to an admit, the bridge asks the plane's
 enforcement API about the call, with the tool's input exactly as the runtime
 wrote it. Only an `EXECUTE` of exactly those bytes lets the call run, and the
 bridge then exits 0 and prints nothing. Anything else exits with the
-profile's block status and one line on standard error. The bridge never
+profile's block status and one line on standard error, or with 2 when the
+flags are wrong or the profile cannot be read. The bridge never
 writes a reply that allows, asks, defers or changes a call, so the plane's
 decision can only take a call away. A decision that wants the arguments
 rewritten, or carries an obligation, is denied: a hook cannot hand the
@@ -35,7 +36,9 @@ says it ran. The plane compares that input with the authorized one as a
 value, by `digest_v1`, and records a difference as `EXECUTED_ARGS_MISMATCH`.
 
 The run token comes from `GUARDANA_CONTROL_RUN_TOKEN` in the hook's
-environment, never from the event.
+environment, never from the event. The plane's `tools` table must name every
+tool the runtime sends; a tool it does not name is refused, and the call
+blocked, except on a plane in `OBSERVE`.
 
 ## The profile
 
@@ -59,21 +62,24 @@ the bridge gets a new strategy, under review, and every profile can use it.
 
 1. Write the profile under `internal/hookbridge/profiles/<id>/`, and record
    the runtime's events as fixtures beside it, with paths and ids scrubbed.
-2. Pass the fixture suite. It runs in every CI without the runtime: each
-   fixture's exit status, standard output, admit body and the trail it leaves.
-   The profile's `cases.json` states what each fixture must come to.
-   Five mutant bridges must fail it.
+2. Pass the fixture suite, which runs in every CI without the runtime. The
+   profile's `cases.json` states, apart from the profile, the statuses the
+   runtime blocks and reports a problem on, the hook timeout, the largest
+   event, and what each fixture must come to: a refusal, or an admit's
+   outcome, the bytes it proposed and the trail it leaves, or a completion's
+   closing record. The command's own tests hold its exit statuses and
+   standard output to the profile's.
 3. Qualify the profile against the runtime at a pinned version: a call
    blocked with no effect on a recorder the bridge cannot touch, a pending
    approval resumed, a wanted rewrite denied, the input that ran compared,
    the plane down, the hook timing out, crashing and printing garbage, hooks
-   disabled, two concurrent resumes, and the two mutant bridges caught. The
-   results go in the profile's `qualification/` directory, one file per
-   runtime version.
+   disabled, two concurrent resumes, and two mutant bridges caught, one that
+   allows every call and one that reports the authorized input as the one
+   that ran. The results go in the profile's `qualification/` directory, one
+   file per runtime version, with the date each was run.
 4. Write the profile's page under `docs/reference/`, with the tested
-   versions, the settings, a table per event, the bypasses, the date and a
-   line saying the page is maintained here and not by the runtime's
-   publisher.
+   versions, the settings, a table per event, the bypasses and a line saying
+   the page is maintained here and not by the runtime's publisher.
 
 The runtime's name appears in its profile's files and page, and in the path
 of a link to that page; nowhere else in the tree.
@@ -85,5 +91,6 @@ call. A profile is **decided, not enforced** only when the runtime blocks a
 call whose hook fails, in settings the user cannot override, the hook command
 is an absolute path to a binary the agent cannot replace and names a built-in
 profile, and the runtime's shell sandbox keeps the agent out of the plane's
-directories, since the hook runs as the agent's account. Otherwise it is **decided, with failure gaps**, and
-the page names each gap. A claim no case backs reads as unknown.
+directories, since the hook runs as the agent's account. Otherwise it is
+**decided, with failure gaps**, and the page names each gap. The page states
+a claim no case backs as unverified.

@@ -25,12 +25,15 @@ import (
 // states for each of its fixtures, written apart from the profile so a wrong
 // member, phase or bound in the profile fails a case.
 type profileSuite struct {
-	dir           string
-	profile       *hookbridge.Profile
-	MaxEventBytes int64       `json:"max_event_bytes"`
-	BoundFrom     string      `json:"bound_from"`
-	Tools         []suiteTool `json:"tools"`
-	Cases         casesByName `json:"cases"`
+	dir                string
+	profile            *hookbridge.Profile
+	BlockExitCode      int         `json:"block_exit_code"`
+	ProblemExitCode    int         `json:"problem_exit_code"`
+	HookTimeoutSeconds int         `json:"hook_timeout_seconds"`
+	MaxEventBytes      int64       `json:"max_event_bytes"`
+	BoundFrom          string      `json:"bound_from"`
+	Tools              []suiteTool `json:"tools"`
+	Cases              casesByName `json:"cases"`
 }
 
 type suiteTool struct {

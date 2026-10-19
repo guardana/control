@@ -210,28 +210,64 @@ not the plane, runs the call.</p>
 }
 </code></pre>
 <ul>
-<li><code>timeout</code> is 30 because the profile says so: the bridge gives up on the
-plane after 27 seconds, inside the runtime's limit.</li>
-<li><code>onFailure: &quot;block&quot;</code> sits on the admit only. Without it, a hook that times
+<li>
+<p><code>timeout</code> is 30 because the profile says so: the bridge gives up on each
+request to the plane after 12 seconds and on the whole hook after 27,
+inside the runtime's limit.</p>
+</li>
+<li>
+<p><code>onFailure: &quot;block&quot;</code> sits on the admit only. Without it, a hook that times
 out, crashes or cannot start lets the call run. On the two completion
-events the call has already run, so there is nothing left to block.</li>
-<li>The matcher leaves out tools named <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>, which reach the
+events the call has already run, so there is nothing left to block.</p>
+</li>
+<li>
+<p>The matcher leaves out tools named <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>, which reach the
 plane through the gateway. A matcher with characters other than letters,
 digits, <code>_</code>, <code>-</code>, spaces, <code>,</code> and <code>|</code> is a JavaScript regular expression;
 Claude Code's documentation does not show a negative lookahead, so the
 qualification has to confirm that this one matches every other tool. An MCP
-server that is not behind the gateway is then seen by neither.</li>
-<li>Put these hooks in managed settings. A user can turn off any hook outside
+server that is not behind the gateway is then seen by neither.</p>
+</li>
+<li>
+<p>Put these hooks in managed settings. A user can turn off any hook outside
 them with <code>disableAllHooks</code> or by editing their own settings files, and
-<code>allowManagedHooksOnly</code> keeps user, project and plugin hooks out.</li>
-<li>The command is an absolute path to a binary the agent cannot replace, and
+<code>allowManagedHooksOnly</code> keeps user, project and plugin hooks out.</p>
+</li>
+<li>
+<p>The command is an absolute path to a binary the agent cannot replace, and
 names the built-in profile: a binary found through <code>PATH</code>, or a
 <code>--profile-file</code> the agent can write, is one the agent can swap for one
-that allows every call.</li>
-<li><code>--state-dir</code> must exist and belong to the account the hook runs as, with
-no access for group or others; there is no default.</li>
-<li>The run token is read from <code>GUARDANA_CONTROL_RUN_TOKEN</code> in the hook's
-environment, never from a flag or the event. Start Claude Code with it set.</li>
+that allows every call.</p>
+</li>
+<li>
+<p><code>--state-dir</code> must exist and belong to the account the hook runs as, with
+no access for group or others; there is no default.</p>
+</li>
+<li>
+<p>The run token is read from <code>GUARDANA_CONTROL_RUN_TOKEN</code> in the hook's
+environment, never from a flag or the event. Start Claude Code with it set.</p>
+</li>
+<li>
+<p>The plane's <code>tools</code> table must name every tool these hooks send, each with
+its effect class; a tool it does not name is refused, and the call blocked,
+except on a plane in <code>OBSERVE</code>. For example:</p>
+<pre><code class="language-yaml">tools:
+  - name: Bash
+    effect: EXECUTE
+    provider: runtime
+    resource_type: command
+  - name: Write
+    effect: WRITE
+    provider: runtime
+    resource_type: file
+    resource_from: /file_path
+  - name: Edit
+    effect: WRITE
+    provider: runtime
+    resource_type: file
+    resource_from: /file_path
+</code></pre>
+</li>
 </ul>
 <h2 id="per-event">Per event</h2>
 <table>
@@ -271,8 +307,9 @@ environment, never from a flag or the event. Start Claude Code with it set.</li>
 <p>An event that is over 16 MiB, is not one JSON object of valid UTF-8, names a
 member twice, lacks the tool name, the call id or the session id, carries a
 <code>tool_input</code> that is not an object, or is a <code>PreToolUse</code> without one is
-refused before anything is sent, with the profile's block status, 2. A member spelled in another
-case is not read, so it counts as absent.</p>
+refused before anything is sent, with the profile's block status, 2, and so
+is any event when the hook has no run token. A member spelled in another case
+is not read, so it counts as absent.</p>
 <p>The plane compares the completion's <code>tool_input</code> with the authorized one by
 <code>digest_v1</code>: key order, white space, string escapes and a number written
 <code>120000.0</code> for <code>120000</code> do not make it another call; a member added, removed
@@ -281,8 +318,11 @@ order do, and the plane records <code>EXECUTED_ARGS_MISMATCH</code> and halts th
 material calls. A decision that wants the input rewritten, or attaches an
 obligation, is denied, because a hook cannot hand Claude Code the authorized
 bytes. A call held for approval is denied with a line naming the approval;
-the bridge's tests do not yet show a later identical call running once the
-approval is granted. A tool input over 64 KiB, an integer beyond 2^53-1 or
+once it is approved, the agent's identical retry is a new admit that resumes
+the hold. The bridge's tests show that against a plane; neither the resume
+nor the completion that follows it has been seen on Claude Code. A
+completion's start and end, as the plane records them, are both the moment
+the completion hook ran; the event's <code>duration_ms</code> is not read. A tool input over 64 KiB, an integer beyond 2^53-1 or
 more than 32 nested containers is refused by the plane and denied.</p>
 <h2 id="gaps-and-bypasses">Gaps and bypasses</h2>
 <p>None of these is closed by the profile.</p>

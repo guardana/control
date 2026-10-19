@@ -39,7 +39,7 @@ func TestAPublishIsBoundedAt4KiB(t *testing.T) {
 // would: a temporary name holding body.
 func writeTemp(t *testing.T, dir, name, body string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil { //nolint:gosec // G703: a name in this test's own directory
 		t.Fatal(err)
 	}
 }
@@ -65,5 +65,31 @@ func TestASweepRemovesAnExpiredTemporaryEntry(t *testing.T) {
 	slices.Sort(got)
 	if want := []string{current, torn, other}; !slices.Equal(got, want) {
 		t.Fatalf("left %v, want %v", got, want)
+	}
+}
+
+// A name that reads as a claimed entry up to its claimer's suffix, but whose
+// suffix is not one a claim makes, is no entry: a sweep leaves it, however
+// expired the body it holds.
+func TestASweepLeavesANameNoClaimMakes(t *testing.T) {
+	dir := storeDir(t)
+	s := openStore(t, dir)
+	path := publishOne(t, s, dir, "c", later)
+	body, err := os.ReadFile(path) //nolint:gosec // G304: a file this test wrote
+	if err != nil {
+		t.Fatal(err)
+	}
+	odd := []string{filepath.Base(path) + ".claimed-short", filepath.Base(path) + ".claimed-" + strings.Repeat("A", 27)}
+	for _, name := range odd {
+		writeTemp(t, dir, name, string(body))
+	}
+	if n, err := s.Sweep(later.Add(time.Hour)); n != 1 || err != nil {
+		t.Fatalf("Sweep = %d, %v; want the one entry", n, err)
+	}
+	got := names(t, dir)
+	slices.Sort(got)
+	slices.Sort(odd)
+	if !slices.Equal(got, odd) {
+		t.Fatalf("left %v, want %v", got, odd)
 	}
 }

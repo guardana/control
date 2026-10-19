@@ -140,10 +140,11 @@ func TestACompletionNotRecordedExitsTheProfilesProblemCode(t *testing.T) {
 	}
 }
 
-// TestAnUnreadableEventExitsTheProfilesBlockCode: once a profile is read, an
-// event it cannot read is blocked with the profile's status, here 3, and the
-// fixed 2 is left to refusals made before there is a profile.
-func TestAnUnreadableEventExitsTheProfilesBlockCode(t *testing.T) {
+// TestARefusalOnceAProfileIsReadExitsItsBlockCode: once a profile is read, an
+// event it cannot read or a missing run token is blocked with the profile's
+// status, here 3, and the fixed 2 is left to refusals made before there is a
+// profile.
+func TestARefusalOnceAProfileIsReadExitsItsBlockCode(t *testing.T) {
 	profile := neutralWith(t, `"block_exit_code": 2`, `"block_exit_code": 3`)
 	oversized := strings.Replace(admitEvent, `"input":`, `"pad":"`+strings.Repeat("x", 4096)+`","input":`, 1)
 	for name, event := range map[string]string{
@@ -160,7 +161,10 @@ func TestAnUnreadableEventExitsTheProfilesBlockCode(t *testing.T) {
 		}
 	}
 	t.Setenv(hookTokenVariable, "")
-	if code, _, _ := hookRun(t, admitEvent, "--profile-file", profile, "--socket", "s", "--state-dir", "d"); code != 2 {
-		t.Errorf("no run token exits %d, want 2", code)
+	if code, stdout, _ := hookRun(t, admitEvent, "--profile-file", profile, "--socket", "s", "--state-dir", "d"); code != 3 || stdout != "" {
+		t.Errorf("no run token exits %d, stdout %q; want 3 and nothing on stdout", code, stdout)
+	}
+	if code, _, _ := hookRun(t, admitEvent, "--profile-file", filepath.Join(t.TempDir(), "absent.json"), "--socket", "s", "--state-dir", "d"); code != 2 {
+		t.Errorf("a profile that cannot be read exits %d, want 2", code)
 	}
 }

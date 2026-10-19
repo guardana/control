@@ -39,7 +39,8 @@ text as the proposed bytes and the call's own request key. Only a full
 `EXECUTE` of exactly those bytes lets it run, and then the reply is silence:
 exit 0 and nothing on standard output. Every other answer, every failure and
 every refusal before the event is read exits with the profile's block status
-and one line on standard error. The bridge never replies allow, ask or defer,
+and one line on standard error; a refusal before any profile is read, a usage
+error or a profile that cannot be read, exits 2. The bridge never replies allow, ask or defer,
 and never hands the runtime a changed input: allow would skip the runtime's
 own permission prompts, ask hands the decision to the local user, and a
 deferred call can run through the runtime's own flow. A decision that wants a
@@ -77,7 +78,7 @@ because the hook runs as the agent's account. Otherwise it is "decided, with fai
 them. Each claim is backed by a case of the profile's fixtures, which run in
 every CI without the runtime, or of a qualification against the real runtime
 at a pinned version, run before a release and recorded beside the profile;
-a claim no case backs reads as unknown.
+the page states a claim no case backs as unverified.
 
 ## Security / compatibility impact
 
@@ -135,4 +136,6 @@ concurrent completions send one; an absent flag is unknown. Five mutant
 bridges (a dropped deny, a carried rewrite, the authorized bytes reported as
 sent, an abort in a completion, lenient decoding) each fail the suite.
 `cmd/guardana-control` holds every refusal of the command to the block status
-and an empty standard output.
+and an empty standard output, an allowed admit and a recorded completion to
+exit 0, and a receiver that never answers to a block inside the hook timeout.
+Each built-in profile's cases state its statuses and timeout apart from it.

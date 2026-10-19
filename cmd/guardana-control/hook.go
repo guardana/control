@@ -27,10 +27,9 @@ var hookTokenVariable = brand.Env("RUN_TOKEN")
 // hookStdin is where the runtime writes the event; a test sets it.
 var hookStdin io.Reader = os.Stdin
 
-// exitHookRefused is the status of every refusal made before a profile is
-// read: a usage error, no token, no profile. An event the profile cannot
-// read exits with the profile's block status instead. It is the status the
-// runtime blocks a call on, and for a completion it only shows the line.
+// exitHookRefused is the status of a refusal made before a profile is
+// read: a usage error or a profile that cannot be read. Once a profile is
+// read, a refusal exits with its block status instead.
 const exitHookRefused = exitUsage
 
 type hookArgs struct {
@@ -65,9 +64,10 @@ func hookCommand(args []string, _, stderr io.Writer) int {
 	if p == nil {
 		return code
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), p.HookTimeout*9/10)
+	whole, each := hookDeadlines(p.HookTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), whole)
 	defer cancel()
-	client, err := enforceclient.New(enforceclient.Config{Socket: a.socket, Token: token, Timeout: p.HookTimeout * 4 / 10})
+	client, err := enforceclient.New(enforceclient.Config{Socket: a.socket, Token: token, Timeout: each})
 	if err != nil {
 		return hookAnswer(stderr, p, ev, err)
 	}
@@ -94,7 +94,14 @@ func hookCommand(args []string, _, stderr io.Writer) int {
 	return hookAnswer(stderr, p, ev, errors.Join(errors.New(postResultText(out.Result)), out.Err))
 }
 
-// hookEvent parses the flags, reads the run token and the profile, and reads
+// hookDeadlines are the deadline of the whole command and the timeout of
+// each request for a runtime that gives the hook timeout: an admit and the
+// abort it may owe both fit in the whole, which ends inside timeout.
+func hookDeadlines(timeout time.Duration) (whole, each time.Duration) {
+	return timeout * 9 / 10, timeout * 4 / 10
+}
+
+// hookEvent parses the flags, reads the profile and the run token, and reads
 // the event, or returns no profile and the status of the first refusal.
 func hookEvent(args []string, stderr io.Writer) (hookArgs, string, *hookbridge.Profile, hookbridge.Event, int) {
 	flags, a := hookFlags(hookName, io.Discard)
@@ -103,13 +110,14 @@ func hookEvent(args []string, stderr io.Writer) (hookArgs, string, *hookbridge.P
 		return *a, "", nil, hookbridge.Event{}, usageError(stderr, hookName,
 			"takes one of --profile and --profile-file, --socket and --state-dir, and no argument")
 	}
-	token := os.Getenv(hookTokenVariable)
-	if token == "" {
-		return *a, "", nil, hookbridge.Event{}, hookRefused(stderr, "no run token in "+hookTokenVariable)
-	}
 	p, err := hookProfile(*a)
 	if err != nil {
 		return *a, "", nil, hookbridge.Event{}, hookRefused(stderr, "profile: "+err.Error())
+	}
+	token := os.Getenv(hookTokenVariable)
+	if token == "" {
+		hookRefused(stderr, "no run token in "+hookTokenVariable)
+		return *a, "", nil, hookbridge.Event{}, p.Reply.BlockExitCode
 	}
 	ev, err := hookbridge.ReadEvent(p, hookStdin)
 	if err != nil {

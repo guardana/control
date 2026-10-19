@@ -161,30 +161,39 @@ func (s *Store) Sweep(now time.Time) (int, error) {
 		return 0, err
 	}
 	defer func() { _ = d.Close() }()
-	removed, examined := 0, 0
-	for examined < sweepExamine {
+	removed := 0
+	err = examine(d, func(name string) (bool, error) {
+		if removed == SweepLimit {
+			return true, nil
+		}
+		swept, err := s.sweepOne(name, now)
+		if swept {
+			removed++
+		}
+		return false, err
+	})
+	return removed, err
+}
+
+// examine calls visit with each name d lists, at most sweepExamine of them,
+// until visit stops or fails.
+func examine(d interface{ Readdirnames(n int) ([]string, error) }, visit func(name string) (stop bool, err error)) error {
+	for examined := 0; examined < sweepExamine; {
 		names, err := d.Readdirnames(sweepExamine - examined)
 		if errors.Is(err, io.EOF) {
-			return removed, nil
+			return nil
 		}
 		if err != nil {
-			return removed, err
+			return err
 		}
 		for _, name := range names {
 			examined++
-			if removed == SweepLimit {
-				return removed, nil
-			}
-			swept, err := s.sweepOne(name, now)
-			if err != nil {
-				return removed, err
-			}
-			if swept {
-				removed++
+			if stop, err := visit(name); stop || err != nil {
+				return err
 			}
 		}
 	}
-	return removed, nil
+	return nil
 }
 
 // sweepOne removes name when it is an entry, or a temporary file that reads

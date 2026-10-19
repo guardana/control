@@ -85,8 +85,9 @@ not the plane, runs the call.
 }
 ```
 
-- `timeout` is 30 because the profile says so: the bridge gives up on the
-  plane after 27 seconds, inside the runtime's limit.
+- `timeout` is 30 because the profile says so: the bridge gives up on each
+  request to the plane after 12 seconds and on the whole hook after 27,
+  inside the runtime's limit.
 - `onFailure: "block"` sits on the admit only. Without it, a hook that times
   out, crashes or cannot start lets the call run. On the two completion
   events the call has already run, so there is nothing left to block.
@@ -107,6 +108,27 @@ not the plane, runs the call.
   no access for group or others; there is no default.
 - The run token is read from `GUARDANA_CONTROL_RUN_TOKEN` in the hook's
   environment, never from a flag or the event. Start Claude Code with it set.
+- The plane's `tools` table must name every tool these hooks send, each with
+  its effect class; a tool it does not name is refused, and the call blocked,
+  except on a plane in `OBSERVE`. For example:
+
+  ```yaml
+  tools:
+    - name: Bash
+      effect: EXECUTE
+      provider: runtime
+      resource_type: command
+    - name: Write
+      effect: WRITE
+      provider: runtime
+      resource_type: file
+      resource_from: /file_path
+    - name: Edit
+      effect: WRITE
+      provider: runtime
+      resource_type: file
+      resource_from: /file_path
+  ```
 
 ## Per event
 
@@ -119,8 +141,9 @@ not the plane, runs the call.
 An event that is over 16 MiB, is not one JSON object of valid UTF-8, names a
 member twice, lacks the tool name, the call id or the session id, carries a
 `tool_input` that is not an object, or is a `PreToolUse` without one is
-refused before anything is sent, with the profile's block status, 2. A member spelled in another
-case is not read, so it counts as absent.
+refused before anything is sent, with the profile's block status, 2, and so
+is any event when the hook has no run token. A member spelled in another case
+is not read, so it counts as absent.
 
 The plane compares the completion's `tool_input` with the authorized one by
 `digest_v1`: key order, white space, string escapes and a number written
@@ -130,8 +153,11 @@ order do, and the plane records `EXECUTED_ARGS_MISMATCH` and halts the run's
 material calls. A decision that wants the input rewritten, or attaches an
 obligation, is denied, because a hook cannot hand Claude Code the authorized
 bytes. A call held for approval is denied with a line naming the approval;
-the bridge's tests do not yet show a later identical call running once the
-approval is granted. A tool input over 64 KiB, an integer beyond 2^53-1 or
+once it is approved, the agent's identical retry is a new admit that resumes
+the hold. The bridge's tests show that against a plane; neither the resume
+nor the completion that follows it has been seen on Claude Code. A
+completion's start and end, as the plane records them, are both the moment
+the completion hook ran; the event's `duration_ms` is not read. A tool input over 64 KiB, an integer beyond 2^53-1 or
 more than 32 nested containers is refused by the plane and denied.
 
 ## Gaps and bypasses

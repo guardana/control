@@ -9,9 +9,24 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/guardana/control/internal/hookbridge"
 )
+
+// The statuses the runtime acts on and the timeout it gives the hook are
+// stated in the cases apart from the profile: a block status the runtime
+// does not block on would let every denied call run.
+func TestEachBuiltInProfileRepliesAsItsCasesSay(t *testing.T) {
+	for _, s := range suites(t) {
+		p := s.profile
+		if p.Reply.BlockExitCode != s.BlockExitCode || p.Reply.ProblemExitCode != s.ProblemExitCode ||
+			p.HookTimeout != time.Duration(s.HookTimeoutSeconds)*time.Second {
+			t.Errorf("%s: the profile blocks with %d, reports a problem with %d and assumes %v; its cases say %d, %d and %ds",
+				s.dir, p.Reply.BlockExitCode, p.Reply.ProblemExitCode, p.HookTimeout, s.BlockExitCode, s.ProblemExitCode, s.HookTimeoutSeconds)
+		}
+	}
+}
 
 // A completion is padded with a member no profile reads, ahead of all the
 // others, to the bound its cases state and one byte past it.

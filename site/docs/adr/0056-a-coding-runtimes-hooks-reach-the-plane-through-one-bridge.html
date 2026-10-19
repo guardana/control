@@ -143,7 +143,8 @@ text as the proposed bytes and the call's own request key. Only a full
 <code>EXECUTE</code> of exactly those bytes lets it run, and then the reply is silence:
 exit 0 and nothing on standard output. Every other answer, every failure and
 every refusal before the event is read exits with the profile's block status
-and one line on standard error. The bridge never replies allow, ask or defer,
+and one line on standard error; a refusal before any profile is read, a usage
+error or a profile that cannot be read, exits 2. The bridge never replies allow, ask or defer,
 and never hands the runtime a changed input: allow would skip the runtime's
 own permission prompts, ask hands the decision to the local user, and a
 deferred call can run through the runtime's own flow. A decision that wants a
@@ -178,7 +179,7 @@ because the hook runs as the agent's account. Otherwise it is &quot;decided, wit
 them. Each claim is backed by a case of the profile's fixtures, which run in
 every CI without the runtime, or of a qualification against the real runtime
 at a pinned version, run before a release and recorded beside the profile;
-a claim no case backs reads as unknown.</p>
+the page states a claim no case backs as unverified.</p>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>A hook is a cooperating client: the agent's account runs it and can disable
 it, edit its settings where they are not managed, replace a binary or a
@@ -229,7 +230,9 @@ concurrent completions send one; an absent flag is unknown. Five mutant
 bridges (a dropped deny, a carried rewrite, the authorized bytes reported as
 sent, an abort in a completion, lenient decoding) each fail the suite.
 <code>cmd/guardana-control</code> holds every refusal of the command to the block status
-and an empty standard output.</p>
+and an empty standard output, an allowed admit and a recorded completion to
+exit 0, and a receiver that never answers to a block inside the hook timeout.
+Each built-in profile's cases state its statuses and timeout apart from it.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0056-a-coding-runtimes-hooks-reach-the-plane-through-one-bridge.md">docs/adr/0056-a-coding-runtimes-hooks-reach-the-plane-through-one-bridge.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.12.0, and <a href="https://github.com/guardana/control/tree/v0.12.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">

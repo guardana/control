@@ -1,4 +1,7 @@
 {
+  "block_exit_code": 2,
+  "problem_exit_code": 1,
+  "hook_timeout_seconds": 30,
   "max_event_bytes": 16777216,
   "bound_from": "post-success",
   "tools": [

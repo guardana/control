@@ -15,12 +15,11 @@ import (
 )
 
 // Kind is the profile format this package reads; a profile names it whole.
-const Kind = kindPrefix + kindVersion
+const Kind = "hook-profile/v1alpha1"
 
-const (
-	kindPrefix  = "hook-profile/"
-	kindVersion = "v1alpha1"
-)
+// kindPrefix starts every version of the format, so another version is
+// refused apart from another format.
+const kindPrefix = "hook-profile/"
 
 // Bounds a profile is held to.
 const (
@@ -160,11 +159,10 @@ func checkKind(o strictjson.Object) error {
 	if !ok {
 		return fmt.Errorf("%w: no kind", ErrProfile)
 	}
-	version, isOurs := strings.CutPrefix(kind, kindPrefix)
 	switch {
-	case !isOurs:
+	case !strings.HasPrefix(kind, kindPrefix):
 		return fmt.Errorf("%w: not a hook profile", ErrProfile)
-	case version != kindVersion:
+	case kind != Kind:
 		return ErrProfileVersion
 	}
 	return nil
