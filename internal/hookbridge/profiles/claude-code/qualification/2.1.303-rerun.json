@@ -117,7 +117,7 @@
         "file": null,
         "runtime_returned": false,
         "write_refused": false,
-        "refusal_says": null,
+        "refusal": [],
         "unknown": "not run: QUALIFY_ONLY left out plane-down/run",
         "pre_tool_use": []
       },
@@ -132,10 +132,7 @@
         "file": null,
         "runtime_returned": false,
         "write_refused": false,
-        "refusal_says": [
-          "timed out",
-          "onFailure is \"block\""
-        ],
+        "refusal": [],
         "unknown": "not run: QUALIFY_ONLY left out timeout-block/run",
         "pre_tool_use": []
       },
@@ -150,7 +147,7 @@
         "file": null,
         "runtime_returned": false,
         "write_refused": false,
-        "refusal_says": null,
+        "refusal": [],
         "unknown": "not run: QUALIFY_ONLY left out timeout-open/run",
         "pre_tool_use": []
       },
@@ -165,10 +162,7 @@
         "file": null,
         "runtime_returned": false,
         "write_refused": false,
-        "refusal_says": [
-          "failed",
-          "onFailure is \"block\""
-        ],
+        "refusal": [],
         "unknown": "not run: QUALIFY_ONLY left out crash-block/run",
         "pre_tool_use": []
       },
@@ -183,7 +177,7 @@
         "file": null,
         "runtime_returned": false,
         "write_refused": false,
-        "refusal_says": null,
+        "refusal": [],
         "unknown": "not run: QUALIFY_ONLY left out crash-open/run",
         "pre_tool_use": []
       },
@@ -198,7 +192,7 @@
         "file": null,
         "runtime_returned": false,
         "write_refused": false,
-        "refusal_says": null,
+        "refusal": [],
         "unknown": "not run: QUALIFY_ONLY left out garbage/run",
         "pre_tool_use": []
       },
@@ -323,5 +317,5 @@
       "verdict": "unknown"
     }
   ],
-  "judged_at": "8e3a9fd9"
+  "judged_at": "e2cf86b7"
 }

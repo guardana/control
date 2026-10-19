@@ -21,7 +21,7 @@ endorsed by the publisher of Claude Code.
 | | |
 | --- | --- |
 | Label | decided, with failure gaps |
-| Qualified on the real runtime | 2.1.303: all 20 cases passed, two of them on a rerun once the tools table named `ToolSearch` and classed `Agent` as `EXECUTE` |
+| Qualified on the real runtime | 2.1.303: all 20 cases passed, two of them on a rerun once the tools table named `ToolSearch` and classed `Agent` as `EXECUTE`, and one on a rerun that recorded the hook's output |
 | Events | `PreToolUse`, `PostToolUse`, `PostToolUseFailure` |
 | Fail-closed setting | `onFailure: "block"`, from Claude Code 2.1.295 |
 | Hook timeout the profile assumes | 30 seconds |

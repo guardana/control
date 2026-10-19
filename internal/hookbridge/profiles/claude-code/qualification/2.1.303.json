@@ -254,7 +254,10 @@
         "file": null,
         "runtime_returned": true,
         "write_refused": true,
-        "refusal_says": null,
+        "refusal": [
+          "guardana-control: hook: the receiver did not answer",
+          "guardana-control: hook: the receiver did not answer"
+        ],
         "pre_tool_use": [
           [
             "Write",
@@ -288,9 +291,9 @@
         "file": null,
         "runtime_returned": true,
         "write_refused": true,
-        "refusal_says": [
-          "timed out",
-          "onFailure is \"block\""
+        "refusal": [
+          "timed out; blocking because onFailure is \"block\"",
+          "timed out; blocking because onFailure is \"block\""
         ],
         "pre_tool_use": []
       },
@@ -310,7 +313,7 @@
         "file": "ran",
         "runtime_returned": true,
         "write_refused": false,
-        "refusal_says": null,
+        "refusal": [],
         "pre_tool_use": []
       },
       "verdict": "pass"
@@ -333,9 +336,9 @@
         "file": null,
         "runtime_returned": true,
         "write_refused": true,
-        "refusal_says": [
-          "failed",
-          "onFailure is \"block\""
+        "refusal": [
+          "failed; blocking because onFailure is \"block\"",
+          "failed; blocking because onFailure is \"block\""
         ],
         "pre_tool_use": []
       },
@@ -355,7 +358,7 @@
         "file": "ran",
         "runtime_returned": true,
         "write_refused": false,
-        "refusal_says": null,
+        "refusal": [],
         "pre_tool_use": []
       },
       "verdict": "pass"
@@ -374,10 +377,11 @@
         "file": "ran",
         "runtime_returned": true,
         "write_refused": false,
-        "refusal_says": null,
+        "refusal": [],
+        "unknown": "the hook's exit and output were not recorded as written and 0",
         "pre_tool_use": []
       },
-      "verdict": "pass"
+      "verdict": "unknown"
     },
     {
       "id": "disabled",
@@ -541,5 +545,5 @@
       "verdict": "pass"
     }
   ],
-  "judged_at": "8e3a9fd9"
+  "judged_at": "e2cf86b7"
 }
