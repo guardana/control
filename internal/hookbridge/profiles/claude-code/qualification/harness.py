@@ -144,13 +144,21 @@ def events(path):
         stem = os.path.join(path, name[:-5])
         ev = load_json(stem + ".json")
         ev = ev if isinstance(ev, dict) else {}
+        meta = load_json(stem + ".meta.json", {})
+        if isinstance(meta.get("stderr"), str):
+            meta["stderr"] = PROGRAM.sub("", meta["stderr"])
         out.append({
             "kind": ev.get("hook_event_name", ""),
             "tool": ev.get("tool_name", ""),
             "input": ev.get("tool_input") if isinstance(ev.get("tool_input"), dict) else {},
-            "meta": load_json(stem + ".meta.json", {}),
+            "meta": meta,
         })
     return out
+
+
+# The program's name the bridge puts before each line it writes; the results
+# keep the reason alone.
+PROGRAM = re.compile(r"^[^\s:]+: hook: ", re.M)
 
 
 class Inv:

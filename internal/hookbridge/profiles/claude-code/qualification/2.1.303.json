@@ -93,7 +93,7 @@
           2
         ],
         "reasons": [
-          "guardana-control: hook: blocked by policy (APPROVAL_ALREADY_USED)\n"
+          "blocked by policy (APPROVAL_ALREADY_USED)\n"
         ],
         "file_unchanged": true,
         "started_on_digest": 1
@@ -282,7 +282,7 @@
           2
         ],
         "reasons": [
-          "guardana-control: hook: the policy allows this call only with a changed input, which this runtime cannot carry\n"
+          "the policy allows this call only with a changed input, which this runtime cannot carry\n"
         ],
         "file": null,
         "trail": [
