@@ -24,7 +24,8 @@ const (
 )
 
 // Admission is an execution the receiver opened. Authorized is set only
-// when Admit returned no error; with ErrAbortOwed only Handle is.
+// when Admit returned no error; with ErrAbortOwed only Handle and ExpiresAt
+// are.
 type Admission struct {
 	Handle     string
 	Authorized []byte

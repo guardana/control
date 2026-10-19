@@ -106,21 +106,28 @@ func TestACompletionNoAdmitOpenedExitsOne(t *testing.T) {
 	}
 }
 
-// TestACompletionNotRecordedExitsTheProfilesProblemCode: the status of a
-// completion the plane did not record is the profile's, not the command's.
-func TestACompletionNotRecordedExitsTheProfilesProblemCode(t *testing.T) {
+// neutralWith writes the neutral profile with was replaced by now, once, and
+// returns its path.
+func neutralWith(t *testing.T, was, now string) string {
+	t.Helper()
 	raw, err := os.ReadFile(neutralProfile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	const was = `"problem_exit_code": 1`
 	if bytes.Count(raw, []byte(was)) != 1 {
 		t.Fatalf("%s is not in the neutral profile once", was)
 	}
 	profile := filepath.Join(t.TempDir(), "profile.json")
-	if err := os.WriteFile(profile, bytes.Replace(raw, []byte(was), []byte(`"problem_exit_code": 3`), 1), 0o600); err != nil { //nolint:gosec // G703: a path in this test's own directory
+	if err := os.WriteFile(profile, bytes.Replace(raw, []byte(was), []byte(now), 1), 0o600); err != nil { //nolint:gosec // G703: a path in this test's own directory
 		t.Fatal(err)
 	}
+	return profile
+}
+
+// TestACompletionNotRecordedExitsTheProfilesProblemCode: the status of a
+// completion the plane did not record is the profile's, not the command's.
+func TestACompletionNotRecordedExitsTheProfilesProblemCode(t *testing.T) {
+	profile := neutralWith(t, `"problem_exit_code": 1`, `"problem_exit_code": 3`)
 	t.Setenv(hookTokenVariable, "tok")
 	socket := filepath.Join(t.TempDir(), "no.sock")
 	code, stdout, _ := hookRun(t, completeEvent, "--profile-file", profile, "--socket", socket, "--state-dir", stateDir(t))
@@ -130,5 +137,30 @@ func TestACompletionNotRecordedExitsTheProfilesProblemCode(t *testing.T) {
 	code, _, _ = hookRun(t, admitEvent, "--profile-file", profile, "--socket", socket, "--state-dir", stateDir(t))
 	if code != 2 {
 		t.Fatalf("an admit the plane did not answer exits %d, want the block status 2", code)
+	}
+}
+
+// TestAnUnreadableEventExitsTheProfilesBlockCode: once a profile is read, an
+// event it cannot read is blocked with the profile's status, here 3, and the
+// fixed 2 is left to refusals made before there is a profile.
+func TestAnUnreadableEventExitsTheProfilesBlockCode(t *testing.T) {
+	profile := neutralWith(t, `"block_exit_code": 2`, `"block_exit_code": 3`)
+	oversized := strings.Replace(admitEvent, `"input":`, `"pad":"`+strings.Repeat("x", 4096)+`","input":`, 1)
+	for name, event := range map[string]string{
+		"an event over max_event_bytes": oversized,
+		"an event that is not UTF-8":    strings.Replace(admitEvent, "refund", "ref\xffund", 1),
+		"an event that is not JSON":     "not json",
+		"an event the profile lacks":    strings.Replace(admitEvent, "BeforeTool", "Elsewhere", 1),
+	} {
+		t.Setenv(hookTokenVariable, "tok")
+		code, stdout, stderr := hookRun(t, event, "--profile-file", profile,
+			"--socket", filepath.Join(t.TempDir(), "no.sock"), "--state-dir", stateDir(t))
+		if code != 3 || stdout != "" || !strings.Contains(stderr, "event: ") {
+			t.Errorf("%s: exit %d, stdout %q, stderr %q; want 3, nothing on stdout and the event named", name, code, stdout, stderr)
+		}
+	}
+	t.Setenv(hookTokenVariable, "")
+	if code, _, _ := hookRun(t, admitEvent, "--profile-file", profile, "--socket", "s", "--state-dir", "d"); code != 2 {
+		t.Errorf("no run token exits %d, want 2", code)
 	}
 }

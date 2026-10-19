@@ -27,10 +27,10 @@ var hookTokenVariable = brand.Env("RUN_TOKEN")
 // hookStdin is where the runtime writes the event; a test sets it.
 var hookStdin io.Reader = os.Stdin
 
-// exitHookRefused is the status of every refusal made before the event says
-// which phase it is: a usage error, no token, no profile, an unreadable
-// event. It is the status the runtime blocks a call on, and for a
-// completion it only shows the line.
+// exitHookRefused is the status of every refusal made before a profile is
+// read: a usage error, no token, no profile. An event the profile cannot
+// read exits with the profile's block status instead. It is the status the
+// runtime blocks a call on, and for a completion it only shows the line.
 const exitHookRefused = exitUsage
 
 type hookArgs struct {
@@ -113,7 +113,8 @@ func hookEvent(args []string, stderr io.Writer) (hookArgs, string, *hookbridge.P
 	}
 	ev, err := hookbridge.ReadEvent(p, hookStdin)
 	if err != nil {
-		return *a, "", nil, hookbridge.Event{}, hookRefused(stderr, "event: "+err.Error())
+		hookRefused(stderr, "event: "+err.Error())
+		return *a, "", nil, hookbridge.Event{}, p.Reply.BlockExitCode
 	}
 	return *a, token, p, ev, exitOK
 }

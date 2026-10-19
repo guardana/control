@@ -9,26 +9,29 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/guardana/control/internal/docscheck/sitedoc/docsite"
 )
 
 // A runtime's name may appear in its profile's directory, on its page and the
-// page's generated copy, and inside a link to that page: the target, the
-// link's text and attributes, and the summary an index row carries beside
-// it. The name a profile is checked for is its id up to the first hyphen,
-// so this file spells none.
+// page's generated copy, and, in a Markdown file or a file the site generator
+// writes, inside a link to that page: in its target, relative or on the
+// site's own origin, and in its text when that text is the page's title, or
+// in an index row the title and the page's own summary. The name a profile is
+// checked for is its id up to the first hyphen, so this file spells none.
 const profilesDir = "internal/hookbridge/profiles/"
 
 var (
 	mdLink    = regexp.MustCompile(`\[([^\]]*)\]\(([^)\s]+)\)`)
-	mdIndex   = regexp.MustCompile(`^- \[[^\]]*\]\(([^)\s]+)\): (.*)$`)
-	htmlLink  = regexp.MustCompile(`<a\s[^>]*?href="([^"]*)"[^>]*>.*?</a>`)
-	htmlIndex = regexp.MustCompile(`^<li><a\s[^>]*?href="([^"]*)"[^>]*>.*?</a>: (.*)</li>$`)
+	mdIndex   = regexp.MustCompile(`^- \[([^\]]*)\]\(([^)\s]+)\): (.*)$`)
+	htmlLink  = regexp.MustCompile(`<a href="([^"]*)">([^<]*)</a>`)
+	htmlIndex = regexp.MustCompile(`^<li><a href="([^"]*)">([^<]*)</a>: (.*)</li>$`)
 	siteLoc   = regexp.MustCompile(`<loc>([^<]*)</loc>`)
 )
 
 // runtimeName is one built-in profile as the rule reads it.
 type runtimeName struct {
-	term, dir, page, site, url, summary string
+	term, dir, page, site, url, title, summary string
 }
 
 // runtimeNames reads every built-in profile among files: the term is its id
@@ -58,13 +61,13 @@ func runtimeNames(fsys fs.FS, files []string) ([]runtimeName, error) {
 		if len(term) < 4 || !isPage || !strings.HasPrefix(p.Claims.Page, "docs/") {
 			return nil, fmt.Errorf("%s: no name of four letters or more, or no page under docs/", rel)
 		}
-		summary, err := pageSummary(fsys, p.Claims.Page)
+		title, summary, err := pageTitleAndSummary(fsys, p.Claims.Page)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, runtimeName{
 			term: strings.ToLower(term), dir: dir + "/", page: p.Claims.Page,
-			site: "site/docs/" + stem + ".html", url: "/docs/" + stem, summary: summary,
+			site: "site/docs/" + stem + ".html", url: "/docs/" + stem, title: title, summary: summary,
 		})
 	}
 	if len(out) == 0 {
@@ -73,64 +76,107 @@ func runtimeNames(fsys fs.FS, files []string) ([]runtimeName, error) {
 	return out, nil
 }
 
-func pageSummary(fsys fs.FS, page string) (string, error) {
+func pageTitleAndSummary(fsys fs.FS, page string) (string, string, error) {
 	raw, err := fs.ReadFile(fsys, page)
 	if err != nil {
-		return "", fmt.Errorf("the profile's page: %w", err)
+		return "", "", fmt.Errorf("the profile's page: %w", err)
 	}
+	var title, summary string
 	for _, line := range strings.Split(string(raw), "\n") {
-		if s, ok := strings.CutPrefix(line, "summary: "); ok {
-			return s, nil
+		if s, ok := strings.CutPrefix(line, "title: "); ok && title == "" {
+			title = s
+		}
+		if s, ok := strings.CutPrefix(line, "summary: "); ok && summary == "" {
+			summary = s
 		}
 	}
-	return "", fmt.Errorf("%s: no summary", page)
+	if title == "" || summary == "" {
+		return "", "", fmt.Errorf("%s: no title or no summary", page)
+	}
+	return title, summary, nil
 }
 
 // mdTo reports whether a Markdown link in file with target points at the
-// page.
+// page: a path relative to file, or a URL on the site's own origin.
 func (n runtimeName) mdTo(file, target string) bool {
 	target, _, _ = strings.Cut(target, "#")
-	if uriScheme.MatchString(target) {
+	if uriScheme.MatchString(target) || strings.HasPrefix(target, "/") {
 		return n.urlTo(target)
 	}
 	return path.Join(path.Dir(file), target) == n.page
 }
 
-// urlTo reports whether a site URL or path points at the page's copy.
+// urlTo reports whether a site path, or a URL on the site's own origin,
+// points at the page's copy. Another origin never does.
 func (n runtimeName) urlTo(target string) bool {
 	target, _, _ = strings.Cut(target, "#")
 	target, _, _ = strings.Cut(target, "?")
-	if i := strings.Index(target, "://"); i >= 0 {
-		rest := target[i+3:]
-		target = rest[strings.IndexByte(rest+"/", '/'):]
+	if uriScheme.MatchString(target) || strings.HasPrefix(target, "//") {
+		rest, ok := strings.CutPrefix(target, docsite.Origin)
+		if !ok {
+			return false
+		}
+		target = rest
 	}
 	return strings.TrimSuffix(target, ".html") == n.url
 }
 
-// unlinked returns line without each link to the page, or empty when the line
-// is an index row linking the page beside its own summary.
+// generated reports whether the site generator writes file.
+func generated(file string) bool {
+	return file == docsite.Sitemap || strings.HasPrefix(file, docsite.Dir+"/") && strings.HasSuffix(file, ".html")
+}
+
+// unlinked returns line without what the rule lets name the runtime: the
+// target of each link to the page, its text when that is the page's title,
+// and the whole of an index row of the title and summary. Only a Markdown
+// file or a generated one has links the rule reads.
 func (n runtimeName) unlinked(file, line string) string {
-	if m := mdIndex.FindStringSubmatch(line); m != nil && n.mdTo(file, m[1]) && m[2] == n.summary {
+	switch {
+	case strings.HasSuffix(file, ".md"):
+		return n.unlinkedMarkdown(file, line)
+	case generated(file):
+		return n.unlinkedSite(line)
+	}
+	return line
+}
+
+func (n runtimeName) unlinkedMarkdown(file, line string) string {
+	if m := mdIndex.FindStringSubmatch(line); m != nil && m[1] == n.title && n.mdTo(file, m[2]) && m[3] == n.summary {
 		return ""
 	}
-	if m := htmlIndex.FindStringSubmatch(line); m != nil && n.urlTo(html.UnescapeString(m[1])) && html.UnescapeString(m[2]) == n.summary {
+	return mdLink.ReplaceAllStringFunc(line, func(s string) string {
+		m := mdLink.FindStringSubmatch(s)
+		switch {
+		case !n.mdTo(file, m[2]):
+			return s
+		case m[1] == n.title:
+			return ""
+		}
+		return "[" + m[1] + "]"
+	})
+}
+
+func (n runtimeName) unlinkedSite(line string) string {
+	if m := htmlIndex.FindStringSubmatch(line); m != nil && n.urlTo(html.UnescapeString(m[1])) &&
+		html.UnescapeString(m[2]) == n.title && html.UnescapeString(m[3]) == n.summary {
 		return ""
 	}
-	line = mdLink.ReplaceAllStringFunc(line, func(s string) string {
-		if n.mdTo(file, mdLink.FindStringSubmatch(s)[2]) {
+	line = htmlLink.ReplaceAllStringFunc(line, func(s string) string {
+		m := htmlLink.FindStringSubmatch(s)
+		switch {
+		case !n.urlTo(html.UnescapeString(m[1])):
+			return s
+		case html.UnescapeString(m[2]) == n.title:
+			return ""
+		}
+		return m[2]
+	})
+	return siteLoc.ReplaceAllStringFunc(line, func(s string) string {
+		if n.urlTo(html.UnescapeString(siteLoc.FindStringSubmatch(s)[1])) {
 			return ""
 		}
 		return s
 	})
-	for _, re := range []*regexp.Regexp{htmlLink, siteLoc} {
-		line = re.ReplaceAllStringFunc(line, func(s string) string {
-			if n.urlTo(html.UnescapeString(re.FindStringSubmatch(s)[1])) {
-				return ""
-			}
-			return s
-		})
-	}
-	return line
 }
 
 // runtimeNameProblems names every file and line among files that names a

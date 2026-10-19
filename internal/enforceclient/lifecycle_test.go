@@ -72,6 +72,18 @@ func TestExactOnlyHandsOutAnUnchangedExecute(t *testing.T) {
 	}
 }
 
+// An owed abort hands back the handle and its expiry, the two things a
+// caller needs to abort it, and never the authorized bytes.
+func TestAnOwedAbortKeepsTheHandleAndItsExpiry(t *testing.T) {
+	c, _ := scriptedClient(t, answer(enforceclient.PathAdmit, 200,
+		`{"outcome":"OUTCOME_EXECUTE","execution":{"handle":"h-4","expiresAt":"2026-10-18T12:00:00Z","authorizedArguments":"eyJhIjoxfQ=="}}`))
+	_, adm, cause, err := c.Admit(context.Background(), "t", []byte(`{"a":2}`), "", enforceclient.CarryExactOnly)
+	want := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+	if !errors.Is(err, enforceclient.ErrAbortOwed) || cause != argumentsDiffer || adm.Handle != "h-4" || !adm.ExpiresAt.Equal(want) || adm.Authorized != nil {
+		t.Fatalf("Admit = %+v, cause %s, %v", adm, cause, err)
+	}
+}
+
 func TestAdmitSendsNoAbortOnAnyPath(t *testing.T) {
 	const obligated = `{"outcome":"OUTCOME_EXECUTE","execution":{"handle":"h-1","authorizedArguments":"eyJhIjoxfQ==","obligations":[{"type":"x"}]}}`
 	for _, tc := range []struct {

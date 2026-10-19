@@ -113,6 +113,9 @@ func (s *Store) Publish(token, session, call string, e Entry) error {
 	if err != nil {
 		return err
 	}
+	if len(body) > maxEntryBytes {
+		return fmt.Errorf("%w: over %d bytes", ErrEntry, maxEntryBytes)
+	}
 	return files.CreateNoReplaceIn(s.root, entryName(token, session, call), body, entryMode)
 }
 
@@ -148,7 +151,10 @@ func (s *Store) Remove(c Claimed) error {
 
 // Sweep removes entries, claimed or not, that expired at now: at most
 // SweepLimit of them among the first names it reads. It returns how many it
-// removed. An entry it cannot read is left alone.
+// removed. An entry it cannot read is left alone. A temporary file a publish
+// that crashed left behind is swept as an entry when it reads as one, since
+// it then holds a whole handle; a torn one holds none and is left, because
+// only a file time, which the account can set, could say how old it is.
 func (s *Store) Sweep(now time.Time) (int, error) {
 	d, err := s.root.Open(".")
 	if err != nil {
@@ -169,20 +175,35 @@ func (s *Store) Sweep(now time.Time) (int, error) {
 			if removed == SweepLimit {
 				return removed, nil
 			}
-			if !isEntryName(name) {
-				continue
-			}
-			e, err := s.read(name)
-			if err != nil || now.Before(e.ExpiresAt) {
-				continue
-			}
-			if err := s.root.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			swept, err := s.sweepOne(name, now)
+			if err != nil {
 				return removed, err
 			}
-			removed++
+			if swept {
+				removed++
+			}
 		}
 	}
 	return removed, nil
+}
+
+// sweepOne removes name when it is an entry, or a temporary file that reads
+// as one, that expired at now.
+func (s *Store) sweepOne(name string, now time.Time) (bool, error) {
+	if !isEntryName(name) && !files.IsTemp(name) || !s.expired(name, now) {
+		return false, nil
+	}
+	if err := s.root.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return false, err
+	}
+	return true, nil
+}
+
+// expired reports whether name reads as an entry that expired at now; one
+// it cannot read is not.
+func (s *Store) expired(name string, now time.Time) bool {
+	e, err := s.read(name)
+	return err == nil && !now.Before(e.ExpiresAt)
 }
 
 // read reads one entry, which must be a regular file this account owns with
