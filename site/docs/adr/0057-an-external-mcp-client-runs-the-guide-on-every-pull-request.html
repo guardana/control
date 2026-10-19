@@ -111,8 +111,8 @@
 <p>Status: accepted
 Date: 2026-10-18</p>
 <p>Amends <a href="/docs/adr/0052-a-change-is-gated-on-its-pull-request">ADR-0052</a>: besides
-<code>make quality</code>, a pull request is to be gated on the job this record adds,
-run outside it, once the job is a required check.</p>
+<code>make quality</code>, a pull request is gated on the job this record adds, run
+outside it, once the bootstrap applies the required checks.</p>
 <h2 id="context">Context</h2>
 <p>The gateway is tested against clients and servers built from the Go SDK the
 gateway itself uses. Nothing in CI showed that a client from another
@@ -153,9 +153,9 @@ after it and every flag the guide passes.</p>
 <p>CI runs it as the job &quot;External MCP client&quot; in <code>ci.yml</code>, on every pull
 request and on <code>main</code>, with no condition and no path filter. It is not part
 of <code>make quality</code>, which runs on a machine with Go and the pinned tools alone
-and needs no network for the servers it starts. Once the job is green on
-<code>main</code> it joins the required checks the bootstrap applies; until then a red
-run of it blocks no merge.</p>
+and needs no network for the servers it starts. It is among the required
+checks the bootstrap applies; until a maintainer runs the bootstrap, a red run
+of it blocks no merge, and the settings check reports the drift.</p>
 <p>Dependabot opens version updates for the client's lockfile. It cannot
 propose one for the server, whose maintained 1.x line sorts below 2026.8.31;
 the advisory scans over the lockfile are the server's alarm, and Dependabot's

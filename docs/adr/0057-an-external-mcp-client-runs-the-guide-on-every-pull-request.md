@@ -4,8 +4,8 @@ Status: accepted
 Date: 2026-10-18
 
 Amends [ADR-0052](0052-a-change-is-gated-on-its-pull-request.md): besides
-`make quality`, a pull request is to be gated on the job this record adds,
-run outside it, once the job is a required check.
+`make quality`, a pull request is gated on the job this record adds, run
+outside it, once the bootstrap applies the required checks.
 
 ## Context
 
@@ -51,9 +51,9 @@ after it and every flag the guide passes.
 CI runs it as the job "External MCP client" in `ci.yml`, on every pull
 request and on `main`, with no condition and no path filter. It is not part
 of `make quality`, which runs on a machine with Go and the pinned tools alone
-and needs no network for the servers it starts. Once the job is green on
-`main` it joins the required checks the bootstrap applies; until then a red
-run of it blocks no merge.
+and needs no network for the servers it starts. It is among the required
+checks the bootstrap applies; until a maintainer runs the bootstrap, a red run
+of it blocks no merge, and the settings check reports the drift.
 
 Dependabot opens version updates for the client's lockfile. It cannot
 propose one for the server, whose maintained 1.x line sorts below 2026.8.31;
