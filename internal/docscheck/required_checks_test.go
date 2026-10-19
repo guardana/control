@@ -13,15 +13,26 @@ import (
 // holds on every pull request, where the check is required.
 const requiredCheckIf = "github.event_name == 'pull_request'"
 
+// requiredJobKeys are the keys a required check's job may carry. Any other
+// can skip the job, mask its result or change the context it reports:
+// needs, continue-on-error, strategy, uses, or a quoted spelling of if.
+var requiredJobKeys = []string{"name", "runs-on", "timeout-minutes", "permissions", "steps", "if"}
+
+// maskingStepKeys are the step keys that let a required job report success
+// without the step's work: a condition that skips it, or a failure ignored.
+var maskingStepKeys = []string{"if", "continue-on-error"}
+
 // workflowJob is one job of a workflow, keyed elsewhere by the check-run
 // context it reports: its name, or its id when it has none.
 type workflowJob struct {
-	where   string
+	file    string
 	node    *yamlNode
 	everyPR bool
 }
 
-// jobsOf reads one workflow's jobs by the context each reports.
+// jobsOf reads one workflow's jobs by the context each reports, and refuses
+// a job whose name is an expression, since its context is known only when it
+// runs.
 func jobsOf(file string, lines []string, into map[string][]workflowJob) error {
 	doc, err := parseBlockYAML(lines)
 	if err != nil {
@@ -34,8 +45,10 @@ func jobsOf(file string, lines []string, into map[string][]workflowJob) error {
 			if names := job.children("name"); len(names) == 1 {
 				context = unquote(names[0].value)
 			}
-			where := fmt.Sprintf("%s:%d", file, job.line)
-			into[context] = append(into[context], workflowJob{where: where, node: job, everyPR: everyPR})
+			if strings.Contains(context, "${{") {
+				return fmt.Errorf("%s:%d: the job's name is an expression", file, job.line)
+			}
+			into[context] = append(into[context], workflowJob{file: file, node: job, everyPR: everyPR})
 		}
 	}
 	return nil
@@ -66,29 +79,53 @@ func runsOnEveryPullRequest(doc *yamlNode) bool {
 	return true
 }
 
-// requiredCheckProblems names each required check no job reports, or more
-// than one does, or whose job a pull request can leave unreported or skip:
-// its workflow does not run on every pull request, or the job waits on
-// another or carries a condition other than requiredCheckIf.
+// hasAlias reports whether an alias or a merge key sits anywhere under n:
+// either can bring in a key the allowlists never see.
+func hasAlias(n *yamlNode) bool {
+	return slices.ContainsFunc(n.kids, func(kid *yamlNode) bool {
+		return kid.key == "<<" || strings.HasPrefix(kid.key, "*") || strings.HasPrefix(kid.value, "*") || hasAlias(kid)
+	})
+}
+
+// requiredCheckProblems names a check listed twice, and each required check
+// no job reports, or more than one does, or whose job a pull request can
+// leave unreported, skip or turn green without its work.
 func requiredCheckProblems(checks []string, jobs map[string][]workflowJob) []string {
 	var problems []string
+	if len(slices.Compact(slices.Sorted(slices.Values(checks)))) != len(checks) {
+		problems = append(problems, fmt.Sprintf("a required check is listed twice: %q", checks))
+	}
 	for _, check := range checks {
 		found := jobs[check]
 		if len(found) != 1 {
 			problems = append(problems, fmt.Sprintf("%d jobs report the required check %q, want 1", len(found), check))
 			continue
 		}
-		job := found[0]
-		if !job.everyPR {
-			problems = append(problems, fmt.Sprintf("%s: the workflow of %q does not run on every pull request", job.where, check))
+		problems = append(problems, requiredJobProblems(check, found[0])...)
+	}
+	return problems
+}
+
+func requiredJobProblems(check string, job workflowJob) []string {
+	where := fmt.Sprintf("%s: the job of %q", job.file, check)
+	problems := keyProblems(job.node, requiredJobKeys, where)
+	if !job.everyPR {
+		problems = append(problems, where+" is in a workflow that does not run on every pull request")
+	}
+	if hasAlias(job.node) {
+		problems = append(problems, where+" holds an alias or a merge key")
+	}
+	for _, cond := range job.node.children("if") {
+		if expr := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(cond.value, "${{"), "}}")); expr != requiredCheckIf {
+			problems = append(problems, fmt.Sprintf("%s runs only if %s", where, cond.value))
 		}
-		if len(job.node.children("needs")) != 0 {
-			problems = append(problems, fmt.Sprintf("%s: %q waits on another job, which can skip it", job.where, check))
-		}
-		for _, cond := range job.node.children("if") {
-			expr := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(cond.value, "${{"), "}}"))
-			if expr != requiredCheckIf {
-				problems = append(problems, fmt.Sprintf("%s: %q runs only if %s", job.where, check, cond.value))
+	}
+	for _, steps := range job.node.children("steps") {
+		for _, step := range steps.kids {
+			for _, kid := range step.kids {
+				if slices.Contains(maskingStepKeys, unquote(kid.key)) {
+					problems = append(problems, fmt.Sprintf("line %d: %s has a step with %s", kid.line, where, kid.key))
+				}
 			}
 		}
 	}
@@ -98,12 +135,22 @@ func requiredCheckProblems(checks []string, jobs map[string][]workflowJob) []str
 // TestEveryRequiredCheckIsAJobEveryPullRequestRuns: a required check no job
 // reports blocks every merge until an admin edits the ruleset, and one whose
 // job is skipped reads as passed. The bootstrap refuses the first before it
-// applies anything; this holds the list to the workflows on every change.
+// applies anything; this holds the list to the workflows on every change. It
+// guards against a careless change, not a hostile one: a pull request runs
+// the workflows and this test from its own branch, so review of .github/**
+// is the control there.
 func TestEveryRequiredCheckIsAJobEveryPullRequestRuns(t *testing.T) {
 	root := repoRoot(t)
-	paths, err := filepath.Glob(filepath.Join(root, ".github", "workflows", "*.yml"))
-	if err != nil || len(paths) == 0 {
-		t.Fatalf("no workflow: %v", err)
+	var paths []string
+	for _, pattern := range []string{"*.yml", "*.yaml"} {
+		found, err := filepath.Glob(filepath.Join(root, ".github", "workflows", pattern))
+		if err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, found...)
+	}
+	if len(paths) == 0 {
+		t.Fatal("no workflow")
 	}
 	jobs := map[string][]workflowJob{}
 	for _, path := range paths {
@@ -120,38 +167,57 @@ func TestEveryRequiredCheckIsAJobEveryPullRequestRuns(t *testing.T) {
 	}
 }
 
+const plantedWorkflow = "on:\n  pull_request:\njobs:\n  gate:\n    name: Gate\n    runs-on: ubuntu-latest\n" +
+	"    steps:\n      - run: make check\n"
+
+func plantedJobs(t *testing.T, doc string) map[string][]workflowJob {
+	t.Helper()
+	jobs := map[string][]workflowJob{}
+	if err := jobsOf("planted.yml", strings.Split(doc, "\n"), jobs); err != nil {
+		t.Fatal(err)
+	}
+	return jobs
+}
+
 // Each planted workflow breaks the rule one way, and only that way.
 func TestARequiredCheckAPullRequestCanMissIsCaught(t *testing.T) {
-	const good = "on:\n  pull_request:\njobs:\n  gate:\n    name: Gate\n    runs-on: ubuntu-latest\n"
+	good := plantedWorkflow
+	step := "      - run: make check\n"
 	for name, doc := range map[string]string{
-		"a renamed job":           strings.Replace(good, "name: Gate", "name: Gates", 1),
-		"no name, another id":     strings.Replace(good, "    name: Gate\n", "", 1),
-		"a path filter":           strings.Replace(good, "  pull_request:\n", "  pull_request:\n    paths: [docs/**]\n", 1),
-		"no synchronize":          strings.Replace(good, "  pull_request:\n", "  pull_request:\n    types: [opened, reopened]\n", 1),
-		"no pull request trigger": strings.Replace(good, "  pull_request:\n", "  push:\n", 1),
-		"a condition":             good + "    if: github.event_name == 'push'\n",
-		"a job it waits on":       good + "    needs: build\n",
-		"two jobs of the name":    good + "  again:\n    name: Gate\n",
+		"a renamed job":             strings.Replace(good, "name: Gate", "name: Gates", 1),
+		"no name, another id":       strings.Replace(good, "    name: Gate\n", "", 1),
+		"a path filter":             strings.Replace(good, "  pull_request:\n", "  pull_request:\n    paths: [docs/**]\n", 1),
+		"no synchronize":            strings.Replace(good, "  pull_request:\n", "  pull_request:\n    types: [opened, reopened]\n", 1),
+		"no pull request trigger":   strings.Replace(good, "  pull_request:\n", "  push:\n", 1),
+		"a condition":               good + "    if: github.event_name == 'push'\n",
+		"a quoted condition":        good + "    \"if\": false\n",
+		"a job it waits on":         good + "    needs: build\n",
+		"a quoted job it waits on":  good + "    'needs': build\n",
+		"an ignored failure":        good + "    continue-on-error: true\n",
+		"a matrix":                  good + "    strategy:\n      matrix:\n        os: [a, b]\n",
+		"a called workflow":         good + "    uses: ./.github/workflows/other.yml\n",
+		"an alias":                  strings.Replace(good, "runs-on: ubuntu-latest", "runs-on: *runner", 1),
+		"a skipped step":            strings.Replace(good, step, step+"        if: false\n", 1),
+		"a step whose failure goes": strings.Replace(good, step, step+"        \"continue-on-error\": true\n", 1),
+		"two jobs of the name":      good + "  again:\n    name: Gate\n",
 	} {
-		jobs := map[string][]workflowJob{}
-		if err := jobsOf("planted.yml", strings.Split(doc, "\n"), jobs); err != nil {
-			t.Fatalf("%s: %v", name, err)
-		}
-		if got := requiredCheckProblems([]string{"Gate"}, jobs); len(got) != 1 {
+		if got := requiredCheckProblems([]string{"Gate"}, plantedJobs(t, doc)); len(got) != 1 {
 			t.Errorf("%s: %q, want one problem", name, got)
 		}
 	}
+	if got := requiredCheckProblems([]string{"Gate", "Gate"}, plantedJobs(t, good)); len(got) != 1 {
+		t.Errorf("a check listed twice: %q, want one problem", got)
+	}
+	if err := jobsOf("planted.yml", strings.Split(good+"  other:\n    name: ${{ 'Gate' }}\n", "\n"), map[string][]workflowJob{}); err == nil {
+		t.Error("a job named by an expression was read")
+	}
 	for name, doc := range map[string]string{
-		"a bare trigger":             "on:\n  pull_request:\njobs:\n  gate:\n    name: Gate\n",
-		"a flow list":                "on: [push, pull_request]\njobs:\n  gate:\n    name: Gate\n",
-		"every activity it needs":    "on:\n  pull_request:\n    types: [opened, edited, reopened, synchronize]\njobs:\n  gate:\n    name: Gate\n",
-		"the pull request condition": "on:\n  pull_request:\njobs:\n  gate:\n    name: Gate\n    if: ${{ " + requiredCheckIf + " }}\n",
+		"a bare trigger":             good,
+		"a flow list":                strings.Replace(good, "on:\n  pull_request:\n", "on: [push, pull_request]\n", 1),
+		"every activity it needs":    strings.Replace(good, "  pull_request:\n", "  pull_request:\n    types: [opened, edited, reopened, synchronize]\n", 1),
+		"the pull request condition": good + "    if: ${{ " + requiredCheckIf + " }}\n",
 	} {
-		jobs := map[string][]workflowJob{}
-		if err := jobsOf("planted.yml", strings.Split(doc, "\n"), jobs); err != nil {
-			t.Fatalf("%s: %v", name, err)
-		}
-		if got := requiredCheckProblems([]string{"Gate"}, jobs); len(got) != 0 {
+		if got := requiredCheckProblems([]string{"Gate"}, plantedJobs(t, doc)); len(got) != 0 {
 			t.Errorf("%s: %q, want none", name, got)
 		}
 	}
