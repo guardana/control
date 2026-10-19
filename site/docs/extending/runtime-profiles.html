@@ -202,9 +202,10 @@ of a link to that page; nowhere else in the tree.</p>
 <h2 id="what-a-page-may-claim">What a page may claim</h2>
 <p>Nothing a hook decides is <code>enforced</code>: the runtime, not the plane, runs the
 call. A profile is <strong>decided, not enforced</strong> only when the runtime blocks a
-call whose hook fails, in settings the user cannot override, and its shell
-sandbox keeps the agent out of the plane's directories, since the hook runs
-as the agent's account. Otherwise it is <strong>decided, with failure gaps</strong>, and
+call whose hook fails, in settings the user cannot override, the hook command
+is an absolute path to a binary the agent cannot replace and names a built-in
+profile, and the runtime's shell sandbox keeps the agent out of the plane's
+directories, since the hook runs as the agent's account. Otherwise it is <strong>decided, with failure gaps</strong>, and
 the page names each gap. A claim no case backs reads as unknown.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/extending/runtime-profiles.md">docs/extending/runtime-profiles.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.12.0, and <a href="https://github.com/guardana/control/tree/v0.12.0/docs">its documentation</a> is in its tag.</p>
 </main>

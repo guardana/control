@@ -82,7 +82,8 @@ of a link to that page; nowhere else in the tree.
 
 Nothing a hook decides is `enforced`: the runtime, not the plane, runs the
 call. A profile is **decided, not enforced** only when the runtime blocks a
-call whose hook fails, in settings the user cannot override, and its shell
-sandbox keeps the agent out of the plane's directories, since the hook runs
-as the agent's account. Otherwise it is **decided, with failure gaps**, and
+call whose hook fails, in settings the user cannot override, the hook command
+is an absolute path to a binary the agent cannot replace and names a built-in
+profile, and the runtime's shell sandbox keeps the agent out of the plane's
+directories, since the hook runs as the agent's account. Otherwise it is **decided, with failure gaps**, and
 the page names each gap. A claim no case backs reads as unknown.

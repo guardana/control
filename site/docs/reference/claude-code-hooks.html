@@ -161,10 +161,11 @@ recorded from a release, and every CI run passes them through the bridge
 against a plane. Until a qualification against a pinned release is recorded
 beside the profile, nothing on this page has been observed on the runtime
 itself, and the label stays &quot;decided, with failure gaps&quot;. It cannot become
-&quot;decided, not enforced&quot; until the fail-closed setting is in managed settings
-and the runtime's shell sandbox keeps the agent out of the plane's
-directories; it is never &quot;enforced&quot;, because Claude Code, not the plane, runs
-the call.</p>
+&quot;decided, not enforced&quot; until the fail-closed setting is in managed settings,
+the hook command is an absolute path to a binary the agent cannot replace and
+names this built-in profile, and the runtime's shell sandbox keeps the agent
+out of the plane's directories; it is never &quot;enforced&quot;, because Claude Code,
+not the plane, runs the call.</p>
 <h2 id="settings">Settings</h2>
 <pre><code class="language-json">{
   &#34;hooks&#34;: {
@@ -174,7 +175,7 @@ the call.</p>
         &#34;hooks&#34;: [
           {
             &#34;type&#34;: &#34;command&#34;,
-            &#34;command&#34;: &#34;guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state&#34;,
+            &#34;command&#34;: &#34;/path/to/guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state&#34;,
             &#34;timeout&#34;: 30,
             &#34;onFailure&#34;: &#34;block&#34;
           }
@@ -187,7 +188,7 @@ the call.</p>
         &#34;hooks&#34;: [
           {
             &#34;type&#34;: &#34;command&#34;,
-            &#34;command&#34;: &#34;guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state&#34;,
+            &#34;command&#34;: &#34;/path/to/guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state&#34;,
             &#34;timeout&#34;: 30
           }
         ]
@@ -199,7 +200,7 @@ the call.</p>
         &#34;hooks&#34;: [
           {
             &#34;type&#34;: &#34;command&#34;,
-            &#34;command&#34;: &#34;guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state&#34;,
+            &#34;command&#34;: &#34;/path/to/guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state&#34;,
             &#34;timeout&#34;: 30
           }
         ]
@@ -223,6 +224,10 @@ server that is not behind the gateway is then seen by neither.</li>
 <li>Put these hooks in managed settings. A user can turn off any hook outside
 them with <code>disableAllHooks</code> or by editing their own settings files, and
 <code>allowManagedHooksOnly</code> keeps user, project and plugin hooks out.</li>
+<li>The command is an absolute path to a binary the agent cannot replace, and
+names the built-in profile: a binary found through <code>PATH</code>, or a
+<code>--profile-file</code> the agent can write, is one the agent can swap for one
+that allows every call.</li>
 <li><code>--state-dir</code> must exist and belong to the account the hook runs as, with
 no access for group or others; there is no default.</li>
 <li>The run token is read from <code>GUARDANA_CONTROL_RUN_TOKEN</code> in the hook's
@@ -266,7 +271,7 @@ environment, never from a flag or the event. Start Claude Code with it set.</li>
 <p>An event that is over 16 MiB, is not one JSON object of valid UTF-8, names a
 member twice, lacks the tool name, the call id or the session id, carries a
 <code>tool_input</code> that is not an object, or is a <code>PreToolUse</code> without one is
-refused before anything is sent, with exit 2. A member spelled in another
+refused before anything is sent, with the profile's block status, 2. A member spelled in another
 case is not read, so it counts as absent.</p>
 <p>The plane compares the completion's <code>tool_input</code> with the authorized one by
 <code>digest_v1</code>: key order, white space, string escapes and a number written
@@ -293,10 +298,13 @@ the hook is in managed settings.</li>
 hook that is not managed.</li>
 <li>A cancelled running tool starts no completion hook; the plane's sweep
 closes its handle as abandoned.</li>
+<li>Another hook can replace the input after the bridge stayed silent. Only
+the completion shows it, as <code>EXECUTED_ARGS_MISMATCH</code>, after the call ran.</li>
 <li>When Claude Code refuses a call after the bridge stayed silent, for
 instance at its own permission prompt, no completion hook follows. The
 handle stays open until <code>listener.execution_lifetime</code> ends and holds one of
-the run's open executions, 16 by default, meanwhile.</li>
+the run's open executions, 16 by default, meanwhile; once all are held, the
+plane denies every call of the run until they expire.</li>
 <li>A completion that carries no <code>tool_input</code> sends nothing; the sweep closes
 the call as abandoned, its outcome unknown.</li>
 <li>The hook runs as the agent's account. Unless Claude Code's shell sandbox

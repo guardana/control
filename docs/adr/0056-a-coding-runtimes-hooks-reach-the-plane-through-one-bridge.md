@@ -62,16 +62,18 @@ abandoned, its outcome unknown. An absent interrupt flag reads as unknown,
 never as a clean failure.
 
 **The run token is the operator's**, read from the hook's environment, never
-from a flag or the event. Session, agent and call ids from the event
-correlate and grant nothing.
+from a flag or the event. The session and call ids from the event name the
+handle and the request key and grant nothing; the plane's evidence does not
+carry them.
 
 **What a profile may claim.** Nothing over this API is `enforced`
 (ADR-0051): the runtime, not the plane, runs the call. A profile is
 "decided, not enforced" only where the runtime's setting that blocks a call
-on a failed hook is on in settings a user cannot override, and the runtime's
-shell sandbox denies the agent the plane's directories (approvals, the
-bridge's store, the socket's directory), because the hook runs as the agent's
-account. Otherwise it is "decided, with failure gaps", and its page names
+on a failed hook is on in settings a user cannot override, the hook command
+is an absolute path to a binary the agent's account cannot replace and names
+a built-in profile, and the runtime's shell sandbox denies the agent the
+plane's directories (approvals, the bridge's store, the socket's directory),
+because the hook runs as the agent's account. Otherwise it is "decided, with failure gaps", and its page names
 them. Each claim is backed by a case of the profile's fixtures, which run in
 every CI without the runtime, or of a qualification against the real runtime
 at a pinned version, run before a release and recorded beside the profile;
@@ -80,10 +82,14 @@ a claim no case backs reads as unknown.
 ## Security / compatibility impact
 
 A hook is a cooperating client: the agent's account runs it and can disable
-it, edit its settings where they are not managed, or reach the plane's
-socket and the bridge's store itself. A runtime refusing a call after the
-bridge stayed silent fires no completion; the handle holds one of the run's
-open executions until it expires. Tools that do not pass through hooks, a
+it, edit its settings where they are not managed, replace a binary or a
+profile file it can write, or reach the plane's socket and the bridge's store
+itself. Another hook can replace the input after the bridge stayed silent;
+only the completion shows it, as a mismatch that halts the run. A runtime
+refusing a call after the bridge stayed silent fires no completion; the
+handle holds one of the run's open executions until it expires, and a run
+whose open executions are all held that way denies every later call until
+they do. Tools that do not pass through hooks, a
 process a tool starts, and content a runtime loads without a tool call are
 not seen. Each is a gap the profile's page states. The wire contract gains
 nothing: `request_key` and the three operations exist in v1alpha1.

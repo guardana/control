@@ -33,10 +33,11 @@ recorded from a release, and every CI run passes them through the bridge
 against a plane. Until a qualification against a pinned release is recorded
 beside the profile, nothing on this page has been observed on the runtime
 itself, and the label stays "decided, with failure gaps". It cannot become
-"decided, not enforced" until the fail-closed setting is in managed settings
-and the runtime's shell sandbox keeps the agent out of the plane's
-directories; it is never "enforced", because Claude Code, not the plane, runs
-the call.
+"decided, not enforced" until the fail-closed setting is in managed settings,
+the hook command is an absolute path to a binary the agent cannot replace and
+names this built-in profile, and the runtime's shell sandbox keeps the agent
+out of the plane's directories; it is never "enforced", because Claude Code,
+not the plane, runs the call.
 
 ## Settings
 
@@ -49,7 +50,7 @@ the call.
         "hooks": [
           {
             "type": "command",
-            "command": "guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state",
+            "command": "/path/to/guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state",
             "timeout": 30,
             "onFailure": "block"
           }
@@ -62,7 +63,7 @@ the call.
         "hooks": [
           {
             "type": "command",
-            "command": "guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state",
+            "command": "/path/to/guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state",
             "timeout": 30
           }
         ]
@@ -74,7 +75,7 @@ the call.
         "hooks": [
           {
             "type": "command",
-            "command": "guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state",
+            "command": "/path/to/guardana-control hook --profile claude-code --socket /path/to/enforce.sock --state-dir /path/to/hook-state",
             "timeout": 30
           }
         ]
@@ -98,6 +99,10 @@ the call.
 - Put these hooks in managed settings. A user can turn off any hook outside
   them with `disableAllHooks` or by editing their own settings files, and
   `allowManagedHooksOnly` keeps user, project and plugin hooks out.
+- The command is an absolute path to a binary the agent cannot replace, and
+  names the built-in profile: a binary found through `PATH`, or a
+  `--profile-file` the agent can write, is one the agent can swap for one
+  that allows every call.
 - `--state-dir` must exist and belong to the account the hook runs as, with
   no access for group or others; there is no default.
 - The run token is read from `GUARDANA_CONTROL_RUN_TOKEN` in the hook's
@@ -114,7 +119,7 @@ the call.
 An event that is over 16 MiB, is not one JSON object of valid UTF-8, names a
 member twice, lacks the tool name, the call id or the session id, carries a
 `tool_input` that is not an object, or is a `PreToolUse` without one is
-refused before anything is sent, with exit 2. A member spelled in another
+refused before anything is sent, with the profile's block status, 2. A member spelled in another
 case is not read, so it counts as absent.
 
 The plane compares the completion's `tool_input` with the authorized one by
@@ -144,10 +149,13 @@ None of these is closed by the profile.
   hook that is not managed.
 - A cancelled running tool starts no completion hook; the plane's sweep
   closes its handle as abandoned.
+- Another hook can replace the input after the bridge stayed silent. Only
+  the completion shows it, as `EXECUTED_ARGS_MISMATCH`, after the call ran.
 - When Claude Code refuses a call after the bridge stayed silent, for
   instance at its own permission prompt, no completion hook follows. The
   handle stays open until `listener.execution_lifetime` ends and holds one of
-  the run's open executions, 16 by default, meanwhile.
+  the run's open executions, 16 by default, meanwhile; once all are held, the
+  plane denies every call of the run until they expire.
 - A completion that carries no `tool_input` sends nothing; the sweep closes
   the call as abandoned, its outcome unknown.
 - The hook runs as the agent's account. Unless Claude Code's shell sandbox
