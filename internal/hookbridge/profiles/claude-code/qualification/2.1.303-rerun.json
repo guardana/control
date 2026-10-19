@@ -20,7 +20,8 @@
         "proposed": null,
         "trail": [],
         "mismatch": false,
-        "unknown": "not run: QUALIFY_ONLY left out allow/run"
+        "unknown": "not run: QUALIFY_ONLY left out allow/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -32,7 +33,8 @@
         "admit_exits": [],
         "marker": false,
         "trail": [],
-        "unknown": "not run: QUALIFY_ONLY left out block/run"
+        "unknown": "not run: QUALIFY_ONLY left out block/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -45,19 +47,22 @@
         "approval": null,
         "approval_state": null,
         "file_unchanged": false,
-        "unknown": "not run: QUALIFY_ONLY left out pending/held"
+        "unknown": "not run: QUALIFY_ONLY left out pending/held",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
     {
       "id": "pending-resumed",
       "invocations": 0,
-      "expected": "once approved, the identical retry runs once: its PreToolUse exits 0, the edit is applied, and one ACTION_STARTED follows a decision on the approval's digest",
+      "expected": "once approved, the identical retry runs once: its PreToolUse exits 0, the edit is applied, and one ACTION_STARTED and one ACTION_COMPLETED follow a decision on the approval's digest",
       "observed": {
         "admit_exits": [],
         "file": null,
         "started_on_digest": null,
-        "unknown": "not run: QUALIFY_ONLY left out pending/resumed"
+        "completed_on_digest": null,
+        "unknown": "not run: QUALIFY_ONLY left out pending/resumed",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -70,7 +75,8 @@
         "reasons": [],
         "file_unchanged": false,
         "started_on_digest": null,
-        "unknown": "not run: QUALIFY_ONLY left out pending/used"
+        "unknown": "not run: QUALIFY_ONLY left out pending/used",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -83,7 +89,8 @@
         "race_exits": [],
         "started_on_digest": null,
         "file": null,
-        "unknown": "not run: QUALIFY_ONLY left out concurrent/hold"
+        "unknown": "not run: QUALIFY_ONLY left out concurrent/hold",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -95,7 +102,8 @@
         "admit_exits": [],
         "content_reached_model": false,
         "trail": [],
-        "unknown": "not run: QUALIFY_ONLY left out obligation/run"
+        "unknown": "not run: QUALIFY_ONLY left out obligation/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -106,7 +114,10 @@
       "observed": {
         "pre_hook": [],
         "file": null,
-        "unknown": "not run: QUALIFY_ONLY left out plane-down/run"
+        "runtime_returned": false,
+        "write_refused": false,
+        "unknown": "not run: QUALIFY_ONLY left out plane-down/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -117,7 +128,10 @@
       "observed": {
         "pre_hook": [],
         "file": null,
-        "unknown": "not run: QUALIFY_ONLY left out timeout-block/run"
+        "runtime_returned": false,
+        "write_refused": false,
+        "unknown": "not run: QUALIFY_ONLY left out timeout-block/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -128,7 +142,10 @@
       "observed": {
         "pre_hook": [],
         "file": null,
-        "unknown": "not run: QUALIFY_ONLY left out timeout-open/run"
+        "runtime_returned": false,
+        "write_refused": false,
+        "unknown": "not run: QUALIFY_ONLY left out timeout-open/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -139,7 +156,10 @@
       "observed": {
         "pre_hook": [],
         "file": null,
-        "unknown": "not run: QUALIFY_ONLY left out crash-block/run"
+        "runtime_returned": false,
+        "write_refused": false,
+        "unknown": "not run: QUALIFY_ONLY left out crash-block/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -150,7 +170,10 @@
       "observed": {
         "pre_hook": [],
         "file": null,
-        "unknown": "not run: QUALIFY_ONLY left out crash-open/run"
+        "runtime_returned": false,
+        "write_refused": false,
+        "unknown": "not run: QUALIFY_ONLY left out crash-open/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -161,7 +184,10 @@
       "observed": {
         "pre_hook": [],
         "file": null,
-        "unknown": "not run: QUALIFY_ONLY left out garbage/run"
+        "runtime_returned": false,
+        "write_refused": false,
+        "unknown": "not run: QUALIFY_ONLY left out garbage/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -172,7 +198,8 @@
       "observed": {
         "events_recorded": 0,
         "file": null,
-        "unknown": "not run: QUALIFY_ONLY left out disabled/run"
+        "unknown": "not run: QUALIFY_ONLY left out disabled/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -187,7 +214,8 @@
         "completion_input": [],
         "mismatch": false,
         "run_halted": false,
-        "unknown": "not run: QUALIFY_ONLY left out rewrite/run"
+        "unknown": "not run: QUALIFY_ONLY left out rewrite/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -201,7 +229,8 @@
         "file": null,
         "trail": [],
         "run_halted": false,
-        "unknown": "not run: QUALIFY_ONLY left out rewrite-denied/run"
+        "unknown": "not run: QUALIFY_ONLY left out rewrite-denied/run",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
@@ -211,42 +240,63 @@
       "expected": "the matcher leaves the mcp__ tool out: no hook event for it, and the tool ran",
       "observed": {
         "mcp_events": [],
-        "tool_ran": true
+        "tool_ran": true,
+        "pre_tool_use": [
+          [
+            "ToolSearch",
+            0,
+            ""
+          ]
+        ]
       },
       "verdict": "pass"
     },
     {
       "id": "subagent",
       "invocations": 1,
-      "expected": "a sub-agent's Write reaches the hook, and the plane decides it",
+      "expected": "a Write a sub-agent makes under the Agent call reaches the hook with the sub-agent's id, and the plane decides it",
       "observed": {
         "agent_calls": 1,
+        "sub_agent_writes": 1,
         "admit_exits": [
           0
         ],
         "decided": [
           "VERDICT_ALLOW"
         ],
-        "file": "sub"
+        "file": "sub",
+        "pre_tool_use": [
+          [
+            "Agent",
+            0,
+            ""
+          ],
+          [
+            "Write",
+            0,
+            ""
+          ]
+        ]
       },
       "verdict": "pass"
     },
     {
       "id": "control-allow-all",
       "invocations": 0,
-      "expected": "the block case through a bridge that lets every call run is judged failed",
+      "expected": "the block case through a bridge that lets every call run is judged failed, because the marker was made",
       "observed": {
         "admit_exits": [],
         "marker": false,
         "trail": [],
-        "unknown": "the expectation under the broken bridge was not judged"
+        "unknown": "the expectation under the broken bridge was not judged",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     },
     {
       "id": "control-report-proposed",
       "invocations": 0,
-      "expected": "the rewrite case through a bridge that reports the authorized input as the one that ran is judged failed, where the real bridge's mismatch was seen",
+      "expected": "the rewrite case through a bridge that reports the authorized input as the one that ran is judged failed, because the replacement ran and no mismatch was recorded, where the real bridge's mismatch was seen",
       "observed": {
         "bridge_exits": [],
         "written": null,
@@ -254,9 +304,11 @@
         "completion_input": [],
         "mismatch": false,
         "run_halted": false,
-        "unknown": "the real bridge showed no mismatch in rewrite to compare with"
+        "unknown": "the real bridge showed no mismatch in rewrite to compare with",
+        "pre_tool_use": []
       },
       "verdict": "unknown"
     }
-  ]
+  ],
+  "judged_at": "9d00c8e8"
 }
