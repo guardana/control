@@ -67,8 +67,8 @@ the bridge gets a new strategy, under review, and every profile can use it.
    runtime blocks and reports a problem on, the hook timeout, the largest
    event, and what each fixture must come to: a refusal, or an admit's
    outcome, the bytes it proposed and the trail it leaves, or a completion's
-   closing record. The command's own tests hold its exit statuses and
-   standard output to the profile's.
+   closing record. The command's own tests check its exit statuses and
+   standard output against the profile's.
 3. Qualify the profile against the runtime at a pinned version: a call
    blocked with no effect on a recorder the bridge cannot touch, a pending
    approval resumed, a wanted rewrite denied, the input that ran compared,

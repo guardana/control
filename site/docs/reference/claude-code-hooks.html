@@ -216,7 +216,7 @@ request to the plane after 12 seconds and on the whole hook after 27,
 inside the runtime's limit.</p>
 </li>
 <li>
-<p><code>onFailure: &quot;block&quot;</code> sits on the admit only. Without it, a hook that times
+<p><code>onFailure: &quot;block&quot;</code> sits on <code>PreToolUse</code> only. Without it, a hook that times
 out, crashes or cannot start lets the call run. On the two completion
 events the call has already run, so there is nothing left to block.</p>
 </li>
@@ -338,9 +338,9 @@ the hook is in managed settings.</li>
 hook that is not managed.</li>
 <li>A cancelled running tool starts no completion hook; the plane's sweep
 closes its handle as abandoned.</li>
-<li>Another hook can replace the input after the bridge stayed silent. Only
+<li>Another hook can replace the input after the bridge let the call run. Only
 the completion shows it, as <code>EXECUTED_ARGS_MISMATCH</code>, after the call ran.</li>
-<li>When Claude Code refuses a call after the bridge stayed silent, for
+<li>When Claude Code refuses a call after the bridge let it run, for
 instance at its own permission prompt, no completion hook follows. The
 handle stays open until <code>listener.execution_lifetime</code> ends and holds one of
 the run's open executions, 16 by default, meanwhile; once all are held, the

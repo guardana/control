@@ -88,7 +88,7 @@ not the plane, runs the call.
 - `timeout` is 30 because the profile says so: the bridge gives up on each
   request to the plane after 12 seconds and on the whole hook after 27,
   inside the runtime's limit.
-- `onFailure: "block"` sits on the admit only. Without it, a hook that times
+- `onFailure: "block"` sits on `PreToolUse` only. Without it, a hook that times
   out, crashes or cannot start lets the call run. On the two completion
   events the call has already run, so there is nothing left to block.
 - The matcher leaves out tools named `mcp__<server>__<tool>`, which reach the
@@ -175,9 +175,9 @@ None of these is closed by the profile.
   hook that is not managed.
 - A cancelled running tool starts no completion hook; the plane's sweep
   closes its handle as abandoned.
-- Another hook can replace the input after the bridge stayed silent. Only
+- Another hook can replace the input after the bridge let the call run. Only
   the completion shows it, as `EXECUTED_ARGS_MISMATCH`, after the call ran.
-- When Claude Code refuses a call after the bridge stayed silent, for
+- When Claude Code refuses a call after the bridge let it run, for
   instance at its own permission prompt, no completion hook follows. The
   handle stays open until `listener.execution_lifetime` ends and holds one of
   the run's open executions, 16 by default, meanwhile; once all are held, the
