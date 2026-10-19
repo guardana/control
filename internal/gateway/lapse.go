@@ -75,10 +75,18 @@ func (c *call) withholds(b core.Basis, installed *policy.Snapshot, now time.Time
 		return false
 	}
 	if c.p.cfg.Mode == modeObserve {
-		c.staleSeen = c.staleSeen || b.Stood()
+		c.staleSeen = c.staleSeen || b.Stood() && letRun(c.kernel)
 		return false
 	}
 	return true
+}
+
+// letRun reports whether decision let its call run as decided, as ENFORCE
+// would have: an allow, with or without obligations. A call it denied, held
+// or could not decide is one ENFORCE never hands out, stale or not.
+func letRun(decision *controlv1.Decision) bool {
+	v := decision.GetVerdict()
+	return v == controlv1.Verdict_VERDICT_ALLOW || v == controlv1.Verdict_VERDICT_ALLOW_WITH_OBLIGATIONS
 }
 
 // lapsedAfterStart closes the trail of an execution whose approval or opened

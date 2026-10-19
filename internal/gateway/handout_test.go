@@ -215,6 +215,14 @@ func TestObserveHandsOutWhatEnforceWouldWithhold(t *testing.T) {
 			t.Errorf("StaleHandedOut %d, Blocks %v; want one counted and none blocked", s.StaleHandedOut, s.Blocks)
 		}
 	})
+	t.Run("denied when decided, stale at the hand-out", func(t *testing.T) {
+		h := build(t, modeObserve, snapshot(t, denyReads))
+		h.sink.hook(kindDecided, func() { h.clock.set(base().Add(handOutBudget + time.Second)) })
+		expectRuns(t, h.admit(readEnvelope(), nil))
+		if s := h.p.Stats(); s.StaleHandedOut != 0 {
+			t.Errorf("StaleHandedOut %d; want a call its policy denied, which ENFORCE never hands out, not counted", s.StaleHandedOut)
+		}
+	})
 	t.Run("stale when decided, or decided with no bundle", func(t *testing.T) {
 		for _, snap := range []*policy.Snapshot{snapshot(t, allowReads), nil} {
 			h := build(t, modeObserve, snap)
