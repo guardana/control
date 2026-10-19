@@ -120,10 +120,29 @@ func requiredJobProblems(check string, job workflowJob) []string {
 			problems = append(problems, fmt.Sprintf("%s runs only if %s", where, cond.value))
 		}
 	}
-	for _, steps := range job.node.children("steps") {
+	return append(problems, stepProblems(where, job.node)...)
+}
+
+// stepProblems names each step of a required job that can skip its work or
+// hide its failure, and each this check cannot read: steps or a step written
+// in flow style, which the block parser keeps as text where a condition can
+// hide.
+func stepProblems(where string, job *yamlNode) []string {
+	var problems []string
+	for _, steps := range job.children("steps") {
+		if steps.value != "" {
+			problems = append(problems, fmt.Sprintf("line %d: %s lists its steps in flow style, which this check cannot read", steps.line, where))
+		}
 		for _, step := range steps.kids {
+			if step.key != "-" || step.value != "" || len(step.kids) == 0 {
+				problems = append(problems, fmt.Sprintf("line %d: %s has a step this check cannot read as a block mapping", step.line, where))
+				continue
+			}
 			for _, kid := range step.kids {
-				if slices.Contains(maskingStepKeys, unquote(kid.key)) {
+				switch key := unquote(kid.key); {
+				case strings.ContainsAny(key, "{}[],"):
+					problems = append(problems, fmt.Sprintf("line %d: %s has a step in flow style, which this check cannot read", kid.line, where))
+				case slices.Contains(maskingStepKeys, key):
 					problems = append(problems, fmt.Sprintf("line %d: %s has a step with %s", kid.line, where, kid.key))
 				}
 			}
@@ -199,6 +218,8 @@ func TestARequiredCheckAPullRequestCanMissIsCaught(t *testing.T) {
 		"an alias":                  strings.Replace(good, "runs-on: ubuntu-latest", "runs-on: *runner", 1),
 		"a skipped step":            strings.Replace(good, step, step+"        if: false\n", 1),
 		"a step whose failure goes": strings.Replace(good, step, step+"        \"continue-on-error\": true\n", 1),
+		"a skipped flow-style step": strings.Replace(good, step, "      - {run: make check, if: false}\n", 1),
+		"steps in flow style":       strings.Replace(good, "    steps:\n"+step, "    steps: [{run: make check, if: false}]\n", 1),
 		"two jobs of the name":      good + "  again:\n    name: Gate\n",
 	} {
 		if got := requiredCheckProblems([]string{"Gate"}, plantedJobs(t, doc)); len(got) != 1 {
