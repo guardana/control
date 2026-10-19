@@ -154,7 +154,7 @@ def events(path):
         ev = ev if isinstance(ev, dict) else {}
         meta = load_json(stem + ".meta.json", {})
         if isinstance(meta.get("stderr"), str):
-            meta["stderr"] = PROGRAM.sub("", meta["stderr"])
+            meta["stderr"] = scrub(PROGRAM.sub("", meta["stderr"]))
         out.append({
             "kind": ev.get("hook_event_name", ""),
             "tool": ev.get("tool_name", ""),
@@ -169,6 +169,13 @@ def events(path):
 # The program's name the bridge puts before each line it writes; the results
 # keep the reason alone.
 PROGRAM = re.compile(r"^[^\s:]+: hook: ", re.M)
+
+# An absolute path, which would name the machine the qualification ran on.
+PATH = re.compile(r"(?<![\w.])/[^\s\"';:,()\[\]]+")
+
+
+def scrub(text):
+    return PATH.sub("<path>", text)
 
 
 class Inv:
@@ -323,7 +330,7 @@ def missing(*invs):
 def reason(said):
     """The runtime's reason after the hook command it names, which holds
     local paths and is left out."""
-    return said.rsplit("]: ", 1)[-1].splitlines()[0] if "]: " in said else ""
+    return scrub(said.rsplit("]: ", 1)[-1].splitlines()[0]) if "]: " in said else ""
 
 
 def silent(admits):

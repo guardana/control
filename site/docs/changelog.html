@@ -138,12 +138,13 @@ guide installs it with <code>npm ci --ignore-scripts</code>.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
-<li>An enforcement receiver serves only the listener its own <code>Listen</code> bound with
-the socket's lock held, and that one once, so no caller can put a second
-plane on the same socket.</li>
+<li>An enforcement receiver's <code>Serve</code> refuses any listener but the one its own
+<code>Listen</code> bound with the socket's lock held, and that one a second time, so
+the plane never serves a socket whose lock it does not hold.</li>
 <li>In <code>OBSERVE</code>, <code>pipeline_stale_handed_out_total</code> no longer counts a call the
-policy denied, held or could not decide: only one <code>ENFORCE</code> would have
-handed out.</li>
+kernel blocked or held: only one whose decision let it run, a read the
+fail-closed table opened included
+(<a href="/docs/adr/0055-a-call-is-handed-out-only-while-its-policy-stands">ADR-0055</a>).</li>
 <li><code>guardana-control react</code> reads the clock for a stop once it holds the lock
 on the stop list. A stop no longer loses the time spent waiting for the lock,
 and a finding is no longer refused as &quot;not written&quot; because another <code>react</code>

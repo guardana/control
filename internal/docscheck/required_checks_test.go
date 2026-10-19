@@ -18,9 +18,11 @@ const requiredCheckIf = "github.event_name == 'pull_request'"
 // needs, continue-on-error, strategy, uses, or a quoted spelling of if.
 var requiredJobKeys = []string{"name", "runs-on", "timeout-minutes", "permissions", "steps", "if"}
 
-// maskingStepKeys are the step keys that let a required job report success
-// without the step's work: a condition that skips it, or a failure ignored.
-var maskingStepKeys = []string{"if", "continue-on-error"}
+// requiredStepKeys are the keys a required job's step may carry, written
+// plainly. Any other can skip the step or ignore its failure, if and
+// continue-on-error among them, and a quoted, escaped, anchored or tagged
+// spelling of one is a key this check would not recognise.
+var requiredStepKeys = []string{"name", "id", "run", "uses", "with", "env", "shell", "working-directory", "timeout-minutes"}
 
 // workflowJob is one job of a workflow, keyed elsewhere by the check-run
 // context it reports: its name, or its id when it has none.
@@ -126,8 +128,8 @@ func requiredJobProblems(check string, job workflowJob) []string {
 	return append(problems, stepProblems(where, job.node)...)
 }
 
-// stepProblems names each step of a required job that can skip its work or
-// hide its failure, and each this check cannot read: steps or a step written
+// stepProblems names each step of a required job that carries a key outside
+// requiredStepKeys, and each this check cannot read: steps or a step written
 // in flow style, which the block parser keeps as text where a condition can
 // hide.
 func stepProblems(where string, job *yamlNode) []string {
@@ -142,11 +144,8 @@ func stepProblems(where string, job *yamlNode) []string {
 				continue
 			}
 			for _, kid := range step.kids {
-				switch key := unquote(kid.key); {
-				case strings.ContainsAny(key, "{}[],"):
-					problems = append(problems, fmt.Sprintf("line %d: %s has a step in flow style, which this check cannot read", kid.line, where))
-				case slices.Contains(maskingStepKeys, key):
-					problems = append(problems, fmt.Sprintf("line %d: %s has a step with %s", kid.line, where, kid.key))
+				if !slices.Contains(requiredStepKeys, kid.key) {
+					problems = append(problems, fmt.Sprintf("line %d: %s has a step with %s, which a required job's step may not carry", kid.line, where, kid.key))
 				}
 			}
 		}
@@ -222,6 +221,9 @@ func TestARequiredCheckAPullRequestCanMissIsCaught(t *testing.T) {
 		"a skipped step":            strings.Replace(good, step, step+"        if: false\n", 1),
 		"a step whose failure goes": strings.Replace(good, step, step+"        \"continue-on-error\": true\n", 1),
 		"a skipped flow-style step": strings.Replace(good, step, "      - {run: make check, if: false}\n", 1),
+		"an escaped if on a step":   strings.Replace(good, step, step+"        \"i\\x66\": false\n", 1),
+		"an anchored if on a step":  strings.Replace(good, step, step+"        &k if: false\n", 1),
+		"a tagged if on a step":     strings.Replace(good, step, step+"        !!str if: false\n", 1),
 		"steps in flow style":       strings.Replace(good, "    steps:\n"+step, "    steps: [{run: make check, if: false}]\n", 1),
 		"two jobs of the name":      good + "  again:\n    name: Gate\n",
 	} {

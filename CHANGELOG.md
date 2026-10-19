@@ -31,12 +31,13 @@ verify one.
 
 ### Fixed
 
-- An enforcement receiver serves only the listener its own `Listen` bound with
-  the socket's lock held, and that one once, so no caller can put a second
-  plane on the same socket.
+- An enforcement receiver's `Serve` refuses any listener but the one its own
+  `Listen` bound with the socket's lock held, and that one a second time, so
+  the plane never serves a socket whose lock it does not hold.
 - In `OBSERVE`, `pipeline_stale_handed_out_total` no longer counts a call the
-  policy denied, held or could not decide: only one `ENFORCE` would have
-  handed out.
+  kernel blocked or held: only one whose decision let it run, a read the
+  fail-closed table opened included
+  ([ADR-0055](docs/adr/0055-a-call-is-handed-out-only-while-its-policy-stands.md)).
 - `guardana-control react` reads the clock for a stop once it holds the lock
   on the stop list. A stop no longer loses the time spent waiting for the lock,
   and a finding is no longer refused as "not written" because another `react`

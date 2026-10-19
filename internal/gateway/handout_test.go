@@ -208,26 +208,10 @@ func TestAReadTheTableOpenedStaysInItsRow(t *testing.T) {
 // is ALLOW_WITH_OBLIGATIONS and nothing rewrites the arguments.
 const adviseReads = `{"id":"advise-reads","effect":"ALLOW_WITH_OBLIGATIONS","obligations":[{"type":"cap_rate","params":{"per_minute":"60"},"advisory":true}],"when":{"action":{"effect":["READ"]}}}`
 
-// TestObserveHandsOutWhatEnforceWouldWithhold: OBSERVE enforces no policy,
-// so a call whose bundle goes stale before the hand-out runs and is counted
-// once; a pause taken in the same window still blocks it.
-func TestObserveHandsOutWhatEnforceWouldWithhold(t *testing.T) {
-	t.Run("stale", func(t *testing.T) {
-		h := build(t, modeObserve, snapshot(t, allowReads))
-		h.sink.hook(kindDecided, func() { h.clock.set(base().Add(handOutBudget + time.Second)) })
-		expectRuns(t, h.admit(readEnvelope(), nil))
-		if s := h.p.Stats(); s.StaleHandedOut != 1 || s.Blocks[codePolicyStale] != 0 {
-			t.Errorf("StaleHandedOut %d, Blocks %v; want one counted and none blocked", s.StaleHandedOut, s.Blocks)
-		}
-	})
-	t.Run("denied when decided, stale at the hand-out", func(t *testing.T) {
-		h := build(t, modeObserve, snapshot(t, denyReads))
-		h.sink.hook(kindDecided, func() { h.clock.set(base().Add(handOutBudget + time.Second)) })
-		expectRuns(t, h.admit(readEnvelope(), nil))
-		if s := h.p.Stats(); s.StaleHandedOut != 0 {
-			t.Errorf("StaleHandedOut %d; want a call its policy denied, which ENFORCE never hands out, not counted", s.StaleHandedOut)
-		}
-	})
+// TestObserveCountsOnlyWhatEnforceWouldHandOut: of the calls whose bundle
+// goes stale before the hand-out, OBSERVE counts only those the kernel let
+// run, a read the fail-closed table opened among them.
+func TestObserveCountsOnlyWhatEnforceWouldHandOut(t *testing.T) {
 	for name, c := range map[string]struct {
 		rule    string
 		refusal error
@@ -249,6 +233,41 @@ func TestObserveHandsOutWhatEnforceWouldWithhold(t *testing.T) {
 			}
 		})
 	}
+	t.Run("a read the table opened, its bundle replaced at the hand-out", func(t *testing.T) {
+		h := build(t, modeObserve, snapshot(t, allowReads), failOpen)
+		h.clock.set(base().Add(handOutBudget + time.Second))
+		h.sink.hook(kindDecided, func() { h.policy.set(snapshot(t, allowReads, denyWrites)) })
+		d := h.admit(readEnvelope(), nil)
+		expectRuns(t, d)
+		if !containsCode(d.Decision.GetReasonCodes(), codeFailOpenRead) {
+			t.Fatalf("codes %v; want a read the fail-closed table opened", d.Decision.GetReasonCodes())
+		}
+		if s := h.p.Stats(); s.StaleHandedOut != 1 {
+			t.Errorf("StaleHandedOut %d; want the read ENFORCE would hand out and then withhold counted", s.StaleHandedOut)
+		}
+	})
+}
+
+// TestObserveHandsOutWhatEnforceWouldWithhold: OBSERVE enforces no policy,
+// so a call whose bundle goes stale before the hand-out runs and is counted
+// once; a pause taken in the same window still blocks it.
+func TestObserveHandsOutWhatEnforceWouldWithhold(t *testing.T) {
+	t.Run("stale", func(t *testing.T) {
+		h := build(t, modeObserve, snapshot(t, allowReads))
+		h.sink.hook(kindDecided, func() { h.clock.set(base().Add(handOutBudget + time.Second)) })
+		expectRuns(t, h.admit(readEnvelope(), nil))
+		if s := h.p.Stats(); s.StaleHandedOut != 1 || s.Blocks[codePolicyStale] != 0 {
+			t.Errorf("StaleHandedOut %d, Blocks %v; want one counted and none blocked", s.StaleHandedOut, s.Blocks)
+		}
+	})
+	t.Run("denied when decided, stale at the hand-out", func(t *testing.T) {
+		h := build(t, modeObserve, snapshot(t, denyReads))
+		h.sink.hook(kindDecided, func() { h.clock.set(base().Add(handOutBudget + time.Second)) })
+		expectRuns(t, h.admit(readEnvelope(), nil))
+		if s := h.p.Stats(); s.StaleHandedOut != 0 {
+			t.Errorf("StaleHandedOut %d; want a call its policy denied, which ENFORCE never hands out, not counted", s.StaleHandedOut)
+		}
+	})
 	t.Run("stale when decided, or decided with no bundle", func(t *testing.T) {
 		for _, snap := range []*policy.Snapshot{snapshot(t, allowReads), nil} {
 			h := build(t, modeObserve, snap)
