@@ -62,7 +62,9 @@ verify one.
   between the decision and the hand-out now blocks the call with
   `POLICY_STALE` outside `OBSERVE`, which counts it as `stale_handed_out`; a
   read `policy.fail_open_read` opened still runs while its bundle is the same.
-  A resume judges this before it consumes its approval, so nothing is spent
+  A resume judges this before it consumes its approval, and a change found
+  then spends nothing; one found after the consume still blocks the call, with
+  the approval spent
   ([ADR-0055](docs/adr/0055-a-call-is-handed-out-only-while-its-policy-stands.md)).
 
 ## [0.12.0] - 2026-10-16
