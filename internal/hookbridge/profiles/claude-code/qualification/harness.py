@@ -449,6 +449,23 @@ EXPECT_REWRITE = ("another hook's updatedInput is what runs; the completion carr
                   "EXECUTED_ARGS_MISMATCH and halts the run")
 
 
+def judge_rewrite_denied(c):
+    inv = c("rewrite-denied", "run")
+    admits = inv.hook("PreToolUse", "Write", "draft.txt")
+    why = missing(inv) or not_called(inv, "Write", admits)
+    reqs = inv.on("Write", "draft.txt")
+    reasons = [e["meta"].get("stderr", "") for e in admits]
+    observed = {"admit_exits": exits(admits), "reasons": reasons, "file": inv.files.get("draft.txt"),
+                "trail": [(r["kinds"], r["statuses"], r["protocol"]) for r in reqs], "run_halted": inv.halted()}
+    ok = (bool(admits) and all(x == 2 for x in exits(admits)) and "draft.txt" not in inv.files
+          and all("changed input" in r for r in reasons) and bool(reqs) and not inv.halted()
+          and all("RESULT_STATUS_BLOCKED" in r["statuses"] and "EXECUTED_ARGS_MISMATCH" in r["protocol"]
+                  for r in reqs))
+    return verdict("a Write the policy allows only with its content removed is denied: its PreToolUse exits 2 "
+                   "naming the changed input, no draft.txt appears, the trail closes it BLOCKED with "
+                   "EXECUTED_ARGS_MISMATCH (aborted, never run), and the run is not halted", observed, ok, why)
+
+
 def judge_mcp(c):
     inv = c("mcp-matcher", "run")
     why = missing(inv) or (None if inv.tool_uses("mcp__") else "the model made no MCP tool call in " + inv.name)
@@ -513,6 +530,7 @@ def judge(args):
     results.append(("disabled", [c("disabled", "run")], judge_disabled(c)))
     rewrite = judge_rewrite(c("rewrite", "run"), seeds["replacement"])
     results.append(("rewrite", [c("rewrite", "run")], rewrite))
+    results.append(("rewrite-denied", [c("rewrite-denied", "run")], judge_rewrite_denied(c)))
     results.append(("mcp-matcher", [c("mcp-matcher", "run")], judge_mcp(c)))
     results.append(("subagent", [c("subagent", "run")], judge_subagent(c)))
     results.append(("control-allow-all", [c("control-allow-all", "run")],

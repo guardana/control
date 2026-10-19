@@ -48,7 +48,7 @@ gateway="$(brand Gateway)"
 token_var="$(brand EnvPrefix)RUN_TOKEN"
 profile=claude-code
 model=claude-haiku-5-5
-planned=21
+planned=22
 cap=30
 
 say() { printf 'qualify: %s\n' "$*"; }
@@ -147,6 +147,9 @@ secret_file="${work}/p/obligation/secret.txt"
 # the runtime may name it either way; the rule names both.
 secret_ids="\"${secret_file}\""
 [[ "${secret_file}" != /private/* ]] || secret_ids+=", \"${secret_file#/private}\""
+draft_file="${work}/p/rewrite-denied/draft.txt"
+draft_ids="\"${draft_file}\""
+[[ "${draft_file}" != /private/* ]] || draft_ids+=", \"${draft_file#/private}\""
 cat >"${plane}/policy.json" <<EOF
 {"apiVersion": "agent-policy/v1alpha1",
  "bundle": {"id": "hook-qualification", "version": "1", "serial": 1, "maxStaleSeconds": 3600},
@@ -154,6 +157,9 @@ cat >"${plane}/policy.json" <<EOF
   {"id": "redact-the-secret", "effect": "ALLOW_WITH_OBLIGATIONS",
    "obligations": [{"type": "redact_fields", "params": {"fields": "file_path"}}],
    "when": {"action": {"name": ["Read"]}, "resource": {"id": [${secret_ids}]}}},
+  {"id": "rewrite-the-draft", "effect": "ALLOW_WITH_OBLIGATIONS",
+   "obligations": [{"type": "redact_fields", "params": {"fields": "content"}}],
+   "when": {"action": {"name": ["Write"]}, "resource": {"id": [${draft_ids}]}}},
   {"id": "allow-reads", "effect": "ALLOW", "when": {"action": {"name": ["Read"]}}},
   {"id": "allow-writes", "effect": "ALLOW", "when": {"action": {"name": ["Write"]}}},
   {"id": "allow-agents", "effect": "ALLOW", "when": {"action": {"name": ["Agent"]}}},
@@ -285,14 +291,16 @@ EOF
 
 # A group is one project, one bridge state directory and one opened run; its
 # invocations share them. The run is the group's own, so the mismatch that
-# halts a run in rewrite halts no other case.
-group="" proj="" state="" token="" run_id=""
+# halts a run in rewrite halts no other case. Its settings file sits outside
+# the project, so the runtime reads it once, from --settings.
+group="" proj="" state="" token="" run_id="" settings_file=""
 open_group() {
   local opened
   group="$1"
   proj="${work}/p/${group}"
   state="${work}/state/${group}"
-  mkdir -p "${proj}/.claude" "${work}/state" "${cases}/${group}"
+  settings_file="${work}/settings/${group}.json"
+  mkdir -p "${proj}" "${work}/settings" "${work}/state" "${cases}/${group}"
   mkdir -m 700 "${state}"
   opened="$("${bin}/${control}" runs open --tenant local --principal-type service --principal operator \
     --agent coder --ttl 2h "${plane}/runs")" || die "runs open failed: ${opened}"
@@ -324,7 +332,7 @@ record() {
 settings() {
   local inv="$1"
   shift
-  harness settings --template "${here}/settings.json" --out "${proj}/.claude/settings.json" \
+  harness settings --template "${here}/settings.json" --out "${settings_file}" \
     --hook "$(record "${inv}" pass "${bridge[@]}" --state-dir "${state}")" "$@"
 }
 
@@ -373,10 +381,10 @@ launch() {
   local -a cmd
   if [[ "${runtime}" == claude ]]; then
     cmd=(claude -p "${prompt}" --model "${model}" --setting-sources project
-      --settings "${proj}/.claude/settings.json" --strict-mcp-config --allowedTools "${allowed}"
+      --settings "${settings_file}" --strict-mcp-config --allowedTools "${allowed}"
       --max-turns 4 --output-format stream-json --verbose)
   else
-    cmd=("${py[@]}" "${here}/stub-runtime" --settings "${proj}/.claude/settings.json" --project "${proj}"
+    cmd=("${py[@]}" "${here}/stub-runtime" --settings "${settings_file}" --project "${proj}"
       --tool "${tool}" --input "${input}")
   fi
   [[ -z "${mcp}" ]] || cmd+=(--mcp-config "${mcp}")
@@ -473,7 +481,7 @@ once run Read 'Use the Read tool to read secret.txt and repeat its first line. D
 open_group plane-down
 mkdir -m 700 "${work}/nowhere"
 bridge_down=("${bin}/${control}" hook --profile "${profile}" --socket "${work}/nowhere/e.sock" --state-dir "${state}")
-harness settings --template "${here}/settings.json" --out "${proj}/.claude/settings.json" \
+harness settings --template "${here}/settings.json" --out "${settings_file}" \
   --hook "$(record run pass "${bridge_down[@]}")"
 once run Write "$(write_prompt down.txt ran)" Write "$(write_input down.txt ran)"
 
@@ -494,6 +502,10 @@ open_group rewrite
 settings run --extra-pre "$(record run rewrite "${replacement}")"
 once run Write "$(write_prompt note.txt hello)" Write "$(write_input note.txt hello)"
 
+open_group rewrite-denied
+settings run
+once run Write "$(write_prompt draft.txt hello)" Write "$(write_input draft.txt hello)"
+
 open_group mcp-matcher
 settings run
 once run mcp__q__stamp 'Use the stamp tool of the q MCP server once. Do nothing else.' \
@@ -505,14 +517,14 @@ once run 'Agent Write' "Use the Agent tool to start one sub-agent with this task
   Agent "{\"description\": \"write sub.txt\", \"prompt\": \"Use the Write tool to create ${proj}/sub.txt containing exactly: sub.\"}"
 
 open_group control-allow-all
-harness settings --template "${here}/settings.json" --out "${proj}/.claude/settings.json" \
+harness settings --template "${here}/settings.json" --out "${settings_file}" \
   --hook "$(record run pass "${here}/controls/allow-all")"
 once run 'Bash(touch:*)' 'Use the Bash tool to run exactly this command: touch marker. Do nothing else.' \
   Bash '{"command": "touch marker"}'
 
 open_group control-report-proposed
 mkdir -m 700 "${work}/state/report-proposed"
-harness settings --template "${here}/settings.json" --out "${proj}/.claude/settings.json" \
+harness settings --template "${here}/settings.json" --out "${settings_file}" \
   --hook "$(record run pass "${venv}/bin/python" -I -B "${here}/controls/report-proposed" \
     --state "${work}/state/report-proposed" -- "${bridge[@]}" --state-dir "${state}")" \
   --extra-pre "$(record run rewrite "${replacement}")"
