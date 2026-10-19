@@ -160,6 +160,7 @@ class Inv:
         self.name = group + "/" + name
         d = self.dir = os.path.join(cases, group, name)
         self.skipped = os.path.exists(os.path.join(d, "skipped"))
+        self.unselected = os.path.exists(os.path.join(d, "unselected"))
         names = sorted(os.listdir(d)) if os.path.isdir(d) else []
         self.ran = sum(1 for n in names if re.fullmatch(r"runtime-\w+\.exit", n))
         self.stream = [x for n in names if re.fullmatch(r"stream-\w+\.jsonl", n) for x in lines(os.path.join(d, n))]
@@ -240,6 +241,8 @@ def exits(evs):
 def missing(*invs):
     """Why these invocations cannot be judged, or None."""
     for inv in invs:
+        if inv.unselected:
+            return "not run: QUALIFY_ONLY left out " + inv.name
         if inv.skipped:
             return "skipped: the invocation cap was reached before " + inv.name
         if not inv.ran:

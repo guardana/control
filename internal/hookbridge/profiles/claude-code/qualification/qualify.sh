@@ -15,7 +15,8 @@
 # refuses to start unless QUALIFY_CONFIRM=yes. --runtime stub runs
 # stub-runtime, a model of the hook protocol that says nothing about the
 # runtime. QUALIFY_MAX_INVOCATIONS lowers the cap of 30; a case past it is
-# skipped and unknown. Results go to --out, by default <runtime version>.json
+# skipped and unknown. QUALIFY_ONLY, a space-separated list of case groups,
+# runs only those; every other case is unknown. Results go to --out, by default <runtime version>.json
 # beside this script for the runtime and results.json in the work directory
 # for the stub. Recorded events, which hold local paths, go to --events.
 #
@@ -74,6 +75,7 @@ if [[ -n "${QUALIFY_MAX_INVOCATIONS:-}" ]]; then
   cap=$((10#${QUALIFY_MAX_INVOCATIONS}))
 fi
 
+[[ -z "${QUALIFY_ONLY:-}" ]] || planned="fewer than ${planned}, only the groups ${QUALIFY_ONLY},"
 if [[ "${runtime}" == claude ]]; then
   say "${planned} invocation(s) of the runtime planned, at most ${cap}, each with --model ${model}, on the maintainer's subscription"
   [[ "${QUALIFY_CONFIRM:-}" == yes ]] || die "refusing to start the runtime: set QUALIFY_CONFIRM=yes to spend them"
@@ -163,6 +165,7 @@ cat >"${plane}/policy.json" <<EOF
   {"id": "allow-reads", "effect": "ALLOW", "when": {"action": {"name": ["Read"]}}},
   {"id": "allow-writes", "effect": "ALLOW", "when": {"action": {"name": ["Write"]}}},
   {"id": "allow-agents", "effect": "ALLOW", "when": {"action": {"name": ["Agent"]}}},
+  {"id": "allow-tool-search", "effect": "ALLOW", "when": {"action": {"name": ["ToolSearch"]}}},
   {"id": "deny-shell", "effect": "DENY", "when": {"action": {"name": ["Bash"]}}},
   {"id": "approve-edits", "effect": "REQUIRE_APPROVAL", "when": {"action": {"name": ["Edit"]}}}
  ]}
@@ -243,9 +246,13 @@ tools:
     resource_type: file
     resource_from: /file_path
   - name: Agent
-    effect: SPAWN_OR_DELEGATE
+    effect: EXECUTE
     provider: runtime
     resource_type: agent
+  - name: ToolSearch
+    effect: READ
+    provider: runtime
+    resource_type: tool
 EOF
 
 # runs open makes an empty directory a runs directory, which the plane
@@ -366,6 +373,10 @@ gather() {
 reserve() {
   local d="${cases}/${group}/$1" n="${2:-1}"
   mkdir -p "${d}"
+  if [[ -n "${QUALIFY_ONLY:-}" && " ${QUALIFY_ONLY} " != *" ${group} "* ]]; then
+    : >"${d}/unselected"
+    return 1
+  fi
   if ((used + n > cap)); then
     : >"${d}/skipped"
     say "${group}/$1: skipped, ${n} more would pass the cap of ${cap} invocations"
