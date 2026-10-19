@@ -21,7 +21,7 @@ endorsed by the publisher of Claude Code.
 | | |
 | --- | --- |
 | Label | decided, with failure gaps |
-| Qualified on the real runtime | 2.1.303: all 20 cases passed, the last two on a rerun |
+| Qualified on the real runtime | 2.1.303: all 20 cases passed, two of them on a rerun once the tools table named `ToolSearch` and classed `Agent` as `EXECUTE` |
 | Events | `PreToolUse`, `PostToolUse`, `PostToolUseFailure` |
 | Fail-closed setting | `onFailure: "block"`, from Claude Code 2.1.295 |
 | Hook timeout the profile assumes | 30 seconds |
@@ -180,7 +180,8 @@ None of these is closed by the profile.
 - A mod handling `tool.check` can approve a call this hook blocked, unless
   the hook is in managed settings.
 - `--bare` skips the discovery of hooks.
-- `disableAllHooks` turns off every hook that is not managed *(seen on
+- `disableAllHooks` turns off every hook that is not managed; the
+  qualification saw it turn off hooks passed with `--settings` *(seen on
   2.1.303)*.
 - A cancelled running tool starts no completion hook; the plane's sweep
   closes its handle as abandoned.
