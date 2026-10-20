@@ -255,8 +255,8 @@
         "runtime_returned": true,
         "write_refused": true,
         "refusal": [
-          "guardana-control: hook: the receiver did not answer",
-          "guardana-control: hook: the receiver did not answer"
+          "the receiver did not answer",
+          "the receiver did not answer"
         ],
         "pre_tool_use": [
           [
@@ -545,5 +545,5 @@
       "verdict": "pass"
     }
   ],
-  "judged_at": "e2cf86b7"
+  "judged_at": "5203d14a"
 }
