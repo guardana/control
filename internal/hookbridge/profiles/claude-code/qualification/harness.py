@@ -333,7 +333,7 @@ def missing(*invs):
 def reason(said):
     """The runtime's reason after the hook command it names, which holds
     local paths and is left out."""
-    return scrub(said.rsplit("]: ", 1)[-1].splitlines()[0]) if "]: " in said else ""
+    return scrub(PROGRAM.sub("", said.rsplit("]: ", 1)[-1].splitlines()[0])) if "]: " in said else ""
 
 
 def silent(admits):
