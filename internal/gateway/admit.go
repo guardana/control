@@ -53,8 +53,9 @@ type call struct {
 	// the arguments. basis is what it stood on, judged again at hand-out.
 	kernel *controlv1.Decision
 	basis  core.Basis
-	// kernelAction is what the kernel's decision asked for, before the mode
-	// is applied to action.
+	// kernelAction is what the kernel's decision about this call asked for,
+	// before the mode is applied to action. A resume leaves it as the retry's
+	// own; OBSERVE, its one reader, never holds a call to resume.
 	kernelAction core.EnforcementAction
 	action       core.EnforcementAction
 	decision     *controlv1.Decision

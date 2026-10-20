@@ -175,7 +175,10 @@ PATH = re.compile(r"(?<![\w.])/[^\s\"';:,()\[\]]+")
 
 
 def scrub(text):
-    return PATH.sub("<path>", text)
+    home = os.path.expanduser("~")
+    if len(home) > 1:
+        text = text.replace(home, "<path>")
+    return re.sub(r"(<path>)+", "<path>", PATH.sub("<path>", text))
 
 
 class Inv:

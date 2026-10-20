@@ -19,10 +19,11 @@ const requiredCheckIf = "github.event_name == 'pull_request'"
 var requiredJobKeys = []string{"name", "runs-on", "timeout-minutes", "permissions", "steps", "if"}
 
 // requiredStepKeys are the keys a required job's step may carry, written
-// plainly. Any other can skip the step or ignore its failure, if and
-// continue-on-error among them, and a quoted, escaped, anchored or tagged
-// spelling of one is a key this check would not recognise.
-var requiredStepKeys = []string{"name", "id", "run", "uses", "with", "env", "shell", "working-directory", "timeout-minutes"}
+// plainly: the ones those steps use. Another, if, continue-on-error or shell
+// among them, can skip the step, ignore its failure or change what it runs,
+// and a quoted, escaped, anchored or tagged spelling is not recognised. What
+// a step's env or a workflow's defaults do to its command is not judged here.
+var requiredStepKeys = []string{"name", "run", "uses", "with", "env"}
 
 // workflowJob is one job of a workflow, keyed elsewhere by the check-run
 // context it reports: its name, or its id when it has none.
@@ -224,6 +225,7 @@ func TestARequiredCheckAPullRequestCanMissIsCaught(t *testing.T) {
 		"an escaped if on a step":   strings.Replace(good, step, step+"        \"i\\x66\": false\n", 1),
 		"an anchored if on a step":  strings.Replace(good, step, step+"        &k if: false\n", 1),
 		"a tagged if on a step":     strings.Replace(good, step, step+"        !!str if: false\n", 1),
+		"a shell that runs nothing": strings.Replace(good, step, step+"        shell: true {0}\n", 1),
 		"steps in flow style":       strings.Replace(good, "    steps:\n"+step, "    steps: [{run: make check, if: false}]\n", 1),
 		"two jobs of the name":      good + "  again:\n    name: Gate\n",
 	} {
