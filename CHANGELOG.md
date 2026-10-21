@@ -13,6 +13,8 @@ verify one.
 
 ### Security
 
+- Built with Go 1.27.3, which fixes GO-2026-6809 in `crypto/x509`;
+  `govulncheck` found it reachable from the evidence reader under 1.27.2.
 - The MCP client the filesystem server's guide is checked with locks
   `certifi` 2026.10.19, which fixes PYSEC-2026-4320 (GHSA-6q48-6c7w-9gw2).
   Neither binary nor the Python client of the enforcement API uses it.
