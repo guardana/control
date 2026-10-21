@@ -28,6 +28,7 @@ _DECISION_MAJOR: Final = (
 )
 _DECIMAL: Final = re.compile(r"[0-9]+")
 _UINT32_MAX: Final = 0xFFFFFFFF
+_UINT32_DIGITS: Final = 10
 
 
 class RefusalError(Exception):
@@ -168,7 +169,14 @@ def _readable_decision(answer: Mapping[str, object]) -> bool:
 
 
 def _decimal(text: str) -> bool:
-    return _DECIMAL.fullmatch(text) is not None and int(text) <= _UINT32_MAX
+    # Leading zeros are taken, as Go's ParseUint takes them; the rest is
+    # bounded before int(), which refuses a string of thousands of digits.
+    digits = text.lstrip("0") or "0"
+    return (
+        _DECIMAL.fullmatch(text) is not None
+        and len(digits) <= _UINT32_DIGITS
+        and int(digits) <= _UINT32_MAX
+    )
 
 
 def completion(handle: str, sent: bytes, report: Report) -> bytes:

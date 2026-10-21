@@ -1398,7 +1398,8 @@ the same bytes to the tool, the same closing request.
 [The answer vectors](../testdata/enforce/README.md) hold both. An admit
 answer whose decision has no `schemaVersion`, or one on another major, is
 refused as malformed under [schema versioning](#schema-versioning), whatever
-its outcome.
+its outcome. A `BLOCK` that follows an abort carries the decision with the
+abort's code last; the trail's `POLICY_DECIDED` holds it without that code.
 
 ### Zero values
 

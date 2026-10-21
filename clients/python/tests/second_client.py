@@ -572,7 +572,13 @@ def _version_read(decision: object) -> bool:
     if not isinstance(version, str):
         return False
     minor = version[2:] if version.startswith("1.") else ""
-    return minor.isascii() and minor.isdigit() and int(minor) <= UINT32_MAX
+    significant = minor.lstrip("0") or "0"
+    return (
+        minor.isascii()
+        and minor.isdigit()
+        and len(significant) <= len(str(UINT32_MAX))
+        and int(significant) <= UINT32_MAX
+    )
 
 
 def _left(gone: Callable[[], object] | None) -> bool:
