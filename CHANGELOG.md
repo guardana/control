@@ -11,6 +11,12 @@ verify one.
 
 ## [Unreleased]
 
+### Security
+
+- The MCP client the filesystem server's guide is checked with locks
+  `certifi` 2026.10.19, which fixes PYSEC-2026-4320 (GHSA-6q48-6c7w-9gw2).
+  Neither binary nor the Python client of the enforcement API uses it.
+
 ## [0.13.0] - 2026-10-20
 
 A coding runtime's tool hooks can now reach a plane's `experimental`
