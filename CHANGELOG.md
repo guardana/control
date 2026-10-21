@@ -19,6 +19,15 @@ verify one.
   `certifi` 2026.10.19, which fixes PYSEC-2026-4320 (GHSA-6q48-6c7w-9gw2).
   Neither binary nor the Python client of the enforcement API uses it.
 
+### Changed
+
+- Statements on the public pages that the code contradicted are corrected:
+  what `OBSERVE` still blocks, a held trail's closing record after hand-out,
+  shutdown of an enforcement API plane, the collector's 415, the hook's
+  deadlines, coverage's join and others. The status page, roadmap and backlog
+  stop describing the Python client and the hook bridge as planned, and
+  ADR-0050 is marked accepted, as it was on merging.
+
 ## [0.13.0] - 2026-10-20
 
 A coding runtime's tool hooks can now reach a plane's `experimental`
