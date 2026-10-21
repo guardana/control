@@ -23,7 +23,8 @@ verify one.
   `make test` does, so a package that runs no test under the race detector
   fails it.
 - `make check-shell` also checks a file whose first line names `sh`, `bash`,
-  `dash` or `ksh`, not only `*.sh`.
+  `dash` or `ksh` in `/bin`, `/usr/bin` or `/usr/local/bin`, directly or
+  through `env`, not only `*.sh`.
 - `make fuzz-smoke` fails, naming the file, on a test file it cannot read
   instead of passing over it.
 - CI's quality gate checks every pinned action SHA against the commit its

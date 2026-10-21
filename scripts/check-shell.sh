@@ -2,7 +2,8 @@
 # shellcheck source-path=SCRIPTDIR
 # Runs `shellcheck -x` over every shell script repo_files lists, each sourced
 # file followed through its source directive and checked with it. A script is
-# a file named *.sh or one whose first line is a sh or bash shebang, since an
+# a file named *.sh or one whose first line names sh, bash, dash or ksh in
+# /bin, /usr/bin or /usr/local/bin, directly or through env, since an
 # executable needs no suffix. An empty list fails: a gate over no scripts is
 # not a pass.
 #
@@ -50,8 +51,7 @@ while IFS= read -r file; do
 done <<<"${every}"
 if [[ -n "${others}" ]]; then
   # awk reads each file's first line only, as bytes, since a fixture may hold
-  # invalid UTF-8; a file it cannot read makes xargs fail. The shells are the
-  # ones shellcheck reads, wherever the line puts them.
+  # invalid UTF-8; a file it cannot read makes xargs fail.
   # shellcheck disable=SC2016 # $0 is awk's record, not the shell's
   shebanged="$(printf '%s' "${others}" | tr '\n' '\0' |
     LC_ALL=C xargs -0 awk 'FNR == 1 { line = $0; sub(/\r$/, "", line); if (line ~ /^#![[:blank:]]*(\/usr)?(\/local)?\/bin\/(env[[:blank:]]+(-S[[:blank:]]+)?)?(ba|da|k)?sh([[:blank:]].*)?$/) print FILENAME; nextfile }')" ||

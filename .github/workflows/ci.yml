@@ -36,16 +36,6 @@ jobs:
           # only widen what a later step, or anything it uploads, can reach.
           persist-credentials: false
 
-      - name: Check every action pin against its repository
-        # The gate's own checks see only a pin's shape, and a commit from any
-        # fork of an action is fetchable under its name. This asks GitHub for
-        # the commit each version comment's tag names in that action's
-        # repository, and fails on a mismatch or on an answer it cannot get.
-        # The job's read-only token reads public repositories' tags.
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: scripts/pin-actions.sh --check
-
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -136,6 +126,16 @@ jobs:
         # make takes options from these variables, so an earlier step that
         # set one could make it skip a check; GO names the go the gate runs.
         run: env -u MAKEFLAGS -u GNUMAKEFLAGS -u MFLAGS make quality GO=go
+
+      - name: Check every action pin against its repository
+        # The gate's own checks see only a pin's shape, and a commit from any
+        # fork of an action is fetchable under its name. This asks GitHub for
+        # the commit each version comment's tag names in that action's
+        # repository, and fails on a mismatch or on an answer it cannot get.
+        # The job's read-only token reads public repositories' tags.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/pin-actions.sh --check
 
   proto-breaking:
     name: Wire contract compatibility

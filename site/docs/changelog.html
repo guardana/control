@@ -130,7 +130,8 @@ is its negative control.</li>
 <code>make test</code> does, so a package that runs no test under the race detector
 fails it.</li>
 <li><code>make check-shell</code> also checks a file whose first line names <code>sh</code>, <code>bash</code>,
-<code>dash</code> or <code>ksh</code>, not only <code>*.sh</code>.</li>
+<code>dash</code> or <code>ksh</code> in <code>/bin</code>, <code>/usr/bin</code> or <code>/usr/local/bin</code>, directly or
+through <code>env</code>, not only <code>*.sh</code>.</li>
 <li><code>make fuzz-smoke</code> fails, naming the file, on a test file it cannot read
 instead of passing over it.</li>
 <li>CI's quality gate checks every pinned action SHA against the commit its
