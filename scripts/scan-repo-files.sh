@@ -72,5 +72,11 @@ while IFS= read -r file; do
 done <<<"${lockfiles}"
 [[ -z "${unread}" ]] ||
   die "osv-scanner printed no 'Scanned' line for ${unread}, so it did not read every lockfile repo_files lists"
+# A file read as holding no package was not understood, listed above or not:
+# every advisory against what it pins would go unreported.
+empty="$(grep -E '^Scanned .* file and found 0 packages?$' "${osv_log}" |
+  sed -e "s|^Scanned ${copy}/||" -e 's| file and found 0 packages*$||' | tr '\n' ' ')" || true
+[[ -z "${empty}" ]] ||
+  die "osv-scanner found no package in ${empty% }, so it read none of what that file pins"
 printf 'scan-repo-files: osv-scanner read each of the %d lockfile(s) repo_files lists: %s\n' \
   "${count}" "$(printf '%s' "${lockfiles}" | tr '\n' ' ')"

@@ -50,9 +50,11 @@ while IFS= read -r file; do
 done <<<"${every}"
 if [[ -n "${others}" ]]; then
   # awk reads each file's first line only, as bytes, since a fixture may hold
-  # invalid UTF-8; a file it cannot read makes xargs fail.
+  # invalid UTF-8; a file it cannot read makes xargs fail. The shells are the
+  # ones shellcheck reads, wherever the line puts them.
+  # shellcheck disable=SC2016 # $0 is awk's record, not the shell's
   shebanged="$(printf '%s' "${others}" | tr '\n' '\0' |
-    LC_ALL=C xargs -0 awk 'FNR == 1 { if (/^#!(\/bin\/(ba)?sh|\/usr\/bin\/env[[:blank:]]+(ba)?sh)([[:blank:]].*)?$/) print FILENAME; nextfile }')" ||
+    LC_ALL=C xargs -0 awk 'FNR == 1 { line = $0; sub(/\r$/, "", line); if (line ~ /^#![[:blank:]]*(\/usr)?(\/local)?\/bin\/(env[[:blank:]]+(-S[[:blank:]]+)?)?(ba|da|k)?sh([[:blank:]].*)?$/) print FILENAME; nextfile }')" ||
     die "could not read the first line of every file repo_files lists"
   while IFS= read -r file; do
     [[ -z "${file}" ]] || scripts+=("${file}")

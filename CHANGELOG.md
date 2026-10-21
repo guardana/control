@@ -15,15 +15,15 @@ verify one.
 
 - The dependency scan in `make security` fails when `osv-scanner` prints no
   "Scanned" line for a `go.mod`, `uv.lock` or `package-lock.json` the
-  repository holds, or when it holds none, instead of passing over a lockfile
-  it could not read; `make scan-repo-files-probe`, now part of `make quality`,
+  repository holds, reads any file as holding no package, or finds no
+  lockfile at all, instead of passing over a lockfile it could not read; `make scan-repo-files-probe`, now part of `make quality`,
   is its negative control.
 - `make test` fails on a package with no test files outside `api/gen/`.
 - `make test-race` reads its results through the test reporter, as
   `make test` does, so a package that runs no test under the race detector
   fails it.
-- `make check-shell` also checks a file whose first line is a `sh` or `bash`
-  shebang, not only `*.sh`.
+- `make check-shell` also checks a file whose first line names `sh`, `bash`,
+  `dash` or `ksh`, not only `*.sh`.
 - `make fuzz-smoke` fails, naming the file, on a test file it cannot read
   instead of passing over it.
 - CI's quality gate checks every pinned action SHA against the commit its

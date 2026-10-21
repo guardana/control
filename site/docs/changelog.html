@@ -122,15 +122,15 @@ verify one.</p>
 <ul>
 <li>The dependency scan in <code>make security</code> fails when <code>osv-scanner</code> prints no
 &quot;Scanned&quot; line for a <code>go.mod</code>, <code>uv.lock</code> or <code>package-lock.json</code> the
-repository holds, or when it holds none, instead of passing over a lockfile
-it could not read; <code>make scan-repo-files-probe</code>, now part of <code>make quality</code>,
+repository holds, reads any file as holding no package, or finds no
+lockfile at all, instead of passing over a lockfile it could not read; <code>make scan-repo-files-probe</code>, now part of <code>make quality</code>,
 is its negative control.</li>
 <li><code>make test</code> fails on a package with no test files outside <code>api/gen/</code>.</li>
 <li><code>make test-race</code> reads its results through the test reporter, as
 <code>make test</code> does, so a package that runs no test under the race detector
 fails it.</li>
-<li><code>make check-shell</code> also checks a file whose first line is a <code>sh</code> or <code>bash</code>
-shebang, not only <code>*.sh</code>.</li>
+<li><code>make check-shell</code> also checks a file whose first line names <code>sh</code>, <code>bash</code>,
+<code>dash</code> or <code>ksh</code>, not only <code>*.sh</code>.</li>
 <li><code>make fuzz-smoke</code> fails, naming the file, on a test file it cannot read
 instead of passing over it.</li>
 <li>CI's quality gate checks every pinned action SHA against the commit its

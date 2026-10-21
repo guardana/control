@@ -48,7 +48,8 @@ ln -s "${real_osv}" "${tmp}/only-osv/osv-scanner"
 
 # The stand-in scanner: STUB_OSV=drop or rename runs the real one and drops or
 # renames the "Scanned" line of STUB_FILE; list prints one "Scanned" line for
-# each of STUB_SCANNED and reads nothing; fail exits 1.
+# each of STUB_SCANNED, of no package for those also in STUB_EMPTY, and reads
+# nothing; fail exits 1.
 cat >"${tmp}/standin/osv-scanner" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -59,7 +60,9 @@ case "${STUB_OSV}" in
   list)
     printf 'Scanning dir %s\n' "${dir}"
     for f in ${STUB_SCANNED}; do
-      printf 'Scanned %s/%s file and found 1 package\n' "${dir}" "${f}"
+      found="1 package"
+      [[ " ${STUB_EMPTY:-} " != *" ${f} "* ]] || found="0 packages"
+      printf 'Scanned %s/%s file and found %s\n' "${dir}" "${f}" "${found}"
     done
     printf 'No issues found\n'
     ;;
@@ -150,6 +153,10 @@ for unread in ${lockfiles}; do
   check "${unread} left unread" fail "osv-scanner printed no 'Scanned' line for ${unread}," \
     "${standin}" STUB_OSV=list "STUB_SCANNED=${scanned}"
 done
+
+check "a lockfile read as holding no package" fail "osv-scanner found no package in py/uv.lock" \
+  "${standin}" STUB_OSV=list "STUB_SCANNED=${lockfiles}" STUB_EMPTY=py/uv.lock
+check "a lockfile the real scanner reads as empty" fail "osv-scanner found no package in py/uv.lock"
 
 stage
 printf 'readme\n' | plant README.md
