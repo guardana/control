@@ -3,6 +3,7 @@ package supervise
 import (
 	"maps"
 	"slices"
+	"strconv"
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 )
@@ -100,7 +101,11 @@ func (e *evaluation) absenceState() ruleState {
 }
 
 func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result {
+	e.doubtCut(states)
 	e.joinsCut(states)
+	if s, on := states[RuleExceptionTaken]; on && s.state == checked.state {
+		states[RuleExceptionTaken] = e.takenState(states, checked)
+	}
 	s := scope{tenant: e.in.Run.Tenant, project: e.rd.project, run: e.in.Run.ID, proc: e.p}
 	res := &Result{PlaneBlocks: map[string]uint64{}, SourcesNotRead: e.in.SourcesNotRead,
 		NeverHeard: e.neverHeard, Silent: e.lapsed}
@@ -133,6 +138,31 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 	}
 	res.Instances, res.Rests = e.instancesOf(res.Findings)
 	return res
+}
+
+// doubtCut leaves every rule that reads the plane's trails not checked while
+// a request of the run is in doubt: the left-out copy, the missing link or the
+// order its links do not give may hold the failure, denial, tool or time a
+// rule looks for. Findings stand, at the verdict the doubt allows.
+func (e *evaluation) doubtCut(states map[string]ruleState) {
+	var doubtful []string
+	for _, rq := range e.reqs {
+		if rq.doubt {
+			doubtful = append(doubtful, rq.id)
+		}
+	}
+	if len(doubtful) == 0 {
+		return
+	}
+	why := "request " + slices.Min(doubtful) + " is in doubt"
+	if len(doubtful) > 1 {
+		why = "request " + slices.Min(doubtful) + " and " + strconv.Itoa(len(doubtful)-1) + " more are in doubt"
+	}
+	for id, s := range states {
+		if id != RuleExceptionTaken && s.state == checked.state {
+			states[id] = notChecked(why)
+		}
+	}
 }
 
 // joinsCut leaves the rules that read joins not checked when a span walk ran

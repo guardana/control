@@ -77,6 +77,26 @@ func TestSuperviseAWrongRunIsNotAPass(t *testing.T) {
 	}
 }
 
+// TestSuperviseATrailInDoubtIsNotAPass: the conforming run with the
+// refund's last event linked to one never read finds nothing, checks no rule
+// and exits 1.
+func TestSuperviseATrailInDoubtIsNotAPass(t *testing.T) {
+	tr := newSupTree(t)
+	calls := conformingCalls()
+	calls[1].broken = true
+	x := tr.export(t, tr.run, supBase, calls...)
+	tr.closeRun(t, tr.run)
+	code, stdout, stderr := invoke(t, tr.args("--evidence", x)...)
+	if code != 1 || stderr != "" {
+		t.Fatalf("exit %d, stderr %q, stdout %q", code, stderr, stdout)
+	}
+	for _, want := range []string{everyRule("not checked: request r2 is in doubt"), "findings log: 0 written, 0 already held\n"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("stdout does not hold %q:\n%s", want, stdout)
+		}
+	}
+}
+
 // TestSuperviseRefusesARunItCannotSupervise: a local run's id, an id no
 // record holds and a child run are refused before the log is opened.
 func TestSuperviseRefusesARunItCannotSupervise(t *testing.T) {

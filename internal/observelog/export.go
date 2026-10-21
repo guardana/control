@@ -97,13 +97,52 @@ func exportFormat() lineexport.Format {
 // has when opened and holding no lock, so it reads a log a writer holds. The
 // file must pass the judgement ReadFile makes, a link at path refused as
 // ErrNotRegular, without waiting on a named pipe.
+//
+// A log a writer could Open is exported to its last import report, as ReadFile
+// reads it: the lines after it are a write still open, or one a crash left
+// that the next Open cuts, and count with the bytes after the last newline as
+// the tail. A log Open refuses is never cut, so it is exported to its last
+// newline.
 func ExportFile(path string, q Query, w io.Writer) (lineexport.Trailer, error) {
 	f, info, err := openJudged(path)
 	if err != nil {
 		return lineexport.Trailer{}, err
 	}
 	defer func() { _ = f.Close() }()
-	return Export(lineexport.Source{Name: path, R: f, Size: info.Size(), Held: func() (bool, error) { return heldByWriter(f) }}, q, w)
+	src := lineexport.Source{Name: path, R: f, Size: info.Size(), Held: func() (bool, error) { return heldByWriter(f) }}
+	committed, cuttable, err := committedEnd(f, info.Size())
+	if err != nil {
+		return lineexport.Trailer{}, err
+	}
+	if cuttable {
+		src.Committed = func() (int64, error) { return committed, nil }
+	}
+	return Export(src, q, w)
+}
+
+// committedEnd is where the last write an import report closes ends in the
+// first size bytes of r, and whether a writer's Open would cut what follows:
+// false for a log Open refuses as too large or damaged.
+func committedEnd(r io.ReaderAt, size int64) (int64, bool, error) {
+	if size > MaxLogBytes {
+		return 0, false, nil
+	}
+	end, err := lastLineEnd(r, size)
+	if errors.Is(err, ErrDamaged) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	_, committed, err := scanLog(io.NewSectionReader(r, 0, end), nil)
+	var fault *lineFault
+	switch {
+	case errors.As(err, &fault):
+		return 0, false, nil
+	case err != nil:
+		return 0, false, err
+	}
+	return committed, true, nil
 }
 
 // judge says what record a line is. An observation's id is its observation
