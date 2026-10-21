@@ -198,7 +198,7 @@ class Rules(unittest.TestCase):
     # What an exception carries when the tool ran, nothing of it could be told, and that landed.
     ran_unreported = Answer(
         outcome="OUTCOME_EXECUTE",
-        decision={"decisionId": "d-1", "verdict": 1},
+        decision={"schemaVersion": "1.0", "decisionId": "d-1", "verdict": 1},
         held=None,
         ran=True,
         result=None,
@@ -323,7 +323,7 @@ class Returning(Rules):
             answer,
             Answer(
                 outcome="OUTCOME_EXECUTE",
-                decision={"decisionId": "d-1", "verdict": 1},
+                decision={"schemaVersion": "1.0", "decisionId": "d-1", "verdict": 1},
                 held=None,
                 ran=True,
                 result=Result(Status.FAILURE, receipt, harness.BEFORE, harness.AFTER),
@@ -365,7 +365,9 @@ class Returning(Rules):
                 self.assertEqual(
                     answer.result, Result(Status.SUCCESS, None, harness.BEFORE, harness.AFTER)
                 )
-                self.assertEqual(answer.decision, {"decisionId": "d-1", "verdict": 1})
+                self.assertEqual(
+                    answer.decision, {"schemaVersion": "1.0", "decisionId": "d-1", "verdict": 1}
+                )
                 self.assertEqual(len(self.sent()), 2)
 
     def test_the_integer_of_recorded_is_recorded(self) -> None:
@@ -387,7 +389,11 @@ class Returning(Rules):
                     raised.exception.answer,
                     Answer(
                         outcome="OUTCOME_BLOCK",
-                        decision={"verdict": "VERDICT_DENY", "reasonCodes": ("RULE_DENY",)},
+                        decision={
+                            "schemaVersion": "1.0",
+                            "verdict": "VERDICT_DENY",
+                            "reasonCodes": ("RULE_DENY",),
+                        },
                         held=None,
                         ran=False,
                         result=None,
@@ -417,7 +423,7 @@ class Returning(Rules):
         )
         self.assertEqual(
             (answer.outcome, answer.ran, answer.decision),
-            ("OUTCOME_PENDING", False, {"verdict": 3}),
+            ("OUTCOME_PENDING", False, {"schemaVersion": "1.0", "verdict": 3}),
         )
         self.assertEqual(self.sent(), [self.admitted])
 
@@ -556,7 +562,9 @@ class Returning(Rules):
         )
         with self.assertRaises(MalformedAnswer) as raised:
             client.call("t", ARGUMENTS, self.untouched)
-        self.assertEqual(raised.exception.answer.decision, {"verdict": 1})
+        self.assertEqual(
+            raised.exception.answer.decision, {"schemaVersion": "1.0", "verdict": 1}
+        )
 
     def test_a_malformed_answer_to_complete_says_the_tool_ran(self) -> None:
         client = self.serve(

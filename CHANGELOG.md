@@ -32,8 +32,9 @@ verify one.
 - A resource pointer's array index is decimal digits only, as RFC 6901 reads
   it: `+1`, `-0` and `+01` no longer name an element.
 - An enforcement API plane in `OBSERVE` handed out a call whose envelope the
-  contract refused, such as a transaction naming no resource; it now aborts
-  it and answers `BLOCK`, as the MCP adapter does. A `tools` table that
+  contract refused for more than an unnamed tool, such as a transaction
+  naming no resource; it now aborts it and answers `BLOCK`, as the MCP
+  adapter does. A `tools` table that
   classes a tool `SPAWN_OR_DELEGATE`, which this API can never decide, is
   refused when the plane starts and by `doctor`.
 

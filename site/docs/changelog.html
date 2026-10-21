@@ -139,8 +139,9 @@ version.</li>
 <li>A resource pointer's array index is decimal digits only, as RFC 6901 reads
 it: <code>+1</code>, <code>-0</code> and <code>+01</code> no longer name an element.</li>
 <li>An enforcement API plane in <code>OBSERVE</code> handed out a call whose envelope the
-contract refused, such as a transaction naming no resource; it now aborts
-it and answers <code>BLOCK</code>, as the MCP adapter does. A <code>tools</code> table that
+contract refused for more than an unnamed tool, such as a transaction
+naming no resource; it now aborts it and answers <code>BLOCK</code>, as the MCP
+adapter does. A <code>tools</code> table that
 classes a tool <code>SPAWN_OR_DELEGATE</code>, which this API can never decide, is
 refused when the plane starts and by <code>doctor</code>.</li>
 </ul>

@@ -188,6 +188,11 @@ func TestAnUntranslatedCallIsHandedOutInNoMode(t *testing.T) {
 	if res := r.closing(t).GetResult(); res.GetStatus() != controlv1.ResultStatus_RESULT_STATUS_BLOCKED || res.GetToolProtocolStatus() != "INVALID_FIELD_VALUE" {
 		t.Fatalf("the abort recorded as %v", res)
 	}
+	// A tool the table does not name is the mode's to decide, and OBSERVE
+	// lets it run.
+	if resp := r.admit(t, runA, "drop_database", `{"name":"x"}`, `,"requestKey":"k2"`); resp.GetOutcome() != outcomeExecute || resp.GetExecution().GetHandle() == "" {
+		t.Fatalf("an unclassified tool under OBSERVE answered %v", resp)
+	}
 }
 
 // endsWithCode fails t unless the answer's decision names code last, as the
