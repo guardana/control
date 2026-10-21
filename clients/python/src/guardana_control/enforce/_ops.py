@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -9,6 +10,7 @@ from types import MappingProxyType
 from typing import Final
 
 from . import _wire
+from ._schema import MESSAGES
 from ._types import BLOCK, CONTRACT, EXECUTE, PENDING, Held, cut
 
 # Posts a body to a path and returns the status and at most so many bytes of the answer.
@@ -19,6 +21,13 @@ ARGUMENTS_DIFFER: Final = "ABORT_CAUSE_ARGUMENTS_DIFFER"
 NOT_SENT: Final = "ABORT_CAUSE_NOT_SENT"
 
 _OK: Final = 200
+
+# The major the generated Decision's package names, as the Go client reads it.
+_DECISION_MAJOR: Final = (
+    MESSAGES[_wire.ADMIT_RESPONSE]["decision"][2].split(".")[-2].removeprefix("v")
+)
+_DECIMAL: Final = re.compile(r"[0-9]+")
+_UINT32_MAX: Final = 0xFFFFFFFF
 
 
 class RefusalError(Exception):
@@ -122,6 +131,10 @@ def admit(post: Post, tool: str, arguments: bytes) -> Admitted:
     written, answer = _ask(post, "admit", request, _wire.ADMIT_RESPONSE)
     wrote = written.get("decision")
     decision = _frozen(wrote) if isinstance(wrote, dict) else None
+    if not _readable_decision(answer):
+        return Admitted(
+            BLOCK, decision, unreadable="a decision of a schema version this client does not read"
+        )
     outcome = answer.get("outcome")
     if outcome == PENDING:
         return Admitted(PENDING, decision, held=_held(_nested(answer, "pending")))
@@ -140,6 +153,22 @@ def admit(post: Post, tool: str, arguments: bytes) -> Admitted:
     elif not authorized and arguments:
         cause = ARGUMENTS_DIFFER
     return Admitted(EXECUTE, decision, handle=handle, authorized=authorized, abort_cause=cause)
+
+
+def _readable_decision(answer: Mapping[str, object]) -> bool:
+    """An answer with no decision is left to its outcome."""
+    nested = answer.get("decision")
+    if not isinstance(nested, Mapping):
+        return True
+    version = nested.get("schemaVersion", "")
+    if not isinstance(version, str):
+        return False
+    major, dot, minor = version.partition(".")
+    return bool(dot) and _decimal(major) and _decimal(minor) and major == _DECISION_MAJOR
+
+
+def _decimal(text: str) -> bool:
+    return _DECIMAL.fullmatch(text) is not None and int(text) <= _UINT32_MAX
 
 
 def completion(handle: str, sent: bytes, report: Report) -> bytes:

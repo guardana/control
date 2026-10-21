@@ -39,7 +39,7 @@ from tests.harness import ABORT, ADMIT, COMPLETE, RECORDED, Scripted
 
 ARGUMENTS = b'{"a":1}'
 EXECUTE = (
-    b'{"outcome":"OUTCOME_EXECUTE","decision":{"decisionId":"d-1","verdict":1},'
+    b'{"outcome":"OUTCOME_EXECUTE","decision":{"schemaVersion":"1.0","decisionId":"d-1","verdict":1},'
     b'"execution":{"handle":"h-1","authorizedArguments":"eyJhIjoxfQ=="}}'
 )
 OBLIGED = (
@@ -51,7 +51,9 @@ INNER_EXECUTE = (
     b'{"outcome":"OUTCOME_EXECUTE","execution":{"handle":"h-2",'
     b'"authorizedArguments":"eyJhIjoxfQ=="}}'
 )
-INNER_BLOCK = b'{"outcome":"OUTCOME_BLOCK","decision":{"verdict":"VERDICT_DENY"}}'
+INNER_BLOCK = (
+    b'{"outcome":"OUTCOME_BLOCK","decision":{"schemaVersion":"1.0","verdict":"VERDICT_DENY"}}'
+)
 INNER_PENDING = b'{"outcome":"OUTCOME_PENDING","pending":{"approvalId":"ap-1"}}'
 PLUS_TWO = timezone(timedelta(hours=2))
 
@@ -372,9 +374,9 @@ class Returning(Rules):
 
     def test_a_blocked_call_carries_the_decision_and_did_not_run(self) -> None:
         for written in (
-            b'{"outcome":"OUTCOME_BLOCK","decision":{"verdict":"VERDICT_DENY","reasonCodes":["RULE_DENY"]}}',
-            b'{"decision":{"verdict":"VERDICT_DENY","reasonCodes":["RULE_DENY"]}}',
-            b'{"outcome":7,"decision":{"verdict":"VERDICT_DENY","reasonCodes":["RULE_DENY"]},'
+            b'{"outcome":"OUTCOME_BLOCK","decision":{"schemaVersion":"1.0","verdict":"VERDICT_DENY","reasonCodes":["RULE_DENY"]}}',
+            b'{"decision":{"schemaVersion":"1.0","verdict":"VERDICT_DENY","reasonCodes":["RULE_DENY"]}}',
+            b'{"outcome":7,"decision":{"schemaVersion":"1.0","verdict":"VERDICT_DENY","reasonCodes":["RULE_DENY"]},'
             b'"execution":{"handle":"h-1","authorizedArguments":"eyJhIjoxfQ=="}}',
         ):
             with self.subTest(written=written):
@@ -397,7 +399,7 @@ class Returning(Rules):
     def test_a_pending_call_says_when_to_ask_again(self) -> None:
         client = self.serve(
             admit(
-                b'{"outcome":"OUTCOME_PENDING","decision":{"verdict":3},"pending":{"approvalId":"ap-1",'
+                b'{"outcome":"OUTCOME_PENDING","decision":{"schemaVersion":"1.0","verdict":3},"pending":{"approvalId":"ap-1",'
                 b'"actionDigest":"sha256:9f2c","expiresAt":"2026-10-11T13:00:00.250Z","retryAfter":"1.500s"}}'
             )
         )
@@ -509,17 +511,17 @@ class Returning(Rules):
         for what, written, names in (
             (
                 "no handle",
-                b'{"outcome":"OUTCOME_EXECUTE","decision":{"verdict":1},"execution":{"authorizedArguments":"eyJhIjoxfQ=="}}',
+                b'{"outcome":"OUTCOME_EXECUTE","decision":{"schemaVersion":"1.0","verdict":1},"execution":{"authorizedArguments":"eyJhIjoxfQ=="}}',
                 "no handle",
             ),
             (
                 "an empty handle",
-                b'{"outcome":1,"decision":{"verdict":1},"execution":{"handle":""}}',
+                b'{"outcome":1,"decision":{"schemaVersion":"1.0","verdict":1},"execution":{"handle":""}}',
                 "no handle",
             ),
             (
                 "no execution",
-                b'{"outcome":"OUTCOME_EXECUTE","decision":{"verdict":1}}',
+                b'{"outcome":"OUTCOME_EXECUTE","decision":{"schemaVersion":"1.0","verdict":1}}',
                 "no handle",
             ),
             (
@@ -549,7 +551,9 @@ class Returning(Rules):
                 self.assertEqual(self.sent(), [self.admitted])
 
     def test_an_execute_with_no_handle_still_carries_its_decision(self) -> None:
-        client = self.serve(admit(b'{"outcome":1,"decision":{"verdict":1},"execution":{}}'))
+        client = self.serve(
+            admit(b'{"outcome":1,"decision":{"schemaVersion":"1.0","verdict":1},"execution":{}}')
+        )
         with self.assertRaises(MalformedAnswer) as raised:
             client.call("t", ARGUMENTS, self.untouched)
         self.assertEqual(raised.exception.answer.decision, {"verdict": 1})
