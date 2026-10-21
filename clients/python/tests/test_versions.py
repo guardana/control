@@ -16,7 +16,7 @@ class DecisionVersions(unittest.TestCase):
     """A decision is read on major 1 only, with a minor in 32 bits."""
 
     def rows(self) -> list[dict[str, object]]:
-        rows = json.loads(TABLE.read_text(encoding="utf-8"))
+        rows: list[dict[str, object]] = json.loads(TABLE.read_text(encoding="utf-8"))
         self.assertGreaterEqual(len(rows), 10)
         return rows
 

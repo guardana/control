@@ -562,9 +562,7 @@ class Returning(Rules):
         )
         with self.assertRaises(MalformedAnswer) as raised:
             client.call("t", ARGUMENTS, self.untouched)
-        self.assertEqual(
-            raised.exception.answer.decision, {"schemaVersion": "1.0", "verdict": 1}
-        )
+        self.assertEqual(raised.exception.answer.decision, {"schemaVersion": "1.0", "verdict": 1})
 
     def test_a_malformed_answer_to_complete_says_the_tool_ran(self) -> None:
         client = self.serve(
