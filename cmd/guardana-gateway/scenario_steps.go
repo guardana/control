@@ -232,7 +232,9 @@ func (p *play) finish(ctx context.Context) error {
 		errs = append(errs, p.r.pauseRead(ctx, p.entries))
 	}
 	if p.session != nil {
-		_ = p.session.Close()
+		if err := p.session.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("closing the session: %w", err))
+		}
 	}
 	return errors.Join(errs...)
 }

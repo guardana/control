@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/guardana/control/internal/gatewayconfig"
 )
 
 // listenFunc binds the address a plane's configuration names, or returns the
@@ -43,7 +45,7 @@ func (p *plane) bind(stdout io.Writer, listen listenFunc) ([]listening, error) {
 
 func (p *plane) bindTCP(stdout io.Writer, listen listenFunc) ([]listening, error) {
 	var wanted []wantedServer
-	if p.cfg.Listener.Kind != "stdio" && p.enforce == nil {
+	if p.cfg.Listener.Kind != gatewayconfig.ListenerStdio && p.enforce == nil {
 		agents := func() (http.Handler, error) {
 			h, err := p.adapter.Handler()
 			if err != nil {

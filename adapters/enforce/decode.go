@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	enforcev1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/enforce/v1alpha1"
+	"github.com/guardana/control/internal/enforceclient"
 	"github.com/guardana/control/pkg/contract"
 )
 
@@ -85,16 +86,7 @@ func unmarshal(data []byte, m proto.Message) error {
 // requestKey reports whether k is no key, or a key of 1 to 64 characters
 // from [A-Za-z0-9._-].
 func requestKey(k string) bool {
-	if len(k) > maxRequestKey {
-		return false
-	}
-	for i := 0; i < len(k); i++ {
-		c := k[i]
-		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '.' && c != '_' && c != '-' {
-			return false
-		}
-	}
-	return true
+	return enforceclient.IsToken(k, maxRequestKey)
 }
 
 // validTime accepts an absent time or one the Timestamp type can hold.

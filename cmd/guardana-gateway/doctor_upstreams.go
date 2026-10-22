@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+
+	"github.com/guardana/control/internal/gatewayconfig"
 )
 
 // upstreams connects every upstream through the plane the previous check built,
@@ -20,7 +22,7 @@ func (d *examination) upstreams(ctx context.Context) (string, string, string) {
 			return verdictFail, "upstreams", err.Error()
 		}
 		return verdictOK, "upstreams", fmt.Sprintf("an %s plane calls no upstream; %d tool(s) are classified by name, "+
-			"each decision handed to a cooperating client; the socket's directory is this user's alone", enforceKind, len(d.cfg.Tools))
+			"each decision handed to a cooperating client; the socket's directory is this user's alone", gatewayconfig.ListenerEnforceAPI, len(d.cfg.Tools))
 	}
 	ctx, cancel := context.WithTimeout(ctx, doctorTimeout)
 	defer cancel()
@@ -51,7 +53,7 @@ func (d *examination) upstreams(ctx context.Context) (string, string, string) {
 	if d.cfg.Pause.File != "" {
 		found += fmt.Sprintf("; %d pause entry(ies) name a tool its upstream does not list", d.strayTools(entries))
 	}
-	if unclassified > 0 && d.cfg.ModeName != "OBSERVE" {
+	if unclassified > 0 && d.cfg.ModeName != gatewayconfig.ModeObserve {
 		return verdictUnknown, "upstreams", found + "; outside OBSERVE a call to an unclassified tool is blocked with ACTION_UNCLASSIFIED"
 	}
 	return verdictOK, "upstreams", found

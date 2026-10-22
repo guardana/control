@@ -114,19 +114,9 @@ type openTrail struct {
 	held *heldRequest
 }
 
-// New checks cfg once and returns a pipeline, or refuses the configuration:
-// a mode this build does not know or enforce, an adapter that lacks what the
-// mode needs, an end-user binding on a listener that authenticates nobody,
-// runs presented without a runs directory or a runs directory nobody presents
-// runs to, a nil policy source, pause source, stop source, sink, approval
-// store, clock or id source, a stop source other than StopsDisabled on a plane
-// that serves no opened run,
-// an id source that returns an empty id or one id twice, a lifetime, retry
-// interval or bound that is not positive, a negative bound on one run's held
-// requests, a decision point the current policy
-// does not read or a policy that reads one none is configured for, a decision point
-// without its identifier or a positive deadline, and kernel options the
-// kernel refuses.
+// New checks cfg once and returns a pipeline, or refuses the configuration
+// with the first of New's refusals in errors.go it meets, or with the kernel's
+// refusal of its options.
 func New(cfg Config) (*Pipeline, error) {
 	if err := checkConfig(cfg); err != nil {
 		return nil, err
@@ -152,27 +142,18 @@ func New(cfg Config) (*Pipeline, error) {
 }
 
 // Admit decides one admission and says what to do about it. It has no error
-// return: whatever the pipeline cannot do is a block that names its cause. A
-// nil or zero Pipeline answers with the decision of a kernel nobody built:
-// INDETERMINATE, POLICY_UNAVAILABLE, Block.
+// return: whatever the pipeline cannot do is a block that names its cause, and
+// a nil or zero Pipeline answers INDETERMINATE, POLICY_UNAVAILABLE, Block.
 //
-// The order is fixed: the pause and stop states are taken, then the clock, then the
-// policy snapshot and the flow state of the call's run, which every decision
-// of the call is made under and ACTION_PROPOSED records (ADR-0021), and which
-// a refused call reads without minting a run unless the mode is OBSERVE; the
-// plane's own causes to block the call are named; the
-// kernel decides against that snapshot, and asks the decision point nothing
-// when the plane named a cause (ADR-0019); after an ask the pause and stop states and
-// the clock are taken again and the causes named once more; those causes and
-// the mode are applied to the action, never to the decision; the rewriting obligations produce the authorized arguments,
-// and when they changed them the kernel decides the authorized envelope again
-// and that decision is the one recorded; a request awaiting approval is
-// looked up, resumed or held;
-// then the trail is written, ACTION_PROPOSED and POLICY_DECIDED first, and
-// whatever executes has ACTION_STARTED written, and its declared result taken
-// into its run, before this returns. A request
-// id whose trail is still open in this pipeline is refused before anything is
-// written, unless the call resumes that trail (ADR-0013).
+// Every decision of the call is made under one policy snapshot and the flow
+// state of its run, which ACTION_PROPOSED records (ADR-0021). The plane's own
+// causes, taken before the kernel decides and again after an ask, change the
+// action and never the decision, and a call they block asks the decision point
+// nothing (ADR-0019). Arguments a rewriting obligation changed are decided
+// again, and that decision is the one recorded. Whatever executes has
+// ACTION_STARTED written before Admit returns. A request id whose trail is
+// still open is refused before anything is written, unless the call resumes
+// that trail (ADR-0013).
 func (p *Pipeline) Admit(ctx context.Context, a Admission) Disposition {
 	if p == nil || p.kernel == nil {
 		return unbuilt(ctx, a)
@@ -196,10 +177,10 @@ func withArguments(a Admission) Admission {
 // executes nothing and asks the decision point nothing, which is what shaping
 // a listing needs. It reads no pause or stop state: a paused tool stays
 // listed, and a call to it reads PAUSED (ADR-0019); a stopped run's listing
-// is the listing of any other run, and its call reads RUN_STOPPED (ADR-0046). It reads no run either: a listing is
-// cached per principal and outlives any flow state, so a flow rule is
-// undetermined here. A nil or zero Pipeline answers the decision of a kernel
-// nobody built.
+// is the listing of any other run, and its call reads RUN_STOPPED (ADR-0046).
+// It reads no run either: a listing is cached per principal and outlives any
+// flow state, so a flow rule is undetermined here. A nil or zero Pipeline
+// answers the decision of a kernel nobody built.
 func (p *Pipeline) Preview(ctx context.Context, a Admission) *controlv1.Decision {
 	if p == nil || p.kernel == nil {
 		return unbuilt(ctx, a).Decision

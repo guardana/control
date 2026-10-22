@@ -30,8 +30,38 @@ const doctorTimeout = 20 * time.Second
 // doctor checks a configuration without serving anything and prints one line
 // per check. It stops at the first check that is not "ok", because every later
 // check reads what that one could not establish, and returns a non-zero status.
-// A checked plane that does not close is a failure too, after every check.
+// A checked plane that does not close is a failure too, after every check, and
+// so is a report stdout did not take whole: a pass nobody could read is none.
 func doctor(ctx context.Context, path string, stdout, stderr io.Writer) int {
+	out := &reportWriter{w: stdout}
+	status := examine(ctx, path, out, stderr)
+	if out.err != nil {
+		writeLine(stderr, "doctor: writing the report: "+oneLine(out.err.Error()))
+		return exitFail
+	}
+	return status
+}
+
+// reportWriter keeps the first error a write of the report met and refuses
+// every later write with it.
+type reportWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (r *reportWriter) Write(p []byte) (int, error) {
+	if r.err != nil {
+		return 0, r.err
+	}
+	n, err := r.w.Write(p)
+	if err == nil && n < len(p) {
+		err = io.ErrShortWrite
+	}
+	r.err = err
+	return n, err
+}
+
+func examine(ctx context.Context, path string, stdout, stderr io.Writer) int {
 	cfg, err := gatewayconfig.Load(path, os.Environ())
 	if err != nil {
 		report(stdout, verdictFail, "configuration", err.Error())
@@ -50,7 +80,6 @@ func doctor(ctx context.Context, path string, stdout, stderr io.Writer) int {
 	return status
 }
 
-// check runs every check in order until one is not "ok".
 func (d *examination) check(ctx context.Context, stderr io.Writer) int {
 	for _, check := range []func(context.Context) (string, string, string){
 		d.mode, d.policy, d.evidence, d.approvals, d.pauseFile, d.runs, d.reaction, d.export, d.secrets, d.seams, d.upstreams, d.pdp,
@@ -97,7 +126,7 @@ func (d *examination) mode(context.Context) (string, string, string) {
 		return verdictFail, "mode", err.Error()
 	}
 	found := fmt.Sprintf("%s needs %s from the adapter", d.cfg.ModeName, capabilityList(needs))
-	if d.cfg.Listener.Kind != enforceKind {
+	if d.cfg.Listener.Kind != gatewayconfig.ListenerEnforceAPI {
 		found += "; list shaping " + d.cfg.List.Shaping
 	}
 	return verdictOK, "mode", found

@@ -21,6 +21,9 @@ verify one.
 
 ### Fixed
 
+- `guardana-gateway doctor` exits 1 when standard output does not take its
+  whole report, as on a full device, and says so on standard error; it exited
+  0 with the report cut short.
 - The enforcement API answers a call whose rewrite moved the decided resource
   with `BLOCK` and the abort's code, `OBLIGATION_NOT_UNDERSTOOD`, after the
   decision's own; it carried the kernel's allow alone, so the hook bridge and

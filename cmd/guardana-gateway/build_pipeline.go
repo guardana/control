@@ -40,7 +40,7 @@ func (p *plane) pipelineConfig(adapter gateway.Adapter, mode controlv1.Enforceme
 		MaxHeldPerRun:        p.cfg.Approvals.MaxHeldPerRun,
 		MaxOpen:              p.cfg.Approvals.MaxOpen,
 		MaxRuns:              p.cfg.Flow.MaxRuns,
-		AllowReadsUnrecorded: p.cfg.Evidence.OnUnwritable == "allow_reads",
+		AllowReadsUnrecorded: p.cfg.Evidence.OnUnwritable == gatewayconfig.UnwritableAllowReads,
 	}
 	if p.runsDir != nil {
 		c.Runs = runsDir{p.runsDir}
@@ -84,7 +84,7 @@ func openPause(cfg *gatewayconfig.Config, logger *slog.Logger, unlisted func([]p
 
 func openSpool(cfg *gatewayconfig.Config) (*spool.Spool, error) {
 	fsync := spool.FsyncEveryRecord
-	if cfg.Evidence.Fsync == "interval" {
+	if cfg.Evidence.Fsync == gatewayconfig.FsyncInterval {
 		fsync = spool.FsyncInterval
 	}
 	sp, err := spool.Open(spool.Options{

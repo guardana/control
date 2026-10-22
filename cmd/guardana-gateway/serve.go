@@ -45,7 +45,7 @@ func serve(ctx context.Context, path, tokenPath string, stdout, stderr io.Writer
 	// A stdio listener speaks the protocol on standard output, so what the
 	// plane says about itself goes to standard error there.
 	report := stdout
-	if cfg.Listener.Kind == "stdio" {
+	if cfg.Listener.Kind == gatewayconfig.ListenerStdio {
 		report = stderr
 	}
 	writeLine(report, startLine(cfg))
@@ -186,7 +186,7 @@ func (p *plane) run(ctx context.Context, stdout io.Writer, listen listenFunc, dr
 			}
 		}(b)
 	}
-	if p.cfg.Listener.Kind == "stdio" {
+	if p.cfg.Listener.Kind == gatewayconfig.ListenerStdio {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

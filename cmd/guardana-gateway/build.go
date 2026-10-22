@@ -133,7 +133,7 @@ func build(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time, r role
 func (p *plane) open(r role, tokenPath string) error {
 	if r == roleInspect {
 		p.store = &gateway.MemoryApprovals{}
-		if p.cfg.Listener.Kind == enforceKind {
+		if p.cfg.Listener.Kind == gatewayconfig.ListenerEnforceAPI {
 			dir, _, err := openRuns(p.cfg, "")
 			if err != nil {
 				return err
@@ -173,7 +173,7 @@ func (p *plane) wire() error {
 		enforcer *enforce.Adapter
 		err      error
 	)
-	if p.cfg.Listener.Kind == enforceKind {
+	if p.cfg.Listener.Kind == gatewayconfig.ListenerEnforceAPI {
 		enforcer, err = newEnforcer(p.cfg, p.runsDir)
 		seam = enforcer
 	} else {

@@ -43,9 +43,9 @@ func sessionCap(cfg *gatewayconfig.Config) int {
 // where every MCP-side refusal is made.
 func adapterConfig(cfg *gatewayconfig.Config, logger *slog.Logger) (adaptermcp.Config, error) {
 	kinds := map[string]adaptermcp.Kind{
-		"stateless_http": adaptermcp.KindStatelessHTTP,
-		"stateful_http":  adaptermcp.KindStatefulHTTP,
-		"stdio":          adaptermcp.KindStdio,
+		gatewayconfig.ListenerStatelessHTTP: adaptermcp.KindStatelessHTTP,
+		gatewayconfig.ListenerStatefulHTTP:  adaptermcp.KindStatefulHTTP,
+		gatewayconfig.ListenerStdio:         adaptermcp.KindStdio,
 	}
 	shapings := map[string]adaptermcp.Shaping{
 		"none": adaptermcp.ShapeNone, "annotate": adaptermcp.ShapeAnnotate, "hide": adaptermcp.ShapeHide,

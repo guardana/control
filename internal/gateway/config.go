@@ -77,8 +77,8 @@ type Config struct {
 	// request; positive.
 	RetryAfter time.Duration
 	// MaxHeld bounds the requests held for an approval and not yet closed,
-	// expired ones the sweep has not reached included; positive. A request past it is refused as a hold the store would not
-	// keep.
+	// expired ones the sweep has not reached included; positive. A request
+	// past it is refused as a hold the store would not keep.
 	MaxHeld int
 	// MaxHeldPerRun bounds the requests one opened run holds for an approval
 	// and not yet expired, so no one run fills MaxHeld for every other; zero
@@ -101,7 +101,7 @@ type Config struct {
 	AllowReadsUnrecorded bool
 }
 
-// checkConfig is New's refusals, in the order New documents them.
+// checkConfig makes New's refusals of cfg but the decision point's.
 func checkConfig(cfg Config) error {
 	if err := checkAdapter(cfg.Mode, cfg.Adapter); err != nil {
 		return err
@@ -124,8 +124,7 @@ func checkConfig(cfg Config) error {
 	return nil
 }
 
-// checkSources refuses a nil policy source, pause source, stop source, sink,
-// approval store, clock or id source.
+// checkSources refuses a source cfg leaves nil.
 func checkSources(cfg Config) error {
 	switch {
 	case cfg.Policy == nil:
@@ -146,9 +145,7 @@ func checkSources(cfg Config) error {
 	return nil
 }
 
-// checkBounds refuses a lifetime, retry interval, hold bound, bound on open
-// executions or bound on runs that is not positive, and a negative bound on
-// one run's holds or on a reconciliation.
+// checkBounds refuses a bound outside the range its field documents.
 func checkBounds(cfg Config) error {
 	switch {
 	case cfg.ApprovalTTL <= 0:
