@@ -296,8 +296,9 @@ regular file of this account, not a link, that the group and others cannot
 reach, with no other name. It reads to the last import report, as a writer
 keeps the log: what follows is a write still open, or one a crash left that
 the next writer cuts, counted in the trailer's <code>tail_bytes</code> while a writer
-holds the log and a <code>partial_tail</code> gap when none does. A log the writer
-refuses, damaged or too large, is read to its last newline.</p>
+holds the log and a <code>partial_tail</code> gap when none does. It reads back from
+the end only as far as that report. A log over the size bound, or whose
+lines after that report no writer leaves, is read to its last newline.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/observations.md">docs/reference/observations.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.13.0, and <a href="https://github.com/guardana/control/tree/v0.13.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">

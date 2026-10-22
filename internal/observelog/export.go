@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 
+	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/lineexport"
 	"github.com/guardana/control/internal/observe"
@@ -98,19 +99,25 @@ func exportFormat() lineexport.Format {
 // file must pass the judgement ReadFile makes, a link at path refused as
 // ErrNotRegular, without waiting on a named pipe.
 //
-// A log a writer could Open is exported to its last import report, as ReadFile
-// reads it: the lines after it are a write still open, or one a crash left
-// that the next Open cuts, and count with the bytes after the last newline as
-// the tail. A log Open refuses is never cut, so it is exported to its last
-// newline.
+// A log is exported to its last import report, as ReadFile reads it: the
+// lines after it are a write still open, or one a crash left that the next
+// Open cuts, and count with the bytes after the last newline as the tail. A
+// log over MaxLogBytes, or one whose lines after that report no writer leaves,
+// is never cut, so it is exported to its last newline.
 func ExportFile(path string, q Query, w io.Writer) (lineexport.Trailer, error) {
 	f, info, err := openJudged(path)
 	if err != nil {
 		return lineexport.Trailer{}, err
 	}
 	defer func() { _ = f.Close() }()
-	src := lineexport.Source{Name: path, R: f, Size: info.Size(), Held: func() (bool, error) { return heldByWriter(f) }}
-	committed, cuttable, err := committedEnd(f, info.Size())
+	return exportLog(path, f, info.Size(), func() (bool, error) { return heldByWriter(f) }, q, w)
+}
+
+// exportLog exports the first size bytes of the log r, named name, to its
+// last import report when a writer's Open would cut what follows.
+func exportLog(name string, r io.ReaderAt, size int64, held func() (bool, error), q Query, w io.Writer) (lineexport.Trailer, error) {
+	src := lineexport.Source{Name: name, R: r, Size: size, Held: held}
+	committed, cuttable, err := committedEnd(r, size)
 	if err != nil {
 		return lineexport.Trailer{}, err
 	}
@@ -121,8 +128,12 @@ func ExportFile(path string, q Query, w io.Writer) (lineexport.Trailer, error) {
 }
 
 // committedEnd is where the last write an import report closes ends in the
-// first size bytes of r, and whether a writer's Open would cut what follows:
-// false for a log Open refuses as too large or damaged.
+// first size bytes of r, and whether a writer's Open would cut what follows.
+// It walks back from the last newline over the observations of a write still
+// open to the report before them, so it reads the size of one write, not the
+// log. A log over MaxLogBytes, a tail no writer leaves or a line of that
+// write Open would refuse is never cut; damage before the last report is the
+// export's to report, line by line.
 func committedEnd(r io.ReaderAt, size int64) (int64, bool, error) {
 	if size > MaxLogBytes {
 		return 0, false, nil
@@ -134,15 +145,64 @@ func committedEnd(r io.ReaderAt, size int64) (int64, bool, error) {
 	if err != nil {
 		return 0, false, err
 	}
-	_, committed, err := scanLog(io.NewSectionReader(r, 0, end), nil)
-	var fault *lineFault
-	switch {
-	case errors.As(err, &fault):
-		return 0, false, nil
-	case err != nil:
-		return 0, false, err
+	for end > 0 {
+		start, line, err := lineEndingAt(r, end)
+		if err != nil || line == nil {
+			return 0, false, err
+		}
+		rec := written(line)
+		switch {
+		case rec == nil:
+			return 0, false, nil
+		case rec.GetObservation() == nil:
+			return end, true, nil
+		}
+		end = start
 	}
-	return committed, true, nil
+	return 0, true, nil
+}
+
+// written is the record line holds in the form the codec writes it, or nil
+// for a line no writer of this package leaves.
+func written(line []byte) *observev1.Record {
+	if observe.CheckLineForm(line) != nil {
+		return nil
+	}
+	rec, err := observe.UnmarshalLine(line)
+	if err != nil {
+		return nil
+	}
+	return rec
+}
+
+// lineEndingAt reads the whole line whose newline is the byte before end and
+// returns where it starts. A line longer than a writer writes is nil.
+func lineEndingAt(r io.ReaderAt, end int64) (int64, []byte, error) {
+	var buf [4 << 10]byte
+	start := int64(0)
+	for at := end - 1; at > 0; {
+		n := min(at, int64(len(buf)))
+		chunk := buf[:n]
+		if _, err := r.ReadAt(chunk, at-n); err != nil {
+			return 0, nil, err
+		}
+		if i := bytes.LastIndexByte(chunk, '\n'); i >= 0 {
+			start = at - n + int64(i) + 1
+			break
+		}
+		at -= n
+		if end-1-at > observe.MaxLineBytes {
+			return 0, nil, nil
+		}
+	}
+	if end-1-start > observe.MaxLineBytes {
+		return 0, nil, nil
+	}
+	line := make([]byte, end-start)
+	if _, err := r.ReadAt(line, start); err != nil {
+		return 0, nil, err
+	}
+	return start, line, nil
 }
 
 // judge says what record a line is. An observation's id is its observation

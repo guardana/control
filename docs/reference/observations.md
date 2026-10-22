@@ -130,5 +130,6 @@ regular file of this account, not a link, that the group and others cannot
 reach, with no other name. It reads to the last import report, as a writer
 keeps the log: what follows is a write still open, or one a crash left that
 the next writer cuts, counted in the trailer's `tail_bytes` while a writer
-holds the log and a `partial_tail` gap when none does. A log the writer
-refuses, damaged or too large, is read to its last newline.
+holds the log and a `partial_tail` gap when none does. It reads back from
+the end only as far as that report. A log over the size bound, or whose
+lines after that report no writer leaves, is read to its last newline.
