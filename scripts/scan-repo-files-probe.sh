@@ -156,7 +156,10 @@ done
 
 check "a lockfile read as holding no package" fail "osv-scanner found no package in py/uv.lock" \
   "${standin}" STUB_OSV=list "STUB_SCANNED=${lockfiles}" STUB_EMPTY=py/uv.lock
-check "a lockfile the real scanner reads as empty" fail "osv-scanner found no package in py/uv.lock"
+check "two empty lockfiles named in sorted order" fail "osv-scanner found no package in py/uv.lock web/package-lock.json," \
+  "${standin}" STUB_OSV=list "STUB_SCANNED=web/package-lock.json py/uv.lock nested/go.mod go.mod" \
+  "STUB_EMPTY=web/package-lock.json py/uv.lock"
+check "a lockfile the real scanner reads as empty" fail "osv-scanner found no package in py/uv.lock web/package-lock.json,"
 
 stage
 printf 'readme\n' | plant README.md

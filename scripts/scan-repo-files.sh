@@ -75,7 +75,7 @@ done <<<"${lockfiles}"
 # A file read as holding no package was not understood, listed above or not:
 # every advisory against what it pins would go unreported.
 empty="$(grep -E '^Scanned .* file and found 0 packages?$' "${osv_log}" |
-  sed -e "s|^Scanned ${copy}/||" -e 's| file and found 0 packages*$||' | tr '\n' ' ')" || true
+  sed -e "s|^Scanned ${copy}/||" -e 's| file and found 0 packages*$||' | LC_ALL=C sort | tr '\n' ' ')" || true
 [[ -z "${empty}" ]] ||
   die "osv-scanner found no package in ${empty% }, so it read none of what that file pins"
 printf 'scan-repo-files: osv-scanner read each of the %d lockfile(s) repo_files lists: %s\n' \
