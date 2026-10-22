@@ -297,8 +297,11 @@ reach, with no other name. It reads to the last import report, as a writer
 keeps the log: what follows is a write still open, or one a crash left that
 the next writer cuts, counted in the trailer's <code>tail_bytes</code> while a writer
 holds the log and a <code>partial_tail</code> gap when none does. It reads back from
-the end only as far as that report. A log over the size bound, or whose
-lines after that report no writer leaves, is read to its last newline.</p>
+the end only as far as that report, and <code>scanned_bytes</code> leaves those bytes
+out. A log over the size bound, or whose lines after that report no writer
+leaves, is read to its last newline. Each line after the report is judged
+alone, so one that repeats an earlier id with other contents, which no
+writer leaves, counts in that gap rather than as a conflict.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/observations.md">docs/reference/observations.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.13.0, and <a href="https://github.com/guardana/control/tree/v0.13.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">

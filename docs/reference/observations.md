@@ -131,5 +131,8 @@ reach, with no other name. It reads to the last import report, as a writer
 keeps the log: what follows is a write still open, or one a crash left that
 the next writer cuts, counted in the trailer's `tail_bytes` while a writer
 holds the log and a `partial_tail` gap when none does. It reads back from
-the end only as far as that report. A log over the size bound, or whose
-lines after that report no writer leaves, is read to its last newline.
+the end only as far as that report, and `scanned_bytes` leaves those bytes
+out. A log over the size bound, or whose lines after that report no writer
+leaves, is read to its last newline. Each line after the report is judged
+alone, so one that repeats an earlier id with other contents, which no
+writer leaves, counts in that gap rather than as a conflict.
