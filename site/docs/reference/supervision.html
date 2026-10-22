@@ -261,8 +261,8 @@ an export; a retry confirms only when one export holds both.</p>
 <p>The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it <code>CONFIRMED</code>; an observation makes it <code>SUSPECTED</code>; a record in doubt (a
 conflicting id, a broken chain, a silent source) makes it
-<code>INDETERMINATE</code>, and a request in doubt leaves each rule unchecked. The
-three step rules rest on something not seen:
+<code>INDETERMINATE</code>; the first two also leave each rule that reads them not
+checked. The step rules rest on something not seen:
 <code>SUSPECTED</code> at most, <code>INDETERMINATE</code> while a <code>--source</code> is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.
 Under <code>0.2</code> a finding confirms on its run's own events alone, save the
@@ -296,8 +296,8 @@ or <code>&lt;id&gt; silent</code> for each <code>--source</code> not judged agai
 </tr>
 </tbody>
 </table>
-<p>The log is opened, and <code>findings.jsonl</code> created where absent, only once every
-input is accepted. A failure after the write commits exits 2 and keeps the
+<p>The log is opened, and <code>findings.jsonl</code> created, only once every input is
+accepted. A failure after the write commits exits 2 and keeps the
 write.</p>
 <h2 id="the-finding-record-and-its-log">The finding record and its log</h2>
 <p><code>guardana.control.finding.v1alpha1</code>, outside the v1 promise. A

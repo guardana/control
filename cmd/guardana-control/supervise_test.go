@@ -90,10 +90,33 @@ func TestSuperviseATrailInDoubtIsNotAPass(t *testing.T) {
 	if code != 1 || stderr != "" {
 		t.Fatalf("exit %d, stderr %q, stdout %q", code, stderr, stdout)
 	}
-	for _, want := range []string{everyRule("not checked: request r2 is in doubt"), "findings log: 0 written, 0 already held\n"} {
+	for _, want := range []string{everyRule(`not checked: request "r2" is in doubt`), "findings log: 0 written, 0 already held\n"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("stdout does not hold %q:\n%s", want, stdout)
 		}
+	}
+}
+
+// TestSuperviseALongRequestIDInDoubtStillWritesItsReport: a request id
+// past the contract's string bound puts its trail in doubt; the report names
+// it cut, so the log line holding every rule's why fits, and the run exits 1.
+func TestSuperviseALongRequestIDInDoubtStillWritesItsReport(t *testing.T) {
+	tr := newSupTree(t)
+	long := "z" + strings.Repeat("x", 12000)
+	calls := append(conformingCalls(), supCall{req: long, tool: "send_mail", upstream: "mail", at: 30 * time.Second})
+	x := tr.export(t, tr.run, supBase, calls...)
+	tr.closeRun(t, tr.run)
+	code, stdout, stderr := invoke(t, tr.args("--evidence", x)...)
+	if code != 1 || stderr != "" {
+		t.Fatalf("exit %d, stderr %q, stdout %.400q", code, stderr, stdout)
+	}
+	want := everyRule(`not checked: request "z` + strings.Repeat("x", 63) + `" (truncated) is in doubt`)
+	if !strings.Contains(stdout, want) {
+		t.Errorf("stdout does not hold %q:\n%.2000s", want, stdout)
+	}
+	records := readLog(t, tr.findings)
+	if len(records) != 1 || records[0].GetSuperviseReport().GetRunId() != tr.run {
+		t.Errorf("the log holds %d records, want the run's report", len(records))
 	}
 }
 

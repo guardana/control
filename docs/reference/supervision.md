@@ -92,8 +92,8 @@ an export; a retry confirms only when one export holds both.
 The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it `CONFIRMED`; an observation makes it `SUSPECTED`; a record in doubt (a
 conflicting id, a broken chain, a silent source) makes it
-`INDETERMINATE`, and a request in doubt leaves each rule unchecked. The
-three step rules rest on something not seen:
+`INDETERMINATE`; the first two also leave each rule that reads them not
+checked. The step rules rest on something not seen:
 `SUSPECTED` at most, `INDETERMINATE` while a `--source` is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.
 Under `0.2` a finding confirms on its run's own events alone, save the
@@ -114,8 +114,8 @@ or `<id> silent` for each `--source` not judged against.
 | 1 | otherwise |
 | 2 | nothing printed: an input refused, or a log not opened or written (a cut write no reader takes) |
 
-The log is opened, and `findings.jsonl` created where absent, only once every
-input is accepted. A failure after the write commits exits 2 and keeps the
+The log is opened, and `findings.jsonl` created, only once every input is
+accepted. A failure after the write commits exits 2 and keeps the
 write.
 
 ## The finding record and its log

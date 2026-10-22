@@ -187,14 +187,15 @@ func strictMembers(raw []byte, names map[string]string) (map[string]json.RawMess
 	return out, nil
 }
 
-// isText reports whether raw is absent, null or a JSON string of UTF-8, the
-// forms the protobuf JSON mapping reads a string member from.
+// isText reports whether raw is absent, null or a JSON string of UTF-8 whose
+// surrogate escapes come in pairs, the forms the protobuf JSON mapping reads
+// a string member from.
 func isText(raw json.RawMessage) bool {
 	if len(raw) == 0 || string(raw) == "null" {
 		return true
 	}
 	var s string
-	return utf8.Valid(raw) && json.Unmarshal(raw, &s) == nil
+	return utf8.Valid(raw) && json.Unmarshal(raw, &s) == nil && pairedSurrogates(raw)
 }
 
 // parseCount reads an int64 as the protobuf JSON mapping writes it, a decimal

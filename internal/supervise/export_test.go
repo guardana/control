@@ -13,16 +13,12 @@ func RuleIDs() []string { return slices.Clone(ruleIDs) }
 // returns the anchor of each finding it would raise, its parts joined by a
 // slash.
 func ApplyAlone(in Input, id string) ([]string, error) {
-	if err := checkInput(in); err != nil {
+	e, err := prepare(in)
+	if err != nil {
 		return nil, err
 	}
-	rd := newRead(judged(in), in.Run.Tenant)
-	if err := rd.takeEvents(in.Exports); err != nil {
-		return nil, err
-	}
-	rd.takeObservations(in.Sources)
 	var out []string
-	for _, d := range newEvaluation(in, rd).apply(id) {
+	for _, d := range e.apply(id) {
 		out = append(out, strings.Join(d.anchor, "/"))
 	}
 	return out, nil

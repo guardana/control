@@ -37,21 +37,24 @@ verify one.
   adapter does. A `tools` table that
   classes a tool `SPAWN_OR_DELEGATE`, which this API can never decide, is
   refused when the plane starts and by `doctor`.
-- `supervise` leaves every rule not checked, and exits 1, while a request's
-  trail is in doubt: a broken chain or a conflicting copy only lowered a
-  finding's verdict, so a run with no finding passed on a trail that may hide
-  a failure or a denial.
+- `supervise` leaves not checked, and exits 1, every rule that would read as
+  checked while a request's trail is in doubt, and the rules that read a
+  source's reports while an observation id is read with two contents; the
+  why names the record, quoted and cut at 64 bytes. A broken chain or a
+  conflicting copy only lowered a finding's verdict, so a run with no finding
+  passed on evidence that may hide a failure, a denial or a call.
 - `supervise --view` draws a call that came through the enforcement API,
   protocol `enforce`, as decided, not enforced, in every mode, as `coverage`
   already holds it; it was drawn enforced under `ENFORCE`.
 - The OTLP exporter refuses a collector's answer whose partial success
-  carries an `errorMessage` that is not a string of UTF-8, and retries the
-  batch; an object, an array, a number or a boolean was read as an
-  acknowledgement.
+  carries an `errorMessage` that is not a string of UTF-8, or escapes half of
+  a surrogate pair, and retries the batch; an object, an array, a number or a
+  boolean was read as an acknowledgement.
 - `observe export` ends at the observation log's last import report, as the
   log's reader does; the lines after it are the tail while a writer holds the
   log and a `partial_tail` gap when none does. It handed out observations of a
-  write a crash left, which the next writer cuts.
+  write a crash left, which the next writer cuts. A cursor into a write still
+  open is refused as past the end until a report commits that write.
 - `coverage` reads a source descriptor's `sampling`: a path observed only by
   sources that do not sample completely, `sampling` absent included, prints
   `observed, <trust>, sampled`, and so does each such source's line. Nothing

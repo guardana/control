@@ -4,7 +4,9 @@ package observelog
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -73,6 +75,33 @@ func TestTheExportEndsAtTheLastImportReport(t *testing.T) {
 			tr.Counts["import_report"] != 1 || tr.Counts[lineexport.Gap] != gaps || strings.Contains(out.String(), "write_file") {
 			t.Errorf("held %v: trailer %+v, want %d tail bytes, one observation, %d gaps and no write_file", held, tr, len(line), gaps)
 		}
+	}
+}
+
+// TestACursorIntoAWriteStillOpenIsPastTheEnd: a cursor naming the end of an
+// observation line no report has closed yet is refused, and holds once a
+// report closes that write.
+func TestACursorIntoAWriteStillOpenIsPastTheEnd(t *testing.T) {
+	dir := logDir(t)
+	write(t, openLog(t, dir), report("2026-10-04T10:05:00Z"), observation(spanA, "read_file", "2026-10-04T10:05:00Z"))
+	path := filepath.Join(dir, FileName)
+	line, err := observe.MarshalLine(&observev1.Record{Record: &observev1.Record_Observation{
+		Observation: observation(spanB, "write_file", "2026-10-04T10:06:00Z")}})
+	mustDo(t, err)
+	appendTo(t, path, string(line))
+	body := contents(t, path)
+	first := sha256.Sum256(body[:bytes.IndexByte(body, '\n')+1])
+	last := sha256.Sum256(line)
+	after := fmt.Sprintf("v1:%x:%d:%x", first, len(body), last)
+	if _, err := ExportFile(path, Query{After: after, Limit: DefaultExportLimit}, &bytes.Buffer{}); !errors.Is(err, ErrCursorPastEnd) {
+		t.Fatalf("a cursor into the open write: %v, want ErrCursorPastEnd", err)
+	}
+	closing, err := observe.MarshalLine(&observev1.Record{Record: &observev1.Record_ImportReport{ImportReport: report("2026-10-04T10:06:00Z")}})
+	mustDo(t, err)
+	appendTo(t, path, string(closing))
+	tr, err := ExportFile(path, Query{After: after, Limit: DefaultExportLimit}, &bytes.Buffer{})
+	if err != nil || tr.Counts["import_report"] != 1 || tr.Counts["observation"] != 0 {
+		t.Fatalf("once committed: %+v, %v; want the closing report alone", tr, err)
 	}
 }
 

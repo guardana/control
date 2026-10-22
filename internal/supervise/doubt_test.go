@@ -2,6 +2,7 @@ package supervise_test
 
 import (
 	"maps"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,7 +51,7 @@ func TestARequestInDoubtLeavesNoRuleCheckedOnItsTrail(t *testing.T) {
 			x := export(calls...)
 			res := closedRun(t, p, append([]supervise.Export{x}, doubt(&x, calls[1])...)...)
 			sameFindings(t, res.Findings)
-			if got, want := rules(res), everyRuleIs("RULE_STATE_NOT_CHECKED:request r3 is in doubt"); !maps.Equal(got, want) {
+			if got, want := rules(res), everyRuleIs(`RULE_STATE_NOT_CHECKED:request "r3" is in doubt`); !maps.Equal(got, want) {
 				t.Fatalf("rules %v, want %v", got, want)
 			}
 		})
@@ -68,7 +69,7 @@ func TestTheRequestInDoubtNamedIsTheLeastOfThem(t *testing.T) {
 				ev.PrevEventId = "e9"
 			}
 		}
-		want := everyRuleIs("RULE_STATE_NOT_CHECKED:request r1 and 1 more are in doubt")
+		want := everyRuleIs(`RULE_STATE_NOT_CHECKED:request "r1" and 1 more are in doubt`)
 		if got := rules(closedRun(t, p, x)); !maps.Equal(got, want) {
 			t.Fatalf("read %s first: rules %v, want %v", order[0].req, got, want)
 		}
@@ -86,7 +87,7 @@ func TestAFindingOnATrailInDoubtStands(t *testing.T) {
 	res := closedRun(t, p, x)
 	sameFindings(t, res.Findings, want(p, "CONTINUED_AFTER_FAILURE", critical, alert, indetermin,
 		id("CONTINUED_AFTER_FAILURE", "r3"), evRef("r3-e4", "r3"), evRef("r4-e1", "r4")))
-	if got := rules(res)["CONTINUED_AFTER_FAILURE"]; got != "RULE_STATE_NOT_CHECKED:request r4 is in doubt" {
+	if got := rules(res)["CONTINUED_AFTER_FAILURE"]; got != `RULE_STATE_NOT_CHECKED:request "r4" is in doubt` {
 		t.Fatalf("CONTINUED_AFTER_FAILURE is %s", got)
 	}
 }
@@ -112,14 +113,76 @@ func TestA02RuleOnATrailInDoubtIsNotChecked(t *testing.T) {
 		t.Fatalf("Evaluate: %v", err)
 	}
 	sameFindings(t, res.Findings)
-	const doubt = "RULE_STATE_NOT_CHECKED:request r2 is in doubt"
+	const doubt = `RULE_STATE_NOT_CHECKED:request "r2" is in doubt`
 	want := everyRuleIs(doubt)
 	for _, id := range []string{"RESOURCE_OUTSIDE_RUN", "DENIED_ACTION_RETRIED_ARGUMENTS",
 		"DENIED_ACTION_RETRIED_RESOURCE", "DENIED_ACTION_RETRIED_AROUND"} {
 		want[id] = doubt
 	}
-	want["EXCEPTION_TAKEN"] = "RULE_STATE_NOT_CHECKED:exceptions on STEP_OUTSIDE_PROCEDURE are not judged: request r2 is in doubt"
+	want["EXCEPTION_TAKEN"] = `RULE_STATE_NOT_CHECKED:exceptions on STEP_OUTSIDE_PROCEDURE are not judged: request "r2" is in doubt`
 	if got := rules(res); !maps.Equal(got, want) {
 		t.Fatalf("rules %v, want %v", got, want)
+	}
+}
+
+// TestADoubtLeavesARuleOffOrNotCheckedAsItWas: a rule the procedure turns
+// off stays off, and one an open run leaves not checked keeps that reason.
+func TestADoubtLeavesARuleOffOrNotCheckedAsItWas(t *testing.T) {
+	const doubt = `RULE_STATE_NOT_CHECKED:request "r3" is in doubt`
+	open := "RULE_STATE_NOT_CHECKED:the run is open"
+	for name, c := range map[string]struct {
+		p      *supervise.Procedure
+		closed bool
+		want   map[string]string
+	}{
+		"max_denials left out": {procWith(t, `"max_denials":4,`, ""), true, map[string]string{
+			"REPEATED_DENIAL": "RULE_STATE_OFF:the procedure leaves max_denials out", "STEP_OUTSIDE_PROCEDURE": doubt,
+			"DEADLINE_EXCEEDED": doubt, "REQUIRED_STEP_SKIPPED": doubt, "STEP_OUT_OF_ORDER": doubt,
+			"CONTINUED_AFTER_FAILURE": doubt}},
+		"an open run": {procWith(t), false, map[string]string{
+			"REPEATED_DENIAL": doubt, "STEP_OUTSIDE_PROCEDURE": doubt, "DEADLINE_EXCEEDED": doubt,
+			"REQUIRED_STEP_SKIPPED": open, "STEP_OUT_OF_ORDER": open, "CONTINUED_AFTER_FAILURE": open}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			x := export(compliant()...)
+			x.Events[len(x.Events)-1].PrevEventId = "r3-e9"
+			res := evaluate(t, supervise.Input{Procedure: c.p, Run: supervise.Run{Closed: c.closed}, Exports: []supervise.Export{x}})
+			if got := rules(res); !maps.Equal(got, c.want) {
+				t.Fatalf("rules %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// TestALongIDInDoubtIsQuotedAndCut: the why quotes at most 64 bytes of the
+// request id, so a producer's id cannot grow the report past its line.
+func TestALongIDInDoubtIsQuotedAndCut(t *testing.T) {
+	long := "r" + strings.Repeat("x", 12000)
+	x := export(append(compliant(), call{req: long, tool: "send_mail", upstream: "mail", at: 30 * time.Second})...)
+	want := `RULE_STATE_NOT_CHECKED:request "r` + strings.Repeat("x", 63) + `" (truncated) is in doubt`
+	if got := rules(closedRun(t, procWith(t), x)); !maps.Equal(got, everyRuleIs(want)) {
+		t.Fatalf("rules %v, want each %q", got, want)
+	}
+}
+
+// TestAnObservationInDoubtLeavesTheRulesThatReadReportsNotChecked: obs-9 is
+// read with two contents, a step's name and a name outside the procedure.
+// Whichever is read first, no rule that reads a source's reports is
+// checked, so neither order passes.
+func TestAnObservationInDoubtLeavesTheRulesThatReadReportsNotChecked(t *testing.T) {
+	p := procWith(t)
+	inside := ob{id: "obs-9", name: "get_order", span: "9999999999999999", at: 5 * time.Second}
+	outside := inside
+	outside.name = "drop_table"
+	for name, order := range map[string][]ob{"outside first": {outside, inside}, "inside first": {inside, outside}} {
+		t.Run(name, func(t *testing.T) {
+			res := evaluate(t, supervise.Input{Procedure: p, Run: supervise.Run{Closed: true},
+				Exports: []supervise.Export{export(conforming()...)}, Sources: []supervise.Source{source(order...)}})
+			want := everyRuleIs(checked)
+			want["STEP_OUTSIDE_PROCEDURE"] = `RULE_STATE_NOT_CHECKED:observation "obs-9" is in doubt`
+			if got := rules(res); !maps.Equal(got, want) {
+				t.Fatalf("rules %v, want %v", got, want)
+			}
+		})
 	}
 }

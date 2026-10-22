@@ -200,6 +200,7 @@ func TestOnlyTheProtocolsAnswerAccepts(t *testing.T) {
 		"a null partial success":   {http.StatusOK, `{"partialSuccess":null}`},
 		"nothing rejected":         {http.StatusOK, `{"partialSuccess":{"rejectedLogRecords":"0","errorMessage":""}}`},
 		"a null message":           {http.StatusOK, `{"partialSuccess":{"rejectedLogRecords":"0","errorMessage":null}}`},
+		"a surrogate pair":         {http.StatusOK, `{"partialSuccess":{"rejectedLogRecords":"0","errorMessage":"\\\ud83d\ude00\\u"}}`},
 		"an answer at the bound":   {http.StatusOK, "{}" + strings.Repeat(" ", 64<<10-2)},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -575,6 +576,9 @@ func TestAnAnswerIsTheProtocolsOrItIsNotAnAnswer(t *testing.T) {
 		"a number for the message":   `{"partialSuccess":{"rejectedLogRecords":"2","errorMessage":2}}`,
 		"a boolean for the message":  `{"partialSuccess":{"rejected_log_records":"2","error_message":true}}`,
 		"a message not UTF-8":        "{\"partialSuccess\":{\"rejectedLogRecords\":\"2\",\"errorMessage\":\"\xff\"}}",
+		"a lone high surrogate":      `{"partialSuccess":{"rejectedLogRecords":"2","errorMessage":"a\ud800"}}`,
+		"a lone low surrogate":       `{"partialSuccess":{"rejectedLogRecords":"2","errorMessage":"\udc00b"}}`,
+		"a high surrogate unpaired":  `{"partialSuccess":{"rejectedLogRecords":"2","errorMessage":"\uD800\u0041"}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			var answers atomic.Int32
