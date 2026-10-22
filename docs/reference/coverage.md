@@ -64,7 +64,7 @@ Each path gets the first state that holds:
 | --- | --- |
 | enforced | every plane that counts for the tool holds the path to the effect, is in `ENFORCE`, `APPROVE` or `LOCKDOWN`, and none lets the read fail open |
 | decided, not enforced | a plane counts for it in `OBSERVE`, or under `policy.fail_open_read` outside `LOCKDOWN`, where a read runs undecided while the policy is unavailable, or serves the enforcement API, in any mode |
-| observed | a source live within its heartbeat holds a matching observation; the weakest trust of the descriptor and the observations is printed |
+| observed | a source live within its heartbeat holds a matching observation; the weakest trust of the descriptor and the observations is printed, and `sampled` when no such source's descriptor says `SAMPLING_COMPLETE`, so a call may have gone unseen |
 | unknown | a source the path names is past its heartbeat or was never heard |
 | not covered | nothing above |
 
@@ -86,9 +86,9 @@ receive time; one heard after the command's clock is unknown.
 ## The join
 
 Beside an enforced or decided path, each matching observation is checked
-against the exports of the planes that count for it. It is joined when it, or
-an observation below it in the same trace, tenant and project, has the span id
-of a tool call's proposal for that tool on that upstream, or for an
+against the exports of the planes that count for it. It is joined when a
+whole export holds, for it or an observation below it in the same trace,
+tenant and project, the span id of a tool call's proposal for that tool on that upstream, or for an
 `enforce_tool` of that tool through the enforcement API, in the same tenant
 and project, recorded in a mode
 at least as strong as the path's state. A call every such plane's export could
