@@ -76,9 +76,11 @@ func (c *call) holdAnew(binding approval.Binding, unheld []Held) Disposition {
 // it: a resume of that request spent its approval, and this call is the next
 // identical one (ADR-0013). Only a plane resuming a request it held consumes,
 // so Consumed proves the approval spent once the hold is gone, though not that
-// anything ran. Every other resolution proves nothing spent, and the call is
+// anything ran: a pause or a record the sink refuses after the consume blocks
+// the execution. Every other resolution proves nothing spent, and the call is
 // held anew and counted. A record the plane does not hold is never consumed:
-// that would spend an answer a reconciliation may still resolve (ADR-0016).
+// that would spend an answer a reconciliation may still resolve, and tell the
+// next identical call that its approval was spent (ADR-0016).
 func (c *call) holdOrUsed(binding approval.Binding, unheld []Held) Disposition {
 	for _, held := range unheld {
 		if held.Resolution == ResolutionConsumed {

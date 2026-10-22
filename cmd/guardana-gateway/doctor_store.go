@@ -59,8 +59,10 @@ func writable(dir string) error {
 // approvals says where a held request is kept and what a reconciliation would
 // close. Each directory is judged as its store judges it, taking no lock and
 // creating nothing: a lock an approver's probe saw would read as a plane
-// waiting to consume their answer (ADR-0016). The records are left to `run`,
-// since the one lock-free handle on them is the approver's, which can answer.
+// waiting to consume their answer (ADR-0016). The records are left to `run`:
+// the one lock-free handle on them is the approver's, which carries the method
+// that answers an approval and which this binary must not hold, and the
+// plane's own handle takes the lock and makes an unused directory a store.
 func (d *examination) approvals(ctx context.Context) (string, string, string) {
 	if d.cfg.Approvals.Provider != gatewayconfig.ProviderFile {
 		return verdictOK, "approvals", fmt.Sprintf(

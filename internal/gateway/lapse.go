@@ -95,8 +95,9 @@ func (c *call) kernelLetRun() bool {
 // a BLOCKED result naming code, which is APPROVAL_EXPIRED, EVIDENCE_UNAVAILABLE
 // or POLICY_STALE, and no executed digest. The call is blocked with a decision
 // of the plane's own, which no record carries, because the chain has no place
-// for a decision after ACTION_STARTED. A record the sink refuses leaves the trail open with
-// its request id and its journal entry, as blockUnrecorded does.
+// for a decision after ACTION_STARTED. A record the sink refuses leaves the
+// trail open with its request id and its journal entry, as blockUnrecorded
+// does.
 func (c *call) lapsedAfterStart(trail *evidence.Builder, ex *execution, verdict controlv1.Verdict, code string) Disposition {
 	aborted := ex.stamp(nil)
 	aborted.Status = resultBlocked

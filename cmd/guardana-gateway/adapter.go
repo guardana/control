@@ -33,7 +33,7 @@ func listenerTenant(cfg *gatewayconfig.Config) string { return cfg.ListenerTenan
 // sessionCap is the cap on live sessions of a listener that keeps them; any
 // other carries none, whatever the key's default says.
 func sessionCap(cfg *gatewayconfig.Config) int {
-	if cfg.Listener.Kind != "stateful_http" {
+	if cfg.Listener.Kind != gatewayconfig.ListenerStatefulHTTP {
 		return 0
 	}
 	return cfg.Listener.MaxSessions
