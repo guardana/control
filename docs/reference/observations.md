@@ -85,9 +85,8 @@ observation or one import report. An observation's id is derived from its
 tenant, project, source, trace and span, so importing the same spans again
 writes nothing new: a span already in the log with the same content is a
 duplicate. One whose content differs, apart from its receive time and the
-descriptor's digest, is a conflict: it is not written, the import exits 1,
-and `supervise` holds the source in doubt ([supervision](supervision.md)).
-The observations an import keeps
+descriptor's digest, is a conflict: it is not written, and the import exits
+1. The observations an import keeps
 and its report are appended together and synced, the report last; after a crash
 in that append, the next open cuts everything after the last whole report;
 a tail no writer of this package leaves is refused, not cut. An append that
@@ -98,6 +97,15 @@ Each import ends with one report: the source, the descriptor's SHA-256, the
 receive time, the input's first-line digest and size, every count above, and
 the earliest and latest event time. A source was last heard at its newest
 event time not later than a report's receive time.
+
+A copy the log does not hold, a span the import refused or a conflict, may
+still be a call of the run it claimed. The report's `doubted_run_ids` names
+those runs, ascending, at most 64; a copy that claims no run, a line refused
+before its spans are read, or a 65th run sets `every_run_doubted` instead.
+A report that counts a refusal or a conflict and names no run, as an earlier
+build's, is read as doubting every run; [supervision](supervision.md#the-verdict)
+says what a doubted run leaves unchecked. A build without these members
+refuses a log a later one wrote them into.
 
 ## Commands
 

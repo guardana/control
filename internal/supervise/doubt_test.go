@@ -188,21 +188,24 @@ func TestAnObservationInDoubtLeavesTheRulesThatReadReportsNotChecked(t *testing.
 	}
 }
 
-// conflictingSources is the conforming 0.2 tree supervised with sources s1
-// and s2 whose logs counted conflicts as given, and their rules.
-func conflictingSources(t *testing.T, s1, s2 uint64) map[string]string {
+// refusedTail is the why's tail for a source whose imports refused a copy
+// that may be a call of a run judged.
+const refusedTail = " is in doubt: an import refused a copy that may be a call of a run judged"
+
+// doubtedIn is the conforming 0.2 tree, root, child and grandchild under
+// inherit, supervised with sources s1 and s2 as given, and its rules.
+func doubtedIn(t *testing.T, s1, s2 supervise.Source) map[string]string {
 	t.Helper()
 	customer := orderNo("42")
 	customer.Type = "crm_customer"
 	customer.Id = "c1"
 	x := acts(lookupOf("r1", 0, orderNo("42")), refundOf("r2", 10*time.Second, orderNo("42")).in(childRun),
 		act{call: call{req: "r3", tool: "send_mail", upstream: "mail", at: 20 * time.Second}, res: customer})
-	one, two := source(), source()
-	two.SourceID = "s2"
-	one.Conflicts, two.Conflicts = s1, s2
+	s1.SourceID, s1.HeartbeatSeconds, s1.LastHeard, s1.Heard = "s1", 300, t0.Add(time.Hour), true
+	s2.SourceID, s2.HeartbeatSeconds, s2.LastHeard, s2.Heard = "s2", 300, t0.Add(time.Hour), true
 	tree := closedFamily()
 	res, err := supervise.Evaluate(supervise.Input{Procedure: inheritProc(t), Run: tree[0], Tree: tree,
-		Exports: []supervise.Export{x}, Sources: []supervise.Source{one, two}})
+		Exports: []supervise.Export{x}, Sources: []supervise.Source{s1, s2}})
 	if err != nil {
 		t.Fatalf("Evaluate: %v", err)
 	}
@@ -210,69 +213,114 @@ func conflictingSources(t *testing.T, s1, s2 uint64) map[string]string {
 	return rules(res)
 }
 
-// TestASourceWhoseLogRefusedAConflictLeavesTheRulesThatReadReportsNotChecked:
-// a log keeps the first content an observation id arrives with and only
-// counts the others, so the copy a source's log refused may be the call a
-// rule that reads its reports looks for. Any conflict its import reports
-// count is doubt, whether or not the run's observations came from that
-// import; a source whose log counted none changes nothing.
-func TestASourceWhoseLogRefusedAConflictLeavesTheRulesThatReadReportsNotChecked(t *testing.T) {
+func doubting(every bool, runs ...string) supervise.Source {
+	return supervise.Source{EveryRunDoubted: every, DoubtedRuns: runs}
+}
+
+// TestARefusedCopyOfARunJudgedLeavesTheRulesThatReadReportsNotChecked: a
+// copy an import refused, a span or an observation whose id the log held
+// with other content, was never read and may be the call a rule that reads
+// a source's reports looks for. It leaves those rules not checked when it
+// claimed a run of the tree under inherit, or no run; one that claimed a
+// run outside the tree changes nothing.
+func TestARefusedCopyOfARunJudgedLeavesTheRulesThatReadReportsNotChecked(t *testing.T) {
 	all := everyRuleIs(checked)
 	for _, id := range []string{"RESOURCE_OUTSIDE_RUN", "DENIED_ACTION_RETRIED_ARGUMENTS",
 		"DENIED_ACTION_RETRIED_RESOURCE", "DENIED_ACTION_RETRIED_AROUND", "EXCEPTION_TAKEN"} {
 		all[id] = checked
 	}
-	if got := conflictingSources(t, 0, 0); !maps.Equal(got, all) {
-		t.Fatalf("no conflict: rules %v, want %v", got, all)
-	}
-	const tail = " is in doubt: an import found an observation id with two contents"
 	for name, c := range map[string]struct {
-		s1, s2 uint64
+		s1, s2 supervise.Source
 		why    string
 	}{
-		"one in s2's log":  {0, 1, `source "s2"` + tail},
-		"many in s1's log": {7, 0, `source "s1"` + tail},
-		"in both logs":     {1, 1, `source "s1" and 1 more are in doubt: an import found an observation id with two contents`},
+		"none":                     {doubting(false), doubting(false), ""},
+		"a run outside the tree":   {doubting(false, outsiderRun, siblingRun), doubting(false), ""},
+		"the root":                 {doubting(false), doubting(false, runID), `source "s2"` + refusedTail},
+		"the grandchild":           {doubting(false, grandchildRun, outsiderRun), doubting(false), `source "s1"` + refusedTail},
+		"every run":                {doubting(true), doubting(false), `source "s1"` + refusedTail},
+		"every run and a child's":  {doubting(true), doubting(false, childRun), `source "s1" and 1 more are in doubt: an import refused a copy that may be a call of a run judged`},
+		"every run and an outside": {doubting(false, outsiderRun), doubting(true), `source "s2"` + refusedTail},
 	} {
 		t.Run(name, func(t *testing.T) {
 			want := maps.Clone(all)
-			want["STEP_OUTSIDE_PROCEDURE"] = "RULE_STATE_NOT_CHECKED:" + c.why
-			want["DENIED_ACTION_RETRIED_AROUND"] = "RULE_STATE_NOT_CHECKED:" + c.why
-			want["EXCEPTION_TAKEN"] = "RULE_STATE_NOT_CHECKED:exceptions on STEP_OUTSIDE_PROCEDURE are not judged: " + c.why
-			if got := conflictingSources(t, c.s1, c.s2); !maps.Equal(got, want) {
+			if c.why != "" {
+				want["STEP_OUTSIDE_PROCEDURE"] = "RULE_STATE_NOT_CHECKED:" + c.why
+				want["DENIED_ACTION_RETRIED_AROUND"] = "RULE_STATE_NOT_CHECKED:" + c.why
+				want["EXCEPTION_TAKEN"] = "RULE_STATE_NOT_CHECKED:exceptions on STEP_OUTSIDE_PROCEDURE are not judged: " + c.why
+			}
+			if got := doubtedIn(t, c.s1, c.s2); !maps.Equal(got, want) {
 				t.Fatalf("rules %v, want %v", got, want)
 			}
 		})
 	}
 }
 
-// TestALongSourceIDWithAConflictIsQuotedAndCut: the why quotes at most 64
-// bytes of the source id, as it does a request's.
-func TestALongSourceIDWithAConflictIsQuotedAndCut(t *testing.T) {
+// TestARefusedCopyOfAnotherRunLeavesThisRunChecked: under 0.1 the run is
+// judged alone, so a copy that claimed run A is doubt for A and none for B.
+func TestARefusedCopyOfAnotherRunLeavesThisRunChecked(t *testing.T) {
+	for run, want := range map[string]string{
+		runID:    `RULE_STATE_NOT_CHECKED:source "s1"` + refusedTail,
+		childRun: checked,
+	} {
+		src := source()
+		src.DoubtedRuns = []string{run}
+		res := evaluate(t, supervise.Input{Procedure: procWith(t), Run: supervise.Run{Closed: true},
+			Exports: []supervise.Export{export(conforming()...)}, Sources: []supervise.Source{src}})
+		if got := rules(res)["STEP_OUTSIDE_PROCEDURE"]; got != want {
+			t.Errorf("a refused copy of %s: STEP_OUTSIDE_PROCEDURE %s, want %s", run, got, want)
+		}
+	}
+}
+
+// TestALongSourceIDInDoubtIsQuotedAndCut: the why quotes at most 64 bytes of
+// the source id, as it does a request's.
+func TestALongSourceIDInDoubtIsQuotedAndCut(t *testing.T) {
 	src := source()
-	src.SourceID, src.Conflicts = "s"+strings.Repeat("x", 12000), 1
+	src.SourceID, src.EveryRunDoubted = "s"+strings.Repeat("x", 12000), true
 	res := evaluate(t, supervise.Input{Procedure: procWith(t), Run: supervise.Run{Closed: true},
 		Exports: []supervise.Export{export(conforming()...)}, Sources: []supervise.Source{src}})
-	want := `RULE_STATE_NOT_CHECKED:source "s` + strings.Repeat("x", 63) +
-		`" (truncated) is in doubt: an import found an observation id with two contents`
+	want := `RULE_STATE_NOT_CHECKED:source "s` + strings.Repeat("x", 63) + `" (truncated)` + refusedTail
 	if got := rules(res)["STEP_OUTSIDE_PROCEDURE"]; got != want {
 		t.Fatalf("STEP_OUTSIDE_PROCEDURE %s, want %s", got, want)
 	}
 }
 
-// TestAFindingOnASourceWithAConflictIsIndeterminate: drop_table, reported by
-// s1 alone, is a call outside the procedure; once s1's log counted a
-// conflict the finding stands, indeterminate, since the refused copy may be
-// the one that was made.
-func TestAFindingOnASourceWithAConflictIsIndeterminate(t *testing.T) {
+// TestAnObservationAndASourceInDoubtAreBothNamed: obs-9 read with two
+// contents and a source whose import refused a copy are two doubts, and the
+// why names each.
+func TestAnObservationAndASourceInDoubtAreBothNamed(t *testing.T) {
+	inside := ob{id: "obs-9", name: "get_order", span: "9999999999999999", at: 5 * time.Second}
+	outside := inside
+	outside.name = "drop_table"
+	src := source(inside, outside)
+	src.EveryRunDoubted = true
+	res := evaluate(t, supervise.Input{Procedure: procWith(t), Run: supervise.Run{Closed: true},
+		Exports: []supervise.Export{export(conforming()...)}, Sources: []supervise.Source{src}})
+	want := `RULE_STATE_NOT_CHECKED:observation "obs-9" is in doubt; source "s1"` + refusedTail
+	if got := rules(res)["STEP_OUTSIDE_PROCEDURE"]; got != want {
+		t.Fatalf("STEP_OUTSIDE_PROCEDURE %s, want %s", got, want)
+	}
+}
+
+// TestAFindingOnARunInDoubtIsIndeterminate: drop_table, reported by s1 alone
+// for the run, is a call outside the procedure. While s1's imports refused a
+// copy of the run, or of no run, the finding stands, indeterminate, since
+// the refused copy may be the call that was made; a refused copy of another
+// run leaves it suspected.
+func TestAFindingOnARunInDoubtIsIndeterminate(t *testing.T) {
 	p := procWith(t)
 	for name, c := range map[string]struct {
-		conflicts uint64
-		verdict   controlv1.FindingVerdict
-	}{"no conflict": {0, suspected}, "a conflict": {1, indetermin}} {
+		src     supervise.Source
+		verdict controlv1.FindingVerdict
+	}{
+		"nothing refused":        {doubting(false), suspected},
+		"a copy of another run":  {doubting(false, childRun), suspected},
+		"a copy of the run":      {doubting(false, childRun, runID), indetermin},
+		"a copy claiming no run": {doubting(true), indetermin},
+	} {
 		t.Run(name, func(t *testing.T) {
 			src := source(ob{id: "obs-1", name: "drop_table", span: "1000000000000001", at: 40 * time.Second})
-			src.Conflicts = c.conflicts
+			src.EveryRunDoubted, src.DoubtedRuns = c.src.EveryRunDoubted, c.src.DoubtedRuns
 			res := evaluate(t, supervise.Input{Procedure: p, Exports: []supervise.Export{export(conforming()...)},
 				Sources: []supervise.Source{src}})
 			sameFindings(t, res.Findings, want(p, "STEP_OUTSIDE_PROCEDURE", medium, alert, c.verdict,

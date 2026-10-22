@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 	"github.com/guardana/control/internal/trailchain"
@@ -145,8 +146,9 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 // a record of the run is in doubt: the left-out copy, the missing link or the
 // order its links do not give may hold the failure, denial, tool or time a
 // rule looks for. A request in doubt touches every rule; an observation, or
-// a source whose log refused a copy no reader sees, only those that read a
-// source's reports. Findings stand, at the verdict the doubt allows.
+// a source whose imports refused a copy that may be a call of a run judged,
+// only those that read a source's reports. Findings stand, at the verdict
+// the doubt allows.
 func (e *evaluation) doubtCut(states map[string]ruleState) {
 	var requests []string
 	for _, rq := range e.reqs {
@@ -156,10 +158,15 @@ func (e *evaluation) doubtCut(states map[string]ruleState) {
 	}
 	requestWhy := inDoubt("request", requests)
 	observationWhy := inDoubt("observation", slices.Collect(maps.Keys(e.rd.obsDoubt)))
-	if observationWhy == "" {
-		if why := inDoubt("source", slices.Collect(maps.Keys(e.conflicted))); why != "" {
-			observationWhy = why + ": an import found an observation id with two contents"
+	var sources []string
+	for id, judged := range e.refusedJudged {
+		if judged {
+			sources = append(sources, id)
 		}
+	}
+	if why := inDoubt("source", sources); why != "" {
+		why += ": an import refused a copy that may be a call of a run judged"
+		observationWhy = strings.TrimPrefix(observationWhy+"; "+why, "; ")
 	}
 	for id, s := range states {
 		if id == RuleExceptionTaken || s.state != checked.state {

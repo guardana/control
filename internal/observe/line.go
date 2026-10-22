@@ -92,7 +92,10 @@ func checkRecord(r *observev1.Record) error {
 	if o != nil {
 		return checkObservation(o)
 	}
-	return checkOrigin(ir.GetTenantId(), ir.GetProjectId(), ir.GetSource(), ir.GetReceivedTime())
+	if err := checkOrigin(ir.GetTenantId(), ir.GetProjectId(), ir.GetSource(), ir.GetReceivedTime()); err != nil {
+		return err
+	}
+	return checkDoubt(ir)
 }
 
 // checkOrigin holds what every record carries: whose it is, which source it

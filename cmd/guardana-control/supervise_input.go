@@ -6,9 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 
-	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/coverage"
 	"github.com/guardana/control/internal/observe"
@@ -132,29 +130,13 @@ func readSupervisedSource(descriptor, logDir string) (supervise.Source, bool, er
 		HeartbeatSeconds: src.Descriptor.GetHeartbeatSeconds(),
 	}
 	out.LastHeard, out.Heard = observe.LastHeard(src.Descriptor, src.Records)
+	out.EveryRunDoubted, out.DoubtedRuns = observe.DoubtedRuns(src.Records)
 	for _, r := range src.Records {
 		if o := r.GetObservation(); o != nil {
 			out.Observations = append(out.Observations, o)
 		}
 	}
-	out.Conflicts = conflictsOf(src.Records)
 	return out, true, nil
-}
-
-// conflictsOf sums the conflicts every import report of a log counts, under
-// whichever descriptor it was written: an id a log holds stays held across
-// imports, so a conflict in any of them may have kept out a copy of the run.
-// The sum stops at the largest count rather than wrap round to none.
-func conflictsOf(records []*observev1.Record) uint64 {
-	var sum uint64
-	for _, r := range records {
-		n := r.GetImportReport().GetCounts().GetConflict()
-		if sum > math.MaxUint64-n {
-			return math.MaxUint64
-		}
-		sum += n
-	}
-	return sum
 }
 
 // unreadSources names each --source the run could not be judged against: a

@@ -39,16 +39,18 @@ type Export struct {
 
 // Source is one observation source with the observations of its log.
 // LastHeard and Heard are what observe.LastHeard reads from its import
-// reports. Conflicts is what those reports count of observations the log
-// refused because it held their id with other content: the copy refused
-// was never read, and may be the true one of any run's.
+// reports, and EveryRunDoubted and DoubtedRuns what observe.DoubtedRuns
+// reads: a span an import refused, or an observation the log refused for an
+// id it held with other content, was never read and may be a call of any
+// run, when EveryRunDoubted, or of a run DoubtedRuns names.
 type Source struct {
 	SourceID         string
 	HeartbeatSeconds uint32
 	LastHeard        time.Time
 	Heard            bool
 	Observations     []*observev1.Observation
-	Conflicts        uint64
+	EveryRunDoubted  bool
+	DoubtedRuns      []string
 }
 
 // Input is everything one supervision reads. SourcesNotRead names, as the

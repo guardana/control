@@ -1,0 +1,107 @@
+package observe
+
+import (
+	"fmt"
+	"maps"
+	"slices"
+
+	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
+)
+
+// MaxDoubtedRunIDs bounds the runs one import report names in doubt; past it
+// the report puts every run of its source in doubt instead.
+const MaxDoubtedRunIDs = 64
+
+// Doubt gathers the runs claimed by the copies an import refused: a span the
+// importer refused, or an observation the log held under its id with other
+// content. Its zero value holds none.
+type Doubt struct {
+	runs  map[string]bool
+	every bool
+}
+
+// Claim adds the run a refused copy claimed. A copy that claims none, or a
+// claim that is not a run id, could be any run's, so it puts every run in
+// doubt; so does a run past MaxDoubtedRunIDs.
+func (d *Doubt) Claim(run string) {
+	if d.every {
+		return
+	}
+	if !ValidRunID(run) {
+		d.every, d.runs = true, nil
+		return
+	}
+	if d.runs == nil {
+		d.runs = map[string]bool{}
+	}
+	d.runs[run] = true
+	if len(d.runs) > MaxDoubtedRunIDs {
+		d.every, d.runs = true, nil
+	}
+}
+
+// ClaimOf adds the run o claims, or every run when it claims none.
+func (d *Doubt) ClaimOf(o *observev1.Observation) {
+	d.Claim(o.GetCorrelation().GetRunId())
+}
+
+// Merge adds what r already puts in doubt.
+func (d *Doubt) Merge(r *observev1.ImportReport) {
+	if r.GetEveryRunDoubted() {
+		d.every, d.runs = true, nil
+	}
+	for _, run := range r.GetDoubtedRunIds() {
+		d.Claim(run)
+	}
+}
+
+// Fill writes d into r, replacing what r said.
+func (d *Doubt) Fill(r *observev1.ImportReport) {
+	r.EveryRunDoubted, r.DoubtedRunIds = d.every, nil
+	if !d.every && len(d.runs) > 0 {
+		r.DoubtedRunIds = slices.Sorted(maps.Keys(d.runs))
+	}
+}
+
+// DoubtedRuns reads what the import reports among records put in doubt,
+// whichever descriptor wrote each: every run, or the runs they name in
+// ascending order. A report that counts a refused span or a conflict and
+// names no run for it, as a report written before reports named them, puts
+// every run in doubt.
+func DoubtedRuns(records []*observev1.Record) (bool, []string) {
+	runs := map[string]bool{}
+	for _, rec := range records {
+		r := rec.GetImportReport()
+		counted := r.GetCounts().GetRefused() > 0 || r.GetCounts().GetConflict() > 0
+		if r.GetEveryRunDoubted() || (counted && len(r.GetDoubtedRunIds()) == 0) {
+			return true, nil
+		}
+		for _, run := range r.GetDoubtedRunIds() {
+			runs[run] = true
+		}
+	}
+	return false, slices.Sorted(maps.Keys(runs))
+}
+
+// checkDoubt holds a report's runs in doubt to the one form a writer gives
+// them: run ids in ascending order, each once, at most MaxDoubtedRunIDs, and
+// none beside every_run_doubted.
+func checkDoubt(r *observev1.ImportReport) error {
+	runs := r.GetDoubtedRunIds()
+	switch {
+	case len(runs) > MaxDoubtedRunIDs:
+		return fmt.Errorf("%w: doubted_run_ids: %d run ids, limit %d", ErrLine, len(runs), MaxDoubtedRunIDs)
+	case r.GetEveryRunDoubted() && len(runs) > 0:
+		return fmt.Errorf("%w: doubted_run_ids: set while every_run_doubted is", ErrLine)
+	}
+	for i, run := range runs {
+		switch {
+		case !ValidRunID(run):
+			return fmt.Errorf("%w: doubted_run_ids[%d]: %s is not \"run-\" and 32 lowercase hex digits",
+				ErrLine, i, quoted(run, maxIdentifierBytes))
+		case i > 0 && runs[i-1] >= run:
+			return fmt.Errorf("%w: doubted_run_ids[%d]: not after the run id before it", ErrLine, i)
+		}
+	}
+	return nil
+}

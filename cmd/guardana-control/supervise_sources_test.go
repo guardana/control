@@ -2,15 +2,13 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
-
-	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 )
 
 // TestSuperviseSaysWhatOfASourceItRead: a descriptor that does not exist is
@@ -172,44 +170,70 @@ func TestSuperviseAnUnjoinedObservationIsNoInstanceOfItsStep(t *testing.T) {
 	}
 }
 
-// twoSpans is one OTLP/JSON line holding supSpan's span twice, one trace id
-// and one span id, as a call of first and then of second, ending at end.
-func (tr supTree) twoSpans(first, second string, end time.Time) string {
-	line := func(tool string) string {
-		return fmt.Sprintf(supSpan, end.Add(-time.Second).UnixNano(), end.UnixNano(), tool, tr.run)
-	}
-	a, b := line(first), line(second)
+// spansLine is one OTLP/JSON line of supSpan's resource holding spans.
+func spansLine(spans ...string) string {
+	line := fmt.Sprintf(supSpan, 0, 0, "", "")
 	open, closing := `"spans":[`, `]}],"schemaUrl"`
-	stop := strings.Index(a, closing)
-	return a[:stop] + "," + b[strings.Index(b, open)+len(open):strings.Index(b, closing)] + a[stop:]
+	return line[:strings.Index(line, open)+len(open)] + strings.Join(spans, ",") + line[strings.Index(line, closing):]
 }
 
-// TestSuperviseASourceWhoseLogRefusedAConflictIsNotAPass: an agent that
-// sends an allowed call and then, under the same trace and span id, a call
-// no step lists has its log keep the first and count the second a conflict.
-// The run is not judged as if the log held all it was sent: the rules that
-// read the source's reports are not checked and supervise exits 1. The same
-// run whose source was sent the allowed call alone exits 0.
-func TestSuperviseASourceWhoseLogRefusedAConflictIsNotAPass(t *testing.T) {
-	const why = `not checked: source "agent-runtime" is in doubt: an import found an observation id with two contents`
+// toolSpan is supSpan's span with spanID, a call of tool claimed for run
+// with status code status, ending at end.
+func toolSpan(spanID, tool, run string, status int, end time.Time) string {
+	line := fmt.Sprintf(supSpan, end.Add(-time.Second).UnixNano(), end.UnixNano(), tool, run)
+	open, closing := `"spans":[`, `]}],"schemaUrl"`
+	span := line[strings.Index(line, open)+len(open) : strings.Index(line, closing)]
+	return strings.NewReplacer(`"00f067aa0ba90001"`, strconv.Quote(spanID),
+		`"status":{"code":1}`, fmt.Sprintf(`"status":{"code":%d}`, status)).Replace(span)
+}
+
+// importSpans imports line and wants the conflicts and refusals counted, and
+// exit 1 for any.
+func (tr supTree) importSpans(t *testing.T, descriptor, log, line string, conflicts, refused int) {
+	t.Helper()
+	input := filepath.Join(tr.dir, "spans.jsonl")
+	writeFixture(t, input, line)
+	code, out, stderr := invoke(t, "observe", "import", "--source", descriptor, "--log", log, input)
+	want := exitOK
+	if conflicts+refused > 0 {
+		want = exitFail
+	}
+	if counted(t, out, "conflict") != conflicts || counted(t, out, "refused") != refused || code != want {
+		t.Fatalf("import: exit %d, stdout %q, stderr %q; want %d conflict(s), %d refused", code, out, stderr, conflicts, refused)
+	}
+}
+
+// TestSuperviseACopyTheImportRefusedIsNotAPass: an agent that sends an
+// allowed call and then a call no step lists, under the same trace and span
+// id or in a span the import refuses, has its log keep the allowed call
+// alone. The run is not judged as if the log held all it was sent: while a
+// refused copy claimed the run, or no run, the rules that read the source's
+// reports are not checked and supervise exits 1. A refused copy of another
+// run leaves this one judged.
+func TestSuperviseACopyTheImportRefusedIsNotAPass(t *testing.T) {
+	const why = `not checked: source "agent-runtime" is in doubt: an import refused a copy that may be a call of a run judged`
+	const other = "run-ffffffffffffffffffffffffffffffff"
+	end := supBase.Add(5 * time.Second)
 	for name, c := range map[string]struct {
-		second          string
-		conflicts, code int
-	}{"the allowed call alone": {"", 0, exitOK}, "a forbidden call after it": {"drop_table", 1, exitFail}} {
+		second                   func(run string) string
+		conflicts, refused, code int
+	}{
+		"the allowed call alone":          {nil, 0, 0, exitOK},
+		"a forbidden call, the same ids":  {func(run string) string { return toolSpan("00f067aa0ba90001", "drop_table", run, 1, end) }, 1, 0, exitFail},
+		"a forbidden call refused":        {func(run string) string { return toolSpan("00f067aa0ba90002", "drop_table", run, 7, end) }, 0, 1, exitFail},
+		"a forbidden call of no run":      {func(string) string { return toolSpan("00f067aa0ba90001", "drop_table", "", 1, end) }, 1, 0, exitFail},
+		"a forbidden call of another run": {func(string) string { return toolSpan("00f067aa0ba90001", "drop_table", other, 1, end) }, 1, 0, exitOK},
+		"a refused call of another run":   {func(string) string { return toolSpan("00f067aa0ba90002", "drop_table", other, 7, end) }, 0, 1, exitOK},
+	} {
 		t.Run(name, func(t *testing.T) {
 			tr := newSupTree(t)
 			writeFixture(t, tr.procedure, supProcedure02)
 			descriptor, log := tr.source(t)
-			input := filepath.Join(tr.dir, "spans.jsonl")
-			body := fmt.Sprintf(supSpan, supBase.Add(4*time.Second).UnixNano(), supBase.Add(5*time.Second).UnixNano(), "search_docs", tr.run)
-			if c.second != "" {
-				body = tr.twoSpans("search_docs", c.second, supBase.Add(5*time.Second))
+			spans := []string{toolSpan("00f067aa0ba90001", "search_docs", tr.run, 1, end)}
+			if c.second != nil {
+				spans = append(spans, c.second(tr.run))
 			}
-			writeFixture(t, input, body)
-			code, out, stderr := invoke(t, "observe", "import", "--source", descriptor, "--log", log, input)
-			if counted(t, out, "conflict") != c.conflicts || code != c.code {
-				t.Fatalf("import: exit %d, stdout %q, stderr %q; want %d conflict(s)", code, out, stderr, c.conflicts)
-			}
+			tr.importSpans(t, descriptor, log, spansLine(spans...), c.conflicts, c.refused)
 			x := tr.export(t, tr.run, supBase, conformingCalls()...)
 			tr.closeRun(t, tr.run)
 			code, stdout, stderr := invoke(t, tr.args("--evidence", x, "--source", descriptor, "--log", log)...)
@@ -218,7 +242,7 @@ func TestSuperviseASourceWhoseLogRefusedAConflictIsNotAPass(t *testing.T) {
 			}
 			for _, rule := range []string{"STEP_OUTSIDE_PROCEDURE", "DENIED_ACTION_RETRIED_AROUND"} {
 				want := "rule " + rule + " checked\n"
-				if c.second != "" {
+				if c.code != exitOK {
 					want = "rule " + rule + " " + why + "\n"
 				}
 				if !strings.Contains(stdout, want) {
@@ -226,28 +250,5 @@ func TestSuperviseASourceWhoseLogRefusedAConflictIsNotAPass(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-// TestSuperviseSumsTheConflictsOfEveryImportReport: the conflicts of each
-// report add up whatever descriptor wrote it, and two counts whose sum would
-// wrap round to none stop at the largest.
-func TestSuperviseSumsTheConflictsOfEveryImportReport(t *testing.T) {
-	reported := func(project string, n uint64) *observev1.Record {
-		return &observev1.Record{Record: &observev1.Record_ImportReport{ImportReport: &observev1.ImportReport{
-			ProjectId: project, Counts: &observev1.ImportCounts{Conflict: n}}}}
-	}
-	seen := &observev1.Record{Record: &observev1.Record_Observation{Observation: &observev1.Observation{}}}
-	for name, c := range map[string]struct {
-		records []*observev1.Record
-		want    uint64
-	}{
-		"none":                {[]*observev1.Record{seen, reported(supProject, 0)}, 0},
-		"two descriptors":     {[]*observev1.Record{reported(supProject, 2), seen, reported("elsewhere", 3)}, 5},
-		"a sum past the most": {[]*observev1.Record{reported(supProject, 1<<63), reported(supProject, 1<<63)}, math.MaxUint64},
-	} {
-		if got := conflictsOf(c.records); got != c.want {
-			t.Errorf("%s: %d conflicts, want %d", name, got, c.want)
-		}
 	}
 }

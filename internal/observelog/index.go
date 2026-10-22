@@ -12,11 +12,13 @@ import (
 // disagree with the lines it describes.
 type index map[string]string
 
-// batch is what one write appends and what it found.
+// batch is what one write appends and what it found, and the runs its
+// conflicting observations claim.
 type batch struct {
 	lines []byte
 	added index
 	found Written
+	doubt observe.Doubt
 }
 
 // fresh encodes the observations neither the index nor an earlier one of obs
@@ -44,6 +46,7 @@ func (ids index) fresh(obs []*observev1.Observation) (batch, error) {
 			b.found.Duplicates++
 		case ok:
 			b.found.Conflicts++
+			b.doubt.ClaimOf(o)
 		default:
 			b.added[id] = sum
 			b.lines = append(b.lines, line...)
