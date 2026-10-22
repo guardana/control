@@ -31,7 +31,9 @@ func TestAnExportOfOneRecordReadsNoMoreThanItsEnds(t *testing.T) {
 	var log bytes.Buffer
 	line := func(r *observev1.Record) int {
 		b, err := observe.MarshalLine(r)
-		mustDo(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 		log.Write(b)
 		return len(b)
 	}
@@ -66,7 +68,9 @@ func TestAnExportOfOneRecordReadsNoMoreThanItsEnds(t *testing.T) {
 // line's bound and the log is exported to its last newline.
 func TestALineLongerThanAWriterWritesStopsTheWalk(t *testing.T) {
 	b, err := observe.MarshalLine(&observev1.Record{Record: &observev1.Record_ImportReport{ImportReport: report("2026-10-04T10:05:00Z")}})
-	mustDo(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	log := append(b, append(bytes.Repeat([]byte("x"), 4<<20), '\n')...)
 	r := &countingReader{r: bytes.NewReader(log)}
 	end, cuttable, err := committedEnd(r, int64(len(log)))
