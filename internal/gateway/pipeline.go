@@ -145,13 +145,16 @@ func New(cfg Config) (*Pipeline, error) {
 // return: whatever the pipeline cannot do is a block that names its cause, and
 // a nil or zero Pipeline answers INDETERMINATE, POLICY_UNAVAILABLE, Block.
 //
-// Every decision of the call is made under one policy snapshot and the flow
-// state of its run, which ACTION_PROPOSED records (ADR-0021). The plane's own
-// causes, taken before the kernel decides and again after an ask, change the
-// action and never the decision, and a call they block asks the decision point
-// nothing (ADR-0019). Arguments a rewriting obligation changed are decided
-// again, and that decision is the one recorded. Whatever executes has
-// ACTION_STARTED written before Admit returns. A request id whose trail is
+// The order is fixed: the pause and stop states, then the clock, then one
+// policy snapshot and the flow state of the call's run, which every decision of
+// the call is made under and ACTION_PROPOSED records (ADR-0021). The plane's
+// own causes, taken before the kernel decides and again after an ask, change
+// the action and never the decision, and a call they block asks the decision
+// point nothing (ADR-0019). Arguments a rewriting obligation changed are decided
+// again, and that decision is the one recorded. The trail is written
+// ACTION_PROPOSED and POLICY_DECIDED first, and whatever executes has
+// ACTION_STARTED written, and its declared result taken into its run, before
+// Admit returns. A request id whose trail is
 // still open is refused before anything is written, unless the call resumes
 // that trail (ADR-0013).
 func (p *Pipeline) Admit(ctx context.Context, a Admission) Disposition {

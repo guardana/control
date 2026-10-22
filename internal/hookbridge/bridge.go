@@ -188,8 +188,13 @@ func codes(cs []string) string {
 // token keeps s when it is at most limit characters of [A-Za-z0-9._-], and
 // is empty otherwise, so nothing the receiver sends can break the line.
 func token(s string, limit int) string {
-	if !enforceclient.IsToken(s, limit) {
+	if len(s) > limit {
 		return ""
+	}
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '.' && c != '_' && c != '-' {
+			return ""
+		}
 	}
 	return s
 }
