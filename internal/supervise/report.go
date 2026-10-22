@@ -144,9 +144,9 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 // doubtCut leaves not checked every rule that would read as checked while
 // a record of the run is in doubt: the left-out copy, the missing link or the
 // order its links do not give may hold the failure, denial, tool or time a
-// rule looks for. A request in doubt touches every rule, an observation only
-// those that read a source's reports. Findings stand, at the verdict the
-// doubt allows.
+// rule looks for. A request in doubt touches every rule; an observation, or
+// a source whose log refused a copy no reader sees, only those that read a
+// source's reports. Findings stand, at the verdict the doubt allows.
 func (e *evaluation) doubtCut(states map[string]ruleState) {
 	var requests []string
 	for _, rq := range e.reqs {
@@ -156,6 +156,11 @@ func (e *evaluation) doubtCut(states map[string]ruleState) {
 	}
 	requestWhy := inDoubt("request", requests)
 	observationWhy := inDoubt("observation", slices.Collect(maps.Keys(e.rd.obsDoubt)))
+	if observationWhy == "" {
+		if why := inDoubt("source", slices.Collect(maps.Keys(e.conflicted))); why != "" {
+			observationWhy = why + ": an import found an observation id with two contents"
+		}
+	}
 	for id, s := range states {
 		if id == RuleExceptionTaken || s.state != checked.state {
 			continue

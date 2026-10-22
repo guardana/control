@@ -85,8 +85,9 @@ observation or one import report. An observation's id is derived from its
 tenant, project, source, trace and span, so importing the same spans again
 writes nothing new: a span already in the log with the same content is a
 duplicate. One whose content differs, apart from its receive time and the
-descriptor's digest, is a conflict: it is not written, and the import exits
-1. The observations an import keeps
+descriptor's digest, is a conflict: it is not written, the import exits 1,
+and `supervise` holds the source in doubt ([supervision](supervision.md)).
+The observations an import keeps
 and its report are appended together and synced, the report last; after a crash
 in that append, the next open cuts everything after the last whole report;
 a tail no writer of this package leaves is refused, not cut. An append that

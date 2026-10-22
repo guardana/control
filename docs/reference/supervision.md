@@ -8,8 +8,8 @@ covers: [internal/supervise/**, internal/findinglog/**, internal/notify/**, cmd/
 # Supervision
 
 `guardana-control supervise` checks a run an operator opened against its
-procedure, from the plane's evidence and the agent runtime's reports, and
-appends findings to a findings log.
+procedure, from the plane's evidence and the runtime's reports, and
+appends findings to a log.
 `guardana-control notify` hands each alert in that log to a program of the
 operator's, at least once. Both are `experimental`. Neither decides a call,
 and no plane reads what they write
@@ -91,9 +91,8 @@ an export; a retry confirms only when one export holds both.
 
 The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it `CONFIRMED`; an observation makes it `SUSPECTED`; a record in doubt (a
-conflicting id, a broken chain, a silent source) makes it
-`INDETERMINATE`; the first two also leave each rule that reads them not
-checked. The step rules rest on something not seen:
+conflicting id, even one an import refused, a broken chain, a silent source)
+makes it `INDETERMINATE`; all but silence leave their rules not checked. The step rules rest on something not seen:
 `SUSPECTED` at most, `INDETERMINATE` while a `--source` is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.
 Under `0.2` a finding confirms on its run's own events alone, save the

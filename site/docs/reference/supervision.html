@@ -111,8 +111,8 @@
 <main id="main" class="prose">
 <h1 id="supervision">Supervision</h1>
 <p><code>guardana-control supervise</code> checks a run an operator opened against its
-procedure, from the plane's evidence and the agent runtime's reports, and
-appends findings to a findings log.
+procedure, from the plane's evidence and the runtime's reports, and
+appends findings to a log.
 <code>guardana-control notify</code> hands each alert in that log to a program of the
 operator's, at least once. Both are <code>experimental</code>. Neither decides a call,
 and no plane reads what they write
@@ -260,9 +260,8 @@ an export; a retry confirms only when one export holds both.</p>
 <h2 id="the-verdict">The verdict</h2>
 <p>The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it <code>CONFIRMED</code>; an observation makes it <code>SUSPECTED</code>; a record in doubt (a
-conflicting id, a broken chain, a silent source) makes it
-<code>INDETERMINATE</code>; the first two also leave each rule that reads them not
-checked. The step rules rest on something not seen:
+conflicting id, even one an import refused, a broken chain, a silent source)
+makes it <code>INDETERMINATE</code>; all but silence leave their rules not checked. The step rules rest on something not seen:
 <code>SUSPECTED</code> at most, <code>INDETERMINATE</code> while a <code>--source</code> is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.
 Under <code>0.2</code> a finding confirms on its run's own events alone, save the

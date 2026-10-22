@@ -43,6 +43,12 @@ verify one.
   why names the record, quoted and cut at 64 bytes. A broken chain or a
   conflicting copy only lowered a finding's verdict, so a run with no finding
   passed on evidence that may hide a failure, a denial or a call.
+- `supervise` holds a source in doubt when any import into its log counted a
+  conflict: the rules that read its reports are not checked, naming the
+  source, and a finding citing one of its observations is `INDETERMINATE`.
+  The log keeps the first content of an observation id and only counts
+  another, so an agent that sent an allowed call and then a forbidden one
+  under the same trace and span id passed with exit 0.
 - `supervise --view` draws a call that came through the enforcement API,
   protocol `enforce`, as decided, not enforced, in every mode, as `coverage`
   already holds it; it was drawn enforced under `ENFORCE`.

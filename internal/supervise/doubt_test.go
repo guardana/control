@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/supervise"
 )
 
@@ -183,6 +184,99 @@ func TestAnObservationInDoubtLeavesTheRulesThatReadReportsNotChecked(t *testing.
 			if got := rules(res); !maps.Equal(got, want) {
 				t.Fatalf("rules %v, want %v", got, want)
 			}
+		})
+	}
+}
+
+// conflictingSources is the conforming 0.2 tree supervised with sources s1
+// and s2 whose logs counted conflicts as given, and their rules.
+func conflictingSources(t *testing.T, s1, s2 uint64) map[string]string {
+	t.Helper()
+	customer := orderNo("42")
+	customer.Type = "crm_customer"
+	customer.Id = "c1"
+	x := acts(lookupOf("r1", 0, orderNo("42")), refundOf("r2", 10*time.Second, orderNo("42")).in(childRun),
+		act{call: call{req: "r3", tool: "send_mail", upstream: "mail", at: 20 * time.Second}, res: customer})
+	one, two := source(), source()
+	two.SourceID = "s2"
+	one.Conflicts, two.Conflicts = s1, s2
+	tree := closedFamily()
+	res, err := supervise.Evaluate(supervise.Input{Procedure: inheritProc(t), Run: tree[0], Tree: tree,
+		Exports: []supervise.Export{x}, Sources: []supervise.Source{one, two}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	sameFindings(t, res.Findings)
+	return rules(res)
+}
+
+// TestASourceWhoseLogRefusedAConflictLeavesTheRulesThatReadReportsNotChecked:
+// a log keeps the first content an observation id arrives with and only
+// counts the others, so the copy a source's log refused may be the call a
+// rule that reads its reports looks for. Any conflict its import reports
+// count is doubt, whether or not the run's observations came from that
+// import; a source whose log counted none changes nothing.
+func TestASourceWhoseLogRefusedAConflictLeavesTheRulesThatReadReportsNotChecked(t *testing.T) {
+	all := everyRuleIs(checked)
+	for _, id := range []string{"RESOURCE_OUTSIDE_RUN", "DENIED_ACTION_RETRIED_ARGUMENTS",
+		"DENIED_ACTION_RETRIED_RESOURCE", "DENIED_ACTION_RETRIED_AROUND", "EXCEPTION_TAKEN"} {
+		all[id] = checked
+	}
+	if got := conflictingSources(t, 0, 0); !maps.Equal(got, all) {
+		t.Fatalf("no conflict: rules %v, want %v", got, all)
+	}
+	const tail = " is in doubt: an import found an observation id with two contents"
+	for name, c := range map[string]struct {
+		s1, s2 uint64
+		why    string
+	}{
+		"one in s2's log":  {0, 1, `source "s2"` + tail},
+		"many in s1's log": {7, 0, `source "s1"` + tail},
+		"in both logs":     {1, 1, `source "s1" and 1 more are in doubt: an import found an observation id with two contents`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			want := maps.Clone(all)
+			want["STEP_OUTSIDE_PROCEDURE"] = "RULE_STATE_NOT_CHECKED:" + c.why
+			want["DENIED_ACTION_RETRIED_AROUND"] = "RULE_STATE_NOT_CHECKED:" + c.why
+			want["EXCEPTION_TAKEN"] = "RULE_STATE_NOT_CHECKED:exceptions on STEP_OUTSIDE_PROCEDURE are not judged: " + c.why
+			if got := conflictingSources(t, c.s1, c.s2); !maps.Equal(got, want) {
+				t.Fatalf("rules %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+// TestALongSourceIDWithAConflictIsQuotedAndCut: the why quotes at most 64
+// bytes of the source id, as it does a request's.
+func TestALongSourceIDWithAConflictIsQuotedAndCut(t *testing.T) {
+	src := source()
+	src.SourceID, src.Conflicts = "s"+strings.Repeat("x", 12000), 1
+	res := evaluate(t, supervise.Input{Procedure: procWith(t), Run: supervise.Run{Closed: true},
+		Exports: []supervise.Export{export(conforming()...)}, Sources: []supervise.Source{src}})
+	want := `RULE_STATE_NOT_CHECKED:source "s` + strings.Repeat("x", 63) +
+		`" (truncated) is in doubt: an import found an observation id with two contents`
+	if got := rules(res)["STEP_OUTSIDE_PROCEDURE"]; got != want {
+		t.Fatalf("STEP_OUTSIDE_PROCEDURE %s, want %s", got, want)
+	}
+}
+
+// TestAFindingOnASourceWithAConflictIsIndeterminate: drop_table, reported by
+// s1 alone, is a call outside the procedure; once s1's log counted a
+// conflict the finding stands, indeterminate, since the refused copy may be
+// the one that was made.
+func TestAFindingOnASourceWithAConflictIsIndeterminate(t *testing.T) {
+	p := procWith(t)
+	for name, c := range map[string]struct {
+		conflicts uint64
+		verdict   controlv1.FindingVerdict
+	}{"no conflict": {0, suspected}, "a conflict": {1, indetermin}} {
+		t.Run(name, func(t *testing.T) {
+			src := source(ob{id: "obs-1", name: "drop_table", span: "1000000000000001", at: 40 * time.Second})
+			src.Conflicts = c.conflicts
+			res := evaluate(t, supervise.Input{Procedure: p, Exports: []supervise.Export{export(conforming()...)},
+				Sources: []supervise.Source{src}})
+			sameFindings(t, res.Findings, want(p, "STEP_OUTSIDE_PROCEDURE", medium, alert, c.verdict,
+				handID(tenant, proj, runID, "refund", "1", "STEP_OUTSIDE_PROCEDURE", "1", "drop_table"), obsRef("s1", "obs-1")))
 		})
 	}
 }

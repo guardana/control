@@ -58,6 +58,9 @@ type evaluation struct {
 	anySilent   bool
 	neverHeard  []string
 	lapsed      []string
+	// conflicted holds the sources whose logs refused a copy of an id they
+	// held with other content.
+	conflicted map[string]bool
 	// firsts holds firstOf's answer by step: the rules ask it per instance,
 	// and the instances do not change once read.
 	firsts map[int]first
@@ -127,7 +130,7 @@ func (e *evaluation) spanEvents() {
 // by then may simply not have arrived. A source named and not read reported
 // nothing that was read.
 func (e *evaluation) hearSources() {
-	e.silent = map[string]bool{}
+	e.silent, e.conflicted = map[string]bool{}, map[string]bool{}
 	e.anySilent = len(e.in.SourcesNotRead) > 0
 	for _, s := range e.in.Sources {
 		silent := !s.Heard
@@ -144,6 +147,9 @@ func (e *evaluation) hearSources() {
 		}
 		e.silent[s.SourceID] = silent
 		e.anySilent = e.anySilent || silent
+		if s.Conflicts > 0 {
+			e.conflicted[s.SourceID] = true
+		}
 	}
 }
 
@@ -237,8 +243,8 @@ func leastRequest(ins []*instance) *instance {
 }
 
 // obsRef cites an observation: it suggests at most, and nothing when its id
-// was read with two contents, its source is silent, or the join may have
-// missed it.
+// was read with two contents, its source is silent or its log counted a
+// conflict, or the join may have missed it.
 func (e *evaluation) obsRef(o *observev1.Observation) ref {
 	id := o.GetObservationId()
 	return ref{v: e.obsVerdict(o), r: &findingv1alpha1.Reference{Ref: &findingv1alpha1.Reference_Observation{
@@ -249,7 +255,8 @@ func (e *evaluation) obsRef(o *observev1.Observation) ref {
 // obsVerdict is the verdict obsRef cites o at.
 func (e *evaluation) obsVerdict(o *observev1.Observation) controlv1.FindingVerdict {
 	id := o.GetObservationId()
-	if e.rd.obsDoubt[id] || e.joinDoubt[id] || e.silent[e.rd.obsSource[id].SourceID] {
+	src := e.rd.obsSource[id].SourceID
+	if e.rd.obsDoubt[id] || e.joinDoubt[id] || e.silent[src] || e.conflicted[src] {
 		return indeterminate
 	}
 	return suspected
