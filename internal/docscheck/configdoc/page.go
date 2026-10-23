@@ -12,13 +12,17 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
 	adaptermcp "github.com/guardana/control/adapters/mcp"
 	"github.com/guardana/control/internal/brand"
+	"github.com/guardana/control/internal/classify"
 	"github.com/guardana/control/internal/docscheck/frontmatter"
 	"github.com/guardana/control/internal/gatewayconfig"
+	"github.com/guardana/control/pkg/contract"
 )
 
 // Generator is the script that writes the page, as the frontmatter names it.
@@ -50,7 +54,7 @@ func render(fields []gatewayconfig.Field, collections []gatewayconfig.Collection
 		Title:     title,
 		Summary:   summary,
 		Type:      "reference",
-		Covers:    []string{"internal/gatewayconfig/**", "cmd/" + brand.Gateway + "/**"},
+		Covers:    []string{"internal/gatewayconfig/**", "internal/classify/**", "cmd/" + brand.Gateway + "/**"},
 		Generated: Generator,
 	})
 	if err != nil {
@@ -108,6 +112,43 @@ func defaultOf(path string) (string, error) {
 	return "", fmt.Errorf("%s is not a key of the loader's table", path)
 }
 
+// classificationRule is what an override or a tool is refused for beyond its
+// table: a classification whose every call the contract would refuse.
+func classificationRule() string {
+	var needsID, needsZone []string
+	for _, name := range classify.EffectNames() {
+		effect, err := contract.ParseEffect(name)
+		if err != nil {
+			continue
+		}
+		requires := contract.EffectRequires(effect)
+		if slices.Contains(requires, "resource.id") {
+			needsID = append(needsID, "`"+name+"`")
+		}
+		if slices.Contains(requires, "destination.trust_zone") {
+			needsZone = append(needsZone, "`"+name+"`")
+		}
+	}
+	return "An entry of `overrides` or `tools` is refused when no call to its tool could carry\n" +
+		"an envelope the contract takes: `resource_type` is an identifier of at most " + strconv.Itoa(contract.MaxStringBytes) + " bytes,\n" +
+		"`resource_from` an RFC 6901 pointer of at most " + strconv.Itoa(classify.MaxPointerTokens) + " tokens of " + strconv.Itoa(classify.MaxPointerTokenSize) + " bytes, an effect whose\n" +
+		"envelope needs a resource id (" + joinAnd(needsID) + ") needs `resource_from`, and\n" +
+		joinAnd(needsZone) + " needs `trust_zone`; a tool's `name` and `provider` are identifiers of\n" +
+		"at most " + strconv.Itoa(contract.MaxStringBytes) + " bytes too. An identifier has no white space at either end, no space but\n" +
+		"U+0020 and no control, format or default-ignorable character."
+}
+
+// joinAnd joins names as a sentence lists them.
+func joinAnd(names []string) string {
+	switch len(names) {
+	case 0:
+		return "none"
+	case 1:
+		return names[0]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+}
+
 func lead(listDefault string) string {
 	return "# " + title + "\n\n" +
 		"The gateway reads one file, named by `--config`, and then the environment: a variable\n" +
@@ -124,14 +165,13 @@ func lead(listDefault string) string {
 		"provider needs `approvals.dir` and `approvals.hold_journal_dir`, and that journal\n" +
 		"directory may be neither the spool's nor the approvals directory, nor inside either;\n" +
 		"and `APPROVE` needs the `file` provider, since nothing outside the process answers a\n" +
-		"request held in memory. An `enforce_api` listener serves the enforcement API on the Unix\n" +
+		"request held in memory. " + classificationRule() + " An `enforce_api` listener serves the enforcement API on the Unix\n" +
 		"socket `listener.socket` names, at most 103 bytes as it resolves; the plane checks that\n" +
 		"the socket's directory is its own with no permission for group or others, and checks\n" +
 		"neither a macOS access control list on it nor a parent directory another account may\n" +
 		"write. It needs `runs.dir`, `listener.execution_lifetime`, from one\n" +
-		"second to an hour with no default, and at least one entry of `tools`, each name once\n" +
-		"and at most 1024 bytes, each `resource_from` an RFC 6901 pointer of at most 8 tokens of\n" +
-		"64 bytes; `listener.max_body_bytes` takes 1KiB to 256KiB, `listener.max_open_per_run` is\n" +
+		"second to an hour with no default, and at least one entry of `tools`, each name once;\n" +
+		"`listener.max_body_bytes` takes 1KiB to 256KiB, `listener.max_open_per_run` is\n" +
 		"positive and below `approvals.max_open`, and a tool's resource has the plane's\n" +
 		"`tenant_id` and `environment`. It refuses `listener.address`, `listener.origins`,\n" +
 		"`upstreams`, `overrides` and the `upstream.` and `list.` keys, and every other kind refuses\n" +

@@ -232,8 +232,9 @@ func checkUpstreams(upstreams []Upstream) (map[string]bool, error) {
 	return names, nil
 }
 
-// checkOverrides refuses an entry that cannot classify, and a second entry
-// for one upstream's tool, which the manifest would let replace the first.
+// checkOverrides refuses an entry that cannot classify, naming the key
+// classify.Check refuses, and a second entry for one upstream's tool, which
+// the manifest would let replace the first.
 func checkOverrides(overrides []Override, names map[string]bool) error {
 	type key struct{ upstream, tool string }
 	seen := make(map[key]int, len(overrides))
@@ -245,13 +246,11 @@ func checkOverrides(overrides []Override, names map[string]bool) error {
 		switch {
 		case !names[o.Upstream]:
 			return fmt.Errorf("%w: Overrides[%d] names no configured upstream", ErrOverride, i)
-		case o.Tool == "" || o.Fingerprint == "" || o.ResourceType == "":
-			return fmt.Errorf("%w: Overrides[%d] needs a tool, a fingerprint and a resource type", ErrOverride, i)
-		case o.Effect == controlv1.EffectClass_EFFECT_CLASS_UNSPECIFIED || o.Effect.Descriptor().Values().ByNumber(o.Effect.Number()) == nil:
-			return fmt.Errorf("%w: Overrides[%d] names no effect class", ErrOverride, i)
+		case o.Tool == "" || o.Fingerprint == "":
+			return fmt.Errorf("%w: Overrides[%d] needs a tool and a fingerprint", ErrOverride, i)
 		}
-		if err := checkPointer(o.ResourceFrom); err != nil {
-			return fmt.Errorf("overrides[%d]: %w", i, err)
+		if err := o.Check(); err != nil {
+			return fmt.Errorf("%w: Overrides[%d]: %w", ErrOverride, i, err)
 		}
 	}
 	return nil

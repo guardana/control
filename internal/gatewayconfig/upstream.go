@@ -44,10 +44,10 @@ func (c *Config) checkUpstream(i int) error {
 	return nil
 }
 
-// checkOverrides refuses a classification of a tool on a server this
-// configuration does not have, which would classify nothing and leave the
-// tool blocked, and a second classification of one upstream's tool, which
-// the adapter would let replace the first.
+// checkOverrides refuses a classification classify.Parse refuses, one of a
+// tool on a server this configuration does not have, which would classify
+// nothing and leave the tool blocked, and a second classification of one
+// upstream's tool, which the adapter would let replace the first.
 func (c *Config) checkOverrides() error {
 	names := map[string]bool{}
 	for _, up := range c.Upstreams {
@@ -60,6 +60,9 @@ func (c *Config) checkOverrides() error {
 		at := fmt.Sprintf("overrides.%d.", i)
 		if err := checkRequired(o, overrideFields, at); err != nil {
 			return err
+		}
+		if _, err := o.Classification(); err != nil {
+			return fmt.Errorf("%s%w", at, err)
 		}
 		if !names[o.Upstream] {
 			return fmt.Errorf("%supstream: %s is not a configured upstream", at, quoteValue(o.Upstream))

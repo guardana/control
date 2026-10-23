@@ -66,3 +66,5 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0055](0055-a-call-is-handed-out-only-while-its-policy-stands.md) | A call is handed out only while the policy it was decided under stands |
 | [0056](0056-a-coding-runtimes-hooks-reach-the-plane-through-one-bridge.md) | A coding runtime's hooks reach the plane through one bridge, by value |
 | [0057](0057-an-external-mcp-client-runs-the-guide-on-every-pull-request.md) | An MCP client outside the Go SDK runs the guide on every pull request |
+| [0059](0059-a-tools-classification-is-one-type-checked-when-it-loads.md) | A tool's classification is one type, checked when it loads |
+| [0060](0060-pkg-contract-exports-what-each-effect-class-requires.md) | `pkg/contract` exports what each effect class requires |

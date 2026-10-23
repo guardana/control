@@ -139,7 +139,8 @@ var _ gateway.Adapter = (*Adapter)(nil)
 // an authenticator on stdio, a listener without an identity, a run token
 // source that does not fit the listener, an upstream
 // without a name or a transport, two upstreams with one name, an override
-// that names no known upstream or is incomplete, a shaping it does not know,
+// that names no known upstream, is incomplete or carries a classification
+// classify.Check refuses, a shaping it does not know,
 // a negative call or list timeout, and a nil clock, id source or secret set.
 func New(cfg Config) (*Adapter, error) {
 	if err := checkConfig(cfg); err != nil {

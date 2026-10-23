@@ -103,6 +103,22 @@ verify one.
   deadlines, coverage's join and others. The status page, roadmap and backlog
   stop describing the Python client and the hook bridge as planned, and
   ADR-0050 is marked accepted, as it was on merging.
+- A gateway configuration refuses a tool classification no envelope could
+  carry, naming the key, where before it loaded and every call to the tool was
+  refused: a `WRITE`, `DELETE`, `CONFIGURE`, `TRANSACT` or
+  `IDENTITY_OR_ACCESS` override or tool without `resource_from`, a
+  `COMMUNICATE` one without `trust_zone`, a `resource_type`, tool `name` or
+  `provider` with white space at an end or a control, format or
+  default-ignorable character, an override's `resource_type` past 1024 bytes,
+  and, in `coverage`, an override's `resource_from` that is not an RFC 6901
+  pointer within its bounds. In every mode, `OBSERVE` included, each call to
+  such a tool was blocked before it was sent. `mcp.New` and `enforce.New`
+  refuse the same, and the wording of these
+  refusals now names the configuration key
+  ([ADR-0059](docs/adr/0059-a-tools-classification-is-one-type-checked-when-it-loads.md)).
+- `pkg/contract` exports `EffectRequires`, what `Validate` requires of each
+  effect class
+  ([ADR-0060](docs/adr/0060-pkg-contract-exports-what-each-effect-class-requires.md)).
 
 ## [0.13.0] - 2026-10-20
 

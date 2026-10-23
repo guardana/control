@@ -30,12 +30,12 @@ func declaredSensitivities() []controlv1.Sensitivity {
 }
 
 // TestWhatAToolReturnsReachesThePipelineApartFromTheLabels: over every
-// declared result trust and sensitivity and three destinations, the admission
+// declared result trust and sensitivity and two destinations, the admission
 // carries the override's classification of the result as it was declared, and
 // the envelope carries no data label and the destination unrelaxed. A
 // destination the operator trusts says nothing about what the tool returns.
 func TestWhatAToolReturnsReachesThePipelineApartFromTheLabels(t *testing.T) {
-	for _, destination := range []controlv1.TrustZone{0, controlv1.TrustZone_TRUST_ZONE_PARTNER, zoneExternal} {
+	for _, destination := range []controlv1.TrustZone{controlv1.TrustZone_TRUST_ZONE_PARTNER, zoneExternal} {
 		for _, trust := range declaredZones() {
 			for _, read := range declaredSensitivities() {
 				overrides := func(v *victim, t *testing.T) []mcp.Override {

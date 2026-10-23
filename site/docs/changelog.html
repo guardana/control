@@ -210,6 +210,22 @@ shutdown of an enforcement API plane, the collector's 415, the hook's
 deadlines, coverage's join and others. The status page, roadmap and backlog
 stop describing the Python client and the hook bridge as planned, and
 ADR-0050 is marked accepted, as it was on merging.</li>
+<li>A gateway configuration refuses a tool classification no envelope could
+carry, naming the key, where before it loaded and every call to the tool was
+refused: a <code>WRITE</code>, <code>DELETE</code>, <code>CONFIGURE</code>, <code>TRANSACT</code> or
+<code>IDENTITY_OR_ACCESS</code> override or tool without <code>resource_from</code>, a
+<code>COMMUNICATE</code> one without <code>trust_zone</code>, a <code>resource_type</code>, tool <code>name</code> or
+<code>provider</code> with white space at an end or a control, format or
+default-ignorable character, an override's <code>resource_type</code> past 1024 bytes,
+and, in <code>coverage</code>, an override's <code>resource_from</code> that is not an RFC 6901
+pointer within its bounds. In every mode, <code>OBSERVE</code> included, each call to
+such a tool was blocked before it was sent. <code>mcp.New</code> and <code>enforce.New</code>
+refuse the same, and the wording of these
+refusals now names the configuration key
+(<a href="/docs/adr/0059-a-tools-classification-is-one-type-checked-when-it-loads">ADR-0059</a>).</li>
+<li><code>pkg/contract</code> exports <code>EffectRequires</code>, what <code>Validate</code> requires of each
+effect class
+(<a href="/docs/adr/0060-pkg-contract-exports-what-each-effect-class-requires">ADR-0060</a>).</li>
 </ul>
 <h2 id="0130---2026-10-20"><a href="https://github.com/guardana/control/releases/tag/v0.13.0">0.13.0</a> - 2026-10-20</h2>
 <p>A coding runtime's tool hooks can now reach a plane's <code>experimental</code>

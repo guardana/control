@@ -1,6 +1,7 @@
 package contract_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -199,4 +200,52 @@ func declaredValues(t *testing.T, values protoreflect.EnumValueDescriptors) []pr
 		out = append(out, values.Get(i))
 	}
 	return out
+}
+
+// TestEffectRequiresIsWhatValidateRequires: the export lists, per declared
+// class, the provider a material class needs and then the class's row, and a
+// class this build cannot name gets the material default alone. Each list is
+// held to Validate both ways: an envelope carrying the list and nothing more
+// is accepted, and one missing any entry is refused naming that entry.
+func TestEffectRequiresIsWhatValidateRequires(t *testing.T) {
+	for effect, row := range effectsUnderTest() {
+		want := row
+		if materialityUnderTest()[effect] {
+			want = append([]string{"action.provider"}, row...)
+		}
+		got := contract.EffectRequires(effect)
+		if !slices.Equal(got, want) {
+			t.Errorf("EffectRequires(%s) = %v, want %v", effect, got, want)
+		}
+		env := satisfying(effect, row)
+		if err := contract.Validate(env); err != nil {
+			t.Fatalf("%s: an envelope carrying the list is refused, so the negatives prove nothing: %v", effect, err)
+		}
+		for _, path := range got {
+			env := satisfying(effect, row)
+			clearPath(t, env, path)
+			assertRefused(t, contract.Validate(env), contract.ErrMissingField, path)
+		}
+	}
+	for _, number := range []int32{10, 99, -1} {
+		if got := contract.EffectRequires(controlv1.EffectClass(number)); !slices.Equal(got, []string{"action.provider"}) {
+			t.Errorf("EffectRequires(%d) = %v, want the material default alone", number, got)
+		}
+	}
+}
+
+// TestEffectRequiresHandsOutACopy: a caller that edits the list it was given
+// changes neither the next answer nor what Validate requires.
+func TestEffectRequiresHandsOutACopy(t *testing.T) {
+	write := controlv1.EffectClass_EFFECT_CLASS_WRITE
+	first := contract.EffectRequires(write)
+	for i := range first {
+		first[i] = "request_id"
+	}
+	if got := contract.EffectRequires(write); slices.Contains(got, "request_id") {
+		t.Errorf("an edit of one answer reached the next: %v", got)
+	}
+	env := satisfying(write, effectsUnderTest()[write])
+	env.Resource.Id = ""
+	assertRefused(t, contract.Validate(env), contract.ErrMissingField, "resource.id")
 }
