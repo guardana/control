@@ -63,7 +63,7 @@ checked, findings kept. Everything else is counted and left out.
 
 The procedure, descriptors and evidence exports must be regular
 files of this account that only it can write: a `CONFIRMED` finding rests on
-the export being the plane's, and nothing else protects that.
+the export being the plane's.
 
 ## The rules
 
@@ -91,10 +91,11 @@ an export; a retry confirms only when one export holds both.
 
 The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it `CONFIRMED`; an observation makes it `SUSPECTED`; a record in doubt,
-`INDETERMINATE`. A request with two copies or a broken chain leaves no rule
-checked; an observation with two contents, or a judged run a source's log
-doubts, while it holds that report ([observations](observations.md#the-log)),
-leaves `STEP_OUTSIDE_PROCEDURE` and `DENIED_ACTION_RETRIED_AROUND` not checked.
+`INDETERMINATE`. So are a silent source's observations. A request with two
+copies or a broken chain leaves no rule checked; an observation with two
+contents, or a judged run a log doubts, while it holds that report
+([observations](observations.md#the-log)), leaves `STEP_OUTSIDE_PROCEDURE`
+and `DENIED_ACTION_RETRIED_AROUND` not checked.
 The step rules rest on something not seen:
 `SUSPECTED` at most, `INDETERMINATE` while a `--source` is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.

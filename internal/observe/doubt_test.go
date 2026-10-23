@@ -119,6 +119,9 @@ func TestADoubtOfNoRunOrPastItsBoundIsEveryRun(t *testing.T) {
 			d.ClaimOf(&observev1.Observation{Correlation: &observev1.Correlation{Basis: observev1.Basis_BASIS_NONE}})
 		},
 		"a report of every run": func(d *observe.Doubt) { d.Merge(&observev1.ImportReport{EveryRunDoubted: true}) },
+		"a report counting a refusal, naming no run": func(d *observe.Doubt) {
+			d.Merge(&observev1.ImportReport{Counts: &observev1.ImportCounts{Refused: 1}})
+		},
 		"a 65th run": func(d *observe.Doubt) {
 			for _, run := range runsUpTo(65) {
 				d.Claim(run)

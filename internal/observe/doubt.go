@@ -45,9 +45,9 @@ func (d *Doubt) ClaimOf(o *observev1.Observation) {
 	d.Claim(o.GetCorrelation().GetRunId())
 }
 
-// Merge adds what r already puts in doubt.
+// Merge adds what r already puts in doubt, as DoubtedRuns reads it.
 func (d *Doubt) Merge(r *observev1.ImportReport) {
-	if r.GetEveryRunDoubted() {
+	if doubtsEveryRun(r) {
 		d.every, d.runs = true, nil
 	}
 	for _, run := range r.GetDoubtedRunIds() {
@@ -75,8 +75,7 @@ func DoubtedRuns(records []*observev1.Record) (bool, []string) {
 	runs := map[string]bool{}
 	for _, rec := range records {
 		r := rec.GetImportReport()
-		counted := r.GetCounts().GetRefused() > 0 || r.GetCounts().GetConflict() > 0
-		if r.GetEveryRunDoubted() || (counted && len(r.GetDoubtedRunIds()) == 0) {
+		if doubtsEveryRun(r) {
 			return true, nil
 		}
 		for _, run := range r.GetDoubtedRunIds() {
@@ -84,6 +83,13 @@ func DoubtedRuns(records []*observev1.Record) (bool, []string) {
 		}
 	}
 	return false, slices.Sorted(maps.Keys(runs))
+}
+
+// doubtsEveryRun reports a report that puts every run in doubt: one that
+// says so, or one that counts a refused span or a conflict and names no run.
+func doubtsEveryRun(r *observev1.ImportReport) bool {
+	counted := r.GetCounts().GetRefused() > 0 || r.GetCounts().GetConflict() > 0
+	return r.GetEveryRunDoubted() || (counted && len(r.GetDoubtedRunIds()) == 0)
 }
 
 // checkDoubt holds a report's runs in doubt to the one form a writer gives

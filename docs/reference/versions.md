@@ -78,12 +78,12 @@ wrote is not promised readable.
   trailer's `identity` says which.
 - **Observation records and the source descriptor.** Only the minors in the
   reader's table are read; another `0.x` is refused rather than read as the
-  nearest one. An import report is `0.2` exactly when it names runs in doubt,
-  and a reader of `0.1` alone, such as an earlier release's, refuses that
-  line. The observation export carries each report's line as the log holds
-  it, so its reader meets `0.2` import reports inside an export whose own
-  version stays `0.1`; an earlier release's export counts such a line as an
-  `unsupported_version` gap.
+  nearest one. An import report is `0.2` exactly when it names runs in doubt
+  or sets `every_run_doubted`, and a reader of `0.1` alone, such as an
+  earlier release's, refuses that line. The observation export carries each
+  report's line as the log holds it, so its reader meets `0.2` import
+  reports inside an export whose own version stays `0.1`; an earlier
+  release's export counts such a line as an `unsupported_version` gap.
 
 `internal/docscheck/versions_test.go` holds the table to the constants and
 readers in the code. It fails when a version changes there, when a format is

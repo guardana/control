@@ -208,12 +208,14 @@ func reportLine(report *observev1.ImportReport, found Written, doubt *observe.Do
 	if !ok {
 		return nil, fmt.Errorf("%w: the import report does not copy", ErrRecord)
 	}
+	// Merged before this write's own conflicts are counted, which doubt
+	// already names, so they are not read as conflicts that name no run.
+	doubt.Merge(r)
 	if r.Counts == nil {
 		r.Counts = &observev1.ImportCounts{}
 	}
 	r.Counts.Duplicate += uint64(found.Duplicates) //nolint:gosec // G115: a count is never negative
 	r.Counts.Conflict += uint64(found.Conflicts)   //nolint:gosec // G115: a count is never negative
-	doubt.Merge(r)
 	doubt.Fill(r)
 	line, err := observe.MarshalLine(&observev1.Record{Record: &observev1.Record_ImportReport{ImportReport: r}})
 	if err != nil {

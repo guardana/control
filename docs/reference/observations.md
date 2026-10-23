@@ -101,7 +101,8 @@ event time not later than a report's receive time.
 A span the import refused was never written, and of a conflict's two copies
 either may be the false one, so each may hide a call of the run it claimed.
 The report's `doubted_run_ids` names those runs, ascending, at most 64: a
-refused span's, and both copies' of a conflict. A refused span or a
+refused span's, and both copies' of a conflict, save a kept copy that claims
+no run, which adds none. A refused span or a
 conflict's refused copy that claims no run, a line refused before its spans
 are read, or a 65th run sets `every_run_doubted` instead. A report that counts
 a refusal or a conflict and names no run, as a `0.1` report does, is read as

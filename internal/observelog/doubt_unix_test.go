@@ -172,3 +172,32 @@ func TestTheExportCarriesA02ReportAsARecord(t *testing.T) {
 		t.Errorf("a 0.2 report naming no run is a %q gap, want %q", got, gapMalformed)
 	}
 }
+
+// TestAReportOfEveryRunStaysSoThroughAConflict: a caller's 0.1 report that
+// counts a refused span and names no run doubts every run, and a conflict
+// the write finds does not narrow it to the conflict's runs. The write's
+// own conflicts, which it names, are not read as unnamed ones.
+func TestAReportOfEveryRunStaysSoThroughAConflict(t *testing.T) {
+	for name, c := range map[string]struct {
+		counts *observev1.ImportCounts
+		every  bool
+		runs   []string
+	}{
+		"a refusal named by no run":  {&observev1.ImportCounts{Read: 1, Refused: 1}, true, nil},
+		"a conflict named by no run": {&observev1.ImportCounts{Read: 1, Conflict: 1}, true, nil},
+		"nothing refused":            {&observev1.ImportCounts{Read: 1}, false, []string{runX, runY}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := logDir(t)
+			l := openLog(t, dir)
+			write(t, l, report("2026-10-04T10:05:00Z"), claiming(spanA, "read_file", runY))
+			rep := report("2026-10-04T10:06:00Z")
+			rep.Counts = c.counts
+			write(t, l, rep, claiming(spanA, "drop_table", runX))
+			got := lastReport(t, dir)
+			if got.GetEveryRunDoubted() != c.every || !slices.Equal(got.GetDoubtedRunIds(), c.runs) || got.GetSchemaVersion() != "0.2" {
+				t.Fatalf("schema %s, every %v, runs %v; want 0.2, %v, %v", got.GetSchemaVersion(), got.GetEveryRunDoubted(), got.GetDoubtedRunIds(), c.every, c.runs)
+			}
+		})
+	}
+}

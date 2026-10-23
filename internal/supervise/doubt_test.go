@@ -394,3 +394,46 @@ func TestEveryCauseThatCutsARuleIsNamed(t *testing.T) {
 		}
 	}
 }
+
+// TestARequestInDoubtJoinsTheOtherCauses: a request in doubt cuts every rule,
+// and a rule that reads reports names the source in doubt after it rather
+// than the request alone.
+func TestARequestInDoubtJoinsTheOtherCauses(t *testing.T) {
+	x := export(compliant()...)
+	x.Events[len(x.Events)-1].PrevEventId = "r3-e9"
+	src := source()
+	src.EveryRunDoubted = true
+	res := evaluate(t, supervise.Input{Procedure: procWith(t), Run: supervise.Run{Closed: true},
+		Exports: []supervise.Export{x}, Sources: []supervise.Source{src}})
+	want := map[string]string{
+		"STEP_OUTSIDE_PROCEDURE": `RULE_STATE_NOT_CHECKED:request "r3" is in doubt; source "s1"` + refusedTail,
+		"REQUIRED_STEP_SKIPPED":  `RULE_STATE_NOT_CHECKED:request "r3" is in doubt`,
+	}
+	for rule, w := range want {
+		if got := rules(res)[rule]; got != w {
+			t.Errorf("%s %s, want %s", rule, got, w)
+		}
+	}
+}
+
+// TestARuleNotCheckedNamesEveryDoubtAfterItsReason: DENIED_ACTION_RETRIED_AROUND,
+// not checked while s1 is silent, names after that reason both doubts, s2's
+// refused copy and s1's cut walk, in order.
+func TestARuleNotCheckedNamesEveryDoubtAfterItsReason(t *testing.T) {
+	const walk = "a span walk ran out of steps, so a source's report may be a plane call"
+	silent := chain(supervise.MaxWalkSteps+1, ob{id: "obs-top", name: "search_docs"}, observev1.SubjectKind_SUBJECT_KIND_AGENT, "mcp_call")
+	silent.LastHeard = t0.Add(-time.Hour)
+	doubted := doubting(true)
+	doubted.SourceID, doubted.HeartbeatSeconds, doubted.LastHeard, doubted.Heard = "s2", 300, t0.Add(time.Hour), true
+	tree := closedFamily()
+	foot := act{call: call{req: "r5", tool: "search_docs", upstream: "docs", span: spanAt(supervise.MaxWalkSteps), at: 5 * time.Second}}
+	res, err := supervise.Evaluate(supervise.Input{Procedure: inheritProc(t), Run: tree[0], Tree: tree,
+		Exports: []supervise.Export{acts(lookupOf("r1", 0, orderNo("42")), foot)}, Sources: []supervise.Source{silent, doubted}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	want := `RULE_STATE_NOT_CHECKED:a source is silent, never heard or not read; source "s2"` + refusedTail + "; " + walk
+	if got := rules(res)["DENIED_ACTION_RETRIED_AROUND"]; got != want {
+		t.Errorf("DENIED_ACTION_RETRIED_AROUND %s, want %s", got, want)
+	}
+}
