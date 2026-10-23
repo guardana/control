@@ -570,61 +570,6 @@ reviewer_limit_problems() {
         else [] end))[]' <<<"${bodies}"
 }
 
-# codeowners_regex <pattern>; a CODEOWNERS pattern with its leading and
-# trailing slash taken off, as an extended regular expression read the way
-# GitHub reads it: * and ? within one path segment, ** across segments, and
-# the path itself or anything under it unless its last segment is a glob.
-codeowners_regex() {
-  local pattern="$1" out="" i c
-  for ((i = 0; i < ${#pattern}; i++)); do
-    c="${pattern:i:1}"
-    case "${c}" in
-      '*')
-        if [[ "${pattern:i+1:1}" == '*' ]]; then
-          out+='.*'
-          i=$((i + 1))
-        else
-          out+='[^/]*'
-        fi
-        ;;
-      '?') out+='[^/]' ;;
-      '.' | '^' | '$' | '+' | '(' | ')' | '{' | '}' | '|' | '[' | ']' | "\\") out+="\\${c}" ;;
-      *) out+="${c}" ;;
-    esac
-  done
-  # A pattern whose last segment is a glob names files there, not below them.
-  case "${pattern##*/}" in
-    *'*'* | *'?'*) printf '^%s$' "${out}" ;;
-    *) printf '^%s(/.*)?$' "${out}" ;;
-  esac
-}
-
-# security_unowned <CODEOWNERS file>; prints each TWO_APPROVAL_PATHS entry,
-# its /** taken off, that no pattern the file gives to
-# @guardana/security-maintainers covers, read as codeowners_regex reads it.
-# A file that gives them nothing fails.
-security_unowned() {
-  local file="$1" owned path pattern re covered
-  owned="$(awk '$1 !~ /^#/ && $2 == "@guardana/security-maintainers" {
-    p = $1; sub(/^\//, "", p); sub(/\/$/, "", p); print p }' "${file}")" || return 1
-  if [[ -z "${owned}" ]]; then
-    printf 'github-settings: %s gives nothing to @guardana/security-maintainers\n' "${file}" >&2
-    return 1
-  fi
-  for path in "${TWO_APPROVAL_PATHS[@]}"; do
-    path="${path%/\*\*}"
-    covered=0
-    while IFS= read -r pattern; do
-      re="$(codeowners_regex "${pattern}")"
-      if [[ "${path}" =~ ${re} ]]; then
-        covered=1
-        break
-      fi
-    done <<<"${owned}"
-    ((covered == 1)) || printf '%s\n' "${path}"
-  done
-}
-
 # environment_json <maintainers team id>; a job deploys to either environment
 # only from a v* tag and waits for a maintainer to approve it. One maintainer
 # may approve their own tag, and the admin may bypass the wait.

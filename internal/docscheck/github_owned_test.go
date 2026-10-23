@@ -5,79 +5,72 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
 
-// runSettings runs script with scripts/lib/github-settings.sh sourced, from
-// the repository's root.
-func runSettings(t *testing.T, script string, args ...string) (string, error) {
+const bootstrapScript = "scripts/github-bootstrap.sh"
+
+// TestTheBootstrapPreflightRunsTheCodeownersGate: the bootstrap's preflight
+// runs the test that gates CODEOWNERS, named by this package's function, and
+// passes only on that test's own PASS line, never on a run that tested
+// nothing.
+func TestTheBootstrapPreflightRunsTheCodeownersGate(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(repoRoot(t), bootstrapScript))
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := runtime.FuncForPC(reflect.ValueOf(TestCodeownersCoverTheGuardedTrees).Pointer()).Name()
+	name = name[strings.LastIndex(name, ".")+1:]
+	if !regexp.MustCompile(`(?m)^CODEOWNERS_TEST="` + name + `"$`).Match(data) {
+		t.Fatalf("%s does not set CODEOWNERS_TEST=%q", bootstrapScript, name)
+	}
+	preflight := regexp.MustCompile(`(?ms)^CODEOWNERS_TEST=.*?^require_security_owned\(\) \{.*?^\}$`).Find(data)
+	if preflight == nil {
+		t.Fatalf("%s: no require_security_owned after CODEOWNERS_TEST", bootstrapScript)
+	}
+	for _, c := range []struct {
+		out  string
+		rc   int
+		pass bool
+	}{
+		{"=== RUN   " + name + "\n--- PASS: " + name + " (0.42s)\nPASS", 0, true},
+		{"ok  \tgithub.com/guardana/control/internal/docscheck\t0.01s [no tests to run]", 0, false},
+		{"--- SKIP: " + name + " (0.00s)\nPASS", 0, false},
+		{"--- PASS: " + name + "Elsewhere (0.01s)\nPASS", 0, false},
+		{"--- PASS: " + name + " (0.42s)\nFAIL", 1, false},
+		{"--- FAIL: " + name + " (0.42s)\n    gives go.mod to [\"@all\"]\nFAIL", 1, false},
+	} {
+		out, err := runPreflight(t, string(preflight), c.out, c.rc)
+		if passed := err == nil && strings.Contains(out, "preflight: every two-approval path is owned"); passed != c.pass {
+			t.Errorf("go test printing %q, exit %d: preflight passed %v, want %v\n%s", c.out, c.rc, passed, c.pass, out)
+		}
+	}
+}
+
+// runPreflight runs require_security_owned with a go on PATH that prints out
+// and exits with rc.
+func runPreflight(t *testing.T, preflight, out string, rc int) (string, error) {
 	t.Helper()
 	bash, err := exec.LookPath("bash")
 	if err != nil {
 		t.Fatalf("bash is not on PATH: %v", err)
 	}
-	cmd := exec.Command(bash, append([]string{"-c", ". " + githubSettings + " && " + script, "settings"}, args...)...) //nolint:gosec // G204: bash from PATH sourcing this repository's own script
-	cmd.Dir = repoRoot(t)
-	var out, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &stderr
+	bin := t.TempDir()
+	stub := "#!/bin/sh\nprintf '%s\\n' \"$GO_STUB_OUT\"\nexit \"$GO_STUB_RC\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "go"), []byte(stub), 0o700); err != nil { //nolint:gosec // G306, G703: an executable stub in this test's own directory
+		t.Fatal(err)
+	}
+	cmd := exec.Command(bash, "-c", "set -euo pipefail\n"+preflight+"\nrequire_security_owned") //nolint:gosec // G204: bash from PATH running this repository's own function
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"REPO_ROOT="+cmd.Dir, "GO_STUB_OUT="+out, "GO_STUB_RC="+strconv.Itoa(rc))
+	var stdout bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stdout
 	err = cmd.Run()
-	return out.String() + stderr.String(), err
-}
-
-// TestTheBootstrapFindsEveryTwoApprovalPathOwned: the bootstrap's preflight
-// reads CODEOWNERS as GitHub does, so a path a glob gives to the security
-// maintainers, .golangci.yml under /.golangci.* among them, is owned, and a
-// CODEOWNERS that leaves one out names it.
-func TestTheBootstrapFindsEveryTwoApprovalPathOwned(t *testing.T) {
-	if out, err := runSettings(t, `security_unowned "$1"`, ".github/CODEOWNERS"); err != nil || out != "" {
-		t.Fatalf("security_unowned over .github/CODEOWNERS = %v, %q; want nothing", err, out)
-	}
-	data, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "CODEOWNERS"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var kept []string
-	for _, line := range strings.Split(string(data), "\n") {
-		if !strings.HasPrefix(line, "/.golangci.*") {
-			kept = append(kept, line)
-		}
-	}
-	if len(kept) == len(strings.Split(string(data), "\n")) {
-		t.Fatal(".github/CODEOWNERS holds no /.golangci.* line to leave out")
-	}
-	without := filepath.Join(t.TempDir(), "CODEOWNERS")
-	if err := os.WriteFile(without, []byte(strings.Join(kept, "\n")), 0o600); err != nil { //nolint:gosec // G703: a path in this test's own directory
-		t.Fatal(err)
-	}
-	if out, err := runSettings(t, `security_unowned "$1"`, without); err != nil || out != ".golangci.yml\n" {
-		t.Fatalf("security_unowned without /.golangci.* = %v, %q; want .golangci.yml", err, out)
-	}
-}
-
-func TestTheBootstrapReadsACodeownersPatternAsGitHubDoes(t *testing.T) {
-	for _, c := range []struct {
-		pattern, path string
-		owned         bool
-	}{
-		{".golangci.*", ".golangci.yml", true},
-		{".golangci.*", ".golangci/x.yml", false},
-		{"cmd/*", "cmd/a", true},
-		{"cmd/*", "cmd/a/b", false},
-		{"cmd/plane/build*.go", "cmd/plane/build_pipeline.go", true},
-		{"cmd/plane/build*.go", "cmd/plane/rebuild.go", false},
-		{"scripts", "scripts/lib/repo-files.sh", true},
-		{"scripts", "scriptsx", false},
-		{"**/x.go", "a/b/x.go", true},
-		{"go.mod", "go.mod", true},
-		{"go.mod", "goxmod", false},
-	} {
-		out, err := runSettings(t, `re="$(codeowners_regex "$1")" && [[ "$2" =~ ${re} ]] && echo owned || echo not`, c.pattern, c.path)
-		if err != nil {
-			t.Fatalf("%q ~ %q: %v %s", c.pattern, c.path, err, out)
-		}
-		if got := out == "owned\n"; got != c.owned {
-			t.Errorf("%q covers %q: %v, want %v", c.pattern, c.path, got, c.owned)
-		}
-	}
+	return stdout.String(), err
 }
