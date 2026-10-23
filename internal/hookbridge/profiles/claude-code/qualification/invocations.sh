@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2154 # qualify.sh, which sources this file, sets the variables it reads
 # How one case group and each of its invocations are prepared, run, bounded
 # and kept for the judge, and the prompts and inputs the cases give the
-# runtime. qualify.sh sources this file; it is not run on its own.
+# runtime. qualify.sh sources this file after plane.sh, which sets socket and
+# health; it is not run on its own. The guard names what it reads from both.
+: "${work?}" "${bin?}" "${plane?}" "${control?}" "${gateway?}" "${venv?}" "${py[0]?}" \
+  "${here?}" "${cases?}" "${events?}" "${profile?}" "${model?}" "${runtime?}" "${cap?}" \
+  "${token_var?}" "${socket?}" "${health?}"
 
 # A group is one project, one bridge state directory and one opened run; its
 # invocations share them. The run is the group's own, so the mismatch that

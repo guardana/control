@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2154 # qualify.sh, which sources this file, sets the variables it reads
 # The plane the qualification's cases run against: its keys, its signed policy,
 # statement and floors, the collector, and the MCP server mcp-matcher calls.
-# qualify.sh sources this file; it is not run on its own.
+# qualify.sh sources this file; it is not run on its own. The guard names what
+# it reads from qualify.sh, so shellcheck still catches a misspelt variable.
+: "${work?}" "${bin?}" "${plane?}" "${control?}" "${gateway?}" "${venv?}" "${py[0]?}"
 
 say "the plane: keys, a signed policy, its statement and floors"
 sockdir="${work}/s"

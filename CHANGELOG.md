@@ -112,7 +112,7 @@ verify one.
 
 ### Changed
 
-- `make check-sizes` holds Python and shell files to the size budget too,
+- `make check-sizes` holds `*.py` and `*.sh` files to the size budget too,
   tests included: above 350 non-blank lines warns, above 500 fails. The
   files that were over it are split, with nothing changed for a caller.
 - Statements on the public pages that the code contradicted are corrected:
