@@ -57,10 +57,12 @@ pointer loads, and the contract refuses every call to it with
   `contract.EffectRequires`, a class whose envelope needs `resource.id` with no
   pointer, or `destination.trust_zone` with the zero zone.
 - Its rule is that a classification `Check` accepts never makes `Validate`
-  refuse the envelope it supplies, and one `Check` refuses always does, given a
-  non-empty resource type, which every entry point required before. Nothing
-  else is refused: a pointer that names no member in a given call is that
-  call's to answer.
+  refuse the envelope it supplies. For the fields that reach the envelope the
+  converse holds too: given a non-empty resource type, which every entry point
+  required before, each refusal is one `Validate` would make of every call.
+  The returns zone and sensitivity never reach the envelope; an undeclared one
+  is refused because the run's flow state reads it. Nothing else is refused: a
+  pointer that names no member in a given call is that call's to answer.
 - A refusal is an `*Error` naming the key as the file spells it,
   `resource_from` or `returns.trust`; the loader prefixes `overrides.N.` or
   `tools.N.`, the adapters `Overrides[N]` or `tools[N]` beside their sentinel.
@@ -94,11 +96,20 @@ number and an `enforce.Tool` with a provider or resource type past 1024 bytes
 are refused by `New`. The refusals' wording changed: they name the key as the
 file spells it.
 
-None of them could let a call run. Neither adapter sends a call whose
-envelope the contract refuses, in any mode, `OBSERVE` included, so every call
-to such a tool was blocked before it was sent. The refusal moves from each call
-to the file, and a plane that holds such an entry stops starting until it is
-mended.
+None of the refusals of a field that reaches the envelope could let a call
+run. Neither adapter sends a call whose envelope the contract refuses, in any
+mode, `OBSERVE` included, so every call to such a tool was blocked before it
+was sent, an `mcp.Override` with an undeclared `TrustZone` among them. The
+refusal moves from each call to the file, and a plane that holds such an entry
+stops starting until it is mended.
+
+One refusal is a hardening of what ran. Through the Go API, an `mcp.Override`
+with an undeclared `ReturnsTrust` or `ReturnsSensitivity` loaded and its calls
+ran: those values feed the admission's result trust and sensitivity, not the
+envelope, and `SensitivityAtLeast` of an undeclared number against a floor is
+false, so the run's flow state under-reported what the call returned. `New`
+now refuses it. The configuration file could not spell such a value, and
+`enforce.New` refused it already.
 
 The rule holds what the contract requires today. A class a later minor adds,
 or a row the contract changes, changes what loads in the same build, because
@@ -127,8 +138,12 @@ are not in it. A new classification field is added once, here.
 ## Validation
 
 - `internal/classify`: `TestCheckAcceptsExactlyWhatValidateAccepts`, a property
-  over classes, pointers, zones and resource types, holds `Check` to `Validate`
-  both ways; `TestCheckRefusesAMissingFieldWhereValidateDoes` and
+  over every declared class and one undeclared number, an empty or a valid
+  pointer, every declared destination zone and one undeclared one, declared
+  returns values only, and resource types valid and invalid, holds `Check` to
+  `Validate` both ways over that domain; `TestCheckRefusesWhatNoEnvelopeCarries`
+  covers an invalid pointer and undeclared returns values, which `Validate`
+  never sees; `TestCheckRefusesAMissingFieldWhereValidateDoes` and
   `TestRequiresDelegationIsValidates` hold the requirements and the delegation
   rule to `Validate` per class; `FuzzParse` fuzzes the spelling;
   `TestTheClassificationIsDeclaredOnce` and its planted-file control hold the

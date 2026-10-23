@@ -27,8 +27,10 @@ an envelope the contract takes: `resource_type` is an identifier of at most 1024
 `resource_from` an RFC 6901 pointer of at most 8 tokens of 64 bytes, an effect whose
 envelope needs a resource id (`WRITE`, `DELETE`, `TRANSACT`, `IDENTITY_OR_ACCESS` and `CONFIGURE`) needs `resource_from`, and
 `COMMUNICATE` needs `trust_zone`; a tool's `name` and `provider` are identifiers of
-at most 1024 bytes too. An identifier has no white space at either end, no space but
-U+0020 and no control, format or default-ignorable character. An `enforce_api` listener serves the enforcement API on the Unix
+at most 1024 bytes too. An identifier is held to the contract's rule
+([contracts](../contracts.md#decoding-and-validation)): invalid UTF-8 is refused, and so
+are White_Space at either end and, anywhere, a space other than U+0020, a code point in
+Cc, Cf, Zl or Zp, or a Default_Ignorable_Code_Point. An `enforce_api` listener serves the enforcement API on the Unix
 socket `listener.socket` names, at most 103 bytes as it resolves; the plane checks that
 the socket's directory is its own with no permission for group or others, and checks
 neither a macOS access control list on it nor a parent directory another account may

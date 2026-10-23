@@ -23,9 +23,11 @@ configuration's checks drifted from the adapters'.
 
 `contract.EffectRequires(e)` returns the wire paths `Validate` requires of an
 envelope of class `e` beyond those every envelope needs, in the order it
-checks them: `action.provider` for a material class, then the class's row. A
-class this build does not declare gets the material default alone, which is
-what `IsMaterial` already says of it. The list is a fresh copy on every call.
+checks them: `action.provider` for a material class, then the class's row.
+The zero class starts with `action.effect`, which `Validate` refuses it for
+before it reads the list, so a reader that checks the list in order refuses
+the field `Validate` names. A class this build does not declare gets the
+material default alone, which is what `IsMaterial` already says of it. The list is a fresh copy on every call.
 `Validate` reads its requirements through the same function, so the export is
 the check, not a description of it.
 
@@ -56,5 +58,7 @@ renaming it is a major change.
 `TestEffectRequiresIsWhatValidateRequires` holds each class's list to a
 literal copy of the table and to `Validate` both ways: an envelope carrying the
 list is accepted, and one missing any entry is refused naming it.
-`TestEffectRequiresHandsOutACopy` edits an answer and checks the next one and
-`Validate`. `TestEffectTableIsDocumented` keeps the table on the page.
+`TestEffectRequiresOfTheZeroClassNamesTheEffect` holds the zero class's list
+to the field `Validate` refuses it for. `TestEffectRequiresHandsOutACopy`
+edits the answer for every declared class, the zero one included, and checks
+the next one and `Validate`. `TestEffectTableIsDocumented` keeps the table on the page.

@@ -234,17 +234,39 @@ func TestEffectRequiresIsWhatValidateRequires(t *testing.T) {
 	}
 }
 
-// TestEffectRequiresHandsOutACopy: a caller that edits the list it was given
-// changes neither the next answer nor what Validate requires.
+// TestEffectRequiresOfTheZeroClassNamesTheEffect: the zero class is refused
+// for its effect before anything else, so its list starts with the field
+// Validate names, and a reader of the list that checks it in order refuses
+// the same field.
+func TestEffectRequiresOfTheZeroClassNamesTheEffect(t *testing.T) {
+	unspecified := controlv1.EffectClass_EFFECT_CLASS_UNSPECIFIED
+	got := contract.EffectRequires(unspecified)
+	if want := []string{"action.effect", "action.provider"}; !slices.Equal(got, want) {
+		t.Errorf("EffectRequires(%s) = %v, want %v", unspecified, got, want)
+	}
+	env := satisfying(unspecified, nil)
+	assertRefused(t, contract.Validate(env), contract.ErrMissingField, got[0])
+}
+
+// TestEffectRequiresHandsOutACopy: for every declared class, the zero one
+// included, a caller that edits the list it was given changes neither the
+// next answer nor what Validate requires.
 func TestEffectRequiresHandsOutACopy(t *testing.T) {
+	for _, value := range declaredValues(t, controlv1.EffectClass(0).Descriptor().Values()) {
+		effect := controlv1.EffectClass(value.Number())
+		first := contract.EffectRequires(effect)
+		if len(first) == 0 {
+			t.Fatalf("EffectRequires(%s) is empty, so an edit of it proves nothing", effect)
+		}
+		want := slices.Clone(first)
+		for i := range first {
+			first[i] = "request_id"
+		}
+		if got := contract.EffectRequires(effect); !slices.Equal(got, want) {
+			t.Errorf("%s: an edit of one answer reached the next: %v, want %v", effect, got, want)
+		}
+	}
 	write := controlv1.EffectClass_EFFECT_CLASS_WRITE
-	first := contract.EffectRequires(write)
-	for i := range first {
-		first[i] = "request_id"
-	}
-	if got := contract.EffectRequires(write); slices.Contains(got, "request_id") {
-		t.Errorf("an edit of one answer reached the next: %v", got)
-	}
 	env := satisfying(write, effectsUnderTest()[write])
 	env.Resource.Id = ""
 	assertRefused(t, contract.Validate(env), contract.ErrMissingField, "resource.id")

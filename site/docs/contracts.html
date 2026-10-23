@@ -675,7 +675,10 @@ cannot name.</p>
 <p><code>EffectRequires(e)</code> lists the wire paths <code>Validate</code> requires of an envelope
 of class <code>e</code> beyond those every envelope needs, in the order it checks them:
 <code>action.provider</code> for a material class, then the class's row of the table
-above. A class this build cannot name gets <code>action.provider</code> alone. Each call
+above. <code>EFFECT_CLASS_UNSPECIFIED</code> gets <code>action.effect</code> first, the field
+<code>Validate</code> refuses it for before it reads the list, so a reader that checks
+the list in order refuses the same field. A class this build cannot name
+gets <code>action.provider</code> alone. Each call
 returns a fresh copy, and <code>Validate</code> reads its requirements through it. The
 gateway's configuration refuses a tool classification against it when it
 loads (<a href="/docs/adr/0060-pkg-contract-exports-what-each-effect-class-requires">ADR-0060</a>).</p>

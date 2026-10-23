@@ -134,8 +134,10 @@ func classificationRule() string {
 		"`resource_from` an RFC 6901 pointer of at most " + strconv.Itoa(classify.MaxPointerTokens) + " tokens of " + strconv.Itoa(classify.MaxPointerTokenSize) + " bytes, an effect whose\n" +
 		"envelope needs a resource id (" + joinAnd(needsID) + ") needs `resource_from`, and\n" +
 		joinAnd(needsZone) + " needs `trust_zone`; a tool's `name` and `provider` are identifiers of\n" +
-		"at most " + strconv.Itoa(contract.MaxStringBytes) + " bytes too. An identifier has no white space at either end, no space but\n" +
-		"U+0020 and no control, format or default-ignorable character."
+		"at most " + strconv.Itoa(contract.MaxStringBytes) + " bytes too. An identifier is held to the contract's rule\n" +
+		"([contracts](../contracts.md#decoding-and-validation)): invalid UTF-8 is refused, and so\n" +
+		"are White_Space at either end and, anywhere, a space other than U+0020, a code point in\n" +
+		"Cc, Cf, Zl or Zp, or a Default_Ignorable_Code_Point."
 }
 
 // joinAnd joins names as a sentence lists them.

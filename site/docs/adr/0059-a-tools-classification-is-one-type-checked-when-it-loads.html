@@ -161,10 +161,12 @@ sensitivity the contract does not declare; and, reading
 <code>contract.EffectRequires</code>, a class whose envelope needs <code>resource.id</code> with no
 pointer, or <code>destination.trust_zone</code> with the zero zone.</li>
 <li>Its rule is that a classification <code>Check</code> accepts never makes <code>Validate</code>
-refuse the envelope it supplies, and one <code>Check</code> refuses always does, given a
-non-empty resource type, which every entry point required before. Nothing
-else is refused: a pointer that names no member in a given call is that
-call's to answer.</li>
+refuse the envelope it supplies. For the fields that reach the envelope the
+converse holds too: given a non-empty resource type, which every entry point
+required before, each refusal is one <code>Validate</code> would make of every call.
+The returns zone and sensitivity never reach the envelope; an undeclared one
+is refused because the run's flow state reads it. Nothing else is refused: a
+pointer that names no member in a given call is that call's to answer.</li>
 <li>A refusal is an <code>*Error</code> naming the key as the file spells it,
 <code>resource_from</code> or <code>returns.trust</code>; the loader prefixes <code>overrides.N.</code> or
 <code>tools.N.</code>, the adapters <code>Overrides[N]</code> or <code>tools[N]</code> beside their sentinel.
@@ -196,11 +198,19 @@ refuses too.</li>
 number and an <code>enforce.Tool</code> with a provider or resource type past 1024 bytes
 are refused by <code>New</code>. The refusals' wording changed: they name the key as the
 file spells it.</p>
-<p>None of them could let a call run. Neither adapter sends a call whose
-envelope the contract refuses, in any mode, <code>OBSERVE</code> included, so every call
-to such a tool was blocked before it was sent. The refusal moves from each call
-to the file, and a plane that holds such an entry stops starting until it is
-mended.</p>
+<p>None of the refusals of a field that reaches the envelope could let a call
+run. Neither adapter sends a call whose envelope the contract refuses, in any
+mode, <code>OBSERVE</code> included, so every call to such a tool was blocked before it
+was sent, an <code>mcp.Override</code> with an undeclared <code>TrustZone</code> among them. The
+refusal moves from each call to the file, and a plane that holds such an entry
+stops starting until it is mended.</p>
+<p>One refusal is a hardening of what ran. Through the Go API, an <code>mcp.Override</code>
+with an undeclared <code>ReturnsTrust</code> or <code>ReturnsSensitivity</code> loaded and its calls
+ran: those values feed the admission's result trust and sensitivity, not the
+envelope, and <code>SensitivityAtLeast</code> of an undeclared number against a floor is
+false, so the run's flow state under-reported what the call returned. <code>New</code>
+now refuses it. The configuration file could not spell such a value, and
+<code>enforce.New</code> refused it already.</p>
 <p>The rule holds what the contract requires today. A class a later minor adds,
 or a row the contract changes, changes what loads in the same build, because
 the check reads the contract's own table.</p>
@@ -225,8 +235,12 @@ are not in it. A new classification field is added once, here.</p>
 <h2 id="validation">Validation</h2>
 <ul>
 <li><code>internal/classify</code>: <code>TestCheckAcceptsExactlyWhatValidateAccepts</code>, a property
-over classes, pointers, zones and resource types, holds <code>Check</code> to <code>Validate</code>
-both ways; <code>TestCheckRefusesAMissingFieldWhereValidateDoes</code> and
+over every declared class and one undeclared number, an empty or a valid
+pointer, every declared destination zone and one undeclared one, declared
+returns values only, and resource types valid and invalid, holds <code>Check</code> to
+<code>Validate</code> both ways over that domain; <code>TestCheckRefusesWhatNoEnvelopeCarries</code>
+covers an invalid pointer and undeclared returns values, which <code>Validate</code>
+never sees; <code>TestCheckRefusesAMissingFieldWhereValidateDoes</code> and
 <code>TestRequiresDelegationIsValidates</code> hold the requirements and the delegation
 rule to <code>Validate</code> per class; <code>FuzzParse</code> fuzzes the spelling;
 <code>TestTheClassificationIsDeclaredOnce</code> and its planted-file control hold the

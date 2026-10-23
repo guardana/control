@@ -128,9 +128,11 @@ configuration's checks drifted from the adapters'.</p>
 <h2 id="decision">Decision</h2>
 <p><code>contract.EffectRequires(e)</code> returns the wire paths <code>Validate</code> requires of an
 envelope of class <code>e</code> beyond those every envelope needs, in the order it
-checks them: <code>action.provider</code> for a material class, then the class's row. A
-class this build does not declare gets the material default alone, which is
-what <code>IsMaterial</code> already says of it. The list is a fresh copy on every call.
+checks them: <code>action.provider</code> for a material class, then the class's row.
+The zero class starts with <code>action.effect</code>, which <code>Validate</code> refuses it for
+before it reads the list, so a reader that checks the list in order refuses
+the field <code>Validate</code> names. A class this build does not declare gets the
+material default alone, which is what <code>IsMaterial</code> already says of it. The list is a fresh copy on every call.
 <code>Validate</code> reads its requirements through the same function, so the export is
 the check, not a description of it.</p>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
@@ -155,8 +157,10 @@ renaming it is a major change.</p>
 <p><code>TestEffectRequiresIsWhatValidateRequires</code> holds each class's list to a
 literal copy of the table and to <code>Validate</code> both ways: an envelope carrying the
 list is accepted, and one missing any entry is refused naming it.
-<code>TestEffectRequiresHandsOutACopy</code> edits an answer and checks the next one and
-<code>Validate</code>. <code>TestEffectTableIsDocumented</code> keeps the table on the page.</p>
+<code>TestEffectRequiresOfTheZeroClassNamesTheEffect</code> holds the zero class's list
+to the field <code>Validate</code> refuses it for. <code>TestEffectRequiresHandsOutACopy</code>
+edits the answer for every declared class, the zero one included, and checks
+the next one and <code>Validate</code>. <code>TestEffectTableIsDocumented</code> keeps the table on the page.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0060-pkg-contract-exports-what-each-effect-class-requires.md">docs/adr/0060-pkg-contract-exports-what-each-effect-class-requires.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.13.0, and <a href="https://github.com/guardana/control/tree/v0.13.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">

@@ -514,7 +514,10 @@ kernel, the matcher and the gateway call them.
 - `EffectRequires(e)` lists the wire paths `Validate` requires of an envelope
   of class `e` beyond those every envelope needs, in the order it checks them:
   `action.provider` for a material class, then the class's row of the table
-  above. A class this build cannot name gets `action.provider` alone. Each call
+  above. `EFFECT_CLASS_UNSPECIFIED` gets `action.effect` first, the field
+  `Validate` refuses it for before it reads the list, so a reader that checks
+  the list in order refuses the same field. A class this build cannot name
+  gets `action.provider` alone. Each call
   returns a fresh copy, and `Validate` reads its requirements through it. The
   gateway's configuration refuses a tool classification against it when it
   loads ([ADR-0060](adr/0060-pkg-contract-exports-what-each-effect-class-requires.md)).

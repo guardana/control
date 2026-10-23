@@ -237,6 +237,10 @@ func TestNewRefusesEachMisconfiguration(t *testing.T) {
 		{"pointer with a bare tilde", func(c *mcp.Config) { c.Overrides[0].ResourceFrom = "/a~2" }, mcp.ErrOverride},
 		{"pointer too deep", func(c *mcp.Config) { c.Overrides[0].ResourceFrom = deep }, mcp.ErrOverride},
 		{"pointer token too long", func(c *mcp.Config) { c.Overrides[0].ResourceFrom = longToken }, mcp.ErrOverride},
+		// What a tool returns feeds the run's flow state and never the
+		// envelope, so no call would refuse an undeclared value of it.
+		{"an undeclared returned trust", func(c *mcp.Config) { c.Overrides[0].ReturnsTrust = 6 }, mcp.ErrOverride},
+		{"an undeclared returned sensitivity", func(c *mcp.Config) { c.Overrides[0].ReturnsSensitivity = -1 }, mcp.ErrOverride},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
