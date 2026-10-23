@@ -57,11 +57,12 @@ lists its children, not judged. Plane events count when their run is judged
 and their tenant the run's. Observations count when their correlation is
 claimed, with such a run id, tenant and project. Only a tool call is a
 step, never a prompt or a resource read. An observation joined to a plane
-event by trace and span id is that call, not a second one. Everything else
-is counted and left out.
+event by trace and span id is that call, not a second one; a join cut short
+leaves `STEP_OUTSIDE_PROCEDURE` and `DENIED_ACTION_RETRIED_AROUND` not
+checked, findings kept. Everything else is counted and left out.
 
 The procedure, descriptors and evidence exports must be regular
-files only this account can write: a `CONFIRMED` finding rests on
+files of this account that only it can write: a `CONFIRMED` finding rests on
 the export being the plane's, and nothing else protects that.
 
 ## The rules
@@ -90,10 +91,9 @@ an export; a retry confirms only when one export holds both.
 
 The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it `CONFIRMED`; an observation makes it `SUSPECTED`; a record in doubt,
-`INDETERMINATE`. A request with two copies or a broken chain leaves
-no rule checked. A silent source's observations are in doubt. So is one with
-two contents, one a join cut short may miss, and a judged run its
-source's import reports doubt ([observations](observations.md#the-log)): each
+`INDETERMINATE`. A request with two copies or a broken chain leaves no rule
+checked; an observation with two contents, or a judged run a source's log
+doubts, while it holds that report ([observations](observations.md#the-log)),
 leaves `STEP_OUTSIDE_PROCEDURE` and `DENIED_ACTION_RETRIED_AROUND` not checked.
 The step rules rest on something not seen:
 `SUSPECTED` at most, `INDETERMINATE` while a `--source` is absent, never

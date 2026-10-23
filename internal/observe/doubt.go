@@ -55,19 +55,22 @@ func (d *Doubt) Merge(r *observev1.ImportReport) {
 	}
 }
 
-// Fill writes d into r, replacing what r said.
+// Fill writes d into r, replacing what r said, with the schema version its
+// members call for.
 func (d *Doubt) Fill(r *observev1.ImportReport) {
-	r.EveryRunDoubted, r.DoubtedRunIds = d.every, nil
+	r.SchemaVersion, r.EveryRunDoubted, r.DoubtedRunIds = SchemaVersion, d.every, nil
 	if !d.every && len(d.runs) > 0 {
 		r.DoubtedRunIds = slices.Sorted(maps.Keys(d.runs))
+	}
+	if added02(r) != "" {
+		r.SchemaVersion = SchemaVersion02
 	}
 }
 
 // DoubtedRuns reads what the import reports among records put in doubt,
 // whichever descriptor wrote each: every run, or the runs they name in
-// ascending order. A report that counts a refused span or a conflict and
-// names no run for it, as a report written before reports named them, puts
-// every run in doubt.
+// ascending order. A 0.1 report names no run, so one that counts a refused
+// span or a conflict puts every run in doubt.
 func DoubtedRuns(records []*observev1.Record) (bool, []string) {
 	runs := map[string]bool{}
 	for _, rec := range records {

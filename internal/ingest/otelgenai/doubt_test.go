@@ -46,6 +46,13 @@ func TestARefusedSpanPutsTheRunItClaimsInDoubt(t *testing.T) {
 			if r := b.Report; r.GetEveryRunDoubted() != c.every || !slices.Equal(r.GetDoubtedRunIds(), c.runs) {
 				t.Fatalf("every %v, runs %v; want %v, %v", r.GetEveryRunDoubted(), r.GetDoubtedRunIds(), c.every, c.runs)
 			}
+			version := "0.1"
+			if c.every || len(c.runs) > 0 {
+				version = "0.2"
+			}
+			if got := b.Report.GetSchemaVersion(); got != version {
+				t.Errorf("schema_version %q, want %q", got, version)
+			}
 		})
 	}
 }

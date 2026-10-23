@@ -207,32 +207,41 @@ func (tr supTree) importSpans(t *testing.T, descriptor, log, line string, confli
 // allowed call and then a call no step lists, under the same trace and span
 // id or in a span the import refuses, has its log keep the allowed call
 // alone. The run is not judged as if the log held all it was sent: while a
-// refused copy claimed the run, or no run, the rules that read the source's
-// reports are not checked and supervise exits 1. A refused copy of another
-// run leaves this one judged.
+// refused span, either copy of a conflict, or a refused copy of no run
+// claimed it, the rules that read the source's reports are not checked and
+// supervise exits 1. Copies that all claimed another run leave it judged.
 func TestSuperviseACopyTheImportRefusedIsNotAPass(t *testing.T) {
 	const why = `not checked: source "agent-runtime" is in doubt: an import refused a copy that may be a call of a run judged`
 	const other = "run-ffffffffffffffffffffffffffffffff"
 	end := supBase.Add(5 * time.Second)
+	call := func(tool, run string) string { return toolSpan("00f067aa0ba90001", tool, run, 1, end) }
+	refused := func(run string) string { return toolSpan("00f067aa0ba90002", "drop_table", run, 7, end) }
 	for name, c := range map[string]struct {
-		second                   func(run string) string
+		spans                    func(run string) []string
 		conflicts, refused, code int
 	}{
-		"the allowed call alone":          {nil, 0, 0, exitOK},
-		"a forbidden call, the same ids":  {func(run string) string { return toolSpan("00f067aa0ba90001", "drop_table", run, 1, end) }, 1, 0, exitFail},
-		"a forbidden call refused":        {func(run string) string { return toolSpan("00f067aa0ba90002", "drop_table", run, 7, end) }, 0, 1, exitFail},
-		"a forbidden call of no run":      {func(string) string { return toolSpan("00f067aa0ba90001", "drop_table", "", 1, end) }, 1, 0, exitFail},
-		"a forbidden call of another run": {func(string) string { return toolSpan("00f067aa0ba90001", "drop_table", other, 1, end) }, 1, 0, exitOK},
-		"a refused call of another run":   {func(string) string { return toolSpan("00f067aa0ba90002", "drop_table", other, 7, end) }, 0, 1, exitOK},
+		"the allowed call alone": {func(run string) []string { return []string{call("search_docs", run)} }, 0, 0, exitOK},
+		"a forbidden call, the same ids": {func(run string) []string {
+			return []string{call("search_docs", run), call("drop_table", run)}
+		}, 1, 0, exitFail},
+		"a forbidden call refused": {func(run string) []string { return []string{call("search_docs", run), refused(run)} }, 0, 1, exitFail},
+		"a forbidden call of no run": {func(run string) []string {
+			return []string{call("search_docs", run), call("drop_table", "")}
+		}, 1, 0, exitFail},
+		"a forbidden call of another run, the same ids as this run's": {func(run string) []string {
+			return []string{call("search_docs", run), call("drop_table", other)}
+		}, 1, 0, exitFail},
+		"two calls of another run, the same ids": {func(run string) []string {
+			return []string{call("search_docs", run), toolSpan("00f067aa0ba90003", "search_docs", other, 1, end),
+				toolSpan("00f067aa0ba90003", "drop_table", other, 1, end)}
+		}, 1, 0, exitOK},
+		"a refused call of another run": {func(run string) []string { return []string{call("search_docs", run), refused(other)} }, 0, 1, exitOK},
 	} {
 		t.Run(name, func(t *testing.T) {
 			tr := newSupTree(t)
 			writeFixture(t, tr.procedure, supProcedure02)
 			descriptor, log := tr.source(t)
-			spans := []string{toolSpan("00f067aa0ba90001", "search_docs", tr.run, 1, end)}
-			if c.second != nil {
-				spans = append(spans, c.second(tr.run))
-			}
+			spans := c.spans(tr.run)
 			tr.importSpans(t, descriptor, log, spansLine(spans...), c.conflicts, c.refused)
 			x := tr.export(t, tr.run, supBase, conformingCalls()...)
 			tr.closeRun(t, tr.run)

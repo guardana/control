@@ -164,11 +164,13 @@ an observation of that run is <code>INDETERMINATE</code>. The log kept the first
 content of an id and only counted the other, and a refused span was only
 counted, so an agent that sent an allowed call and then a forbidden one,
 under the same trace and span id or in a span the import refuses, passed
-with exit 0. An import report names the runs those copies claimed in
-<code>doubted_run_ids</code>, at most 64, or sets <code>every_run_doubted</code> for a copy that
-claims none, a line refused whole or a 65th run; an earlier report that
-counts either and names no run doubts every run. A build without these
-members refuses a log that holds them.</li>
+with exit 0. An import report names the runs those copies claimed, both
+copies' of a conflict, in <code>doubted_run_ids</code>, at most 64, or sets
+<code>every_run_doubted</code> for a refused copy that claims none, a line refused
+whole or a 65th run; a report carrying either is schema <code>0.2</code>, which a
+<code>0.1</code>-only reader refuses, and a <code>0.1</code> report that counts a refusal or a
+conflict doubts every run. Such a doubt lasts until the log is rotated by
+hand. A rule cut for several reasons names each.</li>
 <li><code>supervise --view</code> draws a call that came through the enforcement API,
 protocol <code>enforce</code>, as decided, not enforced, in every mode, as <code>coverage</code>
 already holds it; it was drawn enforced under <code>ENFORCE</code>.</li>

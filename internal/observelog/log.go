@@ -194,10 +194,15 @@ func (l *Log) Write(obs []*observev1.Observation, report *observev1.ImportReport
 }
 
 // reportLine encodes a copy of report with found's duplicates and conflicts
-// added to its counts, and doubt's runs to its runs in doubt.
+// added to its counts, and doubt's runs to its runs in doubt. report itself
+// must be one the codec writes, so runs in doubt it names in another form
+// are refused rather than put in order.
 func reportLine(report *observev1.ImportReport, found Written, doubt *observe.Doubt) ([]byte, error) {
 	if report == nil {
 		return nil, fmt.Errorf("%w: no import report", ErrRecord)
+	}
+	if _, err := observe.MarshalLine(&observev1.Record{Record: &observev1.Record_ImportReport{ImportReport: report}}); err != nil {
+		return nil, fmt.Errorf("%w: the import report: %w", ErrRecord, err)
 	}
 	r, ok := proto.Clone(report).(*observev1.ImportReport)
 	if !ok {

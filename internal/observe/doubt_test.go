@@ -38,14 +38,52 @@ func TestTheCodecHoldsARunsInDoubtToOneForm(t *testing.T) {
 		"a run id and none after": {[]string{runN(1), ""}, false, "doubted_run_ids[1]"},
 	} {
 		r := fixtureReport()
-		r.DoubtedRunIds, r.EveryRunDoubted = c.runs, c.every
+		r.SchemaVersion, r.DoubtedRunIds, r.EveryRunDoubted = "0.2", c.runs, c.every
 		checkBothWays(t, name, reportRecord(r), c.member)
 	}
 }
 
-func filled(d *observe.Doubt) (bool, []string) {
-	r := &observev1.ImportReport{DoubtedRunIds: []string{runN(99)}, EveryRunDoubted: true}
+// TestARecordIsSchema02ExactlyWhenItCarriesAMemberOf02: a report naming runs
+// in doubt is "0.2", one naming none "0.1", and an observation always "0.1";
+// each mixed form is refused by name.
+func TestARecordIsSchema02ExactlyWhenItCarriesAMemberOf02(t *testing.T) {
+	report := func(version string, every bool, runs ...string) *observev1.Record {
+		r := fixtureReport()
+		r.SchemaVersion, r.EveryRunDoubted, r.DoubtedRunIds = version, every, runs
+		return reportRecord(r)
+	}
+	observation := fixtureObservation()
+	observation.SchemaVersion = "0.2"
+	for name, c := range map[string]struct {
+		r      *observev1.Record
+		member string
+	}{
+		"0.1 naming no run":      {report("0.1", false), ""},
+		"0.2 naming a run":       {report("0.2", false, runN(1)), ""},
+		"0.2 doubting every run": {report("0.2", true), ""},
+		"0.1 naming a run":       {report("0.1", false, runN(1)), `doubted_run_ids: not a member of schema "0.1"`},
+		"0.1 doubting every run": {report("0.1", true), `every_run_doubted: not a member of schema "0.1"`},
+		"0.2 naming no run":      {report("0.2", false), `schema_version: "0.2" on a record with no member of "0.2"`},
+		"an observation of 0.2":  {obsRecord(observation), `schema_version: "0.2" on a record with no member of "0.2"`},
+		"0.3 naming a run":       {report("0.3", false, runN(1)), "minor"},
+	} {
+		checkBothWays(t, name, c.r, c.member)
+	}
+}
+
+// filled is what d writes into a report that said otherwise, holding the
+// report's version to the members it carries.
+func filled(t *testing.T, d *observe.Doubt) (bool, []string) {
+	t.Helper()
+	r := &observev1.ImportReport{SchemaVersion: "9.9", DoubtedRunIds: []string{runN(99)}, EveryRunDoubted: true}
 	d.Fill(r)
+	want := "0.2"
+	if !r.GetEveryRunDoubted() && len(r.GetDoubtedRunIds()) == 0 {
+		want = "0.1"
+	}
+	if r.GetSchemaVersion() != want {
+		t.Errorf("schema_version %q, want %q", r.GetSchemaVersion(), want)
+	}
 	return r.GetEveryRunDoubted(), r.GetDoubtedRunIds()
 }
 
@@ -53,7 +91,7 @@ func filled(d *observe.Doubt) (bool, []string) {
 // and once each.
 func TestADoubtNamesItsRunsSortedAndOnce(t *testing.T) {
 	var none observe.Doubt
-	if every, runs := filled(&none); every || runs != nil {
+	if every, runs := filled(t, &none); every || runs != nil {
 		t.Errorf("no claim: every %v, runs %v", every, runs)
 	}
 	var some observe.Doubt
@@ -61,12 +99,12 @@ func TestADoubtNamesItsRunsSortedAndOnce(t *testing.T) {
 		some.Claim(run)
 	}
 	some.Merge(&observev1.ImportReport{DoubtedRunIds: []string{runN(2)}})
-	if every, runs := filled(&some); every || !slices.Equal(runs, []string{runN(1), runN(2), runN(3)}) {
+	if every, runs := filled(t, &some); every || !slices.Equal(runs, []string{runN(1), runN(2), runN(3)}) {
 		t.Errorf("three runs: every %v, runs %v", every, runs)
 	}
 	var claimed observe.Doubt
 	claimed.ClaimOf(&observev1.Observation{Correlation: &observev1.Correlation{Basis: observev1.Basis_BASIS_CLAIMED, RunId: runN(5)}})
-	if every, runs := filled(&claimed); every || !slices.Equal(runs, []string{runN(5)}) {
+	if every, runs := filled(t, &claimed); every || !slices.Equal(runs, []string{runN(5)}) {
 		t.Errorf("a claimed observation: every %v, runs %v", every, runs)
 	}
 }
@@ -91,7 +129,7 @@ func TestADoubtOfNoRunOrPastItsBoundIsEveryRun(t *testing.T) {
 		d.Claim(runN(7))
 		claim(&d)
 		d.Claim(runN(8))
-		if every, runs := filled(&d); !every || runs != nil {
+		if every, runs := filled(t, &d); !every || runs != nil {
 			t.Errorf("%s: every %v, runs %v; want every run", name, every, runs)
 		}
 	}
@@ -99,7 +137,7 @@ func TestADoubtOfNoRunOrPastItsBoundIsEveryRun(t *testing.T) {
 	for _, run := range runsUpTo(64) {
 		full.Claim(run)
 	}
-	if every, runs := filled(&full); every || len(runs) != 64 || runs[63] != runN(64) {
+	if every, runs := filled(t, &full); every || len(runs) != 64 || runs[63] != runN(64) {
 		t.Errorf("64 runs: every %v, %d runs", every, len(runs))
 	}
 }
