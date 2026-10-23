@@ -47,7 +47,7 @@ func TestTheBootstrapFindsEveryTwoApprovalPathOwned(t *testing.T) {
 		t.Fatal(".github/CODEOWNERS holds no /.golangci.* line to leave out")
 	}
 	without := filepath.Join(t.TempDir(), "CODEOWNERS")
-	if err := os.WriteFile(without, []byte(strings.Join(kept, "\n")), 0o600); err != nil {
+	if err := os.WriteFile(without, []byte(strings.Join(kept, "\n")), 0o600); err != nil { //nolint:gosec // G703: a path in this test's own directory
 		t.Fatal(err)
 	}
 	if out, err := runSettings(t, `security_unowned "$1"`, without); err != nil || out != ".golangci.yml\n" {
