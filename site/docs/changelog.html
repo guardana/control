@@ -247,7 +247,8 @@ space at either end, or anywhere a space other than U+0020, a control or
 format character, a line or paragraph separator or a default-ignorable code
 point), an override's <code>resource_type</code> past 1024 bytes, and, in <code>coverage</code>,
 an override's <code>resource_from</code> that is not an RFC 6901 pointer within its
-bounds. In every mode, <code>OBSERVE</code> included, each call to such a tool was
+bounds. An upstream's <code>name</code>, every MCP call's <code>action.provider</code>, is held to
+the same rule and to 1024 bytes. In every mode, <code>OBSERVE</code> included, each call to such a tool was
 blocked before it was sent. <code>mcp.New</code> and <code>enforce.New</code> refuse the same, and
 the wording of these refusals now names the configuration key
 (<a href="/docs/adr/0059-a-tools-classification-is-one-type-checked-when-it-loads">ADR-0059</a>).</li>

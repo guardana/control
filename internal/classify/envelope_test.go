@@ -50,8 +50,8 @@ func carrying(c classify.Classification) *controlv1.ActionEnvelope {
 // TestCheckAcceptsExactlyWhatValidateAccepts is the rule the loader refuses
 // by: a classification Check accepts never makes Validate refuse the envelope
 // it supplies, and one Check refuses always does. A resource type is non-empty
-// here, since every entry point required one before Check did, and a pointer
-// is valid or empty, since Validate never sees a pointer.
+// here, since the loader's table requires one, and a pointer is valid or
+// empty, since Validate never sees a pointer.
 func TestCheckAcceptsExactlyWhatValidateAccepts(t *testing.T) {
 	types := []string{"order", "a b", strings.Repeat("r", 1024), strings.Repeat("r", 1025), " order", "order\t", "or\u200bder", "\u00a0", "\xff"}
 	rapid.Check(t, func(rt *rapid.T) {

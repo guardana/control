@@ -226,6 +226,10 @@ func TestNewRefusesEachMisconfiguration(t *testing.T) {
 		{"no upstream", func(c *mcp.Config) { c.Upstreams = nil }, mcp.ErrUpstream},
 		{"upstream without a name", func(c *mcp.Config) { c.Upstreams[0].Name = "" }, mcp.ErrUpstream},
 		{"upstream without a transport", func(c *mcp.Config) { c.Upstreams[0].Transport = nil }, mcp.ErrUpstream},
+		// An upstream's name is every call's action.provider.
+		{"upstream name led by a space", func(c *mcp.Config) { c.Upstreams[0].Name = " victim"; c.Overrides = nil }, mcp.ErrUpstream},
+		{"zero-width upstream name", func(c *mcp.Config) { c.Upstreams[0].Name = "victim\u200b"; c.Overrides = nil }, mcp.ErrUpstream},
+		{"upstream name past the bound", func(c *mcp.Config) { c.Upstreams[0].Name = strings.Repeat("u", 1025); c.Overrides = nil }, mcp.ErrUpstream},
 		{"two upstreams with one name", func(c *mcp.Config) { c.Upstreams = append(c.Upstreams, c.Upstreams[0]) }, mcp.ErrUpstream},
 		{"override on an unknown upstream", func(c *mcp.Config) { c.Overrides[0].Upstream = "other" }, mcp.ErrOverride},
 		{"override without a tool", func(c *mcp.Config) { c.Overrides[0].Tool = "" }, mcp.ErrOverride},

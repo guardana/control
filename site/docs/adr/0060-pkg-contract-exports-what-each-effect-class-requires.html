@@ -149,6 +149,12 @@ the contract requires more.</p>
 <code>Validate</code>: the answer depends on what the caller filled in, and a refusal
 names one field at a time.</li>
 <li>A copy of the table in the caller: two tables, one of them unchecked.</li>
+<li>The table in an internal package that both <code>pkg/contract</code> and
+<code>internal/classify</code> import, which the dependency rule allows and which would
+not grow <code>pkg/</code>: a third party that builds envelopes against <code>pkg/contract</code>
+needs the same requirements <code>Validate</code> applies, to refuse what it cannot
+send before it sends it, and only an export of <code>pkg/contract</code> gives it
+them.</li>
 </ul>
 <h2 id="consequences">Consequences</h2>
 <p><code>pkg/contract</code> has one more function a caller may depend on; removing or

@@ -47,6 +47,12 @@ the contract requires more.
   `Validate`: the answer depends on what the caller filled in, and a refusal
   names one field at a time.
 - A copy of the table in the caller: two tables, one of them unchecked.
+- The table in an internal package that both `pkg/contract` and
+  `internal/classify` import, which the dependency rule allows and which would
+  not grow `pkg/`: a third party that builds envelopes against `pkg/contract`
+  needs the same requirements `Validate` applies, to refuse what it cannot
+  send before it sends it, and only an export of `pkg/contract` gives it
+  them.
 
 ## Consequences
 

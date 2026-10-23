@@ -192,7 +192,10 @@ without <code>resource_from</code>, and a <code>COMMUNICATE</code> entry without
 <li>an override's <code>resource_type</code> past 1024 bytes;</li>
 <li>an override's <code>resource_from</code> that is not RFC 6901 or is past its bounds,
 which <code>run</code> refused already when it built the adapter and <code>coverage</code> now
-refuses too.</li>
+refuses too;</li>
+<li>an upstream's <code>name</code> the identifier rule refuses or past 1024 bytes: it is
+the <code>action.provider</code> of every call to that upstream, so every one was
+refused. <code>mcp.New</code> refuses it too.</li>
 </ul>
 <p>Through the Go API, an <code>mcp.Override</code> with an undeclared zone or sensitivity
 number and an <code>enforce.Tool</code> with a provider or resource type past 1024 bytes

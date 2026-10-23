@@ -89,7 +89,10 @@ tool that no envelope could carry:
 - an override's `resource_type` past 1024 bytes;
 - an override's `resource_from` that is not RFC 6901 or is past its bounds,
   which `run` refused already when it built the adapter and `coverage` now
-  refuses too.
+  refuses too;
+- an upstream's `name` the identifier rule refuses or past 1024 bytes: it is
+  the `action.provider` of every call to that upstream, so every one was
+  refused. `mcp.New` refuses it too.
 
 Through the Go API, an `mcp.Override` with an undeclared zone or sensitivity
 number and an `enforce.Tool` with a provider or resource type past 1024 bytes

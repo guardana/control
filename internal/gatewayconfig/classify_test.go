@@ -70,3 +70,20 @@ func TestAToolNameOrProviderNoEnvelopeCarriesIsRefused(t *testing.T) {
 		t.Errorf("a provider with an inner space loaded as %q", cfg.Tools[0].Provider)
 	}
 }
+
+// TestAnUpstreamNameNoEnvelopeCarriesIsRefused: an upstream's name is every
+// MCP call's action.provider, so a name the contract's string rule refuses
+// is refused when the file loads, naming the key; an inner space and a name
+// at the bound are the controls.
+func TestAnUpstreamNameNoEnvelopeCarriesIsRefused(t *testing.T) {
+	for _, bad := range []string{" orders", "orders\u200b", "or\u2028ders", strings.Repeat("o", 1025)} {
+		refusedSaying(t, document, map[string]string{"upstreams.0.name": bad}, "upstreams.0.name: classify: not a string an envelope carries")
+	}
+	for _, good := range []string{"my orders", strings.Repeat("o", 1024)} {
+		path := writeDocument(t, document)
+		setEnv(t, "upstreams.0.name", good)
+		if _, err := Load(path, os.Environ()); err != nil {
+			t.Errorf("an upstream name of %d bytes: %v", len(good), err)
+		}
+	}
+}

@@ -26,8 +26,8 @@ request held in memory. An entry of `overrides` or `tools` is refused when no ca
 an envelope the contract takes: `resource_type` is an identifier of at most 1024 bytes,
 `resource_from` an RFC 6901 pointer of at most 8 tokens of 64 bytes, an effect whose
 envelope needs a resource id (`WRITE`, `DELETE`, `TRANSACT`, `IDENTITY_OR_ACCESS` and `CONFIGURE`) needs `resource_from`, and
-`COMMUNICATE` needs `trust_zone`; a tool's `name` and `provider` are identifiers of
-at most 1024 bytes too. An identifier is held to the contract's rule
+`COMMUNICATE` needs `trust_zone`; a tool's `name` and `provider`, and an upstream's
+`name`, which is every call's `action.provider`, are identifiers of at most 1024 bytes too. An identifier is held to the contract's rule
 ([contracts](../contracts.md#decoding-and-validation)): invalid UTF-8 is refused, and so
 are White_Space at either end and, anywhere, a space other than U+0020, a code point in
 Cc, Cf, Zl or Zp, or a Default_Ignorable_Code_Point. An `enforce_api` listener serves the enforcement API on the Unix

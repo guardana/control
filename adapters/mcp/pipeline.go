@@ -40,9 +40,10 @@ const (
 	// a tenant and a type: the user and what is known about them come from
 	// the token, never from configuration.
 	ErrIdentity Error = "mcp: the listener's configured identity is missing or claims what only a token may say"
-	// ErrUpstream is no upstream, an upstream without a name or a transport,
-	// or two upstreams with one name.
-	ErrUpstream Error = "mcp: an upstream is missing a name, a transport, or shares its name"
+	// ErrUpstream is no upstream, an upstream without a transport or with a
+	// name no envelope can carry as its action.provider, or two upstreams
+	// with one name.
+	ErrUpstream Error = "mcp: an upstream lacks a transport or a name an envelope carries, or shares its name"
 	// ErrOverride is an override that names no known upstream, no tool or no
 	// fingerprint, classifies a tool another override does, or carries a
 	// classification classify.Check refuses, whose *classify.Error it wraps.

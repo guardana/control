@@ -1,11 +1,15 @@
 package gatewayconfig
 
-import "fmt"
+import (
+	"fmt"
 
-// checkUpstreams refuses an upstream that names neither a URL nor a command,
-// or both, arguments or variables without a command, and a variable a
-// command may not receive. An enforce_api listener has none, which
-// checkKindKeys holds.
+	"github.com/guardana/control/internal/classify"
+)
+
+// checkUpstreams refuses an upstream whose name no envelope can carry, one
+// that names neither a URL nor a command, or both, arguments or variables
+// without a command, and a variable a command may not receive. An enforce_api
+// listener has none, which checkKindKeys holds.
 func (c *Config) checkUpstreams() error {
 	if c.Listener.Kind == ListenerEnforceAPI {
 		return nil
@@ -26,6 +30,10 @@ func (c *Config) checkUpstream(i int) error {
 	at := fmt.Sprintf("upstreams.%d.", i)
 	if err := checkRequired(&c.Upstreams[i], upstreamFields, at); err != nil {
 		return err
+	}
+	// The name is every MCP call's action.provider.
+	if err := classify.CheckEnvelopeString(up.Name); err != nil {
+		return fmt.Errorf("%sname: %w", at, err)
 	}
 	switch {
 	case (up.Endpoint == "") == (up.Command == ""):

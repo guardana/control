@@ -140,7 +140,8 @@ verify one.
   format character, a line or paragraph separator or a default-ignorable code
   point), an override's `resource_type` past 1024 bytes, and, in `coverage`,
   an override's `resource_from` that is not an RFC 6901 pointer within its
-  bounds. In every mode, `OBSERVE` included, each call to such a tool was
+  bounds. An upstream's `name`, every MCP call's `action.provider`, is held to
+  the same rule and to 1024 bytes. In every mode, `OBSERVE` included, each call to such a tool was
   blocked before it was sent. `mcp.New` and `enforce.New` refuse the same, and
   the wording of these refusals now names the configuration key
   ([ADR-0059](docs/adr/0059-a-tools-classification-is-one-type-checked-when-it-loads.md)).

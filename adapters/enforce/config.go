@@ -51,7 +51,9 @@ type Identity struct {
 }
 
 // Tool is the operator's classification of one tool, by name. Nothing binds
-// it to what the tool does: the plane never sees the tool's definition.
+// it to what the tool does: the plane never sees the tool's definition. The
+// promoted Check covers the classification alone; New checks the name and the
+// provider too.
 type Tool struct {
 	// Name is what an admit names the tool by.
 	Name string

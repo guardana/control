@@ -4,5 +4,6 @@
 // tool applies.
 //
 // A classification Check accepts is one an envelope can carry: the fields it
-// supplies are never the reason contract.Validate refuses a call to the tool.
+// supplies are never the reason contract.Validate refuses every call to the
+// tool.
 package classify

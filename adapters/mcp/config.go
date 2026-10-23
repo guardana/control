@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/classify"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/secretscan"
 )
@@ -224,7 +225,11 @@ func checkUpstreams(upstreams []Upstream) (map[string]bool, error) {
 	}
 	names := map[string]bool{}
 	for i, up := range upstreams {
-		if up.Name == "" || up.Transport == nil || names[up.Name] {
+		// The name is every call's action.provider.
+		if err := classify.CheckEnvelopeString(up.Name); err != nil {
+			return nil, fmt.Errorf("%w: Upstreams[%d]: name: %w", ErrUpstream, i, err)
+		}
+		if up.Transport == nil || names[up.Name] {
 			return nil, fmt.Errorf("%w: Upstreams[%d]", ErrUpstream, i)
 		}
 		names[up.Name] = true

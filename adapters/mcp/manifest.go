@@ -24,7 +24,8 @@ const fingerprintDomain = "mcp-tool-fingerprint/v1\n"
 // Override is the operator's classification of one tool definition. The
 // fingerprint pins the definition it classifies: a tool whose name matches
 // and whose fingerprint does not is unclassified until the operator looks
-// again (ADR-0013). Annotations never classify; only this does.
+// again (ADR-0013). Annotations never classify; only this does. The promoted
+// Check covers the classification alone; New checks the rest of the override.
 type Override struct {
 	// Upstream names the server that serves the tool.
 	Upstream string
@@ -36,7 +37,9 @@ type Override struct {
 }
 
 // Entry is one tool as the manifest holds it: the upstream's definition and,
-// when an override pins its fingerprint, its classification.
+// when an override pins its fingerprint, its classification. The promoted
+// Check covers the classification alone, and an unclassified entry holds the
+// zero one, which it refuses; New checked the override it was copied from.
 type Entry struct {
 	Upstream    string
 	Tool        *mcp.Tool
