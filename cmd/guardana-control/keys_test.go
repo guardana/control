@@ -255,9 +255,10 @@ func TestSignRefusesAnOutThatIsAnInput(t *testing.T) {
 	}
 }
 
-// TestSignRefusalsLeaveOutAsItWas: a document the parser refuses is refused
-// before the key is opened (the key here would be refused too, for its mode),
-// and neither refusal touches the bundle already at --out.
+// TestSignRefusalsLeaveOutAsItWas: a document the parser refuses, and one
+// the obligation parameter check refuses, are refused before the key is
+// opened (the key here would be refused too, for its mode), and no refusal
+// touches the bundle already at --out.
 func TestSignRefusalsLeaveOutAsItWas(t *testing.T) {
 	tr := newSignTree(t)
 	if code, _, stderr := invoke(t, "policy", "sign", "--key", tr.key, "--out", tr.out, tr.doc); code != exitOK {
@@ -274,6 +275,16 @@ func TestSignRefusalsLeaveOutAsItWas(t *testing.T) {
 	code, _, stderr := invoke(t, "policy", "sign", "--key", tr.key, "--out", tr.out, bad)
 	if line := oneStderrLine(t, stderr); code != exitFail || !strings.Contains(line, "rules:") || strings.Contains(line, "policykey") {
 		t.Errorf("a refused document: exit %d, stderr %q; want the document's refusal, not the key's", code, line)
+	}
+	param := filepath.Join(tr.dir, "param.json")
+	doc := `{"apiVersion":"agent-policy/v1alpha1","bundle":{"id":"p","version":"1","serial":1,"maxStaleSeconds":300},` +
+		`"rules":[{"id":"r","effect":"ALLOW_WITH_OBLIGATIONS","obligations":[{"type":"read_only","params":{"x":"1"}}],"when":{"action":{"effect":["READ"]}}}]}`
+	if err := os.WriteFile(param, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, _, stderr = invoke(t, "policy", "sign", "--key", tr.key, "--out", tr.out, param)
+	if line := oneStderrLine(t, stderr); code != exitFail || !strings.Contains(line, "rules: a parameter the obligation's type does not declare") {
+		t.Errorf("a parameter read_only does not declare: exit %d, stderr %q; want the parameter's refusal, not the key's", code, line)
 	}
 	code, _, stderr = invoke(t, "policy", "sign", "--key", tr.key, "--out", tr.out, tr.doc)
 	if line := oneStderrLine(t, stderr); code != exitFail || !strings.Contains(line, string(policykey.ErrKeyFileMode)) {

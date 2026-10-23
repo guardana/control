@@ -65,7 +65,7 @@ own denial as the kernel's. Every code is in
 | Member | Required | Holds |
 | --- | --- | --- |
 | `type` | yes | A type of the catalogue in [obligations.md](obligations.md), spelled exactly. |
-| `params` | no | A string map, 1 to 32 entries; a value may be empty. |
+| `params` | no | A string map of 1 to 32 entries, held to its type in [obligations.md](obligations.md). |
 | `advisory` | no | `true` or `false`. A receiver that cannot apply a non-advisory obligation denies. |
 
 ### `when`
