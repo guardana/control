@@ -15,9 +15,9 @@ Amended by [ADR-0045](0045-one-run-is-supervised-against-its-procedure.md):
 test below holds the plane's five trees, not every guarded tree, away from
 observation code.
 
-Amended in place: the reader's table below holds `0.1` and `0.2`. An
-`ImportReport` naming runs in doubt is `0.2`; every other record stays
-`0.1` ([observations.md](../reference/observations.md#the-log)).
+Amended by [ADR-0058](0058-a-copy-an-import-never-read-is-doubt-for-the-runs-it-claimed.md):
+the reader's table below holds `0.1` and `0.2`. An `ImportReport` naming the
+runs its refused copies claimed is `0.2`; every other record stays `0.1`.
 
 ## Context
 
