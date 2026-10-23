@@ -143,25 +143,32 @@ func checkSpecs(specs []rules.ObligationSpec) error {
 		if slices.ContainsFunc(specs[:i], func(o rules.ObligationSpec) bool { return o.Type == s.Type }) {
 			return fmt.Errorf("%q is in the catalogue twice", s.Type)
 		}
-		for j, p := range s.Params {
-			if err := checkName(p.Name); err != nil {
-				return fmt.Errorf("%s: parameter %d: %w", s.Type, j, err)
-			}
-			if slices.ContainsFunc(s.Params[:j], func(o rules.Param) bool { return o.Name == p.Name }) {
-				return fmt.Errorf("%s: parameter %q twice", s.Type, p.Name)
-			}
-			value := p.Grammar.Describe()
-			if value == "" {
-				return fmt.Errorf("%s: parameter %q has no grammar", s.Type, p.Name)
-			}
-			if strings.ContainsRune(value, '|') || strings.IndexFunc(value, breaksALine) >= 0 {
-				return fmt.Errorf("%s: parameter %q: its grammar's description cannot sit in a row", s.Type, p.Name)
-			}
+		if err := checkParams(s); err != nil {
+			return err
 		}
-		for _, n := range s.OneOf {
-			if !slices.ContainsFunc(s.Params, func(p rules.Param) bool { return p.Name == n }) {
-				return fmt.Errorf("%s: one of names %q, which it does not declare", s.Type, n)
-			}
+	}
+	return nil
+}
+
+func checkParams(s rules.ObligationSpec) error {
+	for j, p := range s.Params {
+		if err := checkName(p.Name); err != nil {
+			return fmt.Errorf("%s: parameter %d: %w", s.Type, j, err)
+		}
+		if slices.ContainsFunc(s.Params[:j], func(o rules.Param) bool { return o.Name == p.Name }) {
+			return fmt.Errorf("%s: parameter %q twice", s.Type, p.Name)
+		}
+		value := p.Grammar.Describe()
+		if value == "" {
+			return fmt.Errorf("%s: parameter %q has no grammar", s.Type, p.Name)
+		}
+		if strings.ContainsRune(value, '|') || strings.IndexFunc(value, breaksALine) >= 0 {
+			return fmt.Errorf("%s: parameter %q: its grammar's description cannot sit in a row", s.Type, p.Name)
+		}
+	}
+	for _, n := range s.OneOf {
+		if !slices.ContainsFunc(s.Params, func(p rules.Param) bool { return p.Name == n }) {
+			return fmt.Errorf("%s: one of names %q, which it does not declare", s.Type, n)
 		}
 	}
 	return nil
