@@ -123,24 +123,12 @@ require_contexts_exist() {
 # require_security_owned; every TWO_APPROVAL_PATHS entry lies under a path
 # .github/CODEOWNERS gives to @guardana/security-maintainers.
 require_security_owned() {
-  local owned path entry covered missing=0
-  owned="$(awk '$1 !~ /^#/ && $2 == "@guardana/security-maintainers" {
-    p = $1; sub(/^\//, "", p); sub(/\/$/, "", p); print p }' "${REPO_ROOT}/.github/CODEOWNERS")"
-  for path in "${TWO_APPROVAL_PATHS[@]}"; do
-    path="${path%/\*\*}"
-    covered=0
-    while IFS= read -r entry; do
-      [[ -n "${entry}" ]] || continue
-      if [[ "${path}" == "${entry}" || "${path}" == "${entry}/"* ]]; then
-        covered=1
-      fi
-    done <<<"${owned}"
-    if ((covered == 0)); then
+  local unowned path
+  unowned="$(security_unowned "${REPO_ROOT}/.github/CODEOWNERS")" || exit 1
+  if [[ -n "${unowned}" ]]; then
+    while IFS= read -r path; do
       printf 'github-bootstrap: CODEOWNERS gives %s to no security maintainer\n' "${path}" >&2
-      missing=$((missing + 1))
-    fi
-  done
-  if ((missing > 0)); then
+    done <<<"${unowned}"
     exit 1
   fi
   printf 'preflight: every two-approval path is owned by @guardana/security-maintainers\n'

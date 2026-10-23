@@ -21,6 +21,10 @@ verify one.
 
 ### Fixed
 
+- `scripts/github-bootstrap.sh`'s preflight reads `.github/CODEOWNERS` the
+  way GitHub does, `*` within a segment and `**` across them; it refused
+  `.golangci.yml`, which `/.golangci.*` gives to the security maintainers,
+  so the declared settings could not be applied.
 - `guardana-gateway doctor` exits 1 when standard output does not take its
   whole report, as on a full device, and says so on standard error; it exited
   0 with the report cut short.

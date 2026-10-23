@@ -128,6 +128,10 @@ Neither binary nor the Python client of the enforcement API uses it.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li><code>scripts/github-bootstrap.sh</code>'s preflight reads <code>.github/CODEOWNERS</code> the
+way GitHub does, <code>*</code> within a segment and <code>**</code> across them; it refused
+<code>.golangci.yml</code>, which <code>/.golangci.*</code> gives to the security maintainers,
+so the declared settings could not be applied.</li>
 <li><code>guardana-gateway doctor</code> exits 1 when standard output does not take its
 whole report, as on a full device, and says so on standard error; it exited
 0 with the report cut short.</li>
