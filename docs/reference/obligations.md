@@ -54,7 +54,7 @@ types the gateway and the MCP adapter declare. Rebuild it with
 | `redact_fields` | the gateway | `fields` | yes | comma-separated top-level member names, each non-empty and without `.`, `/` or white space |
 | `read_only` | the MCP adapter | none |  |  |
 | `restrict_resources` | the MCP adapter | `ids` | one of `ids`, `prefix` | comma-separated resource ids, none empty and each one the identifier rule admits |
-| `restrict_resources` | the MCP adapter | `prefix` | one of `ids`, `prefix` | a non-empty literal whose last `/`-separated segment is printable ASCII without `%`, `;`, `?`, `#` or `\` |
+| `restrict_resources` | the MCP adapter | `prefix` | one of `ids`, `prefix` | an identifier whose last `/`-separated segment is printable ASCII without `%`, `;`, `?`, `#` or `\` |
 | `require_idempotency_key` | `planned`: nothing in this build | none |  |  |
 | `cap_amount` | the gateway | `max` | yes | a base-10 integer that fits in 64 bits, with an optional sign |
 | `cap_amount` | the gateway | `field` | no | the exact name of one top-level member |

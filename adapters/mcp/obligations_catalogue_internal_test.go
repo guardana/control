@@ -70,8 +70,8 @@ func TestShortenAppliesExactlyWhatTheCatalogueAccepts(t *testing.T) {
 
 // TestRestrictResourcesAppliesWhatTheCatalogueAccepts: every entry of an ids
 // value the grammar accepts is a resource id an envelope can carry and the
-// applier lets through, and a prefix the grammar accepts, of the spelling the
-// parser admits, lets through an id an envelope can carry.
+// applier lets through, and a prefix the grammar accepts, of the spelling and
+// length the parser admits, lets through an id an envelope can carry.
 func TestRestrictResourcesAppliesWhatTheCatalogueAccepts(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		ids := paramValue().Draw(t, "ids")
@@ -85,7 +85,7 @@ func TestRestrictResourcesAppliesWhatTheCatalogueAccepts(t *testing.T) {
 		}
 		prefix := paramValue().Draw(t, "prefix")
 		params = map[string]string{paramPrefix: prefix}
-		if contract.CheckIdentifier(prefix) != nil || !catalogueAccepts(obligationRestrictResources, params) {
+		if carriable(prefix) != nil || !catalogueAccepts(obligationRestrictResources, params) {
 			return
 		}
 		id := prefix + "x"

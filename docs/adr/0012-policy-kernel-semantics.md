@@ -30,9 +30,9 @@ refused `REQUIRED_FIELD_ABSENT` for it.
 
 Amended by [ADR-0061](0061-an-obligations-parameters-are-the-catalogues.md): the
 catalogue states each obligation type's parameters, and `policy lint`,
-`policy test` and `policy sign` refuse a document holding one its type does not
-declare, a missing required one or a value outside its grammar; loading a
-bundle does not check them.
+`policy test`, `policy sign` and `guardana-gateway dev` refuse a document
+holding one its type does not declare, a missing required one or a value
+outside its grammar; loading a bundle does not check them.
 
 ## Context
 

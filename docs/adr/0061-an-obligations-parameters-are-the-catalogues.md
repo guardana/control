@@ -37,7 +37,7 @@ type's names.
 | `cap_amount` | `max` | yes | a base-10 integer in 64 bits, with an optional sign |
 | `cap_amount` | `field` | no | any string, the exact name of one top-level member |
 | `restrict_resources` | `ids` | one of `ids`, `prefix` | comma-separated ids, none empty, each one the identifier rule admits |
-| `restrict_resources` | `prefix` | one of `ids`, `prefix` | non-empty; its last `/`-separated segment printable ASCII without `%`, `;`, `?`, `#` or `\` |
+| `restrict_resources` | `prefix` | one of `ids`, `prefix` | an identifier; its last `/`-separated segment printable ASCII without `%`, `;`, `?`, `#` or `\` |
 | `shorten_timeout` | `ms` | yes | a base-10 integer from 1 to 9223372036854 |
 
 `read_only`, `deny_external_sink` and the five types nothing in this build
@@ -110,9 +110,9 @@ load from a bundle signed elsewhere.
 An author learns of a parameter the tree does not apply when linting or
 signing, from the rule and the position. A new parameter, or a type that
 gains an applier, is declared in the catalogue first, and the page follows
-from it. A grammar and its applier are two readings of one rule, held
-together by a test rather than shared code, since the policy tree may import
-no applier.
+from it. A grammar and its applier are two readings of one rule: parsing a
+value stays with its applier, as decided above, and a property test in each
+applier's package holds the two together.
 
 ## Validation
 

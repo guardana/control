@@ -172,7 +172,7 @@ type's names.</p>
 <td><code>restrict_resources</code></td>
 <td><code>prefix</code></td>
 <td>one of <code>ids</code>, <code>prefix</code></td>
-<td>non-empty; its last <code>/</code>-separated segment printable ASCII without <code>%</code>, <code>;</code>, <code>?</code>, <code>#</code> or <code>\</code></td>
+<td>an identifier; its last <code>/</code>-separated segment printable ASCII without <code>%</code>, <code>;</code>, <code>?</code>, <code>#</code> or <code>\</code></td>
 </tr>
 <tr>
 <td><code>shorten_timeout</code></td>
@@ -244,9 +244,9 @@ own.</li>
 <p>An author learns of a parameter the tree does not apply when linting or
 signing, from the rule and the position. A new parameter, or a type that
 gains an applier, is declared in the catalogue first, and the page follows
-from it. A grammar and its applier are two readings of one rule, held
-together by a test rather than shared code, since the policy tree may import
-no applier.</p>
+from it. A grammar and its applier are two readings of one rule: parsing a
+value stays with its applier, as decided above, and a property test in each
+applier's package holds the two together.</p>
 <h2 id="validation">Validation</h2>
 <ul>
 <li><code>internal/policy/rules</code>: refusal cases beside the twin each differs from by

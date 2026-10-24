@@ -35,10 +35,10 @@ const (
 	// one the identifier rule admits: an entry no envelope can carry as its
 	// resource id never matches one.
 	GrammarIdentifiers
-	// GrammarResourcePrefix is a non-empty literal prefix whose last
-	// "/"-separated segment is printable ASCII without "%", ";", "?", "#" or
-	// "\": every resource id under such a prefix starts its unchecked rest
-	// with that segment, so one holding those bytes admits no id.
+	// GrammarResourcePrefix is an identifier, as a resource id is one, whose
+	// last "/"-separated segment is printable ASCII without "%", ";", "?",
+	// "#" or "\": every resource id under such a prefix starts its unchecked
+	// rest with that segment, so one holding those bytes admits no id.
 	GrammarResourcePrefix
 	// GrammarMilliseconds is a base-10 integer from 1 to the largest count of
 	// milliseconds a time.Duration holds.
@@ -61,7 +61,7 @@ func (g Grammar) Describe() string {
 	case GrammarIdentifiers:
 		return "comma-separated resource ids, none empty and each one the identifier rule admits"
 	case GrammarResourcePrefix:
-		return "a non-empty literal whose last `/`-separated segment is printable ASCII without `%`, `;`, `?`, `#` or `\\`"
+		return "an identifier whose last `/`-separated segment is printable ASCII without `%`, `;`, `?`, `#` or `\\`"
 	case GrammarMilliseconds:
 		return "a base-10 integer from 1 to " + strconv.FormatInt(maxMilliseconds, 10)
 	}
@@ -106,10 +106,12 @@ func everyEntry(s string, ok func(string) bool) bool {
 }
 
 // resourcePrefix reports whether some resource id an envelope can carry
-// passes under prefix s. A prefix at the byte bound admits only itself, whose
-// last segment must then not be all dots and spaces.
+// passes under prefix s. It mirrors plainBelow and plainByte in adapters/mcp,
+// which judge the id from the start of the prefix's last segment on. A prefix
+// at the byte bound admits only itself, whose last segment must then not be
+// all dots and spaces.
 func resourcePrefix(s string) bool {
-	if s == "" {
+	if s == "" || len(s) > contract.MaxStringBytes || contract.CheckIdentifier(s) != nil {
 		return false
 	}
 	last := s[strings.LastIndex(s, "/")+1:]
@@ -119,7 +121,7 @@ func resourcePrefix(s string) bool {
 			return false
 		}
 	}
-	if len(s) >= contract.MaxStringBytes && last != "" && strings.Trim(last, ". ") == "" {
+	if len(s) == contract.MaxStringBytes && last != "" && strings.Trim(last, ". ") == "" {
 		return false
 	}
 	return true

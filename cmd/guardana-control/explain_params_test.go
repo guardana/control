@@ -77,8 +77,9 @@ func writeDocumentOf(t *testing.T, path string) string {
 	return write(t, "document.json", c.document)
 }
 
-// TestSignLoadableSignsAsSignDoes: on every document Sign accepts, the
-// signer explain uses returns the bundle Sign returns, and on one Parse
+// TestSignLoadableSignsAsSignDoes: on each sample document, and on one whose
+// bundle id, version and staleness budget differ from both samples', the
+// signer explain uses returns the bundle Sign returns; on a document Parse
 // refuses it refuses with Sign's refusal.
 func TestSignLoadableSignsAsSignDoes(t *testing.T) {
 	key := ed25519.NewKeyFromSeed([]byte(signingSeed))
@@ -86,18 +87,25 @@ func TestSignLoadableSignsAsSignDoes(t *testing.T) {
 	if err != nil || len(paths) == 0 {
 		t.Fatalf("no sample document: %v", err)
 	}
+	documents := map[string][]byte{
+		"another bundle": []byte(`{"apiVersion":"agent-policy/v1alpha1","bundle":{"id":"orders-eu","version":"r42","serial":3,"maxStaleSeconds":120},` +
+			`"rules":[{"id":"reads","effect":"ALLOW","when":{"action":{"effect":["READ"]}}}]}`),
+	}
 	for _, path := range paths {
 		raw, err := os.ReadFile(path) //nolint:gosec // G304: a sample document of the repository
 		if err != nil {
 			t.Fatal(err)
 		}
+		documents[path] = raw
+	}
+	for name, raw := range documents {
 		want, err := policy.Sign(raw, key, signingKeyID)
 		if err != nil {
-			t.Fatalf("%s: Sign: %v", path, err)
+			t.Fatalf("%s: Sign: %v", name, err)
 		}
 		got, err := signLoadable(raw, key, signingKeyID)
 		if err != nil || !proto.Equal(got, want) {
-			t.Errorf("%s: signLoadable = %v, %v; want Sign's %v", path, got, err, want)
+			t.Errorf("%s: signLoadable = %v, %v; want Sign's %v", name, got, err, want)
 		}
 	}
 	if _, err := signLoadable([]byte(`{"apiVersion":"agent-policy/v1alpha1"}`), key, signingKeyID); !errors.Is(err, policy.ErrDocument) {
