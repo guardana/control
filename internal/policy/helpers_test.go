@@ -275,7 +275,7 @@ func loadChecks() []error {
 // sentinels are every refusal the package names: Load's, then Sign's and
 // the holder's own, then the statement's and the floor's.
 func sentinels() []error {
-	all := append(loadChecks(), policy.ErrSigningKey, policy.ErrRollback, policy.ErrSerialReused, policy.ErrBundlePin)
+	all := append(loadChecks(), policy.ErrSigningKey, policy.ErrObligationParams, policy.ErrRollback, policy.ErrSerialReused, policy.ErrBundlePin)
 	all = append(all, statementSentinels()...)
 	return append(all, floorSentinels()...)
 }

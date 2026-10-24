@@ -15,6 +15,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/docscheck/frontmatter"
 	"github.com/guardana/control/internal/policy/rules"
 )
@@ -53,9 +54,10 @@ const header = "\n# Obligations\n" +
 	"`OBLIGATION_NOT_UNDERSTOOD`, and no fail-open setting relieves that; an\n" +
 	"advisory one is skipped.\n" +
 	"\n" +
-	"Checking parameters is `implemented`: `policy lint`, `policy test` and\n" +
-	"`policy sign` refuse a parameter the type does not declare, a required one\n" +
-	"that is missing, and a value outside the grammar its row states\n" +
+	"Checking parameters is `implemented`: `policy lint`, `policy test`,\n" +
+	"`policy sign` and `" + brand.Gateway + " dev` refuse a parameter the type does\n" +
+	"not declare, a required one that is missing, and a value outside the\n" +
+	"grammar its row states\n" +
 	"([ADR-0061](../adr/0061-an-obligations-parameters-are-the-catalogues.md)).\n" +
 	"A type nothing in this build applies takes no parameters. The first two\n" +
 	"refusals read\n" +
@@ -64,12 +66,12 @@ const header = "\n# Obligations\n" +
 	"`rules[0].obligations[0].params` for one missing, and the third\n" +
 	"`rules: a parameter value the obligation's type cannot apply`, at\n" +
 	"`rules[0].obligations[0].params[0]`: a parameter is named by its position in\n" +
-	"sorted key order, never by its key or value. Loading a bundle does not check\n" +
-	"parameters, so a bundle signed elsewhere still loads; its applier reads only\n" +
-	"the parameters the type declares and parses each value itself, and an\n" +
-	"obligation it cannot apply as written is not applied: a non-advisory one\n" +
-	"stops the call and an advisory one is skipped. What is built and what is\n" +
-	"not is in [status.md](../status.md).\n" +
+	"sorted key order, never by its key or value. `policy explain` and loading a\n" +
+	"bundle do not check parameters, so a bundle signed elsewhere still loads and\n" +
+	"is explained. Its applier reads only the parameters the type declares and\n" +
+	"parses each value itself, and an obligation it cannot apply as written is\n" +
+	"not applied: a non-advisory one stops the call and an advisory one is\n" +
+	"skipped. What is built and what is not is in [status.md](../status.md).\n" +
 	"\n" +
 	"Rendered from the catalogue in `internal/policy/rules/catalogue.go` and the\n" +
 	"types the gateway and the MCP adapter declare. Rebuild it with\n" +

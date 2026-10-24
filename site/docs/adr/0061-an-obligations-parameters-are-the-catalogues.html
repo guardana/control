@@ -190,12 +190,17 @@ its parameters here first.</p>
 a parameter the type does not declare and a missing required one with
 <code>ErrObligationParam</code>, and a value outside its grammar with
 <code>ErrObligationValue</code>, naming the rule and the parameter's position, never its
-key or value. <code>policy.Sign</code> calls it, so <code>policy sign</code> and <code>policy test</code>
-refuse such a document; <code>policy sign</code> runs it before it opens the key, and
-<code>policy lint</code> runs it too. <code>rules.Parse</code> and <code>policy.Load</code> do not: a bundle
-that is already signed loads as before, and its applier decides at run time
-as before, a non-advisory obligation it cannot apply denying the call with
-<code>OBLIGATION_NOT_UNDERSTOOD</code> and an advisory one skipped.</p>
+key or value. <code>policy.Sign</code> calls it and refuses such a document with
+<code>ErrObligationParams</code>, so every path that signs refuses it: <code>policy sign</code>,
+which runs the check before it opens the key, <code>policy test</code>, and
+<code>guardana-gateway dev</code>, which signs the bundle it runs. <code>policy lint</code> runs it
+too. <code>rules.Parse</code> and <code>policy.Load</code> do not: a bundle that is already signed
+loads as before, and its applier decides at run time as before, a
+non-advisory obligation it cannot apply denying the call with
+<code>OBLIGATION_NOT_UNDERSTOOD</code> and an advisory one skipped. <code>policy explain</code> is a
+diagnostic of what a plane would decide, so it explains every document a
+plane loads: it signs its case's document in memory without the check, and
+loads it as a plane does.</p>
 <p>A grammar is the set of values its applier acts on as written, read from what
 the applier parses, not from a reading of the parameter's name. So <code>max</code> and
 <code>ms</code> take a sign and leading zeros, which <code>strconv.ParseInt</code> reads, and
@@ -211,7 +216,8 @@ page renders from <code>rules.Obligations</code>, with a row for each parameter.
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>No decision changes, and no bundle that loaded is refused: the check runs only
 where a document is signed or linted. A document that signed before is
-refused by <code>policy lint</code>, <code>policy test</code> and <code>policy sign</code> when it holds a
+refused by <code>policy lint</code>, <code>policy test</code>, <code>policy sign</code> and
+<code>guardana-gateway dev</code> when it holds a
 parameter its type does not declare, a parameter on any type that takes
 none, a missing <code>fields</code>, <code>max</code> or <code>ms</code>, a <code>restrict_resources</code> with neither
 <code>ids</code> nor <code>prefix</code>, or a value outside its grammar. Each of those was an
@@ -249,15 +255,21 @@ parameter on <code>read_only</code> and on <code>cap_rate</code>, a missing <cod
 <code>ms</code>, a bad <code>ms</code>, a <code>restrict_resources</code> with neither), each grammar at the
 values on either side of its rules, the catalogue refused with a parameter
 that has no grammar, and a document the check refuses that still parses.</li>
-<li><code>internal/policy</code>: <code>Sign</code> refuses both classes, and <code>Load</code> takes the same
-document signed without the check.</li>
-<li><code>cmd/guardana-control</code>: <code>policy lint</code> names the refusal, and <code>policy sign</code>
-refuses before it opens the key.</li>
+<li><code>internal/policy</code>: <code>Sign</code> refuses both classes with <code>ErrObligationParams</code>,
+and <code>Load</code> takes the same document signed without the check.</li>
+<li><code>cmd/guardana-control</code>: <code>policy lint</code> names the refusal, <code>policy sign</code>
+refuses before it opens the key, <code>policy test</code> refuses a case whose
+document holds a <code>cap_rate</code> with <code>per_minute</code>, and <code>policy explain</code>
+explains the same case; explain's signer returns <code>Sign</code>'s bundle for every
+document <code>Sign</code> accepts.</li>
+<li><code>cmd/guardana-gateway</code>: <code>dev</code> refuses that document as its <code>--policy</code>.</li>
 <li><code>internal/gateway</code> and <code>adapters/mcp</code>: a property test that any value the
 grammar accepts, the applier applies, and a test that each applier's
 parameter names are <code>rules.ParamNames</code>.</li>
 <li><code>internal/docscheck</code>: the reference page is what the renderer makes of the
-catalogue, and its Parameter column holds <code>rules.ParamNames</code> for each type.</li>
+catalogue, its Parameter column holds <code>rules.ParamNames</code> for each type, and
+the renderer refuses a catalogue that gives parameters to a type nothing
+applies.</li>
 </ul>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0061-an-obligations-parameters-are-the-catalogues.md">docs/adr/0061-an-obligations-parameters-are-the-catalogues.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.13.0, and <a href="https://github.com/guardana/control/tree/v0.13.0/docs">its documentation</a> is in its tag.</p>
 </main>

@@ -30,6 +30,8 @@ func Appliers() []Applier {
 // checkAppliers refuses an applier the page could not state truthfully: one
 // with no name, a name a table cell cannot carry, or a type the catalogue
 // does not hold, which the kernel would refuse and the page would still list.
+// It also refuses a type that declares parameters while no applier lists it:
+// a parameter nothing reads is an instruction nobody follows (ADR-0061).
 func checkAppliers(specs []rules.ObligationSpec, appliers []Applier) error {
 	for _, a := range appliers {
 		if a.Name == "" {
@@ -42,6 +44,11 @@ func checkAppliers(specs []rules.ObligationSpec, appliers []Applier) error {
 			if !slices.ContainsFunc(specs, func(s rules.ObligationSpec) bool { return s.Type == t }) {
 				return fmt.Errorf("%s applies %q, which the catalogue does not hold", a.Name, t)
 			}
+		}
+	}
+	for _, s := range specs {
+		if len(s.Params) > 0 && appliedBy(s.Type, appliers) == unapplied {
+			return fmt.Errorf("%s declares parameters and nothing in this build applies it", s.Type)
 		}
 	}
 	return nil

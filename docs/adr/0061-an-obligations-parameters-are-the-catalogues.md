@@ -49,12 +49,17 @@ its parameters here first.
 a parameter the type does not declare and a missing required one with
 `ErrObligationParam`, and a value outside its grammar with
 `ErrObligationValue`, naming the rule and the parameter's position, never its
-key or value. `policy.Sign` calls it, so `policy sign` and `policy test`
-refuse such a document; `policy sign` runs it before it opens the key, and
-`policy lint` runs it too. `rules.Parse` and `policy.Load` do not: a bundle
-that is already signed loads as before, and its applier decides at run time
-as before, a non-advisory obligation it cannot apply denying the call with
-`OBLIGATION_NOT_UNDERSTOOD` and an advisory one skipped.
+key or value. `policy.Sign` calls it and refuses such a document with
+`ErrObligationParams`, so every path that signs refuses it: `policy sign`,
+which runs the check before it opens the key, `policy test`, and
+`guardana-gateway dev`, which signs the bundle it runs. `policy lint` runs it
+too. `rules.Parse` and `policy.Load` do not: a bundle that is already signed
+loads as before, and its applier decides at run time as before, a
+non-advisory obligation it cannot apply denying the call with
+`OBLIGATION_NOT_UNDERSTOOD` and an advisory one skipped. `policy explain` is a
+diagnostic of what a plane would decide, so it explains every document a
+plane loads: it signs its case's document in memory without the check, and
+loads it as a plane does.
 
 A grammar is the set of values its applier acts on as written, read from what
 the applier parses, not from a reading of the parameter's name. So `max` and
@@ -74,7 +79,8 @@ page renders from `rules.Obligations`, with a row for each parameter.
 
 No decision changes, and no bundle that loaded is refused: the check runs only
 where a document is signed or linted. A document that signed before is
-refused by `policy lint`, `policy test` and `policy sign` when it holds a
+refused by `policy lint`, `policy test`, `policy sign` and
+`guardana-gateway dev` when it holds a
 parameter its type does not declare, a parameter on any type that takes
 none, a missing `fields`, `max` or `ms`, a `restrict_resources` with neither
 `ids` nor `prefix`, or a value outside its grammar. Each of those was an
@@ -116,12 +122,18 @@ no applier.
   `ms`, a bad `ms`, a `restrict_resources` with neither), each grammar at the
   values on either side of its rules, the catalogue refused with a parameter
   that has no grammar, and a document the check refuses that still parses.
-- `internal/policy`: `Sign` refuses both classes, and `Load` takes the same
-  document signed without the check.
-- `cmd/guardana-control`: `policy lint` names the refusal, and `policy sign`
-  refuses before it opens the key.
+- `internal/policy`: `Sign` refuses both classes with `ErrObligationParams`,
+  and `Load` takes the same document signed without the check.
+- `cmd/guardana-control`: `policy lint` names the refusal, `policy sign`
+  refuses before it opens the key, `policy test` refuses a case whose
+  document holds a `cap_rate` with `per_minute`, and `policy explain`
+  explains the same case; explain's signer returns `Sign`'s bundle for every
+  document `Sign` accepts.
+- `cmd/guardana-gateway`: `dev` refuses that document as its `--policy`.
 - `internal/gateway` and `adapters/mcp`: a property test that any value the
   grammar accepts, the applier applies, and a test that each applier's
   parameter names are `rules.ParamNames`.
 - `internal/docscheck`: the reference page is what the renderer makes of the
-  catalogue, and its Parameter column holds `rules.ParamNames` for each type.
+  catalogue, its Parameter column holds `rules.ParamNames` for each type, and
+  the renderer refuses a catalogue that gives parameters to a type nothing
+  applies.

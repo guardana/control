@@ -26,9 +26,10 @@ non-advisory obligation that nothing here applies is `DENY` with
 `OBLIGATION_NOT_UNDERSTOOD`, and no fail-open setting relieves that; an
 advisory one is skipped.
 
-Checking parameters is `implemented`: `policy lint`, `policy test` and
-`policy sign` refuse a parameter the type does not declare, a required one
-that is missing, and a value outside the grammar its row states
+Checking parameters is `implemented`: `policy lint`, `policy test`,
+`policy sign` and `guardana-gateway dev` refuse a parameter the type does
+not declare, a required one that is missing, and a value outside the
+grammar its row states
 ([ADR-0061](../adr/0061-an-obligations-parameters-are-the-catalogues.md)).
 A type nothing in this build applies takes no parameters. The first two
 refusals read
@@ -37,12 +38,12 @@ at `rules[0].obligations[0].params[1].key` for a key or at
 `rules[0].obligations[0].params` for one missing, and the third
 `rules: a parameter value the obligation's type cannot apply`, at
 `rules[0].obligations[0].params[0]`: a parameter is named by its position in
-sorted key order, never by its key or value. Loading a bundle does not check
-parameters, so a bundle signed elsewhere still loads; its applier reads only
-the parameters the type declares and parses each value itself, and an
-obligation it cannot apply as written is not applied: a non-advisory one
-stops the call and an advisory one is skipped. What is built and what is
-not is in [status.md](../status.md).
+sorted key order, never by its key or value. `policy explain` and loading a
+bundle do not check parameters, so a bundle signed elsewhere still loads and
+is explained. Its applier reads only the parameters the type declares and
+parses each value itself, and an obligation it cannot apply as written is
+not applied: a non-advisory one stops the call and an advisory one is
+skipped. What is built and what is not is in [status.md](../status.md).
 
 Rendered from the catalogue in `internal/policy/rules/catalogue.go` and the
 types the gateway and the MCP adapter declare. Rebuild it with

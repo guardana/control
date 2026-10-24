@@ -23,12 +23,16 @@ func specs() []rules.ObligationSpec {
 	}
 }
 
-func TestPageOneRowPerParameterInOrder(t *testing.T) {
-	appliers := []Applier{
+// appliers apply every type of specs that declares parameters.
+func appliers() []Applier {
+	return []Applier{
 		{Name: "the gateway", Types: []string{"cap_amount"}},
 		{Name: "the adapter", Types: []string{"cap_amount", "restrict_resources"}},
 	}
-	page, err := Page(specs(), appliers)
+}
+
+func TestPageOneRowPerParameterInOrder(t *testing.T) {
+	page, err := Page(specs(), appliers())
 	if err != nil {
 		t.Fatalf("Page: %v", err)
 	}
@@ -65,12 +69,11 @@ func TestPageOneRowPerParameterInOrder(t *testing.T) {
 }
 
 func TestPageIsDeterministic(t *testing.T) {
-	appliers := []Applier{{Name: "the gateway", Types: []string{"cap_amount"}}}
-	first, err := Page(specs(), appliers)
+	first, err := Page(specs(), appliers())
 	if err != nil {
 		t.Fatalf("Page: %v", err)
 	}
-	second, err := Page(specs(), appliers)
+	second, err := Page(specs(), appliers())
 	if err != nil {
 		t.Fatalf("Page, second call: %v", err)
 	}
@@ -90,36 +93,40 @@ func TestPageRefusesWhatItCannotState(t *testing.T) {
 		specs    []rules.ObligationSpec
 		appliers []Applier
 	}{
-		"an empty catalogue": {nil, nil},
+		"an empty catalogue": {nil, appliers()},
 		"a type twice": {with(func(s []rules.ObligationSpec) []rules.ObligationSpec {
 			return append(s, rules.ObligationSpec{Type: "emit_alert"})
-		}), nil},
-		"an empty type":    {with(func(s []rules.ObligationSpec) []rules.ObligationSpec { s[2].Type = ""; return s }), nil},
-		"a pipe in a type": {with(func(s []rules.ObligationSpec) []rules.ObligationSpec { s[2].Type = "a|b"; return s }), nil},
+		}), appliers()},
+		"an empty type":    {with(func(s []rules.ObligationSpec) []rules.ObligationSpec { s[2].Type = ""; return s }), appliers()},
+		"a pipe in a type": {with(func(s []rules.ObligationSpec) []rules.ObligationSpec { s[2].Type = "a|b"; return s }), appliers()},
 		"a backtick in a type": {with(func(s []rules.ObligationSpec) []rules.ObligationSpec {
 			s[2].Type = "a`b"
 			return s
-		}), nil},
+		}), appliers()},
 		"a control character in a type": {with(func(s []rules.ObligationSpec) []rules.ObligationSpec {
 			s[2].Type = "a\nb"
 			return s
-		}), nil},
+		}), appliers()},
 		"a parameter a cell cannot carry": {with(func(s []rules.ObligationSpec) []rules.ObligationSpec {
 			s[0].Params[1].Name = "a|b"
 			return s
-		}), nil},
+		}), appliers()},
 		"a parameter twice": {with(func(s []rules.ObligationSpec) []rules.ObligationSpec {
 			s[0].Params[1].Name = "max"
 			return s
-		}), nil},
+		}), appliers()},
 		"a parameter with no grammar": {with(func(s []rules.ObligationSpec) []rules.ObligationSpec {
 			s[0].Params[1].Grammar = 0
 			return s
-		}), nil},
+		}), appliers()},
 		"one of an undeclared parameter": {with(func(s []rules.ObligationSpec) []rules.ObligationSpec {
 			s[1].OneOf = []string{"ids", "path"}
 			return s
-		}), nil},
+		}), appliers()},
+		"parameters on a type nothing applies": {with(func(s []rules.ObligationSpec) []rules.ObligationSpec {
+			s[2].Params = []rules.Param{{Name: "per_minute", Grammar: rules.GrammarInteger}}
+			return s
+		}), appliers()},
 		"an applier of a type outside the catalogue": {specs(), []Applier{{Name: "the adapter", Types: []string{"cap_rate"}}}},
 		"an applier with no name":                    {specs(), []Applier{{Types: []string{"cap_amount"}}}},
 		"an applier name a cell cannot carry":        {specs(), []Applier{{Name: "a|b", Types: []string{"cap_amount"}}}},

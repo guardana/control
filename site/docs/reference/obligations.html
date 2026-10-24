@@ -126,9 +126,10 @@ applies the types it declares to the call it sends. A decision carrying a
 non-advisory obligation that nothing here applies is <code>DENY</code> with
 <code>OBLIGATION_NOT_UNDERSTOOD</code>, and no fail-open setting relieves that; an
 advisory one is skipped.</p>
-<p>Checking parameters is <code>implemented</code>: <code>policy lint</code>, <code>policy test</code> and
-<code>policy sign</code> refuse a parameter the type does not declare, a required one
-that is missing, and a value outside the grammar its row states
+<p>Checking parameters is <code>implemented</code>: <code>policy lint</code>, <code>policy test</code>,
+<code>policy sign</code> and <code>guardana-gateway dev</code> refuse a parameter the type does
+not declare, a required one that is missing, and a value outside the
+grammar its row states
 (<a href="/docs/adr/0061-an-obligations-parameters-are-the-catalogues">ADR-0061</a>).
 A type nothing in this build applies takes no parameters. The first two
 refusals read
@@ -137,12 +138,12 @@ at <code>rules[0].obligations[0].params[1].key</code> for a key or at
 <code>rules[0].obligations[0].params</code> for one missing, and the third
 <code>rules: a parameter value the obligation's type cannot apply</code>, at
 <code>rules[0].obligations[0].params[0]</code>: a parameter is named by its position in
-sorted key order, never by its key or value. Loading a bundle does not check
-parameters, so a bundle signed elsewhere still loads; its applier reads only
-the parameters the type declares and parses each value itself, and an
-obligation it cannot apply as written is not applied: a non-advisory one
-stops the call and an advisory one is skipped. What is built and what is
-not is in <a href="/docs/status">status.md</a>.</p>
+sorted key order, never by its key or value. <code>policy explain</code> and loading a
+bundle do not check parameters, so a bundle signed elsewhere still loads and
+is explained. Its applier reads only the parameters the type declares and
+parses each value itself, and an obligation it cannot apply as written is
+not applied: a non-advisory one stops the call and an advisory one is
+skipped. What is built and what is not is in <a href="/docs/status">status.md</a>.</p>
 <p>Rendered from the catalogue in <code>internal/policy/rules/catalogue.go</code> and the
 types the gateway and the MCP adapter declare. Rebuild it with
 <code>make docs-gen</code>; an edit made here does not survive the next run.</p>

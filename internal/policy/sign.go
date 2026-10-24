@@ -12,9 +12,10 @@ import (
 // Sign parses raw as a policy document and signs its canonical bytes with key.
 // Every field outside them comes from the document, and created_at stays
 // unset. It refuses an empty keyID, which Load would refuse, a document Parse
-// or rules.CheckObligations refuses (ErrDocument) and a key bundle.SignBytes
-// refuses (ErrSigningKey). It does not compile the document; Load does, and
-// Load does not run the parameter check, so a bundle signed elsewhere loads.
+// refuses (ErrDocument), one rules.CheckObligations refuses
+// (ErrObligationParams) and a key bundle.SignBytes refuses (ErrSigningKey).
+// It does not compile the document; Load does, and Load does not run the
+// parameter check, so a bundle signed elsewhere loads.
 func Sign(raw []byte, key ed25519.PrivateKey, keyID string) (*controlv1.PolicyBundle, error) {
 	if keyID == "" {
 		return nil, fmt.Errorf("%w: %w", ErrKey, bundle.ErrUnknownKey)
@@ -24,7 +25,7 @@ func Sign(raw []byte, key ed25519.PrivateKey, keyID string) (*controlv1.PolicyBu
 		return nil, fmt.Errorf("%w: %w", ErrDocument, err)
 	}
 	if err := rules.CheckObligations(doc); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrDocument, err)
+		return nil, fmt.Errorf("%w: %w", ErrObligationParams, err)
 	}
 	signature, err := bundle.SignBytes(canonical, key)
 	if err != nil {

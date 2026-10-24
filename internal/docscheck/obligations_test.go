@@ -55,6 +55,24 @@ func TestObligationsDocPinCatchesANewParameter(t *testing.T) {
 	}
 }
 
+// A type nothing in this build applies takes no parameters: the renderer
+// refuses the real catalogue once cap_rate, which nothing applies, is given
+// one, so the pin above cannot pass on such a catalogue.
+func TestObligationsDocRefusesParametersNothingApplies(t *testing.T) {
+	specs := rules.Obligations()
+	i := slices.IndexFunc(specs, func(s rules.ObligationSpec) bool { return s.Type == "cap_rate" })
+	if i < 0 {
+		t.Fatal("the catalogue has no cap_rate")
+	}
+	if _, err := obligationdoc.Page(specs, obligationdoc.Appliers()); err != nil {
+		t.Fatalf("the catalogue as it is: %v", err)
+	}
+	specs[i].Params = []rules.Param{{Name: "per_minute", Grammar: rules.GrammarInteger}}
+	if page, err := obligationdoc.Page(specs, obligationdoc.Appliers()); err == nil {
+		t.Errorf("cap_rate with a parameter rendered %d bytes, want a refusal", len(page))
+	}
+}
+
 // The committed page's Parameter column, read as a reader reads it, holds
 // exactly the parameters rules.ParamNames gives each type, in its order, and
 // `none` for a type that takes none.
