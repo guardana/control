@@ -141,6 +141,15 @@ func makeTakes(t *testing.T, makeBin string, args ...string) bool {
 	return cmd.Run() == nil
 }
 
+// refusedIf is refusal when this make reaches the guard that says it, and the
+// stand-in's own refusal when it runs the goal instead.
+func refusedIf(reached bool, refusal string) string {
+	if reached {
+		return refusal
+	}
+	return standInRefusal
+}
+
 // makeReadsAssignment reports whether make takes a variable assignment from
 // flags: make 3.81 does not read GNUMAKEFLAGS at all, while 4.3 takes an
 // assignment there though it ignores -f.
@@ -227,16 +236,10 @@ func TestTheGateRunsTheChecksMakeWasToldToSkip(t *testing.T) {
 	if evalRefused == "" {
 		t.Logf("%s takes no --eval; the eval cases assert only that make refuses them", makeBin)
 	}
-	laterThroughFlags, laterThroughGNUFlags, goalThroughGNUFlags := standInRefusal, standInRefusal, standInRefusal
-	if makeReadsExtraFile(t, makeBin, "MAKEFLAGS") {
-		laterThroughFlags = "make quality reads one makefile, this one"
-	}
-	if makeReadsExtraFile(t, makeBin, "GNUMAKEFLAGS") {
-		laterThroughGNUFlags = "make quality reads one makefile, this one"
-	}
-	if makeReadsAssignment(t, makeBin, "GNUMAKEFLAGS") {
-		goalThroughGNUFlags = defaultGoalRefused
-	}
+	const oneMakefile = "make quality reads one makefile, this one"
+	laterThroughFlags := refusedIf(makeReadsExtraFile(t, makeBin, "MAKEFLAGS"), oneMakefile)
+	laterThroughGNUFlags := refusedIf(makeReadsExtraFile(t, makeBin, "GNUMAKEFLAGS"), oneMakefile)
+	goalThroughGNUFlags := refusedIf(makeReadsAssignment(t, makeBin, "GNUMAKEFLAGS"), defaultGoalRefused)
 	escaped := strings.ReplaceAll(shellOffBelowTheTop, " ", `\ `)
 	base := cleanMakeEnv()
 	for _, c := range []struct {
