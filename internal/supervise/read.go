@@ -1,6 +1,9 @@
 package supervise
 
 import (
+	"fmt"
+	"strconv"
+
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
 	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -108,6 +111,25 @@ func (r *read) takeProject() error {
 			r.project = p
 		case p != r.project:
 			return ErrInput.with("the run's events name more than one project")
+		}
+	}
+	return nil
+}
+
+// checkSources refuses a source whose tenant is not the run's, or whose
+// project is not the one the run's events name: observations are taken
+// under the run's identity and liveness and doubt read under the source's,
+// so the two must be one. With no event read no rule is checked, and only
+// the tenant is held.
+func (r *read) checkSources(sources []Source) error {
+	for _, s := range sources {
+		switch {
+		case s.Tenant != r.tenant:
+			return ErrInput.with(fmt.Sprintf("source %s is of tenant %s, the run of tenant %s",
+				strconv.Quote(s.SourceID), strconv.Quote(s.Tenant), strconv.Quote(r.tenant)))
+		case len(r.events) > 0 && s.Project != r.project:
+			return ErrInput.with(fmt.Sprintf("source %s is of project %s, the run's events of project %s",
+				strconv.Quote(s.SourceID), strconv.Quote(s.Project), strconv.Quote(r.project)))
 		}
 	}
 	return nil

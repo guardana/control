@@ -110,6 +110,7 @@ doubting every run; [supervision](supervision.md#the-verdict) says what a
 doubted run leaves unchecked. A source's doubt is read from its own reports
 alone, those naming its source, tenant and project, so another source
 importing into the same log directory puts none of its runs in doubt.
+`supervise` refuses a `--source` whose tenant or project is not the run's.
 
 A report that carries either member is schema `0.2`; every other report and
 every observation is `0.1`, and the reader refuses a `0.2` record with
