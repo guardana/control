@@ -126,6 +126,11 @@ verify one.
 - The format versions page names `v1alpha1` as the enforcement API version
   this tree writes and reads, and says which formats carry no version of
   their own: the signed envelopes and the spool's segment framing.
+- `policy sign` and `policy lint` refuse a `cap_amount` `max` below
+  -9007199254740991, the smallest integer canon writes. The gateway capped an
+  amount to such a limit and then could not canonicalize the arguments, so
+  every call the rule matched was denied with `OBLIGATION_NOT_UNDERSTOOD`; a
+  bundle already signed with one still loads and is denied as before.
 
 ### Changed
 

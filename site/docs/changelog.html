@@ -233,6 +233,11 @@ GitHub cannot answer.</li>
 <li>The format versions page names <code>v1alpha1</code> as the enforcement API version
 this tree writes and reads, and says which formats carry no version of
 their own: the signed envelopes and the spool's segment framing.</li>
+<li><code>policy sign</code> and <code>policy lint</code> refuse a <code>cap_amount</code> <code>max</code> below
+-9007199254740991, the smallest integer canon writes. The gateway capped an
+amount to such a limit and then could not canonicalize the arguments, so
+every call the rule matched was denied with <code>OBLIGATION_NOT_UNDERSTOOD</code>; a
+bundle already signed with one still loads and is denied as before.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
