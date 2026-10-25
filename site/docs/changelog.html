@@ -244,8 +244,9 @@ line another source's import refused, in the same log directory, put the
 supervised source's runs in doubt and left <code>STEP_OUTSIDE_PROCEDURE</code> and
 <code>DENIED_ACTION_RETRIED_AROUND</code> not checked. <code>supervise</code> also refuses a
 <code>--source</code> whose descriptor names another tenant than the run's, or another
-project than its events. The run's observations were read under such a
-descriptor while its liveness and its doubt were another project's.</li>
+project than its events, and an export in which an event of the run names
+no project. The run's observations were read under such a descriptor while
+its liveness and its doubt were another project's.</li>
 <li>The OTLP exporter writes a log record's time from the event's seconds and
 nanoseconds as an unsigned count. An event before 1678 or after 2262 could
 get another time or none: 1600-01-01 was sent as a time in the future, and
@@ -258,9 +259,12 @@ read the goals from <code>MAKECMDGOALS</code>, so <code>make quality MAKECMDGOAL
 passed every guard, ran no check and printed <code>quality: green</code>, and a
 <code>MAKEFILES</code> makefile could undefine <code>MAKECMDGOALS</code> to the same end. CI's
 gate step also unsets <code>MAKEFILES</code>, since such a makefile can undefine
-<code>MAKEFILES</code> too. <code>make quality</code> also refuses <code>SHELLOPTS</code>, <code>BASHOPTS</code> and an
-exported bash function, which change what its recipes' shell runs:
-<code>SHELLOPTS=noexec</code> ran nothing and exited 0.</li>
+<code>MAKEFILES</code> too. <code>make quality</code> also refuses <code>SHELLOPTS</code>, <code>BASHOPTS</code>,
+<code>CDPATH</code>, <code>GLOBIGNORE</code> and an exported bash function, which change what its
+recipes' shell runs: <code>SHELLOPTS=noexec</code> ran nothing and exited 0. These
+guards, and those on <code>BASH_ENV</code>, <code>ENV</code>, <code>GOFLAGS</code> and <code>MAKEFILES</code>, read the
+value as the shell or go gets it, not as make expands it, so a spelling make
+expands to nothing is refused too.</li>
 <li><code>scripts/bootstrap.sh</code> compares a tool's whole version word with its pin,
 suffix included, so a prerelease or development build such as
 <code>2.14.0-rc.1</code>, <code>2.14.0-dev</code> or <code>2.14.0+dirty</code> fails a pin of <code>2.14.0</code>; it

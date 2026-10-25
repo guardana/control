@@ -103,10 +103,13 @@ func (r *read) eventOutside(ev *controlv1.Event) string {
 
 // takeProject names the one project the run's events were recorded in. A
 // finding and a report name one project, so a run recorded in two is refused
-// rather than judged as one.
+// rather than judged as one, and so is an event that names none, which would
+// otherwise take whichever project another event names.
 func (r *read) takeProject() error {
 	for _, ev := range r.events {
 		switch p := ev.GetProjectId(); {
+		case p == "":
+			return ErrInput.with("an event of the run names no project")
 		case r.project == "":
 			r.project = p
 		case p != r.project:

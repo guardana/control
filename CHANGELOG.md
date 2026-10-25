@@ -137,8 +137,9 @@ verify one.
   supervised source's runs in doubt and left `STEP_OUTSIDE_PROCEDURE` and
   `DENIED_ACTION_RETRIED_AROUND` not checked. `supervise` also refuses a
   `--source` whose descriptor names another tenant than the run's, or another
-  project than its events. The run's observations were read under such a
-  descriptor while its liveness and its doubt were another project's.
+  project than its events, and an export in which an event of the run names
+  no project. The run's observations were read under such a descriptor while
+  its liveness and its doubt were another project's.
 - The OTLP exporter writes a log record's time from the event's seconds and
   nanoseconds as an unsigned count. An event before 1678 or after 2262 could
   get another time or none: 1600-01-01 was sent as a time in the future, and
@@ -152,9 +153,12 @@ verify one.
   passed every guard, ran no check and printed `quality: green`, and a
   `MAKEFILES` makefile could undefine `MAKECMDGOALS` to the same end. CI's
   gate step also unsets `MAKEFILES`, since such a makefile can undefine
-  `MAKEFILES` too. `make quality` also refuses `SHELLOPTS`, `BASHOPTS` and an
-  exported bash function, which change what its recipes' shell runs:
-  `SHELLOPTS=noexec` ran nothing and exited 0.
+  `MAKEFILES` too. `make quality` also refuses `SHELLOPTS`, `BASHOPTS`,
+  `CDPATH`, `GLOBIGNORE` and an exported bash function, which change what its
+  recipes' shell runs: `SHELLOPTS=noexec` ran nothing and exited 0. These
+  guards, and those on `BASH_ENV`, `ENV`, `GOFLAGS` and `MAKEFILES`, read the
+  value as the shell or go gets it, not as make expands it, so a spelling make
+  expands to nothing is refused too.
 - `scripts/bootstrap.sh` compares a tool's whole version word with its pin,
   suffix included, so a prerelease or development build such as
   `2.14.0-rc.1`, `2.14.0-dev` or `2.14.0+dirty` fails a pin of `2.14.0`; it

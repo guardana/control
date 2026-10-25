@@ -72,3 +72,23 @@ func source2() supervise.Source {
 	s.SourceID = "s2"
 	return s
 }
+
+// TestAnEventOfTheRunWithNoProjectIsRefused: an event naming no project is
+// refused wherever it falls, so the order of the export cannot decide which
+// project the run, and the sources held to it, are of.
+func TestAnEventOfTheRunWithNoProjectIsRefused(t *testing.T) {
+	p := procWith(t)
+	run := supervise.Run{ID: runID, Tenant: tenant}
+	for _, at := range []string{"first", "last"} {
+		x := export(conforming()...)
+		ev := x.Events[0]
+		if at == "last" {
+			ev = x.Events[len(x.Events)-1]
+		}
+		ev.ProjectId = ""
+		_, err := supervise.Evaluate(supervise.Input{Procedure: p, Run: run, Exports: []supervise.Export{x}, Sources: []supervise.Source{source()}})
+		if !errors.Is(err, supervise.ErrInput) || !strings.Contains(err.Error(), "names no project") {
+			t.Errorf("the %s event with no project: Evaluate = %v, want ErrInput naming it", at, err)
+		}
+	}
+}

@@ -16,7 +16,7 @@ func cleanMakeEnv() []string {
 	for _, kv := range os.Environ() {
 		switch name, _, _ := strings.Cut(kv, "="); {
 		case slices.Contains([]string{"MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS", "MAKEFILES", "MAKECMDGOALS", ".DEFAULT_GOAL",
-			"MAKE", "GO", "GOFLAGS", "BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS"}, name), strings.HasPrefix(name, "BASH_FUNC_"):
+			"MAKE", "GO", "GOFLAGS", "BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS", "CDPATH", "GLOBIGNORE"}, name), strings.HasPrefix(name, "BASH_FUNC_"):
 		default:
 			base = append(base, kv)
 		}
@@ -56,6 +56,12 @@ func TestTheGateRefusesALoosenedMake(t *testing.T) {
 		{"shell options", []string{"-n", "quality"}, []string{"SHELLOPTS=noexec"}, shellRefused},
 		{"bash options", []string{"-n", "quality"}, []string{"BASHOPTS=expand_aliases"}, shellRefused},
 		{"an exported function", []string{"-n", "quality"}, []string{"BASH_FUNC_go%%=() {  :; }"}, shellRefused},
+		{"shell options make expands to nothing", []string{"-n", "quality"}, []string{"SHELLOPTS=$(if ,:noexec:)"}, shellRefused},
+		{"a startup file make expands to nothing", []string{"-n", "quality"}, []string{"BASH_ENV=${X:-" + empty + "}"}, shellRefused},
+		{"a cd path", []string{"-n", "quality"}, []string{"CDPATH=" + filepath.Dir(empty)}, shellRefused},
+		{"a glob filter", []string{"-n", "quality"}, []string{"GLOBIGNORE=*.go"}, shellRefused},
+		{"GOFLAGS make expands to nothing", []string{"-n", "quality"}, []string{"GOFLAGS=$(if ,-tags=gate_off)"}, "GOFLAGS is set"},
+		{"another makefile make expands to nothing", []string{"-n", "quality"}, []string{"MAKEFILES=$(if ," + empty + ")"}, makefilesRefused},
 		{"another makefile", []string{"-n", "quality"}, []string{"MAKEFILES=" + empty}, makefilesRefused},
 		{"another makefile for another goal", []string{"-n", "quality-quick"}, []string{"MAKEFILES=" + empty}, makefilesRefused},
 		{"another go through the environment", []string{"-n", "quality"}, []string{"GO=true"}, "make quality runs go itself; GO is true"},
@@ -83,7 +89,7 @@ func TestTheGateRefusesALoosenedMake(t *testing.T) {
 }
 
 // shellRefused is the refusal of what the recipes' bash reads at startup.
-const shellRefused = "BASH_ENV, ENV, SHELLOPTS, BASHOPTS or an exported function is set"
+const shellRefused = "BASH_ENV, ENV, SHELLOPTS, BASHOPTS, CDPATH, GLOBIGNORE or an exported function is set"
 
 // defaultGoalRefused is the refusal of a .DEFAULT_GOAL this Makefile did not set.
 const defaultGoalRefused = ".DEFAULT_GOAL is this Makefile's"
