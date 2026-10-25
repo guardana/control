@@ -265,6 +265,9 @@ a hook event cannot be read, or the plane's count of halted runs was not
 read; such a line was skipped and the rest judged. A results line that does
 not parse fails the report. The 2.1.310 observations, judged again, still
 pass all 20 cases.</li>
+<li><code>guardana-gateway doctor</code> reports <code>unknown</code>, not <code>fail</code>, when a decision
+point's published metadata gives its identifier or evaluation endpoint as
+JSON <code>null</code>, as it does for any other value that is not a string.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
@@ -280,7 +283,11 @@ what <code>OBSERVE</code> still blocks, a held trail's closing record after hand
 shutdown of an enforcement API plane, the collector's 415, the hook's
 deadlines, coverage's join and others. The status page, roadmap and backlog
 stop describing the Python client and the hook bridge as planned, and
-ADR-0050 is marked accepted, as it was on merging.</li>
+ADR-0050 is marked accepted, as it was on merging. The pre-release audit
+corrected fifteen more: among them the trail of a call blocked after it
+started, the digest <code>OBSERVE</code> records for a call whose input the kernel
+refused, when an evidence record is on disk, which collector answers
+quarantine a record, and which stale decisions carry <code>POLICY_STALE</code>.</li>
 <li>A gateway configuration refuses a tool classification no envelope could
 carry, naming the key, where before it loaded and every call to the tool was
 refused: a <code>WRITE</code>, <code>DELETE</code>, <code>CONFIGURE</code>, <code>TRANSACT</code> or

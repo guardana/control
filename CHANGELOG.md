@@ -158,6 +158,9 @@ verify one.
   read; such a line was skipped and the rest judged. A results line that does
   not parse fails the report. The 2.1.310 observations, judged again, still
   pass all 20 cases.
+- `guardana-gateway doctor` reports `unknown`, not `fail`, when a decision
+  point's published metadata gives its identifier or evaluation endpoint as
+  JSON `null`, as it does for any other value that is not a string.
 
 ### Changed
 
@@ -173,7 +176,11 @@ verify one.
   shutdown of an enforcement API plane, the collector's 415, the hook's
   deadlines, coverage's join and others. The status page, roadmap and backlog
   stop describing the Python client and the hook bridge as planned, and
-  ADR-0050 is marked accepted, as it was on merging.
+  ADR-0050 is marked accepted, as it was on merging. The pre-release audit
+  corrected fifteen more: among them the trail of a call blocked after it
+  started, the digest `OBSERVE` records for a call whose input the kernel
+  refused, when an evidence record is on disk, which collector answers
+  quarantine a record, and which stale decisions carry `POLICY_STALE`.
 - A gateway configuration refuses a tool classification no envelope could
   carry, naming the key, where before it loaded and every call to the tool was
   refused: a `WRITE`, `DELETE`, `CONFIGURE`, `TRANSACT` or
