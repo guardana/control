@@ -252,6 +252,11 @@ bits count, carries no time, as an event without one does.</li>
 the environment, whatever the goal. Its <code>make quality</code> guard read the goals
 from it, so <code>make quality MAKECMDGOALS= MAKE=/usr/bin/true</code> passed every
 guard, ran no check and printed <code>quality: green</code>.</li>
+<li><code>scripts/bootstrap.sh</code> compares a tool's whole version word with its pin,
+suffix included, so a prerelease or development build such as
+<code>2.14.0-rc.1</code>, <code>2.14.0-dev</code> or <code>2.14.0+dirty</code> fails a pin of <code>2.14.0</code>; it
+read only the leading <code>x.y.z</code> and passed them, in <code>--check</code> too, which the
+release commit's cold gate runs.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>

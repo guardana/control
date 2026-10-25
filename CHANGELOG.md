@@ -145,6 +145,11 @@ verify one.
   the environment, whatever the goal. Its `make quality` guard read the goals
   from it, so `make quality MAKECMDGOALS= MAKE=/usr/bin/true` passed every
   guard, ran no check and printed `quality: green`.
+- `scripts/bootstrap.sh` compares a tool's whole version word with its pin,
+  suffix included, so a prerelease or development build such as
+  `2.14.0-rc.1`, `2.14.0-dev` or `2.14.0+dirty` fails a pin of `2.14.0`; it
+  read only the leading `x.y.z` and passed them, in `--check` too, which the
+  release commit's cold gate runs.
 
 ### Changed
 
