@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -13,8 +14,9 @@ import (
 func cleanMakeEnv() []string {
 	var base []string
 	for _, kv := range os.Environ() {
-		switch name, _, _ := strings.Cut(kv, "="); name {
-		case "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS", "MAKEFILES", "MAKECMDGOALS", "MAKE", "GO", "GOFLAGS", "BASH_ENV", "ENV":
+		switch name, _, _ := strings.Cut(kv, "="); {
+		case slices.Contains([]string{"MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS", "MAKEFILES", "MAKECMDGOALS", ".DEFAULT_GOAL",
+			"MAKE", "GO", "GOFLAGS", "BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS"}, name), strings.HasPrefix(name, "BASH_FUNC_"):
 		default:
 			base = append(base, kv)
 		}
@@ -50,7 +52,10 @@ func TestTheGateRefusesALoosenedMake(t *testing.T) {
 		{"a question on the command line", []string{"-q", "quality"}, nil, "MAKEFLAGS asks for a dry run"},
 		{"a dry run through the environment", []string{"quality"}, []string{"MAKEFLAGS=n"}, "MAKEFLAGS asks for a dry run"},
 		{"GOFLAGS through the environment", []string{"-n", "quality"}, []string{"GOFLAGS=-tags=gate_off"}, "GOFLAGS is set"},
-		{"a shell startup file", []string{"-n", "quality"}, []string{"BASH_ENV=" + empty}, "BASH_ENV or ENV is set"},
+		{"a shell startup file", []string{"-n", "quality"}, []string{"BASH_ENV=" + empty}, shellRefused},
+		{"shell options", []string{"-n", "quality"}, []string{"SHELLOPTS=noexec"}, shellRefused},
+		{"bash options", []string{"-n", "quality"}, []string{"BASHOPTS=expand_aliases"}, shellRefused},
+		{"an exported function", []string{"-n", "quality"}, []string{"BASH_FUNC_go%%=() {  :; }"}, shellRefused},
 		{"another makefile", []string{"-n", "quality"}, []string{"MAKEFILES=" + empty}, makefilesRefused},
 		{"another makefile for another goal", []string{"-n", "quality-quick"}, []string{"MAKEFILES=" + empty}, makefilesRefused},
 		{"another go through the environment", []string{"-n", "quality"}, []string{"GO=true"}, "make quality runs go itself; GO is true"},
@@ -76,6 +81,12 @@ func TestTheGateRefusesALoosenedMake(t *testing.T) {
 		t.Errorf("make -n quality-quick, which the guard leaves alone, = %v:\n%.600s", err, out)
 	}
 }
+
+// shellRefused is the refusal of what the recipes' bash reads at startup.
+const shellRefused = "BASH_ENV, ENV, SHELLOPTS, BASHOPTS or an exported function is set"
+
+// defaultGoalRefused is the refusal of a .DEFAULT_GOAL this Makefile did not set.
+const defaultGoalRefused = ".DEFAULT_GOAL is this Makefile's"
 
 // makefilesRefused is the refusal of a makefile named in MAKEFILES.
 const makefilesRefused = "this Makefile is read alone; MAKEFILES names"
@@ -164,8 +175,9 @@ func makeReadsExtraFile(t *testing.T, makeBin, flags string) bool {
 // quality is already up to date, on the command line or through the
 // environment, still runs them, so a tree where every check fails at once
 // never prints the gate's pass line. Environment overrides, an eval, and a
-// makefile read before or after this one are refused, and so is a
-// MAKECMDGOALS make did not set itself, for any goal. It runs in a stand-in
+// makefile read before or after this one are refused, and so are a
+// MAKECMDGOALS make did not set itself and a .DEFAULT_GOAL the Makefile did
+// not, for any goal. It runs in a stand-in
 // tree, so a broken gate cannot start the real checks. A make with no eval
 // option refuses the eval itself, and the case asserts only that.
 func TestTheGateRunsTheChecksMakeWasToldToSkip(t *testing.T) {
@@ -189,12 +201,13 @@ func TestTheGateRunsTheChecksMakeWasToldToSkip(t *testing.T) {
 	if evalRefused == "" {
 		t.Logf("%s takes no --eval; the eval cases assert only that make refuses them", makeBin)
 	}
-	laterThroughFlags, laterThroughGNUFlags := standInRefusal, standInRefusal
+	laterThroughFlags, laterThroughGNUFlags, goalThroughGNUFlags := standInRefusal, standInRefusal, standInRefusal
 	if makeReadsExtraFile(t, makeBin, "MAKEFLAGS") {
 		laterThroughFlags = "make quality reads one makefile, this one"
 	}
 	if makeReadsExtraFile(t, makeBin, "GNUMAKEFLAGS") {
 		laterThroughGNUFlags = "make quality reads one makefile, this one"
+		goalThroughGNUFlags = defaultGoalRefused
 	}
 	escaped := strings.ReplaceAll(shellOffBelowTheTop, " ", `\ `)
 	base := cleanMakeEnv()
@@ -225,6 +238,10 @@ func TestTheGateRunsTheChecksMakeWasToldToSkip(t *testing.T) {
 		{"the goals restated", []string{"quality", "MAKECMDGOALS=quality"}, nil, goalsRefused},
 		{"the goals through the environment", []string{"quality"}, []string{"MAKECMDGOALS=lint"}, goalsRefused},
 		{"the goals cleared for another goal", []string{"-n", "quality-quick", "MAKECMDGOALS="}, nil, goalsRefused},
+		{"the default goal named and make replaced", []string{".DEFAULT_GOAL=quality", "MAKE=/usr/bin/true"}, nil, defaultGoalRefused},
+		{"the default goal through MAKEFLAGS", nil, []string{"MAKEFLAGS= -- .DEFAULT_GOAL=quality MAKE=/usr/bin/true"}, defaultGoalRefused},
+		{"the default goal through GNUMAKEFLAGS", nil, []string{"GNUMAKEFLAGS=.DEFAULT_GOAL=quality MAKE=/usr/bin/true"}, goalThroughGNUFlags},
+		{"the default goal from the environment", []string{"-e"}, []string{".DEFAULT_GOAL=quality", "MAKE=/usr/bin/true"}, defaultGoalRefused},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			cmd := exec.Command(makeBin, append([]string{"-C", dir}, c.args...)...) //nolint:gosec // G204: make, in a stand-in tree, with fixed arguments

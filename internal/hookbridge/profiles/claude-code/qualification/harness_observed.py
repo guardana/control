@@ -44,13 +44,15 @@ def jsonl(path):
 
 def events(path):
     """The hook events recorded in path, and why one could not be read, or
-    None. A missing meta file is a hook that wrote none, as one killed while
-    the bridge ran; an unreadable one is not known."""
+    None. Every invocation's settings create path, so one that cannot be
+    listed, absent included, is not known; a missing meta file is a hook that
+    wrote none, as one killed while the bridge ran; an unreadable one is not
+    known."""
     out = []
     try:
         names = sorted(n for n in os.listdir(path) if re.fullmatch(r"\d{3}\.json", n))
-    except OSError:
-        return out, None
+    except OSError as e:
+        return out, "the hook events of %s could not be listed: %s" % (os.path.basename(path), type(e).__name__)
     for name in names:
         stem = os.path.join(path, name[:-5])
         ev = load_json(stem + ".json")

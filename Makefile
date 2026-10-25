@@ -32,6 +32,14 @@ ifneq ($(filter-out default undefined,$(origin MAKECMDGOALS)),)
 $(error MAKECMDGOALS is make's own; it comes from the $(origin MAKECMDGOALS))
 endif
 
+# With no goal named, make runs .DEFAULT_GOAL, which MAKECMDGOALS does not
+# hold, so one set on the command line, through MAKEFLAGS or from the
+# environment could run quality around the guard below. It is refused
+# whatever the goal.
+ifneq ($(filter-out file default undefined,$(origin .DEFAULT_GOAL)),)
+$(error .DEFAULT_GOAL is this Makefile's; it comes from the $(origin .DEFAULT_GOAL))
+endif
+
 # make quality reports green only over work it did. A dry run, a touch, a
 # question, ignored errors or the environment over this Makefile would print
 # its last line over recipes that never ran or failed; another makefile, a
@@ -42,8 +50,8 @@ endif
 # can set any of them through the environment. GO=go is the one command-line
 # variable allowed, so a caller can name the go it means.
 ifneq ($(filter quality,$(MAKECMDGOALS)),)
-ifneq ($(strip $(BASH_ENV)$(ENV)),)
-$(error make quality starts its recipes' shell clean; BASH_ENV or ENV is set)
+ifneq ($(strip $(BASH_ENV)$(ENV)$(SHELLOPTS)$(BASHOPTS)$(filter BASH_FUNC_%,$(.VARIABLES))),)
+$(error make quality starts its recipes' shell clean; BASH_ENV, ENV, SHELLOPTS, BASHOPTS or an exported function is set)
 endif
 ifneq ($(words $(MAKEFILE_LIST)),1)
 $(error make quality reads one makefile, this one: $(MAKEFILE_LIST))

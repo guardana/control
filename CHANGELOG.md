@@ -141,13 +141,17 @@ verify one.
   get another time or none: 1600-01-01 was sent as a time in the future, and
   2300-01-01 without one. A time before the epoch, or past what 64 unsigned
   bits count, carries no time, as an event without one does.
-- The Makefile refuses a `MAKECMDGOALS` set on the command line or taken from
-  the environment, and a makefile named in `MAKEFILES`, whatever the goal.
-  Its `make quality` guard read the goals from `MAKECMDGOALS`, so
-  `make quality MAKECMDGOALS= MAKE=/usr/bin/true` passed every guard, ran no
-  check and printed `quality: green`, and a `MAKEFILES` makefile could
-  undefine it to the same end. CI's gate step also unsets `MAKEFILES`, since
-  such a makefile can undefine `MAKEFILES` too.
+- The Makefile refuses, whatever the goal, a `MAKECMDGOALS` or a
+  `.DEFAULT_GOAL` set on the command line, through `MAKEFLAGS` or from the
+  environment, and a makefile named in `MAKEFILES`. Its `make quality` guard
+  read the goals from `MAKECMDGOALS`, so `make quality MAKECMDGOALS=
+  MAKE=/usr/bin/true` and `make .DEFAULT_GOAL=quality MAKE=/usr/bin/true`
+  passed every guard, ran no check and printed `quality: green`, and a
+  `MAKEFILES` makefile could undefine `MAKECMDGOALS` to the same end. CI's
+  gate step also unsets `MAKEFILES`, since such a makefile can undefine
+  `MAKEFILES` too. `make quality` also refuses `SHELLOPTS`, `BASHOPTS` and an
+  exported bash function, which change what its recipes' shell runs:
+  `SHELLOPTS=noexec` ran nothing and exited 0.
 - `scripts/bootstrap.sh` compares a tool's whole version word with its pin,
   suffix included, so a prerelease or development build such as
   `2.14.0-rc.1`, `2.14.0-dev` or `2.14.0+dirty` fails a pin of `2.14.0`; it
@@ -156,8 +160,9 @@ verify one.
 - The hook profile's qualification passes the secret-read case only when the
   runtime's stream holds its error answer to that Read; a runtime that
   stopped after the hook, with no answer recorded, passed it. Every case is
-  unknown when a line of the runtime's stream or of the trail does not parse
-  or a hook event cannot be read, and the two rewrite cases are unknown when
+  unknown when a line of the runtime's stream or of the trail does not parse,
+  a hook event cannot be read or its directory cannot be listed, and the two
+  rewrite cases are unknown when
   the plane's count of halted runs was not read; such a line was skipped and
   the rest judged. A results line that does
   not parse fails the report. The 2.1.310 observations, judged again, still
