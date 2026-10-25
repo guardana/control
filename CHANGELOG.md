@@ -136,6 +136,11 @@ verify one.
   line another source's import refused, in the same log directory, put the
   supervised source's runs in doubt and left `STEP_OUTSIDE_PROCEDURE` and
   `DENIED_ACTION_RETRIED_AROUND` not checked.
+- The OTLP exporter writes a log record's time from the event's seconds and
+  nanoseconds as an unsigned count. An event before 1678 or after 2262 could
+  get another time or none: 1600-01-01 was sent as a time in the future, and
+  2300-01-01 without one. A time before the epoch, or past what 64 unsigned
+  bits count, carries no time, as an event without one does.
 
 ### Changed
 
