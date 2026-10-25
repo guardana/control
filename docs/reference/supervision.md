@@ -91,9 +91,9 @@ an export; a retry confirms only when one export holds both.
 
 The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it `CONFIRMED`; an observation makes it `SUSPECTED`; a record in doubt,
-`INDETERMINATE`. So are a silent source's observations. A request with two
-copies or a broken chain leaves no rule checked; an observation with two
-contents, or a judged run its source doubts, until the log is rotated
+`INDETERMINATE`. So are a silent source's observations. A request with
+conflicting copies or a broken chain leaves no rule checked; an observation
+with two contents, or a judged run its source doubts, until the log is rotated
 ([observations](observations.md#the-log)), leaves `STEP_OUTSIDE_PROCEDURE`
 and `DENIED_ACTION_RETRIED_AROUND` not checked.
 The step rules rest on something not seen:
