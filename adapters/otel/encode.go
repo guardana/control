@@ -118,7 +118,7 @@ func unixNano(ts *timestamppb.Timestamp) (uint64, bool) {
 	if secs < 0 || secs > maxUnixSeconds || secs == maxUnixSeconds && nanos > maxUnixNanos {
 		return 0, false
 	}
-	return uint64(secs)*uint64(time.Second) + uint64(nanos), true
+	return uint64(secs)*uint64(time.Second) + uint64(nanos), true //nolint:gosec // G115: CheckValid holds nanos to 0 through 999999999
 }
 
 func attributes(ev *controlv1.Event) []keyValue {

@@ -34,8 +34,7 @@ var bootstrapOutputs = map[string]struct{ key, layout string }{
 // and go.mod's go version.
 func bootstrapPins(t *testing.T) (map[string]string, string) {
 	t.Helper()
-	root := repoRoot(t)
-	env, err := os.ReadFile(filepath.Join(root, "scripts", "tool-versions.env"))
+	env, err := os.ReadFile(filepath.Join(repoRoot(t), "scripts", "tool-versions.env"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +46,7 @@ func bootstrapPins(t *testing.T) (map[string]string, string) {
 		}
 		pins[tool] = string(m[1])
 	}
-	mod, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	mod, err := os.ReadFile(filepath.Join(repoRoot(t), "go.mod"))
 	if err != nil {
 		t.Fatal(err)
 	}

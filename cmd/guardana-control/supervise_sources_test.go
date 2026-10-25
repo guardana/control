@@ -271,7 +271,7 @@ func TestSuperviseAnotherSourcesDoubtIsNotThisSources(t *testing.T) {
 	descriptor, log := tr.source(t)
 	end := supBase.Add(5 * time.Second)
 	tr.importSpans(t, descriptor, log, spansLine(toolSpan("00f067aa0ba90001", "search_docs", tr.run, 1, end)), 0, 0)
-	raw, err := os.ReadFile(descriptor)
+	raw, err := os.ReadFile(descriptor) //nolint:gosec // G304: the test's own temporary directory
 	if err != nil {
 		t.Fatal(err)
 	}
