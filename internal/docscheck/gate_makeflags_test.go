@@ -141,6 +141,32 @@ func makeTakes(t *testing.T, makeBin string, args ...string) bool {
 	return cmd.Run() == nil
 }
 
+// makeReadsAssignment reports whether make takes a variable assignment from
+// flags: make 3.81 does not read GNUMAKEFLAGS at all, while 4.3 takes an
+// assignment there though it ignores -f.
+func makeReadsAssignment(t *testing.T, makeBin, flags string) bool {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte("probe:\n\t@printf '%s\\n' '$(PROBE)'\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(makeBin, "-C", dir, "--no-print-directory", "probe") //nolint:gosec // G204: make with fixed arguments in a probe directory
+	cmd.Env = append(cleanMakeEnv(), flags+"=PROBE=read")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("probe an assignment through %s: %v:\n%s", flags, err, out)
+	}
+	switch strings.TrimSpace(string(out)) {
+	case "":
+		return false
+	case "read":
+		return true
+	default:
+		t.Fatalf("probe an assignment through %s printed %q", flags, out)
+		return false
+	}
+}
+
 // makeReadsExtraFile measures the makefile option separately from eval:
 // make 4.3 ignores -f in these environment variables, while 4.4 reads it.
 func makeReadsExtraFile(t *testing.T, makeBin, flags string) bool {
@@ -207,6 +233,8 @@ func TestTheGateRunsTheChecksMakeWasToldToSkip(t *testing.T) {
 	}
 	if makeReadsExtraFile(t, makeBin, "GNUMAKEFLAGS") {
 		laterThroughGNUFlags = "make quality reads one makefile, this one"
+	}
+	if makeReadsAssignment(t, makeBin, "GNUMAKEFLAGS") {
 		goalThroughGNUFlags = defaultGoalRefused
 	}
 	escaped := strings.ReplaceAll(shellOffBelowTheTop, " ", `\ `)
