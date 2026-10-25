@@ -248,6 +248,10 @@ nanoseconds as an unsigned count. An event before 1678 or after 2262 could
 get another time or none: 1600-01-01 was sent as a time in the future, and
 2300-01-01 without one. A time before the epoch, or past what 64 unsigned
 bits count, carries no time, as an event without one does.</li>
+<li>The Makefile refuses a <code>MAKECMDGOALS</code> set on the command line or taken from
+the environment, whatever the goal. Its <code>make quality</code> guard read the goals
+from it, so <code>make quality MAKECMDGOALS= MAKE=/usr/bin/true</code> passed every
+guard, ran no check and printed <code>quality: green</code>.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>

@@ -141,6 +141,10 @@ verify one.
   get another time or none: 1600-01-01 was sent as a time in the future, and
   2300-01-01 without one. A time before the epoch, or past what 64 unsigned
   bits count, carries no time, as an event without one does.
+- The Makefile refuses a `MAKECMDGOALS` set on the command line or taken from
+  the environment, whatever the goal. Its `make quality` guard read the goals
+  from it, so `make quality MAKECMDGOALS= MAKE=/usr/bin/true` passed every
+  guard, ran no check and printed `quality: green`.
 
 ### Changed
 

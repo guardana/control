@@ -14,6 +14,14 @@ ifneq ($(strip $(-*-eval-flags-*-)$(findstring --eval,$(MAKEFLAGS))),)
 $(error this Makefile takes no --eval or -E: $(-*-eval-flags-*-))
 endif
 
+# The guard below reads the goals from MAKECMDGOALS. One set on the command
+# line or taken from the environment replaces make's own without changing the
+# goals make runs, and would turn the guard off, so it is refused whatever
+# the goal.
+ifneq ($(filter-out default undefined,$(origin MAKECMDGOALS)),)
+$(error MAKECMDGOALS is make's own; it comes from the $(origin MAKECMDGOALS))
+endif
+
 # make quality reports green only over work it did. A dry run, a touch, a
 # question, ignored errors or the environment over this Makefile would print
 # its last line over recipes that never ran or failed; another makefile, a
