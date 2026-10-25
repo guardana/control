@@ -249,9 +249,12 @@ get another time or none: 1600-01-01 was sent as a time in the future, and
 2300-01-01 without one. A time before the epoch, or past what 64 unsigned
 bits count, carries no time, as an event without one does.</li>
 <li>The Makefile refuses a <code>MAKECMDGOALS</code> set on the command line or taken from
-the environment, whatever the goal. Its <code>make quality</code> guard read the goals
-from it, so <code>make quality MAKECMDGOALS= MAKE=/usr/bin/true</code> passed every
-guard, ran no check and printed <code>quality: green</code>.</li>
+the environment, and a makefile named in <code>MAKEFILES</code>, whatever the goal.
+Its <code>make quality</code> guard read the goals from <code>MAKECMDGOALS</code>, so
+<code>make quality MAKECMDGOALS= MAKE=/usr/bin/true</code> passed every guard, ran no
+check and printed <code>quality: green</code>, and a <code>MAKEFILES</code> makefile could
+undefine it to the same end. CI's gate step also unsets <code>MAKEFILES</code>, since
+such a makefile can undefine <code>MAKEFILES</code> too.</li>
 <li><code>scripts/bootstrap.sh</code> compares a tool's whole version word with its pin,
 suffix included, so a prerelease or development build such as
 <code>2.14.0-rc.1</code>, <code>2.14.0-dev</code> or <code>2.14.0+dirty</code> fails a pin of <code>2.14.0</code>; it
@@ -260,9 +263,10 @@ release commit's cold gate runs.</li>
 <li>The hook profile's qualification passes the secret-read case only when the
 runtime's stream holds its error answer to that Read; a runtime that
 stopped after the hook, with no answer recorded, passed it. Every case is
-unknown when a line of the runtime's stream or of the trail does not parse,
-a hook event cannot be read, or the plane's count of halted runs was not
-read; such a line was skipped and the rest judged. A results line that does
+unknown when a line of the runtime's stream or of the trail does not parse
+or a hook event cannot be read, and the two rewrite cases are unknown when
+the plane's count of halted runs was not read; such a line was skipped and
+the rest judged. A results line that does
 not parse fails the report. The 2.1.310 observations, judged again, still
 pass all 20 cases.</li>
 <li><code>guardana-gateway doctor</code> reports <code>unknown</code>, not <code>fail</code>, when a decision

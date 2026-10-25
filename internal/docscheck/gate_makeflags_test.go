@@ -51,7 +51,8 @@ func TestTheGateRefusesALoosenedMake(t *testing.T) {
 		{"a dry run through the environment", []string{"quality"}, []string{"MAKEFLAGS=n"}, "MAKEFLAGS asks for a dry run"},
 		{"GOFLAGS through the environment", []string{"-n", "quality"}, []string{"GOFLAGS=-tags=gate_off"}, "GOFLAGS is set"},
 		{"a shell startup file", []string{"-n", "quality"}, []string{"BASH_ENV=" + empty}, "BASH_ENV or ENV is set"},
-		{"another makefile", []string{"-n", "quality"}, []string{"MAKEFILES=" + empty}, "BASH_ENV or ENV is set"},
+		{"another makefile", []string{"-n", "quality"}, []string{"MAKEFILES=" + empty}, makefilesRefused},
+		{"another makefile for another goal", []string{"-n", "quality-quick"}, []string{"MAKEFILES=" + empty}, makefilesRefused},
 		{"another go through the environment", []string{"-n", "quality"}, []string{"GO=true"}, "make quality runs go itself; GO is true"},
 		{"another go on the command line", []string{"-n", "quality", "GO=true"}, nil, "make quality runs go itself; GO is true"},
 		{"another make through the environment", []string{"-n", "quality"}, []string{"MAKE=true"}, "MAKE comes from the environment"},
@@ -75,6 +76,9 @@ func TestTheGateRefusesALoosenedMake(t *testing.T) {
 		t.Errorf("make -n quality-quick, which the guard leaves alone, = %v:\n%.600s", err, out)
 	}
 }
+
+// makefilesRefused is the refusal of a makefile named in MAKEFILES.
+const makefilesRefused = "this Makefile is read alone; MAKEFILES names"
 
 // goalsRefused is the refusal of a MAKECMDGOALS make did not set itself.
 const goalsRefused = "MAKECMDGOALS is make's own"

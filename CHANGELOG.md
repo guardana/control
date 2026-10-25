@@ -142,9 +142,12 @@ verify one.
   2300-01-01 without one. A time before the epoch, or past what 64 unsigned
   bits count, carries no time, as an event without one does.
 - The Makefile refuses a `MAKECMDGOALS` set on the command line or taken from
-  the environment, whatever the goal. Its `make quality` guard read the goals
-  from it, so `make quality MAKECMDGOALS= MAKE=/usr/bin/true` passed every
-  guard, ran no check and printed `quality: green`.
+  the environment, and a makefile named in `MAKEFILES`, whatever the goal.
+  Its `make quality` guard read the goals from `MAKECMDGOALS`, so
+  `make quality MAKECMDGOALS= MAKE=/usr/bin/true` passed every guard, ran no
+  check and printed `quality: green`, and a `MAKEFILES` makefile could
+  undefine it to the same end. CI's gate step also unsets `MAKEFILES`, since
+  such a makefile can undefine `MAKEFILES` too.
 - `scripts/bootstrap.sh` compares a tool's whole version word with its pin,
   suffix included, so a prerelease or development build such as
   `2.14.0-rc.1`, `2.14.0-dev` or `2.14.0+dirty` fails a pin of `2.14.0`; it
@@ -153,9 +156,10 @@ verify one.
 - The hook profile's qualification passes the secret-read case only when the
   runtime's stream holds its error answer to that Read; a runtime that
   stopped after the hook, with no answer recorded, passed it. Every case is
-  unknown when a line of the runtime's stream or of the trail does not parse,
-  a hook event cannot be read, or the plane's count of halted runs was not
-  read; such a line was skipped and the rest judged. A results line that does
+  unknown when a line of the runtime's stream or of the trail does not parse
+  or a hook event cannot be read, and the two rewrite cases are unknown when
+  the plane's count of halted runs was not read; such a line was skipped and
+  the rest judged. A results line that does
   not parse fails the report. The 2.1.310 observations, judged again, still
   pass all 20 cases.
 - `guardana-gateway doctor` reports `unknown`, not `fail`, when a decision

@@ -61,7 +61,8 @@ func TestAnUnclassifiedCallIsBlockedInEveryModeButObserve(t *testing.T) {
 func TestAnUnclassifiedCallRunsUnderObserve(t *testing.T) {
 	h := build(t, modeObserve, snapshot(t, allowWrites), observer)
 	args := []byte(`{"k": 1}`)
-	d := h.p.Admit(context.Background(), unclassified(args))
+	a := unclassified(args)
+	d := h.p.Admit(context.Background(), a)
 	if d.Action != core.Execute || !bytes.Equal(d.AuthorizedArgs, args) {
 		t.Fatalf("under OBSERVE: Action = %d, args %q; want the proposed bytes run", d.Action, d.AuthorizedArgs)
 	}
@@ -73,7 +74,7 @@ func TestAnUnclassifiedCallRunsUnderObserve(t *testing.T) {
 	if err := h.p.Close(context.Background(), d, args, result(controlv1.ResultStatus_RESULT_STATUS_SUCCESS)); err != nil {
 		t.Errorf("Close of the observed call: %v", err)
 	}
-	expectSentDigestOnly(t, h.events())
+	expectSentDigestOnly(t, h.events(), actionDigest(t, a.Envelope, string(args)))
 	if s := h.p.Stats(); s.Halted || s.Mismatches != 0 {
 		t.Errorf("Stats = %+v", s)
 	}
@@ -84,12 +85,12 @@ func TestAnUnclassifiedCallRunsUnderObserve(t *testing.T) {
 }
 
 // expectSentDigestOnly asserts a trail whose POLICY_DECIDED carries no action
-// digest and whose ACTION_COMPLETED carries the digest of the bytes sent.
-func expectSentDigestOnly(t *testing.T, events []*controlv1.Event) {
+// digest and whose ACTION_COMPLETED carries sent, the digest of the bytes sent.
+func expectSentDigestOnly(t *testing.T, events []*controlv1.Event, sent string) {
 	t.Helper()
 	decided, closing := events[1], events[len(events)-1]
 	if decided.GetKind() != kindDecided || decided.GetDecision().GetActionDigest() != "" ||
-		closing.GetKind() != kindCompleted || closing.GetResult().GetExecutedActionDigest() == "" {
+		closing.GetKind() != kindCompleted || closing.GetResult().GetExecutedActionDigest() != sent {
 		t.Errorf("the refused decision carries digest %q and the closing %s carries %q; want none on the decision and the sent bytes' on %s",
 			decided.GetDecision().GetActionDigest(), closing.GetKind(), closing.GetResult().GetExecutedActionDigest(), kindCompleted)
 	}

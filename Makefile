@@ -14,6 +14,16 @@ ifneq ($(strip $(-*-eval-flags-*-)$(findstring --eval,$(MAKEFLAGS))),)
 $(error this Makefile takes no --eval or -E: $(-*-eval-flags-*-))
 endif
 
+# A makefile named in MAKEFILES is read before this one and can undefine
+# MAKECMDGOALS, MAKEFILE_LIST or MAKE around every guard below, so it is
+# refused whatever the goal. One that also undefines MAKEFILES, like one named
+# by -f before this one, is beyond any guard a makefile can hold: CI's command
+# line unsets MAKEFILES, and gate-commit.sh starts make with a clean
+# environment.
+ifneq ($(strip $(MAKEFILES)),)
+$(error this Makefile is read alone; MAKEFILES names $(MAKEFILES))
+endif
+
 # The guard below reads the goals from MAKECMDGOALS. One set on the command
 # line or taken from the environment replaces make's own without changing the
 # goals make runs, and would turn the guard off, so it is refused whatever
@@ -32,8 +42,8 @@ endif
 # can set any of them through the environment. GO=go is the one command-line
 # variable allowed, so a caller can name the go it means.
 ifneq ($(filter quality,$(MAKECMDGOALS)),)
-ifneq ($(strip $(MAKEFILES)$(BASH_ENV)$(ENV)),)
-$(error make quality reads this Makefile alone and starts its recipes' shell clean; MAKEFILES, BASH_ENV or ENV is set)
+ifneq ($(strip $(BASH_ENV)$(ENV)),)
+$(error make quality starts its recipes' shell clean; BASH_ENV or ENV is set)
 endif
 ifneq ($(words $(MAKEFILE_LIST)),1)
 $(error make quality reads one makefile, this one: $(MAKEFILE_LIST))
