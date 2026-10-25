@@ -150,6 +150,14 @@ verify one.
   `2.14.0-rc.1`, `2.14.0-dev` or `2.14.0+dirty` fails a pin of `2.14.0`; it
   read only the leading `x.y.z` and passed them, in `--check` too, which the
   release commit's cold gate runs.
+- The hook profile's qualification passes the secret-read case only when the
+  runtime's stream holds its error answer to that Read; a runtime that
+  stopped after the hook, with no answer recorded, passed it. Every case is
+  unknown when a line of the runtime's stream or of the trail does not parse,
+  a hook event cannot be read, or the plane's count of halted runs was not
+  read; such a line was skipped and the rest judged. A results line that does
+  not parse fails the report. The 2.1.310 observations, judged again, still
+  pass all 20 cases.
 
 ### Changed
 
