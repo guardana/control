@@ -262,9 +262,9 @@ an export; a retry confirms only when one export holds both.</p>
 make it <code>CONFIRMED</code>; an observation makes it <code>SUSPECTED</code>; a record in doubt,
 <code>INDETERMINATE</code>. So are a silent source's observations. A request with two
 copies or a broken chain leaves no rule checked; an observation with two
-contents, or a judged run a log doubts, while it holds that report
-(<a href="/docs/reference/observations#the-log">observations</a>), leaves <code>STEP_OUTSIDE_PROCEDURE</code>
-and <code>DENIED_ACTION_RETRIED_AROUND</code> not checked.
+contents, or a judged run the source's own reports doubt, while the log holds
+that report (<a href="/docs/reference/observations#the-log">observations</a>), leaves
+<code>STEP_OUTSIDE_PROCEDURE</code> and <code>DENIED_ACTION_RETRIED_AROUND</code> not checked.
 The step rules rest on something not seen:
 <code>SUSPECTED</code> at most, <code>INDETERMINATE</code> while a <code>--source</code> is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.

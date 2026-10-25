@@ -41,7 +41,9 @@ long as the log lasts.
 4. `observelog.Write` refuses a caller's report the codec would refuse, then
    adds the runs of the conflicts it finds itself. A `0.1` report that counts
    a refusal or a conflict is read as doubting every run.
-5. `supervise` takes, per source, every run its log's reports doubt. When a
+5. `supervise` takes, per source, every run that source's own reports doubt:
+   those in its log that name its source, tenant and project, as its
+   liveness is read, whichever descriptor digest wrote them. When a
    run the evaluation judges is among them (the root, or under `inherit` any
    run of the tree), `STEP_OUTSIDE_PROCEDURE` and
    `DENIED_ACTION_RETRIED_AROUND` are not checked, findings kept. A finding

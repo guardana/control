@@ -146,7 +146,9 @@ alone refuses every <code>0.2</code> line rather than read past the members.</li
 <li><code>observelog.Write</code> refuses a caller's report the codec would refuse, then
 adds the runs of the conflicts it finds itself. A <code>0.1</code> report that counts
 a refusal or a conflict is read as doubting every run.</li>
-<li><code>supervise</code> takes, per source, every run its log's reports doubt. When a
+<li><code>supervise</code> takes, per source, every run that source's own reports doubt:
+those in its log that name its source, tenant and project, as its
+liveness is read, whichever descriptor digest wrote them. When a
 run the evaluation judges is among them (the root, or under <code>inherit</code> any
 run of the tree), <code>STEP_OUTSIDE_PROCEDURE</code> and
 <code>DENIED_ACTION_RETRIED_AROUND</code> are not checked, findings kept. A finding

@@ -93,9 +93,9 @@ The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it `CONFIRMED`; an observation makes it `SUSPECTED`; a record in doubt,
 `INDETERMINATE`. So are a silent source's observations. A request with two
 copies or a broken chain leaves no rule checked; an observation with two
-contents, or a judged run a log doubts, while it holds that report
-([observations](observations.md#the-log)), leaves `STEP_OUTSIDE_PROCEDURE`
-and `DENIED_ACTION_RETRIED_AROUND` not checked.
+contents, or a judged run the source's own reports doubt, while the log holds
+that report ([observations](observations.md#the-log)), leaves
+`STEP_OUTSIDE_PROCEDURE` and `DENIED_ACTION_RETRIED_AROUND` not checked.
 The step rules rest on something not seen:
 `SUSPECTED` at most, `INDETERMINATE` while a `--source` is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.

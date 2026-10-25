@@ -131,6 +131,11 @@ verify one.
   amount to such a limit and then could not canonicalize the arguments, so
   every call the rule matched was denied with `OBLIGATION_NOT_UNDERSTOOD`; a
   bundle already signed with one still loads and is denied as before.
+- `supervise` reads a source's doubt from that source's own import reports,
+  those naming its source, tenant and project, as it reads its liveness. A
+  line another source's import refused, in the same log directory, put the
+  supervised source's runs in doubt and left `STEP_OUTSIDE_PROCEDURE` and
+  `DENIED_ACTION_RETRIED_AROUND` not checked.
 
 ### Changed
 
