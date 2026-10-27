@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -49,6 +50,9 @@ func main() {
 		fail(fmt.Errorf("%s: %w", expectedSkips, err))
 	}
 	if _, err := testreport.Summarize(os.Stdin, os.Stdout, generated, expected); err != nil {
+		if errors.Is(err, testreport.ErrUnexpectedSkip) {
+			err = fmt.Errorf("%w; a skip the gate allows is named in %s with text its skip line holds", err, expectedSkips)
+		}
 		fail(err)
 	}
 }

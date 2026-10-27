@@ -70,8 +70,19 @@ func hasTestPrefix(test string) bool {
 	return false
 }
 
-// skip records one skipped test and judges it against the expected set.
-func (rep *reporter) skip(pkg, test, message string) {
+// skipLine is the last line test printed before it skipped, which is what
+// t.Skip wrote; a line t.Log wrote earlier says nothing about why it skipped.
+func (p *pkgState) skipLine(test string) string {
+	parts := p.outputOf(test)
+	if len(parts) == 0 {
+		return "(no message)"
+	}
+	return parts[len(parts)-1]
+}
+
+// skip records one skipped test and judges it, by the line it skipped with,
+// against the expected set.
+func (rep *reporter) skip(pkg, test, message, line string) {
 	rep.sum.Skipped++
 	rep.skips = append(rep.skips, skipped{pkg, test, message})
 	key := Skip{pkg, test}
@@ -80,24 +91,30 @@ func (rep *reporter) skip(pkg, test, message string) {
 	case !ok:
 		rep.sum.Unexpected++
 		rep.surprises = append(rep.surprises, pkg+" "+test)
-	case !strings.Contains(message, want):
+	case !strings.Contains(line, want):
 		rep.sum.Unexpected++
 		rep.surprises = append(rep.surprises, fmt.Sprintf("%s %s, whose message does not hold %q", pkg, test, want))
 	}
 }
 
 // writeExpectedRan names, in order, each expected skip whose package reached
-// a result in this stream without that test skipping. A package the stream
-// never reached says nothing about its tests, so it is not named.
+// a result in this stream without that test skipping: one that ran, and one
+// that never started, which a rename, a removal or a platform's build leaves.
+// A package the stream never reached says nothing about its tests, so it is
+// not named.
 func (rep *reporter) writeExpectedRan() {
-	var ran []string
+	var lines []string
 	for key := range rep.expected {
-		if rep.finished[key.Package] && !rep.didSkip[key] {
-			ran = append(ran, key.Package+" "+key.Test)
+		switch {
+		case !rep.finished[key.Package] || rep.didSkip[key]:
+		case rep.seen[key]:
+			lines = append(lines, "RAN "+key.Package+" "+key.Test)
+		default:
+			lines = append(lines, "ABSENT "+key.Package+" "+key.Test)
 		}
 	}
-	slices.Sort(ran)
-	for _, test := range ran {
-		rep.write(fmt.Sprintf("%sEXPECTED SKIP RAN %s\n", label, test))
+	slices.Sort(lines)
+	for _, l := range lines {
+		rep.write(fmt.Sprintf("%sEXPECTED SKIP %s\n", label, l))
 	}
 }

@@ -25,9 +25,9 @@ The Python client's runner already refuses every skip.
 `scripts/expected-skips.txt` names every test some run of the gate may skip,
 one per line: the import path, the test or subtest name, and text its skip
 message holds, which says why. `internal/testreport` fails a stream holding a
-skip the list does not name, or a listed test whose skip message does not
-hold that text, and names it. A listed test that ran where its package was
-tested is printed, not refused, because the list is the union over Linux and
+skip the list does not name, or a listed test whose skip line, the last line
+it printed, does not hold that text, and names it. A listed test that ran, or
+never started, where its package was tested is printed, not refused, because the list is the union over Linux and
 macOS under an ordinary account; a run as root skips other tests and is not
 covered. A malformed list, or one naming a test twice, fails the reporter
 before it reads the stream.
@@ -42,9 +42,10 @@ and has to be renamed.
 
 ## Alternatives considered
 
-- Refuse every skip, as the Python runner does: the root-only and
-  child-process tests would need another way to run or to be left out, and
-  each is a real check somewhere.
+- Refuse every skip, as the Python runner does: the child-process and
+  file-system tests run where they can, and the root-only ones, which no gate
+  of record runs, would have to be deleted or moved to a job that runs as
+  root.
 - Keep listing and counting skips: a reader of the transcript is the only
   check, and nobody reads a green transcript.
 - A list per platform: four lists to keep, for no check the union lacks.

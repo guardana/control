@@ -79,6 +79,27 @@ func TestSummarizeRefusesASubtestOfAListedTest(t *testing.T) {
 	}
 }
 
+// loggedThenSkipped is a package whose TestX logs the listed text and then
+// skips for another reason.
+const loggedThenSkipped = `{"Action":"run","Package":"example.com/p","Test":"TestX"}
+{"Action":"output","Package":"example.com/p","Test":"TestX","Output":"    x_test.go:5: needs root, as the log says\n"}
+{"Action":"output","Package":"example.com/p","Test":"TestX","Output":"    x_test.go:6: skipped while broken\n"}
+{"Action":"skip","Package":"example.com/p","Test":"TestX"}
+{"Action":"pass","Package":"example.com/p"}
+`
+
+func TestSummarizeJudgesTheLineASkipEndsWith(t *testing.T) {
+	expected := testreport.ExpectedSkips{{Package: "example.com/p", Test: "TestX"}: "needs root"}
+	_, err := testreport.Summarize(strings.NewReader(loggedThenSkipped), &bytes.Buffer{}, generated, expected)
+	if !errors.Is(err, testreport.ErrUnexpectedSkip) {
+		t.Fatalf("Summarize error = %v, want ErrUnexpectedSkip: the listed text is in a logged line, not the skip", err)
+	}
+	expected = testreport.ExpectedSkips{{Package: "example.com/p", Test: "TestX"}: "skipped while broken"}
+	if _, err := testreport.Summarize(strings.NewReader(loggedThenSkipped), &bytes.Buffer{}, generated, expected); err != nil {
+		t.Fatalf("Summarize refused a skip whose last line holds the listed text: %v", err)
+	}
+}
+
 func TestSummarizeNamesASkipForAnotherReason(t *testing.T) {
 	expected := testreport.ExpectedSkips{
 		{Package: "example.com/p", Test: "TestX"}: "a different reason",
@@ -139,7 +160,7 @@ func TestSummarizeReportsAListedSkipThatRan(t *testing.T) {
 	want := "ok  \texample.com/p\n" +
 		"test: SKIP example.com/p TestX: x_test.go:5: needs root\n" +
 		"test: SKIP example.com/p TestY: y_test.go:9: no read-only mount\n" +
-		"test: EXPECTED SKIP RAN example.com/p TestGone\n" +
+		"test: EXPECTED SKIP ABSENT example.com/p TestGone\n" +
 		"test: EXPECTED SKIP RAN example.com/p TestZ\n" +
 		"test: 2 skipped\n"
 	if out.String() != want {

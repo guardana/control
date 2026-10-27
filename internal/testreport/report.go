@@ -47,7 +47,7 @@ type Summary struct {
 	FailedTests    int // tests, subtests and benchmarks that failed
 	BuildFailures  int
 	Skipped        int // tests and subtests that skipped
-	Unexpected     int // skips the expected set does not name
+	Unexpected     int // skips the expected set does not name, or names with another message
 	NoTestsRun     int // packages that passed without a test's run event
 	NoTestFiles    int // packages outside the generated code with no test files
 	Unfinished     int // tests that started in a passing package and reached no result
@@ -84,6 +84,7 @@ type reporter struct {
 	skips     []skipped
 	expected  ExpectedSkips
 	didSkip   map[Skip]bool
+	seen      map[Skip]bool
 	finished  map[string]bool
 	surprises []string
 	noTests   []string
@@ -113,7 +114,7 @@ type reporter struct {
 func Summarize(r io.Reader, w io.Writer, generated string, expected ExpectedSkips) (Summary, error) {
 	rep := &reporter{
 		w: w, pkgs: map[string]*pkgState{}, generated: generated,
-		expected: expected, didSkip: map[Skip]bool{}, finished: map[string]bool{},
+		expected: expected, didSkip: map[Skip]bool{}, seen: map[Skip]bool{}, finished: map[string]bool{},
 	}
 	br := bufio.NewReader(r)
 	for n := 1; ; n++ {
@@ -153,6 +154,7 @@ func (rep *reporter) line(n int, text string) {
 		if e.Test != "" {
 			p.ran = true
 			p.started = append(p.started, e.Test)
+			rep.seen[Skip{e.Package, e.Test}] = true
 		}
 	case "output":
 		p.lines = append(p.lines, output{e.Test, e.Output})
@@ -168,7 +170,7 @@ func (rep *reporter) line(n int, text string) {
 		case "fail":
 			rep.sum.FailedTests++
 		case "skip":
-			rep.skip(e.Package, e.Test, p.skipMessage(e.Test))
+			rep.skip(e.Package, e.Test, p.skipMessage(e.Test), p.skipLine(e.Test))
 		}
 	}
 }
@@ -259,6 +261,15 @@ func (p *pkgState) resultLine(name string) string {
 }
 
 func (p *pkgState) skipMessage(test string) string {
+	parts := p.outputOf(test)
+	if len(parts) == 0 {
+		return "(no message)"
+	}
+	return strings.Join(parts, "; ")
+}
+
+// outputOf is what test printed, without go test's own === and --- lines.
+func (p *pkgState) outputOf(test string) []string {
 	var parts []string
 	for _, l := range p.lines {
 		if l.test != test {
@@ -270,10 +281,7 @@ func (p *pkgState) skipMessage(test string) string {
 		}
 		parts = append(parts, text)
 	}
-	if len(parts) == 0 {
-		return "(no message)"
-	}
-	return strings.Join(parts, "; ")
+	return parts
 }
 
 func (rep *reporter) finish() error {
