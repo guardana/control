@@ -32,6 +32,9 @@ var (
 	// ErrNoTestFiles is returned when a package outside the generated code
 	// has no test files, which go test reports as a skip of the package.
 	ErrNoTestFiles = errors.New("testreport: a package has no test files")
+	// ErrUnexpectedSkip is returned when a test skipped that the expected
+	// skips do not name.
+	ErrUnexpectedSkip = errors.New("testreport: a test skipped that the expected skips do not name")
 	// ErrModulePath is returned when a go.mod holds no single module path.
 	ErrModulePath = errors.New("testreport: no single module path in go.mod")
 )
@@ -44,6 +47,7 @@ type Summary struct {
 	FailedTests    int // tests, subtests and benchmarks that failed
 	BuildFailures  int
 	Skipped        int // tests and subtests that skipped
+	Unexpected     int // skips the expected set does not name
 	NoTestsRun     int // packages that passed without a test's run event
 	NoTestFiles    int // packages outside the generated code with no test files
 	Unfinished     int // tests that started in a passing package and reached no result
@@ -78,6 +82,10 @@ type reporter struct {
 	pkgs      map[string]*pkgState
 	order     []string
 	skips     []skipped
+	expected  ExpectedSkips
+	didSkip   map[Skip]bool
+	finished  map[string]bool
+	surprises []string
 	noTests   []string
 	noFiles   []string
 	open      []string
@@ -89,18 +97,24 @@ type reporter struct {
 // Summarize reads the output of `go test -json` from r and writes to w each
 // passing package's result line and, for a failing package, its own lines and
 // the output of each test that failed, in the order the stream carried them.
-// After the last event it writes one line per skipped test and the skip count.
-// A line that is not an event is written through as it came.
+// After the last event it writes one line per skipped test, one line per
+// expected skip that did not skip although its package reached a result here,
+// and the skip count. A line that is not an event is written through as it
+// came.
 //
 // The error is nil only when the stream held at least one package result, every
 // line was an event, every package reached a result, every test a passing
 // package started reached one too, nothing failed, no package with test files
 // passed without running one, and every package with no test files, which go
 // test reports as a skip of the package, is under generated: the import path
-// prefix, ending in a slash, of the generated packages (GeneratedPrefix). An
-// empty generated exempts no package.
-func Summarize(r io.Reader, w io.Writer, generated string) (Summary, error) {
-	rep := &reporter{w: w, pkgs: map[string]*pkgState{}, generated: generated}
+// prefix, ending in a slash, of the generated packages (GeneratedPrefix), and
+// every skipped test is in expected. An empty generated exempts no package; an
+// empty expected admits no skip.
+func Summarize(r io.Reader, w io.Writer, generated string, expected ExpectedSkips) (Summary, error) {
+	rep := &reporter{
+		w: w, pkgs: map[string]*pkgState{}, generated: generated,
+		expected: expected, didSkip: map[Skip]bool{}, finished: map[string]bool{},
+	}
 	br := bufio.NewReader(r)
 	for n := 1; ; n++ {
 		raw, err := br.ReadString('\n')
@@ -154,8 +168,7 @@ func (rep *reporter) line(n int, text string) {
 		case "fail":
 			rep.sum.FailedTests++
 		case "skip":
-			rep.sum.Skipped++
-			rep.skips = append(rep.skips, skipped{e.Package, e.Test, p.skipMessage(e.Test)})
+			rep.skip(e.Package, e.Test, p.skipMessage(e.Test))
 		}
 	}
 }
@@ -195,6 +208,7 @@ func (rep *reporter) pkg(name string) *pkgState {
 
 func (rep *reporter) result(name string, p *pkgState, action string) {
 	delete(rep.pkgs, name)
+	rep.finished[name] = true
 	rep.sum.Packages++
 	if action == "fail" {
 		rep.sum.FailedPackages++
@@ -295,6 +309,9 @@ func (rep *reporter) finish() error {
 			ErrFailed, s.FailedPackages, s.FailedTests, s.BuildFailures))
 	}
 	errs = append(errs, rep.untestedErrors()...)
+	if len(rep.surprises) > 0 {
+		errs = append(errs, fmt.Errorf("%w: %s", ErrUnexpectedSkip, strings.Join(rep.surprises, ", ")))
+	}
 	if rep.writeErr != nil {
 		errs = append(errs, fmt.Errorf("testreport: writing the transcript: %w", rep.writeErr))
 	}
@@ -314,7 +331,10 @@ func (rep *reporter) untestedErrors() []error {
 	return errs
 }
 
-// writeTail writes every test that never ended, every skip and the skip count.
+// writeTail writes every test that never ended, every skip, every expected
+// skip of a package this stream finished that did not skip, and the skip
+// count. An expected skip is not an error when its test ran: the set is the
+// union over every platform and account the gate runs on.
 func (rep *reporter) writeTail() {
 	for _, test := range rep.open {
 		rep.write(fmt.Sprintf("%sUNFINISHED %s\n", label, test))
@@ -322,6 +342,7 @@ func (rep *reporter) writeTail() {
 	for _, s := range rep.skips {
 		rep.write(fmt.Sprintf("%sSKIP %s %s: %s\n", label, s.pkg, s.test, s.message))
 	}
+	rep.writeExpectedRan()
 	rep.write(fmt.Sprintf("%s%d skipped\n", label, rep.sum.Skipped))
 }
 
