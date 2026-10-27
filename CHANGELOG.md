@@ -41,7 +41,8 @@ verify one.
 - A hold journal write that failed after its entry was linked could leave the
   entry behind a trail the plane closed without it; the next start closed the
   trail again, forking its chain. Such a hold is now closed only once its entry
-  has left held, and left open for the next start when it cannot be.
+  has left held; when it cannot leave, the trail stays open, for a later start
+  to close from the entry if one stands.
 - Statements on seventeen public pages that the code contradicted are
   corrected: among them an identical retry after a spent approval, which is
   refused until the approval expires, how many times expiry is judged, three

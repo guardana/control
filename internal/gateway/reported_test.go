@@ -123,6 +123,44 @@ func TestTheScopeAMismatchHaltsIsTheAdaptersAtNew(t *testing.T) {
 	}
 }
 
+// firstAnswerAdapter answers Capabilities with first once and with later on
+// every call after, so a pipeline that asks again keeps a value never checked.
+type firstAnswerAdapter struct {
+	first, later gateway.Capabilities
+	asked        int
+}
+
+func (a *firstAnswerAdapter) Name() string { return "first-answer" }
+
+func (a *firstAnswerAdapter) Capabilities() gateway.Capabilities {
+	a.asked++
+	if a.asked == 1 {
+		return a.first
+	}
+	return a.later
+}
+
+// TestNewKeepsTheCapabilitiesItChecked: New asks the adapter once and keeps
+// that answer, so an adapter checked cooperative halts the run alone on a
+// reported mismatch though every later answer says inline.
+func TestNewKeepsTheCapabilitiesItChecked(t *testing.T) {
+	adapter := &firstAnswerAdapter{}
+	h := build(t, modeEnforce, snapshot(t, allowReads, allowWrites), withRuns(newRuns("root-a")), func(cfg *gateway.Config) {
+		adapter.first = cfg.Adapter.Capabilities()
+		adapter.first.Enforcement = gateway.EnforcementCooperative
+		adapter.later = adapter.first
+		adapter.later.Enforcement = gateway.EnforcementInline
+		cfg.Adapter = adapter
+	})
+	if adapter.asked != 1 {
+		t.Errorf("New asked the adapter for its capabilities %d times, want once", adapter.asked)
+	}
+	reportMismatch(t, h, "a-1", "run-a", "root-a")
+	if s := h.p.Stats(); s.Halted || s.RunsHalted != 1 {
+		t.Errorf("Stats = %+v; want the run halted alone, as the answer New checked says", s)
+	}
+}
+
 // TestCloseOfAnOpenedRunStillHaltsThePlane: the same mismatch handed to
 // Close, by an adapter that sent the bytes itself, halts every run.
 func TestCloseOfAnOpenedRunStillHaltsThePlane(t *testing.T) {

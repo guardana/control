@@ -185,8 +185,9 @@ func (c *call) hold(binding approval.Binding) Disposition {
 // journalled says an entry was filed for this trail, or may have been, which
 // is flipped out of held before the window is closed and forgotten only once
 // ACTION_BLOCKED is on the trail, so an open trail keeps its entry for a
-// reconciliation and its request id; a journal that refuses the flip leaves the trail where it
-// stands, for a later plane to close from an entry that still says so.
+// reconciliation and its request id; a journal that refuses the flip leaves
+// the trail where it stands, for a later plane to close from an entry that
+// still says so.
 func (c *call) refuseHold(a *controlv1.Approval, journalled bool) Disposition {
 	requestID := c.requestID
 	if journalled && !c.p.journalMark(c.ctx, requestID, HoldClosing) {

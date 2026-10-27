@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"slices"
 	"sync"
 	"time"
 
@@ -79,8 +78,8 @@ type Pending struct {
 // usable one; a nil or zero Pipeline blocks every admission.
 type Pipeline struct {
 	cfg Config
-	// caps is the adapter's capabilities as New took them, which the pipeline
-	// reads after New instead of asking the adapter again.
+	// caps is the adapter's capabilities as New checked them, which the
+	// pipeline reads after New instead of asking the adapter again.
 	caps   Capabilities
 	kernel *core.Kernel
 	counts counters
@@ -122,14 +121,13 @@ type openTrail struct {
 // with the first of New's refusals in errors.go it meets, or with the kernel's
 // refusal of its options.
 func New(cfg Config) (*Pipeline, error) {
-	if err := checkConfig(cfg); err != nil {
+	caps, err := checkConfig(cfg)
+	if err != nil {
 		return nil, err
 	}
 	if err := checkDecisionPoint(cfg); err != nil {
 		return nil, err
 	}
-	caps := cfg.Adapter.Capabilities()
-	caps.Obligations = slices.Clone(caps.Obligations)
 	opts := cfg.KernelOptions
 	opts.Mode = modeEnforce
 	opts.DecisionPoint = cfg.DecisionPointID
