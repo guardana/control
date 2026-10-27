@@ -13,6 +13,11 @@ verify one.
 
 ### Changed
 
+- A gateway configuration that classifies a tool `WRITE`, `DELETE` or
+  `CONFIGURE` is refused when it loads unless `environment` is set and, for an
+  MCP override, its upstream's `environment` too, as `mcp.New` and
+  `enforce.New` refuse it: the contract needs both on such a call's envelope,
+  and every call to the tool was refused, `OBSERVE` included.
 - The roadmap starts milestone 2 with the sensors independent of the agent
   (B21), then the port contracts and the TypeScript client (B12), and lists
   the open items of the 1.0 release bar as backlog tasks B29 to B34
@@ -33,6 +38,10 @@ verify one.
 
 ### Fixed
 
+- A hold journal write that failed after its entry was linked could leave the
+  entry behind a trail the plane closed without it; the next start closed the
+  trail again, forking its chain. Such a hold is now closed only once its entry
+  has left held, and left open for the next start when it cannot be.
 - Statements on seventeen public pages that the code contradicted are
   corrected: among them an identical retry after a spent approval, which is
   refused until the approval expires, how many times expiry is judged, three

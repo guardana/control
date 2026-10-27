@@ -3,6 +3,7 @@ package gateway_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -68,6 +69,57 @@ func TestAReportedMismatchHaltsOnlyItsOwnRun(t *testing.T) {
 		if d := h.admitA(a); d.Action != core.Execute {
 			t.Errorf("%s of %s: %s %v, want Execute", a.Envelope.GetRequestId(), a.Run.ID, d.Decision.GetVerdict(), d.Decision.GetReasonCodes())
 		}
+	}
+}
+
+// shiftingAdapter answers Capabilities with what it holds at the moment it
+// is asked, which an adapter is not allowed to change after New.
+type shiftingAdapter struct {
+	mu   sync.Mutex
+	caps gateway.Capabilities
+}
+
+func (a *shiftingAdapter) Name() string { return "shifting" }
+
+func (a *shiftingAdapter) Capabilities() gateway.Capabilities {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.caps
+}
+
+func (a *shiftingAdapter) enforce(e gateway.Enforcement) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.caps.Enforcement = e
+}
+
+// TestTheScopeAMismatchHaltsIsTheAdaptersAtNew: an adapter whose answer
+// changes after New does not change what a reported mismatch halts. Checked
+// cooperative, it halts the run alone though it later says inline; checked
+// inline, it halts the plane though it later says cooperative.
+func TestTheScopeAMismatchHaltsIsTheAdaptersAtNew(t *testing.T) {
+	for _, c := range []struct {
+		name         string
+		atNew, after gateway.Enforcement
+		planeHalted  bool
+		runsHalted   int
+	}{
+		{"cooperative at New", gateway.EnforcementCooperative, gateway.EnforcementInline, false, 1},
+		{"inline at New", gateway.EnforcementInline, gateway.EnforcementCooperative, true, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			adapter := &shiftingAdapter{}
+			h := build(t, modeEnforce, snapshot(t, allowReads, allowWrites), withRuns(newRuns("root-a")), func(cfg *gateway.Config) {
+				adapter.caps = cfg.Adapter.Capabilities()
+				adapter.caps.Enforcement = c.atNew
+				cfg.Adapter = adapter
+			})
+			adapter.enforce(c.after)
+			reportMismatch(t, h, "a-1", "run-a", "root-a")
+			if s := h.p.Stats(); s.Halted != c.planeHalted || s.RunsHalted != c.runsHalted || s.Mismatches != 1 {
+				t.Errorf("Stats = %+v; want the plane halted %v and %d run(s) halted on their own", s, c.planeHalted, c.runsHalted)
+			}
+		})
 	}
 }
 

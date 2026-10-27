@@ -3,12 +3,14 @@ package enforce
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/classify"
 	"github.com/guardana/control/internal/gateway"
+	"github.com/guardana/control/pkg/contract"
 )
 
 // The bounds of a listener's execution lifetime. An execution handed out is
@@ -114,6 +116,9 @@ func checkConfig(cfg Config) error {
 	if err := checkTools(cfg.Tools); err != nil {
 		return err
 	}
+	if err := checkEnvironment(cfg); err != nil {
+		return err
+	}
 	switch {
 	case cfg.MaxSpent < 0 || cfg.MaxOpenPerRun < 0 || cfg.SweepMax < 0 || cfg.RequestTimeout < 0:
 		return ErrBound
@@ -184,6 +189,23 @@ func checkTool(tool Tool) error {
 	}
 	if err := classify.CheckEnvelopeString(tool.Provider); err != nil {
 		return &classify.Error{Key: keyProvider, Err: err}
+	}
+	return nil
+}
+
+// checkEnvironment refuses a tool whose envelope needs, by the contract's
+// table, the environment or the resource's while Environment, which both are
+// read from, is empty: every call to the tool would be refused, OBSERVE
+// included.
+func checkEnvironment(cfg Config) error {
+	if cfg.Environment != "" {
+		return nil
+	}
+	for i, tool := range cfg.Tools {
+		required := contract.EffectRequires(tool.Effect)
+		if slices.Contains(required, "environment") || slices.Contains(required, "resource.environment") {
+			return fmt.Errorf("%w: tools[%d]: %s needs Environment, which is empty", ErrTool, i, strings.TrimPrefix(tool.Effect.String(), "EFFECT_CLASS_"))
+		}
 	}
 	return nil
 }

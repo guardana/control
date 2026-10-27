@@ -2,8 +2,11 @@ package gatewayconfig
 
 import (
 	"fmt"
+	"slices"
 
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/classify"
+	"github.com/guardana/control/pkg/contract"
 )
 
 // checkUpstreams refuses an upstream whose name no envelope can carry, one
@@ -54,12 +57,15 @@ func (c *Config) checkUpstream(i int) error {
 
 // checkOverrides refuses a classification classify.Parse refuses, one of a
 // tool on a server this configuration does not have, which would classify
-// nothing and leave the tool blocked, and a second classification of one
+// nothing and leave the tool blocked, one whose envelope needs an environment
+// the plane or the upstream leaves unset, and a second classification of one
 // upstream's tool, which the adapter would let replace the first.
 func (c *Config) checkOverrides() error {
-	names := map[string]bool{}
-	for _, up := range c.Upstreams {
-		names[up.Name] = true
+	names := map[string]int{}
+	for i, up := range c.Upstreams {
+		if _, ok := names[up.Name]; !ok {
+			names[up.Name] = i
+		}
 	}
 	type tool struct{ upstream, name string }
 	seen := make(map[tool]int, len(c.Overrides))
@@ -69,16 +75,38 @@ func (c *Config) checkOverrides() error {
 		if err := checkRequired(o, overrideFields, at); err != nil {
 			return err
 		}
-		if _, err := o.Classification(); err != nil {
+		cls, err := o.Classification()
+		if err != nil {
 			return fmt.Errorf("%s%w", at, err)
 		}
-		if !names[o.Upstream] {
+		up, ok := names[o.Upstream]
+		if !ok {
 			return fmt.Errorf("%supstream: %s is not a configured upstream", at, quoteValue(o.Upstream))
+		}
+		if err := unsetEnvironment(at, o.Effect, cls.Effect, envSource{"environment", "environment", c.Environment},
+			envSource{"resource.environment", fmt.Sprintf("upstreams.%d.environment", up), c.Upstreams[up].Environment}); err != nil {
+			return err
 		}
 		if first, ok := seen[tool{o.Upstream, o.Tool}]; ok {
 			return fmt.Errorf("overrides.%d: the tool %s of %s is classified by overrides.%d already", i, quoteValue(o.Tool), quoteValue(o.Upstream), first)
 		}
 		seen[tool{o.Upstream, o.Tool}] = i
+	}
+	return nil
+}
+
+// envSource is the key that supplies one environment path of an envelope.
+type envSource struct{ path, key, value string }
+
+// unsetEnvironment refuses a classification whose envelope needs, by the
+// contract's table, an environment path whose key has no value: every call
+// to the tool would be refused, OBSERVE included.
+func unsetEnvironment(at, spelled string, effect controlv1.EffectClass, sources ...envSource) error {
+	required := contract.EffectRequires(effect)
+	for _, s := range sources {
+		if s.value == "" && slices.Contains(required, s.path) {
+			return fmt.Errorf("%seffect: %s needs %s, which has no value", at, spelled, s.key)
+		}
 	}
 	return nil
 }

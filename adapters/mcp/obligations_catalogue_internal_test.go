@@ -29,7 +29,8 @@ func paramValue() *rapid.Generator[string] {
 		rapid.String(),
 		rapid.StringMatching(`[+-]?0*[0-9]{1,19}`),
 		rapid.SampledFrom([]string{"9223372036854", "9223372036855", "0", "-0", "",
-			strings.Repeat("x", 1023) + "/", strings.Repeat("x", 1021) + "/..", strings.Repeat("x", 1020) + "/..", strings.Repeat("x", 1024)}),
+			strings.Repeat("x", 1023) + "/", strings.Repeat("x", 1021) + "/..", strings.Repeat("x", 1020) + "/..", strings.Repeat("x", 1024),
+			"a/" + strings.Repeat("x", 1019) + "/.."}),
 		rapid.Custom(func(t *rapid.T) string { return strings.Join(rapid.SliceOfN(piece, 0, 8).Draw(t, "pieces"), "") }),
 	)
 }
