@@ -18,8 +18,11 @@ concurrency:
 
 defaults:
   run:
-    # GitHub's "bash" adds -o pipefail, which the bare default shell does not.
-    shell: bash
+    # -o pipefail fails a step on a command that fails upstream of a pipe; -p
+    # keeps bash from reading BASH_ENV, ENV, SHELLOPTS, BASHOPTS, CDPATH,
+    # GLOBIGNORE and functions from the environment, which an earlier step
+    # can set through $GITHUB_ENV (ADR-0062).
+    shell: bash --noprofile --norc -p -e -o pipefail {0}
 
 jobs:
   lint:
