@@ -25,7 +25,8 @@
 #               tidy-check  a direct requirement marked indirect
 #               fuzz-smoke  a fuzz target whose seed fails
 #               fuzz-smoke  a fuzz target in a file a build constraint
-#               fuzz-list   leaves out, which go test passes unfuzzed
+#               and         leaves out, which go test passes unfuzzed
+#               fuzz-list
 #               fuzz-smoke  a fuzz target whose seed fails, with a comment
 #                           between func and its name, alone in its package
 #               fuzz-smoke  a test file the search cannot read, alone in its

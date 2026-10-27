@@ -137,10 +137,12 @@ in <code>test</code> and <code>test-race</code>. <code>docs-check</code> ran its
 <h2 id="decision">Decision</h2>
 <ul>
 <li><strong>The gate's result holds as its two entry points start it.</strong> CI starts
-every run step of every workflow in <code>bash --noprofile --norc -p -e -o pipefail {0}</code>: with <code>-p</code>, bash reads neither <code>BASH_ENV</code> nor <code>ENV</code> and
-ignores <code>SHELLOPTS</code>, <code>BASHOPTS</code>, <code>CDPATH</code>, <code>GLOBIGNORE</code> and functions from
-the environment. The gate step runs <code>/usr/bin/env -u MAKEFLAGS -u GNUMAKEFLAGS -u MFLAGS -u MAKEFILES make quality GO=go</code>.
-<code>scripts/gate-commit.sh</code> starts make in an emptied environment, as before.</li>
+every run step of every workflow, and of any composite action, in
+<code>/usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u CDPATH -u GLOBIGNORE bash --noprofile --norc -p -e -o pipefail {0}</code>: the variables
+leave the environment of everything the step starts, and <code>-p</code> keeps the
+step's own bash from importing a function. The gate step runs
+<code>/usr/bin/env -u MAKEFLAGS -u GNUMAKEFLAGS -u MFLAGS -u MAKEFILES make quality GO=go</code>. <code>scripts/gate-commit.sh</code> starts make in an emptied
+environment, as before.</li>
 <li><strong>The Makefile keeps its guards on what an environment sets</strong>, and refuses
 every command-line variable but <code>GO</code> by its <code>$(origin)</code>, which a command
 line cannot change. It states that a makefile read after it is beyond any
@@ -159,11 +161,19 @@ so a release commit is fuzzed before it is tagged.</li>
 <p>No product code changes. A pull request is no longer fuzzed past its seeds: a
 change that makes a target find a failing input within ten seconds is caught
 by the next night's run or by the release commit's cold gate, not before it
-merges. A step that writes a shell's startup state to <code>$GITHUB_ENV</code> no longer
-changes what the next step's bash runs; a variable make reads still reaches
-make, whose guards refuse it loudly. A caller who passes <code>-f</code> with another
-makefile can still replace any recipe, and the page says the result does not
-hold for such a run.</p>
+merges. The release workflow requires CI's run on <code>main</code>, which no longer
+fuzzes; the proof that a release commit was fuzzed is the cold gate's stamp,
+which <code>scripts/gate-commit.sh</code> writes only after <code>make fuzz-smoke</code> passes, as
+it already was for the gate on macOS.</p>
+<p>A step that writes a shell's startup files or options to <code>$GITHUB_ENV</code> no
+longer changes what a later step runs. A function written there is not
+imported by the step's bash, but a bash the step starts in turn still imports
+it; for the gate, make refuses it loudly, and for other steps the workflow
+test refuses an environment write in the quality job only. <code>PATH</code> stays
+trusted: a step can still put another <code>make</code> or <code>bash</code> first on it, as it
+always could. A caller who passes <code>-f</code> with another makefile can still
+replace any recipe, and the page says the result does not hold for such a
+run.</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
 <ul>
 <li>Keep extending the Makefile's guards: each make version reads its flags
@@ -184,12 +194,16 @@ shell line, and a step that needs another shell fails the workflow test until
 this record is amended.</p>
 <h2 id="validation">Validation</h2>
 <p><code>internal/docscheck</code>: <code>TestEveryWorkflowStartsItsShellClean</code> holds every
-workflow with a run step to the shell line and refuses a <code>shell:</code> anywhere
-else; <code>TestTheShellIgnoresTheStartupStateOfTheEnvironment</code> runs that line,
-with the bash found on the path, over a script that exits 7 under
-<code>SHELLOPTS=noexec</code>, <code>BASH_ENV</code> and an exported <code>echo</code>, after showing that
-GitHub's plain bash line is changed by each; <code>TestFuzzingRunsOutsideTheGate</code>
-holds the nightly step and the cold gate's <code>make fuzz-smoke</code>;
+workflow, <code>*.yml</code> and <code>*.yaml</code>, with a run step to the shell line, every run
+step of a composite action to it too, and refuses a <code>shell:</code> anywhere else and
+a step it cannot read; <code>TestTheShellIgnoresTheStartupStateOfTheEnvironment</code>
+runs that line, with the bash found on the path, over scripts that exit 7: a
+child bash under <code>SHELLOPTS=noexec</code> and <code>BASH_ENV</code>, the step's own bash under
+an exported <code>echo</code>, and a listing of the environment that must hold none of
+the six variables, after showing that GitHub's plain bash line is changed by
+each; <code>TestFuzzingRunsOutsideTheGate</code> holds the nightly schedule, the fuzz job
+with no condition, mask or environment of its own, the report waiting on it,
+and the cold gate's <code>make fuzz-smoke</code> line;
 <code>TestTheGateRefusesALoosenedMake</code> refuses <code>MAKEOVERRIDES=</code> with a replaced
 shell; <code>TestQualityRunsTheWholeGate</code> holds <code>fuzz-list</code> in quality.
 <code>scripts/check-modules-probe.sh</code> runs <code>fuzz-list</code> clean and refuses a target a

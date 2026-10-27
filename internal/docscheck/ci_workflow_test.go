@@ -11,11 +11,11 @@ const (
 	ciWorkflowPath = ".github/workflows/ci.yml"
 	ciGateJob      = "quality"
 	ciGateCommand  = "/usr/bin/env -u MAKEFLAGS -u GNUMAKEFLAGS -u MFLAGS -u MAKEFILES make quality GO=go"
-	// ciShell is the shell every workflow's run steps start in: bash with
-	// pipefail, and with -p, which keeps it from reading BASH_ENV, ENV,
-	// SHELLOPTS, BASHOPTS, CDPATH, GLOBIGNORE and functions from the
-	// environment an earlier step can write through $GITHUB_ENV.
-	ciShell = "bash --noprofile --norc -p -e -o pipefail {0}"
+	// ciShell is the shell every workflow's run steps start in. An earlier
+	// step can write the shell's startup files, options and functions through
+	// $GITHUB_ENV: env removes the variables from everything the step starts,
+	// and -p keeps the step's bash from importing functions.
+	ciShell = "/usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u CDPATH -u GLOBIGNORE bash --noprofile --norc -p -e -o pipefail {0}"
 )
 
 // The keys the gate job and its gate step may carry. Anything else can skip
@@ -399,7 +399,7 @@ permissions:
 defaults:
   run:
     # a comment
-    shell: bash --noprofile --norc -p -e -o pipefail {0}
+    shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u CDPATH -u GLOBIGNORE bash --noprofile --norc -p -e -o pipefail {0}
 
 jobs:
   quality:

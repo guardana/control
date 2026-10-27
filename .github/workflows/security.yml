@@ -20,11 +20,12 @@ concurrency:
 
 defaults:
   run:
-    # -o pipefail fails a step on a command that fails upstream of a pipe; -p
-    # keeps bash from reading BASH_ENV, ENV, SHELLOPTS, BASHOPTS, CDPATH,
-    # GLOBIGNORE and functions from the environment, which an earlier step
-    # can set through $GITHUB_ENV (ADR-0062).
-    shell: bash --noprofile --norc -p -e -o pipefail {0}
+    # An earlier step can set the shell's startup files, options and functions
+    # through $GITHUB_ENV. env removes the variables from every process the
+    # step starts, -p keeps this bash from importing functions, and -o
+    # pipefail fails a step on a command that fails upstream of a pipe
+    # (ADR-0062).
+    shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u CDPATH -u GLOBIGNORE bash --noprofile --norc -p -e -o pipefail {0}
 
 jobs:
   codeql:

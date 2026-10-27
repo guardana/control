@@ -131,8 +131,9 @@ tests run the same packages
 <ul>
 <li>A workflow step that wrote <code>SHELLOPTS=noexec</code> or <code>BASH_ENV</code> to
 <code>$GITHUB_ENV</code> could make a later step's bash, the quality gate's among them,
-run nothing and succeed. Every workflow now starts its steps in a bash that
-ignores the shell's startup state from the environment.</li>
+run nothing and succeed. Every workflow now starts its steps with the shell's
+startup files and options removed from the environment, in a bash that
+imports no function from it.</li>
 <li><code>make quality MAKEOVERRIDES= SHELL=/usr/bin/true</code> ran no check and exited 0:
 the guard read the command line from <code>MAKEOVERRIDES</code>, which the command line
 can empty. It now refuses every command-line variable but <code>GO</code> by its origin.</li>
