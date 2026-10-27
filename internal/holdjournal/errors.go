@@ -21,10 +21,10 @@ const (
 	// ErrFlip is a flip the journal refuses: out of a state that is not held,
 	// or into one that is neither resuming nor closing.
 	ErrFlip Error = "holdjournal: an entry leaves held once, for resuming or for closing"
-	// ErrMaybeRecorded is a record that failed after its entry was linked:
-	// the entry may be filed, or come back after a power loss, so the caller
-	// treats it as filed. Every other refusal of a record filed nothing.
-	ErrMaybeRecorded Error = "holdjournal: the record failed after the entry was linked, so the entry may be filed"
+	// ErrMaybeRecorded is a write that failed after its file was linked: the
+	// file stands but may not survive a power loss, so the caller treats the
+	// entry as filed. Every other refusal of a record filed nothing.
+	ErrMaybeRecorded Error = "holdjournal: a write failed after its file was linked, so the file may stand"
 )
 
 // The vocabulary of the directory and of the handle.

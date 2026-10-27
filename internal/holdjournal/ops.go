@@ -41,8 +41,8 @@ func (j *Journal) Record(ctx context.Context, entry Entry) error {
 			return fmt.Errorf("%w: %q", ErrRecorded, cause(entry.IDs.RequestID))
 		}
 		if errors.Is(err, ErrMaybeRecorded) {
-			// The entry may stand, so it counts against the bound until the
-			// next open counts the directory.
+			// The entry stands, so it counts against the bound until a
+			// Forget removes it or the next open counts the directory.
 			j.entries++
 		}
 		return err

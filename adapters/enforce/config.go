@@ -116,7 +116,7 @@ func checkConfig(cfg Config) error {
 	if err := checkTools(cfg.Tools); err != nil {
 		return err
 	}
-	if err := checkEnvironment(cfg); err != nil {
+	if err := checkPlaneKeys(cfg); err != nil {
 		return err
 	}
 	switch {
@@ -193,18 +193,19 @@ func checkTool(tool Tool) error {
 	return nil
 }
 
-// checkEnvironment refuses a tool whose envelope needs, by the contract's
+// checkPlaneKeys refuses a tool whose envelope needs, by the contract's
 // table, the environment or the resource's while Environment, which both are
-// read from, is empty: every call to the tool would be refused, OBSERVE
-// included.
-func checkEnvironment(cfg Config) error {
-	if cfg.Environment != "" {
-		return nil
-	}
+// read from, is empty, or the resource's tenant while TenantID is: every call
+// to the tool would be refused, OBSERVE included.
+func checkPlaneKeys(cfg Config) error {
 	for i, tool := range cfg.Tools {
 		required := contract.EffectRequires(tool.Effect)
-		if slices.Contains(required, "environment") || slices.Contains(required, "resource.environment") {
-			return fmt.Errorf("%w: tools[%d]: %s needs Environment, which is empty", ErrTool, i, strings.TrimPrefix(tool.Effect.String(), "EFFECT_CLASS_"))
+		effect := strings.TrimPrefix(tool.Effect.String(), "EFFECT_CLASS_")
+		switch {
+		case cfg.Environment == "" && (slices.Contains(required, "environment") || slices.Contains(required, "resource.environment")):
+			return fmt.Errorf("%w: tools[%d]: %s needs Environment, which is empty", ErrTool, i, effect)
+		case cfg.TenantID == "" && slices.Contains(required, "resource.tenant_id"):
+			return fmt.Errorf("%w: tools[%d]: %s needs TenantID, which is empty", ErrTool, i, effect)
 		}
 	}
 	return nil

@@ -99,12 +99,14 @@ func replaced(t *testing.T, s, old, with string) string {
 	return out
 }
 
-// TestAClassificationWithoutTheEnvironmentItsEnvelopeNeedsIsRefusedAtLoad: a
-// class whose envelope needs environment and resource.environment is refused
-// when the key that supplies either has no value, naming that key: the plane's
+// TestAClassificationWithoutTheKeysItsEnvelopeNeedsIsRefusedAtLoad: a class
+// whose envelope needs environment and resource.environment is refused when
+// the key that supplies either has no value, naming that key: the plane's
 // environment for both of a tool, and for an override the plane's and its own
-// upstream's. A class that needs neither loads without them.
-func TestAClassificationWithoutTheEnvironmentItsEnvelopeNeedsIsRefusedAtLoad(t *testing.T) {
+// upstream's. An override whose class needs resource.tenant_id is refused
+// while its upstream's tenant_id has no value. A class that needs none of
+// them loads without them.
+func TestAClassificationWithoutTheKeysItsEnvelopeNeedsIsRefusedAtLoad(t *testing.T) {
 	const second = "  - name: billing\n    endpoint: http://127.0.0.1:2/mcp\n"
 	withUpstreamEnv := document
 	noUpstreamEnv := replaced(t, document, "    environment: prod\n", "")
@@ -125,6 +127,13 @@ func TestAClassificationWithoutTheEnvironmentItsEnvelopeNeedsIsRefusedAtLoad(t *
 			refusedSaying(t, noPlaneEnv(tool(effect)), nil, "tools.0.effect: "+effect+" needs environment, which has no value")
 			load(t, writeDocument(t, withUpstreamEnv+second+override(effect, "orders")))
 			refusedSaying(t, withUpstreamEnv+second+override(effect, "billing"), nil, "overrides.0.effect: "+effect+" needs upstreams.1.environment, which has no value")
+		})
+	}
+	withTenant := replaced(t, document, "    environment: prod\n", "    environment: prod\n    tenant_id: acme\n")
+	for _, effect := range []string{"TRANSACT", "IDENTITY_OR_ACCESS"} {
+		t.Run(effect, func(t *testing.T) {
+			load(t, writeDocument(t, noPlaneEnv(withTenant)+override(effect, "orders")))
+			refusedSaying(t, withUpstreamEnv+override(effect, "orders"), nil, "overrides.0.effect: "+effect+" needs upstreams.0.tenant_id, which has no value")
 		})
 	}
 	for _, effect := range []string{"READ", "EXECUTE", "COMMUNICATE"} {

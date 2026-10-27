@@ -134,8 +134,8 @@ func (c *Config) checkTools() error {
 			return fmt.Errorf("tools.%d.%w", i, err)
 		}
 		// The resource's environment is the listener's too.
-		if err := unsetEnvironment(fmt.Sprintf("tools.%d.", i), t.Effect, cls.Effect, envSource{"environment", "environment", c.Environment},
-			envSource{"resource.environment", "environment", c.Environment}); err != nil {
+		if err := unsetRequired(fmt.Sprintf("tools.%d.", i), t.Effect, cls.Effect, keySource{"environment", "environment", c.Environment},
+			keySource{"resource.environment", "environment", c.Environment}); err != nil {
 			return err
 		}
 		if first, ok := seen[t.Name]; ok {

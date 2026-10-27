@@ -111,13 +111,13 @@ func TestAClassificationIsRefusedAlikeAtEveryEntryPoint(t *testing.T) {
 // write's resource needs.
 var upstreamEnvironment = brand.Env(gatewayconfig.EnvName("upstreams.0.environment")) + "=prod"
 
-// TestAnUnsetEnvironmentIsRefusedAlikeAtEveryEntryPoint: a class whose
-// envelope needs environment and resource.environment is refused by the
-// loader and by both adapters' New when the value either is read from is
-// empty, and taken by each when both are set; a read needs neither. The
-// enforcement adapter reads both from the plane's environment, so the
-// upstream's is not its to refuse.
-func TestAnUnsetEnvironmentIsRefusedAlikeAtEveryEntryPoint(t *testing.T) {
+// TestAnUnsetEnvelopeKeyIsRefusedAlikeAtEveryEntryPoint: a class whose
+// envelope needs environment and resource.environment, or resource.tenant_id,
+// is refused by the loader and by both adapters' New when the value one is
+// read from is empty, and taken by each when all are set; a read needs none.
+// The enforcement adapter reads them from the plane's keys, so the upstream's
+// are not its to refuse.
+func TestAnUnsetEnvelopeKeyIsRefusedAlikeAtEveryEntryPoint(t *testing.T) {
 	tr := newTree(t)
 	withConfig(t, tr, classifiedOverride)
 	base, err := gatewayconfig.Load(tr.config, []string{upstreamEnvironment})
@@ -129,21 +129,24 @@ func TestAnUnsetEnvironmentIsRefusedAlikeAtEveryEntryPoint(t *testing.T) {
 		t.Fatalf("the control adapter configuration is refused: %v", err)
 	}
 	planeKey, upstreamKey := brand.Env(gatewayconfig.EnvName("environment")), brand.Env(gatewayconfig.EnvName("upstreams.0.environment"))
+	tenantKey := brand.Env(gatewayconfig.EnvName("upstreams.0.tenant_id"))
 	effectKey := brand.Env(gatewayconfig.EnvName("overrides.0.effect"))
 	for _, row := range []struct {
-		name                 string
-		effect               string
-		plane, upstream      string
-		loader, mcp, enforce string
+		name                    string
+		effect                  string
+		plane, upstream, tenant string
+		loader, mcp, enforce    string
 	}{
-		{"a write with both", "WRITE", "dev", "prod", "", "", ""},
-		{"a write without the plane's", "WRITE", "", "prod", "overrides.0.effect: WRITE needs environment", "Environment", "Environment"},
-		{"a write without the upstream's", "WRITE", "dev", "", "overrides.0.effect: WRITE needs upstreams.0.environment", "Upstreams[0].Environment", ""},
-		{"a delete without either", "DELETE", "", "", "overrides.0.effect: DELETE needs environment", "Environment", "Environment"},
-		{"a read without either", "READ", "", "", "", "", ""},
+		{"a write with both", "WRITE", "dev", "prod", "", "", "", ""},
+		{"a write without the plane's", "WRITE", "", "prod", "", "overrides.0.effect: WRITE needs environment,", "needs Environment,", "needs Environment,"},
+		{"a write without the upstream's", "WRITE", "dev", "", "", "overrides.0.effect: WRITE needs upstreams.0.environment,", "needs Upstreams[0].Environment,", ""},
+		{"a delete without either", "DELETE", "", "", "", "overrides.0.effect: DELETE needs environment,", "needs Environment,", "needs Environment,"},
+		{"a transact with the upstream's tenant", "TRANSACT", "", "", "acme", "", "", ""},
+		{"a transact without the upstream's tenant", "TRANSACT", "", "", "", "overrides.0.effect: TRANSACT needs upstreams.0.tenant_id,", "needs Upstreams[0].TenantID,", ""},
+		{"a read without any", "READ", "", "", "", "", "", ""},
 	} {
 		t.Run(row.name, func(t *testing.T) {
-			_, err := gatewayconfig.Load(tr.config, []string{planeKey + "=" + row.plane, upstreamKey + "=" + row.upstream, effectKey + "=" + row.effect})
+			_, err := gatewayconfig.Load(tr.config, []string{planeKey + "=" + row.plane, upstreamKey + "=" + row.upstream, tenantKey + "=" + row.tenant, effectKey + "=" + row.effect})
 			refusedNaming(t, "the configuration", err, nil, row.loader)
 
 			effect, err := contract.ParseEffect(row.effect)
@@ -155,12 +158,13 @@ func TestAnUnsetEnvironmentIsRefusedAlikeAtEveryEntryPoint(t *testing.T) {
 			cfg.Environment = row.plane
 			cfg.Upstreams = slices.Clone(mcpConfig.Upstreams)
 			cfg.Upstreams[0].Environment = row.upstream
+			cfg.Upstreams[0].TenantID = row.tenant
 			cfg.Overrides = []adaptermcp.Override{{Upstream: "orders", Tool: "update_order", Fingerprint: "sha256:00", Classification: c}}
 			_, err = adaptermcp.New(cfg)
 			refusedNaming(t, "mcp.New", err, adaptermcp.ErrOverride, row.mcp)
 
 			ecfg := enforceConfig(t, enforce.Tool{Name: "update_order", Provider: "orders", Classification: c})
-			ecfg.Environment = row.plane
+			ecfg.Environment, ecfg.TenantID = row.plane, "acme"
 			_, err = enforce.New(ecfg)
 			refusedNaming(t, "enforce.New", err, enforce.ErrTool, row.enforce)
 		})

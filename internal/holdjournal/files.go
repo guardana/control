@@ -38,11 +38,10 @@ func tmpName() string {
 // create writes body under name, which must not be there: the link fails with
 // EEXIST rather than replacing an entry that exists already. The file is
 // forced to disk before the link and the directory after it, so a name that
-// was reported written survives a power loss. A failure after the link
-// unlinks the name again and wraps ErrMaybeRecorded whether or not that
-// unlink succeeded: a failed one leaves the entry in place, and nothing forces
-// a successful one to disk, since forcing the directory is what failed, so a
-// power loss can bring the entry back.
+// was reported written survives a power loss. A failure after the link wraps
+// ErrMaybeRecorded and leaves the name in place: whether it survives a power
+// loss is unknown, and an unlink could not be forced to disk either, so the
+// caller moves the entry out of held and forgets it as it would a filed one.
 func (j *Journal) create(name string, body []byte) error {
 	tmp := tmpName()
 	if err := j.writeSynced(tmp, body); err != nil {
@@ -56,7 +55,7 @@ func (j *Journal) create(name string, body []byte) error {
 		return errors.Join(err, j.root.Remove(tmp))
 	}
 	if err := errors.Join(j.root.Remove(tmp), j.syncDir()); err != nil {
-		return fmt.Errorf("%w: %w", ErrMaybeRecorded, errors.Join(err, j.root.Remove(name)))
+		return fmt.Errorf("%w: %w", ErrMaybeRecorded, err)
 	}
 	return nil
 }

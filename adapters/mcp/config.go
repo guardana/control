@@ -177,7 +177,7 @@ func checkConfig(cfg Config) error {
 	if err := checkOverrides(cfg.Overrides, names); err != nil {
 		return err
 	}
-	return checkEnvironments(cfg)
+	return checkUpstreamKeys(cfg)
 }
 
 func checkListener(l Listener) error {
@@ -266,12 +266,12 @@ func checkOverrides(overrides []Override, names map[string]bool) error {
 	return nil
 }
 
-// checkEnvironments refuses an override whose envelope needs, by the
-// contract's table, the environment or the resource's while the one it is
-// read from, the listener's or the override's upstream's, is empty: every call
-// to the tool would be refused, OBSERVE included. checkOverrides has found
-// each override's upstream.
-func checkEnvironments(cfg Config) error {
+// checkUpstreamKeys refuses an override whose envelope needs, by the
+// contract's table, the environment, the resource's or the resource's tenant
+// while the value it is read from, the listener's or the override's
+// upstream's, is empty: every call to the tool would be refused, OBSERVE
+// included. checkOverrides has found each override's upstream.
+func checkUpstreamKeys(cfg Config) error {
 	for i, o := range cfg.Overrides {
 		required := contract.EffectRequires(o.Effect)
 		up := slices.IndexFunc(cfg.Upstreams, func(u Upstream) bool { return u.Name == o.Upstream })
@@ -280,6 +280,8 @@ func checkEnvironments(cfg Config) error {
 			return fmt.Errorf("%w: Overrides[%d]: %s needs Environment, which is empty", ErrOverride, i, o.Effect)
 		case cfg.Upstreams[up].Environment == "" && slices.Contains(required, "resource.environment"):
 			return fmt.Errorf("%w: Overrides[%d]: %s needs Upstreams[%d].Environment, which is empty", ErrOverride, i, o.Effect, up)
+		case cfg.Upstreams[up].TenantID == "" && slices.Contains(required, "resource.tenant_id"):
+			return fmt.Errorf("%w: Overrides[%d]: %s needs Upstreams[%d].TenantID, which is empty", ErrOverride, i, o.Effect, up)
 		}
 	}
 	return nil
