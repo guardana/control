@@ -21,7 +21,7 @@ endorsed by the publisher of Claude Code.
 | | |
 | --- | --- |
 | Label | decided, with failure gaps |
-| Qualified on the real runtime | 2.1.310: all 20 cases passed on the first run, in 22 invocations. 2.1.303: all 20 passed, two of them on a rerun once the tools table named `ToolSearch` and classed `Agent` as `EXECUTE`, and one on a rerun that recorded the hook's output |
+| Qualified on the real runtime | 2.1.310: 19 of 20 cases passed on the first run, in 22 invocations; `disabled` is unknown, since that run had none of the control invocations the judge now asks for. 2.1.303: 17 of 20 passed; its reruns back nothing, holding no controls of their own |
 | Events | `PreToolUse`, `PostToolUse`, `PostToolUseFailure` |
 | Fail-closed setting | `onFailure: "block"`, from Claude Code 2.1.295 |
 | Hook timeout the profile assumes | 30 seconds |
@@ -33,8 +33,8 @@ every CI run passes them through the bridge against a plane. The
 qualification ran Claude Code 2.1.303, and later 2.1.310, headless against a
 plane, case by case, and its results are in the profile's `qualification/`
 directory. What the first run observed is marked *(seen on 2.1.303)* below,
-and 2.1.310 passed the same cases; the rest is from the documentation and
-unverified. The label stays "decided, with failure gaps". It cannot become
+and each such case passed on 2.1.303 or 2.1.310; the rest is from the
+documentation and unverified. The label stays "decided, with failure gaps". It cannot become
 "decided, not enforced" until the fail-closed setting is in managed settings,
 the hook command is an absolute path to a binary the agent cannot replace and
 names this built-in profile, and the runtime's shell sandbox keeps the agent
