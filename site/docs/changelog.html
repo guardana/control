@@ -127,8 +127,9 @@ fuzz each one for ten seconds. <code>docs-check</code> leaves <code>make quality
 tests run the same packages
 (<a href="/docs/adr/0062-the-gate-is-guarded-at-its-entry-points-and-fuzzed-at-night">ADR-0062</a>).</li>
 <li><code>make test</code> and <code>make test-race</code> fail on a skipped test that
-<code>scripts/expected-skips.txt</code> does not name; the sixteen tests that skip on
-Linux or macOS are named there with the reason
+<code>scripts/expected-skips.txt</code> does not name, or one whose skip message does
+not say what the list says; the sixteen tests that skip on Linux or macOS
+are named there
 (<a href="/docs/adr/0063-a-skipped-test-fails-the-gate-unless-the-repository-expects-it">ADR-0063</a>).</li>
 <li><code>make lint</code> lints the generator programs under <code>scripts/</code> too, one at a
 time, which no lint read before.</li>

@@ -127,16 +127,20 @@ read the transcript.</p>
 <p>The Python client's runner already refuses every skip.</p>
 <h2 id="decision">Decision</h2>
 <p><code>scripts/expected-skips.txt</code> names every test some run of the gate may skip,
-one per line: the import path, the test or subtest name, and the reason.
-<code>internal/testreport</code> fails a stream holding a skip the list does not name,
-and names it. A listed test that ran where its package was tested is printed,
-not refused, because the list is the union over Linux, macOS, root and an
-ordinary account. A malformed list, or one naming a test twice, fails the
-reporter before it reads the stream.</p>
+one per line: the import path, the test or subtest name, and text its skip
+message holds, which says why. <code>internal/testreport</code> fails a stream holding a
+skip the list does not name, or a listed test whose skip message does not
+hold that text, and names it. A listed test that ran where its package was
+tested is printed, not refused, because the list is the union over Linux and
+macOS under an ordinary account; a run as root skips other tests and is not
+covered. A malformed list, or one naming a test twice, fails the reporter
+before it reads the stream.</p>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>No product code changes. A new skip needs an entry in the same change, which
-review reads with its reason. A skip whose name changes between runs, such as
-a subtest named from a temporary path, cannot be listed and has to be renamed.</p>
+review reads with its reason. An unconditional <code>t.Skip</code> added to a listed test
+passes only when its message holds the listed text. A skip whose name changes
+between runs, such as a subtest named from a temporary path, cannot be listed
+and has to be renamed.</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
 <ul>
 <li>Refuse every skip, as the Python runner does: the root-only and
@@ -147,11 +151,12 @@ check, and nobody reads a green transcript.</li>
 <li>A list per platform: four lists to keep, for no check the union lacks.</li>
 </ul>
 <h2 id="consequences">Consequences</h2>
-<p>The list changes with the tests. A run as root prints the root-only tests as
-expected skips that ran.</p>
+<p>The list changes with the tests. The gate run as root fails on the tests that
+skip only for root; no gate of record runs as root.</p>
 <h2 id="validation">Validation</h2>
-<p><code>internal/testreport</code>'s tests refuse an unlisted skip, pass a listed one,
-print a listed one that ran, and refuse a malformed or doubled list.
+<p><code>internal/testreport</code>'s tests refuse an unlisted skip, a listed test skipped
+with another message and a subtest of a listed test, pass a listed one, print
+a listed one that ran, and refuse a malformed or doubled list.
 <code>scripts/check-modules-probe.sh</code> plants a skipping test in a staged module:
 <code>make test</code> fails naming it, and passes once the staged list names it.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0063-a-skipped-test-fails-the-gate-unless-the-repository-expects-it.md">docs/adr/0063-a-skipped-test-fails-the-gate-unless-the-repository-expects-it.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.14.0, and <a href="https://github.com/guardana/control/tree/v0.14.0/docs">its documentation</a> is in its tag.</p>

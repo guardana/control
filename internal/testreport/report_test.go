@@ -18,8 +18,8 @@ const generated = "example.com/fixture/api/gen/"
 
 // fixtureSkips are the skips the recorded streams hold, each one expected.
 var fixtureSkips = testreport.ExpectedSkips{
-	{Package: "example.com/fixture/skipping", Test: "TestParent/linux_only"}: "linux only",
-	{Package: "example.com/fixture/skipping", Test: "TestSilent"}:            "skips with no message",
+	{Package: "example.com/fixture/skipping", Test: "TestParent/linux_only"}: "not on darwin",
+	{Package: "example.com/fixture/skipping", Test: "TestSilent"}:            "(no message)",
 	{Package: "example.com/fixture/skipping", Test: "TestNeedsRoot"}:         "needs a non-root user",
 	{Package: "example.com/fixture/allskip", Test: "TestA"}:                  "needs root",
 	{Package: "example.com/fixture/parallel", Test: "TestSkipped"}:           "not here",

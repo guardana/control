@@ -20,8 +20,9 @@ verify one.
   tests run the same packages
   ([ADR-0062](docs/adr/0062-the-gate-is-guarded-at-its-entry-points-and-fuzzed-at-night.md)).
 - `make test` and `make test-race` fail on a skipped test that
-  `scripts/expected-skips.txt` does not name; the sixteen tests that skip on
-  Linux or macOS are named there with the reason
+  `scripts/expected-skips.txt` does not name, or one whose skip message does
+  not say what the list says; the sixteen tests that skip on Linux or macOS
+  are named there
   ([ADR-0063](docs/adr/0063-a-skipped-test-fails-the-gate-unless-the-repository-expects-it.md)).
 - `make lint` lints the generator programs under `scripts/` too, one at a
   time, which no lint read before.

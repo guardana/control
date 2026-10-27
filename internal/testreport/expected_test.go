@@ -15,6 +15,7 @@ const twoSkips = `{"Action":"run","Package":"example.com/p","Test":"TestX"}
 {"Action":"output","Package":"example.com/p","Test":"TestX","Output":"    x_test.go:5: needs root\n"}
 {"Action":"skip","Package":"example.com/p","Test":"TestX"}
 {"Action":"run","Package":"example.com/p","Test":"TestY"}
+{"Action":"output","Package":"example.com/p","Test":"TestY","Output":"    y_test.go:9: no read-only mount\n"}
 {"Action":"skip","Package":"example.com/p","Test":"TestY"}
 {"Action":"run","Package":"example.com/p","Test":"TestZ"}
 {"Action":"pass","Package":"example.com/p","Test":"TestZ"}
@@ -25,15 +26,19 @@ func TestSummarizeRefusesASkipTheListDoesNotName(t *testing.T) {
 	cases := map[string]testreport.ExpectedSkips{
 		"no list": nil,
 		"the other test only": {
-			{Package: "example.com/p", Test: "TestY"}: "a reason",
+			{Package: "example.com/p", Test: "TestY"}: "no read-only mount",
 		},
 		"the same test in another package": {
 			{Package: "example.com/q", Test: "TestX"}: "a reason",
-			{Package: "example.com/p", Test: "TestY"}: "a reason",
+			{Package: "example.com/p", Test: "TestY"}: "no read-only mount",
+		},
+		"listed, skipped for another reason": {
+			{Package: "example.com/p", Test: "TestX"}: "a different reason",
+			{Package: "example.com/p", Test: "TestY"}: "no read-only mount",
 		},
 		"its parent only": {
 			{Package: "example.com/p", Test: "TestX/sub"}: "a reason",
-			{Package: "example.com/p", Test: "TestY"}:     "a reason",
+			{Package: "example.com/p", Test: "TestY"}:     "no read-only mount",
 		},
 	}
 	for name, expected := range cases {
@@ -50,10 +55,39 @@ func TestSummarizeRefusesASkipTheListDoesNotName(t *testing.T) {
 				t.Errorf("Summary = %+v, want 2 skipped, TestX among the unexpected", got)
 			}
 			if !strings.Contains(out.String(), "test: SKIP example.com/p TestX: x_test.go:5: needs root\n") ||
-				!strings.Contains(out.String(), "test: SKIP example.com/p TestY: (no message)\n") {
+				!strings.Contains(out.String(), "test: SKIP example.com/p TestY: y_test.go:9: no read-only mount\n") {
 				t.Errorf("transcript does not list both skips:\n%s", out.String())
 			}
 		})
+	}
+}
+
+// subtestSkip is a passing package in which TestX runs and its subtest skips.
+const subtestSkip = `{"Action":"run","Package":"example.com/p","Test":"TestX"}
+{"Action":"run","Package":"example.com/p","Test":"TestX/sub"}
+{"Action":"output","Package":"example.com/p","Test":"TestX/sub","Output":"    x_test.go:7: needs root\n"}
+{"Action":"skip","Package":"example.com/p","Test":"TestX/sub"}
+{"Action":"pass","Package":"example.com/p","Test":"TestX"}
+{"Action":"pass","Package":"example.com/p"}
+`
+
+func TestSummarizeRefusesASubtestOfAListedTest(t *testing.T) {
+	expected := testreport.ExpectedSkips{{Package: "example.com/p", Test: "TestX"}: "needs root"}
+	_, err := testreport.Summarize(strings.NewReader(subtestSkip), &bytes.Buffer{}, generated, expected)
+	if !errors.Is(err, testreport.ErrUnexpectedSkip) || !strings.Contains(err.Error(), ": example.com/p TestX/sub") {
+		t.Fatalf("Summarize error = %v, want ErrUnexpectedSkip naming example.com/p TestX/sub", err)
+	}
+}
+
+func TestSummarizeNamesASkipForAnotherReason(t *testing.T) {
+	expected := testreport.ExpectedSkips{
+		{Package: "example.com/p", Test: "TestX"}: "a different reason",
+		{Package: "example.com/p", Test: "TestY"}: "no read-only mount",
+	}
+	_, err := testreport.Summarize(strings.NewReader(twoSkips), &bytes.Buffer{}, generated, expected)
+	want := `: example.com/p TestX, whose message does not hold "a different reason"`
+	if !errors.Is(err, testreport.ErrUnexpectedSkip) || !strings.Contains(err.Error(), want) {
+		t.Fatalf("Summarize error = %v, want ErrUnexpectedSkip with %q", err, want)
 	}
 }
 
@@ -67,19 +101,19 @@ func TestSummarizeNamesEveryUnexpectedSkip(t *testing.T) {
 func TestSummarizePassesAListedSkip(t *testing.T) {
 	expected := testreport.ExpectedSkips{
 		{Package: "example.com/p", Test: "TestX"}: "needs root",
-		{Package: "example.com/p", Test: "TestY"}: "a reason",
+		{Package: "example.com/p", Test: "TestY"}: "no read-only mount",
 	}
 	var out bytes.Buffer
 	got, err := testreport.Summarize(strings.NewReader(twoSkips), &out, generated, expected)
 	if err != nil {
 		t.Fatalf("Summarize: %v", err)
 	}
-	if got != (testreport.Summary{Events: 8, Packages: 1, Skipped: 2}) {
+	if got != (testreport.Summary{Events: 9, Packages: 1, Skipped: 2}) {
 		t.Errorf("Summary = %+v", got)
 	}
 	want := "ok  \texample.com/p\n" +
 		"test: SKIP example.com/p TestX: x_test.go:5: needs root\n" +
-		"test: SKIP example.com/p TestY: (no message)\n" +
+		"test: SKIP example.com/p TestY: y_test.go:9: no read-only mount\n" +
 		"test: 2 skipped\n"
 	if out.String() != want {
 		t.Errorf("transcript = %q, want %q", out.String(), want)
@@ -89,7 +123,7 @@ func TestSummarizePassesAListedSkip(t *testing.T) {
 func TestSummarizeReportsAListedSkipThatRan(t *testing.T) {
 	expected := testreport.ExpectedSkips{
 		{Package: "example.com/p", Test: "TestX"}:         "needs root",
-		{Package: "example.com/p", Test: "TestY"}:         "a reason",
+		{Package: "example.com/p", Test: "TestY"}:         "no read-only mount",
 		{Package: "example.com/p", Test: "TestZ"}:         "needs root",
 		{Package: "example.com/p", Test: "TestGone"}:      "renamed since",
 		{Package: "example.com/elsewhere", Test: "TestW"}: "a package this stream never reached",
@@ -104,7 +138,7 @@ func TestSummarizeReportsAListedSkipThatRan(t *testing.T) {
 	}
 	want := "ok  \texample.com/p\n" +
 		"test: SKIP example.com/p TestX: x_test.go:5: needs root\n" +
-		"test: SKIP example.com/p TestY: (no message)\n" +
+		"test: SKIP example.com/p TestY: y_test.go:9: no read-only mount\n" +
 		"test: EXPECTED SKIP RAN example.com/p TestGone\n" +
 		"test: EXPECTED SKIP RAN example.com/p TestZ\n" +
 		"test: 2 skipped\n"

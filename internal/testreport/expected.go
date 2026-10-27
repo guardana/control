@@ -17,8 +17,9 @@ type Skip struct {
 	Package, Test string
 }
 
-// ExpectedSkips maps each test the repository expects some run to skip to the
-// reason it may. A nil or empty set expects none.
+// ExpectedSkips maps each test the repository expects some run to skip to
+// text its skip message holds, so a test that starts skipping for another
+// reason is refused like an unlisted one. A nil or empty set expects none.
 type ExpectedSkips map[Skip]string
 
 // testPrefixes are the names go test runs; anything else in the test column
@@ -26,8 +27,8 @@ type ExpectedSkips map[Skip]string
 var testPrefixes = []string{"Test", "Fuzz", "Example", "Benchmark"}
 
 // ParseExpectedSkips reads one entry per line, "<import path> <test name>
-// <reason>" with a single space between the fields and the reason the rest of
-// the line. A line that starts with "#" and a blank line are ignored. A line
+// <message>" with a single space between the fields and the message the rest
+// of the line: text the test's skip message must hold. A line that starts with "#" and a blank line are ignored. A line
 // with an empty field, white space inside the import path or the test name, a
 // test name go test does not give, or a test named a second time is refused
 // with ErrExpectedSkips.
@@ -75,9 +76,13 @@ func (rep *reporter) skip(pkg, test, message string) {
 	rep.skips = append(rep.skips, skipped{pkg, test, message})
 	key := Skip{pkg, test}
 	rep.didSkip[key] = true
-	if _, ok := rep.expected[key]; !ok {
+	switch want, ok := rep.expected[key]; {
+	case !ok:
 		rep.sum.Unexpected++
 		rep.surprises = append(rep.surprises, pkg+" "+test)
+	case !strings.Contains(message, want):
+		rep.sum.Unexpected++
+		rep.surprises = append(rep.surprises, fmt.Sprintf("%s %s, whose message does not hold %q", pkg, test, want))
 	}
 }
 

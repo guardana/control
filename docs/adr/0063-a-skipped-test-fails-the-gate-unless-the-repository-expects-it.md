@@ -23,18 +23,22 @@ The Python client's runner already refuses every skip.
 ## Decision
 
 `scripts/expected-skips.txt` names every test some run of the gate may skip,
-one per line: the import path, the test or subtest name, and the reason.
-`internal/testreport` fails a stream holding a skip the list does not name,
-and names it. A listed test that ran where its package was tested is printed,
-not refused, because the list is the union over Linux, macOS, root and an
-ordinary account. A malformed list, or one naming a test twice, fails the
-reporter before it reads the stream.
+one per line: the import path, the test or subtest name, and text its skip
+message holds, which says why. `internal/testreport` fails a stream holding a
+skip the list does not name, or a listed test whose skip message does not
+hold that text, and names it. A listed test that ran where its package was
+tested is printed, not refused, because the list is the union over Linux and
+macOS under an ordinary account; a run as root skips other tests and is not
+covered. A malformed list, or one naming a test twice, fails the reporter
+before it reads the stream.
 
 ## Security / compatibility impact
 
 No product code changes. A new skip needs an entry in the same change, which
-review reads with its reason. A skip whose name changes between runs, such as
-a subtest named from a temporary path, cannot be listed and has to be renamed.
+review reads with its reason. An unconditional `t.Skip` added to a listed test
+passes only when its message holds the listed text. A skip whose name changes
+between runs, such as a subtest named from a temporary path, cannot be listed
+and has to be renamed.
 
 ## Alternatives considered
 
@@ -47,12 +51,13 @@ a subtest named from a temporary path, cannot be listed and has to be renamed.
 
 ## Consequences
 
-The list changes with the tests. A run as root prints the root-only tests as
-expected skips that ran.
+The list changes with the tests. The gate run as root fails on the tests that
+skip only for root; no gate of record runs as root.
 
 ## Validation
 
-`internal/testreport`'s tests refuse an unlisted skip, pass a listed one,
-print a listed one that ran, and refuse a malformed or doubled list.
+`internal/testreport`'s tests refuse an unlisted skip, a listed test skipped
+with another message and a subtest of a listed test, pass a listed one, print
+a listed one that ran, and refuse a malformed or doubled list.
 `scripts/check-modules-probe.sh` plants a skipping test in a staged module:
 `make test` fails naming it, and passes once the staged list names it.
