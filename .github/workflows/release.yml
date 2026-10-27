@@ -25,12 +25,11 @@ concurrency:
 
 defaults:
   run:
-    # An earlier step can set the shell's startup files, options and functions
-    # through $GITHUB_ENV. env removes the variables from every process the
-    # step starts, -p keeps this bash from importing functions, and -o
-    # pipefail fails a step on a command that fails upstream of a pipe
-    # (ADR-0062).
-    shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u CDPATH -u GLOBIGNORE bash --noprofile --norc -p -e -o pipefail {0}
+    # -p keeps the step's bash from reading the startup files, options and
+    # functions an earlier step can set through $GITHUB_ENV; -o pipefail fails
+    # a step on a command that fails upstream of a pipe. The first word stays
+    # bash, which actionlint needs to shellcheck each run block (ADR-0062).
+    shell: bash --noprofile --norc -p -e -o pipefail {0}
 
 jobs:
   snapshot:

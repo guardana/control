@@ -16,13 +16,12 @@ const (
 	nightlyWorkflowPath = ".github/workflows/nightly.yml"
 	nightlyFuzzJob      = "fuzz"
 	nightlyFuzzCommand  = "/usr/bin/env -u MAKEFLAGS -u GNUMAKEFLAGS -u MFLAGS -u MAKEFILES make fuzz-smoke"
+	// nightlyReportIf is the report job's condition: a red scheduled night.
+	nightlyReportIf = "${{ failure() && github.event_name == 'schedule' }}"
 	// gateCommitFuzzLine is the line of scripts/gate-commit.sh that fuzzes
 	// the release commit's archive.
 	gateCommitFuzzLine = `(cd "${tree}" && "${clean[@]}" make GO=go fuzz-smoke) >>"${log}" 2>&1 || rc=$?`
 )
-
-// The shell startup state ciShell removes from a step's environment.
-var ciShellCleared = []string{"BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS", "CDPATH", "GLOBIGNORE"}
 
 // unquotedKey is a key as YAML reads it, quoted or not.
 func unquotedKey(key string) string {
@@ -30,6 +29,13 @@ func unquotedKey(key string) string {
 		return key[1 : len(key)-1]
 	}
 	return key
+}
+
+// shellWalk gathers what one file says about the shell its run steps start
+// in.
+type shellWalk struct {
+	action, runs, defaulted bool
+	problems                []string
 }
 
 // shellProblems holds one workflow or composite action to ciShell. A
@@ -42,52 +48,53 @@ func shellProblems(lines []string, action bool) []string {
 	if err != nil {
 		return []string{err.Error()}
 	}
-	var problems []string
-	runs, defaulted := false, false
-	var walk func(n *yamlNode, path []string)
-	walk = func(n *yamlNode, path []string) {
-		for _, kid := range n.kids {
-			key := unquotedKey(kid.key)
-			at := append(slices.Clone(path), key)
-			switch {
-			case strings.HasPrefix(key, "{") || strings.HasPrefix(kid.value, "{"):
-				problems = append(problems, fmt.Sprintf("line %d: a flow mapping, which this check cannot read", kid.line))
-			case key == "run" && slices.Contains(path, "steps"):
-				runs = true
-				if action && !slices.ContainsFunc(n.kids, func(k *yamlNode) bool { return unquotedKey(k.key) == "shell" }) {
-					problems = append(problems, fmt.Sprintf("line %d: a run step of an action carries no shell: %s", kid.line, ciShell))
-				}
-			case key == "shell" && kid.value == ciShell && (action || slices.Equal(at, []string{"defaults", "run", "shell"})):
-				defaulted = true
-			case key == "shell":
-				problems = append(problems, fmt.Sprintf("line %d: %s is %q; every run step starts in %s", kid.line, strings.Join(at, "."), kid.value, ciShell))
-			}
-			walk(kid, at)
+	w := &shellWalk{action: action}
+	w.walk(root, nil)
+	if w.runs && !w.defaulted && !action {
+		w.problems = append(w.problems, "the workflow has run steps and no default run.shell: "+ciShell)
+	}
+	return w.problems
+}
+
+func (w *shellWalk) walk(n *yamlNode, path []string) {
+	for _, kid := range n.kids {
+		key := unquotedKey(kid.key)
+		at := append(slices.Clone(path), key)
+		w.visit(n, kid, key, at)
+		w.walk(kid, at)
+	}
+}
+
+func (w *shellWalk) visit(parent, kid *yamlNode, key string, at []string) {
+	switch {
+	case strings.HasPrefix(key, "{") || strings.HasPrefix(kid.value, "{"):
+		w.problems = append(w.problems, fmt.Sprintf("line %d: a flow mapping, which this check cannot read", kid.line))
+	case key == "run" && slices.Contains(at, "steps"):
+		w.runs = true
+		if w.action && !slices.ContainsFunc(parent.kids, func(k *yamlNode) bool { return unquotedKey(k.key) == "shell" }) {
+			w.problems = append(w.problems, fmt.Sprintf("line %d: a run step of an action carries no shell: %s", kid.line, ciShell))
 		}
+	case key == "shell" && kid.value == ciShell && (w.action || slices.Equal(at, []string{"defaults", "run", "shell"})):
+		w.defaulted = true
+	case key == "shell":
+		w.problems = append(w.problems, fmt.Sprintf("line %d: %s is %q; every run step starts in %s", kid.line, strings.Join(at, "."), kid.value, ciShell))
 	}
-	walk(root, nil)
-	if runs && !defaulted && !action {
-		problems = append(problems, "the workflow has run steps and no default run.shell: "+ciShell)
-	}
-	return problems
 }
 
 func TestEveryWorkflowStartsItsShellClean(t *testing.T) {
-	var workflows, actions []string
-	for _, pattern := range []string{".github/workflows/*.yml", ".github/workflows/*.yaml"} {
-		found, err := fs.Glob(repoFS(t), pattern)
-		if err != nil {
-			t.Fatal(err)
+	glob := func(patterns ...string) []string {
+		var found []string
+		for _, pattern := range patterns {
+			paths, err := fs.Glob(repoFS(t), pattern)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found = append(found, paths...)
 		}
-		workflows = append(workflows, found...)
+		return found
 	}
-	for _, pattern := range []string{".github/actions/*/action.yml", ".github/actions/*/action.yaml"} {
-		found, err := fs.Glob(repoFS(t), pattern)
-		if err != nil {
-			t.Fatal(err)
-		}
-		actions = append(actions, found...)
-	}
+	workflows := glob(".github/workflows/*.yml", ".github/workflows/*.yaml")
+	actions := glob(".github/actions/*/action.yml", ".github/actions/*/action.yaml")
 	if len(workflows) == 0 {
 		t.Fatal("no workflow found; refusing to report a pass")
 	}
@@ -130,10 +137,10 @@ func TestShellProblems(t *testing.T) {
 
 // runShell runs args with env added to a clean environment and returns what
 // it printed and its exit status.
-func runShell(t *testing.T, env []string, args ...string) (string, int) {
+func runShell(t *testing.T, env string, args ...string) (string, int) {
 	t.Helper()
 	cmd := exec.Command(args[0], args[1:]...) //nolint:gosec // G204: a shell over a script this test wrote
-	cmd.Env = append(cleanMakeEnv(), env...)
+	cmd.Env = append(cleanMakeEnv(), env)
 	out, err := cmd.CombinedOutput()
 	var exit *exec.ExitError
 	switch {
@@ -147,74 +154,43 @@ func runShell(t *testing.T, env []string, args ...string) (string, int) {
 }
 
 // TestTheShellIgnoresTheStartupStateOfTheEnvironment runs the shell line
-// every workflow names over scripts that print and exit 7, under what an
+// every workflow names over a script that prints and exits 7, under what an
 // earlier step could write through $GITHUB_ENV to change what bash runs; on
 // CI it runs against the runner's own bash. Each case first shows that
 // GitHub's plain bash line is changed by the same input, so a case cannot pass
-// because the input never reached the shell. A function exported in the
-// environment is ignored by the step's own bash; a bash the step starts in
-// turn still imports it.
+// because the input never reached the shell. The variables stay in the
+// environment, so a bash the step starts in turn still reads them: make
+// quality refuses them itself, and other scripts do not (ADR-0062).
 func TestTheShellIgnoresTheStartupStateOfTheEnvironment(t *testing.T) {
 	dir := t.TempDir()
-	write := func(name, body string) string {
-		path := filepath.Join(dir, name)
-		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+	script := filepath.Join(dir, "step.sh")
+	startup := filepath.Join(dir, "startup.sh")
+	for name, body := range map[string]string{script: "echo ran\nexit 7\n", startup: "echo startup ran\n"} {
+		if err := os.WriteFile(name, []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		return path
 	}
-	own := write("own.sh", "echo ran\nexit 7\n")
-	child := write("child.sh", "echo ran\n/usr/bin/env bash -c 'echo child'\nexit 7\n")
-	listing := write("listing.sh", "/usr/bin/env\nexit 7\n")
-	startup := write("startup.sh", "echo startup ran\n")
-	line := func(script string) []string { return strings.Fields(strings.Replace(ciShell, "{0}", script, 1)) }
-	plain := func(script string) []string {
-		return []string{"/usr/bin/env", "bash", "--noprofile", "--norc", "-e", "-o", "pipefail", script}
-	}
-	for _, c := range []struct {
-		env    string
-		script string
-		want   string
-	}{
-		{"SHELLOPTS=noexec", child, "ran\nchild\n"},
-		{"BASH_ENV=" + startup, child, "ran\nchild\n"},
-		{"BASH_FUNC_echo%%=() { builtin printf 'a function ran\\n'; }", own, "ran\n"},
+	line := strings.Fields(strings.Replace(ciShell, "{0}", script, 1))
+	plain := []string{"bash", "--noprofile", "--norc", "-e", "-o", "pipefail", script}
+	for _, env := range []string{
+		"SHELLOPTS=noexec",
+		"BASH_ENV=" + startup,
+		"BASH_FUNC_echo%%=() { builtin printf 'a function ran\\n'; }",
 	} {
-		if out, code := runShell(t, []string{c.env}, plain(c.script)...); out == c.want && code == 7 {
-			t.Errorf("plain bash under %s ran the step unchanged; this case cannot tell the shell line from an input that never arrived", c.env)
+		if out, code := runShell(t, env, plain...); out == "ran\n" && code == 7 {
+			t.Errorf("plain bash under %s ran the step unchanged; this case cannot tell the shell line from an input that never arrived", env)
 		}
-		if out, code := runShell(t, []string{c.env}, line(c.script)...); out != c.want || code != 7 {
-			t.Errorf("%s under %s = %d, %q; want 7 and %q", ciShell, c.env, code, out, c.want)
-		}
-	}
-	var env []string
-	for _, name := range ciShellCleared {
-		env = append(env, name+"="+startup)
-	}
-	plainOut, _ := runShell(t, env, plain(listing)...)
-	lineOut, code := runShell(t, env, line(listing)...)
-	if code != 7 {
-		t.Errorf("%s over a listing of the environment exited %d, want 7:\n%s", ciShell, code, lineOut)
-	}
-	for _, name := range ciShellCleared {
-		if !holdsVariable(plainOut, name) {
-			t.Errorf("plain bash's environment holds no %s; this case cannot show the shell line removes it", name)
-		}
-		if holdsVariable(lineOut, name) {
-			t.Errorf("%s leaves %s in the step's environment, where every bash the step starts reads it", ciShell, name)
+		if out, code := runShell(t, env, line...); out != "ran\n" || code != 7 {
+			t.Errorf("%s under %s = %d, %q; want 7 and the step's own line", ciShell, env, code, out)
 		}
 	}
-}
-
-// holdsVariable reports whether a listing of the environment sets name.
-func holdsVariable(listing, name string) bool {
-	return strings.HasPrefix(listing, name+"=") || strings.Contains(listing, "\n"+name+"=")
 }
 
 // nightlyProblems names every way the nightly workflow stops fuzzing each
-// night: no schedule, no fuzz job, a fuzz job that can be skipped, masked or
-// handed another FUZZTIME, no unconditional step running exactly the fuzz
-// command, or a red night's report that no longer waits for the fuzz job.
+// night, or reporting a red one: no schedule, no fuzz job, a fuzz job that can
+// be skipped, masked or handed another FUZZTIME, no unconditional step running
+// exactly the fuzz command, or a report job that is gone, does not wait for
+// the fuzz job, or runs under another condition.
 func nightlyProblems(lines []string) []string {
 	root, err := parseBlockYAML(lines)
 	if err != nil {
@@ -227,17 +203,12 @@ func nightlyProblems(lines []string) []string {
 	for _, env := range root.children("env") {
 		problems = append(problems, fmt.Sprintf("line %d: the workflow sets env, which reaches the fuzz step", env.line))
 	}
-	var jobs []*yamlNode
+	var jobs, reports []*yamlNode
 	for _, all := range root.children("jobs") {
 		jobs = append(jobs, all.children(nightlyFuzzJob)...)
-		for _, report := range all.children("report") {
-			for _, needs := range report.children("needs") {
-				if !slices.Contains(flowList(needs.value), nightlyFuzzJob) {
-					problems = append(problems, fmt.Sprintf("line %d: the report of a red night needs %s, not the %s job", needs.line, needs.value, nightlyFuzzJob))
-				}
-			}
-		}
+		reports = append(reports, all.children("report")...)
 	}
+	problems = append(problems, reportProblems(reports)...)
 	if len(jobs) != 1 {
 		return append(problems, fmt.Sprintf("found %d %s job(s), want 1", len(jobs), nightlyFuzzJob))
 	}
@@ -248,6 +219,24 @@ func nightlyProblems(lines []string) []string {
 	}
 	if found := plainSteps(jobs[0], nightlyFuzzCommand); found != 1 {
 		problems = append(problems, fmt.Sprintf("%d step(s) of the %s job run exactly %q with no if, continue-on-error or env, want 1", found, nightlyFuzzJob, nightlyFuzzCommand))
+	}
+	return problems
+}
+
+// reportProblems holds the report job to waiting for the fuzz job and to
+// running on a red scheduled night.
+func reportProblems(reports []*yamlNode) []string {
+	if len(reports) != 1 {
+		return []string{fmt.Sprintf("found %d report job(s), want 1", len(reports))}
+	}
+	var problems []string
+	needs := reports[0].children("needs")
+	if len(needs) != 1 || !slices.Contains(flowList(needs[0].value), nightlyFuzzJob) {
+		problems = append(problems, fmt.Sprintf("line %d: the report job does not wait for the %s job", reports[0].line, nightlyFuzzJob))
+	}
+	ifs := reports[0].children("if")
+	if len(ifs) != 1 || ifs[0].value != nightlyReportIf {
+		problems = append(problems, fmt.Sprintf("line %d: the report job runs on another condition than %s", reports[0].line, nightlyReportIf))
 	}
 	return problems
 }
@@ -280,7 +269,7 @@ func TestFuzzingRunsOutsideTheGate(t *testing.T) {
 
 func TestNightlyProblems(t *testing.T) {
 	good := "on:\n  schedule:\n    - cron: \"1 2 * * *\"\njobs:\n  fuzz:\n    runs-on: x\n    steps:\n      - run: " + nightlyFuzzCommand +
-		"\n  report:\n    needs: [race, fuzz]\n"
+		"\n  report:\n    needs: [race, fuzz]\n    if: " + nightlyReportIf + "\n"
 	if problems := nightlyProblems(strings.Split(good, "\n")); len(problems) != 0 {
 		t.Fatalf("the correct fixture reported %q", problems)
 	}
@@ -290,8 +279,11 @@ func TestNightlyProblems(t *testing.T) {
 		"a fuzz time on the step": {step, step + "        env:\n          FUZZTIME: 1ns\n", "want 1"},
 		"a fuzz time on the job":  {"    runs-on: x\n", "    runs-on: x\n    env:\n      FUZZTIME: 1ns\n", "carries env"},
 		"masked on the job":       {"    runs-on: x\n", "    runs-on: x\n    continue-on-error: true\n", "carries continue-on-error"},
-		"a report that waits not": {"needs: [race, fuzz]", "needs: race", "not the fuzz job"},
 		"another command":         {step, "      - run: make fuzz-smoke FUZZTIME=1ns\n", "want 1"},
+		"a report that waits not": {"needs: [race, fuzz]", "needs: race", "does not wait"},
+		"a report with no needs":  {"    needs: [race, fuzz]\n", "", "does not wait"},
+		"a report never run":      {"    if: " + nightlyReportIf + "\n", "    if: false\n", "another condition"},
+		"no report":               {"  report:\n", "  later:\n", "found 0 report job(s)"},
 	} {
 		problems := nightlyProblems(strings.Split(replaceOnce(t, good, c.old, c.replacement), "\n"))
 		if !slices.ContainsFunc(problems, func(s string) bool { return strings.Contains(s, c.want) }) {

@@ -34,14 +34,14 @@ in `test` and `test-race`. `docs-check` ran its packages a third time.
 ## Decision
 
 - **The gate's result holds as its two entry points start it.** CI starts
-  every run step of every workflow, and of any composite action, in
-  `/usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u CDPATH -u
-  GLOBIGNORE bash --noprofile --norc -p -e -o pipefail {0}`: the variables
-  leave the environment of everything the step starts, and `-p` keeps the
-  step's own bash from importing a function. The gate step runs
-  `/usr/bin/env -u MAKEFLAGS -u GNUMAKEFLAGS -u MFLAGS -u MAKEFILES make
-  quality GO=go`. `scripts/gate-commit.sh` starts make in an emptied
-  environment, as before.
+  every run step of every workflow, and of a composite action under
+  `.github/actions`, in `bash --noprofile --norc -p -e -o pipefail {0}`: with
+  `-p`, the step's bash reads neither `BASH_ENV` nor `ENV` and ignores
+  `SHELLOPTS`, `BASHOPTS`, `CDPATH`, `GLOBIGNORE` and functions from the
+  environment. The line starts with `bash`, the one first word under which
+  actionlint shellchecks a run block. The gate step runs `/usr/bin/env -u
+  MAKEFLAGS -u GNUMAKEFLAGS -u MFLAGS -u MAKEFILES make quality GO=go`.
+  `scripts/gate-commit.sh` starts make in an emptied environment, as before.
 - **The Makefile keeps its guards on what an environment sets**, and refuses
   every command-line variable but `GO` by its `$(origin)`, which a command
   line cannot change. It states that a makefile read after it is beyond any
@@ -66,10 +66,11 @@ fuzzes; the proof that a release commit was fuzzed is the cold gate's stamp,
 which `scripts/gate-commit.sh` writes only after `make fuzz-smoke` passes, as
 it already was for the gate on macOS.
 
-A step that writes a shell's startup files or options to `$GITHUB_ENV` no
-longer changes what a later step runs. A function written there is not
-imported by the step's bash, but a bash the step starts in turn still imports
-it; for the gate, make refuses it loudly, and for other steps the workflow
+A step that writes the shell's startup files, options or functions to
+`$GITHUB_ENV` no longer changes what a later step's own bash runs. The
+variables stay in the environment, so a bash script the step starts in turn
+still reads them: the gate's make refuses them loudly, while another job's
+script, such as the wire compatibility check, does not, and the workflow
 test refuses an environment write in the quality job only. `PATH` stays
 trusted: a step can still put another `make` or `bash` first on it, as it
 always could. A caller who passes `-f` with another makefile can still
@@ -81,6 +82,10 @@ run.
 - Keep extending the Makefile's guards: each make version reads its flags
   differently, the probes grow with each, and the makefile read after this
   one stays out of reach.
+- `/usr/bin/env -u BASH_ENV -u SHELLOPTS ... bash` as the shell line, so no
+  process a step starts sees them: actionlint shellchecks a run block only
+  under a line whose first word is `bash` or `sh`, so every inline script
+  would go unchecked.
 - Name `SHELLOPTS` and its kin in the workflow test's list of refused names:
   the allowed write to `$GITHUB_ENV` carries any text, and a name can be
   assembled from parts.
@@ -102,13 +107,12 @@ this record is amended.
 workflow, `*.yml` and `*.yaml`, with a run step to the shell line, every run
 step of a composite action to it too, and refuses a `shell:` anywhere else and
 a step it cannot read; `TestTheShellIgnoresTheStartupStateOfTheEnvironment`
-runs that line, with the bash found on the path, over scripts that exit 7: a
-child bash under `SHELLOPTS=noexec` and `BASH_ENV`, the step's own bash under
-an exported `echo`, and a listing of the environment that must hold none of
-the six variables, after showing that GitHub's plain bash line is changed by
-each; `TestFuzzingRunsOutsideTheGate` holds the nightly schedule, the fuzz job
-with no condition, mask or environment of its own, the report waiting on it,
-and the cold gate's `make fuzz-smoke` line;
+runs that line, with the bash found on the path, over a script that exits 7
+under `SHELLOPTS=noexec`, `BASH_ENV` and an exported `echo`, after showing that
+GitHub's plain bash line is changed by each; `TestFuzzingRunsOutsideTheGate`
+holds the nightly schedule, the fuzz job with no condition, mask or
+environment of its own, the report job waiting on it under its condition, and
+the cold gate's `make fuzz-smoke` line;
 `TestTheGateRefusesALoosenedMake` refuses `MAKEOVERRIDES=` with a replaced
 shell; `TestQualityRunsTheWholeGate` holds `fuzz-list` in quality.
 `scripts/check-modules-probe.sh` runs `fuzz-list` clean and refuses a target a

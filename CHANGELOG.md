@@ -24,9 +24,10 @@ verify one.
 
 - A workflow step that wrote `SHELLOPTS=noexec` or `BASH_ENV` to
   `$GITHUB_ENV` could make a later step's bash, the quality gate's among them,
-  run nothing and succeed. Every workflow now starts its steps with the shell's
-  startup files and options removed from the environment, in a bash that
-  imports no function from it.
+  run nothing and succeed. Every workflow now starts its steps in a bash that
+  ignores the shell's startup files, options and functions from the
+  environment; a script a step starts still reads them, and `make quality`
+  refuses them.
 - `make quality MAKEOVERRIDES= SHELL=/usr/bin/true` ran no check and exited 0:
   the guard read the command line from `MAKEOVERRIDES`, which the command line
   can empty. It now refuses every command-line variable but `GO` by its origin.
