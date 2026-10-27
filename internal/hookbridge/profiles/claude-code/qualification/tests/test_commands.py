@@ -10,7 +10,7 @@ import unittest
 
 import harness
 from harness_judge import judged
-from harness_scrub import copy_scrubbed, judged_part
+from harness_scrub import UNREADABLE, Scrubber, copy_scrubbed, judged_part
 from tests import layouts
 from tests.observations import Run
 
@@ -137,7 +137,12 @@ class StreamPart(unittest.TestCase):
                 "content": [
                     {"type": "thinking", "thinking": "a private chain"},
                     {"type": "text", "text": "I will write the file"},
-                    {"type": "tool_use", "id": "toolu_1", "name": "Write", "input": {"file_path": "a"}},
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_1",
+                        "name": "Write",
+                        "input": {"file_path": "a"},
+                    },
                 ],
             },
         }
@@ -147,7 +152,14 @@ class StreamPart(unittest.TestCase):
                 "type": "assistant",
                 "message": {
                     "role": "assistant",
-                    "content": [{"type": "tool_use", "id": "toolu_1", "name": "Write", "input": {"file_path": "a"}}],
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_1",
+                            "name": "Write",
+                            "input": {"file_path": "a"},
+                        }
+                    ],
                 },
                 "parent_tool_use_id": None,
             },
@@ -156,15 +168,45 @@ class StreamPart(unittest.TestCase):
             "type": "user",
             "message": {
                 "role": "user",
-                "content": [{"type": "text", "text": "a prompt"}, {"type": "tool_result", "tool_use_id": "toolu_1"}],
+                "content": [
+                    {"type": "text", "text": "a prompt"},
+                    {"type": "tool_result", "tool_use_id": "toolu_1"},
+                ],
             },
         }
         self.assertEqual(
             judged_part(user),
-            {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_1"}]}},
+            {
+                "type": "user",
+                "message": {
+                    "role": "user",
+                    "content": [{"type": "tool_result", "tool_use_id": "toolu_1"}],
+                },
+            },
         )
-        result = {"type": "result", "subtype": "success", "is_error": False, "result": "done, the file is written"}
-        self.assertEqual(judged_part(result), {"type": "result", "subtype": "success", "is_error": False})
+        result = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "result": "done, the file is written",
+        }
+        self.assertEqual(
+            judged_part(result), {"type": "result", "subtype": "success", "is_error": False}
+        )
+
+
+class StreamLines(unittest.TestCase):
+    def test_an_unreadable_line_is_replaced_and_reasoning_dropped(self) -> None:
+        """A stream line that does not parse is replaced by a marker that
+        does not parse either, and a parsed line keeps no reasoning."""
+        thinking = {"type": "thinking", "thinking": "a private chain"}
+        line = {"type": "assistant", "message": {"role": "assistant", "content": [thinking]}}
+        out = Scrubber("/nowhere", "/nowhere/events").stream(
+            json.dumps(line) + "\n" + '{"type": "assi\n'
+        )
+        self.assertEqual(out.splitlines(keepends=True)[1], UNREADABLE)
+        self.assertNotIn("a private chain", out)
+        self.assertEqual(len(out.splitlines()), 2)
 
 
 class Scrubbed(Scratch):

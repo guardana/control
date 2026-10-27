@@ -5,16 +5,19 @@ SCRUBBED and the events directory SCRUBBED/events, so the judge finds each
 project where the paths say it is; any other absolute path and the home
 directory become <path>; every identifier becomes id-<n>, the same one for
 the same identifier throughout the copy, so what the judge compares still
-compares. Lines of the runtime's stream the judge does not read, as the one
-naming the runtime's setup, are left out. A copy is worth keeping only when
-harness.py rejudge judges it as the run was judged, and only after a person
-has read it.
+compares. Of the runtime's stream only the tool calls, their results, a
+sub-agent's answer among them, and the run's status are kept, never the
+model's text or reasoning; of its standard error, only whether it stopped.
+A copy is worth keeping only when harness.py rejudge judges it as the run was
+judged, and only after a person has read it.
 """
 
 import json
 import os
 import re
 import shutil
+
+from harness_observed import Record
 
 SCRUBBED = "/scrubbed"
 
@@ -29,20 +32,29 @@ EVENT_FILES = re.compile(r"\d{3}(\.meta)?\.json")
 # model's text and reasoning are never kept.
 STREAM_TYPES = ("assistant", "user", "result")
 KEPT_BLOCKS = {"assistant": "tool_use", "user": "tool_result"}
+UNREADABLE = "<a stream line that did not parse>\n"
+
+# Of a runtime's standard error the judge reads whether it stopped the run.
+STOPPED = "stopped after"
 
 
-def judged_part(line: dict) -> dict:
+def judged_part(line: Record) -> Record:
     """The members of a stream line the judge reads."""
     kind = line.get("type")
     if kind == "result":
         return {k: line[k] for k in ("type", "subtype", "is_error") if k in line}
-    message = line.get("message") if isinstance(line.get("message"), dict) else {}
+    message = line.get("message")
+    message = message if isinstance(message, dict) else {}
     content = message.get("content")
-    blocks = [b for b in content if isinstance(b, dict) and b.get("type") == KEPT_BLOCKS[kind]] if isinstance(content, list) else []
-    out = {"type": kind, "message": {"role": message.get("role"), "content": blocks}}
+    keep = KEPT_BLOCKS.get(str(kind))
+    blocks = []
+    if isinstance(content, list):
+        blocks = [b for b in content if isinstance(b, dict) and b.get("type") == keep]
+    out: Record = {"type": kind, "message": {"role": message.get("role"), "content": blocks}}
     if "parent_tool_use_id" in line:
         out["parent_tool_use_id"] = line["parent_tool_use_id"]
     return out
+
 
 # A UUID, a tool call's id, an approval's id, a hex digest or id (as the one
 # after run-) and a base64url digest; each of the last three holds a letter,
@@ -78,17 +90,18 @@ class Scrubber:
         return self.ids.setdefault(m.group(0), f"id-{len(self.ids) + 1}")
 
     def stream(self, text: str) -> str:
-        """The stream without what the judge does not read; a line that does
-        not parse is kept, so the copy is as unreadable as the run."""
+        """The stream without what the judge does not read. A line that does
+        not parse is replaced by one that does not parse either, so the copy
+        is as unreadable as the run without keeping what the line held."""
         kept = []
         for line in text.splitlines(keepends=True):
             try:
                 value = json.loads(line)
             except ValueError:
-                kept.append(line)
+                kept.append(UNREADABLE)
                 continue
             if not isinstance(value, dict):
-                kept.append(line)
+                kept.append(UNREADABLE)
             elif value.get("type") in STREAM_TYPES:
                 kept.append(json.dumps(judged_part(value)) + "\n")
         return self.text("".join(kept))
@@ -126,7 +139,13 @@ def copy_scrubbed(cases: str, events_root: str, work: str, out: str) -> None:
 def copy_file(s: Scrubber, src: str, dst: str) -> None:
     with open(src, encoding="utf-8", errors="surrogateescape") as f:
         text = f.read()
-    text = s.stream(text) if os.path.basename(src).startswith("stream-") else s.text(text)
+    name = os.path.basename(src)
+    if name.startswith("stream-"):
+        text = s.stream(text)
+    elif name.startswith("runtime-") and name.endswith(".err"):
+        text = s.text("".join(line for line in text.splitlines(keepends=True) if STOPPED in line))
+    else:
+        text = s.text(text)
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     with open(dst, "w", encoding="utf-8", errors="surrogateescape") as f:
         f.write(text)

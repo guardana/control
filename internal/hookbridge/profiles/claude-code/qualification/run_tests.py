@@ -32,6 +32,7 @@ PROMISED = (
     "tests.test_commands.Snapshot.test_a_walk_that_fails_writes_nothing",
     "tests.test_commands.Scrubbed.test_every_kept_copy_is_judged_as_its_results_say",
     "tests.test_commands.StreamPart.test_the_models_text_and_reasoning_are_not_kept",
+    "tests.test_commands.StreamLines.test_an_unreadable_line_is_replaced_and_reasoning_dropped",
     "tests.test_commands.Report.test_the_exit_status_follows_the_verdicts",
 )
 

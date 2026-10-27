@@ -94,12 +94,12 @@ not the plane, runs the call.
   that overruns the limit blocks the call under `onFailure: "block"`.
 - `onFailure: "block"` sits on `PreToolUse` only. With it, a hook that times
   out or crashes blocks the call; without it, the call runs, and so it does
-  after a hook that prints unreadable output and exits 0 *(seen on 2.1.303)*.
+  after a hook that prints unreadable output and exits 0 *(seen on 2.1.310)*.
   On the two completion events the call has already run, so there is nothing
   left to block.
 - The matcher leaves out tools named `mcp__<server>__<tool>`, which reach the
   plane through the gateway; it matched every other tool the qualification
-  used *(seen on 2.1.303)*. An MCP server that is not behind the gateway is
+  used *(seen on 2.1.310)*. An MCP server that is not behind the gateway is
   then seen by neither.
 - Put these hooks in managed settings. A user can turn off any hook outside
   them with `disableAllHooks` or by editing their own settings files, and
@@ -184,9 +184,9 @@ None of these is closed by the profile.
 - A mod handling `tool.check` can approve a call this hook blocked, unless
   the hook is in managed settings.
 - `--bare` skips the discovery of hooks.
-- `disableAllHooks` turns off every hook that is not managed; the
-  qualification saw it turn off hooks passed with `--settings` *(seen on
-  2.1.303)*.
+- `disableAllHooks` turns off every hook that is not managed; that it turns
+  off hooks passed with `--settings` is unverified, since its case has not
+  yet run beside its control.
 - A cancelled running tool starts no completion hook; the plane's sweep
   closes its handle as abandoned.
 - Another hook can replace the input after the bridge let the call run. Only
