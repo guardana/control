@@ -252,6 +252,8 @@ func TestAFilteredExportIsNotWhole(t *testing.T) {
 	}{
 		"no filter":            {"", false},
 		"requests":             {`,"request":["r1"]`, false},
+		"a cursor":             {`,"after":"` + someCursor + `"`, false},
+		"a byte bound":         {`,"max_bytes":1000000`, false},
 		"a run":                {`,"run":["run-r1"]`, true},
 		"a kind":               {"," + kinds, true},
 		"requests and a run":   {`,"request":["r1"],"run":["run-r1"]`, true},

@@ -51,7 +51,10 @@ changes run within one request was accepted by the 1.0 checker and is now
 refused as a broken chain. That is the stricter reading of what a plane
 already wrote, and a reader that cannot say which run did what has no other
 answer. Supervision fails closed: a request it cannot place in one run leaves
-the rules that read it not checked. A follow state of `1.1` still loads; an
+the rules that read it not checked. The plane mints every request id, both
+adapters through `NewID`, so a request id names one trail; a stream that
+reuses one in another run puts the earlier request in doubt, which errs toward
+doubt and never toward a pass. A follow state of `1.1` still loads; an
 annotation after the end of a request it closed is unknown, since that state
 does not hold the request's run.
 

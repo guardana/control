@@ -370,19 +370,20 @@ func TestARequestWithAnEventOutsideTheRunsReadIsInDoubt(t *testing.T) {
 
 // TestARequestWhollyInAnotherRunPutsNothingInDoubt: the control for the test
 // above. A request none of whose events the run's read keeps is another
-// run's, and so is a request of the same id in another project; the run's own
-// request stays checked.
+// run's, and so is a request of the same id in another project or another
+// tenant; the run's own request stays checked.
 func TestARequestWhollyInAnotherRunPutsNothingInDoubt(t *testing.T) {
 	x := export(call{req: "r1", tool: "get_order", upstream: "shop"},
 		call{req: "r9", tool: "get_order", upstream: "shop", at: 10 * time.Second, run: outsiderRun},
-		call{req: "r1", tool: "get_order", upstream: "shop", at: 20 * time.Second, run: outsiderRun, proj: "p2"})
+		call{req: "r1", tool: "get_order", upstream: "shop", at: 20 * time.Second, run: outsiderRun, proj: "p2"},
+		call{req: "r1", tool: "get_order", upstream: "shop", at: 30 * time.Second, run: outsiderRun, tenant: "t2"})
 	res, err := supervise.Evaluate(supervise.Input{Procedure: procWith(t), Run: supervise.Run{ID: runID, Tenant: tenant},
 		Exports: []supervise.Export{x}})
 	if err != nil {
 		t.Fatalf("Evaluate: %v", err)
 	}
-	if got := res.Report.GetRead().GetEventsLeftOut()["another run"]; got != 8 {
-		t.Fatalf("events left out as another run: %d, want 8", got)
+	if got := res.Report.GetRead().GetEventsLeftOut()["another run"]; got != 12 {
+		t.Fatalf("events left out as another run: %d, want 12", got)
 	}
 	for id, state := range rules(res) {
 		if strings.Contains(state, "in doubt") {
