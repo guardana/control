@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	// KindOTelGenAI is the one source kind this version reads.
-	KindOTelGenAI = "otel-genai-traces"
 	// ConventionName names the GenAI semantic conventions the input is read
 	// under.
 	ConventionName = "opentelemetry.gen_ai"
@@ -55,42 +53,34 @@ var ContentAttributes = []string{
 var ErrDescriptor = errors.New("observe: source descriptor refused")
 
 // ReadDescriptor parses an operator's source descriptor and enforces every
-// rule of ADR-0040. An enum number the contract does not declare is refused
-// here, where a record would read it as its restrictive meaning: an operator's
-// statement of trust is taken only as written.
+// rule of ADR-0040: CheckNeutral, then the members of kind otel-genai-traces.
+// It refuses every other kind, whose own checks this package does not hold.
+// An enum number the contract does not declare is refused here, where a
+// record would read it as its restrictive meaning: an operator's statement of
+// trust is taken only as written.
 func ReadDescriptor(b []byte) (*observev1.SourceDescriptor, error) {
-	if len(b) > maxDescriptorBytes {
-		return nil, fmt.Errorf("%w: %d bytes, limit %d", ErrDescriptor, len(b), maxDescriptorBytes)
+	d, err := ReadNeutral(b)
+	if err != nil {
+		return nil, err
 	}
-	d := &observev1.SourceDescriptor{}
-	if err := unmarshalStrict(b, d); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrDescriptor, err)
+	if d.GetKind() != KindOTelGenAI {
+		return nil, refuse("kind", fmt.Errorf("%q has no importer in this build", d.GetKind()))
 	}
-	if err := checkDescriptor(d); err != nil {
+	if err := checkOTelMembers(d); err != nil {
 		return nil, err
 	}
 	return d, nil
 }
 
-func checkDescriptor(d *observev1.SourceDescriptor) error {
-	if err := checkVersion(d.GetSchemaVersion(), descriptorMinors); err != nil {
-		return refuse("schema_version", err)
-	}
+func checkOTelMembers(d *observev1.SourceDescriptor) error {
 	checks := []struct {
 		member string
 		err    error
 	}{
-		{"source_id", identifier(d.GetSourceId())},
-		{"kind", exactly(d.GetKind(), KindOTelGenAI)},
-		{"trust", trust(d.GetTrust())},
 		{"convention.name", exactly(d.GetConvention().GetName(), ConventionName)},
 		{"convention.version", exactly(d.GetConvention().GetVersion(), ConventionVersion)},
 		{"otlp_version", exactly(d.GetOtlpVersion(), OTLPVersion)},
 		{"select.service_name", text(d.GetSelect().GetServiceName(), true)},
-		{"sampling", declared(d.GetSampling())},
-		{"heartbeat_seconds", heartbeat(d.GetHeartbeatSeconds())},
-		{"tenant_id", identifier(d.GetTenantId())},
-		{"project_id", identifier(d.GetProjectId())},
 		{"run_attribute", runAttribute(d.GetRunAttribute())},
 	}
 	for _, c := range checks {
@@ -176,21 +166,6 @@ func runAttribute(s string) error {
 	}
 	if slices.Contains(ContentAttributes, s) {
 		return fmt.Errorf("%q is a content attribute", s)
-	}
-	return nil
-}
-
-// trust refuses TRUST_INDEPENDENT because this kind's spans are written by
-// the agent's own process.
-func trust(t observev1.Trust) error {
-	if t == observev1.Trust_TRUST_UNSPECIFIED {
-		return errors.New("required")
-	}
-	if err := declared(t); err != nil {
-		return err
-	}
-	if t == observev1.Trust_TRUST_INDEPENDENT {
-		return fmt.Errorf("%s is refused for kind %q, whose spans the agent writes", t, KindOTelGenAI)
 	}
 	return nil
 }

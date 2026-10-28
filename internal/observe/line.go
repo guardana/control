@@ -32,9 +32,9 @@ func MarshalLine(r *observev1.Record) ([]byte, error) {
 	if err := checkRecord(r); err != nil {
 		return nil, err
 	}
-	if v := innerVersion(r); v != SchemaVersion && v != SchemaVersion02 {
-		return nil, fmt.Errorf("%w: schema_version %s, this writer writes %q and %q", ErrLine,
-			quoted(v, maxVersionBytes), SchemaVersion, SchemaVersion02)
+	if v := innerVersion(r); v != SchemaVersion && v != SchemaVersion02 && v != SchemaVersion03 {
+		return nil, fmt.Errorf("%w: schema_version %s, this writer writes %q, %q and %q", ErrLine,
+			quoted(v, maxVersionBytes), SchemaVersion, SchemaVersion02, SchemaVersion03)
 	}
 	if hasUnknownFields(r.ProtoReflect()) {
 		return nil, fmt.Errorf("%w: a field this build cannot name would be dropped", ErrLine)
@@ -90,7 +90,7 @@ func checkRecord(r *observev1.Record) error {
 	if err := CheckVersion(innerVersion(r)); err != nil {
 		return fmt.Errorf("%w: %w", ErrLine, err)
 	}
-	if err := checkSchema(innerVersion(r), added02(ir)); err != nil {
+	if err := checkSchema(innerVersion(r), r); err != nil {
 		return err
 	}
 	if o != nil {
@@ -99,19 +99,52 @@ func checkRecord(r *observev1.Record) error {
 	if err := checkOrigin(ir.GetTenantId(), ir.GetProjectId(), ir.GetSource(), ir.GetReceivedTime()); err != nil {
 		return err
 	}
+	if err := checkRefusedBy(ir.GetCounts()); err != nil {
+		return err
+	}
 	return checkDoubt(ir)
 }
 
-// checkSchema holds a record to the schema its members call for, given
-// added, the first member it carries that SchemaVersion does not have, or "".
-func checkSchema(version, added string) error {
+// schemaRank orders the record schemas this package reads.
+var schemaRank = map[string]int{SchemaVersion: 1, SchemaVersion02: 2, SchemaVersion03: 3}
+
+// checkSchema holds a record of a version this package writes to the schema
+// its members call for. A minor only a test adds to the table has no members
+// here to judge.
+func checkSchema(version string, r *observev1.Record) error {
+	want, member := schemaOf(r)
+	rank, writes := schemaRank[version]
 	switch {
-	case version == SchemaVersion && added != "":
-		return fmt.Errorf("%w: %s: not a member of schema %q", ErrLine, added, SchemaVersion)
-	case version == SchemaVersion02 && added == "":
-		return fmt.Errorf("%w: schema_version: %q on a record with no member of %q", ErrLine, SchemaVersion02, SchemaVersion02)
+	case !writes, version == want:
+		return nil
+	case rank < schemaRank[want]:
+		return fmt.Errorf("%w: %s: not a member of schema %q", ErrLine, member, version)
 	}
-	return nil
+	return fmt.Errorf("%w: schema_version: %q on a record with no member of %q", ErrLine, version, version)
+}
+
+// schemaOf names the schema r's members call for, the latest whose member it
+// carries, and the first such member, or "" for SchemaVersion.
+func schemaOf(r *observev1.Record) (version, member string) {
+	if m := added03(r); m != "" {
+		return SchemaVersion03, m
+	}
+	if m := added02(r.GetImportReport()); m != "" {
+		return SchemaVersion02, m
+	}
+	return SchemaVersion, ""
+}
+
+// added03 names the first member of r that SchemaVersion02 does not have, or
+// "".
+func added03(r *observev1.Record) string {
+	switch {
+	case r.GetObservation().GetConnection() != nil:
+		return "connection"
+	case len(r.GetImportReport().GetCounts().GetRefusedBy()) > 0:
+		return "counts.refused_by"
+	}
+	return ""
 }
 
 // added02 names the first member of r that SchemaVersion does not have, or
@@ -150,6 +183,12 @@ func checkObservation(o *observev1.Observation) error {
 	}
 	if err := checkOrigin(o.GetTenantId(), o.GetProjectId(), o.GetSource(), o.GetReceivedTime()); err != nil {
 		return err
+	}
+	switch kind := o.GetSubject().GetKind(); {
+	case kind == observev1.SubjectKind_SUBJECT_KIND_CONNECTION:
+		return checkConnection(o)
+	case o.GetConnection() != nil:
+		return fmt.Errorf("%w: connection: set on a subject of kind %s", ErrLine, kind)
 	}
 	c := o.GetCorrelation()
 	switch {

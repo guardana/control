@@ -62,9 +62,7 @@ func (d *Doubt) Fill(r *observev1.ImportReport) {
 	if !d.every && len(d.runs) > 0 {
 		r.DoubtedRunIds = slices.Sorted(maps.Keys(d.runs))
 	}
-	if added02(r) != "" {
-		r.SchemaVersion = SchemaVersion02
-	}
+	r.SchemaVersion, _ = schemaOf(&observev1.Record{Record: &observev1.Record_ImportReport{ImportReport: r}})
 }
 
 // DoubtedRuns reads what the import reports of d's source among records put

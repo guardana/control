@@ -66,7 +66,8 @@ func TestARecordIsSchema02ExactlyWhenItCarriesAMemberOf02(t *testing.T) {
 		"0.1 doubting every run": {report("0.1", true), `every_run_doubted: not a member of schema "0.1"`},
 		"0.2 naming no run":      {report("0.2", false), `schema_version: "0.2" on a record with no member of "0.2"`},
 		"an observation of 0.2":  {obsRecord(observation), `schema_version: "0.2" on a record with no member of "0.2"`},
-		"0.3 naming a run":       {report("0.3", false, runN(1)), "minor"},
+		"0.3 naming a run":       {report("0.3", false, runN(1)), `schema_version: "0.3" on a record with no member of "0.3"`},
+		"0.4 naming a run":       {report("0.4", false, runN(1)), "minor"},
 	} {
 		checkBothWays(t, name, c.r, c.member)
 	}

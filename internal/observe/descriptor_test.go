@@ -115,7 +115,7 @@ func TestDescriptorIdentityAndPins(t *testing.T) {
 		{"source_id 129", set(top, "source_id", strings.Repeat("s", 129)), "source_id"},
 		{"kind absent", drop(top, "kind"), "kind"},
 		{"kind other", set(top, "kind", "otel-genai-logs"), "kind"},
-		{"convention absent", drop(top, "convention"), "convention.name"},
+		{"convention absent", drop(top, "convention"), "convention: required for kind"},
 		{"convention name", set([]string{"convention"}, "name", "opentelemetry.genai"), "convention.name"},
 		{"convention version", set([]string{"convention"}, "version", "1.40.0"), "convention.version"},
 		{"convention version absent", drop([]string{"convention"}, "version"), "convention.version"},
@@ -155,7 +155,7 @@ func TestDescriptorTrustAndSampling(t *testing.T) {
 func TestDescriptorSelectHeartbeatAndRunAttribute(t *testing.T) {
 	sel := []string{"select"}
 	cases := []descriptorCase{
-		{"select absent", drop(top, "select"), "select.service_name"},
+		{"select absent", drop(top, "select"), "select: required for kind"},
 		{"service_name absent", drop(sel, "service_name"), "select.service_name"},
 		{"service_name empty", set(sel, "service_name", ""), "select.service_name"},
 		{"service_name 256", set(sel, "service_name", strings.Repeat("n", 256)), ""},
