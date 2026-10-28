@@ -10,34 +10,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// FuzzReadDescriptor: a descriptor that reads, written again by protojson,
-// reads to the same descriptor, and a refusal is always ErrDescriptor.
-func FuzzReadDescriptor(f *testing.F) {
-	fixture := readTestdata(f, "descriptor.json")
-	f.Add(fixture)
-	f.Add(bytes.Replace(fixture, []byte(`"source_id"`), []byte(`"sourceId"`), 1))
-	f.Add(bytes.Replace(fixture, []byte(`"TRUST_SELF_REPORTED"`), []byte(`3`), 1))
-	f.Add([]byte(`{"source_id":"a","sourceId":"b"}`))
-	f.Add([]byte(`{"select":null}`))
-	f.Fuzz(func(t *testing.T, b []byte) {
-		d, err := observe.ReadDescriptor(b)
-		if err != nil {
-			if !errors.Is(err, observe.ErrDescriptor) || d != nil {
-				t.Fatalf("refusal %v with %v, want ErrDescriptor and nothing", err, d)
-			}
-			return
-		}
-		again, err := protojson.Marshal(d)
-		if err != nil {
-			t.Fatalf("an accepted descriptor does not encode: %v", err)
-		}
-		d2, err := observe.ReadDescriptor(again)
-		if err != nil || !proto.Equal(d, d2) {
-			t.Fatalf("an accepted descriptor written again reads as %v, %v", d2, err)
-		}
-	})
-}
-
 // FuzzReadNeutral: a descriptor that reads neutrally, written again by
 // protojson, reads to the same descriptor and passes CheckNeutral, and a
 // refusal is always ErrDescriptor.

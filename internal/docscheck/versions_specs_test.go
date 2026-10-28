@@ -19,6 +19,7 @@ import (
 	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/findinglog"
 	"github.com/guardana/control/internal/hookbridge"
+	"github.com/guardana/control/internal/ingest"
 	"github.com/guardana/control/internal/observe"
 	"github.com/guardana/control/internal/observelog"
 	"github.com/guardana/control/internal/pause"
@@ -138,14 +139,14 @@ func versionSpecs() map[string]versionSpec {
 		"Source descriptor": {
 			cites: []versionCite{{"internal/observe/version.go#checkVersion/major", readsMajor}},
 			refuses: func(v string) (bool, error) {
-				_, err := observe.ReadDescriptor([]byte(`{"schema_version":` + strconv.Quote(v) + `}`))
+				_, err := ingest.ReadDescriptor([]byte(`{"schema_version":` + strconv.Quote(v) + `}`))
 				return errors.Is(err, observe.ErrVersion), nil
 			},
 		},
 		"OpenTelemetry GenAI spans, imported": {
 			cites: []versionCite{
-				{"internal/observe/descriptor.go#ConventionVersion", reads},
-				{"internal/observe/descriptor.go#OTLPVersion", reads},
+				{"internal/ingest/otelgenai/descriptor.go#ConventionVersion", reads},
+				{"internal/ingest/otelgenai/descriptor.go#OTLPVersion", reads},
 			},
 		},
 		"Observation export": {

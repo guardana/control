@@ -110,16 +110,6 @@ func TestTheEgressFixtureReadsNeutrally(t *testing.T) {
 	}
 }
 
-// No importer of this package's checks reads an egress descriptor yet, so
-// ReadDescriptor, which current callers hand to the OTel importer, refuses it.
-func TestReadDescriptorRefusesAKindWithoutItsChecks(t *testing.T) {
-	_, err := observe.ReadDescriptor(readTestdata(t, "descriptor-egress.json"))
-	if !errors.Is(err, observe.ErrDescriptor) || !strings.Contains(err.Error(), "kind") ||
-		!strings.Contains(err.Error(), "no importer") {
-		t.Fatalf("ReadDescriptor(egress fixture) = %v, want a refusal naming the kind", err)
-	}
-}
-
 // checkNeutralBoth reads doc through ReadNeutral and, decoded by plain
 // protojson, through CheckNeutral alone, and holds both to one answer.
 func checkNeutralBoth(t *testing.T, name string, doc []byte, member string) {
@@ -208,13 +198,9 @@ func TestTheDescriptorVersionFollowsItsMembers(t *testing.T) {
 		"0.1 with the member":    {jsonEdit(t, egress, set(top, "schema_version", "0.1")), `egress_access_log: not a member of schema "0.1"`},
 	}
 	for name, c := range cases {
-		for via, read := range map[string]func([]byte) (*observev1.SourceDescriptor, error){
-			"ReadNeutral": observe.ReadNeutral, "ReadDescriptor": observe.ReadDescriptor,
-		} {
-			_, err := read(c.doc)
-			if !errors.Is(err, observe.ErrDescriptor) || errors.Is(err, observe.ErrVersion) || !strings.Contains(err.Error(), c.want) {
-				t.Errorf("%s: %s = %v, want ErrDescriptor, not ErrVersion, saying %q", name, via, err, c.want)
-			}
+		_, err := observe.ReadNeutral(c.doc)
+		if !errors.Is(err, observe.ErrDescriptor) || errors.Is(err, observe.ErrVersion) || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: ReadNeutral = %v, want ErrDescriptor, not ErrVersion, saying %q", name, err, c.want)
 		}
 	}
 	for _, v := range []string{"0.3", "0.0", "1.2"} {

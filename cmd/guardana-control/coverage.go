@@ -17,7 +17,7 @@ import (
 	"github.com/guardana/control/internal/coverage"
 	ondisk "github.com/guardana/control/internal/files"
 	"github.com/guardana/control/internal/gatewayconfig"
-	"github.com/guardana/control/internal/observe"
+	"github.com/guardana/control/internal/ingest"
 	"github.com/guardana/control/internal/observelog"
 )
 
@@ -88,10 +88,12 @@ func coverageFlagSet(command string, out io.Writer) *flag.FlagSet {
 }
 
 // coverageCommand prints, for each declared path, what covers it and on what
-// basis, then the standing row for undeclared paths. It exits 0 when every
-// declared path is at least observed and no call went around a plane, 1 when
-// one is weaker, one did or a walk down a trace was cut at its bound, and 2
-// when an input was refused, with no map printed.
+// basis, then a row for each egress host a source observed and no path
+// declares, and the standing row for undeclared paths. It exits 0 when every
+// declared path is at least observed, no call went around a plane and no
+// egress host is undeclared; 1 when a path is weaker, a call did, a walk down
+// a trace was cut at its bound, or an egress host is undeclared, printed or
+// cut from the rows; and 2 when an input was refused, with no map printed.
 func coverageCommand(args []string, stdout, stderr io.Writer) int {
 	flags, a := coverageFlags(coverageName, io.Discard)
 	err := flags.Parse(args)
@@ -222,7 +224,7 @@ func readSource(descriptor, logDir string) (coverage.Source, bool, error) {
 	case err != nil:
 		return coverage.Source{}, false, refusedInput("source", descriptor, err)
 	}
-	desc, err := observe.ReadDescriptor(raw)
+	desc, err := ingest.ReadDescriptor(raw)
 	if err != nil {
 		return coverage.Source{}, false, refusedInput("source", descriptor, err)
 	}

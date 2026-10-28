@@ -81,9 +81,11 @@ func (k Kind) clone() Kind {
 }
 
 // ReadNeutral parses a source descriptor and holds it to CheckNeutral only.
-// The values of its kind's members are still unchecked: a caller that reads a
-// source runs that kind's checks next, and ReadDescriptor does so for the
-// kinds whose checks this package still holds.
+// The values of its kind's members are still unchecked: ingest.ReadDescriptor
+// is the reader that runs the kind's checks after it. An enum number the
+// contract does not declare is refused here, where a record would read it as
+// its restrictive meaning: an operator's statement of trust is taken only as
+// written.
 func ReadNeutral(b []byte) (*observev1.SourceDescriptor, error) {
 	if len(b) > maxDescriptorBytes {
 		return nil, fmt.Errorf("%w: %d bytes, limit %d", ErrDescriptor, len(b), maxDescriptorBytes)
