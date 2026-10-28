@@ -329,3 +329,67 @@ func TestARequestThatNamesTwoRunsConfirmsNothing(t *testing.T) {
 		}
 	}
 }
+
+// TestARequestWithAnEventOutsideTheRunsReadIsInDoubt: the run's read leaves
+// out an event of a run it does not judge, or of none, so the request's
+// events it keeps would chain as a whole trail. The request is in doubt
+// instead, whichever run its left-out event names.
+func TestARequestWithAnEventOutsideTheRunsReadIsInDoubt(t *testing.T) {
+	root := supervise.Run{ID: runID, Tenant: tenant}
+	for name, tc := range map[string]struct {
+		run string
+		in  supervise.Input
+	}{
+		"a run outside the tree":     {outsiderRun, supervise.Input{Procedure: inheritProc(t), Run: family()[0], Tree: family()}},
+		"the child, the root judged": {childRun, supervise.Input{Procedure: procWith(t), Run: root}},
+		"no run":                     {"", supervise.Input{Procedure: procWith(t), Run: root}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			x := export(call{req: "r1", tool: "get_order", upstream: "shop"})
+			last := x.Events[len(x.Events)-1]
+			last.RunId = tc.run
+			last.OccurredAt = at(700 * time.Second)
+			tc.in.Exports = []supervise.Export{x}
+			res, err := supervise.Evaluate(tc.in)
+			if err != nil {
+				t.Fatalf("Evaluate: %v", err)
+			}
+			if got := res.Report.GetRead().GetEventsLeftOut()["another run"]; got != 1 {
+				t.Fatalf("events left out as another run: %d, want 1", got)
+			}
+			got := rules(res)
+			for _, id := range []string{"REPEATED_DENIAL", "STEP_OUTSIDE_PROCEDURE", "DEADLINE_EXCEEDED",
+				"REQUIRED_STEP_SKIPPED", "STEP_OUT_OF_ORDER", "CONTINUED_AFTER_FAILURE"} {
+				if state := got[id]; !strings.HasPrefix(state, "RULE_STATE_NOT_CHECKED:") || !strings.HasSuffix(state, `request "r1" is in doubt`) {
+					t.Errorf("%s is %q, want it not checked because request \"r1\" is in doubt", id, state)
+				}
+			}
+		})
+	}
+}
+
+// TestARequestWhollyInAnotherRunPutsNothingInDoubt: the control for the test
+// above. A request none of whose events the run's read keeps is another
+// run's, and so is a request of the same id in another project; the run's own
+// request stays checked.
+func TestARequestWhollyInAnotherRunPutsNothingInDoubt(t *testing.T) {
+	x := export(call{req: "r1", tool: "get_order", upstream: "shop"},
+		call{req: "r9", tool: "get_order", upstream: "shop", at: 10 * time.Second, run: outsiderRun},
+		call{req: "r1", tool: "get_order", upstream: "shop", at: 20 * time.Second, run: outsiderRun, proj: "p2"})
+	res, err := supervise.Evaluate(supervise.Input{Procedure: procWith(t), Run: supervise.Run{ID: runID, Tenant: tenant},
+		Exports: []supervise.Export{x}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if got := res.Report.GetRead().GetEventsLeftOut()["another run"]; got != 8 {
+		t.Fatalf("events left out as another run: %d, want 8", got)
+	}
+	for id, state := range rules(res) {
+		if strings.Contains(state, "in doubt") {
+			t.Errorf("%s is %q, want no doubt", id, state)
+		}
+	}
+	if got := rules(res)["REPEATED_DENIAL"]; got != "RULE_STATE_CHECKED:" {
+		t.Errorf("REPEATED_DENIAL is %q, want it checked", got)
+	}
+}

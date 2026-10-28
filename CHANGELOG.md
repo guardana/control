@@ -36,13 +36,20 @@ verify one.
 - A trail whose events named two runs passed the chain check, so
   `guardana-gateway trail` and the evidence report read it as one request
   completed under its first run. Every event of a request now names the run
-  its first event names, or none for an action outside a run: `trail` reports
-  such a trail failed at the event that changes the run, and the evidence
-  report reports it `unknown`, in its follow mode too, whose state moves to
-  schema 1.2 to keep each ended request's run; a 1.1 state still loads.
-  Supervision already held it in doubt and now
-  reads that from the same check. A `run_id` longer than the contract's
-  1024-byte string bound breaks the chain too, as the other identifiers do.
+  its first event names, or none for an action outside a run
+  ([ADR-0065](docs/adr/0065-a-requests-events-name-one-run.md)): `trail`
+  reports such a trail failed at the event that changes the run, and the
+  evidence report reports it `unknown`, in its follow mode too, whose state
+  moves to schema 1.2 to keep each ended request's run; a 1.1 state still
+  loads. A `run_id` longer than the contract's 1024-byte string bound breaks
+  the chain too, as the other identifiers do.
+- `guardana-control supervise` checked the rules of a request whose later
+  events named a run outside the ones it read, or none, as if the request
+  were whole. Such a request is now in doubt, and its rules are not checked.
+- The evidence report read an export filtered by run or by event kind as
+  whole, so a request's event the filter dropped went unseen. Such an export
+  now exits 1 as cut, with the reason, as follow mode already refused it; an
+  export filtered by request alone still reads.
 - The hook profile's qualification passed four cases on evidence it did not
   have: two approved retries with different inputs, a project it could not
   list, and hooks disabled or MCP tools left out with no positive control in

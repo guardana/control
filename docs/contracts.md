@@ -913,7 +913,8 @@ Whether a sequence of events is one coherent account of one request.
 
 Events chain per `request_id`, within one project, one tenant and one run.
 `run_id` groups requests, so every event of a request names the run its first
-event names, or none for an action taken outside a run. The gateway writes
+event names, or none for an action taken outside a run
+([ADR-0065](adr/0065-a-requests-events-name-one-run.md)). The gateway writes
 there the run it minted for the listener's principal and agent, or, on a plane
 with a runs directory, the run the operator opened and the call's token named;
 never the envelope's own `context.run_id`. Eleven kinds are declared, plus

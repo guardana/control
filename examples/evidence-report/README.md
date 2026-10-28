@@ -9,7 +9,7 @@ shows both modes.
 
 `block` is the decision `ACTION_BLOCKED` carries, beside the kernel's: `=`
 when its `decision_id` is the kernel's, else its own verdict and
-codes, as `DENY PAUSED`; `-` if none.
+codes, as `DENY PAUSED`, or `-`.
 
 ```
 go -C examples/evidence-report build -o "$PWD/bin/" .
@@ -41,7 +41,7 @@ rows may print again.
 ## What it cannot see
 
 - A record the plane quarantined never reaches the file: inside a chain it
-  leaves `unknown` or `open`, after a trail's end it leaves the row
+  shows as `unknown` or `open`, after a trail's end it leaves the row
   complete, and as a request's first it hides that request.
 - `prev_event_id` orders records; it does not show one altered.
 - It reads no effect class, so a material run under `APPROVE` or `LOCKDOWN`
