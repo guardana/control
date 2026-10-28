@@ -13,6 +13,13 @@ verify one.
 
 ### Changed
 
+- An approver id that reads as the reserved `authn:` prefix, in any letter
+  case or with a lookalike letter or colon, is refused: `approvals approve`
+  and `reject` exit 1 and write nothing, `console` exits 2, and a record that
+  holds one is refused when it is read, so it resumes nothing and its
+  reconciliation closes as `APPROVAL_STATE_UNKNOWN`. Only the plane will write
+  that prefix, for an approver it authenticated
+  ([ADR-0066](docs/adr/0066-each-decision-about-authority-is-a-port.md)).
 - A gateway configuration that classifies a tool `WRITE`, `DELETE` or
   `CONFIGURE` is refused when it loads unless `environment` is set and, for an
   MCP override, its upstream's `environment` too; an MCP override classified

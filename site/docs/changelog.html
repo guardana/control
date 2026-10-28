@@ -120,6 +120,13 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.14.0...HEAD">Unreleased</a></h2>
 <h3 id="changed">Changed</h3>
 <ul>
+<li>An approver id that reads as the reserved <code>authn:</code> prefix, in any letter
+case or with a lookalike letter or colon, is refused: <code>approvals approve</code>
+and <code>reject</code> exit 1 and write nothing, <code>console</code> exits 2, and a record that
+holds one is refused when it is read, so it resumes nothing and its
+reconciliation closes as <code>APPROVAL_STATE_UNKNOWN</code>. Only the plane will write
+that prefix, for an approver it authenticated
+(<a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>).</li>
 <li>A gateway configuration that classifies a tool <code>WRITE</code>, <code>DELETE</code> or
 <code>CONFIGURE</code> is refused when it loads unless <code>environment</code> is set and, for an
 MCP override, its upstream's <code>environment</code> too; an MCP override classified
