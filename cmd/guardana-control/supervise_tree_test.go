@@ -49,7 +49,7 @@ func (tr supTree) family(t *testing.T) supFamily {
 // without the operator's lock or its checks of a parent.
 func plantRun(t *testing.T, dir, id, tenant, root, parent string) {
 	t.Helper()
-	body := fmt.Sprintf(`{"schema_version":"1.0","run_id":%q,"tenant_id":%q,"principal_type":"user",`+
+	body := fmt.Sprintf(`{"schema_version":"2.0","run_id":%q,"project_id":"orders","tenant_id":%q,"principal_type":"user",`+
 		`"principal_id":"p","agent_id":"a","root":%q,"parent":%q,"opened_at":"2026-03-01T12:00:00Z",`+
 		`"expires_at":"2026-03-01T13:00:00Z","closed_at":"","secret_sha256":%q}`,
 		id, tenant, root, parent, strings.Repeat("0", 64))

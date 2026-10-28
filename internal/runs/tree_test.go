@@ -13,13 +13,13 @@ import (
 	"github.com/guardana/control/internal/runs"
 )
 
-var bob = runs.Identity{TenantID: "tenant-b", PrincipalType: "user", PrincipalID: "bob", AgentID: "agent-2"}
+var bob = runs.Identity{ProjectID: "project-a", TenantID: "tenant-b", PrincipalType: "user", PrincipalID: "bob", AgentID: "agent-2"}
 
 // plant writes a record for id straight into dir, as a writer of the
 // directory could, without the operator's lock or its checks of a parent.
 func plant(t *testing.T, dir, id, tenant, root, parent string) {
 	t.Helper()
-	body := fmt.Sprintf(`{"schema_version":"1.0","run_id":%q,"tenant_id":%q,"principal_type":"user",`+
+	body := fmt.Sprintf(`{"schema_version":"2.0","run_id":%q,"project_id":"project-a","tenant_id":%q,"principal_type":"user",`+
 		`"principal_id":"p","agent_id":"a","root":%q,"parent":%q,"opened_at":"2026-03-01T12:00:00Z",`+
 		`"expires_at":"2026-03-01T13:00:00Z","closed_at":"","secret_sha256":%q}`,
 		id, tenant, root, parent, strings.Repeat("0", 64))
