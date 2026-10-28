@@ -41,8 +41,8 @@ rows may print again.
 ## What it cannot see
 
 - A record the plane quarantined never reaches the file: inside a chain it
-  shows as `unknown` or `open`, after a trail's end it leaves the row
-  complete, and as a request's first it hides it.
+  leaves `unknown` or `open`, after a trail's end it leaves the row
+  complete, and as a request's first it hides that request.
 - `prev_event_id` orders records; it does not show one altered.
 - It reads no effect class, so a material run under `APPROVE` or `LOCKDOWN`
   is not told from a read.

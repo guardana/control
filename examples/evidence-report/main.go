@@ -43,9 +43,7 @@
 // requests that ended in that export, and appends each new alert, one JSON
 // line of this example's own experimental format, to DIR/alerts.jsonl and to
 // standard error. It exits 0 with no new alert, 1 with one or more, and 2
-// when it refuses the export or the state, which it then leaves as it was. A
-// FINDING_RAISED or POLICY_RELOADED after a request's end is held to the
-// request's mode there and not to its run, which the state does not keep.
+// when it refuses the export or the state, which it then leaves as it was.
 package main
 
 import (

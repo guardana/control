@@ -38,8 +38,11 @@ verify one.
   completed under its first run. Every event of a request now names the run
   its first event names, or none for an action outside a run: `trail` reports
   such a trail failed at the event that changes the run, and the evidence
-  report reports it `unknown`. Supervision already held it in doubt and now
-  reads that from the same check.
+  report reports it `unknown`, in its follow mode too, whose state moves to
+  schema 1.2 to keep each ended request's run; a 1.1 state still loads.
+  Supervision already held it in doubt and now
+  reads that from the same check. A `run_id` longer than the contract's
+  1024-byte string bound breaks the chain too, as the other identifiers do.
 - The hook profile's qualification passed four cases on evidence it did not
   have: two approved retries with different inputs, a project it could not
   list, and hooks disabled or MCP tools left out with no positive control in

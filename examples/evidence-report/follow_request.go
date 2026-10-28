@@ -116,6 +116,9 @@ func (f *follower) afterEnd(c *closedRequest, k requestKey, e *event) {
 	case prev == c.tail && annotates(ev.GetKind()):
 		note := c.modeDefect(safe(id), ev.GetEnforcementMode())
 		if note == "" {
+			note = c.runDefect(ev)
+		}
+		if note == "" {
 			c.tail = id
 			return
 		}
@@ -144,6 +147,7 @@ func (f *follower) close(o *openRequest, end, note string, e *event) {
 		c := &closedRequest{tail: o.tail, unknown: end == endUnknown}
 		if !c.unknown {
 			c.mode = o.walk.mode
+			c.run, c.runKnown = o.desc.run, true
 		}
 		if o.desc.kernel != nil {
 			c.kernel = o.desc.kernel.id
