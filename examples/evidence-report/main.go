@@ -12,12 +12,12 @@
 // What it proves: every request it reports as completed, failed, aborted or
 // blocked has one unbroken prev_event_id chain in this export, from the event
 // that proposed an action to the one that ended it, in steps the plane's
-// chain validator allows, every event naming the same declared enforcement
-// mode, every decision's verdict one the contract declares, and a run ending
-// with a result that says how it ended. Under a mode that enforces, the
-// action ran only after a verdict that let it, or after REQUIRE_APPROVAL and
-// an approval answered yes; an approval never lifts a DENY or an
-// INDETERMINATE.
+// chain validator allows, every event naming the run the first one names and
+// the same declared enforcement mode, every decision's verdict one the
+// contract declares, and a run ending with a result that says how it ended.
+// Under a mode that enforces, the action ran only after a verdict that let it,
+// or after REQUIRE_APPROVAL and an approval answered yes; an approval never
+// lifts a DENY or an INDETERMINATE.
 //
 // What it cannot prove: that a record was not altered, since the link is an
 // ordering and not a digest; or that the plane recorded everything. A record
@@ -43,7 +43,9 @@
 // requests that ended in that export, and appends each new alert, one JSON
 // line of this example's own experimental format, to DIR/alerts.jsonl and to
 // standard error. It exits 0 with no new alert, 1 with one or more, and 2
-// when it refuses the export or the state, which it then leaves as it was.
+// when it refuses the export or the state, which it then leaves as it was. A
+// FINDING_RAISED or POLICY_RELOADED after a request's end is held to the
+// request's mode there and not to its run, which the state does not keep.
 package main
 
 import (

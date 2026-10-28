@@ -68,6 +68,10 @@ func (f *follower) step(o *openRequest, e *event) {
 	o.desc.add(ev)
 	o.tail, o.tailOffset = ev.GetEventId(), e.offset
 	f.eventAlerts(o.desc.kernel, e)
+	if note := runDefect(ev, o.desc.run); note != "" {
+		f.close(o, endUnknown, note, e)
+		return
+	}
 	if note := o.walk.take(ev); note != "" {
 		f.close(o, endUnknown, note, e)
 		return

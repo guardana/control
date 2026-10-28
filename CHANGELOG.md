@@ -33,6 +33,13 @@ verify one.
 
 ### Fixed
 
+- A trail whose events named two runs passed the chain check, so
+  `guardana-gateway trail` and the evidence report read it as one request
+  completed under its first run. Every event of a request now names the run
+  its first event names, or none for an action outside a run: `trail` reports
+  such a trail failed at the event that changes the run, and the evidence
+  report reports it `unknown`. Supervision already held it in doubt and now
+  reads that from the same check.
 - The hook profile's qualification passed four cases on evidence it did not
   have: two approved retries with different inputs, a project it could not
   list, and hooks disabled or MCP tools left out with no positive control in

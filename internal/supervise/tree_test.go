@@ -298,8 +298,10 @@ func TestATreeIsBoundedByMaxTreeRuns(t *testing.T) {
 }
 
 // TestARequestThatNamesTwoRunsConfirmsNothing: a request of the root whose
-// completion names the child is in doubt, so neither run gets a confirmed
-// deadline finding from it; a plane stamps one run on a whole trail.
+// completion names the child is a broken chain, a plane stamping one run on a
+// whole trail, so the request is in doubt: neither run gets a confirmed
+// deadline finding from it, and every rule the doubt reaches is not checked
+// and names it.
 func TestARequestThatNamesTwoRunsConfirmsNothing(t *testing.T) {
 	x := export(call{req: "r1", tool: "get_order", upstream: "shop"})
 	last := x.Events[len(x.Events)-1]
@@ -312,6 +314,18 @@ func TestARequestThatNamesTwoRunsConfirmsNothing(t *testing.T) {
 	for _, v := range verdicts(res, supervise.RuleDeadlineExceeded) {
 		if v == childC || v == rootC {
 			t.Fatalf("DEADLINE_EXCEEDED %q from a request that names two runs, want no confirmed finding", v)
+		}
+	}
+	got := rules(res)
+	for _, id := range []string{"REPEATED_DENIAL", "STEP_OUTSIDE_PROCEDURE", "DEADLINE_EXCEEDED",
+		"REQUIRED_STEP_SKIPPED", "STEP_OUT_OF_ORDER", "CONTINUED_AFTER_FAILURE", "RESOURCE_OUTSIDE_RUN",
+		"DENIED_ACTION_RETRIED_ARGUMENTS", "DENIED_ACTION_RETRIED_RESOURCE", "DENIED_ACTION_RETRIED_AROUND"} {
+		state, ok := got[id]
+		switch {
+		case !ok:
+			t.Errorf("the report lists no %s", id)
+		case !strings.HasPrefix(state, "RULE_STATE_NOT_CHECKED:") || !strings.HasSuffix(state, `request "r1" is in doubt`):
+			t.Errorf("%s is %s, want it not checked because request \"r1\" is in doubt", id, state)
 		}
 	}
 }
