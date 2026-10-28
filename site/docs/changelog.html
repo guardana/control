@@ -120,6 +120,14 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.14.0...HEAD">Unreleased</a></h2>
 <h3 id="changed">Changed</h3>
 <ul>
+<li><strong>Breaking:</strong> a run belongs to one project. A run record is <code>2.0</code> and
+carries <code>project_id</code>, <code>runs open</code> needs <code>--project</code> and refuses a parent of
+another project, and <code>runs list</code> prints <code>project_id</code>. A plane resolves a
+token only under its own <code>project_id</code>, so a token of another project's run
+gets 401 even on a shared runs directory and listener identity. A <code>1.0</code>
+record names no project and is refused: open each live run again
+(<a href="/docs/reference/runs#runs-an-earlier-release-opened">runs.md</a>,
+<a href="/docs/adr/0068-a-run-belongs-to-one-project">ADR-0068</a>).</li>
 <li>A gateway configuration that classifies a tool <code>WRITE</code>, <code>DELETE</code> or
 <code>CONFIGURE</code> is refused when it loads unless <code>environment</code> is set and, for an
 MCP override, its upstream's <code>environment</code> too; an MCP override classified

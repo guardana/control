@@ -51,9 +51,8 @@ serve each other's runs. `--ttl` is a duration from `1m` to `720h`, with no
 default.
 
 `--parent <run id>` opens the run under an open run of the same project and
-tenant. The
-two then share the parent's root and its flow state, because data moves
-between a parent and the runs it spawned in ways the plane does not see.
+tenant. The two then share the parent's root and its flow state, because data
+moves between a parent and the runs it spawned in ways the plane does not see.
 A child ends no later than its parent: a `--ttl` that would pass the parent's
 `expires_at` exits 1 naming both times. Closing a parent closes none of its
 children.
@@ -121,7 +120,8 @@ A record from before `project_id` is of `schema_version` `1.0` and names no
 project. It is never read as any project's run: its token is refused as
 `unreadable`, a stdio plane given it refuses the start saying the record names
 no project, `runs list` refuses the directory while it holds one, and
-`runs close` and `runs open --parent` refuse that run. To move, open each run again with `runs open --project` in a new,
-empty directory, point `runs.dir` at it, hand the agents their new tokens,
-and remove the old directory once no plane names it. No run lives past
-720 hours, so nothing in the old directory outlives that.
+`runs close` and `runs open --parent` refuse that run. To move, open each run
+again with `runs open --project` in a new, empty directory, point `runs.dir`
+at it, hand the agents their new tokens, and remove the old directory once no
+plane names it. No run lives past 720 hours, so nothing in the old directory
+outlives that.

@@ -13,6 +13,14 @@ verify one.
 
 ### Changed
 
+- **Breaking:** a run belongs to one project. A run record is `2.0` and
+  carries `project_id`, `runs open` needs `--project` and refuses a parent of
+  another project, and `runs list` prints `project_id`. A plane resolves a
+  token only under its own `project_id`, so a token of another project's run
+  gets 401 even on a shared runs directory and listener identity. A `1.0`
+  record names no project and is refused: open each live run again
+  ([runs.md](docs/reference/runs.md#runs-an-earlier-release-opened),
+  [ADR-0068](docs/adr/0068-a-run-belongs-to-one-project.md)).
 - A gateway configuration that classifies a tool `WRITE`, `DELETE` or
   `CONFIGURE` is refused when it loads unless `environment` is set and, for an
   MCP override, its upstream's `environment` too; an MCP override classified

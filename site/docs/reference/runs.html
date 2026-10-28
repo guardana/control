@@ -146,9 +146,8 @@ planes of two projects that share a directory and a listener identity never
 serve each other's runs. <code>--ttl</code> is a duration from <code>1m</code> to <code>720h</code>, with no
 default.</p>
 <p><code>--parent &lt;run id&gt;</code> opens the run under an open run of the same project and
-tenant. The
-two then share the parent's root and its flow state, because data moves
-between a parent and the runs it spawned in ways the plane does not see.
+tenant. The two then share the parent's root and its flow state, because data
+moves between a parent and the runs it spawned in ways the plane does not see.
 A child ends no later than its parent: a <code>--ttl</code> that would pass the parent's
 <code>expires_at</code> exits 1 naming both times. Closing a parent closes none of its
 children.</p>
@@ -217,10 +216,11 @@ its id.</p>
 project. It is never read as any project's run: its token is refused as
 <code>unreadable</code>, a stdio plane given it refuses the start saying the record names
 no project, <code>runs list</code> refuses the directory while it holds one, and
-<code>runs close</code> and <code>runs open --parent</code> refuse that run. To move, open each run again with <code>runs open --project</code> in a new,
-empty directory, point <code>runs.dir</code> at it, hand the agents their new tokens,
-and remove the old directory once no plane names it. No run lives past
-720 hours, so nothing in the old directory outlives that.</p>
+<code>runs close</code> and <code>runs open --parent</code> refuse that run. To move, open each run
+again with <code>runs open --project</code> in a new, empty directory, point <code>runs.dir</code>
+at it, hand the agents their new tokens, and remove the old directory once no
+plane names it. No run lives past 720 hours, so nothing in the old directory
+outlives that.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/runs.md">docs/reference/runs.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.14.0, and <a href="https://github.com/guardana/control/tree/v0.14.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
