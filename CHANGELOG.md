@@ -32,6 +32,13 @@ verify one.
   (B21), then the port contracts and the TypeScript client (B12), and lists
   the open items of the 1.0 release bar as backlog tasks B29 to B34
   ([ADR-0064](docs/adr/0064-milestone-two-starts-with-an-independent-sensor.md)).
+- A record now decides that each decision about identity, authentication,
+  authorization, approval, the policy language, evidence, observation,
+  detection, reaction, the signature algorithm and keys sits behind a port.
+  Each port has a tested default that an operator may replace, in this
+  repository or through one remote kind, and each fails closed. Nothing a
+  plane does changes with it yet
+  ([ADR-0066](docs/adr/0066-each-decision-about-authority-is-a-port.md)).
 - A pull request's gate no longer fuzzes: `make quality` runs the seeds of
   every fuzz target in its tests and checks with `make fuzz-list` that each
   target compiles, while the nightly run and the release commit's cold gate
@@ -48,6 +55,23 @@ verify one.
 
 ### Fixed
 
+- A trail whose events named two runs passed the chain check, so
+  `guardana-gateway trail` and the evidence report read it as one request
+  completed under its first run. Every event of a request now names the run
+  its first event names, or none for an action outside a run
+  ([ADR-0065](docs/adr/0065-a-requests-events-name-one-run.md)): `trail`
+  reports such a trail failed at the event that changes the run, and the
+  evidence report reports it `unknown`, in its follow mode too, whose state
+  moves to schema 1.2 to keep each ended request's run; a 1.1 state still
+  loads. A `run_id` longer than the contract's 1024-byte string bound breaks
+  the chain too, as the other identifiers do.
+- `guardana-control supervise` checked the rules of a request whose later
+  events named a run outside the ones it read, or none, as if the request
+  were whole. Such a request is now in doubt, and its rules are not checked.
+- The evidence report read an export filtered by run or by event kind as
+  whole, so a request's event the filter dropped went unseen. Such an export
+  now exits 1 as cut, with the reason, as follow mode already refused it; an
+  export filtered by request alone still reads.
 - A hold journal write that failed after its entry was linked could leave the
   entry behind a trail the plane closed without it; the next start closed the
   trail again, forking its chain. The entry now stays, and such a hold is
