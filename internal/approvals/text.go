@@ -6,6 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/guardana/control/internal/core/approval"
 	"github.com/guardana/control/pkg/contract"
 )
 
@@ -13,19 +14,24 @@ const (
 	// MaxApproverIDBytes bounds the approver's claimed name. It is an
 	// unauthenticated claim, so the only thing bounded about it is what it
 	// can cost a record and a listing.
-	MaxApproverIDBytes = 128
+	MaxApproverIDBytes = approval.MaxApproverIDBytes
 	// MaxReasonBytes bounds the approver's reason.
 	MaxReasonBytes = 1024
 )
 
-// checkApproverID holds the approver's claimed name to the contract's
+// CheckApproverID holds the approver's claimed name to the contract's
 // identifier rule, so a value that records one thing and displays another
-// never reaches an Approval.
-func checkApproverID(id string) error {
+// never reaches an Approval, and refuses a name that reads as the reserved
+// authn: prefix: nothing in this store authenticates an approver, so nothing
+// it holds may say one was.
+func CheckApproverID(id string) error {
 	if id == "" || len(id) > MaxApproverIDBytes {
 		return fmt.Errorf("%w: %d bytes, limit %d", ErrApproverID, len(id), MaxApproverIDBytes)
 	}
 	if err := contract.CheckIdentifier(id); err != nil {
+		return fmt.Errorf("%w: %w", ErrApproverID, err)
+	}
+	if err := approval.CheckClaimedApproverID(id); err != nil {
 		return fmt.Errorf("%w: %w", ErrApproverID, err)
 	}
 	return nil
@@ -54,7 +60,7 @@ func checkReason(reason string) error {
 // before either of them reaches an Approval.
 func (r Record) checkText() error {
 	if id := r.Approval.GetApproverId(); id != "" {
-		if err := checkApproverID(id); err != nil {
+		if err := CheckApproverID(id); err != nil {
 			return err
 		}
 	}
