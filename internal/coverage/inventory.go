@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+
+	"github.com/guardana/control/internal/observe"
+	"github.com/guardana/control/pkg/contract"
 )
 
 // InventoryVersion is the one inventory schema_version this package reads.
@@ -59,7 +62,8 @@ type Path struct {
 
 // PathSource names how one source's observations name the path: a tool
 // observation whose subject name is Name and, when ServerAddress is set,
-// whose server address is ServerAddress.
+// whose server address is ServerAddress; on an egress path, a connection
+// whose host is Name.
 type PathSource struct {
 	SourceID      string
 	Name          string
@@ -70,8 +74,10 @@ type PathSource struct {
 // read: strict JSON of at most 1 MiB, an unknown or repeated member refused,
 // schema_version "0.1" only, and at least one path. An id is 1 to 64 bytes of
 // [a-z0-9._-] and unique, an mcp_tool's upstream and tool pair is unique, and
-// a path names a source once, and an enforce_tool's tool is unique. Every
-// refusal wraps ErrInventory.
+// a path names a source once, and an enforce_tool's tool is unique. An egress
+// path's host and its sources' names are hosts as contract.CheckHost has them
+// once their ASCII letters are lowered, and its sources carry no
+// server_address. Every refusal wraps ErrInventory.
 func ReadInventory(b []byte) (*Inventory, error) {
 	inv, err := readInventory(b)
 	if err != nil {
@@ -161,11 +167,16 @@ func readPath(raw json.RawMessage) (Path, error) {
 			return Path{}, err
 		}
 	}
-	p.Sources, err = readSources(m)
+	if kind == KindEgress {
+		if p.Host, err = egressHost(p.Host); err != nil {
+			return Path{}, fmt.Errorf("host: %w", err)
+		}
+	}
+	p.Sources, err = readSources(m, kind)
 	return p, err
 }
 
-func readSources(m members) ([]PathSource, error) {
+func readSources(m members, kind string) ([]PathSource, error) {
 	raws, err := m.list("sources")
 	if err != nil {
 		return nil, err
@@ -184,7 +195,11 @@ func readSources(m members) ([]PathSource, error) {
 		if err := required(s, "name", &ps.Name); err != nil {
 			return nil, fmt.Errorf("sources[%d]: %w", i, err)
 		}
-		if _, ok := s["server_address"]; ok {
+		if kind == KindEgress {
+			if err := egressSource(s, &ps); err != nil {
+				return nil, fmt.Errorf("sources[%d]: %w", i, err)
+			}
+		} else if _, ok := s["server_address"]; ok {
 			if err := required(s, "server_address", &ps.ServerAddress); err != nil {
 				return nil, fmt.Errorf("sources[%d]: %w", i, err)
 			}
@@ -196,6 +211,44 @@ func readSources(m members) ([]PathSource, error) {
 		out = append(out, ps)
 	}
 	return out, nil
+}
+
+// egressSource holds a source of an egress path to a host for its name and no
+// server_address, which a connection does not carry.
+func egressSource(s members, ps *PathSource) error {
+	if _, ok := s["server_address"]; ok {
+		return fmt.Errorf("server_address: not a member of an %s path's source", KindEgress)
+	}
+	name, err := egressHost(ps.Name)
+	if err != nil {
+		return fmt.Errorf("name: %w", err)
+	}
+	ps.Name = name
+	return nil
+}
+
+// egressHost is s in the one spelling a connection's host has: its ASCII
+// letters lowered, then held to observe.MaxHostBytes and contract.CheckHost.
+// Only ASCII is lowered, so a code point that folds to a letter is refused.
+func egressHost(s string) (string, error) {
+	h := lowerASCII(s)
+	if len(h) > observe.MaxHostBytes {
+		return "", fmt.Errorf("%d bytes, limit %d", len(h), observe.MaxHostBytes)
+	}
+	if err := contract.CheckHost(h); err != nil {
+		return "", fmt.Errorf("%s is not a host: %w", strconv.QuoteToASCII(clip(s)), err)
+	}
+	return h, nil
+}
+
+func lowerASCII(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			b[i] = c + 'a' - 'A'
+		}
+	}
+	return string(b)
 }
 
 // required reads member name into dst as a name text accepts.
