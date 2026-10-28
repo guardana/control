@@ -6,7 +6,8 @@ import (
 )
 
 // Lines prints the map: per path its line, then its plane, source and join
-// lines indented beside it, and last the standing row for undeclared paths.
+// lines indented beside it, then a row per undeclared egress host and a line
+// counting those cut, and last the standing row for undeclared paths.
 func (r *Report) Lines() []string {
 	var out []string
 	for _, p := range r.Paths {
@@ -26,6 +27,7 @@ func (r *Report) Lines() []string {
 		}
 		out = append(out, joinLines(p.Joins)...)
 	}
+	out = append(out, undeclaredLines(r.Undeclared, r.UndeclaredCut)...)
 	return append(out, UndeclaredRow)
 }
 
