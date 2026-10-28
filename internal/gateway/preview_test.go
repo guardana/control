@@ -97,7 +97,7 @@ func expectSentDigestOnly(t *testing.T, events []*controlv1.Event, sent string) 
 }
 
 func observer(c *gateway.Config) {
-	c.Adapter = fakeAdapter{name: "observer", caps: gateway.Capabilities{ObserveRequest: true, ObserveResult: true}}
+	c.Adapter = fakeAdapter{name: testProtocol, caps: gateway.Capabilities{ObserveRequest: true, ObserveResult: true}}
 }
 
 // TestPreviewDecidesWithoutActing: the kernel's decision, the mode's block

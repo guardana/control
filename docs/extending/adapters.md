@@ -20,18 +20,15 @@ to a tool outside MCP, on a Unix socket; the gateway serves it under
 ([guides/decide-a-tool-of-your-own.md](../guides/decide-a-tool-of-your-own.md)). It builds each envelope from the run token and
 the operator's table of tools, never from what the client says about the
 call, and declares `Cooperative`: the client sends the bytes, so nothing the
-plane holds proves it obeyed. It applies no obligation of its own, aborts an
-execution whose rewritten bytes name another resource than the one decided
-on, or whose envelope the contract refused for more than an unnamed tool, in
-every mode, closes what a client reports with `CloseReported`, and closes with
-`Abandon` every execution nobody completed or aborted before its handle
-expired. Its receiver cases are files in
+plane holds proves it obeyed. It applies no obligation of its own, closes what
+a client reports with `CloseReported`, and closes with `Abandon` every
+execution nobody completed or aborted before its handle expired. Its receiver cases are files in
 [testdata/enforce/](../../testdata/enforce/README.md).
 
-Both adapters read a call's resource id, the resource rewritten bytes name
-and the run token through `internal/adapterkit`, so one call is never read
-two ways: a spelling one adapter normalised and the other did not would slip
-past a rule the first one enforces.
+Both adapters read a call's resource id and the run token, and build the
+refusal of a call nothing classifies, through `internal/adapterkit`, so one
+call is never read two ways: a spelling one adapter normalised and the other
+did not would slip past a rule the first one enforces.
 
 An adapter is the enforcement point among the five ports of
 [ADR-0039](../adr/0039-many-channels-into-one-core.md): it sees a call before
@@ -84,6 +81,22 @@ failing:
 | `Abort(ctx, disposition, cause) error` | the call did not go, and the cause says why: the adapter's own pre-send check, an obligation it applies, a call it cannot route, a call its protocol cannot express |
 | `Abandon(ctx, disposition) error` | nobody closed or aborted the execution before it expired. It is closed as `ACTION_FAILED` with status `UNKNOWN` and `EXECUTION_ABANDONED`, since nobody knows whether the call ran, and halts nothing; `ErrNotMinted` for an execution that is not open |
 | `Preview(ctx, Admission) *Decision` | the decision a listing shows: the kernel's, the mode's and the halts', without pauses, stops, run flow or the decision point. It records and holds nothing, and is what shaping a listing asks |
+
+What an adapter hands in, the pipeline holds it to, in every mode:
+
+- The action's kind is `tool`, `prompt` or `resource`, and its protocol is
+  the adapter's `Name()`, both spelled as `internal/channel` spells them.
+  Anything else is refused as `INVALID_FIELD_VALUE`.
+- `Refusal` says why the translation failed. `gateway.ErrUnclassified` alone,
+  on a chain of single wraps, says nothing classifies the call: `OBSERVE` runs
+  it and every other mode blocks it with `ACTION_UNCLASSIFIED`. Any other
+  refusal, a join that holds `ErrUnclassified` among others included, is
+  blocked in `OBSERVE` too, with the kernel's code for it.
+  `adapterkit.Unclassified` builds the refusal from the adapter's own
+  validation of the envelope without joining the two.
+- `ResourceFrom` is the pointer the resource id was read at. Bytes a rewrite
+  changed so that the member there names another resource are a `DENY` with
+  `OBLIGATION_NOT_UNDERSTOOD`, and are never handed out.
 
 An adapter that has an execution open closes or aborts it. An execution left
 open holds one of the plane's `MaxOpen` slots until the adapter abandons it or
@@ -142,7 +155,8 @@ An obligation the adapter cannot satisfy, including one carrying a parameter
 its type does not read, is skipped when it is marked advisory and the call
 proceeds, and nothing records the skip; a non-advisory one stops it,
 and the closing record says the obligation refused it. A rewrite that changes
-the member a tool's `resource_from` reads is aborted, not sent. The plane applies the rewriting types (`redact_fields`,
+the member a tool's `resource_from` reads is refused by the plane before it is
+handed out. The plane applies the rewriting types (`redact_fields`,
 `cap_amount`) itself, before the decision that is recorded, because they change
 the bytes the digest covers.
 

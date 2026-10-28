@@ -17,6 +17,7 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/channel"
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/gateway"
@@ -77,6 +78,10 @@ const (
 	approved = controlv1.ApprovalState_APPROVAL_STATE_APPROVED
 	rejected = controlv1.ApprovalState_APPROVAL_STATE_REJECTED
 )
+
+// testProtocol is the fake adapter's name, which every test envelope names
+// as its protocol.
+const testProtocol = "fake"
 
 type fakeAdapter struct {
 	name string
@@ -347,7 +352,7 @@ func readEnvelope() *controlv1.ActionEnvelope {
 		OccurredAt:    timestamppb.New(time.Date(2026, time.September, 11, 11, 59, 0, 0, time.UTC)),
 		Principal:     &controlv1.Principal{Id: "user-1", TenantId: "tenant-1"},
 		Agent:         &controlv1.Agent{Id: "agent-1"},
-		Action:        &controlv1.Action{Name: "orders.read", Effect: controlv1.EffectClass_EFFECT_CLASS_READ, Provider: "orders"},
+		Action:        &controlv1.Action{Kind: channel.KindTool, Name: "orders.read", Effect: controlv1.EffectClass_EFFECT_CLASS_READ, Provider: "orders", Protocol: testProtocol},
 		Resource:      &controlv1.Resource{Type: "order", Id: "ord-1", TenantId: "tenant-1", Environment: "prod"},
 		Context:       &controlv1.RunContext{RunId: "run-1", SessionId: "sess-1"},
 	}
@@ -355,7 +360,7 @@ func readEnvelope() *controlv1.ActionEnvelope {
 
 func writeEnvelope() *controlv1.ActionEnvelope {
 	env := readEnvelope()
-	env.Action = &controlv1.Action{Name: "orders.update", Effect: controlv1.EffectClass_EFFECT_CLASS_WRITE, Provider: "orders"}
+	env.Action = &controlv1.Action{Kind: channel.KindTool, Name: "orders.update", Effect: controlv1.EffectClass_EFFECT_CLASS_WRITE, Provider: "orders", Protocol: testProtocol}
 	return env
 }
 
@@ -363,7 +368,7 @@ func writeEnvelope() *controlv1.ActionEnvelope {
 func refundEnvelope(t *testing.T, args []byte) *controlv1.ActionEnvelope {
 	t.Helper()
 	env := readEnvelope()
-	env.Action = &controlv1.Action{Name: "refund", Effect: controlv1.EffectClass_EFFECT_CLASS_TRANSACT, Provider: "payments"}
+	env.Action = &controlv1.Action{Kind: channel.KindTool, Name: "refund", Effect: controlv1.EffectClass_EFFECT_CLASS_TRANSACT, Provider: "payments", Protocol: testProtocol}
 	env.Arguments = &controlv1.Arguments{CanonicalHash: argumentsHash(t, args)}
 	return env
 }

@@ -231,7 +231,7 @@ func TestLockdownTurnsFailOpenReadsOff(t *testing.T) {
 // the trail.
 func TestObserveRecordsADenyAndExecutes(t *testing.T) {
 	h := build(t, modeObserve, snapshot(t, denyWrites), func(c *gateway.Config) {
-		c.Adapter = fakeAdapter{name: "observer", caps: gateway.Capabilities{ObserveRequest: true, ObserveResult: true}}
+		c.Adapter = fakeAdapter{name: testProtocol, caps: gateway.Capabilities{ObserveRequest: true, ObserveResult: true}}
 	})
 	args := []byte(`{"k": 1}`)
 	d := h.admit(writeEnvelope(), args)
@@ -244,7 +244,7 @@ func TestObserveRecordsADenyAndExecutes(t *testing.T) {
 	expectKinds(t, h.kinds(), []controlv1.EventKind{kindProposed, kindDecided, kindStarted})
 	// A rewriting obligation is not applied under OBSERVE either.
 	h = build(t, modeObserve, snapshot(t, cappedRefunds), func(c *gateway.Config) {
-		c.Adapter = fakeAdapter{name: "observer", caps: gateway.Capabilities{ObserveRequest: true, ObserveResult: true}}
+		c.Adapter = fakeAdapter{name: testProtocol, caps: gateway.Capabilities{ObserveRequest: true, ObserveResult: true}}
 	})
 	d = h.admit(refundEnvelope(t, refundArgs()), refundArgs())
 	if d.Action != core.Execute || !bytes.Equal(d.AuthorizedArgs, refundArgs()) || d.Obligations != nil {

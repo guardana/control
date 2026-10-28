@@ -143,8 +143,8 @@ const (
 // ErrUnclassified is a translation that could build every part of an
 // envelope but the effect class, because nothing classifies the operation the
 // call names. An adapter wraps it in Admission.Refusal beside that envelope,
-// and the plane blocks the call with ACTION_UNCLASSIFIED in every mode but
-// OBSERVE.
+// alone, and the plane blocks the call with ACTION_UNCLASSIFIED in every mode
+// but OBSERVE.
 const ErrUnclassified Error = "gateway: nothing classifies the operation this call names"
 
 // Close's and Abort's refusals.

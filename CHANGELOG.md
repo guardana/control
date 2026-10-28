@@ -13,6 +13,23 @@ verify one.
 
 ### Changed
 
+- Under `OBSERVE`, a call the adapter could not translate, for anything but
+  nothing classifying it, is now blocked with the kernel's `INDETERMINATE`
+  and the refusal's code, on the trail `ENFORCE` writes, and counts as
+  blocked. An MCP answer carries that code in place of `MALFORMED_INPUT`, and
+  an enforcement API `BLOCK` no longer appends `INVALID_FIELD_VALUE`
+  ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- The gateway refuses, in every mode, an envelope whose action kind is not
+  `tool`, `prompt` or `resource`, or whose protocol is not its adapter's, as
+  `INVALID_FIELD_VALUE`. The kinds, the protocol names and each protocol's
+  enforcement strength are one list in `internal/channel` ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- A rewrite that moves the member a tool's `resource_from` reads is now a DENY
+  of the gateway's own, `OBLIGATION_NOT_UNDERSTOOD`, before anything is handed
+  out, for both adapters, in place of an aborted execution that ended
+  `ACTION_FAILED` ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- `coverage` and the run view read a plane's strength from its protocol: a
+  trail that names no protocol, or one this build does not know, is decided,
+  not enforced, in every mode ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
 - A gateway configuration that classifies a tool `WRITE`, `DELETE` or
   `CONFIGURE` is refused when it loads unless `environment` is set and, for an
   MCP override, its upstream's `environment` too; an MCP override classified
@@ -40,6 +57,17 @@ verify one.
 
 ### Fixed
 
+- `OBSERVE` handed out a call whose refusal joined "nothing classifies it"
+  with another cause, such as arguments canon refused: such a refusal read as
+  unclassified alone. Unclassified is now that one cause, on a chain of single
+  wraps ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- `OBSERVE` handed out a call whose envelope the contract refuses when the
+  adapter reported no refusal; the kernel's refusal of the request now blocks
+  it whatever the adapter said ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- A pause entry scoped to an action kind let a call through whose kind was
+  spelled outside the plane's list, such as `Tool` or `function`; such a kind
+  now matches every action scope, as an absent one does
+  ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
 - A hold journal write that failed after its entry was linked could leave the
   entry behind a trail the plane closed without it; the next start closed the
   trail again, forking its chain. The entry now stays, and such a hold is

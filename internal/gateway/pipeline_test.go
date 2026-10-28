@@ -66,11 +66,11 @@ func TestNewRefusesEachMisconfiguration(t *testing.T) {
 		{"planned mode", func(c *gateway.Config) { c.Mode = controlv1.EnforcementMode_ENFORCEMENT_MODE_SHADOW }, gateway.ErrModePlanned},
 		{"nil adapter", func(c *gateway.Config) { c.Adapter = nil }, gateway.ErrNoAdapter},
 		{"an adapter that cannot block under ENFORCE", func(c *gateway.Config) {
-			c.Adapter = fakeAdapter{name: "observer", caps: observing}
+			c.Adapter = fakeAdapter{name: testProtocol, caps: observing}
 		}, gateway.ErrCapability},
 		{"an adapter that cannot block under LOCKDOWN", func(c *gateway.Config) {
 			c.Mode = modeLockdown
-			c.Adapter = fakeAdapter{name: "observer", caps: observing}
+			c.Adapter = fakeAdapter{name: testProtocol, caps: observing}
 		}, gateway.ErrCapability},
 		{"an adapter that sees nothing under OBSERVE", func(c *gateway.Config) {
 			c.Mode = modeObserve
@@ -161,7 +161,7 @@ func TestEveryCoversClauseIsHeldAtItsEdge(t *testing.T) {
 func TestNewAcceptsWhatTheModeNeeds(t *testing.T) {
 	cfg := validConfig(t)
 	cfg.Mode = modeObserve
-	cfg.Adapter = fakeAdapter{name: "observer", caps: gateway.Capabilities{ObserveRequest: true, ObserveResult: true}}
+	cfg.Adapter = fakeAdapter{name: testProtocol, caps: gateway.Capabilities{ObserveRequest: true, ObserveResult: true}}
 	if _, err := gateway.New(cfg); err != nil {
 		t.Errorf("New under OBSERVE with an observing adapter: %v", err)
 	}

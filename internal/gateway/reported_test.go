@@ -79,7 +79,7 @@ type shiftingAdapter struct {
 	caps gateway.Capabilities
 }
 
-func (a *shiftingAdapter) Name() string { return "shifting" }
+func (a *shiftingAdapter) Name() string { return testProtocol }
 
 func (a *shiftingAdapter) Capabilities() gateway.Capabilities {
 	a.mu.Lock()
@@ -130,7 +130,7 @@ type firstAnswerAdapter struct {
 	asked        int
 }
 
-func (a *firstAnswerAdapter) Name() string { return "first-answer" }
+func (a *firstAnswerAdapter) Name() string { return testProtocol }
 
 func (a *firstAnswerAdapter) Capabilities() gateway.Capabilities {
 	a.asked++

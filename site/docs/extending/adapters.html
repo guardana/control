@@ -121,17 +121,14 @@ to a tool outside MCP, on a Unix socket; the gateway serves it under
 (<a href="/docs/guides/decide-a-tool-of-your-own">guides/decide-a-tool-of-your-own.md</a>). It builds each envelope from the run token and
 the operator's table of tools, never from what the client says about the
 call, and declares <code>Cooperative</code>: the client sends the bytes, so nothing the
-plane holds proves it obeyed. It applies no obligation of its own, aborts an
-execution whose rewritten bytes name another resource than the one decided
-on, or whose envelope the contract refused for more than an unnamed tool, in
-every mode, closes what a client reports with <code>CloseReported</code>, and closes with
-<code>Abandon</code> every execution nobody completed or aborted before its handle
-expired. Its receiver cases are files in
+plane holds proves it obeyed. It applies no obligation of its own, closes what
+a client reports with <code>CloseReported</code>, and closes with <code>Abandon</code> every
+execution nobody completed or aborted before its handle expired. Its receiver cases are files in
 <a href="https://github.com/guardana/control/blob/main/testdata/enforce/README.md">testdata/enforce/</a>.</p>
-<p>Both adapters read a call's resource id, the resource rewritten bytes name
-and the run token through <code>internal/adapterkit</code>, so one call is never read
-two ways: a spelling one adapter normalised and the other did not would slip
-past a rule the first one enforces.</p>
+<p>Both adapters read a call's resource id and the run token, and build the
+refusal of a call nothing classifies, through <code>internal/adapterkit</code>, so one
+call is never read two ways: a spelling one adapter normalised and the other
+did not would slip past a rule the first one enforces.</p>
 <p>An adapter is the enforcement point among the five ports of
 <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>: it sees a call before
 its effect. Sensors, detectors, reactions and notifiers run as separate
@@ -200,6 +197,22 @@ failing:</p>
 </tr>
 </tbody>
 </table>
+<p>What an adapter hands in, the pipeline holds it to, in every mode:</p>
+<ul>
+<li>The action's kind is <code>tool</code>, <code>prompt</code> or <code>resource</code>, and its protocol is
+the adapter's <code>Name()</code>, both spelled as <code>internal/channel</code> spells them.
+Anything else is refused as <code>INVALID_FIELD_VALUE</code>.</li>
+<li><code>Refusal</code> says why the translation failed. <code>gateway.ErrUnclassified</code> alone,
+on a chain of single wraps, says nothing classifies the call: <code>OBSERVE</code> runs
+it and every other mode blocks it with <code>ACTION_UNCLASSIFIED</code>. Any other
+refusal, a join that holds <code>ErrUnclassified</code> among others included, is
+blocked in <code>OBSERVE</code> too, with the kernel's code for it.
+<code>adapterkit.Unclassified</code> builds the refusal from the adapter's own
+validation of the envelope without joining the two.</li>
+<li><code>ResourceFrom</code> is the pointer the resource id was read at. Bytes a rewrite
+changed so that the member there names another resource are a <code>DENY</code> with
+<code>OBLIGATION_NOT_UNDERSTOOD</code>, and are never handed out.</li>
+</ul>
 <p>An adapter that has an execution open closes or aborts it. An execution left
 open holds one of the plane's <code>MaxOpen</code> slots until the adapter abandons it or
 the process ends; the enforcement API abandons each execution whose handle
@@ -310,7 +323,8 @@ reads:</p>
 its type does not read, is skipped when it is marked advisory and the call
 proceeds, and nothing records the skip; a non-advisory one stops it,
 and the closing record says the obligation refused it. A rewrite that changes
-the member a tool's <code>resource_from</code> reads is aborted, not sent. The plane applies the rewriting types (<code>redact_fields</code>,
+the member a tool's <code>resource_from</code> reads is refused by the plane before it is
+handed out. The plane applies the rewriting types (<code>redact_fields</code>,
 <code>cap_amount</code>) itself, before the decision that is recorded, because they change
 the bytes the digest covers.</p>
 <h2 id="the-bytes-are-not-the-adapters-to-choose">The bytes are not the adapter's to choose</h2>
