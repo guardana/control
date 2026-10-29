@@ -346,8 +346,9 @@ header's <code>log_id</code>, or by its first line in a log that has no header; 
 trailer's <code>identity</code> says which.</li>
 <li><strong>Observation records and the source descriptor.</strong> Only the minors in the
 reader's table are read; another <code>0.x</code> is refused rather than read as the
-nearest one. A record is <code>0.3</code> exactly when it carries a connection or
-refusals by reason, and an import report <code>0.2</code> exactly when it names runs
+nearest one. A record is <code>0.3</code> exactly when it carries a connection,
+refusals by reason, callers dropped or its source's kind, and an import
+report <code>0.2</code> exactly when it names runs
 in doubt or sets <code>every_run_doubted</code> and carries neither. A descriptor is
 <code>0.2</code> exactly when it maps an egress access log, and every <code>0.1</code> descriptor
 keeps its digest. A release whose table lacks a version refuses its lines:

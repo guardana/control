@@ -48,6 +48,16 @@ enum CallerBasis {
   CALLER_BASIS_AUTHENTICATED = 3;
 }
 
+// How the destination member of an access log line names the host.
+// Unspecified names no form, so no destination can be read under it.
+enum DestinationForm {
+  DESTINATION_FORM_UNSPECIFIED = 0;
+  // A host alone: a name or an IP address, never with a port.
+  DESTINATION_FORM_HOST = 1;
+  // An authority as a CONNECT request names it: host:port, or [v6]:port.
+  DESTINATION_FORM_AUTHORITY = 2;
+}
+
 // How a time member of an access log line is spelled. Unspecified names no
 // spelling, so no time can be read under it.
 enum TimeFormat {
@@ -71,6 +81,10 @@ message EgressFields {
   string bytes_sent = 7;
   string bytes_received = 8;
   string caller = 9;
+  // How destination names the host. Under DESTINATION_FORM_AUTHORITY its port
+  // is the connection's when port maps nothing or the line leaves it unset;
+  // a port given both ways must agree.
+  DestinationForm destination_form = 10;
 }
 
 // How an egress proxy's access log is read. Owned by kind

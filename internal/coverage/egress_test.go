@@ -22,7 +22,7 @@ func conn(source, host string, port uint32) *observev1.Record {
 	return &observev1.Record{Record: &observev1.Record_Observation{Observation: &observev1.Observation{
 		SchemaVersion: "0.3", ObservationId: fmt.Sprintf("obs-%d", connections),
 		TenantId: "t1", ProjectId: "p1",
-		Source:       &observev1.SourceRef{SourceId: source, Trust: observev1.Trust_TRUST_INDEPENDENT},
+		Source:       &observev1.SourceRef{SourceId: source, Trust: observev1.Trust_TRUST_INDEPENDENT, Kind: egressKind},
 		ReceivedTime: at(-30 * time.Second), EventTime: at(-time.Minute),
 		Subject:     &observev1.Subject{Kind: observev1.SubjectKind_SUBJECT_KIND_CONNECTION, Name: host},
 		Correlation: &observev1.Correlation{Basis: observev1.Basis_BASIS_NONE},
@@ -36,8 +36,9 @@ func conn(source, host string, port uint32) *observev1.Record {
 func egressSource(id string, trust observev1.Trust, heardAgo time.Duration, records ...*observev1.Record) coverage.Source {
 	d := descriptor(id, trust)
 	d.SchemaVersion, d.Kind, d.Sampling = "0.2", egressKind, observev1.Sampling_SAMPLING_COMPLETE
-	return coverage.Source{Descriptor: d,
-		Records: append([]*observev1.Record{report(id, at(-heardAgo), at(-heardAgo))}, records...)}
+	heard := report(id, at(-heardAgo), at(-heardAgo))
+	heard.GetImportReport().Source.Kind = egressKind
+	return coverage.Source{Descriptor: d, Records: append([]*observev1.Record{heard}, records...)}
 }
 
 func egressInventory(t testing.TB, host, sourceName string) *coverage.Inventory {
@@ -85,6 +86,15 @@ func TestAnEgressPathIsNeverDecidedByAPlane(t *testing.T) {
 	if got, want := r.Lines()[0], "out not covered: no live source observed it; no plane decides egress"; got != want {
 		t.Errorf("path line %q, want %q", got, want)
 	}
+	// An egress path names no upstream and no tool, so a plane that lists the
+	// empty upstream and classifies the empty tool on it would stand in
+	// front of every egress path if the kind did not keep planes away.
+	blank := listing(plane("blank", modeLockdown, false,
+		coverage.Override{Upstream: "", Tool: "", Fingerprint: "fp1", Effect: effectWrite}), "")
+	r = mustMap(t, coverage.Input{Inventory: egressInventory(t, host, host), Planes: []coverage.Plane{blank}})
+	if p := r.Paths[0]; p.State != coverage.NotCovered || len(p.Planes) != 0 {
+		t.Errorf("a plane of the empty upstream: %v with planes %+v, want not covered and no plane", p.State, p.Planes)
+	}
 }
 
 // TestAToolObservationNeverObservesAnEgressPath, and a connection never a
@@ -103,17 +113,28 @@ func TestAToolObservationNeverObservesAnEgressPath(t *testing.T) {
 	}
 }
 
-func TestMixedCaseHostsMatch(t *testing.T) {
-	inv := egressInventory(t, "Example.COM", "API.Example.com")
-	if p := inv.Paths[0]; p.Host != "example.com" || p.Sources[0].Name != "api.example.com" {
-		t.Fatalf("read host %q and name %q, want both lowered", p.Host, p.Sources[0].Name)
+// TestTheInventoryTakesTheOneSpelling: a host in another spelling is refused
+// with the one to write, since read as written it would match no connection.
+func TestTheInventoryTakesTheOneSpelling(t *testing.T) {
+	doc := func(host, name string) string {
+		return `{"schema_version":"0.1","paths":[{"id":"out","kind":"egress","host":"` + host + `",` +
+			`"sources":[{"source_id":"e1","name":"` + name + `"}]}]}`
 	}
-	for _, seen := range []string{"api.example.com", "API.EXAMPLE.COM"} {
-		r := mustMap(t, coverage.Input{Inventory: inv,
-			Sources: []coverage.Source{egressSource("e1", independent, 10*time.Second, conn("e1", seen, 443))}})
-		if r.Paths[0].State != coverage.Observed || len(r.Undeclared) != 0 {
-			t.Errorf("%s: %v with undeclared %+v, want observed", seen, r.Paths[0].State, r.Undeclared)
+	for _, c := range []struct{ host, name, write string }{
+		{"Example.COM", "example.com", `write "example.com"`},
+		{"example.com", "API.Example.com", `write "api.example.com"`},
+		{"::ffff:203.0.113.7", "203.0.113.7", `write "203.0.113.7"`},
+		{"2001:0db8::1", "2001:db8::1", `write "2001:db8::1"`},
+		{"203.0.113.7", "::FFFF:cb00:7107", `write "203.0.113.7"`},
+	} {
+		_, err := coverage.ReadInventory([]byte(doc(c.host, c.name)))
+		if !errors.Is(err, coverage.ErrInventory) || !strings.Contains(err.Error(), c.write) {
+			t.Errorf("%s, %s: %v, want ErrInventory saying %s", c.host, c.name, err, c.write)
 		}
+	}
+	inv := egressInventory(t, "2001:db8::1", "203.0.113.7")
+	if p := inv.Paths[0]; p.Host != "2001:db8::1" || p.Sources[0].Name != "203.0.113.7" {
+		t.Fatalf("read host %q and name %q", p.Host, p.Sources[0].Name)
 	}
 }
 
@@ -289,7 +310,7 @@ func TestReadInventoryHoldsEgressToHosts(t *testing.T) {
 	doc := func(host, source string) string {
 		return `{"schema_version":"0.1","paths":[{"id":"out","kind":"egress","host":"` + host + `","sources":[` + source + `]}]}`
 	}
-	long := strings.Repeat("a", 253)
+	long := strings.Repeat("a.", 126) + "a"
 	if _, err := coverage.ReadInventory([]byte(doc(long, `{"source_id":"e1","name":"`+long+`"}`))); err != nil {
 		t.Errorf("a host of 253 bytes: %v", err)
 	}

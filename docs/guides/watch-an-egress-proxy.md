@@ -31,7 +31,7 @@ The member names are yours to choose; the descriptor in step 2 names them.
 These are the formats the fixtures in `internal/ingest/egresslog/testdata/`
 were written under.
 
-Envoy, with a file access logger and `json_format`:
+Envoy as a forward proxy, with a file access logger and `json_format`:
 
 ```yaml
 access_log:
@@ -42,7 +42,7 @@ access_log:
     log_format:
       json_format:
         start_time: "%START_TIME%"
-        server_name: "%REQUESTED_SERVER_NAME%"
+        authority: "%REQ(:AUTHORITY)%"
         upstream_remote_port: "%UPSTREAM_REMOTE_PORT%"
         method: "%REQ(:METHOD)%"
         response_code: "%RESPONSE_CODE%"
@@ -53,8 +53,12 @@ access_log:
         user_agent: "%REQ(USER-AGENT)%"
 ```
 
-Do not map `%REQ(:AUTHORITY)%` as the destination: it carries a port, and a
-destination that is not a host alone is refused.
+A CONNECT request names its target as an authority, `host:port` or
+`[v6]:port`, and the descriptor in step 2 says so. A plain HTTP request
+through the proxy often names its host without a port, and that line is
+refused. Where Envoy is instead the TLS endpoint and routes by SNI,
+`%REQUESTED_SERVER_NAME%` is the host alone; the `envoy-sni` fixtures map it
+under `DESTINATION_FORM_HOST`.
 
 Squid has no JSON encoding, so the `logformat` writes the braces and quotes:
 
@@ -65,8 +69,10 @@ access_log daemon:/var/log/squid/egress.jsonl logformat=egress_json
 
 Every value but the time is quoted, because Squid writes `-` for a value it
 does not have, and a bare `-` is not JSON. A value that holds a quote or a
-backslash still breaks its line, which the import then refuses. Both formats
-also log a path or a URL, which no mapping names and the import never reads.
+backslash still breaks its line, which the import then refuses. `%>rd` is the
+host alone, so the Squid descriptor reads it under `DESTINATION_FORM_HOST`.
+Both formats also log a path or a URL, which no mapping names and the import
+never reads.
 
 ### 2. Describe the source
 
@@ -76,7 +82,8 @@ The descriptor maps each value to its member. The Envoy fixture's:
 "egress_access_log": {
   "format": "json-lines",
   "fields": {"time": "start_time", "time_format": "TIME_FORMAT_RFC3339",
-             "destination": "server_name", "port": "upstream_remote_port",
+             "destination": "authority", "destination_form": "DESTINATION_FORM_AUTHORITY",
+             "port": "upstream_remote_port",
              "method": "method", "status": "response_code",
              "bytes_sent": "bytes_sent", "bytes_received": "bytes_received",
              "caller": "downstream_remote_address"},
@@ -84,6 +91,10 @@ The descriptor maps each value to its member. The Envoy fixture's:
 ```
 
 `envoy.descriptor.json` holds the whole file, with `trust: TRUST_INDEPENDENT`.
+The authority's port is the connection's when `upstream_remote_port` is
+`null`; when both give one and they differ, the line is refused. Under
+`CALLER_BASIS_ADDRESS` the caller must be an IP address; anything else is
+dropped and counted in `callers_dropped`.
 `squid.descriptor.json` reads `%ts.%03tu` as `TIME_FORMAT_UNIX_SECONDS` and
 the authenticated user `%ul` as a caller with `CALLER_BASIS_AUTHENTICATED`.
 The descriptor must be a file of this account that the group and others
@@ -102,19 +113,22 @@ guardana-control observe import --source egress/envoy.descriptor.json --log egre
 ```
 
 ```text
-lines_read: 3
+lines_read: 4
 observed: 2
 written: 2
 duplicate: 0
 conflict: 0
-refused: 1
+refused: 2
 strings_dropped: 0
-guardana-control: observe import: 1 span(s) or line(s) refused and 0 observation(s) conflicting with the log; the import report holds the counts
+callers_dropped: 0
+guardana-control: observe import: 2 span(s) or line(s) refused and 0 observation(s) conflicting with the log; the import report holds the counts
 ```
 
-It exits 1: the third line's `server_name` is `-`, so it has no destination.
+It exits 1: the third line's authority is `registry.example.org` with no
+port, and the fourth names port 443 while `upstream_remote_port` is 8443.
 The same command again writes nothing new and counts the two connections as
-duplicates, so importing a growing or rotated log again is safe.
+duplicates. It refuses the two bad lines again, though, and exits 1 each
+time, until the log is rotated.
 Under `TRUST_INDEPENDENT`, an input the group or others can write is refused.
 
 ### 4. Map coverage
@@ -135,14 +149,16 @@ guardana-control coverage --inventory egress/inventory.json --source egress/envo
 ```text
 egress.api unknown: sources egress-envoy; no plane decides egress
   source egress-envoy: unknown: past its heartbeat: last heard 2026-10-04T10:00:01Z, heartbeat 300 s
-undeclared egress registry.example.org: observed by egress-envoy: independent (unsigned descriptor), past its heartbeat: last heard 2026-10-04T10:00:01Z, heartbeat 300 s; 1 connection, port 80; no plane decides egress
+undeclared egress 2001:db8::1: observed by egress-envoy: independent (unsigned descriptor), past its heartbeat: last heard 2026-10-04T10:00:01Z, heartbeat 300 s; 1 connection, port 8443; no plane decides egress
+refused egress by egress-envoy: 2 lines refused, so their connections are unknown: destination 1, port 1; no plane decides egress
 undeclared paths: unknown
 ```
 
 The fixture's lines are from 2026-10-04, past the 300-second heartbeat, so the
 declared path is unknown; over a log the proxy is still writing, it reads
-observed. `registry.example.org` was reached and declared by no path, so it
-gets a row, and the command exits 1. No plane decides a connection, so an
+observed. `2001:db8::1` was reached and declared by no path, so it gets a
+row; the two refused lines get one too, since nobody read where they went.
+Either makes the command exit 1. No plane decides a connection, so an
 egress path is never decided or enforced.
 
 ## Verify
@@ -152,7 +168,7 @@ guardana-control observe export egress/log/observations.jsonl
 ```
 
 It writes the two connection observations and the import report, whose
-`refusedBy` holds `"destination":"1"`. A line refused for another reason is
+`refusedBy` holds `"destination":"1","port":"1"`. A line refused for another reason is
 counted under its own key ([the reference](../reference/egress-access-log.md#refusals-and-drops)).
 
 ## Roll back

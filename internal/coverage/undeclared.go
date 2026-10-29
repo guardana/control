@@ -95,8 +95,7 @@ func declaredTo(inv *Inventory, sourceID string) map[string]bool {
 	return declared
 }
 
-// connections is, per host its ASCII letters lowered, what the source's own
-// connections say of it.
+// connections is, per host, what the source's own connections say of it.
 func (in Input) connections(src *Source) map[string]UndeclaredSource {
 	d := src.Descriptor
 	last, heard := observe.LastHeard(d, src.Records)
@@ -114,7 +113,7 @@ func (in Input) connections(src *Source) map[string]UndeclaredSource {
 			!ownedBy(src, o.GetSource().GetSourceId(), o.GetTenantId(), o.GetProjectId()) {
 			continue
 		}
-		host := lowerASCII(o.GetSubject().GetName())
+		host := o.GetSubject().GetName()
 		u, ok := out[host]
 		if !ok {
 			u, ports[host] = base, map[uint32]bool{}

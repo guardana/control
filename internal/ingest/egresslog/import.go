@@ -93,12 +93,13 @@ func (im *importer) line(line []byte) {
 		im.refuse(reasonTime)
 		return
 	}
-	host, ok := destination(vals[fieldDestination])
+	fields := im.desc.GetEgressAccessLog().GetFields()
+	host, authorityPort, ok := destination(vals[fieldDestination], fields.GetDestinationForm())
 	if !ok {
 		im.refuse(reasonDestination)
 		return
 	}
-	port, ok := portOf(vals[fieldPort])
+	port, ok := connectionPort(vals[fieldPort], authorityPort)
 	if !ok {
 		im.refuse(reasonPort)
 		return
@@ -133,7 +134,7 @@ func (im *importer) connection(vals values) *observev1.Connection {
 		}
 	}
 	drop(vals[fieldMethod], func(v value) bool {
-		if methods[v.text] {
+		if v.kind == kindString && observe.ConnectionMethod(v.text) {
 			c.Method = v.text
 			return true
 		}
@@ -141,8 +142,8 @@ func (im *importer) connection(vals values) *observev1.Connection {
 	})
 	drop(vals[fieldStatus], func(v value) bool {
 		n, ok := v.unsigned()
-		if ok && (n == 0 || (n >= 100 && n <= 599)) {
-			c.HttpStatus = uint32(n)
+		if ok && observe.ConnectionStatus(n) {
+			c.HttpStatus = uint32(n) //nolint:gosec // G115: ConnectionStatus holds n to at most 599
 			return true
 		}
 		return false
@@ -161,35 +162,18 @@ func (im *importer) connection(vals values) *observev1.Connection {
 		}
 		return ok
 	})
-	drop(vals[fieldCaller], func(v value) bool {
-		if v.kind == kindString && copyable(v.text) {
-			c.Caller = v.text
-			c.CallerBasis = im.desc.GetEgressAccessLog().GetCallerBasis()
-			return true
+	basis := im.desc.GetEgressAccessLog().GetCallerBasis()
+	if v := vals[fieldCaller]; !v.unset() {
+		switch who, ok := caller(v, basis); {
+		case ok:
+			c.Caller, c.CallerBasis = who, basis
+		case basis == observev1.CallerBasis_CALLER_BASIS_ADDRESS:
+			im.counts.CallersDropped++
+		default:
+			im.counts.StringsDropped++
 		}
-		return false
-	})
+	}
 	return c
-}
-
-// destination reads the host a connection was made to.
-func destination(v value) (string, bool) {
-	if v.kind != kindString {
-		return "", false
-	}
-	return canonicalHost(v.text)
-}
-
-// portOf reads a port of 1 to 65535, or 0 when the line says nothing.
-func portOf(v value) (uint32, bool) {
-	if v.unset() {
-		return 0, true
-	}
-	n, ok := v.unsigned()
-	if !ok || n < 1 || n > 65535 {
-		return 0, false
-	}
-	return uint32(n), true
 }
 
 func (im *importer) source() *observev1.SourceRef {
@@ -197,6 +181,7 @@ func (im *importer) source() *observev1.SourceRef {
 		SourceId:         im.desc.GetSourceId(),
 		DescriptorSha256: im.sha,
 		Trust:            im.desc.GetTrust(),
+		Kind:             observe.KindEgressAccessLog,
 	}
 }
 

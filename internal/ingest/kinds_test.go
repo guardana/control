@@ -156,15 +156,15 @@ func TestTheLabelsAreEachKinds(t *testing.T) {
 	want := map[string]string{
 		observe.KindOTelGenAI: "spans_read other_resource refused content_attributes_dropped reasoning_parts_dropped " +
 			"content_unparsed run_ids_dropped strings_dropped skipped",
-		observe.KindEgressAccessLog: "lines_read refused strings_dropped",
+		observe.KindEgressAccessLog: "lines_read refused strings_dropped callers_dropped",
 	}
 	c := &observev1.ImportCounts{
 		Read: 100, OtherResource: 1, Refused: 2, ContentAttributesDropped: 3, ReasoningPartsDropped: 4,
-		ContentUnparsed: 5, RunIdsDropped: 6, StringsDropped: 7, Skipped: map[string]uint64{"a": 8, "b": 9},
+		ContentUnparsed: 5, RunIdsDropped: 6, StringsDropped: 7, Skipped: map[string]uint64{"a": 8, "b": 9}, CallersDropped: 10,
 	}
 	values := map[string]uint64{
 		"other_resource": 1, "refused": 2, "content_attributes_dropped": 3, "reasoning_parts_dropped": 4,
-		"content_unparsed": 5, "run_ids_dropped": 6, "strings_dropped": 7, "skipped": 17,
+		"content_unparsed": 5, "run_ids_dropped": 6, "strings_dropped": 7, "skipped": 17, "callers_dropped": 10,
 	}
 	for _, k := range ingest.Kinds() {
 		got := []string{k.Labels.Read}

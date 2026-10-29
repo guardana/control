@@ -130,6 +130,7 @@ var mutations = map[string]func(o *observev1.Observation){
 	"project_id":                 func(o *observev1.Observation) { o.ProjectId = "project-b" },
 	"source.source_id":           func(o *observev1.Observation) { o.Source.SourceId = "other" },
 	"source.trust":               func(o *observev1.Observation) { o.Source.Trust = observev1.Trust_TRUST_PLATFORM },
+	"source.kind":                func(o *observev1.Observation) { o.Source.Kind = observe.KindEgressAccessLog },
 	"source.convention.name":     func(o *observev1.Observation) { o.Source.Convention.Name = "x" },
 	"source.convention.version":  func(o *observev1.Observation) { o.Source.Convention.Version = "1.40.0" },
 	"event_time":                 func(o *observev1.Observation) { o.EventTime.Nanos++ },

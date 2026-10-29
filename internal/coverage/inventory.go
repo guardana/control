@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/guardana/control/internal/observe"
-	"github.com/guardana/control/pkg/contract"
+	"github.com/guardana/control/internal/netname"
 )
 
 // InventoryVersion is the one inventory schema_version this package reads.
@@ -75,8 +74,8 @@ type PathSource struct {
 // schema_version "0.1" only, and at least one path. An id is 1 to 64 bytes of
 // [a-z0-9._-] and unique, an mcp_tool's upstream and tool pair is unique, and
 // a path names a source once, and an enforce_tool's tool is unique. An egress
-// path's host and its sources' names are hosts as contract.CheckHost has them
-// once their ASCII letters are lowered, and its sources carry no
+// path's host and its sources' names are hosts in netname's one spelling,
+// the one a connection's host is written in, and its sources carry no
 // server_address. Every refusal wraps ErrInventory.
 func ReadInventory(b []byte) (*Inventory, error) {
 	inv, err := readInventory(b)
@@ -227,28 +226,20 @@ func egressSource(s members, ps *PathSource) error {
 	return nil
 }
 
-// egressHost is s in the one spelling a connection's host has: its ASCII
-// letters lowered, then held to observe.MaxHostBytes and contract.CheckHost.
-// Only ASCII is lowered, so a code point that folds to a letter is refused.
+// egressHost holds s to the one spelling a connection's host is written in.
+// A host in another spelling, in capitals or as an IPv4-mapped IPv6 address
+// among them, is refused with the spelling to write instead: read as written,
+// it would match no connection.
 func egressHost(s string) (string, error) {
-	h := lowerASCII(s)
-	if len(h) > observe.MaxHostBytes {
-		return "", fmt.Errorf("%d bytes, limit %d", len(h), observe.MaxHostBytes)
-	}
-	if err := contract.CheckHost(h); err != nil {
-		return "", fmt.Errorf("%s is not a host: %w", strconv.QuoteToASCII(clip(s)), err)
+	h, ok := netname.Host(s)
+	switch {
+	case !ok:
+		return "", fmt.Errorf("%s is not a host", strconv.QuoteToASCII(clip(s)))
+	case h != s:
+		return "", fmt.Errorf("%s is not in the one spelling a connection's host has: write %s",
+			strconv.QuoteToASCII(clip(s)), strconv.QuoteToASCII(h))
 	}
 	return h, nil
-}
-
-func lowerASCII(s string) string {
-	b := []byte(s)
-	for i, c := range b {
-		if 'A' <= c && c <= 'Z' {
-			b[i] = c + 'a' - 'A'
-		}
-	}
-	return string(b)
 }
 
 // required reads member name into dst as a name text accepts.

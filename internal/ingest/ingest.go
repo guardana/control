@@ -83,6 +83,7 @@ var kinds = []Kind{
 		Labels: Labels{Read: egresslog.ReadLabel, Counts: []Count{
 			{"refused", refused},
 			{"strings_dropped", stringsDropped},
+			{"callers_dropped", func(c *observev1.ImportCounts) uint64 { return c.GetCallersDropped() }},
 		}},
 	},
 }

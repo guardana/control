@@ -14,12 +14,35 @@ const (
 	none          = observev1.CallerBasis_CALLER_BASIS_NONE
 )
 
+// The forward proxy's lines name an authority: its port is taken when the
+// port member is null, a host with no port is refused as a destination, and
+// a port the authority contradicts is refused as a port.
 func TestEnvoyFixture(t *testing.T) {
-	b := importBytes(t, readTestdata(t, "envoy.jsonl"), envoy(t))
+	b := importBytes(t, readTestdata(t, "envoy.jsonl"), forwardProxy(t))
 	want := []conn{
 		{host: "api.example.com", port: 443, method: "CONNECT", status: 200, sent: 52011, received: 1834,
 			caller: "10.0.0.7", basis: address, at: "2026-10-04T10:00:00.25Z"},
-		{host: "registry.example.org", port: 80, method: "GET", status: 304,
+		{host: "2001:db8::1", port: 8443, method: "CONNECT", status: 503, sent: 91,
+			caller: "10.0.0.8", basis: address, at: "2026-10-04T10:00:01.5Z"},
+	}
+	checkConns(t, b.Observations, want)
+	c := b.Report.GetCounts()
+	if c.GetRead() != 4 || c.GetObserved() != 2 || c.GetRefused() != 2 || c.GetStringsDropped() != 0 || c.GetCallersDropped() != 0 {
+		t.Fatalf("counts %v", c)
+	}
+	if !maps.Equal(c.GetRefusedBy(), map[string]uint64{"destination": 1, "port": 1}) {
+		t.Fatalf("refused_by %v", c.GetRefusedBy())
+	}
+	checkEnvoyReport(t, b.Report, "egress-envoy", "envoy.jsonl")
+}
+
+// A TLS listener's lines name the SNI host alone.
+func TestEnvoySNIFixture(t *testing.T) {
+	b := importBytes(t, readTestdata(t, "envoy-sni.jsonl"), envoy(t))
+	want := []conn{
+		{host: "api.example.com", port: 443, method: "GET", status: 200, sent: 52011, received: 1834,
+			caller: "10.0.0.7", basis: address, at: "2026-10-04T10:00:00.25Z"},
+		{host: "registry.example.org", port: 443, method: "GET", status: 304,
 			caller: "10.0.0.8", basis: address, at: "2026-10-04T10:00:01.5Z"},
 	}
 	checkConns(t, b.Observations, want)
@@ -30,10 +53,10 @@ func TestEnvoyFixture(t *testing.T) {
 	if !maps.Equal(c.GetRefusedBy(), map[string]uint64{"destination": 1}) {
 		t.Fatalf("refused_by %v", c.GetRefusedBy())
 	}
-	checkEnvoyReport(t, b.Report)
+	checkEnvoyReport(t, b.Report, "egress-envoy-sni", "envoy-sni.jsonl")
 }
 
-func checkEnvoyReport(t *testing.T, r *observev1.ImportReport) {
+func checkEnvoyReport(t *testing.T, r *observev1.ImportReport, source, input string) {
 	t.Helper()
 	switch {
 	case r.GetSchemaVersion() != "0.3":
@@ -43,10 +66,11 @@ func checkEnvoyReport(t *testing.T, r *observev1.ImportReport) {
 		t.Fatalf("event times %v %v", r.GetEarliestEventTime(), r.GetLatestEventTime())
 	case !r.GetEveryRunDoubted():
 		t.Fatal("a refused line names no run, so it puts every run in doubt")
-	case r.GetSource().GetSourceId() != "egress-envoy" || r.GetSource().GetTrust() != observev1.Trust_TRUST_INDEPENDENT ||
-		r.GetSource().GetDescriptorSha256() != descSHA || r.GetSource().GetConvention() != nil:
+	case r.GetSource().GetSourceId() != source || r.GetSource().GetTrust() != observev1.Trust_TRUST_INDEPENDENT ||
+		r.GetSource().GetDescriptorSha256() != descSHA || r.GetSource().GetConvention() != nil ||
+		r.GetSource().GetKind() != "egress-access-log":
 		t.Fatalf("source %v", r.GetSource())
-	case r.GetInputBytes() != uint64(len(readTestdata(t, "envoy.jsonl"))):
+	case r.GetInputBytes() != uint64(len(readTestdata(t, input))):
 		t.Fatalf("input_bytes %d", r.GetInputBytes())
 	}
 }
@@ -82,7 +106,7 @@ func TestSquidFixture(t *testing.T) {
 	if c.GetRead() != 3 || c.GetObserved() != 3 || c.GetRefused() != 0 || c.GetStringsDropped() != 1 || len(c.GetRefusedBy()) != 0 {
 		t.Fatalf("counts %v", c)
 	}
-	if b.Report.GetEveryRunDoubted() || b.Report.GetSchemaVersion() != "0.1" {
+	if b.Report.GetEveryRunDoubted() || b.Report.GetSchemaVersion() != "0.3" || b.Report.GetSource().GetKind() != "egress-access-log" {
 		t.Fatalf("a report that refused nothing: %v", b.Report)
 	}
 }
@@ -99,6 +123,7 @@ func checkConns(t *testing.T, obs []*observev1.Observation, want []conn) {
 			o.GetSubject().GetKind() != observev1.SubjectKind_SUBJECT_KIND_CONNECTION,
 			o.GetCorrelation().GetBasis() != observev1.Basis_BASIS_NONE, o.GetOutcome() != nil,
 			o.GetTenantId() != "tenant-a", o.GetProjectId() != "project-a",
+			o.GetSource().GetKind() != "egress-access-log",
 			!o.GetReceivedTime().AsTime().Equal(received):
 			t.Fatalf("observation %d: %v", i, o)
 		}

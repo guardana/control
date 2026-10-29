@@ -40,7 +40,17 @@ func loadDescriptor(t testing.TB, name string) *observev1.SourceDescriptor {
 	return d
 }
 
+// envoy is the descriptor of an Envoy TLS listener, whose destination is the
+// SNI host alone: the importer's rules are tested under it, and the
+// authority form beside it.
 func envoy(t testing.TB) *observev1.SourceDescriptor {
+	t.Helper()
+	return loadDescriptor(t, "envoy-sni.descriptor.json")
+}
+
+// forwardProxy is the descriptor of an Envoy forward proxy, whose destination
+// is the request's authority.
+func forwardProxy(t testing.TB) *observev1.SourceDescriptor {
 	t.Helper()
 	return loadDescriptor(t, "envoy.descriptor.json")
 }
@@ -98,7 +108,7 @@ func checkBatch(t testing.TB, in []byte, b egresslog.Batch) {
 // member is one member of an Envoy line: its name and its value as JSON.
 type member struct{ name, raw string }
 
-// envoyBase is a line of envoy.jsonl, member by member.
+// envoyBase is a line as envoy-sni.descriptor.json maps it, member by member.
 var envoyBase = []member{
 	{"start_time", `"2026-10-04T10:00:00.250Z"`},
 	{"server_name", `"api.example.com"`},
@@ -127,7 +137,7 @@ func envoyLine(name, raw string) string {
 	return "{" + strings.Join(parts, ",") + "}\n"
 }
 
-// one imports a single line under the Envoy descriptor.
+// one imports a single line under the Envoy TLS listener's descriptor.
 func one(t *testing.T, line string) egresslog.Batch {
 	t.Helper()
 	return importBytes(t, []byte(line), envoy(t))

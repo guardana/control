@@ -3,11 +3,8 @@ package egresslog
 import (
 	"strconv"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
-	"github.com/guardana/control/internal/observe"
 )
 
 // field is one value a connection is read from.
@@ -83,38 +80,4 @@ func (v value) unsigned() (uint64, bool) {
 
 func digits(s string) bool {
 	return s != "" && strings.Trim(s, "0123456789") == ""
-}
-
-// methods are the methods a connection keeps. Any other token is dropped: an
-// agent can choose it, so kept it would be a channel into the log.
-var methods = map[string]bool{
-	"CONNECT": true, "GET": true, "HEAD": true, "POST": true, "PUT": true,
-	"PATCH": true, "DELETE": true, "OPTIONS": true, "TRACE": true,
-}
-
-// copyable holds a string copied into a record to ADR-0040's rules: at most
-// observe.MaxTextBytes, not only whitespace, and every rune printable.
-func copyable(s string) bool {
-	if len(s) > observe.MaxTextBytes || strings.TrimSpace(s) == "" {
-		return false
-	}
-	for _, r := range s {
-		if !printable(r) {
-			return false
-		}
-	}
-	return true
-}
-
-// printable refuses what can hide or reshape text where a record is shown:
-// control and format characters, line and paragraph separators, private use,
-// noncharacters, and U+FFFD, which a lone surrogate escape decodes to.
-func printable(r rune) bool {
-	switch {
-	case unicode.IsControl(r), unicode.In(r, unicode.Cf, unicode.Co, unicode.Zl, unicode.Zp):
-		return false
-	case r == utf8.RuneError, r >= 0xFDD0 && r <= 0xFDEF, r&0xFFFE == 0xFFFE:
-		return false
-	}
-	return true
 }

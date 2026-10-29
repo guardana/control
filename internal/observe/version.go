@@ -7,9 +7,9 @@ import (
 )
 
 // The record schemas this package writes. A record is the latest of them
-// whose members it carries: SchemaVersion03 for a connection or refusals by
-// reason, SchemaVersion02 for an import report naming runs in doubt, and
-// SchemaVersion otherwise.
+// whose members it carries: SchemaVersion03 for a connection, refusals by
+// reason, callers dropped or a source's kind, SchemaVersion02 for an import
+// report naming runs in doubt, and SchemaVersion otherwise.
 const (
 	SchemaVersion   = "0.1"
 	SchemaVersion02 = "0.2"

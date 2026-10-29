@@ -119,9 +119,9 @@ call (<a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>). The re
 compatibility promise (<a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a>).
 It is <code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory.</p>
 <h2 id="the-source-descriptor">The source descriptor</h2>
-<p>The operator's JSON file describing one source, read under the same owner
-checks as the stores. Every member is matched exactly; an unknown member, a
-member given twice or <code>null</code> is refused, naming the member. The <code>kind</code>
+<p>The operator's JSON file describing one source, read under the stores'
+owner checks. Every member is matched exactly; an unknown member, a member
+given twice or <code>null</code> is refused by name. The <code>kind</code>
 decides its further members, and another kind's member is refused
 (<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>):</p>
 <table>
@@ -303,18 +303,19 @@ are read, or a 65th run sets <code>every_run_doubted</code> instead. A report th
 a refusal or a conflict and names no run, as a <code>0.1</code> report does, is read as
 doubting every run; <a href="/docs/reference/supervision#the-verdict">supervision</a> says what a
 doubted run leaves unchecked. A source's doubt is read from its own reports
-alone, those naming its source, tenant and project.
+alone, those naming its source, tenant, project and kind, as its liveness is.
 <code>supervise</code> refuses a <code>--source</code> whose tenant or project is not the run's,
 and one whose kind names no run.</p>
-<p>A record carrying a connection or <code>refused_by</code> is schema <code>0.3</code>, a report carrying either doubt member <code>0.2</code>, and any other
-<code>0.1</code>; the reader refuses a version its members do not call for. A reader
+<p><code>source.kind</code> names a record's kind, empty for <code>otel-genai-traces</code>; a log
+takes one kind per source.</p>
+<p>A record carrying a connection, <code>refused_by</code>, <code>callers_dropped</code> or a kind is
+<code>0.3</code>, a report carrying a doubt member <code>0.2</code>, any other <code>0.1</code>; the reader
+refuses a version its members do not call for. A reader
 whose table lacks a version, as 0.14's lacks <code>0.3</code>, refuses each such line.</p>
-<p>A doubt has no time bound: it holds while the log holds the report, and a
-doubt of every run reaches every later run of the source. Only rotating the
-log ends it: with no import running, move <code>observations.jsonl</code> out of its
-directory, and the next import starts a new file. The observations
-the old file held go with it; until that import, <code>supervise</code> finds the source
-never heard.</p>
+<p>A doubt has no time bound, and a doubt of every run reaches every later run
+of the source. Only rotating the log ends it: with no import running, move
+<code>observations.jsonl</code> out of its directory. Its observations go with it; until
+the next import starts a new file, <code>supervise</code> finds the source never heard.</p>
 <h2 id="commands">Commands</h2>
 <pre><code>guardana-control observe import --source &lt;descriptor&gt; --log &lt;dir&gt; &lt;file&gt;
 guardana-control observe export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] &lt;file&gt;

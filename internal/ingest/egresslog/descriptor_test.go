@@ -51,6 +51,10 @@ func TestCheckRefuses(t *testing.T) {
 			d.EgressAccessLog.Fields.TimeFormat = observev1.TimeFormat_TIME_FORMAT_UNSPECIFIED
 		}, "fields.time_format"},
 		{"an undeclared time format", func(d *observev1.SourceDescriptor) { d.EgressAccessLog.Fields.TimeFormat = 9 }, "fields.time_format"},
+		{"no destination form", func(d *observev1.SourceDescriptor) {
+			d.EgressAccessLog.Fields.DestinationForm = observev1.DestinationForm_DESTINATION_FORM_UNSPECIFIED
+		}, "fields.destination_form"},
+		{"an undeclared destination form", func(d *observev1.SourceDescriptor) { d.EgressAccessLog.Fields.DestinationForm = 3 }, "fields.destination_form"},
 		{"two fields, one member", func(d *observev1.SourceDescriptor) { d.EgressAccessLog.Fields.Port = "start_time" }, "fields.port"},
 		{"a name of 129 bytes", func(d *observev1.SourceDescriptor) { d.EgressAccessLog.Fields.Method = strings.Repeat("m", 129) }, "fields.method"},
 		{"a control character", func(d *observev1.SourceDescriptor) { d.EgressAccessLog.Fields.Status = "status\n" }, "fields.status"},
@@ -91,6 +95,7 @@ func TestCheckAccepts(t *testing.T) {
 		{"only time and destination", func(d *observev1.SourceDescriptor) {
 			d.EgressAccessLog.Fields = &observev1.EgressFields{
 				Time: "t", TimeFormat: observev1.TimeFormat_TIME_FORMAT_UNIX_MILLISECONDS, Destination: "d",
+				DestinationForm: observev1.DestinationForm_DESTINATION_FORM_AUTHORITY,
 			}
 			d.EgressAccessLog.CallerBasis = observev1.CallerBasis_CALLER_BASIS_UNSPECIFIED
 		}},

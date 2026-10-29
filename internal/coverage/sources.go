@@ -43,8 +43,7 @@ func ownedBy(src *Source, source, tenant, project string) bool {
 }
 
 // observationsOf are the source's own observations that name a path of kind
-// as ps says: on an egress path a connection to that host, its ASCII letters
-// lowered, and on any other a tool of that name, at that server address when
+// as ps says: on an egress path a connection to that host, and on any other a tool of that name, at that server address when
 // one is given.
 func observationsOf(src *Source, kind string, ps PathSource) []*observev1.Observation {
 	var out []*observev1.Observation
@@ -60,7 +59,7 @@ func observationsOf(src *Source, kind string, ps PathSource) []*observev1.Observ
 
 func namesPath(subject *observev1.Subject, kind string, ps PathSource) bool {
 	if kind == KindEgress {
-		return subject.GetKind() == observev1.SubjectKind_SUBJECT_KIND_CONNECTION && lowerASCII(subject.GetName()) == ps.Name
+		return subject.GetKind() == observev1.SubjectKind_SUBJECT_KIND_CONNECTION && subject.GetName() == ps.Name
 	}
 	return subject.GetKind() == observev1.SubjectKind_SUBJECT_KIND_TOOL && subject.GetName() == ps.Name &&
 		(ps.ServerAddress == "" || subject.GetServerAddress() == ps.ServerAddress)

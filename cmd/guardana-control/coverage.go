@@ -13,11 +13,13 @@ import (
 	"strings"
 	"time"
 
+	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/coverage"
 	ondisk "github.com/guardana/control/internal/files"
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/ingest"
+	"github.com/guardana/control/internal/observe"
 	"github.com/guardana/control/internal/observelog"
 )
 
@@ -75,7 +77,8 @@ func coverageFlags(command string, out io.Writer) (*flag.FlagSet, *coverageArgs)
 	a := &coverageArgs{evidence: map[int]string{}}
 	flags.Var(&a.inventory, "inventory", "the inventory of declared paths, a JSON `file` of this account that no other account may write; given once")
 	flags.Var(&a.planes, "plane", "a plane's configuration `file`, read without this shell's environment; repeatable")
-	flags.Var(&a.sources, "source", "a source descriptor `file`, paired in order with --log; one that does not exist covers nothing; repeatable")
+	flags.Var(&a.sources, "source", "a source descriptor `file`, paired in order with --log; one that does not exist covers nothing, "+
+		"and is refused when its log holds an egress source's records; repeatable")
 	flags.Var(&a.logs, "log", "the observation log `dir` of the --source in the same place; one with no log yet was never heard; repeatable")
 	flags.Var(&planeEvidence{a}, "evidence", "the evidence `export` of the --plane before it, as the gateway's trail export wrote it, "+
 		"to join observations with; at most one per plane")
@@ -89,11 +92,13 @@ func coverageFlagSet(command string, out io.Writer) *flag.FlagSet {
 
 // coverageCommand prints, for each declared path, what covers it and on what
 // basis, then a row for each egress host a source observed and no path
-// declares, and the standing row for undeclared paths. It exits 0 when every
-// declared path is at least observed, no call went around a plane and no
-// egress host is undeclared; 1 when a path is weaker, a call did, a walk down
-// a trace was cut at its bound, or an egress host is undeclared, printed or
-// cut from the rows; and 2 when an input was refused, with no map printed.
+// declares, a row for each egress source whose import refused a line, and the
+// standing row for undeclared paths. It exits 0 when every declared path is
+// at least observed, no call went around a plane, no egress host is
+// undeclared and no egress line was refused; 1 when a path is weaker, a call
+// did, a walk down a trace was cut at its bound, an egress host is
+// undeclared, printed or cut from the rows, or an egress line was refused;
+// and 2 when an input was refused, with no map printed.
 func coverageCommand(args []string, stdout, stderr io.Writer) int {
 	flags, a := coverageFlags(coverageName, io.Discard)
 	err := flags.Parse(args)
@@ -213,14 +218,15 @@ func readPlane(path string) (coverage.Plane, error) {
 
 // readSource reads one source's descriptor as observe import does, and its
 // log. A descriptor that does not exist is a removed source: it is not
-// passed, so the paths naming it are not covered by it, and its log is not
-// read. A log directory that holds no log yet gives no records, which is
-// never heard.
+// passed, so the paths naming it are not covered by it, unless its log holds
+// records of a kind no path names, an egress source's, whose hosts the map
+// could then never show. A log directory that holds no log yet gives no
+// records, which is never heard.
 func readSource(descriptor, logDir string) (coverage.Source, bool, error) {
 	raw, err := ondisk.ReadOwned(descriptor, maxDescriptorBytes, descriptorForbidden, os.Geteuid())
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return coverage.Source{}, false, nil
+		return coverage.Source{}, false, absentSource(descriptor, logDir)
 	case err != nil:
 		return coverage.Source{}, false, refusedInput("source", descriptor, err)
 	}
@@ -228,14 +234,47 @@ func readSource(descriptor, logDir string) (coverage.Source, bool, error) {
 	if err != nil {
 		return coverage.Source{}, false, refusedInput("source", descriptor, err)
 	}
+	records, err := readSourceLog(logDir)
+	if err != nil {
+		return coverage.Source{}, false, err
+	}
+	return coverage.Source{Descriptor: desc, Records: records}, true, nil
+}
+
+func readSourceLog(logDir string) ([]*observev1.Record, error) {
 	if err := ondisk.CheckDir(logDir, 0); err != nil {
-		return coverage.Source{}, false, refusedInput("log", logDir, err)
+		return nil, refusedInput("log", logDir, err)
 	}
 	records, err := observelog.ReadFile(filepath.Join(logDir, observelog.FileName))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return coverage.Source{}, false, refusedInput("log", logDir, err)
+		return nil, refusedInput("log", logDir, err)
 	}
-	return coverage.Source{Descriptor: desc, Records: records}, true, nil
+	return records, nil
+}
+
+// absentSource refuses a removed descriptor whose log holds an egress
+// source's records: the map would print none of the hosts they reached and
+// none of the lines refused, and exit as if there were none. A log that
+// cannot be read is refused too, since what it holds is then unknown.
+func absentSource(descriptor, logDir string) error {
+	if _, err := os.Lstat(logDir); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	records, err := readSourceLog(logDir)
+	if err != nil {
+		return err
+	}
+	for _, r := range records {
+		src := r.GetObservation().GetSource()
+		if src == nil {
+			src = r.GetImportReport().GetSource()
+		}
+		if kind := observe.RecordKind(src); kind == observe.KindEgressAccessLog {
+			return refusedInput("source", descriptor, fmt.Errorf("absent, and its log holds records of kind %q, "+
+				"whose hosts and refused lines the map would not show; restore its descriptor, or leave out the --source and its --log", kind))
+		}
+	}
+	return nil
 }
 
 // readExportFile reads an export as the descriptor is read: what it holds is

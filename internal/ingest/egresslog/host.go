@@ -1,72 +1,67 @@
 package egresslog
 
 import (
-	"net/netip"
-	"strings"
-	"unicode/utf8"
-
+	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
+	"github.com/guardana/control/internal/netname"
 	"github.com/guardana/control/internal/observe"
 )
 
-// maxLabelBytes bounds one label of a name, as DNS does.
-const maxLabelBytes = 63
-
-// canonicalHost reads a destination as a host in its one spelling, or
-// reports false. A name is lowercased and held to LDH labels; an IPv4
-// address is a dotted quad; an IPv6 address is written as net/netip writes
-// it, with no zone and no brackets. None of these admits a scheme, a path, a
-// query, a fragment, user information or whitespace, so a URL is refused
-// whole, never parsed down to the host inside it. A name in U-labels is
-// refused: mapping it to A-labels needs IDNA tables this build does not
-// carry, and an A-label is taken as written.
-func canonicalHost(s string) (string, bool) {
-	// Checked before lowercasing, which maps some non-ASCII letters, the
-	// Kelvin sign among them, to ASCII ones.
-	for i := range len(s) {
-		if s[i] >= utf8.RuneSelf {
-			return "", false
-		}
+// destination reads the host a connection was made to under the mapping's
+// form, in netname's one spelling, and the port an authority names, or 0. A
+// value that is not a host alone, or not an authority, is refused whole,
+// never parsed down to the host inside it.
+func destination(v value, form observev1.DestinationForm) (string, uint32, bool) {
+	if v.kind != kindString {
+		return "", 0, false
 	}
-	if strings.Contains(s, ":") {
-		a, err := netip.ParseAddr(s)
-		if err != nil || a.Zone() != "" {
-			return "", false
-		}
-		return a.String(), true
+	switch form {
+	case observev1.DestinationForm_DESTINATION_FORM_HOST:
+		h, ok := netname.Host(v.text)
+		return h, 0, ok
+	case observev1.DestinationForm_DESTINATION_FORM_AUTHORITY:
+		return netname.Authority(v.text)
 	}
-	s = strings.ToLower(s)
-	if len(s) > observe.MaxHostBytes {
-		return "", false
-	}
-	labels := strings.Split(s, ".")
-	for _, l := range labels {
-		if !ldh(l) {
-			return "", false
-		}
-	}
-	// A top-level label is never all digits, so a name ending in one is an
-	// IPv4 address, which has no colon, or nothing: never a second spelling
-	// of one.
-	if digits(labels[len(labels)-1]) {
-		a, err := netip.ParseAddr(s)
-		if err != nil {
-			return "", false
-		}
-		return a.String(), true
-	}
-	return s, true
+	return "", 0, false
 }
 
-// ldh reports a label of 1 to 63 letters, digits and hyphens that neither
-// starts nor ends with a hyphen. s is lowercase.
-func ldh(s string) bool {
-	if s == "" || len(s) > maxLabelBytes || s[0] == '-' || s[len(s)-1] == '-' {
-		return false
+// connectionPort is the line's port: the port member's, the authority's
+// when the member is unset or unmapped, and 0 when neither gives one. A port
+// member outside 1 to 65535, or one the authority contradicts, is refused.
+func connectionPort(member value, authority uint32) (uint32, bool) {
+	port, ok := portOf(member)
+	switch {
+	case !ok:
+		return 0, false
+	case port == 0:
+		return authority, true
+	case authority != 0 && authority != port:
+		return 0, false
 	}
-	for i := range len(s) {
-		if c := s[i]; (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' {
-			return false
-		}
+	return port, true
+}
+
+// portOf reads a port of 1 to 65535, or 0 when the line says nothing.
+func portOf(v value) (uint32, bool) {
+	if v.unset() {
+		return 0, true
 	}
-	return true
+	n, ok := v.unsigned()
+	if !ok || n < 1 || n > 65535 {
+		return 0, false
+	}
+	return uint32(n), true
+}
+
+// caller reads the caller under the descriptor's basis: under
+// CALLER_BASIS_ADDRESS an IP address, with a port or without one, in
+// netname's one spelling, and under any other basis text a record keeps,
+// copied as the proxy wrote it.
+func caller(v value, basis observev1.CallerBasis) (string, bool) {
+	if v.kind != kindString {
+		return "", false
+	}
+	if basis == observev1.CallerBasis_CALLER_BASIS_ADDRESS {
+		return netname.Address(v.text)
+	}
+	return v.text, observe.CopyableText(v.text)
 }

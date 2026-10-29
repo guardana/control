@@ -31,7 +31,8 @@ var (
 // Check holds the members kind egress-access-log owns to what the importer
 // can read: the one format, a mapping whose names are distinct, text and at
 // most MaxMemberNameBytes, time and destination mapped, a declared time
-// format, and a declared caller basis exactly when a caller is mapped. It
+// format and destination form, and a declared caller basis exactly when a
+// caller is mapped. It
 // judges nothing observe.CheckNeutral judges, and a caller runs both.
 func Check(d *observev1.SourceDescriptor) error {
 	if d == nil {
@@ -76,6 +77,9 @@ func mapping(f *observev1.EgressFields) (map[string]field, error) {
 	if format == observev1.TimeFormat_TIME_FORMAT_UNSPECIFIED || !declared(format) {
 		return nil, refuse("fields.time_format", fmt.Errorf("%d is not a declared format", format))
 	}
+	if form := f.GetDestinationForm(); form == observev1.DestinationForm_DESTINATION_FORM_UNSPECIFIED || !declared(form) {
+		return nil, refuse("fields.destination_form", fmt.Errorf("%d is not a declared form", form))
+	}
 	return names, nil
 }
 
@@ -97,7 +101,7 @@ func memberName(s string) error {
 	if len(s) > MaxMemberNameBytes {
 		return fmt.Errorf("%d bytes, limit %d", len(s), MaxMemberNameBytes)
 	}
-	if !copyable(s) {
+	if !observe.CopyableText(s) {
 		return fmt.Errorf("%q holds a control or format character or is only whitespace", s)
 	}
 	return nil

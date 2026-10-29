@@ -143,6 +143,10 @@ func added03(r *observev1.Record) string {
 		return "connection"
 	case len(r.GetImportReport().GetCounts().GetRefusedBy()) > 0:
 		return "counts.refused_by"
+	case r.GetImportReport().GetCounts().GetCallersDropped() > 0:
+		return "counts.callers_dropped"
+	case r.GetObservation().GetSource().GetKind() != "" || r.GetImportReport().GetSource().GetKind() != "":
+		return "source.kind"
 	}
 	return ""
 }
@@ -173,7 +177,23 @@ func checkOrigin(tenant, project string, src *observev1.SourceRef, received *tim
 	if err := identifier(src.GetSourceId()); err != nil {
 		return fmt.Errorf("%w: source.source_id: %w", ErrLine, err)
 	}
+	switch kind := src.GetKind(); {
+	case kind == KindOTelGenAI:
+		return fmt.Errorf("%w: source.kind: %q is spelled empty", ErrLine, kind)
+	case kind != "" && LookupKind(kind).Name == "":
+		return fmt.Errorf("%w: source.kind: %s is not a kind this build reads", ErrLine, quoted(kind, maxIdentifierBytes))
+	}
 	return nil
+}
+
+// RecordKind is the kind of the source a record came from: its source's kind,
+// or KindOTelGenAI when it names none, as every record before SchemaVersion03
+// does.
+func RecordKind(src *observev1.SourceRef) string {
+	if src.GetKind() == "" {
+		return KindOTelGenAI
+	}
+	return src.GetKind()
 }
 
 func checkObservation(o *observev1.Observation) error {
@@ -184,8 +204,13 @@ func checkObservation(o *observev1.Observation) error {
 	if err := checkOrigin(o.GetTenantId(), o.GetProjectId(), o.GetSource(), o.GetReceivedTime()); err != nil {
 		return err
 	}
+	connection := o.GetSubject().GetKind() == observev1.SubjectKind_SUBJECT_KIND_CONNECTION
+	if egress := RecordKind(o.GetSource()) == KindEgressAccessLog; connection != egress {
+		return fmt.Errorf("%w: source.kind: a subject of kind %s from a source of kind %q: a connection comes from an %q source, and only a connection does",
+			ErrLine, o.GetSubject().GetKind(), RecordKind(o.GetSource()), KindEgressAccessLog)
+	}
 	switch kind := o.GetSubject().GetKind(); {
-	case kind == observev1.SubjectKind_SUBJECT_KIND_CONNECTION:
+	case connection:
 		return checkConnection(o)
 	case o.GetConnection() != nil:
 		return fmt.Errorf("%w: connection: set on a subject of kind %s", ErrLine, kind)

@@ -80,8 +80,9 @@ one quoted key per line, carries none either.
   trailer's `identity` says which.
 - **Observation records and the source descriptor.** Only the minors in the
   reader's table are read; another `0.x` is refused rather than read as the
-  nearest one. A record is `0.3` exactly when it carries a connection or
-  refusals by reason, and an import report `0.2` exactly when it names runs
+  nearest one. A record is `0.3` exactly when it carries a connection,
+  refusals by reason, callers dropped or its source's kind, and an import
+  report `0.2` exactly when it names runs
   in doubt or sets `every_run_doubted` and carries neither. A descriptor is
   `0.2` exactly when it maps an egress access log, and every `0.1` descriptor
   keeps its digest. A release whose table lacks a version refuses its lines:

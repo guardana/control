@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"math/bits"
 	"strconv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
 	"github.com/guardana/control/pkg/contract"
@@ -50,10 +53,11 @@ func ConnectionID(o *observev1.Observation) string {
 
 // checkConnection holds an observation whose subject is a connection to the
 // one form an importer writes: a connection member, no trace, span or run,
-// basis none, stage indirect, an event time, a host, none of the members a
-// span's observation fills, and the id of its content. With every member
-// either fixed here or under the id, an id the log already holds with other
-// content cannot be the same connection.
+// basis none, stage indirect, an event time, a host, a method, status and
+// caller an importer keeps, none of the members a span's observation fills,
+// and the id of its content. The id covers every member but the receive
+// time, the source's digest, trust and kind, and the caller basis, so an id
+// the log already holds with other content in the rest is another connection.
 func checkConnection(o *observev1.Observation) error {
 	c := o.GetConnection()
 	if c == nil {
@@ -68,14 +72,85 @@ func checkConnection(o *observev1.Observation) error {
 	if member := spanMember(o); member != "" {
 		return fmt.Errorf("%w: %s: set on a connection", ErrLine, member)
 	}
-	if c.GetCaller() == "" && CallerBasisOf(c.GetCallerBasis()) != observev1.CallerBasis_CALLER_BASIS_NONE {
-		return fmt.Errorf("%w: connection.caller_basis: %s with no caller", ErrLine, c.GetCallerBasis())
+	if err := checkConnectionValues(c); err != nil {
+		return err
 	}
 	if o.GetObservationId() != ConnectionID(o) {
 		return fmt.Errorf("%w: observation_id: %s is not the id of its connection's content",
 			ErrLine, quoted(o.GetObservationId(), maxIdentifierBytes))
 	}
 	return nil
+}
+
+// connectionMethods are the methods a connection keeps. Any other token is
+// dropped: an agent can choose it, so kept it would be a channel into the log.
+var connectionMethods = map[string]bool{
+	"CONNECT": true, "GET": true, "HEAD": true, "POST": true, "PUT": true,
+	"PATCH": true, "DELETE": true, "OPTIONS": true, "TRACE": true,
+}
+
+// ConnectionMethod reports a method a connection keeps: one of CONNECT, GET,
+// HEAD, POST, PUT, PATCH, DELETE, OPTIONS and TRACE.
+func ConnectionMethod(m string) bool { return connectionMethods[m] }
+
+// ConnectionStatus reports an HTTP status a connection keeps: 0, the log
+// saying nothing, or 100 to 599.
+func ConnectionStatus(n uint64) bool { return n == 0 || (n >= 100 && n <= 599) }
+
+// addressCaller is the one form a caller under CALLER_BASIS_ADDRESS takes
+// here: the characters an IP address and port are spelled with. Reading the
+// address down to its one spelling is the importer's, which net/netip serves.
+func addressCaller(s string) bool {
+	return s != "" && strings.Trim(s, "0123456789abcdef.:[]") == ""
+}
+
+// checkConnectionValues holds the method, status and caller to what an
+// importer keeps: a listed method or none, a status ConnectionStatus takes,
+// and a caller that is copyable text, an address's characters under an
+// address basis, and present under any basis but none.
+func checkConnectionValues(c *observev1.Connection) error {
+	caller, basis := c.GetCaller(), CallerBasisOf(c.GetCallerBasis())
+	switch {
+	case c.GetMethod() != "" && !ConnectionMethod(c.GetMethod()):
+		return fmt.Errorf("%w: connection.method: %s is not a method a connection keeps", ErrLine, quoted(c.GetMethod(), maxIdentifierBytes))
+	case !ConnectionStatus(uint64(c.GetHttpStatus())):
+		return fmt.Errorf("%w: connection.http_status: %d is neither 0 nor 100 to 599", ErrLine, c.GetHttpStatus())
+	case caller == "" && basis != observev1.CallerBasis_CALLER_BASIS_NONE:
+		return fmt.Errorf("%w: connection.caller_basis: %s with no caller", ErrLine, c.GetCallerBasis())
+	case caller != "" && !CopyableText(caller):
+		return fmt.Errorf("%w: connection.caller: not text a record keeps", ErrLine)
+	case caller != "" && basis == observev1.CallerBasis_CALLER_BASIS_ADDRESS && !addressCaller(caller):
+		return fmt.Errorf("%w: connection.caller: %s is not an address, under %s", ErrLine, quoted(caller, maxIdentifierBytes), basis)
+	}
+	return nil
+}
+
+// CopyableText holds a string copied from an input into a record to
+// ADR-0040's rules: at most MaxTextBytes, not only whitespace, and every rune
+// printable.
+func CopyableText(s string) bool {
+	if len(s) > MaxTextBytes || strings.TrimSpace(s) == "" {
+		return false
+	}
+	for _, r := range s {
+		if !printable(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// printable refuses what can hide or reshape text where a record is shown:
+// control and format characters, line and paragraph separators, private use,
+// noncharacters, and U+FFFD, which a lone surrogate escape decodes to.
+func printable(r rune) bool {
+	switch {
+	case unicode.IsControl(r), unicode.In(r, unicode.Cf, unicode.Co, unicode.Zl, unicode.Zp):
+		return false
+	case r == utf8.RuneError, r >= 0xFDD0 && r <= 0xFDEF, r&0xFFFE == 0xFFFE:
+		return false
+	}
+	return true
 }
 
 // checkUnattributed holds a connection to what it can say of its run in this

@@ -60,17 +60,35 @@ trust is policy, and it must not move into an importer (invariant 7).
    each of time, destination, port, method, status, bytes sent, bytes
    received and caller. Time and destination are required. It reads no
    member the mapping does not name, so a path, query, header or body the
-   proxy logged is never copied (invariant 9). A destination that is not a
-   host alone is refused, never parsed down to its host. A method outside a
-   fixed list of nine is dropped and counted. Each refused line is counted
-   under its reason in `refused_by`.
+   proxy logged is never copied unless the mapping names it (invariant 9).
+   The mapping's `destination_form` is `host` or `authority`, `host:port` or
+   `[v6]:port` as a CONNECT request names its target; an authority's port is
+   the connection's when no port member gives one, and a port given both ways
+   that disagrees refuses the line. A destination in neither form is
+   refused, never parsed down to its host. A method outside a fixed list of
+   nine is dropped and counted. Under `CALLER_BASIS_ADDRESS` the caller is an
+   IP address, with a port or without one, or it is dropped and counted in
+   `callers_dropped`; under another basis it is opaque text within its bound.
+   Each refused line is counted under its reason in `refused_by`.
+   `internal/netname`, outside the guarded trees since `internal/observe` may
+   not reach `net/netip`, holds the one spelling of a host and of a caller
+   address: names lowered, IPv6 as `net/netip` writes it, an IPv4-mapped
+   address as its IPv4 address. The importer writes hosts in it, and the
+   inventory refuses a host in any other spelling, naming the one to write.
 5. **A connection's identity is its content**: `obs-` and 32 hex digits of
    SHA-256 under the domain `observation-id:connection:1`, over the tenant,
    project, source, event time, host, port, method, status, both byte counts
    and the caller. A re-import of a grown or rotated file yields the same ids,
    and two connections alike in all of these are one duplicate. The codec
    holds a connection to one form: no trace, span or run, basis
-   `BASIS_NONE`, stage `STAGE_INDIRECT`, an event time, and this id.
+   `BASIS_NONE`, stage `STAGE_INDIRECT`, an event time, a listed method, a
+   status of 0 or 100 to 599, a caller of copyable text, of an address's
+   characters under an address basis, and this id. A record names its
+   source's kind in `source.kind`, empty for `otel-genai-traces`; a
+   connection comes from an egress source and only a connection does. A
+   source's liveness and doubt are read from reports of its kind alone, and a
+   log refuses a write of another kind under a source, tenant and project it
+   holds records of.
 6. **Trust.** An egress descriptor may declare `TRUST_INDEPENDENT`, unsigned.
    It is the operator's statement that the agent can write neither the log
    nor the descriptor. Under it `observe import` refuses an input the group or
@@ -82,19 +100,26 @@ trust is policy, and it must not move into an importer (invariant 7).
    authenticated), for a later join. `supervise` refuses, as an input error, a
    `--source` whose kind names no run, and one with no kind.
 8. **Coverage.** An egress path is observed when a live source it names holds
-   a connection to the name that source is given, ASCII letters lowered; the
-   port is not compared. The inventory refuses an egress host or source name
-   that is not a host, and `server_address` on an egress path's source. No
+   a connection to the name that source is given; the port is not compared.
+   The inventory refuses an egress host or source name that is not a host in
+   its one spelling, and `server_address` on an egress path's source. No
    plane decides egress, and every egress line says so. Each host an egress
    source observed that no egress path declares is a row after the declared
-   paths, sorted, at most 256, with one line counting the rest. Such a row, or
-   a cut, makes the exit 1.
+   paths, sorted by its bytes, at most 256, with one line counting the rest;
+   the line names no digest of the hosts cut. Each egress source whose own
+   import reports count a refused line is a row after those, with the count
+   by reason. Any of these rows, or a cut, makes the exit 1. An absent egress
+   descriptor whose log holds an egress source's records is refused, since
+   its hosts would go unprinted.
 
 ## Security / compatibility impact
 
 No language model and no plane reads any of it; the plane is unchanged. The
 independent claim is only as good as the deployment: nothing checks which
-account writes the proxy's log. A forged line can make a destination look
+account writes the proxy's log, and the check that an independent input is
+not writable by others reads its mode bits, not an access control list or
+its owner. The undeclared rows' cut follows the hosts' bytes, which an agent
+chooses, so it can push a host past the cut; the cut still exits 1. A forged line can make a destination look
 reached, and a deleted line makes one look unreached, which shows as not
 observed, never as covered.
 
@@ -130,13 +155,17 @@ conflict, since neither is part of the id.
 
 ## Consequences
 
-Backlog task B21 splits: B21a, the egress access log, is this record; B21b,
-process events from the host, is a second importer and its own checks, with
-no edit of `internal/observe` beyond a row of the table. Of B21's acceptance,
+Backlog task B21, the egress access log, is this record; B35, process events
+from the host, is a second importer and its own checks, with no edit of
+`internal/observe` beyond a row of the table. Of B21's acceptance,
 "an unattributed connection stays unknown" holds, and "attributed to a run as
 well as the proxy identifies its caller" does not: every connection is
 unattributed. `observe import` prints the total refused, not each reason; the
-import report in the log holds them.
+import report in the log holds them. Importing a log again refuses its bad
+lines again and writes another report counting them, so a log that ever held
+one exits 1 on every import, and keeps `coverage` at 1, until it is rotated.
+An input is read whole, up to 256 MiB, and its observations are held in
+memory until they are written.
 
 ## Validation
 
@@ -145,24 +174,36 @@ import report in the log holds them.
   `TestCheckNeutralOnTheOTelKind`, `TestTheDescriptorVersionFollowsItsMembers`.
 - `internal/observe/connection_test.go`: `TestTheCodecChecksAConnection`,
   `TestTheCodecChecksAConnectionsHost`, `TestConnectionIDIsPinned`,
-  `TestConnectionIDSeesEveryKeyField`,
+  `TestConnectionIDSeesEveryKeyField`, `TestAConnectionOnlyOnAConnection`,
   `TestARecordIsSchema03ExactlyWhenItCarriesAMemberOf03`,
   `TestTheEarlierGoldensAreUnchanged`.
 - `internal/ingest/kinds_test.go`: `TestEveryKindHasExactlyOneEntry`,
   `TestEachOwnedMemberIsCheckedByItsKind`,
   `TestIndependentTrustIsTheTablesRule`; `internal/ingest/reads_test.go`:
   `TestNoDescriptorIsReadOutsideTheEntryPoint`.
-- `internal/ingest/egresslog/`: `TestEnvoyFixture`, `TestSquidFixture`,
+- `internal/observe/liveness_test.go`, `doubt_test.go`: another kind's report
+  is not the source heard and puts none of its runs in doubt;
+  `internal/observelog/kind_unix_test.go`: `TestALogHoldsOneKindPerSource`;
+  `internal/netname/`: `TestHost`, `TestAuthority`, `TestAddress` and their
+  refusals, `TestHostIsAFixedPoint`.
+- `internal/ingest/egresslog/`: `TestEnvoyFixture`, `TestEnvoySNIFixture`,
+  `TestAnAuthorityIsSplit`, `TestAnAuthorityIsRefusedWhole`,
+  `TestAnAddressCallerIsAnAddress`, `TestSquidFixture`,
   `TestRefusals`, `TestKept`, `TestLineBound`, `TestNothingUnmappedIsCopied`,
   `TestEveryLineLandsInOneCount`, `TestReimportYieldsOnlyDuplicates`,
   `TestRotatedFile`, `TestInputForbidden`.
 - `internal/coverage/egress_test.go`: `TestAnEgressPathIsNeverDecidedByAPlane`,
-  `TestAToolObservationNeverObservesAnEgressPath`, `TestMixedCaseHostsMatch`,
-  `TestUndeclaredRowsAreSortedAndCut`, `TestACutAloneMakesTheExitOne`,
-  `TestReadInventoryHoldsEgressToHosts`.
+  `TestAToolObservationNeverObservesAnEgressPath`,
+  `TestTheInventoryTakesTheOneSpelling`, `TestUndeclaredRowsAreSortedAndCut`,
+  `TestACutAloneMakesTheExitOne`, `TestReadInventoryHoldsEgressToHosts`;
+  `internal/coverage/refused_test.go`: `TestRefusedLinesAreARowOfTheirOwn`,
+  `TestARefusedRowAddsTheSourcesOwnReports`,
+  `TestAnEgressReportNeverMakesAnotherKindLive`.
 - `internal/supervise/source_kind_test.go`:
   `TestASourceOfAKindThatNamesNoRunIsRefused`.
 - `cmd/guardana-control/observe_kinds_test.go`:
   `TestObserveImportRefusesAnIndependentInputOthersCanWrite`,
   `TestSuperviseRefusesASourceWhoseObservationsNameNoRun`,
-  `TestCoverageOfAnImportedEgressLog`.
+  `TestCoverageOfAnImportedEgressLog`,
+  `TestObserveImportRefusesAnotherKindUnderOneSource`,
+  `TestCoverageRefusesAnAbsentDescriptorOverConnections`.

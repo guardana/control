@@ -129,7 +129,8 @@ own, <code>egress_access_log</code>. It may not carry <code>convention</code>, <
  &#34;tenant_id&#34;: &#34;tenant-a&#34;, &#34;project_id&#34;: &#34;project-a&#34;,
  &#34;egress_access_log&#34;: {&#34;format&#34;: &#34;json-lines&#34;,
    &#34;fields&#34;: {&#34;time&#34;: &#34;start_time&#34;, &#34;time_format&#34;: &#34;TIME_FORMAT_RFC3339&#34;,
-              &#34;destination&#34;: &#34;server_name&#34;, &#34;port&#34;: &#34;upstream_remote_port&#34;}}}
+              &#34;destination&#34;: &#34;authority&#34;, &#34;destination_form&#34;: &#34;DESTINATION_FORM_AUTHORITY&#34;,
+              &#34;port&#34;: &#34;upstream_remote_port&#34;}}}
 </code></pre>
 <table>
 <thead>
@@ -156,6 +157,11 @@ own, <code>egress_access_log</code>. It may not carry <code>convention</code>, <
 <td><code>TIME_FORMAT_RFC3339</code>, <code>TIME_FORMAT_UNIX_SECONDS</code> or <code>TIME_FORMAT_UNIX_MILLISECONDS</code></td>
 </tr>
 <tr>
+<td><code>fields.destination_form</code></td>
+<td>yes</td>
+<td><code>DESTINATION_FORM_HOST</code>, a host alone, or <code>DESTINATION_FORM_AUTHORITY</code>, <code>host:port</code> or <code>[v6]:port</code> as a CONNECT request names its target</td>
+</tr>
+<tr>
 <td><code>fields.port</code>, <code>method</code>, <code>status</code>, <code>bytes_sent</code>, <code>bytes_received</code>, <code>caller</code></td>
 <td>no</td>
 <td>the member that holds each value</td>
@@ -172,6 +178,9 @@ names are distinct, at most 128 bytes (<code>MaxMemberNameBytes</code> in
 <code>internal/ingest/egresslog/descriptor.go</code>), and hold the text rules every
 descriptor string keeps. The caller's basis comes from the descriptor, never
 from the data.</p>
+<p>Invariant 9 rests on the mapping: the importer copies the members it names
+and no other. A mapping that names a path or a header member as <code>caller</code>
+copies that member, within the caller's rules below.</p>
 <h2 id="what-a-line-becomes">What a line becomes</h2>
 <table>
 <thead>
@@ -191,7 +200,7 @@ from the data.</p>
 </tr>
 <tr>
 <td><code>connection.port</code></td>
-<td>1 to 65535; absent or unset is 0, read as unknown</td>
+<td>1 to 65535: the port member's, or the authority's when that member is unset or not mapped; neither is 0, read as unknown</td>
 </tr>
 <tr>
 <td><code>connection.method</code></td>
@@ -207,7 +216,7 @@ from the data.</p>
 </tr>
 <tr>
 <td><code>connection.caller</code>, <code>caller_basis</code></td>
-<td>the caller as the proxy wrote it, at most 256 bytes (<code>observe.MaxTextBytes</code>), and the descriptor's basis; with no caller the basis is <code>CALLER_BASIS_NONE</code></td>
+<td>under <code>CALLER_BASIS_ADDRESS</code>, an IP address with or without a port, in its one spelling; under another basis, the caller as the proxy wrote it, at most 256 bytes (<code>observe.MaxTextBytes</code>); and the descriptor's basis. With no caller the basis is <code>CALLER_BASIS_NONE</code></td>
 </tr>
 <tr>
 <td><code>stage</code></td>
@@ -224,12 +233,17 @@ never with a sign, a fraction or an exponent. <code>null</code>, <code>&quot;&qu
 optional value is left empty and counts as nothing. An RFC 3339 time needs its
 zone. Unix seconds take at most nine fractional digits; Unix milliseconds take
 none.</p>
-<p>The host is lowercased. A name is held to labels of 1 to 63 letters, digits
-and hyphens, not starting or ending with a hyphen, at most 253 bytes in all
-(<code>observe.MaxHostBytes</code>), with no trailing dot. An A-label (<code>xn--</code>) is taken as
-written; a name in Unicode is refused, since this build carries no IDNA
-tables. An IPv4 address is a dotted quad; an IPv6 address is written in its
-canonical form, without brackets or a zone.</p>
+<p>A host has one spelling, <code>Host</code> in <code>internal/netname</code>, which the coverage
+inventory declares hosts in too. A name is lowercased and held to labels of 1
+to 63 letters, digits and hyphens, not starting or ending with a hyphen, at
+most 253 bytes in all (<code>observe.MaxHostBytes</code>), with no trailing dot. An
+A-label (<code>xn--</code>) is taken as written; a name in Unicode is refused, since this
+build carries no IDNA tables. An IPv4 address is a dotted quad; an IPv6
+address is written as <code>net/netip</code> writes it, without brackets or a zone, and
+one that maps an IPv4 address is that IPv4 address. A caller address is
+spelled the same way, <code>[v6]:port</code> with a port. Under the authority form, the
+port is required, so a forward proxy's plain HTTP request, whose authority is
+often the host alone, is refused as <code>destination</code>.</p>
 <h2 id="what-is-never-read">What is never read</h2>
 <p>A line is checked to be valid JSON, and only the mapped members are decoded;
 every other value is stepped over unread. A path, query, header, user agent or
@@ -237,7 +251,9 @@ body the proxy also logged is never copied unless the descriptor maps its
 member to one of the fields above (invariant 9). A destination that is a URL,
 or holds a port, a path, a query, a fragment, user information or whitespace, is
 refused whole and never parsed down to its host: mapping a URL member is the
-operator's mistake, and guessing the host from it would hide that.</p>
+operator's mistake, and guessing the host from it would hide that. Under the
+host form a port is refused too; under the authority form only a port is
+split off.</p>
 <h2 id="refusals-and-drops">Refusals and drops</h2>
 <p>A refused line becomes no observation. It is counted in <code>refused</code>, and under
 its reason in the report's <code>refused_by</code>. <code>observe import</code> prints <code>lines_read</code>
@@ -268,22 +284,32 @@ and the total refused, not each reason, and any refusal makes it exit 1.</p>
 </tr>
 <tr>
 <td><code>destination</code></td>
-<td>has no destination, or one that is not a host alone</td>
+<td>has no destination, or one that is not a host alone or an authority, as the form says</td>
 </tr>
 <tr>
 <td><code>port</code></td>
-<td>has a port that is not a number from 1 to 65535</td>
+<td>has a port that is not a number from 1 to 65535, or one its authority contradicts</td>
 </tr>
 </tbody>
 </table>
 <p>A malformed optional value, such as a method off the list, a status outside
 its range or a caller with a control character, is dropped and counted in
-<code>strings_dropped</code>, and the line is kept. Bytes after the last newline are not
+<code>strings_dropped</code>, and the line is kept. Under <code>CALLER_BASIS_ADDRESS</code> a caller
+that is not an IP address, such as a name or a path, is dropped and counted
+in <code>callers_dropped</code> instead. The log's codec holds the method, status and
+caller to these rules when it reads a connection back, and under an address
+basis the caller to the characters an address is written with. Bytes after the last newline are not
 a line: the proxy may still be writing them, so they are neither read nor
 refused, and the next import reads them.</p>
 <p>A refused line names no run, so the report sets <code>every_run_doubted</code>. That
 weighs on nothing: <code>supervise</code> refuses a source of this kind
-(<a href="/docs/reference/supervision">supervision</a>).</p>
+(<a href="/docs/reference/supervision">supervision</a>). <code>coverage</code> prints a row for every source
+whose reports count a refusal, and exits 1 (<a href="/docs/reference/coverage">coverage</a>).</p>
+<p>Importing a log again refuses its bad line again and writes another report
+counting it, so a log that ever held one exits 1 on every import, and keeps
+<code>coverage</code> at 1, until it is rotated. An input is read whole, up to 256 MiB,
+before a line is mapped, and the import holds every observation it made in
+memory until it writes them.</p>
 <h2 id="identity-and-the-log">Identity and the log</h2>
 <p>An observation's id is <code>obs-</code> and the first 32 hex digits of SHA-256 under
 the domain <code>observation-id:connection:1</code>, over the tenant, project, source,
@@ -292,15 +318,19 @@ prefixed by its length (<code>ConnectionID</code> in <code>internal/observe/conn
 Importing a file again, grown or rotated, writes only what is new; two
 connections alike in all of these are one duplicate. Trust and the caller's
 basis are not in the id, so a connection imported again after the descriptor
-changed either is a conflict. Every connection observation is record schema
-<code>0.3</code>, and so is a report with <code>refused_by</code>
-(<a href="/docs/reference/versions">versions</a>).</p>
+changed either is a conflict. Every record this kind writes is schema <code>0.3</code>
+and names the kind in <code>source.kind</code> (<a href="/docs/reference/versions">versions</a>). A log holds
+one kind per source: <code>observe import</code> refuses a write whose kind is not that
+of the records the log already holds for its source, tenant and project.</p>
 <h2 id="trust">Trust</h2>
 <p>This kind may declare <code>TRUST_INDEPENDENT</code> with an unsigned descriptor. It is
 the operator's statement that the agent can write neither the log nor the
 descriptor; nothing here checks which account writes either. Under it,
-<code>observe import</code> refuses an input the group or others can write, as it
-refuses such a descriptor under any trust. <code>coverage</code> prints the trust as
+<code>observe import</code> refuses an input whose mode bits let the group or others
+write it, as it refuses such a descriptor under any trust. The check reads
+the mode bits only, not an access control list, which can grant write to
+another account behind a mode of <code>0644</code>, and not which account owns the
+file. <code>coverage</code> prints the trust as
 <code>independent (unsigned descriptor)</code>.</p>
 <p>A forged line can make a destination look reached. A deleted line makes one
 look unreached, which shows as not observed, never as covered. A finding that

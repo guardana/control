@@ -60,7 +60,7 @@ func ids(b egresslog.Batch) []string {
 
 func TestReimportYieldsOnlyDuplicates(t *testing.T) {
 	l := testLog(t)
-	in := readTestdata(t, "envoy.jsonl")
+	in := readTestdata(t, "envoy-sni.jsonl")
 	first, w := write(t, l, in, received)
 	if w != (observelog.Written{Observations: 2}) {
 		t.Fatalf("first import: %+v", w)

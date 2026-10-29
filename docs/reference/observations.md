@@ -16,9 +16,9 @@ It is `experimental`; [status.md](../status.md) is the inventory.
 
 ## The source descriptor
 
-The operator's JSON file describing one source, read under the same owner
-checks as the stores. Every member is matched exactly; an unknown member, a
-member given twice or `null` is refused, naming the member. The `kind`
+The operator's JSON file describing one source, read under the stores'
+owner checks. Every member is matched exactly; an unknown member, a member
+given twice or `null` is refused by name. The `kind`
 decides its further members, and another kind's member is refused
 ([ADR-0069](../adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor.md)):
 
@@ -114,20 +114,22 @@ are read, or a 65th run sets `every_run_doubted` instead. A report that counts
 a refusal or a conflict and names no run, as a `0.1` report does, is read as
 doubting every run; [supervision](supervision.md#the-verdict) says what a
 doubted run leaves unchecked. A source's doubt is read from its own reports
-alone, those naming its source, tenant and project.
+alone, those naming its source, tenant, project and kind, as its liveness is.
 `supervise` refuses a `--source` whose tenant or project is not the run's,
 and one whose kind names no run.
 
-A record carrying a connection or `refused_by` is schema `0.3`, a report carrying either doubt member `0.2`, and any other
-`0.1`; the reader refuses a version its members do not call for. A reader
+`source.kind` names a record's kind, empty for `otel-genai-traces`; a log
+takes one kind per source.
+
+A record carrying a connection, `refused_by`, `callers_dropped` or a kind is
+`0.3`, a report carrying a doubt member `0.2`, any other `0.1`; the reader
+refuses a version its members do not call for. A reader
 whose table lacks a version, as 0.14's lacks `0.3`, refuses each such line.
 
-A doubt has no time bound: it holds while the log holds the report, and a
-doubt of every run reaches every later run of the source. Only rotating the
-log ends it: with no import running, move `observations.jsonl` out of its
-directory, and the next import starts a new file. The observations
-the old file held go with it; until that import, `supervise` finds the source
-never heard.
+A doubt has no time bound, and a doubt of every run reaches every later run
+of the source. Only rotating the log ends it: with no import running, move
+`observations.jsonl` out of its directory. Its observations go with it; until
+the next import starts a new file, `supervise` finds the source never heard.
 
 ## Commands
 

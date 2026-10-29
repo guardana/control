@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	egressDescriptorSHA256 = "9f3fe8b4270ab9c41a069cdd9bfc3949bc2376a8f41a1834a98cb61ae127a729"
+	egressDescriptorSHA256 = "96ee7d9625bf44c0df043605e7dd0de0635d607590a6ad025a2d56120d848b1d"
 	connectionID           = "obs-386c423085fb24ff6b2f087b626a9c03"
 )
 
@@ -24,6 +24,7 @@ func egressSource() *observev1.SourceRef {
 		SourceId:         "egress-proxy",
 		DescriptorSha256: egressDescriptorSHA256,
 		Trust:            observev1.Trust_TRUST_INDEPENDENT,
+		Kind:             observe.KindEgressAccessLog,
 	}
 }
 
@@ -228,10 +229,13 @@ func TestTheCodecChecksAConnection(t *testing.T) {
 		{"stage completed", func(o *observev1.Observation) { o.Stage = observev1.Stage_STAGE_COMPLETED }, "stage"},
 		{"stage unspecified", func(o *observev1.Observation) { o.Stage = 0 }, "stage"},
 		{"no event time", func(o *observev1.Observation) { o.EventTime = nil }, "event_time"},
-		{"no connection", func(o *observev1.Observation) { o.Connection = nil }, `schema_version: "0.3" on a record with no member of "0.3"`},
+		{"no connection", func(o *observev1.Observation) { o.Connection = nil }, "connection: required"},
 		{"no connection at 0.1", func(o *observev1.Observation) {
 			o.SchemaVersion, o.Connection = "0.1", nil
-		}, "connection: required"},
+		}, `source.kind: not a member of schema "0.1"`},
+		{"no source kind", func(o *observev1.Observation) { o.Source.Kind = "" }, `source.kind: a subject of kind SUBJECT_KIND_CONNECTION from a source of kind "otel-genai-traces"`},
+		{"the OpenTelemetry kind spelled", func(o *observev1.Observation) { o.Source.Kind = observe.KindOTelGenAI }, `source.kind: "otel-genai-traces" is spelled empty`},
+		{"a kind this build does not read", func(o *observev1.Observation) { o.Source.Kind = "process-events" }, "source.kind: \"process-events\" is not a kind"},
 		{"the id of a span", func(o *observev1.Observation) {
 			o.ObservationId = observe.ObservationID("tenant-a", "project-a", "egress-proxy", "", "")
 		}, "observation_id"},
@@ -252,6 +256,32 @@ func TestTheCodecChecksAConnection(t *testing.T) {
 			o.Connection.Caller, o.Connection.CallerBasis = "", 0
 		}, ""},
 		{"nothing but the host", func(o *observev1.Observation) { o.Connection = &observev1.Connection{} }, ""},
+		{"a method no connection keeps", func(o *observev1.Observation) { o.Connection.Method = "EVIL" }, `connection.method: "EVIL"`},
+		{"a method in lower case", func(o *observev1.Observation) { o.Connection.Method = "get" }, "connection.method"},
+		{"the last method of the list", func(o *observev1.Observation) { o.Connection.Method = "TRACE" }, ""},
+		{"status 99", func(o *observev1.Observation) { o.Connection.HttpStatus = 99 }, "connection.http_status: 99"},
+		{"status 100", func(o *observev1.Observation) { o.Connection.HttpStatus = 100 }, ""},
+		{"status 599", func(o *observev1.Observation) { o.Connection.HttpStatus = 599 }, ""},
+		{"status 600", func(o *observev1.Observation) { o.Connection.HttpStatus = 600 }, "connection.http_status: 600"},
+		{"status 999", func(o *observev1.Observation) { o.Connection.HttpStatus = 999 }, "connection.http_status: 999"},
+		{"a caller with a bidi override", func(o *observev1.Observation) {
+			o.Connection.Caller, o.Connection.CallerBasis = "alice\u202e", observev1.CallerBasis_CALLER_BASIS_AUTHENTICATED
+		}, "connection.caller: not text"},
+		{"a caller of whitespace", func(o *observev1.Observation) {
+			o.Connection.Caller, o.Connection.CallerBasis = " ", observev1.CallerBasis_CALLER_BASIS_NONE
+		}, "connection.caller: not text"},
+		{"a caller at the text bound", func(o *observev1.Observation) {
+			o.Connection.Caller, o.Connection.CallerBasis = strings.Repeat("a", observe.MaxTextBytes), observev1.CallerBasis_CALLER_BASIS_AUTHENTICATED
+		}, ""},
+		{"a caller past the text bound", func(o *observev1.Observation) {
+			o.Connection.Caller, o.Connection.CallerBasis = strings.Repeat("a", observe.MaxTextBytes+1), observev1.CallerBasis_CALLER_BASIS_AUTHENTICATED
+		}, "connection.caller: not text"},
+		{"a path as an address", func(o *observev1.Observation) { o.Connection.Caller = "path?token=x" }, `connection.caller: "path?token=x" is not an address`},
+		{"a name as an address", func(o *observev1.Observation) { o.Connection.Caller = "workload.example" }, "connection.caller"},
+		{"an address with a port", func(o *observev1.Observation) { o.Connection.Caller = "[2001:db8::7]:50123" }, ""},
+		{"a path from an authenticated caller", func(o *observev1.Observation) {
+			o.Connection.Caller, o.Connection.CallerBasis = "path?token=x", observev1.CallerBasis_CALLER_BASIS_AUTHENTICATED
+		}, ""},
 	} {
 		o := fixtureConnection()
 		c.edit(o)
@@ -307,7 +337,7 @@ func TestAConnectionOnlyOnAConnection(t *testing.T) {
 	}
 	tool := fixtureConnection()
 	tool.Subject.Kind = observev1.SubjectKind_SUBJECT_KIND_TOOL
-	checkBothWays(t, "a connection's line as a tool", obsRecord(tool), "connection: set on a subject of kind")
+	checkBothWays(t, "a connection's line as a tool", obsRecord(tool), `source.kind: a subject of kind SUBJECT_KIND_TOOL from a source of kind "egress-access-log"`)
 }
 
 // TestARecordIsSchema03ExactlyWhenItCarriesAMemberOf03, in both directions
@@ -323,9 +353,21 @@ func TestARecordIsSchema03ExactlyWhenItCarriesAMemberOf03(t *testing.T) {
 		o.SchemaVersion = version
 		return obsRecord(o)
 	}
+	// A report with no source kind, so that refused_by alone decides.
 	report := func(version string, every bool, by map[string]uint64) *observev1.Record {
 		r := fixtureRefusals()
-		r.SchemaVersion, r.EveryRunDoubted, r.Counts.RefusedBy = version, every, by
+		r.SchemaVersion, r.EveryRunDoubted, r.Counts.RefusedBy, r.Source.Kind = version, every, by, ""
+		return reportRecord(r)
+	}
+	kind := func(version string) *observev1.Record {
+		r := fixtureRefusals()
+		r.SchemaVersion, r.Counts.Refused, r.Counts.RefusedBy = version, 0, nil
+		return reportRecord(r)
+	}
+	callers := func(version string) *observev1.Record {
+		r := fixtureRefusals()
+		r.SchemaVersion, r.Source.Kind, r.Counts.CallersDropped = version, "", 1
+		r.Counts.Refused, r.Counts.RefusedBy = 0, nil
 		return reportRecord(r)
 	}
 	by := map[string]uint64{"destination": 1, "time": 1}
@@ -346,6 +388,11 @@ func TestARecordIsSchema03ExactlyWhenItCarriesAMemberOf03(t *testing.T) {
 		"a doubt and no reasons at 0.2":     {report("0.2", true, nil), ""},
 		"neither at 0.3":                    {report("0.3", false, nil), `schema_version: "0.3" on a record with no member of "0.3"`},
 		"an empty map of reasons at 0.3":    {report("0.3", false, map[string]uint64{}), `schema_version: "0.3" on a record with no member of "0.3"`},
+		"a source kind alone at 0.3":        {kind("0.3"), ""},
+		"a source kind alone at 0.2":        {kind("0.2"), `source.kind: not a member of schema "0.2"`},
+		"a source kind alone at 0.1":        {kind("0.1"), `source.kind: not a member of schema "0.1"`},
+		"callers dropped at 0.3":            {callers("0.3"), ""},
+		"callers dropped at 0.2":            {callers("0.2"), `counts.callers_dropped: not a member of schema "0.2"`},
 	} {
 		checkBothWays(t, name, c.r, c.member)
 	}
