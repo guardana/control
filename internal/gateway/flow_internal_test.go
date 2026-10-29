@@ -90,7 +90,7 @@ func randomCall(rng *rand.Rand, i int) (*controlv1.ActionEnvelope, flow) {
 		SchemaVersion: "1.0", RequestId: "req-" + strconv.Itoa(i), ProjectId: "proj-1", TenantId: "tenant-1", Environment: "prod",
 		OccurredAt: timestamppb.New(internalClock().Add(-time.Minute)),
 		Principal:  &controlv1.Principal{Id: "user-1", TenantId: "tenant-1"},
-		Action:     &controlv1.Action{Kind: channel.KindTool, Name: "op", Effect: effects[rng.IntN(len(effects))], Provider: "p", Protocol: "internal"},
+		Action:     &controlv1.Action{Kind: channel.KindTool, Name: "op", Effect: effects[rng.IntN(len(effects))], Provider: "p", Protocol: channel.ProtocolMCP},
 		Resource:   &controlv1.Resource{Type: "t", Id: "r", TenantId: "tenant-1", Environment: "prod"},
 		Context:    &controlv1.RunContext{Tags: []string{"mcp.client=x/1"}},
 	}

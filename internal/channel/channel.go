@@ -43,11 +43,24 @@ func KnownKind(kind string) bool {
 // StrengthOf is the strength of the protocol named, byte for byte. The empty
 // name and any protocol this build does not know are StrengthNone.
 func StrengthOf(protocol string) Strength {
+	s, _ := protocolOf(protocol)
+	return s
+}
+
+// KnownProtocol reports whether protocol is one of the protocols above, byte
+// for byte.
+func KnownProtocol(protocol string) bool {
+	_, known := protocolOf(protocol)
+	return known
+}
+
+// protocolOf is the one table of protocols and their strengths.
+func protocolOf(protocol string) (Strength, bool) {
 	switch protocol {
 	case ProtocolMCP:
-		return StrengthInline
+		return StrengthInline, true
 	case ProtocolEnforce:
-		return StrengthCooperative
+		return StrengthCooperative, true
 	}
-	return StrengthNone
+	return StrengthNone, false
 }

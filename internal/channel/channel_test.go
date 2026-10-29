@@ -52,3 +52,21 @@ func TestTheZeroStrengthIsNone(t *testing.T) {
 		t.Error("the strengths are not ordered None < Cooperative < Inline")
 	}
 }
+
+func TestKnownProtocolIsTheTableByteForByte(t *testing.T) {
+	for protocol, want := range map[string]bool{
+		"mcp":      true,
+		"enforce":  true,
+		"":         false,
+		"MCP":      false,
+		"mcp ":     false,
+		"Enforce":  false,
+		"a2a":      false,
+		"fake":     false,
+		"enforce/": false,
+	} {
+		if got := channel.KnownProtocol(protocol); got != want {
+			t.Errorf("KnownProtocol(%q) = %v, want %v", protocol, got, want)
+		}
+	}
+}

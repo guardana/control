@@ -79,7 +79,7 @@ func verdictOf(causes []cause) controlv1.Verdict {
 // clock as it takes them now.
 func (p *Pipeline) newCall(ctx context.Context, a Admission) *call {
 	c := &call{p: p, ctx: ctx, in: a}
-	c.refuseVocabulary()
+	c.checkTranslation()
 	c.takeStates()
 	return c
 }

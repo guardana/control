@@ -211,7 +211,7 @@ func TestARefusedCallReadsTheRunItsPrincipalHas(t *testing.T) {
 // nothing classifies, so that call has a run, and what it returns counts for
 // the next call of the run.
 func TestAnUnclassifiedCallObserveRunsTaintsItsRun(t *testing.T) {
-	h := build(t, modeObserve, snapshot(t, allowReads, allowWrites), observer)
+	h := build(t, modeObserve, snapshot(t, allowReads, allowWrites))
 	a := unclassified([]byte(`{}`))
 	a.Envelope.RequestId = "u-1"
 	if d := h.admitA(a); d.Action != core.Execute {

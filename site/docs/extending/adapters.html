@@ -206,12 +206,17 @@ Anything else is refused as <code>INVALID_FIELD_VALUE</code>.</li>
 on a chain of single wraps, says nothing classifies the call: <code>OBSERVE</code> runs
 it and every other mode blocks it with <code>ACTION_UNCLASSIFIED</code>. Any other
 refusal, a join that holds <code>ErrUnclassified</code> among others included, is
-blocked in <code>OBSERVE</code> too, with the kernel's code for it.
-<code>adapterkit.Unclassified</code> builds the refusal from the adapter's own
-validation of the envelope without joining the two.</li>
-<li><code>ResourceFrom</code> is the pointer the resource id was read at. Bytes a rewrite
-changed so that the member there names another resource are a <code>DENY</code> with
-<code>OBLIGATION_NOT_UNDERSTOOD</code>, and are never handed out.</li>
+blocked in <code>OBSERVE</code> too, with the kernel's code for it.</li>
+<li>The pipeline holds that claim to the envelope: no effect class,
+<code>contract.ValidateUnclassified</code> passes, and any <code>canonical_hash</code> names the
+arguments; otherwise the call is refused with the kernel's code for the
+fault. <code>adapterkit.Unclassified</code> builds the refusal from the adapter's own
+validation without joining the two.</li>
+<li><code>ResourceFrom</code> is the RFC 6901 pointer the resource id was read at; another
+spelling is refused. Bytes a rewrite changed so that the member there names
+another resource are a <code>DENY</code> with <code>OBLIGATION_NOT_UNDERSTOOD</code>, and are
+never handed out. An adapter that reads the resource id from the arguments
+must set it, or no rewrite is held to the resource.</li>
 </ul>
 <p>An adapter that has an execution open closes or aborts it. An execution left
 open holds one of the plane's <code>MaxOpen</code> slots until the adapter abandons it or
@@ -236,7 +241,7 @@ expired.</p>
 </tr>
 <tr>
 <td><code>Enforcement</code></td>
-<td>How far the adapter keeps a call from its effect: <code>None</code> (the zero value) cannot; <code>Cooperative</code> hands the decision to a caller that enforces it, so the plane decides and records and nothing proves the caller obeyed; <code>Inline</code> holds the path to the effect, as the MCP adapter holds the upstream connection. <code>APPROVE</code>, <code>ENFORCE</code> and <code>LOCKDOWN</code> need at least <code>Cooperative</code>, and a value outside the three is refused at start</td>
+<td>How far the adapter keeps a call from its effect: <code>None</code> (the zero value) cannot; <code>Cooperative</code> hands the decision to a caller that enforces it, so the plane decides and records and nothing proves the caller obeyed; <code>Inline</code> holds the path to the effect, as the MCP adapter holds the upstream connection. <code>APPROVE</code>, <code>ENFORCE</code> and <code>LOCKDOWN</code> need at least <code>Cooperative</code>, and any value but the adapter's protocol's strength is refused at start</td>
 </tr>
 <tr>
 <td><code>Authenticates</code></td>
@@ -276,7 +281,9 @@ before anything runs: a transport it does not serve, an identity that claims
 what only a credential may say, two upstreams with one name, an incomplete
 classification.</li>
 <li><strong>Build the plane.</strong> <code>gateway.New</code> takes the adapter, reads its capabilities, checks them against the mode and builds the kernel with the applicable
-obligations derived from them.</li>
+obligations derived from them. It refuses an adapter whose <code>Name()</code> is not
+a protocol <code>internal/channel</code> lists, or whose <code>Enforcement</code> is not that
+protocol's strength; a new adapter adds both there.</li>
 <li><strong>Start.</strong> The adapter connects what it talks to and reads what it needs to
 classify calls. An upstream it cannot reach fails the start rather than
 serving without it.</li>
@@ -389,10 +396,11 @@ the gateway's name, a result larger than its bound, a call that cannot be routed
 <h2 id="a-minimal-adapter">A minimal adapter</h2>
 <pre><code class="language-go">type Echo struct{}
 
-func (Echo) Name() string { return &#34;echo&#34; }
+// &#34;echo&#34;, listed in internal/channel as StrengthInline.
+func (Echo) Name() string { return channel.ProtocolEcho }
 
 func (Echo) Capabilities() gateway.Capabilities {
-    return gateway.Capabilities{ObserveRequest: true, ObserveResult: true, Enforcement: gateway.EnforcementInline}
+    return gateway.Capabilities{ObserveRequest: true, ObserveResult: true, Enforcement: channel.StrengthOf(channel.ProtocolEcho)}
 }
 
 func (e Echo) Handle(ctx context.Context, p *gateway.Pipeline, in Request) Response {

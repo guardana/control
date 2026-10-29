@@ -24,6 +24,13 @@ unsafe side by leaving one out:
 - An adapter that built an envelope the contract refuses, and reported no
   refusal, was decided `INDETERMINATE` by the kernel and handed out by
   `OBSERVE` all the same.
+- An adapter that reported nothing but "unclassified" was believed. The
+  kernel stops at a refusal handed in, so it never ran `Validate` or the
+  arguments hash check on that envelope, and `OBSERVE` handed out a missing
+  principal, a string past its bound, an unanchored delegation chain or a
+  hash naming other bytes. `Validate` itself could not be asked about such an
+  envelope: it stops at the missing effect class before the values it checks
+  after it.
 - The action kinds and protocol names were string literals in each adapter
   and each reader. A pause scope compared the kind byte for byte, so `Tool`
   or `function` slipped past a tool-scoped pause.
@@ -46,8 +53,32 @@ the end of a chain of single wraps. A node that wraps several errors joins
 another cause, and the call is refused for that cause. A node's `Is` method
 is not consulted. `translationOf` is the one place this is read: the mode,
 the pause and the run's flow all take it from there.
+
+**The pipeline checks every unclassified claim itself.** Before anything
+reads the call, in `Admit`, in `Preview` and on a retry alike, a claim that
+nothing but the classification is missing stands only when the envelope's
+effect class is unspecified, `contract.ValidateUnclassified` passes, and a
+`canonical_hash`, when present, is `canon.ArgumentsHashV1` of the arguments,
+as the kernel's step 2 holds a classified call. Otherwise the claim is
+replaced by the refusal it earns, which the kernel codes by its sentinel as
+it codes any refusal handed in (`UNSUPPORTED_SCHEMA`, `REQUIRED_FIELD_ABSENT`,
+`LIMIT_EXCEEDED`, `INVALID_FIELD_VALUE`), and `OBSERVE` blocks the call as any
+other refused translation. A set effect class under the claim is
+`INVALID_FIELD_VALUE` on `action.effect`. No adapter has to opt into this.
+
 `adapterkit.Unclassified` builds an adapter's refusal from its own validation
-of the envelope and never joins the two.
+of the envelope and never joins the two. A cause it is handed that does not
+carry `ErrUnclassified` comes back as it is, so the call is refused for it.
+
+**`pkg/contract` gains `ValidateUnclassified`.** It applies every rule of
+`Validate` in the same order, from one implementation, except the effect
+class's presence and `EffectRequires`: the size, the schema version, unknown
+fields and enum numbers, the fields every envelope needs, and the values
+(the delegation chain, the host, the labels, the hash's form and a preview
+with no profile). It is an addition to the public surface because the rule
+belongs to the contract: a second copy of `Validate`'s checks in the gateway
+would drift from the first. `Validate`'s result for every envelope is
+unchanged, so the goldens and the conformance vectors do not move.
 
 The kernel's outcome carries `RefusedInput`, which is set where the decision
 stops on the request itself: the refusal handed in, `Validate`'s refusal of
@@ -59,7 +90,7 @@ undetermined rule or a tenant named on one side, leave it unset, and
 
 **One vocabulary, in a leaf package.** `internal/channel` holds the action
 kinds (`tool`, `prompt`, `resource`), the protocol names (`mcp`, `enforce`),
-`KnownKind` and `Strength`. The pipeline refuses an envelope whose kind is
+`KnownKind`, `KnownProtocol` and `Strength`. The pipeline refuses an envelope whose kind is
 outside that list, or whose protocol is not its adapter's `Name()`, as
 `INVALID_FIELD_VALUE` on `action.kind` or `action.protocol`. In `Admit` and
 `Preview` that refusal replaces an unclassified-only one, so `OBSERVE` cannot
@@ -75,17 +106,32 @@ gateway's `Enforcement` is an alias of it, and each adapter declares
 `StrengthOf(Name())`. Coverage reads a plane's strength from its listener's
 protocol through `gatewayconfig.ProtocolOf`, and the run view reads it from
 the protocol recorded on the call. Only `Inline` can be enforced.
+`gateway.New` refuses an adapter whose `Name()` is not one of
+`internal/channel`'s protocols (`ErrProtocol`), and one whose declared
+`Enforcement` is not `StrengthOf(Name())` (`ErrStrength`), so the mode gate
+and the cooperative close read the strength coverage and the run view read.
+A new adapter adds its protocol and strength to `internal/channel`. No
+protocol of this build is `None`, so no adapter of that strength starts.
 
 **The moved-resource check is the pipeline's.** `Admission.ResourceFrom`
 carries the pointer the classification read the resource id at. Bytes whose
 member there no longer names the resource the call was decided on are a DENY
 of the plane's own, `OBLIGATION_NOT_UNDERSTOOD`, before anything is handed
-out, for every adapter. The adapters' own aborts are gone.
+out, for every adapter. The adapters' own aborts are gone. A pointer that is
+not RFC 6901, checked by `classify.CheckPointer`, would read another member
+or none, so the call is refused as `INVALID_FIELD_VALUE` in every mode. The
+pipeline cannot tell where an id came from: an adapter that reads the
+resource id from the arguments and leaves `ResourceFrom` empty holds no
+rewrite to the resource.
 
 ## Security / compatibility impact
 
 No wire field and no evidence field changes. Only `OBSERVE` changes for a
-refused translation. Over MCP, the block now carries the kernel's code
+refused translation, an unclassified claim the envelope does not bear out
+included. `pkg/contract` gains one function and `Validate` does not change.
+`gateway.New` refuses an adapter named after no protocol of this build, or
+declaring another strength than its protocol's; both built-in adapters
+declare their protocol's. Over MCP, the block now carries the kernel's code
 instead of `MALFORMED_INPUT` with the refusal's text. Over the enforcement
 API, `BLOCK` no longer appends `INVALID_FIELD_VALUE`. Such calls now count as
 blocked, not executed.
@@ -108,6 +154,12 @@ view. Any MCP or enforcement API trail reads as before.
   pipeline, to tell a refused input.** A verdict never derives from a code,
   and a second copy of the check can drift from the first. The kernel states
   the fact where it takes it.
+- **Have the kernel validate an envelope under a handed-in unclassified
+  refusal.** The kernel would have to read the gateway's sentinel, which it
+  does not import. The contract states the rule once, and the pipeline, which
+  reads the claim, applies it.
+- **Leave the claim to `adapterkit.Unclassified`.** An adapter opts into it,
+  so one that does not still runs.
 - **Record a strength on each event.** That is a new field on a v1 event,
   frozen at 1.0. The protocol a call recorded is vouched for by the
   vocabulary refusal, so the table is read instead.
@@ -117,7 +169,8 @@ view. Any MCP or enforcement API trail reads as before.
 ## Consequences
 
 An adapter needs no refusal check of its own. Its worked example in
-`docs/extending/adapters.md` was already right. `internal/channel` is a tree
+`docs/extending/adapters.md` names its protocol and strength from
+`internal/channel`. `internal/channel` is a tree
 the guarded trees reach, so it is held to the dependency rule.
 
 A run is still minted, before the kernel decides, for a call the adapter
@@ -127,23 +180,42 @@ and the run holds nothing it took in.
 ## Validation
 
 - `internal/gateway/translation_test.go`: a property test over every mode
-  `New` starts and seventeen refusal shapes, among them
+  `New` starts and twenty-seven refusal shapes, among them
   `errors.Join(contract.ErrTooLarge, ErrUnclassified)`,
-  `fmt.Errorf("%w: %w", ErrUnclassified, ErrInvalidValue)` and envelopes
-  `Validate` refuses with no refusal reported. No refused shape is handed
-  out or recorded as started. The same file checks that `OBSERVE` writes the
-  trail `ENFORCE` writes, and that a refused translation mints no run.
+  `fmt.Errorf("%w: %w", ErrUnclassified, ErrInvalidValue)`, envelopes
+  `Validate` refuses with no refusal reported, and an unclassified claim over
+  schema version `9.0`, an empty `principal.id`, an `action.name` past its
+  bound, a hop that does not start at the principal, a hash of other bytes, a
+  hash beside arguments canon refuses, a preview with no profile and a set
+  effect class. No refused shape is handed
+  out or recorded as started; a tenant named on one side, and a hash of the
+  arguments, still run under `OBSERVE`.
+  `TestAnUnclassifiedClaimIsHeldToTheContract` checks each refused claim's
+  code in `Admit` and `Preview` and that no raw content reaches the trail. The
+  same file checks that `OBSERVE` writes the trail `ENFORCE` writes, and that
+  a refused translation mints no run.
+- `pkg/contract/unclassified_test.go`: over generated envelopes with an
+  effect class and what it requires, `ValidateUnclassified` and `Validate`
+  agree; every rule `Validate` checks after the effect refuses an envelope
+  with no effect that breaks it alone.
+- `internal/gateway/pipeline_test.go` and `mode_test.go`: `New` refuses an
+  unknown, an empty and a differently spelled name, and each protocol at
+  another strength.
+- `internal/adapterkit/unclassified_test.go`: a cause without the sentinel
+  comes back as it is.
 - `internal/gateway/translation_internal_test.go`: the `unclassifiedOnly`
   and `translationOf` tables, and `FuzzUnclassifiedOnly`, with its seeds in
   `testdata/fuzz/`.
 - `internal/core/refused_input_test.go`: `RefusedInput` is set on every
   refusal of steps 1 and 2 and on no other `INDETERMINATE`.
-- `internal/gateway/vocabulary_test.go`: an unknown kind and a foreign
-  protocol are refused under `OBSERVE` and `ENFORCE`, in `Admit` and
-  `Preview`, and a rewrite that moves the resource is a plane DENY.
+- `internal/gateway/vocabulary_test.go`: an unknown kind, a foreign
+  protocol and a resource pointer that is not RFC 6901 are refused under
+  `OBSERVE` and `ENFORCE`, in `Admit` and `Preview`, and a rewrite that moves
+  the resource is a plane DENY.
 - `internal/gateway/resource_internal_test.go`: the moved-resource table and
   `FuzzSameResource`.
-- Per adapter: `TestRefusedTranslationIsNeverSent` and
+- Per adapter: `TestRefusedTranslationIsNeverSent`,
+  `TestAnOverlongClientNameIsNotSent` and
   `TestARewriteThatMovesTheResourceIsNotSent` in `adapters/mcp`, and
   `TestAnUntranslatedCallIsHandedOutInNoMode` and
   `TestARewriteThatMovesTheResourceIsBlocked` in `adapters/enforce`.

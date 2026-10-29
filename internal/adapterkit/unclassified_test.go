@@ -57,11 +57,20 @@ func TestUnclassifiedNeverJoinsTheTwoCauses(t *testing.T) {
 	}
 }
 
-func TestUnclassifiedWrapsAWhyThatLacksTheSentinel(t *testing.T) {
-	for _, why := range []error{nil, errors.New("two upstreams list it"), errors.Join(errors.New("a"), errors.New("b"))} {
+// TestUnclassifiedRefusesAWhyThatLacksTheSentinel: a cause that does not say
+// nothing classifies the call is returned as it is, and the pipeline refuses
+// the call for it; only no cause at all is the bare sentinel.
+func TestUnclassifiedRefusesAWhyThatLacksTheSentinel(t *testing.T) {
+	for _, why := range []error{errors.New("two upstreams list it"), errors.Join(errors.New("a"), errors.New("b")), contract.ErrTooLarge} {
 		got := adapterkit.Unclassified(nil, why)
-		if !errors.Is(got, gateway.ErrUnclassified) || !singleChain(got) {
-			t.Errorf("Unclassified(nil, %v) = %v, want ErrUnclassified on a single chain", why, got)
+		if got != why { //nolint:errorlint // identity: the very value handed in
+			t.Errorf("Unclassified(nil, %v) = %v, want the cause itself", why, got)
 		}
+		if errors.Is(got, gateway.ErrUnclassified) {
+			t.Errorf("Unclassified(nil, %v) = %v, which claims nothing classifies the call", why, got)
+		}
+	}
+	if got := adapterkit.Unclassified(nil, nil); got != gateway.ErrUnclassified { //nolint:errorlint // identity: the sentinel itself
+		t.Errorf("Unclassified(nil, nil) = %v, want ErrUnclassified", got)
 	}
 }

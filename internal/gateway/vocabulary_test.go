@@ -27,8 +27,8 @@ func TestAnEnvelopeOutsideTheVocabularyIsRefused(t *testing.T) {
 		"a kind with a trailing space": {kind: "tool ", protocol: testProtocol},
 		"no kind":                      {kind: "", protocol: testProtocol},
 		"a kind of another vocabulary": {kind: "function", protocol: testProtocol},
-		"another adapter's protocol":   {kind: "tool", protocol: "mcp"},
-		"a capitalised protocol":       {kind: "tool", protocol: "FAKE"},
+		"another adapter's protocol":   {kind: "tool", protocol: "enforce"},
+		"a capitalised protocol":       {kind: "tool", protocol: "MCP"},
 		"no protocol":                  {kind: "tool", protocol: ""},
 		"unclassified, a foreign kind": {kind: "function", protocol: testProtocol, refusal: unclassified},
 		"unclassified, a foreign protocol": {
@@ -122,5 +122,55 @@ func TestRewrittenBytesMustNameTheDecidedResource(t *testing.T) {
 				t.Errorf("trail = %v, want %v", h.kinds(), want)
 			}
 		})
+	}
+}
+
+// TestAMalformedResourcePointerIsRefused: a pointer that is not RFC 6901 would
+// be read as some other member, or as none, and hold no rewrite to the
+// resource, so the call is refused in every mode, in Admit and in Preview,
+// whole or unclassified; a well-formed one, and none, run.
+func TestAMalformedResourcePointerIsRefused(t *testing.T) {
+	unclassified := fmt.Errorf("%w: no entry names it", gateway.ErrUnclassified)
+	for name, c := range map[string]struct {
+		pointer string
+		refused bool
+	}{
+		"a pointer without its leading slash": {"amount", true},
+		"a tilde that escapes nothing":        {"/am~ount", true},
+		"a well-formed pointer":               {"/currency", false},
+		"no pointer":                          {"", false},
+	} {
+		for _, mode := range []controlv1.EnforcementMode{modeObserve, modeEnforce} {
+			for _, refusal := range []error{nil, unclassified} {
+				if refusal != nil && mode != modeObserve {
+					continue
+				}
+				t.Run(fmt.Sprintf("%s/%s/unclassified %v", mode, name, refusal != nil), func(t *testing.T) {
+					h := build(t, mode, snapshot(t, cappedRefunds))
+					args := refundArgs()
+					env := refundEnvelope(t, args)
+					env.Resource.Id = "EUR"
+					if refusal != nil {
+						env.Action.Effect = controlv1.EffectClass_EFFECT_CLASS_UNSPECIFIED
+					}
+					a := admission(env, args)
+					a.Refusal, a.ResourceFrom = refusal, c.pointer
+					d := h.p.Admit(context.Background(), a)
+					if !c.refused {
+						if d.Action != core.Execute && d.Action != core.ExecuteWithObligations {
+							t.Errorf("Action = %d %v, want it run", d.Action, d.Decision.GetReasonCodes())
+						}
+						return
+					}
+					expectBlock(t, d, verdictIndeterminate, codeInvalidFieldValue, kernelPDP)
+					if slices.Contains(h.kinds(), kindStarted) {
+						t.Errorf("a call with a malformed pointer was recorded as started: %v", h.kinds())
+					}
+					if p := h.p.Preview(context.Background(), a); p.GetVerdict() != verdictIndeterminate {
+						t.Errorf("Preview = %s %v, want the refusal's INDETERMINATE", p.GetVerdict(), p.GetReasonCodes())
+					}
+				})
+			}
+		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/channel"
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/gateway"
 )
@@ -76,15 +77,36 @@ func TestNewRefusesEachMisconfiguration(t *testing.T) {
 			c.Mode = modeObserve
 			c.Adapter = fakeAdapter{name: "blind"}
 		}, gateway.ErrCapability},
+		{"an adapter named after no protocol", func(c *gateway.Config) {
+			c.Adapter = fakeAdapter{name: "echo", caps: enforcing}
+		}, gateway.ErrProtocol},
+		{"an adapter with no name", func(c *gateway.Config) {
+			c.Adapter = fakeAdapter{name: "", caps: enforcing}
+		}, gateway.ErrProtocol},
+		{"a protocol spelled another way", func(c *gateway.Config) {
+			c.Adapter = fakeAdapter{name: "MCP", caps: enforcing}
+		}, gateway.ErrProtocol},
+		{"the cooperative protocol declared inline", func(c *gateway.Config) {
+			c.Adapter = fakeAdapter{name: channel.ProtocolEnforce, caps: enforcing}
+		}, gateway.ErrStrength},
+		{"the inline protocol declared cooperative", func(c *gateway.Config) {
+			caps := enforcing
+			caps.Enforcement = gateway.EnforcementCooperative
+			c.Adapter = fakeAdapter{name: channel.ProtocolMCP, caps: caps}
+		}, gateway.ErrStrength},
+		{"an adapter that enforces nothing under OBSERVE", func(c *gateway.Config) {
+			c.Mode = modeObserve
+			c.Adapter = fakeAdapter{name: testProtocol, caps: observing}
+		}, gateway.ErrStrength},
 		{"an obligation outside the catalogue", func(c *gateway.Config) {
 			caps := enforcing
 			caps.Obligations = []string{"redact_fields", "teleport"}
-			c.Adapter = fakeAdapter{name: "fake", caps: caps}
+			c.Adapter = fakeAdapter{name: testProtocol, caps: caps}
 		}, gateway.ErrObligation},
 		{"an end-user binding on an adapter that authenticates nobody", func(c *gateway.Config) {
 			caps := enforcing
 			caps.BindEndUser = true
-			c.Adapter = fakeAdapter{name: "fake", caps: caps}
+			c.Adapter = fakeAdapter{name: testProtocol, caps: caps}
 		}, gateway.ErrUnauthenticatedBinding},
 		{"a staleness budget the kernel refuses", func(c *gateway.Config) { c.KernelOptions.MaxStale = 0 }, core.ErrMaxStale},
 		{"nil policy", func(c *gateway.Config) { c.Policy = nil }, gateway.ErrNoPolicy},
@@ -155,15 +177,18 @@ func TestEveryCoversClauseIsHeldAtItsEdge(t *testing.T) {
 	}
 }
 
-// TestNewAcceptsWhatTheModeNeeds: the same adapter runs under OBSERVE without
-// Block and under the blocking modes with it, a declared obligation in the
+// TestNewAcceptsWhatTheModeNeeds: the cooperative protocol's adapter runs
+// under OBSERVE and under every blocking mode, a declared obligation in the
 // catalogue passes, and an adapter that authenticates may bind an end user.
 func TestNewAcceptsWhatTheModeNeeds(t *testing.T) {
-	cfg := validConfig(t)
-	cfg.Mode = modeObserve
-	cfg.Adapter = fakeAdapter{name: testProtocol, caps: gateway.Capabilities{ObserveRequest: true, ObserveResult: true}}
-	if _, err := gateway.New(cfg); err != nil {
-		t.Errorf("New under OBSERVE with an observing adapter: %v", err)
+	var cfg gateway.Config
+	for _, mode := range allModes {
+		cfg = validConfig(t)
+		cfg.Mode = mode
+		cfg.Adapter = fakeAdapter{name: channel.ProtocolEnforce, caps: gateway.Capabilities{ObserveRequest: true, ObserveResult: true, Enforcement: gateway.EnforcementCooperative}}
+		if _, err := gateway.New(cfg); err != nil {
+			t.Errorf("New under %s with the cooperative protocol's adapter: %v", mode, err)
+		}
 	}
 	// The kernel's mode and applicable set are the pipeline's to fix: a caller
 	// cannot put the kernel in another mode or hand it an obligation type.
@@ -177,7 +202,7 @@ func TestNewAcceptsWhatTheModeNeeds(t *testing.T) {
 	caps := enforcing
 	caps.Obligations = []string{"redact_fields"}
 	caps.Authenticates, caps.BindEndUser = true, true
-	cfg.Adapter = fakeAdapter{name: "fake", caps: caps}
+	cfg.Adapter = fakeAdapter{name: testProtocol, caps: caps}
 	for _, mode := range []controlv1.EnforcementMode{modeApprove, modeEnforce, modeLockdown} {
 		cfg.Mode = mode
 		if _, err := gateway.New(cfg); err != nil {

@@ -456,7 +456,7 @@ func TestADecisionPointCannotChangeWhatIsRecorded(t *testing.T) {
 // INDETERMINATE decision that names the cause.
 func TestObserveRunsASilentCallWithItsDecisionRecorded(t *testing.T) {
 	dp := &fakeDecisionPoint{answer: core.ExternalUnavailable()}
-	h := build(t, modeObserve, snapshot(t, allowWrites, vetoWrites), withDecisionPoint(dp), observer)
+	h := build(t, modeObserve, snapshot(t, allowWrites, vetoWrites), withDecisionPoint(dp))
 	d := h.admit(writeEnvelope(), []byte(`{"k":1}`))
 	if d.Action != core.Execute {
 		t.Fatalf("an unanswered write under OBSERVE: Action = %d", d.Action)

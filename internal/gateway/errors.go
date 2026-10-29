@@ -20,6 +20,14 @@ const (
 	// declare: the plane refuses to start rather than observe while the
 	// operator believes it enforces.
 	ErrCapability Error = "gateway: the adapter lacks a capability the mode needs"
+	// ErrProtocol is an adapter whose name is not a protocol of
+	// internal/channel: the name is the one protocol its envelopes may name,
+	// and the table its strength is read from.
+	ErrProtocol Error = "gateway: the adapter's name is not a protocol this build knows"
+	// ErrStrength is an adapter that declares another enforcement than its
+	// protocol's: coverage and the run view read the protocol's, so the plane
+	// would gate its modes on one strength and report another.
+	ErrStrength Error = "gateway: the adapter declares another enforcement than its protocol's"
 	// ErrObligation is a declared obligation type outside the catalogue.
 	ErrObligation Error = "gateway: a declared obligation type is not in the catalogue"
 	// ErrUnauthenticatedBinding is an adapter that binds an end user on a

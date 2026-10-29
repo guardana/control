@@ -11,6 +11,12 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- `pkg/contract.ValidateUnclassified`: every rule of `Validate` but the
+  effect class's presence and what a class requires, for an envelope nothing
+  classified. `Validate` does not change ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+
 ### Changed
 
 - Under `OBSERVE`, a call the adapter could not translate, for anything but
@@ -23,6 +29,9 @@ verify one.
   `tool`, `prompt` or `resource`, or whose protocol is not its adapter's, as
   `INVALID_FIELD_VALUE`. The kinds, the protocol names and each protocol's
   enforcement strength are one list in `internal/channel` ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+  It also refuses a resource pointer an adapter hands in that is not RFC 6901,
+  and at start an adapter whose name is not one of those protocols, or whose
+  declared enforcement is not its protocol's.
 - A rewrite that moves the member a tool's `resource_from` reads is now a DENY
   of the gateway's own, `OBLIGATION_NOT_UNDERSTOOD`, before anything is handed
   out, for both adapters, in place of an aborted execution that ended
@@ -71,6 +80,13 @@ verify one.
 - `OBSERVE` handed out a call whose envelope the contract refuses when the
   adapter reported no refusal; the kernel's refusal of the request now blocks
   it whatever the adapter said ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- `OBSERVE` handed out a call the adapter said only nothing classifies, though
+  its envelope set an effect class, broke a rule of the contract, such as a
+  missing principal, a string past its bound or an unanchored delegation
+  chain, or carried a hash of other bytes: the kernel stops at a refusal
+  handed in and checked none of it. The gateway now holds every such claim to
+  `ValidateUnclassified` and the arguments hash and blocks the call with the
+  kernel's code for what is wrong ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
 - A pause entry scoped to an action kind let a call through whose kind was
   spelled outside the plane's list, such as `Tool` or `function`; such a kind
   now matches every action scope, as an absent one does

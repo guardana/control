@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -80,8 +81,9 @@ const (
 )
 
 // testProtocol is the fake adapter's name, which every test envelope names
-// as its protocol.
-const testProtocol = "fake"
+// as its protocol: New takes an adapter only under a protocol the plane
+// knows, at that protocol's strength.
+const testProtocol = channel.ProtocolMCP
 
 type fakeAdapter struct {
 	name string
@@ -230,6 +232,8 @@ type harness struct {
 	ids    *atomic.Int64
 	// run is the opened run admit sends every call under; nil sends none.
 	run *gateway.OpenedRun
+	// protocol is the name of the adapter the plane was built over.
+	protocol string
 }
 
 func newIDs(n *atomic.Int64) func() string {
@@ -243,7 +247,7 @@ func validConfig(t *testing.T) gateway.Config {
 	var n atomic.Int64
 	return gateway.Config{
 		Mode:          modeEnforce,
-		Adapter:       fakeAdapter{name: "fake", caps: enforcing},
+		Adapter:       fakeAdapter{name: testProtocol, caps: enforcing},
 		KernelOptions: core.Options{MaxStale: time.Minute},
 		Policy:        &snapshotSource{},
 		Pause:         gateway.PauseDisabled(),
@@ -275,7 +279,7 @@ func build(t *testing.T, mode controlv1.EnforcementMode, snap *policy.Snapshot, 
 	caps.Obligations = []string{"cap_rate"}
 	cfg := gateway.Config{
 		Mode:          mode,
-		Adapter:       fakeAdapter{name: "fake", caps: caps},
+		Adapter:       fakeAdapter{name: testProtocol, caps: caps},
 		KernelOptions: core.Options{MaxStale: 10 * time.Minute},
 		Policy:        h.policy,
 		Pause:         h.pause,
@@ -297,14 +301,26 @@ func build(t *testing.T, mode controlv1.EnforcementMode, snap *policy.Snapshot, 
 	if err != nil {
 		t.Fatalf("New refused a configuration this test builds as valid: %v", err)
 	}
-	h.p = p
+	h.p, h.protocol = p, cfg.Adapter.Name()
 	return h
 }
 
 func (h *harness) admit(env *controlv1.ActionEnvelope, args []byte) gateway.Disposition {
 	a := admission(env, args)
 	a.Run = h.run
-	return h.p.Admit(context.Background(), a)
+	return h.p.Admit(context.Background(), h.onPlane(a))
+}
+
+// onPlane is a as the plane's own adapter hands it in: the envelopes these
+// helpers build name testProtocol, and a plane built over another protocol
+// takes them under its own. Any other protocol stays as the test wrote it.
+func (h *harness) onPlane(a gateway.Admission) gateway.Admission {
+	if h.protocol == testProtocol || a.Envelope.GetAction().GetProtocol() != testProtocol {
+		return a
+	}
+	a.Envelope = proto.CloneOf(a.Envelope)
+	a.Envelope.Action.Protocol = h.protocol
+	return a
 }
 
 func admission(env *controlv1.ActionEnvelope, args []byte) gateway.Admission {

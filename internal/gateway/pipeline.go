@@ -206,7 +206,7 @@ func (p *Pipeline) Preview(ctx context.Context, a Admission) *controlv1.Decision
 		p: p, ctx: ctx, in: withArguments(a), now: p.cfg.Clock(),
 		pause: pause.DisabledSnapshot(), stops: reaction.DisabledSnapshot(),
 	}
-	c.refuseVocabulary()
+	c.checkTranslation()
 	c.refuseFlowTags()
 	c.stampFlow()
 	c.causes = planeCauses(c.planeState())

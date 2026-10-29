@@ -182,6 +182,27 @@ func TestAnOverlongNameStaysOffTheTrail(t *testing.T) {
 	expectOffTheTrail(t, got[len(got)-1].a, "an overlong client name")
 }
 
+// TestAnOverlongClientNameIsNotSent: on the real pipeline, a call from a
+// client that names itself past the contract's bound is blocked as too large
+// in OBSERVE as in ENFORCE, and the upstream is never called.
+func TestAnOverlongClientNameIsNotSent(t *testing.T) {
+	for _, mode := range []controlv1.EnforcementMode{modeObserve, modeEnforce} {
+		t.Run(mode.String(), func(t *testing.T) {
+			r := newRig(t, mcp.KindStdio, rigOptions{mode: mode, rules: []string{allowEverything}})
+			res, err := callTool(t, r.connect(t, strings.Repeat("c", evidence.MaxLineBytes)), "read_file", map[string]any{"path": "/x"})
+			if err != nil || !res.IsError {
+				t.Fatalf("a call from an overlong client name: %v %+v", err, res)
+			}
+			if got := codesOf(t, res); !slices.Equal(got, []string{"LIMIT_EXCEEDED"}) {
+				t.Errorf("the block names %v, want the kernel's LIMIT_EXCEEDED alone", got)
+			}
+			if n := r.victim.count("read_file"); n != 0 {
+				t.Errorf("the victim ran read_file %d time(s) for an overlong client name", n)
+			}
+		})
+	}
+}
+
 // expectOffTheTrail asserts a is refused as too large and carries an envelope
 // a trail line holds.
 func expectOffTheTrail(t *testing.T, a gateway.Admission, what string) {

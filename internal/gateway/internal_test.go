@@ -37,7 +37,7 @@ func internalClock() time.Time {
 
 type internalAdapter struct{}
 
-func (internalAdapter) Name() string { return "internal" }
+func (internalAdapter) Name() string { return channel.ProtocolMCP }
 
 func (internalAdapter) Capabilities() Capabilities {
 	return Capabilities{ObserveRequest: true, ObserveResult: true, Enforcement: EnforcementInline}
@@ -105,7 +105,7 @@ func refundCall(t *testing.T, p *Pipeline, snap *policy.Snapshot, authorized []b
 		Context:       &controlv1.RunContext{RunId: "run-1"},
 		Principal:     &controlv1.Principal{Id: "user-1", TenantId: "tenant-1"},
 		Agent:         &controlv1.Agent{Id: "agent-1"},
-		Action:        &controlv1.Action{Kind: channel.KindTool, Name: "refund", Effect: controlv1.EffectClass_EFFECT_CLASS_TRANSACT, Provider: "payments", Protocol: "internal"},
+		Action:        &controlv1.Action{Kind: channel.KindTool, Name: "refund", Effect: controlv1.EffectClass_EFFECT_CLASS_TRANSACT, Provider: "payments", Protocol: channel.ProtocolMCP},
 		Resource:      &controlv1.Resource{Type: "order", Id: "ord-1", TenantId: "tenant-1", Environment: "prod"},
 		Arguments:     &controlv1.Arguments{CanonicalHash: hash},
 	}
