@@ -55,9 +55,8 @@ or project or a parent chain that misses the root; every member is judged, and
 the tree is closed when every member is. `separate` takes any opened run and
 lists its children, not judged. Plane events count when their run is judged
 and their tenant the run's; one of another project refuses the input. Observations count when their correlation is
-claimed, with such a run id, tenant and project; another tenant's
-`--source` is refused, and another project's once an event of the run is
-read. Only a tool call is a step, never a
+claimed, with such a run id, tenant and project; a `--source` of another
+tenant or project than the run's is refused. Only a tool call is a step, never a
 prompt or resource read. An observation joined to a plane event by trace
 and span id is that call; a join cut short leaves
 `STEP_OUTSIDE_PROCEDURE` and `DENIED_ACTION_RETRIED_AROUND` not checked,

@@ -204,6 +204,15 @@ func (r *read) takeObservations(sources []Source) {
 	r.counts.ObservationsTaken = uint64(len(r.obs))
 }
 
+// projectOf is the run's project: the one its events name, or with none read
+// the one its record names.
+func (r *read) projectOf() string {
+	if r.project == "" {
+		return r.recorded
+	}
+	return r.project
+}
+
 // observationOutside says why o is not a tool observation of a run read.
 // The subject is judged last, so an observation outside only by it is the
 // run's.
@@ -220,7 +229,7 @@ func (r *read) observationOutside(o *observev1.Observation, src *Source) string 
 		return outAnotherRun
 	case o.GetTenantId() != r.tenant:
 		return outAnotherTenant
-	case o.GetProjectId() != r.project:
+	case o.GetProjectId() != r.projectOf():
 		return outAnotherProject
 	case o.GetSubject().GetKind() != observev1.SubjectKind_SUBJECT_KIND_TOOL:
 		return outNotTool

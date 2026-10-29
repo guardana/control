@@ -53,7 +53,8 @@ Every reader of a run holds it to its project, as it holds it to its tenant:
 Resolving a child's token returns the root its record names without reading
 the root's record, for the project as for the tenant. A run's state only
 rises, so a record planted under another project's root can raise that
-root's state, never lower it. Whoever can plant that record can also rewrite
+root's state, never lower the root's; the planted run itself reads the
+root's state, whatever it is. Whoever can plant that record can also rewrite
 the root's record, so a second read on every call would bind nothing such a
 writer could not undo. The readers that judge a task as a whole, the tree
 reads above, refuse such a member.
@@ -62,7 +63,8 @@ reads above, refuse such a member.
 
 A token can no longer cross projects. The marker binds no project, so write
 access to a shared runs directory is the authority to open a run for every
-project that shares it. Every run opened by an earlier release
+project that shares it, and every plane serving that directory holds it,
+since a plane writes the state of the roots it serves. Every run opened by an earlier release
 stops resolving on upgrade, and its agents need new tokens. A stdio plane given
 such a token refuses to start. A plane that serves runs over HTTP answers 401
 `unreadable` on each call until the token is replaced.
