@@ -60,6 +60,19 @@ verify one.
 
 ### Changed
 
+- **Breaking:** a run belongs to one project. A run record is `2.0` and
+  carries `project_id`, `runs open` needs `--project` and refuses a parent of
+  another project, and `runs list` prints `project_id`. A plane resolves a
+  token only under its own `project_id`, so a token of another project's run
+  gets 401 even on a shared runs directory and listener identity. A run
+  tree refuses a member of another project, `supervise` refuses evidence of
+  another project than the run's record, `react` never stops a run for a
+  finding of another project, and `doctor` lists a stop of another project's
+  run as unheld. A `1.0` record names no project and is refused: open each
+  live run again in a new, empty directory, under a new task, since a
+  reopened run starts with a clean flow state
+  ([runs.md](docs/reference/runs.md#runs-an-earlier-release-opened),
+  [ADR-0068](docs/adr/0068-a-run-belongs-to-one-project.md)).
 - The coverage inventory refuses an egress `host`, or an egress path's
   source `name`, that is not a host in the one spelling a connection's host
   is written in, and names that spelling: `https://x/` and a non-ASCII letter
