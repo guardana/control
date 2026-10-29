@@ -148,18 +148,7 @@ func undeclaredLines(rows []UndeclaredDestination, cut int) []string {
 }
 
 func undeclaredSource(u UndeclaredSource) string {
-	s := trustName(u.Trust) + sampledWord(u.Sampled) + ", "
-	when := heardAt(u.LastHeard, u.HeartbeatSeconds)
-	switch u.Liveness {
-	case observe.NeverHeard:
-		s += "never heard"
-	case observe.Lapsed:
-		s += "past its heartbeat: " + when
-	case observe.Ahead:
-		s += when + ": after now, so the clocks disagree"
-	default:
-		s += when
-	}
+	s := trustName(u.Trust) + sampledWord(u.Sampled) + ", " + livenessText(u.Liveness, u.LastHeard, u.HeartbeatSeconds)
 	noun := "connections"
 	if u.Connections == 1 {
 		noun = "connection"

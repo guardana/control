@@ -139,7 +139,8 @@ func TestTheInventoryTakesTheOneSpelling(t *testing.T) {
 }
 
 // TestALapsedSourcesOldConnectionIsStillUndeclared: the path the source is
-// named on is unknown, and a host no path declares is still a row.
+// named on is unknown, a host no path declares is still a row, and so is the
+// lapsed source.
 func TestALapsedSourcesOldConnectionIsStillUndeclared(t *testing.T) {
 	src := egressSource("e1", independent, time.Hour, conn("e1", "a.example", 443), conn("e1", "b.example", 80),
 		conn("e1", "b.example", 0), conn("e1", "b.example", 80))
@@ -152,6 +153,8 @@ func TestALapsedSourcesOldConnectionIsStillUndeclared(t *testing.T) {
 		"  source e1: unknown: past its heartbeat: last heard 2026-10-05T11:00:00Z, heartbeat 300 s",
 		"undeclared egress b.example: observed by e1: independent (unsigned descriptor), past its heartbeat: " +
 			"last heard 2026-10-05T11:00:00Z, heartbeat 300 s; 3 connections, ports unknown, 80; no plane decides egress",
+		"unseen egress by e1: past its heartbeat: last heard 2026-10-05T11:00:00Z, heartbeat 300 s; " +
+			"connections since its last import are unseen; no plane decides egress",
 		"undeclared paths: unknown",
 	}
 	if got := r.Lines(); joined(got) != joined(want) {
@@ -213,7 +216,7 @@ func TestUndeclaredRowsNameEverySourceAndTheirTrust(t *testing.T) {
 	want := "undeclared egress x.example: observed by e1: independent (unsigned descriptor), last heard 2026-10-05T11:59:50Z, " +
 		"heartbeat 300 s; 1 connection, port 443; by e2: self_reported, sampled, last heard 2026-10-05T11:59:50Z, heartbeat 300 s; " +
 		"1 connection, port 8443; by e3: platform, never heard; 1 connection, port 443; no plane decides egress"
-	if got := r.Lines(); len(got) < 2 || got[len(got)-2] != want {
+	if got := r.Lines(); len(got) < 3 || got[len(got)-3] != want {
 		t.Errorf("lines:\n%s\nwant the row:\n%s", joined(got), want)
 	}
 }

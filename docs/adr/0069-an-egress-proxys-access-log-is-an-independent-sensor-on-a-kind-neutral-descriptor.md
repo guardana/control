@@ -112,9 +112,13 @@ trust is policy, and it must not move into an importer (invariant 7).
    paths, sorted by its bytes, at most 256, with one line counting the rest;
    the line names no digest of the hosts cut. Each egress source whose own
    import reports count a refused line is a row after those, with the count
-   by reason. Any of these rows, or a cut, makes the exit 1. An absent egress
-   descriptor whose log holds an egress source's records is refused, since
-   its hosts would go unprinted.
+   by reason. Each egress source given that is not live is a row after
+   those, whether a path names it or not, since the connections since its
+   last import are unseen. Any of these rows, or a cut, makes the exit 1. An
+   absent egress descriptor whose log holds an egress source's records is
+   refused, since its hosts would go unprinted, and so is a log whose egress
+   records no egress descriptor given with that directory names, whatever
+   kind or id the descriptor given with it has.
 
 ## Security / compatibility impact
 
@@ -204,7 +208,9 @@ memory until they are written.
   `TestACutAloneMakesTheExitOne`, `TestReadInventoryHoldsEgressToHosts`;
   `internal/coverage/refused_test.go`: `TestRefusedLinesAreARowOfTheirOwn`,
   `TestARefusedRowAddsTheSourcesOwnReports`,
-  `TestAnEgressReportNeverMakesAnotherKindLive`.
+  `TestAnEgressReportNeverMakesAnotherKindLive`;
+  `internal/coverage/unseen_test.go`: `TestAnEgressSourceNotLiveIsARow`,
+  `TestAnEgressPathKeepsItsStateBesideTheUnseenRow`.
 - `internal/supervise/source_kind_test.go`:
   `TestASourceOfAKindThatNamesNoRunIsRefused`.
 - `cmd/guardana-control/observe_kinds_test.go`:
@@ -212,4 +218,8 @@ memory until they are written.
   `TestSuperviseRefusesASourceWhoseObservationsNameNoRun`,
   `TestCoverageOfAnImportedEgressLog`,
   `TestObserveImportRefusesAnotherKindUnderOneSource`,
-  `TestCoverageRefusesAnAbsentDescriptorOverConnections`.
+  `TestCoverageRefusesAnAbsentDescriptorOverConnections`;
+  `cmd/guardana-control/coverage_egress_test.go`:
+  `TestCoverageRefusesEgressRecordsNoGivenDescriptorNames`,
+  `TestCoverageRefusesALogSharedWithEgressRecords`,
+  `TestCoverageRowsAnEgressSourceNotLive`.

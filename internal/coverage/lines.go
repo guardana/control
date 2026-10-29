@@ -8,7 +8,8 @@ import (
 // Lines prints the map: per path its line, then its plane, source and join
 // lines indented beside it, then a row per undeclared egress host and a line
 // counting those cut, then a row per egress source whose import refused a
-// line, and last the standing row for undeclared paths.
+// line, then a row per egress source that is not live, and last the standing
+// row for undeclared paths.
 func (r *Report) Lines() []string {
 	var out []string
 	for _, p := range r.Paths {
@@ -30,6 +31,7 @@ func (r *Report) Lines() []string {
 	}
 	out = append(out, undeclaredLines(r.Undeclared, r.UndeclaredCut)...)
 	out = append(out, refusedLines(r.Refused)...)
+	out = append(out, unseenLines(r.Unseen)...)
 	return append(out, UndeclaredRow)
 }
 

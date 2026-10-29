@@ -153,11 +153,12 @@ It is <code>experimental</code>.</p>
 </tr>
 </tbody>
 </table>
-<p>A descriptor that is absent turns its paths not covered, never observed,
-unless its log holds an egress source's records: that is refused, since the
-hosts they reached would go unprinted. A log directory without a log is a
-source never heard. Any other input that cannot
-be read or does not parse is refused.</p>
+<p>A descriptor that is absent turns its paths not covered, never observed. A
+log holding an egress source's records is refused unless its egress
+descriptor is given with the same directory, as one absent, of another kind
+or renamed is not; its hosts would go unprinted, and the pairing is the
+operator's to fix. A log directory without a log is never heard. Any other
+input that cannot be read or does not parse is refused.</p>
 <h2 id="the-inventory">The inventory</h2>
 <p>A strict JSON document: an unknown member, a repeated member or an empty list
 of paths is refused.</p>
@@ -278,8 +279,8 @@ for its source, which cuts its walk too;</li>
 <h2 id="output-and-exit-status">Output and exit status</h2>
 <p>One line per declared path, its state and what it rests on, then indented
 lines for each plane, each source and the joins; then a row per undeclared
-egress host, a row per egress source whose import refused a line, and last
-the line <code>undeclared paths: unknown</code>.</p>
+egress host, a row per egress source whose import refused a line, a row per
+egress source that is not live, and last the line <code>undeclared paths: unknown</code>.</p>
 <p>An undeclared egress host is one an egress source given with <code>--source</code>
 connected to, in its own records, live or not, when no egress path declares
 it: no path has it as <code>host</code>, and no path naming that source gives it as
@@ -304,6 +305,10 @@ and a count of the rest:</p>
 <p>Each report counts what its own import refused, so a line two imports of
 the same file refused counts twice; the row stays until the observation log
 is rotated by hand.</p>
+<p>An egress source not live gets an unseen row, named by a path or not; a
+path naming it stays unknown:</p>
+<pre><code>unseen egress by egress-envoy: past its heartbeat: last heard 2026-10-04T10:00:01Z, heartbeat 300 s; connections since its last import are unseen; no plane decides egress
+</code></pre>
 <p>The check that an independent input is not writable by others reads mode
 bits only, not an access control list or the file's owner
 (<a href="/docs/reference/egress-access-log#trust">egress access log</a>).</p>
@@ -321,7 +326,7 @@ bits only, not an access control list or the file's owner
 </tr>
 <tr>
 <td>1</td>
-<td>a path is unknown or not covered; a call around the plane or a cut walk was found, since an agent chooses its spans and can cut a walk on purpose; an egress source reached a host no path declares, its row printed or cut; or an egress import refused a line</td>
+<td>a path is unknown or not covered; a call around the plane or a cut walk was found, since an agent chooses its spans and can cut a walk on purpose; an egress source reached a host no path declares, its row printed or cut; an egress import refused a line; or an egress source is not live</td>
 </tr>
 <tr>
 <td>2</td>

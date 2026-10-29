@@ -78,7 +78,7 @@ func coverageFlags(command string, out io.Writer) (*flag.FlagSet, *coverageArgs)
 	flags.Var(&a.inventory, "inventory", "the inventory of declared paths, a JSON `file` of this account that no other account may write; given once")
 	flags.Var(&a.planes, "plane", "a plane's configuration `file`, read without this shell's environment; repeatable")
 	flags.Var(&a.sources, "source", "a source descriptor `file`, paired in order with --log; one that does not exist covers nothing, "+
-		"and is refused when its log holds an egress source's records; repeatable")
+		"and one is refused when its log holds an egress source's records that no egress --source given with that log names; repeatable")
 	flags.Var(&a.logs, "log", "the observation log `dir` of the --source in the same place; one with no log yet was never heard; repeatable")
 	flags.Var(&planeEvidence{a}, "evidence", "the evidence `export` of the --plane before it, as the gateway's trail export wrote it, "+
 		"to join observations with; at most one per plane")
@@ -92,13 +92,15 @@ func coverageFlagSet(command string, out io.Writer) *flag.FlagSet {
 
 // coverageCommand prints, for each declared path, what covers it and on what
 // basis, then a row for each egress host a source observed and no path
-// declares, a row for each egress source whose import refused a line, and the
-// standing row for undeclared paths. It exits 0 when every declared path is
-// at least observed, no call went around a plane, no egress host is
-// undeclared and no egress line was refused; 1 when a path is weaker, a call
-// did, a walk down a trace was cut at its bound, an egress host is
-// undeclared, printed or cut from the rows, or an egress line was refused;
-// and 2 when an input was refused, with no map printed.
+// declares, a row for each egress source whose import refused a line, then
+// a row for each egress source that is not live, and the standing row for
+// undeclared paths. It exits 0 when every declared path is at least observed,
+// no call went around a plane, no egress host is undeclared, no egress line
+// was refused and every egress source is live; 1 when a path is weaker, a
+// call did, a walk down a trace was cut at its bound, an egress host is
+// undeclared, printed or cut from the rows, an egress line was refused or an
+// egress source is not live; and 2 when an input was refused, with no map
+// printed.
 func coverageCommand(args []string, stdout, stderr io.Writer) int {
 	flags, a := coverageFlags(coverageName, io.Discard)
 	err := flags.Parse(args)
@@ -149,18 +151,70 @@ func readCoverageInput(a *coverageArgs) (coverage.Input, error) {
 		}
 		in.Planes = append(in.Planes, p)
 	}
+	var given []givenLog
 	for i := range a.sources {
 		src, present, err := readSource(a.sources[i], a.logs[i])
 		if err != nil {
 			return in, err
 		}
-		if present {
-			in.Sources = append(in.Sources, src)
-		} else {
+		if !present {
 			in.AbsentDescriptors = append(in.AbsentDescriptors, a.sources[i])
+			continue
+		}
+		dir, err := os.Stat(a.logs[i])
+		if err != nil {
+			return in, refusedInput("log", a.logs[i], err)
+		}
+		in.Sources = append(in.Sources, src)
+		given = append(given, givenLog{descriptor: a.sources[i], dir: dir, source: src})
+	}
+	return in, egressClaimed(given)
+}
+
+// givenLog is a present --source and the --log directory read with it.
+type givenLog struct {
+	descriptor string
+	dir        fs.FileInfo
+	source     coverage.Source
+}
+
+// egressKey names the source an egress-kind record is of; ok is false for a
+// record of another kind.
+type egressKey struct{ tenant, project, source string }
+
+func egressRecordKey(r *observev1.Record) (egressKey, bool) {
+	if o := r.GetObservation(); o != nil {
+		return egressKey{o.GetTenantId(), o.GetProjectId(), o.GetSource().GetSourceId()}, observe.RecordKind(o.GetSource()) == observe.KindEgressAccessLog
+	}
+	rep := r.GetImportReport()
+	return egressKey{rep.GetTenantId(), rep.GetProjectId(), rep.GetSource().GetSourceId()}, observe.RecordKind(rep.GetSource()) == observe.KindEgressAccessLog
+}
+
+// egressClaimed refuses a --source whose log holds an egress source's
+// records that no egress descriptor given with the same directory names: a
+// descriptor replaced by another kind or renamed, or another source's log
+// shared with it, would leave the hosts they reached and the lines refused
+// out of the map, as an absent descriptor would. It is a refusal rather than
+// a row, since the pairing of descriptors and logs is the operator's to fix.
+func egressClaimed(given []givenLog) error {
+	for _, l := range given {
+		claimed := map[egressKey]bool{}
+		for _, other := range given {
+			d := other.source.Descriptor
+			if d.GetKind() == observe.KindEgressAccessLog && os.SameFile(l.dir, other.dir) {
+				claimed[egressKey{d.GetTenantId(), d.GetProjectId(), d.GetSourceId()}] = true
+			}
+		}
+		for _, r := range l.source.Records {
+			if k, egress := egressRecordKey(r); egress && !claimed[k] {
+				return refusedInput("source", l.descriptor, fmt.Errorf("its log holds records of kind %q of source %s, tenant %s, project %s, "+
+					"that no egress --source given with that --log names, whose hosts and refused lines the map would not show; "+
+					"give that source's descriptor with the same --log, or leave out the --source and its --log",
+					observe.KindEgressAccessLog, strconv.Quote(k.source), strconv.Quote(k.tenant), strconv.Quote(k.project)))
+			}
 		}
 	}
-	return in, nil
+	return nil
 }
 
 func refusedInput(flagName, path string, err error) error {
@@ -265,13 +319,10 @@ func absentSource(descriptor, logDir string) error {
 		return err
 	}
 	for _, r := range records {
-		src := r.GetObservation().GetSource()
-		if src == nil {
-			src = r.GetImportReport().GetSource()
-		}
-		if kind := observe.RecordKind(src); kind == observe.KindEgressAccessLog {
+		if _, egress := egressRecordKey(r); egress {
 			return refusedInput("source", descriptor, fmt.Errorf("absent, and its log holds records of kind %q, "+
-				"whose hosts and refused lines the map would not show; restore its descriptor, or leave out the --source and its --log", kind))
+				"whose hosts and refused lines the map would not show; restore its descriptor, or leave out the --source and its --log",
+				observe.KindEgressAccessLog))
 		}
 	}
 	return nil

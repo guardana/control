@@ -117,14 +117,20 @@ its range or a caller with a control character, is dropped and counted in
 that is not an IP address, such as a name or a path, is dropped and counted
 in `callers_dropped` instead. The log's codec holds the method, status and
 caller to these rules when it reads a connection back, and under an address
-basis the caller to the characters an address is written with. Bytes after the last newline are not
+basis the caller to the characters an address is written with, not to an
+address: `cafe` or `[[::` reads back from a log another writer wrote. Only the
+importer reads a caller as an address, since the codec's tree may not import
+`net/netip`. Bytes after the last newline are not
 a line: the proxy may still be writing them, so they are neither read nor
 refused, and the next import reads them.
 
 A refused line names no run, so the report sets `every_run_doubted`. That
 weighs on nothing: `supervise` refuses a source of this kind
 ([supervision](supervision.md)). `coverage` prints a row for every source
-whose reports count a refusal, and exits 1 ([coverage](coverage.md)).
+whose reports count a refusal, and one for every source given that is not
+live, and exits 1 on either. It refuses a log holding this kind's records
+that no descriptor of this kind given with that log names
+([coverage](coverage.md)).
 
 Importing a log again refuses its bad line again and writes another report
 counting it, so a log that ever held one exits 1 on every import, and keeps

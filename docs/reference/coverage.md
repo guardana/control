@@ -30,11 +30,12 @@ on a read-only mount excepted; read without this shell's environment |
 | `--source`, `--log` | a source descriptor and its observation log's directory, paired in order ([observations](observations.md)) |
 | `--evidence` | the evidence export of the `--plane` before it, as `guardana-gateway trail export` writes it ([contracts](../contracts.md#the-evidence-export)); at most one per plane, refused when another account or a group can write it |
 
-A descriptor that is absent turns its paths not covered, never observed,
-unless its log holds an egress source's records: that is refused, since the
-hosts they reached would go unprinted. A log directory without a log is a
-source never heard. Any other input that cannot
-be read or does not parse is refused.
+A descriptor that is absent turns its paths not covered, never observed. A
+log holding an egress source's records is refused unless its egress
+descriptor is given with the same directory, as one absent, of another kind
+or renamed is not; its hosts would go unprinted, and the pairing is the
+operator's to fix. A log directory without a log is never heard. Any other
+input that cannot be read or does not parse is refused.
 
 ## The inventory
 
@@ -129,8 +130,8 @@ printed as not checked, with the reason, when:
 
 One line per declared path, its state and what it rests on, then indented
 lines for each plane, each source and the joins; then a row per undeclared
-egress host, a row per egress source whose import refused a line, and last
-the line `undeclared paths: unknown`.
+egress host, a row per egress source whose import refused a line, a row per
+egress source that is not live, and last the line `undeclared paths: unknown`.
 
 An undeclared egress host is one an egress source given with `--source`
 connected to, in its own records, live or not, when no egress path declares
@@ -164,6 +165,13 @@ Each report counts what its own import refused, so a line two imports of
 the same file refused counts twice; the row stays until the observation log
 is rotated by hand.
 
+An egress source not live gets an unseen row, named by a path or not; a
+path naming it stays unknown:
+
+```
+unseen egress by egress-envoy: past its heartbeat: last heard 2026-10-04T10:00:01Z, heartbeat 300 s; connections since its last import are unseen; no plane decides egress
+```
+
 The check that an independent input is not writable by others reads mode
 bits only, not an access control list or the file's owner
 ([egress access log](egress-access-log.md#trust)).
@@ -171,5 +179,5 @@ bits only, not an access control list or the file's owner
 | Exit | When |
 | --- | --- |
 | 0 | every declared path is at least observed, and no call around the plane or cut walk was found; a join not checked for another reason, such as no export, is the operator's to close |
-| 1 | a path is unknown or not covered; a call around the plane or a cut walk was found, since an agent chooses its spans and can cut a walk on purpose; an egress source reached a host no path declares, its row printed or cut; or an egress import refused a line |
+| 1 | a path is unknown or not covered; a call around the plane or a cut walk was found, since an agent chooses its spans and can cut a walk on purpose; an egress source reached a host no path declares, its row printed or cut; an egress import refused a line; or an egress source is not live |
 | 2 | an input was refused; nothing is printed on standard output |

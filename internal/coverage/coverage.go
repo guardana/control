@@ -16,8 +16,8 @@ const (
 	ExitCovered = 0
 	// ExitGaps: some path is weaker than observed, a call went around the
 	// plane, a walk down a trace was cut at its bound, an egress source
-	// observed a host no egress path declares, or an egress source's import
-	// refused a line.
+	// observed a host no egress path declares, an egress source's import
+	// refused a line, or an egress source given is not live.
 	ExitGaps = 1
 	// ExitRefused: an input was refused and no map was made.
 	ExitRefused = 2
@@ -99,7 +99,8 @@ type Input struct {
 
 // Report is one map: a PathCoverage per declared path, in the inventory's
 // order, then the hosts egress sources observed that no egress path declares,
-// then the egress sources whose imports refused a line.
+// then the egress sources whose imports refused a line, then the egress
+// sources that are not live.
 type Report struct {
 	Paths []PathCoverage
 	// Undeclared are those hosts by their bytes, at most MaxUndeclared.
@@ -109,6 +110,9 @@ type Report struct {
 	// Refused are the egress sources whose own import reports count a
 	// refused line, in the order the sources were given.
 	Refused []RefusedSource
+	// Unseen are the egress sources given that are not live, in the order
+	// the sources were given.
+	Unseen []UnseenSource
 }
 
 // PathCoverage is what covers one declared path, and on what basis.
@@ -179,6 +183,7 @@ func Map(in Input) (*Report, error) {
 	}
 	r.Undeclared, r.UndeclaredCut = in.undeclared()
 	r.Refused = in.refused()
+	r.Unseen = in.unseen()
 	return r, nil
 }
 
@@ -276,13 +281,13 @@ func joins(p Path, state State, sources map[string]*Source, planes []Plane, walk
 // ExitStatus is the command's exit status for a map and the error that
 // stopped it: ExitRefused on an error or a map of no path, ExitCovered when
 // every path is at least observed, none went around the plane, no walk was
-// cut, no host is undeclared, printed or cut, and no egress import refused a
-// line, ExitGaps otherwise.
+// cut, no host is undeclared, printed or cut, no egress import refused a line
+// and every egress source given is live, ExitGaps otherwise.
 func ExitStatus(r *Report, err error) int {
 	if err != nil || r == nil || len(r.Paths) == 0 {
 		return ExitRefused
 	}
-	if len(r.Undeclared) > 0 || r.UndeclaredCut > 0 || len(r.Refused) > 0 {
+	if r.gapRows() {
 		return ExitGaps
 	}
 	for _, p := range r.Paths {
@@ -296,4 +301,10 @@ func ExitStatus(r *Report, err error) int {
 		}
 	}
 	return ExitCovered
+}
+
+// gapRows reports whether the map prints a row after its paths: an
+// undeclared host or a count of those cut, a refused source or an unseen one.
+func (r *Report) gapRows() bool {
+	return len(r.Undeclared) > 0 || r.UndeclaredCut > 0 || len(r.Refused) > 0 || len(r.Unseen) > 0
 }

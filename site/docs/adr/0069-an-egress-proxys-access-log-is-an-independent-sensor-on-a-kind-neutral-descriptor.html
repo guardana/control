@@ -251,9 +251,13 @@ source observed that no egress path declares is a row after the declared
 paths, sorted by its bytes, at most 256, with one line counting the rest;
 the line names no digest of the hosts cut. Each egress source whose own
 import reports count a refused line is a row after those, with the count
-by reason. Any of these rows, or a cut, makes the exit 1. An absent egress
-descriptor whose log holds an egress source's records is refused, since
-its hosts would go unprinted.</p>
+by reason. Each egress source given that is not live is a row after
+those, whether a path names it or not, since the connections since its
+last import are unseen. Any of these rows, or a cut, makes the exit 1. An
+absent egress descriptor whose log holds an egress source's records is
+refused, since its hosts would go unprinted, and so is a log whose egress
+records no egress descriptor given with that directory names, whatever
+kind or id the descriptor given with it has.</p>
 </li>
 </ol>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
@@ -339,7 +343,9 @@ refusals, <code>TestHostIsAFixedPoint</code>.</li>
 <code>TestACutAloneMakesTheExitOne</code>, <code>TestReadInventoryHoldsEgressToHosts</code>;
 <code>internal/coverage/refused_test.go</code>: <code>TestRefusedLinesAreARowOfTheirOwn</code>,
 <code>TestARefusedRowAddsTheSourcesOwnReports</code>,
-<code>TestAnEgressReportNeverMakesAnotherKindLive</code>.</li>
+<code>TestAnEgressReportNeverMakesAnotherKindLive</code>;
+<code>internal/coverage/unseen_test.go</code>: <code>TestAnEgressSourceNotLiveIsARow</code>,
+<code>TestAnEgressPathKeepsItsStateBesideTheUnseenRow</code>.</li>
 <li><code>internal/supervise/source_kind_test.go</code>:
 <code>TestASourceOfAKindThatNamesNoRunIsRefused</code>.</li>
 <li><code>cmd/guardana-control/observe_kinds_test.go</code>:
@@ -347,7 +353,11 @@ refusals, <code>TestHostIsAFixedPoint</code>.</li>
 <code>TestSuperviseRefusesASourceWhoseObservationsNameNoRun</code>,
 <code>TestCoverageOfAnImportedEgressLog</code>,
 <code>TestObserveImportRefusesAnotherKindUnderOneSource</code>,
-<code>TestCoverageRefusesAnAbsentDescriptorOverConnections</code>.</li>
+<code>TestCoverageRefusesAnAbsentDescriptorOverConnections</code>;
+<code>cmd/guardana-control/coverage_egress_test.go</code>:
+<code>TestCoverageRefusesEgressRecordsNoGivenDescriptorNames</code>,
+<code>TestCoverageRefusesALogSharedWithEgressRecords</code>,
+<code>TestCoverageRowsAnEgressSourceNotLive</code>.</li>
 </ul>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor.md">docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.14.0, and <a href="https://github.com/guardana/control/tree/v0.14.0/docs">its documentation</a> is in its tag.</p>
 </main>

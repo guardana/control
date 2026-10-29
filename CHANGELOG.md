@@ -47,9 +47,13 @@ verify one.
   prints `independent` trust as `independent (unsigned descriptor)`, and adds
   a row for each host an egress source reached that no path declares, at most
   256 with a line counting the rest, then a row for each egress source whose
-  import refused a line, with the count by reason. Any such row, or that
-  line, makes the exit 1. An absent egress descriptor whose log holds egress
-  records is refused, with exit 2 ([ADR-0069](docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor.md)).
+  import refused a line, with the count by reason, then a row for each egress
+  source given that is not live, since its connections since its last import
+  are unseen. Any such row, or that line, makes the exit 1. An absent egress
+  descriptor whose log holds egress records is refused, with exit 2, and so is
+  a log whose egress records no egress descriptor given with that log names:
+  one replaced by another kind or renamed, or another source's log sharing
+  the directory ([ADR-0069](docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor.md)).
 
 ### Changed
 

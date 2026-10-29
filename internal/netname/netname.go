@@ -62,8 +62,9 @@ func Host(s string) (string, bool) {
 // Authority reads s as host, host:port, [v6] or [v6]:port, as a forward
 // proxy's request names its target, and returns the host as Host spells it
 // and the port, 1 to 65535, or 0 when s names none. An IPv6 address without
-// brackets, an IPv4 address inside them and a colon with no port after it
-// are refused.
+// brackets, a dotted IPv4 address inside them and a colon with no port after
+// it are refused; an IPv6 address inside them that maps an IPv4 address is
+// that IPv4 address, as Host writes it.
 func Authority(s string) (string, uint32, bool) {
 	host, port, hasPort, ok := splitAuthority(s)
 	if !ok {
