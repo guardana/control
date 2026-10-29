@@ -102,9 +102,10 @@ func (c *call) checkTranslation() {
 
 // unclassifiedClaim is what refutes a claim that nothing but the
 // classification is missing from env: an effect class, which the claim says
-// nothing gave; a refusal of contract.ValidateUnclassified; or a hash that
-// names other bytes than args, as the kernel holds a classified call to. The
-// kernel stops at a refusal handed in, so it checks none of this itself.
+// nothing gave; a refusal of contract.ValidateUnclassified; arguments canon
+// refuses, under the code the kernel's digest gives them; or a hash that names
+// other bytes than args. The kernel stops at a refusal handed in, so it checks
+// none of this itself.
 func unclassifiedClaim(env *controlv1.ActionEnvelope, args []byte) error {
 	if env.GetAction().GetEffect() != controlv1.EffectClass_EFFECT_CLASS_UNSPECIFIED {
 		return &contract.ValidationError{Field: "action.effect", Err: fmt.Errorf("%w: set on a call nothing classifies", contract.ErrInvalidValue)}
@@ -112,15 +113,15 @@ func unclassifiedClaim(env *controlv1.ActionEnvelope, args []byte) error {
 	if err := contract.ValidateUnclassified(env); err != nil {
 		return err
 	}
-	sent := env.GetArguments().GetCanonicalHash()
-	if sent == "" {
-		return nil
-	}
 	held, err := canon.ArgumentsHashV1(args)
 	if err != nil {
-		return &contract.ValidationError{Field: "arguments.canonical_hash", Err: fmt.Errorf("%w: %w", contract.ErrInvalidValue, err)}
+		bound := contract.ErrInvalidValue
+		if errors.Is(err, canon.ErrArgumentsTooLarge) || errors.Is(err, canon.ErrTooDeep) {
+			bound = contract.ErrTooLarge
+		}
+		return &contract.ValidationError{Err: fmt.Errorf("%w: arguments: %w", bound, err)}
 	}
-	if held != sent {
+	if sent := env.GetArguments().GetCanonicalHash(); sent != "" && held != sent {
 		return &contract.ValidationError{Field: "arguments.canonical_hash", Err: fmt.Errorf("%w: names other bytes", contract.ErrInvalidValue)}
 	}
 	return nil

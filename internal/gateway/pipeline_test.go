@@ -137,6 +137,35 @@ func TestNewRefusesEachMisconfiguration(t *testing.T) {
 	}
 }
 
+// renamingAdapter answers one name and then another, as an adapter whose name
+// is not fixed for its lifetime would.
+type renamingAdapter struct {
+	asked *int
+	names []string
+}
+
+func (a renamingAdapter) Name() string {
+	n := a.names[min(*a.asked, len(a.names)-1)]
+	*a.asked++
+	return n
+}
+func (a renamingAdapter) Capabilities() gateway.Capabilities { return enforcing }
+
+// New keeps the name it checked: an adapter that would answer another one
+// later is asked once, so the protocol its calls must name is the one whose
+// strength was held to its declaration.
+func TestNewAsksTheAdapterItsNameOnce(t *testing.T) {
+	asked := 0
+	cfg := validConfig(t)
+	cfg.Adapter = renamingAdapter{asked: &asked, names: []string{channel.ProtocolMCP, channel.ProtocolEnforce}}
+	if _, err := gateway.New(cfg); err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	if asked != 1 {
+		t.Errorf("New asked the adapter its name %d times, want once", asked)
+	}
+}
+
 // TestEveryCoversClauseIsHeldAtItsEdge: for each capability the table can
 // need, an adapter declaring everything the mode needs but that one is
 // refused, so no single clause of covers can be replaced with true.

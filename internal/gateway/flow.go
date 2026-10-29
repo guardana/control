@@ -251,6 +251,13 @@ func (c *call) stampFlow() {
 	}
 	out.Context.Tags = append(slices.DeleteFunc(out.Context.Tags, isFlowTag), c.flow.tags()...)
 	c.in.Envelope = out
+	// The kernel validates a classified envelope after the stamp and never an
+	// unclassified one, so the stamped copy is held to the contract's bounds here.
+	if translationOf(c.in) == translationUnclassified {
+		if err := contract.ValidateUnclassified(out); err != nil {
+			c.in.Refusal = err
+		}
+	}
 }
 
 // refuseFlow blocks, in every mode, a call whose producer sent a tag under the

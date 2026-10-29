@@ -131,7 +131,7 @@ type openTrail struct {
 // with the first of New's refusals in errors.go it meets, or with the kernel's
 // refusal of its options.
 func New(cfg Config) (*Pipeline, error) {
-	caps, err := checkConfig(cfg)
+	name, caps, err := checkConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func New(cfg Config) (*Pipeline, error) {
 	if cfg.MaxHeldPerRun == 0 {
 		cfg.MaxHeldPerRun = DefaultMaxHeldPerRun
 	}
-	return &Pipeline{cfg: cfg, caps: caps, name: cfg.Adapter.Name(), kernel: kernel, open: make(map[string]*execution), trails: make(map[string]openTrail), runs: make(map[runKey]*run)}, nil
+	return &Pipeline{cfg: cfg, caps: caps, name: name, kernel: kernel, open: make(map[string]*execution), trails: make(map[string]openTrail), runs: make(map[runKey]*run)}, nil
 }
 
 // Admit decides one admission and says what to do about it. It has no error

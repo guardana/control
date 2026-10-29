@@ -157,17 +157,21 @@ the end of a chain of single wraps. A node that wraps several errors joins
 another cause, and the call is refused for that cause. A node's <code>Is</code> method
 is not consulted. <code>translationOf</code> is the one place this is read: the mode,
 the pause and the run's flow all take it from there.</p>
-<p><strong>The pipeline checks every unclassified claim itself.</strong> Before anything
-reads the call, in <code>Admit</code>, in <code>Preview</code> and on a retry alike, a claim that
-nothing but the classification is missing stands only when the envelope's
-effect class is unspecified, <code>contract.ValidateUnclassified</code> passes, and a
-<code>canonical_hash</code>, when present, is <code>canon.ArgumentsHashV1</code> of the arguments,
-as the kernel's step 2 holds a classified call. Otherwise the claim is
-replaced by the refusal it earns, which the kernel codes by its sentinel as
-it codes any refusal handed in (<code>UNSUPPORTED_SCHEMA</code>, <code>REQUIRED_FIELD_ABSENT</code>,
-<code>LIMIT_EXCEEDED</code>, <code>INVALID_FIELD_VALUE</code>), and <code>OBSERVE</code> blocks the call as any
-other refused translation. A set effect class under the claim is
-<code>INVALID_FIELD_VALUE</code> on <code>action.effect</code>. No adapter has to opt into this.</p>
+<p><strong>The pipeline checks every unclassified claim itself.</strong> Before anything reads
+the call, in <code>Admit</code>, in <code>Preview</code> and on a retry alike, a claim that nothing
+but the classification is missing stands only when the envelope's effect class
+is unspecified, <code>contract.ValidateUnclassified</code> passes, the arguments are ones
+canon reads, and a <code>canonical_hash</code>, when present, is <code>canon.ArgumentsHashV1</code>
+of them, as the kernel's step 2 holds a classified call. Arguments past
+canon's size or depth are <code>LIMIT_EXCEEDED</code>, as the kernel's digest codes them.
+The envelope is held to <code>ValidateUnclassified</code> again once the plane has added
+its flow tags, since the kernel validates a classified envelope after them and
+an unclassified one never. Otherwise the claim is replaced by the refusal it
+earns, which the kernel codes by its sentinel as it codes any refusal handed
+in (<code>UNSUPPORTED_SCHEMA</code>, <code>REQUIRED_FIELD_ABSENT</code>, <code>LIMIT_EXCEEDED</code>,
+<code>INVALID_FIELD_VALUE</code>), and <code>OBSERVE</code> blocks the call as any other refused
+translation. A set effect class under the claim is <code>INVALID_FIELD_VALUE</code> on
+<code>action.effect</code>. No adapter has to opt into this.</p>
 <p><code>adapterkit.Unclassified</code> builds an adapter's refusal from its own validation
 of the envelope and never joins the two. A cause it is handed that does not
 carry <code>ErrUnclassified</code> comes back as it is, so the call is refused for it.</p>
@@ -189,14 +193,14 @@ undetermined rule or a tenant named on one side, leave it unset, and
 <code>OBSERVE</code> runs those calls as before.</p>
 <p><strong>One vocabulary, in a leaf package.</strong> <code>internal/channel</code> holds the action
 kinds (<code>tool</code>, <code>prompt</code>, <code>resource</code>), the protocol names (<code>mcp</code>, <code>enforce</code>),
-<code>KnownKind</code>, <code>KnownProtocol</code> and <code>Strength</code>. The pipeline refuses an envelope whose kind is
-outside that list, or whose protocol is not its adapter's <code>Name()</code>, as
-<code>INVALID_FIELD_VALUE</code> on <code>action.kind</code> or <code>action.protocol</code>. In <code>Admit</code> and
-<code>Preview</code> that refusal replaces an unclassified-only one, so <code>OBSERVE</code> cannot
-run a kind that no pause scope names, and it leaves any other refusal alone.
-A pause entry treats a kind outside the vocabulary as it treats an absent
-one: it matches. <code>contract.Validate</code> does not change, so a v1 producer and
-<code>policy test</code> are unaffected.</p>
+<code>KnownKind</code>, <code>KnownProtocol</code> and <code>Strength</code>. The pipeline refuses an envelope
+whose kind is outside that list, or whose protocol is not its adapter's
+<code>Name()</code>, as <code>INVALID_FIELD_VALUE</code> on <code>action.kind</code> or <code>action.protocol</code>. In
+<code>Admit</code> and <code>Preview</code> that refusal replaces an unclassified-only one, so
+<code>OBSERVE</code> cannot run a kind that no pause scope names, and it leaves any other
+refusal alone. A pause entry treats a kind outside the vocabulary as it treats
+an absent one: it matches. <code>contract.Validate</code> does not change, so a v1
+producer and <code>policy test</code> are unaffected.</p>
 <p><strong>Strength is an enum whose zero is None.</strong> <code>channel.Strength</code> is <code>None</code>,
 <code>Cooperative</code> or <code>Inline</code>, and <code>StrengthOf</code> gives the strength of a protocol.
 The empty name and any protocol this build does not know are <code>None</code>. The
@@ -204,12 +208,12 @@ gateway's <code>Enforcement</code> is an alias of it, and each adapter declares
 <code>StrengthOf(Name())</code>. Coverage reads a plane's strength from its listener's
 protocol through <code>gatewayconfig.ProtocolOf</code>, and the run view reads it from
 the protocol recorded on the call. Only <code>Inline</code> can be enforced.
-<code>gateway.New</code> refuses an adapter whose <code>Name()</code> is not one of
-<code>internal/channel</code>'s protocols (<code>ErrProtocol</code>), and one whose declared
-<code>Enforcement</code> is not <code>StrengthOf(Name())</code> (<code>ErrStrength</code>), so the mode gate
-and the cooperative close read the strength coverage and the run view read.
-A new adapter adds its protocol and strength to <code>internal/channel</code>. No
-protocol of this build is <code>None</code>, so no adapter of that strength starts.</p>
+<code>gateway.New</code> asks the adapter its name once and refuses an adapter whose
+<code>Name()</code> is not one of <code>internal/channel</code>'s protocols (<code>ErrProtocol</code>), and one
+whose declared <code>Enforcement</code> is not <code>StrengthOf(Name())</code> (<code>ErrStrength</code>), so
+the mode gate and the cooperative close read the strength coverage and the run
+view read. A new adapter adds its protocol and strength to <code>internal/channel</code>.
+No protocol of this build is <code>None</code>, so no adapter of that strength starts.</p>
 <p><strong>The moved-resource check is the pipeline's.</strong> <code>Admission.ResourceFrom</code>
 carries the pointer the classification read the resource id at. Bytes whose
 member there no longer names the resource the call was decided on are a DENY
@@ -275,8 +279,9 @@ and the run holds nothing it took in.</p>
 <code>Validate</code> refuses with no refusal reported, and an unclassified claim over
 schema version <code>9.0</code>, an empty <code>principal.id</code>, an <code>action.name</code> past its
 bound, a hop that does not start at the principal, a hash of other bytes, a
-hash beside arguments canon refuses, a preview with no profile and a set
-effect class. No refused shape is handed
+hash beside arguments canon refuses, arguments canon refuses or finds too
+deep with no hash, tags the plane's own take past their bound, a preview
+with no profile and a set effect class. No refused shape is handed
 out or recorded as started; a tenant named on one side, and a hash of the
 arguments, still run under <code>OBSERVE</code>.
 <code>TestAnUnclassifiedClaimIsHeldToTheContract</code> checks each refused claim's

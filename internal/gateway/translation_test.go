@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -90,6 +91,22 @@ func claimsOverRefusedEnvelopes(t *testing.T) []struct {
 			a.Arguments = []byte(`{"a": 1e400}`)
 			return a
 		}},
+		{"arguments canon refuses, with no hash", codeInvalidFieldValue, func() gateway.Admission {
+			a := claiming(func(*controlv1.ActionEnvelope) {})()
+			a.Arguments = []byte(`{"a": 1e400}`)
+			return a
+		}},
+		{"arguments past canon's depth, with no hash", "LIMIT_EXCEEDED", func() gateway.Admission {
+			a := claiming(func(*controlv1.ActionEnvelope) {})()
+			a.Arguments = []byte(`{"a":` + strings.Repeat("[", 32) + strings.Repeat("]", 32) + `}`)
+			return a
+		}},
+		{"tags the plane's own take past their bound", "LIMIT_EXCEEDED", claiming(func(e *controlv1.ActionEnvelope) {
+			e.Context = &controlv1.RunContext{Tags: make([]string, contract.MaxLabels)}
+			for i := range e.Context.Tags {
+				e.Context.Tags[i] = "tag-" + strconv.Itoa(i)
+			}
+		})},
 	}
 }
 
