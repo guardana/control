@@ -160,3 +160,5 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0064: Milestone 2 starts with an independent sensor, and the 1.0 bar is a list of tasks](adr/0064-milestone-two-starts-with-an-independent-sensor.md): accepted
 - [ADR-0065: A request's events name one run](adr/0065-a-requests-events-name-one-run.md): accepted
 - [ADR-0066: Each decision about authority is a port with a default, and none fails open](adr/0066-each-decision-about-authority-is-a-port.md): accepted
+- [ADR-0067: The pipeline refuses what an adapter could not translate](adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md): accepted
+- [ADR-0068: A run belongs to one project](adr/0068-a-run-belongs-to-one-project.md): accepted

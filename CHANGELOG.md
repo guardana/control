@@ -11,8 +11,47 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- `pkg/contract.ValidateUnclassified`: every rule of `Validate` but the
+  effect class's presence and what a class requires, for an envelope nothing
+  classified. `Validate` does not change ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+
 ### Changed
 
+- **Breaking:** a run belongs to one project. A run record is `2.0` and
+  carries `project_id`, `runs open` needs `--project` and refuses a parent of
+  another project, and `runs list` prints `project_id`. A plane resolves a
+  token only under its own `project_id`, so a token of another project's run
+  gets 401 even on a shared runs directory and listener identity. A run
+  tree refuses a member of another project, `supervise` refuses evidence of
+  another project than the run's record, `react` never stops a run for a
+  finding of another project, and `doctor` lists a stop of another project's
+  run as unheld. A `1.0` record names no project and is refused: open each
+  live run again in a new, empty directory, under a new task, since a
+  reopened run starts with a clean flow state
+  ([runs.md](docs/reference/runs.md#runs-an-earlier-release-opened),
+  [ADR-0068](docs/adr/0068-a-run-belongs-to-one-project.md)).
+- Under `OBSERVE`, a call the adapter could not translate, for anything but
+  nothing classifying it, is now blocked with the kernel's `INDETERMINATE`
+  and the refusal's code, on the trail `ENFORCE` writes, and counts as
+  blocked. An MCP answer carries that code in place of `MALFORMED_INPUT`, and
+  an enforcement API `BLOCK` no longer appends `INVALID_FIELD_VALUE`
+  ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- The gateway refuses, in every mode, an envelope whose action kind is not
+  `tool`, `prompt` or `resource`, or whose protocol is not its adapter's, as
+  `INVALID_FIELD_VALUE`. The kinds, the protocol names and each protocol's
+  enforcement strength are one list in `internal/channel` ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+  It also refuses a resource pointer an adapter hands in that is not RFC 6901,
+  and at start an adapter whose name is not one of those protocols, or whose
+  declared enforcement is not its protocol's.
+- A rewrite that moves the member a tool's `resource_from` reads is now a DENY
+  of the gateway's own, `OBLIGATION_NOT_UNDERSTOOD`, before anything is handed
+  out, for both adapters, in place of an aborted execution that ended
+  `ACTION_FAILED` ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- `coverage` and the run view read a plane's strength from its protocol: a
+  trail that names no protocol, or one this build does not know, is decided,
+  not enforced, in every mode ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
 - An approver id that a reader could take for one the plane authenticated
   is refused: `approvals approve` and `reject` exit 1 and write nothing,
   `console` exits 2, a scenario that names one is refused when it loads, and
@@ -77,6 +116,24 @@ verify one.
 
 ### Fixed
 
+- `OBSERVE` handed out a call whose refusal joined "nothing classifies it"
+  with another cause, such as arguments canon refused: such a refusal read as
+  unclassified alone. Unclassified is now that one cause, on a chain of single
+  wraps ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- `OBSERVE` handed out a call whose envelope the contract refuses when the
+  adapter reported no refusal; the kernel's refusal of the request now blocks
+  it whatever the adapter said ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- `OBSERVE` handed out a call the adapter said only nothing classifies, though
+  its envelope set an effect class, broke a rule of the contract, such as a
+  missing principal, a string past its bound or an unanchored delegation
+  chain, or carried a hash of other bytes: the kernel stops at a refusal
+  handed in and checked none of it. The gateway now holds every such claim to
+  `ValidateUnclassified` and the arguments hash and blocks the call with the
+  kernel's code for what is wrong ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+- A pause entry scoped to an action kind let a call through whose kind was
+  spelled outside the plane's list, such as `Tool` or `function`; such a kind
+  now matches every action scope, as an absent one does
+  ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
 - A trail whose events named two runs passed the chain check, so
   `guardana-gateway trail` and the evidence report read it as one request
   completed under its first run. Every event of a request now names the run

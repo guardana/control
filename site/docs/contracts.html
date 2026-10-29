@@ -428,11 +428,12 @@ test in <code>internal/docscheck</code> holds the table to the registry, and the
 own tests hold every code it emits to the registry and to the verdict of the
 step that emits it.</p>
 <h2 id="decoding-and-validation">Decoding and validation</h2>
-<p>What a receiver calls, and what it refuses. Six functions in
+<p>What a receiver calls, and what it refuses. Seven functions in
 <a href="https://github.com/guardana/control/tree/main/pkg/contract">pkg/contract</a>, all <code>implemented</code>:</p>
 <pre><code class="language-go">func Decode(b []byte) (*controlv1.ActionEnvelope, error)     // binary protobuf
 func DecodeJSON(b []byte) (*controlv1.ActionEnvelope, error) // protojson
 func Validate(env *controlv1.ActionEnvelope) error
+func ValidateUnclassified(env *controlv1.ActionEnvelope) error
 func CheckIdentifier(s string) error                         // the string rule below
 func CheckHost(host string) error                            // the host rule below
 func CheckMapKey(key string) error                           // the map-key rule below
@@ -445,6 +446,16 @@ matches, so a DENY on it never fires and nobody is told. Each checks what a
 value holds, not whether there is one: <code>&quot;&quot;</code> passes all three. Each refusal is
 a <code>ValidationError</code> with no field, wrapping <code>ErrInvalidValue</code>, and a test holds
 each function to <code>Validate</code>'s verdict and reason on the field it governs.</p>
+<p><code>ValidateUnclassified</code> applies every rule of <code>Validate</code>, from the same code and
+in the same order, except the effect class's presence and the fields a class
+requires (<code>EffectRequires</code>). It is for a receiver holding an envelope nothing
+classified: <code>Validate</code> refuses such an envelope at <code>action.effect</code> before it
+reads the delegation chain, the host, the labels and the arguments, so that
+refusal says nothing about the rest. The gateway holds every claim that a
+call is unclassified to it (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).
+<code>Validate</code>'s own result does not depend on it, and a test holds the two to
+the same refusal over every envelope with an effect class and what it
+requires.</p>
 <p>Use a decoder rather than parsing elsewhere and calling <code>Validate</code>. Some
 refusals exist only on a path that owns the parse: a message decoded with
 <code>DiscardUnknown</code> is indistinguishable from a clean one, so the unknown-field
@@ -1489,11 +1500,13 @@ the root whose state a call was decided under. <code>experimental</code>, in
 <code>internal/runs/</code> (<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>).
 Only <code>guardana-control runs</code> writes a record, and a plane writes only a root's
 state.</p>
-<p>Both files are one JSON object of <code>schema_version</code> major <code>1</code>. Every key is
-required, none has a default, a key given twice or one this build cannot name
-is refused, and another major is refused, as is a string that is not valid
-UTF-8 or holds an unpaired surrogate escape. Times are RFC 3339 in UTC. A file
-is always replaced whole, never edited in place.</p>
+<p>Both files are one JSON object, a record of <code>schema_version</code> major <code>2</code> and a
+state of major <code>1</code>. Every key is required, none has a default, a key given
+twice or one this build cannot name is refused, and another major is refused,
+as is a string that is not valid UTF-8 or holds an unpaired surrogate escape.
+A record of major <code>1</code> names no project and is refused, never read as any
+project's. Times are RFC 3339 in UTC. A file is always replaced whole, never
+edited in place.</p>
 <table>
 <thead>
 <tr>
@@ -1504,15 +1517,19 @@ is always replaced whole, never edited in place.</p>
 <tbody>
 <tr>
 <td><code>schema_version</code></td>
-<td><code>1.0</code></td>
+<td><code>2.0</code></td>
 </tr>
 <tr>
 <td><code>run_id</code></td>
 <td><code>run-</code> and 32 lower-case hex digits; the file's own name</td>
 </tr>
 <tr>
+<td><code>project_id</code></td>
+<td>the project whose planes the run's token resolves on: a plane's own <code>project_id</code>, never a listener's</td>
+</tr>
+<tr>
 <td><code>tenant_id</code>, <code>principal_type</code>, <code>principal_id</code>, <code>agent_id</code></td>
-<td>who the run is for; a token resolves only for this identity</td>
+<td>who the run is for; a token resolves only for this identity and the project</td>
 </tr>
 <tr>
 <td><code>root</code></td>
