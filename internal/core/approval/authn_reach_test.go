@@ -14,16 +14,26 @@ import (
 // written here rather than taken from the package, so a rename is a failure.
 const constructorName = "AuthenticatedApproverID"
 
+// prefixSpellings are what spells the prefix without the constructor: its
+// constant, and a string literal that begins with it in any case.
+var prefixSpellings = []string{"AuthnPrefix", `"authn:`, "`authn:"}
+
 // mayCallTheConstructor is every directory, relative to the module root,
 // whose sources may name the constructor: the package that declares it and
 // the plane's pipeline, which builds an approver id from an authentication.
 var mayCallTheConstructor = []string{"internal/core/approval", "internal/gateway"}
 
-// namingTheConstructor returns every Go or assembly source under root, outside
-// the allowed directories, that names the constructor, and how many sources
-// it read. Any spelling counts, a call, a method value, an alias's selector,
-// a linkname or a comment, because none of them leaves the name out.
-func namingTheConstructor(t *testing.T, root string) (found []string, read int) {
+// maySpellThePrefix is the one directory whose non-test sources may spell the
+// prefix: the constructor's own. A test elsewhere spells it as a claim to be
+// refused, which no build of the plane carries.
+const maySpellThePrefix = "internal/core/approval"
+
+// reachingTheReserved returns every Go or assembly source under root that
+// names the constructor outside the directories allowed to, or spells the
+// prefix in a non-test source outside its package, and how many sources it
+// read. Any spelling counts, a call, a method value, an alias's selector, a
+// linkname or a comment, because none of them leaves the name out.
+func reachingTheReserved(t *testing.T, root string) (found []string, read int) {
 	t.Helper()
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -38,12 +48,12 @@ func namingTheConstructor(t *testing.T, root string) (found []string, read int) 
 		if ext := filepath.Ext(path); ext != ".go" && ext != ".s" {
 			return nil
 		}
-		rel, named, err := namesTheConstructor(root, path)
+		rel, src, err := readSource(root, path)
 		if err != nil {
 			return err
 		}
 		read++
-		if named && !slices.Contains(mayCallTheConstructor, filepath.ToSlash(filepath.Dir(filepath.FromSlash(rel)))) {
+		if reachesTheReserved(rel, src) {
 			found = append(found, rel)
 		}
 		return nil
@@ -54,23 +64,43 @@ func namingTheConstructor(t *testing.T, root string) (found []string, read int) 
 	return found, read
 }
 
+// reachesTheReserved reports whether the source at rel names the constructor
+// outside the directories allowed to, or spells the prefix where it may not.
+func reachesTheReserved(rel string, src []byte) bool {
+	dir := filepath.ToSlash(filepath.Dir(filepath.FromSlash(rel)))
+	if bytes.Contains(src, []byte(constructorName)) && !slices.Contains(mayCallTheConstructor, dir) {
+		return true
+	}
+	return dir != maySpellThePrefix && !strings.HasSuffix(rel, "_test.go") && spellsThePrefix(src)
+}
+
+func spellsThePrefix(src []byte) bool {
+	lower := bytes.ToLower(src)
+	for _, s := range prefixSpellings {
+		if bytes.Contains(lower, bytes.ToLower([]byte(s))) {
+			return true
+		}
+	}
+	return false
+}
+
 // notCompiled is a directory the go command never builds from.
 func notCompiled(name string) bool {
 	return name == "testdata" || name == "node_modules" || strings.HasPrefix(name, ".")
 }
 
-// namesTheConstructor reads one source and says, beside its slash-separated
-// path under root, whether it spells the constructor's name.
-func namesTheConstructor(root, path string) (string, bool, error) {
+// readSource reads one source and returns it beside its slash-separated path
+// under root.
+func readSource(root, path string) (string, []byte, error) {
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		return "", false, err
+		return "", nil, err
 	}
 	src, err := os.ReadFile(path) //nolint:gosec // G304: a source file under the module root
 	if err != nil {
-		return "", false, err
+		return "", nil, err
 	}
-	return filepath.ToSlash(rel), bytes.Contains(src, []byte(constructorName)), nil
+	return filepath.ToSlash(rel), src, nil
 }
 
 // moduleRoot is the directory of the go.mod above this package.
@@ -94,13 +124,14 @@ func moduleRoot(t *testing.T) string {
 
 // TestOnlyThePipelineNamesTheConstructor: outside this package and
 // internal/gateway, no source of the module names the one function that
-// spells the reserved prefix, so no other package can hand a person's input
-// to it.
+// spells the reserved prefix, and outside this package no non-test source
+// spells the prefix itself, so no other package can hand a person's input to
+// the constructor or build the prefix past it.
 func TestOnlyThePipelineNamesTheConstructor(t *testing.T) {
 	root := moduleRoot(t)
-	found, read := namingTheConstructor(t, root)
+	found, read := reachingTheReserved(t, root)
 	if len(found) > 0 {
-		t.Errorf("sources outside %v name %s: %v", mayCallTheConstructor, constructorName, found)
+		t.Errorf("sources name %s outside %v or spell the prefix outside %s: %v", constructorName, mayCallTheConstructor, maySpellThePrefix, found)
 	}
 	// The walk must have reached the declaration and a good part of the tree,
 	// or a walk that read nothing would pass.
@@ -115,8 +146,10 @@ func TestOnlyThePipelineNamesTheConstructor(t *testing.T) {
 
 // TestTheReachWalkFindsACallerOutsideThePipeline is the walk's negative
 // control: a tree with a caller under an alias, one in a directory whose name
-// only begins like the pipeline's, and one in assembly, reports all three,
-// and leaves the pipeline's own caller and a fixture under testdata alone.
+// only begins like the pipeline's, one in assembly, and sources that spell the
+// prefix by its constant or as a literal in either case, reports each, and
+// leaves the pipeline's own caller, a claim in a test, the package's own
+// literal and a fixture under testdata alone.
 func TestTheReachWalkFindsACallerOutsideThePipeline(t *testing.T) {
 	root := t.TempDir()
 	for rel, src := range map[string]string{
@@ -127,6 +160,11 @@ func TestTheReachWalkFindsACallerOutsideThePipeline(t *testing.T) {
 		"internal/console/bad.s":         "TEXT \u00b7" + constructorName + "(SB),0,$0\n",
 		"internal/console/testdata/f.go": "package f\n\nvar _ = approval." + constructorName + "\n",
 		"internal/console/clean.go":      "package console\n",
+		"internal/gateway/prefix.go":     "package gateway\n\nvar _ = approval.AuthnPrefix\n",
+		"internal/console/lit.go":        "package console\n\nvar _ = \"authn:\" + \"x\"\n",
+		"internal/console/raw.go":        "package console\n\nvar _ = `AUTHN:x`\n",
+		"internal/console/lit_test.go":   "package console\n\nvar _ = \"authn:x\"\n",
+		"internal/core/approval/y.go":    "package approval\n\nconst p = \"authn:\"\n",
 	} {
 		path := filepath.Join(root, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -136,10 +174,13 @@ func TestTheReachWalkFindsACallerOutsideThePipeline(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	found, read := namingTheConstructor(t, root)
+	found, read := reachingTheReserved(t, root)
 	slices.Sort(found)
-	want := []string{"internal/approvals/bad.go", "internal/console/bad.s", "internal/gatewayx/bad.go"}
-	if !slices.Equal(found, want) || read != 6 {
-		t.Errorf("the walk found %v after reading %d sources; want %v after 6", found, read, want)
+	want := []string{
+		"internal/approvals/bad.go", "internal/console/bad.s", "internal/console/lit.go", "internal/console/raw.go",
+		"internal/gateway/prefix.go", "internal/gatewayx/bad.go",
+	}
+	if !slices.Equal(found, want) || read != 11 {
+		t.Errorf("the walk found %v after reading %d sources; want %v after 11", found, read, want)
 	}
 }

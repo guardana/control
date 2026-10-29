@@ -59,7 +59,7 @@ literal `${` cannot be sent, and a reference in a member name is refused.
 
 | Step | Members |
 | --- | --- |
-| `approve`, `reject` | `step`, the pending call step to answer, once; `approver`, an identifier of at most 128 bytes; `reason`, optional, at most 1024 bytes. |
+| `approve`, `reject` | `step`, the pending call step to answer, once; `approver`, an identifier of at most 128 bytes that does not read as the reserved `authn:` prefix; `reason`, optional, at most 1024 bytes. |
 | `pause` | `global: true`; or `provider`; or `provider` and `action` (`tool`, `prompt`, `resource`), with `name` for a tool. `reason` is optional, at most 474 bytes, which leaves room for the runner's marker. |
 | `unpause` | `step`, an earlier pause step, once. |
 

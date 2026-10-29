@@ -3,6 +3,7 @@ package approval
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/guardana/control/pkg/contract"
 )
@@ -23,18 +24,18 @@ type Error string
 func (e Error) Error() string { return string(e) }
 
 const (
-	// ErrReservedApproverID is a claimed approver id that begins with
-	// AuthnPrefix as a reader would see it: in any letter case, or spelled
-	// with a lookalike of a letter or of the colon.
-	ErrReservedApproverID Error = "approval: an approver id may not begin with the reserved authn: prefix, which only the plane writes"
+	// ErrReservedApproverID is a claimed approver id that could read as
+	// beginning with AuthnPrefix, as spellsAuthnPrefix decides it.
+	ErrReservedApproverID Error = "approval: an approver id may not begin with the reserved authn: prefix, which only the plane writes; a character outside ASCII counts as a letter of it or as its colon"
 	// ErrAuthenticatedApprover is an issuer or a subject an authenticated
 	// approver id cannot be built from.
-	ErrAuthenticatedApprover Error = "approval: an authenticated approver id needs an issuer with no colon and a subject, each an identifier, within the approver id's bound"
+	ErrAuthenticatedApprover Error = "approval: an authenticated approver id needs an issuer of printable ASCII with no colon and a subject, each an identifier, within the approver id's bound"
 )
 
 // AuthenticatedApproverID builds "authn:<issuer>:<subject>" for an approver
-// the plane authenticated. The issuer holds no colon and no lookalike of one,
-// so the first two colons split the id the same way for every reader.
+// the plane authenticated. The issuer is printable ASCII with no colon, so it
+// holds no lookalike of one either and the first two colons split the id the
+// same way for every reader.
 func AuthenticatedApproverID(issuer, subject string) (string, error) {
 	if issuer == "" || subject == "" {
 		return "", fmt.Errorf("%w: the issuer and the subject are both required", ErrAuthenticatedApprover)
@@ -44,8 +45,8 @@ func AuthenticatedApproverID(issuer, subject string) (string, error) {
 			return "", fmt.Errorf("%w: %w", ErrAuthenticatedApprover, err)
 		}
 	}
-	if strings.ContainsFunc(issuer, colonLike) {
-		return "", fmt.Errorf("%w: the issuer holds a colon", ErrAuthenticatedApprover)
+	if strings.ContainsFunc(issuer, func(r rune) bool { return r < ' ' || r > '~' || r == ':' }) {
+		return "", fmt.Errorf("%w: the issuer holds a colon or a character outside printable ASCII", ErrAuthenticatedApprover)
 	}
 	id := AuthnPrefix + issuer + ":" + subject
 	if len(id) > MaxApproverIDBytes {
@@ -64,24 +65,63 @@ func CheckClaimedApproverID(id string) error {
 	return nil
 }
 
-// spellsAuthnPrefix reports whether id begins with AuthnPrefix once marks,
-// format characters and variation selectors are passed over, letters are
-// compared without case and through their lookalikes, and the colon through
-// its own.
+// spellsAuthnPrefix reports whether the first six characters a reader sees
+// in id could read as AuthnPrefix. An ASCII character is compared without
+// case. Nothing in the standard library says what any other character looks
+// like, so each one, a spacing mark included, counts as whatever letter or
+// colon its position holds. The cost is that a name whose first five
+// characters lie outside ASCII, followed by a colon or a sixth such
+// character, is refused: "Борис:x" is one, while "zoë" is not. A renderer
+// may lay out any run of an id that holds a right-to-left character first,
+// so in such an id the six may stand anywhere.
 func spellsAuthnPrefix(id string) bool {
-	matched := 0
+	var window [len(AuthnPrefix)]rune
+	seen := 0
+	rtl, inside := false, false
 	for _, r := range id {
-		if ignorable(r) {
+		rtl = rtl || rightToLeft(r)
+		if unseen(r) {
 			continue
 		}
-		want := AuthnPrefix[matched]
-		if want == ':' {
-			return colonLike(r)
+		copy(window[:], window[1:])
+		window[len(window)-1] = r
+		seen++
+		if seen >= len(window) && readsAsPrefix(window) {
+			if seen == len(window) {
+				return true
+			}
+			inside = true
 		}
-		if !letterLike(r, rune(want)) {
+	}
+	return inside && rtl
+}
+
+func readsAsPrefix(window [len(AuthnPrefix)]rune) bool {
+	for i, r := range window {
+		if r <= unicode.MaxASCII && unicode.ToLower(r) != rune(AuthnPrefix[i]) {
 			return false
 		}
-		matched++
 	}
-	return false
+	return true
+}
+
+// unseen is a code point a reader does not see as a character of its own: a
+// mark that takes no space, a format character, a variation selector or
+// another default-ignorable code point (the Hangul fillers among them), white
+// space, a separator, or the blank braille pattern.
+func unseen(r rune) bool {
+	return r == 0x2800 || unicode.In(r, unicode.Mn, unicode.Me, unicode.Cf, unicode.Z, unicode.White_Space,
+		unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point)
+}
+
+// rightToLeft reports whether r lies in a block whose characters are laid out
+// right to left, or is a control that opens such a run. The standard library
+// carries no bidirectional classes, so the blocks are named whole.
+func rightToLeft(r rune) bool {
+	switch {
+	case r >= 0x0590 && r <= 0x08ff, r >= 0xfb1d && r <= 0xfdff, r >= 0xfe70 && r <= 0xfefc,
+		r >= 0x10800 && r <= 0x10fff, r >= 0x1e800 && r <= 0x1efff:
+		return true
+	}
+	return r == 0x200f || r == 0x202b || r == 0x202e || r == 0x2067
 }

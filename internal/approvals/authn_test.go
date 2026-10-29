@@ -14,10 +14,14 @@ import (
 	"github.com/guardana/control/internal/core/approval"
 )
 
-// reservedClaims spell the reserved prefix as it is, in capitals, and with a
-// Cyrillic a and a fullwidth colon. Every one is an identifier, so only the
+// reservedClaims spell the reserved prefix as it is, in capitals, with a
+// Cyrillic a and a fullwidth colon, in Lisu letters, with a Tibetan colon and
+// after a blank braille pattern. Every one is an identifier, so only the
 // reservation refuses it.
-var reservedClaims = []string{"authn:okta:alice", "AUTHN:okta:alice", "\u0430uthn:okta:alice", "authn\uff1aokta:alice"}
+var reservedClaims = []string{
+	"authn:okta:alice", "AUTHN:okta:alice", "\u0430uthn:okta:alice", "authn\uff1aokta:alice",
+	"\ua4ee\ua4f4\ua4d4\ua4e7\ua4e0:okta:alice", "authn\u0f7fokta:alice", "\u2800authn:okta:alice",
+}
 
 // dirContents is every file under dir with its bytes, so a refusal can be
 // held to having written nothing at all, not only to the names it left.

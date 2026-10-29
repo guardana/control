@@ -13,12 +13,17 @@ verify one.
 
 ### Changed
 
-- An approver id that reads as the reserved `authn:` prefix, in any letter
-  case or with a lookalike letter or colon, is refused: `approvals approve`
-  and `reject` exit 1 and write nothing, `console` exits 2, and a record that
+- An approver id that could read as the reserved `authn:` prefix is refused:
+  `approvals approve` and `reject` exit 1 and write nothing, `console` exits
+  2, a scenario that names one is refused when it loads, and a record that
   holds one is refused when it is read, so it resumes nothing and its
-  reconciliation closes as `APPROVAL_STATE_UNKNOWN`. Only the plane will write
-  that prefix, for an approver it authenticated
+  reconciliation closes as `APPROVAL_STATE_UNKNOWN`. The first six characters
+  a reader sees are compared, after marks, format characters, white space and
+  blanks: an ASCII character without case, and any other character as a match
+  for the letter or the colon in its place. So `Борис:x` is refused too,
+  while `zoë` is not; an id that holds a right-to-left character is refused
+  when those six stand anywhere in it. Only the plane will write that prefix,
+  for an approver it authenticated
   ([ADR-0066](docs/adr/0066-each-decision-about-authority-is-a-port.md)).
 - A gateway configuration that classifies a tool `WRITE`, `DELETE` or
   `CONFIGURE` is refused when it loads unless `environment` is set and, for an
