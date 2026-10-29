@@ -55,8 +55,9 @@ access_log:
 
 A CONNECT request names its target as an authority, `host:port` or
 `[v6]:port`, and the descriptor in step 2 says so. A plain HTTP request
-through the proxy often names its host without a port, and that line is
-refused. Where Envoy is instead the TLS endpoint and routes by SNI,
+through the proxy often names its host without a port; the line is kept,
+with `upstream_remote_port` as its port, or an unknown port when that is
+`null` too. Where Envoy is instead the TLS endpoint and routes by SNI,
 `%REQUESTED_SERVER_NAME%` is the host alone; the `envoy-sni` fixtures map it
 under `DESTINATION_FORM_HOST`.
 
@@ -114,21 +115,22 @@ guardana-control observe import --source egress/envoy.descriptor.json --log egre
 
 ```text
 lines_read: 4
-observed: 2
-written: 2
+observed: 3
+written: 3
 duplicate: 0
 conflict: 0
-refused: 2
+refused: 1
 strings_dropped: 0
 callers_dropped: 0
-guardana-control: observe import: 2 span(s) or line(s) refused and 0 observation(s) conflicting with the log; the import report holds the counts
+guardana-control: observe import: 1 span(s) or line(s) refused and 0 observation(s) conflicting with the log; the import report holds the counts
 ```
 
-It exits 1: the third line's authority is `registry.example.org` with no
-port, and the fourth names port 443 while `upstream_remote_port` is 8443.
-The same command again writes nothing new and counts the two connections as
-duplicates. It refuses the two bad lines again, though, and exits 1 each
-time, until the log is rotated.
+The third line is a plain HTTP request: its authority is
+`registry.example.org` with no port, so the port is `upstream_remote_port`'s,
+80. It exits 1, because the fourth line names port 443 while
+`upstream_remote_port` is 8443. The same command again writes nothing new and
+counts the three connections as duplicates. It refuses the bad line again,
+though, and exits 1 each time, until the log is rotated.
 Under `TRUST_INDEPENDENT`, an input the group or others can write is refused.
 
 ### 4. Map coverage
@@ -148,16 +150,18 @@ guardana-control coverage --inventory egress/inventory.json --source egress/envo
 
 ```text
 egress.api unknown: sources egress-envoy; no plane decides egress
-  source egress-envoy: unknown: past its heartbeat: last heard 2026-10-04T10:00:01Z, heartbeat 300 s
-undeclared egress 2001:db8::1: observed by egress-envoy: independent (unsigned descriptor), past its heartbeat: last heard 2026-10-04T10:00:01Z, heartbeat 300 s; 1 connection, port 8443; no plane decides egress
-refused egress by egress-envoy: 2 lines refused, so their connections are unknown: destination 1, port 1; no plane decides egress
+  source egress-envoy: unknown: past its heartbeat: last heard 2026-10-04T10:00:02Z, heartbeat 300 s
+undeclared egress 2001:db8::1: observed by egress-envoy: independent (unsigned descriptor), past its heartbeat: last heard 2026-10-04T10:00:02Z, heartbeat 300 s; 1 connection, port 8443; no plane decides egress
+undeclared egress registry.example.org: observed by egress-envoy: independent (unsigned descriptor), past its heartbeat: last heard 2026-10-04T10:00:02Z, heartbeat 300 s; 1 connection, port 80; no plane decides egress
+refused egress by egress-envoy: 1 line refused, so their connections are unknown: port 1; no plane decides egress
 undeclared paths: unknown
 ```
 
 The fixture's lines are from 2026-10-04, past the 300-second heartbeat, so the
 declared path is unknown; over a log the proxy is still writing, it reads
-observed. `2001:db8::1` was reached and declared by no path, so it gets a
-row; the two refused lines get one too, since nobody read where they went.
+observed. `2001:db8::1` and `registry.example.org` were reached and declared
+by no path, so each gets a row; the refused line gets one too, since nobody
+read where it went.
 Either makes the command exit 1. No plane decides a connection, so an
 egress path is never decided or enforced.
 
@@ -167,8 +171,8 @@ egress path is never decided or enforced.
 guardana-control observe export egress/log/observations.jsonl
 ```
 
-It writes the two connection observations and the import report, whose
-`refusedBy` holds `"destination":"1","port":"1"`. A line refused for another reason is
+It writes the three connection observations and the import report, whose
+`refusedBy` holds `"port":"1"`. A line refused for another reason is
 counted under its own key ([the reference](../reference/egress-access-log.md#refusals-and-drops)).
 
 ## Roll back

@@ -20,10 +20,11 @@ verify one.
   query, header or body is never copied unless the mapping names it.
   Fixtures cover Envoy's `json_format`, as a forward proxy and as a TLS
   listener, and a Squid `logformat`. The mapping's `destination_form` reads
-  the destination as a host alone or as a CONNECT authority, `host:port` or
-  `[v6]:port`, whose port must agree with a mapped port; any other
-  destination is refused, and each refused line is counted under its reason
-  in the import report's `refused_by`. Under an address basis the caller must
+  the destination as a host alone or as a proxy request's authority, `host`,
+  `host:port`, `[v6]` or `[v6]:port`, whose port, when it names one, must
+  agree with a mapped port; any other destination is refused, and each
+  refused line is counted under its reason in the import report's
+  `refused_by`. Under an address basis the caller must
   be an IP address, or it is dropped and counted in `callers_dropped`. Hosts
   and addresses are written in one spelling, an IPv4-mapped IPv6 address as
   its IPv4 address. Such a source may declare `TRUST_INDEPENDENT` on an unsigned

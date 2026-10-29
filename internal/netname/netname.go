@@ -59,38 +59,57 @@ func Host(s string) (string, bool) {
 	return s, true
 }
 
-// Authority reads s as host:port or [v6]:port, as a CONNECT request names
-// its target, and returns the host as Host spells it and the port, 1 to 65535.
-// A host with no port, an IPv6 address without brackets and an IPv4 address
-// inside them are refused.
+// Authority reads s as host, host:port, [v6] or [v6]:port, as a forward
+// proxy's request names its target, and returns the host as Host spells it
+// and the port, 1 to 65535, or 0 when s names none. An IPv6 address without
+// brackets, an IPv4 address inside them and a colon with no port after it
+// are refused.
 func Authority(s string) (string, uint32, bool) {
-	var host, port string
-	if rest, ok := strings.CutPrefix(s, "["); ok {
-		inner, p, ok := strings.Cut(rest, "]:")
-		if !ok {
-			return "", 0, false
-		}
-		a, err := netip.ParseAddr(inner)
-		if err != nil || !a.Is6() || a.Zone() != "" {
-			return "", 0, false
-		}
-		host, port = inner, p
-	} else {
-		i := strings.LastIndexByte(s, ':')
-		if i < 0 || strings.Contains(s[:i], ":") {
-			return "", 0, false
-		}
-		host, port = s[:i], s[i+1:]
-	}
-	n, ok := portNumber(port)
+	host, port, hasPort, ok := splitAuthority(s)
 	if !ok {
 		return "", 0, false
+	}
+	var n uint32
+	if hasPort {
+		if n, ok = portNumber(port); !ok {
+			return "", 0, false
+		}
 	}
 	h, ok := Host(host)
 	if !ok {
 		return "", 0, false
 	}
 	return h, n, true
+}
+
+// splitAuthority splits s into its host and the port text after its colon,
+// if it has one. A bracketed host must be an IPv6 address with no zone, and
+// an unbracketed one holds no colon.
+func splitAuthority(s string) (string, string, bool, bool) {
+	rest, bracketed := strings.CutPrefix(s, "[")
+	if !bracketed {
+		i := strings.LastIndexByte(s, ':')
+		if i < 0 {
+			return s, "", false, true
+		}
+		if strings.Contains(s[:i], ":") {
+			return "", "", false, false
+		}
+		return s[:i], s[i+1:], true, true
+	}
+	inner, after, ok := strings.Cut(rest, "]")
+	if !ok {
+		return "", "", false, false
+	}
+	a, err := netip.ParseAddr(inner)
+	if err != nil || !a.Is6() || a.Zone() != "" {
+		return "", "", false, false
+	}
+	if after == "" {
+		return inner, "", false, true
+	}
+	port, hasPort := strings.CutPrefix(after, ":")
+	return inner, port, hasPort, hasPort
 }
 
 // Address reads s as an IP address, alone or with a port of 1 to 65535 as

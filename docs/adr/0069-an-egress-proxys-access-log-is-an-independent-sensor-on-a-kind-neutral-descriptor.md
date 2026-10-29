@@ -61,9 +61,10 @@ trust is policy, and it must not move into an importer (invariant 7).
    received and caller. Time and destination are required. It reads no
    member the mapping does not name, so a path, query, header or body the
    proxy logged is never copied unless the mapping names it (invariant 9).
-   The mapping's `destination_form` is `host` or `authority`, `host:port` or
-   `[v6]:port` as a CONNECT request names its target; an authority's port is
-   the connection's when no port member gives one, and a port given both ways
+   The mapping's `destination_form` is `host` or `authority`, `host`,
+   `host:port`, `[v6]` or `[v6]:port` as a forward proxy's request names its
+   target; an authority's port is the connection's when no port member gives
+   one, the port is unknown when neither does, and a port given both ways
    that disagrees refuses the line. A destination in neither form is
    refused, never parsed down to its host. A method outside a fixed list of
    nine is dropped and counted. Under `CALLER_BASIS_ADDRESS` the caller is an

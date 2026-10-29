@@ -159,7 +159,7 @@ own, <code>egress_access_log</code>. It may not carry <code>convention</code>, <
 <tr>
 <td><code>fields.destination_form</code></td>
 <td>yes</td>
-<td><code>DESTINATION_FORM_HOST</code>, a host alone, or <code>DESTINATION_FORM_AUTHORITY</code>, <code>host:port</code> or <code>[v6]:port</code> as a CONNECT request names its target</td>
+<td><code>DESTINATION_FORM_HOST</code>, a host alone, or <code>DESTINATION_FORM_AUTHORITY</code>, <code>host</code>, <code>host:port</code>, <code>[v6]</code> or <code>[v6]:port</code> as a forward proxy's request names its target</td>
 </tr>
 <tr>
 <td><code>fields.port</code>, <code>method</code>, <code>status</code>, <code>bytes_sent</code>, <code>bytes_received</code>, <code>caller</code></td>
@@ -241,9 +241,10 @@ A-label (<code>xn--</code>) is taken as written; a name in Unicode is refused, s
 build carries no IDNA tables. An IPv4 address is a dotted quad; an IPv6
 address is written as <code>net/netip</code> writes it, without brackets or a zone, and
 one that maps an IPv4 address is that IPv4 address. A caller address is
-spelled the same way, <code>[v6]:port</code> with a port. Under the authority form, the
-port is required, so a forward proxy's plain HTTP request, whose authority is
-often the host alone, is refused as <code>destination</code>.</p>
+spelled the same way, <code>[v6]:port</code> with a port. Under the authority form the
+port is optional, since a forward proxy's plain HTTP request often names the
+host alone; an IPv6 address still needs its brackets, and a colon needs a port
+after it.</p>
 <h2 id="what-is-never-read">What is never read</h2>
 <p>A line is checked to be valid JSON, and only the mapped members are decoded;
 every other value is stepped over unread. A path, query, header, user agent or

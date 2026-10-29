@@ -15,8 +15,8 @@ const (
 )
 
 // The forward proxy's lines name an authority: its port is taken when the
-// port member is null, a host with no port is refused as a destination, and
-// a port the authority contradicts is refused as a port.
+// port member is null, a plain HTTP request's host alone takes the port
+// member's, and a port the authority contradicts is refused as a port.
 func TestEnvoyFixture(t *testing.T) {
 	b := importBytes(t, readTestdata(t, "envoy.jsonl"), forwardProxy(t))
 	want := []conn{
@@ -24,16 +24,18 @@ func TestEnvoyFixture(t *testing.T) {
 			caller: "10.0.0.7", basis: address, at: "2026-10-04T10:00:00.25Z"},
 		{host: "2001:db8::1", port: 8443, method: "CONNECT", status: 503, sent: 91,
 			caller: "10.0.0.8", basis: address, at: "2026-10-04T10:00:01.5Z"},
+		{host: "registry.example.org", port: 80, method: "GET", status: 304,
+			caller: "10.0.0.8", basis: address, at: "2026-10-04T10:00:02Z"},
 	}
 	checkConns(t, b.Observations, want)
 	c := b.Report.GetCounts()
-	if c.GetRead() != 4 || c.GetObserved() != 2 || c.GetRefused() != 2 || c.GetStringsDropped() != 0 || c.GetCallersDropped() != 0 {
+	if c.GetRead() != 4 || c.GetObserved() != 3 || c.GetRefused() != 1 || c.GetStringsDropped() != 0 || c.GetCallersDropped() != 0 {
 		t.Fatalf("counts %v", c)
 	}
-	if !maps.Equal(c.GetRefusedBy(), map[string]uint64{"destination": 1, "port": 1}) {
+	if !maps.Equal(c.GetRefusedBy(), map[string]uint64{"port": 1}) {
 		t.Fatalf("refused_by %v", c.GetRefusedBy())
 	}
-	checkEnvoyReport(t, b.Report, "egress-envoy", "envoy.jsonl")
+	checkEnvoyReport(t, b.Report, "egress-envoy", "envoy.jsonl", "10:00:02.000")
 }
 
 // A TLS listener's lines name the SNI host alone.
@@ -53,16 +55,16 @@ func TestEnvoySNIFixture(t *testing.T) {
 	if !maps.Equal(c.GetRefusedBy(), map[string]uint64{"destination": 1}) {
 		t.Fatalf("refused_by %v", c.GetRefusedBy())
 	}
-	checkEnvoyReport(t, b.Report, "egress-envoy-sni", "envoy-sni.jsonl")
+	checkEnvoyReport(t, b.Report, "egress-envoy-sni", "envoy-sni.jsonl", "10:00:01.500")
 }
 
-func checkEnvoyReport(t *testing.T, r *observev1.ImportReport, source, input string) {
+func checkEnvoyReport(t *testing.T, r *observev1.ImportReport, source, input, latest string) {
 	t.Helper()
 	switch {
 	case r.GetSchemaVersion() != "0.3":
 		t.Fatalf("report schema %q", r.GetSchemaVersion())
 	case r.GetEarliestEventTime().AsTime().Format("15:04:05.000") != "10:00:00.250",
-		r.GetLatestEventTime().AsTime().Format("15:04:05.000") != "10:00:01.500":
+		r.GetLatestEventTime().AsTime().Format("15:04:05.000") != latest:
 		t.Fatalf("event times %v %v", r.GetEarliestEventTime(), r.GetLatestEventTime())
 	case !r.GetEveryRunDoubted():
 		t.Fatal("a refused line names no run, so it puts every run in doubt")

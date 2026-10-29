@@ -12,8 +12,9 @@ import (
 )
 
 // The egress importer's own fixtures: an Envoy forward proxy's access log of
-// four lines, two connections, one whose authority names no port and one
-// whose port its authority contradicts, and its independent descriptor.
+// four lines, three connections, one of them a plain HTTP request whose
+// authority names no port, and one line whose port its authority
+// contradicts, and its independent descriptor.
 const (
 	envoyLog        = "../../internal/ingest/egresslog/testdata/envoy.jsonl"
 	envoyDescriptor = "../../internal/ingest/egresslog/testdata/envoy.descriptor.json"
@@ -48,13 +49,13 @@ func egressTree(t *testing.T, trust string, mode os.FileMode) observeTree {
 }
 
 // TestObserveImportOfAnEgressLogPrintsItsLabels: an egress access log is
-// imported by its kind's importer, which counts lines, and the two lines it
-// refuses make the import exit 1.
+// imported by its kind's importer, which counts lines, and the line it
+// refuses makes the import exit 1.
 func TestObserveImportOfAnEgressLogPrintsItsLabels(t *testing.T) {
 	tr := egressTree(t, "TRUST_INDEPENDENT", 0o600)
 	code, stdout, stderr := invoke(t, tr.importArgs()...)
-	const want = "lines_read: 4\nobserved: 2\nwritten: 2\nduplicate: 0\nconflict: 0\nrefused: 2\nstrings_dropped: 0\ncallers_dropped: 0\n"
-	if code != exitFail || stdout != want || !strings.Contains(stderr, "2 span(s) or line(s) refused") {
+	const want = "lines_read: 4\nobserved: 3\nwritten: 3\nduplicate: 0\nconflict: 0\nrefused: 1\nstrings_dropped: 0\ncallers_dropped: 0\n"
+	if code != exitFail || stdout != want || !strings.Contains(stderr, "1 span(s) or line(s) refused") {
 		t.Fatalf("exit %d, stderr %q, stdout\n%s\nwant 1 and\n%s", code, stderr, stdout, want)
 	}
 }
@@ -80,8 +81,8 @@ func TestObserveImportRefusesAnIndependentInputOthersCanWrite(t *testing.T) {
 		mode  os.FileMode
 	}{"platform, group-writable": {"TRUST_PLATFORM", 0o620}, "independent, writable by its owner alone": {"TRUST_INDEPENDENT", 0o644}} {
 		tr := egressTree(t, c.trust, c.mode)
-		if code, stdout, stderr := invoke(t, tr.importArgs()...); code != exitFail || counted(t, stdout, "written") != 2 {
-			t.Errorf("%s: exit %d, stdout %q, stderr %q; want 1 with two written", name, code, stdout, stderr)
+		if code, stdout, stderr := invoke(t, tr.importArgs()...); code != exitFail || counted(t, stdout, "written") != 3 {
+			t.Errorf("%s: exit %d, stdout %q, stderr %q; want 1 with three written", name, code, stdout, stderr)
 		}
 	}
 }
@@ -120,7 +121,7 @@ var startTime = regexp.MustCompile(`"start_time":"[^"]*"`)
 
 // importFreshEgress writes the Envoy descriptor and its log, every line
 // dated within the last two seconds, into tr's directory and imports them.
-// Two of its lines are refused, so the import exits 1.
+// One of its lines is refused, so the import exits 1.
 func importFreshEgress(t *testing.T, tr coverageTree) (descriptor, log string) {
 	t.Helper()
 	raw, err := os.ReadFile(envoyDescriptor)
@@ -143,7 +144,7 @@ func importFreshEgress(t *testing.T, tr coverageTree) (descriptor, log string) {
 	})
 	input := filepath.Join(tr.dir, "egress.jsonl")
 	writeFixture(t, input, fresh)
-	if code, stdout, stderr := invoke(t, "observe", "import", "--source", descriptor, "--log", log, input); code != exitFail || counted(t, stdout, "written") != 2 {
+	if code, stdout, stderr := invoke(t, "observe", "import", "--source", descriptor, "--log", log, input); code != exitFail || counted(t, stdout, "written") != 3 {
 		t.Fatalf("import: exit %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
 	return descriptor, log
@@ -160,10 +161,10 @@ func lineStarting(lines []string, prefix string) string {
 }
 
 // TestCoverageOfAnImportedEgressLog: the Envoy log imported fresh, and an
-// inventory that declares one host it reached and not the other. The
+// inventory that declares one host it reached and not the other two. The
 // declared host is observed by the independent source and decided by no
-// plane; the other is an undeclared row, and the two lines the import
-// refused are a row of their own, either of which makes coverage exit 1.
+// plane; each other is an undeclared row, and the line the import refused is
+// a row of its own, either of which makes coverage exit 1.
 func TestCoverageOfAnImportedEgressLog(t *testing.T) {
 	tr := newCoverageTree(t, `, {"id":"egress.api","kind":"egress","host":"api.example.com","sources":[{"source_id":"egress-envoy","name":"api.example.com"}]}`)
 	egress, egressLog := importFreshEgress(t, tr)
@@ -181,7 +182,10 @@ func TestCoverageOfAnImportedEgressLog(t *testing.T) {
 		!strings.HasSuffix(undeclared, "; 1 connection, port 8443; no plane decides egress") {
 		t.Errorf("undeclared row %q", undeclared)
 	}
-	const refused = "refused egress by egress-envoy: 2 lines refused, so their connections are unknown: destination 1, port 1; no plane decides egress"
+	if plain := lineStarting(lines, "undeclared egress registry.example.org: "); !strings.HasSuffix(plain, "; 1 connection, port 80; no plane decides egress") {
+		t.Errorf("undeclared row %q", plain)
+	}
+	const refused = "refused egress by egress-envoy: 1 line refused, so their connections are unknown: port 1; no plane decides egress"
 	if got := lineStarting(lines, "refused egress "); got != refused || lines[len(lines)-2] != refused {
 		t.Errorf("refused row %q before the standing row %q, want %q", got, lines[len(lines)-2], refused)
 	}

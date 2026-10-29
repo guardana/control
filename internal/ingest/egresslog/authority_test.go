@@ -31,6 +31,11 @@ func TestAnAuthorityIsSplit(t *testing.T) {
 		{"an IPv6 address", `"[2001:DB8:0::1]:443"`, "443", "2001:db8::1", 443},
 		{"a mapped IPv4 address", `"[::ffff:203.0.113.7]:443"`, "443", "203.0.113.7", 443},
 		{"port 65535", `"api.example.com:65535"`, "null", "api.example.com", 65535},
+		{"a host alone, the port member giving the port", `"registry.example.org"`, "80", "registry.example.org", 80},
+		{"a host alone, and no port member", `"registry.example.org"`, "", "registry.example.org", 0},
+		{"a host alone, the port member null", `"Registry.Example.ORG"`, "null", "registry.example.org", 0},
+		{"an IPv6 address in brackets alone", `"[2001:db8::1]"`, "", "2001:db8::1", 0},
+		{"an IPv6 address in brackets alone, the port member giving the port", `"[2001:db8::1]"`, "8443", "2001:db8::1", 8443},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -44,11 +49,14 @@ func TestAnAuthorityIsSplit(t *testing.T) {
 
 func TestAnAuthorityIsRefusedWhole(t *testing.T) {
 	cases := []struct{ name, authority, port, reason string }{
-		{"a host with no port", `"registry.example.org"`, "80", "destination"},
-		{"an IPv6 address with no brackets", `"2001:db8::1:443"`, "443", "destination"},
-		{"brackets with no port", `"[2001:db8::1]"`, "443", "destination"},
+		{"an IPv6 address with no brackets", `"2001:db8::1"`, "443", "destination"},
+		{"an IPv6 address and a port with no brackets", `"2001:db8::1:443"`, "443", "destination"},
+		{"a colon with no port", `"registry.example.org:"`, "80", "destination"},
+		{"brackets with a colon and no port", `"[2001:db8::1]:"`, "443", "destination"},
 		{"an IPv4 address in brackets", `"[203.0.113.7]:443"`, "443", "destination"},
+		{"an IPv4 address in brackets alone", `"[203.0.113.7]"`, "443", "destination"},
 		{"a zone", `"[fe80::1%eth0]:443"`, "443", "destination"},
+		{"a zone with no brackets", `"fe80::1%eth0"`, "443", "destination"},
 		{"a trailing dot", `"exfil.example.net.:443"`, "443", "destination"},
 		{"an underscore", `"my_host.exfil.example.net:443"`, "443", "destination"},
 		{"a URL", `"https://api.example.com:443/v1"`, "443", "destination"},

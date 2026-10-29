@@ -52,6 +52,11 @@ func TestAuthority(t *testing.T) {
 		{"203.0.113.7:1", "203.0.113.7", 1},
 		{"[2001:DB8::1]:65535", "2001:db8::1", 65535},
 		{"[::ffff:203.0.113.7]:80", "203.0.113.7", 80},
+		{"registry.example.org", "registry.example.org", 0},
+		{"Registry.Example.ORG", "registry.example.org", 0},
+		{"203.0.113.7", "203.0.113.7", 0},
+		{"[2001:db8::1]", "2001:db8::1", 0},
+		{"[::ffff:203.0.113.7]", "203.0.113.7", 0},
 	} {
 		host, port, ok := netname.Authority(c.in)
 		if !ok || host != c.host || port != c.port {
@@ -62,10 +67,12 @@ func TestAuthority(t *testing.T) {
 
 func TestAuthorityRefuses(t *testing.T) {
 	for _, in := range []string{
-		"", "-", "api.example.com", "api.example.com:", "api.example.com:0", "api.example.com:65536",
+		"", "-", ":", "api.example.com:", "api.example.com:0", "api.example.com:65536",
 		"api.example.com:+443", "api.example.com:44 3", "api.example.com:443/x", ":443",
-		"2001:db8::1:443", "[2001:db8::1]", "[2001:db8::1]443", "[203.0.113.7]:443", "[fe80::1%eth0]:443",
-		"evil.example.:443", "https://api.example.com:443", "user@api.example.com:443", "a:b:443",
+		"2001:db8::1", "2001:db8::1:443", "::1", "[2001:db8::1]:", "[2001:db8::1]443", "[2001:db8::1]]",
+		"[2001:db8::1", "[]", "[203.0.113.7]", "[203.0.113.7]:443", "[fe80::1%eth0]", "[fe80::1%eth0]:443",
+		"fe80::1%eth0", "[api.example.com]:443", "evil.example.", "evil.example.:443",
+		"https://api.example.com:443", "user@api.example.com:443", "a:b:443", "api.example.com/x",
 	} {
 		if host, port, ok := netname.Authority(in); ok {
 			t.Errorf("Authority(%q) = %q, %d, want refused", in, host, port)

@@ -37,7 +37,7 @@ own, `egress_access_log`. It may not carry `convention`, `otlp_version`,
 | `format` | yes | `json-lines`, the one format |
 | `fields.time`, `fields.destination` | yes | the member of a line that holds the time and the host |
 | `fields.time_format` | yes | `TIME_FORMAT_RFC3339`, `TIME_FORMAT_UNIX_SECONDS` or `TIME_FORMAT_UNIX_MILLISECONDS` |
-| `fields.destination_form` | yes | `DESTINATION_FORM_HOST`, a host alone, or `DESTINATION_FORM_AUTHORITY`, `host:port` or `[v6]:port` as a CONNECT request names its target |
+| `fields.destination_form` | yes | `DESTINATION_FORM_HOST`, a host alone, or `DESTINATION_FORM_AUTHORITY`, `host`, `host:port`, `[v6]` or `[v6]:port` as a forward proxy's request names its target |
 | `fields.port`, `method`, `status`, `bytes_sent`, `bytes_received`, `caller` | no | the member that holds each value |
 | `caller_basis` | when `caller` is mapped, and only then | `CALLER_BASIS_NONE`, `CALLER_BASIS_ADDRESS` (the address the connection came from) or `CALLER_BASIS_AUTHENTICATED` (the proxy authenticated the caller) |
 
@@ -79,9 +79,10 @@ A-label (`xn--`) is taken as written; a name in Unicode is refused, since this
 build carries no IDNA tables. An IPv4 address is a dotted quad; an IPv6
 address is written as `net/netip` writes it, without brackets or a zone, and
 one that maps an IPv4 address is that IPv4 address. A caller address is
-spelled the same way, `[v6]:port` with a port. Under the authority form, the
-port is required, so a forward proxy's plain HTTP request, whose authority is
-often the host alone, is refused as `destination`.
+spelled the same way, `[v6]:port` with a port. Under the authority form the
+port is optional, since a forward proxy's plain HTTP request often names the
+host alone; an IPv6 address still needs its brackets, and a colon needs a port
+after it.
 
 ## What is never read
 

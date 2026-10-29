@@ -153,8 +153,9 @@ were written under.</p>
 </code></pre>
 <p>A CONNECT request names its target as an authority, <code>host:port</code> or
 <code>[v6]:port</code>, and the descriptor in step 2 says so. A plain HTTP request
-through the proxy often names its host without a port, and that line is
-refused. Where Envoy is instead the TLS endpoint and routes by SNI,
+through the proxy often names its host without a port; the line is kept,
+with <code>upstream_remote_port</code> as its port, or an unknown port when that is
+<code>null</code> too. Where Envoy is instead the TLS endpoint and routes by SNI,
 <code>%REQUESTED_SERVER_NAME%</code> is the host alone; the <code>envoy-sni</code> fixtures map it
 under <code>DESTINATION_FORM_HOST</code>.</p>
 <p>Squid has no JSON encoding, so the <code>logformat</code> writes the braces and quotes:</p>
@@ -196,20 +197,21 @@ chmod 600 egress/envoy.descriptor.json egress/envoy.jsonl
 <pre><code class="language-sh">guardana-control observe import --source egress/envoy.descriptor.json --log egress/log egress/envoy.jsonl
 </code></pre>
 <pre><code class="language-text">lines_read: 4
-observed: 2
-written: 2
+observed: 3
+written: 3
 duplicate: 0
 conflict: 0
-refused: 2
+refused: 1
 strings_dropped: 0
 callers_dropped: 0
-guardana-control: observe import: 2 span(s) or line(s) refused and 0 observation(s) conflicting with the log; the import report holds the counts
+guardana-control: observe import: 1 span(s) or line(s) refused and 0 observation(s) conflicting with the log; the import report holds the counts
 </code></pre>
-<p>It exits 1: the third line's authority is <code>registry.example.org</code> with no
-port, and the fourth names port 443 while <code>upstream_remote_port</code> is 8443.
-The same command again writes nothing new and counts the two connections as
-duplicates. It refuses the two bad lines again, though, and exits 1 each
-time, until the log is rotated.
+<p>The third line is a plain HTTP request: its authority is
+<code>registry.example.org</code> with no port, so the port is <code>upstream_remote_port</code>'s,
+80. It exits 1, because the fourth line names port 443 while
+<code>upstream_remote_port</code> is 8443. The same command again writes nothing new and
+counts the three connections as duplicates. It refuses the bad line again,
+though, and exits 1 each time, until the log is rotated.
 Under <code>TRUST_INDEPENDENT</code>, an input the group or others can write is refused.</p>
 <h3 id="4-map-coverage">4. Map coverage</h3>
 <p>Declare the hosts agents may reach as <code>egress</code> paths, each naming the source
@@ -223,22 +225,24 @@ EOF
 guardana-control coverage --inventory egress/inventory.json --source egress/envoy.descriptor.json --log egress/log
 </code></pre>
 <pre><code class="language-text">egress.api unknown: sources egress-envoy; no plane decides egress
-  source egress-envoy: unknown: past its heartbeat: last heard 2026-10-04T10:00:01Z, heartbeat 300 s
-undeclared egress 2001:db8::1: observed by egress-envoy: independent (unsigned descriptor), past its heartbeat: last heard 2026-10-04T10:00:01Z, heartbeat 300 s; 1 connection, port 8443; no plane decides egress
-refused egress by egress-envoy: 2 lines refused, so their connections are unknown: destination 1, port 1; no plane decides egress
+  source egress-envoy: unknown: past its heartbeat: last heard 2026-10-04T10:00:02Z, heartbeat 300 s
+undeclared egress 2001:db8::1: observed by egress-envoy: independent (unsigned descriptor), past its heartbeat: last heard 2026-10-04T10:00:02Z, heartbeat 300 s; 1 connection, port 8443; no plane decides egress
+undeclared egress registry.example.org: observed by egress-envoy: independent (unsigned descriptor), past its heartbeat: last heard 2026-10-04T10:00:02Z, heartbeat 300 s; 1 connection, port 80; no plane decides egress
+refused egress by egress-envoy: 1 line refused, so their connections are unknown: port 1; no plane decides egress
 undeclared paths: unknown
 </code></pre>
 <p>The fixture's lines are from 2026-10-04, past the 300-second heartbeat, so the
 declared path is unknown; over a log the proxy is still writing, it reads
-observed. <code>2001:db8::1</code> was reached and declared by no path, so it gets a
-row; the two refused lines get one too, since nobody read where they went.
+observed. <code>2001:db8::1</code> and <code>registry.example.org</code> were reached and declared
+by no path, so each gets a row; the refused line gets one too, since nobody
+read where it went.
 Either makes the command exit 1. No plane decides a connection, so an
 egress path is never decided or enforced.</p>
 <h2 id="verify">Verify</h2>
 <pre><code class="language-sh">guardana-control observe export egress/log/observations.jsonl
 </code></pre>
-<p>It writes the two connection observations and the import report, whose
-<code>refusedBy</code> holds <code>&quot;destination&quot;:&quot;1&quot;,&quot;port&quot;:&quot;1&quot;</code>. A line refused for another reason is
+<p>It writes the three connection observations and the import report, whose
+<code>refusedBy</code> holds <code>&quot;port&quot;:&quot;1&quot;</code>. A line refused for another reason is
 counted under its own key (<a href="/docs/reference/egress-access-log#refusals-and-drops">the reference</a>).</p>
 <h2 id="roll-back">Roll back</h2>
 <p>Leave <code>--source</code> and <code>--log</code> off the <code>coverage</code> command line and nothing reads
