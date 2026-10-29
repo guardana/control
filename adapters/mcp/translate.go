@@ -141,7 +141,7 @@ func (a *Adapter) toolCall(req *mcp.CallToolRequest) call {
 		c.admission.Refusal = adapterkit.Unclassified(a.finish(env, args), err)
 		return c
 	}
-	c.admission.ResourceFrom = entry.ResourceFrom
+	c.admission.Classification = entry.Classification
 	up := a.upstreamConfig(entry.Upstream)
 	env.Action.Effect = entry.Effect
 	env.Action.Provider = entry.Upstream

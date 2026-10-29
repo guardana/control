@@ -97,8 +97,9 @@ What an adapter hands in, the pipeline holds it to, in every mode:
   arguments; otherwise the call is refused with the kernel's code for the
   fault. `adapterkit.Unclassified` builds the refusal from the adapter's own
   validation without joining the two.
-- `ResourceFrom` is the RFC 6901 pointer the resource id was read at; another
-  spelling is refused. Bytes a rewrite changed so that the member there names
+- `Classification` is the call's, and its `ResourceFrom` the RFC 6901
+  pointer the resource id was read at; another spelling is refused. Bytes a
+  rewrite changed so that the member there names
   another resource are a `DENY` with `OBLIGATION_NOT_UNDERSTOOD`, and are
   never handed out. An adapter that reads the resource id from the arguments
   must set it, or no rewrite is held to the resource.

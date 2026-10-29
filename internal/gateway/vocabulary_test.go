@@ -108,7 +108,7 @@ func TestRewrittenBytesMustNameTheDecidedResource(t *testing.T) {
 			env := refundEnvelope(t, args)
 			env.Resource.Id = c.id
 			a := admission(env, args)
-			a.ResourceFrom = c.pointer
+			a.Classification.ResourceFrom = c.pointer
 			d := h.p.Admit(context.Background(), a)
 			runs := d.Action == core.Execute || d.Action == core.ExecuteWithObligations
 			if runs != c.runs {
@@ -154,7 +154,7 @@ func TestAMalformedResourcePointerIsRefused(t *testing.T) {
 						env.Action.Effect = controlv1.EffectClass_EFFECT_CLASS_UNSPECIFIED
 					}
 					a := admission(env, args)
-					a.Refusal, a.ResourceFrom = refusal, c.pointer
+					a.Refusal, a.Classification.ResourceFrom = refusal, c.pointer
 					d := h.p.Admit(context.Background(), a)
 					if !c.refused {
 						if d.Action != core.Execute && d.Action != core.ExecuteWithObligations {

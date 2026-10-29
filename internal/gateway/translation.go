@@ -91,7 +91,7 @@ func (c *call) checkTranslation() {
 		c.in.Refusal = &contract.ValidationError{Field: "action.kind", Err: contract.ErrInvalidValue}
 	case action.GetProtocol() != c.p.name:
 		c.in.Refusal = &contract.ValidationError{Field: "action.protocol", Err: contract.ErrInvalidValue}
-	case classify.CheckPointer(c.in.ResourceFrom) != nil:
+	case classify.CheckPointer(c.in.Classification.ResourceFrom) != nil:
 		c.in.Refusal = fmt.Errorf("%w: the resource pointer is not RFC 6901", contract.ErrInvalidValue)
 	case translationOf(c.in) == translationUnclassified:
 		if err := unclassifiedClaim(c.in.Envelope, c.in.Arguments); err != nil {

@@ -62,7 +62,7 @@ func (a *Adapter) translate(req *enforcev1alpha1.AdmitRequest, run gateway.Opene
 		env.Destination = &controlv1.Destination{TrustZone: tool.TrustZone}
 	}
 	adm.ResultTrust, adm.ResultSensitivity = tool.ReturnsTrust, tool.ReturnsSensitivity
-	adm.ResourceFrom = tool.ResourceFrom
+	adm.Classification = tool.Classification
 	adm.Refusal = finish(env, args)
 	return adm
 }

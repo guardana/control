@@ -69,7 +69,7 @@ func (c *call) authorize(snap *policy.Snapshot) {
 // classification read the resource id at, another member than the one the
 // call was decided on. With no pointer no member names the resource.
 func (c *call) resourceMoved() bool {
-	p := c.in.ResourceFrom
+	p := c.in.Classification.ResourceFrom
 	return p != "" && !sameResource(c.in.Arguments, c.args, p, c.in.Envelope.GetResource().GetId())
 }
 

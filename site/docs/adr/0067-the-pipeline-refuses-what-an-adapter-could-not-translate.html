@@ -214,8 +214,9 @@ whose declared <code>Enforcement</code> is not <code>StrengthOf(Name())</code> (
 the mode gate and the cooperative close read the strength coverage and the run
 view read. A new adapter adds its protocol and strength to <code>internal/channel</code>.
 No protocol of this build is <code>None</code>, so no adapter of that strength starts.</p>
-<p><strong>The moved-resource check is the pipeline's.</strong> <code>Admission.ResourceFrom</code>
-carries the pointer the classification read the resource id at. Bytes whose
+<p><strong>The moved-resource check is the pipeline's.</strong> <code>Admission.Classification</code>
+is the classification the adapter translated the call under, and its
+<code>ResourceFrom</code> the pointer it read the resource id at. Bytes whose
 member there no longer names the resource the call was decided on are a DENY
 of the plane's own, <code>OBLIGATION_NOT_UNDERSTOOD</code>, before anything is handed
 out, for every adapter. The adapters' own aborts are gone. A pointer that is

@@ -117,8 +117,9 @@ the mode gate and the cooperative close read the strength coverage and the run
 view read. A new adapter adds its protocol and strength to `internal/channel`.
 No protocol of this build is `None`, so no adapter of that strength starts.
 
-**The moved-resource check is the pipeline's.** `Admission.ResourceFrom`
-carries the pointer the classification read the resource id at. Bytes whose
+**The moved-resource check is the pipeline's.** `Admission.Classification`
+is the classification the adapter translated the call under, and its
+`ResourceFrom` the pointer it read the resource id at. Bytes whose
 member there no longer names the resource the call was decided on are a DENY
 of the plane's own, `OBLIGATION_NOT_UNDERSTOOD`, before anything is handed
 out, for every adapter. The adapters' own aborts are gone. A pointer that is

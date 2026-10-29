@@ -6,6 +6,7 @@ import (
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/classify"
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/pause"
@@ -32,11 +33,11 @@ type Admission struct {
 	// Run is the opened run the listener resolved for this call; nil on a
 	// plane without a runs directory.
 	Run *OpenedRun
-	// ResourceFrom is the pointer into Arguments the classification read the
-	// envelope's resource id at; empty when no member of the arguments names
-	// the resource. Bytes are handed out only while the member it points at
-	// still names the resource the call was decided on.
-	ResourceFrom string
+	// Classification is the one the adapter translated the call under; zero
+	// when nothing classified it. Bytes are handed out only while the member
+	// its ResourceFrom points at still names the resource the call was
+	// decided on.
+	Classification classify.Classification
 }
 
 // Disposition is what the plane does about an admission. The zero value
