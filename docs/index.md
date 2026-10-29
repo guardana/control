@@ -27,7 +27,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [Supervise and stop a run](guides/supervise-and-stop-a-run.md): Run the refund example by hand on a live plane, supervise the run against its procedure, read its page, and stop it on a confirmed finding.
 - [Test a procedure](guides/test-a-procedure.md): Lint a procedure document, then prove what supervise finds with cases that state a run, its evidence and every expected finding.
 - [Watch a plane without a collector](guides/watch-a-plane-without-a-collector.md): Run the collector the gateway binary ships, point a plane's export at it, and check each request's trail in the file it writes.
-- [Watch an egress proxy](guides/watch-an-egress-proxy.md): Have Envoy or Squid log each connection as a JSON line, import the log as observations, and see in the coverage map which hosts agents reached.
+- [Watch an egress proxy](guides/watch-an-egress-proxy.md): Have Envoy or Squid write their access log as JSON lines, import it as observations, and see in the coverage map the destinations the proxy logged.
 - [Write and test a policy](guides/write-and-test-a-policy.md): Write an agent-policy/v1alpha1 document, lint it, prove what it decides with cases, sign it into the bundle a plane loads, and vouch that the bundle is current.
 
 ## Concepts

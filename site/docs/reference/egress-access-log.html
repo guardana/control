@@ -113,8 +113,8 @@
 <main id="main" class="prose">
 <h1 id="egress-access-log">Egress access log</h1>
 <p>A source of kind <code>egress-access-log</code> is an egress proxy's access log, written
-as JSON lines. Each line becomes one connection observation: the host an agent
-reached, as the proxy saw it, not as the agent reported it. It is
+as JSON lines. Each line the importer accepts becomes one connection
+observation: the host the proxy recorded, not the one the agent reported. It is
 <code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory and
 <a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>
 the record. <a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a> sets
@@ -233,8 +233,8 @@ never with a sign, a fraction or an exponent. <code>null</code>, <code>&quot;&qu
 optional value is left empty and counts as nothing. An RFC 3339 time needs its
 zone. Unix seconds take at most nine fractional digits; Unix milliseconds take
 none.</p>
-<p>A host has one spelling, <code>Host</code> in <code>internal/netname</code>, which the coverage
-inventory declares hosts in too. A name is lowercased and held to labels of 1
+<p>A host has one spelling, <code>Host</code> in <code>internal/netname</code>, and the coverage
+inventory uses the same one. A name is lowercased and held to labels of 1
 to 63 letters, digits and hyphens, not starting or ending with a hyphen, at
 most 253 bytes in all (<code>observe.MaxHostBytes</code>), with no trailing dot. An
 A-label (<code>xn--</code>) is taken as written; a name in Unicode is refused, since this
@@ -250,11 +250,11 @@ after it.</p>
 every other value is stepped over unread. A path, query, header, user agent or
 body the proxy also logged is never copied unless the descriptor maps its
 member to one of the fields above (invariant 9). A destination that is a URL,
-or holds a port, a path, a query, a fragment, user information or whitespace, is
+or holds a path, a query, a fragment, user information or whitespace, is
 refused whole and never parsed down to its host: mapping a URL member is the
 operator's mistake, and guessing the host from it would hide that. Under the
-host form a port is refused too; under the authority form only a port is
-split off.</p>
+host form a port is refused too; under the authority form a port is split
+off.</p>
 <h2 id="refusals-and-drops">Refusals and drops</h2>
 <p>A refused line becomes no observation. It is counted in <code>refused</code>, and under
 its reason in the report's <code>refused_by</code>. <code>observe import</code> prints <code>lines_read</code>
@@ -308,7 +308,8 @@ weighs on nothing: <code>supervise</code> refuses a source of this kind
 whose reports count a refusal, and exits 1 (<a href="/docs/reference/coverage">coverage</a>).</p>
 <p>Importing a log again refuses its bad line again and writes another report
 counting it, so a log that ever held one exits 1 on every import, and keeps
-<code>coverage</code> at 1, until it is rotated. An input is read whole, up to 256 MiB,
+<code>coverage</code> at 1 until the observation log is rotated by hand
+(<a href="/docs/reference/observations">observations</a>). An input is read whole, up to 256 MiB,
 before a line is mapped, and the import holds every observation it made in
 memory until it writes them.</p>
 <h2 id="identity-and-the-log">Identity and the log</h2>
@@ -318,8 +319,8 @@ event time, host, port, method, status, both byte counts and the caller, each
 prefixed by its length (<code>ConnectionID</code> in <code>internal/observe/connection.go</code>).
 Importing a file again, grown or rotated, writes only what is new; two
 connections alike in all of these are one duplicate. Trust and the caller's
-basis are not in the id, so a connection imported again after the descriptor
-changed either is a conflict. Every record this kind writes is schema <code>0.3</code>
+basis are not in the id, so importing a connection again after the
+descriptor changed its trust or its caller basis is a conflict. Every record this kind writes is schema <code>0.3</code>
 and names the kind in <code>source.kind</code> (<a href="/docs/reference/versions">versions</a>). A log holds
 one kind per source: <code>observe import</code> refuses a write whose kind is not that
 of the records the log already holds for its source, tenant and project.</p>
@@ -333,10 +334,10 @@ the mode bits only, not an access control list, which can grant write to
 another account behind a mode of <code>0644</code>, and not which account owns the
 file. <code>coverage</code> prints the trust as
 <code>independent (unsigned descriptor)</code>.</p>
-<p>A forged line can make a destination look reached. A deleted line makes one
-look unreached, which shows as not observed, never as covered. A finding that
-rests on this trust needs a signed descriptor before continuous supervision
-uses it.</p>
+<p>A forged line can make a destination look observed, and deleting its lines can
+make it look not observed, never covered. A line is the proxy's account of a
+request, not proof that a connection succeeded. <code>supervise</code> refuses this kind;
+a finding may rest on this trust only once the descriptor is signed.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/egress-access-log.md">docs/reference/egress-access-log.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.14.0, and <a href="https://github.com/guardana/control/tree/v0.14.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">

@@ -1,6 +1,6 @@
 ---
 title: Watch an egress proxy
-summary: Have Envoy or Squid log each connection as a JSON line, import the log as observations, and see in the coverage map which hosts agents reached.
+summary: Have Envoy or Squid write their access log as JSON lines, import it as observations, and see in the coverage map the destinations the proxy logged.
 type: how-to
 covers: [internal/ingest/egresslog/**, cmd/guardana-control/observe.go, cmd/guardana-control/coverage.go, internal/coverage/undeclared.go]
 ---
@@ -98,8 +98,8 @@ The authority's port is the connection's when `upstream_remote_port` is
 dropped and counted in `callers_dropped`.
 `squid.descriptor.json` reads `%ts.%03tu` as `TIME_FORMAT_UNIX_SECONDS` and
 the authenticated user `%ul` as a caller with `CALLER_BASIS_AUTHENTICATED`.
-The descriptor must be a file of this account that the group and others
-cannot write. Copy the fixtures into a directory of their own:
+The descriptor must be a file of the account that runs `observe import`, and
+neither its group nor others may write it. Copy the fixtures into a directory of their own:
 
 ```sh
 mkdir -m 700 egress egress/log
@@ -159,10 +159,10 @@ undeclared paths: unknown
 
 The fixture's lines are from 2026-10-04, past the 300-second heartbeat, so the
 declared path is unknown; over a log the proxy is still writing, it reads
-observed. `2001:db8::1` and `registry.example.org` were reached and declared
-by no path, so each gets a row; the refused line gets one too, since nobody
-read where it went.
-Either makes the command exit 1. No plane decides a connection, so an
+observed. `2001:db8::1` and `registry.example.org` are in the log and no path
+declares them, so each gets a row; the refused line gets one too, since its
+destination could not be imported. An undeclared host or a refused line makes
+the command exit 1. No plane decides a connection, so an
 egress path is never decided or enforced.
 
 ## Verify

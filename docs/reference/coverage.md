@@ -161,7 +161,8 @@ refused egress by egress-envoy: 2 lines refused, so their connections are unknow
 ```
 
 Each report counts what its own import refused, so a line two imports of
-the same file refused counts twice; the row stays until the log is rotated.
+the same file refused counts twice; the row stays until the observation log
+is rotated by hand.
 
 The check that an independent input is not writable by others reads mode
 bits only, not an access control list or the file's owner

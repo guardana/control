@@ -8,8 +8,8 @@ covers: [internal/ingest/egresslog/**, internal/netname/**, internal/observe/kin
 # Egress access log
 
 A source of kind `egress-access-log` is an egress proxy's access log, written
-as JSON lines. Each line becomes one connection observation: the host an agent
-reached, as the proxy saw it, not as the agent reported it. It is
+as JSON lines. Each line the importer accepts becomes one connection
+observation: the host the proxy recorded, not the one the agent reported. It is
 `experimental`; [status.md](../status.md) is the inventory and
 [ADR-0069](../adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor.md)
 the record. [Watch an egress proxy](../guides/watch-an-egress-proxy.md) sets
@@ -71,8 +71,8 @@ optional value is left empty and counts as nothing. An RFC 3339 time needs its
 zone. Unix seconds take at most nine fractional digits; Unix milliseconds take
 none.
 
-A host has one spelling, `Host` in `internal/netname`, which the coverage
-inventory declares hosts in too. A name is lowercased and held to labels of 1
+A host has one spelling, `Host` in `internal/netname`, and the coverage
+inventory uses the same one. A name is lowercased and held to labels of 1
 to 63 letters, digits and hyphens, not starting or ending with a hyphen, at
 most 253 bytes in all (`observe.MaxHostBytes`), with no trailing dot. An
 A-label (`xn--`) is taken as written; a name in Unicode is refused, since this
@@ -90,11 +90,11 @@ A line is checked to be valid JSON, and only the mapped members are decoded;
 every other value is stepped over unread. A path, query, header, user agent or
 body the proxy also logged is never copied unless the descriptor maps its
 member to one of the fields above (invariant 9). A destination that is a URL,
-or holds a port, a path, a query, a fragment, user information or whitespace, is
+or holds a path, a query, a fragment, user information or whitespace, is
 refused whole and never parsed down to its host: mapping a URL member is the
 operator's mistake, and guessing the host from it would hide that. Under the
-host form a port is refused too; under the authority form only a port is
-split off.
+host form a port is refused too; under the authority form a port is split
+off.
 
 ## Refusals and drops
 
@@ -128,7 +128,8 @@ whose reports count a refusal, and exits 1 ([coverage](coverage.md)).
 
 Importing a log again refuses its bad line again and writes another report
 counting it, so a log that ever held one exits 1 on every import, and keeps
-`coverage` at 1, until it is rotated. An input is read whole, up to 256 MiB,
+`coverage` at 1 until the observation log is rotated by hand
+([observations](observations.md)). An input is read whole, up to 256 MiB,
 before a line is mapped, and the import holds every observation it made in
 memory until it writes them.
 
@@ -140,8 +141,8 @@ event time, host, port, method, status, both byte counts and the caller, each
 prefixed by its length (`ConnectionID` in `internal/observe/connection.go`).
 Importing a file again, grown or rotated, writes only what is new; two
 connections alike in all of these are one duplicate. Trust and the caller's
-basis are not in the id, so a connection imported again after the descriptor
-changed either is a conflict. Every record this kind writes is schema `0.3`
+basis are not in the id, so importing a connection again after the
+descriptor changed its trust or its caller basis is a conflict. Every record this kind writes is schema `0.3`
 and names the kind in `source.kind` ([versions](versions.md)). A log holds
 one kind per source: `observe import` refuses a write whose kind is not that
 of the records the log already holds for its source, tenant and project.
@@ -158,7 +159,7 @@ another account behind a mode of `0644`, and not which account owns the
 file. `coverage` prints the trust as
 `independent (unsigned descriptor)`.
 
-A forged line can make a destination look reached. A deleted line makes one
-look unreached, which shows as not observed, never as covered. A finding that
-rests on this trust needs a signed descriptor before continuous supervision
-uses it.
+A forged line can make a destination look observed, and deleting its lines can
+make it look not observed, never covered. A line is the proxy's account of a
+request, not proof that a connection succeeded. `supervise` refuses this kind;
+a finding may rest on this trust only once the descriptor is signed.

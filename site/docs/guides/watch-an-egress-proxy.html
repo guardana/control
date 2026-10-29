@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Watch an egress proxy · Guardana Control</title>
-<meta name="description" content="Have Envoy or Squid log each connection as a JSON line, import the log as observations, and see in the coverage map which hosts agents reached."/>
+<meta name="description" content="Have Envoy or Squid write their access log as JSON lines, import it as observations, and see in the coverage map the destinations the proxy logged."/>
 <link rel="canonical" href="https://control.guardana.dev/docs/guides/watch-an-egress-proxy"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
@@ -187,8 +187,8 @@ The authority's port is the connection's when <code>upstream_remote_port</code> 
 dropped and counted in <code>callers_dropped</code>.
 <code>squid.descriptor.json</code> reads <code>%ts.%03tu</code> as <code>TIME_FORMAT_UNIX_SECONDS</code> and
 the authenticated user <code>%ul</code> as a caller with <code>CALLER_BASIS_AUTHENTICATED</code>.
-The descriptor must be a file of this account that the group and others
-cannot write. Copy the fixtures into a directory of their own:</p>
+The descriptor must be a file of the account that runs <code>observe import</code>, and
+neither its group nor others may write it. Copy the fixtures into a directory of their own:</p>
 <pre><code class="language-sh">mkdir -m 700 egress egress/log
 cp internal/ingest/egresslog/testdata/envoy.descriptor.json internal/ingest/egresslog/testdata/envoy.jsonl egress/
 chmod 600 egress/envoy.descriptor.json egress/envoy.jsonl
@@ -233,10 +233,10 @@ undeclared paths: unknown
 </code></pre>
 <p>The fixture's lines are from 2026-10-04, past the 300-second heartbeat, so the
 declared path is unknown; over a log the proxy is still writing, it reads
-observed. <code>2001:db8::1</code> and <code>registry.example.org</code> were reached and declared
-by no path, so each gets a row; the refused line gets one too, since nobody
-read where it went.
-Either makes the command exit 1. No plane decides a connection, so an
+observed. <code>2001:db8::1</code> and <code>registry.example.org</code> are in the log and no path
+declares them, so each gets a row; the refused line gets one too, since its
+destination could not be imported. An undeclared host or a refused line makes
+the command exit 1. No plane decides a connection, so an
 egress path is never decided or enforced.</p>
 <h2 id="verify">Verify</h2>
 <pre><code class="language-sh">guardana-control observe export egress/log/observations.jsonl

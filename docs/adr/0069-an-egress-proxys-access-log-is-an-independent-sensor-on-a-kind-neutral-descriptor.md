@@ -61,11 +61,11 @@ trust is policy, and it must not move into an importer (invariant 7).
    received and caller. Time and destination are required. It reads no
    member the mapping does not name, so a path, query, header or body the
    proxy logged is never copied unless the mapping names it (invariant 9).
-   The mapping's `destination_form` is `host` or `authority`, `host`,
-   `host:port`, `[v6]` or `[v6]:port` as a forward proxy's request names its
-   target; an authority's port is the connection's when no port member gives
-   one, the port is unknown when neither does, and a port given both ways
-   that disagrees refuses the line. A destination in neither form is
+   The mapping's `destination_form` is `host` or `authority`. An authority
+   is `host`, `host:port`, `[v6]` or `[v6]:port`, as a forward proxy's
+   request names its target. The port member gives the port; without one,
+   the authority's port does; without either, the port is unknown. A line
+   whose two ports disagree is refused. A destination in neither form is
    refused, never parsed down to its host. A method outside a fixed list of
    nine is dropped and counted. Under `CALLER_BASIS_ADDRESS` the caller is an
    IP address, with a port or without one, or it is dropped and counted in
@@ -80,7 +80,8 @@ trust is policy, and it must not move into an importer (invariant 7).
    SHA-256 under the domain `observation-id:connection:1`, over the tenant,
    project, source, event time, host, port, method, status, both byte counts
    and the caller. A re-import of a grown or rotated file yields the same ids,
-   and two connections alike in all of these are one duplicate. The codec
+   and two lines alike in all of these are one duplicate, even when the proxy
+   handled two requests. The codec
    holds a connection to one form: no trace, span or run, basis
    `BASIS_NONE`, stage `STAGE_INDIRECT`, an event time, a listed method, a
    status of 0 or 100 to 599, a caller of copyable text, of an address's
@@ -96,12 +97,14 @@ trust is policy, and it must not move into an importer (invariant 7).
    others can write. `coverage` prints such trust as `independent (unsigned
    descriptor)`. A finding that rests on it needs a signed descriptor
    (ADR-0039) before continuous supervision uses it.
-7. **No connection names a run in this release.** The caller is kept as the
-   proxy wrote it, with the basis the descriptor declares (none, address or
-   authenticated), for a later join. `supervise` refuses, as an input error, a
+7. **No connection names a run in this release.** The caller is kept, an
+   address in its one spelling and any other caller as the proxy wrote it,
+   with the basis the descriptor declares (none, address or authenticated),
+   for a later join. `supervise` refuses, as an input error, a
    `--source` whose kind names no run, and one with no kind.
 8. **Coverage.** An egress path is observed when a live source it names holds
-   a connection to the name that source is given; the port is not compared.
+   a connection whose host is the name the path gives that source; the port
+   is not compared.
    The inventory refuses an egress host or source name that is not a host in
    its one spelling, and `server_address` on an egress path's source. No
    plane decides egress, and every egress line says so. Each host an egress
@@ -120,9 +123,10 @@ independent claim is only as good as the deployment: nothing checks which
 account writes the proxy's log, and the check that an independent input is
 not writable by others reads its mode bits, not an access control list or
 its owner. The undeclared rows' cut follows the hosts' bytes, which an agent
-chooses, so it can push a host past the cut; the cut still exits 1. A forged line can make a destination look
-reached, and a deleted line makes one look unreached, which shows as not
-observed, never as covered.
+chooses, so it can push a host past the cut; the cut still exits 1. A forged
+line can make a destination look observed, and deleting its lines can make it
+look not observed, never covered. A line is the proxy's account of a request,
+not proof that a connection succeeded.
 
 A log holding a `0.3` line cannot be read by 0.14: its `observe import` and
 `coverage` refuse the log as damaged, and its `observe export` counts each
@@ -162,9 +166,10 @@ from the host, is a second importer and its own checks, with no edit of
 "an unattributed connection stays unknown" holds, and "attributed to a run as
 well as the proxy identifies its caller" does not: every connection is
 unattributed. `observe import` prints the total refused, not each reason; the
-import report in the log holds them. Importing a log again refuses its bad
-lines again and writes another report counting them, so a log that ever held
-one exits 1 on every import, and keeps `coverage` at 1, until it is rotated.
+import report in the log holds them. Importing a proxy's file again refuses
+its bad lines again and writes another report counting them, so a file that
+holds one exits 1 on every import, and `coverage` stays at 1 until the
+observation log is rotated by hand, as observations.md says.
 An input is read whole, up to 256 MiB, and its observations are held in
 memory until they are written.
 
