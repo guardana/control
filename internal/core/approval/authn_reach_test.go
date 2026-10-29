@@ -32,7 +32,9 @@ const maySpellThePrefix = "internal/core/approval"
 // names the constructor outside the directories allowed to, or spells the
 // prefix in a non-test source outside its package, and how many sources it
 // read. Any spelling counts, a call, a method value, an alias's selector, a
-// linkname or a comment, because none of them leaves the name out.
+// linkname or a comment, because none of them leaves the name out. It is a
+// substring tripwire, not an analysis: a name assembled at run time, or
+// reached through reflection, passes it.
 func reachingTheReserved(t *testing.T, root string) (found []string, read int) {
 	t.Helper()
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {

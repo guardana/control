@@ -56,15 +56,13 @@ func checkReason(reason string) error {
 	return nil
 }
 
-// checkText holds the two fields an approver writes to what Answer enforces
-// before either of them reaches an Approval.
-func (r Record) checkText() error {
+// checkApprover holds the approver id a record carries to what Answer
+// enforces before it reaches an Approval.
+func (r Record) checkApprover() error {
 	if id := r.Approval.GetApproverId(); id != "" {
-		if err := CheckApproverID(id); err != nil {
-			return err
-		}
+		return CheckApproverID(id)
 	}
-	return checkReason(r.Approval.GetReason())
+	return nil
 }
 
 // checkTimes holds a record's three times to each other and to the longest

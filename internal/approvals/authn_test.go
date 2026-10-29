@@ -15,11 +15,11 @@ import (
 )
 
 // reservedClaims spell the reserved prefix as it is, in capitals, with a
-// Cyrillic a and a fullwidth colon, in Lisu letters, with a Tibetan colon and
-// after a blank braille pattern. Every one is an identifier, so only the
-// reservation refuses it.
+// Cyrillic a, with a dot above a full stop, in Lisu letters beside Latin, with
+// a Tibetan colon and after a blank braille pattern. Every one is an
+// identifier, so only the reservation refuses it.
 var reservedClaims = []string{
-	"authn:okta:alice", "AUTHN:okta:alice", "\u0430uthn:okta:alice", "authn\uff1aokta:alice",
+	"authn:okta:alice", "AUTHN:okta:alice", "\u0430uthn:okta:alice", "authn.\u0307okta:alice",
 	"\ua4ee\ua4f4\ua4d4\ua4e7\ua4e0:okta:alice", "authn\u0f7fokta:alice", "\u2800authn:okta:alice",
 }
 
