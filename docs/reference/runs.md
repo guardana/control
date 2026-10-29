@@ -120,8 +120,18 @@ A record from before `project_id` is of `schema_version` `1.0` and names no
 project. It is never read as any project's run: its token is refused as
 `unreadable`, a stdio plane given it refuses the start saying the record names
 no project, `runs list` refuses the directory while it holds one, and
-`runs close` and `runs open --parent` refuse that run. To move, open each run
-again with `runs open --project` in a new, empty directory, point `runs.dir`
-at it, hand the agents their new tokens, and remove the old directory once no
-plane names it. No run lives past 720 hours, so nothing in the old directory
-outlives that.
+`runs close`, `runs open --parent` and `react`, for a finding that names it,
+refuse that run.
+
+Move to a new, empty directory, never into the old one: while one `1.0`
+record is left in a directory, `runs list` refuses that whole directory, and
+so does `supervise` of every run under a procedure that reads children. Open
+each run again there with `runs open --project`, point `runs.dir` at it, and
+remove the old directory once no plane names it. No run lives past 720 hours,
+so nothing in the old directory outlives that.
+
+A reopened run starts with a clean flow state. An agent that took in
+untrusted or confidential data under the old run would carry it into the new
+one unmarked, and a flow rule would not see it. End each agent's task and
+start a new one under the new run; never hand a new token to an agent in the
+middle of a task.

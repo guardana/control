@@ -113,7 +113,9 @@
 <p>Status: accepted
 Date: 2026-10-28</p>
 <p>Amends <a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>
-on whose run a token names.</p>
+on whose run a token names, and
+<a href="/docs/adr/0058-a-copy-an-import-never-read-is-doubt-for-the-runs-it-claimed">ADR-0058</a>
+on what holds a source when no event of the run was read.</p>
 <h2 id="context">Context</h2>
 <p>A run's record named a tenant, a principal and an agent, and a plane resolved
 a token for the identity its listener gives. Two planes of different projects
@@ -135,8 +137,30 @@ run lives past 720 hours.</p>
 <p>The runs directory's marker and each root's state stay at <code>1.0</code> and name no
 project. Planes of several projects may still share one directory, because
 each record is bound on its own.</p>
+<p>Every reader of a run holds it to its project, as it holds it to its tenant:</p>
+<ul>
+<li>A run tree is read only when every member is of the root's project; a member
+of another is refused, as one of another tenant is.</li>
+<li><code>supervise</code> takes the project from the run's record, refuses a member of the
+tree of another project, and refuses evidence whose events of the run name
+another project and a source of another project, even when no event of the
+run was read.</li>
+<li><code>react</code> never stops a run for a finding of another project, nor for one that
+names no project.</li>
+<li><code>doctor</code> and <code>/healthz</code> list a stop of another project's run as unheld, since
+it matches no call of the plane.</li>
+</ul>
+<p>Resolving a child's token returns the root its record names without reading
+the root's record, for the project as for the tenant. A run's state only
+rises, so a record planted under another project's root can raise that
+root's state, never lower it. Whoever can plant that record can also rewrite
+the root's record, so a second read on every call would bind nothing such a
+writer could not undo. The readers that judge a task as a whole, the tree
+reads above, refuse such a member.</p>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
-<p>A token can no longer cross projects. Every run opened by an earlier release
+<p>A token can no longer cross projects. The marker binds no project, so write
+access to a shared runs directory is the authority to open a run for every
+project that shares it. Every run opened by an earlier release
 stops resolving on upgrade, and its agents need new tokens. A stdio plane given
 such a token refuses to start. A plane that serves runs over HTTP answers 401
 <code>unreadable</code> on each call until the token is replaced.</p>
@@ -151,8 +175,17 @@ would then be served by whichever plane read it first.</li>
 can be copied between planes, so it proves nothing about the project.</li>
 </ul>
 <h2 id="consequences">Consequences</h2>
-<p>Operators reopen live runs once at upgrade. <code>doctor</code> does not yet name a
-<code>1.0</code> record in a runs directory; the plane's refusal does.</p>
+<p>Operators reopen live runs once at upgrade, in a new, empty directory. One
+<code>1.0</code> record left in a directory makes <code>runs list</code> refuse that whole
+directory, and so does <code>supervise</code> of every run under a procedure that reads
+children; <code>runs close</code>, <code>runs open --parent</code> and <code>react</code> refuse the old run
+itself. <code>doctor</code> does not yet name a <code>1.0</code> record in a runs directory; the
+plane's refusal does.</p>
+<p>A reopened run starts with a clean flow state: no command carries a run's
+state into another. An agent that took in untrusted data under the old run
+would lose that mark under the new one. Operators end each agent's task and
+start a new one under the new run, and never hand a new token to an agent in
+the middle of a task.</p>
 <h2 id="validation">Validation</h2>
 <ul>
 <li><code>internal/runs</code> keeps a literal <code>1.0</code> record and refuses it, and refuses a
@@ -162,6 +195,15 @@ serves two projects' planes from one directory and listener identity and
 expects 401 with no trail.</li>
 <li><code>TestARecordOfMajorOneResolvesOnNoPlane</code> expects a <code>1.0</code> record to resolve on
 no plane.</li>
+<li><code>internal/runs</code>'s tree tests plant a member of another project and expect
+<code>ErrTreeProject</code> from <code>Tree</code> and <code>Children</code>.</li>
+<li><code>internal/supervise</code> refuses a tree member of another project, and events or
+a source of another project than the run's record, with or without an event
+read; <code>supervise</code> exits 2 on such an
+export and writes no finding.</li>
+<li><code>react</code> writes no stop for a finding of another project, or for a run of
+another project; <code>Eligible</code> refuses either, and a finding with no project.</li>
+<li><code>doctor</code> and <code>/healthz</code> list a stop of another project's run as unheld.</li>
 </ul>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0068-a-run-belongs-to-one-project.md">docs/adr/0068-a-run-belongs-to-one-project.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.14.0, and <a href="https://github.com/guardana/control/tree/v0.14.0/docs">its documentation</a> is in its tag.</p>
 </main>

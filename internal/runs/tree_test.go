@@ -111,10 +111,11 @@ func TestTreeIsBoundedByItsOwnSize(t *testing.T) {
 	}
 }
 
-// TestTreeRefusesWhatItCannotVouchFor: a member of another tenant, a member
-// whose parent is in no tree, two members each the other's parent, a member
-// whose parent is another root's run, a record of another tree that does
-// not decode, a child asked for as a root and a run no record names.
+// TestTreeRefusesWhatItCannotVouchFor: a member of another tenant or
+// project, a member whose parent is in no tree, two members each the other's
+// parent, a member whose parent is another root's run, a record of another
+// tree that does not decode, a child asked for as a root and a run no record
+// names.
 func TestTreeRefusesWhatItCannotVouchFor(t *testing.T) {
 	for name, c := range map[string]struct {
 		edit func(t *testing.T, dir string, f family)
@@ -124,6 +125,9 @@ func TestTreeRefusesWhatItCannotVouchFor(t *testing.T) {
 		"a member of another tenant": {func(t *testing.T, dir string, f family) {
 			rewrite(t, dir, f.grandchild+".run.json", func(m map[string]json.RawMessage) { m["tenant_id"] = json.RawMessage(`"tenant-b"`) })
 		}, nil, runs.ErrTreeTenant},
+		"a member of another project": {func(t *testing.T, dir string, f family) {
+			rewrite(t, dir, f.grandchild+".run.json", func(m map[string]json.RawMessage) { m["project_id"] = json.RawMessage(`"project-b"`) })
+		}, nil, runs.ErrTreeProject},
 		"a parent in no tree": {func(t *testing.T, dir string, f family) {
 			plant(t, dir, plantedID(7), alice.TenantID, f.root, plantedID(8))
 		}, nil, runs.ErrTreeBroken},
@@ -182,8 +186,8 @@ func TestChildrenAreTheRunsOpenedUnderOneRun(t *testing.T) {
 	}
 }
 
-// TestChildrenRefuseWhatTheyCannotVouchFor: a child of another tenant, one
-// whose root is not its parent's, and a run no record names.
+// TestChildrenRefuseWhatTheyCannotVouchFor: a child of another tenant or
+// project, one whose root is not its parent's, and a run no record names.
 func TestChildrenRefuseWhatTheyCannotVouchFor(t *testing.T) {
 	for name, c := range map[string]struct {
 		edit func(t *testing.T, dir string, f family)
@@ -193,6 +197,9 @@ func TestChildrenRefuseWhatTheyCannotVouchFor(t *testing.T) {
 		"another tenant": {func(t *testing.T, dir string, f family) {
 			rewrite(t, dir, f.grandchild+".run.json", func(m map[string]json.RawMessage) { m["tenant_id"] = json.RawMessage(`"tenant-b"`) })
 		}, func(f family) string { return f.child }, runs.ErrTreeTenant},
+		"another project": {func(t *testing.T, dir string, f family) {
+			rewrite(t, dir, f.grandchild+".run.json", func(m map[string]json.RawMessage) { m["project_id"] = json.RawMessage(`"project-b"`) })
+		}, func(f family) string { return f.child }, runs.ErrTreeProject},
 		"another root": {func(t *testing.T, dir string, f family) {
 			plant(t, dir, plantedID(7), alice.TenantID, f.otherRoot, f.child)
 		}, func(f family) string { return f.child }, runs.ErrTreeBroken},

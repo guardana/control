@@ -103,6 +103,9 @@ const (
 	// ErrTreeTenant is a run of a tree opened for another tenant than its
 	// root, which only a writer of the directory can make.
 	ErrTreeTenant Error = "runs: a run of the tree belongs to another tenant"
+	// ErrTreeProject is a run of a tree opened for another project than its
+	// root, which only a writer of the directory can make.
+	ErrTreeProject Error = "runs: a run of the tree belongs to another project"
 	// ErrTreeBroken is a run whose chain of parents does not reach its
 	// tree's root within the tree.
 	ErrTreeBroken Error = "runs: a run's parents do not reach its root"

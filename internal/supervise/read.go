@@ -46,11 +46,13 @@ type read struct {
 	// runs are the runs read, all of tenant.
 	runs   map[string]bool
 	tenant string
+	// recorded is the project the run's record names, or empty.
+	recorded string
 }
 
-func newRead(runs map[string]bool, tenant string) *read {
+func newRead(runs map[string]bool, tenant, recorded string) *read {
 	return &read{
-		runs: runs, tenant: tenant,
+		runs: runs, tenant: tenant, recorded: recorded,
 		doubtful: map[string]bool{}, exportOf: map[*controlv1.Event]int{}, obsSource: map[string]*Source{}, obsDoubt: map[string]bool{},
 		spans:  map[*Source][]*observev1.Observation{},
 		counts: &findingv1alpha1.ReadCounts{EventsLeftOut: map[string]uint64{}, ObservationsLeftOut: map[string]uint64{}},
@@ -129,12 +131,16 @@ func (r *read) eventOutside(ev *controlv1.Event) string {
 // takeProject names the one project the run's events were recorded in. A
 // finding and a report name one project, so a run recorded in two is refused
 // rather than judged as one, and so is an event that names none, which would
-// otherwise take whichever project another event names.
+// otherwise take whichever project another event names. An event of another
+// project than the run's record is refused, as a source of another tenant is.
 func (r *read) takeProject() error {
 	for _, ev := range r.events {
 		switch p := ev.GetProjectId(); {
 		case p == "":
 			return ErrInput.with("an event of the run names no project")
+		case r.recorded != "" && p != r.recorded:
+			return ErrInput.with(fmt.Sprintf("an event of the run is of project %s, the run's record of project %s",
+				strconv.Quote(p), strconv.Quote(r.recorded)))
 		case r.project == "":
 			r.project = p
 		case p != r.project:
@@ -145,16 +151,19 @@ func (r *read) takeProject() error {
 }
 
 // checkSources refuses a source whose tenant is not the run's, or whose
-// project is not the one the run's events name: observations are taken
-// under the run's identity and liveness and doubt read under the source's,
-// so the two must be one. With no event read no rule is checked, and only
-// the tenant is held.
+// project is not the one the run's record or its events name: observations
+// are taken under the run's identity and liveness and doubt read under the
+// source's, so the two must be one. With no event read and no project
+// recorded, only the tenant is held.
 func (r *read) checkSources(sources []Source) error {
 	for _, s := range sources {
 		switch {
 		case s.Tenant != r.tenant:
 			return ErrInput.with(fmt.Sprintf("source %s is of tenant %s, the run of tenant %s",
 				strconv.Quote(s.SourceID), strconv.Quote(s.Tenant), strconv.Quote(r.tenant)))
+		case r.recorded != "" && s.Project != r.recorded:
+			return ErrInput.with(fmt.Sprintf("source %s is of project %s, the run's record of project %s",
+				strconv.Quote(s.SourceID), strconv.Quote(s.Project), strconv.Quote(r.recorded)))
 		case len(r.events) > 0 && s.Project != r.project:
 			return ErrInput.with(fmt.Sprintf("source %s is of project %s, the run's events of project %s",
 				strconv.Quote(s.SourceID), strconv.Quote(s.Project), strconv.Quote(r.project)))

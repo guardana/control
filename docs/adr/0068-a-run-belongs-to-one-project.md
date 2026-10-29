@@ -4,7 +4,9 @@ Status: accepted
 Date: 2026-10-28
 
 Amends [ADR-0034](0034-a-run-the-operator-opens-has-an-identity-of-its-own.md)
-on whose run a token names.
+on whose run a token names, and
+[ADR-0058](0058-a-copy-an-import-never-read-is-doubt-for-the-runs-it-claimed.md)
+on what holds a source when no event of the run was read.
 
 ## Context
 
@@ -35,9 +37,32 @@ The runs directory's marker and each root's state stay at `1.0` and name no
 project. Planes of several projects may still share one directory, because
 each record is bound on its own.
 
+Every reader of a run holds it to its project, as it holds it to its tenant:
+
+- A run tree is read only when every member is of the root's project; a member
+  of another is refused, as one of another tenant is.
+- `supervise` takes the project from the run's record, refuses a member of the
+  tree of another project, and refuses evidence whose events of the run name
+  another project and a source of another project, even when no event of the
+  run was read.
+- `react` never stops a run for a finding of another project, nor for one that
+  names no project.
+- `doctor` and `/healthz` list a stop of another project's run as unheld, since
+  it matches no call of the plane.
+
+Resolving a child's token returns the root its record names without reading
+the root's record, for the project as for the tenant. A run's state only
+rises, so a record planted under another project's root can raise that
+root's state, never lower it. Whoever can plant that record can also rewrite
+the root's record, so a second read on every call would bind nothing such a
+writer could not undo. The readers that judge a task as a whole, the tree
+reads above, refuse such a member.
+
 ## Security / compatibility impact
 
-A token can no longer cross projects. Every run opened by an earlier release
+A token can no longer cross projects. The marker binds no project, so write
+access to a shared runs directory is the authority to open a run for every
+project that shares it. Every run opened by an earlier release
 stops resolving on upgrade, and its agents need new tokens. A stdio plane given
 such a token refuses to start. A plane that serves runs over HTTP answers 401
 `unreadable` on each call until the token is replaced.
@@ -54,8 +79,18 @@ such a token refuses to start. A plane that serves runs over HTTP answers 401
 
 ## Consequences
 
-Operators reopen live runs once at upgrade. `doctor` does not yet name a
-`1.0` record in a runs directory; the plane's refusal does.
+Operators reopen live runs once at upgrade, in a new, empty directory. One
+`1.0` record left in a directory makes `runs list` refuse that whole
+directory, and so does `supervise` of every run under a procedure that reads
+children; `runs close`, `runs open --parent` and `react` refuse the old run
+itself. `doctor` does not yet name a `1.0` record in a runs directory; the
+plane's refusal does.
+
+A reopened run starts with a clean flow state: no command carries a run's
+state into another. An agent that took in untrusted data under the old run
+would lose that mark under the new one. Operators end each agent's task and
+start a new one under the new run, and never hand a new token to an agent in
+the middle of a task.
 
 ## Validation
 
@@ -66,3 +101,12 @@ Operators reopen live runs once at upgrade. `doctor` does not yet name a
   expects 401 with no trail.
 - `TestARecordOfMajorOneResolvesOnNoPlane` expects a `1.0` record to resolve on
   no plane.
+- `internal/runs`'s tree tests plant a member of another project and expect
+  `ErrTreeProject` from `Tree` and `Children`.
+- `internal/supervise` refuses a tree member of another project, and events or
+  a source of another project than the run's record, with or without an event
+  read; `supervise` exits 2 on such an
+  export and writes no finding.
+- `react` writes no stop for a finding of another project, or for a run of
+  another project; `Eligible` refuses either, and a finding with no project.
+- `doctor` and `/healthz` list a stop of another project's run as unheld.

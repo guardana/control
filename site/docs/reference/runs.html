@@ -216,11 +216,19 @@ its id.</p>
 project. It is never read as any project's run: its token is refused as
 <code>unreadable</code>, a stdio plane given it refuses the start saying the record names
 no project, <code>runs list</code> refuses the directory while it holds one, and
-<code>runs close</code> and <code>runs open --parent</code> refuse that run. To move, open each run
-again with <code>runs open --project</code> in a new, empty directory, point <code>runs.dir</code>
-at it, hand the agents their new tokens, and remove the old directory once no
-plane names it. No run lives past 720 hours, so nothing in the old directory
-outlives that.</p>
+<code>runs close</code>, <code>runs open --parent</code> and <code>react</code>, for a finding that names it,
+refuse that run.</p>
+<p>Move to a new, empty directory, never into the old one: while one <code>1.0</code>
+record is left in a directory, <code>runs list</code> refuses that whole directory, and
+so does <code>supervise</code> of every run under a procedure that reads children. Open
+each run again there with <code>runs open --project</code>, point <code>runs.dir</code> at it, and
+remove the old directory once no plane names it. No run lives past 720 hours,
+so nothing in the old directory outlives that.</p>
+<p>A reopened run starts with a clean flow state. An agent that took in
+untrusted or confidential data under the old run would carry it into the new
+one unmarked, and a flow rule would not see it. End each agent's task and
+start a new one under the new run; never hand a new token to an agent in the
+middle of a task.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/runs.md">docs/reference/runs.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.14.0, and <a href="https://github.com/guardana/control/tree/v0.14.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
