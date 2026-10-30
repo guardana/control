@@ -138,6 +138,12 @@ nothing but inputs a call brings and a preview lacks: the resource id, when
 the tool's classification points at one, and the run's flow. Every other
 <code>DENY</code> is denied to the listing, a plane cause, a matched <code>DENY</code> rule and an
 <code>ALLOW</code> unknown on any other input among them.</p>
+<p>A preview that is not a verdict keeps the tool, as before. A tool whose effect
+class needs a resource id has its preview refused, since a listing carries no
+arguments; it is <code>INDETERMINATE</code> and listed even when a <code>DENY</code> rule names it.
+An undetermined <code>DENY</code> or <code>REQUIRE_APPROVAL</code> rule keeps a tool listed too,
+whatever input it lacked. Both show more than a call can do, never less, and
+a call is still decided when it is made.</p>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>A listing is never an authorization: every call is decided when it is made.
 The change only moves a tool between listed and left out. <code>Preview</code>'s Go

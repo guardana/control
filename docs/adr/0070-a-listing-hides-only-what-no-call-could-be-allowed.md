@@ -36,6 +36,13 @@ the tool's classification points at one, and the run's flow. Every other
 `DENY` is denied to the listing, a plane cause, a matched `DENY` rule and an
 `ALLOW` unknown on any other input among them.
 
+A preview that is not a verdict keeps the tool, as before. A tool whose effect
+class needs a resource id has its preview refused, since a listing carries no
+arguments; it is `INDETERMINATE` and listed even when a `DENY` rule names it.
+An undetermined `DENY` or `REQUIRE_APPROVAL` rule keeps a tool listed too,
+whatever input it lacked. Both show more than a call can do, never less, and
+a call is still decided when it is made.
+
 ## Security / compatibility impact
 
 A listing is never an authorization: every call is decided when it is made.
