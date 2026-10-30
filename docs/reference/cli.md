@@ -123,8 +123,8 @@ nothing already running.
 The `runs` commands open, close and list the runs a plane with `runs.dir`
 serves: [runs.md](runs.md).
 
-The `observe` commands import an agent runtime's OpenTelemetry spans into an
-observation log and export it: [observations.md](observations.md). `coverage`
+The `observe` commands import spans or access logs into an observation log
+and export it: [observations.md](observations.md). `coverage`
 is [coverage.md](coverage.md), `supervise`, `notify` and `findings export`
 [supervision.md](supervision.md), `--view` [run-view.md](run-view.md), `procedure`
 [guides/test-a-procedure.md](../guides/test-a-procedure.md), `route`, `stops`
@@ -185,6 +185,7 @@ usage:
 
 Write access to the approvals directory is the approval authority:
 --approver-id is a claim recorded as given, never an identity.
+An id that could read as authn:, mixes scripts or holds a hidden or restyled character is refused.
 Write access to the pause file is the authority to pause a call and to lift a pause.
 Write access to the runs directory is the authority to open and to close a run;
 a token acts as its run until it expires or is closed, and runs open prints it once.
