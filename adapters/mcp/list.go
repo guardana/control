@@ -264,7 +264,8 @@ func (s *shaping) shape(e *Entry) *mcp.Tool {
 
 // preview asks the pipeline what a call to the tool with no arguments would
 // be decided, for this principal, without recording anything, so it names no
-// trace.
+// trace. The classification tells the pipeline where a call's resource id
+// would come from.
 func (a *Adapter) preview(ctx context.Context, p Pipeline, req mcp.Request, e *Entry, principal *controlv1.Principal, agent *controlv1.Agent) gateway.Previewed {
 	up := a.upstreamConfig(e.Upstream)
 	env := a.base(req, nil, principal, agent, a.cfg.NewID())
@@ -274,7 +275,7 @@ func (a *Adapter) preview(ctx context.Context, p Pipeline, req mcp.Request, e *E
 		env.Destination = &controlv1.Destination{TrustZone: e.TrustZone}
 	}
 	args := []byte(noArguments)
-	return p.Preview(ctx, gateway.Admission{Envelope: env, Refusal: a.finish(env, args), Arguments: args})
+	return p.Preview(ctx, gateway.Admission{Envelope: env, Refusal: a.finish(env, args), Arguments: args, Classification: e.Classification})
 }
 
 // present is the tool as the agent sees it: its _meta without the gateway's

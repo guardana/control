@@ -21,8 +21,7 @@ import (
 )
 
 // minted is every code the enforcement point spells, with the verdict it
-// mints it under, or reads it under for the one it only reads, written here
-// as literals. registry_test.go in the reasons
+// mints it under, written here as literals. registry_test.go in the reasons
 // package pins each code's number and verdict; this holds the plane's use to
 // that table.
 var minted = map[string]controlv1.Verdict{
@@ -45,7 +44,6 @@ var minted = map[string]controlv1.Verdict{
 	codeApprovalBundleMismatch:  verdictDeny,
 	codeExecutionAbandoned:      verdictIndeterminate,
 	codePolicyStale:             verdictIndeterminate,
-	codeNoMatchingRule:          verdictDeny,
 }
 
 // abortCodes is the code each abort cause is recorded as, typed from the

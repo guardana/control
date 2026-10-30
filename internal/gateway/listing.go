@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/policy/match"
 )
 
 // Listing is what a preview lets a listing do with a tool. Hiding is the one
@@ -24,25 +25,24 @@ const (
 	ListingDecided
 )
 
-// codeNoMatchingRule is the kernel's DENY for a call no rule matched. The
-// plane reads it off the kernel's decision and never mints it.
-const codeNoMatchingRule = "NO_MATCHING_RULE"
-
 // Previewed is a preview's decision and what a listing may do with the tool.
 type Previewed struct {
 	Decision *controlv1.Decision
 	Listing  Listing
 }
 
-// listingOf is what a listing may do with a tool previewed as decision, which
-// is kernel itself when the plane added no cause of its own. Only the
-// kernel's DENY for no matching rule and nothing else, beside an ALLOW rule
-// whose match was unknown, is short of a denial: a call carrying what that
-// rule reads may be allowed. A plane cause denies whatever the kernel said.
-func listingOf(decision, kernel *controlv1.Decision, unknownAllows []string) Listing {
+// listingOf is what a listing may do with a tool previewed as decision under
+// a, where decision is kernel itself when the plane added no cause of its
+// own and noRuleMatched is the kernel's word that nothing but no matching
+// rule denied it. Only such a DENY, beside an ALLOW rule every input of which
+// it lacked a call to the tool brings, is short of a denial: that call may be
+// allowed. A plane cause denies whatever the kernel said.
+func listingOf(decision, kernel *controlv1.Decision, noRuleMatched bool, unknownAllows []match.UnknownAllow, a Admission) Listing {
 	switch decision.GetVerdict() {
 	case verdictDeny:
-		if decision == kernel && len(unknownAllows) > 0 && slices.Equal(decision.GetReasonCodes(), []string{codeNoMatchingRule}) {
+		if decision == kernel && noRuleMatched && slices.ContainsFunc(unknownAllows, func(u match.UnknownAllow) bool {
+			return len(u.Needs) > 0 && !slices.ContainsFunc(u.Needs, func(need string) bool { return !callSupplies(a, need) })
+		}) {
 			return ListingPerCall
 		}
 		return ListingDenied
@@ -50,4 +50,20 @@ func listingOf(decision, kernel *controlv1.Decision, unknownAllows []string) Lis
 		return ListingDecided
 	}
 	return ListingPerCall
+}
+
+// callSupplies reports whether need, an input an ALLOW rule lacked at
+// preview, is one a call to the tool previewed as a can bring. A preview
+// carries the call's identity and classification but no arguments and no
+// run, so a call adds only the resource id its classification's pointer
+// reads and the run's flow. Every other input reads at the call as it read
+// at preview, and a rule that lacked it is never met.
+func callSupplies(a Admission, need string) bool {
+	switch need {
+	case "resource.id":
+		return a.Classification.ResourceFrom != ""
+	case "flow", "flow.max_sensitivity_read":
+		return true
+	}
+	return false
 }

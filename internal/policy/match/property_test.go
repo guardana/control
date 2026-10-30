@@ -72,20 +72,21 @@ func TestAddingAnUnknownAllowMovesNoVerdict(t *testing.T) {
 		before := mustCompile(rt, base.build()).Evaluate(env, in)
 		after := mustCompile(rt, grown.build()).Evaluate(env, in)
 
-		if after.Verdict != before.Verdict || after.Determinate != before.Determinate ||
-			!slices.Equal(after.RuleIDs, before.RuleIDs) || !slices.Equal(after.Indeterminate, before.Indeterminate) ||
-			!slices.Equal(after.ReasonCodes, before.ReasonCodes) || !sameObligations(after.Obligations, before.Obligations) ||
-			!slices.Equal(after.ReadExternal, before.ReadExternal) {
-			rt.Fatalf("an unknown ALLOW moved the result: %s, and before it %s", summary(after), summary(before))
-		}
+		withAdded := after
+		withAdded.UnknownAllows = before.UnknownAllows
+		assertSame(rt, "an unknown ALLOW moved the result", before, withAdded)
 		var want []string
 		for _, s := range grown {
-			if s.id == added.spec.id || slices.Contains(before.UnknownAllows, s.id) {
+			if s.id == added.spec.id || slices.Contains(unknownIDs(before), s.id) {
 				want = append(want, s.id)
 			}
 		}
-		if !slices.Equal(after.UnknownAllows, want) {
-			rt.Fatalf("UnknownAllows = %q, want %q: the earlier ones and %s at its place", after.UnknownAllows, want, added.spec.id)
+		if got := unknownIDs(after); !slices.Equal(got, want) {
+			rt.Fatalf("UnknownAllows name %q, want %q: the earlier ones and %s at its place", got, want, added.spec.id)
+		}
+		at = slices.Index(unknownIDs(after), added.spec.id)
+		if u := after.UnknownAllows[at]; !slices.Equal(u.Needs, []string{"principal.type"}) {
+			rt.Fatalf("the added rule lacked %q, want only principal.type", u.Needs)
 		}
 	})
 }
@@ -116,7 +117,7 @@ func TestRemovingAnAllowRuleNeverPermitsMore(t *testing.T) {
 
 		extra.check(rt, before)
 		if !slices.Contains(before.RuleIDs, removed) {
-			before.UnknownAllows = slices.DeleteFunc(before.UnknownAllows, func(id string) bool { return id == removed })
+			before.UnknownAllows = slices.DeleteFunc(before.UnknownAllows, func(u match.UnknownAllow) bool { return u.ID == removed })
 			assertSame(rt, "without an ALLOW rule that did not match", before, after)
 		}
 		assertNoMorePermissive(rt, before, after)
@@ -250,7 +251,7 @@ func (a anchor) check(f failer, got match.Result) {
 	undetermined := a.value == unknown && a.spec.effect != allow
 	unknownAllow := a.value == unknown && a.spec.effect == allow
 	if slices.Contains(got.RuleIDs, id) != matched || slices.Contains(got.Indeterminate, id) != undetermined ||
-		slices.Contains(got.UnknownAllows, id) != unknownAllow {
+		slices.Contains(unknownIDs(got), id) != unknownAllow {
 		f.Fatalf("%s rule %s, built to %s, gave %s", a.spec.effect, id, map[truth]string{holds: "hold", unknown: "be unknown", fails: "fail"}[a.value], summary(got))
 	}
 	if matched && a.spec.effect == deny && (got.Verdict != deny || got.Determinate != deny) {

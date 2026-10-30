@@ -200,10 +200,10 @@ func withArguments(a Admission) Admission {
 // flow state, so a flow rule is undetermined here. A nil or zero Pipeline
 // answers the decision of a kernel nobody built.
 //
-// The listing is denied only for a DENY that holds whatever the call
-// carries. The kernel's DENY for no matching rule beside an ALLOW rule whose
-// match was unknown is not one: a call that carries what that rule reads may
-// be allowed, so the tool is decided per call.
+// The listing is denied for every DENY but one a call can lift: the kernel's
+// DENY for no matching rule alone, beside an ALLOW rule whose every unknown
+// input is one the call brings and the preview lacks. That tool is decided
+// per call.
 func (p *Pipeline) Preview(ctx context.Context, a Admission) Previewed {
 	if p == nil || p.kernel == nil {
 		return Previewed{Decision: unbuilt(ctx, a).Decision}
@@ -219,7 +219,7 @@ func (p *Pipeline) Preview(ctx context.Context, a Admission) Previewed {
 	c.decideProposed(p.cfg.Policy.Current(), false)
 	c.applyMode()
 	c.refuseFlow()
-	return Previewed{Decision: c.decision, Listing: listingOf(c.decision, c.kernel, c.unknownAllows)}
+	return Previewed{Decision: c.decision, Listing: listingOf(c.decision, c.kernel, c.noRuleMatched, c.unknownAllows, c.in)}
 }
 
 // Stats returns what the pipeline counted so far. A nil or zero Pipeline

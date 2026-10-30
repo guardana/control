@@ -93,3 +93,68 @@ func TestTheListingIsThePipelinesWord(t *testing.T) {
 		}
 	}
 }
+
+// readFileOnly confines a constraint to read_file, so the other tools of the
+// rig are decided as no rule matching them.
+func readFileOnly(when string) string {
+	return `{"action":{"name":["read_file"]},` + when + `}`
+}
+
+// noResourceFrom is the rig's manifest with read_file classified without a
+// pointer, so no call to it carries a resource id.
+func noResourceFrom(v *victim, t *testing.T) []mcp.Override {
+	o := v.overrides(t)
+	for i := range o {
+		if o[i].Tool == "read_file" {
+			o[i].ResourceFrom = ""
+		}
+	}
+	return o
+}
+
+// TestAListingKeepsOnlyWhatACallCouldBeAllowed: a tool whose preview is the
+// DENY of no matching rule stays listed only when an ALLOW rule's every
+// unknown input is one a call to it brings: the resource id its pointer reads,
+// or its run's flow. An input the listener fixes, the principal's
+// authentication strength or attributes, one no MCP call carries, labels, a
+// host, a delegation or data labels, or a resource id with no pointer to read
+// it from, leaves every call denied, and the tool out.
+func TestAListingKeepsOnlyWhatACallCouldBeAllowed(t *testing.T) {
+	const allowID = `"resource":{"id":["/allowed"]}`
+	rule := func(id, when string) string {
+		return `{"id":"` + id + `","effect":"ALLOW","when":` + readFileOnly(when) + `}`
+	}
+	for _, c := range []struct {
+		name      string
+		rules     []string
+		overrides func(*victim, *testing.T) []mcp.Override
+		shown     bool
+	}{
+		{"authnStrength", []string{rule("mfa", `"principal":{"authnStrength":["mfa"]}`)}, nil, false},
+		{"principal attributes", []string{rule("ops", `"principal":{"attributes":{"team":["ops"]}}`)}, nil, false},
+		{"resource labels", []string{rule("labelled", `"resource":{"labels":{"approved":["yes"]}}`)}, nil, false},
+		{"destination host", []string{rule("host", `"destination":{"host":["api.example"]}`)}, nil, false},
+		{"delegation scopes", []string{rule("scoped", `"delegation":{"scopes":["files.read"]}`)}, nil, false},
+		{"data sensitivity", []string{rule("labelled-data", `"data":{"sensitivityAtLeast":"INTERNAL"}`)}, nil, false},
+		{"resource id with a pointer", []string{rule("one-file", allowID)}, nil, true},
+		{"resource id without a pointer", []string{rule("one-file", allowID)}, noResourceFrom, false},
+		{"the run's flow", []string{rule("flowing", `"flow":{"toxicAtLeast":"CONFIDENTIAL"}`)}, nil, true},
+		{"resource id and authnStrength in one rule",
+			[]string{rule("both", allowID+`,"principal":{"authnStrength":["mfa"]}`)}, nil, false},
+		{"beside it, a rule on the resource id alone",
+			[]string{rule("both", allowID+`,"principal":{"authnStrength":["mfa"]}`), rule("one-file", allowID)}, nil, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			hide := newRig(t, mcp.KindStatelessHTTP, rigOptions{shaping: mcp.ShapeHide, mode: modeEnforce, rules: c.rules, overrides: c.overrides})
+			if got := slices.Contains(toolNames(listTools(t, hide.connect(t, "agent-a"))), "read_file"); got != c.shown {
+				t.Errorf("hide lists read_file: %t, want %t", got, c.shown)
+			}
+			mark := "VERDICT_DENY"
+			if c.shown {
+				mark = "DECIDED_PER_CALL"
+			}
+			expectMarks(t, newRig(t, mcp.KindStatelessHTTP, rigOptions{shaping: mcp.ShapeAnnotate, mode: modeEnforce, rules: c.rules, overrides: c.overrides}),
+				map[string]string{"read_file": mark})
+		})
+	}
+}

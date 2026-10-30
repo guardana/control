@@ -63,9 +63,16 @@ type Result struct {
 	ReadExternal []string
 	// UnknownAllows are the ALLOW rules whose match is unknown, in document
 	// order. Such a rule is no match and changes no other field; a caller
-	// that decided without the field it reads learns that a call carrying
-	// that field might be allowed.
-	UnknownAllows []string
+	// that decided without some inputs learns which of them a rule lacked.
+	UnknownAllows []UnknownAllow
+}
+
+// UnknownAllow is an ALLOW rule whose match is unknown and the inputs its
+// unknown constraints lacked, in wire spelling as Unread names them, once
+// each in the rule's order.
+type UnknownAllow struct {
+	ID    string
+	Needs []string
 }
 
 // Program is a compiled document. It is immutable and safe to share: Compile
@@ -123,7 +130,7 @@ func (p *Program) evaluate(env *controlv1.ActionEnvelope, in Inputs, traces *[]R
 	for i := range p.rules {
 		r := &p.rules[i]
 		v, turns := r.holds(env, &in)
-		t.record(r, v, turns)
+		t.record(r, v, turns, env, &in)
 		if traces != nil {
 			*traces = append(*traces, r.trace(env, &in, v))
 		}

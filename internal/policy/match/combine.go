@@ -11,7 +11,7 @@ type tally struct {
 	matched       []*rule
 	undetermined  []*rule
 	external      []*rule
-	unknownAllows []*rule
+	unknownAllows []UnknownAllow
 }
 
 // record files a rule's value, and the rule when that value turns on the
@@ -20,7 +20,7 @@ type tally struct {
 // decides it". An unknown rule of any other effect restricts, and a call
 // that leaves out the field it reads must not slip past it onto a broader
 // allow (ADR-0012).
-func (t *tally) record(r *rule, v truth, turnsOnExternal bool) {
+func (t *tally) record(r *rule, v truth, turnsOnExternal bool, env *controlv1.ActionEnvelope, in *Inputs) {
 	if turnsOnExternal {
 		t.external = append(t.external, r)
 	}
@@ -30,7 +30,7 @@ func (t *tally) record(r *rule, v truth, turnsOnExternal bool) {
 	case v == unknown && r.effect != controlv1.Verdict_VERDICT_ALLOW:
 		t.undetermined = append(t.undetermined, r)
 	case v == unknown:
-		t.unknownAllows = append(t.unknownAllows, r)
+		t.unknownAllows = append(t.unknownAllows, UnknownAllow{ID: r.id, Needs: r.lacked(env, in)})
 	}
 }
 
@@ -44,7 +44,7 @@ func (t *tally) result() Result {
 		ReasonCodes:   t.reasonCodes(),
 		Obligations:   t.obligations(verdict),
 		ReadExternal:  ids(t.external),
-		UnknownAllows: ids(t.unknownAllows),
+		UnknownAllows: t.unknownAllows,
 	}
 }
 
