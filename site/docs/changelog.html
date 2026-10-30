@@ -180,6 +180,17 @@ approval's record of the same request, and the memory store refuses a hold
 with no requested time or no expiry.</p>
 </li>
 <li>
+<p><code>doctor</code> no longer changes the evidence spool it checks. It reads the spool
+through <code>spool.Inspect</code>, which cuts nothing: a torn tail stays in place, and
+the line says &quot;a start would cut a torn tail of N byte(s), which this check
+left in place&quot;; a torn tail whose file its owner may not write fails the
+check, as it fails a start. It asks access(2) whether the directory takes a
+file instead of writing a probe, and no longer prints a reserved count.
+Every command is marked as one that inspects or one that writes, and each
+that inspects is tested to change nothing
+(<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>).</p>
+</li>
+<li>
 <p><strong>Breaking:</strong> a run belongs to one project. A run record is <code>2.0</code> and
 carries <code>project_id</code>, <code>runs open</code> needs <code>--project</code> and refuses a parent of
 another project, and <code>runs list</code> prints <code>project_id</code>. A plane resolves a
@@ -327,6 +338,16 @@ time, which no lint read before.</p>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li><code>tools/list</code> under <code>hide</code> left out a tool whose only <code>ALLOW</code> rule reads
+the resource id its classification points at, and <code>annotate</code> marked it
+<code>VERDICT_DENY</code>, though a call naming an allowed id ran. A tool previewed as
+the <code>DENY</code> of no matching rule alone now stays listed, marked
+<code>DECIDED_PER_CALL</code>, when an <code>ALLOW</code> rule lacked nothing but that resource id
+or the run's flow. An <code>ALLOW</code> unknown on anything else, a matched <code>DENY</code>
+rule, <code>LOCKDOWN</code> and a halt still leave it out. A tool whose preview is not
+a verdict stays listed, as before: one that needs a resource id, whose
+preview the contract refuses, and one an undetermined rule decides
+(<a href="/docs/adr/0070-a-listing-hides-only-what-no-call-could-be-allowed">ADR-0070</a>).</li>
 <li><code>OBSERVE</code> handed out a call whose refusal joined &quot;nothing classifies it&quot;
 with another cause, such as arguments canon refused: such a refusal read as
 unclassified alone. Unclassified is now that one cause, on a chain of single

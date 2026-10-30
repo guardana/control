@@ -69,6 +69,16 @@ verify one.
   approval's record of the same request, and the memory store refuses a hold
   with no requested time or no expiry.
 
+- `doctor` no longer changes the evidence spool it checks. It reads the spool
+  through `spool.Inspect`, which cuts nothing: a torn tail stays in place, and
+  the line says "a start would cut a torn tail of N byte(s), which this check
+  left in place"; a torn tail whose file its owner may not write fails the
+  check, as it fails a start. It asks access(2) whether the directory takes a
+  file instead of writing a probe, and no longer prints a reserved count.
+  Every command is marked as one that inspects or one that writes, and each
+  that inspects is tested to change nothing
+  ([ADR-0016](docs/adr/0016-approval-providers-and-the-lost-hold.md)).
+
 - **Breaking:** a run belongs to one project. A run record is `2.0` and
   carries `project_id`, `runs open` needs `--project` and refuses a parent of
   another project, and `runs list` prints `project_id`. A plane resolves a
@@ -183,6 +193,16 @@ verify one.
 
 ### Fixed
 
+- `tools/list` under `hide` left out a tool whose only `ALLOW` rule reads
+  the resource id its classification points at, and `annotate` marked it
+  `VERDICT_DENY`, though a call naming an allowed id ran. A tool previewed as
+  the `DENY` of no matching rule alone now stays listed, marked
+  `DECIDED_PER_CALL`, when an `ALLOW` rule lacked nothing but that resource id
+  or the run's flow. An `ALLOW` unknown on anything else, a matched `DENY`
+  rule, `LOCKDOWN` and a halt still leave it out. A tool whose preview is not
+  a verdict stays listed, as before: one that needs a resource id, whose
+  preview the contract refuses, and one an undetermined rule decides
+  ([ADR-0070](docs/adr/0070-a-listing-hides-only-what-no-call-could-be-allowed.md)).
 - `OBSERVE` handed out a call whose refusal joined "nothing classifies it"
   with another cause, such as arguments canon refused: such a refusal read as
   unclassified alone. Unclassified is now that one cause, on a chain of single
