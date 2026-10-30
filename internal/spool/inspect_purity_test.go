@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -268,4 +269,43 @@ func TestInspectRefusesWhatOpenRefuses(t *testing.T) {
 			t.Errorf("Inspect = %v, want ErrCorrupt", err)
 		}
 	})
+}
+
+// TestInspectRefusesATornTailItsOwnerMayNotWrite: a start cuts a torn tail
+// through a descriptor opened to write, so a torn segment or quarantine its
+// owner may not write is refused as the start would refuse it, and nothing is
+// changed; the same file whole, with nothing to cut, is read.
+func TestInspectRefusesATornTailItsOwnerMayNotWrite(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes a file whatever its mode, so a start would cut it")
+	}
+	for _, name := range []string{"segment", "quarantine"} {
+		t.Run(name, func(t *testing.T) {
+			opts, _, _ := writeQuarantined(t, 1)
+			path := filepath.Join(opts.Dir, quarantineFile)
+			if name == "segment" {
+				path = filepath.Join(opts.Dir, segmentNames(t, opts.Dir)[0])
+			}
+			if err := os.Chmod(path, 0o400); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := inspectUnchanged(t, opts); err != nil {
+				t.Fatalf("Inspect of a whole %s its owner may not write: %v", name, err)
+			}
+			if err := os.Chmod(path, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			appendTo(t, path, "torn!")
+			if err := os.Chmod(path, 0o400); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := inspectUnchanged(t, opts); !errors.Is(err, fs.ErrPermission) {
+				t.Errorf("Inspect of a torn %s its owner may not write = %v, want fs.ErrPermission", name, err)
+			}
+			if s, err := spool.Open(opts); err == nil {
+				_ = s.Close()
+				t.Errorf("Open cut a torn %s its owner may not write, so the case is not one a start refuses", name)
+			}
+		})
+	}
 }

@@ -1,6 +1,10 @@
 package spool
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"io/fs"
+)
 
 // Inspection is what Inspect read of a spool's directory: the log as Open
 // would leave it, and what Open would cut to get there.
@@ -51,17 +55,33 @@ func Inspect(opts Options) (_ Inspection, err error) {
 	if err != nil {
 		return Inspection{}, err
 	}
+	return s.inspection(sizes)
+}
+
+// inspection is what read found, as Open would leave it, refusing a torn tail
+// Open could not cut.
+func (s *Spool) inspection(sizes fileSizes) (Inspection, error) {
 	found := Inspection{
 		QuarantinedRecords: s.quarantine.records,
 		QuarantinedBytes:   s.quarantine.size,
 		Torn:               sizes.quarantine - s.quarantine.size,
 	}
+	if found.Torn > 0 {
+		if err := mayCut(s.quarantine.info, quarantineWhat); err != nil {
+			return Inspection{}, err
+		}
+	}
 	segments := s.segments
 	if n := len(segments); n > 0 {
 		last := segments[n-1]
 		found.Torn += sizes.last - last.size
-		if last.records == 0 {
+		switch {
+		case last.records == 0:
 			segments = segments[:n-1]
+		case sizes.last > last.size:
+			if err := mayCut(last.info, last.what()); err != nil {
+				return Inspection{}, err
+			}
 		}
 	}
 	for _, seg := range segments {
@@ -69,4 +89,16 @@ func Inspect(opts Options) (_ Inspection, err error) {
 		found.Unacknowledged += seg.size
 	}
 	return found, nil
+}
+
+// mayCut refuses a file, called what, whose torn tail Open would cut when its
+// owner, which checkOpened holds to be this account, may not write it: Open
+// cuts through a descriptor opened to write, which the kernel then refuses.
+// Root writes whatever the mode says.
+func mayCut(info fs.FileInfo, what string) error {
+	if info.Mode().Perm()&0o200 == 0 && effectiveUID() != 0 {
+		return fmt.Errorf("spool: %s: %w: a start would cut its torn tail, and its mode %04o keeps its owner from writing it",
+			what, fs.ErrPermission, info.Mode().Perm())
+	}
+	return nil
 }

@@ -18,20 +18,22 @@ import (
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/approvals"
 	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/internal/holdjournal"
 	"github.com/guardana/control/internal/runs"
 	"github.com/guardana/control/internal/trailfile"
 )
 
 // inspection is one way the purity test reaches a command the table
-// classifies inspects: its arguments over the damaged tree, and what its
-// output has to hold with and without the writers' locks held, so a run
-// that refused before it read anything never counts as one that changed
-// nothing.
+// classifies inspects: its arguments over the damaged tree, and its status
+// and what its output has to hold with no writer at work, beside every
+// writer, and beside every writer but the spool's, so a run that refused
+// before it read anything never counts as one that changed nothing.
 type inspection struct {
-	args               []string
-	free, whileHeld    []string
-	freeExit, heldExit int
+	args                              []string
+	free, whileHeld, whileSpoolFree   []string
+	freeExit, heldExit, spoolFreeExit int
 }
 
 // damagedTree is a plane's tree as a crash leaves it: a spool segment that
@@ -120,29 +122,33 @@ func appendTail(t *testing.T, path, tail string) {
 
 // inspections is every inspecting command's run over the damaged tree.
 func inspections(tr tree, trailPath string) map[string][]inspection {
+	everyCheck := []string{
+		"\nok      evidence      ", "a start would cut a torn tail of 5 byte(s)",
+		"\nok      approvals     ", "a restart would close 1 lost hold(s)",
+		"\nok      pause         ", "\nok      runs          ", "\nok      seams         ", "\nok      upstreams     ",
+	}
 	return map[string][]inspection{
 		"doctor": {{
-			args: []string{"doctor", "--config", tr.config},
-			free: []string{
-				"\nok      evidence      ", "a start would cut a torn tail of 5 byte(s)",
-				"\nok      approvals     ", "a restart would close 1 lost hold(s)",
-				"\nok      upstreams     ",
-			},
-			whileHeld: []string{"\nfail    evidence      ", "held by another spool"},
-			freeExit:  exitOK, heldExit: exitFail,
+			args:           []string{"doctor", "--config", tr.config},
+			free:           everyCheck,
+			whileHeld:      []string{"\nfail    evidence      ", "held by another spool"},
+			whileSpoolFree: everyCheck,
+			freeExit:       exitOK, heldExit: exitFail, spoolFreeExit: exitOK,
 		}},
 		"trail": {
 			{
-				args:      []string{"trail", trailPath},
-				free:      []string{"request=req-1 ", "no collector holds it"},
-				whileHeld: []string{"request=req-1 "},
-				freeExit:  exitFail, heldExit: exitOK,
+				args:           []string{"trail", trailPath},
+				free:           []string{"request=req-1 ", "no collector holds it"},
+				whileHeld:      []string{"request=req-1 "},
+				whileSpoolFree: []string{"request=req-1 "},
+				freeExit:       exitFail, heldExit: exitOK, spoolFreeExit: exitOK,
 			},
 			{
-				args:      []string{"trail", "export", trailPath},
-				free:      []string{`"eventId":"req-1-1"`, `"reason":"partial_tail"`},
-				whileHeld: []string{`"eventId":"req-1-1"`, `"writer_held":true`},
-				freeExit:  exitFail, heldExit: exitOK,
+				args:           []string{"trail", "export", trailPath},
+				free:           []string{`"eventId":"req-1-1"`, `"reason":"partial_tail"`},
+				whileHeld:      []string{`"eventId":"req-1-1"`, `"writer_held":true`},
+				whileSpoolFree: []string{`"eventId":"req-1-1"`, `"writer_held":true`},
+				freeExit:       exitFail, heldExit: exitOK, spoolFreeExit: exitOK,
 			},
 		},
 	}
@@ -170,17 +176,30 @@ func TestEveryCommandIsClassified(t *testing.T) {
 	}
 }
 
+// The writers an inspection runs beside.
+const (
+	noWriter = iota
+	everyWriter
+	everyWriterButTheSpool
+)
+
 // TestInspectionChangesNothing runs every command classified inspects over
-// the damaged tree, once with no writer at work and once beside a plane built
+// the damaged tree three times: with no writer at work; beside a plane built
 // to serve it and a collector writing its trail, each holding its locks and
-// part way through an append, and requires every name under the tree to keep
-// its bytes, mode, modification time and link count. What moved is printed.
+// part way through an append; and beside the plane's approval directories and
+// the collector with the spool free, so that every check doctor makes after
+// the spool's runs beside a lock. It requires every name under the tree to
+// keep its bytes, mode, owner, modification time and link count, and prints
+// what moved.
 func TestInspectionChangesNothing(t *testing.T) {
-	for _, held := range []bool{false, true} {
-		t.Run(map[bool]string{false: "free", true: "held"}[held], func(t *testing.T) {
+	for _, beside := range []int{noWriter, everyWriter, everyWriterButTheSpool} {
+		t.Run([]string{"free", "held", "held but the spool"}[beside], func(t *testing.T) {
 			tr, trailPath := damagedTree(t)
-			if held {
+			switch beside {
+			case everyWriter:
 				holdAsWriters(t, tr, trailPath)
+			case everyWriterButTheSpool:
+				holdButTheSpool(t, tr, trailPath)
 			}
 			for name, ways := range inspections(tr, trailPath) {
 				for _, c := range ways {
@@ -192,8 +211,11 @@ func TestInspectionChangesNothing(t *testing.T) {
 							t.Errorf("%s changed what it inspected:\n  %s\noutput:\n%s", name, strings.Join(moved, "\n  "), out)
 						}
 						want, exit := c.free, c.freeExit
-						if held {
+						switch beside {
+						case everyWriter:
 							want, exit = c.whileHeld, c.heldExit
+						case everyWriterButTheSpool:
+							want, exit = c.whileSpoolFree, c.spoolFreeExit
 						}
 						if status != exit {
 							t.Errorf("%s exited %d, want %d:\n%s", name, status, exit, out)
@@ -222,6 +244,32 @@ func holdAsWriters(t *testing.T, tr tree, trailPath string) {
 		t.Fatalf("the spool holds segments %v (%v), want one", segments, err)
 	}
 	appendTail(t, segments[0], "in flight")
+	collectInto(t, trailPath)
+}
+
+// holdButTheSpool opens the approval records and the hold journal as a
+// serving plane holds them, and the trail as the collector does, and leaves
+// the spool to no one.
+func holdButTheSpool(t *testing.T, tr tree, trailPath string) {
+	t.Helper()
+	records, err := approvals.OpenPlane(filepath.Join(tr.dir, recordsDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = records.Close() })
+	journal, err := holdjournal.Open(filepath.Join(tr.dir, holdsDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = journal.Close() })
+	collectInto(t, trailPath)
+}
+
+// collectInto opens the trail as the collector does, which cuts its torn
+// line, and leaves half a line in it again, as the collector between two
+// appends.
+func collectInto(t *testing.T, trailPath string) {
+	t.Helper()
 	w, err := trailfile.Open(trailPath)
 	if err != nil {
 		t.Fatalf("opening the trail as the collector does: %v", err)
@@ -229,6 +277,41 @@ func holdAsWriters(t *testing.T, tr tree, trailPath string) {
 	t.Cleanup(func() { _ = w.Close() })
 	_, torn := trailLines(t)
 	appendTail(t, trailPath, torn)
+}
+
+// TestDoctorRefusesATornTailRunCannotCut: a torn last segment of mode 0400 is
+// one `run` cannot open to cut, so doctor fails the evidence check and says
+// why, and nothing in the tree moves.
+func TestDoctorRefusesATornTailRunCannotCut(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes a file whatever its mode, so run would cut it")
+	}
+	tr, _ := damagedTree(t)
+	segments, err := filepath.Glob(filepath.Join(tr.dir, "spool", "*.seg"))
+	if err != nil || len(segments) != 1 {
+		t.Fatalf("the spool holds segments %v (%v), want one", segments, err)
+	}
+	if err := os.Chmod(segments[0], 0o400); err != nil {
+		t.Fatal(err)
+	}
+	if sp, err := openSpool(tr.load(t)); err == nil {
+		_ = sp.Close()
+		t.Fatal("run's open cut a torn segment of mode 0400, so the case is not one run refuses")
+	}
+	pinTree(t, tr.dir)
+	before := treeState(t, tr.dir)
+	status, out := runWithin(t, []string{"doctor", "--config", tr.config})
+	if moved := treeChanges(before, treeState(t, tr.dir)); len(moved) > 0 {
+		t.Errorf("doctor changed what it inspected:\n  %s", strings.Join(moved, "\n  "))
+	}
+	if status != exitFail {
+		t.Errorf("doctor exited %d, want %d:\n%s", status, exitFail, out)
+	}
+	for _, want := range []string{"\nfail    evidence      ", "segment 1: permission denied", "mode 0400"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("doctor did not say %q:\n%s", want, out)
+		}
+	}
 }
 
 // runWithin runs the entry point and fails the test if it does not return in

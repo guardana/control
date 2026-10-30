@@ -91,9 +91,9 @@ type effect uint8
 
 const (
 	_ effect = iota
-	// inspects reads and changes no byte, mode, time or name of what it
-	// reads, whether or not a writer holds it; a test holds every such
-	// command to that over a damaged tree.
+	// inspects leaves the bytes, mode, modification time, link count and
+	// owner of everything it reads as they were, whether or not a writer
+	// holds it; a test holds every such command to that over a damaged tree.
 	inspects
 	// writes may change what it is pointed at.
 	writes

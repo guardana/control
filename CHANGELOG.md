@@ -63,10 +63,11 @@ verify one.
 - `doctor` no longer changes the evidence spool it checks. It reads the spool
   through `spool.Inspect`, which cuts nothing: a torn tail stays in place, and
   the line says "a start would cut a torn tail of N byte(s), which this check
-  left in place". It asks the system whether a directory is writable instead
-  of writing a probe, fails while a plane holds the spool, and no longer
-  prints a reserved count. Every command is marked as one that inspects or
-  one that writes, and each that inspects is tested to change nothing
+  left in place"; a torn tail whose file its owner may not write fails the
+  check, as it fails a start. It asks access(2) whether the directory takes a
+  file instead of writing a probe, and no longer prints a reserved count.
+  Every command is marked as one that inspects or one that writes, and each
+  that inspects is tested to change nothing
   ([ADR-0016](docs/adr/0016-approval-providers-and-the-lost-hold.md)).
 - **Breaking:** a run belongs to one project. A run record is `2.0` and
   carries `project_id`, `runs open` needs `--project` and refuses a parent of

@@ -31,16 +31,18 @@ func (d *examination) evidence(context.Context) (string, string, string) {
 	if err := writable(dir); err != nil {
 		return verdictFail, "evidence", err.Error()
 	}
-	return verdictOK, "evidence", fmt.Sprintf("%s is writable; %d segment(s), %d byte(s) unacknowledged, %d quarantined; "+
+	return verdictOK, "evidence", fmt.Sprintf("access(2), which reads mode bits, a read-only mount and the ACLs the kernel applies, "+
+		"lets this account create a file in %s; %d segment(s), %d byte(s) unacknowledged, %d quarantined; "+
 		"a start would cut a torn tail of %d byte(s), which this check left in place; on_unwritable %s",
 		filepath.ToSlash(dir), found.Segments, found.Unacknowledged, found.QuarantinedRecords, found.Torn,
 		d.cfg.Evidence.OnUnwritable)
 }
 
-// writable asks whether this process may create a file in dir, without
-// creating one, because the spool's lock does not prove it: on unix it is
-// taken on the directory, which a process with no permission to write in it
-// can still open.
+// writable asks access(2) whether this process may create a file in dir,
+// without creating one, because the spool's lock does not prove it: on unix it
+// is taken on the directory, which a process with no permission to write in it
+// can still open. access(2) does not see a rule a security module applies to
+// paths, a file system that answers it without checking, or a full disk.
 func writable(dir string) error {
 	if err := mayWrite(dir); err != nil {
 		return fmt.Errorf("the directory is not writable: %w", err)
