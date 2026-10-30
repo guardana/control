@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"time"
 
 	observev1 "github.com/guardana/control/api/gen/go/guardana/control/observe/v1alpha1"
@@ -141,12 +142,9 @@ func (im *importer) connection(vals values) *observev1.Connection {
 		return false
 	})
 	drop(vals[fieldStatus], func(v value) bool {
-		n, ok := v.unsigned()
-		if ok && observe.ConnectionStatus(n) {
-			c.HttpStatus = uint32(n) //nolint:gosec // G115: ConnectionStatus holds n to at most 599
-			return true
-		}
-		return false
+		n, ok := httpStatus(v)
+		c.HttpStatus = n
+		return ok
 	})
 	drop(vals[fieldBytesSent], func(v value) bool {
 		n, ok := v.unsigned()
@@ -174,6 +172,15 @@ func (im *importer) connection(vals values) *observev1.Connection {
 		}
 	}
 	return c
+}
+
+// httpStatus reads a status the connection codec takes, or reports none.
+func httpStatus(v value) (uint32, bool) {
+	n, ok := v.unsigned()
+	if !ok || n > math.MaxUint32 || !observe.ConnectionStatus(n) {
+		return 0, false
+	}
+	return uint32(n), true
 }
 
 func (im *importer) source() *observev1.SourceRef {
