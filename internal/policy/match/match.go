@@ -61,6 +61,11 @@ type Result struct {
 	// false. The list is the same whatever the answer, so a caller that
 	// evaluated without one learns whether an answer could change the result.
 	ReadExternal []string
+	// UnknownAllows are the ALLOW rules whose match is unknown, in document
+	// order. Such a rule is no match and changes no other field; a caller
+	// that decided without the field it reads learns that a call carrying
+	// that field might be allowed.
+	UnknownAllows []string
 }
 
 // Program is a compiled document. It is immutable and safe to share: Compile

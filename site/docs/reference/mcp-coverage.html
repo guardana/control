@@ -271,11 +271,11 @@ when it is not <code>none</code> in a mode that does not enforce.</p>
 </tr>
 </tbody>
 </table>
-<p>A preview decides a tool with no arguments, so with no resource id. A tool the
-policy decides without that id carries its verdict. One whose effect class or
-rules need the id stays in the list, marked <code>DECIDED_PER_CALL</code> under
-<code>annotate</code> unless a rule denies it without its arguments, and kept under
-<code>hide</code>: shaping subtracts what policy denies, never what it could not decide.</p>
+<p>A preview carries no arguments, so no resource id. A tool the policy decides
+without the id carries its verdict; one whose effect class or rules need it
+stays listed, marked <code>DECIDED_PER_CALL</code> under <code>annotate</code>, unless a rule
+denies it without its arguments: shaping subtracts what policy denies, never
+what it could not decide.</p>
 <h2 id="the-codes-the-adapter-mints">The codes the adapter mints</h2>
 <p>A <code>tools/call</code> answers a block and a pending state as a tool result with
 <code>isError: true</code>, the fields below in its <code>_meta</code> under <code>&lt;ns&gt;/</code> and no
@@ -423,6 +423,10 @@ block in every mode. The codes below are the enforcement point's own.</p>
 <tr>
 <td><code>REQUIRED_FIELD_ABSENT</code></td>
 <td>any list on a listener whose authenticator established no end user</td>
+</tr>
+<tr>
+<td><code>NO_MATCHING_RULE</code></td>
+<td>the kernel's; read to keep a tool listed</td>
 </tr>
 </tbody>
 </table>

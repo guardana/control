@@ -66,11 +66,11 @@ when it is not `none` in a mode that does not enforce.
 | `annotate` | refused at start | each tool carries the verdict a call to it would get, under the gateway's `_meta` key |
 | `hide` | refused at start | a tool the preview denies, and every unclassified tool, is omitted |
 
-A preview decides a tool with no arguments, so with no resource id. A tool the
-policy decides without that id carries its verdict. One whose effect class or
-rules need the id stays in the list, marked `DECIDED_PER_CALL` under
-`annotate` unless a rule denies it without its arguments, and kept under
-`hide`: shaping subtracts what policy denies, never what it could not decide.
+A preview carries no arguments, so no resource id. A tool the policy decides
+without the id carries its verdict; one whose effect class or rules need it
+stays listed, marked `DECIDED_PER_CALL` under `annotate`, unless a rule
+denies it without its arguments: shaping subtracts what policy denies, never
+what it could not decide.
 
 ## The codes the adapter mints
 
@@ -135,3 +135,4 @@ block in every mode. The codes below are the enforcement point's own.
 | `POLICY_STALE` | the decision's bundle was replaced or stale at hand-out |
 | `POLICY_UNAVAILABLE` | a block reached the adapter with a decision naming no cause; it answers with the kernel's code for an absent policy |
 | `REQUIRED_FIELD_ABSENT` | any list on a listener whose authenticator established no end user |
+| `NO_MATCHING_RULE` | the kernel's; read to keep a tool listed |

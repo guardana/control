@@ -164,6 +164,10 @@ type Outcome struct {
 	// leaves it unset. A kernel nobody built reads no request and leaves it
 	// unset too; it blocks whatever it is asked.
 	RefusedInput bool
+	// UnknownAllows are the ALLOW rules whose match was unknown, in document
+	// order. Such a rule is no match and is on no field of the decision. It
+	// is empty wherever evaluation did not run.
+	UnknownAllows []string
 }
 
 // Decide returns a decision for req against snap, and what to enforce

@@ -315,6 +315,7 @@ func (d *decision) outcome(k *Kernel) Outcome {
 		},
 		Action:        action,
 		NeedsExternal: d.needsExternal,
+		UnknownAllows: d.result.UnknownAllows,
 		Basis:         Basis{set: true, digest: d.snap.Ref().GetDigest(), fresh: !d.stale(), opened: opened},
 	}
 }

@@ -107,6 +107,7 @@ type want struct {
 	ids, undetermined, codes []string
 	obligations              []*controlv1.Obligation
 	external                 []string
+	unknownAllows            []string
 }
 
 // assertResult compares; it never computes an expectation.
@@ -133,6 +134,9 @@ func assertResult(t testing.TB, got match.Result, w want) {
 	if !slices.Equal(got.ReadExternal, w.external) {
 		t.Errorf("ReadExternal = %q, want %q", got.ReadExternal, w.external)
 	}
+	if !slices.Equal(got.UnknownAllows, w.unknownAllows) {
+		t.Errorf("UnknownAllows = %q, want %q", got.UnknownAllows, w.unknownAllows)
+	}
 }
 
 func sameObligations(a, b []*controlv1.Obligation) bool {
@@ -152,8 +156,8 @@ func describe(obs []*controlv1.Obligation) string {
 }
 
 func summary(r match.Result) string {
-	return fmt.Sprintf("{%s determinate=%s ids=%q undetermined=%q codes=%q obligations=%s external=%q}",
-		r.Verdict, r.Determinate, r.RuleIDs, r.Indeterminate, r.ReasonCodes, describe(r.Obligations), r.ReadExternal)
+	return fmt.Sprintf("{%s determinate=%s ids=%q undetermined=%q codes=%q obligations=%s external=%q unknown-allows=%q}",
+		r.Verdict, r.Determinate, r.RuleIDs, r.Indeterminate, r.ReasonCodes, describe(r.Obligations), r.ReadExternal, r.UnknownAllows)
 }
 
 // failer is what *testing.T and *rapid.T both offer, so one assertion serves a
@@ -168,7 +172,7 @@ func assertSame(f failer, what string, a, b match.Result) {
 	if a.Verdict != b.Verdict || a.Determinate != b.Determinate ||
 		!slices.Equal(a.RuleIDs, b.RuleIDs) || !slices.Equal(a.Indeterminate, b.Indeterminate) ||
 		!slices.Equal(a.ReasonCodes, b.ReasonCodes) || !sameObligations(a.Obligations, b.Obligations) ||
-		!slices.Equal(a.ReadExternal, b.ReadExternal) {
+		!slices.Equal(a.ReadExternal, b.ReadExternal) || !slices.Equal(a.UnknownAllows, b.UnknownAllows) {
 		f.Fatalf("%s: %s, and before it %s", what, summary(b), summary(a))
 	}
 }
@@ -204,6 +208,7 @@ func assertWellFormed(f failer, order []string, effects map[string]controlv1.Ver
 	inOrder(f, "RuleIDs", got.RuleIDs, order)
 	inOrder(f, "Indeterminate", got.Indeterminate, order)
 	inOrder(f, "ReadExternal", got.ReadExternal, order)
+	assertUnknownAllowsWellFormed(f, order, effects, got)
 	for _, id := range got.ReadExternal {
 		if effects[id] != deny {
 			f.Fatalf("%s rule %s reads the external answer; only a DENY rule may", effects[id], id)
@@ -222,6 +227,21 @@ func assertWellFormed(f failer, order []string, effects map[string]controlv1.Ver
 	}
 	assertCodesWellFormed(f, effects, got)
 	assertObligationsWellFormed(f, got)
+}
+
+// assertUnknownAllowsWellFormed: UnknownAllows lists ALLOW rules alone, in
+// document order, none of them matched or indeterminate.
+func assertUnknownAllowsWellFormed(f failer, order []string, effects map[string]controlv1.Verdict, got match.Result) {
+	f.Helper()
+	inOrder(f, "UnknownAllows", got.UnknownAllows, order)
+	for _, id := range got.UnknownAllows {
+		if effects[id] != allow {
+			f.Fatalf("%s rule %s is listed as an unknown ALLOW", effects[id], id)
+		}
+		if slices.Contains(got.RuleIDs, id) || slices.Contains(got.Indeterminate, id) {
+			f.Fatalf("unknown ALLOW rule %s is also matched or indeterminate: %s", id, summary(got))
+		}
+	}
 }
 
 func matchedDeny(effects map[string]controlv1.Verdict, got match.Result) bool {

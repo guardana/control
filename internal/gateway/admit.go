@@ -60,9 +60,12 @@ type call struct {
 	// refusedInput: the kernel's decision stopped on the request itself,
 	// whatever the adapter's Admission said of it.
 	refusedInput bool
-	action       core.EnforcementAction
-	decision     *controlv1.Decision
-	material     bool
+	// unknownAllows are the ALLOW rules the kernel's decision could not tell;
+	// only a preview reads them.
+	unknownAllows []string
+	action        core.EnforcementAction
+	decision      *controlv1.Decision
+	material      bool
 	// external is the decision point's answer about this call, asked at
 	// most once; the zero value when it was not asked.
 	external core.External
@@ -162,7 +165,7 @@ func (c *call) decideProposed(snap *policy.Snapshot, ask bool) {
 		out = c.p.kernel.Decide(c.ctx, req, snap)
 	}
 	c.kernel, c.decision, c.action, c.basis = out.Decision, out.Decision, out.Action, out.Basis
-	c.kernelAction, c.refusedInput = out.Action, out.RefusedInput
+	c.kernelAction, c.refusedInput, c.unknownAllows = out.Action, out.RefusedInput, out.UnknownAllows
 	c.reliedOnDecision(out.Decision, snap)
 	c.material = contract.IsMaterial(c.in.Envelope.GetAction().GetEffect())
 }

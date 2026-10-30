@@ -193,6 +193,11 @@ time, which no lint read before.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li><code>tools/list</code> under <code>hide</code> left out a tool whose only <code>ALLOW</code> rule reads
+what a listing does not carry, such as <code>resource.id</code>, and <code>annotate</code> marked
+it <code>VERDICT_DENY</code>, though a call naming an allowed id ran. Such a tool now
+stays listed, marked <code>DECIDED_PER_CALL</code>; a <code>DENY</code> rule that matches,
+<code>LOCKDOWN</code> and a halt still leave it out.</li>
 <li><code>OBSERVE</code> handed out a call whose refusal joined &quot;nothing classifies it&quot;
 with another cause, such as arguments canon refused: such a refusal read as
 unclassified alone. Unclassified is now that one cause, on a chain of single
