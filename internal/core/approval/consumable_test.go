@@ -230,6 +230,7 @@ func TestExpiredIsAtOrPastTheExpiry(t *testing.T) {
 		"no expiry, in 1960": {&controlv1.Approval{}, time.Date(1960, 1, 1, 0, 0, 0, 0, time.UTC), true},
 		"with no approval":   {nil, judgedAt, true},
 		"long before expiry": {&controlv1.Approval{ExpiresAt: expiry}, requestedAt, false},
+		"at a zero moment":   {&controlv1.Approval{ExpiresAt: expiry}, time.Time{}, false},
 	} {
 		if got := approval.Expired(c.a, c.now); got != c.want {
 			t.Errorf("%s: Expired = %t, want %t", name, got, c.want)

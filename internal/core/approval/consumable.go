@@ -59,6 +59,9 @@ func Consumable(a *controlv1.Approval, now time.Time) Standing {
 
 // Expired reports whether a is at or past its expiry at now. An approval with
 // no expiry is expired: a record that never expires is one no bound reaches.
+// A zero now stands before every expiry and reads as unexpired, so a record
+// long past its expiry would read as live: every caller refuses a zero time
+// before it asks, as Consumable does.
 func Expired(a *controlv1.Approval, now time.Time) bool {
 	return a.GetExpiresAt() == nil || !now.Before(a.GetExpiresAt().AsTime())
 }

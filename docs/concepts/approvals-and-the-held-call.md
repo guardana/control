@@ -307,11 +307,11 @@ Each of these has to be positive, or the plane refuses to start.
 refuses what it cannot hold, and `internal/gateway/resume.go` resumes it and
 checks what the store answers;
 `internal/gateway/trails.go`
-keeps the enforcement point's own record of a hold, flips it to running and
+keeps the enforcement point's record of a hold, flips it to running and
 closes the expired ones; `internal/gateway/approvals.go` is the store
 interface and the in-memory store, `internal/gateway/reconcile.go` closes the
 holds a restart lost, `internal/approvals/` is the directory of records and
-`internal/holdjournal/` the plane's own journal; `internal/core/approval/`
-computes the binding from `internal/canon`. The pending state an agent is told is
-`gateway.Pending` in `internal/gateway/pipeline.go`, and its shape on the MCP
-wire is in `adapters/mcp/answer.go`.
+`internal/holdjournal/` the plane's journal; `internal/core/approval/`
+computes the binding and decides when an approval may be spent. The pending
+state an agent is told is `gateway.Pending` in `internal/gateway/pipeline.go`;
+its MCP shape is in `adapters/mcp/answer.go`.

@@ -60,6 +60,15 @@ verify one.
 
 ### Changed
 
+- Both approval stores decide whether an approval may be spent in one order
+  ([approvals](docs/concepts/approvals-and-the-held-call.md)). An expired
+  record marked multi-use in an approvals directory is left pending and
+  counted until the hold's own expiry, as an unexpired one already was; it
+  used to close the held call `DENY` `APPROVAL_EXPIRED`. Either way nothing
+  runs. A record refused for its approver id no longer blocks another
+  approval's record of the same request, and the memory store refuses a hold
+  with no requested time or no expiry.
+
 - **Breaking:** a run belongs to one project. A run record is `2.0` and
   carries `project_id`, `runs open` needs `--project` and refuses a parent of
   another project, and `runs list` prints `project_id`. A plane resolves a

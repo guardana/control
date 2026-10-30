@@ -145,7 +145,7 @@ func (m *MemoryApprovals) Hold(ctx context.Context, held Held, now time.Time) er
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if held.Approval == nil || held.Approval.GetRequestId() == "" || held.Binding == "" || held.Envelope == nil || held.Decision == nil {
+	if !resumable(held) {
 		return ErrInvalidHold
 	}
 	m.mu.Lock()
@@ -161,6 +161,15 @@ func (m *MemoryApprovals) Hold(ctx context.Context, held Held, now time.Time) er
 	}
 	m.held[held.Binding] = append(m.held[held.Binding], &heldRecord{held: cloneHeld(held), resolution: ResolutionPending})
 	return nil
+}
+
+// resumable reports whether held carries everything a resume reads: the
+// approval with its request id, requested time and expiry, the binding, the
+// envelope and the decision.
+func resumable(held Held) bool {
+	a := held.Approval
+	return a != nil && a.GetRequestId() != "" && a.GetRequestedAt() != nil && a.GetExpiresAt() != nil &&
+		held.Binding != "" && held.Envelope != nil && held.Decision != nil
 }
 
 // Find returns clones of what Hold recorded under binding, oldest first.

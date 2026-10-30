@@ -114,8 +114,9 @@ const (
 	// ErrZeroTime is a clock reading of zero, which would pass every expiry.
 	ErrZeroTime Error = "gateway: the clock reads zero"
 	// ErrInvalidHold is a held request with no approval, no request id, no
-	// binding, no envelope or no decision, which nothing could resume.
-	ErrInvalidHold Error = "gateway: a held request needs an approval, a request id, a binding, an envelope and a decision"
+	// requested time, no expiry, no binding, no envelope or no decision, which
+	// nothing could resume.
+	ErrInvalidHold Error = "gateway: a held request needs an approval, a request id, a requested time, an expiry, a binding, an envelope and a decision"
 	// ErrAlreadyHeld is a second hold of one request id under one binding.
 	ErrAlreadyHeld Error = "gateway: this request is already held under this binding"
 	// ErrApprovalAnswered is an answer to an approval that was answered, or

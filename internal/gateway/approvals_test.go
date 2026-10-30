@@ -22,7 +22,8 @@ func held(binding approval.Binding, approvalID, requestID string) gateway.Held {
 	return gateway.Held{
 		Approval: &controlv1.Approval{
 			ApprovalId: approvalID, RequestId: requestID, State: controlv1.ApprovalState_APPROVAL_STATE_PENDING,
-			ExpiresAt: timestamppb.New(base().Add(10 * time.Minute)),
+			RequestedAt: timestamppb.New(base()),
+			ExpiresAt:   timestamppb.New(base().Add(10 * time.Minute)),
 		},
 		Envelope:    readEnvelope(),
 		Decision:    &controlv1.Decision{DecisionId: "d-" + approvalID, RequestId: requestID},
@@ -65,6 +66,10 @@ func TestHoldRefusesWhatCannotBeResumed(t *testing.T) {
 		"no binding":    func(h *gateway.Held) { h.Binding = "" },
 		"no envelope":   func(h *gateway.Held) { h.Envelope = nil },
 		"no decision":   func(h *gateway.Held) { h.Decision = nil },
+		// The directory store refuses both at read, and a store that took
+		// them would judge the answer's window against the Unix epoch.
+		"no requested time": func(h *gateway.Held) { h.Approval.RequestedAt = nil },
+		"no expiry":         func(h *gateway.Held) { h.Approval.ExpiresAt = nil },
 	}
 	for name, mut := range incomplete {
 		h := held(binding, "a-1", "req-1")
@@ -118,6 +123,18 @@ func expectConsume(t *testing.T, store *gateway.MemoryApprovals, binding approva
 	}
 }
 
+// expectNothingHeldWithoutExpiry holds a record that never expires: the hold is
+// refused, so there is nothing to consume.
+func expectNothingHeldWithoutExpiry(t *testing.T, store *gateway.MemoryApprovals, binding approval.Binding) {
+	t.Helper()
+	noExpiry := held(binding, "a-4", "req-4")
+	noExpiry.Approval.ExpiresAt = nil
+	if err := store.Hold(ctx(), noExpiry, base()); !errors.Is(err, gateway.ErrInvalidHold) {
+		t.Fatalf("Hold with no expiry = %v, want ErrInvalidHold", err)
+	}
+	expectConsume(t, store, binding, "req-4", "a-4", base(), gateway.ErrNoApproval)
+}
+
 // TestConsumeInEveryState walks Consume through what a record can be: held
 // and pending, answered, consumed, expired, rejected, multi-use, and asked
 // for under another request id.
@@ -155,10 +172,7 @@ func TestConsumeInEveryState(t *testing.T) {
 		expectConsume(t, &store, binding, "req-3", "a-3", base().Add(10*time.Minute), gateway.ErrApprovalExpired)
 		// The expired record is dropped.
 		expectConsume(t, &store, binding, "req-3", "a-3", base(), gateway.ErrNoApproval)
-		noExpiry := held(binding, "a-4", "req-4")
-		noExpiry.Approval.ExpiresAt = nil
-		mustHold(t, &store, noExpiry)
-		expectConsume(t, &store, binding, "req-4", "a-4", base(), gateway.ErrApprovalExpired)
+		expectNothingHeldWithoutExpiry(t, &store, binding)
 	})
 	t.Run("rejected", func(t *testing.T) {
 		var store gateway.MemoryApprovals
