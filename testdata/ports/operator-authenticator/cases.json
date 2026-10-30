@@ -1,0 +1,22 @@
+{
+  "port": "operator-authenticator",
+  "format": "0.1",
+  "about": "Each case authenticates one approval answer against a roster of roster-a naming alice, bob and carol as operators, unless the case's roster is unavailable. A statement is signed by signer under the key id of keyId, with the payload type named, and its body names alg and bodyKeyId; an empty member takes the signer's own. Keys are named, never spelled, and each runner derives them. A case marked control is the negative control of its rule.",
+  "cases": [
+    {"rule": "roster-key", "case": "alice's answer", "statement": {"signer": "alice"}, "state": "authenticated", "subject": "alice"},
+    {"rule": "roster-key", "case": "a key the roster does not name", "control": true, "statement": {"signer": "mallory"}, "state": "refused", "cause": "unknown_key"},
+    {"rule": "roster-key", "case": "the root's own answer", "control": true, "statement": {"signer": "root"}, "state": "refused", "cause": "unknown_key"},
+    {"rule": "payload-type", "case": "the answer's payload type", "statement": {"signer": "bob", "payloadType": "answer"}, "state": "authenticated", "subject": "bob"},
+    {"rule": "payload-type", "case": "a route's payload type", "control": true, "statement": {"signer": "bob", "payloadType": "route"}, "state": "refused", "cause": "payload_type"},
+    {"rule": "payload-type", "case": "a roster's payload type", "control": true, "statement": {"signer": "bob", "payloadType": "roster"}, "state": "refused", "cause": "payload_type"},
+    {"rule": "signature", "case": "a signature by the key the id names", "statement": {"signer": "alice", "keyId": "alice"}, "state": "authenticated", "subject": "alice"},
+    {"rule": "signature", "case": "another key's signature under alice's id", "control": true, "statement": {"signer": "mallory", "keyId": "alice", "bodyKeyId": "alice"}, "state": "refused", "cause": "signature"},
+    {"rule": "algorithm-from-the-key", "case": "a body naming the key's algorithm", "statement": {"signer": "carol", "alg": "ed25519"}, "state": "authenticated", "subject": "carol"},
+    {"rule": "algorithm-from-the-key", "case": "a body naming another algorithm", "control": true, "statement": {"signer": "carol", "alg": "ecdsa-p256"}, "state": "refused", "cause": "alg"},
+    {"rule": "signer-in-the-body", "case": "a body naming the signing key", "statement": {"signer": "alice", "bodyKeyId": "alice"}, "state": "authenticated", "subject": "alice"},
+    {"rule": "signer-in-the-body", "case": "a body naming another key", "control": true, "statement": {"signer": "alice", "bodyKeyId": "bob"}, "state": "refused", "cause": "key_id"},
+    {"rule": "roster-available", "case": "a roster that answers", "statement": {"signer": "alice"}, "state": "authenticated", "subject": "alice"},
+    {"rule": "roster-available", "case": "a roster that is unavailable", "control": true, "roster": "unavailable", "statement": {"signer": "alice"}, "state": "unavailable", "cause": "roster_unavailable"},
+    {"rule": "roster-available", "case": "a roster that never answers", "control": true, "roster": "silent", "statement": {"signer": "alice"}, "state": "unavailable", "cause": "late"}
+  ]
+}

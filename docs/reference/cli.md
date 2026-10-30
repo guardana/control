@@ -172,6 +172,9 @@ usage:
   guardana-control findings export --findings <dir> [--after <cursor>] [--limit <n>]
       [--max-bytes <n>]
   guardana-control route sign --key <file> --out <file> <route.json>
+  guardana-control operators roster sign --key <file> --out <file>
+      [--valid-for <duration>] <roster.json>
+  guardana-control operators floor init --roster-id <id> <dir>
   guardana-control stops init --route <file> --public-key <file>
       [--carry <dir> --carry-route <file>] <dir>
   guardana-control stops lift --route <file> --public-key <file> --key <file> --run <run-id>
@@ -193,6 +196,8 @@ Write access to a floor directory is the authority to lower its floors;
 policy state reset is the one way that records why.
 Only the lift key lifts a stop while a plane runs; write access to the stops directory
 adds any stop the route allows and, across a restart, can start a new list with none.
+The trust root names every operator key until its roster expires;
+write access to its floor directory lowers the floor.
 ```
 <!-- /generated -->
 
