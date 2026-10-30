@@ -294,8 +294,9 @@ func TestAnotherClientStopsTheScenario(t *testing.T) {
 func TestATrailFileThatIsNotThePlanesCannotPass(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	other := filepath.Join(t.TempDir(), "other.jsonl")
-	r.startProcess("collect", "--listen", "127.0.0.1:0", "--out", other).waitFor(t, "collect: listening on ")
+	other := filepath.Join(t.TempDir(), "other")
+	r.startProcess("collect", "--listen", "127.0.0.1:0", "--dir", other, "--tenant", "acme", "--project", "orders",
+		"--credential-file", credentialFile(t, collectToken)).waitFor(t, "collect: listening on ")
 	r.trail = other
 	exit, out := r.runScenarios(nil, filepath.Join("testdata", "scenario", "allowed-read.json"))
 	if exit != exitCouldNotRun || !strings.Contains(out, "holds none of them: it is not this plane's") ||

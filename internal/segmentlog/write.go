@@ -1,0 +1,201 @@
+package segmentlog
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"path/filepath"
+	"slices"
+	"time"
+)
+
+// usable refuses a call on a log that is closed or that a seal or a prune
+// left part way.
+func (l *segments) usable() error {
+	switch {
+	case l.closed:
+		return ErrClosed
+	case l.failed != nil:
+		return l.failed
+	}
+	return nil
+}
+
+// Append writes lines to the live segment. Lines that would take the log
+// past MaxBytes are refused with ErrBudget and nothing is written; lines that
+// would take a live segment holding a line past SegmentBytes seal it first.
+func (l *segments) Append(ctx context.Context, lines []byte) error {
+	if len(lines) == 0 || lines[len(lines)-1] != '\n' {
+		return ErrLines
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.usable(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := l.makeRoom(int64(len(lines))); err != nil {
+		return err
+	}
+	if err := l.file.AppendLines(ctx, lines); err != nil {
+		return err
+	}
+	for line := range bytes.Lines(lines) {
+		l.live.add(line)
+	}
+	return nil
+}
+
+// makeRoom refuses n bytes more past the log's bound, seals a live segment
+// holding a line that they would take past its own, and opens the live
+// segment when none is open.
+func (l *segments) makeRoom(n int64) error {
+	switch {
+	case l.cfg.MaxBytes == 0:
+		return fmt.Errorf("%w: the log was opened with no bound, so it takes no append", ErrBudget)
+	case l.retained() > l.cfg.MaxBytes-n:
+		return fmt.Errorf("%w: %d bytes held, %d more asked, %d at most", ErrBudget, l.retained(), n, l.cfg.MaxBytes)
+	}
+	if l.live.lines > 0 && l.live.bytes > l.cfg.SegmentBytes-n {
+		if err := l.seal(); err != nil {
+			return err
+		}
+	}
+	if l.file != nil {
+		return nil
+	}
+	f, err := l.cfg.OpenLive(filepath.Join(l.cfg.Dir, LiveName))
+	if err != nil {
+		return fmt.Errorf("%s: %w", LiveName, err)
+	}
+	l.file = f
+	return nil
+}
+
+// Seal seals the live segment when it holds a line.
+func (l *segments) Seal() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.usable(); err != nil {
+		return err
+	}
+	return l.seal()
+}
+
+// seal names the live segment sealed in the manifest, then renames its file.
+// A step that fails leaves the log refusing until it is opened again, which
+// completes the seal or finds it not begun.
+func (l *segments) seal() error {
+	if l.live.lines == 0 {
+		return nil
+	}
+	if len(l.segs) >= MaxSegments {
+		return fmt.Errorf("%w: %d", ErrFull, MaxSegments)
+	}
+	s := l.liveSegment()
+	s.State, s.File, s.SealedAt = StateSealed, segmentFile(s.Seq), l.now()
+	next := append(slices.Clone(l.segs), s)
+	if err := l.writeManifest(next); err != nil {
+		return l.fail(err)
+	}
+	err := l.file.Close()
+	l.file = nil
+	if err != nil {
+		return l.fail(err)
+	}
+	if err := l.ops.rename(l.root, LiveName, s.File); err != nil {
+		return l.fail(err)
+	}
+	if err := l.ops.sync(l.root); err != nil {
+		return l.fail(err)
+	}
+	l.segs, l.live = next, stats{}
+	return nil
+}
+
+// Prune prunes the sealed segments through the one numbered through. Each
+// one's tombstone is in the manifest before its file is unlinked. A prefix
+// already pruned is pruned again as nothing.
+func (l *segments) Prune(through int) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.usable(); err != nil {
+		return err
+	}
+	if through < 1 || through > len(l.segs) {
+		return fmt.Errorf("%w: segment %d, and %d are sealed or pruned; the live one is %d",
+			ErrPrune, through, len(l.segs), len(l.segs)+1)
+	}
+	next := slices.Clone(l.segs)
+	var gone []string
+	at := l.now()
+	for i := range next[:through] {
+		if next[i].State == StateSealed {
+			gone = append(gone, next[i].File)
+			next[i].State, next[i].PrunedAt, next[i].File = StatePruned, at, ""
+		}
+	}
+	if len(gone) == 0 {
+		return nil
+	}
+	if err := l.writeManifest(next); err != nil {
+		return l.fail(err)
+	}
+	for _, name := range gone {
+		if err := l.ops.remove(l.root, name); err != nil {
+			return l.fail(err)
+		}
+	}
+	if err := l.ops.sync(l.root); err != nil {
+		return l.fail(err)
+	}
+	l.segs = next
+	return nil
+}
+
+func (l *segments) writeManifest(segs []Segment) error {
+	body, err := encodeManifest(l.cfg.Tenant, l.cfg.Project, segs)
+	if err != nil {
+		return err
+	}
+	return l.ops.replace(l.root, ManifestName, body)
+}
+
+// now is the clock to the second, as the manifest spells a time.
+func (l *segments) now() time.Time { return l.cfg.Now().UTC().Truncate(time.Second) }
+
+func (l *segments) fail(err error) error {
+	l.failed = fmt.Errorf("%w: %w", ErrFailed, err)
+	return l.failed
+}
+
+// Locate answers for the segment whose first line has the digest first.
+func (l *segments) Locate(first Digest) SegmentAnswer {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.usable(); err != nil {
+		return SegmentAnswer{cause: err.Error()}
+	}
+	return locate(l.segs, l.liveSegment(), first)
+}
+
+// Manifest is the log as it is now.
+func (l *segments) Manifest() Manifest {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.manifest()
+}
+
+// Close releases the live segment, the lock and the directory. A second
+// Close does nothing.
+func (l *segments) Close() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return nil
+	}
+	l.closed = true
+	return l.release()
+}

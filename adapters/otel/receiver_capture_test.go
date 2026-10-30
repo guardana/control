@@ -73,10 +73,11 @@ func TestAReceivedPreviewIsNotKept(t *testing.T) {
 		t.Fatalf("opening the trail file: %v", err)
 	}
 	t.Cleanup(func() { _ = w.Close() })
-	h, err := otel.NewReceiver(w, slog.New(slog.DiscardHandler))
+	raw, err := otel.NewReceiver(w, slog.New(slog.DiscardHandler), testCredential(t))
 	if err != nil {
 		t.Fatal(err)
 	}
+	h := carrying(raw)
 
 	postAll(t, h)
 	first := readTrail(t, path)

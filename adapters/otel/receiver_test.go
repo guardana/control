@@ -54,17 +54,38 @@ func (s *memorySink) appends() int {
 	return s.calls
 }
 
-func newReceiver(t *testing.T, sink otel.Sink) http.Handler {
+// testToken is the credential every receiver under test requires.
+var testToken = strings.Repeat("k", otel.MinCredentialBytes)
+
+func testCredential(t *testing.T) otel.Credential {
 	t.Helper()
-	h, err := otel.NewReceiver(sink, slog.New(slog.DiscardHandler))
+	cred, err := otel.NewCredential(testToken)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return h
+	return cred
+}
+
+// carrying hands every request to h with the credential, as a sender
+// configured with it sends each one.
+func carrying(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Header.Set("Authorization", "Bearer "+testToken)
+		h.ServeHTTP(w, r)
+	})
+}
+
+func newReceiver(t *testing.T, sink otel.Sink) http.Handler {
+	t.Helper()
+	h, err := otel.NewReceiver(sink, slog.New(slog.DiscardHandler), testCredential(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return carrying(h)
 }
 
 func TestAReceiverNeedsASink(t *testing.T) {
-	if h, err := otel.NewReceiver(nil, nil); h != nil || !errors.Is(err, otel.ErrNoSink) {
+	if h, err := otel.NewReceiver(nil, nil, testCredential(t)); h != nil || !errors.Is(err, otel.ErrNoSink) {
 		t.Errorf("NewReceiver(nil) = %v, %v; want nil, ErrNoSink", h, err)
 	}
 }
@@ -272,12 +293,12 @@ func (c *statusCounter) wrap(next http.Handler) http.Handler {
 func TestABatchOverTheBoundIsHalvedAndDelivered(t *testing.T) {
 	const records, bound = 16, 16 << 10
 	sink := &memorySink{}
-	h, err := otel.NewReceiverWithin(sink, slog.New(slog.DiscardHandler), bound)
+	h, err := otel.NewReceiverWithin(sink, slog.New(slog.DiscardHandler), testCredential(t), bound)
 	if err != nil {
 		t.Fatal(err)
 	}
 	answers := &statusCounter{seen: map[int]int{}}
-	srv := httptest.NewServer(answers.wrap(h))
+	srv := httptest.NewServer(answers.wrap(carrying(h)))
 	t.Cleanup(srv.Close)
 	s := openSpool(t, 1<<20)
 	run := strings.Repeat("x", 1<<10)

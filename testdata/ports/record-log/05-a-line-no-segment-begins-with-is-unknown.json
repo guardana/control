@@ -1,0 +1,17 @@
+{
+  "rule": "a first line no segment begins with, and one two segments begin with, are located unknown",
+  "segment_bytes": 8,
+  "max_bytes": 64,
+  "steps": [
+    {"append": ["aaa", "bbb"]},
+    {"append": ["aaa"]},
+    {"locate": "bbb", "state": "unknown"},
+    {"locate": "aaa", "state": "unknown"}
+  ],
+  "negative_control": [
+    {"append": ["aaa", "bbb"]},
+    {"append": ["ccc"]},
+    {"locate": "ccc", "state": "live"},
+    {"locate": "aaa", "state": "sealed"}
+  ]
+}

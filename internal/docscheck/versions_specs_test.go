@@ -28,6 +28,7 @@ import (
 	"github.com/guardana/control/internal/policy/rules"
 	"github.com/guardana/control/internal/reaction"
 	"github.com/guardana/control/internal/scenario"
+	"github.com/guardana/control/internal/segmentlog"
 	"github.com/guardana/control/internal/supervise"
 	"github.com/guardana/control/internal/trailfile"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -59,6 +60,10 @@ func versionSpecs() map[string]versionSpec {
 				{"internal/coverage/export.go#exportMajor", readsMajor},
 			},
 			refuses: evidenceExportRefuses,
+		},
+		"Trail segment manifest": {
+			name:  func() string { return segmentlog.ManifestFormat },
+			cites: []versionCite{{"internal/segmentlog/manifest.go#ManifestVersion", writes | reads}},
 		},
 		"Policy document": {
 			cites: []versionCite{{"internal/policy/rules/rules.go#apiVersion", reads}},

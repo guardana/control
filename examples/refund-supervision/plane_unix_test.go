@@ -144,6 +144,7 @@ func (tr tree) sign(t *testing.T, collector string) {
 		"FRESHNESS_KEY_ID_FROM_KEYGEN": fresh["key_id"], "FRESHNESS_PUBLIC_KEY_FROM_KEYGEN": fresh["public_key"],
 		"address: 127.0.0.1:8080": "address: 127.0.0.1:0", "address: 127.0.0.1:8081": "address: 127.0.0.1:0",
 		"endpoint: http://127.0.0.1:4318/v1/logs": "endpoint: " + collector,
+		"COLLECTOR_CREDENTIAL_FROM_FILE":          collectorToken,
 	} {
 		if strings.Count(config, old) != 1 || new == "" {
 			t.Fatalf("plane.yaml holds %q %d times, want once, to put %q in its place", old, strings.Count(config, old), new)
@@ -151,6 +152,22 @@ func (tr tree) sign(t *testing.T, collector string) {
 		config = strings.Replace(config, old, new, 1)
 	}
 	writeFile(t, tr.path("plane.yaml"), config)
+}
+
+// collectorToken is the credential the example's collector requires and
+// sign writes into plane.yaml.
+var collectorToken = strings.Repeat("r", 40)
+
+// trailDir is the collector's directory of trail segments, from tr.dir.
+const trailDir = "trail/plane"
+
+// collect starts the collector over trailDir, bound to the example's tenant
+// and project, requiring collectorToken from a file only this account reads.
+func (tr tree) collect(t *testing.T) *process {
+	t.Helper()
+	writeFile(t, tr.path("state", "collector.credential"), collectorToken+"\n")
+	return start(t, tr.dir, environ(), tr.gateway, "collect", "--listen", "127.0.0.1:0", "--dir", trailDir,
+		"--tenant", tenant, "--project", "refunds", "--credential-file", "state/collector.credential")
 }
 
 // openedRun is what runs open printed for one run.
@@ -262,7 +279,7 @@ func (p *process) interrupt(t *testing.T) {
 	}
 }
 
-// waitForTrails runs the trail command until the collector's trail file
+// waitForTrails runs the trail command until the collector's trail
 // holds n whole trails, the plane's spool having shipped them, within ten
 // seconds.
 func (tr tree) waitForTrails(t *testing.T, n int) {
@@ -270,7 +287,7 @@ func (tr tree) waitForTrails(t *testing.T, n int) {
 	want := fmt.Sprintf("trails %d: ok %d,", n, n)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		code, out := run(t, tr.dir, tr.gateway, "trail", "trail/plane.jsonl")
+		code, out := run(t, tr.dir, tr.gateway, "trail", trailDir)
 		if code == 0 && strings.Contains(out, want) {
 			return
 		}

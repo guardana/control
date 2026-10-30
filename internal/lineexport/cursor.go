@@ -59,6 +59,18 @@ func parseCursor(s string, r Refusals) (cursor, error) {
 	return c, nil
 }
 
+// CursorAt reads a cursor in its one spelling and returns the digest of the
+// first line of the file it was taken in and the offset it names there, so a
+// reader of many files finds the one it names. Any other string is
+// refused with malformed.
+func CursorAt(s string, malformed error) (Digest, int64, error) {
+	c, err := parseCursor(s, Refusals{CursorMalformed: malformed})
+	if err != nil {
+		return Digest{}, 0, err
+	}
+	return c.First, c.Offset, nil
+}
+
 // parseSum reads 64 lowercase hex digits; hex.DecodeString alone would also
 // take capitals, and one digest would have two spellings.
 func parseSum(s string) (Digest, bool) {

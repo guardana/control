@@ -146,8 +146,9 @@ type commandFunc func(ctx context.Context, args []string, stdout, stderr io.Writ
 var commands = []subcommand{
 	{"run", "--config <file> [--run-token-file <file>]", declareRun, writes},
 	{"doctor", "--config <file>", configured(doctor), inspects},
-	{"collect", "--listen <addr> --out <file>", declareCollect, writes},
+	{"collect", collectForm, declareCollect, writes},
 	{"trail", trailForm, declareTrail, inspects},
+	{"prune", pruneForm, declarePrune, writes},
 	{"scenario", scenarioForm, declareScenario, writes},
 	{"dev", devForm, declareDev, writes},
 }

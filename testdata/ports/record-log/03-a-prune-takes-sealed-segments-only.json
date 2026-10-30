@@ -1,0 +1,17 @@
+{
+  "rule": "a prune names sealed segments only, never the live one",
+  "segment_bytes": 8,
+  "max_bytes": 64,
+  "steps": [
+    {"append": ["aaa", "bbb"]},
+    {"append": ["ccc"]},
+    {"prune": 2, "want": "prune"},
+    {"locate": "ccc", "state": "live"}
+  ],
+  "negative_control": [
+    {"append": ["aaa", "bbb"]},
+    {"append": ["ccc"]},
+    {"prune": 1},
+    {"locate": "ccc", "state": "live"}
+  ]
+}

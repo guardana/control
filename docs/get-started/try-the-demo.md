@@ -71,8 +71,8 @@ mcp: http://127.0.0.1:<port>
 metrics: http://127.0.0.1:<port>/metrics
 page: http://127.0.0.1:<port>/#t=<token>
 approvals: <state>/approvals
-trail: <state>/trail.jsonl
-trail_command: guardana-gateway trail <state>/trail.jsonl
+trail: <state>/trail
+trail_command: guardana-gateway trail <state>/trail
 ```
 
 Leave it running and open a second terminal in the same directory. Put
@@ -140,11 +140,11 @@ pause** and the same call runs again.
 ## 6. Read the trail and the counters
 
 The plane's evidence, the events of each call, went through its spool, a
-directory on disk, to the collector, which appends it to the trail file. Run
+directory on disk, to the collector, which appends it to the trail. Run
 the `trail_command` line, the program under `bin/`:
 
 ```
-bin/guardana-gateway trail <state>/trail.jsonl
+bin/guardana-gateway trail <state>/trail
 ```
 
 It prints one line per request, the kind of its last event, and whether its

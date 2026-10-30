@@ -105,6 +105,13 @@ const (
 // A refused query or cursor writes nothing. An error after the header leaves
 // the output without its trailer, which is how a reader knows it was cut.
 func Export(src Source, q Query, w io.Writer) (Trailer, error) {
+	return export(src, q, q.After, w)
+}
+
+// export is Export starting after the cursor after, which may not be the
+// query's: a log's export past the end of one segment starts the next one at
+// its first line, and the header still repeats the query asked.
+func export(src Source, q Query, after string, w io.Writer) (Trailer, error) {
 	f, err := q.filter()
 	if err != nil {
 		return Trailer{}, err
@@ -113,7 +120,7 @@ func Export(src Source, q Query, w io.Writer) (Trailer, error) {
 		return Trailer{}, fmt.Errorf("%w: size %d", ErrLimit, src.Size)
 	}
 	tr, err := lineexport.Export(exportFormat(), lineexport.Source{Name: src.Name, R: src.R, Size: src.Size, Held: src.Held},
-		lineexport.Query{After: q.After, Limit: q.Limit, MaxBytes: q.MaxBytes, Echo: q.echo()}, f.judge, w)
+		lineexport.Query{After: after, Limit: q.Limit, MaxBytes: q.MaxBytes, Echo: q.echo()}, f.judge, w)
 	if err != nil {
 		return Trailer{}, err
 	}

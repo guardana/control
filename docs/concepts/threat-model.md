@@ -20,8 +20,7 @@ what exists is [status](../status.md); this page keeps no list of its own.
   loopback ([reference/dev](../reference/dev.md)).
 - The approvals commands and the local page, `guardana-control approvals` and
   `console` ([reference/console](../reference/console.md)).
-- `guardana-gateway collect` and the trail file it writes, and `trail`, which
-  reads one.
+- `guardana-gateway collect`, its trail, `trail` and `prune`.
 - The policy key, `policy keygen`, `policy sign` and the signed bundle a plane
   loads; the freshness key, `policy renew`, the statement it writes and the
   serial floors that keep a bundle current.
@@ -303,12 +302,13 @@ What the plane does today:
   `TestADirectoryChangedUnderTheJournalIsRefused`).
 - A private key file another account owns or has any permission on is
   refused (`internal/policykey/private.go`; `TestReadPrivateModeTable`).
-- The trail file is created `0600`, and an existing one the group or the
+- A trail segment is created `0600`, and an existing one the group or the
   world may write is refused, as is a file or a directory another account
-  owns (`internal/trailfile/writer.go`;
+  owns (`internal/trailfile/writer.go`, `internal/segmentlog/dir.go`;
   `TestOpenCreatesAFileOnlyItsOwnerMayRead`,
   `TestOpenRefusesWhatAnotherCouldWrite`,
-  `TestOpenRefusesADirectoryAnotherAccountOwns`).
+  `TestOpenRefusesADirectoryAnotherAccountOwns`,
+  `TestADirectoryAnotherCouldWriteIsRefused`).
 - The approvals page listens on `127.0.0.1` only, answers only its exact
   `Host`, and needs a session traded once from a printed token; each refusal
   leaves the record pending (`internal/console/`;
@@ -321,9 +321,10 @@ What it does not do:
   run token under `runs.dir`.** Any account that can reach them calls tools as
   the listener's principal, under any run whose token it holds, and reads the
   counters. Both default to `127.0.0.1`, which every local account can reach.
-- **`collect` takes no credential.** Any account that reaches its port can
-  append events to the trail, forged chains among them
-  ([ADR-0020](../adr/0020-a-trail-and-counters-without-a-collector.md)).
+- **`collect` trusts whoever holds its credential**, answering others 401
+  (`TestARequestWithoutTheCredentialIsRefusedBeforeItIsRead`); who reads its
+  file or the plane's configuration can forge chains
+  ([ADR-0072](../adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md)).
 - The spool writes its files `0600` and refuses a directory another account
   owns or that others can write.
 - The checks read the owner and the mode bits; access control lists are not
@@ -420,5 +421,5 @@ checkpoint is signed: `prev_event_digest` is left empty
 ([ADR-0004](../adr/0004-evidence-and-privacy-defaults.md)). `trail` checks
 that each chain has a shape a run could produce. It does not prove nobody
 changed it: the plane's account can rewrite the file, bytes rewritten in place
-at the same size are not detected, and any local account can post events to
-`collect`. What a record holds is on the [privacy](privacy.md) page.
+at the same size are not detected, and whoever holds the collector's
+credential can post events to `collect`. What a record holds is on the [privacy](privacy.md) page.

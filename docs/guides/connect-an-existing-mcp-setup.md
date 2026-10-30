@@ -78,17 +78,24 @@ runs the plane once you sign for real.
 In `plane.yaml`, replace `BUNDLE_KEY_ID_FROM_KEYGEN` and `BUNDLE_PUBLIC_KEY_FROM_KEYGEN`
 with the two lines the first `keygen` printed,
 `FRESHNESS_KEY_ID_FROM_KEYGEN` and `FRESHNESS_PUBLIC_KEY_FROM_KEYGEN` with
-the second's, and the server's one argument with the absolute path of the
-directory it may touch. Nothing else needs to change for this server.
+the second's, `COLLECTOR_CREDENTIAL_FROM_FILE` with the content of the
+collector's credential, and the server's one argument with the absolute path
+of the directory it may touch. Nothing else needs to change for this server.
+The credential is any 32 to 512 printable bytes with no space:
+
+```
+(umask 077 && od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > collector.credential)
+```
 
 ### 4. Start a collector
 
 ```
-guardana-gateway collect --listen 127.0.0.1:4318 --out trail.jsonl
+guardana-gateway collect --listen 127.0.0.1:4318 --dir trail --tenant local --project files \
+    --credential-file collector.credential
 ```
 
-The plane writes its evidence to the spool and ships it here; the trail file
-is what step 9 reads.
+The plane writes its evidence to the spool and ships it here, with the
+credential; the trail directory is what step 9 reads.
 
 ### 5. Check the classification
 
@@ -175,8 +182,8 @@ held anew after; an approval covers one exact call.
 ### 9. Read the report
 
 ```
-guardana-gateway trail trail.jsonl
-guardana-gateway trail export trail.jsonl | bin/evidence-report
+guardana-gateway trail trail
+guardana-gateway trail export trail | bin/evidence-report
 ```
 
 `trail` checks that each request's events form an unbroken chain.

@@ -7,8 +7,8 @@ import (
 
 // NewReceiverWithin is NewReceiver answering 413 over maxBytes instead of
 // MaxRequestBytes, so a test goes over the bound with small records.
-func NewReceiverWithin(sink Sink, log *slog.Logger, maxBytes int64) (http.Handler, error) {
-	h, err := NewReceiver(sink, log)
+func NewReceiverWithin(sink Sink, log *slog.Logger, cred Credential, maxBytes int64) (http.Handler, error) {
+	h, err := NewReceiver(sink, log, cred)
 	if err != nil {
 		return nil, err
 	}

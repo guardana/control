@@ -21,16 +21,17 @@ by member.
 
 ## Prerequisites
 
-- A trail file: the one `collect` writes, or the demo's `<state>/trail.jsonl`
-  ([try the demo](../get-started/try-the-demo.md)).
+- A trail: the segments `collect` writes, or the demo's `<state>/trail`
+  ([try the demo](../get-started/try-the-demo.md)); [an export reads one
+  segment](watch-a-plane-without-a-collector.md#5-read-across-segments-and-prune).
 - For steps 3 and 4, a checkout of the repository and Go.
 
 ## Steps
 
-### 1. Export the file
+### 1. Export the trail
 
 ```
-guardana-gateway trail export trail.jsonl > export.jsonl
+guardana-gateway trail export trail > export.jsonl
 echo $?
 ```
 
@@ -48,7 +49,7 @@ The trailer's `next_cursor` names the end of the last line read. Pass it to the
 next export:
 
 ```
-guardana-gateway trail export --after '<next_cursor>' trail.jsonl
+guardana-gateway trail export --after '<next_cursor>' trail
 ```
 
 A cursor is refused when the file's first line or the line it names has
@@ -73,7 +74,7 @@ for a call paused after an allow; `-` when nothing was blocked.
 
 ```
 go -C examples/evidence-report build -o "$PWD/bin/" .
-guardana-gateway trail export trail.jsonl | bin/evidence-report
+guardana-gateway trail export trail | bin/evidence-report
 ```
 
 It exits 1 when a request's chain is broken or unfinished, when a call ran
@@ -96,7 +97,7 @@ each run reads one export on its standard input:
 ```
 bin/evidence-report -state s -init
 after=$(bin/evidence-report -state s -cursor)
-guardana-gateway trail export ${after:+--after="$after"} trail.jsonl | bin/evidence-report -state s
+guardana-gateway trail export ${after:+--after="$after"} trail | bin/evidence-report -state s
 ```
 
 Run the last two lines for what the trail gained since, again at once

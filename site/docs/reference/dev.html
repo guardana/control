@@ -152,7 +152,9 @@ it has anyway may not be seen, and dev's own value applies.</p>
 <h2 id="what-it-lays-out">What it lays out</h2>
 <p><code>--state</code>, or a new directory under the system's temporary directory, mode
 <code>0700</code>, holding everything the plane writes: <code>approvals/</code>, <code>holds/</code> and
-<code>spool/</code>, <code>trail.jsonl</code>, which a collector inside dev appends to,
+<code>spool/</code>, <code>trail/</code>, the segments a collector inside dev appends to, bound to
+the demo's tenant and project and to a credential drawn for this plane and
+held in memory only,
 <code>policy.bundle</code>, <code>policy.statement</code>, the bundle's freshness statement,
 <code>floors/</code>, the plane's floor directory, made by <code>guardana-control policy state init --kind plane</code>, <code>pause.json</code>, made by <code>guardana-control pause init</code>, and <code>settings.txt</code>, every scalar key the plane resolved. The directory
 is left behind when dev stops.</p>
@@ -202,7 +204,7 @@ stop, its agent connected or not, each up to
 seconds to append its closing record, then up to five seconds for the exporter to ship what
 the spool holds, then the collector, then the page, whose input dev closes.
 Dev then prints <code>unshipped:</code>, the bytes the collector never acknowledged,
-which the trail file may lack; it never says the trail is complete. It exits 0
+which the trail may lack; it never says the trail is complete. It exits 0
 after an interrupt and 1 when a part stopped on its own, the page included,
 whatever the page's status, or did not stop cleanly: a call cut at the stop,
 a closing record lost before or after the plane closed, or a part that did

@@ -91,7 +91,7 @@ alone, the authorized envelope clears any preview
 their profiles from every event it hands the sink, whatever an adapter set
 (`uncapture` in `internal/gateway/trails.go`). Capture is off, and nothing turns it on.
 The collector that `collect` runs clears the same fields from every event it
-receives before its trail file holds it, so a previewed event another producer
+receives before its trail holds it, so a previewed event another producer
 sends is not kept either (`adapters/otel/receiver.go`).
 
 Hidden model reasoning is never stored at any setting. MCP does not carry it
@@ -105,7 +105,7 @@ to the plane, no field of the contract holds it, and no adapter reads it.
 | the runs directory, `runs.dir` | each run's record, its project, tenant, principal, agent, lifetime and the SHA-256 of its token's secret, and each root run's flow state | the operator's account, in a directory only it may write, until the operator removes them |
 | the spool, `evidence.dir` | every event, one framed JSON line each, until a collector accepts it or it is moved to `quarantine.log` | the plane's account: new files are `0600`; the directory must be the plane's account's and writable by no one else, and an existing segment or `quarantine.log` is refused when another account owns it or a group or others may write it |
 | the collector at `export.endpoint` | every event, as the body of one OTLP log record, with its ids, kind and mode as attributes | whoever runs that collector and wherever it sends them; `https`, or plaintext to a loopback IP literal under `export.allow_plaintext` |
-| a trail file written by `collect` | every event the collector accepted, at least once | the account that ran `collect`: a new file is `0600`, and an existing one is refused when another account owns it or a group or others may write it |
+| the trail segments `collect` writes | every event the collector accepted, at least once | the account that ran `collect`: the directory is `0700` and each file `0600`, and one is refused when another account owns it or a group or others may write it |
 | the approvals directory | per held call, the approval record and a projection: principal, agent, tool, upstream, resource type and id, effect class, rule ids, times | the plane's account: records are `0600`, and the directory is refused when another account owns it or others may write it |
 | the approvals page and `approvals list` | the projection, and the approval's state, ids, digests, expiry and approver; no arguments, no preview, no trail | the page: whoever holds its session, on `127.0.0.1` ([reference/console](../reference/console.md)); `approvals list`: any account that can read the approvals directory |
 | the hold journal, `approvals.hold_journal_dir` | per hold, the trail's ids, the binding, the approval and its expiry; no envelope and no decision | the plane's account: entries are `0600` |
@@ -129,7 +129,7 @@ the plane. A plane in `OBSERVE` sends the proposed ones.
 | --- | --- | --- |
 | a spool segment | every record in it is accepted by the collector or moved to `quarantine.log` | nothing; `evidence.max_bytes` bounds what waits |
 | `quarantine.log` in the spool | never: the plane does not remove it, and its bytes count against the budget | decide what to keep; nothing in this build prunes it |
-| the trail file | never: it is not rotated or pruned, and `trail` reads at most 100,000 lines | stop `collect`, move the file, start `collect` again; a file moved under a running collector stops it taking records |
+| the trail segments | when an operator runs `prune` on sealed segments; at `--max-bytes` the collector takes nothing more and the plane blocks material calls | stop `collect`, then `guardana-gateway prune --through <n> <dir>`, which keeps each segment's tombstone: its lines, bytes and the digests of its first and last line |
 | an approval record and its projection | at a plane's start, once its approval has expired, whether it was consumed or not | nothing removes them while a plane runs; a directory left to grow refuses holds at `approvals.max_records` |
 | a hold journal entry | when its trail can take nothing more | nothing |
 | a pause entry | when an operator removes it; the file keeps no history | nothing |

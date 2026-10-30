@@ -117,6 +117,9 @@ Date: 2026-09-24</p>
 <p>Builds on <a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>,
 <a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a> and
 <a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>.</p>
+<p>Amended by <a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a>:
+<code>collect</code> writes a bounded directory of segments bound to one tenant and
+project, requires a credential, and <code>--out</code> is gone.</p>
 <h2 id="context">Context</h2>
 <p>A plane exports its evidence to an OpenTelemetry collector over OTLP/HTTP, and
 <code>export.endpoint</code> is required: a plane whose spool nobody drains fills its

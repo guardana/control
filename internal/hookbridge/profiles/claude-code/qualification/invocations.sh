@@ -74,7 +74,7 @@ gather() {
   cp "${work}/healthz.json" "${d}/healthz.json"
   # A snapshot that fails leaves none, and the invocation's cases are unknown.
   harness snapshot "${proj}" "${d}/files.json" || say "${group}/$1: the project's snapshot failed"
-  "${bin}/${gateway}" trail export --run "${run_id}" "${plane}/trail.jsonl" >"${d}/trail.jsonl" ||
+  "${bin}/${gateway}" trail export --run "${run_id}" "${plane}/trail" >"${d}/trail.jsonl" ||
     die "trail export failed for ${run_id}"
   grep -q '"end_reached":true' "${d}/trail.jsonl" || die "trail export did not reach the end for ${run_id}"
   "${bin}/${control}" approvals list "${plane}/approvals" >"${d}/approvals.txt" 2>&1 || status=$?

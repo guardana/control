@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import secrets
 import shutil
 import signal
 import socket
@@ -59,6 +60,8 @@ export:
   endpoint: {collector}
   allow_plaintext: true
   linger: 5ms
+  headers:
+    Authorization: Bearer {credential}
 tools:
   - name: read_order
     effect: READ
@@ -225,8 +228,24 @@ class Plane(unittest.TestCase):
         for name in ("spool", "runs", "sock"):
             (self.dir / name).mkdir(mode=0o700)
         token = self.open_run()
+        credential = secrets.token_hex(32)
+        held = self.dir / "collector.credential"
+        held.write_text(credential, encoding="utf-8")
+        held.chmod(0o600)
         collecting = self.start(
-            "collect", self.gateway, "collect", "--listen", "127.0.0.1:0", "--out", "trail.jsonl"
+            "collect",
+            self.gateway,
+            "collect",
+            "--listen",
+            "127.0.0.1:0",
+            "--dir",
+            "trail",
+            "--tenant",
+            TENANT,
+            "--project",
+            "orders",
+            "--credential-file",
+            str(held),
         )
         socket_path = str(self.dir / "sock" / "s")
         plane = self.dir / "plane.yaml"
@@ -238,6 +257,7 @@ class Plane(unittest.TestCase):
                 freshness_key_id=fresh["key_id"],
                 freshness_public_key=fresh["public_key"],
                 collector=self.printed_after(collecting, "collect: listening on "),
+                credential=credential,
             ),
             encoding="utf-8",
         )
@@ -264,7 +284,7 @@ class Plane(unittest.TestCase):
     def kinds(self, request: object) -> list[str]:
         """The kinds of the events the trail holds of one request, in order."""
         exported = self.run_to_end(
-            self.gateway, "trail", "export", "--request", str(request), "trail.jsonl"
+            self.gateway, "trail", "export", "--request", str(request), "trail"
         )
         records = [json.loads(line) for line in exported.splitlines()]
         return [record["event"]["kind"] for record in records if record["type"] == "event"]
@@ -275,7 +295,7 @@ class Plane(unittest.TestCase):
         summary = ""
         for _ in range(40):
             done = subprocess.run(  # noqa: S603
-                [str(self.gateway), "trail", "trail.jsonl"],
+                [str(self.gateway), "trail", "trail"],
                 cwd=self.dir,
                 env=self.env,
                 capture_output=True,

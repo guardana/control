@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/guardana/control/adapters/otel"
 	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/gatewayconfig"
@@ -27,7 +28,7 @@ const (
 	stateApprovals = "approvals"
 	stateHolds     = "holds"
 	stateSpool     = "spool"
-	stateTrail     = "trail.jsonl"
+	stateTrail     = "trail"
 	stateBundle    = "policy.bundle"
 	stateStatement = "policy.statement"
 	stateFloors    = "floors"
@@ -139,9 +140,13 @@ func checkDemo(in devInputs, dir string) error {
 		silent = unbound
 	}
 	keys := devKeys{bundle: publicHalf(bundleKey), freshness: publicHalf(freshnessKey)}
-	_, err = resolveDemo(in.config, newLayer(devState{dir: dir}, keys, unbound, unbound, unbound, silent))
+	_, err = resolveDemo(in.config, newLayer(devState{dir: dir}, keys, unbound, unbound, unbound, newToken(), silent))
 	return err
 }
+
+// newToken is a credential drawn for one dev plane and its collector, held
+// in this process only.
+func newToken() string { return rand.Text() + rand.Text() }
 
 // publicHalf is key's public half.
 func publicHalf(key ed25519.PrivateKey) ed25519.PublicKey {
@@ -193,10 +198,17 @@ func startDevPlane(ctx context.Context, in devInputs, dir string, log io.Writer)
 	}
 	addr := func(i int) string { return listeners[i].Addr().String() }
 	keys := devKeys{bundle: bundleKey, freshness: d.signer.public()}
-	if err = d.configure(in.config, newLayer(st, keys, addr(1), addr(2), addr(0), d.takeSilent(listeners))); err != nil {
+	token := newToken()
+	cred, err := otel.NewCredential(token)
+	if err != nil {
 		return nil, errors.Join(err, closeAll(listeners))
 	}
-	if d.coll, err = startCollector(listeners[0], st.path(stateTrail), log); err != nil {
+	if err = d.configure(in.config, newLayer(st, keys, addr(1), addr(2), addr(0), token, d.takeSilent(listeners))); err != nil {
+		return nil, errors.Join(err, closeAll(listeners))
+	}
+	coll := collectorConfig{dir: st.path(stateTrail), tenant: d.cfg.TenantID, project: d.cfg.ProjectID, cred: cred,
+		segmentBytes: defaultSegmentBytes, maxBytes: defaultMaxBytes}
+	if d.coll, err = startCollector(listeners[0], coll, log); err != nil {
 		return nil, errors.Join(err, closeAll(listeners[1:]))
 	}
 	if d.plane, err = startPlane(ctx, d.cfg, log, ""); err != nil {

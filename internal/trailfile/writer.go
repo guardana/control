@@ -181,16 +181,7 @@ func (w *Writer) Append(ctx context.Context, events []*controlv1.Event) error {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	switch {
-	case w.f == nil || w.closed:
-		return ErrClosed
-	case w.failed != nil:
-		return w.failed
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if err := w.stillHeld(w.size); err != nil {
+	if err := w.ready(ctx); err != nil {
 		return err
 	}
 	buf, added, err := w.ids.fresh(events, lines)
@@ -200,6 +191,43 @@ func (w *Writer) Append(ctx context.Context, events []*controlv1.Event) error {
 	if len(buf) == 0 {
 		return nil
 	}
+	if err := w.write(buf); err != nil {
+		return err
+	}
+	w.ids.add(added)
+	return nil
+}
+
+// appendLines writes whole lines the caller encoded and judged at the end of
+// the file, as Append writes its own, and indexes nothing: the caller keeps
+// the index of every file it writes.
+func (w *Writer) appendLines(ctx context.Context, buf []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.ready(ctx); err != nil {
+		return err
+	}
+	return w.write(buf)
+}
+
+// ready refuses an append to a writer that is closed or failed, once ctx has
+// ended, or when the path no longer names the file the writer left.
+func (w *Writer) ready(ctx context.Context) error {
+	switch {
+	case w.f == nil || w.closed:
+		return ErrClosed
+	case w.failed != nil:
+		return w.failed
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return w.stillHeld(w.size)
+}
+
+// write writes buf whole and synced at the end of the file, cutting the file
+// back when it cannot, and checks the path still names the file after.
+func (w *Writer) write(buf []byte) error {
 	if err := w.writeSynced(buf); err != nil {
 		return w.cutBack(err)
 	}
@@ -207,7 +235,6 @@ func (w *Writer) Append(ctx context.Context, events []*controlv1.Event) error {
 		return err
 	}
 	w.size += int64(len(buf))
-	w.ids.add(added)
 	return nil
 }
 

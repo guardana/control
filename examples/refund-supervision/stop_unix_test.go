@@ -197,7 +197,7 @@ func stopsHealth(t *testing.T, health string) stopsState {
 func (tr tree) expectStoppedTrail(t *testing.T, request, run string) {
 	t.Helper()
 	var kinds, blocked []string
-	lines := bufio.NewScanner(strings.NewReader(must(t, tr.dir, tr.gateway, "trail", "export", "--request", request, "trail/plane.jsonl")))
+	lines := bufio.NewScanner(strings.NewReader(must(t, tr.dir, tr.gateway, "trail", "export", "--request", request, trailDir)))
 	for lines.Scan() {
 		var record struct {
 			Type  string          `json:"type"`

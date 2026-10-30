@@ -218,7 +218,7 @@ alone, the authorized envelope clears any preview
 their profiles from every event it hands the sink, whatever an adapter set
 (<code>uncapture</code> in <code>internal/gateway/trails.go</code>). Capture is off, and nothing turns it on.
 The collector that <code>collect</code> runs clears the same fields from every event it
-receives before its trail file holds it, so a previewed event another producer
+receives before its trail holds it, so a previewed event another producer
 sends is not kept either (<code>adapters/otel/receiver.go</code>).</p>
 <p>Hidden model reasoning is never stored at any setting. MCP does not carry it
 to the plane, no field of the contract holds it, and no adapter reads it.</p>
@@ -253,9 +253,9 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <td>whoever runs that collector and wherever it sends them; <code>https</code>, or plaintext to a loopback IP literal under <code>export.allow_plaintext</code></td>
 </tr>
 <tr>
-<td>a trail file written by <code>collect</code></td>
+<td>the trail segments <code>collect</code> writes</td>
 <td>every event the collector accepted, at least once</td>
-<td>the account that ran <code>collect</code>: a new file is <code>0600</code>, and an existing one is refused when another account owns it or a group or others may write it</td>
+<td>the account that ran <code>collect</code>: the directory is <code>0700</code> and each file <code>0600</code>, and one is refused when another account owns it or a group or others may write it</td>
 </tr>
 <tr>
 <td>the approvals directory</td>
@@ -347,9 +347,9 @@ the plane. A plane in <code>OBSERVE</code> sends the proposed ones.</p>
 <td>decide what to keep; nothing in this build prunes it</td>
 </tr>
 <tr>
-<td>the trail file</td>
-<td>never: it is not rotated or pruned, and <code>trail</code> reads at most 100,000 lines</td>
-<td>stop <code>collect</code>, move the file, start <code>collect</code> again; a file moved under a running collector stops it taking records</td>
+<td>the trail segments</td>
+<td>when an operator runs <code>prune</code> on sealed segments; at <code>--max-bytes</code> the collector takes nothing more and the plane blocks material calls</td>
+<td>stop <code>collect</code>, then <code>guardana-gateway prune --through &lt;n&gt; &lt;dir&gt;</code>, which keeps each segment's tombstone: its lines, bytes and the digests of its first and last line</td>
 </tr>
 <tr>
 <td>an approval record and its projection</td>

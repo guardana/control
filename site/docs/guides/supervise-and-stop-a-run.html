@@ -167,7 +167,10 @@ guardana-control policy state init --kind plane --bundle-id refund-supervision s
 </code></pre>
 <p>In <code>plane.yaml</code>, replace the four <code>..._FROM_KEYGEN</code> values with the
 <code>key_id</code> and <code>public_key</code> lines keygen printed for <code>keys/bundle</code> and
-<code>keys/freshness</code>.</p>
+<code>keys/freshness</code>. Make the collector's credential, and replace
+<code>COLLECTOR_CREDENTIAL_FROM_FILE</code> with the content of <code>state/collector.credential</code>:</p>
+<pre><code>(umask 077 &amp;&amp; od -An -N32 -tx1 /dev/urandom | tr -d &#39; \n&#39; &gt; state/collector.credential)
+</code></pre>
 <h3 id="3-sign-the-route-and-start-the-stop-list">3. Sign the route and start the stop list</h3>
 <p>The route names the findings that may stop a run: <code>REPEATED_DENIAL</code> under
 the <code>0.1</code> procedure and <code>DENIED_ACTION_RETRIED_RESOURCE</code> under <code>0.2</code>, each
@@ -189,7 +192,8 @@ route_id: refunds
 <h3 id="4-start-the-collector-and-the-plane">4. Start the collector and the plane</h3>
 <p>Work in <code>$WORK/examples/refund-supervision</code> from here on. Start the collector
 in a terminal of its own:</p>
-<pre><code>guardana-gateway collect --listen 127.0.0.1:4318 --out trail/plane.jsonl
+<pre><code>guardana-gateway collect --listen 127.0.0.1:4318 --dir trail/plane --tenant acme --project refunds \
+  --credential-file state/collector.credential
 </code></pre>
 <p>Open both runs as step 5 shows first. Then check the configuration; every
 check line should begin <code>ok</code>:</p>
@@ -251,10 +255,10 @@ data: {…&#34;text&#34;:&#34;order ord-2 is now refunded&#34;}],&#34;resultType
 </code></pre>
 <h3 id="7-export-the-trail">7. Export the trail</h3>
 <p>Wait until the collector holds the four calls' trails, then export them:</p>
-<pre><code>$ guardana-gateway trail trail/plane.jsonl
+<pre><code>$ guardana-gateway trail trail/plane
 …
 trails 4: ok 4, open 0, failed 0, indeterminate 0; …
-$ guardana-gateway trail export trail/plane.jsonl &gt; plane.export.jsonl
+$ guardana-gateway trail export trail/plane &gt; plane.export.jsonl
 </code></pre>
 <h3 id="8-supervise-the-run-and-read-its-page">8. Supervise the run and read its page</h3>
 <pre><code>$ mkdir -m 700 findings
@@ -323,7 +327,7 @@ procedure refund version 2: 3 cases, 3 passed, 0 failed
 <h2 id="verify">Verify</h2>
 <p>The refused call's trail shows the plane blocked it before the server saw it,
 under a policy that allowed it. Use the request id its answer named:</p>
-<pre><code>$ guardana-gateway trail export --request SGVSUQB3K4E54GEEGBA2VDBOOP trail/plane.jsonl | grep -o &#39;&#34;kind&#34;:&#34;[A-Z_]*&#34;\|&#34;reasonCodes&#34;:\[[^]]*\]&#39;
+<pre><code>$ guardana-gateway trail export --request SGVSUQB3K4E54GEEGBA2VDBOOP trail/plane | grep -o &#39;&#34;kind&#34;:&#34;[A-Z_]*&#34;\|&#34;reasonCodes&#34;:\[[^]]*\]&#39;
 &#34;kind&#34;:&#34;EVENT_KIND_ACTION_PROPOSED&#34;
 &#34;kind&#34;:&#34;EVENT_KIND_POLICY_DECIDED&#34;
 &#34;reasonCodes&#34;:[&#34;RULE_ALLOW&#34;]

@@ -1,0 +1,20 @@
+{
+  "rule": "a pruned segment is located pruned, across a reopen, and holds no bytes the log counts",
+  "segment_bytes": 8,
+  "max_bytes": 64,
+  "steps": [
+    {"append": ["aaa", "bbb"]},
+    {"append": ["ccc"]},
+    {"prune": 1},
+    {"reopen": true},
+    {"locate": "aaa", "state": "pruned"},
+    {"retained": 4}
+  ],
+  "negative_control": [
+    {"append": ["aaa", "bbb"]},
+    {"append": ["ccc"]},
+    {"reopen": true},
+    {"locate": "aaa", "state": "sealed"},
+    {"retained": 12}
+  ]
+}

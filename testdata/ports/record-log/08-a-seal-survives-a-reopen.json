@@ -1,0 +1,18 @@
+{
+  "rule": "what a log holds is what it is opened with again",
+  "segment_bytes": 8,
+  "max_bytes": 64,
+  "steps": [
+    {"append": ["aaa", "bbb"]},
+    {"seal": true},
+    {"reopen": true},
+    {"locate": "aaa", "state": "sealed"},
+    {"retained": 8}
+  ],
+  "negative_control": [
+    {"append": ["aaa", "bbb"]},
+    {"reopen": true},
+    {"locate": "aaa", "state": "live"},
+    {"retained": 8}
+  ]
+}

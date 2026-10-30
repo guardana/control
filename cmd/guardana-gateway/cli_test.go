@@ -138,15 +138,23 @@ var answers = map[string]answer{
 		status:  exitFail,
 	},
 	"collect": {
-		bare:    brand.Gateway + " collect: --listen names the loopback address to listen on\n",
-		refused: func(missing string) []string { return []string{"--listen", "192.0.2.1:0", "--out", missing} },
+		bare: brand.Gateway + " collect: --listen names the loopback address to listen on\n",
+		refused: func(missing string) []string {
+			return []string{"--listen", "192.0.2.1:0", "--dir", missing, "--tenant", "t", "--project", "p", "--credential-file", missing}
+		},
 		refusal: brand.Gateway + ": collect: ",
 		status:  exitFail,
 	},
 	"trail": {
-		bare:    brand.Gateway + " trail: name one trail file to read\n",
+		bare:    brand.Gateway + " trail: name one trail file or directory of segments to read\n",
 		refused: func(missing string) []string { return []string{missing} },
 		refusal: brand.Gateway + ": trail: ",
+		status:  exitFail,
+	},
+	"prune": {
+		bare:    brand.Gateway + " prune: --through names the last sealed segment to prune, from 1\n",
+		refused: func(missing string) []string { return []string{"--through", "1", missing} },
+		refusal: brand.Gateway + ": prune: ",
 		status:  exitFail,
 	},
 	"scenario": {
