@@ -132,8 +132,8 @@ line per check, up to the first it cannot make. The `policy` line
 fails for a statement missing, expired, dated ahead or naming another bundle,
 or a bundle below its floor, which it never raises; like `run`'s first
 line, it names `policy.fail_open_read`. An unclassified tool is
-printed with its fingerprint for step 5. `doctor` locks the spool, cuts a
-torn tail and writes a probe file.
+printed with its fingerprint for step 5. `doctor` writes nothing: it names a
+torn spool tail and leaves it.
 
 ### 4. Run in OBSERVE
 
