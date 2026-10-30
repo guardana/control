@@ -48,7 +48,7 @@ func (p *Plane) Find(ctx context.Context, binding approval.Binding, now time.Tim
 	}
 	var found []Record
 	for _, rec := range all {
-		if !expired(rec.Approval, now) {
+		if !approval.Expired(rec.Approval, now) {
 			found = append(found, rec)
 		}
 	}
@@ -107,13 +107,14 @@ func (p *Plane) matching(binding approval.Binding, requestID string, want func(s
 
 // Consume marks the approval of the held request consumed, as one
 // compare-and-swap by link, and returns it as decided. It answers ErrZeroTime
-// for a zero now, ErrNoApproval when the request is not held under the
-// binding, nobody approved it or the answer is dated after now,
-// ErrApprovalConsumed when an execution used it, ErrMultiUse for a record
-// marked multi-use, ErrApprovalExpired at or past its expiry, and
-// ErrApprovalRejected beside the record it read when an approver refused it.
-// An expired or rejected record is dropped. The caller checks what it returns
-// and trusts none of it.
+// for a zero now and ErrNoApproval when the request is not held under the
+// binding; ErrApprovalConsumed when an execution used it; and otherwise what
+// approval.Consumable says of the record: ErrMultiUse for a record marked
+// multi-use, ErrApprovalExpired at or past its expiry, ErrNoApproval for an
+// answer dated outside the window between the request and now or no approval
+// given, and ErrApprovalRejected beside the record it read when an approver
+// refused it. An expired or rejected record is dropped. The caller checks
+// what it returns and trusts none of it.
 //
 // approvalID is the approval the plane minted and holds in its own record, and
 // it is part of the compare-and-swap: a record filed under this binding and
@@ -129,21 +130,25 @@ func (p *Plane) Consume(ctx context.Context, binding approval.Binding, requestID
 		return nil, err
 	}
 	defer p.s.mu.Unlock()
-	rec, err := p.one(binding, requestID, approvalID, now)
+	found, err := p.one(binding, requestID, approvalID, now)
 	if err != nil {
 		return nil, err
 	}
+	rec := found[0]
 	a := rec.Approval
-	switch {
-	case a.GetMultiUse():
+	switch approval.Consumable(a, now) {
+	case approval.StandingUsable:
+	case approval.StandingMultiUse:
 		return nil, ErrMultiUse
-	// An answer is only an answer from the time it was decided at: one dated
-	// after now would put the decision after the action it allowed.
-	case a.GetDecidedAt() == nil || a.GetDecidedAt().AsTime().After(now):
-		return nil, ErrNoApproval
-	case a.GetState() == controlv1.ApprovalState_APPROVAL_STATE_REJECTED:
+	case approval.StandingExpired:
+		errs := []error{ErrApprovalExpired}
+		for _, stale := range found {
+			errs = append(errs, p.s.drop(stale.ApprovalID))
+		}
+		return nil, errors.Join(errs...)
+	case approval.StandingRejected:
 		return proto.CloneOf(a), errors.Join(ErrApprovalRejected, p.s.drop(rec.ApprovalID))
-	case a.GetState() != controlv1.ApprovalState_APPROVAL_STATE_APPROVED || a.GetApproverId() == "":
+	default:
 		return nil, ErrNoApproval
 	}
 	if err := p.resolve(rec, ResolutionConsumed); err != nil {
@@ -153,25 +158,25 @@ func (p *Plane) Consume(ctx context.Context, binding approval.Binding, requestID
 }
 
 // one returns the single unresolved record of approvalID, held for requestID
-// under binding, that has not expired. Two of them is a directory that
-// disagrees with itself, which is refused rather than answered from whichever
-// came first; where only expired ones are left, they are dropped and the
-// expiry is the answer.
+// under binding, that has not expired, or, where only expired ones are left,
+// every one of them, for Consume to answer from the first. Two live records
+// is a directory that disagrees with itself, which is refused rather than
+// answered from whichever came first.
 //
 // A record under another approval id is passed over entirely, expired or not:
 // it is not the record the plane minted, so the plane neither answers from it
 // nor drops it.
-func (p *Plane) one(binding approval.Binding, requestID, approvalID string, now time.Time) (Record, error) {
+func (p *Plane) one(binding approval.Binding, requestID, approvalID string, now time.Time) ([]Record, error) {
 	found, err := p.matching(binding, requestID, unresolved)
 	if err != nil {
-		return Record{}, err
+		return nil, err
 	}
 	var live, stale []Record
 	for _, rec := range found {
 		if rec.ApprovalID != approvalID {
 			continue
 		}
-		if expired(rec.Approval, now) {
+		if approval.Expired(rec.Approval, now) {
 			stale = append(stale, rec)
 			continue
 		}
@@ -179,17 +184,13 @@ func (p *Plane) one(binding approval.Binding, requestID, approvalID string, now 
 	}
 	switch {
 	case len(live) == 1:
-		return live[0], nil
+		return live, nil
 	case len(live) > 1:
-		return Record{}, fmt.Errorf("%w: %d live records for request %q", ErrRecordMismatch, len(live), cause(requestID))
+		return nil, fmt.Errorf("%w: %d live records for request %q", ErrRecordMismatch, len(live), cause(requestID))
 	case len(stale) > 0:
-		var errs []error
-		for _, rec := range stale {
-			errs = append(errs, p.s.drop(rec.ApprovalID))
-		}
-		return Record{}, errors.Join(append([]error{ErrApprovalExpired}, errs...)...)
+		return stale, nil
 	}
-	return Record{}, p.spentOrNot(binding, requestID)
+	return nil, p.spentOrNot(binding, requestID)
 }
 
 // resolvedAs finds the record of requestID under binding among the ones a

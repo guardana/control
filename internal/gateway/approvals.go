@@ -188,9 +188,9 @@ func (m *MemoryApprovals) Find(ctx context.Context, binding approval.Binding, no
 }
 
 // Consume is the compare-and-swap: under the lock, the approved and unconsumed
-// record the plane minted becomes consumed, and nothing else changes it. An
-// answer dated outside its window answers ErrNoApproval, as the directory
-// store answers one dated after now.
+// record the plane minted becomes consumed, and nothing else changes it. What
+// the record allows is approval.Consumable's to say, as it is for the
+// directory store.
 func (m *MemoryApprovals) Consume(ctx context.Context, binding approval.Binding, requestID, approvalID string, now time.Time) (*controlv1.Approval, error) {
 	if now.IsZero() {
 		return nil, ErrZeroTime
@@ -205,23 +205,24 @@ func (m *MemoryApprovals) Consume(ctx context.Context, binding approval.Binding,
 		return nil, ErrNoApproval
 	}
 	a := r.held.Approval
-	switch {
-	case r.resolution == ResolutionConsumed:
+	switch r.resolution {
+	case ResolutionConsumed:
 		return nil, ErrApprovalConsumed
-	case r.resolution == ResolutionNotResumed:
+	case ResolutionNotResumed:
 		// The plane gave this record up, so nothing may still run on it.
 		return nil, ErrNoApproval
-	case a.GetMultiUse():
+	}
+	switch approval.Consumable(a, now) {
+	case approval.StandingUsable:
+	case approval.StandingMultiUse:
 		return nil, ErrMultiUse
-	case !unexpired(a, now):
+	case approval.StandingExpired:
 		m.drop(binding, requestID)
 		return nil, ErrApprovalExpired
-	case !decidedWithin(a, a.GetRequestedAt().AsTime(), now):
-		return nil, ErrNoApproval
-	case a.GetState() == controlv1.ApprovalState_APPROVAL_STATE_REJECTED:
+	case approval.StandingRejected:
 		m.drop(binding, requestID)
 		return proto.CloneOf(a), ErrApprovalRejected
-	case a.GetState() != controlv1.ApprovalState_APPROVAL_STATE_APPROVED || a.GetApproverId() == "":
+	default:
 		return nil, ErrNoApproval
 	}
 	r.resolution = ResolutionConsumed
@@ -316,13 +317,7 @@ func (m *MemoryApprovals) drop(binding approval.Binding, requestID string) {
 // dropExpired forgets every record under binding whose approval is expired at
 // now. mu is held.
 func (m *MemoryApprovals) dropExpired(binding approval.Binding, now time.Time) {
-	m.keep(binding, func(r *heldRecord) bool { return unexpired(r.held.Approval, now) })
-}
-
-// unexpired reports whether a expires after now. An approval with no expiry
-// has expired: a record that never expires is one no bound reaches.
-func unexpired(a *controlv1.Approval, now time.Time) bool {
-	return a.GetExpiresAt() != nil && now.Before(a.GetExpiresAt().AsTime())
+	m.keep(binding, func(r *heldRecord) bool { return !approval.Expired(r.held.Approval, now) })
 }
 
 // keep leaves the records under binding that want keeps. mu is held.
