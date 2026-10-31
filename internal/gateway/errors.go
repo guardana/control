@@ -113,10 +113,11 @@ const (
 	ErrMultiUse Error = "gateway: a multi-use approval is not honoured"
 	// ErrZeroTime is a clock reading of zero, which would pass every expiry.
 	ErrZeroTime Error = "gateway: the clock reads zero"
-	// ErrInvalidHold is a held request with no approval, no request id, no
-	// requested time, no expiry, no binding, no envelope or no decision, which
-	// nothing could resume.
-	ErrInvalidHold Error = "gateway: a held request needs an approval, a request id, a requested time, an expiry, a binding, an envelope and a decision"
+	// ErrInvalidHold is a held request with no approval, no approval id, no
+	// request id, no requested time, no expiry, no binding, no envelope or no
+	// decision, which nothing could resume, or with an approval that is not
+	// pending or already carries an answer.
+	ErrInvalidHold Error = "gateway: a held request needs a pending, unanswered approval with an approval id, a request id, a requested time and an expiry, a binding, an envelope and a decision"
 	// ErrAlreadyHeld is a second hold of one request id under one binding.
 	ErrAlreadyHeld Error = "gateway: this request is already held under this binding"
 	// ErrApprovalAnswered is an answer to an approval that was answered, or

@@ -65,9 +65,12 @@ verify one.
   record marked multi-use in an approvals directory is left pending and
   counted until the hold's own expiry, as an unexpired one already was; it
   used to close the held call `DENY` `APPROVAL_EXPIRED`. Either way nothing
-  runs. A record refused for its approver id no longer blocks another
-  approval's record of the same request, and the memory store refuses a hold
-  with no requested time or no expiry.
+  runs. A record refused for its approver id blocks only the request it
+  names: a lookup lists it as unknown, beside every other record of its
+  action, and hides it once it expires; a plane closing a lost hold resolves
+  only the approval it minted. The memory store refuses a hold that is not a
+  pending, unanswered approval with an approval id, a requested time and an
+  expiry.
 
 - `doctor` no longer changes the evidence spool it checks. It reads the spool
   through `spool.Inspect`, which cuts nothing: a torn tail stays in place, and

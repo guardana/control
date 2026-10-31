@@ -238,8 +238,8 @@ func (s *store) readRecord(id string, hint state) (Record, state, error) {
 
 // readListed reads a record a scan listed, as readRecord does, except for a
 // record whose approver id the claim rule refuses: that record comes back
-// beside the refusal, which the caller answers with only for a lookup of the
-// record's own approval. Every other error refuses the lookup.
+// beside the refusal, which the caller answers with only for a lookup that
+// names the record's own approval. Every other error refuses the lookup.
 func (s *store) readListed(id string, hint state) (rec Record, st state, refusal, err error) {
 	rec, st, err = s.readRecord(id, hint)
 	if own, refused := refusedOnlyItself(err); refused {

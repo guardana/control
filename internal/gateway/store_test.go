@@ -58,9 +58,9 @@ func (f *fakeStore) Find(ctx context.Context, b approval.Binding, now time.Time)
 	return helds, err
 }
 
-func (f *fakeStore) Resolve(ctx context.Context, b approval.Binding, requestID string, r gateway.Resolution, now time.Time) error {
+func (f *fakeStore) Resolve(ctx context.Context, b approval.Binding, requestID, approvalID string, r gateway.Resolution, now time.Time) error {
 	f.resolves.Add(1)
-	return f.MemoryApprovals.Resolve(ctx, b, requestID, r, now)
+	return f.MemoryApprovals.Resolve(ctx, b, requestID, approvalID, r, now)
 }
 
 func (f *fakeStore) Consume(ctx context.Context, b approval.Binding, requestID, approvalID string, now time.Time) (*controlv1.Approval, error) {

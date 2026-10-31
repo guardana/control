@@ -181,7 +181,7 @@ func TestAnAnswerAfterTheRecordWasSpentIsRefused(t *testing.T) {
 	})
 	t.Run("resolved already", func(t *testing.T) {
 		p, dir, h := heldOne(t)
-		if err := p.Resolve(t.Context(), h.Binding, "req-1", approvals.ResolutionNotResumed, minted); err != nil {
+		if err := p.Resolve(t.Context(), h.Binding, "req-1", firstApproval, approvals.ResolutionNotResumed, minted); err != nil {
 			t.Fatalf("resolving: %v", err)
 		}
 		answerRefused(t, dir, minted.Add(time.Minute), approvals.ErrResolved)

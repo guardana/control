@@ -178,7 +178,7 @@ func judgeLostAnswer(entry HoldEntry, a *controlv1.Approval, now time.Time) (*co
 // reported as run.
 func (p *Pipeline) resolveLostHold(ctx context.Context, entry HoldEntry, now time.Time) {
 	requestID := entry.Approval.GetRequestId()
-	if err := p.cfg.Approvals.Resolve(ctx, entry.Binding, requestID, ResolutionNotResumed, now); err != nil {
+	if err := p.cfg.Approvals.Resolve(ctx, entry.Binding, requestID, entry.Approval.GetApprovalId(), ResolutionNotResumed, now); err != nil {
 		p.counts.add(func(s *Stats) *uint64 { return &s.UnheldRecords })
 	}
 }
