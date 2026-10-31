@@ -120,6 +120,15 @@
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.14.0...HEAD">Unreleased</a></h2>
+<h3 id="security">Security</h3>
+<ul>
+<li>The filesystem server the guide's MCP client check installs takes <code>glob</code>
+14.0.2, which fixes GHSA-3g3m-2fjr-6pw4, and <code>minimatch</code> 11.0.1, which
+fixes GHSA-g3hv-75wg-m249, through <code>overrides</code>: the server, at the version
+its fingerprints were taken from, asks for the majors below them, where no
+fix exists. Its search and tree tools ran with them. Nothing this project
+ships uses either.</li>
+</ul>
 <h3 id="added">Added</h3>
 <ul>
 <li><code>observe import</code> reads an egress proxy's access log. A source of kind
@@ -448,7 +457,7 @@ a <code>--source</code> of another tenant or project is refused, and <code>cap_a
 is held to the integer range the canonical form writes.
 The project is still alpha, and the <code>0.x</code> series makes no compatibility promise
 between minor versions.</p>
-<h3 id="security">Security</h3>
+<h3 id="security-1">Security</h3>
 <ul>
 <li><code>mcp.New</code> refuses an override whose <code>ReturnsTrust</code> or <code>ReturnsSensitivity</code>
 is a number the contract does not declare. Such an override loaded through
@@ -1098,7 +1107,7 @@ run's own calls, so no run can get another one stopped, and a child run can
 now be stopped on its own. <code>procedure lint</code> and <code>procedure test</code> check a
 procedure with cases, and <code>findings export</code> reads the findings log with a
 cursor. The fixes come from an audit of this release's own changes.</p>
-<h3 id="security-1">Security</h3>
+<h3 id="security-2">Security</h3>
 <ul>
 <li>Built with Go 1.27.2, which fixes GO-2026-6599, GO-2026-6600, GO-2026-6603,
 GO-2026-6604, GO-2026-6605, GO-2026-6607, GO-2026-6608 and GO-2026-6610 in
