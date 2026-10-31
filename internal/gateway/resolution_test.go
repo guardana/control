@@ -55,11 +55,11 @@ func (s *resolutionStore) Consume(ctx context.Context, binding approval.Binding,
 	return s.inner.Consume(ctx, binding, requestID, approvalID, now)
 }
 
-func (s *resolutionStore) Resolve(ctx context.Context, binding approval.Binding, requestID string, r gateway.Resolution, now time.Time) error {
+func (s *resolutionStore) Resolve(ctx context.Context, binding approval.Binding, requestID, approvalID string, r gateway.Resolution, now time.Time) error {
 	s.mu.Lock()
 	s.resolves++
 	s.mu.Unlock()
-	return s.inner.Resolve(ctx, binding, requestID, r, now)
+	return s.inner.Resolve(ctx, binding, requestID, approvalID, r, now)
 }
 
 func (s *resolutionStore) reports(r gateway.Resolution) {
@@ -140,18 +140,23 @@ func TestMemoryApprovalsSaysWhatBecameOfARecord(t *testing.T) {
 	}
 	expectResolution(t, &store, binding, gateway.ResolutionPending)
 
-	if err := store.Resolve(ctx(), binding, "req-1", gateway.ResolutionConsumed, base()); !errors.Is(err, gateway.ErrResolution) {
+	if err := store.Resolve(ctx(), binding, "req-1", "a-1", gateway.ResolutionConsumed, base()); !errors.Is(err, gateway.ErrResolution) {
 		t.Errorf("Resolve as consumed = %v, want ErrResolution: only Consume spends a record", err)
 	}
-	if err := store.Resolve(ctx(), binding, "req-1", gateway.ResolutionNotResumed, time.Time{}); !errors.Is(err, gateway.ErrZeroTime) {
+	if err := store.Resolve(ctx(), binding, "req-1", "a-1", gateway.ResolutionNotResumed, time.Time{}); !errors.Is(err, gateway.ErrZeroTime) {
 		t.Errorf("Resolve at the zero time = %v, want ErrZeroTime", err)
 	}
-	if err := store.Resolve(ctx(), binding, "req-2", gateway.ResolutionNotResumed, base()); !errors.Is(err, gateway.ErrNoApproval) {
+	if err := store.Resolve(ctx(), binding, "req-2", "a-1", gateway.ResolutionNotResumed, base()); !errors.Is(err, gateway.ErrNoApproval) {
 		t.Errorf("Resolve of a request it does not keep = %v, want ErrNoApproval", err)
+	}
+	for _, other := range []string{"a-2", ""} {
+		if err := store.Resolve(ctx(), binding, "req-1", other, gateway.ResolutionNotResumed, base()); !errors.Is(err, gateway.ErrNoApproval) {
+			t.Errorf("Resolve of the request under approval %q = %v, want ErrNoApproval", other, err)
+		}
 	}
 	expectResolution(t, &store, binding, gateway.ResolutionPending)
 
-	if err := store.Resolve(ctx(), binding, "req-1", gateway.ResolutionNotResumed, base()); err != nil {
+	if err := store.Resolve(ctx(), binding, "req-1", "a-1", gateway.ResolutionNotResumed, base()); err != nil {
 		t.Fatalf("Resolve as not resumed: %v", err)
 	}
 	expectResolution(t, &store, binding, gateway.ResolutionNotResumed)
@@ -175,7 +180,7 @@ func TestAConsumedRecordSaysSoAndNothingWritesOverIt(t *testing.T) {
 		t.Fatalf("Consume: %v", err)
 	}
 	expectResolution(t, &store, binding, gateway.ResolutionConsumed)
-	if err := store.Resolve(ctx(), binding, "req-1", gateway.ResolutionNotResumed, base()); !errors.Is(err, gateway.ErrApprovalConsumed) {
+	if err := store.Resolve(ctx(), binding, "req-1", "a-1", gateway.ResolutionNotResumed, base()); !errors.Is(err, gateway.ErrApprovalConsumed) {
 		t.Errorf("Resolve of a spent record = %v, want ErrApprovalConsumed", err)
 	}
 	expectResolution(t, &store, binding, gateway.ResolutionConsumed)

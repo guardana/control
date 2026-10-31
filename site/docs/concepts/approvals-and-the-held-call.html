@@ -608,14 +608,14 @@ did not hold (ADR-0013).</li>
 refuses what it cannot hold, and <code>internal/gateway/resume.go</code> resumes it and
 checks what the store answers;
 <code>internal/gateway/trails.go</code>
-keeps the enforcement point's own record of a hold, flips it to running and
+keeps the enforcement point's record of a hold, flips it to running and
 closes the expired ones; <code>internal/gateway/approvals.go</code> is the store
 interface and the in-memory store, <code>internal/gateway/reconcile.go</code> closes the
 holds a restart lost, <code>internal/approvals/</code> is the directory of records and
-<code>internal/holdjournal/</code> the plane's own journal; <code>internal/core/approval/</code>
-computes the binding from <code>internal/canon</code>. The pending state an agent is told is
-<code>gateway.Pending</code> in <code>internal/gateway/pipeline.go</code>, and its shape on the MCP
-wire is in <code>adapters/mcp/answer.go</code>.</p>
+<code>internal/holdjournal/</code> the plane's journal; <code>internal/core/approval/</code>
+computes the binding and decides when an approval may be spent. The pending
+state an agent is told is <code>gateway.Pending</code> in <code>internal/gateway/pipeline.go</code>;
+its MCP shape is in <code>adapters/mcp/answer.go</code>.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/approvals-and-the-held-call.md">docs/concepts/approvals-and-the-held-call.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.14.0, and <a href="https://github.com/guardana/control/tree/v0.14.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">

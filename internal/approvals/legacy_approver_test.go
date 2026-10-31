@@ -97,18 +97,20 @@ func TestARefusedLegacyApproverRefusesOnlyItsOwnApproval(t *testing.T) {
 	}
 }
 
-// assertOwnApprovalRefused holds a lookup and a consume of the legacy
-// record's own approval to the claim rule's refusal.
+// assertOwnApprovalRefused holds a consume of the legacy record's own
+// approval to the claim rule's refusal, and a lookup of its binding to the
+// record as one the store cannot speak for.
 func assertOwnApprovalRefused(t *testing.T, p *approvals.Plane, binding approval.Binding, now time.Time) {
 	t.Helper()
-	for name, err := range map[string]error{
-		"find":    second(p.Find(t.Context(), binding, now)),
-		"consume": secondApproval(p.Consume(t.Context(), binding, "req-1", firstApproval, now)),
-	} {
-		if !errors.Is(err, approvals.ErrApproverID) || !errors.Is(err, approval.ErrReservedApproverID) {
-			t.Errorf("%s of the legacy record = %v, want ErrApproverID and ErrReservedApproverID", name, err)
-		}
+	_, err := p.Consume(t.Context(), binding, "req-1", firstApproval, now)
+	if !errors.Is(err, approvals.ErrApproverID) || !errors.Is(err, approval.ErrReservedApproverID) {
+		t.Errorf("consume of the legacy record = %v, want ErrApproverID and ErrReservedApproverID", err)
 	}
+	found, err := p.Find(t.Context(), binding, now)
+	if err != nil || len(found) != 1 {
+		t.Fatalf("find of the legacy record = %d record(s), %v; want it alone", len(found), err)
+	}
+	expectUnknownOf(t, found[0], firstApproval, "req-1")
 }
 
 // TestOtherUnreadableRecordsStillRefuseTheWholeLookup: only the claim rule's

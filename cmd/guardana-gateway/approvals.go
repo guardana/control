@@ -58,12 +58,12 @@ func (s *approvalStore) Consume(ctx context.Context, binding approval.Binding, r
 	return a, storeError(err)
 }
 
-func (s *approvalStore) Resolve(ctx context.Context, binding approval.Binding, requestID string, resolution gateway.Resolution, now time.Time) error {
+func (s *approvalStore) Resolve(ctx context.Context, binding approval.Binding, requestID, approvalID string, resolution gateway.Resolution, now time.Time) error {
 	to, ok := storeResolution(resolution)
 	if !ok {
 		return fmt.Errorf("%w: %d", gateway.ErrResolution, resolution)
 	}
-	return storeError(s.plane.Resolve(ctx, binding, requestID, to, now))
+	return storeError(s.plane.Resolve(ctx, binding, requestID, approvalID, to, now))
 }
 
 // storeErrors is the translation the store's package documents, one entry per
