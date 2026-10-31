@@ -14,7 +14,8 @@ grammar and the exporter through committed data rather than imports.
 
 Amended by [ADR-0072](0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md):
 an export of a directory of segments reads one segment, and a cursor of a
-pruned segment is refused as expired.
+pruned segment is refused as expired; the format goes to `1.1`, whose header
+counts the segments before the exported one that were pruned.
 
 ## Context
 

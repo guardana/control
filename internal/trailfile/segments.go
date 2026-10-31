@@ -123,19 +123,33 @@ func resume(v *segmentlog.View, cursor string) (segmentlog.SegmentAnswer, string
 func openSource(dir string, v *segmentlog.View, s segmentlog.Segment, after string) (Source, string, func() error, error) {
 	name := filepath.Join(dir, s.File)
 	f, size, err := v.Open(s)
+	gone := prunedBefore(v, s.Seq)
 	if s.State == segmentlog.StateLive && s.Lines == 0 && errors.Is(err, fs.ErrNotExist) {
-		return Source{Name: name, R: bytes.NewReader(nil)}, after, func() error { return nil }, nil
+		return Source{Name: name, R: bytes.NewReader(nil), PrunedBefore: gone}, after, func() error { return nil }, nil
 	}
 	if err != nil {
 		return Source{}, "", nil, err
 	}
 	seq := s.Seq
-	src := Source{Name: name, R: f, Size: size, More: holdsLater(v, s),
+	src := Source{Name: name, R: f, Size: size, More: holdsLater(v, s), PrunedBefore: gone,
 		Key: func(first lineexport.Digest) lineexport.Digest { return segmentlog.SegmentKey(seq, first) }}
 	if s.State == segmentlog.StateLive {
 		src.Held = func() (bool, error) { return heldByWriter(f) }
 	}
 	return src, after, f.Close, nil
+}
+
+// prunedBefore is how many segments before seq the view found gone: those
+// whose tombstones were dropped, and those pruned.
+func prunedBefore(v *segmentlog.View, seq int) int {
+	m := v.Manifest()
+	n := m.Dropped
+	for _, s := range m.Segments {
+		if s.Seq < seq && s.State == segmentlog.StatePruned {
+			n++
+		}
+	}
+	return n
 }
 
 // holdsLater reports whether a segment after s held a line when the view was

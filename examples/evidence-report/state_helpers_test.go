@@ -130,7 +130,7 @@ func framed(file string, all []string, from, to int, limit int) string {
 	if after != "" {
 		query = fmt.Sprintf(`{"after":"%s","limit":%d}`, after, limit)
 	}
-	out := []string{fmt.Sprintf(`{"type":"header","format":"%s","version":"1.0","file":"%s","source":"%s","query":%s}`,
+	out := []string{fmt.Sprintf(`{"type":"header","format":"%s","version":"1.1","file":"%s","source":"%s","pruned_before":0,"query":%s}`,
 		exportFormat, file, source, query)}
 	start, next := offset, after
 	for i := from; i < to; i++ {

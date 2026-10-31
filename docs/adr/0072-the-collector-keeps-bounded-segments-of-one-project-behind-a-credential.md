@@ -76,9 +76,16 @@ first refusal is logged, then a count at most once a minute. An append holding
 an event of another tenant or project is refused whole as 400, which the plane
 quarantines.
 
-**The evidence export stays `1.0`, and keeps its meaning.** An export of a
-directory, `trail export <dir>`, reads one segment. Its header's `source` and its cursors carry the
-segment's key. With no cursor it is the first segment not pruned. `end_reached`
+**The evidence export goes to `1.1`, and keeps its meaning.** An export of a
+directory, `trail export <dir>`, reads one segment. Its header's `source` and
+its cursors carry the segment's key, and its header's `pruned_before` counts
+the segments before it the export cannot read, pruned or their tombstones
+dropped; a single file's export carries 0. The member is additive: a reader
+of `1.0` takes a higher minor, and a `1.1` reader reads a `1.0` header as 0,
+since no released build wrote a directory export. A coverage join refuses an
+export as whole while `pruned_before` is above 0, so a window a pruned segment
+held part of is never taken as checked. With no cursor it is the first
+segment not pruned. `end_reached`
 is the end of the log as the export found it: at the end of a sealed segment
 that a later one with a line follows it is false, and the export after that
 `next_cursor` reads the next segment from its first line. So a reader that
@@ -105,13 +112,13 @@ While `collect` is down or restarting, any local account that binds its
 loopback port first receives the plane's next retry, the bearer token in
 plaintext among it, and can then write to the trail and fill its bound once
 the real collector is back. The fix, the collector authenticated to the plane
-on a unix socket with a peer-credential check, is planned for 0.16. The dedup index covers
-the segments not pruned only: an event sent again after its segment was
-pruned is written again. A trail whose first events were pruned fails the
-chain check in `trail <dir>`, which sees only its rest, and an export of the
-first segment left after a prune does not say that earlier ones were pruned:
-a coverage join over it can take a window as whole that a pruned segment held
-part of. A trail file of the old shape is still read and exported as before.
+on a unix socket with a peer-credential check, is planned for 0.16.
+
+The dedup index covers the segments not pruned only: an event sent again
+after its segment was pruned is written again. A trail whose first events
+were pruned fails the chain check in `trail <dir>`, which sees only its rest.
+A trail file of the old shape is still read, and exported as before but for
+the header's version and `pruned_before`, 0.
 
 ## Alternatives considered
 

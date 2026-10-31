@@ -60,7 +60,7 @@ func (f file) identity(end, look int64, key func(Digest) Digest) (Digest, bool, 
 // checkCall refuses a call that leaves out a part an export needs, or a query
 // or a size no file can answer.
 func checkCall(src Source, q Query, judge Judge, w io.Writer) error {
-	if judge == nil || src.R == nil || w == nil || q.Echo == nil || q.Limit < 1 || q.MaxBytes < 0 || src.Size < 0 {
+	if judge == nil || src.R == nil || w == nil || q.Echo == nil || q.Limit < 1 || q.MaxBytes < 0 || src.Size < 0 || src.PrunedBefore < 0 {
 		return fmt.Errorf("%w: limit %d, byte bound %d, size %d, or no judge, reader, writer or echo", ErrInvalid, q.Limit, q.MaxBytes, src.Size)
 	}
 	return nil

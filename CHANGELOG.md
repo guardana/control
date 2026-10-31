@@ -60,6 +60,11 @@ verify one.
 
 ### Changed
 
+- The evidence export is `1.1`: its header's `pruned_before` counts the
+  segments of a log before the exported one that were pruned, 0 for a single
+  file, and coverage refuses an export as whole while it is above 0. A `1.0`
+  export reads as before
+  ([ADR-0072](docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md)).
 - `doctor` no longer changes the evidence spool it checks. It reads the spool
   through `spool.Inspect`, which cuts nothing: a torn tail stays in place, and
   the line says "a start would cut a torn tail of N byte(s), which this check

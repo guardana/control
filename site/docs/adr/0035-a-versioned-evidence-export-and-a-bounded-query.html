@@ -123,7 +123,8 @@ the external consumer is a module of its own, checked against the chain
 grammar and the exporter through committed data rather than imports.</p>
 <p>Amended by <a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a>:
 an export of a directory of segments reads one segment, and a cursor of a
-pruned segment is refused as expired.</p>
+pruned segment is refused as expired; the format goes to <code>1.1</code>, whose header
+counts the segments before the exported one that were pruned.</p>
 <h2 id="context">Context</h2>
 <p>The plane's evidence reaches a person as the collector's trail file, one
 <code>Event</code> per line in the protobuf JSON mapping, and as <code>guardana-gateway trail</code>,

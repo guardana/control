@@ -54,7 +54,10 @@ func checkHeader(l rawLine) (header, error) {
 		Version *string         `json:"version"`
 		File    *string         `json:"file"`
 		Source  json.RawMessage `json:"source"`
-		Query   *headerQuery    `json:"query"`
+		// PrunedBefore, from 1.1, counts the segments of a log before the
+		// exported one that are gone; a 1.0 header has none.
+		PrunedBefore *uint64      `json:"pruned_before"`
+		Query        *headerQuery `json:"query"`
 	}
 	if err := json.Unmarshal(l.b, &h); err != nil {
 		return header{}, errors.New("the first record is not a header: a member is of another type")

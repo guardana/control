@@ -15,7 +15,7 @@ import (
 // The members each record has, as the contract lists them all.
 var (
 	recordMembers = map[string][]string{
-		"header":    {"type", "format", "version", "file", "source", "query"},
+		"header":    {"type", "format", "version", "file", "source", "pruned_before", "query"},
 		"event":     {"type", "offset", "cursor", "event"},
 		"gap":       {"type", "offset", "cursor", "reason"},
 		"duplicate": {"type", "offset", "event_id", "first_offset"},

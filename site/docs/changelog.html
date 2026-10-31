@@ -169,6 +169,11 @@ classified. <code>Validate</code> does not change (<a href="/docs/adr/0067-the-p
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
+<li>The evidence export is <code>1.1</code>: its header's <code>pruned_before</code> counts the
+segments of a log before the exported one that were pruned, 0 for a single
+file, and coverage refuses an export as whole while it is above 0. A <code>1.0</code>
+export reads as before
+(<a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a>).</li>
 <li><code>doctor</code> no longer changes the evidence spool it checks. It reads the spool
 through <code>spool.Inspect</code>, which cuts nothing: a torn tail stays in place, and
 the line says &quot;a start would cut a torn tail of N byte(s), which this check

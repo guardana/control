@@ -61,6 +61,10 @@ type Format struct {
 	// MaxLineBytes bounds a line before its newline; a longer one is a gap.
 	MaxLineBytes int
 	Refusals     Refusals
+	// PrunedBefore is a format whose header always names, as pruned_before,
+	// how many files before this one in a log are gone, so no reader takes
+	// what this file holds for the whole log.
+	PrunedBefore bool
 }
 
 // reserved are the names a record type or the duplicate's id member may not

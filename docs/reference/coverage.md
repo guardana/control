@@ -108,12 +108,12 @@ tenant and project, the span id of a tool call's proposal for that tool on that 
 and project, recorded in a mode
 at least as strong as the path's state. A call every such plane's export could
 have shown and none does is printed as a call around the plane. The check is
-printed as not checked, with the reason, when:
+printed as not checked, and why, when:
 
 - the observation has no trace or span id;
 - no proposal joins it, and a plane that counts has no export, or its export
-  is not whole: cut short, not at its end, with a gap, or filtered by a cursor
-  or a query;
+  is not whole: cut short, not at its end, with a gap, past pruning,
+  or filtered by a cursor or a query;
 - no proposal joins it, and it has no event time, or its time is outside the
   span an export's events cover;
 - no proposal joins it, but one at or below its span names the same call

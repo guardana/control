@@ -1113,10 +1113,12 @@ a trail file, `<name>.trail`, and its export, `<name>.jsonl`.
 ### Format and version
 
 Each line is one JSON object whose `type` says what it is. The format is
-`guardana.control.evidence-export`, version `"1.0"`, both in the header, read
+`guardana.control.evidence-export`, version `"1.1"`, both in the header, read
 by the MAJOR.MINOR rules of Schema versioning above: a reader MUST refuse an
 export of a major it does not read and a record of a `type` it does not know.
-The format is a public contract and changes only by a record.
+The format is a public contract and changes only by a record. `1.1` adds the
+header's `pruned_before`; a reader of `1.1` reads a `1.0` header, which has
+no such member, as 0.
 
 An export is one `header`, then the records of the lines it read in the file's
 order, each `event`, `gap` or `duplicate`, then one `trailer`. **An export
@@ -1129,7 +1131,7 @@ An offset is a byte offset into the file. A line is its bytes and its newline.
 
 | `type` | Members |
 | --- | --- |
-| `header` | `format`; `version`; `file`, the file as named; `source`, the SHA-256 of the file's first line in lowercase hex, absent while the file holds no whole line; `query`, the query as understood: `after` (absent when not given), `limit`, `max_bytes` (absent when there is no bound), and `request`, `run`, `tenant`, `project`, `kind`, each the values given in their order, absent when none |
+| `header` | `format`; `version`; `file`, the file as named; `source`, the SHA-256 of the file's first line in lowercase hex, absent while the file holds no whole line; `pruned_before`, the segments of a log before the exported one that the export cannot read, pruned or their tombstones dropped, 0 for a single file; `query`, the query as understood: `after` (absent when not given), `limit`, `max_bytes` (absent when there is no bound), and `request`, `run`, `tenant`, `project`, `kind`, each the values given in their order, absent when none |
 | `event` | `offset`, where the line starts; `cursor`, where it ends; `event`, the line's bytes without its newline and a carriage return right before it, as they stand in the file, never decoded and encoded again |
 | `gap` | `offset`; `cursor`, absent on the bytes after the last newline, which no newline ends; `reason` |
 | `duplicate` | `offset`; `event_id`; `first_offset`, where this export wrote the event first |
@@ -1202,6 +1204,9 @@ header's `file` is the segment's.
   every segment not pruned once.
 - A cursor of a pruned segment is refused as expired, exit 2; one whose key no
   segment the manifest names has, as another file.
+- `pruned_before` counts the segments before the exported one that are gone.
+  Coverage refuses an export as whole while it is above 0: what those
+  segments held is not in it.
 - Duplicates and conflicts are found within one segment's export; the
   collector writes no line twice across its segments.
 - `source` changes from one segment's export to the next. A reader that keeps

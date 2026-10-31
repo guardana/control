@@ -1319,10 +1319,12 @@ records why. The goldens in <a href="https://github.com/guardana/control/tree/ma
 a trail file, <code>&lt;name&gt;.trail</code>, and its export, <code>&lt;name&gt;.jsonl</code>.</p>
 <h3 id="format-and-version">Format and version</h3>
 <p>Each line is one JSON object whose <code>type</code> says what it is. The format is
-<code>guardana.control.evidence-export</code>, version <code>&quot;1.0&quot;</code>, both in the header, read
+<code>guardana.control.evidence-export</code>, version <code>&quot;1.1&quot;</code>, both in the header, read
 by the MAJOR.MINOR rules of Schema versioning above: a reader MUST refuse an
 export of a major it does not read and a record of a <code>type</code> it does not know.
-The format is a public contract and changes only by a record.</p>
+The format is a public contract and changes only by a record. <code>1.1</code> adds the
+header's <code>pruned_before</code>; a reader of <code>1.1</code> reads a <code>1.0</code> header, which has
+no such member, as 0.</p>
 <p>An export is one <code>header</code>, then the records of the lines it read in the file's
 order, each <code>event</code>, <code>gap</code> or <code>duplicate</code>, then one <code>trailer</code>. <strong>An export
 without its trailer was cut short</strong>, and a reader MUST NOT treat what it holds
@@ -1340,7 +1342,7 @@ before the end</strong>: more remains, and a reader MUST export again after
 <tbody>
 <tr>
 <td><code>header</code></td>
-<td><code>format</code>; <code>version</code>; <code>file</code>, the file as named; <code>source</code>, the SHA-256 of the file's first line in lowercase hex, absent while the file holds no whole line; <code>query</code>, the query as understood: <code>after</code> (absent when not given), <code>limit</code>, <code>max_bytes</code> (absent when there is no bound), and <code>request</code>, <code>run</code>, <code>tenant</code>, <code>project</code>, <code>kind</code>, each the values given in their order, absent when none</td>
+<td><code>format</code>; <code>version</code>; <code>file</code>, the file as named; <code>source</code>, the SHA-256 of the file's first line in lowercase hex, absent while the file holds no whole line; <code>pruned_before</code>, the segments of a log before the exported one that the export cannot read, pruned or their tombstones dropped, 0 for a single file; <code>query</code>, the query as understood: <code>after</code> (absent when not given), <code>limit</code>, <code>max_bytes</code> (absent when there is no bound), and <code>request</code>, <code>run</code>, <code>tenant</code>, <code>project</code>, <code>kind</code>, each the values given in their order, absent when none</td>
 </tr>
 <tr>
 <td><code>event</code></td>
@@ -1444,6 +1446,9 @@ reader that follows <code>next_cursor</code> until <code>end_reached</code> read
 every segment not pruned once.</li>
 <li>A cursor of a pruned segment is refused as expired, exit 2; one whose key no
 segment the manifest names has, as another file.</li>
+<li><code>pruned_before</code> counts the segments before the exported one that are gone.
+Coverage refuses an export as whole while it is above 0: what those
+segments held is not in it.</li>
 <li>Duplicates and conflicts are found within one segment's export; the
 collector writes no line twice across its segments.</li>
 <li><code>source</code> changes from one segment's export to the next. A reader that keeps

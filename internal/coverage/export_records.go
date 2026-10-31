@@ -18,7 +18,7 @@ import (
 var gapReasons = []string{"malformed", "too_long", "unsupported_version", "conflicting_event_id", "carriage_return", gapPartialTail}
 
 func (er *exportReader) readHeader(line []byte) error {
-	m, err := object(line, "type", "format", "version", "file", "source", "query")
+	m, err := object(line, "type", "format", "version", "file", "source", "pruned_before", "query")
 	if err != nil {
 		return err
 	}
@@ -37,11 +37,27 @@ func (er *exportReader) readHeader(line []byte) error {
 	if err := er.readSource(m); err != nil {
 		return err
 	}
+	if er.prunedBefore, err = prunedBefore(m); err != nil {
+		return err
+	}
 	if err := er.readQuery(m); err != nil {
 		return fmt.Errorf("query: %w", err)
 	}
 	er.header = true
 	return nil
+}
+
+// prunedBefore reads the header's count of segments pruned before the one
+// exported, which a 1.0 header does not name and so has none.
+func prunedBefore(m members) (uint64, error) {
+	raw, ok := m["pruned_before"]
+	switch {
+	case !ok:
+		return 0, nil
+	case string(raw) == "null":
+		return 0, errors.New("pruned_before: not a count")
+	}
+	return m.count("pruned_before")
 }
 
 // readQuery notes a cursor to start after and any filter: either leaves

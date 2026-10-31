@@ -39,6 +39,9 @@ type Source struct {
 	// trailer never says the end was reached, so a reader following
 	// next_cursor goes on to them.
 	More bool
+	// PrunedBefore is how many files before this one in a log are gone and
+	// cannot be read; the header says it when the format names it.
+	PrunedBefore int
 }
 
 // Query is where an export starts and how much it writes.
@@ -124,7 +127,7 @@ func Export(f Format, src Source, q Query, judge Judge, w io.Writer) (Trailer, e
 	if err != nil {
 		return Trailer{}, err
 	}
-	if err := x.header(src.Name); err != nil {
+	if err := x.header(src.Name, src.PrunedBefore); err != nil {
 		return Trailer{}, err
 	}
 	if err := x.scan(start, end); err != nil {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -273,5 +274,19 @@ func TestAFilteredExportIsNotWhole(t *testing.T) {
 				totals: oneCompleted + "gaps 0, duplicates 0, conflicting 0, refused 0" + endReached,
 				code:   1, stderr: "the export's query names a filter other than requests"})
 		})
+	}
+}
+
+// TestThePrunedCountIsACount: a 1.1 header's pruned_before is read when it
+// is a count, 0 or more, and the header is refused when it is not; a 1.0
+// header without it is read.
+func TestThePrunedCountIsACount(t *testing.T) {
+	head := `{"type":"header","format":"` + exportFormat + `","version":"1.1","file":"a.trail",%s"query":{"limit":1}}` + "\n"
+	for member, ok := range map[string]bool{`"pruned_before":0,`: true, `"pruned_before":3,`: true, ``: true,
+		`"pruned_before":-1,`: false, `"pruned_before":"1",`: false, `"pruned_before":1.5,`: false} {
+		_, err := checkHeader(rawLine{b: []byte(strings.TrimSuffix(fmt.Sprintf(head, member), "\n"))})
+		if (err == nil) != ok {
+			t.Errorf("a header with %q: %v, want read %v", member, err, ok)
+		}
 	}
 }
