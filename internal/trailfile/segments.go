@@ -45,14 +45,17 @@ func ExportPath(path string, q Query, w io.Writer) (Trailer, error) {
 	return ExportFile(path, q, w)
 }
 
-// ExportLog writes the evidence export of one segment of the log in dir. With
-// no cursor it is the first segment not pruned. A cursor names its segment by
-// the segment's first line: a cursor at the end of a sealed segment moves to
-// the next one once that holds a line, a cursor of a pruned segment is
-// ErrCursorExpired, and one no segment of the log begins with is
-// ErrCursorOtherFile. The header and the trailer are Export's; the header's
-// file is the segment's. A segment opened is read to the end from its
-// descriptor, so a seal or a prune while it is read changes nothing read.
+// ExportLog writes the evidence export of the log in dir, one segment at a
+// time. With no cursor it is the first segment not pruned. A segment is named
+// to a cursor, and in the header's source, by segmentlog.SegmentKey of its
+// number and its first line, so no two segments of the log share a cursor.
+// The trailer says the end was reached only at the end of the last segment
+// that held a line when the export began; at the end of an earlier one its
+// next_cursor leads into the next. A cursor of a pruned segment is
+// ErrCursorExpired, and one no segment the log names has the key of is
+// ErrCursorOtherFile. The header's file is the segment's. A segment opened is
+// read to the end from its descriptor, so a seal or a prune while it is read
+// changes nothing read.
 func ExportLog(dir string, q Query, w io.Writer) (Trailer, error) {
 	if _, err := q.filter(); err != nil {
 		return Trailer{}, err
@@ -92,11 +95,11 @@ func openForExport(dir, cursor string) (Source, string, func() error, error) {
 // resume answers for the segment a cursor names, moving past the end of a
 // sealed one to the next once that holds a line.
 func resume(v *segmentlog.View, cursor string) (segmentlog.SegmentAnswer, string, error) {
-	first, offset, err := lineexport.CursorAt(cursor, ErrCursorMalformed)
+	key, offset, err := lineexport.CursorAt(cursor, ErrCursorMalformed)
 	if err != nil {
 		return segmentlog.SegmentAnswer{}, "", err
 	}
-	ans := v.Locate(first)
+	ans := v.Locate(key)
 	switch ans.State() {
 	case segmentlog.StatePruned:
 		s := ans.Segment()
@@ -109,12 +112,8 @@ func resume(v *segmentlog.View, cursor string) (segmentlog.SegmentAnswer, string
 	if s.State != segmentlog.StateSealed || offset != s.Bytes {
 		return ans, cursor, nil
 	}
-	next := v.After(s.Seq)
-	switch {
-	case next.State() == segmentlog.StateSealed, next.State() == segmentlog.StateLive && next.Segment().Lines > 0:
-		return next, "", nil
-	case next.State() == segmentlog.StatePruned:
-		return next, "", fmt.Errorf("%w: segment %d", ErrCursorExpired, next.Segment().Seq)
+	if holdsLater(v, s) {
+		return v.After(s.Seq), "", nil
 	}
 	return ans, cursor, nil
 }
@@ -130,11 +129,23 @@ func openSource(dir string, v *segmentlog.View, s segmentlog.Segment, after stri
 	if err != nil {
 		return Source{}, "", nil, err
 	}
-	src := Source{Name: name, R: f, Size: size}
+	seq := s.Seq
+	src := Source{Name: name, R: f, Size: size, More: holdsLater(v, s),
+		Key: func(first lineexport.Digest) lineexport.Digest { return segmentlog.SegmentKey(seq, first) }}
 	if s.State == segmentlog.StateLive {
 		src.Held = func() (bool, error) { return heldByWriter(f) }
 	}
 	return src, after, f.Close, nil
+}
+
+// holdsLater reports whether a segment after s held a line when the view was
+// read, so an export of s has not reached the log's end at s's.
+func holdsLater(v *segmentlog.View, s segmentlog.Segment) bool {
+	if s.State != segmentlog.StateSealed {
+		return false
+	}
+	next := v.After(s.Seq)
+	return next.State() == segmentlog.StateSealed || next.State() == segmentlog.StateLive && next.Segment().Lines > 0
 }
 
 // ReadPath reads a trail file as ReadFile does, or every segment of a log not

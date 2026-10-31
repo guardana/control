@@ -1426,6 +1426,30 @@ the cursor.</p>
 <p>A file has an identity once its first line is whole, and an empty file gives
 no cursor. The identity is content and not the path, so a renamed or rotated
 file is read on under its new name.</p>
+<h3 id="a-directory-of-segments">A directory of segments</h3>
+<p><code>trail export &lt;dir&gt;</code> reads a directory of trail segments
+(<a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a>)
+one segment per export, in the records above. A segment is named by its key:
+the SHA-256 of <code>guardana.control.segments/</code>, its number in decimal, <code>/</code>, and
+the 32 bytes of the SHA-256 of its first line. The header's <code>source</code> and each
+cursor's <code>&lt;first&gt;</code> are that key, so two segments that begin with one line keep
+their cursors apart, and a segment keeps its key when it is sealed. The
+header's <code>file</code> is the segment's.</p>
+<ul>
+<li>Without <code>--after</code> the export reads the first segment not pruned.</li>
+<li><code>end_reached</code> is <code>true</code> only at the end of the last segment that held a line
+when the export began. At the end of an earlier one it is <code>false</code>, and the
+export after its <code>next_cursor</code> reads the next segment from its first line. A
+reader that follows <code>next_cursor</code> until <code>end_reached</code> reads every line of
+every segment not pruned once.</li>
+<li>A cursor of a pruned segment is refused as expired, exit 2; one whose key no
+segment the manifest names has, as another file.</li>
+<li>Duplicates and conflicts are found within one segment's export; the
+collector writes no line twice across its segments.</li>
+<li><code>source</code> changes from one segment's export to the next. A reader that keeps
+one takes a new one only from an export after its own cursor whose first
+record is at offset 0, which an export after a cursor in one file never is.</li>
+</ul>
 <h3 id="the-query">The query</h3>
 <ul>
 <li><code>--after &lt;cursor&gt;</code> starts after the line the cursor names.</li>

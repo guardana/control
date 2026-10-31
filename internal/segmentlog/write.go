@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"time"
 )
@@ -21,9 +20,10 @@ func (l *segments) usable() error {
 	return nil
 }
 
-// Append writes lines to the live segment. Lines that would take the log
-// past MaxBytes are refused with ErrBudget and nothing is written; lines that
-// would take a live segment holding a line past SegmentBytes seal it first.
+// Append writes lines to the live segment. Lines that would take a live
+// segment holding a line past SegmentBytes seal it first; lines that would
+// then take the log past MaxBytes are refused with ErrBudget and nothing of
+// them is written.
 func (l *segments) Append(ctx context.Context, lines []byte) error {
 	if len(lines) == 0 || lines[len(lines)-1] != '\n' {
 		return ErrLines
@@ -48,25 +48,26 @@ func (l *segments) Append(ctx context.Context, lines []byte) error {
 	return nil
 }
 
-// makeRoom refuses n bytes more past the log's bound, seals a live segment
-// holding a line that they would take past its own, and opens the live
-// segment when none is open.
+// makeRoom seals a live segment holding a line that n bytes more would take
+// past its bound, before it asks the log's own, so a log the bound refuses
+// holds a sealed segment to prune; refuses n bytes past the log's bound; and
+// opens the live segment when none is open.
 func (l *segments) makeRoom(n int64) error {
-	switch {
-	case l.cfg.MaxBytes == 0:
+	if l.cfg.MaxBytes == 0 {
 		return fmt.Errorf("%w: the log was opened with no bound, so it takes no append", ErrBudget)
-	case l.retained() > l.cfg.MaxBytes-n:
-		return fmt.Errorf("%w: %d bytes held, %d more asked, %d at most", ErrBudget, l.retained(), n, l.cfg.MaxBytes)
 	}
 	if l.live.lines > 0 && l.live.bytes > l.cfg.SegmentBytes-n {
 		if err := l.seal(); err != nil {
 			return err
 		}
 	}
+	if l.retained() > l.cfg.MaxBytes-n {
+		return fmt.Errorf("%w: %d bytes held, %d more asked, %d at most", ErrBudget, l.retained(), n, l.cfg.MaxBytes)
+	}
 	if l.file != nil {
 		return nil
 	}
-	f, err := l.cfg.OpenLive(filepath.Join(l.cfg.Dir, LiveName))
+	f, err := l.cfg.OpenLive(l.root, LiveName)
 	if err != nil {
 		return fmt.Errorf("%s: %w", LiveName, err)
 	}
@@ -91,13 +92,17 @@ func (l *segments) seal() error {
 	if l.live.lines == 0 {
 		return nil
 	}
-	if len(l.segs) >= MaxSegments {
-		return fmt.Errorf("%w: %d", ErrFull, MaxSegments)
+	dropped, kept := l.dropped, l.segs
+	if len(kept) >= l.most {
+		if kept[0].State != StatePruned {
+			return fmt.Errorf("%w: %d sealed segments; prune some", ErrFull, l.most)
+		}
+		dropped, kept = dropped+1, kept[1:]
 	}
 	s := l.liveSegment()
 	s.State, s.File, s.SealedAt = StateSealed, segmentFile(s.Seq), l.now()
-	next := append(slices.Clone(l.segs), s)
-	if err := l.writeManifest(next); err != nil {
+	next := append(slices.Clone(kept), s)
+	if err := l.writeManifest(dropped, next); err != nil {
 		return l.fail(err)
 	}
 	err := l.file.Close()
@@ -111,27 +116,28 @@ func (l *segments) seal() error {
 	if err := l.ops.sync(l.root); err != nil {
 		return l.fail(err)
 	}
-	l.segs, l.live = next, stats{}
+	l.dropped, l.segs, l.live = dropped, next, stats{}
 	return nil
 }
 
 // Prune prunes the sealed segments through the one numbered through. Each
 // one's tombstone is in the manifest before its file is unlinked. A prefix
-// already pruned is pruned again as nothing.
+// already pruned, its tombstones dropped or not, is pruned again as nothing.
 func (l *segments) Prune(through int) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if err := l.usable(); err != nil {
 		return err
 	}
-	if through < 1 || through > len(l.segs) {
+	last := l.dropped + len(l.segs)
+	if through < 1 || through > last {
 		return fmt.Errorf("%w: segment %d, and %d are sealed or pruned; the live one is %d",
-			ErrPrune, through, len(l.segs), len(l.segs)+1)
+			ErrPrune, through, last, last+1)
 	}
 	next := slices.Clone(l.segs)
 	var gone []string
 	at := l.now()
-	for i := range next[:through] {
+	for i := range next[:max(through-l.dropped, 0)] {
 		if next[i].State == StateSealed {
 			gone = append(gone, next[i].File)
 			next[i].State, next[i].PrunedAt, next[i].File = StatePruned, at, ""
@@ -140,7 +146,7 @@ func (l *segments) Prune(through int) error {
 	if len(gone) == 0 {
 		return nil
 	}
-	if err := l.writeManifest(next); err != nil {
+	if err := l.writeManifest(l.dropped, next); err != nil {
 		return l.fail(err)
 	}
 	for _, name := range gone {
@@ -155,8 +161,8 @@ func (l *segments) Prune(through int) error {
 	return nil
 }
 
-func (l *segments) writeManifest(segs []Segment) error {
-	body, err := encodeManifest(l.cfg.Tenant, l.cfg.Project, segs)
+func (l *segments) writeManifest(dropped int, segs []Segment) error {
+	body, err := encodeManifest(l.cfg.Tenant, l.cfg.Project, dropped, segs)
 	if err != nil {
 		return err
 	}
@@ -171,14 +177,14 @@ func (l *segments) fail(err error) error {
 	return l.failed
 }
 
-// Locate answers for the segment whose first line has the digest first.
-func (l *segments) Locate(first Digest) SegmentAnswer {
+// Locate answers for the segment key names.
+func (l *segments) Locate(key Digest) SegmentAnswer {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if err := l.usable(); err != nil {
 		return SegmentAnswer{cause: err.Error()}
 	}
-	return locate(l.segs, l.liveSegment(), first)
+	return locate(l.segs, l.liveSegment(), key)
 }
 
 // Manifest is the log as it is now.

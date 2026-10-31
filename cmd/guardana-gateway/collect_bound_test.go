@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +14,10 @@ import (
 	"time"
 
 	"github.com/guardana/control/adapters/otel"
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/evidence"
+	"github.com/guardana/control/internal/segmentlog"
+	"github.com/guardana/control/internal/trailfile"
 )
 
 // TestCollectTakesNothingWithoutItsCredential: a request without the
@@ -107,21 +113,102 @@ func TestCollectRefusesAnotherProjectsEvents(t *testing.T) {
 	}
 }
 
-// TestCollectAtItsBoundAnswers503AndPrunesNothing: a collect whose bound is
-// one byte short of the fixture answers it 503, which the exporter sends
-// again, and writes nothing; a bound of the fixture's size exactly takes it.
-func TestCollectAtItsBoundAnswers503AndPrunesNothing(t *testing.T) {
-	size := int64(len(otlpFixture(t, "events.jsonl")))
-	for bound, want := range map[int64]int{size - 1: http.StatusServiceUnavailable, size: http.StatusOK} {
+// TestCollectRefusesBoundsThatCouldWedgeTheLog: a segment bound below the
+// largest request, a log bound below twice it and both bounds zero are
+// refused before anything is opened; the bounds at those limits start.
+func TestCollectRefusesBoundsThatCouldWedgeTheLog(t *testing.T) {
+	least := int64(otel.MaxRequestBytes)
+	for _, b := range [][2]int64{{least - 1, 4 * least}, {least, 2*least - 1}, {0, 0}} {
 		out := filepath.Join(t.TempDir(), "trail")
-		c := startCollect(t, out, "--segment-bytes", strconv.FormatInt(bound/2, 10), "--max-bytes", strconv.FormatInt(bound, 10))
-		if status := c.post(t, otlpFixture(t, "export_logs_request.json")); status != want {
-			t.Errorf("a bound of %d bytes answered %d, want %d", bound, status, want)
+		args := append(collectArgs(t, "127.0.0.1:0", out), "--segment-bytes", strconv.FormatInt(b[0], 10),
+			"--max-bytes", strconv.FormatInt(b[1], 10))
+		// A collect that took the bounds would serve until this deadline and
+		// end 0, which fails here rather than hanging the suite.
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		var stdout, stderr syncBuffer
+		status := run(ctx, args, &stdout, &stderr)
+		cancel()
+		if status != exitUsage {
+			t.Errorf("bounds %v answered %d with %q, want %d", b, status, stderr.String(), exitUsage)
 		}
-		if got := liveSegment(t, out); (want == http.StatusOK) != (len(got) > 0) {
-			t.Errorf("a bound of %d bytes: the trail holds %d bytes", bound, len(got))
+		if _, err := os.Stat(out); err == nil {
+			t.Errorf("bounds %v made the trail directory", b)
 		}
-		c.stop(t)
+	}
+	c := startCollect(t, filepath.Join(t.TempDir(), "trail"), "--segment-bytes", strconv.FormatInt(least, 10),
+		"--max-bytes", strconv.FormatInt(2*least, 10))
+	c.stop(t)
+}
+
+// sealedTrail is a log in a new directory of three segments, the first two
+// sealed, one line each, closed; it returns the directory and the bytes of
+// the first segment's file.
+func sealedTrail(t *testing.T) (string, int64) {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "trail")
+	l, err := trailfile.OpenLog(trailfile.LogConfig{Dir: dir, Tenant: "t1", Project: "p1", SegmentBytes: 1, MaxBytes: 1 << 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range trailOf("req-1", kProposed, kDecided, kRequested) {
+		if err := l.Append(context.Background(), []*controlv1.Event{ev}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(filepath.Join(dir, "segment-00000001.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir, info.Size()
+}
+
+// pruneRefusedWhileHeld checks prune refuses the log in dir while a writer
+// holds it, and removes nothing.
+func pruneRefusedWhileHeld(t *testing.T, dir string) {
+	t.Helper()
+	held, err := trailfile.OpenLog(trailfile.LogConfig{Dir: dir, Tenant: "t1", Project: "p1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = held.Close() }()
+	var stdout, stderr bytes.Buffer
+	if status := run(context.Background(), []string{"prune", "--through", "1", dir}, &stdout, &stderr); status != exitFail ||
+		!strings.Contains(stderr.String(), "held by another writer") {
+		t.Errorf("prune of a held directory answered %d with %q", status, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "segment-00000001.jsonl")); err != nil {
+		t.Errorf("a refused prune removed the segment: %v", err)
+	}
+}
+
+// TestPruneRemovesSealedSegmentsAndLeavesTheirTombstones: prune through 1
+// says what it removed, marks the segment pruned, unlinks its file and keeps
+// the next one; while a collector holds the directory it is refused and
+// removes nothing.
+func TestPruneRemovesSealedSegmentsAndLeavesTheirTombstones(t *testing.T) {
+	dir, first := sealedTrail(t)
+	pruneRefusedWhileHeld(t, dir)
+	var stdout, stderr bytes.Buffer
+	status := run(context.Background(), []string{"prune", "--through", "1", dir}, &stdout, &stderr)
+	if status != exitOK || !strings.Contains(stdout.String(), "through 1 are pruned; "+strconv.FormatInt(first, 10)+" byte(s) removed") {
+		t.Fatalf("prune answered %d with %q and %q", status, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "segment-00000001.jsonl")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the pruned segment's file is still there: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "segment-00000002.jsonl")); err != nil {
+		t.Errorf("the segment after the pruned one is gone: %v", err)
+	}
+	v, err := segmentlog.Inspect(dir, evidence.MaxLineBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := v.Manifest(); len(m.Segments) != 2 || m.Segments[0].State != segmentlog.StatePruned ||
+		m.Segments[0].Bytes != first || m.Segments[1].State != segmentlog.StateSealed {
+		t.Errorf("after the prune the manifest is %+v", m)
 	}
 }
 

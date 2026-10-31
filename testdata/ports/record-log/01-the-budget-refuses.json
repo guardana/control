@@ -7,7 +7,7 @@
     {"append": ["ccc", "ddd"]},
     {"append": ["e"], "want": "budget"},
     {"retained": 16},
-    {"locate": "aaa", "state": "sealed"}
+    {"locate": "aaa", "seq": 1, "state": "sealed"}
   ],
   "negative_control": [
     {"append": ["aaa", "bbb"]},

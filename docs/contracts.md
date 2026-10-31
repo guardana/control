@@ -1183,6 +1183,31 @@ A file has an identity once its first line is whole, and an empty file gives
 no cursor. The identity is content and not the path, so a renamed or rotated
 file is read on under its new name.
 
+### A directory of segments
+
+`trail export <dir>` reads a directory of trail segments
+([ADR-0072](adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md))
+one segment per export, in the records above. A segment is named by its key:
+the SHA-256 of `guardana.control.segments/`, its number in decimal, `/`, and
+the 32 bytes of the SHA-256 of its first line. The header's `source` and each
+cursor's `<first>` are that key, so two segments that begin with one line keep
+their cursors apart, and a segment keeps its key when it is sealed. The
+header's `file` is the segment's.
+
+- Without `--after` the export reads the first segment not pruned.
+- `end_reached` is `true` only at the end of the last segment that held a line
+  when the export began. At the end of an earlier one it is `false`, and the
+  export after its `next_cursor` reads the next segment from its first line. A
+  reader that follows `next_cursor` until `end_reached` reads every line of
+  every segment not pruned once.
+- A cursor of a pruned segment is refused as expired, exit 2; one whose key no
+  segment the manifest names has, as another file.
+- Duplicates and conflicts are found within one segment's export; the
+  collector writes no line twice across its segments.
+- `source` changes from one segment's export to the next. A reader that keeps
+  one takes a new one only from an export after its own cursor whose first
+  record is at offset 0, which an export after a cursor in one file never is.
+
 ### The query
 
 - `--after <cursor>` starts after the line the cursor names.

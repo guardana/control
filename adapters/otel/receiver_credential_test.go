@@ -1,12 +1,15 @@
 package otel_test
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/guardana/control/adapters/otel"
 )
@@ -92,5 +95,59 @@ func TestARequestWithoutTheCredentialIsRefusedBeforeItIsRead(t *testing.T) {
 		if c.status == http.StatusUnauthorized && rec.Header().Get("WWW-Authenticate") != "Bearer" {
 			t.Errorf("%s: WWW-Authenticate = %q, want Bearer", c.name, rec.Header().Get("WWW-Authenticate"))
 		}
+	}
+}
+
+// lines counts the records a logger writes.
+type lines struct {
+	mu    sync.Mutex
+	texts []string
+}
+
+func (l *lines) Enabled(context.Context, slog.Level) bool { return true }
+func (l *lines) Handle(_ context.Context, r slog.Record) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	text := r.Message
+	r.Attrs(func(a slog.Attr) bool { text += " " + a.String(); return true })
+	l.texts = append(l.texts, text)
+	return nil
+}
+func (l *lines) WithAttrs([]slog.Attr) slog.Handler { return l }
+func (l *lines) WithGroup(string) slog.Handler      { return l }
+
+// TestRequestsWithoutTheCredentialAreLoggedAtABoundedRate: a thousand
+// refused requests within the bound write one line, and the first refusal
+// past it writes the count of every one since.
+func TestRequestsWithoutTheCredentialAreLoggedAtABoundedRate(t *testing.T) {
+	logged := &lines{}
+	h, err := otel.NewReceiver(&memorySink{}, slog.New(logged), testCredential(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Unix(1_800_000_000, 0)
+	otel.SetReceiverClock(h, func() time.Time { return at })
+	refuse := func() {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/logs", strings.NewReader(base())))
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("answered %d, want 401", rec.Code)
+		}
+	}
+	for range 1000 {
+		refuse()
+	}
+	if len(logged.texts) != 1 || !strings.Contains(logged.texts[0], "requests=1") {
+		t.Fatalf("a thousand refusals within the bound logged %q", logged.texts)
+	}
+	at = at.Add(59 * time.Second)
+	refuse()
+	if len(logged.texts) != 1 {
+		t.Fatalf("a refusal a second inside the bound logged %q", logged.texts)
+	}
+	at = at.Add(time.Second)
+	refuse()
+	if len(logged.texts) != 2 || !strings.Contains(logged.texts[1], "requests=1001") {
+		t.Errorf("the refusal at the bound logged %q, want the count of 1001", logged.texts)
 	}
 }

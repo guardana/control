@@ -133,3 +133,15 @@ func (x *export) duplicate(b []byte) {
 	}
 	x.duplicates++
 }
+
+// firstOffset is where the export's first record starts, when it holds one.
+func (x *export) firstOffset() (int64, bool) {
+	at, ok := int64(0), false
+	if len(x.events) > 0 {
+		at, ok = x.events[0].offset, true
+	}
+	if len(x.gapRecords) > 0 && (!ok || x.gapRecords[0].offset < at) {
+		at, ok = x.gapRecords[0].offset, true
+	}
+	return at, ok
+}

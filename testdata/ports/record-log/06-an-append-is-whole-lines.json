@@ -4,10 +4,10 @@
   "max_bytes": 64,
   "steps": [
     {"raw": "aaa", "want": "lines"},
-    {"locate": "aaa", "state": "unknown"}
+    {"locate": "aaa", "seq": 1, "state": "unknown"}
   ],
   "negative_control": [
     {"raw": "aaa\n"},
-    {"locate": "aaa", "state": "live"}
+    {"locate": "aaa", "seq": 1, "state": "live"}
   ]
 }

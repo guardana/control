@@ -36,6 +36,10 @@ var osOps = fileOps{open: (*os.Root).OpenFile, write: (*os.File).Write, sync: (*
 type Writer struct {
 	mu   sync.Mutex
 	path string
+	// root and name, when root is set, are the directory the file was opened
+	// in and its name there, which the path checks go through instead.
+	root *os.Root
+	name string
 	f    *os.File
 	// size is the length of the file up to the end of the last append that
 	// was synced.
@@ -88,6 +92,29 @@ func open(path string, ops fileOps) (*Writer, error) {
 		return nil, errors.Join(err, f.Close(), root.Close())
 	}
 	if err := root.Close(); err != nil {
+		return nil, errors.Join(err, f.Close())
+	}
+	return w, nil
+}
+
+// openIn opens the file name in the directory root holds, as Open opens one
+// by its path, for a caller that judged and holds that directory; every
+// later check of the name goes through root, which must stay open while the
+// writer is.
+func openIn(root *os.Root, name string) (*Writer, error) {
+	if _, err := fileName(name); err != nil || name != filepath.Base(name) {
+		return nil, fmt.Errorf("%w: %q", ErrPath, name)
+	}
+	f, err := openFile(root, name, osOps.open)
+	if err != nil {
+		return nil, err
+	}
+	w := &Writer{path: name, root: root, name: name, f: f, ops: osOps}
+	err = w.claim()
+	if err == nil {
+		err = syncRoot(root)
+	}
+	if err != nil {
 		return nil, errors.Join(err, f.Close())
 	}
 	return w, nil
@@ -275,7 +302,7 @@ func (w *Writer) stillHeld(size int64) error {
 		w.failed = fmt.Errorf("%w: %w", ErrChanged, err)
 		return w.failed
 	}
-	named, err := os.Lstat(w.path)
+	named, err := w.lstat()
 	switch {
 	case err != nil:
 		w.failed = fmt.Errorf("%w: %w", ErrChanged, err)
@@ -289,6 +316,14 @@ func (w *Writer) stillHeld(size int64) error {
 		return nil
 	}
 	return w.failed
+}
+
+// lstat is the file's name, not followed, as the writer reaches it.
+func (w *Writer) lstat() (os.FileInfo, error) {
+	if w.root != nil {
+		return w.root.Lstat(w.name)
+	}
+	return os.Lstat(w.path)
 }
 
 // cutBack returns the file to the length it had before the append that

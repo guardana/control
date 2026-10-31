@@ -109,7 +109,10 @@ share="$(cd "${share}" && pwd -P)"
 printf 'read through the plane\n' >"${share}/hello.txt"
 line_of() { sed -n "s/^$1: //p" <<<"$2"; }
 (umask 077 && od -An -N32 -tx1 /dev/urandom | tr -d ' \n' >collector.credential)
-sed -e "s|COLLECTOR_CREDENTIAL_FROM_FILE|$(cat collector.credential)|" \
+# The token reaches sed through a script file, never an argument a process
+# listing shows; printf is a builtin, so no process sees it either.
+(umask 077 && printf 's|COLLECTOR_CREDENTIAL_FROM_FILE|%s|\n' "$(<collector.credential)" >credential.sed)
+sed -f credential.sed \
   -e "s|BUNDLE_KEY_ID_FROM_KEYGEN|$(line_of key_id "${bundle_key}")|" \
   -e "s|BUNDLE_PUBLIC_KEY_FROM_KEYGEN|$(line_of public_key "${bundle_key}")|" \
   -e "s|FRESHNESS_KEY_ID_FROM_KEYGEN|$(line_of key_id "${freshness_key}")|" \
@@ -120,6 +123,7 @@ sed -e "s|COLLECTOR_CREDENTIAL_FROM_FILE|$(cat collector.credential)|" \
   plane.yaml >plane.yaml.filled
 printf '\nhealth:\n  address: %s\n' "${health}" >>plane.yaml.filled
 mv plane.yaml.filled plane.yaml
+rm credential.sed
 if grep -q 'FROM_KEYGEN\|FROM_FILE\|/absolute/path' plane.yaml; then
   die "a placeholder is left in plane.yaml"
 fi

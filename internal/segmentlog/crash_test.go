@@ -133,7 +133,7 @@ func sealRecovered(t *testing.T, cfg Config, at int) {
 		t.Errorf("crash at step %d: the open visited %q", at, seen)
 	}
 	m := l.Manifest()
-	got := l.Locate(sum("aaa")).State()
+	got := l.Locate(key(1, "aaa")).State()
 	switch {
 	case len(m.Segments) == 0 && m.Live.Lines == 2 && got == StateLive:
 	case len(m.Segments) == 1 && m.Segments[0].Lines == 2 && m.Live.Lines == 0 && got == StateSealed:
@@ -187,7 +187,7 @@ func TestACrashAtEveryPruneStepIsCompletedOrNeverBegun(t *testing.T) {
 		case slices.Equal(states(m), []State{StateSealed, StateSealed}) &&
 			slices.Equal(seen, []string{"aaa", "bbb", "ccc", "ddd", "eee"}) && len(files) == 5:
 		case slices.Equal(states(m), []State{StatePruned, StatePruned}) && slices.Equal(seen, []string{"eee"}) &&
-			slices.Equal(files, []string{LiveName, ManifestName, LockName}) && l.Locate(sum("ccc")).State() == StatePruned:
+			slices.Equal(files, []string{LiveName, ManifestName, LockName}) && l.Locate(key(2, "ccc")).State() == StatePruned:
 		default:
 			t.Errorf("crash at step %d: states %v, visited %q, files %v", at, states(m), seen, files)
 		}

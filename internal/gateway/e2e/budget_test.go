@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/guardana/control/adapters/mcp"
 	"github.com/guardana/control/internal/segmentlog"
@@ -11,9 +10,10 @@ import (
 )
 
 // trailBudget bounds the collector's segments in the case about its budget:
-// a few calls' trails, well under the spool's own budget.
+// twice the spool's budget, so a full spool drains into a log only once its
+// sealed segments are pruned.
 const (
-	trailBudget  = 8 << 10
+	trailBudget  = 2 * spoolBudget
 	trailSegment = trailBudget / 4
 )
 
@@ -31,9 +31,10 @@ func startLogCollector(t *testing.T, cfg trailfile.LogConfig, addr string) (*fil
 // TestAtTheTrailsBudgetAMaterialCallIsBlocked: a plane exporting to a
 // collector whose segments reach their bound has its requests answered 503;
 // its spool fills, and a material call is blocked with EVIDENCE_UNAVAILABLE
-// without reaching the upstream. Nothing is pruned to make room. Once an
-// operator prunes the sealed segments and the collector is back, the spool
-// drains and the same call runs.
+// without reaching the upstream. Nothing is pruned to make room, and the
+// collector back without a prune leaves the call blocked. Once an operator
+// prunes the sealed segments and the collector is back under the same bound,
+// the spool drains and the same call runs.
 func TestAtTheTrailsBudgetAMaterialCallIsBlocked(t *testing.T) {
 	p := newPlane(t, options{
 		kind: mcp.KindStatelessHTTP, mode: modeEnforce, rules: []string{allowReads, allowDeletes},
@@ -49,38 +50,54 @@ func TestAtTheTrailsBudgetAMaterialCallIsBlocked(t *testing.T) {
 	if st := exporter.Stats(); st.RetriedServer == 0 {
 		t.Errorf("the collector never answered 503 at its budget: %+v", st)
 	}
-	m := l.Manifest()
-	if m.Retained > trailBudget || len(m.Segments) == 0 {
-		t.Fatalf("the trail holds %d bytes in %d sealed segments, bound %d", m.Retained, len(m.Segments), trailBudget)
+	full := l.Manifest()
+	if full.Retained > trailBudget || len(full.Segments) == 0 {
+		t.Fatalf("the trail holds %d bytes in %d sealed segments, bound %d", full.Retained, len(full.Segments), trailBudget)
 	}
-	for _, s := range m.Segments {
+	for _, s := range full.Segments {
 		if s.State != segmentlog.StateSealed {
 			t.Errorf("segment %d is %s: something was pruned without an operator", s.Seq, s.State)
 		}
 	}
-	time.Sleep(100 * time.Millisecond)
-	if again := l.Manifest(); again.Retained != m.Retained || len(again.Segments) != len(m.Segments) {
-		t.Errorf("the full trail changed on its own: %+v, was %+v", again, m)
+
+	c.stop()
+	c, l = startLogCollector(t, cfg, c.addr)
+	retried := exporter.Stats().RetriedServer
+	eventually(t, func() bool { return exporter.Stats().RetriedServer > retried+2 })
+	blockedWith(t, call(t, agent, toolDelete, map[string]any{"path": "/before-prune"}), codeEvidenceUnavailable)
+	if again := l.Manifest(); again.Retained != full.Retained {
+		t.Errorf("the full trail changed with no prune: %d bytes, was %d", again.Retained, full.Retained)
 	}
 
 	c.stop()
-	pruner, err := trailfile.OpenLog(trailfile.LogConfig{Dir: dir, Tenant: "t1", Project: "p1"})
-	if err != nil {
-		t.Fatal(err)
+	pruned := pruneThrough(t, dir, full.Segments[len(full.Segments)-1].Seq)
+	if pruned >= full.Retained || pruned > trailSegment {
+		t.Fatalf("the prune left %d bytes of %d", pruned, full.Retained)
 	}
-	if err := pruner.Prune(len(m.Segments)); err != nil {
-		t.Fatal(err)
-	}
-	if err := pruner.Close(); err != nil {
-		t.Fatal(err)
-	}
-	startLogCollector(t, trailfile.LogConfig{Dir: dir, Tenant: "t1", Project: "p1", SegmentBytes: trailSegment,
-		MaxBytes: 4 * spoolBudget}, c.addr)
+	startLogCollector(t, cfg, c.addr)
 	eventually(t, func() bool {
 		st, err := p.spool.Stats()
 		return err == nil && st.Unacknowledged == 0
 	})
 	allowed(t, agent, toolDelete, map[string]any{"path": "/after-prune"})
+}
+
+// pruneThrough prunes the log in dir as an operator does, and returns the
+// bytes it retains after.
+func pruneThrough(t *testing.T, dir string, through int) int64 {
+	t.Helper()
+	pruner, err := trailfile.OpenLog(trailfile.LogConfig{Dir: dir, Tenant: "t1", Project: "p1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pruner.Prune(through); err != nil {
+		t.Fatal(err)
+	}
+	retained := pruner.Manifest().Retained
+	if err := pruner.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return retained
 }
 
 // TestACollectorTakesNothingWithoutItsCredential: a plane sending another

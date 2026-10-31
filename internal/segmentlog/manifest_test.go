@@ -1,19 +1,21 @@
 package segmentlog
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/guardana/control/internal/brand"
 )
 
 // manifestText is the manifest of tenant t1 and project p1 naming one sealed
 // segment of the lines aaa and bbb, spelled out apart from the encoder.
-const manifestText = `{"format":"` + brand.OTelNamespace + `.segments","version":"0.1","tenant_id":"t1","project_id":"p1","segments":[` +
+const manifestText = `{"format":"` + brand.OTelNamespace + `.segments","version":"0.1","tenant_id":"t1","project_id":"p1","dropped":0,"segments":[` +
 	`{"seq":1,"state":"sealed","lines":2,"bytes":8,` +
 	`"first_line_sha256":"17e682f060b5f8e47ea04c5c4855908b0a5ad612022260fe50e11ecb0cc0ab76",` +
 	`"last_line_sha256":"3cf9a1a81f6bdeaf08a343c1e1c73e89cf44c06ac2427a892382cae825e7c9c1",` +
@@ -47,7 +49,8 @@ func TestTheManifestHasOneSpelling(t *testing.T) {
 	if got := fileText(t, filepath.Join(cfg.Dir, ManifestName)); got != manifestText {
 		t.Errorf("the manifest is\n%s\nwant\n%s", got, manifestText)
 	}
-	tenant, project, segs, err := decodeManifest([]byte(manifestText))
+	m, err := decodeManifest([]byte(manifestText))
+	tenant, project, segs := m.tenant, m.project, m.segs
 	if err != nil || tenant != "t1" || project != "p1" || len(segs) != 1 || segs[0].Bytes != 8 || segs[0].Lines != 2 ||
 		segs[0].First != sum("aaa") || segs[0].Last != sum("bbb") || segs[0].SealedAt.Unix() != 1_800_000_000 {
 		t.Errorf("decoding the fixture: %v %s %s %+v", err, tenant, project, segs)
@@ -62,44 +65,47 @@ func TestAManifestNotSpelledAsWrittenIsRefused(t *testing.T) {
 		old, new string
 		want     error
 	}{
-		"a space":                   {`"tenant_id":"t1"`, `"tenant_id": "t1"`, ErrManifest},
-		"members in another order":  {`"tenant_id":"t1","project_id":"p1"`, `"project_id":"p1","tenant_id":"t1"`, ErrManifest},
-		"a member twice":            {`"tenant_id":"t1"`, `"tenant_id":"t2","tenant_id":"t1"`, ErrManifest},
-		"an unknown member":         {`"tenant_id":"t1"`, `"tenant_id":"t1","x":1`, ErrManifest},
-		"no newline":                {"]}\n", "]}", ErrManifest},
-		"a second document":         {"]}\n", "]}\n{}\n", ErrManifest},
-		"another minor":             {`"version":"0.1"`, `"version":"0.2"`, ErrVersion},
-		"another major":             {`"version":"0.1"`, `"version":"1.0"`, ErrVersion},
-		"another format":            {brand.OTelNamespace + `.segments`, brand.OTelNamespace + `.segment`, ErrVersion},
-		"an empty tenant":           {`"tenant_id":"t1"`, `"tenant_id":""`, ErrManifest},
-		"a null segments":           {`"segments":[{`, `"segments":null,"x":[{`, ErrManifest},
-		"a second numbered 2":       {`"seq":1`, `"seq":2`, ErrManifest},
-		"no lines":                  {`"lines":2,"bytes":8`, `"lines":0,"bytes":8`, ErrManifest},
-		"fewer bytes than lines":    {`"lines":2,"bytes":8`, `"lines":9,"bytes":8`, ErrManifest},
-		"one line with two digests": {`"lines":2`, `"lines":1`, ErrManifest},
-		"a digest in capitals":      {`17e682f0`, `17E682F0`, ErrManifest},
-		"a short digest":            {`17e682f0`, `17e682f`, ErrManifest},
-		"a state unknown":           {`"state":"sealed"`, `"state":"live"`, ErrManifest},
-		"a time not in UTC":         {`2027-01-15T08:00:00Z`, `2027-01-15T09:00:00+01:00`, ErrManifest},
-		"a time to the nanosecond":  {`2027-01-15T08:00:00Z`, `2027-01-15T08:00:00.5Z`, ErrManifest},
-		"a sealed one dated pruned": {`"sealed_at":"2027-01-15T08:00:00Z"}`, `"sealed_at":"2027-01-15T08:00:00Z","pruned_at":"2027-01-15T08:00:00Z"}`, ErrManifest},
-		"pruned with no date":       {`"state":"sealed"`, `"state":"pruned"`, ErrManifest},
+		"a space":                    {`"tenant_id":"t1"`, `"tenant_id": "t1"`, ErrManifest},
+		"members in another order":   {`"tenant_id":"t1","project_id":"p1"`, `"project_id":"p1","tenant_id":"t1"`, ErrManifest},
+		"a member twice":             {`"tenant_id":"t1"`, `"tenant_id":"t2","tenant_id":"t1"`, ErrManifest},
+		"an unknown member":          {`"tenant_id":"t1"`, `"tenant_id":"t1","x":1`, ErrManifest},
+		"no newline":                 {"]}\n", "]}", ErrManifest},
+		"a second document":          {"]}\n", "]}\n{}\n", ErrManifest},
+		"another minor":              {`"version":"0.1"`, `"version":"0.2"`, ErrVersion},
+		"another major":              {`"version":"0.1"`, `"version":"1.0"`, ErrVersion},
+		"another format":             {brand.OTelNamespace + `.segments`, brand.OTelNamespace + `.segment`, ErrVersion},
+		"an empty tenant":            {`"tenant_id":"t1"`, `"tenant_id":""`, ErrManifest},
+		"a null segments":            {`"segments":[{`, `"segments":null,"x":[{`, ErrManifest},
+		"a negative count dropped":   {`"dropped":0`, `"dropped":-1`, ErrManifest},
+		"dropped and not renumbered": {`"dropped":0`, `"dropped":1`, ErrManifest},
+		"no count dropped":           {`"dropped":0,`, ``, ErrManifest},
+		"a second numbered 2":        {`"seq":1`, `"seq":2`, ErrManifest},
+		"no lines":                   {`"lines":2,"bytes":8`, `"lines":0,"bytes":8`, ErrManifest},
+		"fewer bytes than lines":     {`"lines":2,"bytes":8`, `"lines":9,"bytes":8`, ErrManifest},
+		"one line with two digests":  {`"lines":2`, `"lines":1`, ErrManifest},
+		"a digest in capitals":       {`17e682f0`, `17E682F0`, ErrManifest},
+		"a short digest":             {`17e682f0`, `17e682f`, ErrManifest},
+		"a state unknown":            {`"state":"sealed"`, `"state":"live"`, ErrManifest},
+		"a time not in UTC":          {`2027-01-15T08:00:00Z`, `2027-01-15T09:00:00+01:00`, ErrManifest},
+		"a time to the nanosecond":   {`2027-01-15T08:00:00Z`, `2027-01-15T08:00:00.5Z`, ErrManifest},
+		"a sealed one dated pruned":  {`"sealed_at":"2027-01-15T08:00:00Z"}`, `"sealed_at":"2027-01-15T08:00:00Z","pruned_at":"2027-01-15T08:00:00Z"}`, ErrManifest},
+		"pruned with no date":        {`"state":"sealed"`, `"state":"pruned"`, ErrManifest},
 	}
 	for name, c := range cases {
 		raw := strings.Replace(manifestText, c.old, c.new, 1)
 		if raw == manifestText {
 			t.Fatalf("%s: the change is not in the fixture", name)
 		}
-		if _, _, _, err := decodeManifest([]byte(raw)); !errors.Is(err, c.want) {
+		if _, err := decodeManifest([]byte(raw)); !errors.Is(err, c.want) {
 			t.Errorf("%s: %v, want %v", name, err, c.want)
 		}
 	}
 	pruned := strings.Replace(manifestText, `"state":"sealed"`, `"state":"pruned"`, 1)
 	pruned = strings.Replace(pruned, `"sealed_at":"2027-01-15T08:00:00Z"}`, `"sealed_at":"2027-01-15T08:00:00Z","pruned_at":"2027-01-15T08:00:01Z"}`, 1)
-	if _, _, segs, err := decodeManifest([]byte(pruned)); err != nil || segs[0].State != StatePruned || segs[0].File != "" {
-		t.Errorf("a pruned segment: %v %+v", err, segs)
+	if m, err := decodeManifest([]byte(pruned)); err != nil || m.segs[0].State != StatePruned || m.segs[0].File != "" {
+		t.Errorf("a pruned segment: %v %+v", err, m.segs)
 	}
-	if _, _, _, err := decodeManifest([]byte(strings.Repeat(" ", MaxManifestBytes+1))); !errors.Is(err, ErrManifest) {
+	if _, err := decodeManifest([]byte(strings.Repeat(" ", MaxManifestBytes+1))); !errors.Is(err, ErrManifest) {
 		t.Errorf("a manifest over the bound: %v", err)
 	}
 }
@@ -115,12 +121,12 @@ func TestAPruneAfterASealedSegmentIsRefused(t *testing.T) {
 	pruned := fmt.Sprintf(second, "pruned", `,"pruned_at":"2027-01-15T08:00:01Z"`)
 	sealed := fmt.Sprintf(second, "sealed", "")
 	after := strings.Replace(manifestText, "}]}", "},"+pruned, 1)
-	if _, _, _, err := decodeManifest([]byte(after)); !errors.Is(err, ErrManifest) {
+	if _, err := decodeManifest([]byte(after)); !errors.Is(err, ErrManifest) {
 		t.Errorf("a pruned segment after a sealed one: %v, want ErrManifest", err)
 	}
 	both := strings.Replace(manifestText, "}]}", "},"+sealed, 1)
-	if _, _, segs, err := decodeManifest([]byte(both)); err != nil || len(segs) != 2 {
-		t.Errorf("two sealed segments: %v %+v", err, segs)
+	if m, err := decodeManifest([]byte(both)); err != nil || len(m.segs) != 2 {
+		t.Errorf("two sealed segments: %v %+v", err, m.segs)
 	}
 }
 
@@ -194,17 +200,20 @@ func TestAPrunedSegmentBackWithOtherBytesIsRefused(t *testing.T) {
 	}
 }
 
-// TestADirectoryAnotherCouldWriteIsRefused: a directory the group may write
-// is refused, and the same directory narrowed opens.
+// TestADirectoryAnotherCouldWriteIsRefused: a directory the group or others
+// may write, read or search is refused, and the same directory narrowed to
+// 0700 opens.
 func TestADirectoryAnotherCouldWriteIsRefused(t *testing.T) {
 	cfg := sealedLog(t)
-	if err := os.Chmod(cfg.Dir, 0o770); err != nil { //nolint:gosec // G302: the group-writable directory the log must refuse
-		t.Fatal(err)
+	for _, mode := range []os.FileMode{0o770, 0o750, 0o710, 0o705, 0o701} {
+		if err := os.Chmod(cfg.Dir, mode); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := openSegments(cfg); !errors.Is(err, ErrDirectory) {
+			t.Errorf("a directory of mode %04o: %v, want ErrDirectory", mode, err)
+		}
 	}
-	if _, err := openSegments(cfg); !errors.Is(err, ErrDirectory) {
-		t.Errorf("a group-writable directory: %v", err)
-	}
-	if err := os.Chmod(cfg.Dir, 0o750); err != nil { //nolint:gosec // G302: readable by the group, writable by none but the owner
+	if err := os.Chmod(cfg.Dir, 0o700); err != nil { //nolint:gosec // G302: a directory, which needs its search bit
 		t.Fatal(err)
 	}
 	_ = openLog(t, cfg).Close()
@@ -228,5 +237,95 @@ func chmodIn(t *testing.T, dir, name string, mode os.FileMode) {
 	t.Helper()
 	if err := os.Chmod(filepath.Join(dir, name), mode); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// fullOfTombstones writes a manifest naming MaxSegments-1 pruned segments
+// and one sealed, of the line aaa, whose file it writes too, beside an empty
+// live segment, and returns the log's config.
+func fullOfTombstones(t *testing.T) Config {
+	t.Helper()
+	cfg := config(logDir(t), 8, 64)
+	_ = openLog(t, cfg).Close()
+	at := time.Unix(1_800_000_000, 0).UTC()
+	segs := make([]Segment, 0, MaxSegments)
+	for seq := 1; seq < MaxSegments; seq++ {
+		segs = append(segs, Segment{Seq: seq, State: StatePruned, Lines: 1, Bytes: 4, First: sum("zzz"), Last: sum("zzz"),
+			SealedAt: at, PrunedAt: at})
+	}
+	segs = append(segs, Segment{Seq: MaxSegments, State: StateSealed, Lines: 1, Bytes: 4, First: sum("aaa"), Last: sum("aaa"),
+		SealedAt: at, File: segmentFile(MaxSegments)})
+	body, err := encodeManifest("t1", "p1", 0, segs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeIn(t, cfg.Dir, ManifestName, string(body))
+	writeIn(t, cfg.Dir, segmentFile(MaxSegments), "aaa\n")
+	return cfg
+}
+
+// TestAPruneLiftsTheCapOnSegments: at MaxSegments entries a seal drops the
+// oldest tombstone and the manifest stays within its bound; at MaxSegments
+// sealed ones a seal is refused until a prune, after which it goes on. A
+// cursor of a dropped segment is located as no segment, never as another.
+func TestAPruneLiftsTheCapOnSegments(t *testing.T) {
+	cfg := fullOfTombstones(t)
+	l := openLog(t, cfg)
+	mustAppend(t, l, "bbb", "ccc")
+	mustAppend(t, l, "ddd")
+	m := l.Manifest()
+	if m.Dropped != 1 || len(m.Segments) != MaxSegments || m.Segments[0].Seq != 2 || m.Live.Seq != MaxSegments+2 {
+		t.Fatalf("after a seal at the bound: dropped %d, %d entries from %d, live %d", m.Dropped, len(m.Segments),
+			m.Segments[0].Seq, m.Live.Seq)
+	}
+	if got := l.Locate(key(1, "zzz")).State(); got != StateUnknown {
+		t.Errorf("the dropped segment is located %v", got)
+	}
+	if got := l.Locate(key(MaxSegments+1, "bbb")).State(); got != StateSealed {
+		t.Errorf("the segment sealed at the bound is located %v", got)
+	}
+	_ = l.Close()
+	again := openLog(t, cfg)
+	if m := again.Manifest(); m.Dropped != 1 || len(m.Segments) != MaxSegments {
+		t.Errorf("reopened: dropped %d, %d entries", m.Dropped, len(m.Segments))
+	}
+	if err := again.Prune(5); err != nil {
+		t.Errorf("a prune through a number some of whose tombstones were dropped: %v", err)
+	}
+	if err := again.Prune(1); err != nil {
+		t.Errorf("a prune through a dropped segment: %v", err)
+	}
+	_ = again.Close()
+	writeIn(t, cfg.Dir, segmentFile(1), "zzz\n")
+	if _, err := openSegments(cfg); !errors.Is(err, ErrManifest) {
+		t.Errorf("a file at a dropped segment's name: %v, want ErrManifest", err)
+	}
+}
+
+// TestASealAtTheCapOfSealedSegmentsWaitsForAPrune: a log whose manifest
+// holds as many sealed segments as it may takes no seal, and a prune of one
+// lets the next seal drop its tombstone. The bound is lowered to three, so
+// the case needs three segment files rather than 10,000.
+func TestASealAtTheCapOfSealedSegmentsWaitsForAPrune(t *testing.T) {
+	cfg := config(logDir(t), 8, 64)
+	l := openLog(t, cfg)
+	l.most = 3
+	mustAppend(t, l, "aaa", "bbb")
+	mustAppend(t, l, "ccc", "ddd")
+	mustAppend(t, l, "eee", "fff")
+	mustAppend(t, l, "ggg", "hhh")
+	if err := l.Append(context.Background(), []byte("iii\n")); !errors.Is(err, ErrFull) {
+		t.Fatalf("a seal at three sealed segments of three: %v, want ErrFull", err)
+	}
+	if m := l.Manifest(); len(m.Segments) != 3 || m.Live.Lines != 2 {
+		t.Fatalf("a refused seal changed the log: %+v", m)
+	}
+	if err := l.Prune(1); err != nil {
+		t.Fatal(err)
+	}
+	mustAppend(t, l, "iii")
+	if m := l.Manifest(); m.Dropped != 1 || len(m.Segments) != 3 || m.Segments[0].Seq != 2 || m.Live.Seq != 5 {
+		t.Errorf("after a prune and a seal: dropped %d, %d entries from %d, live %d", m.Dropped, len(m.Segments),
+			m.Segments[0].Seq, m.Live.Seq)
 	}
 }

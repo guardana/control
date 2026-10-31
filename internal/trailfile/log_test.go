@@ -14,6 +14,7 @@ import (
 
 	"github.com/guardana/control/adapters/otel"
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/segmentlog"
 )
 
@@ -338,5 +339,99 @@ func logBytesAreBounded(t *testing.T, dir, want string) {
 	}
 	if _, err := LogBytes(dir, int64(len(want))); err != nil {
 		t.Errorf("LogBytes at the log's size: %v", err)
+	}
+}
+
+// exportTrailer is the trailer of an export of the log in dir after cursor at
+// limit records, and the event ids it wrote.
+func exportTrailer(t *testing.T, dir, cursor string, limit int) ([]string, record) {
+	t.Helper()
+	var out bytes.Buffer
+	if _, err := ExportLog(dir, Query{After: cursor, Limit: limit}, &out); err != nil {
+		t.Fatalf("ExportLog after %q: %v", cursor, err)
+	}
+	_, body, trailer := frame(t, out.String())
+	var got []string
+	for _, r := range body {
+		var ev struct{ EventID string }
+		if err := json.Unmarshal(r.Event, &ev); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, ev.EventID)
+	}
+	return got, trailer
+}
+
+// TestFollowingNextCursorUntilTheEndReadsEveryLineOnce: a reader that
+// follows next_cursor until end_reached, as the contract says, reads every
+// line of every segment once and in order; end_reached is false at the end of
+// a sealed segment a later one follows, and true only at the log's end.
+func TestFollowingNextCursorUntilTheEndReadsEveryLineOnce(t *testing.T) {
+	for limit := 1; limit <= 6; limit++ {
+		dir := filepath.Join(t.TempDir(), "log")
+		l := openTestLog(t, logConfig(dir))
+		for n := 1; n <= 7; n++ {
+			appendTo(t, l, event(n))
+		}
+		var all []string
+		cursor := ""
+		for range 100 {
+			got, tr := exportTrailer(t, dir, cursor, limit)
+			all = append(all, got...)
+			cursor = tr.NextCursor
+			if *tr.EndReached {
+				break
+			}
+		}
+		if !slices.Equal(all, ids(1, 7)) {
+			t.Errorf("limit %d: following until the end read %v", limit, all)
+		}
+		if _, tr := exportTrailer(t, dir, "", 1000); *tr.EndReached {
+			t.Errorf("limit %d: the first segment's export says the end of a log of four segments was reached", limit)
+		}
+		_ = l.Close()
+	}
+}
+
+// TestALiveSegmentSealedBetweenAViewAndItsOpenIsMoved: a view taken while the
+// live segment held no line does not open the live segment a seal made
+// since, and an export started then reads the sealed segment first.
+func TestALiveSegmentSealedBetweenAViewAndItsOpenIsMoved(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "log")
+	l := openTestLog(t, logConfig(dir))
+	v, err := segmentlog.Inspect(dir, evidence.MaxLineBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendTo(t, l, event(1), event(2))
+	appendTo(t, l, event(3))
+	if m := l.Manifest(); len(m.Segments) != 1 {
+		t.Fatalf("want one sealed segment, got %+v", m)
+	}
+	if _, _, _, err := openSource(dir, v, v.First().Segment(), ""); !errors.Is(err, segmentlog.ErrMoved) {
+		t.Errorf("the live segment after a seal opened under the old view: %v, want ErrMoved", err)
+	}
+	if got, _ := drain(t, dir, "", 100); !slices.Equal(got, ids(1, 3)) {
+		t.Errorf("an export begun after the seal read %v", got)
+	}
+}
+
+// TestTwoSegmentsBeginningWithOneLineKeepTheirCursorsApart: an event with no
+// id written first in two segments gives each its own key, so a reader moves
+// on from the first to the second and reads every line once.
+func TestTwoSegmentsBeginningWithOneLineKeepTheirCursorsApart(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "log")
+	l := openTestLog(t, logConfig(dir))
+	noID := event(9)
+	noID.EventId = ""
+	appendTo(t, l, noID)
+	appendTo(t, l, event(1))
+	appendTo(t, l, noID)
+	appendTo(t, l, event(2))
+	if m := l.Manifest(); len(m.Segments) != 1 || m.Segments[0].First != m.Live.First {
+		t.Fatalf("want two segments beginning with one line, got %+v", m)
+	}
+	if got, _ := drain(t, dir, "", 1); !slices.Equal(got, []string{"", "e1", "", "e2"}) {
+		t.Errorf("following the two segments read %q", got)
 	}
 }

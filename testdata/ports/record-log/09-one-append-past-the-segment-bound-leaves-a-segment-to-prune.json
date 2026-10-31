@@ -1,0 +1,19 @@
+{
+  "rule": "one append past the segment bound is sealed before the log bound refuses the next, so a prune makes room",
+  "segment_bytes": 8,
+  "max_bytes": 16,
+  "steps": [
+    {"append": ["aaaaaaaaaa"]},
+    {"append": ["bbbbbb"], "want": "budget"},
+    {"locate": "aaaaaaaaaa", "seq": 1, "state": "sealed"},
+    {"prune": 1},
+    {"append": ["bbbbbb"]},
+    {"retained": 7}
+  ],
+  "negative_control": [
+    {"append": ["aaaaaaaaaa"]},
+    {"append": ["bbbbbb"], "want": "budget"},
+    {"append": ["bbbbbb"], "want": "budget"},
+    {"retained": 11}
+  ]
+}

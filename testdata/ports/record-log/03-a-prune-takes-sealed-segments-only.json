@@ -6,12 +6,12 @@
     {"append": ["aaa", "bbb"]},
     {"append": ["ccc"]},
     {"prune": 2, "want": "prune"},
-    {"locate": "ccc", "state": "live"}
+    {"locate": "ccc", "seq": 2, "state": "live"}
   ],
   "negative_control": [
     {"append": ["aaa", "bbb"]},
     {"append": ["ccc"]},
     {"prune": 1},
-    {"locate": "ccc", "state": "live"}
+    {"locate": "ccc", "seq": 2, "state": "live"}
   ]
 }

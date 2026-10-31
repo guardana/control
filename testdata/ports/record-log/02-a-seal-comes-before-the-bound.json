@@ -5,13 +5,13 @@
   "steps": [
     {"append": ["aaa"]},
     {"append": ["bbbb"]},
-    {"locate": "aaa", "state": "sealed"},
-    {"locate": "bbbb", "state": "live"}
+    {"locate": "aaa", "seq": 1, "state": "sealed"},
+    {"locate": "bbbb", "seq": 2, "state": "live"}
   ],
   "negative_control": [
     {"append": ["aaa"]},
     {"append": ["bbb"]},
-    {"locate": "aaa", "state": "live"},
-    {"locate": "bbb", "state": "unknown"}
+    {"locate": "aaa", "seq": 1, "state": "live"},
+    {"locate": "bbb", "seq": 1, "state": "unknown"}
   ]
 }

@@ -2,11 +2,14 @@ package segmentlog
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"github.com/guardana/control/internal/brand"
 )
 
 // TestOpenTakesOnlyAKnownKind: the default kind opens, and no other name,
@@ -82,9 +85,10 @@ func holds(t *testing.T, path, want string) {
 }
 
 // TestTheBudgetRefusesAndPrunesNothing: an append that takes the log to its
-// bound exactly is taken, one byte more is refused with ErrBudget and leaves
-// every file and the manifest as they were, and once an operator prunes the
-// same append is taken.
+// bound exactly is taken; one more line seals the live segment it would take
+// past its own bound, is refused with ErrBudget, and writes nothing of
+// itself and prunes nothing; once an operator prunes, the same append is
+// taken.
 func TestTheBudgetRefusesAndPrunesNothing(t *testing.T) {
 	dir := logDir(t)
 	l := openLog(t, config(dir, 8, 16))
@@ -93,16 +97,16 @@ func TestTheBudgetRefusesAndPrunesNothing(t *testing.T) {
 	if got := l.Manifest().Retained; got != 16 {
 		t.Fatalf("retained %d, want 16", got)
 	}
-	names, manifest := dirNames(t, dir), fileText(t, filepath.Join(dir, ManifestName))
 	err := l.Append(context.Background(), []byte("e\n"))
 	if !errors.Is(err, ErrBudget) {
 		t.Fatalf("one line past the bound: %v, want ErrBudget", err)
 	}
-	if got := dirNames(t, dir); !slices.Equal(got, names) || fileText(t, filepath.Join(dir, ManifestName)) != manifest {
-		t.Errorf("a refused append changed the directory: %v, was %v", got, names)
+	if got := dirNames(t, dir); !slices.Equal(got, []string{"segment-00000001.jsonl", "segment-00000002.jsonl", ManifestName, LockName}) {
+		t.Errorf("after the refusal the directory holds %v, want the two sealed segments and no live one", got)
 	}
-	if got := fileText(t, filepath.Join(dir, LiveName)); got != "ccc\nddd\n" {
-		t.Errorf("the live segment holds %q after the refusal", got)
+	holds(t, filepath.Join(dir, "segment-00000002.jsonl"), "ccc\nddd\n")
+	if m := l.Manifest(); m.Retained != 16 || !slices.Equal(states(m), []State{StateSealed, StateSealed}) {
+		t.Errorf("after the refusal: %+v", m)
 	}
 	if err := l.Prune(1); err != nil {
 		t.Fatal(err)
@@ -174,7 +178,7 @@ func TestPruneWritesATombstoneAndRemovesTheFile(t *testing.T) {
 	if got := dirNames(t, dir); !slices.Equal(got, []string{LiveName, "segment-00000002.jsonl", ManifestName, LockName}) {
 		t.Errorf("after the prune the directory holds %v", got)
 	}
-	if ans := l.Locate(sum("aaa")); !isTombstone(ans) {
+	if ans := l.Locate(key(1, "aaa")); !isTombstone(ans) {
 		t.Errorf("the pruned segment is located as %v %+v", ans.State(), ans.Segment())
 	}
 	before := fileText(t, filepath.Join(dir, ManifestName))
@@ -194,9 +198,10 @@ func isTombstone(ans SegmentAnswer) bool {
 		s.PrunedAt.Unix() == 1_800_000_100 && s.File == ""
 }
 
-// TestLocateAnswersForEachState: the zero answer is Unknown; a digest no
-// segment begins with, and one two segments begin with, are Unknown; the
-// live, a sealed and a pruned segment are each what they are.
+// TestLocateAnswersForEachState: the zero answer is Unknown; a key no
+// segment has, the same first line under another number among them, is
+// Unknown; the live, a sealed and a pruned segment are each what they are,
+// each by its own number when two begin with the same line.
 func TestLocateAnswersForEachState(t *testing.T) {
 	if a := (SegmentAnswer{}); a.State() != StateUnknown || a.Segment() != (Segment{}) || a.Cause() == "" {
 		t.Errorf("the zero answer is %v %+v %q", a.State(), a.Segment(), a.Cause())
@@ -205,17 +210,27 @@ func TestLocateAnswersForEachState(t *testing.T) {
 	mustAppend(t, l, "aaa", "bbb")
 	mustAppend(t, l, "ccc", "ddd")
 	mustAppend(t, l, "aaa")
-	for line, want := range map[string]State{"ccc": StateSealed, "ddd": StateUnknown, "zzz": StateUnknown, "aaa": StateUnknown} {
-		if got := l.Locate(sum(line)).State(); got != want {
-			t.Errorf("Locate(%s) = %v, want %v", line, got, want)
+	if err := l.Prune(1); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[Digest]State{key(1, "aaa"): StatePruned, key(2, "ccc"): StateSealed, key(3, "aaa"): StateLive,
+		key(2, "ddd"): StateUnknown, key(4, "aaa"): StateUnknown, key(1, "zzz"): StateUnknown} {
+		if got := l.Locate(k).State(); got != want {
+			t.Errorf("Locate(%x) = %v, want %v", k[:4], got, want)
 		}
 	}
-	mustAppend(t, l, "eee", "fff")
-	if got := l.Locate(sum("aaa")); got.State() != StateUnknown {
-		t.Errorf("two segments begin with aaa and Locate answered %v", got.State())
+	if got := l.Locate(key(3, "aaa")).Segment(); got.Seq != 3 || got.Lines != 1 {
+		t.Errorf("the live segment is located as %+v", got)
 	}
-	if got := l.Locate(sum("eee")); got.State() != StateLive || got.Segment().Seq != 4 {
-		t.Errorf("Locate(eee) = %v %+v, want the live segment 4", got.State(), got.Segment())
+}
+
+// TestASegmentKeyIsItsNumberAndFirstLine: the key is the SHA-256 the
+// contract spells, computed here apart from the package.
+func TestASegmentKeyIsItsNumberAndFirstLine(t *testing.T) {
+	first := sha256.Sum256([]byte("aaa\n"))
+	want := sha256.Sum256(append([]byte(brand.OTelNamespace+".segments/12/"), first[:]...))
+	if got := SegmentKey(12, first); got != want {
+		t.Errorf("SegmentKey(12, aaa) = %x, want %x", got, want)
 	}
 }
 
@@ -267,8 +282,8 @@ func TestEveryLineIsVisitedOnceInOrder(t *testing.T) {
 
 // openTornLive opens a live file and cuts nothing, as no consumer of this
 // package should open one.
-func openTornLive(path string) (LiveFile, error) {
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o600) //nolint:gosec // G304: the test's own directory
+func openTornLive(root *os.Root, name string) (LiveFile, error) {
+	f, err := root.OpenFile(name, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		return nil, err
 	}

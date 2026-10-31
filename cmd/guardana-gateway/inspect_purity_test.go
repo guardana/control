@@ -197,7 +197,7 @@ func inspections(tr tree, trailPath string) map[string][]inspection {
 			},
 			{
 				args:           []string{"trail", "segments", segmentsOf(trailPath)},
-				free:           []string{"segment=1 state=sealed lines=1", "collector=none", "tail_bytes="},
+				free:           []string{"segment=1 state=sealed lines=1", "collector=none", "tail_bytes=", "segments sealed=1 pruned=0 dropped=0"},
 				whileHeld:      []string{"segment=1 state=sealed lines=1", "collector=holds it"},
 				whileSpoolFree: []string{"segment=1 state=sealed lines=1", "collector=holds it"},
 				freeExit:       exitOK, heldExit: exitOK, spoolFreeExit: exitOK,

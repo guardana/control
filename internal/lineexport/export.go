@@ -30,6 +30,15 @@ type Source struct {
 	// Identity says what the file's first line, which names it to a cursor,
 	// holds; the trailer repeats it. Empty writes no such member.
 	Identity string
+	// Key, when set, makes what names the file to a cursor and in the
+	// header's source from the digest of its first line, for a file that is
+	// one of many whose first lines may be the same. Nil names it by that
+	// digest.
+	Key func(first Digest) Digest
+	// More is a file that other lines follow, in a file after it: the
+	// trailer never says the end was reached, so a reader following
+	// next_cursor goes on to them.
+	More bool
 }
 
 // Query is where an export starts and how much it writes.
@@ -123,6 +132,9 @@ func Export(f Format, src Source, q Query, judge Judge, w io.Writer) (Trailer, e
 	}
 	if err := x.tail(end); err != nil {
 		return Trailer{}, err
+	}
+	if src.More {
+		x.tr.EndReached = false
 	}
 	if err := x.trailer(); err != nil {
 		return Trailer{}, err

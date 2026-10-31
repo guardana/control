@@ -77,6 +77,10 @@ func declareCollect(flags *flag.FlagSet) commandFunc {
 			writeLine(stderr, flags.Name()+": unexpected argument "+oneLine(args[0]))
 			return exitUsage
 		}
+		if err := checkBounds(*segmentBytes, *maxBytes); err != nil {
+			writeLine(stderr, flags.Name()+": "+err.Error())
+			return exitUsage
+		}
 		cred, err := readCredential(*credFile)
 		if err != nil {
 			return fail(stderr, "collect", fmt.Errorf("--credential-file %w", err))
@@ -84,6 +88,19 @@ func declareCollect(flags *flag.FlagSet) commandFunc {
 		return collect(ctx, *listen, collectorConfig{dir: *dir, tenant: *tenant, project: *project, cred: cred,
 			segmentBytes: *segmentBytes, maxBytes: *maxBytes}, stdout, stderr)
 	}
+}
+
+// checkBounds refuses a segment bound below the largest request a plane
+// sends, so no one request goes alone into a segment past it and leaves a
+// full log with nothing sealed to prune, and a log bound below twice it.
+func checkBounds(segmentBytes, maxBytes int64) error {
+	switch {
+	case segmentBytes < otel.MaxRequestBytes:
+		return fmt.Errorf("--segment-bytes is at least %d, the largest request a plane sends", otel.MaxRequestBytes)
+	case maxBytes/2 < segmentBytes:
+		return fmt.Errorf("--max-bytes is at least twice --segment-bytes, so a full log holds a sealed segment to prune")
+	}
+	return nil
 }
 
 // readCredential reads the credential a collector requires from a file of

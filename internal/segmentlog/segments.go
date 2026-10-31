@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"sync"
 
@@ -42,7 +41,10 @@ type segments struct {
 	cfg  Config
 	root *os.Root
 	lock *os.File
-	segs []Segment
+	// dropped is how many segments before segs were pruned and their
+	// tombstones dropped.
+	dropped int
+	segs    []Segment
 	// live is the live segment's whole lines; file is its open file, nil
 	// until the first append when no live segment was found.
 	live   stats
@@ -50,6 +52,9 @@ type segments struct {
 	failed error
 	closed bool
 	ops    fsOps
+	// most is MaxSegments, the entries a seal keeps the manifest within; a
+	// test lowers it to reach the bound with few segment files.
+	most int
 }
 
 // check refuses a configuration no log opens with.
@@ -83,7 +88,7 @@ func openWith(cfg Config, ops fsOps) (*segments, error) {
 	if err != nil {
 		return nil, err
 	}
-	l := &segments{cfg: cfg, root: root, ops: ops}
+	l := &segments{cfg: cfg, root: root, ops: ops, most: MaxSegments}
 	if err := l.claim(); err != nil {
 		return nil, errors.Join(err, l.release())
 	}
@@ -186,7 +191,7 @@ func (l *segments) loadManifest(have found) error {
 		if have.live || len(have.sealed) > 0 {
 			return fmt.Errorf("%w: the directory holds segments and no manifest names them", ErrManifest)
 		}
-		body, err := encodeManifest(l.cfg.Tenant, l.cfg.Project, nil)
+		body, err := encodeManifest(l.cfg.Tenant, l.cfg.Project, 0, nil)
 		if err != nil {
 			return err
 		}
@@ -196,19 +201,19 @@ func (l *segments) loadManifest(have found) error {
 	if err != nil {
 		return err
 	}
-	tenant, project, segs, err := decodeManifest(raw)
+	m, err := decodeManifest(raw)
 	if err != nil {
 		return err
 	}
-	if tenant != l.cfg.Tenant || project != l.cfg.Project {
-		return fmt.Errorf("%w: it is bound to tenant %q and project %q", ErrBinding, tenant, project)
+	if m.tenant != l.cfg.Tenant || m.project != l.cfg.Project {
+		return fmt.Errorf("%w: it is bound to tenant %q and project %q", ErrBinding, m.tenant, m.project)
 	}
 	for seq := range have.sealed {
-		if seq > len(segs) {
+		if seq <= m.dropped || seq > m.dropped+len(m.segs) {
 			return fmt.Errorf("%w: it does not name %s", ErrManifest, segmentFile(seq))
 		}
 	}
-	l.segs = segs
+	l.dropped, l.segs = m.dropped, m.segs
 	return nil
 }
 
@@ -292,7 +297,7 @@ func (l *segments) openLive(have found) error {
 	if !have.live {
 		return nil
 	}
-	f, err := l.cfg.OpenLive(filepath.Join(l.cfg.Dir, LiveName))
+	f, err := l.cfg.OpenLive(l.root, LiveName)
 	if err != nil {
 		return fmt.Errorf("%s: %w", LiveName, err)
 	}
@@ -322,12 +327,12 @@ func (l *segments) retained() int64 {
 // liveSegment is the live segment as the manifest view shows it.
 func (l *segments) liveSegment() Segment {
 	s := l.live.segment(StateLive)
-	s.Seq, s.File = len(l.segs)+1, LiveName
+	s.Seq, s.File = l.dropped+len(l.segs)+1, LiveName
 	return s
 }
 
 // manifest is the log now.
 func (l *segments) manifest() Manifest {
-	return Manifest{Tenant: l.cfg.Tenant, Project: l.cfg.Project, Segments: slices.Clone(l.segs),
+	return Manifest{Tenant: l.cfg.Tenant, Project: l.cfg.Project, Dropped: l.dropped, Segments: slices.Clone(l.segs),
 		Live: l.liveSegment(), Retained: l.retained()}
 }

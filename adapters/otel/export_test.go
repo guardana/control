@@ -3,6 +3,7 @@ package otel
 import (
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 // NewReceiverWithin is NewReceiver answering 413 over maxBytes instead of
@@ -14,6 +15,15 @@ func NewReceiverWithin(sink Sink, log *slog.Logger, cred Credential, maxBytes in
 	}
 	h.(*receiver).maxBytes = maxBytes
 	return h, nil
+}
+
+// SetReceiverClock makes the receiver h read its clock from now, so a test
+// moves past the bound on its 401 log lines.
+func SetReceiverClock(h http.Handler, now func() time.Time) {
+	r := h.(*receiver)
+	r.refused.mu.Lock()
+	defer r.refused.mu.Unlock()
+	r.refused.now = now
 }
 
 // CauseWithheld is the cause a log line gives a transport failure whose text

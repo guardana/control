@@ -10,9 +10,14 @@ import (
 	"github.com/guardana/control/internal/files"
 )
 
-// forbidden is the permission bits neither the directory nor a file in it may
-// have: whoever may write either can write evidence into the log.
-const forbidden fs.FileMode = 0o022
+// forbidden is the permission bits a file in the directory may not have:
+// whoever may write one can write evidence into the log. The directory may
+// give the group and others nothing, as its names and sizes say what the
+// plane did and when.
+const (
+	forbidden    fs.FileMode = 0o022
+	forbiddenDir fs.FileMode = 0o077
+)
 
 // ownerWanted is the account the directory and its files belong to.
 var ownerWanted = func(fs.FileInfo) int { return os.Geteuid() }
@@ -45,15 +50,19 @@ func openDir(dir string) (*os.Root, error) {
 }
 
 // judge refuses what a writer of this package does not leave: anything but a
-// directory or a regular file, as wanted, of this account, that neither the
-// group nor others may write.
+// directory the group and others cannot reach or a regular file they cannot
+// write, as wanted, of this account.
 func judge(info fs.FileInfo, dir bool) error {
+	mask := forbidden
+	if dir {
+		mask = forbiddenDir
+	}
 	switch {
 	case dir && !info.IsDir():
 		return fmt.Errorf("%w: not a directory", ErrDirectory)
 	case !dir && !info.Mode().IsRegular():
 		return fmt.Errorf("%w: %s is not a regular file", ErrDirectory, info.Name())
-	case info.Mode().Perm()&forbidden != 0:
+	case info.Mode().Perm()&mask != 0:
 		return fmt.Errorf("%w: %s: %w: mode %04o", ErrDirectory, info.Name(), files.ErrMode, info.Mode().Perm())
 	}
 	if err := files.CheckOwnedBy(info, ownerWanted(info)); err != nil {

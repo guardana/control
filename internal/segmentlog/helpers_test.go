@@ -17,12 +17,12 @@ import (
 // follows the last newline cut at open, as a crash leaves it.
 type testLive struct{ f *os.File }
 
-func openTestLive(path string) (LiveFile, error) {
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o600) //nolint:gosec // G304: the test's own directory
+func openTestLive(root *os.Root, name string) (LiveFile, error) {
+	f, err := root.OpenFile(name, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		return nil, err
 	}
-	raw, err := os.ReadFile(path) //nolint:gosec // G304: the test's own directory
+	raw, err := root.ReadFile(name)
 	if err == nil {
 		err = f.Truncate(int64(bytes.LastIndexByte(raw, '\n') + 1))
 	}
@@ -82,6 +82,9 @@ func joinLines(lines ...string) string {
 // sum is the digest of a line as the log takes it, spelled out apart from
 // the package's own scan.
 func sum(line string) Digest { return sha256.Sum256([]byte(line + "\n")) }
+
+// key is what names segment seq beginning with line.
+func key(seq int, line string) Digest { return SegmentKey(seq, sum(line)) }
 
 // visited opens the log with a visitor and returns what it was handed.
 func visited(t *testing.T, cfg Config) ([]string, *segments) {

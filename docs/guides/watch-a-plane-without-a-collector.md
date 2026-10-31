@@ -54,7 +54,8 @@ answered 401 before its body is read. One carrying an event of another tenant
 or project is answered 400, and the plane quarantines that record.
 
 Appends go to `live.jsonl`. When the next append would take it past
-`--segment-bytes` (64 MiB unless told), it is sealed: `segments.json` names
+`--segment-bytes` (64 MiB unless told, and at least the largest request a
+plane sends), it is sealed: `segments.json` names
 it with its lines, bytes and the digests of its first and last line, and it
 is renamed `segment-<n>.jsonl`. Once the segments not pruned would pass
 `--max-bytes` (1 GiB unless told, and at least twice the segment bound), every
@@ -76,14 +77,21 @@ In the plane's configuration:
 export:
   endpoint: http://127.0.0.1:4318/v1/logs
   allow_plaintext: true
-  headers:
-    Authorization: Bearer <the content of collector.credential>
+```
+
+Give it the header through the environment, so the token stays out of
+`plane.yaml`, which a plane reads whatever the group and others may read:
+
+```sh
+export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION="Bearer $(cat collector.credential)"
+guardana-gateway run --config plane.yaml
 ```
 
 `allow_plaintext` is the named risk of an unencrypted endpoint. The header's
 value is a credential and is never printed. A plane sending no credential or
 another one is answered 401, sends again, and blocks its material calls once
-its spool is full. Start the plane with `run` as usual.
+its spool is full; collect logs the first refusal, then a count once a
+minute.
 
 ### 4. Read the trail
 
@@ -113,13 +121,14 @@ guardana-gateway trail segments trail/plane
 guardana-gateway prune --through 3 trail/plane
 ```
 
-`trail export trail/plane` reads one segment, and its `end_reached` is that
-segment's end: export again after `next_cursor` for the next one. A cursor of
-a pruned segment is refused as expired, exit 2. `evidence-report -state`
-follows one segment and refuses the next as another file.
+`trail export trail/plane` reads one segment. Its `end_reached` is true only
+at the log's end; before it, export again after `next_cursor`, which leads into
+the next segment. A cursor of a pruned segment is refused as expired, exit 2.
+`evidence-report -state` follows the log from segment to segment.
 
-`trail segments` prints the manifest: each segment's state, lines, bytes,
-first line's digest and dates, and whether a collect holds it. `prune`
+`trail segments` prints the manifest: how many segments are sealed, pruned
+and dropped of the 10,000 it names at most, then each segment's state, lines,
+bytes, key and dates, and whether a collect holds it. `prune`
 removes the sealed segments up to the one named, after writing each one's
 tombstone, which keeps its lines, bytes and digests. Stop collect first: a
 held directory is refused. The live segment is never pruned.
@@ -147,6 +156,10 @@ held directory is refused. The live segment is never pruned.
   write evidence into the trail, including a chain made up to pass the check.
 - An event sent again after its segment was pruned is written again, and a
   trail whose first events were pruned fails the chain check.
+- Before collect is up, whoever binds its loopback port first is sent the
+  token in plaintext by the plane's next retry.
+- At 10,000 sealed segments the collector answers 503 until a prune; past
+  that, each seal drops the oldest tombstone.
 - `trail` checks each chain's shape: its links, its order and its identifiers.
   There is no hash chain, so a record changed to keep that shape passes.
 - The collector reads what this repository's exporter sends and nothing more:

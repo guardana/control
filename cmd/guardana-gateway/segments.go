@@ -18,9 +18,11 @@ import (
 
 const pruneForm = "--through <segment> <dir>"
 
-// trailSegments prints what the manifest of a directory of segments names,
-// one line per segment and one for the live segment, reading and writing
-// nothing else. It exits 1 when the directory is no log this build reads.
+// trailSegments prints what the manifest of a directory of segments names:
+// the counts of sealed, pruned and dropped segments against the most a
+// manifest holds, then one line per segment and one for the live segment,
+// each with the key a cursor names it by, reading and writing nothing else.
+// It exits 1 when the directory is no log this build reads.
 func trailSegments(dir string, stdout, stderr io.Writer) int {
 	v, err := segmentlog.Inspect(dir, evidence.MaxLineBytes)
 	if err != nil {
@@ -35,22 +37,32 @@ func trailSegments(dir string, stdout, stderr io.Writer) int {
 	if held {
 		collector = "holds it"
 	}
+	sealed := 0
+	for _, s := range m.Segments {
+		if s.State == segmentlog.StateSealed {
+			sealed++
+		}
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "tenant=%s project=%s retained_bytes=%d collector=%s\n", shown(m.Tenant), shown(m.Project), m.Retained, collector)
+	fmt.Fprintf(&b, "segments sealed=%d pruned=%d dropped=%d most=%d\n", sealed, len(m.Segments)-sealed, m.Dropped,
+		segmentlog.MaxSegments)
 	for _, s := range m.Segments {
-		fmt.Fprintf(&b, "segment=%d state=%s lines=%d bytes=%d first=%s sealed_at=%s", s.Seq, s.State, s.Lines, s.Bytes,
-			hex.EncodeToString(s.First[:]), s.SealedAt.Format(time.RFC3339))
+		k := segmentlog.SegmentKey(s.Seq, s.First)
+		fmt.Fprintf(&b, "segment=%d state=%s lines=%d bytes=%d key=%s sealed_at=%s", s.Seq, s.State, s.Lines, s.Bytes,
+			hex.EncodeToString(k[:]), s.SealedAt.Format(time.RFC3339))
 		if s.State == segmentlog.StatePruned {
 			b.WriteString(" pruned_at=" + s.PrunedAt.Format(time.RFC3339))
 		}
 		b.WriteString("\n")
 	}
-	first := "none"
+	key := "none"
 	if m.Live.Lines > 0 {
-		first = hex.EncodeToString(m.Live.First[:])
+		k := segmentlog.SegmentKey(m.Live.Seq, m.Live.First)
+		key = hex.EncodeToString(k[:])
 	}
-	fmt.Fprintf(&b, "segment=%d state=live lines=%d bytes=%d first=%s tail_bytes=%d\n", m.Live.Seq, m.Live.Lines,
-		m.Live.Bytes, first, v.Tail())
+	fmt.Fprintf(&b, "segment=%d state=live lines=%d bytes=%d key=%s tail_bytes=%d\n", m.Live.Seq, m.Live.Lines,
+		m.Live.Bytes, key, v.Tail())
 	if _, err := io.WriteString(stdout, b.String()); err != nil {
 		return fail(stderr, "trail segments", errors.Join(errors.New("writing to standard output"), err))
 	}

@@ -28,7 +28,11 @@ const (
 	// a 0.x version is read only when it is this one.
 	ManifestVersion = "0.1"
 	// MaxSegments bounds the segments, sealed and pruned, a manifest names.
+	// A seal at the bound drops the oldest tombstone, so only sealed
+	// segments fill it.
 	MaxSegments = 10_000
+	// MaxSeq bounds a segment's number, past every log's life.
+	MaxSeq = 1 << 40
 	// MaxManifestBytes bounds the manifest a read takes.
 	MaxManifestBytes = 4 << 20
 )
@@ -51,7 +55,7 @@ func segmentSeq(name string) (int, bool) {
 	if !ok {
 		return 0, false
 	}
-	if digits, ok = strings.CutSuffix(digits, segmentSuffix); !ok || len(digits) != segmentDigits {
+	if digits, ok = strings.CutSuffix(digits, segmentSuffix); !ok || len(digits) < segmentDigits {
 		return 0, false
 	}
 	seq, err := strconv.Atoi(digits)
@@ -66,6 +70,7 @@ type manifestDoc struct {
 	Version   string       `json:"version"`
 	TenantID  string       `json:"tenant_id"`
 	ProjectID string       `json:"project_id"`
+	Dropped   int          `json:"dropped"`
 	Segments  []segmentDoc `json:"segments"`
 }
 
@@ -84,9 +89,9 @@ type segmentDoc struct {
 func stamp(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 
 // encodeManifest is the manifest's one spelling.
-func encodeManifest(tenant, project string, segs []Segment) ([]byte, error) {
+func encodeManifest(tenant, project string, dropped int, segs []Segment) ([]byte, error) {
 	doc := manifestDoc{Format: ManifestFormat, Version: ManifestVersion, TenantID: tenant, ProjectID: project,
-		Segments: make([]segmentDoc, 0, len(segs))}
+		Dropped: dropped, Segments: make([]segmentDoc, 0, len(segs))}
 	for _, s := range segs {
 		d := segmentDoc{Seq: s.Seq, State: s.State.String(), Lines: s.Lines, Bytes: s.Bytes,
 			First: hex.EncodeToString(s.First[:]), Last: hex.EncodeToString(s.Last[:]), SealedAt: stamp(s.SealedAt)}
@@ -106,38 +111,49 @@ func encodeManifest(tenant, project string, segs []Segment) ([]byte, error) {
 // a manifest of another version is refused as one. Anything but the one
 // spelling encodeManifest writes is refused, so no member, order or space a
 // writer of this package never leaves is read.
-func decodeManifest(raw []byte) (tenant, project string, segs []Segment, err error) {
+func decodeManifest(raw []byte) (decoded, error) {
 	if len(raw) > MaxManifestBytes {
-		return "", "", nil, fmt.Errorf("%w: over %d bytes", ErrManifest, MaxManifestBytes)
+		return decoded{}, fmt.Errorf("%w: over %d bytes", ErrManifest, MaxManifestBytes)
 	}
 	var head struct{ Format, Version string }
 	if err := json.Unmarshal(raw, &head); err != nil {
-		return "", "", nil, fmt.Errorf("%w: it does not parse: %w", ErrManifest, err)
+		return decoded{}, fmt.Errorf("%w: it does not parse: %w", ErrManifest, err)
 	}
 	if head.Format != ManifestFormat || head.Version != ManifestVersion {
-		return "", "", nil, fmt.Errorf("%w: format %q version %q, this build reads %s %s",
+		return decoded{}, fmt.Errorf("%w: format %q version %q, this build reads %s %s",
 			ErrVersion, head.Format, head.Version, ManifestFormat, ManifestVersion)
 	}
 	var doc manifestDoc
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
-		return "", "", nil, fmt.Errorf("%w: %w", ErrManifest, err)
+		return decoded{}, fmt.Errorf("%w: %w", ErrManifest, err)
 	}
 	if err := checkBinding(doc.TenantID, doc.ProjectID); err != nil {
-		return "", "", nil, fmt.Errorf("%w: %w", ErrManifest, err)
+		return decoded{}, fmt.Errorf("%w: %w", ErrManifest, err)
 	}
-	if segs, err = readSegments(doc.Segments); err != nil {
-		return "", "", nil, fmt.Errorf("%w: %w", ErrManifest, err)
+	if doc.Dropped < 0 || doc.Dropped > MaxSeq {
+		return decoded{}, fmt.Errorf("%w: %d segments dropped", ErrManifest, doc.Dropped)
 	}
-	again, err := encodeManifest(doc.TenantID, doc.ProjectID, segs)
+	segs, err := readSegments(doc.Dropped, doc.Segments)
 	if err != nil {
-		return "", "", nil, err
+		return decoded{}, fmt.Errorf("%w: %w", ErrManifest, err)
+	}
+	again, err := encodeManifest(doc.TenantID, doc.ProjectID, doc.Dropped, segs)
+	if err != nil {
+		return decoded{}, err
 	}
 	if !bytes.Equal(again, raw) {
-		return "", "", nil, fmt.Errorf("%w: it is not spelled as a writer of this format spells it", ErrManifest)
+		return decoded{}, fmt.Errorf("%w: it is not spelled as a writer of this format spells it", ErrManifest)
 	}
-	return doc.TenantID, doc.ProjectID, segs, nil
+	return decoded{tenant: doc.TenantID, project: doc.ProjectID, dropped: doc.Dropped, segs: segs}, nil
+}
+
+// decoded is a manifest as read.
+type decoded struct {
+	tenant, project string
+	dropped         int
+	segs            []Segment
 }
 
 // checkBinding refuses a tenant or project no identifier may be.
@@ -153,9 +169,10 @@ func checkBinding(tenant, project string) error {
 	return nil
 }
 
-// readSegments checks each segment of a manifest: numbered from 1 in order,
-// every pruned one before every sealed one, as a prune takes a prefix.
-func readSegments(docs []segmentDoc) ([]Segment, error) {
+// readSegments checks each segment of a manifest: numbered in order from
+// the one after those dropped, every pruned one before every sealed one, as a
+// prune takes a prefix.
+func readSegments(dropped int, docs []segmentDoc) ([]Segment, error) {
 	if docs == nil {
 		return nil, fmt.Errorf("no segments member")
 	}
@@ -168,8 +185,8 @@ func readSegments(docs []segmentDoc) ([]Segment, error) {
 		switch {
 		case err != nil:
 			return nil, fmt.Errorf("segment %d: %w", i+1, err)
-		case s.Seq != i+1:
-			return nil, fmt.Errorf("segment %d is numbered %d", i+1, s.Seq)
+		case s.Seq != dropped+i+1:
+			return nil, fmt.Errorf("segment %d is numbered %d", dropped+i+1, s.Seq)
 		case s.State == StatePruned && i > 0 && out[i-1].State == StateSealed:
 			return nil, fmt.Errorf("segment %d is pruned after a sealed one", s.Seq)
 		}
@@ -205,7 +222,7 @@ func readSegment(d segmentDoc) (Segment, error) {
 // writes.
 func (s Segment) checkCounts() error {
 	switch {
-	case s.Seq < 1 || s.Seq > MaxSegments:
+	case s.Seq < 1 || s.Seq > MaxSeq:
 		return fmt.Errorf("seq %d", s.Seq)
 	case s.Lines < 1 || s.Bytes < s.Lines:
 		return fmt.Errorf("%d lines in %d bytes", s.Lines, s.Bytes)

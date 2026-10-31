@@ -11,6 +11,8 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 )
@@ -86,7 +88,8 @@ func (c Credential) admits(header http.Header) bool {
 //
 //   - 401 for a request without cred, before anything else of it is read,
 //     which the exporter answers by sending it again, so a sender without
-//     the credential writes nothing;
+//     the credential writes nothing; the first is logged, then a count at
+//     most once a minute;
 //   - 200 with an empty body once sink.Append returned nil, which is what
 //     lets the exporter release the records;
 //   - 400 for a request ReadRequest refuses or the sink refuses with
@@ -112,7 +115,7 @@ func NewReceiver(sink Sink, log *slog.Logger, cred Credential) (http.Handler, er
 	if log == nil {
 		log = slog.Default()
 	}
-	return &receiver{sink: sink, log: log, cred: cred, maxBytes: MaxRequestBytes}, nil
+	return &receiver{sink: sink, log: log, cred: cred, maxBytes: MaxRequestBytes, refused: refusals{now: time.Now}}, nil
 }
 
 type receiver struct {
@@ -121,11 +124,40 @@ type receiver struct {
 	cred Credential
 	// maxBytes is MaxRequestBytes; a test lowers it to go over it cheaply.
 	maxBytes int64
+	refused  refusals
+}
+
+// unauthorizedEvery bounds how often the requests refused for want of the
+// credential are logged: once, then a count at most this often, so a local
+// account looping requests cannot fill the log.
+const unauthorizedEvery = time.Minute
+
+// refusals counts the requests refused 401 since the last line that said so.
+type refusals struct {
+	mu      sync.Mutex
+	now     func() time.Time
+	last    time.Time
+	pending int
+}
+
+// note counts one refusal and logs the count when the last line is older
+// than unauthorizedEvery, or there was none.
+func (r *refusals) note(log *slog.Logger) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.pending++
+	at := r.now()
+	if !r.last.IsZero() && at.Sub(r.last) < unauthorizedEvery {
+		return
+	}
+	log.Warn("otel: requests refused", "status", http.StatusUnauthorized,
+		"why", "they did not carry the credential", "requests", r.pending)
+	r.last, r.pending = at, 0
 }
 
 func (h *receiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !h.cred.admits(r.Header) {
-		h.log.Warn("otel: request refused", "status", http.StatusUnauthorized, "why", "the request does not carry the credential")
+		h.refused.note(h.log)
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		w.WriteHeader(http.StatusUnauthorized)
 		return

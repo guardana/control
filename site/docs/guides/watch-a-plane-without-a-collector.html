@@ -148,7 +148,8 @@ with; opening it for another is refused. A request without the credential is
 answered 401 before its body is read. One carrying an event of another tenant
 or project is answered 400, and the plane quarantines that record.</p>
 <p>Appends go to <code>live.jsonl</code>. When the next append would take it past
-<code>--segment-bytes</code> (64 MiB unless told), it is sealed: <code>segments.json</code> names
+<code>--segment-bytes</code> (64 MiB unless told, and at least the largest request a
+plane sends), it is sealed: <code>segments.json</code> names
 it with its lines, bytes and the digests of its first and last line, and it
 is renamed <code>segment-&lt;n&gt;.jsonl</code>. Once the segments not pruned would pass
 <code>--max-bytes</code> (1 GiB unless told, and at least twice the segment bound), every
@@ -165,13 +166,17 @@ again, and the plane keeps the records in its spool.</p>
 <pre><code class="language-yaml">export:
   endpoint: http://127.0.0.1:4318/v1/logs
   allow_plaintext: true
-  headers:
-    Authorization: Bearer &lt;the content of collector.credential&gt;
+</code></pre>
+<p>Give it the header through the environment, so the token stays out of
+<code>plane.yaml</code>, which a plane reads whatever the group and others may read:</p>
+<pre><code class="language-sh">export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION=&#34;Bearer $(cat collector.credential)&#34;
+guardana-gateway run --config plane.yaml
 </code></pre>
 <p><code>allow_plaintext</code> is the named risk of an unencrypted endpoint. The header's
 value is a credential and is never printed. A plane sending no credential or
 another one is answered 401, sends again, and blocks its material calls once
-its spool is full. Start the plane with <code>run</code> as usual.</p>
+its spool is full; collect logs the first refusal, then a count once a
+minute.</p>
 <h3 id="4-read-the-trail">4. Read the trail</h3>
 <pre><code class="language-sh">guardana-gateway trail trail/plane
 </code></pre>
@@ -191,12 +196,13 @@ when none does. <code>trail</code> reads at most 100,000 lines.</p>
 <pre><code class="language-sh">guardana-gateway trail segments trail/plane
 guardana-gateway prune --through 3 trail/plane
 </code></pre>
-<p><code>trail export trail/plane</code> reads one segment, and its <code>end_reached</code> is that
-segment's end: export again after <code>next_cursor</code> for the next one. A cursor of
-a pruned segment is refused as expired, exit 2. <code>evidence-report -state</code>
-follows one segment and refuses the next as another file.</p>
-<p><code>trail segments</code> prints the manifest: each segment's state, lines, bytes,
-first line's digest and dates, and whether a collect holds it. <code>prune</code>
+<p><code>trail export trail/plane</code> reads one segment. Its <code>end_reached</code> is true only
+at the log's end; before it, export again after <code>next_cursor</code>, which leads into
+the next segment. A cursor of a pruned segment is refused as expired, exit 2.
+<code>evidence-report -state</code> follows the log from segment to segment.</p>
+<p><code>trail segments</code> prints the manifest: how many segments are sealed, pruned
+and dropped of the 10,000 it names at most, then each segment's state, lines,
+bytes, key and dates, and whether a collect holds it. <code>prune</code>
 removes the sealed segments up to the one named, after writing each one's
 tombstone, which keeps its lines, bytes and digests. Stop collect first: a
 held directory is refused. The live segment is never pruned.</p>
@@ -223,6 +229,10 @@ down to one record and quarantines it; a 415 it sends again.</li>
 write evidence into the trail, including a chain made up to pass the check.</li>
 <li>An event sent again after its segment was pruned is written again, and a
 trail whose first events were pruned fails the chain check.</li>
+<li>Before collect is up, whoever binds its loopback port first is sent the
+token in plaintext by the plane's next retry.</li>
+<li>At 10,000 sealed segments the collector answers 503 until a prune; past
+that, each seal drops the oldest tombstone.</li>
 <li><code>trail</code> checks each chain's shape: its links, its order and its identifiers.
 There is no hash chain, so a record changed to keep that shape passes.</li>
 <li>The collector reads what this repository's exporter sends and nothing more:

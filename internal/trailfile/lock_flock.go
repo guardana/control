@@ -7,19 +7,34 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+	"time"
 )
 
-// lock takes an exclusive lock on the open file. Closing the file releases
-// it, and the kernel drops it when the process dies, so a collector that
-// crashed leaves nothing behind that refuses the next one.
+// lockTries and lockPause bound how long a writer waits for its lock: a
+// reader asking whether a writer holds the file takes a shared lock for an
+// instant, and a writer starting then must not take that for another writer.
+const (
+	lockTries = 50
+	lockPause = 5 * time.Millisecond
+)
+
+// lock takes an exclusive lock on the open file, waiting up to lockTries
+// times lockPause for one held by anyone else to go. Closing the file
+// releases it, and the kernel drops it when the process dies, so a writer
+// that crashed leaves nothing behind that refuses the next one.
 func lock(f *os.File) error {
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		if errors.Is(err, syscall.EWOULDBLOCK) {
+	for try := 1; ; try++ {
+		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		switch {
+		case err == nil:
+			return nil
+		case !errors.Is(err, syscall.EWOULDBLOCK):
+			return fmt.Errorf("locking the file: %w", err)
+		case try == lockTries:
 			return ErrLocked
 		}
-		return fmt.Errorf("locking the file: %w", err)
+		time.Sleep(lockPause)
 	}
-	return nil
 }
 
 // heldByWriter reports whether a writer holds the file, by taking a shared

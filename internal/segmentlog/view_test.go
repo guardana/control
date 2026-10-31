@@ -55,27 +55,35 @@ func TestAViewChangesNothingAndAnswersAsTheLog(t *testing.T) {
 	}
 }
 
+// locatesAsTheLog checks the view of l locates each of its segments as l
+// does, and one it does not have as Unknown.
+func locatesAsTheLog(t *testing.T, v *View, l *segments) {
+	t.Helper()
+	for seq, line := range map[int]string{1: "aaa", 2: "ccc", 3: "eee", 4: "zzz"} {
+		got, want := v.Locate(key(seq, line)).State(), l.Locate(key(seq, line)).State()
+		if got != want || (got == StateUnknown) != (seq == 4) {
+			t.Errorf("the view locates %s of %d as %v, the log as %v", line, seq, got, want)
+		}
+	}
+}
+
 // answersAsTheLog checks the view of l locates, counts and opens as l does.
 func answersAsTheLog(t *testing.T, v *View, l *segments) {
 	t.Helper()
 	if held, err := v.Held(); err != nil || !held {
 		t.Errorf("Held = %v, %v while the writer holds the directory", held, err)
 	}
-	for _, line := range []string{"aaa", "ccc", "eee", "zzz"} {
-		if got, want := v.Locate(sum(line)).State(), l.Locate(sum(line)).State(); got != want {
-			t.Errorf("the view locates %s as %v, the log as %v", line, got, want)
-		}
-	}
+	locatesAsTheLog(t, v, l)
 	if m := v.Manifest(); m.Retained != 12 || m.Live.Lines != 1 || v.Tail() != 2 {
 		t.Errorf("the view: %+v, tail %d", m, v.Tail())
 	}
-	sealed := v.Locate(sum("ccc")).Segment()
+	sealed := v.Locate(key(2, "ccc")).Segment()
 	sf, size, err := v.Open(sealed)
 	if err != nil || size != 8 {
 		t.Fatalf("opening the sealed segment: %d, %v", size, err)
 	}
 	_ = sf.Close()
-	if _, _, err := v.Open(v.Locate(sum("aaa")).Segment()); !errors.Is(err, ErrPrune) {
+	if _, _, err := v.Open(v.Locate(key(1, "aaa")).Segment()); !errors.Is(err, ErrPrune) {
 		t.Errorf("opening a pruned segment: %v", err)
 	}
 }
@@ -88,7 +96,7 @@ func TestASealedSegmentChangedInPlaceIsRefusedToAReader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sealed := v.Locate(sum("aaa")).Segment()
+	sealed := v.Locate(key(1, "aaa")).Segment()
 	f, _, err := v.Open(sealed)
 	if err != nil {
 		t.Fatal(err)

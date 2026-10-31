@@ -3,6 +3,7 @@ package trailfile
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -73,9 +74,10 @@ func OpenLog(cfg LogConfig) (*Log, error) {
 	return l, nil
 }
 
-// openLive opens the live segment as Open opens a trail file.
-func openLive(path string) (segmentlog.LiveFile, error) {
-	w, err := Open(path)
+// openLive opens the live segment as Open opens a trail file, by name in the
+// directory the log judged and holds.
+func openLive(root *os.Root, name string) (segmentlog.LiveFile, error) {
+	w, err := openIn(root, name)
 	if err != nil {
 		return nil, err
 	}

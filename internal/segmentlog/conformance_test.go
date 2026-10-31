@@ -27,7 +27,7 @@ type conformanceCase struct {
 
 // step is one call and what it must answer: an append of lines, or of raw
 // bytes, a seal, a prune, a reopen, a reopen with other bounds, a locate of
-// the segment a line begins, or the bytes retained.
+// the segment of a number that a line begins, or the bytes retained.
 type step struct {
 	Append   []string `json:"append"`
 	Raw      *string  `json:"raw"`
@@ -36,6 +36,7 @@ type step struct {
 	Reopen   bool     `json:"reopen"`
 	Bounds   []int64  `json:"bounds"`
 	Locate   string   `json:"locate"`
+	Seq      int      `json:"seq"`
 	State    string   `json:"state"`
 	Retained *int64   `json:"retained"`
 	Want     string   `json:"want"`
@@ -145,8 +146,11 @@ func (r *runner) check(i int, s step) {
 	r.t.Helper()
 	switch {
 	case s.Locate != "":
-		if got := r.l.Locate(sum(s.Locate)).State().String(); got != s.State {
-			r.t.Errorf("step %d: %s is located %s, want %s", i, s.Locate, got, s.State)
+		if s.Seq < 1 {
+			r.t.Fatalf("step %d locates no segment number", i)
+		}
+		if got := r.l.Locate(SegmentKey(s.Seq, sum(s.Locate))).State().String(); got != s.State {
+			r.t.Errorf("step %d: %s of segment %d is located %s, want %s", i, s.Locate, s.Seq, got, s.State)
 		}
 	case s.Retained != nil:
 		if got := r.l.Manifest().Retained; got != *s.Retained {

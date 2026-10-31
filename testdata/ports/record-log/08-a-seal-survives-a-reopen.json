@@ -6,13 +6,13 @@
     {"append": ["aaa", "bbb"]},
     {"seal": true},
     {"reopen": true},
-    {"locate": "aaa", "state": "sealed"},
+    {"locate": "aaa", "seq": 1, "state": "sealed"},
     {"retained": 8}
   ],
   "negative_control": [
     {"append": ["aaa", "bbb"]},
     {"reopen": true},
-    {"locate": "aaa", "state": "live"},
+    {"locate": "aaa", "seq": 1, "state": "live"},
     {"retained": 8}
   ]
 }

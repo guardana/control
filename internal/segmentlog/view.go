@@ -16,6 +16,7 @@ type View struct {
 	maxLineBytes int
 	tenant       string
 	project      string
+	dropped      int
 	segs         []Segment
 	live         stats
 }
@@ -38,10 +39,11 @@ func Inspect(dir string, maxLineBytes int) (*View, error) {
 	case !ok:
 		return nil, fmt.Errorf("%w: %s holds no %s, so it is no segment log", ErrManifest, dir, ManifestName)
 	}
-	v := &View{dir: dir, maxLineBytes: maxLineBytes}
-	if v.tenant, v.project, v.segs, err = decodeManifest(raw); err != nil {
+	m, err := decodeManifest(raw)
+	if err != nil {
 		return nil, err
 	}
+	v := &View{dir: dir, maxLineBytes: maxLineBytes, tenant: m.tenant, project: m.project, dropped: m.dropped, segs: m.segs}
 	f, err := openRead(root, LiveName)
 	if errors.Is(err, fs.ErrNotExist) {
 		return v, nil
@@ -78,14 +80,14 @@ func openRead(root *os.Root, name string) (*os.File, error) {
 
 func (v *View) liveSegment() Segment {
 	s := v.live.segment(StateLive)
-	s.Seq, s.File = len(v.segs)+1, LiveName
+	s.Seq, s.File = v.dropped+len(v.segs)+1, LiveName
 	return s
 }
 
 // Manifest is the log as the view found it.
 func (v *View) Manifest() Manifest {
-	m := Manifest{Tenant: v.tenant, Project: v.project, Segments: slices.Clone(v.segs), Live: v.liveSegment(),
-		Retained: v.live.bytes}
+	m := Manifest{Tenant: v.tenant, Project: v.project, Dropped: v.dropped, Segments: slices.Clone(v.segs),
+		Live: v.liveSegment(), Retained: v.live.bytes}
 	for _, s := range v.segs {
 		if s.State == StateSealed {
 			m.Retained += s.Bytes
@@ -97,19 +99,22 @@ func (v *View) Manifest() Manifest {
 // Tail is the bytes after the live segment's last newline when it was read.
 func (v *View) Tail() int64 { return v.live.tail }
 
-// Locate answers for the segment whose first line has the digest first.
-func (v *View) Locate(first Digest) SegmentAnswer {
-	return locate(v.segs, v.liveSegment(), first)
+// Locate answers for the segment key names.
+func (v *View) Locate(key Digest) SegmentAnswer {
+	return locate(v.segs, v.liveSegment(), key)
 }
 
 // After is the segment that follows seq, sealed or live; Unknown when there is
 // none, and Pruned when it was pruned.
 func (v *View) After(seq int) SegmentAnswer {
+	i := seq - v.dropped
 	switch {
-	case seq < len(v.segs):
-		s := v.segs[seq]
+	case i < 0:
+		return SegmentAnswer{cause: fmt.Sprintf("segment %d was dropped", seq)}
+	case i < len(v.segs):
+		s := v.segs[i]
 		return SegmentAnswer{state: s.State, seg: s}
-	case seq == len(v.segs):
+	case i == len(v.segs):
 		return SegmentAnswer{state: StateLive, seg: v.liveSegment()}
 	default:
 		return SegmentAnswer{cause: fmt.Sprintf("no segment follows %d", seq)}
@@ -130,8 +135,9 @@ func (v *View) First() SegmentAnswer {
 // Open opens the file of a sealed or the live segment s and returns it with
 // the length a reader takes. A sealed segment is read whole first and refused
 // unless it holds what the manifest names it with. A live segment that no
-// longer begins with the line it began with when the view was read was sealed
-// since, and is ErrMoved; so is a sealed segment pruned since.
+// longer begins with the line it began with when the view was read, or whose
+// manifest, read again once the file is open, names a segment the view did
+// not, was sealed since, and is ErrMoved; so is a sealed segment pruned since.
 func (v *View) Open(s Segment) (*os.File, int64, error) {
 	if s.State != StateSealed && s.State != StateLive {
 		return nil, 0, fmt.Errorf("%w: segment %d is %s", ErrPrune, s.Seq, s.State)
@@ -143,16 +149,46 @@ func (v *View) Open(s Segment) (*os.File, int64, error) {
 	defer func() { _ = root.Close() }()
 	f, err := openRead(root, s.File)
 	if errors.Is(err, fs.ErrNotExist) {
+		if s.State == StateLive {
+			if moved := v.stillLive(root); moved != nil {
+				return nil, 0, moved
+			}
+		}
 		return nil, 0, fmt.Errorf("%w: %s: %w", ErrMoved, s.File, err)
 	}
 	if err != nil {
 		return nil, 0, err
 	}
 	size, err := v.check(f, s)
+	if err == nil && s.State == StateLive {
+		err = v.stillLive(root)
+	}
 	if err != nil {
 		return nil, 0, errors.Join(err, f.Close())
 	}
 	return f, size, nil
+}
+
+// stillLive refuses, as moved, a manifest that names more segments than the
+// view's. A seal names the live segment in the manifest before it renames the
+// file, so a live file opened while the manifest still names no more is the
+// view's live segment.
+func (v *View) stillLive(root *os.Root) error {
+	raw, ok, err := readManifest(root)
+	switch {
+	case err != nil:
+		return err
+	case !ok:
+		return fmt.Errorf("%w: %s is gone", ErrMoved, ManifestName)
+	}
+	m, err := decodeManifest(raw)
+	if err != nil {
+		return err
+	}
+	if m.dropped+len(m.segs) != v.dropped+len(v.segs) {
+		return fmt.Errorf("%w: a segment was sealed since the view was read", ErrMoved)
+	}
+	return nil
 }
 
 // check reads what it must of the open file of s to know it is s.

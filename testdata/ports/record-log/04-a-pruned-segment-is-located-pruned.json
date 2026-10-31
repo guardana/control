@@ -7,14 +7,14 @@
     {"append": ["ccc"]},
     {"prune": 1},
     {"reopen": true},
-    {"locate": "aaa", "state": "pruned"},
+    {"locate": "aaa", "seq": 1, "state": "pruned"},
     {"retained": 4}
   ],
   "negative_control": [
     {"append": ["aaa", "bbb"]},
     {"append": ["ccc"]},
     {"reopen": true},
-    {"locate": "aaa", "state": "sealed"},
+    {"locate": "aaa", "seq": 1, "state": "sealed"},
     {"retained": 12}
   ]
 }

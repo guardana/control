@@ -38,6 +38,7 @@ func (f *follower) raise(a alert) {
 // take reads the export's events and gaps in the file's order, then moves
 // the cursor and carries forward the pending alerts it has not reached.
 func (f *follower) take(x *export) {
+	f.enter(x)
 	gaps := x.gapRecords
 	tail := false
 	for _, e := range x.events {
@@ -60,6 +61,14 @@ func (f *follower) take(x *export) {
 		f.s.source = x.header.source
 	}
 	f.carry()
+}
+
+// enter clears what was pending in the state's file when x is the next
+// segment of its log: the cursor is past all of it.
+func (f *follower) enter(x *export) {
+	if f.s.source != "" && x.header.source != f.s.source {
+		f.pending, f.s.tailGap = map[string]int64{}, nil
+	}
 }
 
 // carry keeps the pending alerts this run did not meet again and the cursor

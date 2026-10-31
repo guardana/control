@@ -61,6 +61,10 @@ type Source struct {
 	// Held asks whether a writer holds the file. It is asked only when bytes
 	// follow the last newline; nil answers no.
 	Held func() (bool, error)
+	// Key and More are lineexport.Source's: what names a segment of a log to
+	// a cursor, and whether later segments hold lines.
+	Key  func(lineexport.Digest) lineexport.Digest
+	More bool
 }
 
 // Trailer is what an export's trailer says.
@@ -119,7 +123,8 @@ func export(src Source, q Query, after string, w io.Writer) (Trailer, error) {
 	if src.Size < 0 {
 		return Trailer{}, fmt.Errorf("%w: size %d", ErrLimit, src.Size)
 	}
-	tr, err := lineexport.Export(exportFormat(), lineexport.Source{Name: src.Name, R: src.R, Size: src.Size, Held: src.Held},
+	tr, err := lineexport.Export(exportFormat(), lineexport.Source{Name: src.Name, R: src.R, Size: src.Size, Held: src.Held,
+		Key: src.Key, More: src.More},
 		lineexport.Query{After: after, Limit: q.Limit, MaxBytes: q.MaxBytes, Echo: q.echo()}, f.judge, w)
 	if err != nil {
 		return Trailer{}, err
