@@ -11,6 +11,15 @@ verify one.
 
 ## [Unreleased]
 
+### Security
+
+- The filesystem server the guide's MCP client check installs takes `glob`
+  14.0.2, which fixes GHSA-3g3m-2fjr-6pw4, and `minimatch` 11.0.1, which
+  fixes GHSA-g3hv-75wg-m249, through `overrides`: the server, at the version
+  its fingerprints were taken from, asks for the majors below them, where no
+  fix exists. Its search and tree tools ran with them. Nothing this project
+  ships uses either.
+
 ### Added
 
 - `observe import` reads an egress proxy's access log. A source of kind
