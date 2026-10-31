@@ -69,6 +69,19 @@ verify one.
 
 ### Changed
 
+- Both approval stores decide whether an approval may be spent in one order
+  ([approvals](docs/concepts/approvals-and-the-held-call.md)). An expired
+  record marked multi-use in an approvals directory is left pending and
+  counted until the hold's own expiry, as an unexpired one already was; it
+  used to close the held call `DENY` `APPROVAL_EXPIRED`. Either way nothing
+  runs. A record refused for its approver id blocks only the request it
+  names: a lookup lists it as unknown, beside every other record of its
+  action, and hides it once it expires; a retry tries its held approval once,
+  however many records name its request; a plane closing a lost hold
+  resolves only the approval it minted. The memory store refuses a hold that
+  is not a pending, unanswered approval with an approval id, a requested time
+  and an expiry.
+
 - `doctor` no longer changes the evidence spool it checks. It reads the spool
   through `spool.Inspect`, which cuts nothing: a torn tail stays in place, and
   the line says "a start would cut a torn tail of N byte(s), which this check
@@ -78,6 +91,7 @@ verify one.
   Every command is marked as one that inspects or one that writes, and each
   that inspects is tested to change nothing
   ([ADR-0016](docs/adr/0016-approval-providers-and-the-lost-hold.md)).
+
 - **Breaking:** a run belongs to one project. A run record is `2.0` and
   carries `project_id`, `runs open` needs `--project` and refuses a parent of
   another project, and `runs list` prints `project_id`. A plane resolves a

@@ -631,7 +631,7 @@ var storeRefusals = []struct {
 		return storeError(r.answer("pending", pendingState, "approver-1"))
 	}},
 	{approvals.ErrResolution, gateway.ErrResolution, func(_ *testing.T, r refusalRig) error {
-		return storeError(r.store.Resolve(context.Background(), r.binding, lostRequest, approvals.ResolutionConsumed, r.now))
+		return storeError(r.store.Resolve(context.Background(), r.binding, lostRequest, lostApproval, approvals.ResolutionConsumed, r.now))
 	}},
 }
 
@@ -648,11 +648,11 @@ func TestAStoreRefusalIsTheGatewaysOwnVocabulary(t *testing.T) {
 		t.Errorf("consuming an unanswered record answered %v, want %v", err, gateway.ErrNoApproval)
 	}
 	// A record this plane never held is not a record it may speak for.
-	if err := r.seam.Resolve(ctx, r.binding, "req-nobody-held", gateway.ResolutionNotResumed, r.now); !isGateway(err, gateway.ErrNoApproval) {
+	if err := r.seam.Resolve(ctx, r.binding, "req-nobody-held", "apr-nobody-held", gateway.ResolutionNotResumed, r.now); !isGateway(err, gateway.ErrNoApproval) {
 		t.Errorf("resolving an unheld record answered %v, want %v", err, gateway.ErrNoApproval)
 	}
 	// Only the consuming path marks a record spent, whatever a caller asks.
-	if err := r.seam.Resolve(ctx, r.binding, lostRequest, gateway.ResolutionConsumed, r.now); !isGateway(err, gateway.ErrResolution) {
+	if err := r.seam.Resolve(ctx, r.binding, lostRequest, lostApproval, gateway.ResolutionConsumed, r.now); !isGateway(err, gateway.ErrResolution) {
 		t.Errorf("resolving a record consumed answered %v, want %v", err, gateway.ErrResolution)
 	}
 	if got := recordsUnder(t, r.records); !slices.Equal(got, []string{

@@ -56,7 +56,7 @@ func resolvedRecord(t *testing.T, name string) []byte {
 			t.Fatalf("consuming: %v", err)
 		}
 	case notResumedName:
-		if err := p.Resolve(t.Context(), h.Binding, "req-1", approvals.ResolutionNotResumed, minted.Add(time.Minute)); err != nil {
+		if err := p.Resolve(t.Context(), h.Binding, "req-1", firstApproval, approvals.ResolutionNotResumed, minted.Add(time.Minute)); err != nil {
 			t.Fatalf("resolving: %v", err)
 		}
 	default:
@@ -166,7 +166,7 @@ func TestNotResumedLinkedBesideAConsumedRecordIsTakenBack(t *testing.T) {
 	opt, arm := afterLink(t, func() { writeFile(t, dir, consumedName, body) })
 	p, dir, h := heldWith(t, opt)
 	arm()
-	err := p.Resolve(t.Context(), h.Binding, "req-1", approvals.ResolutionNotResumed, minted.Add(time.Minute))
+	err := p.Resolve(t.Context(), h.Binding, "req-1", firstApproval, approvals.ResolutionNotResumed, minted.Add(time.Minute))
 	if !errors.Is(err, approvals.ErrApprovalConsumed) {
 		t.Fatalf("resolving beside a consumed record = %v, want ErrApprovalConsumed", err)
 	}
@@ -184,7 +184,7 @@ func TestNotResumedBesideAConsumedNameItCannotReadIsRefused(t *testing.T) {
 			opt, arm := afterLink(t, func() { u.plant(t, filepath.Join(dir, consumedName)) })
 			p, dir, h := heldWith(t, opt)
 			arm()
-			err := p.Resolve(t.Context(), h.Binding, "req-1", approvals.ResolutionNotResumed, minted.Add(time.Minute))
+			err := p.Resolve(t.Context(), h.Binding, "req-1", firstApproval, approvals.ResolutionNotResumed, minted.Add(time.Minute))
 			if !errors.Is(err, approvals.ErrForeignFile) {
 				t.Fatalf("resolving beside a %s at the consumed name = %v, want ErrForeignFile", u.name, err)
 			}

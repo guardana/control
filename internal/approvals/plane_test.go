@@ -111,7 +111,7 @@ func TestTheZeroHandlesApproveNothing(t *testing.T) {
 		"plane hold":      p.Hold(ctx, held(t, firstApproval, "req-1"), minted),
 		"plane find":      second(p.Find(ctx, binding, minted)),
 		"plane consume":   secondApproval(p.Consume(ctx, binding, "req-1", firstApproval, minted)),
-		"plane resolve":   p.Resolve(ctx, binding, "req-1", approvals.ResolutionNotResumed, minted),
+		"plane resolve":   p.Resolve(ctx, binding, "req-1", firstApproval, approvals.ResolutionNotResumed, minted),
 		"plane prune":     secondInt(p.Prune(ctx, minted)),
 		"plane close":     p.Close(),
 		"approver list":   secondListing(a.List(ctx)),
@@ -391,7 +391,7 @@ func TestResolvingUnderConcurrencyLeavesOneRecord(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			results[i] = p.Resolve(ctx, h.Binding, "req-1", approvals.ResolutionNotResumed, minted)
+			results[i] = p.Resolve(ctx, h.Binding, "req-1", firstApproval, approvals.ResolutionNotResumed, minted)
 		}()
 	}
 	close(start)
@@ -423,17 +423,17 @@ func TestAStoreResolvesARecordAsNotResumedAndNothingElse(t *testing.T) {
 		approvals.ResolutionPending,
 		approvals.ResolutionConsumed,
 	} {
-		if err := p.Resolve(ctx, h.Binding, "req-1", resolution, minted); !errors.Is(err, approvals.ErrResolution) {
+		if err := p.Resolve(ctx, h.Binding, "req-1", firstApproval, resolution, minted); !errors.Is(err, approvals.ErrResolution) {
 			t.Errorf("resolving as %v = %v, want ErrResolution", resolution, err)
 		}
 	}
-	if err := p.Resolve(ctx, h.Binding, "req-1", approvals.ResolutionNotResumed, time.Time{}); !errors.Is(err, approvals.ErrZeroTime) {
+	if err := p.Resolve(ctx, h.Binding, "req-1", firstApproval, approvals.ResolutionNotResumed, time.Time{}); !errors.Is(err, approvals.ErrZeroTime) {
 		t.Errorf("resolving at a zero clock = %v, want ErrZeroTime", err)
 	}
-	if err := p.Resolve(ctx, h.Binding, "req-9", approvals.ResolutionNotResumed, minted); !errors.Is(err, approvals.ErrNoApproval) {
+	if err := p.Resolve(ctx, h.Binding, "req-9", firstApproval, approvals.ResolutionNotResumed, minted); !errors.Is(err, approvals.ErrNoApproval) {
 		t.Errorf("resolving a request nothing holds = %v, want ErrNoApproval", err)
 	}
-	if err := p.Resolve(ctx, otherBinding(t), "req-1", approvals.ResolutionNotResumed, minted); !errors.Is(err, approvals.ErrNoApproval) {
+	if err := p.Resolve(ctx, otherBinding(t), "req-1", firstApproval, approvals.ResolutionNotResumed, minted); !errors.Is(err, approvals.ErrNoApproval) {
 		t.Errorf("resolving under another binding = %v, want ErrNoApproval", err)
 	}
 }
@@ -447,7 +447,7 @@ func TestAnExpiredRecordIsResolvedRatherThanDropped(t *testing.T) {
 	if err := p.Hold(ctx, h, minted); err != nil {
 		t.Fatalf("holding: %v", err)
 	}
-	if err := p.Resolve(ctx, h.Binding, "req-1", approvals.ResolutionNotResumed, expires.Add(time.Hour)); err != nil {
+	if err := p.Resolve(ctx, h.Binding, "req-1", firstApproval, approvals.ResolutionNotResumed, expires.Add(time.Hour)); err != nil {
 		t.Fatalf("resolving an expired record: %v", err)
 	}
 	if names := recordNames(t, dir); !slices.Equal(names, []string{firstApproval + ".2-not-resumed.rec"}) {
@@ -465,7 +465,7 @@ func TestAnOrphansRecordIsNotSpent(t *testing.T) {
 		t.Fatalf("holding: %v", err)
 	}
 	answerAt(t, dir, minted.Add(time.Minute))
-	if err := p.Resolve(ctx, h.Binding, "req-1", approvals.ResolutionNotResumed, minted.Add(time.Minute)); err != nil {
+	if err := p.Resolve(ctx, h.Binding, "req-1", firstApproval, approvals.ResolutionNotResumed, minted.Add(time.Minute)); err != nil {
 		t.Fatalf("resolving the orphan: %v", err)
 	}
 	_, err := p.Consume(ctx, h.Binding, "req-1", firstApproval, minted.Add(2*time.Minute))
@@ -478,7 +478,7 @@ func TestAnOrphansRecordIsNotSpent(t *testing.T) {
 	if _, err := p.Find(ctx, h.Binding, minted.Add(2*time.Minute)); !errors.Is(err, approvals.ErrNoApproval) {
 		t.Fatalf("a not-resumed record is not live, got %v", err)
 	}
-	if err := p.Resolve(ctx, h.Binding, "req-1", approvals.ResolutionNotResumed, minted.Add(2*time.Minute)); err != nil {
+	if err := p.Resolve(ctx, h.Binding, "req-1", firstApproval, approvals.ResolutionNotResumed, minted.Add(2*time.Minute)); err != nil {
 		t.Fatalf("resolving twice asks for the outcome on disk, got %v", err)
 	}
 }
@@ -496,7 +496,7 @@ func TestAConsumedRecordCannotBeResolved(t *testing.T) {
 	if _, err := p.Consume(ctx, h.Binding, "req-1", firstApproval, minted.Add(2*time.Minute)); err != nil {
 		t.Fatalf("consuming: %v", err)
 	}
-	if err := p.Resolve(ctx, h.Binding, "req-1", approvals.ResolutionNotResumed, minted.Add(3*time.Minute)); !errors.Is(err, approvals.ErrApprovalConsumed) {
+	if err := p.Resolve(ctx, h.Binding, "req-1", firstApproval, approvals.ResolutionNotResumed, minted.Add(3*time.Minute)); !errors.Is(err, approvals.ErrApprovalConsumed) {
 		t.Fatalf("resolving a consumed record = %v, want ErrApprovalConsumed", err)
 	}
 	if _, err := p.Consume(ctx, h.Binding, "req-1", firstApproval, expires.Add(time.Hour)); !errors.Is(err, approvals.ErrApprovalConsumed) {
@@ -677,7 +677,7 @@ func TestACutScanAnswersNothing(t *testing.T) {
 	if _, err := bounded.Consume(ctx, binding, "req-APPROVAL2", "APPROVAL2", minted); !errors.Is(err, approvals.ErrTooManyRecords) {
 		t.Errorf("Consume past the cut = %v, want ErrTooManyRecords", err)
 	}
-	if err := bounded.Resolve(ctx, binding, "req-APPROVAL2", approvals.ResolutionNotResumed, minted); !errors.Is(err, approvals.ErrTooManyRecords) {
+	if err := bounded.Resolve(ctx, binding, "req-APPROVAL2", "APPROVAL2", approvals.ResolutionNotResumed, minted); !errors.Is(err, approvals.ErrTooManyRecords) {
 		t.Errorf("Resolve past the cut = %v, want ErrTooManyRecords", err)
 	}
 }
@@ -870,7 +870,7 @@ func threeResolutions(t *testing.T) (*approvals.Plane, approval.Binding) {
 	if _, err := p.Consume(ctx, binding, "req-SPENT", "SPENT", minted.Add(2*time.Minute)); err != nil {
 		t.Fatalf("consuming: %v", err)
 	}
-	if err := p.Resolve(ctx, binding, "req-GIVENUP", approvals.ResolutionNotResumed, minted.Add(2*time.Minute)); err != nil {
+	if err := p.Resolve(ctx, binding, "req-GIVENUP", "GIVENUP", approvals.ResolutionNotResumed, minted.Add(2*time.Minute)); err != nil {
 		t.Fatalf("resolving: %v", err)
 	}
 	return p, binding

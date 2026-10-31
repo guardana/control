@@ -178,7 +178,22 @@ classified. <code>Validate</code> does not change (<a href="/docs/adr/0067-the-p
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
-<li><code>doctor</code> no longer changes the evidence spool it checks. It reads the spool
+<li>
+<p>Both approval stores decide whether an approval may be spent in one order
+(<a href="/docs/concepts/approvals-and-the-held-call">approvals</a>). An expired
+record marked multi-use in an approvals directory is left pending and
+counted until the hold's own expiry, as an unexpired one already was; it
+used to close the held call <code>DENY</code> <code>APPROVAL_EXPIRED</code>. Either way nothing
+runs. A record refused for its approver id blocks only the request it
+names: a lookup lists it as unknown, beside every other record of its
+action, and hides it once it expires; a retry tries its held approval once,
+however many records name its request; a plane closing a lost hold
+resolves only the approval it minted. The memory store refuses a hold that
+is not a pending, unanswered approval with an approval id, a requested time
+and an expiry.</p>
+</li>
+<li>
+<p><code>doctor</code> no longer changes the evidence spool it checks. It reads the spool
 through <code>spool.Inspect</code>, which cuts nothing: a torn tail stays in place, and
 the line says &quot;a start would cut a torn tail of N byte(s), which this check
 left in place&quot;; a torn tail whose file its owner may not write fails the
@@ -186,8 +201,10 @@ check, as it fails a start. It asks access(2) whether the directory takes a
 file instead of writing a probe, and no longer prints a reserved count.
 Every command is marked as one that inspects or one that writes, and each
 that inspects is tested to change nothing
-(<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>).</li>
-<li><strong>Breaking:</strong> a run belongs to one project. A run record is <code>2.0</code> and
+(<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>).</p>
+</li>
+<li>
+<p><strong>Breaking:</strong> a run belongs to one project. A run record is <code>2.0</code> and
 carries <code>project_id</code>, <code>runs open</code> needs <code>--project</code> and refuses a parent of
 another project, and <code>runs list</code> prints <code>project_id</code>. A plane resolves a
 token only under its own <code>project_id</code>, so a token of another project's run
@@ -199,45 +216,63 @@ run as unheld. A <code>1.0</code> record names no project and is refused: open e
 live run again in a new, empty directory, under a new task, since a
 reopened run starts with a clean flow state
 (<a href="/docs/reference/runs#runs-an-earlier-release-opened">runs.md</a>,
-<a href="/docs/adr/0068-a-run-belongs-to-one-project">ADR-0068</a>).</li>
-<li>The coverage inventory refuses an egress <code>host</code>, or an egress path's
+<a href="/docs/adr/0068-a-run-belongs-to-one-project">ADR-0068</a>).</p>
+</li>
+<li>
+<p>The coverage inventory refuses an egress <code>host</code>, or an egress path's
 source <code>name</code>, that is not a host in the one spelling a connection's host
 is written in, and names that spelling: <code>https://x/</code> and a non-ASCII letter
 are refused, and so are <code>Example.COM</code>, written <code>example.com</code>, and
 <code>::ffff:203.0.113.7</code>, written <code>203.0.113.7</code>. It refuses
 <code>server_address</code> on an egress path's source. Neither could match before
-(<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>).</li>
-<li><code>supervise</code> refuses, with exit 2, a <code>--source</code> of a kind whose
+(<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>).</p>
+</li>
+<li>
+<p><code>supervise</code> refuses, with exit 2, a <code>--source</code> of a kind whose
 observations name no run, such as an egress access log, and one with no
-kind (<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>).</li>
-<li><code>observe import</code> refuses an input the group or others can write when the
+kind (<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>).</p>
+</li>
+<li>
+<p><code>observe import</code> refuses an input the group or others can write when the
 descriptor declares <code>TRUST_INDEPENDENT</code>
-(<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>).</li>
-<li>A log that holds a <code>0.3</code> line cannot be read by 0.14: its <code>observe import</code>
+(<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>).</p>
+</li>
+<li>
+<p>A log that holds a <code>0.3</code> line cannot be read by 0.14: its <code>observe import</code>
 and <code>coverage</code> refuse the log as damaged, and its <code>observe export</code> counts
 each such line as an <code>unsupported_version</code> gap
-(<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>).</li>
-<li>Under <code>OBSERVE</code>, a call the adapter could not translate, for anything but
+(<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>).</p>
+</li>
+<li>
+<p>Under <code>OBSERVE</code>, a call the adapter could not translate, for anything but
 nothing classifying it, is now blocked with the kernel's <code>INDETERMINATE</code>
 and the refusal's code, on the trail <code>ENFORCE</code> writes, and counts as
 blocked. An MCP answer carries that code in place of <code>MALFORMED_INPUT</code>, and
 an enforcement API <code>BLOCK</code> no longer appends <code>INVALID_FIELD_VALUE</code>
-(<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</li>
-<li>The gateway refuses, in every mode, an envelope whose action kind is not
+(<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</p>
+</li>
+<li>
+<p>The gateway refuses, in every mode, an envelope whose action kind is not
 <code>tool</code>, <code>prompt</code> or <code>resource</code>, or whose protocol is not its adapter's, as
 <code>INVALID_FIELD_VALUE</code>. The kinds, the protocol names and each protocol's
 enforcement strength are one list in <code>internal/channel</code> (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).
 It also refuses a resource pointer an adapter hands in that is not RFC 6901,
 and at start an adapter whose name is not one of those protocols, or whose
-declared enforcement is not its protocol's.</li>
-<li>A rewrite that moves the member a tool's <code>resource_from</code> reads is now a DENY
+declared enforcement is not its protocol's.</p>
+</li>
+<li>
+<p>A rewrite that moves the member a tool's <code>resource_from</code> reads is now a DENY
 of the gateway's own, <code>OBLIGATION_NOT_UNDERSTOOD</code>, before anything is handed
 out, for both adapters, in place of an aborted execution that ended
-<code>ACTION_FAILED</code> (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</li>
-<li><code>coverage</code> and the run view read a plane's strength from its protocol: a
+<code>ACTION_FAILED</code> (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</p>
+</li>
+<li>
+<p><code>coverage</code> and the run view read a plane's strength from its protocol: a
 trail that names no protocol, or one this build does not know, is decided,
-not enforced, in every mode (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</li>
-<li>An approver id that a reader could take for one the plane authenticated
+not enforced, in every mode (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</p>
+</li>
+<li>
+<p>An approver id that a reader could take for one the plane authenticated
 is refused: <code>approvals approve</code> and <code>reject</code> exit 1 and write nothing,
 <code>console</code> exits 2, a scenario that names one is refused when it loads, and
 a record that holds one resumes nothing and its reconciliation closes as
@@ -260,44 +295,59 @@ script other than Latin, with no ASCII letter among its first six
 characters, is accepted, such as Lisu <code>ꓮꓴꓔꓧꓠ:ꓧꓠ</code>. The plane never writes such an
 id, and a machine comparing bytes never takes it for the prefix. Only the
 plane will write that prefix, for an approver it authenticated
-(<a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>).</li>
-<li>Upgrade: an approval record written by 0.14 whose approver the rule above
+(<a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>).</p>
+</li>
+<li>
+<p>Upgrade: an approval record written by 0.14 whose approver the rule above
 now refuses, one that mixes scripts, holds a code point or a form now
 refused, or reads as <code>authn:</code>, resolves only as <code>APPROVAL_STATE_UNKNOWN</code>
 and is never spent. It refuses its own approval and no other: lookups,
 holds and prunes of every other record go on, and it is pruned once it
-expires.</li>
-<li>A gateway configuration that classifies a tool <code>WRITE</code>, <code>DELETE</code> or
+expires.</p>
+</li>
+<li>
+<p>A gateway configuration that classifies a tool <code>WRITE</code>, <code>DELETE</code> or
 <code>CONFIGURE</code> is refused when it loads unless <code>environment</code> is set and, for an
 MCP override, its upstream's <code>environment</code> too; an MCP override classified
 <code>TRANSACT</code> or <code>IDENTITY_OR_ACCESS</code> is refused unless its upstream's
 <code>tenant_id</code> is set. <code>mcp.New</code> and <code>enforce.New</code> refuse the same: the
 contract needs these on such a call's envelope, and every call to the tool
-was refused, <code>OBSERVE</code> included.</li>
-<li>The roadmap starts milestone 2 with the sensors independent of the agent
+was refused, <code>OBSERVE</code> included.</p>
+</li>
+<li>
+<p>The roadmap starts milestone 2 with the sensors independent of the agent
 (B21), then the port contracts and the TypeScript client (B12), and lists
 the open items of the 1.0 release bar as backlog tasks B29 to B34
-(<a href="/docs/adr/0064-milestone-two-starts-with-an-independent-sensor">ADR-0064</a>).</li>
-<li>A record now decides that each decision about identity, authentication,
+(<a href="/docs/adr/0064-milestone-two-starts-with-an-independent-sensor">ADR-0064</a>).</p>
+</li>
+<li>
+<p>A record now decides that each decision about identity, authentication,
 authorization, approval, the policy language, evidence, observation,
 detection, reaction, the signature algorithm and keys sits behind a port.
 Each port has a tested default that an operator may replace, in this
 repository or through one remote kind, and each fails closed. Nothing a
 plane does changes with it yet
-(<a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>).</li>
-<li>A pull request's gate no longer fuzzes: <code>make quality</code> runs the seeds of
+(<a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>).</p>
+</li>
+<li>
+<p>A pull request's gate no longer fuzzes: <code>make quality</code> runs the seeds of
 every fuzz target in its tests and checks with <code>make fuzz-list</code> that each
 target compiles, while the nightly run and the release commit's cold gate
 fuzz each one for ten seconds. <code>docs-check</code> leaves <code>make quality</code>, whose
 tests run the same packages
-(<a href="/docs/adr/0062-the-gate-is-guarded-at-its-entry-points-and-fuzzed-at-night">ADR-0062</a>).</li>
-<li><code>make test</code> and <code>make test-race</code> fail on a skipped test that
+(<a href="/docs/adr/0062-the-gate-is-guarded-at-its-entry-points-and-fuzzed-at-night">ADR-0062</a>).</p>
+</li>
+<li>
+<p><code>make test</code> and <code>make test-race</code> fail on a skipped test that
 <code>scripts/expected-skips.txt</code> does not name, or one whose skip message does
 not say what the list says; the sixteen tests that skip on Linux or macOS
 are named there
-(<a href="/docs/adr/0063-a-skipped-test-fails-the-gate-unless-the-repository-expects-it">ADR-0063</a>).</li>
-<li><code>make lint</code> lints the generator programs under <code>scripts/</code> too, one at a
-time, which no lint read before.</li>
+(<a href="/docs/adr/0063-a-skipped-test-fails-the-gate-unless-the-repository-expects-it">ADR-0063</a>).</p>
+</li>
+<li>
+<p><code>make lint</code> lints the generator programs under <code>scripts/</code> too, one at a
+time, which no lint read before.</p>
+</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
