@@ -75,9 +75,9 @@ func (a *rosterAuthenticator) Status() Status {
 // Authenticate checks, in this order, the first that fails answered: the act
 // is known; the payload type is the act's; there is one signature; the body
 // is at most MaxStatementBytes; the roster answers in time; it names the key
-// the keyid selects, for the operator role; the signature verifies under that
-// key's algorithm over the act's payload type; the body is a canonical JSON
-// object whose alg and keyId are the key's.
+// the keyid selects, under that id, for the operator role; the signature
+// verifies under that key's algorithm over the act's payload type; the body is
+// a canonical JSON object whose alg and keyId are the key's.
 func (a *rosterAuthenticator) Authenticate(ctx context.Context, act Act, env Envelope) Authentication {
 	out := a.authenticate(ctx, act, env)
 	a.count(out.cause)
@@ -85,16 +85,9 @@ func (a *rosterAuthenticator) Authenticate(ctx context.Context, act Act, env Env
 }
 
 func (a *rosterAuthenticator) authenticate(ctx context.Context, act Act, env Envelope) Authentication {
-	rule, ok := acts[act]
-	switch {
-	case !ok:
-		return authRefused(CauseAct)
-	case env.PayloadType != rule.payloadType:
-		return authRefused(CausePayloadType)
-	case len(env.Signatures) != 1:
-		return authRefused(CauseSignatures)
-	case len(env.Payload) > MaxStatementBytes:
-		return authRefused(CauseTooLarge)
+	rule, cause := shapeOf(act, env)
+	if cause != CauseNone {
+		return authRefused(cause)
 	}
 	sig := env.Signatures[0]
 	if sig.KeyID == "" {
@@ -112,7 +105,10 @@ func (a *rosterAuthenticator) authenticate(ctx context.Context, act Act, env Env
 		return authUnavailable(CauseRosterUnavailable)
 	}
 	key := answer.Key()
-	if key.Role() != trust.RoleOperator {
+	switch {
+	case key.ID() != sig.KeyID:
+		return authRefused(CauseKeyID)
+	case key.Role() != trust.RoleOperator:
 		return authRefused(CauseRole)
 	}
 	body := bytes.Clone(env.Payload)
@@ -123,6 +119,23 @@ func (a *rosterAuthenticator) authenticate(ctx context.Context, act Act, env Env
 		return authRefused(cause)
 	}
 	return Authentication{state: AuthAuthenticated, act: act, issuer: issuerPrefix + key.RosterID(), key: key, body: body}
+}
+
+// shapeOf refuses an act this build lacks, and an envelope of another payload
+// type, of any number of signatures but one, or over MaxStatementBytes.
+func shapeOf(act Act, env Envelope) (actRule, Cause) {
+	rule, ok := acts[act]
+	switch {
+	case !ok:
+		return actRule{}, CauseAct
+	case env.PayloadType != rule.payloadType:
+		return actRule{}, CausePayloadType
+	case len(env.Signatures) != 1:
+		return actRule{}, CauseSignatures
+	case len(env.Payload) > MaxStatementBytes:
+		return actRule{}, CauseTooLarge
+	}
+	return rule, CauseNone
 }
 
 // signerOf refuses a body that is not a canonical JSON object, and one whose

@@ -2,6 +2,7 @@ package operators_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -159,8 +160,9 @@ func TestEveryAuthorizerKindPassesTheConformanceCases(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				ctx := t.Context()
 				if c.Veto != "" {
-					z = withCaseVeto(t, z, c)
+					z, ctx = withCaseVeto(t, z, c)
 				}
 				if c.Revoke != "" {
 					var keep []any
@@ -171,7 +173,7 @@ func TestEveryAuthorizerKindPassesTheConformanceCases(t *testing.T) {
 					}
 					w.write(t, 2, keep)
 				}
-				got := z.Authorize(t.Context(), who, approve(c.Tenant, c.Project))
+				got := z.Authorize(ctx, who, approve(c.Tenant, c.Project))
 				want, ok := states[c.State]
 				if !ok || got.State() != want || string(got.Cause()) != c.Cause || got.Grant().Level != levels[c.Level] {
 					t.Errorf("= state %d cause %q level %s, want %s %q %q", got.State(), got.Cause(), got.Grant().Level, c.State, c.Cause, c.Level)
@@ -181,9 +183,12 @@ func TestEveryAuthorizerKindPassesTheConformanceCases(t *testing.T) {
 	}
 }
 
-func withCaseVeto(t *testing.T, z operators.Authorizer, c authzCase) operators.Authorizer {
+// withCaseVeto puts the case's veto after z, and returns the context the
+// case authorizes under: one the veto cancels when the case says so.
+func withCaseVeto(t *testing.T, z operators.Authorizer, c authzCase) (operators.Authorizer, context.Context) {
 	t.Helper()
 	v := &fakeVeto{}
+	ctx := t.Context()
 	switch c.Veto {
 	case "none":
 		v.answer = operators.NoObjection()
@@ -193,6 +198,13 @@ func withCaseVeto(t *testing.T, z operators.Authorizer, c authzCase) operators.A
 	case "silent":
 		v.release = make(chan struct{})
 		t.Cleanup(func() { close(v.release) })
+	case "cancels":
+		v.answer = operators.Objects()
+		v.release = make(chan struct{})
+		t.Cleanup(func() { close(v.release) })
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		v.cancel = cancel
 	default:
 		t.Fatalf("veto %q", c.Veto)
 	}
@@ -204,5 +216,5 @@ func withCaseVeto(t *testing.T, z operators.Authorizer, c authzCase) operators.A
 	if err != nil {
 		t.Fatal(err)
 	}
-	return out
+	return out, ctx
 }

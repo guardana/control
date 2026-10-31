@@ -1,7 +1,7 @@
 {
   "port": "trust-roster",
   "format": "0.1",
-  "about": "Each case starts from an authority floor listing roster-a, no roster file, and the clock at 2026-10-30T12:00:00Z. A write is signed by the root as a trust-roster/v1alpha1 roster of roster-a issued 2026-10-30T00:00:00Z and expiring a day later unless it names otherwise; keys are named, never spelled, and each runner derives them. A case marked control is the negative control of its rule.",
+  "about": "Each case starts from a port configured to take roster-a, an authority floor listing roster-a, no roster file, and the clock at 2026-10-30T12:00:00Z. A write is signed by the root as a trust-roster/v1alpha1 roster of roster-a issued 2026-10-30T00:00:00Z and expiring a day later unless it names otherwise; keys are named, never spelled, and each runner derives them. A case marked control is the negative control of its rule.",
   "cases": [
     {"rule": "signed-by-root", "case": "a roster the root signed names its keys", "steps": [
       {"write": {"serial": 1, "keys": ["alice"]}},
@@ -62,6 +62,9 @@
       {"lookup": "alice", "state": "key"},
       {"write": {"serial": 2, "keys": ["alice", "bob"], "rosterId": "roster-b"}},
       {"lookup": "bob", "state": "unknown_key", "cause": "unknown_key"}]},
+    {"rule": "one-roster", "case": "a first roster of another id", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"], "rosterId": "roster-b"}},
+      {"lookup": "alice", "state": "unavailable", "cause": "other_roster"}]},
     {"rule": "keep-until-expiry", "case": "the last verified roster answers after its file is damaged", "steps": [
       {"write": {"serial": 1, "keys": ["alice"]}},
       {"lookup": "alice", "state": "key"},

@@ -91,7 +91,7 @@ func newWorld(t testing.TB, keys []any) *world {
 	}
 	w.write(t, 1, keys)
 	now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
-	r, err := trust.Open(t.Context(), trust.Config{Root: public("root"), Path: w.path, FloorDir: floor, Clock: func() time.Time { return now }})
+	r, err := trust.Open(t.Context(), trust.Config{Root: public("root"), RosterID: "roster-a", Path: w.path, FloorDir: floor, Clock: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}

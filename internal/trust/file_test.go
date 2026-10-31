@@ -60,13 +60,23 @@ func TestTheFileKindKeepsTheLastRosterUntilItExpires(t *testing.T) {
 	wantKey(t, "a second before the expiry", r.lookup(t, "alice"), "alice")
 	r.now = clockAt(t, expires)
 	wantNoKey(t, "at the expiry", r.lookup(t, "alice"), trust.StateUnavailable, trust.CauseExpired)
-	if s := r.roster.Status(t.Context()); s.Health != trust.HealthUnavailable {
-		t.Errorf("Status at the expiry = %+v, want unavailable", s)
+	if s := r.roster.Status(t.Context()); s.Health != trust.HealthUnavailable || s.Last != trust.CauseExpired {
+		t.Errorf("Status at the expiry = %+v, want unavailable with roster_expired last", s)
 	}
 	next := doc(2, "alice")
 	next["issuedAt"], next["expiresAt"] = "2026-10-31T00:00:00Z", "2026-11-01T00:00:00Z"
 	writeRoster(t, r.path, signed(t, next))
 	wantKey(t, "after a newer roster arrives", r.lookup(t, "alice"), "alice")
+}
+
+func TestStatusNamesTheExpiryOfAnUnchangedRoster(t *testing.T) {
+	r := newRig(t, signed(t, doc(1, "alice")))
+	wantKey(t, "before the expiry", r.lookup(t, "alice"), "alice")
+	r.now = clockAt(t, expires)
+	wantNoKey(t, "at the expiry", r.lookup(t, "alice"), trust.StateUnavailable, trust.CauseExpired)
+	if s := r.roster.Status(t.Context()); s.Last != trust.CauseExpired || s.Counts[trust.CauseExpired] != 1 {
+		t.Errorf("Status at the expiry of an unchanged file = last %q counts %v, want roster_expired once", s.Last, s.Counts)
+	}
 }
 
 func TestTheFileKindNeverTakesALowerOrForkedRoster(t *testing.T) {
@@ -130,7 +140,7 @@ func TestAFirstRosterBelowTheFloorIsNeverTaken(t *testing.T) {
 	for _, c := range cases {
 		path := filepath.Join(dir, "roster.json")
 		writeRoster(t, path, signed(t, doc(c.serial, "alice")))
-		roster, err := trust.Open(t.Context(), trust.Config{Root: public("root"), Path: path, FloorDir: floor, Clock: func() time.Time { return clockAt(t, "2026-10-30T12:00:00Z") }})
+		roster, err := trust.Open(t.Context(), trust.Config{Root: public("root"), RosterID: "roster-a", Path: path, FloorDir: floor, Clock: func() time.Time { return clockAt(t, "2026-10-30T12:00:00Z") }})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -175,6 +185,40 @@ func TestTheFileKindRefusesWhatItMayNotTake(t *testing.T) {
 	wantNoKey(t, "the control, a roster dated at the clock, revokes bob", r.lookup(t, "bob"), trust.StateUnknownKey, trust.CauseUnknownKey)
 }
 
+// TestARestartNeverTakesARosterOfAnotherID: the floor directory lists two
+// roster ids, and an old roster of the other one, which still names a key
+// the configured roster revoked, is put back before a restart.
+func TestARestartNeverTakesARosterOfAnotherID(t *testing.T) {
+	dir := t.TempDir()
+	path, floor := filepath.Join(dir, "roster.json"), filepath.Join(dir, "floor")
+	for _, id := range []string{"roster-a", "roster-b"} {
+		if err := policystate.InitAuthority(t.Context(), floor, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := clockAt(t, "2026-10-30T12:00:00Z")
+	open := func() trust.Roster {
+		r, err := trust.Open(t.Context(), trust.Config{Root: public("root"), RosterID: "roster-a", Path: path, FloorDir: floor, Clock: func() time.Time { return now }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	b := doc(1, "alice", "mallory")
+	b["rosterId"] = "roster-b"
+	writeRoster(t, path, signed(t, b))
+	wantNoKey(t, "roster-b before any roster-a", open().Lookup(t.Context(), idOf("mallory")), trust.StateUnavailable, trust.CauseOtherRoster)
+	writeRoster(t, path, signed(t, doc(5, "alice")))
+	r := open()
+	wantNoKey(t, "mallory under roster-a", r.Lookup(t.Context(), idOf("mallory")), trust.StateUnknownKey, trust.CauseUnknownKey)
+	writeRoster(t, path, signed(t, b))
+	wantNoKey(t, "mallory while roster-b is put back", r.Lookup(t.Context(), idOf("mallory")), trust.StateUnknownKey, trust.CauseUnknownKey)
+	wantNoKey(t, "mallory after a restart", open().Lookup(t.Context(), idOf("mallory")), trust.StateUnavailable, trust.CauseOtherRoster)
+	if f, err := policystate.ReadAuthority(floor, "roster-b"); err != nil || f.HasSerial() {
+		t.Errorf("roster-b's floor = %+v, %v; want it never raised", f, err)
+	}
+}
+
 func TestTheFileKindRefusesARosterNamingAnotherAuthoritysKey(t *testing.T) {
 	route := public("route")
 	r := newRig(t, signed(t, doc(1, "alice", "route")), public("policy"), route)
@@ -185,7 +229,7 @@ func TestTheFileKindRefusesARosterNamingAnotherAuthoritysKey(t *testing.T) {
 
 func TestOpenChecksItsConfigurationOnce(t *testing.T) {
 	clock := func() time.Time { return time.Time{} }
-	base := trust.Config{Root: public("root"), Path: "roster.json", FloorDir: "floor", Clock: clock}
+	base := trust.Config{Root: public("root"), RosterID: "roster-a", Path: "roster.json", FloorDir: "floor", Clock: clock}
 	if _, err := trust.Open(t.Context(), base); err != nil {
 		t.Fatalf("the control: %v", err)
 	}
@@ -195,6 +239,8 @@ func TestOpenChecksItsConfigurationOnce(t *testing.T) {
 		want   error
 	}{
 		{"an unknown kind", func(c *trust.Config) { c.Kind = "api" }, trust.ErrUnknownKind},
+		{"no roster id", func(c *trust.Config) { c.RosterID = "" }, trust.ErrConfig},
+		{"a roster id no roster may carry", func(c *trust.Config) { c.RosterID = "Roster-A" }, trust.ErrConfig},
 		{"no roster file", func(c *trust.Config) { c.Path = "" }, trust.ErrConfig},
 		{"no floor directory", func(c *trust.Config) { c.FloorDir = "" }, trust.ErrConfig},
 		{"no clock", func(c *trust.Config) { c.Clock = nil }, trust.ErrConfig},
@@ -220,7 +266,7 @@ func TestALookupAfterItsContextEndedNamesNoKey(t *testing.T) {
 func TestAPortThatNeverTookARosterIsUnavailable(t *testing.T) {
 	dir := t.TempDir()
 	roster, err := trust.Open(t.Context(), trust.Config{
-		Root: public("root"), Path: filepath.Join(dir, "absent.json"), FloorDir: filepath.Join(dir, "floor"),
+		Root: public("root"), RosterID: "roster-a", Path: filepath.Join(dir, "absent.json"), FloorDir: filepath.Join(dir, "floor"),
 		Clock: func() time.Time { return clockAt(t, "2026-10-30T12:00:00Z") },
 	})
 	if err != nil {

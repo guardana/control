@@ -104,6 +104,27 @@ func TestOnlyTheRostersKeyUnderItsOwnIDSignsAnAnswer(t *testing.T) {
 	wantAuth(t, "an act this build lacks", a.Authenticate(t.Context(), "pause", answer(t, "alice")), operators.AuthRefused, operators.CauseAct)
 }
 
+// swappingRoster answers every lookup with the key it names instead, as a
+// roster port in error would.
+type swappingRoster struct {
+	trust.Roster
+	instead string
+}
+
+func (s swappingRoster) Lookup(ctx context.Context, _ string) trust.Answer {
+	return s.Roster.Lookup(ctx, s.instead)
+}
+
+func TestAKeyAnsweredUnderAnotherIDIsRefused(t *testing.T) {
+	w := newWorld(t, standard())
+	a := authenticator(t, swappingRoster{Roster: w.roster, instead: idOf("bob")}, operators.Bounds{})
+	body := answerWith(t, "bob", map[string]any{"alg": "ed25519", "keyId": idOf("bob")}).Payload
+	env := sign(t, operators.AnswerPayloadType, body, "bob", idOf("alice"))
+	wantAuth(t, "bob's key answered for alice's id", a.Authenticate(t.Context(), operators.ActApprove, env), operators.AuthRefused, operators.CauseKeyID)
+	control := sign(t, operators.AnswerPayloadType, body, "bob", idOf("bob"))
+	wantAuth(t, "the control, bob's key under bob's id", a.Authenticate(t.Context(), operators.ActApprove, control), operators.AuthAuthenticated, operators.CauseNone)
+}
+
 func TestAStatementBodyIsBounded(t *testing.T) {
 	w := newWorld(t, standard())
 	a := authenticator(t, w.roster, operators.Bounds{})

@@ -37,6 +37,10 @@ type Config struct {
 	Kind Kind
 	// Root is the pinned root key every roster is signed under.
 	Root ed25519.PublicKey
+	// RosterID is the one roster id the port takes. A roster of any other id
+	// is refused, at start as while running, whatever floors the floor
+	// directory lists.
+	RosterID string
 	// Path is the roster file the file kind reads.
 	Path string
 	// FloorDir is the authority floor directory that lists the roster's id.
@@ -51,7 +55,8 @@ type Config struct {
 
 // Open checks c once and starts the roster port of its kind. It refuses an
 // unknown kind with ErrUnknownKind, a root CheckRoot refuses, and a
-// configuration missing a path, a floor directory or a clock with ErrConfig.
+// configuration missing a roster id a roster may carry, a path, a floor
+// directory or a clock with ErrConfig.
 // A roster that cannot be taken yet does not refuse the start: every lookup
 // answers unavailable until one is, and Status says why.
 func Open(ctx context.Context, c Config) (Roster, error) {
@@ -63,6 +68,8 @@ func Open(ctx context.Context, c Config) (Roster, error) {
 		return nil, err
 	}
 	switch {
+	case !nameRule(c.RosterID, MaxRosterIDBytes, false):
+		return nil, fmt.Errorf("%w: no roster id a roster may carry", ErrConfig)
 	case c.Path == "":
 		return nil, fmt.Errorf("%w: no roster file", ErrConfig)
 	case c.FloorDir == "":
@@ -72,6 +79,7 @@ func Open(ctx context.Context, c Config) (Roster, error) {
 	}
 	f := &fileRoster{
 		kind:     kind,
+		rosterID: c.RosterID,
 		root:     slices.Clone(c.Root),
 		path:     filepath.Clean(c.Path),
 		floorDir: c.FloorDir,
@@ -96,11 +104,12 @@ func cloneKeys(keys []ed25519.PublicKey) []ed25519.PublicKey {
 
 // fileRoster is the file kind. One lookup runs at a time; each reads the
 // file again and takes a roster only when it verifies, is usable at the
-// clock, names the id held, and its serial is at least the held one's and
-// the floor's. A roster it cannot take leaves the one held, which answers
-// until its own expiry.
+// clock, names the configured roster id, and its serial is at least the
+// held one's and the floor's. A roster it cannot take leaves the one held,
+// which answers until its own expiry.
 type fileRoster struct {
 	kind     Kind
+	rosterID string
 	root     ed25519.PublicKey
 	path     string
 	floorDir string
@@ -134,7 +143,7 @@ func (f *fileRoster) Lookup(ctx context.Context, keyID string) Answer {
 		if errors.Is(err, ErrFuture) {
 			cause = CauseFuture
 		}
-		f.counts[cause]++
+		f.note(cause)
 		return Unavailable(cause)
 	}
 	k, ok := f.held.key(keyID)
@@ -181,8 +190,10 @@ func (f *fileRoster) refresh(ctx context.Context, now time.Time) Cause {
 	return CauseNone
 }
 
-// candidate verifies raw as a roster usable at now that names none of the
-// keys the plane pins for another authority.
+// candidate verifies raw as a roster of the configured id, usable at now,
+// that names none of the keys the plane pins for another authority. The id
+// is judged before the floor, so a floor directory listing several ids never
+// lets a restart take another one.
 func (f *fileRoster) candidate(raw []byte, now time.Time) (Document, Cause) {
 	env, err := ParseFile(raw)
 	if err != nil {
@@ -195,6 +206,9 @@ func (f *fileRoster) candidate(raw []byte, now time.Time) (Document, Cause) {
 	if err != nil {
 		return Document{}, CauseRefused
 	}
+	if d.id != f.rosterID {
+		return Document{}, CauseOtherRoster
+	}
 	if err := d.UsableAt(now); err != nil {
 		if errors.Is(err, ErrFuture) {
 			return Document{}, CauseFuture
@@ -204,16 +218,14 @@ func (f *fileRoster) candidate(raw []byte, now time.Time) (Document, Cause) {
 	return d, CauseNone
 }
 
-// againstHeld refuses a roster that would replace the one held with another
-// id, a lower serial, or the same serial and another digest. The floor
-// refuses the same, but a floor lowered behind the plane's back does not
-// lower what the plane holds.
+// againstHeld refuses a roster that would replace the one held with a lower
+// serial, or the same serial and another digest. The floor refuses the same,
+// but a floor lowered behind the plane's back does not lower what the plane
+// holds.
 func (f *fileRoster) againstHeld(d Document) Cause {
 	switch {
 	case f.held == nil:
 		return CauseNone
-	case d.id != f.held.id:
-		return CauseOtherRoster
 	case d.serial < f.held.serial:
 		return CauseBelowFloor
 	case d.serial == f.held.serial && d.digest != f.held.digest:

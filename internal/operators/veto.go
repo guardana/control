@@ -58,8 +58,8 @@ type OnUnavailable uint8
 const (
 	// VetoBlocks makes the answer unavailable, which blocks the act.
 	VetoBlocks OnUnavailable = iota
-	// RosterOnly keeps the roster's permission. It is the named risk setting
-	// a plane chooses explicitly.
+	// RosterOnly keeps the roster's permission when the veto gave no answer
+	// in time. It is the named risk setting a plane chooses explicitly.
 	RosterOnly
 )
 
@@ -78,8 +78,10 @@ func ParseOnUnavailable(s string) (OnUnavailable, error) {
 
 // WithVeto is first, then veto: veto is asked only about what first
 // permits, within bounds, and only an answer of no objection leaves that
-// permission standing. An objection denies, and no answer in time is
-// unavailable unless on is RosterOnly.
+// permission standing. An objection denies. No answer in time, late or for
+// want of a slot, is unavailable unless on is RosterOnly; an answer this
+// build cannot read, and a caller that gave up, are unavailable whatever on
+// says.
 func WithVeto(first Authorizer, veto Veto, on OnUnavailable, bounds Bounds) (Authorizer, error) {
 	if first == nil || veto == nil {
 		return nil, fmt.Errorf("%w: a veto needs an authorizer before it and a decision point", ErrConfig)
@@ -124,10 +126,10 @@ func (v *vetoed) authorize(ctx context.Context, who Authentication, req Request)
 		return p
 	case cause == CauseNone && o.State() == ObjObjects:
 		return permDenied(CauseVeto)
-	case v.on == RosterOnly:
+	case cause == CauseNone:
+		return permUnavailable(CauseVetoUnavailable)
+	case v.on == RosterOnly && (cause == CauseLate || cause == CauseBusy):
 		return p
-	case cause != CauseNone:
-		return permUnavailable(cause)
 	}
-	return permUnavailable(CauseVetoUnavailable)
+	return permUnavailable(cause)
 }

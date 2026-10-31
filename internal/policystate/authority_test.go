@@ -110,6 +110,7 @@ func TestRaiseAuthorityTakesOnlyAHigherSerialOrTheSameRoster(t *testing.T) {
 		{"a lower serial", 4, d3, policystate.ErrAuthorityBelowFloor},
 		{"the floor's serial with another digest", 5, d6, policystate.ErrAuthorityForked},
 		{"serial 0", 0, d5, policystate.ErrAuthorityInvalid},
+		{"serial 0 and no digest", 0, "", policystate.ErrAuthorityInvalid},
 		{"a serial past the JSON-safe range", 9007199254740992, d5, policystate.ErrAuthorityInvalid},
 		{"a digest no roster has", 6, "sha256:5", policystate.ErrAuthorityInvalid},
 	}

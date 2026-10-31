@@ -12,6 +12,9 @@ Amends [ADR-0009](0009-open-core-boundary.md),
 [ADR-0026](0026-first-value-and-external-extension-paths.md) and
 [ADR-0039](0039-many-channels-into-one-core.md).
 
+Amended by [ADR-0071](0071-operators-are-named-by-a-signed-roster.md): a port
+whose answer is sealed is declared by the package that mints the answer.
+
 ## Context
 
 Control is a framework: each part offers a proposed option and can be

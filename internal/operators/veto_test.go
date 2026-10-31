@@ -11,11 +11,14 @@ import (
 	"github.com/guardana/control/internal/operators"
 )
 
-// fakeVeto answers answer, after release is closed when it is not nil, and
-// counts how often it was asked.
+// fakeVeto answers answer, after release is closed when it is not nil,
+// ignoring the context when deaf, and counts how often it was asked. With
+// cancel set it first cancels its caller's context.
 type fakeVeto struct {
 	answer  operators.Objection
 	release chan struct{}
+	deaf    bool
+	cancel  context.CancelFunc
 	asked   atomic.Int32
 	mu      sync.Mutex
 	last    operators.Review
@@ -32,7 +35,13 @@ func (f *fakeVeto) Review(ctx context.Context, r operators.Review) operators.Obj
 	f.last = r
 	f.mu.Unlock()
 	f.asked.Add(1)
-	if f.release != nil {
+	if f.cancel != nil {
+		f.cancel()
+	}
+	switch {
+	case f.release != nil && f.deaf:
+		<-f.release
+	case f.release != nil:
 		select {
 		case <-f.release:
 		case <-ctx.Done():
@@ -65,7 +74,7 @@ func TestAVetoCanOnlyTakeAPermissionAway(t *testing.T) {
 		{"an objection under roster_only", &fakeVeto{answer: operators.Objects()}, operators.RosterOnly, operators.PermDenied, operators.CauseVeto},
 		{"the zero objection", &fakeVeto{}, operators.VetoBlocks, operators.PermUnavailable, operators.CauseVetoUnavailable},
 		{"a late answer", &fakeVeto{answer: operators.NoObjection(), release: make(chan struct{})}, operators.VetoBlocks, operators.PermUnavailable, operators.CauseLate},
-		{"the zero objection under roster_only", &fakeVeto{}, operators.RosterOnly, operators.PermPermitted, operators.CauseNone},
+		{"the zero objection under roster_only", &fakeVeto{}, operators.RosterOnly, operators.PermUnavailable, operators.CauseVetoUnavailable},
 		{"a late answer under roster_only", &fakeVeto{answer: operators.Objects(), release: make(chan struct{})}, operators.RosterOnly, operators.PermPermitted, operators.CauseNone},
 	}
 	for _, c := range cases {
@@ -84,6 +93,33 @@ func TestAVetoCanOnlyTakeAPermissionAway(t *testing.T) {
 		if v.asked.Load() != 0 {
 			t.Errorf("the veto was asked about what the roster denied")
 		}
+	}
+}
+
+// TestRosterOnlyKeepsAPermissionOnlyWhenTheVetoGaveNoAnswerInTime: a veto
+// with every slot taken keeps it, a caller that gave up does not.
+func TestRosterOnlyKeepsAPermissionOnlyWhenTheVetoGaveNoAnswerInTime(t *testing.T) {
+	w := newWorld(t, standard())
+	alice := authenticated(t, w, "alice")
+	for _, on := range []operators.OnUnavailable{operators.VetoBlocks, operators.RosterOnly} {
+		stuck := &fakeVeto{answer: operators.Objects(), release: make(chan struct{}), deaf: true}
+		z, err := operators.WithVeto(authorizer(t, w.roster, operators.Bounds{}), stuck, on, operators.Bounds{Timeout: 20 * time.Millisecond, InFlight: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = z.Authorize(t.Context(), alice, approve("t1", "A"))
+		busy := z.Authorize(t.Context(), alice, approve("t1", "A"))
+		close(stuck.release)
+		if on == operators.RosterOnly {
+			wantPerm(t, "a busy veto under roster_only", busy, operators.PermPermitted, operators.CauseNone)
+		} else {
+			wantPerm(t, "a busy veto under block", busy, operators.PermUnavailable, operators.CauseBusy)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		gives := &fakeVeto{answer: operators.Objects(), release: make(chan struct{}), cancel: cancel}
+		defer close(gives.release)
+		got := vetoed(t, w, gives, on).Authorize(ctx, alice, approve("t1", "A"))
+		wantPerm(t, "a caller that gave up while the veto was asked", got, operators.PermUnavailable, operators.CauseCanceled)
 	}
 }
 

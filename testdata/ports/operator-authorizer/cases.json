@@ -1,7 +1,7 @@
 {
   "port": "operator-authorizer",
   "format": "0.1",
-  "about": "Each case authorizes an approval by who, authenticated against a roster of roster-a in which alice operates t1/A, bob operates t1/B and reads t1/A, and carol administers t1/A. When revoke is set, the roster is replaced after the authentication by one at serial 2 without that operator. When veto is set, a decision point answering none, objects, zero or silent follows the authorizer, under on_unavailable. A case marked control is the negative control of its rule.",
+  "about": "Each case authorizes an approval by who, authenticated against a roster of roster-a in which alice operates t1/A, bob operates t1/B and reads t1/A, and carol administers t1/A. When revoke is set, the roster is replaced after the authentication by one at serial 2 without that operator. When veto is set, a decision point answering none, objects, zero or silent, or cancelling the caller and then waiting (cancels), follows the authorizer, under on_unavailable. A case marked control is the negative control of its rule.",
   "cases": [
     {"rule": "grant-scope", "case": "alice on her project", "who": "alice", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"},
     {"rule": "grant-scope", "case": "alice on another project", "control": true, "who": "alice", "tenant": "t1", "project": "B", "state": "denied", "cause": "no_grant"},
@@ -18,6 +18,9 @@
     {"rule": "veto-fails-closed", "case": "a veto that answers, under block", "who": "alice", "veto": "none", "on_unavailable": "block", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"},
     {"rule": "veto-fails-closed", "case": "the zero answer, under block", "control": true, "who": "alice", "veto": "zero", "on_unavailable": "block", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "veto_unavailable"},
     {"rule": "veto-fails-closed", "case": "a veto that never answers, under block", "control": true, "who": "alice", "veto": "silent", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "late"},
-    {"rule": "veto-fails-closed", "case": "a veto that never answers, under roster_only", "who": "alice", "veto": "silent", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"}
+    {"rule": "veto-fails-closed", "case": "a veto that never answers, under roster_only", "who": "alice", "veto": "silent", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"},
+    {"rule": "roster-only-is-no-answer-in-time", "case": "a veto that never answers", "who": "alice", "veto": "silent", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"},
+    {"rule": "roster-only-is-no-answer-in-time", "case": "an answer in time this build cannot read", "control": true, "who": "alice", "veto": "zero", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "veto_unavailable"},
+    {"rule": "roster-only-is-no-answer-in-time", "case": "a caller that gave up while the veto was asked", "control": true, "who": "alice", "veto": "cancels", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "canceled"}
   ]
 }

@@ -85,8 +85,39 @@ func TestRosterSignWritesARosterThePortVerifies(t *testing.T) {
 	if info, err := os.Stat(tr.out); err != nil || info.Mode().Perm() != 0o644 {
 		t.Errorf("the roster is written with %v: %v", info.Mode(), err)
 	}
+}
+
+// TestRosterSignNeedsAHigherSerialThanTheRosterItReplaces: signing one
+// source again would give a second roster at its serial, which every plane
+// refuses as a fork.
+func TestRosterSignNeedsAHigherSerialThanTheRosterItReplaces(t *testing.T) {
+	tr := newRosterTree(t)
+	now := time.Date(2026, 10, 30, 9, 0, 0, 0, time.UTC)
+	if code, _, stderr := rosterSignAt(t, tr, trust.DefaultLifetime, now); code != exitOK {
+		t.Fatalf("the first signing answered %d: %q", code, stderr)
+	}
+	operator := seeded(0x61).Public().(ed25519.PublicKey)
+	for _, serial := range []string{"3", "2"} {
+		writeFixture(t, tr.source, strings.Replace(rosterSource(operator), `"serial":3`, `"serial":`+serial, 1))
+		before := readFile(t, tr.out)
+		code, stdout, stderr := rosterSignAt(t, tr, trust.DefaultLifetime, now.Add(time.Hour))
+		want := "it holds roster roster-a at serial 3, and each signing needs a higher serial than that, not " + serial
+		if code != exitFail || stdout != "" || !strings.Contains(stderr, want) {
+			t.Errorf("signing serial %s over serial 3 answered %d %q %q", serial, code, stdout, stderr)
+		}
+		if readFile(t, tr.out) != before {
+			t.Errorf("signing serial %s over serial 3 changed the roster", serial)
+		}
+	}
+	writeFixture(t, tr.source, strings.Replace(rosterSource(operator), `"serial":3`, `"serial":4`, 1))
+	code, stdout, stderr := rosterSignAt(t, tr, trust.DefaultLifetime, now.Add(time.Hour))
+	if code != exitOK || !strings.Contains(stdout, "serial: 4\n") {
+		t.Errorf("signing serial 4 over serial 3 answered %d %q %q", code, stdout, stderr)
+	}
+	other := strings.Replace(strings.Replace(rosterSource(operator), `"serial":3`, `"serial":1`, 1), "roster-a", "roster-b", 1)
+	writeFixture(t, tr.source, other)
 	if code, _, stderr := rosterSignAt(t, tr, trust.DefaultLifetime, now.Add(time.Hour)); code != exitOK {
-		t.Errorf("signing over the roster written before answered %d: %q", code, stderr)
+		t.Errorf("signing another roster id over roster-a answered %d %q", code, stderr)
 	}
 }
 

@@ -112,7 +112,7 @@ func runRosterCase(t *testing.T, kind trust.Kind, c rosterCase) {
 		t.Fatal(err)
 	}
 	now := clockAt(t, "2026-10-30T12:00:00Z")
-	roster, err := trust.Open(t.Context(), trust.Config{Kind: kind, Root: public("root"), Path: path, FloorDir: floor, Clock: func() time.Time { return now }})
+	roster, err := trust.Open(t.Context(), trust.Config{Kind: kind, Root: public("root"), RosterID: "roster-a", Path: path, FloorDir: floor, Clock: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}

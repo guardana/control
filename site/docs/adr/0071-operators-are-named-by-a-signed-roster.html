@@ -114,8 +114,9 @@
 <h1 id="adr-0071-operators-are-named-by-a-signed-roster-and-authorized-by-its-grants">ADR-0071: Operators are named by a signed roster, and authorized by its grants</h1>
 <p>Status: proposed
 Date: 2026-10-30</p>
-<p>Builds on <a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>, which
-makes trust, operator authentication and operator authorization ports, on
+<p>Amends <a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a> property 1
+for a port whose answer is sealed. Builds on ADR-0066, which makes trust,
+operator authentication and operator authorization ports, on
 <a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a> and
 <a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a> for the
 serial floor, and on
@@ -139,19 +140,27 @@ to 32 <code>grants</code> of <code>tenant</code>, <code>project</code> and <code
 named twice; none is the root, nor a key the plane pins for policy,
 freshness, routes or lifts; the root is none of those either. The lifetime is
 at most 7 days; <code>operators roster sign</code> signs for 24 hours unless told
-otherwise. A roster dated after the clock, expired, of another id than the
-one held, below the serial held, or at it with another digest, is not taken.
-Each taken roster raises a floor of the new <code>authority</code> kind in
-<code>internal/policystate</code>, so a restart never takes a lower one. The plane keeps
-the last roster it verified until its own expiry, then answers unavailable.
-Any other role or algorithm is refused until a change adds its consumer.</p>
+otherwise. Each signing needs a higher serial than the last: a second roster
+at one serial is a fork every plane refuses, and the command refuses to
+replace a roster of the same id at that serial or above. The port is
+configured with the one roster id it takes. A roster of another id, dated
+after the clock, expired, below the serial held, or at it with another
+digest, is not taken, at start as while running. Each taken roster raises a
+floor of the new <code>authority</code> kind in <code>internal/policystate</code>, so a restart
+never takes a lower one. The floor directory keeps format <code>1.0</code> with a marker
+of its own, <code>authority.meta</code>: a build that predates the kind finds no marker
+it reads and a name it does not write, so it refuses the directory. The plane
+keeps the last roster it verified until its own expiry, then answers
+unavailable. Any other role or algorithm is refused until a change adds its
+consumer.</p>
 <p><strong>The operator authenticator port</strong> (<code>internal/operators.Authenticator</code>,
 kind <code>roster</code>, the default). An act has one payload type: approving or
 rejecting a hold is <code>application/vnd.agent-approval-answer+json</code>. A statement
 is one signature over a canonical JSON object of at most 16 KiB that names
 <code>alg</code> and <code>keyId</code>. The key is selected by the signature's key id from the
-roster, for role <code>operator</code>, and the signature is verified under the
-algorithm that key carries; then the body's <code>alg</code> and <code>keyId</code> must be that
+roster, which has to answer the key under that same id, for role
+<code>operator</code>, and the signature is verified under the algorithm that key
+carries; then the body's <code>alg</code> and <code>keyId</code> must be that
 key's. The answer is unavailable, refused or authenticated, never a <code>bool</code>,
 and an authenticated one names the issuer <code>roster/&lt;rosterId&gt;</code>, the subject
 and the key id. Only this package builds an authenticated answer.</p>
@@ -162,15 +171,25 @@ nothing, and permits an act over exactly one tenant's one project when a
 grant there is at the act's level or above (<code>approve</code> needs <code>operate</code>). An
 empty tenant or project is denied, never read as a wildcard. A veto may
 follow it: it is asked only about what the roster permitted, its answer can
-only be no objection or an objection, and no answer in time is unavailable
-unless <code>operators.authorizer.on_unavailable</code> is <code>roster_only</code>.</p>
+only be no objection or an objection, and no answer in time, late or for
+want of a slot, is unavailable unless <code>operators.authorizer.on_unavailable</code>
+is <code>roster_only</code>. An answer in time that this build cannot read, and a
+caller that gave up, are unavailable under either setting.</p>
 <p><strong>Bounds.</strong> Each call to another port runs under a timeout, 2 s unless set
 and at most 30 s, and at most 16 at once unless set, 256 at most; a call over
 either is unavailable, counted per cause.</p>
+<p><strong>Sealed answers.</strong> ADR-0066 property 1 has the consumer declare a port's
+interface. A port whose answer is sealed, so that only a verified signature
+mints a positive one, is declared instead by the package that mints the
+answer, and its kinds live beside it: <code>internal/trust</code> declares <code>Roster</code> and
+holds the <code>file</code> kind, <code>internal/operators</code> declares the authenticator and
+the authorizer and holds their <code>roster</code> kinds. A later kind of either,
+<code>api</code> or <code>authzen</code>, joins its package.</p>
 <p><strong>Conformance.</strong> <code>testdata/ports/trust-roster</code>, <code>operator-authenticator</code> and
 <code>operator-authorizer</code> hold one case file each, every rule with a negative
 control, and each kind's test runs them. <code>scripts/ports.txt</code> lists the three
-ports.</p>
+ports; its doctor column names the keys the approval authority's change adds
+to <code>doctor</code>, which does not report them yet.</p>
 <p>This change adds no reason code, no configuration key and no wire field. The
 plane does not read a roster yet: the approval authority's change wires
 these ports, builds the <code>authn:</code> approver id from an authenticated answer,
@@ -181,9 +200,13 @@ answer get payload types of their own, so no signature made for another
 signed file verifies as either. Selecting the algorithm by the key keeps a
 statement from choosing how it is checked. The roster's expiry bounds how
 long a revoked operator keeps authority while a newer roster is withheld,
-and the plane's account can withhold it for the file kind; the floor bounds
-how far back a restart can go, and write access to the floor directory can
-lower it, as for every floor.</p>
+and the plane's account can withhold it for the file kind.</p>
+<p>Under <code>approvals.authority: signed</code>, the start refuses a configuration, a
+trust root or an approvals directory the plane's own account can write, and
+not the authority floor: the plane raises that floor itself, so its account
+writes it. That account can therefore roll the roster back only to an older
+serial of the same roster id, within that roster's lifetime of at most 7
+days, and that is the whole limit.</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
 <ul>
 <li>One pinned key per operator in the configuration: no expiry, no grants,
@@ -198,20 +221,34 @@ for as long as the signer chose.</li>
 <h2 id="consequences">Consequences</h2>
 <p>An operator is added, revoked or regranted by signing a new roster, with no
 restart. The root key becomes the authority over every operator, and its
-signer must re-sign at least once a week. A second kind of each port needs
-its own cases to pass.</p>
+signer must re-sign, at a higher serial, at least once a week. A second kind
+of each port needs its own cases to pass.</p>
+<ul>
+<li>A grant's tenant and project are compared exactly, never by pattern, case
+or path; no later reader may widen them so.</li>
+<li>The caller passes every key it pins, policy, freshness, route and lift, in
+<code>Others</code>; the approval authority's change refuses an empty <code>Others</code> under
+<code>signed</code>.</li>
+<li><code>Open</code> runs its first lookup under the caller's context, which can wait on
+the floor's lock, so the approval authority's change bounds that context.</li>
+</ul>
 <h2 id="validation">Validation</h2>
 <ul>
 <li><code>internal/trust</code>: an envelope of every other payload type never verifies
 as a roster and a roster never as another file; a root equal to the
 policy, freshness, route or lift key is refused; a lower, forked, expired or
-future roster is refused; the last roster is kept until its expiry, then
-unavailable; the floor lowered by hand does not lower the roster held.</li>
+future roster is refused; a roster of another id is refused after a
+restart, though the floor directory lists it; the last roster is kept
+until its expiry, then unavailable; the floor lowered by hand does not lower
+the roster held.</li>
+<li><code>operators roster sign</code> refuses to replace a roster of the same id at the
+serial it signs or above.</li>
 <li><code>internal/operators</code>: a statement naming another algorithm or key, signed
 by another key, or of another payload type, is refused; two operators act
 only where their grants reach; an empty project is denied; a revoked key
 permits nothing; a veto only denies; an unavailable, late or zero answer
-from the roster or the veto blocks.</li>
+from the roster or the veto blocks, and under <code>roster_only</code> a zero answer
+in time or a cancelled caller still blocks.</li>
 <li>The three conformance files, each rule with a negative control.</li>
 </ul>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0071-operators-are-named-by-a-signed-roster.md">docs/adr/0071-operators-are-named-by-a-signed-roster.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.14.0, and <a href="https://github.com/guardana/control/tree/v0.14.0/docs">its documentation</a> is in its tag.</p>

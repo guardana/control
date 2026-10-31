@@ -118,7 +118,7 @@ func newRig(t testing.TB, first trust.Envelope, others ...ed25519.PublicKey) *ri
 	}
 	writeRoster(t, r.path, first)
 	roster, err := trust.Open(t.Context(), trust.Config{
-		Root: public("root"), Path: r.path, FloorDir: r.floor, Others: others,
+		Root: public("root"), RosterID: "roster-a", Path: r.path, FloorDir: r.floor, Others: others,
 		Clock: func() time.Time { return r.now },
 	})
 	if err != nil {

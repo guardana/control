@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,8 +29,8 @@ const (
 
 // operatorsAuthority is what the help and docs/reference/cli.md both say
 // about who names an operator.
-const operatorsAuthority = "The trust root names every operator key until its roster expires;\n" +
-	"write access to its floor directory lowers the floor."
+const operatorsAuthority = "The trust root names every operator key until its roster expires, and each signing\n" +
+	"needs a higher serial; write access to its floor directory lowers the floor."
 
 // rosterFileMode is the mode roster sign writes with: a signed roster is
 // public, as a signed route is.
@@ -44,7 +45,7 @@ func rosterSignFlags(command string, out io.Writer) (*flag.FlagSet, *rosterSignV
 	flags := commandFlags(command, out)
 	var v rosterSignValues
 	flags.StringVar(&v.key, "key", "", "the private key file keygen wrote for the trust root")
-	flags.StringVar(&v.out, "out", "", "the signed roster file to write, replacing only a signed roster")
+	flags.StringVar(&v.out, "out", "", "the roster file to write, replacing only a file holding a roster envelope, by its payload type, at a lower serial")
 	flags.DurationVar(&v.validFor, "valid-for", trust.DefaultLifetime, "how long the roster is trusted, at most 168h")
 	return flags, &v
 }
@@ -68,8 +69,10 @@ func rosterSignCommand(args []string, stdout, stderr io.Writer) int {
 }
 
 // rosterSign refuses in a fixed order and writes nothing on any refusal: the
-// source, the output path, the key, then the roster it signs, which it
-// verifies before it writes.
+// source, the output path, the key, the roster it signs, which it verifies
+// before it writes, and then a roster at --out of the same id at that serial
+// or above. Two rosters of one id and serial are a fork every plane refuses,
+// so each signing needs a higher serial.
 func rosterSign(v rosterSignValues, source string, now time.Time, stdout, stderr io.Writer) int {
 	if err := policykey.CheckPlatform(); err != nil {
 		return fail(stderr, rosterSignName, err)
@@ -79,7 +82,8 @@ func rosterSign(v rosterSignValues, source string, now time.Time, stdout, stderr
 		return fail(stderr, rosterSignName, fmt.Errorf("source %s: %w", source, err))
 	}
 	out := filepath.Clean(v.out)
-	if err := checkRosterOut(out); err != nil {
+	prev, err := checkRosterOut(out)
+	if err != nil {
 		return fail(stderr, rosterSignName, err)
 	}
 	key, err := policykey.ReadPrivate(v.key)
@@ -90,6 +94,9 @@ func rosterSign(v rosterSignValues, source string, now time.Time, stdout, stderr
 	env, d, err := trust.SignDocument(raw, now, v.validFor, key)
 	if err != nil {
 		return fail(stderr, rosterSignName, fmt.Errorf("source %s: %w", source, err))
+	}
+	if err := higherThan(prev, d, key); err != nil {
+		return fail(stderr, rosterSignName, fmt.Errorf("--out %s: %w", out, err))
 	}
 	body, err := trust.MarshalFile(env)
 	if err != nil {
@@ -113,34 +120,58 @@ func rosterSign(v rosterSignValues, source string, now time.Time, stdout, stderr
 }
 
 // checkRosterOut refuses an output path whose directory is missing, and one
-// that exists and is not a regular file holding a roster's envelope, so a
-// mistyped path never replaces a key or another signed file.
-func checkRosterOut(out string) error {
+// that exists and is not a regular file holding an envelope of the roster's
+// payload type, so a mistyped path never replaces a key or another signed
+// file. It returns the envelope it found, or nil when nothing stands at out;
+// it checks no signature.
+func checkRosterOut(out string) (*trust.Envelope, error) {
 	info, err := os.Lstat(out)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		if err := ondisk.CheckDir(filepath.Dir(out), 0); err != nil {
-			return fmt.Errorf("--out %s: %w", out, err)
+			return nil, fmt.Errorf("--out %s: %w", out, err)
 		}
-		return nil
+		return nil, nil
 	case err != nil:
-		return fmt.Errorf("--out %s: %w", out, err)
+		return nil, fmt.Errorf("--out %s: %w", out, err)
 	}
 	notARoster := fmt.Errorf("--out %s exists and is not a roster's envelope, and roster sign replaces nothing else", out)
 	if !info.Mode().IsRegular() {
-		return notARoster
+		return nil, notARoster
 	}
 	raw, err := ondisk.ReadRegular(out, trust.MaxFileBytes, 0)
 	if errors.Is(err, ondisk.ErrTooLarge) {
-		return notARoster
+		return nil, notARoster
 	}
 	if err != nil {
-		return fmt.Errorf("--out %s: %w", out, err)
+		return nil, fmt.Errorf("--out %s: %w", out, err)
 	}
-	if env, err := trust.ParseFile(raw); err != nil || env.PayloadType != trust.PayloadType {
-		return notARoster
+	env, err := trust.ParseFile(raw)
+	if err != nil || env.PayloadType != trust.PayloadType {
+		return nil, notARoster
 	}
-	return nil
+	return &env, nil
+}
+
+// higherThan refuses a roster whose serial is not above that of prev, the
+// roster --out holds, when prev verifies under the same root and names the
+// same roster id. An envelope that does not verify under this root is
+// another root's, or damaged, and no plane pinning this root reads it.
+func higherThan(prev *trust.Envelope, next trust.Document, root ed25519.PrivateKey) error {
+	if prev == nil {
+		return nil
+	}
+	held, verified := verifiedUnder(*prev, root.Public().(ed25519.PublicKey))
+	if !verified || held.ID() != next.ID() || held.Serial() < next.Serial() {
+		return nil
+	}
+	return fmt.Errorf("it holds roster %s at serial %d, and each signing needs a higher serial than that, not %d",
+		held.ID(), held.Serial(), next.Serial())
+}
+
+func verifiedUnder(env trust.Envelope, root ed25519.PublicKey) (trust.Document, bool) {
+	d, err := trust.VerifyDocument(env, root)
+	return d, err == nil
 }
 
 func floorInitFlags(command string, out io.Writer) (*flag.FlagSet, *string) {
