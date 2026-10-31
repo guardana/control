@@ -177,10 +177,11 @@ counted until the hold's own expiry, as an unexpired one already was; it
 used to close the held call <code>DENY</code> <code>APPROVAL_EXPIRED</code>. Either way nothing
 runs. A record refused for its approver id blocks only the request it
 names: a lookup lists it as unknown, beside every other record of its
-action, and hides it once it expires; a plane closing a lost hold resolves
-only the approval it minted. The memory store refuses a hold that is not a
-pending, unanswered approval with an approval id, a requested time and an
-expiry.</p>
+action, and hides it once it expires; a retry tries its held approval once,
+however many records name its request; a plane closing a lost hold
+resolves only the approval it minted. The memory store refuses a hold that
+is not a pending, unanswered approval with an approval id, a requested time
+and an expiry.</p>
 </li>
 <li>
 <p><code>doctor</code> no longer changes the evidence spool it checks. It reads the spool

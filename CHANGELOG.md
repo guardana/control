@@ -67,10 +67,11 @@ verify one.
   used to close the held call `DENY` `APPROVAL_EXPIRED`. Either way nothing
   runs. A record refused for its approver id blocks only the request it
   names: a lookup lists it as unknown, beside every other record of its
-  action, and hides it once it expires; a plane closing a lost hold resolves
-  only the approval it minted. The memory store refuses a hold that is not a
-  pending, unanswered approval with an approval id, a requested time and an
-  expiry.
+  action, and hides it once it expires; a retry tries its held approval once,
+  however many records name its request; a plane closing a lost hold
+  resolves only the approval it minted. The memory store refuses a hold that
+  is not a pending, unanswered approval with an approval id, a requested time
+  and an expiry.
 
 - `doctor` no longer changes the evidence spool it checks. It reads the spool
   through `spool.Inspect`, which cuts nothing: a torn tail stays in place, and

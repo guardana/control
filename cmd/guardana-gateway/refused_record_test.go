@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/approvals"
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/core/approval"
 )
@@ -35,10 +37,10 @@ func fileProviderOf(t *testing.T) provider {
 	return provider{}
 }
 
-// forgeRefused copies the framed record from under another approval id and
-// request, naming an approver the claim rule refuses, as a writer of the
-// directory with no use for the approvers' command would.
-func forgeRefused(t *testing.T, dir, from, to string) {
+// forgeRefused copies the framed record from under approvalID and requestID,
+// naming an approver the claim rule refuses, as a writer of the directory
+// with no use for the approvers' command would.
+func forgeRefused(t *testing.T, dir, from, approvalID, requestID string) {
 	t.Helper()
 	framed, err := os.ReadFile(filepath.Join(dir, from)) //nolint:gosec // G304: the test's own temporary directory
 	if err != nil || len(framed) <= recordHeader {
@@ -53,8 +55,8 @@ func forgeRefused(t *testing.T, dir, from, to string) {
 		t.Fatalf("the approval: %v", err)
 	}
 	quoted := func(s string) json.RawMessage { return json.RawMessage(`"` + s + `"`) }
-	fields["approval_id"], inner["approvalId"] = quoted(forgedApproval), quoted(forgedApproval)
-	fields["request_id"], inner["requestId"] = quoted(forgedRequest), quoted(forgedRequest)
+	fields["approval_id"], inner["approvalId"] = quoted(approvalID), quoted(approvalID)
+	fields["request_id"], inner["requestId"] = quoted(requestID), quoted(requestID)
 	inner["approverId"] = quoted(forgedApprover)
 	raw, err := json.Marshal(inner)
 	if err != nil {
@@ -65,7 +67,7 @@ func forgeRefused(t *testing.T, dir, from, to string) {
 	if err != nil {
 		t.Fatalf("marshalling the record: %v", err)
 	}
-	writeFramed(t, filepath.Join(dir, to), body)
+	writeFramed(t, filepath.Join(dir, approvalID+".0-held.rec"), body)
 }
 
 // TestARefusedRecordOfAnotherRequestStallsNoCall: a writer files a record for
@@ -81,7 +83,7 @@ func TestARefusedRecordOfAnotherRequestStallsNoCall(t *testing.T) {
 	if held.Action != core.AwaitApproval {
 		t.Fatalf("the first call is %v, want a hold: %v", held.Action, held.Decision.GetReasonCodes())
 	}
-	forgeRefused(t, records, held.Pending.ApprovalID+".0-held.rec", forgedApproval+".0-held.rec")
+	forgeRefused(t, records, held.Pending.ApprovalID+".0-held.rec", forgedApproval, forgedRequest)
 	waiting := admitTransfer(t, plane, "req-hold-2")
 	if waiting.Action != core.AwaitApproval {
 		t.Fatalf("the retry before any answer is %v, want the hold pending: %v", waiting.Action, waiting.Decision.GetReasonCodes())
@@ -105,6 +107,41 @@ func TestARefusedRecordOfAnotherRequestStallsNoCall(t *testing.T) {
 	}
 	if !slices.Contains(namesUnder(t, records), forgedApproval+".0-held.rec") {
 		t.Errorf("the refused record was touched: %v", namesUnder(t, records))
+	}
+}
+
+// TestARefusedRecordUnderTheHeldRequestHidesNoRejection: a writer files a
+// refused record under the held request's own id and another approval id.
+// Once the approver rejects the held approval, the retry is refused with the
+// rejection, never told to wait on a record the plane did not mint.
+func TestARefusedRecordUnderTheHeldRequestHidesNoRejection(t *testing.T) {
+	tr, plane := holdingPlane(t, fileProviderOf(t), 15*time.Minute)
+	records := filepath.Join(tr.dir, recordsDir)
+
+	held := admitTransfer(t, plane, "req-hold-1")
+	if held.Action != core.AwaitApproval {
+		t.Fatalf("the first call is %v, want a hold: %v", held.Action, held.Decision.GetReasonCodes())
+	}
+	forgeRefused(t, records, held.Pending.ApprovalID+".0-held.rec", forgedApproval, "req-hold-1")
+	approver, err := approvals.OpenApprover(records)
+	if err != nil {
+		t.Fatalf("OpenApprover: %v", err)
+	}
+	_, err = approver.Answer(context.Background(), held.Pending.ApprovalID,
+		controlv1.ApprovalState_APPROVAL_STATE_REJECTED, "approver-1", "no", time.Now())
+	if closeErr := approver.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		t.Fatalf("rejecting %s: %v", held.Pending.ApprovalID, err)
+	}
+
+	refused := admitTransfer(t, plane, "req-hold-2")
+	if codes := refused.Decision.GetReasonCodes(); refused.Action != core.Block || !slices.Contains(codes, "APPROVAL_REJECTED") {
+		t.Errorf("the retry after the rejection is %v with %v, want a block with APPROVAL_REJECTED", refused.Action, codes)
+	}
+	if s := plane.pipeline.Stats(); s.Executed != 0 || s.Pending != 1 {
+		t.Errorf("%d execution(s) and %d pending answer(s), want 0 and the first call's 1", s.Executed, s.Pending)
 	}
 }
 
