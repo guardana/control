@@ -78,19 +78,19 @@ run some tools directly over a wider scope.
 - Protocol and framework code lives in `adapters/`, demos in `examples/`;
   clients in other languages live in `clients/`, outside the Go module.
 - Contracts live in `api/proto`, generated Go in `api/gen/go`.
-- `internal/core`, `internal/policy`, `internal/canon`, `internal/evidence`,
-  `pkg/contract` and `internal/supervise` import only packages of this module
-  outside `adapters/`, `internal/storage`, `internal/controlapi`,
-  `internal/gateway` and `internal/ingest`; packages of
+- Non-test files of `internal/core`, `internal/policy`, `internal/canon`,
+  `internal/evidence`, `pkg/contract` and `internal/supervise` import only
+  packages of this module outside `adapters/`, `internal/storage`,
+  `internal/controlapi`, `internal/gateway` and `internal/ingest`; packages of
   `google.golang.org/protobuf`; and the standard library packages named in
   `scripts/lib/dependency-rule.sh`. That list holds no network, file, process,
-  system call or randomness package. In those trees and the module's packages
-  they reach, the functions that read the clock (`time.Now`, `Since`, `Until`,
+  system call or randomness package. In those trees and what they reach, the
+  functions that read the clock (`time.Now`, `Since`, `Until`,
   the timers, `time.Sleep`, `timestamppb.Now`, context deadlines), standard
   input, the zone database or the system's randomness are refused by name; a
   read no name reveals, such as the local zone behind `time.Unix(...).Format`,
   is not, and the kernel's tests carry it. A package in those trees builds from
-  the same Go files on every platform: a file build constraints leave out here,
+  the same Go files on every platform: a file build constraints leave out,
   and any source that is not plain Go, is refused.
 - Adapters may import core; the rule only constrains what core imports. Core
   needing adapter behaviour declares an interface an adapter implements.

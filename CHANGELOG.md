@@ -107,7 +107,7 @@ verify one.
   unix socket, an account that binds its loopback port while it is down
   receives the plane's retries and the credential among them
   ([ADR-0072](docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md)).
-- The evidence export is `1.1`: its header's `pruned_before` counts the
+- **Breaking:** the evidence export is `1.1`: its header's `pruned_before` counts the
   segments of a log before the exported one that were pruned, 0 for a single
   file, and coverage refuses an export as whole while it is above 0. A `1.0`
   export reads as before; a header of a later minor without the member is
@@ -121,9 +121,6 @@ verify one.
 - `examples/evidence-report` raises `evidence_gap` noted `pruned`, and exits
   1, for an export that names no cursor and counts segments pruned before it;
   an export after a state's cursor raises none for them.
-- The collector answers 503, not 400, to a body it could not read to its end,
-  as one cut by a reset connection or a read timeout, so the plane sends it
-  again instead of quarantining it.
 - `doctor` no longer changes the evidence spool it checks. It reads the spool
   through `spool.Inspect`, which cuts nothing: a torn tail stays in place, and
   the line says "a start would cut a torn tail of N byte(s), which this check
@@ -184,9 +181,10 @@ verify one.
 - `coverage` and the run view read a plane's strength from its protocol: a
   trail that names no protocol, or one this build does not know, is decided,
   not enforced, in every mode ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
-- An approver id that a reader could take for one the plane authenticated
-  is refused: `approvals approve` and `reject` exit 1 and write nothing,
-  `console` exits 2, a scenario that names one is refused when it loads, and
+- **Breaking:** an approver id that a reader could take for one the plane
+  authenticated is refused: `approvals approve` and `reject` exit 1 and write
+  nothing, `console` exits 2, a scenario that names one is refused when it
+  loads, and
   a record that holds one resumes nothing and its reconciliation closes as
   `APPROVAL_STATE_UNKNOWN`. Refused are, in order, an id that begins with
   `authn:` in any ASCII case once leading default-ignorable code points are
@@ -208,7 +206,7 @@ verify one.
   id, and a machine comparing bytes never takes it for the prefix. Only the
   plane will write that prefix, for an approver it authenticated
   ([ADR-0066](docs/adr/0066-each-decision-about-authority-is-a-port.md)).
-- Upgrade: an approval record written by 0.14 whose approver the rule above
+- **Breaking:** an approval record written by 0.14 whose approver the rule above
   now refuses, one that mixes scripts, holds a code point or a form now
   refused, or reads as `authn:`, resolves only as `APPROVAL_STATE_UNKNOWN`
   and is never spent. It refuses its own approval and no other: lookups,
@@ -248,6 +246,9 @@ verify one.
 
 ### Fixed
 
+- The collector answers 503, not 400, to a body it could not read to its end,
+  as one cut by a reset connection or a read timeout, so the plane sends it
+  again instead of quarantining it.
 - `tools/list` under `hide` left out a tool whose only `ALLOW` rule reads
   the resource id its classification points at, and `annotate` marked it
   `VERDICT_DENY`, though a call naming an allowed id ran. A tool previewed as

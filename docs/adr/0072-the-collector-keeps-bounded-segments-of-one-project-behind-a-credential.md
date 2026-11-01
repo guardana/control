@@ -1,6 +1,6 @@
 # ADR-0072: The collector keeps bounded segments of one project, behind a credential
 
-Status: proposed
+Status: accepted
 Date: 2026-10-30
 
 Amends [ADR-0020](0020-a-trail-and-counters-without-a-collector.md) on what
@@ -9,6 +9,9 @@ Amends [ADR-0020](0020-a-trail-and-counters-without-a-collector.md) on what
 cursor names in a log of segments. Builds on
 [ADR-0014](0014-evidence-spool-and-sinks.md) and
 [ADR-0066](0066-each-decision-about-authority-is-a-port.md).
+
+Amends [ADR-0066](0066-each-decision-about-authority-is-a-port.md)
+properties 1, 3 and 6 for RecordLog until it has a second kind.
 
 ## Context
 
@@ -30,6 +33,18 @@ is sealed. A located segment is Live, Sealed or Pruned, with what the log
 knows of it; the zero answer is Unknown, and so is a key no segment the
 manifest names has. The kind is closed, and its default is `segments`. No
 remote kind exists yet.
+
+**RecordLog is a port in part, and says which part.** Until a second kind
+exists it falls short of ADR-0066 in three ways. Its interface is declared beside its one kind, in
+`internal/segmentlog`, not by its consumer `internal/trailfile`. The kind is
+fixed in code: no configuration key selects it, so none can name an unknown
+one. And it has no `/metrics` or `doctor` key, because the collector has
+neither; `trail segments` prints its counts. Writes and prunes go through
+the port. Reads do not: export, cursors and `trail segments` read the
+default kind's files through its own read-only view, so a second kind brings
+its reader with it. The change that adds a second kind, or a remote one,
+moves the interface to its consumer, adds a read interface and a kind
+selector, and gives the port its bounds and diagnostics.
 
 **The default kind is a directory of segments and one manifest,**
 `segments.json`, format `guardana.control.segments` version `0.1`. The

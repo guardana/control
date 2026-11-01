@@ -219,7 +219,7 @@ receives the plane's retries and the credential among them
 (<a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a>).</p>
 </li>
 <li>
-<p>The evidence export is <code>1.1</code>: its header's <code>pruned_before</code> counts the
+<p><strong>Breaking:</strong> the evidence export is <code>1.1</code>: its header's <code>pruned_before</code> counts the
 segments of a log before the exported one that were pruned, 0 for a single
 file, and coverage refuses an export as whole while it is above 0. A <code>1.0</code>
 export reads as before; a header of a later minor without the member is
@@ -237,11 +237,6 @@ segments pruned before it.</p>
 <p><code>examples/evidence-report</code> raises <code>evidence_gap</code> noted <code>pruned</code>, and exits
 1, for an export that names no cursor and counts segments pruned before it;
 an export after a state's cursor raises none for them.</p>
-</li>
-<li>
-<p>The collector answers 503, not 400, to a body it could not read to its end,
-as one cut by a reset connection or a read timeout, so the plane sends it
-again instead of quarantining it.</p>
 </li>
 <li>
 <p><code>doctor</code> no longer changes the evidence spool it checks. It reads the spool
@@ -323,9 +318,10 @@ trail that names no protocol, or one this build does not know, is decided,
 not enforced, in every mode (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</p>
 </li>
 <li>
-<p>An approver id that a reader could take for one the plane authenticated
-is refused: <code>approvals approve</code> and <code>reject</code> exit 1 and write nothing,
-<code>console</code> exits 2, a scenario that names one is refused when it loads, and
+<p><strong>Breaking:</strong> an approver id that a reader could take for one the plane
+authenticated is refused: <code>approvals approve</code> and <code>reject</code> exit 1 and write
+nothing, <code>console</code> exits 2, a scenario that names one is refused when it
+loads, and
 a record that holds one resumes nothing and its reconciliation closes as
 <code>APPROVAL_STATE_UNKNOWN</code>. Refused are, in order, an id that begins with
 <code>authn:</code> in any ASCII case once leading default-ignorable code points are
@@ -349,7 +345,7 @@ plane will write that prefix, for an approver it authenticated
 (<a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>).</p>
 </li>
 <li>
-<p>Upgrade: an approval record written by 0.14 whose approver the rule above
+<p><strong>Breaking:</strong> an approval record written by 0.14 whose approver the rule above
 now refuses, one that mixes scripts, holds a code point or a form now
 refused, or reads as <code>authn:</code>, resolves only as <code>APPROVAL_STATE_UNKNOWN</code>
 and is never spent. It refuses its own approval and no other: lookups,
@@ -402,6 +398,9 @@ time, which no lint read before.</p>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li>The collector answers 503, not 400, to a body it could not read to its end,
+as one cut by a reset connection or a read timeout, so the plane sends it
+again instead of quarantining it.</li>
 <li><code>tools/list</code> under <code>hide</code> left out a tool whose only <code>ALLOW</code> rule reads
 the resource id its classification points at, and <code>annotate</code> marked it
 <code>VERDICT_DENY</code>, though a call naming an allowed id ran. A tool previewed as

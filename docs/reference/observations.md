@@ -90,7 +90,7 @@ One file, `observations.jsonl`, in a directory of the operator's account that
 no other account can reach, held by one writer at a time. Each line holds one
 observation or one import report. A span's observation id is derived from its
 tenant, project, source, trace and span, and a connection's from its content,
-so an input imported again writes nothing new: a record already in the log
+so input imported again adds only a report: a record in the log
 with the same content is a duplicate, and one whose content differs, apart
 from its receive time and the descriptor's digest, a conflict, not written,
 and the import exits 1. The observations an import keeps
@@ -144,7 +144,7 @@ one `TracesData` object per line as an OpenTelemetry collector's file
 exporter writes them, up to the last newline; the bytes after it are left for
 the next import, since the exporter may still be writing them. A line with an
 unknown member, a member twice, an attribute twice, a `null`, an enum spelled
-as a string, nesting deeper than 32 or more than 262,144 array elements is
+as a string, values nested over 32 deep or more than 262,144 array elements is
 refused, and every span in it is counted as refused. A line over 16 MiB is
 refused. The import reads its whole input, at most 256 MiB, into memory.
 Exit 0: everything read was imported, skipped or a duplicate. Exit 1:

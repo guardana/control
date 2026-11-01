@@ -115,7 +115,9 @@
 <p>The plane records what a call was about, not what it said. A tool call's
 arguments and its result are recorded as hashes; the one piece of argument
 text that can enter a record is a resource id the operator told the plane to
-read out of them. A resource read's URI and a prompt's name are recorded as
+read out of them. A tool outside MCP may also report a side effect's
+confirmation, such as a receipt number, and it is recorded as sent, at most
+1024 bytes. A resource read's URI and a prompt's name are recorded as
 the agent sent them. Nothing turns content capture on in this build, and hidden
 model reasoning is never stored
 (<a href="/docs/adr/0004-evidence-and-privacy-defaults">ADR-0004</a>, invariant 9).
