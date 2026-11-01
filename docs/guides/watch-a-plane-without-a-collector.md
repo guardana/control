@@ -124,7 +124,10 @@ guardana-gateway prune --through 3 trail/plane
 `trail export trail/plane` reads one segment. Its `end_reached` is true only
 at the log's end; before it, export again after `next_cursor`, which leads into
 the next segment. A cursor of a pruned segment is refused as expired, exit 2.
-`evidence-report -state` follows the log from segment to segment.
+A segment's file exported on its own, `trail export trail/plane/segment-00000002.jsonl`,
+is refused, exit 2: export the directory, whose header counts the segments
+pruned before. `evidence-report -state` follows the log from segment to
+segment.
 
 `trail segments` prints the manifest: how many segments are sealed, pruned
 and dropped of the 10,000 it names at most, then each segment's state, lines,
@@ -148,7 +151,10 @@ held directory is refused. The live segment is never pruned.
   carrying two different lines.
 - **A request it cannot read is refused**, with 400, 413 when too large or 415
   for a media type or encoding it does not take. The plane splits a 400 or 413
-  down to one record and quarantines it; a 415 it sends again.
+  down to one record and quarantines it; a 415 it sends again. A body cut off
+  before its end, by a reset connection or a read timeout, is answered 503
+  and sent again; one that never arrives in time keeps the plane retrying
+  until its spool is full and material calls are blocked.
 
 ## Limits
 

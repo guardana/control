@@ -277,16 +277,39 @@ func TestAFilteredExportIsNotWhole(t *testing.T) {
 	}
 }
 
-// TestThePrunedCountIsACount: a 1.1 header's pruned_before is read when it
-// is a count, 0 or more, and the header is refused when it is not; a 1.0
-// header without it is read.
+// TestThePrunedCountIsACount: a header's pruned_before is read when it is a
+// count, 0 or more; it is refused when it is not one, null included, and
+// when a header of minor 1 or later leaves it out. A 1.0 header without it
+// reads as 0.
 func TestThePrunedCountIsACount(t *testing.T) {
-	head := `{"type":"header","format":"` + exportFormat + `","version":"1.1","file":"a.trail",%s"query":{"limit":1}}` + "\n"
-	for member, ok := range map[string]bool{`"pruned_before":0,`: true, `"pruned_before":3,`: true, ``: true,
-		`"pruned_before":-1,`: false, `"pruned_before":"1",`: false, `"pruned_before":1.5,`: false} {
-		_, err := checkHeader(rawLine{b: []byte(strings.TrimSuffix(fmt.Sprintf(head, member), "\n"))})
-		if (err == nil) != ok {
-			t.Errorf("a header with %q: %v, want read %v", member, err, ok)
+	head := `{"type":"header","format":"` + exportFormat + `","version":"%s","file":"a.trail",%s"query":{"limit":1}}`
+	for _, c := range []struct {
+		version, member string
+		ok              bool
+		want            uint64
+	}{
+		{"1.1", `"pruned_before":0,`, true, 0}, {"1.1", `"pruned_before":3,`, true, 3}, {"1.0", ``, true, 0},
+		{"1.1", ``, false, 0}, {"1.2", ``, false, 0}, {"1.1", `"pruned_before":null,`, false, 0},
+		{"1.1", `"pruned_before":-1,`, false, 0}, {"1.1", `"pruned_before":"1",`, false, 0}, {"1.1", `"pruned_before":1.5,`, false, 0},
+	} {
+		h, err := checkHeader(rawLine{b: []byte(fmt.Sprintf(head, c.version, c.member))})
+		if (err == nil) != c.ok || h.prunedBefore != c.want {
+			t.Errorf("a %s header with %q: %v and %d, want read %v and %d", c.version, c.member, err, h.prunedBefore, c.ok, c.want)
 		}
 	}
+}
+
+// TestAnExportNamingNoCursorAfterPrunedSegmentsIsNotWhole: an export that
+// names no cursor and counts segments pruned before it reports a gap and
+// exits 1, its requests still reported; the same export counting none exits
+// 0.
+func TestAnExportNamingNoCursorAfterPrunedSegmentsIsNotWhole(t *testing.T) {
+	whole := newExport("1.1").event(chain("r1", allowed...)...).whole()
+	check(t, reportCase{in: whole, rows: []string{rowAllowed}, totals: oneCompleted + "gaps 0, duplicates 0, conflicting 0, refused 0" + endReached})
+	pruned := strings.Replace(whole, `"pruned_before":0,`, `"pruned_before":2,`, 1)
+	if pruned == whole {
+		t.Fatal("the export names no pruned_before to change")
+	}
+	check(t, reportCase{in: pruned, rows: []string{rowAllowed}, totals: oneCompleted + "gaps 1, duplicates 0, conflicting 0, refused 0" + endReached,
+		code: 1, stderr: "a gap before offset 0: pruned"})
 }

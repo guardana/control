@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/guardana/control/internal/evidence"
@@ -17,6 +18,10 @@ import (
 
 // ErrCursorExpired is a cursor naming a segment that was pruned.
 const ErrCursorExpired Error = "trailfile: cursor expired: the segment it names was pruned"
+
+// ErrSegmentFile is a file in a log's directory exported on its own: read as
+// a trail file it would count none of the segments pruned before it.
+const ErrSegmentFile Error = "trailfile: the file is a segment of a log; export the log's directory"
 
 // moveRetries bounds how often a read of a log starts again when a seal or a
 // prune moved the segment it was opening.
@@ -30,6 +35,20 @@ func IsLog(path string) (bool, error) {
 		return false, err
 	}
 	return info.IsDir(), nil
+}
+
+// notInLog refuses a file whose directory holds a log's manifest, naming the
+// directory to export instead.
+func notInLog(path string) error {
+	dir := filepath.Dir(path)
+	_, err := os.Lstat(filepath.Join(dir, segmentlog.ManifestName))
+	switch {
+	case err == nil:
+		return fmt.Errorf("%w: %s; export the log with trail export %s", ErrSegmentFile, strconv.Quote(path), strconv.Quote(dir))
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	}
+	return err
 }
 
 // ExportPath exports a trail file as ExportFile does, or one segment of a log
@@ -93,9 +112,11 @@ func openForExport(dir, cursor string) (Source, string, func() error, error) {
 }
 
 // resume answers for the segment a cursor names, moving past the end of a
-// sealed one to the next once that holds a line.
+// sealed one to the next once that holds a line. A cursor at that end names
+// the segment's last line, which the manifest holds, or it is refused as
+// changed: the move on reads none of the segment's bytes to check it.
 func resume(v *segmentlog.View, cursor string) (segmentlog.SegmentAnswer, string, error) {
-	key, offset, err := lineexport.CursorAt(cursor, ErrCursorMalformed)
+	key, offset, line, err := lineexport.CursorAt(cursor, ErrCursorMalformed)
 	if err != nil {
 		return segmentlog.SegmentAnswer{}, "", err
 	}
@@ -111,6 +132,9 @@ func resume(v *segmentlog.View, cursor string) (segmentlog.SegmentAnswer, string
 	s := ans.Segment()
 	if s.State != segmentlog.StateSealed || offset != s.Bytes {
 		return ans, cursor, nil
+	}
+	if line != s.Last {
+		return ans, "", fmt.Errorf("%w: offset %d, the end of segment %d", ErrCursorChanged, offset, s.Seq)
 	}
 	if holdsLater(v, s) {
 		return v.After(s.Seq), "", nil

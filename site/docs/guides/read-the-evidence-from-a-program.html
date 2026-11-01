@@ -140,7 +140,7 @@ an event id with other content, a <code>duplicate</code> for a line repeated exa
 a <code>trailer</code>. An event record carries the file's line as it is, never encoded
 again. It exits 0 with nothing refused and no gap, even if a limit ended it early, 1
 for a whole export with a gap or a conflicting id, and 2 when refused, with no
-trailer. An export with no trailer was cut short.</p>
+trailer.</p>
 <h3 id="2-resume-where-the-last-one-stopped">2. Resume where the last one stopped</h3>
 <p>The trailer's <code>next_cursor</code> names the end of the last line read. Pass it to the
 next export:</p>
@@ -167,7 +167,8 @@ guardana-gateway trail export trail | bin/evidence-report
 </code></pre>
 <p>It exits 1 when a request's chain is broken or unfinished, when a call ran
 against its decision under an enforcing mode, when a result says the effect
-may have happened, or when the export held a gap, was cut, held no request,
+may have happened, or when the export held a gap, named no cursor while
+counting segments pruned before it, was cut, held no request,
 or went past 100 000 records or 64 MiB: missing evidence is reported as
 unknown or open, never as completed; a timeout or an unknown outcome as
 <code>uncertain</code>, not <code>failed</code>. It reads no effect class, so it cannot
@@ -211,7 +212,7 @@ own, <code>&quot;v&quot;:1</code> and <code>experimental</code>, not a contract:
 <tbody>
 <tr>
 <td><code>evidence_gap</code></td>
-<td>a gap record, its reason in <code>note</code></td>
+<td>a gap record, its reason in <code>note</code>; <code>pruned</code> for a first export whose <code>pruned_before</code> is above 0</td>
 </tr>
 <tr>
 <td><code>conflicting_event</code></td>
@@ -249,10 +250,9 @@ raised, <code>cursor</code>, <code>occurred_at</code>, <code>verdict</code>, <co
 Times are the events'; the program reads no clock. The gap after the file's
 last newline is alerted once while it stays there. It exits 0 with no new
 alert and 1 with one or more.</p>
-<p>The alerts are appended, synced and written to standard error first, then
-the rows printed, then the state replaced. Exit 2 leaves <code>state.json</code>
-unchanged unless only its last sync failed: alerts already appended stay in the log, no later run raises them
-again, and the rows may print again.</p>
+<p>Alerts are appended and synced before the rows print and the state is
+replaced. Exit 2 leaves <code>state.json</code> unchanged unless only its last sync
+failed; logged alerts are not raised again, and the rows may print again.</p>
 <p>It prints and keeps only identifiers, kinds, the enforcement mode, the
 action's kind, name, provider and protocol, verdicts, reason codes, decision
 ids, approval states, result statuses, event times, offsets and cursors:

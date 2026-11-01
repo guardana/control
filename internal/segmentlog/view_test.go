@@ -170,3 +170,37 @@ func TestASegmentSealedOrPrunedUnderAReaderIsReadFromItsDescriptor(t *testing.T)
 		t.Errorf("the pruned segment is still named: %v", got)
 	}
 }
+
+// TestALiveSegmentSealedAtTheCapUnderAViewIsMoved: a seal at the cap drops
+// one entry and adds one, so the manifest names as many entries as the view
+// did; the live segment opened after it, beginning with the line the view's
+// began with, is still moved. Before the seal the view opens it.
+func TestALiveSegmentSealedAtTheCapUnderAViewIsMoved(t *testing.T) {
+	cfg := config(logDir(t), 8, 64)
+	l := openLog(t, cfg)
+	l.most = 3
+	mustAppend(t, l, "aaa", "bbb")
+	mustAppend(t, l, "ccc", "ddd")
+	mustAppend(t, l, "eee", "fff")
+	mustAppend(t, l, "ggg", "hhh")
+	if err := l.Prune(1); err != nil {
+		t.Fatal(err)
+	}
+	v, err := Inspect(cfg.Dir, cfg.MaxLineBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := v.Manifest().Live
+	f, _, err := v.Open(live)
+	if err != nil {
+		t.Fatalf("the live segment under its own view: %v", err)
+	}
+	_ = f.Close()
+	mustAppend(t, l, "ggg")
+	if m := l.Manifest(); m.Dropped != 1 || len(m.Segments) != 3 || m.Live.First != sum("ggg") {
+		t.Fatalf("want a seal at the cap and a live segment beginning with ggg, got %+v", m)
+	}
+	if _, _, err := v.Open(live); !errors.Is(err, ErrMoved) {
+		t.Errorf("the live segment after a seal at the cap opened under the old view: %v, want ErrMoved", err)
+	}
+}

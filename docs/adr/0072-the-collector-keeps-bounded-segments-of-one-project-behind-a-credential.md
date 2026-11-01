@@ -74,7 +74,9 @@ receiver answers 401, before it reads the body, a request whose one
 digests in constant time; the plane sends it through `export.headers`. The
 first refusal is logged, then a count at most once a minute. An append holding
 an event of another tenant or project is refused whole as 400, which the plane
-quarantines.
+quarantines. A body the receiver could not read to its end, cut by a reset
+connection or a read timeout, is answered 503 and sent again; one that never
+arrives in time fills the spool and blocks material calls.
 
 **The evidence export goes to `1.1`, and keeps its meaning.** An export of a
 directory, `trail export <dir>`, reads one segment. Its header's `source` and
@@ -82,10 +84,13 @@ its cursors carry the segment's key, and its header's `pruned_before` counts
 the segments before it the export cannot read, pruned or their tombstones
 dropped; a single file's export carries 0. The member is additive: a reader
 of `1.0` takes a higher minor, and a `1.1` reader reads a `1.0` header as 0,
-since no released build wrote a directory export. A coverage join refuses an
+since no released build wrote a directory export. A strict `1.0` reader, as
+coverage and `examples/evidence-report` of 0.14.0 are, refuses a `1.1` export
+on its new member: it fails loudly and never misreads. A coverage join refuses an
 export as whole while `pruned_before` is above 0, so a window a pruned segment
 held part of is never taken as checked. With no cursor it is the first
-segment not pruned. `end_reached`
+segment not pruned. A file of the directory exported by its path is refused,
+since it would count no segment pruned before it. `end_reached`
 is the end of the log as the export found it: at the end of a sealed segment
 that a later one with a line follows it is false, and the export after that
 `next_cursor` reads the next segment from its first line. So a reader that

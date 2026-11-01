@@ -218,7 +218,8 @@ prunes nothing itself; a directory holding what it does not write is refused
 untouched. `trail` prints one line per request and exits 1 when a chain fails
 or cannot be read, nothing holds a trail, a partial last line has no `collect`
 holding it, or past 100,000 lines. `trail export` of a directory exports one
-segment and refuses an expired cursor. `prune` removes sealed segments,
+segment and refuses an expired cursor, and a file inside it. `prune`
+removes sealed segments,
 tombstones first, while no `collect` holds them.
 
 `scenario run` holds a running plane to scenario files

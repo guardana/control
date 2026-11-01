@@ -86,8 +86,8 @@ func (l *segments) Seal() error {
 }
 
 // seal names the live segment sealed in the manifest, then renames its file.
-// A step that fails leaves the log refusing until it is opened again, which
-// completes the seal or finds it not begun.
+// A step that fails after the manifest changed leaves the log refusing until
+// it is opened again, which completes the seal or finds it not begun.
 func (l *segments) seal() error {
 	if l.live.lines == 0 {
 		return nil
@@ -103,7 +103,7 @@ func (l *segments) seal() error {
 	s.State, s.File, s.SealedAt = StateSealed, segmentFile(s.Seq), l.now()
 	next := append(slices.Clone(kept), s)
 	if err := l.writeManifest(dropped, next); err != nil {
-		return l.fail(err)
+		return err
 	}
 	err := l.file.Close()
 	l.file = nil
@@ -147,7 +147,7 @@ func (l *segments) Prune(through int) error {
 		return nil
 	}
 	if err := l.writeManifest(l.dropped, next); err != nil {
-		return l.fail(err)
+		return err
 	}
 	for _, name := range gone {
 		if err := l.ops.remove(l.root, name); err != nil {
@@ -161,12 +161,36 @@ func (l *segments) Prune(through int) error {
 	return nil
 }
 
+// writeManifest replaces the manifest with one naming dropped and segs. A
+// replace that fails with the manifest on disk still the one the log holds
+// changed nothing, so its error is returned and the log goes on; any other
+// failure fails the log, since the manifest may name what the log does not.
 func (l *segments) writeManifest(dropped int, segs []Segment) error {
 	body, err := encodeManifest(l.cfg.Tenant, l.cfg.Project, dropped, segs)
 	if err != nil {
 		return err
 	}
-	return l.ops.replace(l.root, ManifestName, body)
+	err = l.ops.replace(l.root, ManifestName, body)
+	if err == nil {
+		return nil
+	}
+	if l.manifestUnchanged() {
+		return err
+	}
+	return l.fail(err)
+}
+
+// manifestUnchanged reports whether the manifest on disk is, byte for byte,
+// the one naming what the log holds. The replace renames a whole file into
+// place, so a failure before the rename leaves this one and a failure after
+// it leaves the new one.
+func (l *segments) manifestUnchanged() bool {
+	held, err := encodeManifest(l.cfg.Tenant, l.cfg.Project, l.dropped, l.segs)
+	if err != nil {
+		return false
+	}
+	raw, ok, err := readManifest(l.root)
+	return err == nil && ok && bytes.Equal(raw, held)
 }
 
 // now is the clock to the second, as the manifest spells a time.

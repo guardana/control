@@ -172,8 +172,20 @@ classified. <code>Validate</code> does not change (<a href="/docs/adr/0067-the-p
 <li>The evidence export is <code>1.1</code>: its header's <code>pruned_before</code> counts the
 segments of a log before the exported one that were pruned, 0 for a single
 file, and coverage refuses an export as whole while it is above 0. A <code>1.0</code>
-export reads as before
+export reads as before; a header of a later minor without the member is
+refused. A strict <code>1.0</code> reader, as coverage and <code>examples/evidence-report</code>
+of 0.14.0 are, refuses a <code>1.1</code> export on its new member: it fails loudly
+and never misreads
 (<a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a>).</li>
+<li><code>trail export</code> refuses a file inside a directory of segments, naming the
+directory to export: exported on its own it would count none of the
+segments pruned before it.</li>
+<li><code>examples/evidence-report</code> raises <code>evidence_gap</code> noted <code>pruned</code>, and exits
+1, for an export that names no cursor and counts segments pruned before it;
+an export after a state's cursor raises none for them.</li>
+<li>The collector answers 503, not 400, to a body it could not read to its end,
+as one cut by a reset connection or a read timeout, so the plane sends it
+again instead of quarantining it.</li>
 <li><code>doctor</code> no longer changes the evidence spool it checks. It reads the spool
 through <code>spool.Inspect</code>, which cuts nothing: a torn tail stays in place, and
 the line says &quot;a start would cut a torn tail of N byte(s), which this check

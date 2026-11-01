@@ -25,7 +25,8 @@ func (er *exportReader) readHeader(line []byte) error {
 	if f, err := m.str("format"); err != nil || f != exportFormat {
 		return fmt.Errorf("format: want %s", exportFormat)
 	}
-	if v, err := m.str("version"); err != nil || !versionOfMajor(v, exportMajor) {
+	v, err := m.str("version")
+	if err != nil || !versionOfMajor(v, exportMajor) {
 		return fmt.Errorf("version: want major %s", exportMajor)
 	}
 	if _, ok := m["file"]; !ok {
@@ -37,7 +38,7 @@ func (er *exportReader) readHeader(line []byte) error {
 	if err := er.readSource(m); err != nil {
 		return err
 	}
-	if er.prunedBefore, err = prunedBefore(m); err != nil {
+	if er.prunedBefore, err = prunedBefore(m, v); err != nil {
 		return err
 	}
 	if err := er.readQuery(m); err != nil {
@@ -48,12 +49,16 @@ func (er *exportReader) readHeader(line []byte) error {
 }
 
 // prunedBefore reads the header's count of segments pruned before the one
-// exported, which a 1.0 header does not name and so has none.
-func prunedBefore(m members) (uint64, error) {
+// exported, which a header of version, of minor 0, does not name and so has
+// none. A writer of minor 1 or later always names it, so a header of one
+// without it is refused rather than read as the most trusting count.
+func prunedBefore(m members, version string) (uint64, error) {
 	raw, ok := m["pruned_before"]
 	switch {
-	case !ok:
+	case !ok && minorZero(version):
 		return 0, nil
+	case !ok:
+		return 0, errors.New("pruned_before: required from minor 1")
 	case string(raw) == "null":
 		return 0, errors.New("pruned_before: not a count")
 	}
@@ -230,6 +235,12 @@ func (er *exportReader) readTrailer(line []byte) error {
 func versionOfMajor(v, major string) bool {
 	maj, minor, ok := strings.Cut(v, ".")
 	return ok && maj == major && decimal(maj) && decimal(minor)
+}
+
+// minorZero reports whether a version versionOfMajor took is of minor 0.
+func minorZero(v string) bool {
+	_, minor, ok := strings.Cut(v, ".")
+	return ok && minor != "" && strings.Trim(minor, "0") == ""
 }
 
 func decimal(s string) bool {

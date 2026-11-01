@@ -1324,7 +1324,9 @@ by the MAJOR.MINOR rules of Schema versioning above: a reader MUST refuse an
 export of a major it does not read and a record of a <code>type</code> it does not know.
 The format is a public contract and changes only by a record. <code>1.1</code> adds the
 header's <code>pruned_before</code>; a reader of <code>1.1</code> reads a <code>1.0</code> header, which has
-no such member, as 0.</p>
+no such member, as 0, and refuses a header of a later minor without it. A
+strict <code>1.0</code> reader refuses a <code>1.1</code> export on that member: it fails loudly and
+never misreads.</p>
 <p>An export is one <code>header</code>, then the records of the lines it read in the file's
 order, each <code>event</code>, <code>gap</code> or <code>duplicate</code>, then one <code>trailer</code>. <strong>An export
 without its trailer was cut short</strong>, and a reader MUST NOT treat what it holds
@@ -1445,12 +1447,18 @@ export after its <code>next_cursor</code> reads the next segment from its first 
 reader that follows <code>next_cursor</code> until <code>end_reached</code> reads every line of
 every segment not pruned once.</li>
 <li>A cursor of a pruned segment is refused as expired, exit 2; one whose key no
-segment the manifest names has, as another file.</li>
+segment the manifest names has, as another file. A cursor at a sealed
+segment's end moves on only when its line digest is that of the segment's
+last line.</li>
+<li>A file in the directory, a segment or the live one, exported by its path
+is refused, exit 2, naming the directory to export: read as a trail file it
+would count none of the segments pruned before it.</li>
 <li><code>pruned_before</code> counts the segments before the exported one that are gone.
 Coverage refuses an export as whole while it is above 0: what those
 segments held is not in it.</li>
 <li>Duplicates and conflicts are found within one segment's export; the
-collector writes no line twice across its segments.</li>
+collector writes no event id twice across the segments it retains; a line
+without an event id is written each time it arrives.</li>
 <li><code>source</code> changes from one segment's export to the next. A reader that keeps
 one takes a new one only from an export after its own cursor whose first
 record is at offset 0, which an export after a cursor in one file never is.</li>

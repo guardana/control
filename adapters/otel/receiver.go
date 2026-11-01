@@ -98,6 +98,10 @@ func (c Credential) admits(header http.Header) bool {
 //     record it cannot deliver;
 //   - 503 when the sink fails otherwise, which the exporter answers by sending the same
 //     records again, and which fills the plane's spool while it lasts;
+//   - 503 too for a body that could not be read to its end within the bound,
+//     as one arriving slower than the server's read timeout or cut by a reset
+//     connection: the exporter sends it again, so a body that can never be
+//     read in time is retried, fills the spool and blocks material calls;
 //   - 405 for a method other than POST, and 415 for a body that is not
 //     application/json in UTF-8, or that carries a content coding.
 //
@@ -179,7 +183,7 @@ func (h *receiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, http.StatusRequestEntityTooLarge, ErrRequestTooLarge)
 		return
 	case err != nil:
-		h.refuse(w, http.StatusBadRequest, err)
+		h.refuse(w, http.StatusServiceUnavailable, err)
 		return
 	}
 	events, err := ReadRequest(body)

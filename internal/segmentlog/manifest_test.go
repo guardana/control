@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -107,6 +108,13 @@ func TestAManifestNotSpelledAsWrittenIsRefused(t *testing.T) {
 	}
 	if _, err := decodeManifest([]byte(strings.Repeat(" ", MaxManifestBytes+1))); !errors.Is(err, ErrManifest) {
 		t.Errorf("a manifest over the bound: %v", err)
+	}
+	empty := `{"format":"` + brand.OTelNamespace + `.segments","version":"0.1","tenant_id":"t1","project_id":"p1","dropped":%s,"segments":[]}` + "\n"
+	if _, err := decodeManifest([]byte(fmt.Sprintf(empty, "1099511627776"))); err != nil {
+		t.Errorf("2^40 segments dropped: %v, want read", err)
+	}
+	if _, err := decodeManifest([]byte(fmt.Sprintf(empty, "1099511627777"))); !errors.Is(err, ErrManifest) {
+		t.Errorf("one past 2^40 segments dropped: %v, want ErrManifest", err)
 	}
 }
 
@@ -304,8 +312,10 @@ func TestAPruneLiftsTheCapOnSegments(t *testing.T) {
 
 // TestASealAtTheCapOfSealedSegmentsWaitsForAPrune: a log whose manifest
 // holds as many sealed segments as it may takes no seal, and a prune of one
-// lets the next seal drop its tombstone. The bound is lowered to three, so
-// the case needs three segment files rather than 10,000.
+// lets the next seal drop its tombstone. A prune after that counts segments
+// from the dropped one, so it prunes through the number it names and no
+// further. The bound is lowered to three, so the case needs three segment
+// files rather than 10,000.
 func TestASealAtTheCapOfSealedSegmentsWaitsForAPrune(t *testing.T) {
 	cfg := config(logDir(t), 8, 64)
 	l := openLog(t, cfg)
@@ -327,5 +337,25 @@ func TestASealAtTheCapOfSealedSegmentsWaitsForAPrune(t *testing.T) {
 	if m := l.Manifest(); m.Dropped != 1 || len(m.Segments) != 3 || m.Segments[0].Seq != 2 || m.Live.Seq != 5 {
 		t.Errorf("after a prune and a seal: dropped %d, %d entries from %d, live %d", m.Dropped, len(m.Segments),
 			m.Segments[0].Seq, m.Live.Seq)
+	}
+	pruneThroughTwo(t, l, cfg.Dir)
+}
+
+// pruneThroughTwo prunes the log in dir, whose segment 1 was dropped and
+// whose segments 2 to 4 are sealed, through 2, and checks it pruned segment 2
+// alone.
+func pruneThroughTwo(t *testing.T, l *segments, dir string) {
+	t.Helper()
+	if err := l.Prune(2); err != nil {
+		t.Fatal(err)
+	}
+	if got := states(l.Manifest()); !slices.Equal(got, []State{StatePruned, StateSealed, StateSealed}) {
+		t.Errorf("a prune through 2 with segment 1 dropped left %v, want 2 pruned and 3 and 4 sealed", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, segmentFile(2))); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("segment 2's file after a prune through 2: %v, want gone", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, segmentFile(3))); err != nil {
+		t.Errorf("a prune through 2 removed segment 3's file: %v", err)
 	}
 }

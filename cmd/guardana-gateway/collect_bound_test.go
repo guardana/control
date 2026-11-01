@@ -212,6 +212,65 @@ func TestPruneRemovesSealedSegmentsAndLeavesTheirTombstones(t *testing.T) {
 	}
 }
 
+// droppedTrail is a log in a new directory whose first segment was pruned
+// and its tombstone dropped, as a seal at the cap drops it, with segments 2
+// and 3 sealed, one line each, closed.
+func droppedTrail(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "trail")
+	l, err := trailfile.OpenLog(trailfile.LogConfig{Dir: dir, Tenant: "t1", Project: "p1", SegmentBytes: 1, MaxBytes: 1 << 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range trailOf("req-1", kProposed, kDecided, kRequested, kStarted) {
+		if err := l.Append(context.Background(), []*controlv1.Event{ev}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := errors.Join(l.Prune(1), l.Close()); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, segmentlog.ManifestName)
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: the test's own directory
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := string(raw)
+	first, second := strings.Index(m, `{"seq":1,"state":"pruned"`), strings.Index(m, `{"seq":2,`)
+	if first < 0 || second < first || !strings.Contains(m, `"dropped":0,`) {
+		t.Fatalf("the manifest is not the one this test edits: %s", m)
+	}
+	m = strings.Replace(m[:first]+m[second:], `"dropped":0,`, `"dropped":1,`, 1)
+	if err := os.WriteFile(path, []byte(m), 0o600); err != nil { //nolint:gosec // G703: the test's own directory
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// TestPruneCountsSegmentsFromTheDroppedOnes: once a tombstone was dropped,
+// prune through 2 prunes segment 2 and keeps segment 3 and its file.
+func TestPruneCountsSegmentsFromTheDroppedOnes(t *testing.T) {
+	dir := droppedTrail(t)
+	var stdout, stderr bytes.Buffer
+	if status := run(context.Background(), []string{"prune", "--through", "2", dir}, &stdout, &stderr); status != exitOK {
+		t.Fatalf("prune answered %d with %q and %q", status, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "segment-00000002.jsonl")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("segment 2's file after prune through 2: %v, want gone", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "segment-00000003.jsonl")); err != nil {
+		t.Errorf("prune through 2 removed segment 3's file: %v", err)
+	}
+	v, err := segmentlog.Inspect(dir, evidence.MaxLineBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := v.Manifest(); m.Dropped != 1 || len(m.Segments) != 2 || m.Segments[0].Seq != 2 ||
+		m.Segments[0].State != segmentlog.StatePruned || m.Segments[1].State != segmentlog.StateSealed {
+		t.Errorf("after prune through 2 the manifest is %+v", m)
+	}
+}
+
 // TestTheCollectorsDefaultsAreThePagesNumbers: the collector guide says a
 // segment is sealed at 64 MiB and the log takes 1 GiB unless told, and a
 // credential is 32 to 512 bytes.

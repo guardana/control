@@ -149,8 +149,11 @@ func exportFormat() lineexport.Format {
 // ExportFile exports the file at path as Export does, reading the length it
 // has when opened and holding no lock, so it reads a file a collector is
 // writing. Anything that is not a regular file is refused, without waiting on
-// a named pipe.
+// a named pipe, and so is a file in a log's directory, as ErrSegmentFile.
 func ExportFile(path string, q Query, w io.Writer) (Trailer, error) {
+	if err := notInLog(path); err != nil {
+		return Trailer{}, err
+	}
 	f, err := os.OpenFile(path, os.O_RDONLY|readFlags, 0) //nolint:gosec // G304: the path is the operator's to name, and the descriptor is judged before a byte is read
 	if err != nil {
 		return Trailer{}, err

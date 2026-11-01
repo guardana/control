@@ -93,9 +93,16 @@ type exportText struct {
 // file someCursor is of.
 var exportSource = strings.Repeat("a", 64)
 
+// newExport starts an export whose header is of version, naming none of a
+// log's segments pruned when the version is not 1.0, as the exporter of a
+// later minor always does.
 func newExport(version string) *exportText {
+	pruned := `"pruned_before":0,`
+	if version == "1.0" {
+		pruned = ""
+	}
 	return &exportText{lines: []string{`{"type":"header","format":"` + exportFormat + `","version":"` + version +
-		`","file":"a.trail","source":"` + exportSource + `","query":{"limit":1000}}`}}
+		`","file":"a.trail","source":"` + exportSource + `",` + pruned + `"query":{"limit":1000}}`}}
 }
 
 // cursor names the end of the line at x.offset whose bytes are line.

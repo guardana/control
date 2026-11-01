@@ -86,8 +86,10 @@ func recovered(t *testing.T, cfg Config) ([]string, *segments) {
 }
 
 // sealCrashes is the log a crash at step at of a seal leaves: two lines in
-// the live segment, then a seal that stops there. It reports whether the
-// crash came before the seal ended.
+// the live segment, then a seal that stops there. A seal stopped at its
+// manifest replace changed nothing and leaves the log taking appends; one
+// stopped later leaves it refusing them. It reports whether the crash came
+// before the seal ended.
 func sealCrashes(t *testing.T, cfg Config, at int) bool {
 	t.Helper()
 	l, _ := crashOpen(t, cfg, 1<<30)
@@ -98,7 +100,11 @@ func sealCrashes(t *testing.T, cfg Config, at int) bool {
 	if err != nil && !errors.Is(err, errCrash) {
 		t.Fatalf("a seal with its crash at step %d: %v", at, err)
 	}
-	if err != nil && !errors.Is(l.Append(context.Background(), []byte("x\n")), ErrFailed) {
+	switch {
+	case err == nil:
+	case at == 1 && l.usable() != nil:
+		t.Fatalf("a seal stopped before its manifest was replaced left the log refusing: %v", l.usable())
+	case at > 1 && !errors.Is(l.Append(context.Background(), []byte("x\n")), ErrFailed):
 		t.Fatal("a log a seal stopped part way took another append")
 	}
 	_ = l.release()
@@ -231,5 +237,87 @@ func TestASealedSegmentIsWrittenOnceAcrossAReopen(t *testing.T) {
 	defer func() { _ = l.Close() }()
 	if got := fileText(t, cfg.Dir+"/segment-00000001.jsonl"); !bytes.Equal([]byte(got), []byte("aaa\nbbb\n")) {
 		t.Errorf("the completed seal holds %q", got)
+	}
+}
+
+const errReplace Error = "the manifest replace failed"
+
+// failingReplace are the directory steps with a manifest replace that fails
+// once when armed: before it changes anything, or after it renamed the new
+// manifest into place.
+type failingReplace struct{ before, after bool }
+
+func (f *failingReplace) ops() fsOps {
+	ops := osOps
+	ops.replace = func(root *os.Root, name string, body []byte) error {
+		switch {
+		case f.before:
+			f.before = false
+			return errReplace
+		case f.after:
+			f.after = false
+			return errors.Join(osOps.replace(root, name, body), errReplace)
+		}
+		return osOps.replace(root, name, body)
+	}
+	return ops
+}
+
+// openFailingReplace opens a new log whose manifest replace fails when armed.
+func openFailingReplace(t *testing.T) (*segments, *failingReplace, Config) {
+	t.Helper()
+	cfg := config(logDir(t), 8, 64)
+	f := &failingReplace{}
+	l, err := openWith(cfg, f.ops())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	return l, f, cfg
+}
+
+// TestAManifestReplaceThatChangedNothingLeavesTheLogUsable: a seal or a
+// prune whose manifest replace fails before the new manifest is in place
+// returns its error and leaves the log as it was, and the next append or
+// prune goes on.
+func TestAManifestReplaceThatChangedNothingLeavesTheLogUsable(t *testing.T) {
+	l, f, cfg := openFailingReplace(t)
+	mustAppend(t, l, "aaa", "bbb")
+	f.before = true
+	if err := l.Append(context.Background(), []byte("ccc\n")); !errors.Is(err, errReplace) || errors.Is(err, ErrFailed) {
+		t.Fatalf("a seal whose manifest was not replaced: %v, want its error and not ErrFailed", err)
+	}
+	if m := l.Manifest(); len(m.Segments) != 0 || m.Live.Lines != 2 {
+		t.Fatalf("a seal that failed changed the log: %+v", m)
+	}
+	mustAppend(t, l, "ccc", "ddd")
+	mustAppend(t, l, "eee")
+	f.before = true
+	if err := l.Prune(1); !errors.Is(err, errReplace) || errors.Is(err, ErrFailed) {
+		t.Fatalf("a prune whose manifest was not replaced: %v, want its error and not ErrFailed", err)
+	}
+	if got := states(l.Manifest()); !slices.Equal(got, []State{StateSealed, StateSealed}) {
+		t.Fatalf("a prune that failed changed the log: %v", got)
+	}
+	if err := l.Prune(1); err != nil {
+		t.Fatalf("the prune again: %v", err)
+	}
+	if got := dirNames(t, cfg.Dir); slices.Contains(got, segmentFile(1)) {
+		t.Errorf("the prune again left segment 1: %v", got)
+	}
+}
+
+// TestAManifestReplaceThatFailedAfterItsRenameFailsTheLog: a seal whose
+// manifest replace fails once the new manifest is in place leaves the log
+// refusing appends until it is opened again.
+func TestAManifestReplaceThatFailedAfterItsRenameFailsTheLog(t *testing.T) {
+	l, f, _ := openFailingReplace(t)
+	mustAppend(t, l, "aaa", "bbb")
+	f.after = true
+	if err := l.Append(context.Background(), []byte("ggg\n")); !errors.Is(err, ErrFailed) {
+		t.Fatalf("a seal whose replace failed after the rename: %v, want ErrFailed", err)
+	}
+	if err := l.Append(context.Background(), []byte("hhh\n")); !errors.Is(err, ErrFailed) {
+		t.Errorf("an append after it: %v, want ErrFailed", err)
 	}
 }

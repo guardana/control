@@ -18,6 +18,9 @@ type header struct {
 	// splits is a query that names a filter other than requests: one that
 	// may leave out some of a request's events and keep the others.
 	splits bool
+	// prunedBefore counts the segments of a log before the exported one that
+	// are gone.
+	prunedBefore uint64
 }
 
 // wholeRequestMembers are the query members that never leave out part of a
@@ -56,8 +59,8 @@ func checkHeader(l rawLine) (header, error) {
 		Source  json.RawMessage `json:"source"`
 		// PrunedBefore, from 1.1, counts the segments of a log before the
 		// exported one that are gone; a 1.0 header has none.
-		PrunedBefore *uint64      `json:"pruned_before"`
-		Query        *headerQuery `json:"query"`
+		PrunedBefore json.RawMessage `json:"pruned_before"`
+		Query        *headerQuery    `json:"query"`
 	}
 	if err := json.Unmarshal(l.b, &h); err != nil {
 		return header{}, errors.New("the first record is not a header: a member is of another type")
@@ -67,27 +70,68 @@ func checkHeader(l rawLine) (header, error) {
 		return header{}, errors.New("the first record is not the header")
 	case h.Format == nil || *h.Format != exportFormat:
 		return header{}, fmt.Errorf("the header names another format than %s, which this reader reads", exportFormat)
-	case h.Version == nil:
-		return header{}, errors.New("the header names no version")
 	}
-	major, ok := majorOf(*h.Version)
-	switch {
-	case !ok:
-		return header{}, errors.New("the header's version is not MAJOR.MINOR")
-	case major != exportMajor:
-		return header{}, fmt.Errorf("the header's version is of major %d, and this reader reads major %d", major, exportMajor)
+	minor, err := minorOf(h.Version)
+	if err != nil {
+		return header{}, err
 	}
 	source, err := sourceOf(h.Source)
 	if err != nil {
 		return header{}, err
 	}
+	pruned, err := prunedOf(h.PrunedBefore, minor)
+	if err != nil {
+		return header{}, err
+	}
 	facts := h.Query.facts(source)
 	facts.splits = splitsRequests(l.b)
+	facts.prunedBefore = pruned
 	return facts, nil
 }
 
+// minorOf reads the header's version, refused unless it is MAJOR.MINOR of the
+// major this reader reads, and returns its minor.
+func minorOf(version *string) (uint64, error) {
+	if version == nil {
+		return 0, errors.New("the header names no version")
+	}
+	major, minor, ok := versionOf(*version)
+	switch {
+	case !ok:
+		return 0, errors.New("the header's version is not MAJOR.MINOR")
+	case major != exportMajor:
+		return 0, fmt.Errorf("the header's version is of major %d, and this reader reads major %d", major, exportMajor)
+	}
+	return minor, nil
+}
+
+// prunedOf reads the header's pruned_before, a count. A header of minor 0
+// has none, which is 0; a writer of a later minor always names it, so a
+// header of one without it is refused rather than read as the most trusting
+// count.
+func prunedOf(raw json.RawMessage, minor uint64) (uint64, error) {
+	if raw == nil {
+		if minor > 0 {
+			return 0, errors.New("the header names no pruned_before, which every header of minor 1 or later names")
+		}
+		return 0, nil
+	}
+	var n uint64
+	if string(raw) == "null" || json.Unmarshal(raw, &n) != nil {
+		return 0, errors.New("the header's pruned_before is not a count")
+	}
+	return n, nil
+}
+
+// prunedGap reports whether the export begins a reading of a log with
+// segments before it gone. One naming no cursor follows nothing that read
+// them; one after a state's cursor follows segments the state read before
+// they were pruned, and a cursor into a pruned segment is refused as expired.
+func (h header) prunedGap() bool { return h.after == "" && h.prunedBefore > 0 }
+
 // sourceOf reads the header's source: the SHA-256 of the file's first line,
-// absent while the file holds no whole line.
+// or for a segment of a log its key, absent while the file holds no whole
+// line.
 func sourceOf(raw json.RawMessage) (string, error) {
 	if raw == nil {
 		return "", nil

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/guardana/control/adapters/otel"
@@ -191,6 +192,25 @@ func TestTheReceiverStopsReadingAtTheBound(t *testing.T) {
 	newReceiver(t, sink).ServeHTTP(rec, req)
 	if rec.Code != http.StatusRequestEntityTooLarge || body.read > otel.MaxRequestBytes+1 || sink.appends() != 0 {
 		t.Errorf("answered %d after reading %d bytes, bound %d", rec.Code, body.read, otel.MaxRequestBytes)
+	}
+}
+
+// TestABodyThatCannotBeReadIsAnswered503: a body whose read fails short of
+// the bound, as a read timeout or a reset connection fails it, is answered
+// 503, which the exporter sends again, and the sink is not reached; a body
+// read whole that does not parse is still 400.
+func TestABodyThatCannotBeReadIsAnswered503(t *testing.T) {
+	body := io.MultiReader(strings.NewReader(base()[:20]), iotest.ErrReader(errors.New("read tcp: i/o timeout")))
+	req := httptest.NewRequest(http.MethodPost, "/v1/logs", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	sink := &memorySink{}
+	newReceiver(t, sink).ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable || rec.Body.Len() != 0 || sink.appends() != 0 {
+		t.Errorf("a body whose read failed: answered %d with %q, %d append(s); want 503, no body and none", rec.Code, rec.Body.String(), sink.appends())
+	}
+	if rec, sink := serveOne(t, "", "", "", base()[:20], false); rec.Code != http.StatusBadRequest || sink.appends() != 0 {
+		t.Errorf("the same bytes read whole: answered %d, %d append(s); want 400 and none", rec.Code, sink.appends())
 	}
 }
 

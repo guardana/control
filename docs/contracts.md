@@ -1118,7 +1118,9 @@ by the MAJOR.MINOR rules of Schema versioning above: a reader MUST refuse an
 export of a major it does not read and a record of a `type` it does not know.
 The format is a public contract and changes only by a record. `1.1` adds the
 header's `pruned_before`; a reader of `1.1` reads a `1.0` header, which has
-no such member, as 0.
+no such member, as 0, and refuses a header of a later minor without it. A
+strict `1.0` reader refuses a `1.1` export on that member: it fails loudly and
+never misreads.
 
 An export is one `header`, then the records of the lines it read in the file's
 order, each `event`, `gap` or `duplicate`, then one `trailer`. **An export
@@ -1203,12 +1205,18 @@ header's `file` is the segment's.
   reader that follows `next_cursor` until `end_reached` reads every line of
   every segment not pruned once.
 - A cursor of a pruned segment is refused as expired, exit 2; one whose key no
-  segment the manifest names has, as another file.
+  segment the manifest names has, as another file. A cursor at a sealed
+  segment's end moves on only when its line digest is that of the segment's
+  last line.
+- A file in the directory, a segment or the live one, exported by its path
+  is refused, exit 2, naming the directory to export: read as a trail file it
+  would count none of the segments pruned before it.
 - `pruned_before` counts the segments before the exported one that are gone.
   Coverage refuses an export as whole while it is above 0: what those
   segments held is not in it.
 - Duplicates and conflicts are found within one segment's export; the
-  collector writes no line twice across its segments.
+  collector writes no event id twice across the segments it retains; a line
+  without an event id is written each time it arrives.
 - `source` changes from one segment's export to the next. A reader that keeps
   one takes a new one only from an export after its own cursor whose first
   record is at offset 0, which an export after a cursor in one file never is.

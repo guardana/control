@@ -19,7 +19,8 @@ func prunedHeader(value string) string {
 // TestAnExportOfALogWithSegmentsPrunedBeforeItIsNotWhole: a 1.1 header
 // counting segments pruned before the exported one makes the export not
 // whole, saying so; 0, and a 1.0 header without the member, leave it whole;
-// a count that is not one is refused.
+// a count that is not one, and a header of minor 1 or later without the
+// member, are refused.
 func TestAnExportOfALogWithSegmentsPrunedBeforeItIsNotWhole(t *testing.T) {
 	ev := proposal{trace: traceA, span: spanA}.line()
 	end := trailer(1, 0, 0, true)
@@ -35,6 +36,12 @@ func TestAnExportOfALogWithSegmentsPrunedBeforeItIsNotWhole(t *testing.T) {
 	for _, value := range []string{"-1", `"1"`, "1.5", "null"} {
 		if _, err := coverage.ReadExport(bytes.NewReader(lines(prunedHeader(value), ev, end))); !errors.Is(err, coverage.ErrExport) {
 			t.Errorf("pruned_before %s: %v, want ErrExport", value, err)
+		}
+	}
+	for _, version := range []string{"1.1", "1.2"} {
+		h := strings.Replace(header(plainQuery), `"version":"1.0"`, `"version":"`+version+`"`, 1)
+		if _, err := coverage.ReadExport(bytes.NewReader(lines(h, ev, end))); !errors.Is(err, coverage.ErrExport) {
+			t.Errorf("a %s header without pruned_before: %v, want ErrExport", version, err)
 		}
 	}
 }

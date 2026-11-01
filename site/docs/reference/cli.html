@@ -314,7 +314,8 @@ prunes nothing itself; a directory holding what it does not write is refused
 untouched. <code>trail</code> prints one line per request and exits 1 when a chain fails
 or cannot be read, nothing holds a trail, a partial last line has no <code>collect</code>
 holding it, or past 100,000 lines. <code>trail export</code> of a directory exports one
-segment and refuses an expired cursor. <code>prune</code> removes sealed segments,
+segment and refuses an expired cursor, and a file inside it. <code>prune</code>
+removes sealed segments,
 tombstones first, while no <code>collect</code> holds them.</p>
 <p><code>scenario run</code> holds a running plane to scenario files
 (<a href="/docs/reference/scenario-format">scenario-format.md</a>); it exits 1 when one differed, and

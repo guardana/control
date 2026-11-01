@@ -35,10 +35,15 @@ func (f *follower) raise(a alert) {
 	f.alerts = append(f.alerts, a)
 }
 
-// take reads the export's events and gaps in the file's order, then moves
-// the cursor and carries forward the pending alerts it has not reached.
+// take raises the gap of segments pruned before an export naming no cursor,
+// reads the export's events and gaps in the file's order, then moves the
+// cursor and carries forward the pending alerts it has not reached.
 func (f *follower) take(x *export) {
 	f.enter(x)
+	if x.header.prunedGap() {
+		f.at = 0
+		f.raise(prunedAlert())
+	}
 	gaps := x.gapRecords
 	tail := false
 	for _, e := range x.events {

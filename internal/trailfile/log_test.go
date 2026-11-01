@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -433,5 +434,57 @@ func TestTwoSegmentsBeginningWithOneLineKeepTheirCursorsApart(t *testing.T) {
 	}
 	if got, _ := drain(t, dir, "", 1); !slices.Equal(got, []string{"", "e1", "", "e2"}) {
 		t.Errorf("following the two segments read %q", got)
+	}
+}
+
+// TestACursorAtASegmentsEndNamesItsLastLine: a cursor at the end of a sealed
+// segment a later one follows moves on only when its line digest is that of
+// the segment's last line; with another it is refused as changed and writes
+// nothing.
+func TestACursorAtASegmentsEndNamesItsLastLine(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "log")
+	l := openTestLog(t, logConfig(dir))
+	for n := 1; n <= 5; n++ {
+		appendTo(t, l, event(n))
+	}
+	_, cursor, file := exportIDs(t, dir, "", 1000)
+	parts := strings.Split(cursor, ":")
+	if len(parts) != 4 || file != "segment-00000001.jsonl" {
+		t.Fatalf("the first export ended at %q in %s", cursor, file)
+	}
+	forged := strings.Join([]string{parts[0], parts[1], parts[2], strings.Repeat("0", 64)}, ":")
+	var out bytes.Buffer
+	if _, err := ExportLog(dir, Query{After: forged, Limit: 1000}, &out); !errors.Is(err, ErrCursorChanged) || out.Len() != 0 {
+		t.Errorf("a cursor at the segment's end naming another line: %v and %d bytes, want ErrCursorChanged and nothing", err, out.Len())
+	}
+	if got, _, _ := exportIDs(t, dir, cursor, 1000); !slices.Equal(got, ids(3, 4)) {
+		t.Errorf("the cursor the export gave moved on to %v, want e3 and e4", got)
+	}
+}
+
+// TestALiveSegmentOpensInTheDirectoryTheLogHolds: after a seal, the next live
+// segment is made in the directory the log locked, though another directory
+// was put at its path since.
+func TestALiveSegmentOpensInTheDirectoryTheLogHolds(t *testing.T) {
+	base := t.TempDir()
+	dir := filepath.Join(base, "log")
+	l := openTestLog(t, logConfig(dir))
+	appendTo(t, l, event(1))
+	if err := l.rl.Seal(); err != nil {
+		t.Fatal(err)
+	}
+	moved := filepath.Join(base, "moved")
+	if err := os.Rename(dir, moved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	appendTo(t, l, event(2))
+	if _, err := os.Stat(filepath.Join(dir, segmentlog.LiveName)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a live segment at the path swapped in: %v, want none", err)
+	}
+	if got := liveText(t, moved); got != lines(t, event(2)) {
+		t.Errorf("the locked directory's live segment holds %q, want event 2", got)
 	}
 }
