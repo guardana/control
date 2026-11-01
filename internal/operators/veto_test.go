@@ -206,6 +206,46 @@ func TestAPortAskedInsideACallThatTimedOutIsCanceled(t *testing.T) {
 	}
 }
 
+// contextBlind answers without its caller's context, as a cached or local
+// kind may, so only the veto's own call can see that the caller gave up.
+type contextBlind struct{ inner operators.Authorizer }
+
+func (c contextBlind) Authorize(_ context.Context, who operators.Authentication, req operators.Request) operators.Permission {
+	return c.inner.Authorize(context.Background(), who, req)
+}
+
+func (c contextBlind) Status() operators.Status { return c.inner.Status() }
+
+// TestACallerThatGaveUpBeforeTheVetoIsNeverBusy: behind an authorizer that
+// ignores its context, a caller that gave up before the veto is asked is
+// canceled, not busy, so roster_only keeps nothing for it, and the veto is not
+// asked on its behalf.
+func TestACallerThatGaveUpBeforeTheVetoIsNeverBusy(t *testing.T) {
+	w := newWorld(t, standard())
+	alice := authenticated(t, w, "alice")
+	gone, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	stuck := &fakeVeto{answer: operators.NoObjection(), release: make(chan struct{}), deaf: true}
+	defer close(stuck.release)
+	z, err := operators.WithVeto(contextBlind{authorizer(t, w.roster, operators.Bounds{})}, stuck, operators.RosterOnly, operators.Bounds{Timeout: 20 * time.Millisecond, InFlight: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPerm(t, "the call that takes the only slot", z.Authorize(t.Context(), alice, approve("t1", "A")), operators.PermPermitted, operators.CauseNone)
+	wantPerm(t, "a caller that gave up while every slot is taken", z.Authorize(gone, alice, approve("t1", "A")), operators.PermUnavailable, operators.CauseCanceled)
+
+	idle := &fakeVeto{answer: operators.NoObjection()}
+	z, err = operators.WithVeto(contextBlind{authorizer(t, w.roster, operators.Bounds{})}, idle, operators.RosterOnly, operators.Bounds{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPerm(t, "a caller that gave up with a slot free", z.Authorize(gone, alice, approve("t1", "A")), operators.PermUnavailable, operators.CauseCanceled)
+	if idle.asked.Load() != 0 {
+		t.Errorf("the veto was asked %d times for a caller that had given up", idle.asked.Load())
+	}
+}
+
 func TestTheVetoSettingIsClosed(t *testing.T) {
 	for s, want := range map[string]operators.OnUnavailable{"": operators.VetoBlocks, "block": operators.VetoBlocks, "roster_only": operators.RosterOnly} {
 		if got, err := operators.ParseOnUnavailable(s); err != nil || got != want {
