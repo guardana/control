@@ -42,12 +42,12 @@ preview, explicit apply and undo are B23; setup never silently widens authority.
 
 ## 2. Integrations without a fork
 
-Add proxy and process sensors independent of the agent first (B21, B35). Then
-publish port contracts with language-neutral conformance suites once two
-consumers use each, with a TypeScript client (B12); continuous supervision
-(B28) builds on both. A framework integration (B11) follows when an adopter
-picks one. Tool-definition review and policy comparison (B25, B27) block
-nothing. A public Go seam needs its own record.
+Attributing egress connections to runs (B21) and a process sensor
+independent of the agent (B35) come first. Then publish port contracts with
+language-neutral conformance suites once two consumers use each, with a
+TypeScript client (B12); continuous supervision (B28) builds on both. A
+framework integration (B11) follows when an adopter picks one. B25, B27 and
+B36 go alongside. A public Go seam needs its own record.
 
 ## 3. A small team
 

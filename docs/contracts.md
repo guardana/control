@@ -52,7 +52,7 @@ The value is `MAJOR.MINOR`.
   refuses a major it does not implement rather than deciding on a message it
   would be reading under different rules.
 - A **minor** bump is additive. A receiver accepts a higher minor on a major it
-  implements.
+  implements; each number fits 32 bits.
 - Absent, malformed or unparseable is refused, and never read as the current
   version: a producer that says nothing must not be the producer that gets the
   most trust.

@@ -158,8 +158,8 @@ undeclared paths: unknown
 ```
 
 The fixture's lines are from 2026-10-04, past the 300-second heartbeat, so the
-declared path is unknown; over a log the proxy is still writing, it reads
-observed. `2001:db8::1` and `registry.example.org` are in the log and no path
+declared path is unknown; imported again while the proxy still writes, it
+reads observed. `2001:db8::1` and `registry.example.org` are in the log and no path
 declares them, so each gets a row; the refused line gets one too, since its
 destination could not be imported. An undeclared host or a refused line makes
 the command exit 1. No plane decides a connection, so an

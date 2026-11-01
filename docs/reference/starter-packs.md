@@ -78,8 +78,8 @@ declares but `READ`, so a class added later fails it until the pack names it.
 Two consequences to know before relying on it:
 
 - After the run took in untrusted content, a message to an untrusted
-  destination is blocked, never put to an approver: undetermined while nothing
-  confidential was read, denied after. An undetermined `DENY` outranks
+  destination is blocked, never put to an approver: denied once a known read
+  reached confidential, otherwise undetermined, as after an undeclared result. An undetermined `DENY` outranks
   `REQUIRE_APPROVAL`, and a plane's calls carry no data label to settle it.
 - `prod` is matched as written. An upstream whose `environment` is
   `production` gets its deletes held for approval, not denied. Name every

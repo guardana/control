@@ -33,15 +33,16 @@ boundary. [Status](docs/status.md) is the inventory of what exists.
 
 - Hold writes for an expiring approval of one exact action:
   [starter policies](docs/reference/starter-packs.md).
-- Let your existing authorization service veto configured calls through the
+- Let your authorization service veto configured calls through the
   [AuthZEN API](docs/guides/let-a-decision-point-veto.md).
-- Let a tool of your own ask before it acts and report how it ended, through
-  the [Enforcement API](docs/guides/decide-a-tool-of-your-own.md).
-- Import runtime traces, inspect coverage, check a recorded run against its
-  procedure, and stop its later calls where a signed route allows:
+- Let a tool of your own ask before it acts, through the
+  [Enforcement API](docs/guides/decide-a-tool-of-your-own.md).
+- Import runtime traces and egress proxy logs, inspect coverage, check a
+  recorded run against its procedure, and stop its later calls where a signed
+  route allows:
   [supervision](docs/guides/supervise-and-stop-a-run.md).
-- Block a tool whose definition no longer matches its reviewed fingerprint:
-  [MCP gateway](docs/concepts/mcp-gateway.md).
+- Block a tool whose definition no longer matches its reviewed fingerprint,
+  except under `OBSERVE`: [MCP gateway](docs/concepts/mcp-gateway.md).
 
 Supervision and reaction run when you invoke them. A stop does not interrupt
 an operation already running. Paths around the gateway stay outside its control.
