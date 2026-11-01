@@ -310,22 +310,23 @@ or <code>SIGTERM</code>, <code>run</code> admits no new call, gives admitted one
 <code>enforce_api</code> plane waits ten seconds and abandons open executions. Either
 exits 1 when it cut one, lost a closing record or could not close the spool;
 <code>doctor</code> when its plane does not close or stdout does not take its report.</p>
-<p><code>collect</code> and <code>trail</code> read no configuration:
+<p><code>collect</code>, <code>trail</code> and <code>prune</code> read no configuration:
 <a href="/docs/guides/watch-a-plane-without-a-collector">guides/watch-a-plane-without-a-collector.md</a>
-is their page. <code>collect</code> listens on a loopback IP address only and appends
-what a plane exports, previews cleared, to one file until stopped; <code>--out</code>
-names a trail file or a new path, and any other is refused untouched. A last
-line with no newline is removed only when it can be the start of an evidence
-line, so a file of one line that cannot, such as a settings file, is refused
-too. <code>trail</code> prints one line per request and exits 1 when a chain fails,
-cannot be read either way, or the file holds no trail, when the file ends in a
-partial line that no running <code>collect</code> holds, and when it holds more than
-100,000 lines.</p>
+is their page. <code>collect</code> appends what a plane exports, previews cleared, to
+segments bound to one tenant and project. It answers 401 without its
+credential, 400 to another project's event and 503 past <code>--max-bytes</code>, and
+prunes nothing itself; a directory holding what it does not write is refused
+untouched. <code>trail</code> prints one line per request and exits 1 when a chain fails
+or cannot be read, nothing holds a trail, a partial last line has no <code>collect</code>
+holding it, or past 100,000 lines. <code>trail export</code> of a directory exports one
+segment and refuses an expired cursor, and a file inside it. <code>prune</code>
+removes sealed segments,
+tombstones first, while no <code>collect</code> holds them.</p>
 <p><code>scenario run</code> holds a running plane to scenario files
 (<a href="/docs/reference/scenario-format">scenario-format.md</a>); it exits 1 when one differed, and
 2, a failure too, when one could not run.</p>
 <p><code>dev</code>: <a href="/docs/reference/dev">dev.md</a>.</p>
-<pre><code>usage: guardana-gateway [run --config &lt;file&gt; [--run-token-file &lt;file&gt;] | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --out &lt;file&gt; | trail [export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] [--request &lt;id&gt;]... [--run &lt;id&gt;]... [--tenant &lt;id&gt;]... [--project &lt;id&gt;]... [--kind &lt;kind&gt;]...] &lt;file&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--decision-point=silent] [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
+<pre><code>usage: guardana-gateway [run --config &lt;file&gt; [--run-token-file &lt;file&gt;] | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --dir &lt;dir&gt; --tenant &lt;id&gt; --project &lt;id&gt; --credential-file &lt;file&gt; [--segment-bytes &lt;n&gt;] [--max-bytes &lt;n&gt;] | trail [segments] [export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] [--request &lt;id&gt;]... [--run &lt;id&gt;]... [--tenant &lt;id&gt;]... [--project &lt;id&gt;]... [--kind &lt;kind&gt;]...] &lt;file or dir&gt; | prune --through &lt;segment&gt; &lt;dir&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--decision-point=silent] [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
 
 run
   -config string
@@ -338,10 +339,20 @@ doctor
     	the configuration file to read
 
 collect
+  -credential-file string
+    	the file holding the credential every request carries as Authorization: Bearer &lt;credential&gt;; mode 0600 or narrower, of this account
+  -dir string
+    	the directory of trail segments to append what arrives to, created when absent
   -listen string
     	the loopback address to listen on, host:port; port 0 takes a free one
-  -out string
-    	the trail file to append what arrives to
+  -max-bytes int
+    	the bytes the segments not pruned may hold; past them every request is answered 503 until an operator prunes, and nothing is pruned automatically (default 1073741824)
+  -project string
+    	the project the trail is bound to; an event of another is refused
+  -segment-bytes int
+    	the bytes a segment holds before it is sealed (default 67108864)
+  -tenant string
+    	the tenant the trail is bound to; an event of another is refused
 
 trail
   -after cursor
@@ -361,6 +372,10 @@ trail
   -tenant id
     	trail export: write the events of this tenant id; repeatable
 
+prune
+  -through segment
+    	prune every sealed segment up to and including this segment number
+
 scenario
   -config string
     	the plane&#39;s configuration, which names its listener, its /healthz, its approvals directory and its pause file
@@ -369,7 +384,7 @@ scenario
   -timeout duration
     	the bound on each wait: the spool&#39;s drain, a pause read, a run of guardana-control, and a call past the upstream&#39;s own timeout (default 10s)
   -trail string
-    	the trail file the plane&#39;s collector writes
+    	the trail file, or directory of trail segments, the plane&#39;s collector writes
 
 dev
   -config string

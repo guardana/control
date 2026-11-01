@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -97,10 +98,18 @@ func expectNothingReleased(t *testing.T, e *otel.Exporter, sp *spool.Spool, path
 	}
 }
 
+// testToken is the credential the receivers under test require and the
+// exporters under test send.
+var testToken = strings.Repeat("c", otel.MinCredentialBytes)
+
 // serveReceiver serves the OTLP receiver over w and returns its logs URL.
-func serveReceiver(t *testing.T, w *Writer) (*statuses, string) {
+func serveReceiver(t *testing.T, w otel.Sink) (*statuses, string) {
 	t.Helper()
-	receiver, err := otel.NewReceiver(w, slog.New(slog.DiscardHandler))
+	cred, err := otel.NewCredential(testToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver, err := otel.NewReceiver(w, slog.New(slog.DiscardHandler), cred)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,6 +143,7 @@ func runExporter(t *testing.T, sp *spool.Spool, url string) (*otel.Exporter, fun
 		t.Fatal(err)
 	}
 	e, err := otel.New(otel.Options{Endpoint: url, AllowPlaintext: true, InFlight: 1,
+		Headers: map[string]string{"Authorization": "Bearer " + testToken},
 		Timeout: 5 * time.Second, MaxBatch: 16, Linger: 10 * time.Millisecond, Backoff: 10 * time.Millisecond,
 		MaxBackoff: 20 * time.Millisecond, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}, r)
 	if err != nil {

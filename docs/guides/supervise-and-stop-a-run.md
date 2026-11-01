@@ -77,7 +77,12 @@ guardana-control policy state init --kind plane --bundle-id refund-supervision s
 
 In `plane.yaml`, replace the four `..._FROM_KEYGEN` values with the
 `key_id` and `public_key` lines keygen printed for `keys/bundle` and
-`keys/freshness`.
+`keys/freshness`. Make the collector's credential, and replace
+`COLLECTOR_CREDENTIAL_FROM_FILE` with the content of `state/collector.credential`:
+
+```
+(umask 077 && od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > state/collector.credential)
+```
 
 ### 3. Sign the route and start the stop list
 
@@ -107,7 +112,8 @@ Work in `$WORK/examples/refund-supervision` from here on. Start the collector
 in a terminal of its own:
 
 ```
-guardana-gateway collect --listen 127.0.0.1:4318 --out trail/plane.jsonl
+guardana-gateway collect --listen 127.0.0.1:4318 --dir trail/plane --tenant acme --project refunds \
+  --credential-file state/collector.credential
 ```
 
 Open both runs as step 5 shows first. Then check the configuration; every
@@ -197,10 +203,10 @@ data: {…"text":"order ord-2 is now refunded"}],"resultType":"complete"}}
 Wait until the collector holds the four calls' trails, then export them:
 
 ```
-$ guardana-gateway trail trail/plane.jsonl
+$ guardana-gateway trail trail/plane
 …
 trails 4: ok 4, open 0, failed 0, indeterminate 0; …
-$ guardana-gateway trail export trail/plane.jsonl > plane.export.jsonl
+$ guardana-gateway trail export trail/plane > plane.export.jsonl
 ```
 
 ### 8. Supervise the run and read its page
@@ -295,7 +301,7 @@ The refused call's trail shows the plane blocked it before the server saw it,
 under a policy that allowed it. Use the request id its answer named:
 
 ```
-$ guardana-gateway trail export --request SGVSUQB3K4E54GEEGBA2VDBOOP trail/plane.jsonl | grep -o '"kind":"[A-Z_]*"\|"reasonCodes":\[[^]]*\]'
+$ guardana-gateway trail export --request SGVSUQB3K4E54GEEGBA2VDBOOP trail/plane | grep -o '"kind":"[A-Z_]*"\|"reasonCodes":\[[^]]*\]'
 "kind":"EVENT_KIND_ACTION_PROPOSED"
 "kind":"EVENT_KIND_POLICY_DECIDED"
 "reasonCodes":["RULE_ALLOW"]

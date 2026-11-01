@@ -52,6 +52,8 @@ export:
   endpoint: http://127.0.0.1:4318/v1/logs
   allow_plaintext: true
   linger: 5ms
+  headers:
+    Authorization: Bearer COLLECTOR_CREDENTIAL_FROM_FILE
 
 upstreams:
   - name: orders

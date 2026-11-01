@@ -3,12 +3,14 @@ package e2e_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,12 +26,16 @@ import (
 
 const denyMail = `{"id":"deny-mail","effect":"DENY","when":{"action":{"effect":["COMMUNICATE"]}}}`
 
+// collectorToken is the credential the collectors under test require and
+// the exporters under test send.
+var collectorToken = strings.Repeat("e", otel.MinCredentialBytes)
+
 // fileCollector is the collector this repository ships, in-process: the OTLP
 // receiver over a trail file, on a loopback port.
 type fileCollector struct {
 	addr string
 	srv  *http.Server
-	w    *trailfile.Writer
+	w    io.Closer
 }
 
 func startFileCollector(t *testing.T, path, addr string) *fileCollector {
@@ -38,7 +44,18 @@ func startFileCollector(t *testing.T, path, addr string) *fileCollector {
 	if err != nil {
 		t.Fatalf("trailfile.Open: %v", err)
 	}
-	receiver, err := otel.NewReceiver(w, slog.New(slog.DiscardHandler))
+	return serveCollector(t, w, w, addr)
+}
+
+// serveCollector serves the OTLP receiver over sink on addr, requiring the
+// credential, and closes the listener, every connection and then w.
+func serveCollector(t *testing.T, sink otel.Sink, w io.Closer, addr string) *fileCollector {
+	t.Helper()
+	cred, err := otel.NewCredential(collectorToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver, err := otel.NewReceiver(sink, slog.New(slog.DiscardHandler), cred)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,8 +80,16 @@ func (c *fileCollector) stop() {
 	_ = c.w.Close()
 }
 
-// exportTo starts the plane's real exporter over its spool toward url.
+// exportTo starts the plane's real exporter over its spool toward url,
+// sending the collector's credential.
 func exportTo(t *testing.T, p *plane, url string) *otel.Exporter {
+	t.Helper()
+	return exportWith(t, p, url, "Bearer "+collectorToken)
+}
+
+// exportWith starts the plane's real exporter over its spool toward url,
+// sending authorization as its Authorization header.
+func exportWith(t *testing.T, p *plane, url, authorization string) *otel.Exporter {
 	t.Helper()
 	reader, err := p.spool.Reader(spool.Cursor{})
 	if err != nil {
@@ -73,7 +98,7 @@ func exportTo(t *testing.T, p *plane, url string) *otel.Exporter {
 	exporter, err := otel.New(otel.Options{
 		Endpoint: url, AllowPlaintext: true, InFlight: 2, Timeout: 2 * time.Second, MaxBatch: 8,
 		Linger: 10 * time.Millisecond, Backoff: 20 * time.Millisecond, MaxBackoff: 40 * time.Millisecond,
-		Logger: slog.New(slog.DiscardHandler),
+		Logger: slog.New(slog.DiscardHandler), Headers: map[string]string{"Authorization": authorization},
 	}, reader)
 	if err != nil {
 		t.Fatalf("otel.New: %v", err)

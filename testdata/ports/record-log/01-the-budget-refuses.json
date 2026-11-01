@@ -1,0 +1,18 @@
+{
+  "rule": "an append that would take the log past its byte bound is refused, and nothing is pruned to make room",
+  "segment_bytes": 8,
+  "max_bytes": 16,
+  "steps": [
+    {"append": ["aaa", "bbb"]},
+    {"append": ["ccc", "ddd"]},
+    {"append": ["e"], "want": "budget"},
+    {"retained": 16},
+    {"locate": "aaa", "seq": 1, "state": "sealed"}
+  ],
+  "negative_control": [
+    {"append": ["aaa", "bbb"]},
+    {"append": ["ccc", "d"]},
+    {"append": ["e"]},
+    {"retained": 16}
+  ]
+}

@@ -52,7 +52,7 @@ func (ra *refundAgent) retryWork(t *testing.T, tr tree) retryRequests {
 // alone, and the second run's call runs. The example's own cases pass.
 func TestARetriedRefundIsStoppedUnderProcedure02(t *testing.T) {
 	tr := newTree(t)
-	collector := start(t, tr.dir, environ(), tr.gateway, "collect", "--listen", "127.0.0.1:0", "--out", "trail/plane.jsonl")
+	collector := tr.collect(t)
 	tr.sign(t, collector.after(t, "collect: listening on "))
 	tr.makeRoute(t)
 	first, second := tr.openRun(t), tr.openRun(t)
@@ -61,7 +61,7 @@ func TestARetriedRefundIsStoppedUnderProcedure02(t *testing.T) {
 	ra := newAgent(t, agents, first.token)
 	rq := ra.retryWork(t, tr)
 	tr.waitForTrails(t, 4)
-	writeFile(t, filepath.Join(tr.root, "plane.export.jsonl"), must(t, tr.dir, tr.gateway, "trail", "export", "trail/plane.jsonl"))
+	writeFile(t, filepath.Join(tr.root, "plane.export.jsonl"), must(t, tr.dir, tr.gateway, "trail", "export", trailDir))
 
 	view := filepath.Join(tr.root, "run.html")
 	s := tr.superviseUnder(t, procedure02, "retried", first.id, ra, func(span) string { return first.id }, "--view", view)

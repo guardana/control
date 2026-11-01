@@ -42,6 +42,8 @@ evidence:
 export:
   endpoint: http://127.0.0.1:4318/v1/logs
   allow_plaintext: true
+  headers:
+    Authorization: Bearer COLLECTOR_CREDENTIAL_FROM_FILE
 
 list:
   shaping: none

@@ -1,4 +1,4 @@
-{"type":"header","format":"guardana.control.evidence-export","version":"1.0","file":"records.trail","source":"57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c997e2a3","query":{"limit":1000}}
+{"type":"header","format":"guardana.control.evidence-export","version":"1.1","file":"records.trail","source":"57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c997e2a3","pruned_before":0,"query":{"limit":1000}}
 {"type":"event","offset":0,"cursor":"v1:57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c997e2a3:140:57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c997e2a3","event":{"eventId":"e1","kind":"EVENT_KIND_ACTION_PROPOSED","requestId":"r1","runId":"run1","projectId":"p1","tenantId":"t1","schemaVersion":"1.0"}}
 {"type":"gap","offset":140,"cursor":"v1:57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c997e2a3:265:981b605e8b6a1fd796e6f1dff31bd6a48b3b15eae8d6edf862231f8c72bf90d3","reason":"unsupported_version"}
 {"type":"gap","offset":265,"cursor":"v1:57f7f9c13a3299681c3a7122a448585ec8e5984f4c854f0c3dd54b08c997e2a3:317:673d7cad58a149a9d439f5655893548a9e3103a6a9ce2ab8159d15351439191d","reason":"malformed"}

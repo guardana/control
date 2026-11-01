@@ -54,7 +54,9 @@ it has anyway may not be seen, and dev's own value applies.
 
 `--state`, or a new directory under the system's temporary directory, mode
 `0700`, holding everything the plane writes: `approvals/`, `holds/` and
-`spool/`, `trail.jsonl`, which a collector inside dev appends to,
+`spool/`, `trail/`, the segments a collector inside dev appends to, bound to
+the demo's tenant and project and to a credential drawn for this plane and
+held in memory only,
 `policy.bundle`, `policy.statement`, the bundle's freshness statement,
 `floors/`, the plane's floor directory, made by `guardana-control policy
 state init --kind plane`, `pause.json`, made by `guardana-control pause
@@ -115,7 +117,7 @@ stop, its agent connected or not, each up to
 seconds to append its closing record, then up to five seconds for the exporter to ship what
 the spool holds, then the collector, then the page, whose input dev closes.
 Dev then prints `unshipped:`, the bytes the collector never acknowledged,
-which the trail file may lack; it never says the trail is complete. It exits 0
+which the trail may lack; it never says the trail is complete. It exits 0
 after an interrupt and 1 when a part stopped on its own, the page included,
 whatever the page's status, or did not stop cleanly: a call cut at the stop,
 a closing record lost before or after the plane closed, or a part that did

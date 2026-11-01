@@ -36,12 +36,13 @@ type (
 		FirstOffset int64  `json:"first_offset"`
 	}
 	headerOut struct {
-		Type    string `json:"type"`
-		Format  string `json:"format"`
-		Version string `json:"version"`
-		File    string `json:"file"`
-		Source  string `json:"source"`
-		Query   struct {
+		Type         string `json:"type"`
+		Format       string `json:"format"`
+		Version      string `json:"version"`
+		File         string `json:"file"`
+		Source       string `json:"source"`
+		PrunedBefore int    `json:"pruned_before"`
+		Query        struct {
 			After string `json:"after,omitempty"`
 			Limit int    `json:"limit"`
 		} `json:"query"`
@@ -144,7 +145,7 @@ func (s splitter) split(t *testing.T, starts []int, limit int) []string {
 func (s splitter) part(t *testing.T, rs []record, from int64, limit int) ([]string, int64) {
 	t.Helper()
 	var h headerOut
-	h.Type, h.Format, h.Version, h.File, h.Source = "header", exportFormat, "1.0", s.file, s.source
+	h.Type, h.Format, h.Version, h.File, h.Source = "header", exportFormat, "1.1", s.file, s.source
 	h.Query.After, h.Query.Limit = s.cursorAt(from), limit
 	out := []string{marshal(t, h)}
 	first := map[string]int64{}

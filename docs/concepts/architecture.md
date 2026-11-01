@@ -384,7 +384,7 @@ Sources: `ROADMAP.md`, `internal/gateway/pause.go`, `adapters/authzen/client.go`
 | `internal/approvals/`, `internal/holdjournal/` | The file approval provider and the plane's hold journal, [ADR-0016](../adr/0016-approval-providers-and-the-lost-hold.md) | `experimental` |
 | `cmd/guardana-control/` | The `policy` commands | `implemented` |
 | `cmd/guardana-control/` | The `approvals`, `pause`, `runs`, `observe`, `coverage`, `supervise` and `notify` commands and the `console` page | `experimental` |
-| `cmd/guardana-gateway/` | The plane: `run`, `doctor`, `collect`, `trail`, `scenario` and `dev` | `experimental` |
+| `cmd/guardana-gateway/` | The plane: `run`, `doctor`, `collect`, `trail`, `prune`, `scenario` and `dev` | `experimental` |
 | `Makefile`, `scripts/`, `.golangci.yml` | The one quality gate | `implemented` |
 | `internal/docscheck/` | The documentation gate, run by `make docs-check` | `implemented` |
 | `internal/`, everything else | What is not intentionally public | as [status.md](../status.md) labels each component |

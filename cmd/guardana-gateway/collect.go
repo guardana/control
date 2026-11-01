@@ -9,10 +9,13 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/guardana/control/adapters/otel"
+	"github.com/guardana/control/internal/files"
 	"github.com/guardana/control/internal/loopback"
 	"github.com/guardana/control/internal/trailfile"
 )
@@ -29,30 +32,100 @@ const (
 	collectShutdown          = 10 * time.Second
 )
 
+// The collector's byte bounds when not told: a segment is sealed at
+// defaultSegmentBytes, and appends are refused once the segments not pruned
+// hold defaultMaxBytes.
+const (
+	defaultSegmentBytes int64 = 64 << 20
+	defaultMaxBytes     int64 = 1 << 30
+)
+
+const collectForm = "--listen <addr> --dir <dir> --tenant <id> --project <id> --credential-file <file> " +
+	"[--segment-bytes <n>] [--max-bytes <n>]"
+
+// collectorConfig is what a collector keeps and whom it takes it from.
+type collectorConfig struct {
+	dir, tenant, project   string
+	cred                   otel.Credential
+	segmentBytes, maxBytes int64
+}
+
 func declareCollect(flags *flag.FlagSet) commandFunc {
 	listen := flags.String("listen", "", "the loopback address to listen on, host:port; port 0 takes a free one")
-	out := flags.String("out", "", "the trail file to append what arrives to")
+	dir := flags.String("dir", "", "the directory of trail segments to append what arrives to, created when absent")
+	tenant := flags.String("tenant", "", "the tenant the trail is bound to; an event of another is refused")
+	project := flags.String("project", "", "the project the trail is bound to; an event of another is refused")
+	credFile := flags.String("credential-file", "", "the file holding the credential every request carries as "+
+		"Authorization: Bearer <credential>; mode 0600 or narrower, of this account")
+	segmentBytes := flags.Int64("segment-bytes", defaultSegmentBytes, "the bytes a segment holds before it is sealed")
+	maxBytes := flags.Int64("max-bytes", defaultMaxBytes, "the bytes the segments not pruned may hold; past them "+
+		"every request is answered 503 until an operator prunes, and nothing is pruned automatically")
 	return func(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-		switch {
-		case *listen == "":
-			writeLine(stderr, flags.Name()+": --listen names the loopback address to listen on")
-			return exitUsage
-		case *out == "":
-			writeLine(stderr, flags.Name()+": --out names the trail file to append to")
-			return exitUsage
-		case len(args) > 0:
+		for _, f := range []struct{ value, name, says string }{
+			{*listen, "listen", "the loopback address to listen on"},
+			{*dir, "dir", "the directory of trail segments to append to"},
+			{*tenant, "tenant", "the tenant the trail is bound to"},
+			{*project, "project", "the project the trail is bound to"},
+			{*credFile, "credential-file", "the file holding the credential every request carries"},
+		} {
+			if f.value == "" {
+				writeLine(stderr, flags.Name()+": --"+f.name+" names "+f.says)
+				return exitUsage
+			}
+		}
+		if len(args) > 0 {
 			writeLine(stderr, flags.Name()+": unexpected argument "+oneLine(args[0]))
 			return exitUsage
 		}
-		return collect(ctx, *listen, *out, stdout, stderr)
+		if err := checkBounds(*segmentBytes, *maxBytes); err != nil {
+			writeLine(stderr, flags.Name()+": "+err.Error())
+			return exitUsage
+		}
+		cred, err := readCredential(*credFile)
+		if err != nil {
+			return fail(stderr, "collect", fmt.Errorf("--credential-file %w", err))
+		}
+		return collect(ctx, *listen, collectorConfig{dir: *dir, tenant: *tenant, project: *project, cred: cred,
+			segmentBytes: *segmentBytes, maxBytes: *maxBytes}, stdout, stderr)
 	}
 }
 
+// checkBounds refuses a segment bound below the largest request a plane
+// sends, so no one request goes alone into a segment past it and leaves a
+// full log with nothing sealed to prune, and a log bound below twice it.
+func checkBounds(segmentBytes, maxBytes int64) error {
+	switch {
+	case segmentBytes < otel.MaxRequestBytes:
+		return fmt.Errorf("--segment-bytes is at least %d, the largest request a plane sends", otel.MaxRequestBytes)
+	case maxBytes/2 < segmentBytes:
+		return fmt.Errorf("--max-bytes is at least twice --segment-bytes, so a full log holds a sealed segment to prune")
+	}
+	return nil
+}
+
+// readCredential reads the credential a collector requires from a file of
+// this account that the group and others cannot read. One line ending is
+// taken off its end, as an editor or echo leaves one.
+func readCredential(path string) (otel.Credential, error) {
+	raw, err := files.ReadOwned(path, otel.MaxCredentialBytes+2, 0o077, os.Geteuid())
+	if err != nil {
+		return otel.Credential{}, fmt.Errorf("%s: %w", strconv.Quote(path), err)
+	}
+	token := strings.TrimSuffix(strings.TrimSuffix(string(raw), "\n"), "\r")
+	cred, err := otel.NewCredential(token)
+	if err != nil {
+		return otel.Credential{}, fmt.Errorf("%s: %w", strconv.Quote(path), err)
+	}
+	return cred, nil
+}
+
 // collect receives OTLP/HTTP logs on a loopback address and appends the
-// evidence each one carries to the trail file, until ctx ends. A plane reaches
-// a plaintext collector only under export.allow_plaintext and only on a
-// loopback IP literal, so nothing else is listened on.
-func collect(ctx context.Context, listen, out string, stdout, stderr io.Writer) int {
+// evidence each one carries to the trail segments in cfg.dir, until ctx ends.
+// A plane reaches a plaintext collector only under export.allow_plaintext and
+// only on a loopback IP literal, so nothing else is listened on; the
+// credential keeps any other local account from writing to the trail or
+// filling its bound.
+func collect(ctx context.Context, listen string, cfg collectorConfig, stdout, stderr io.Writer) int {
 	if err := loopbackOnly(listen); err != nil {
 		return fail(stderr, "collect", err)
 	}
@@ -60,13 +133,14 @@ func collect(ctx context.Context, listen, out string, stdout, stderr io.Writer) 
 	if err != nil {
 		return fail(stderr, "collect", err)
 	}
-	c, err := startCollector(ln, out, stderr)
+	c, err := startCollector(ln, cfg, stderr)
 	if err != nil {
-		return fail(stderr, "collect", fmt.Errorf("--out %w", err))
+		return fail(stderr, "collect", fmt.Errorf("--dir %w", err))
 	}
-	if _, err := fmt.Fprintf(stdout, "collect: listening on %s\ncollect: appending to %s\n"+
-		"collect: a plane sends here with export.endpoint: %s and export.allow_plaintext: true\n",
-		c.url, oneLine(out), c.url); err != nil {
+	if _, err := fmt.Fprintf(stdout, "collect: listening on %s\ncollect: appending to %s for tenant %s, project %s\n"+
+		"collect: a plane sends here with export.endpoint: %s, export.allow_plaintext: true and "+
+		"export.headers.Authorization: Bearer <the credential>\n",
+		c.url, oneLine(cfg.dir), shown(cfg.tenant), shown(cfg.project), c.url); err != nil {
 		return fail(stderr, "collect", errors.Join(fmt.Errorf("writing to standard output: %w", err), c.stop()))
 	}
 	select {
@@ -85,20 +159,21 @@ func collect(ctx context.Context, listen, out string, stdout, stderr io.Writer) 
 // returned once it stops.
 type collector struct {
 	srv    *http.Server
-	trail  *trailfile.Writer
+	trail  *trailfile.Log
 	url    string
 	served chan error
 }
 
-// startCollector opens the trail file at out and serves ln until stop. It
-// takes ln over: a refusal closes it, and names out.
-func startCollector(ln net.Listener, out string, stderr io.Writer) (*collector, error) {
-	w, err := trailfile.Open(out)
+// startCollector opens the trail segments in cfg.dir and serves ln until
+// stop. It takes ln over: a refusal closes it, and names the directory.
+func startCollector(ln net.Listener, cfg collectorConfig, stderr io.Writer) (*collector, error) {
+	w, err := trailfile.OpenLog(trailfile.LogConfig{Dir: cfg.dir, Tenant: cfg.tenant, Project: cfg.project,
+		SegmentBytes: cfg.segmentBytes, MaxBytes: cfg.maxBytes})
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("%s: %w", strconv.Quote(out), err), ln.Close())
+		return nil, errors.Join(fmt.Errorf("%s: %w", strconv.Quote(cfg.dir), err), ln.Close())
 	}
 	log := slog.New(printableLog(slog.NewTextHandler(stderr, nil)))
-	receiver, err := otel.NewReceiver(w, log)
+	receiver, err := otel.NewReceiver(w, log, cfg.cred)
 	if err != nil {
 		return nil, errors.Join(err, w.Close(), ln.Close())
 	}
@@ -121,7 +196,7 @@ func startCollector(ln net.Listener, out string, stderr io.Writer) (*collector, 
 }
 
 // stop waits for the requests in flight, each of which answers only after
-// the file holds its records or refuses them, and closes the file.
+// the trail holds its records or refuses them, and closes the trail.
 func (c *collector) stop() error {
 	ctx, cancel := context.WithTimeout(context.Background(), collectShutdown)
 	defer cancel()

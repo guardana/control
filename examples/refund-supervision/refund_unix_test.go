@@ -172,7 +172,7 @@ func (s supervision) printed(t *testing.T, lines ...string) {
 func TestARefundRunIsSupervisedAgainstItsProcedure(t *testing.T) {
 	started := time.Now()
 	tr := newTree(t)
-	collector := start(t, tr.dir, environ(), tr.gateway, "collect", "--listen", "127.0.0.1:0", "--out", "trail/plane.jsonl")
+	collector := tr.collect(t)
 	tr.sign(t, collector.after(t, "collect: listening on "))
 	liftKey := tr.makeRoute(t)
 	first, second := tr.openRun(t), tr.openRun(t)
@@ -182,7 +182,7 @@ func TestARefundRunIsSupervisedAgainstItsProcedure(t *testing.T) {
 	ra := newAgent(t, agents, first.token)
 	rq := ra.work(t, tr)
 	tr.waitForTrails(t, 6)
-	writeFile(t, filepath.Join(tr.root, "plane.export.jsonl"), must(t, tr.dir, tr.gateway, "trail", "export", "trail/plane.jsonl"))
+	writeFile(t, filepath.Join(tr.root, "plane.export.jsonl"), must(t, tr.dir, tr.gateway, "trail", "export", trailDir))
 
 	claimed := tr.supervise(t, "claimed", runID, ra, func(span) string { return runID })
 	claimed.expect(t, 1, "REPEATED_DENIAL FINDING_VERDICT_CONFIRMED ESCALATION_ALERT",

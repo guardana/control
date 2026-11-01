@@ -2,12 +2,17 @@ package otel
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 )
@@ -27,9 +32,64 @@ type Sink interface {
 	Append(ctx context.Context, events []*controlv1.Event) error
 }
 
+// ErrCredential is a credential a receiver will not require: none, or one
+// outside the bounds and the characters NewCredential takes.
+const ErrCredential Error = "otel: a receiver requires a credential of printable ASCII with no space, 32 to 512 bytes" //nolint:gosec // G101: an error's text, which holds no credential
+
+// The bounds of a credential's length.
+const (
+	MinCredentialBytes = 32
+	MaxCredentialBytes = 512
+)
+
+// Credential is the bearer token a receiver requires in the Authorization
+// header of every request. Only its digest is kept. The zero value is no
+// credential, which NewReceiver refuses.
+type Credential struct {
+	sum [sha256.Size]byte
+	set bool
+}
+
+// NewCredential takes token as the credential every request must carry, as
+// "Authorization: Bearer <token>". A token is printable ASCII with no space,
+// so it travels in a header as it is, of MinCredentialBytes to
+// MaxCredentialBytes.
+func NewCredential(token string) (Credential, error) {
+	if len(token) < MinCredentialBytes || len(token) > MaxCredentialBytes {
+		return Credential{}, fmt.Errorf("%w: %d bytes", ErrCredential, len(token))
+	}
+	for i := range len(token) {
+		if c := token[i]; c <= ' ' || c > '~' {
+			return Credential{}, fmt.Errorf("%w: byte %d is not printable ASCII", ErrCredential, i)
+		}
+	}
+	return Credential{sum: sha256.Sum256([]byte(token)), set: true}, nil
+}
+
+// admits reports whether header carries the credential: one Authorization
+// header, of the Bearer scheme, whose token is the credential. The digests
+// are compared in constant time, so neither the token nor its length is
+// learned from how long a refusal takes.
+func (c Credential) admits(header http.Header) bool {
+	values := header.Values("Authorization")
+	if !c.set || len(values) != 1 {
+		return false
+	}
+	scheme, token, ok := strings.Cut(values[0], " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return false
+	}
+	sum := sha256.Sum256([]byte(token))
+	return subtle.ConstantTimeCompare(sum[:], c.sum[:]) == 1
+}
+
 // NewReceiver returns the handler of OTLP/HTTP logs requests in the JSON
 // encoding that hands the events ReadRequest reads to sink, and answers:
 //
+//   - 401 for a request without cred, before anything else of it is read,
+//     which the exporter answers by sending it again, so a sender without
+//     the credential writes nothing; the first is logged, then a count at
+//     most once a minute;
 //   - 200 with an empty body once sink.Append returned nil, which is what
 //     lets the exporter release the records;
 //   - 400 for a request ReadRequest refuses or the sink refuses with
@@ -38,6 +98,10 @@ type Sink interface {
 //     record it cannot deliver;
 //   - 503 when the sink fails otherwise, which the exporter answers by sending the same
 //     records again, and which fills the plane's spool while it lasts;
+//   - 503 too for a body that could not be read to its end within the bound,
+//     as one arriving slower than the server's read timeout or cut by a reset
+//     connection: the exporter sends it again, so a body that can never be
+//     read in time is retried, fills the spool and blocks material calls;
 //   - 405 for a method other than POST, and 415 for a body that is not
 //     application/json in UTF-8, or that carries a content coding.
 //
@@ -45,24 +109,63 @@ type Sink interface {
 // the request. The previews of arguments and results, and the profiles naming
 // them, are cleared before the sink sees an event, whatever the sender's
 // capture setting was.
-func NewReceiver(sink Sink, log *slog.Logger) (http.Handler, error) {
+func NewReceiver(sink Sink, log *slog.Logger, cred Credential) (http.Handler, error) {
 	if sink == nil {
 		return nil, ErrNoSink
+	}
+	if !cred.set {
+		return nil, fmt.Errorf("%w: none given", ErrCredential)
 	}
 	if log == nil {
 		log = slog.Default()
 	}
-	return &receiver{sink: sink, log: log, maxBytes: MaxRequestBytes}, nil
+	return &receiver{sink: sink, log: log, cred: cred, maxBytes: MaxRequestBytes, refused: refusals{now: time.Now}}, nil
 }
 
 type receiver struct {
 	sink Sink
 	log  *slog.Logger
+	cred Credential
 	// maxBytes is MaxRequestBytes; a test lowers it to go over it cheaply.
 	maxBytes int64
+	refused  refusals
+}
+
+// unauthorizedEvery bounds how often the requests refused for want of the
+// credential are logged: once, then a count at most this often, so a local
+// account looping requests cannot fill the log.
+const unauthorizedEvery = time.Minute
+
+// refusals counts the requests refused 401 since the last line that said so.
+type refusals struct {
+	mu      sync.Mutex
+	now     func() time.Time
+	last    time.Time
+	pending int
+}
+
+// note counts one refusal and logs the count when the last line is older
+// than unauthorizedEvery, or there was none.
+func (r *refusals) note(log *slog.Logger) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.pending++
+	at := r.now()
+	if !r.last.IsZero() && at.Sub(r.last) < unauthorizedEvery {
+		return
+	}
+	log.Warn("otel: requests refused", "status", http.StatusUnauthorized,
+		"why", "they did not carry the credential", "requests", r.pending)
+	r.last, r.pending = at, 0
 }
 
 func (h *receiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !h.cred.admits(r.Header) {
+		h.refused.note(h.log)
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -80,7 +183,7 @@ func (h *receiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, http.StatusRequestEntityTooLarge, ErrRequestTooLarge)
 		return
 	case err != nil:
-		h.refuse(w, http.StatusBadRequest, err)
+		h.refuse(w, http.StatusServiceUnavailable, err)
 		return
 	}
 	events, err := ReadRequest(body)

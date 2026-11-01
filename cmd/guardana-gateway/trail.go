@@ -20,8 +20,8 @@ const maxShownID = 64
 // links and the order, and a nil from it is not a verification.
 const shapeNote = "the check proves each chain's shape and not its integrity: a record altered to keep that shape passes it"
 
-const trailForm = "[export [--after <cursor>] [--limit <n>] [--max-bytes <n>] [--request <id>]... [--run <id>]... " +
-	"[--tenant <id>]... [--project <id>]... [--kind <kind>]...] <file>"
+const trailForm = "[segments] [export [--after <cursor>] [--limit <n>] [--max-bytes <n>] [--request <id>]... [--run <id>]... " +
+	"[--tenant <id>]... [--project <id>]... [--kind <kind>]...] <file or dir>"
 
 // declareTrail declares the flags of trail export on the trail command's set,
 // so the help lists them; plain trail takes none of them.
@@ -42,8 +42,10 @@ func declareTrail(flags *flag.FlagSet) commandFunc {
 			case flags.NFlag() > 0:
 				writeLine(stderr, flags.Name()+": its flags are trail export's: "+flags.Name()+" "+trailForm)
 				return exitUsage
+			case len(args) == 2 && args[0] == "segments":
+				return trailSegments(args[1], stdout, stderr)
 			case len(args) != 1:
-				writeLine(stderr, flags.Name()+": name one trail file to read")
+				writeLine(stderr, flags.Name()+": name one trail file or directory of segments to read")
 				return exitUsage
 			}
 			return trail(args[0], stdout, stderr)
@@ -63,7 +65,7 @@ func exportPath(flags *flag.FlagSet, args []string, stderr io.Writer) (string, b
 		return "", false
 	}
 	if flags.NArg() == 0 {
-		writeLine(stderr, flags.Name()+" export: name one trail file to export")
+		writeLine(stderr, flags.Name()+" export: name one trail file or directory of segments to export")
 		return "", false
 	}
 	path := flags.Arg(0)
@@ -71,20 +73,21 @@ func exportPath(flags *flag.FlagSet, args []string, stderr io.Writer) (string, b
 		return "", false
 	}
 	if flags.NArg() > 0 {
-		writeLine(stderr, flags.Name()+" export: name one trail file to export, not "+oneLine(flags.Arg(0))+" as well")
+		writeLine(stderr, flags.Name()+" export: name one trail file or directory of segments to export, not "+oneLine(flags.Arg(0))+" as well")
 		return "", false
 	}
 	return path, true
 }
 
-// trailExport writes the evidence export of one trail file to stdout. It
-// exits 0 when nothing was refused and the export holds no gap, 1 when the
-// export is whole, trailer included, and holds a gap, and 2 when it was
-// refused or cut short: a query or a cursor refused, a file that cannot be
+// trailExport writes the evidence export of one trail file, or of one
+// segment of a directory of segments, to stdout. It exits 0 when nothing was
+// refused and the export holds no gap, 1 when the export is whole, trailer
+// included, and holds a gap, and 2 when it was refused or cut short: a query
+// or a cursor refused, an expired cursor among them, a file that cannot be
 // read, or output that could not be written. A refused export writes no
 // trailer, and a reader without one knows the export is not whole.
 func trailExport(path string, q trailfile.Query, stdout, stderr io.Writer) int {
-	tr, err := trailfile.ExportFile(path, q, stdout)
+	tr, err := trailfile.ExportPath(path, q, stdout)
 	if err != nil {
 		writeLine(stderr, brand.Gateway+": trail export: "+oneLine(err.Error()))
 		return exitUsage
@@ -106,14 +109,15 @@ func (l *valueList) Set(v string) error {
 	return nil
 }
 
-// trail reads a trail file up to its last newline and prints one line per
+// trail reads a trail file, or every segment of a directory of segments not
+// pruned, up to the last newline and prints one line per
 // request's trail with the chain check's verdict, then the counts and what the
 // check does not prove. It exits 1 when a trail failed or could not be read
 // either way, when the file holds no trail at all, since a check of nothing is
 // not a pass, and when the file ends in a partial line no collector is
 // writing.
 func trail(path string, stdout, stderr io.Writer) int {
-	rep, err := trailfile.ReadFile(path, trailfile.DefaultMaxLines)
+	rep, err := trailfile.ReadPath(path, trailfile.DefaultMaxLines)
 	if err != nil {
 		return fail(stderr, "trail", err)
 	}

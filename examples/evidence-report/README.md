@@ -13,7 +13,7 @@ codes, as `DENY PAUSED`, or `-`.
 
 ```
 go -C examples/evidence-report build -o "$PWD/bin/" .
-<gateway> trail export <state>/trail.jsonl | bin/evidence-report
+<gateway> trail export <state>/trail | bin/evidence-report
 ```
 
 It exits 0 only when every request ended on an unbroken chain of one run the
@@ -29,7 +29,7 @@ export over 100 000 records or 64 MiB; a usage error, 2.
 ```
 bin/evidence-report -state s -init
 after=$(bin/evidence-report -state s -cursor)
-<gateway> trail export ${after:+--after="$after"} trail.jsonl | bin/evidence-report -state s
+<gateway> trail export ${after:+--after="$after"} <state>/trail | bin/evidence-report -state s
 ```
 
 One run at a time reads the next export, logs each new alert to

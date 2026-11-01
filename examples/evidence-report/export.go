@@ -102,6 +102,11 @@ func readExport(r io.Reader) (*export, error) {
 		return nil, err
 	}
 	x := &export{byKey: map[eventKey]*event{}, atOffset: map[int64]*event{}, header: h, line: 1, lastOffset: -1}
+	if h.prunedGap() {
+		x.gaps++
+		x.problems = append(x.problems, fmt.Sprintf("line 1: a gap before offset 0: %s: the header counts %d segment(s) of the log "+
+			"before this one that are gone, and the export names no cursor, so what they held is not here", gapPruned, h.prunedBefore))
+	}
 	x.readRecords(br)
 	return x, nil
 }

@@ -124,13 +124,14 @@ a trailer that says whether it reached the end
 by member.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <ul>
-<li>A trail file: the one <code>collect</code> writes, or the demo's <code>&lt;state&gt;/trail.jsonl</code>
-(<a href="/docs/get-started/try-the-demo">try the demo</a>).</li>
+<li>A trail: the segments <code>collect</code> writes, or the demo's <code>&lt;state&gt;/trail</code>
+(<a href="/docs/get-started/try-the-demo">try the demo</a>); <a href="/docs/guides/watch-a-plane-without-a-collector#5-read-across-segments-and-prune">an export reads one
+segment</a>.</li>
 <li>For steps 3 and 4, a checkout of the repository and Go.</li>
 </ul>
 <h2 id="steps">Steps</h2>
-<h3 id="1-export-the-file">1. Export the file</h3>
-<pre><code>guardana-gateway trail export trail.jsonl &gt; export.jsonl
+<h3 id="1-export-the-trail">1. Export the trail</h3>
+<pre><code>guardana-gateway trail export trail &gt; export.jsonl
 echo $?
 </code></pre>
 <p>Each line of <code>export.jsonl</code> is one JSON object with a <code>type</code>: a <code>header</code>, one
@@ -139,11 +140,11 @@ an event id with other content, a <code>duplicate</code> for a line repeated exa
 a <code>trailer</code>. An event record carries the file's line as it is, never encoded
 again. It exits 0 with nothing refused and no gap, even if a limit ended it early, 1
 for a whole export with a gap or a conflicting id, and 2 when refused, with no
-trailer. An export with no trailer was cut short.</p>
+trailer.</p>
 <h3 id="2-resume-where-the-last-one-stopped">2. Resume where the last one stopped</h3>
 <p>The trailer's <code>next_cursor</code> names the end of the last line read. Pass it to the
 next export:</p>
-<pre><code>guardana-gateway trail export --after &#39;&lt;next_cursor&gt;&#39; trail.jsonl
+<pre><code>guardana-gateway trail export --after &#39;&lt;next_cursor&gt;&#39; trail
 </code></pre>
 <p>A cursor is refused when the file's first line or the line it names has
 changed, or when its offset is not at the end of a line: another file, or one
@@ -162,11 +163,12 @@ the kernel's, never in its place: <code>=</code> when its <code>decision_id</cod
 kernel's, otherwise the block's own verdict and codes, such as <code>DENY PAUSED</code>
 for a call paused after an allow; <code>-</code> when nothing was blocked.</p>
 <pre><code>go -C examples/evidence-report build -o &#34;$PWD/bin/&#34; .
-guardana-gateway trail export trail.jsonl | bin/evidence-report
+guardana-gateway trail export trail | bin/evidence-report
 </code></pre>
 <p>It exits 1 when a request's chain is broken or unfinished, when a call ran
 against its decision under an enforcing mode, when a result says the effect
-may have happened, or when the export held a gap, was cut, held no request,
+may have happened, or when the export held a gap, named no cursor while
+counting segments pruned before it, was cut, held no request,
 or went past 100 000 records or 64 MiB: missing evidence is reported as
 unknown or open, never as completed; a timeout or an unknown outcome as
 <code>uncertain</code>, not <code>failed</code>. It reads no effect class, so it cannot
@@ -180,7 +182,7 @@ makes the directory, mode 0700, with an empty state and alert log;
 each run reads one export on its standard input:</p>
 <pre><code>bin/evidence-report -state s -init
 after=$(bin/evidence-report -state s -cursor)
-guardana-gateway trail export ${after:+--after=&#34;$after&#34;} trail.jsonl | bin/evidence-report -state s
+guardana-gateway trail export ${after:+--after=&#34;$after&#34;} trail | bin/evidence-report -state s
 </code></pre>
 <p>Run the last two lines for what the trail gained since, again at once
 while the totals say the end was not reached. Run one
@@ -210,7 +212,7 @@ own, <code>&quot;v&quot;:1</code> and <code>experimental</code>, not a contract:
 <tbody>
 <tr>
 <td><code>evidence_gap</code></td>
-<td>a gap record, its reason in <code>note</code></td>
+<td>a gap record, its reason in <code>note</code>; <code>pruned</code> for a first export whose <code>pruned_before</code> is above 0</td>
 </tr>
 <tr>
 <td><code>conflicting_event</code></td>
@@ -248,10 +250,9 @@ raised, <code>cursor</code>, <code>occurred_at</code>, <code>verdict</code>, <co
 Times are the events'; the program reads no clock. The gap after the file's
 last newline is alerted once while it stays there. It exits 0 with no new
 alert and 1 with one or more.</p>
-<p>The alerts are appended, synced and written to standard error first, then
-the rows printed, then the state replaced. Exit 2 leaves <code>state.json</code>
-unchanged unless only its last sync failed: alerts already appended stay in the log, no later run raises them
-again, and the rows may print again.</p>
+<p>Alerts are appended and synced before the rows print and the state is
+replaced. Exit 2 leaves <code>state.json</code> unchanged unless only its last sync
+failed; logged alerts are not raised again, and the rows may print again.</p>
 <p>It prints and keeps only identifiers, kinds, the enforcement mode, the
 action's kind, name, provider and protocol, verdicts, reason codes, decision
 ids, approval states, result statuses, event times, offsets and cursors:

@@ -90,6 +90,40 @@ verify one.
   is not a pending, unanswered approval with an approval id, a requested time
   and an expiry.
 
+- **Breaking:** `guardana-gateway collect` writes a directory of trail
+  segments bound to one tenant and project, and requires a credential:
+  `collect --listen <addr> --dir <dir> --tenant <id> --project <id>
+  --credential-file <file>`, and `--out` is gone. A request without
+  `Authorization: Bearer` and that credential is answered 401 before its body
+  is read; a plane sends it through `export.headers`. An append of another
+  tenant's or project's event is refused 400, which the plane quarantines. A
+  segment is sealed at `--segment-bytes`; past `--max-bytes` every append is
+  answered 503, so the plane's spool fills and its material calls are
+  blocked until an operator prunes. Nothing is pruned on its own.
+  `guardana-gateway prune --through <n> <dir>` prunes sealed segments while no
+  collector holds the directory, `trail segments <dir>` prints the manifest,
+  and `trail <dir>` and `trail export <dir>` read the segments. The directory
+  is refused with any group or other access. Until the collector listens on a
+  unix socket, an account that binds its loopback port while it is down
+  receives the plane's retries and the credential among them
+  ([ADR-0072](docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md)).
+- The evidence export is `1.1`: its header's `pruned_before` counts the
+  segments of a log before the exported one that were pruned, 0 for a single
+  file, and coverage refuses an export as whole while it is above 0. A `1.0`
+  export reads as before; a header of a later minor without the member is
+  refused. A strict `1.0` reader, as coverage and `examples/evidence-report`
+  of 0.14.0 are, refuses a `1.1` export on its new member: it fails loudly
+  and never misreads
+  ([ADR-0072](docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md)).
+- `trail export` refuses a file inside a directory of segments, naming the
+  directory to export: exported on its own it would count none of the
+  segments pruned before it.
+- `examples/evidence-report` raises `evidence_gap` noted `pruned`, and exits
+  1, for an export that names no cursor and counts segments pruned before it;
+  an export after a state's cursor raises none for them.
+- The collector answers 503, not 400, to a body it could not read to its end,
+  as one cut by a reset connection or a read timeout, so the plane sends it
+  again instead of quarantining it.
 - `doctor` no longer changes the evidence spool it checks. It reads the spool
   through `spool.Inspect`, which cuts nothing: a torn tail stays in place, and
   the line says "a start would cut a torn tail of N byte(s), which this check

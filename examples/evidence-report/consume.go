@@ -106,25 +106,47 @@ func (f *follower) checkpoint(c *checkpoint) ([]byte, []byte, error) {
 	return lines, state, err
 }
 
-// accepts refuses an export the state cannot take on from its cursor.
+// accepts refuses an export the state cannot take on from its cursor. An
+// export of another file than the state's is taken only as the next segment
+// of a log: one asked after the state's own cursor that starts at its file's
+// first line, which an export after a cursor in the same file never does.
 func (s *followState) accepts(x *export) error {
 	if err := x.whole(); err != nil {
 		return err
 	}
+	if x.header.after != s.cursor {
+		return fmt.Errorf("its query.after is %s, and the state's cursor %s", shownCursor(x.header.after), shownCursor(s.cursor))
+	}
+	moved := s.movedOn(x)
+	if s.source != "" && x.header.source != s.source && !moved {
+		return fmt.Errorf("its source is not the state's, %s: another file", s.source)
+	}
+	return s.leadsOn(x, moved)
+}
+
+// leadsOn refuses a trailer whose next_cursor is not of the export's file, is
+// missing after records, or, in the state's own file, is behind its cursor.
+func (s *followState) leadsOn(x *export, moved bool) error {
 	next := x.trailer.nextCursor
 	switch {
-	case x.header.after != s.cursor:
-		return fmt.Errorf("its query.after is %s, and the state's cursor %s", shownCursor(x.header.after), shownCursor(s.cursor))
-	case s.source != "" && x.header.source != s.source:
-		return fmt.Errorf("its source is not the state's, %s: another file", s.source)
 	case next != "" && !strings.HasPrefix(next, "v1:"+x.header.source+":"):
 		return errors.New("its trailer's next_cursor is not of the file its header names")
 	case next == "" && (s.cursor != "" || len(x.events) > 0):
 		return errors.New("its trailer names no next_cursor after records it read")
-	case next != "" && cursorOffset(next) < cursorOffset(s.cursor):
+	case !moved && next != "" && cursorOffset(next) < cursorOffset(s.cursor):
 		return fmt.Errorf("its trailer's next_cursor, at offset %d, is behind the cursor it starts after, at %d", cursorOffset(next), cursorOffset(s.cursor))
 	}
 	return nil
+}
+
+// movedOn reports whether x is the next segment of the state's log: another
+// source, asked after the state's cursor, its first record at offset 0.
+func (s *followState) movedOn(x *export) bool {
+	if s.source == "" || s.cursor == "" || x.header.source == s.source || x.header.after != s.cursor {
+		return false
+	}
+	at, ok := x.firstOffset()
+	return ok && at == 0
 }
 
 // whole refuses an export a state cannot take whatever its cursor: one

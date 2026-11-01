@@ -28,7 +28,7 @@ func open(f Format, src Source, q Query, judge Judge, w io.Writer) (*exporter, i
 	if q.MaxBytes > 0 && q.After == "" {
 		look = min(end, q.MaxBytes)
 	}
-	first, identified, err := in.firstLineDigest(end, look)
+	first, identified, err := in.identity(end, look, src.Key)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -47,10 +47,20 @@ func open(f Format, src Source, q Query, judge Judge, w io.Writer) (*exporter, i
 	return x, start, end, nil
 }
 
+// identity is what names the file to a cursor: its first line's digest, or
+// what key makes of it.
+func (f file) identity(end, look int64, key func(Digest) Digest) (Digest, bool, error) {
+	first, identified, err := f.firstLineDigest(end, look)
+	if err == nil && identified && key != nil {
+		first = key(first)
+	}
+	return first, identified, err
+}
+
 // checkCall refuses a call that leaves out a part an export needs, or a query
 // or a size no file can answer.
 func checkCall(src Source, q Query, judge Judge, w io.Writer) error {
-	if judge == nil || src.R == nil || w == nil || q.Echo == nil || q.Limit < 1 || q.MaxBytes < 0 || src.Size < 0 {
+	if judge == nil || src.R == nil || w == nil || q.Echo == nil || q.Limit < 1 || q.MaxBytes < 0 || src.Size < 0 || src.PrunedBefore < 0 {
 		return fmt.Errorf("%w: limit %d, byte bound %d, size %d, or no judge, reader, writer or echo", ErrInvalid, q.Limit, q.MaxBytes, src.Size)
 	}
 	return nil

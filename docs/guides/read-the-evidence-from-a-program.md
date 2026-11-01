@@ -21,16 +21,17 @@ by member.
 
 ## Prerequisites
 
-- A trail file: the one `collect` writes, or the demo's `<state>/trail.jsonl`
-  ([try the demo](../get-started/try-the-demo.md)).
+- A trail: the segments `collect` writes, or the demo's `<state>/trail`
+  ([try the demo](../get-started/try-the-demo.md)); [an export reads one
+  segment](watch-a-plane-without-a-collector.md#5-read-across-segments-and-prune).
 - For steps 3 and 4, a checkout of the repository and Go.
 
 ## Steps
 
-### 1. Export the file
+### 1. Export the trail
 
 ```
-guardana-gateway trail export trail.jsonl > export.jsonl
+guardana-gateway trail export trail > export.jsonl
 echo $?
 ```
 
@@ -40,7 +41,7 @@ an event id with other content, a `duplicate` for a line repeated exactly, and
 a `trailer`. An event record carries the file's line as it is, never encoded
 again. It exits 0 with nothing refused and no gap, even if a limit ended it early, 1
 for a whole export with a gap or a conflicting id, and 2 when refused, with no
-trailer. An export with no trailer was cut short.
+trailer.
 
 ### 2. Resume where the last one stopped
 
@@ -48,7 +49,7 @@ The trailer's `next_cursor` names the end of the last line read. Pass it to the
 next export:
 
 ```
-guardana-gateway trail export --after '<next_cursor>' trail.jsonl
+guardana-gateway trail export --after '<next_cursor>' trail
 ```
 
 A cursor is refused when the file's first line or the line it names has
@@ -73,12 +74,13 @@ for a call paused after an allow; `-` when nothing was blocked.
 
 ```
 go -C examples/evidence-report build -o "$PWD/bin/" .
-guardana-gateway trail export trail.jsonl | bin/evidence-report
+guardana-gateway trail export trail | bin/evidence-report
 ```
 
 It exits 1 when a request's chain is broken or unfinished, when a call ran
 against its decision under an enforcing mode, when a result says the effect
-may have happened, or when the export held a gap, was cut, held no request,
+may have happened, or when the export held a gap, named no cursor while
+counting segments pruned before it, was cut, held no request,
 or went past 100 000 records or 64 MiB: missing evidence is reported as
 unknown or open, never as completed; a timeout or an unknown outcome as
 `uncertain`, not `failed`. It reads no effect class, so it cannot
@@ -96,7 +98,7 @@ each run reads one export on its standard input:
 ```
 bin/evidence-report -state s -init
 after=$(bin/evidence-report -state s -cursor)
-guardana-gateway trail export ${after:+--after="$after"} trail.jsonl | bin/evidence-report -state s
+guardana-gateway trail export ${after:+--after="$after"} trail | bin/evidence-report -state s
 ```
 
 Run the last two lines for what the trail gained since, again at once
@@ -123,7 +125,7 @@ own, `"v":1` and `experimental`, not a contract:
 
 | `alert` | Raised for |
 | --- | --- |
-| `evidence_gap` | a gap record, its reason in `note` |
+| `evidence_gap` | a gap record, its reason in `note`; `pruned` for a first export whose `pruned_before` is above 0 |
 | `conflicting_event` | an event id read before with another line |
 | `lifecycle_unknown` | a request called `unknown` |
 | `effect_uncertain` | a request called `uncertain` |
@@ -139,10 +141,9 @@ Times are the events'; the program reads no clock. The gap after the file's
 last newline is alerted once while it stays there. It exits 0 with no new
 alert and 1 with one or more.
 
-The alerts are appended, synced and written to standard error first, then
-the rows printed, then the state replaced. Exit 2 leaves `state.json`
-unchanged unless only its last sync failed: alerts already appended stay in the log, no later run raises them
-again, and the rows may print again.
+Alerts are appended and synced before the rows print and the state is
+replaced. Exit 2 leaves `state.json` unchanged unless only its last sync
+failed; logged alerts are not raised again, and the rows may print again.
 
 It prints and keeps only identifiers, kinds, the enforcement mode, the
 action's kind, name, provider and protocol, verdicts, reason codes, decision

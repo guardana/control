@@ -18,7 +18,9 @@ type headerRecord struct {
 	Version string `json:"version"`
 	File    string `json:"file"`
 	Source  string `json:"source,omitempty"`
-	Query   any    `json:"query"`
+	// PrunedBefore is written by a format that names it, 0 included.
+	PrunedBefore *int `json:"pruned_before,omitempty"`
+	Query        any  `json:"query"`
 }
 
 type gapRecord struct {
@@ -58,10 +60,13 @@ func (c counts) MarshalJSON() ([]byte, error) {
 	return append(b, '}'), nil
 }
 
-func (x *exporter) header(name string) error {
+func (x *exporter) header(name string, prunedBefore int) error {
 	h := headerRecord{Type: "header", Format: x.f.Name, Version: x.f.Version, File: name, Query: x.q.Echo}
 	if x.identified {
 		h.Source = hex.EncodeToString(x.first[:])
+	}
+	if x.f.PrunedBefore {
+		h.PrunedBefore = &prunedBefore
 	}
 	return x.write(h)
 }

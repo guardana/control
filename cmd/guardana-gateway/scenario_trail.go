@@ -109,8 +109,9 @@ func readTrail(path string, absent bool) (trailRead, error) {
 	return out, nil
 }
 
-// trailBytes is the trail file up to its last newline, nil for a file that is
-// absent where absent is allowed.
+// trailBytes is the trail file up to its last newline, or every segment of a
+// directory of segments not pruned, nil for a path that is absent where
+// absent is allowed.
 func trailBytes(path string, absent bool) ([]byte, error) {
 	info, err := os.Stat(path)
 	switch {
@@ -118,6 +119,15 @@ func trailBytes(path string, absent bool) ([]byte, error) {
 		return nil, nil
 	case err != nil:
 		return nil, fmt.Errorf("the trail file: %w", err)
+	case info.IsDir():
+		raw, err := trailfile.LogBytes(path, maxTrailBytes)
+		if errors.Is(err, trailfile.ErrTooLarge) {
+			return nil, fmt.Errorf("the trail's segments hold over %d bytes; point the plane's collector at a new directory", maxTrailBytes)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("the trail directory: %w", err)
+		}
+		return raw, nil
 	case info.Size() > maxTrailBytes:
 		return nil, fmt.Errorf("the trail file is over %d bytes; point the plane's collector at a new one", maxTrailBytes)
 	}

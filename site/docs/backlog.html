@@ -245,7 +245,7 @@ mappings.</p>
 <td>B13</td>
 <td>Authenticate operators and scope authority</td>
 <td>none</td>
-<td>Reader/operator/admin capabilities are receiver-enforced; approval authority comes from authentication. Cross-project reads and operations are refused; a pause or a stop names its actual run, agent or principal scope, and only an authenticated author may sign a reaction route. Two users and overlapping runs pass adversarial tests. MCP upstream credentials remain separate from inbound credentials</td>
+<td>Reader/operator/admin capabilities are receiver-enforced; approval authority comes from authentication. Cross-project reads and operations are refused; a pause or a stop names its actual run, agent or principal scope, and only an authenticated author may sign a reaction route. Two users and overlapping runs pass adversarial tests. MCP upstream credentials remain separate from inbound credentials. The collector is authenticated to the plane on a unix socket with a peer-credential check</td>
 </tr>
 <tr>
 <td>B14</td>

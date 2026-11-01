@@ -17,7 +17,7 @@ const (
 	ExportFormat = brand.OTelNamespace + ".evidence-export"
 	// ExportVersion is the format's version, read by the MAJOR.MINOR rules
 	// of the wire contracts.
-	ExportVersion = "1.0"
+	ExportVersion = "1.1"
 
 	// DefaultExportLimit is the records an export writes when not told.
 	DefaultExportLimit = 1000
@@ -61,6 +61,13 @@ type Source struct {
 	// Held asks whether a writer holds the file. It is asked only when bytes
 	// follow the last newline; nil answers no.
 	Held func() (bool, error)
+	// Key and More are lineexport.Source's: what names a segment of a log to
+	// a cursor, and whether later segments hold lines.
+	Key  func(lineexport.Digest) lineexport.Digest
+	More bool
+	// PrunedBefore is how many segments of the log before this one are gone,
+	// pruned or their tombstones dropped; a single file has none.
+	PrunedBefore int
 }
 
 // Trailer is what an export's trailer says.
@@ -105,6 +112,13 @@ const (
 // A refused query or cursor writes nothing. An error after the header leaves
 // the output without its trailer, which is how a reader knows it was cut.
 func Export(src Source, q Query, w io.Writer) (Trailer, error) {
+	return export(src, q, q.After, w)
+}
+
+// export is Export starting after the cursor after, which may not be the
+// query's: a log's export past the end of one segment starts the next one at
+// its first line, and the header still repeats the query asked.
+func export(src Source, q Query, after string, w io.Writer) (Trailer, error) {
 	f, err := q.filter()
 	if err != nil {
 		return Trailer{}, err
@@ -112,8 +126,9 @@ func Export(src Source, q Query, w io.Writer) (Trailer, error) {
 	if src.Size < 0 {
 		return Trailer{}, fmt.Errorf("%w: size %d", ErrLimit, src.Size)
 	}
-	tr, err := lineexport.Export(exportFormat(), lineexport.Source{Name: src.Name, R: src.R, Size: src.Size, Held: src.Held},
-		lineexport.Query{After: q.After, Limit: q.Limit, MaxBytes: q.MaxBytes, Echo: q.echo()}, f.judge, w)
+	tr, err := lineexport.Export(exportFormat(), lineexport.Source{Name: src.Name, R: src.R, Size: src.Size, Held: src.Held,
+		Key: src.Key, More: src.More, PrunedBefore: src.PrunedBefore},
+		lineexport.Query{After: after, Limit: q.Limit, MaxBytes: q.MaxBytes, Echo: q.echo()}, f.judge, w)
 	if err != nil {
 		return Trailer{}, err
 	}
@@ -125,7 +140,7 @@ func Export(src Source, q Query, w io.Writer) (Trailer, error) {
 // exportFormat is the evidence export as the line export writes it.
 func exportFormat() lineexport.Format {
 	return lineexport.Format{Name: ExportFormat, Version: ExportVersion, Lines: []string{"event"}, IDMember: "event_id",
-		Conflict: gapConflict, MaxLineBytes: evidence.MaxLineBytes, Refusals: lineexport.Refusals{
+		Conflict: gapConflict, MaxLineBytes: evidence.MaxLineBytes, PrunedBefore: true, Refusals: lineexport.Refusals{
 			CursorMalformed: ErrCursorMalformed, CursorOtherFile: ErrCursorOtherFile, CursorPastEnd: ErrCursorPastEnd,
 			CursorOffLine: ErrCursorOffLine, CursorChanged: ErrCursorChanged, ShortRead: ErrShortRead, ByteBound: ErrByteBound,
 		}}
@@ -134,8 +149,11 @@ func exportFormat() lineexport.Format {
 // ExportFile exports the file at path as Export does, reading the length it
 // has when opened and holding no lock, so it reads a file a collector is
 // writing. Anything that is not a regular file is refused, without waiting on
-// a named pipe.
+// a named pipe, and so is a file in a log's directory, as ErrSegmentFile.
 func ExportFile(path string, q Query, w io.Writer) (Trailer, error) {
+	if err := notInLog(path); err != nil {
+		return Trailer{}, err
+	}
 	f, err := os.OpenFile(path, os.O_RDONLY|readFlags, 0) //nolint:gosec // G304: the path is the operator's to name, and the descriptor is judged before a byte is read
 	if err != nil {
 		return Trailer{}, err

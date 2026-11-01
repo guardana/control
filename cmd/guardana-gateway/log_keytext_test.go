@@ -175,15 +175,11 @@ func TestCollectLogWithholdsKeyTextFromARequest(t *testing.T) {
 		"envelope unknown member":   `{"resourceLogs":[],"` + body + `":1}`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			c := startCollect(t, filepath.Join(t.TempDir(), "trail.jsonl"))
-			resp, err := http.Post(c.url, "application/json", strings.NewReader(req))
-			if err != nil {
-				t.Fatal(err)
-			}
-			_ = resp.Body.Close()
+			c := startCollect(t, filepath.Join(t.TempDir(), "trail"))
+			status := c.post(t, []byte(req))
 			c.stop(t)
-			if resp.StatusCode != http.StatusBadRequest {
-				t.Errorf("collect answered %d, want %d", resp.StatusCode, http.StatusBadRequest)
+			if status != http.StatusBadRequest {
+				t.Errorf("collect answered %d, want %d", status, http.StatusBadRequest)
 			}
 			stderr := c.stderr.String()
 			if !strings.Contains(stderr, "request refused") {

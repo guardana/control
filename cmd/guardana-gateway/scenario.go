@@ -33,7 +33,7 @@ const scenarioForm = "run --config <file> --trail <file> [--control <file>] [--t
 
 func declareScenario(flags *flag.FlagSet) commandFunc {
 	config := flags.String("config", "", "the plane's configuration, which names its listener, its /healthz, its approvals directory and its pause file")
-	trail := flags.String("trail", "", "the trail file the plane's collector writes")
+	trail := flags.String("trail", "", "the trail file, or directory of trail segments, the plane's collector writes")
 	control := flags.String("control", "", "the "+brand.CLI+" that answers approvals and pauses; by default the one beside this binary")
 	timeout := flags.Duration("timeout", defaultScenarioTimeout, "the bound on each wait: the spool's drain, a pause read, a run of "+brand.CLI+", and a call past the upstream's own timeout")
 	return func(ctx context.Context, args []string, stdout, stderr io.Writer) int {

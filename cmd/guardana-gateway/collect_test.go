@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,17 +31,17 @@ func otlpFixture(t *testing.T, name string) []byte {
 // them is taken.
 func TestCollectListensOnTheLoopbackOnly(t *testing.T) {
 	for _, addr := range []string{"0.0.0.0:0", "[::]:0", ":0", "192.0.2.1:0", "localhost:0", "127.0.0.1", "[::1]", "127.0.0.1:x"} {
-		out := filepath.Join(t.TempDir(), "trail.jsonl")
+		out := filepath.Join(t.TempDir(), "trail")
 		var stdout, stderr bytes.Buffer
-		status := run(context.Background(), []string{"collect", "--listen", addr, "--out", out}, &stdout, &stderr)
+		status := run(context.Background(), collectArgs(t, addr, out), &stdout, &stderr)
 		if status != exitFail || !strings.Contains(stderr.String(), "loopback") {
 			t.Errorf("--listen %s answered %d with %q, want %d naming the loopback", addr, status, stderr.String(), exitFail)
 		}
 		if _, err := os.Stat(out); !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("--listen %s left a trail file behind: %v", addr, err)
+			t.Errorf("--listen %s left a trail directory behind: %v", addr, err)
 		}
 	}
-	c := startCollect(t, filepath.Join(t.TempDir(), "trail.jsonl"))
+	c := startCollect(t, filepath.Join(t.TempDir(), "trail"))
 	c.stop(t)
 	// A host may have no IPv6 loopback to bind, so the address alone is judged.
 	for _, addr := range []string{"[::1]:4318", "127.0.0.2:4318", "127.0.0.1:65535"} {
@@ -53,14 +54,19 @@ func TestCollectListensOnTheLoopbackOnly(t *testing.T) {
 	}
 }
 
-func TestCollectNeedsBothFlagsAndNothingElse(t *testing.T) {
-	out := filepath.Join(t.TempDir(), "trail.jsonl")
-	for _, args := range [][]string{
-		{"collect", "--out", out},
-		{"collect", "--listen", "127.0.0.1:0"},
-		{"collect", "--listen", "127.0.0.1:0", "--out", out, "extra"},
-		{"collect", "--config", out},
-	} {
+// TestCollectNeedsEveryFlagAndNothingElse: each required flag left out, an
+// argument after them and a flag collect does not take are refused before
+// anything is opened.
+func TestCollectNeedsEveryFlagAndNothingElse(t *testing.T) {
+	full := collectArgs(t, "127.0.0.1:0", filepath.Join(t.TempDir(), "trail"))
+	for i := 1; i < len(full); i += 2 {
+		args := slices.Concat(full[:i], full[i+2:])
+		var stdout, stderr bytes.Buffer
+		if status := run(context.Background(), args, &stdout, &stderr); status != exitUsage || !strings.Contains(stderr.String(), full[i]) {
+			t.Errorf("without %s: answered %d with %q, want %d naming it", full[i], status, stderr.String(), exitUsage)
+		}
+	}
+	for _, args := range [][]string{append(slices.Clone(full), "extra"), {"collect", "--config", "x"}} {
 		var stdout, stderr bytes.Buffer
 		if status := run(context.Background(), args, &stdout, &stderr); status != exitUsage {
 			t.Errorf("%q answered %d, want %d", args, status, exitUsage)
@@ -68,9 +74,9 @@ func TestCollectNeedsBothFlagsAndNothingElse(t *testing.T) {
 	}
 }
 
-// TestCollectRefusesAFileItCannotHold: a trail file in a directory the group
-// may write is refused, and so is one another collect holds.
-func TestCollectRefusesAFileItCannotHold(t *testing.T) {
+// TestCollectRefusesADirectoryItCannotHold: a trail directory the group may
+// write is refused, and so is one another collect holds.
+func TestCollectRefusesADirectoryItCannotHold(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "shared")
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		t.Fatal(err)
@@ -79,18 +85,18 @@ func TestCollectRefusesAFileItCannotHold(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
-	status := run(context.Background(), []string{"collect", "--listen", "127.0.0.1:0", "--out", filepath.Join(dir, "t.jsonl")}, &stdout, &stderr)
-	if status != exitFail || !strings.Contains(stderr.String(), "writable") {
+	status := run(context.Background(), collectArgs(t, "127.0.0.1:0", dir), &stdout, &stderr)
+	if status != exitFail || !strings.Contains(stderr.String(), "only this account writes") {
 		t.Errorf("a group-writable directory answered %d with %q", status, stderr.String())
 	}
 
-	out := filepath.Join(t.TempDir(), "trail.jsonl")
+	out := filepath.Join(t.TempDir(), "trail")
 	c := startCollect(t, out)
 	stdout.Reset()
 	stderr.Reset()
-	status = run(context.Background(), []string{"collect", "--listen", "127.0.0.1:0", "--out", out}, &stdout, &stderr)
+	status = run(context.Background(), collectArgs(t, "127.0.0.1:0", out), &stdout, &stderr)
 	if status != exitFail || !strings.Contains(stderr.String(), "held by another writer") {
-		t.Errorf("a second collect on one file answered %d with %q", status, stderr.String())
+		t.Errorf("a second collect on one directory answered %d with %q", status, stderr.String())
 	}
 	c.stop(t)
 }
@@ -99,25 +105,18 @@ func TestCollectRefusesAFileItCannotHold(t *testing.T) {
 // and what it writes, answers the exporter's golden request with 200 once the
 // file holds its events, and stops when its context ends.
 func TestCollectWritesWhatArrivesUntilTheSignal(t *testing.T) {
-	out := filepath.Join(t.TempDir(), "trail.jsonl")
+	out := filepath.Join(t.TempDir(), "trail")
 	c := startCollect(t, out)
-	if !strings.Contains(c.stdout.String(), out) || !strings.Contains(c.stdout.String(), "allow_plaintext") {
-		t.Errorf("collect printed %q, which does not name the file and the plaintext setting", c.stdout.String())
+	if !strings.Contains(c.stdout.String(), out) || !strings.Contains(c.stdout.String(), "allow_plaintext") ||
+		!strings.Contains(c.stdout.String(), "export.headers.Authorization: Bearer <the credential>") ||
+		strings.Contains(c.stdout.String(), collectToken) {
+		t.Errorf("collect printed %q, which does not name the directory, the plaintext setting and the header, or prints the credential", c.stdout.String())
 	}
-	resp, err := http.Post(c.url, "application/json", bytes.NewReader(otlpFixture(t, "export_logs_request.json")))
-	if err != nil {
-		t.Fatal(err)
+	if status := c.post(t, otlpFixture(t, "export_logs_request.json")); status != http.StatusOK {
+		t.Fatalf("the golden request answered %d", status)
 	}
-	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("the golden request answered %d", resp.StatusCode)
-	}
-	got, err := os.ReadFile(out) //nolint:gosec // G304: the test's own temp file
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := otlpFixture(t, "events.jsonl"); !bytes.Equal(got, want) {
-		t.Errorf("the trail file holds\n%s\nwant\n%s", got, want)
+	if got, want := liveSegment(t, out), otlpFixture(t, "events.jsonl"); !bytes.Equal(got, want) {
+		t.Errorf("the trail holds\n%s\nwant\n%s", got, want)
 	}
 	c.stop(t)
 	if _, err := http.Post(c.url, "application/json", strings.NewReader("{}")); err == nil {
@@ -125,36 +124,53 @@ func TestCollectWritesWhatArrivesUntilTheSignal(t *testing.T) {
 	}
 }
 
-// TestCollectLeavesAFileThatIsNotATrail: --out naming a file of notes, or a
-// settings file of one line, is refused as damaged, and the file is left byte
-// for byte as it was. A collect that took the file would serve until its
-// deadline and end 0, which fails here rather than hanging the suite.
-func TestCollectLeavesAFileThatIsNotATrail(t *testing.T) {
-	for _, notes := range []string{
-		"a note\nanother note", "a note\n{half a record", `{"k":1}`,
-		`{"kind":"production"} // settings, keep`, `{"eventId":1}x`,
+// liveSegment is what the live segment of the trail in dir holds.
+func liveSegment(t *testing.T, dir string) []byte {
+	t.Helper()
+	got, err := os.ReadFile(filepath.Join(dir, "live.jsonl")) //nolint:gosec // G304: the test's own temp directory
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatal(err)
+	}
+	return got
+}
+
+// TestCollectLeavesADirectoryThatIsNotATrail: --dir naming a directory of
+// notes, or one whose live segment holds notes, is refused and left byte for
+// byte as it was. A collect that took it would serve until its deadline and
+// end 0, which fails here rather than hanging the suite.
+func TestCollectLeavesADirectoryThatIsNotATrail(t *testing.T) {
+	for name, files := range map[string]map[string]string{
+		"notes":                   {"notes.txt": "a note\nanother note"},
+		"a live segment of notes": {"live.jsonl": "a note\n{half a record"},
 	} {
-		out := filepath.Join(t.TempDir(), "notes.txt")
-		if err := os.WriteFile(out, []byte(notes), 0o600); err != nil {
+		out := filepath.Join(t.TempDir(), "trail")
+		if err := os.Mkdir(out, 0o700); err != nil {
 			t.Fatal(err)
+		}
+		for file, body := range files {
+			if err := os.WriteFile(filepath.Join(out, file), []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		stdout, stderr := &syncBuffer{}, &syncBuffer{}
 		done := make(chan int, 1)
-		go func() { done <- run(ctx, []string{"collect", "--listen", "127.0.0.1:0", "--out", out}, stdout, stderr) }()
+		go func() { done <- run(ctx, collectArgs(t, "127.0.0.1:0", out), stdout, stderr) }()
 		var status int
 		select {
 		case status = <-done:
 		case <-time.After(5 * time.Second):
 			cancel()
-			t.Fatalf("%q: collect did not end within five seconds", notes)
+			t.Fatalf("%s: collect did not end within five seconds", name)
 		}
 		cancel()
-		if status != exitFail || !strings.Contains(stderr.String(), "damaged") {
-			t.Errorf("%q: collect answered %d with %q, want %d naming the damage", notes, status, stderr.String(), exitFail)
+		if status != exitFail {
+			t.Errorf("%s: collect answered %d with %q, want %d", name, status, stderr.String(), exitFail)
 		}
-		if got, err := os.ReadFile(out); err != nil || string(got) != notes { //nolint:gosec // G304: the test's own temp file
-			t.Errorf("%q: the refused file holds %q (%v)", notes, got, err)
+		for file, body := range files {
+			if got, err := os.ReadFile(filepath.Join(out, file)); err != nil || string(got) != body { //nolint:gosec // G304: the test's own temp file
+				t.Errorf("%s: the refused file holds %q (%v)", name, got, err)
+			}
 		}
 	}
 }
@@ -163,7 +179,7 @@ func TestCollectLeavesAFileThatIsNotATrail(t *testing.T) {
 // still arriving when the context ends is read to its end, answered 200 once
 // the file holds its events, and only then does collect stop.
 func TestCollectAnswersARequestInFlightAtTheSignal(t *testing.T) {
-	out := filepath.Join(t.TempDir(), "trail.jsonl")
+	out := filepath.Join(t.TempDir(), "trail")
 	c := startCollect(t, out)
 	addr := strings.TrimSuffix(strings.TrimPrefix(c.url, "http://"), logsPath)
 	conn, err := (&net.Dialer{Timeout: 5 * time.Second}).Dial("tcp", addr)
@@ -175,7 +191,8 @@ func TestCollectAnswersARequestInFlightAtTheSignal(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := otlpFixture(t, "export_logs_request.json")
-	head := "POST " + logsPath + " HTTP/1.1\r\nHost: " + addr + "\r\nContent-Type: application/json\r\nContent-Length: " +
+	head := "POST " + logsPath + " HTTP/1.1\r\nHost: " + addr + "\r\nAuthorization: Bearer " + collectToken +
+		"\r\nContent-Type: application/json\r\nContent-Length: " +
 		strconv.Itoa(len(body)) + "\r\n\r\n"
 	if _, err := conn.Write(append([]byte(head), body[:len(body)/2]...)); err != nil {
 		t.Fatal(err)
@@ -197,9 +214,8 @@ func TestCollectAnswersARequestInFlightAtTheSignal(t *testing.T) {
 		t.Errorf("the request in flight answered %d, want 200", resp.StatusCode)
 	}
 	c.stop(t)
-	got, err := os.ReadFile(out) //nolint:gosec // G304: the test's own temp file
-	if want := otlpFixture(t, "events.jsonl"); err != nil || !bytes.Equal(got, want) {
-		t.Errorf("the trail file holds\n%s\n(%v), want\n%s", got, err, want)
+	if got, want := liveSegment(t, out), otlpFixture(t, "events.jsonl"); !bytes.Equal(got, want) {
+		t.Errorf("the trail holds\n%s\nwant\n%s", got, want)
 	}
 }
 
@@ -229,33 +245,82 @@ type collecting struct {
 	done   chan int
 }
 
-// TestCollectPrintsOutOnOneLine: an --out holding a bidirectional control or
-// a line or paragraph separator passes the argument check, since none is a
-// control character, and the line naming the file quotes it.
-func TestCollectPrintsOutOnOneLine(t *testing.T) {
+// TestCollectPrintsTheDirectoryOnOneLine: a --dir holding a bidirectional
+// control or a line or paragraph separator passes the argument check, since
+// none is a control character, and the line naming it quotes it.
+func TestCollectPrintsTheDirectoryOnOneLine(t *testing.T) {
 	for _, r := range []rune{0x202e, 0x2028, 0x2029} {
 		out := filepath.Join(t.TempDir(), "a"+string(r)+"txt.lmth")
 		c := startCollect(t, out)
 		c.stop(t)
 		stdout := c.stdout.String()
-		if strings.Contains(stdout, out) || !strings.Contains(stdout, "collect: appending to "+strconv.Quote(out)+"\n") {
-			t.Errorf("U+%04X: collect printed %q, want --out quoted", r, stdout)
+		if strings.Contains(stdout, out) || !strings.Contains(stdout, "collect: appending to "+strconv.Quote(out)+" for tenant") {
+			t.Errorf("U+%04X: collect printed %q, want --dir quoted", r, stdout)
 		}
 	}
 }
 
-func startCollect(t *testing.T, out string) *collecting {
+// collectToken is the credential the collectors under test require.
+var collectToken = strings.Repeat("q", 40)
+
+// credentialFile writes token to a file only this account can read.
+func credentialFile(t *testing.T, token string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "collector.credential")
+	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// collectArgs is a collect of the trail in dir on listen, bound to the
+// fixture's tenant and project, requiring collectToken.
+func collectArgs(t *testing.T, listen, dir string) []string {
+	t.Helper()
+	return []string{"collect", "--listen", listen, "--dir", dir, "--tenant", "tenant-1", "--project", "proj-1",
+		"--credential-file", credentialFile(t, collectToken)}
+}
+
+func startCollect(t *testing.T, out string, extra ...string) *collecting {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &collecting{stdout: &syncBuffer{}, stderr: &syncBuffer{}, cancel: cancel, done: make(chan int, 1)}
+	args := append(collectArgs(t, "127.0.0.1:0", out), extra...)
 	go func() {
-		c.done <- run(ctx, []string{"collect", "--listen", "127.0.0.1:0", "--out", out}, c.stdout, c.stderr)
+		c.done <- run(ctx, args, c.stdout, c.stderr)
 	}()
 	t.Cleanup(cancel)
 	line := waitFor(t, c.stdout, "listening on ")
 	_, url, _ := strings.Cut(line, "listening on ")
 	c.url = strings.TrimSpace(url)
 	return c
+}
+
+// post sends body to the collector with its credential and returns the
+// status.
+func (c *collecting) post(t *testing.T, body []byte) int {
+	t.Helper()
+	return c.postAs(t, body, "Bearer "+collectToken)
+}
+
+// postAs sends body with authorization as its Authorization header, none
+// when it is empty.
+func (c *collecting) postAs(t *testing.T, body []byte, authorization string) int {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.url, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode
 }
 
 func (c *collecting) stop(t *testing.T) {

@@ -210,7 +210,7 @@ func TestADevScenarioPastTheBudgetStaysFresh(t *testing.T) {
 	if took < 2*budget {
 		t.Fatalf("the scenario took %v, not past twice the %v budget, so it examined no renewal", took, budget)
 	}
-	decisions, digests, confirmed := decisionsOn(t, filepath.Join(state, "1-pause-then-call.json", "trail.jsonl"))
+	decisions, digests, confirmed := decisionsOn(t, filepath.Join(state, "1-pause-then-call.json", "trail"))
 	if decisions < rounds || len(digests) != 1 {
 		t.Errorf("%d decisions name %d bundle digest(s), want at least %d naming one", decisions, len(digests), rounds)
 	}

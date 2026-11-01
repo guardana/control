@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Watch a plane without a collector · Guardana Control</title>
-<meta name="description" content="Run the collector the gateway binary ships, point a plane&#39;s export at it, and check each request&#39;s trail in the file it writes."/>
+<meta name="description" content="Run the collector the gateway binary ships, point a plane at it with its credential, read each request&#39;s trail in the segments it writes, and prune them."/>
 <link rel="canonical" href="https://control.guardana.dev/docs/guides/watch-a-plane-without-a-collector"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
@@ -117,106 +117,136 @@
 without <code>export.endpoint</code>. On a first run, or on a small plane you watch yourself, you may
 have no collector. <code>guardana-gateway collect</code> is one: it takes what a plane
 exports over OTLP/HTTP and appends it, argument and result previews cleared,
-to a file of evidence lines, and
-<code>guardana-gateway trail</code> reads that file back, one line per request. The plane
-itself does not change: it exports exactly as it would to any collector. Both
-commands are <code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory.</p>
+to a directory of trail segments, and <code>guardana-gateway trail</code> reads it back,
+one line per request. The plane exports exactly as it would to any collector.
+Both commands are <code>experimental</code>; <a href="/docs/status">status.md</a> is the inventory.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <ul>
 <li>A plane you can run (<a href="/docs/guides/run-the-gateway">run-the-gateway.md</a>).</li>
-<li>A directory for the trail file that the account running <code>collect</code> owns and
-that neither the group nor others may write; a directory or a file another
-account owns is refused.
-Events carry tenant and principal ids, so the file is created mode <code>0600</code>.</li>
+<li>A parent directory that the account running <code>collect</code> owns and that neither
+the group nor others may write; the trail directory is created in it mode
+<code>0700</code>, and its files mode <code>0600</code>, since events carry tenant and principal
+ids.</li>
+<li>A credential: 32 to 512 printable ASCII bytes with no space, in a file only
+this account may read.</li>
 </ul>
 <h2 id="steps">Steps</h2>
-<h3 id="1-start-the-collector">1. Start the collector</h3>
-<pre><code class="language-sh">guardana-gateway collect --listen 127.0.0.1:4318 --out trail/plane.jsonl
+<h3 id="1-make-the-credential">1. Make the credential</h3>
+<pre><code class="language-sh">(umask 077 &amp;&amp; od -An -N32 -tx1 /dev/urandom | tr -d &#39; \n&#39; &gt; collector.credential)
+</code></pre>
+<h3 id="2-start-the-collector">2. Start the collector</h3>
+<pre><code class="language-sh">guardana-gateway collect --listen 127.0.0.1:4318 --dir trail/plane \
+  --tenant acme --project orders --credential-file collector.credential
 </code></pre>
 <p>It listens on a loopback IP address only, so <code>0.0.0.0</code>, another host and
-<code>localhost</code> are refused, and it prints the URL it listens on and the file it
-appends to. It runs until you stop it with Ctrl-C or <code>SIGTERM</code>, and waits up to ten
-seconds for the requests in flight before it exits. One collect holds a file at a time; a
-second one on the same file is refused.</p>
-<p><code>--out</code> names a trail file or a path where no file exists yet; a path that
-ends in a separator, <code>.</code> or <code>..</code> names no file and is refused. A file that is
-not a trail, such as notes, is refused as damaged and left as it was. A last
-line with no newline is what a crash leaves of an append the plane was never
-told about, and collect removes it, but only when it can be the start of an
-evidence line. Anything else is refused and left as it was, a settings file
-of one line among them.</p>
-<p>While collect runs, do not remove, rename, replace, truncate or append to the
-file, and do not put a link in its place. The collector checks before and after
-each append that the path, not followed, still names the file it holds, at the
-length it left it. When not, it answers 503 to that request and every later
-one, each logged with what changed, until you start it again, and the plane
-keeps the records in its spool.</p>
-<h3 id="2-point-the-plane-at-it">2. Point the plane at it</h3>
+<code>localhost</code> are refused, and it prints the URL it listens on and the
+directory it appends to. It runs until Ctrl-C or <code>SIGTERM</code>, and waits up to
+ten seconds for the requests in flight. One collect holds a directory at a
+time; a second one is refused.</p>
+<p>The directory is bound to the tenant and the project it was first opened
+with; opening it for another is refused. A request without the credential is
+answered 401 before its body is read. One carrying an event of another tenant
+or project is answered 400, and the plane quarantines that record.</p>
+<p>Appends go to <code>live.jsonl</code>. When the next append would take it past
+<code>--segment-bytes</code> (64 MiB unless told, and at least the largest request a
+plane sends), it is sealed: <code>segments.json</code> names
+it with its lines, bytes and the digests of its first and last line, and it
+is renamed <code>segment-&lt;n&gt;.jsonl</code>. Once the segments not pruned would pass
+<code>--max-bytes</code> (1 GiB unless told, and at least twice the segment bound), every
+request is answered 503 and nothing is pruned to make room.</p>
+<p>At open, every segment is read and refused unless it holds what the manifest
+names it with; so is a name no collect leaves. A last line of <code>live.jsonl</code>
+with no newline is what a crash leaves, and is removed only when it can be
+the start of an evidence line. A seal or a prune a crash stopped part way is
+finished. Do not change the files while collect runs: a live segment removed,
+renamed, cut or extended under it makes it answer 503 until you start it
+again, and the plane keeps the records in its spool.</p>
+<h3 id="3-point-the-plane-at-it">3. Point the plane at it</h3>
 <p>In the plane's configuration:</p>
 <pre><code class="language-yaml">export:
   endpoint: http://127.0.0.1:4318/v1/logs
   allow_plaintext: true
 </code></pre>
-<p><code>allow_plaintext</code> is the named risk of an unencrypted endpoint. The collector
-asks for no credential, so any account on this machine can reach its loopback
-port and send it records; no other machine can. Start the plane with <code>run</code> as
-usual.</p>
-<h3 id="3-read-the-trail">3. Read the trail</h3>
-<pre><code class="language-sh">guardana-gateway trail trail/plane.jsonl
+<p>Give it the header through the environment, so the token stays out of
+<code>plane.yaml</code>, which a plane reads whatever the group and others may read:</p>
+<pre><code class="language-sh">export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION=&#34;Bearer $(cat collector.credential)&#34;
+guardana-gateway run --config plane.yaml
+</code></pre>
+<p><code>allow_plaintext</code> is the named risk of an unencrypted endpoint. The header's
+value is a credential and is never printed. A plane sending no credential or
+another one is answered 401, sends again, and blocks its material calls once
+its spool is full; collect logs the first refusal, then a count once a
+minute.</p>
+<h3 id="4-read-the-trail">4. Read the trail</h3>
+<pre><code class="language-sh">guardana-gateway trail trail/plane
 </code></pre>
 <pre><code class="language-text">request=req-1 project=orders tenant=acme last=EVENT_KIND_ACTION_COMPLETED ok
 request=req-2 project=orders tenant=acme last=EVENT_KIND_APPROVAL_REQUESTED open
 trails 2: ok 1, open 1, failed 0, indeterminate 0; lines 7, repeated lines collapsed 0, bytes after the last newline 0
 the check proves each chain&#39;s shape and not its integrity: a record altered to keep that shape passes it
 </code></pre>
-<p>Each line is one request: its last event and the chain check's verdict.
-<code>ok</code> is a trail whose action closed, <code>open</code> one still in flight, held for an
-approval, or whose closing record has not arrived yet. <code>failed</code> and
-<code>indeterminate</code> carry the check's reason, and either makes <code>trail</code> exit 1, as
-does a file that holds no trail. An <code>open</code> trail does not: a plane still
-serving has trails open. You can run it while the collector writes: it reads
-up to the last whole line and counts the bytes after it. When no collect holds
-the file, those bytes are a line nobody is writing, and <code>trail</code> prints its
-report and exits 1 saying the file is damaged. <code>trail</code> reads at most 100,000
-lines, repeated ones included, and refuses a longer file with exit 1.</p>
+<p>Each line is one request: its last event and the chain check's verdict, over
+every segment not pruned. <code>ok</code> is a trail whose action closed, <code>open</code> one
+still in flight, held for an approval, or whose closing record has not
+arrived. <code>failed</code> and <code>indeterminate</code> carry the reason, and either makes
+<code>trail</code> exit 1, as does nothing to read. Bytes after the last newline are a
+line being written while a collect holds the directory, and damage, exit 1,
+when none does. <code>trail</code> reads at most 100,000 lines.</p>
+<h3 id="5-read-across-segments-and-prune">5. Read across segments, and prune</h3>
+<pre><code class="language-sh">guardana-gateway trail segments trail/plane
+guardana-gateway prune --through 3 trail/plane
+</code></pre>
+<p><code>trail export trail/plane</code> reads one segment. Its <code>end_reached</code> is true only
+at the log's end; before it, export again after <code>next_cursor</code>, which leads into
+the next segment. A cursor of a pruned segment is refused as expired, exit 2.
+A segment's file exported on its own, <code>trail export trail/plane/segment-00000002.jsonl</code>,
+is refused, exit 2: export the directory, whose header counts the segments
+pruned before. <code>evidence-report -state</code> follows the log from segment to
+segment.</p>
+<p><code>trail segments</code> prints the manifest: how many segments are sealed, pruned
+and dropped of the 10,000 it names at most, then each segment's state, lines,
+bytes, key and dates, and whether a collect holds it. <code>prune</code>
+removes the sealed segments up to the one named, after writing each one's
+tombstone, which keeps its lines, bytes and digests. Stop collect first: a
+held directory is refused. The live segment is never pruned.</p>
 <h2 id="what-the-collector-promises">What the collector promises</h2>
 <ul>
 <li><strong>It answers only for what is on disk.</strong> Each request is appended and the
-file synced before the plane is told it was accepted, so the plane releases
-nothing the file does not hold. A request whose write fails is answered 503
-and sent again.</li>
-<li><strong>Stopping it blocks, it loses nothing.</strong> While the collector is down the
-plane keeps its evidence in its spool, and once the spool reaches
-<code>evidence.max_bytes</code> material calls are blocked with <code>EVIDENCE_UNAVAILABLE</code>.
-Start the collector again on the same file and everything arrives.</li>
-<li><strong>A record can arrive twice, and is written once.</strong> A crash between the sync
-and the answer makes the plane send it again. The collector keeps the event
-id of every line in the file and does not write an exact repeat again;
-<code>trail</code> still counts a repeat once, and refuses a file in which one event id
-carries two different lines.</li>
-<li><strong>A request it cannot read is refused</strong>, with 400, 413 when it is too large
-or 415 for a media type or encoding it does not take. The plane splits a 400
-or 413 down to one record and quarantines it instead of retrying it for
-ever; a 415 it sends again. So is a record
-whose event id the file already holds with other content, so the file stays
-one <code>trail</code> reads.</li>
+file synced before the plane is told it was accepted. A request whose write
+fails is answered 503 and sent again.</li>
+<li><strong>Stopping it, or its bound, blocks; neither loses.</strong> The plane keeps its
+evidence in its spool, and once the spool reaches <code>evidence.max_bytes</code>
+material calls are blocked with <code>EVIDENCE_UNAVAILABLE</code>. Start the collector
+again, or prune, and everything arrives.</li>
+<li><strong>A record can arrive twice, and is written once.</strong> The collector keeps the
+event id of every line of every segment not pruned and does not write an
+exact repeat again, across a seal and a restart; it refuses one event id
+carrying two different lines.</li>
+<li><strong>A request it cannot read is refused</strong>, with 400, 413 when too large or 415
+for a media type or encoding it does not take. The plane splits a 400 or 413
+down to one record and quarantines it; a 415 it sends again. A body cut off
+before its end, by a reset connection or a read timeout, is answered 503
+and sent again; one that never arrives in time keeps the plane retrying
+until its spool is full and material calls are blocked.</li>
 </ul>
 <h2 id="limits">Limits</h2>
 <ul>
-<li>The file is never rotated or pruned, and <code>trail</code> refuses it once it holds
-more than 100,000 lines, which a busy plane can reach and any local account
-that can reach the port can cause.</li>
-<li>The collector takes no credential: any local user who can reach the
-loopback port can write evidence into the trail, including a chain made up
-to pass the check.</li>
+<li>Anyone who can read the credential file, or the plane's configuration, can
+write evidence into the trail, including a chain made up to pass the check.</li>
+<li>An event sent again after its segment was pruned is written again, and a
+trail whose first events were pruned fails the chain check.</li>
+<li>Before collect is up, whoever binds its loopback port first is sent the
+token in plaintext by the plane's next retry.</li>
+<li>At 10,000 sealed segments the collector answers 503 until a prune; past
+that, each seal drops the oldest tombstone.</li>
 <li><code>trail</code> checks each chain's shape: its links, its order and its identifiers.
 There is no hash chain, so a record changed to keep that shape passes.</li>
 <li>The collector reads what this repository's exporter sends and nothing more:
-a member OTLP defines that the exporter never writes is refused rather than
-ignored.</li>
+a member OTLP defines that the exporter never writes is refused.</li>
 </ul>
-<p>Why it is built this way, and what it leaves out, is
-<a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a>.</p>
+<p>Why it is built this way is
+<a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a> and
+<a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a>.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/watch-a-plane-without-a-collector.md">docs/guides/watch-a-plane-without-a-collector.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.14.0, and <a href="https://github.com/guardana/control/tree/v0.14.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">

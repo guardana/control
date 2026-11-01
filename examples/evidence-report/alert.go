@@ -88,6 +88,15 @@ func bounded(id string) string {
 	return id
 }
 
+// gapPruned is the note of the gap of segments pruned before an export,
+// which no gap record names.
+const gapPruned = "pruned"
+
+func prunedAlert() alert {
+	offset := int64(0)
+	return alert{V: alertLineVersion, Alert: codeGap, Offset: &offset, Note: gapPruned}
+}
+
 func gapAlertOf(g gapRecord) alert {
 	offset := g.offset
 	a := alert{V: alertLineVersion, Alert: codeGap, Offset: &offset, Note: "a reason this reader does not know"}

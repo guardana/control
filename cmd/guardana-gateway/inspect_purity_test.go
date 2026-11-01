@@ -39,8 +39,9 @@ type inspection struct {
 // damagedTree is a plane's tree as a crash leaves it: a spool segment that
 // ends in five bytes no record holds, a lost hold in the file provider's
 // directories that a start would close, an expired pause entry, an open run,
-// and a trail file that ends in a partial line. Every writer of it would
-// change something at its next open.
+// a trail file that ends in a partial line, and a directory of trail
+// segments, one sealed, whose live segment ends in one. Every writer of it
+// would change something at its next open.
 func damagedTree(t *testing.T) (tree, string) {
 	t.Helper()
 	tr := newTree(t)
@@ -90,7 +91,37 @@ func damagedTree(t *testing.T) (tree, string) {
 	if err := os.WriteFile(trailPath, []byte(whole+torn), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	segmentedTrail(t, segmentsOf(trailPath))
 	return tr, trailPath
+}
+
+// segmentsOf is the directory of trail segments beside the trail file.
+func segmentsOf(trailPath string) string { return filepath.Join(filepath.Dir(trailPath), "trail") }
+
+// segmentedTrail writes the two whole lines into a directory of segments,
+// the first sealed and the second live, then leaves the third half written.
+func segmentedTrail(t *testing.T, dir string) {
+	t.Helper()
+	events := trailOf("req-1", kProposed, kDecided)
+	var first bytes.Buffer
+	if err := evidence.EncodeJSONL(&first, events[:1]); err != nil {
+		t.Fatal(err)
+	}
+	l, err := trailfile.OpenLog(trailfile.LogConfig{Dir: dir, Tenant: "t1", Project: "p1",
+		SegmentBytes: int64(first.Len()), MaxBytes: 1 << 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range events {
+		if err := l.Append(context.Background(), []*controlv1.Event{ev}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, torn := trailLines(t)
+	appendTail(t, filepath.Join(dir, "live.jsonl"), torn)
 }
 
 // trailLines is one request's first two evidence lines whole, and the first
@@ -149,6 +180,27 @@ func inspections(tr tree, trailPath string) map[string][]inspection {
 				whileHeld:      []string{`"eventId":"req-1-1"`, `"writer_held":true`},
 				whileSpoolFree: []string{`"eventId":"req-1-1"`, `"writer_held":true`},
 				freeExit:       exitFail, heldExit: exitOK, spoolFreeExit: exitOK,
+			},
+			{
+				args:           []string{"trail", segmentsOf(trailPath)},
+				free:           []string{"request=req-1 ", "no collector holds it"},
+				whileHeld:      []string{"request=req-1 ", "lines 2,"},
+				whileSpoolFree: []string{"request=req-1 ", "lines 2,"},
+				freeExit:       exitFail, heldExit: exitOK, spoolFreeExit: exitOK,
+			},
+			{
+				args:           []string{"trail", "export", segmentsOf(trailPath)},
+				free:           []string{`"eventId":"req-1-0"`, "segment-00000001.jsonl"},
+				whileHeld:      []string{`"eventId":"req-1-0"`, "segment-00000001.jsonl"},
+				whileSpoolFree: []string{`"eventId":"req-1-0"`, "segment-00000001.jsonl"},
+				freeExit:       exitOK, heldExit: exitOK, spoolFreeExit: exitOK,
+			},
+			{
+				args:           []string{"trail", "segments", segmentsOf(trailPath)},
+				free:           []string{"segment=1 state=sealed lines=1", "collector=none", "tail_bytes=", "segments sealed=1 pruned=0 dropped=0"},
+				whileHeld:      []string{"segment=1 state=sealed lines=1", "collector=holds it"},
+				whileSpoolFree: []string{"segment=1 state=sealed lines=1", "collector=holds it"},
+				freeExit:       exitOK, heldExit: exitOK, spoolFreeExit: exitOK,
 			},
 		},
 	}
@@ -265,9 +317,9 @@ func holdButTheSpool(t *testing.T, tr tree, trailPath string) {
 	collectInto(t, trailPath)
 }
 
-// collectInto opens the trail as the collector does, which cuts its torn
-// line, and leaves half a line in it again, as the collector between two
-// appends.
+// collectInto opens the trail file and the directory of segments as the
+// collector does, which cuts each torn line, and leaves half a line in each
+// again, as the collector between two appends.
 func collectInto(t *testing.T, trailPath string) {
 	t.Helper()
 	w, err := trailfile.Open(trailPath)
@@ -277,6 +329,13 @@ func collectInto(t *testing.T, trailPath string) {
 	t.Cleanup(func() { _ = w.Close() })
 	_, torn := trailLines(t)
 	appendTail(t, trailPath, torn)
+	l, err := trailfile.OpenLog(trailfile.LogConfig{Dir: segmentsOf(trailPath), Tenant: "t1", Project: "p1",
+		SegmentBytes: 1 << 20, MaxBytes: 2 << 20})
+	if err != nil {
+		t.Fatalf("opening the segments as the collector does: %v", err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	appendTail(t, filepath.Join(segmentsOf(trailPath), "live.jsonl"), torn)
 }
 
 // TestDoctorRefusesATornTailRunCannotCut: a torn last segment of mode 0400 is

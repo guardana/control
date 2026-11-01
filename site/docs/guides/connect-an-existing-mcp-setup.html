@@ -169,13 +169,18 @@ runs the plane once you sign for real.</p>
 <p>In <code>plane.yaml</code>, replace <code>BUNDLE_KEY_ID_FROM_KEYGEN</code> and <code>BUNDLE_PUBLIC_KEY_FROM_KEYGEN</code>
 with the two lines the first <code>keygen</code> printed,
 <code>FRESHNESS_KEY_ID_FROM_KEYGEN</code> and <code>FRESHNESS_PUBLIC_KEY_FROM_KEYGEN</code> with
-the second's, and the server's one argument with the absolute path of the
-directory it may touch. Nothing else needs to change for this server.</p>
-<h3 id="4-start-a-collector">4. Start a collector</h3>
-<pre><code>guardana-gateway collect --listen 127.0.0.1:4318 --out trail.jsonl
+the second's, <code>COLLECTOR_CREDENTIAL_FROM_FILE</code> with the content of the
+collector's credential, and the server's one argument with the absolute path
+of the directory it may touch. Nothing else needs to change for this server.
+The credential is any 32 to 512 printable bytes with no space:</p>
+<pre><code>(umask 077 &amp;&amp; od -An -N32 -tx1 /dev/urandom | tr -d &#39; \n&#39; &gt; collector.credential)
 </code></pre>
-<p>The plane writes its evidence to the spool and ships it here; the trail file
-is what step 9 reads.</p>
+<h3 id="4-start-a-collector">4. Start a collector</h3>
+<pre><code>guardana-gateway collect --listen 127.0.0.1:4318 --dir trail --tenant local --project files \
+    --credential-file collector.credential
+</code></pre>
+<p>The plane writes its evidence to the spool and ships it here, with the
+credential; the trail directory is what step 9 reads.</p>
 <h3 id="5-check-the-classification">5. Check the classification</h3>
 <pre><code>guardana-gateway doctor --config plane.yaml
 </code></pre>
@@ -236,8 +241,8 @@ guardana-control approvals approve --approver-id you approvals &lt;approval_id&g
 before that approval expires, it is blocked with <code>APPROVAL_ALREADY_USED</code>, and
 held anew after; an approval covers one exact call.</p>
 <h3 id="9-read-the-report">9. Read the report</h3>
-<pre><code>guardana-gateway trail trail.jsonl
-guardana-gateway trail export trail.jsonl | bin/evidence-report
+<pre><code>guardana-gateway trail trail
+guardana-gateway trail export trail | bin/evidence-report
 </code></pre>
 <p><code>trail</code> checks that each request's events form an unbroken chain.
 <code>evidence-report</code>, built in step 1, prints a row per request: the tool, the verdict and codes, whether it was held and how

@@ -1319,10 +1319,14 @@ records why. The goldens in <a href="https://github.com/guardana/control/tree/ma
 a trail file, <code>&lt;name&gt;.trail</code>, and its export, <code>&lt;name&gt;.jsonl</code>.</p>
 <h3 id="format-and-version">Format and version</h3>
 <p>Each line is one JSON object whose <code>type</code> says what it is. The format is
-<code>guardana.control.evidence-export</code>, version <code>&quot;1.0&quot;</code>, both in the header, read
+<code>guardana.control.evidence-export</code>, version <code>&quot;1.1&quot;</code>, both in the header, read
 by the MAJOR.MINOR rules of Schema versioning above: a reader MUST refuse an
 export of a major it does not read and a record of a <code>type</code> it does not know.
-The format is a public contract and changes only by a record.</p>
+The format is a public contract and changes only by a record. <code>1.1</code> adds the
+header's <code>pruned_before</code>; a reader of <code>1.1</code> reads a <code>1.0</code> header, which has
+no such member, as 0, and refuses a header of a later minor without it. A
+strict <code>1.0</code> reader refuses a <code>1.1</code> export on that member: it fails loudly and
+never misreads.</p>
 <p>An export is one <code>header</code>, then the records of the lines it read in the file's
 order, each <code>event</code>, <code>gap</code> or <code>duplicate</code>, then one <code>trailer</code>. <strong>An export
 without its trailer was cut short</strong>, and a reader MUST NOT treat what it holds
@@ -1340,7 +1344,7 @@ before the end</strong>: more remains, and a reader MUST export again after
 <tbody>
 <tr>
 <td><code>header</code></td>
-<td><code>format</code>; <code>version</code>; <code>file</code>, the file as named; <code>source</code>, the SHA-256 of the file's first line in lowercase hex, absent while the file holds no whole line; <code>query</code>, the query as understood: <code>after</code> (absent when not given), <code>limit</code>, <code>max_bytes</code> (absent when there is no bound), and <code>request</code>, <code>run</code>, <code>tenant</code>, <code>project</code>, <code>kind</code>, each the values given in their order, absent when none</td>
+<td><code>format</code>; <code>version</code>; <code>file</code>, the file as named; <code>source</code>, the SHA-256 of the file's first line in lowercase hex, absent while the file holds no whole line; <code>pruned_before</code>, the segments of a log before the exported one that the export cannot read, pruned or their tombstones dropped, 0 for a single file; <code>query</code>, the query as understood: <code>after</code> (absent when not given), <code>limit</code>, <code>max_bytes</code> (absent when there is no bound), and <code>request</code>, <code>run</code>, <code>tenant</code>, <code>project</code>, <code>kind</code>, each the values given in their order, absent when none</td>
 </tr>
 <tr>
 <td><code>event</code></td>
@@ -1426,6 +1430,39 @@ the cursor.</p>
 <p>A file has an identity once its first line is whole, and an empty file gives
 no cursor. The identity is content and not the path, so a renamed or rotated
 file is read on under its new name.</p>
+<h3 id="a-directory-of-segments">A directory of segments</h3>
+<p><code>trail export &lt;dir&gt;</code> reads a directory of trail segments
+(<a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a>)
+one segment per export, in the records above. A segment is named by its key:
+the SHA-256 of <code>guardana.control.segments/</code>, its number in decimal, <code>/</code>, and
+the 32 bytes of the SHA-256 of its first line. The header's <code>source</code> and each
+cursor's <code>&lt;first&gt;</code> are that key, so two segments that begin with one line keep
+their cursors apart, and a segment keeps its key when it is sealed. The
+header's <code>file</code> is the segment's.</p>
+<ul>
+<li>Without <code>--after</code> the export reads the first segment not pruned.</li>
+<li><code>end_reached</code> is <code>true</code> only at the end of the last segment that held a line
+when the export began. At the end of an earlier one it is <code>false</code>, and the
+export after its <code>next_cursor</code> reads the next segment from its first line. A
+reader that follows <code>next_cursor</code> until <code>end_reached</code> reads every line of
+every segment not pruned once.</li>
+<li>A cursor of a pruned segment is refused as expired, exit 2; one whose key no
+segment the manifest names has, as another file. A cursor at a sealed
+segment's end moves on only when its line digest is that of the segment's
+last line.</li>
+<li>A file in the directory, a segment or the live one, exported by its path
+is refused, exit 2, naming the directory to export: read as a trail file it
+would count none of the segments pruned before it.</li>
+<li><code>pruned_before</code> counts the segments before the exported one that are gone.
+Coverage refuses an export as whole while it is above 0: what those
+segments held is not in it.</li>
+<li>Duplicates and conflicts are found within one segment's export; the
+collector writes no event id twice across the segments it retains; a line
+without an event id is written each time it arrives.</li>
+<li><code>source</code> changes from one segment's export to the next. A reader that keeps
+one takes a new one only from an export after its own cursor whose first
+record is at offset 0, which an export after a cursor in one file never is.</li>
+</ul>
 <h3 id="the-query">The query</h3>
 <ul>
 <li><code>--after &lt;cursor&gt;</code> starts after the line the cursor names.</li>

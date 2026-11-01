@@ -160,8 +160,8 @@ among them:</p>
 metrics: http://127.0.0.1:&lt;port&gt;/metrics
 page: http://127.0.0.1:&lt;port&gt;/#t=&lt;token&gt;
 approvals: &lt;state&gt;/approvals
-trail: &lt;state&gt;/trail.jsonl
-trail_command: guardana-gateway trail &lt;state&gt;/trail.jsonl
+trail: &lt;state&gt;/trail
+trail_command: guardana-gateway trail &lt;state&gt;/trail
 </code></pre>
 <p>Leave it running and open a second terminal in the same directory. Put
 the <code>mcp</code> address in a variable:</p>
@@ -204,9 +204,9 @@ file, which the demo has it do every half second, the read</p>
 pause</strong> and the same call runs again.</p>
 <h2 id="6-read-the-trail-and-the-counters">6. Read the trail and the counters</h2>
 <p>The plane's evidence, the events of each call, went through its spool, a
-directory on disk, to the collector, which appends it to the trail file. Run
+directory on disk, to the collector, which appends it to the trail. Run
 the <code>trail_command</code> line, the program under <code>bin/</code>:</p>
-<pre><code>bin/guardana-gateway trail &lt;state&gt;/trail.jsonl
+<pre><code>bin/guardana-gateway trail &lt;state&gt;/trail
 </code></pre>
 <p>It prints one line per request, the kind of its last event, and whether its
 events form an unbroken chain. The counters need no collector:</p>

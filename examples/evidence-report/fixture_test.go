@@ -86,7 +86,7 @@ func TestDemoExportFormat(t *testing.T) {
 	if err := json.Unmarshal([]byte(first), &h); err != nil {
 		t.Fatal(err)
 	}
-	if h.Format != exportFormat || h.Version != "1.0" {
+	if h.Format != exportFormat || h.Version != "1.1" {
 		t.Fatalf("the exporter wrote format %q version %q; this reader reads %q major %d", h.Format, h.Version, exportFormat, exportMajor)
 	}
 }

@@ -5,3 +5,4 @@
 trust-roster internal/trust.Roster file testdata/ports/trust-roster trust
 operator-authenticator internal/operators.Authenticator roster testdata/ports/operator-authenticator operators.authenticator
 operator-authorizer internal/operators.Authorizer roster testdata/ports/operator-authorizer operators.authorizer
+record-log internal/segmentlog.RecordLog segments testdata/ports/record-log none

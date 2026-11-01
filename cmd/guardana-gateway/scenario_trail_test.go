@@ -87,7 +87,8 @@ func TestATrailThatCannotBeComparedIsRefused(t *testing.T) {
 }
 
 // TestATrailFileThatCannotBeReadIsRefused: a file absent where it must be
-// there, a directory and a file past the bound are errors; a file absent
+// there, a directory that is no segment log and a file past the bound are
+// errors; a file absent
 // before the first step holds nothing.
 func TestATrailFileThatCannotBeReadIsRefused(t *testing.T) {
 	absent := filepath.Join(t.TempDir(), "none.jsonl")
@@ -97,8 +98,8 @@ func TestATrailFileThatCannotBeReadIsRefused(t *testing.T) {
 	if _, err := readTrail(absent, false); err == nil {
 		t.Error("an absent file after a call was read as empty")
 	}
-	if _, err := readTrail(t.TempDir(), true); err == nil || !strings.Contains(err.Error(), "not a regular file") {
-		t.Errorf("a directory: err = %v", err)
+	if _, err := readTrail(t.TempDir(), true); err == nil || !strings.Contains(err.Error(), "is no segment log") {
+		t.Errorf("a directory that is no segment log: err = %v", err)
 	}
 	large := writeTrail(t, nil)
 	if err := os.Truncate(large, maxTrailBytes+1); err != nil {

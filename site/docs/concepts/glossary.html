@@ -345,8 +345,13 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>trail file</td>
-<td>the collector's append-only file of events, one per line in the protobuf JSON mapping, each event id once; what <code>trail</code> and <code>trail export</code> read</td>
+<td>a file of events, one per line in the protobuf JSON mapping, each event id once; what <code>trail</code> and <code>trail export</code> read</td>
 <td><code>trailfile.Writer</code> in <code>internal/trailfile/writer.go</code></td>
+</tr>
+<tr>
+<td>trail segments</td>
+<td>the directory the collector writes, bound to one tenant and project: sealed segments, each a trail file, a live one appends go to, and a manifest naming each, sealed or pruned; bounded in bytes, pruned only by an operator</td>
+<td><code>trailfile.Log</code> in <code>internal/trailfile/log.go</code> over <code>internal/segmentlog/</code></td>
 </tr>
 <tr>
 <td>trust</td>

@@ -1,0 +1,17 @@
+{
+  "rule": "a segment is located by its number and its first line together: the same first line under another number is unknown",
+  "segment_bytes": 8,
+  "max_bytes": 64,
+  "steps": [
+    {"append": ["aaa", "bbb"]},
+    {"append": ["aaa"]},
+    {"locate": "aaa", "seq": 3, "state": "unknown"},
+    {"locate": "bbb", "seq": 1, "state": "unknown"}
+  ],
+  "negative_control": [
+    {"append": ["aaa", "bbb"]},
+    {"append": ["aaa"]},
+    {"locate": "aaa", "seq": 2, "state": "live"},
+    {"locate": "aaa", "seq": 1, "state": "sealed"}
+  ]
+}

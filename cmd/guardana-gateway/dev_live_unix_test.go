@@ -105,7 +105,7 @@ func TestDevStopsWhenThePageDies(t *testing.T) {
 	if code := p.exit(t, 20*time.Second); code != exitFail || !strings.Contains(p.stderr.String(), "console exited, so dev stopped every part") {
 		t.Fatalf("exit %d, want 1 naming the page:\n%s", code, p.stderr.String())
 	}
-	trail, err := readTrail(filepath.Join(state, "trail.jsonl"), false)
+	trail, err := readTrail(filepath.Join(state, "trail"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestDevDrainsOnAnInterrupt(t *testing.T) {
 	if code := p.exit(t, 20*time.Second); code != exitOK {
 		t.Fatalf("exit %d after an interrupt, want 0:\n%s", code, p.stderr.String())
 	}
-	trail, err := readTrail(filepath.Join(state, "trail.jsonl"), false)
+	trail, err := readTrail(filepath.Join(state, "trail"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +285,7 @@ func TestTheTokenStaysOnDevsStdout(t *testing.T) {
 			t.Errorf("the arguments or the environment of %d carry the token", pid)
 		}
 	}
-	if names, want := stateNames(t, state), []string{"approvals", "floors", "holds", "pause.json", "policy.bundle", "policy.statement", "settings.txt", "spool", "trail.jsonl"}; !slices.Equal(names, want) {
+	if names, want := stateNames(t, state), []string{"approvals", "floors", "holds", "pause.json", "policy.bundle", "policy.statement", "settings.txt", "spool", "trail"}; !slices.Equal(names, want) {
 		t.Errorf("the state directory holds %q, want %q", names, want)
 	}
 	prefix := []byte(policykey.PKCS8Prefix)

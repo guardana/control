@@ -1113,10 +1113,14 @@ a trail file, `<name>.trail`, and its export, `<name>.jsonl`.
 ### Format and version
 
 Each line is one JSON object whose `type` says what it is. The format is
-`guardana.control.evidence-export`, version `"1.0"`, both in the header, read
+`guardana.control.evidence-export`, version `"1.1"`, both in the header, read
 by the MAJOR.MINOR rules of Schema versioning above: a reader MUST refuse an
 export of a major it does not read and a record of a `type` it does not know.
-The format is a public contract and changes only by a record.
+The format is a public contract and changes only by a record. `1.1` adds the
+header's `pruned_before`; a reader of `1.1` reads a `1.0` header, which has
+no such member, as 0, and refuses a header of a later minor without it. A
+strict `1.0` reader refuses a `1.1` export on that member: it fails loudly and
+never misreads.
 
 An export is one `header`, then the records of the lines it read in the file's
 order, each `event`, `gap` or `duplicate`, then one `trailer`. **An export
@@ -1129,7 +1133,7 @@ An offset is a byte offset into the file. A line is its bytes and its newline.
 
 | `type` | Members |
 | --- | --- |
-| `header` | `format`; `version`; `file`, the file as named; `source`, the SHA-256 of the file's first line in lowercase hex, absent while the file holds no whole line; `query`, the query as understood: `after` (absent when not given), `limit`, `max_bytes` (absent when there is no bound), and `request`, `run`, `tenant`, `project`, `kind`, each the values given in their order, absent when none |
+| `header` | `format`; `version`; `file`, the file as named; `source`, the SHA-256 of the file's first line in lowercase hex, absent while the file holds no whole line; `pruned_before`, the segments of a log before the exported one that the export cannot read, pruned or their tombstones dropped, 0 for a single file; `query`, the query as understood: `after` (absent when not given), `limit`, `max_bytes` (absent when there is no bound), and `request`, `run`, `tenant`, `project`, `kind`, each the values given in their order, absent when none |
 | `event` | `offset`, where the line starts; `cursor`, where it ends; `event`, the line's bytes without its newline and a carriage return right before it, as they stand in the file, never decoded and encoded again |
 | `gap` | `offset`; `cursor`, absent on the bytes after the last newline, which no newline ends; `reason` |
 | `duplicate` | `offset`; `event_id`; `first_offset`, where this export wrote the event first |
@@ -1182,6 +1186,40 @@ the cursor.
 A file has an identity once its first line is whole, and an empty file gives
 no cursor. The identity is content and not the path, so a renamed or rotated
 file is read on under its new name.
+
+### A directory of segments
+
+`trail export <dir>` reads a directory of trail segments
+([ADR-0072](adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md))
+one segment per export, in the records above. A segment is named by its key:
+the SHA-256 of `guardana.control.segments/`, its number in decimal, `/`, and
+the 32 bytes of the SHA-256 of its first line. The header's `source` and each
+cursor's `<first>` are that key, so two segments that begin with one line keep
+their cursors apart, and a segment keeps its key when it is sealed. The
+header's `file` is the segment's.
+
+- Without `--after` the export reads the first segment not pruned.
+- `end_reached` is `true` only at the end of the last segment that held a line
+  when the export began. At the end of an earlier one it is `false`, and the
+  export after its `next_cursor` reads the next segment from its first line. A
+  reader that follows `next_cursor` until `end_reached` reads every line of
+  every segment not pruned once.
+- A cursor of a pruned segment is refused as expired, exit 2; one whose key no
+  segment the manifest names has, as another file. A cursor at a sealed
+  segment's end moves on only when its line digest is that of the segment's
+  last line.
+- A file in the directory, a segment or the live one, exported by its path
+  is refused, exit 2, naming the directory to export: read as a trail file it
+  would count none of the segments pruned before it.
+- `pruned_before` counts the segments before the exported one that are gone.
+  Coverage refuses an export as whole while it is above 0: what those
+  segments held is not in it.
+- Duplicates and conflicts are found within one segment's export; the
+  collector writes no event id twice across the segments it retains; a line
+  without an event id is written each time it arrives.
+- `source` changes from one segment's export to the next. A reader that keeps
+  one takes a new one only from an export after its own cursor whose first
+  record is at offset 0, which an export after a cursor in one file never is.
 
 ### The query
 

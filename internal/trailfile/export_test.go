@@ -43,6 +43,7 @@ type record struct {
 	Version     string          `json:"version"`
 	File        string          `json:"file"`
 	Source      string          `json:"source"`
+	Pruned      *int            `json:"pruned_before"`
 	Query       json.RawMessage `json:"query"`
 	NextCursor  string          `json:"next_cursor"`
 	EndReached  *bool           `json:"end_reached"`
@@ -216,7 +217,7 @@ func TestTheHeaderAndTrailerSayWhatWasRead(t *testing.T) {
 		t.Errorf("trailer record %+v", e.trailer)
 	}
 	first := sha256.Sum256([]byte(lineE1 + "\n"))
-	if e.header.Format != brand.OTelNamespace+".evidence-export" || e.header.Version != "1.0" ||
+	if e.header.Format != brand.OTelNamespace+".evidence-export" || e.header.Version != "1.1" ||
 		e.header.File != "trail.jsonl" || e.header.Source != hex.EncodeToString(first[:]) {
 		t.Errorf("header %+v", e.header)
 	}

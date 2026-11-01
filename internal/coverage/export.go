@@ -26,7 +26,8 @@ type Export struct {
 	// File is the trail file the header names.
 	File string
 	// Whole is true when the export holds every line of its file: a trailer
-	// that reached the end, no gap, no cursor to start after and no filter.
+	// that reached the end, no gap, no segment of its log pruned before it,
+	// no cursor to start after and no filter.
 	Whole bool
 	// NotWhole says why Whole is false.
 	NotWhole string
@@ -70,8 +71,11 @@ type exportReader struct {
 	// source is the header naming one: the file holds a whole line.
 	source bool
 	// tail is a partial tail gap read, after which only the trailer comes.
-	tail   bool
-	counts map[string]int
+	tail bool
+	// prunedBefore is the segments of the log before the exported one that
+	// are gone; a 1.0 header, which never names it, has none.
+	prunedBefore uint64
+	counts       map[string]int
 }
 
 func readExport(r io.Reader) (*Export, error) {
@@ -123,6 +127,8 @@ func (er *exportReader) notWhole() string {
 		return "its trailer says the end of the file was not reached"
 	case er.counts[recordGap] > 0:
 		return "it holds a gap"
+	case er.prunedBefore > 0:
+		return fmt.Sprintf("%d segment(s) of its log before the one it exports were pruned", er.prunedBefore)
 	case er.after:
 		return "it starts after a cursor"
 	case er.filtered:
@@ -173,6 +179,6 @@ func (er *exportReader) record(line []byte) error {
 
 // recordMembers is every member any record type has; each type's reader
 // narrows it.
-var recordMembers = []string{"type", "format", "version", "file", "source", "query", "offset", "cursor",
+var recordMembers = []string{"type", "format", "version", "file", "source", "pruned_before", "query", "offset", "cursor",
 	"event", "reason", "event_id", "first_offset", "next_cursor", "end_reached", "tail_bytes", "writer_held",
 	"counts", "scanned_bytes", "dedup_scope"}

@@ -1,0 +1,17 @@
+{
+  "rule": "lines that would take a live segment holding a line past its byte bound seal it first",
+  "segment_bytes": 8,
+  "max_bytes": 64,
+  "steps": [
+    {"append": ["aaa"]},
+    {"append": ["bbbb"]},
+    {"locate": "aaa", "seq": 1, "state": "sealed"},
+    {"locate": "bbbb", "seq": 2, "state": "live"}
+  ],
+  "negative_control": [
+    {"append": ["aaa"]},
+    {"append": ["bbb"]},
+    {"locate": "aaa", "seq": 1, "state": "live"},
+    {"locate": "bbb", "seq": 1, "state": "unknown"}
+  ]
+}

@@ -36,6 +36,10 @@ var osOps = fileOps{open: (*os.Root).OpenFile, write: (*os.File).Write, sync: (*
 type Writer struct {
 	mu   sync.Mutex
 	path string
+	// root and name, when root is set, are the directory the file was opened
+	// in and its name there, which the path checks go through instead.
+	root *os.Root
+	name string
 	f    *os.File
 	// size is the length of the file up to the end of the last append that
 	// was synced.
@@ -88,6 +92,29 @@ func open(path string, ops fileOps) (*Writer, error) {
 		return nil, errors.Join(err, f.Close(), root.Close())
 	}
 	if err := root.Close(); err != nil {
+		return nil, errors.Join(err, f.Close())
+	}
+	return w, nil
+}
+
+// openIn opens the file name in the directory root holds, as Open opens one
+// by its path, for a caller that judged and holds that directory; every
+// later check of the name goes through root, which must stay open while the
+// writer is.
+func openIn(root *os.Root, name string) (*Writer, error) {
+	if _, err := fileName(name); err != nil || name != filepath.Base(name) {
+		return nil, fmt.Errorf("%w: %q", ErrPath, name)
+	}
+	f, err := openFile(root, name, osOps.open)
+	if err != nil {
+		return nil, err
+	}
+	w := &Writer{path: name, root: root, name: name, f: f, ops: osOps}
+	err = w.claim()
+	if err == nil {
+		err = syncRoot(root)
+	}
+	if err != nil {
 		return nil, errors.Join(err, f.Close())
 	}
 	return w, nil
@@ -181,16 +208,7 @@ func (w *Writer) Append(ctx context.Context, events []*controlv1.Event) error {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	switch {
-	case w.f == nil || w.closed:
-		return ErrClosed
-	case w.failed != nil:
-		return w.failed
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if err := w.stillHeld(w.size); err != nil {
+	if err := w.ready(ctx); err != nil {
 		return err
 	}
 	buf, added, err := w.ids.fresh(events, lines)
@@ -200,6 +218,43 @@ func (w *Writer) Append(ctx context.Context, events []*controlv1.Event) error {
 	if len(buf) == 0 {
 		return nil
 	}
+	if err := w.write(buf); err != nil {
+		return err
+	}
+	w.ids.add(added)
+	return nil
+}
+
+// appendLines writes whole lines the caller encoded and judged at the end of
+// the file, as Append writes its own, and indexes nothing: the caller keeps
+// the index of every file it writes.
+func (w *Writer) appendLines(ctx context.Context, buf []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.ready(ctx); err != nil {
+		return err
+	}
+	return w.write(buf)
+}
+
+// ready refuses an append to a writer that is closed or failed, once ctx has
+// ended, or when the path no longer names the file the writer left.
+func (w *Writer) ready(ctx context.Context) error {
+	switch {
+	case w.f == nil || w.closed:
+		return ErrClosed
+	case w.failed != nil:
+		return w.failed
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return w.stillHeld(w.size)
+}
+
+// write writes buf whole and synced at the end of the file, cutting the file
+// back when it cannot, and checks the path still names the file after.
+func (w *Writer) write(buf []byte) error {
 	if err := w.writeSynced(buf); err != nil {
 		return w.cutBack(err)
 	}
@@ -207,7 +262,6 @@ func (w *Writer) Append(ctx context.Context, events []*controlv1.Event) error {
 		return err
 	}
 	w.size += int64(len(buf))
-	w.ids.add(added)
 	return nil
 }
 
@@ -248,7 +302,7 @@ func (w *Writer) stillHeld(size int64) error {
 		w.failed = fmt.Errorf("%w: %w", ErrChanged, err)
 		return w.failed
 	}
-	named, err := os.Lstat(w.path)
+	named, err := w.lstat()
 	switch {
 	case err != nil:
 		w.failed = fmt.Errorf("%w: %w", ErrChanged, err)
@@ -262,6 +316,14 @@ func (w *Writer) stillHeld(size int64) error {
 		return nil
 	}
 	return w.failed
+}
+
+// lstat is the file's name, not followed, as the writer reaches it.
+func (w *Writer) lstat() (os.FileInfo, error) {
+	if w.root != nil {
+		return w.root.Lstat(w.name)
+	}
+	return os.Lstat(w.path)
 }
 
 // cutBack returns the file to the length it had before the append that

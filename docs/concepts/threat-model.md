@@ -20,8 +20,7 @@ what exists is [status](../status.md); this page keeps no list of its own.
   loopback ([reference/dev](../reference/dev.md)).
 - The approvals commands and the local page, `guardana-control approvals` and
   `console` ([reference/console](../reference/console.md)).
-- `guardana-gateway collect` and the trail file it writes, and `trail`, which
-  reads one.
+- `guardana-gateway collect`, its trail, `trail` and `prune`.
 - The policy key, `policy keygen`, `policy sign` and the signed bundle a plane
   loads; the freshness key, `policy renew`, the statement it writes and the
   serial floors that keep a bundle current.
@@ -59,14 +58,14 @@ the plane's own account, someone on the network, and a tampered release.
 ```mermaid
 flowchart TD
     accTitle: Trust boundaries
-    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane's machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file, the approvals directory, the hold journal, the trail file and the key by their owner too, and on the spool's directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
+    accDescr: The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane's machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file, the approvals directory, the hold journal, the trail and the key by their owner too, and on the spool's directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence.
     Agent["Agent and its model"] -->|"MCP; a run token under runs.dir"| Plane
     Agent -.->|"a path around the plane"| Http
     subgraph Host["The plane's machine"]
         subgraph Own["One account: the plane's user"]
             Plane["Gateway process"]
             Child["stdio upstream: a child given a fixed few variables and its env list"]
-            Files["Approvals, runs and floor directories, pause file, hold journal, trail file, key"]
+            Files["Approvals, runs and floor directories, pause file, hold journal, trail, key"]
             Spool["Spool"]
             Page["Approvals page and commands"]
             Collect["collect"]
@@ -78,9 +77,9 @@ flowchart TD
     Plane -->|"writes evidence first"| Spool
     Page -->|"writes answers and pauses"| Files
     Browser["Browser"] -->|"loopback, a token traded once"| Page
-    Other -.->|"refused on mode; pause file, hold journal, trail file and key on owner"| Files
+    Other -.->|"refused on mode; pause file, hold journal, trail and key on owner"| Files
     Other -.->|"files 0600, directory owner and mode checked"| Spool
-    Other -->|"no credential"| Collect
+    Other -.->|"refused 401 without its credential"| Collect
     Plane -->|"exactly the authorized bytes"| Http["HTTP upstream"]
     Plane -->|"identity, action, resource; never arguments"| PDP["Decision point"]
     Plane -->|"OTLP: https, or plaintext on the loopback if allowed"| Collector["A collector"]
@@ -303,12 +302,13 @@ What the plane does today:
   `TestADirectoryChangedUnderTheJournalIsRefused`).
 - A private key file another account owns or has any permission on is
   refused (`internal/policykey/private.go`; `TestReadPrivateModeTable`).
-- The trail file is created `0600`, and an existing one the group or the
-  world may write is refused, as is a file or a directory another account
-  owns (`internal/trailfile/writer.go`;
+- A trail segment is `0600` in a `0700` directory; one others may write, a
+  directory they may reach, and either of another account are refused
+  (`internal/trailfile/writer.go`, `internal/segmentlog/dir.go`;
   `TestOpenCreatesAFileOnlyItsOwnerMayRead`,
   `TestOpenRefusesWhatAnotherCouldWrite`,
-  `TestOpenRefusesADirectoryAnotherAccountOwns`).
+  `TestOpenRefusesADirectoryAnotherAccountOwns`,
+  `TestADirectoryAnotherCouldWriteIsRefused`).
 - The approvals page listens on `127.0.0.1` only, answers only its exact
   `Host`, and needs a session traded once from a printed token; each refusal
   leaves the record pending (`internal/console/`;
@@ -321,9 +321,10 @@ What it does not do:
   run token under `runs.dir`.** Any account that can reach them calls tools as
   the listener's principal, under any run whose token it holds, and reads the
   counters. Both default to `127.0.0.1`, which every local account can reach.
-- **`collect` takes no credential.** Any account that reaches its port can
-  append events to the trail, forged chains among them
-  ([ADR-0020](../adr/0020-a-trail-and-counters-without-a-collector.md)).
+- **`collect` trusts whoever holds its credential**, answering others 401
+  (`TestARequestWithoutTheCredentialIsRefusedBeforeItIsRead`): who reads its
+  file or the plane's configuration, or binds its port while down, gets
+  it ([ADR-0072](../adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md)).
 - The spool writes its files `0600` and refuses a directory another account
   owns or that others can write.
 - The checks read the owner and the mode bits; access control lists are not
@@ -420,5 +421,5 @@ checkpoint is signed: `prev_event_digest` is left empty
 ([ADR-0004](../adr/0004-evidence-and-privacy-defaults.md)). `trail` checks
 that each chain has a shape a run could produce. It does not prove nobody
 changed it: the plane's account can rewrite the file, bytes rewritten in place
-at the same size are not detected, and any local account can post events to
-`collect`. What a record holds is on the [privacy](privacy.md) page.
+at the same size are not detected, and whoever holds the collector's
+credential can post events to `collect`. What a record holds is on the [privacy](privacy.md) page.

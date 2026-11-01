@@ -37,7 +37,12 @@ var devSet = []string{
 	"evidence.dir",
 	"export.endpoint",
 	"export.allow_plaintext",
+	devAuthorizationKey,
 }
+
+// devAuthorizationKey is the header that carries the credential a dev plane's
+// collector requires.
+const devAuthorizationKey = "export.headers.Authorization"
 
 var silentSet = []string{
 	"pdp.identifier",
@@ -76,9 +81,10 @@ type devKeys struct {
 }
 
 // newLayer is dev's values for a plane whose state is under st, which pins
-// keys, listens at listen and health, exports to collector and, when silent
-// is not empty, asks the decision point there, each a host:port.
-func newLayer(st devState, keys devKeys, listen, health, collector, silent string) devLayer {
+// keys, listens at listen and health, exports to collector with the
+// credential token and, when silent is not empty, asks the decision point
+// there, each a host:port.
+func newLayer(st devState, keys devKeys, listen, health, collector, token, silent string) devLayer {
 	l := devLayer{
 		"listener.address":            listen,
 		"health.address":              health,
@@ -96,6 +102,7 @@ func newLayer(st devState, keys devKeys, listen, health, collector, silent strin
 		"evidence.dir":                st.path(stateSpool),
 		"export.endpoint":             "http://" + collector + logsPath,
 		"export.allow_plaintext":      "true",
+		devAuthorizationKey:           "Bearer " + token,
 	}
 	if silent != "" {
 		l["pdp.identifier"] = "http://" + silent

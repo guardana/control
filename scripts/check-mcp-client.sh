@@ -108,7 +108,12 @@ mkdir -m 700 "${share}"
 share="$(cd "${share}" && pwd -P)"
 printf 'read through the plane\n' >"${share}/hello.txt"
 line_of() { sed -n "s/^$1: //p" <<<"$2"; }
-sed -e "s|BUNDLE_KEY_ID_FROM_KEYGEN|$(line_of key_id "${bundle_key}")|" \
+(umask 077 && od -An -N32 -tx1 /dev/urandom | tr -d ' \n' >collector.credential)
+# The token reaches sed through a script file, never an argument a process
+# listing shows; printf is a builtin, so no process sees it either.
+(umask 077 && printf 's|COLLECTOR_CREDENTIAL_FROM_FILE|%s|\n' "$(<collector.credential)" >credential.sed)
+sed -f credential.sed \
+  -e "s|BUNDLE_KEY_ID_FROM_KEYGEN|$(line_of key_id "${bundle_key}")|" \
   -e "s|BUNDLE_PUBLIC_KEY_FROM_KEYGEN|$(line_of public_key "${bundle_key}")|" \
   -e "s|FRESHNESS_KEY_ID_FROM_KEYGEN|$(line_of key_id "${freshness_key}")|" \
   -e "s|FRESHNESS_PUBLIC_KEY_FROM_KEYGEN|$(line_of public_key "${freshness_key}")|" \
@@ -118,12 +123,14 @@ sed -e "s|BUNDLE_KEY_ID_FROM_KEYGEN|$(line_of key_id "${bundle_key}")|" \
   plane.yaml >plane.yaml.filled
 printf '\nhealth:\n  address: %s\n' "${health}" >>plane.yaml.filled
 mv plane.yaml.filled plane.yaml
-if grep -q 'FROM_KEYGEN\|/absolute/path' plane.yaml; then
+rm credential.sed
+if grep -q 'FROM_KEYGEN\|FROM_FILE\|/absolute/path' plane.yaml; then
   die "a placeholder is left in plane.yaml"
 fi
 
 say "step 4: a collector"
-"${gateway}" collect --listen "${collector}" --out trail.jsonl &
+"${gateway}" collect --listen "${collector}" --dir trail --tenant local --project files \
+  --credential-file collector.credential &
 collect_pid=$!
 pids+=("${collect_pid}")
 
@@ -208,7 +215,7 @@ write_file REQUIRE_APPROVAL DENY APPROVAL_REJECTED yes rejected blocked'
 # report_rows succeeds when the report program reads every request as ended
 # and its rows are exactly the ones above.
 report_rows() {
-  report="$("${gateway}" trail export trail.jsonl | bin/evidence-report 2>&1)" || return 1
+  report="$("${gateway}" trail export trail | bin/evidence-report 2>&1)" || return 1
   "${py[@]}" -c '
 import sys
 lines = [line.split("\t") for line in sys.argv[1].splitlines()]
@@ -225,7 +232,7 @@ for _ in $(seq 1 60); do
   sleep 0.5
 done
 report_rows || die "the report never held exactly the rows the steps made: ${report}"
-"${gateway}" trail trail.jsonl >/dev/null || die "the trail is not one unbroken chain per request"
+"${gateway}" trail trail >/dev/null || die "the trail is not one unbroken chain per request"
 kill -TERM "${plane_pid}"
 wait "${plane_pid}" || die "the plane did not stop cleanly: $(cat plane.log)"
 kill -TERM "${collect_pid}"

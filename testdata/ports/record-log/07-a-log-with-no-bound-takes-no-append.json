@@ -1,0 +1,12 @@
+{
+  "rule": "a log opened with no byte bound takes no append",
+  "segment_bytes": 0,
+  "max_bytes": 0,
+  "steps": [
+    {"append": ["aaa"], "want": "budget"}
+  ],
+  "negative_control": [
+    {"bounds": [8, 16]},
+    {"append": ["aaa"]}
+  ]
+}

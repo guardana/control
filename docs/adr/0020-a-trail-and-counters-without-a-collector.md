@@ -7,6 +7,10 @@ Builds on [ADR-0004](0004-evidence-and-privacy-defaults.md),
 [ADR-0014](0014-evidence-spool-and-sinks.md) and
 [ADR-0016](0016-approval-providers-and-the-lost-hold.md).
 
+Amended by [ADR-0072](0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md):
+`collect` writes a bounded directory of segments bound to one tenant and
+project, requires a credential, and `--out` is gone.
+
 ## Context
 
 A plane exports its evidence to an OpenTelemetry collector over OTLP/HTTP, and

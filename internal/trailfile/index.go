@@ -38,20 +38,30 @@ func readIndex(r io.Reader) (index, error) {
 		case err != nil:
 			return nil, fmt.Errorf("reading line %d: %w", number, err)
 		}
-		events, err := evidence.DecodeJSONL(bytes.NewReader(line), 1)
-		if err != nil {
-			return nil, fmt.Errorf("%w: line %d is not one evidence event: %w", ErrDamaged, number, err)
+		if _, err := ids.addLine(number, line); err != nil {
+			return nil, err
 		}
-		id := events[0].GetEventId()
-		if id == "" {
-			continue
-		}
-		key, sum := sha256.Sum256([]byte(id)), sha256.Sum256(line)
-		if held, ok := ids[key]; ok && held != sum {
-			return nil, fmt.Errorf("%w: line %d carries the event id of an earlier line with other content", ErrDamaged, number)
-		}
-		ids[key] = sum
 	}
+}
+
+// addLine indexes one whole line and returns its event. A line that is not
+// one event, and an event id the index holds with another line, are
+// ErrDamaged.
+func (ids index) addLine(number int, line []byte) (*controlv1.Event, error) {
+	events, err := evidence.DecodeJSONL(bytes.NewReader(line), 1)
+	if err != nil {
+		return nil, fmt.Errorf("%w: line %d is not one evidence event: %w", ErrDamaged, number, err)
+	}
+	id := events[0].GetEventId()
+	if id == "" {
+		return events[0], nil
+	}
+	key, sum := sha256.Sum256([]byte(id)), sha256.Sum256(line)
+	if held, ok := ids[key]; ok && held != sum {
+		return nil, fmt.Errorf("%w: line %d carries the event id of an earlier line with other content", ErrDamaged, number)
+	}
+	ids[key] = sum
+	return events[0], nil
 }
 
 // fresh returns the lines of events that neither the index nor an earlier

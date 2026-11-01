@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/guardana/control/adapters/otel"
@@ -54,17 +55,38 @@ func (s *memorySink) appends() int {
 	return s.calls
 }
 
-func newReceiver(t *testing.T, sink otel.Sink) http.Handler {
+// testToken is the credential every receiver under test requires.
+var testToken = strings.Repeat("k", otel.MinCredentialBytes)
+
+func testCredential(t *testing.T) otel.Credential {
 	t.Helper()
-	h, err := otel.NewReceiver(sink, slog.New(slog.DiscardHandler))
+	cred, err := otel.NewCredential(testToken)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return h
+	return cred
+}
+
+// carrying hands every request to h with the credential, as a sender
+// configured with it sends each one.
+func carrying(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Header.Set("Authorization", "Bearer "+testToken)
+		h.ServeHTTP(w, r)
+	})
+}
+
+func newReceiver(t *testing.T, sink otel.Sink) http.Handler {
+	t.Helper()
+	h, err := otel.NewReceiver(sink, slog.New(slog.DiscardHandler), testCredential(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return carrying(h)
 }
 
 func TestAReceiverNeedsASink(t *testing.T) {
-	if h, err := otel.NewReceiver(nil, nil); h != nil || !errors.Is(err, otel.ErrNoSink) {
+	if h, err := otel.NewReceiver(nil, nil, testCredential(t)); h != nil || !errors.Is(err, otel.ErrNoSink) {
 		t.Errorf("NewReceiver(nil) = %v, %v; want nil, ErrNoSink", h, err)
 	}
 }
@@ -173,6 +195,25 @@ func TestTheReceiverStopsReadingAtTheBound(t *testing.T) {
 	}
 }
 
+// TestABodyThatCannotBeReadIsAnswered503: a body whose read fails short of
+// the bound, as a read timeout or a reset connection fails it, is answered
+// 503, which the exporter sends again, and the sink is not reached; a body
+// read whole that does not parse is still 400.
+func TestABodyThatCannotBeReadIsAnswered503(t *testing.T) {
+	body := io.MultiReader(strings.NewReader(base()[:20]), iotest.ErrReader(errors.New("read tcp: i/o timeout")))
+	req := httptest.NewRequest(http.MethodPost, "/v1/logs", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	sink := &memorySink{}
+	newReceiver(t, sink).ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable || rec.Body.Len() != 0 || sink.appends() != 0 {
+		t.Errorf("a body whose read failed: answered %d with %q, %d append(s); want 503, no body and none", rec.Code, rec.Body.String(), sink.appends())
+	}
+	if rec, sink := serveOne(t, "", "", "", base()[:20], false); rec.Code != http.StatusBadRequest || sink.appends() != 0 {
+		t.Errorf("the same bytes read whole: answered %d, %d append(s); want 400 and none", rec.Code, sink.appends())
+	}
+}
+
 // serveOne hands one request to a receiver over a sink of its own. An empty
 // method is POST, an empty content type is JSON and "-" is none.
 func serveOne(t *testing.T, method, contentType, encoding, body string, failSink bool) (*httptest.ResponseRecorder, *memorySink) {
@@ -272,12 +313,12 @@ func (c *statusCounter) wrap(next http.Handler) http.Handler {
 func TestABatchOverTheBoundIsHalvedAndDelivered(t *testing.T) {
 	const records, bound = 16, 16 << 10
 	sink := &memorySink{}
-	h, err := otel.NewReceiverWithin(sink, slog.New(slog.DiscardHandler), bound)
+	h, err := otel.NewReceiverWithin(sink, slog.New(slog.DiscardHandler), testCredential(t), bound)
 	if err != nil {
 		t.Fatal(err)
 	}
 	answers := &statusCounter{seen: map[int]int{}}
-	srv := httptest.NewServer(answers.wrap(h))
+	srv := httptest.NewServer(answers.wrap(carrying(h)))
 	t.Cleanup(srv.Close)
 	s := openSpool(t, 1<<20)
 	run := strings.Repeat("x", 1<<10)

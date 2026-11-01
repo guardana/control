@@ -1,0 +1,13 @@
+{
+  "rule": "an append that does not end in a newline is refused",
+  "segment_bytes": 8,
+  "max_bytes": 64,
+  "steps": [
+    {"raw": "aaa", "want": "lines"},
+    {"locate": "aaa", "seq": 1, "state": "unknown"}
+  ],
+  "negative_control": [
+    {"raw": "aaa\n"},
+    {"locate": "aaa", "seq": 1, "state": "live"}
+  ]
+}

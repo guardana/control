@@ -186,7 +186,7 @@ func exportRefusals() []refusal {
 			stderr: "filter"},
 		{name: "a refused record", in: edited("outage-1.jsonl", `{"type":"event","offset":305,`, `{"type":"event","extra":1,"offset":305,`),
 			stderr: "refused"},
-		{name: "another export format major", in: edited("outage-1.jsonl", `"version":"1.0"`, `"version":"2.0"`), stderr: "major"},
+		{name: "another export format major", in: edited("outage-1.jsonl", `"version":"1.1"`, `"version":"2.0"`), stderr: "major"},
 		{name: "a trailer naming no next cursor after events", in: func(t *testing.T) string {
 			t.Helper()
 			in := fixture(t, "outage-1.jsonl")
