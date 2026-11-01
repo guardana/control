@@ -63,5 +63,14 @@
 // refuses a lower serial, or the same one with another digest. Nothing makes
 // a route floor file but InitRoute.
 //
+// # Authority floors
+//
+// An authority floor directory keeps, per trust roster id, the highest serial
+// a plane took and the roster's digest at it, by the route floor's rules
+// under names of its own:
+//
+//	authority.meta               the marker: schema_version, kind "authority", roster_ids
+//	<sha256 hex>.authority.json  roster_id, serial and digest, both null until a raise
+//
 // Nothing here reads a clock: every time is the caller's.
 package policystate

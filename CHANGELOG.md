@@ -11,8 +11,25 @@ verify one.
 
 ## [Unreleased]
 
+### Security
+
+- The filesystem server the guide's MCP client check installs takes `glob`
+  14.0.2, which fixes GHSA-3g3m-2fjr-6pw4, and `minimatch` 11.0.1, which
+  fixes GHSA-g3hv-75wg-m249, through `overrides`: the server, at the version
+  its fingerprints were taken from, asks for the majors below them, where no
+  fix exists. Its search and tree tools ran with them. Nothing this project
+  ships uses either.
+
 ### Added
 
+- `guardana-control operators roster sign` signs a roster of operator keys under
+  a trust root, each key with grants of one tenant, one project and a level,
+  for 24 hours unless told otherwise and at most 7 days, each signing at a
+  higher serial; `operators floor init` starts the floor a plane raises as it
+  takes a roster. The roster, operator authentication and operator
+  authorization are ports with these as their defaults, and a veto may only
+  deny. No plane reads a roster yet
+  ([ADR-0071](docs/adr/0071-operators-are-named-by-a-signed-roster.md)).
 - `observe import` reads an egress proxy's access log. A source of kind
   `egress-access-log` names which top-level member of each JSON line holds
   the time, host, port, method, status, byte counts and caller, and each line
@@ -60,6 +77,19 @@ verify one.
 
 ### Changed
 
+- Both approval stores decide whether an approval may be spent in one order
+  ([approvals](docs/concepts/approvals-and-the-held-call.md)). An expired
+  record marked multi-use in an approvals directory is left pending and
+  counted until the hold's own expiry, as an unexpired one already was; it
+  used to close the held call `DENY` `APPROVAL_EXPIRED`. Either way nothing
+  runs. A record refused for its approver id blocks only the request it
+  names: a lookup lists it as unknown, beside every other record of its
+  action, and hides it once it expires; a retry tries its held approval once,
+  however many records name its request; a plane closing a lost hold
+  resolves only the approval it minted. The memory store refuses a hold that
+  is not a pending, unanswered approval with an approval id, a requested time
+  and an expiry.
+
 - The evidence export is `1.1`: its header's `pruned_before` counts the
   segments of a log before the exported one that were pruned, 0 for a single
   file, and coverage refuses an export as whole while it is above 0. A `1.0`
@@ -86,6 +116,7 @@ verify one.
   Every command is marked as one that inspects or one that writes, and each
   that inspects is tested to change nothing
   ([ADR-0016](docs/adr/0016-approval-providers-and-the-lost-hold.md)).
+
 - **Breaking:** a run belongs to one project. A run record is `2.0` and
   carries `project_id`, `runs open` needs `--project` and refuses a parent of
   another project, and `runs list` prints `project_id`. A plane resolves a

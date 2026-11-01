@@ -272,6 +272,9 @@ profile's statuses, <a href="/docs/extending/runtime-profiles">extending/runtime
   guardana-control findings export --findings &lt;dir&gt; [--after &lt;cursor&gt;] [--limit &lt;n&gt;]
       [--max-bytes &lt;n&gt;]
   guardana-control route sign --key &lt;file&gt; --out &lt;file&gt; &lt;route.json&gt;
+  guardana-control operators roster sign --key &lt;file&gt; --out &lt;file&gt;
+      [--valid-for &lt;duration&gt;] &lt;roster.json&gt;
+  guardana-control operators floor init --roster-id &lt;id&gt; &lt;dir&gt;
   guardana-control stops init --route &lt;file&gt; --public-key &lt;file&gt;
       [--carry &lt;dir&gt; --carry-route &lt;file&gt;] &lt;dir&gt;
   guardana-control stops lift --route &lt;file&gt; --public-key &lt;file&gt; --key &lt;file&gt; --run &lt;run-id&gt;
@@ -293,6 +296,8 @@ Write access to a floor directory is the authority to lower its floors;
 policy state reset is the one way that records why.
 Only the lift key lifts a stop while a plane runs; write access to the stops directory
 adds any stop the route allows and, across a restart, can start a new list with none.
+The trust root names every operator key until its roster expires, and each signing
+needs a higher serial; write access to its floor directory lowers the floor.
 </code></pre>
 <h2 id="guardana-gateway">guardana-gateway</h2>
 <p><code>run</code> serves one plane from a configuration file and <code>doctor</code> checks that

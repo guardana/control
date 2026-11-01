@@ -229,7 +229,7 @@ func everyState(t *testing.T) (string, *approvals.Plane) {
 	if _, err := plane.Consume(context.Background(), bindingOf(t, spentID), requestOf(spentID), spentID, time.Now()); err != nil {
 		t.Fatalf("consuming %s: %v", spentID, err)
 	}
-	if err := plane.Resolve(context.Background(), bindingOf(t, closedID), requestOf(closedID), approvals.ResolutionNotResumed, now); err != nil {
+	if err := plane.Resolve(context.Background(), bindingOf(t, closedID), requestOf(closedID), closedID, approvals.ResolutionNotResumed, now); err != nil {
 		t.Fatalf("closing %s: %v", closedID, err)
 	}
 	return dir, plane

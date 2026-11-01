@@ -78,16 +78,19 @@ const (
 // of what it held and takes the trail's position from there (ADR-0016).
 type ApprovalStore interface {
 	// Hold records a request awaiting approval under its binding at now. It
-	// refuses a zero now with ErrZeroTime, an incomplete Held with
-	// ErrInvalidHold and a request id already held under the binding with
-	// ErrAlreadyHeld. Held.Resolution is the store's to say, so Hold ignores
-	// what the caller put there.
+	// refuses a zero now with ErrZeroTime, an incomplete Held or one whose
+	// approval is not the pending one the plane mints with ErrInvalidHold, and
+	// a request id already held under the binding with ErrAlreadyHeld.
+	// Held.Resolution is the store's to say, so Hold ignores what the caller
+	// put there.
 	Hold(ctx context.Context, held Held, now time.Time) error
 	// Find returns every request held under binding and not expired at now,
 	// oldest first, or ErrNoApproval when there is none. Two requests that
 	// differ only in a field the digest leaves out share a binding, and the
-	// caller picks the one the retry equals. It refuses a zero now with
-	// ErrZeroTime.
+	// caller picks the one the retry equals. A record the store keeps but
+	// cannot speak for comes back with only what identifies it, an
+	// unspecified state and ResolutionUnspecified, and refuses no other
+	// record. It refuses a zero now with ErrZeroTime.
 	Find(ctx context.Context, binding approval.Binding, now time.Time) ([]Held, error)
 	// Consume marks the approval of the held request consumed, as one
 	// compare-and-swap, and returns it as decided. approvalID is the approval
@@ -107,16 +110,19 @@ type ApprovalStore interface {
 	// approval stays consumed when the upstream call then fails. The caller
 	// checks what it returns and trusts none of it.
 	Consume(ctx context.Context, binding approval.Binding, requestID, approvalID string, now time.Time) (*controlv1.Approval, error)
-	// Resolve records that the request held as requestID under binding will
-	// not be resumed: nothing spent its approval and nothing will, so a later
-	// identical call is held anew rather than told that an action ran. It
-	// grants nothing and spends nothing. It takes ResolutionNotResumed and
+	// Resolve records that the request held as requestID under binding, with
+	// the approval approvalID the plane minted for it, will not be resumed:
+	// nothing spent its approval and nothing will, so a later identical call
+	// is held anew rather than told that an action ran. It grants nothing and
+	// spends nothing. A record of any other approval id is left exactly as it
+	// was, and an empty approvalID is refused, as for Consume. It takes
+	// ResolutionNotResumed and
 	// refuses every other resolution with ErrResolution, since only Consume
 	// may mark a record spent; a zero now with ErrZeroTime, a request it does
 	// not keep with ErrNoApproval, and a record already consumed with
 	// ErrApprovalConsumed, because that record is proof of an execution and
 	// nothing may write over it.
-	Resolve(ctx context.Context, binding approval.Binding, requestID string, resolution Resolution, now time.Time) error
+	Resolve(ctx context.Context, binding approval.Binding, requestID, approvalID string, resolution Resolution, now time.Time) error
 }
 
 // MemoryApprovals is an ApprovalStore in process memory. The zero value is
@@ -145,7 +151,7 @@ func (m *MemoryApprovals) Hold(ctx context.Context, held Held, now time.Time) er
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if held.Approval == nil || held.Approval.GetRequestId() == "" || held.Binding == "" || held.Envelope == nil || held.Decision == nil {
+	if !resumable(held) {
 		return ErrInvalidHold
 	}
 	m.mu.Lock()
@@ -161,6 +167,19 @@ func (m *MemoryApprovals) Hold(ctx context.Context, held Held, now time.Time) er
 	}
 	m.held[held.Binding] = append(m.held[held.Binding], &heldRecord{held: cloneHeld(held), resolution: ResolutionPending})
 	return nil
+}
+
+// resumable reports whether held is a hold the plane could have minted: a
+// pending approval with an approval id, a request id, a requested time and an
+// expiry and no answer, the binding, the envelope and the decision. An
+// approval that already carries an answer is one the plane would be granting
+// itself.
+func resumable(held Held) bool {
+	a := held.Approval
+	return a != nil && a.GetApprovalId() != "" && a.GetRequestId() != "" &&
+		a.GetRequestedAt() != nil && a.GetExpiresAt() != nil &&
+		a.GetState() == controlv1.ApprovalState_APPROVAL_STATE_PENDING && a.GetApproverId() == "" && a.GetDecidedAt() == nil &&
+		held.Binding != "" && held.Envelope != nil && held.Decision != nil
 }
 
 // Find returns clones of what Hold recorded under binding, oldest first.
@@ -188,9 +207,9 @@ func (m *MemoryApprovals) Find(ctx context.Context, binding approval.Binding, no
 }
 
 // Consume is the compare-and-swap: under the lock, the approved and unconsumed
-// record the plane minted becomes consumed, and nothing else changes it. An
-// answer dated outside its window answers ErrNoApproval, as the directory
-// store answers one dated after now.
+// record the plane minted becomes consumed, and nothing else changes it. What
+// the record allows is approval.Consumable's to say, as it is for the
+// directory store.
 func (m *MemoryApprovals) Consume(ctx context.Context, binding approval.Binding, requestID, approvalID string, now time.Time) (*controlv1.Approval, error) {
 	if now.IsZero() {
 		return nil, ErrZeroTime
@@ -205,31 +224,34 @@ func (m *MemoryApprovals) Consume(ctx context.Context, binding approval.Binding,
 		return nil, ErrNoApproval
 	}
 	a := r.held.Approval
-	switch {
-	case r.resolution == ResolutionConsumed:
+	switch r.resolution {
+	case ResolutionConsumed:
 		return nil, ErrApprovalConsumed
-	case r.resolution == ResolutionNotResumed:
+	case ResolutionNotResumed:
 		// The plane gave this record up, so nothing may still run on it.
 		return nil, ErrNoApproval
-	case a.GetMultiUse():
+	}
+	switch approval.Consumable(a, now) {
+	case approval.StandingUsable:
+	case approval.StandingMultiUse:
 		return nil, ErrMultiUse
-	case !unexpired(a, now):
+	case approval.StandingExpired:
 		m.drop(binding, requestID)
 		return nil, ErrApprovalExpired
-	case !decidedWithin(a, a.GetRequestedAt().AsTime(), now):
-		return nil, ErrNoApproval
-	case a.GetState() == controlv1.ApprovalState_APPROVAL_STATE_REJECTED:
+	case approval.StandingRejected:
 		m.drop(binding, requestID)
 		return proto.CloneOf(a), ErrApprovalRejected
-	case a.GetState() != controlv1.ApprovalState_APPROVAL_STATE_APPROVED || a.GetApproverId() == "":
+	default:
 		return nil, ErrNoApproval
 	}
 	r.resolution = ResolutionConsumed
 	return proto.CloneOf(a), nil
 }
 
-// Resolve records that requestID will not be resumed, and spends nothing.
-func (m *MemoryApprovals) Resolve(ctx context.Context, binding approval.Binding, requestID string, resolution Resolution, now time.Time) error {
+// Resolve records that requestID will not be resumed, and spends nothing. A
+// record under another approval id, and an empty approvalID, answer
+// ErrNoApproval.
+func (m *MemoryApprovals) Resolve(ctx context.Context, binding approval.Binding, requestID, approvalID string, resolution Resolution, now time.Time) error {
 	if resolution != ResolutionNotResumed {
 		return fmt.Errorf("%w: %d", ErrResolution, resolution)
 	}
@@ -241,7 +263,7 @@ func (m *MemoryApprovals) Resolve(ctx context.Context, binding approval.Binding,
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	r := m.find(binding, requestID)
+	r := m.minted(binding, requestID, approvalID)
 	switch {
 	case r == nil:
 		return ErrNoApproval
@@ -316,13 +338,7 @@ func (m *MemoryApprovals) drop(binding approval.Binding, requestID string) {
 // dropExpired forgets every record under binding whose approval is expired at
 // now. mu is held.
 func (m *MemoryApprovals) dropExpired(binding approval.Binding, now time.Time) {
-	m.keep(binding, func(r *heldRecord) bool { return unexpired(r.held.Approval, now) })
-}
-
-// unexpired reports whether a expires after now. An approval with no expiry
-// has expired: a record that never expires is one no bound reaches.
-func unexpired(a *controlv1.Approval, now time.Time) bool {
-	return a.GetExpiresAt() != nil && now.Before(a.GetExpiresAt().AsTime())
+	m.keep(binding, func(r *heldRecord) bool { return !approval.Expired(r.held.Approval, now) })
 }
 
 // keep leaves the records under binding that want keeps. mu is held.

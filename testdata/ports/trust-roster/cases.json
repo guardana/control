@@ -1,0 +1,87 @@
+{
+  "port": "trust-roster",
+  "format": "0.1",
+  "about": "Each case starts from a port configured to take roster-a, an authority floor listing roster-a, no roster file, and the clock at 2026-10-30T12:00:00Z. A write is signed by the root as a trust-roster/v1alpha1 roster of roster-a issued 2026-10-30T00:00:00Z and expiring a day later unless it names otherwise; keys are named, never spelled, and each runner derives them. A case marked control is the negative control of its rule.",
+  "cases": [
+    {"rule": "signed-by-root", "case": "a roster the root signed names its keys", "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"lookup": "alice", "state": "key"}]},
+    {"rule": "signed-by-root", "case": "a roster another key signed names nothing", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"], "signer": "stranger"}},
+      {"lookup": "alice", "state": "unavailable", "cause": "roster_refused"}]},
+    {"rule": "payload-type", "case": "the roster's own payload type", "steps": [
+      {"write": {"serial": 1, "keys": ["alice"], "payloadType": "roster"}},
+      {"lookup": "alice", "state": "key"}]},
+    {"rule": "payload-type", "case": "a freshness statement's payload type", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"], "payloadType": "freshness"}},
+      {"lookup": "alice", "state": "unavailable", "cause": "roster_refused"}]},
+    {"rule": "payload-type", "case": "an approval answer's payload type", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"], "payloadType": "answer"}},
+      {"lookup": "alice", "state": "unavailable", "cause": "roster_refused"}]},
+    {"rule": "unknown-key", "case": "a key the roster names", "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"lookup": "alice", "state": "key"}]},
+    {"rule": "unknown-key", "case": "a key the roster does not name", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"lookup": "mallory", "state": "unknown_key", "cause": "unknown_key"}]},
+    {"rule": "expiry", "case": "a second before the expiry", "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"clock": "2026-10-30T23:59:59Z"},
+      {"lookup": "alice", "state": "key"}]},
+    {"rule": "expiry", "case": "at the expiry", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"clock": "2026-10-31T00:00:00Z"},
+      {"lookup": "alice", "state": "unavailable", "cause": "roster_expired"}]},
+    {"rule": "future", "case": "a roster issued at the clock", "steps": [
+      {"write": {"serial": 1, "keys": ["alice"], "issuedAt": "2026-10-30T12:00:00Z", "expiresAt": "2026-10-31T12:00:00Z"}},
+      {"lookup": "alice", "state": "key"}]},
+    {"rule": "future", "case": "a roster issued a second after the clock", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"], "issuedAt": "2026-10-30T12:00:01Z", "expiresAt": "2026-10-31T12:00:00Z"}},
+      {"lookup": "alice", "state": "unavailable", "cause": "roster_future"}]},
+    {"rule": "serial-floor", "case": "a higher serial is taken", "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"lookup": "alice", "state": "key"},
+      {"write": {"serial": 2, "keys": ["alice", "bob"]}},
+      {"lookup": "bob", "state": "key"}]},
+    {"rule": "serial-floor", "case": "a lower serial is never taken", "control": true, "steps": [
+      {"write": {"serial": 2, "keys": ["alice"]}},
+      {"lookup": "alice", "state": "key"},
+      {"write": {"serial": 1, "keys": ["alice", "bob"]}},
+      {"lookup": "bob", "state": "unknown_key", "cause": "unknown_key"}]},
+    {"rule": "serial-floor", "case": "the same serial with another digest is never taken", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"lookup": "alice", "state": "key"},
+      {"write": {"serial": 1, "keys": ["alice", "bob"]}},
+      {"lookup": "bob", "state": "unknown_key", "cause": "unknown_key"}]},
+    {"rule": "one-roster", "case": "the roster held", "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"write": {"serial": 2, "keys": ["alice", "bob"]}},
+      {"lookup": "bob", "state": "key"}]},
+    {"rule": "one-roster", "case": "a roster of another id", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"lookup": "alice", "state": "key"},
+      {"write": {"serial": 2, "keys": ["alice", "bob"], "rosterId": "roster-b"}},
+      {"lookup": "bob", "state": "unknown_key", "cause": "unknown_key"}]},
+    {"rule": "one-roster", "case": "a first roster of another id", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"], "rosterId": "roster-b"}},
+      {"lookup": "alice", "state": "unavailable", "cause": "other_roster"}]},
+    {"rule": "keep-until-expiry", "case": "the last verified roster answers after its file is damaged", "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"lookup": "alice", "state": "key"},
+      {"damage": true},
+      {"lookup": "alice", "state": "key"}]},
+    {"rule": "keep-until-expiry", "case": "and stops answering at its own expiry", "control": true, "steps": [
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"lookup": "alice", "state": "key"},
+      {"damage": true},
+      {"clock": "2026-10-31T00:00:00Z"},
+      {"lookup": "alice", "state": "unavailable", "cause": "roster_expired"}]},
+    {"rule": "no-roster", "case": "a port given a roster after a damaged file", "steps": [
+      {"damage": true},
+      {"write": {"serial": 1, "keys": ["alice"]}},
+      {"lookup": "alice", "state": "key"}]},
+    {"rule": "no-roster", "case": "a port that never took a roster", "control": true, "steps": [
+      {"damage": true},
+      {"lookup": "alice", "state": "unavailable", "cause": "roster_refused"}]}
+  ]
+}

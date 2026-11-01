@@ -227,9 +227,12 @@ and none of it is in the release archives.
 - `@modelcontextprotocol/server-filesystem` 2026.8.31 (MIT and Apache-2.0: the
   upstream repository is moving from the first to the second, and the package
   ships no licence file), the server the profile's fingerprints were taken
-  from. It and its 103 transitive packages are pinned with integrity hashes in
+  from. It and its 104 transitive packages are pinned with integrity hashes in
   `examples/connect-a-filesystem-server/package-lock.json` and installed with
-  `npm ci --ignore-scripts`. The package resumed semantic versioning at 1.0.0
+  `npm ci --ignore-scripts`. The `overrides` in its `package.json` lift `glob`
+  to 14.0.2 and `minimatch` to 11.0.1, past the server's own ranges, for
+  advisories no version in those ranges fixes; they go once the server asks
+  for those versions. The package resumed semantic versioning at 1.0.0
   and marks its date-based versions deprecated; 1.0.0's 14 tool definitions
   all fingerprint differently, so moving to it is a classification of the
   profile anew, not a bump. Dependabot cannot propose a version for it, since

@@ -29,6 +29,7 @@ version. [status.md](../status.md) is the inventory.
 | Trail segment manifest (`guardana.control.segments`) | `0.1` | `0.1` | `experimental` | [ADR-0072](../adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md) |
 | Policy document (`apiVersion`) | — | `agent-policy/v1alpha1` | alpha | [policy-format.md](policy-format.md#the-document) |
 | Freshness statement (`kind`) | `agent-policy-freshness/v1alpha1` | `agent-policy-freshness/v1alpha1` | `experimental` | [ADR-0038](../adr/0038-a-signed-freshness-statement-and-a-serial-floor.md) |
+| Trust roster (`kind`) | `trust-roster/v1alpha1` | `trust-roster/v1alpha1` | `experimental` | [ADR-0071](../adr/0071-operators-are-named-by-a-signed-roster.md) |
 | Floor directories (`schema_version`) | `1.0` | `1.x` | `experimental` | [cli.md](cli.md#guardana-control) |
 | Scenario (`kind`) | — | `agent-scenario/v1alpha1` | `experimental` | [scenario-format.md](scenario-format.md#the-document) |
 | Pause file (`schema_version`) | `1` | `1` | `experimental` | [cli.md](cli.md#guardana-control) |

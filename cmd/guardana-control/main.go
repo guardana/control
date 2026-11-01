@@ -3,7 +3,8 @@
 // explain, keygen, sign, renew and state), the `approvals` commands, the
 // `pause` commands, the `runs` commands, `observe`, `coverage`, the
 // `procedure` commands (lint and test), `supervise`, `notify`, `findings
-// export`, `route sign`, the `stops` commands (init, lift and list), `react`,
+// export`, `route sign`, the `operators` commands (roster sign and floor
+// init), the `stops` commands (init, lift and list), `react`,
 // and `console`, the page that answers approvals and writes pauses, are the
 // commands with behaviour, and docs/guides/write-and-test-a-policy.md,
 // docs/guides/test-a-procedure.md and docs/reference/cli.md are their pages.
@@ -143,6 +144,8 @@ var commands = []subcommand{
 	{"notify", "", notifyForm, notifyFlagSet, notifyCommand, writes},
 	{"findings", "export", findingsExportForm, findingsExportFlagSet, findingsExportCommand, inspects},
 	{"route", "sign", routeSignForm, routeSignFlagSet, routeSignCommand, writes},
+	{"operators", "roster sign", rosterSignForm, rosterSignFlagSet, rosterSignCommand, writes},
+	{"operators", "floor init", floorInitForm, floorInitFlagSet, floorInitCommand, writes},
 	{"stops", "init", stopsInitForm, stopsInitFlagSet, stopsInitCommand, writes},
 	{"stops", "lift", stopsLiftForm, stopsLiftFlagSet, stopsLiftCommand, writes},
 	{"stops", "list", stopsListForm, stopsListFlagSet, stopsListCommand, inspects},
@@ -171,7 +174,7 @@ func helpText() string {
 		b.WriteString("  " + brand.CLI + " " + c.words() + " " + c.arguments + "\n")
 	}
 	b.WriteString("\n" + approvalAuthority + "\n" + pauseAuthority + "\n" + runsAuthority + "\n" + floorAuthority + "\n" +
-		stopsAuthority + "\n")
+		stopsAuthority + "\n" + operatorsAuthority + "\n")
 	return b.String()
 }
 

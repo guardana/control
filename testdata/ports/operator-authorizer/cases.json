@@ -1,0 +1,30 @@
+{
+  "port": "operator-authorizer",
+  "format": "0.1",
+  "about": "Each case authorizes an approval by who, authenticated against a roster of roster-a in which alice operates t1/A, bob operates t1/B and reads t1/A, and carol administers t1/A. When revoke is set, the roster is replaced after the authentication by one at serial 2 without that operator. When veto is set, a decision point answering none, objects, zero or silent, cancelling the caller and then waiting (cancels), or waiting while the caller's deadline, 20 ms against the veto's 50 ms timeout, passes (deadline), follows the authorizer, under on_unavailable. A case marked control is the negative control of its rule.",
+  "cases": [
+    {"rule": "grant-scope", "case": "alice on her project", "who": "alice", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"},
+    {"rule": "grant-scope", "case": "alice on another project", "control": true, "who": "alice", "tenant": "t1", "project": "B", "state": "denied", "cause": "no_grant"},
+    {"rule": "grant-scope", "case": "alice on her project of another tenant", "control": true, "who": "alice", "tenant": "t2", "project": "A", "state": "denied", "cause": "no_grant"},
+    {"rule": "level", "case": "an administrator approves", "who": "carol", "tenant": "t1", "project": "A", "state": "permitted", "level": "admin"},
+    {"rule": "level", "case": "a reader does not approve", "control": true, "who": "bob", "tenant": "t1", "project": "A", "state": "denied", "cause": "no_grant"},
+    {"rule": "one-project", "case": "a request naming the project", "who": "bob", "tenant": "t1", "project": "B", "state": "permitted", "level": "operate"},
+    {"rule": "one-project", "case": "a request naming no project", "control": true, "who": "bob", "tenant": "t1", "project": "", "state": "denied", "cause": "scope"},
+    {"rule": "revocation", "case": "another operator removed", "who": "alice", "revoke": "bob", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"},
+    {"rule": "revocation", "case": "the operator removed after the authentication", "control": true, "who": "alice", "revoke": "alice", "tenant": "t1", "project": "A", "state": "denied", "cause": "revoked"},
+    {"rule": "veto-only-denies", "case": "no objection", "who": "alice", "veto": "none", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"},
+    {"rule": "veto-only-denies", "case": "an objection", "control": true, "who": "alice", "veto": "objects", "tenant": "t1", "project": "A", "state": "denied", "cause": "veto"},
+    {"rule": "veto-only-denies", "case": "no objection to what the roster denies", "control": true, "who": "bob", "veto": "none", "tenant": "t1", "project": "A", "state": "denied", "cause": "no_grant"},
+    {"rule": "veto-fails-closed", "case": "a veto that answers, under block", "who": "alice", "veto": "none", "on_unavailable": "block", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"},
+    {"rule": "veto-fails-closed", "case": "the zero answer, under block", "control": true, "who": "alice", "veto": "zero", "on_unavailable": "block", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "veto_unavailable"},
+    {"rule": "veto-fails-closed", "case": "a veto that never answers, under block", "control": true, "who": "alice", "veto": "silent", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "late"},
+    {"rule": "veto-fails-closed", "case": "a veto that never answers, under roster_only", "who": "alice", "veto": "silent", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"},
+    {"rule": "roster-only-is-no-answer-in-time", "case": "a veto that never answers", "who": "alice", "veto": "silent", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"},
+    {"rule": "roster-only-is-no-answer-in-time", "case": "an answer in time this build cannot read", "control": true, "who": "alice", "veto": "zero", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "veto_unavailable"},
+    {"rule": "roster-only-is-no-answer-in-time", "case": "a caller that gave up while the veto was asked", "control": true, "who": "alice", "veto": "cancels", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "canceled"},
+    {"rule": "a-caller-deadline-is-not-late", "case": "a caller deadline that passes while the veto is asked, under block", "who": "alice", "veto": "deadline", "on_unavailable": "block", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "canceled"},
+    {"rule": "a-caller-deadline-is-not-late", "case": "a caller deadline that passes while the veto is asked, under roster_only", "who": "alice", "veto": "deadline", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "canceled"},
+    {"rule": "a-caller-deadline-is-not-late", "case": "the veto's own timeout with the caller alive, under block", "control": true, "who": "alice", "veto": "silent", "on_unavailable": "block", "tenant": "t1", "project": "A", "state": "unavailable", "cause": "late"},
+    {"rule": "a-caller-deadline-is-not-late", "case": "the veto's own timeout with the caller alive, under roster_only", "control": true, "who": "alice", "veto": "silent", "on_unavailable": "roster_only", "tenant": "t1", "project": "A", "state": "permitted", "level": "operate"}
+  ]
+}

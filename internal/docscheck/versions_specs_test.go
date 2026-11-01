@@ -2,6 +2,7 @@ package docscheck
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -10,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	enforcev1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/enforce/v1alpha1"
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
@@ -31,6 +33,7 @@ import (
 	"github.com/guardana/control/internal/segmentlog"
 	"github.com/guardana/control/internal/supervise"
 	"github.com/guardana/control/internal/trailfile"
+	"github.com/guardana/control/internal/trust"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -74,6 +77,14 @@ func versionSpecs() map[string]versionSpec {
 		},
 		"Freshness statement": {
 			cites: []versionCite{{"internal/policy/statement.go#StatementKind", writes | reads}},
+		},
+		"Trust roster": {
+			cites: []versionCite{{"internal/trust/format.go#DocumentKind", writes | reads}},
+			refuses: func(v string) (bool, error) {
+				root := ed25519.NewKeyFromSeed(make([]byte, ed25519.SeedSize))
+				_, _, err := trust.SignDocument([]byte(`{"kind":`+strconv.Quote(v)+`}`), time.Unix(0, 0).UTC(), time.Hour, root)
+				return errors.Is(err, trust.ErrKind), nil
+			},
 		},
 		"Floor directories": {
 			cites: []versionCite{
