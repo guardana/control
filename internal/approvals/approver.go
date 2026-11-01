@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/core/approval"
 )
 
 // Approver is an approver process's handle on an approvals directory. It has
@@ -277,7 +278,7 @@ func (a *Approver) pending(approvalID string, decidedAt time.Time) (Record, erro
 		return Record{}, ErrApprovalAnswered
 	case rec.Approval.GetState() != controlv1.ApprovalState_APPROVAL_STATE_PENDING:
 		return Record{}, fmt.Errorf("%w: the record reads %s", ErrApprovalAnswered, rec.Approval.GetState())
-	case expired(rec.Approval, decidedAt):
+	case approval.Expired(rec.Approval, decidedAt):
 		return Record{}, ErrApprovalExpired
 	}
 	return rec, nil

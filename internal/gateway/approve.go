@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"errors"
+	"slices"
 
 	"google.golang.org/protobuf/proto"
 
@@ -47,7 +48,9 @@ func (c *call) approve(snap *policy.Snapshot) Disposition {
 		case c.p.cfg.Runs != nil && own.ids.RunID != c.flow.runID():
 			// Held under another opened run: this call neither resumes it nor
 			// learns from it that the approval was spent (ADR-0034).
-		case sameHeldRequest(own.envelope, c.in.Envelope):
+		case sameHeldRequest(own.envelope, c.in.Envelope) && !slices.Contains(matches, own):
+			// A held request is tried once, however many records name it: a
+			// second try, after the first closed it, would read it pending.
 			matches = append(matches, own)
 		}
 	}

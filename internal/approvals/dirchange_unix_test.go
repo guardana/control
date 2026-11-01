@@ -28,7 +28,7 @@ func planeCalls(t *testing.T, p *approvals.Plane, _ approvals.Hold) map[string]e
 		"Find":    find,
 		"Consume": consume,
 		"Hold":    p.Hold(ctx, second, minted),
-		"Resolve": p.Resolve(ctx, binding, "req-1", approvals.ResolutionNotResumed, minted),
+		"Resolve": p.Resolve(ctx, binding, "req-1", firstApproval, approvals.ResolutionNotResumed, minted),
 		"Prune":   prune,
 	}
 }

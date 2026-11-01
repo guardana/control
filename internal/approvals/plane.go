@@ -167,7 +167,7 @@ func (p *Plane) roomFor(rec Record, now time.Time) error {
 		if err != nil {
 			return err
 		}
-		if other.Binding == rec.Binding && other.RequestID == rec.RequestID && !expired(other.Approval, now) {
+		if other.Binding == rec.Binding && other.RequestID == rec.RequestID && !approval.Expired(other.Approval, now) {
 			return fmt.Errorf("%w: request %q", ErrAlreadyHeld, cause(rec.RequestID))
 		}
 	}
@@ -214,12 +214,6 @@ func (p *Plane) begin(ctx context.Context) error {
 	return nil
 }
 
-// expired reports whether a is past its expiry at now. An approval with no
-// expiry is expired: a record that never expires is one a bound cannot reach.
-func expired(a *controlv1.Approval, now time.Time) bool {
-	return a.GetExpiresAt() == nil || !now.Before(a.GetExpiresAt().AsTime())
-}
-
 // Prune forgets every record whose approval has expired at now, and its
 // projection, and reports how many it forgot. Nothing else removes a record
 // the plane did not consume: a directory left to grow refuses holds at its
@@ -252,7 +246,7 @@ func (p *Plane) Prune(ctx context.Context, now time.Time) (int, error) {
 		if err != nil {
 			return pruned, err
 		}
-		if !expired(rec.Approval, now) {
+		if !approval.Expired(rec.Approval, now) {
 			continue
 		}
 		if err := p.s.drop(id); err != nil {

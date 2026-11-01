@@ -4,5 +4,9 @@
   "description": "The reference filesystem server this profile classifies, at the version its fingerprints were taken from.",
   "dependencies": {
     "@modelcontextprotocol/server-filesystem": "2026.8.31"
+  },
+  "overrides": {
+    "glob": "14.0.2",
+    "minimatch": "11.0.1"
   }
 }

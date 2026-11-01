@@ -22,7 +22,8 @@ func held(binding approval.Binding, approvalID, requestID string) gateway.Held {
 	return gateway.Held{
 		Approval: &controlv1.Approval{
 			ApprovalId: approvalID, RequestId: requestID, State: controlv1.ApprovalState_APPROVAL_STATE_PENDING,
-			ExpiresAt: timestamppb.New(base().Add(10 * time.Minute)),
+			RequestedAt: timestamppb.New(base()),
+			ExpiresAt:   timestamppb.New(base().Add(10 * time.Minute)),
 		},
 		Envelope:    readEnvelope(),
 		Decision:    &controlv1.Decision{DecisionId: "d-" + approvalID, RequestId: requestID},
@@ -65,6 +66,23 @@ func TestHoldRefusesWhatCannotBeResumed(t *testing.T) {
 		"no binding":    func(h *gateway.Held) { h.Binding = "" },
 		"no envelope":   func(h *gateway.Held) { h.Envelope = nil },
 		"no decision":   func(h *gateway.Held) { h.Decision = nil },
+		// The directory store refuses both at read, and a store that took
+		// them would judge the answer's window against the Unix epoch.
+		"no requested time": func(h *gateway.Held) { h.Approval.RequestedAt = nil },
+		"no expiry":         func(h *gateway.Held) { h.Approval.ExpiresAt = nil },
+		// A hold is the pending approval the plane mints. One that carries an
+		// answer is a grant the holder made itself, which Consume would spend.
+		"no approval id": func(h *gateway.Held) { h.Approval.ApprovalId = "" },
+		"an approved state": func(h *gateway.Held) {
+			h.Approval.State = controlv1.ApprovalState_APPROVAL_STATE_APPROVED
+		},
+		"an approver id":  func(h *gateway.Held) { h.Approval.ApproverId = "alice" },
+		"a decision time": func(h *gateway.Held) { h.Approval.DecidedAt = timestamppb.New(base()) },
+		"a self-grant": func(h *gateway.Held) {
+			h.Approval.State = controlv1.ApprovalState_APPROVAL_STATE_APPROVED
+			h.Approval.ApproverId = "alice"
+			h.Approval.DecidedAt = timestamppb.New(base())
+		},
 	}
 	for name, mut := range incomplete {
 		h := held(binding, "a-1", "req-1")
@@ -118,6 +136,18 @@ func expectConsume(t *testing.T, store *gateway.MemoryApprovals, binding approva
 	}
 }
 
+// expectNothingHeldWithoutExpiry holds a record that never expires: the hold is
+// refused, so there is nothing to consume.
+func expectNothingHeldWithoutExpiry(t *testing.T, store *gateway.MemoryApprovals, binding approval.Binding) {
+	t.Helper()
+	noExpiry := held(binding, "a-4", "req-4")
+	noExpiry.Approval.ExpiresAt = nil
+	if err := store.Hold(ctx(), noExpiry, base()); !errors.Is(err, gateway.ErrInvalidHold) {
+		t.Fatalf("Hold with no expiry = %v, want ErrInvalidHold", err)
+	}
+	expectConsume(t, store, binding, "req-4", "a-4", base(), gateway.ErrNoApproval)
+}
+
 // TestConsumeInEveryState walks Consume through what a record can be: held
 // and pending, answered, consumed, expired, rejected, multi-use, and asked
 // for under another request id.
@@ -155,10 +185,7 @@ func TestConsumeInEveryState(t *testing.T) {
 		expectConsume(t, &store, binding, "req-3", "a-3", base().Add(10*time.Minute), gateway.ErrApprovalExpired)
 		// The expired record is dropped.
 		expectConsume(t, &store, binding, "req-3", "a-3", base(), gateway.ErrNoApproval)
-		noExpiry := held(binding, "a-4", "req-4")
-		noExpiry.Approval.ExpiresAt = nil
-		mustHold(t, &store, noExpiry)
-		expectConsume(t, &store, binding, "req-4", "a-4", base(), gateway.ErrApprovalExpired)
+		expectNothingHeldWithoutExpiry(t, &store, binding)
 	})
 	t.Run("rejected", func(t *testing.T) {
 		var store gateway.MemoryApprovals
@@ -183,21 +210,23 @@ func TestConsumeInEveryState(t *testing.T) {
 	})
 }
 
-// TestConsumeSpendsNoApprovalWithoutAnApprover: a record held already
-// approved, which Hold accepts in any state, is spent only when it names who
-// approved it.
-func TestConsumeSpendsNoApprovalWithoutAnApprover(t *testing.T) {
+// TestConsumeSpendsNoApprovalTheHolderGrantedItself: a hold that arrives
+// already approved, with or without an approver, is refused, so nothing is
+// there to spend. The same approval answered after it was held is spent.
+func TestConsumeSpendsNoApprovalTheHolderGrantedItself(t *testing.T) {
 	binding := approval.Binding("sha256:0")
 	var store gateway.MemoryApprovals
-	for _, tc := range []struct {
-		id, approver string
-		want         error
-	}{{"a-7", "", gateway.ErrNoApproval}, {"a-8", "alice", nil}} {
+	for _, tc := range []struct{ id, approver string }{{"a-7", ""}, {"a-8", "alice"}} {
 		h := held(binding, tc.id, "req-"+tc.id)
 		h.Approval.State, h.Approval.ApproverId, h.Approval.DecidedAt = approved, tc.approver, timestamppb.New(base())
-		mustHold(t, &store, h)
-		expectConsume(t, &store, binding, "req-"+tc.id, tc.id, base(), tc.want)
+		if err := store.Hold(ctx(), h, base()); !errors.Is(err, gateway.ErrInvalidHold) {
+			t.Errorf("Hold approved by %q = %v, want ErrInvalidHold", tc.approver, err)
+		}
+		expectConsume(t, &store, binding, "req-"+tc.id, tc.id, base(), gateway.ErrNoApproval)
 	}
+	mustHold(t, &store, held(binding, "a-8", "req-a-8"))
+	mustAnswer(t, &store, "a-8")
+	expectConsume(t, &store, binding, "req-a-8", "a-8", base(), nil)
 }
 
 // TestConsumeSpendsNoAnswerOutsideItsWindow: an approval answered before it
@@ -256,15 +285,16 @@ func TestConsumeSpendsOnlyTheApprovalTheCallerMinted(t *testing.T) {
 }
 
 // TestAnEmptyApprovalIdMatchesNoRecord: asking for no approval at all is a
-// refusal, not a record that will do, even where the record carries no
-// approval id of its own.
+// refusal, not a record that will do, and a hold that names no approval of
+// its own is refused before it could be one.
 func TestAnEmptyApprovalIdMatchesNoRecord(t *testing.T) {
 	var store gateway.MemoryApprovals
 	binding := approval.Binding("sha256:8")
-	mustHold(t, &store, held(binding, "", "req-1"))
-	if err := store.Answer("", approved, "alice", "", base()); err != nil {
-		t.Fatalf("Answer: %v", err)
+	if err := store.Hold(ctx(), held(binding, "", "req-2"), base()); !errors.Is(err, gateway.ErrInvalidHold) {
+		t.Errorf("Hold with no approval id = %v, want ErrInvalidHold", err)
 	}
+	mustHold(t, &store, held(binding, "a-1", "req-1"))
+	mustAnswer(t, &store, "a-1")
 	expectConsume(t, &store, binding, "req-1", "", base(), gateway.ErrNoApproval)
 	expectResolution(t, &store, binding, gateway.ResolutionPending)
 }
