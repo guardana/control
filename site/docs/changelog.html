@@ -128,6 +128,14 @@ fixes GHSA-g3hv-75wg-m249, through <code>overrides</code>: the server, at the ve
 its fingerprints were taken from, asks for the majors below them, where no
 fix exists. Its search and tree tools ran with them. Nothing this project
 ships uses either.</li>
+<li><code>trail export</code> and <code>trail</code> refused a segment of a log named by its path
+but read one reached through a symbolic link as a whole trail file, so
+coverage and <code>supervise</code> took a log with pruned segments as whole. The
+file opened is now judged by its real directory.</li>
+<li>The spool's quarantine took a record carrying an event id it already held
+as preserved, without comparing content, so a second record with that id,
+or with no id, was acknowledged and lost. It now tells records apart by
+their whole line.</li>
 </ul>
 <h3 id="added">Added</h3>
 <ul>
@@ -186,6 +194,9 @@ classified. <code>Validate</code> does not change (<a href="/docs/adr/0067-the-p
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
+<li>
+<p><code>trail</code> of a directory ends its counts line with <code>segments pruned &lt;n&gt;</code>.</p>
+</li>
 <li>
 <p>Both approval stores decide whether an approval may be spent in one order
 (<a href="/docs/concepts/approvals-and-the-held-call">approvals</a>). An expired
@@ -402,6 +413,19 @@ time, which no lint read before.</p>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li>A collector whose live segment changed under it refused that append but
+went on to seal it, writing a manifest its next start refused. The log now
+takes nothing more until it is started again.</li>
+<li><code>prune</code> with the clock before a segment's seal wrote a tombstone the
+manifest reader refuses, leaving the directory unreadable. It is now refused
+with nothing changed.</li>
+<li>A reader that inspected a log between a seal's manifest and its rename
+counted the sealed bytes as the next live segment; it now retries.</li>
+<li>After <code>Prune</code> on an open log, an event whose line was pruned and sent again
+was taken as written; the index now covers only the segments left.</li>
+<li><code>evidence-report -state</code> refused its own state after a request stayed open
+across a segment, and raised again an alert of the next segment logged
+before a crash.</li>
 <li><code>tools/list</code> under <code>hide</code> left out a tool whose only <code>ALLOW</code> rule reads
 the resource id its classification points at, and <code>annotate</code> marked it
 <code>VERDICT_DENY</code>, though a call naming an allowed id ran. A tool previewed as

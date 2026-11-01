@@ -231,3 +231,30 @@ func TestTrailRepeatsNoKeyTextItReads(t *testing.T) {
 		t.Errorf("a body line as the request id: trail answered %d with %q%q, want it to start %q", status, stdout, stderr, want)
 	}
 }
+
+// TestTrailOfADirectorySaysHowManySegmentsWerePruned: the counts of a
+// directory of segments end with the segments pruned before the read, so a
+// trail whose first events were pruned is not read as never written.
+func TestTrailOfADirectorySaysHowManySegmentsWerePruned(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "log")
+	l, err := trailfile.OpenLog(trailfile.LogConfig{Dir: dir, Tenant: "t1", Project: "p1", SegmentBytes: 1, MaxBytes: 1 << 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = l.Close() }()
+	for _, ev := range append(trailOf("a", kProposed, kDecided), trailOf("b", kProposed, kDecided, kStarted, kCompleted)...) {
+		if err := l.Append(context.Background(), []*controlv1.Event{ev}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := l.Prune(2); err != nil {
+		t.Fatal(err)
+	}
+	status, stdout, stderr := trailCommand(t, dir)
+	want := "request=b project=p1 tenant=t1 last=EVENT_KIND_ACTION_COMPLETED ok\n" +
+		"trails 1: ok 1, open 0, failed 0, indeterminate 0; lines 4, repeated lines collapsed 0, bytes after the last newline 0; segments pruned 2\n" +
+		shapeLine
+	if status != exitOK || stdout != want || stderr != "" {
+		t.Errorf("trail of a log with two segments pruned answered %d with\n%s\nand %q; want %d with\n%s", status, stdout, stderr, exitOK, want)
+	}
+}

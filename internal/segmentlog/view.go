@@ -55,7 +55,28 @@ func Inspect(dir string, maxLineBytes int) (*View, error) {
 	if v.live, err = scan(f, maxLineBytes, nil); err != nil {
 		return nil, fmt.Errorf("%s: %w", LiveName, err)
 	}
+	if err := v.sealPending(root); err != nil {
+		return nil, err
+	}
 	return v, nil
+}
+
+// sealPending refuses, as moved, a view read after a seal named the live
+// segment sealed and before it renamed the file: the newest sealed segment
+// has no file, and the live file begins with that segment's first line.
+func (v *View) sealPending(root *os.Root) error {
+	if len(v.segs) == 0 || v.live.lines == 0 {
+		return nil
+	}
+	s := v.segs[len(v.segs)-1]
+	if s.State != StateSealed || v.live.first != s.First {
+		return nil
+	}
+	_, err := root.Lstat(s.File)
+	if errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%w: segment %d is sealed and its file not yet renamed", ErrMoved, s.Seq)
+	}
+	return err
 }
 
 // openRead opens name in root to read it, refusing anything but a regular
@@ -224,5 +245,5 @@ func (v *View) Held() (bool, error) {
 		return false, err
 	}
 	defer func() { _ = f.Close() }()
-	return heldByWriter(f)
+	return HeldByWriter(f)
 }

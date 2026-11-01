@@ -488,3 +488,58 @@ func TestALiveSegmentOpensInTheDirectoryTheLogHolds(t *testing.T) {
 		t.Errorf("the locked directory's live segment holds %q, want event 2", got)
 	}
 }
+
+// TestALogWhoseLiveFileChangedTakesNothingMore: once an append finds the live
+// segment changed under the writer, the log seals, prunes and appends nothing
+// more, so it writes no manifest that disagrees with the file, and the log
+// opened again holds what the file holds.
+func TestALogWhoseLiveFileChangedTakesNothingMore(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "log")
+	cfg := logConfig(dir)
+	l := openTestLog(t, cfg)
+	appendTo(t, l, event(1), event(2))
+	appendTo(t, l, event(3))
+	appendLive(t, dir, lines(t, event(4)))
+	if err := l.Append(context.Background(), []*controlv1.Event{event(5)}); !errors.Is(err, ErrChanged) {
+		t.Fatalf("an append after the live file changed = %v, want ErrChanged", err)
+	}
+	big := event(6)
+	big.RequestId = strings.Repeat("r", int(twoPerSegment))
+	for name, step := range map[string]func() error{
+		"an append that seals": func() error { return l.Append(context.Background(), []*controlv1.Event{big}) },
+		"an append":            func() error { return l.Append(context.Background(), []*controlv1.Event{event(7)}) },
+		"a prune":              func() error { return l.Prune(1) },
+	} {
+		if err := step(); !errors.Is(err, segmentlog.ErrFailed) {
+			t.Errorf("%s after the live file changed = %v, want segmentlog.ErrFailed", name, err)
+		}
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	want := lines(t, event(3), event(4))
+	if got := liveText(t, dir); got != want {
+		t.Errorf("the live segment holds %q, want %q", got, want)
+	}
+	again := openTestLog(t, cfg)
+	if m := again.Manifest(); len(m.Segments) != 1 || m.Segments[0].State != segmentlog.StateSealed || m.Live.Lines != 2 {
+		t.Errorf("opened again the log is %+v, want segment 1 sealed and two live lines", m)
+	}
+}
+
+// TestAnEventResentAfterItsSegmentWasPrunedIsWrittenAgain: the index covers
+// the segments not pruned, so on the same open log an event whose only line
+// was pruned is written again, and one still held is not.
+func TestAnEventResentAfterItsSegmentWasPrunedIsWrittenAgain(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "log")
+	l := openTestLog(t, logConfig(dir))
+	appendTo(t, l, event(1), event(2))
+	appendTo(t, l, event(3))
+	if err := l.Prune(1); err != nil {
+		t.Fatal(err)
+	}
+	appendTo(t, l, event(1), event(3))
+	if got, want := liveText(t, dir), lines(t, event(3), event(1)); got != want {
+		t.Errorf("after the resend the live segment holds %q, want %q", got, want)
+	}
+}
