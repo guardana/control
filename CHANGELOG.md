@@ -22,6 +22,14 @@ verify one.
 
 ### Added
 
+- `guardana-control operators roster sign` signs a roster of operator keys under
+  a trust root, each key with grants of one tenant, one project and a level,
+  for 24 hours unless told otherwise and at most 7 days, each signing at a
+  higher serial; `operators floor init` starts the floor a plane raises as it
+  takes a roster. The roster, operator authentication and operator
+  authorization are ports with these as their defaults, and a veto may only
+  deny. No plane reads a roster yet
+  ([ADR-0071](docs/adr/0071-operators-are-named-by-a-signed-roster.md)).
 - `observe import` reads an egress proxy's access log. A source of kind
   `egress-access-log` names which top-level member of each JSON line holds
   the time, host, port, method, status, byte counts and caller, and each line
