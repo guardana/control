@@ -182,6 +182,26 @@ var demoScenarios = []struct {
 	{"toxic-flow.json", []string{`read_order {"id":"ord-1"}`}, []string{`fetch_page {"url":"https://shop.example.com/rates"}`}},
 }
 
+// segmentsText returns the lines of every segment file in a trail directory,
+// sealed and live, in name order.
+func segmentsText(t *testing.T, dir string) []byte {
+	t.Helper()
+	names, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+	if err != nil || len(names) == 0 {
+		t.Fatalf("the trail directory %s holds no segment: %v", dir, err)
+	}
+	slices.Sort(names)
+	var all []byte
+	for _, name := range names {
+		b, err := os.ReadFile(name) //nolint:gosec // G304: the test's own directory
+		if err != nil {
+			t.Fatalf("the trail: %v", err)
+		}
+		all = append(all, b...)
+	}
+	return all
+}
+
 // TestEveryDemoScenarioPassesOnItsOwnPlane runs dev once per scenario, as
 // the tutorial does, and requires it to pass and each victim to have
 // received exactly what the scenario let through: no refund, no export, no
@@ -196,10 +216,7 @@ func TestEveryDemoScenarioPassesOnItsOwnPlane(t *testing.T) {
 		if run.code != 0 || !strings.HasSuffix(run.stdout, "\n"+s.file+" passed\n") || strings.Contains(run.stdout, "could not run") {
 			t.Fatalf("%s: exit %d, want 0 and passed:\n%s\n%s", s.file, run.code, run.stdout, run.stderr)
 		}
-		trail, err := os.ReadFile(filepath.Join(state, "1-"+s.file, "trail.jsonl")) //nolint:gosec // G304: the test's own directory
-		if err != nil {
-			t.Fatalf("%s: the trail: %v", s.file, err)
-		}
+		trail := segmentsText(t, filepath.Join(state, "1-"+s.file, "trail"))
 		timedOut := strings.Contains(string(trail), "PDP_TIMEOUT")
 		if timedOut != (s.file == "fail-closed.json") || strings.Contains(string(trail), "PDP_UNAVAILABLE") {
 			t.Errorf("%s: the trail names PDP_TIMEOUT: %v, PDP_UNAVAILABLE: %v", s.file, timedOut, strings.Contains(string(trail), "PDP_UNAVAILABLE"))
