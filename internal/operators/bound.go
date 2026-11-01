@@ -78,14 +78,20 @@ func newCaller(b Bounds) (*caller, error) {
 	return &caller{timeout: b.Timeout, slots: make(chan struct{}, b.InFlight), counts: map[Cause]uint64{}}, nil
 }
 
+// errCallTimeout is the cause a call's context ends with when the call's own
+// timeout fires, telling it apart from a deadline the caller set.
+const errCallTimeout Error = "operators: the call's own timeout passed"
+
 // call runs fn under the timeout and returns what it answered, or the cause
 // that kept it from answering in time: CauseBusy when every slot is taken,
-// CauseCanceled when ctx ended, CauseLate when the timeout did. A call that
-// outlives its timeout keeps its slot until it returns, so a port that never
-// answers holds at most InFlight goroutines.
-func call[T any](ctx context.Context, c *caller, fn func(context.Context) T) (T, Cause) {
+// CauseLate only when the call's own timeout fired while the caller's context
+// was alive, and CauseCanceled when the caller's context ended for any
+// reason, its own deadline included, even one shorter than the timeout. A
+// call that outlives its timeout keeps its slot until it returns, so a port
+// that never answers holds at most InFlight goroutines.
+func call[T any](parent context.Context, c *caller, fn func(context.Context) T) (T, Cause) {
 	var zero T
-	if ctx.Err() != nil {
+	if parent.Err() != nil {
 		return zero, CauseCanceled
 	}
 	select {
@@ -93,7 +99,7 @@ func call[T any](ctx context.Context, c *caller, fn func(context.Context) T) (T,
 	default:
 		return zero, CauseBusy
 	}
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	ctx, cancel := context.WithTimeoutCause(parent, c.timeout, errCallTimeout)
 	defer cancel()
 	done := make(chan T, 1)
 	go func() {
@@ -107,7 +113,10 @@ func call[T any](ctx context.Context, c *caller, fn func(context.Context) T) (T,
 		}
 	case <-ctx.Done():
 	}
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+	if parent.Err() != nil {
+		return zero, CauseCanceled
+	}
+	if errors.Is(context.Cause(ctx), errCallTimeout) {
 		return zero, CauseLate
 	}
 	return zero, CauseCanceled

@@ -161,31 +161,51 @@ func TestEveryAuthorizerKindPassesTheConformanceCases(t *testing.T) {
 					t.Fatal(err)
 				}
 				ctx := t.Context()
+				var v *fakeVeto
 				if c.Veto != "" {
-					z, ctx = withCaseVeto(t, z, c)
+					z, v, ctx = withCaseVeto(t, z, c)
 				}
 				if c.Revoke != "" {
-					var keep []any
-					for _, e := range standard() {
-						if e.(map[string]any)["subject"] != c.Revoke {
-							keep = append(keep, e)
-						}
-					}
-					w.write(t, 2, keep)
+					revoke(t, w, c.Revoke)
 				}
 				got := z.Authorize(ctx, who, approve(c.Tenant, c.Project))
 				want, ok := states[c.State]
 				if !ok || got.State() != want || string(got.Cause()) != c.Cause || got.Grant().Level != levels[c.Level] {
 					t.Errorf("= state %d cause %q level %s, want %s %q %q", got.State(), got.Cause(), got.Grant().Level, c.State, c.Cause, c.Level)
 				}
+				if c.Veto == "deadline" {
+					askedLive(t, v)
+				}
 			})
 		}
 	}
 }
 
-// withCaseVeto puts the case's veto after z, and returns the context the
-// case authorizes under: one the veto cancels when the case says so.
-func withCaseVeto(t *testing.T, z operators.Authorizer, c authzCase) (operators.Authorizer, context.Context) {
+// revoke replaces w's roster by one at serial 2 without subject.
+func revoke(t *testing.T, w *world, subject string) {
+	t.Helper()
+	var keep []any
+	for _, e := range standard() {
+		if e.(map[string]any)["subject"] != subject {
+			keep = append(keep, e)
+		}
+	}
+	w.write(t, 2, keep)
+}
+
+// askedLive fails a case whose caller deadline passed before the veto was
+// asked, which would test the check before the call instead of the call.
+func askedLive(t *testing.T, v *fakeVeto) {
+	t.Helper()
+	if v.asked.Load() != 1 || !v.live.Load() {
+		t.Errorf("the veto was asked %d times, live %t: the caller's deadline did not pass while it was asked", v.asked.Load(), v.live.Load())
+	}
+}
+
+// withCaseVeto puts the case's veto after z, and returns it and the context
+// the case authorizes under: one the veto cancels, or one whose deadline
+// passes before the veto's own timeout, when the case says so.
+func withCaseVeto(t *testing.T, z operators.Authorizer, c authzCase) (operators.Authorizer, *fakeVeto, context.Context) {
 	t.Helper()
 	v := &fakeVeto{}
 	ctx := t.Context()
@@ -205,6 +225,13 @@ func withCaseVeto(t *testing.T, z operators.Authorizer, c authzCase) (operators.
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithCancel(ctx)
 		v.cancel = cancel
+	case "deadline":
+		v.answer = operators.Objects()
+		v.release = make(chan struct{})
+		t.Cleanup(func() { close(v.release) })
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 20*time.Millisecond)
+		t.Cleanup(cancel)
 	default:
 		t.Fatalf("veto %q", c.Veto)
 	}
@@ -216,5 +243,5 @@ func withCaseVeto(t *testing.T, z operators.Authorizer, c authzCase) (operators.
 	if err != nil {
 		t.Fatal(err)
 	}
-	return out, ctx
+	return out, v, ctx
 }

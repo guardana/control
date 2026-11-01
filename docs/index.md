@@ -166,4 +166,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0068: A run belongs to one project](adr/0068-a-run-belongs-to-one-project.md): accepted
 - [ADR-0069: An egress proxy's access log is an independent sensor on a kind-neutral descriptor](adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor.md): accepted
 - [ADR-0070: A listing hides only what no call could be allowed](adr/0070-a-listing-hides-only-what-no-call-could-be-allowed.md): accepted
-- [ADR-0071: Operators are named by a signed roster, and authorized by its grants](adr/0071-operators-are-named-by-a-signed-roster.md): proposed
+- [ADR-0071: Operators are named by a signed roster, and authorized by its grants](adr/0071-operators-are-named-by-a-signed-roster.md): accepted

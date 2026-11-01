@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>ADR-0071: Operators are named by a signed roster, and authorized by its grants · Guardana Control</title>
-<meta name="description" content="Decision record, proposed."/>
+<meta name="description" content="Decision record, accepted."/>
 <link rel="canonical" href="https://control.guardana.dev/docs/adr/0071-operators-are-named-by-a-signed-roster"/>
 <meta name="theme-color" content="#0B8F80"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
@@ -112,7 +112,7 @@
 </details>
 <main id="main" class="prose">
 <h1 id="adr-0071-operators-are-named-by-a-signed-roster-and-authorized-by-its-grants">ADR-0071: Operators are named by a signed roster, and authorized by its grants</h1>
-<p>Status: proposed
+<p>Status: accepted
 Date: 2026-10-30</p>
 <p>Amends <a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a> property 1
 for a port whose answer is sealed. Builds on ADR-0066, which makes trust,
@@ -142,7 +142,9 @@ freshness, routes or lifts; the root is none of those either. The lifetime is
 at most 7 days; <code>operators roster sign</code> signs for 24 hours unless told
 otherwise. Each signing needs a higher serial than the last: a second roster
 at one serial is a fork every plane refuses, and the command refuses to
-replace a roster of the same id at that serial or above. The port is
+replace a roster at <code>--out</code> that verifies under this root and names the same
+roster id, at the serial it signs or above; any other file there holding a
+roster envelope is replaced. The port is
 configured with the one roster id it takes. A roster of another id, dated
 after the clock, expired, below the serial held, or at it with another
 digest, is not taken, at start as while running. Each taken roster raises a
@@ -201,12 +203,12 @@ signed file verifies as either. Selecting the algorithm by the key keeps a
 statement from choosing how it is checked. The roster's expiry bounds how
 long a revoked operator keeps authority while a newer roster is withheld,
 and the plane's account can withhold it for the file kind.</p>
-<p>Under <code>approvals.authority: signed</code>, the start refuses a configuration, a
-trust root or an approvals directory the plane's own account can write, and
-not the authority floor: the plane raises that floor itself, so its account
-writes it. That account can therefore roll the roster back only to an older
-serial of the same roster id, within that roster's lifetime of at most 7
-days, and that is the whole limit.</p>
+<p>When the approval authority's change adds <code>approvals.authority: signed</code>, its
+start refuses a configuration, a trust root or an approvals directory the
+plane's own account can write, and not the authority floor: the plane raises
+that floor itself, so its account writes it. That account can therefore roll
+the roster back only to an older or equal serial of the same roster id,
+within that roster's lifetime of at most 7 days, and that is the whole limit.</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
 <ul>
 <li>One pinned key per operator in the configuration: no expiry, no grants,
@@ -231,6 +233,10 @@ or path; no later reader may widen them so.</li>
 <code>signed</code>.</li>
 <li><code>Open</code> runs its first lookup under the caller's context, which can wait on
 the floor's lock, so the approval authority's change bounds that context.</li>
+<li>The approval authority's change takes the roster id only from the
+configuration its start check protects, never from the floor directory,
+the roster file or the first roster seen; otherwise the plane's account
+could choose the roster id, and the limit above would not hold.</li>
 </ul>
 <h2 id="validation">Validation</h2>
 <ul>
@@ -241,14 +247,16 @@ future roster is refused; a roster of another id is refused after a
 restart, though the floor directory lists it; the last roster is kept
 until its expiry, then unavailable; the floor lowered by hand does not lower
 the roster held.</li>
-<li><code>operators roster sign</code> refuses to replace a roster of the same id at the
-serial it signs or above.</li>
+<li><code>operators roster sign</code> refuses to replace a roster at <code>--out</code> that
+verifies under this root and names the same id, at the serial it signs or
+above, and replaces a roster envelope of another id or another root.</li>
 <li><code>internal/operators</code>: a statement naming another algorithm or key, signed
 by another key, or of another payload type, is refused; two operators act
 only where their grants reach; an empty project is denied; a revoked key
 permits nothing; a veto only denies; an unavailable, late or zero answer
 from the roster or the veto blocks, and under <code>roster_only</code> a zero answer
-in time or a cancelled caller still blocks.</li>
+in time, a cancelled caller, or a caller whose deadline passes while the
+veto is asked, still blocks.</li>
 <li>The three conformance files, each rule with a negative control.</li>
 </ul>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0071-operators-are-named-by-a-signed-roster.md">docs/adr/0071-operators-are-named-by-a-signed-roster.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.14.0, and <a href="https://github.com/guardana/control/tree/v0.14.0/docs">its documentation</a> is in its tag.</p>

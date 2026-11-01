@@ -45,7 +45,7 @@ func rosterSignFlags(command string, out io.Writer) (*flag.FlagSet, *rosterSignV
 	flags := commandFlags(command, out)
 	var v rosterSignValues
 	flags.StringVar(&v.key, "key", "", "the private key file keygen wrote for the trust root")
-	flags.StringVar(&v.out, "out", "", "the roster file to write, replacing only a file holding a roster envelope, by its payload type, at a lower serial")
+	flags.StringVar(&v.out, "out", "", "the roster file to write, replacing only a file holding a roster envelope, by its payload type, and never one that verifies under this root and names the same roster id at this serial or above")
 	flags.DurationVar(&v.validFor, "valid-for", trust.DefaultLifetime, "how long the roster is trusted, at most 168h")
 	return flags, &v
 }

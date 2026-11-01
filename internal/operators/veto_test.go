@@ -12,14 +12,16 @@ import (
 )
 
 // fakeVeto answers answer, after release is closed when it is not nil,
-// ignoring the context when deaf, and counts how often it was asked. With
-// cancel set it first cancels its caller's context.
+// ignoring the context when deaf, and counts how often it was asked and
+// whether its context was still live when asked. With cancel set it first
+// cancels its caller's context.
 type fakeVeto struct {
 	answer  operators.Objection
 	release chan struct{}
 	deaf    bool
 	cancel  context.CancelFunc
 	asked   atomic.Int32
+	live    atomic.Bool
 	mu      sync.Mutex
 	last    operators.Review
 }
@@ -35,6 +37,7 @@ func (f *fakeVeto) Review(ctx context.Context, r operators.Review) operators.Obj
 	f.last = r
 	f.mu.Unlock()
 	f.asked.Add(1)
+	f.live.Store(ctx.Err() == nil)
 	if f.cancel != nil {
 		f.cancel()
 	}
@@ -120,6 +123,86 @@ func TestRosterOnlyKeepsAPermissionOnlyWhenTheVetoGaveNoAnswerInTime(t *testing.
 		defer close(gives.release)
 		got := vetoed(t, w, gives, on).Authorize(ctx, alice, approve("t1", "A"))
 		wantPerm(t, "a caller that gave up while the veto was asked", got, operators.PermUnavailable, operators.CauseCanceled)
+	}
+}
+
+// TestACallerDeadlineDuringTheVetoIsCanceledNotLate: only the call's own
+// timeout is late; a caller whose deadline passes first, though it is shorter
+// than the call's timeout, gave up, and no setting keeps its permission.
+func TestACallerDeadlineDuringTheVetoIsCanceledNotLate(t *testing.T) {
+	w := newWorld(t, standard())
+	alice := authenticated(t, w, "alice")
+	for _, on := range []operators.OnUnavailable{operators.VetoBlocks, operators.RosterOnly} {
+		waits := &fakeVeto{answer: operators.Objects(), release: make(chan struct{})}
+		defer close(waits.release)
+		z, err := operators.WithVeto(authorizer(t, w.roster, operators.Bounds{}), waits, on, operators.Bounds{Timeout: 10 * time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
+		got := z.Authorize(ctx, alice, approve("t1", "A"))
+		cancel()
+		wantPerm(t, "a caller deadline that passed while the veto was asked", got, operators.PermUnavailable, operators.CauseCanceled)
+		if waits.asked.Load() != 1 || !waits.live.Load() {
+			t.Errorf("the veto was asked %d times, live %t: the deadline did not pass during the veto", waits.asked.Load(), waits.live.Load())
+		}
+
+		late := &fakeVeto{answer: operators.Objects(), release: make(chan struct{})}
+		defer close(late.release)
+		z, err = operators.WithVeto(authorizer(t, w.roster, operators.Bounds{}), late, on, operators.Bounds{Timeout: 30 * time.Millisecond})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel = context.WithTimeout(t.Context(), 10*time.Second)
+		got = z.Authorize(ctx, alice, approve("t1", "A"))
+		cancel()
+		if on == operators.RosterOnly {
+			wantPerm(t, "the veto's own timeout with the caller alive, under roster_only", got, operators.PermPermitted, operators.CauseNone)
+		} else {
+			wantPerm(t, "the veto's own timeout with the caller alive, under block", got, operators.PermUnavailable, operators.CauseLate)
+		}
+	}
+}
+
+// nestedVeto asks inner from inside its own review, under the context its
+// call gave it, and sends what inner answered.
+type nestedVeto struct {
+	inner operators.Authorizer
+	who   operators.Authentication
+	got   chan operators.Permission
+}
+
+func (n *nestedVeto) Review(ctx context.Context, r operators.Review) operators.Objection {
+	n.got <- n.inner.Authorize(ctx, n.who, approve(r.Tenant, r.Project))
+	return operators.NoObjection()
+}
+
+// TestAPortAskedInsideACallThatTimedOutIsCanceled: when the outer call's
+// timeout ends a call made from inside it, that inner call's caller gave up,
+// so its own roster_only does not keep the permission.
+func TestAPortAskedInsideACallThatTimedOutIsCanceled(t *testing.T) {
+	w := newWorld(t, standard())
+	alice := authenticated(t, w, "alice")
+	waits := &fakeVeto{answer: operators.Objects(), release: make(chan struct{})}
+	defer close(waits.release)
+	inner, err := operators.WithVeto(authorizer(t, w.roster, operators.Bounds{}), waits, operators.RosterOnly, operators.Bounds{Timeout: 10 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outer := &nestedVeto{inner: inner, who: alice, got: make(chan operators.Permission, 1)}
+	z, err := operators.WithVeto(authorizer(t, w.roster, operators.Bounds{}), outer, operators.VetoBlocks, operators.Bounds{Timeout: 30 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPerm(t, "the outer call", z.Authorize(t.Context(), alice, approve("t1", "A")), operators.PermUnavailable, operators.CauseLate)
+	select {
+	case got := <-outer.got:
+		wantPerm(t, "the call inside it", got, operators.PermUnavailable, operators.CauseCanceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the call inside the outer one never returned")
+	}
+	if !waits.live.Load() {
+		t.Error("the inner veto was asked after the outer call's timeout")
 	}
 }
 

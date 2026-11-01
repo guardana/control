@@ -1,6 +1,6 @@
 # ADR-0071: Operators are named by a signed roster, and authorized by its grants
 
-Status: proposed
+Status: accepted
 Date: 2026-10-30
 
 Amends [ADR-0066](0066-each-decision-about-authority-is-a-port.md) property 1
@@ -35,7 +35,9 @@ freshness, routes or lifts; the root is none of those either. The lifetime is
 at most 7 days; `operators roster sign` signs for 24 hours unless told
 otherwise. Each signing needs a higher serial than the last: a second roster
 at one serial is a fork every plane refuses, and the command refuses to
-replace a roster of the same id at that serial or above. The port is
+replace a roster at `--out` that verifies under this root and names the same
+roster id, at the serial it signs or above; any other file there holding a
+roster envelope is replaced. The port is
 configured with the one roster id it takes. A roster of another id, dated
 after the clock, expired, below the serial held, or at it with another
 digest, is not taken, at start as while running. Each taken roster raises a
@@ -103,12 +105,12 @@ statement from choosing how it is checked. The roster's expiry bounds how
 long a revoked operator keeps authority while a newer roster is withheld,
 and the plane's account can withhold it for the file kind.
 
-Under `approvals.authority: signed`, the start refuses a configuration, a
-trust root or an approvals directory the plane's own account can write, and
-not the authority floor: the plane raises that floor itself, so its account
-writes it. That account can therefore roll the roster back only to an older
-serial of the same roster id, within that roster's lifetime of at most 7
-days, and that is the whole limit.
+When the approval authority's change adds `approvals.authority: signed`, its
+start refuses a configuration, a trust root or an approvals directory the
+plane's own account can write, and not the authority floor: the plane raises
+that floor itself, so its account writes it. That account can therefore roll
+the roster back only to an older or equal serial of the same roster id,
+within that roster's lifetime of at most 7 days, and that is the whole limit.
 
 ## Alternatives considered
 
@@ -135,6 +137,10 @@ of each port needs its own cases to pass.
   `signed`.
 - `Open` runs its first lookup under the caller's context, which can wait on
   the floor's lock, so the approval authority's change bounds that context.
+- The approval authority's change takes the roster id only from the
+  configuration its start check protects, never from the floor directory,
+  the roster file or the first roster seen; otherwise the plane's account
+  could choose the roster id, and the limit above would not hold.
 
 ## Validation
 
@@ -145,12 +151,14 @@ of each port needs its own cases to pass.
   restart, though the floor directory lists it; the last roster is kept
   until its expiry, then unavailable; the floor lowered by hand does not lower
   the roster held.
-- `operators roster sign` refuses to replace a roster of the same id at the
-  serial it signs or above.
+- `operators roster sign` refuses to replace a roster at `--out` that
+  verifies under this root and names the same id, at the serial it signs or
+  above, and replaces a roster envelope of another id or another root.
 - `internal/operators`: a statement naming another algorithm or key, signed
   by another key, or of another payload type, is refused; two operators act
   only where their grants reach; an empty project is denied; a revoked key
   permits nothing; a veto only denies; an unavailable, late or zero answer
   from the roster or the veto blocks, and under `roster_only` a zero answer
-  in time or a cancelled caller still blocks.
+  in time, a cancelled caller, or a caller whose deadline passes while the
+  veto is asked, still blocks.
 - The three conformance files, each rule with a negative control.
