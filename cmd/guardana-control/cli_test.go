@@ -153,10 +153,12 @@ var ownRefusal = map[string]func(missing string) []string{
 	"supervise": func(m string) []string {
 		return []string{"--procedure", m, "--runs", m, "--run", "run-" + strings.Repeat("0", 32), "--findings", m}
 	},
-	"notify":          func(m string) []string { return []string{"--findings", m, "--state", m, "--", m} },
-	"findings export": func(m string) []string { return []string{"--findings", m} },
-	"route sign":      func(m string) []string { return []string{"--key", m, "--out", m + ".route", m} },
-	"stops init":      func(m string) []string { return []string{"--route", m, "--public-key", m, m} },
+	"notify":                func(m string) []string { return []string{"--findings", m, "--state", m, "--", m} },
+	"findings export":       func(m string) []string { return []string{"--findings", m} },
+	"route sign":            func(m string) []string { return []string{"--key", m, "--out", m + ".route", m} },
+	"operators roster sign": func(m string) []string { return []string{"--key", m, "--out", m + ".roster", m} },
+	"operators floor init":  func(m string) []string { return []string{"--roster-id", "roster-a", filepath.Join(m, "floor")} },
+	"stops init":            func(m string) []string { return []string{"--route", m, "--public-key", m, m} },
 	"stops lift": func(m string) []string {
 		return []string{"--route", m, "--public-key", m, "--key", m, "--run", "run-" + strings.Repeat("0", 32), m}
 	},
@@ -243,7 +245,8 @@ func unlistedInvocations(missing string) [][]string {
 	}
 	return append(out, []string{"explain"}, []string{"policy"}, []string{"approvals"}, []string{"pause"}, []string{"runs"},
 		[]string{"policy", "state"}, []string{"policy", "state", missing}, []string{"route"}, []string{"stops"},
-		[]string{"stops", missing}, []string{"procedure"})
+		[]string{"stops", missing}, []string{"procedure"}, []string{"operators"}, []string{"operators", "roster"},
+		[]string{"operators", "floor", missing})
 }
 
 // TestHelpNamesEveryCommand: the help opens with one line per listed command,
