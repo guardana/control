@@ -296,7 +296,9 @@ func (p *Plane) resolvedAs(binding approval.Binding, requestID, approvalID strin
 // ErrZeroTime, a request it does not keep with ErrNoApproval, and a record
 // already consumed with ErrApprovalConsumed, because that record is proof of
 // an execution and nothing may write over it. A record this call already
-// resolved is not an error: the outcome asked for is the outcome on disk.
+// resolved is not an error: the outcome asked for is the outcome on disk. Nor
+// is an approvalID with no record of its own beside a record of the request
+// another approval id left not resumed.
 //
 // An expired record is resolved rather than dropped, so a plane that comes
 // back long after it lost the hold still closes it.

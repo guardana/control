@@ -179,11 +179,16 @@ func (m *MemoryApprovals) Hold(ctx context.Context, held Held, now time.Time) er
 // approval that already carries an answer is one the plane would be granting
 // itself.
 func resumable(held Held) bool {
-	a := held.Approval
+	return mintedPending(held.Approval) && held.Binding != "" && held.Envelope != nil && held.Decision != nil
+}
+
+// mintedPending reports whether a is an approval the plane could have
+// minted: pending, with an approval id, a request id, a requested time and an
+// expiry, and no answer.
+func mintedPending(a *controlv1.Approval) bool {
 	return a != nil && a.GetApprovalId() != "" && a.GetRequestId() != "" &&
 		a.GetRequestedAt() != nil && a.GetExpiresAt() != nil &&
-		a.GetState() == controlv1.ApprovalState_APPROVAL_STATE_PENDING && a.GetApproverId() == "" && a.GetDecidedAt() == nil &&
-		held.Binding != "" && held.Envelope != nil && held.Decision != nil
+		a.GetState() == controlv1.ApprovalState_APPROVAL_STATE_PENDING && a.GetApproverId() == "" && a.GetDecidedAt() == nil
 }
 
 // Find returns clones of what Hold recorded under binding, oldest first.

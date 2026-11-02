@@ -30,11 +30,14 @@ verify one.
 - `guardana-control operators roster sign` signs a roster of operator keys under
   a trust root, each key with grants of one tenant, one project and a level,
   for 24 hours unless told otherwise and at most 7 days, each signing at a
-  higher serial, under a lock on the output directory so two signers never
-  write one serial; `operators floor init` starts the floor a plane raises as
-  it takes a roster, for a roster id the roster port takes. The roster,
-  operator authentication and operator authorization are ports with these as their defaults, and a veto may only
-  deny. No plane reads a roster yet
+  higher serial. Signers writing into one `--out` directory hold a lock on it,
+  so they never write one serial twice; it needs `flock`, and without it the
+  command refuses. Of two rosters of one serial written elsewhere, the roster
+  port's floor takes the first and refuses the second.
+  `operators floor init` starts the floor a plane raises as it takes a
+  roster, for a roster id the roster port takes. The roster, operator
+  authentication and operator authorization are ports with these as their
+  defaults, and a veto may only deny. No plane reads a roster yet
   ([ADR-0071](docs/adr/0071-operators-are-named-by-a-signed-roster.md)).
 - `observe import` reads an egress proxy's access log. A source of kind
   `egress-access-log` names which top-level member of each JSON line holds

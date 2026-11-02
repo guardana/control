@@ -312,7 +312,8 @@ func scopeRule(s string) bool {
 
 // ValidRosterID reports whether id is one a roster may carry: lower-case
 // ASCII letters and digits first, then those and . _ -, within
-// MaxRosterIDBytes. It is the one rule for a roster id, a floor's included.
+// MaxRosterIDBytes. It is stricter than the floor's own check, and every
+// caller that names a roster id checks it first.
 func ValidRosterID(id string) bool { return nameRule(id, MaxRosterIDBytes, false) }
 
 // nameRule is the rule a roster id and a subject are held to: ASCII letters

@@ -1,7 +1,9 @@
 package gateway_test
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,17 +13,20 @@ import (
 	"github.com/guardana/control/internal/gateway"
 )
 
-// claimedApprovers are approver ids a store may answer with: a plain claim the
-// plane records, and three that read as the reserved authn: prefix, which it
-// never takes from a store.
+// claimedApprovers are approver ids a store may answer with: plain claims the
+// plane records, the longest of them at the approver id's bound, and ids it
+// never takes from a store: one byte over that bound, and three that read as
+// the reserved authn: prefix.
 var claimedApprovers = []struct {
 	id       string
 	reserved bool
 }{
 	{"night-officer", false},
+	{strings.Repeat("a", 128), false},
+	{strings.Repeat("a", 129), true},
 	{"authn:roster/x:mallory", true},
 	{"AUTHN:roster/x:mallory", true},
-	{"аuthn:x", true},
+	{"\u0430uthn:x", true},
 }
 
 // TestTheResumeHoldsTheStoresApproverToTheClaimRule: a store that spends the
@@ -127,4 +132,70 @@ func recordedApprover(trail []*controlv1.Event) string {
 		}
 	}
 	return ""
+}
+
+// editingJournal hands back the entries it lists with their approval edited.
+type editingJournal struct {
+	*journalDouble
+	edit func(*controlv1.Approval)
+}
+
+func (j editingJournal) List(ctx context.Context, most int) (gateway.HoldListing, error) {
+	l, err := j.journalDouble.List(ctx, most)
+	for _, e := range l.Held {
+		j.edit(e.Approval)
+	}
+	return l, err
+}
+
+// TestAJournalEntryNotAsMintedIsNeverClosed: the plane closes a lost hold with
+// the approval its journal entry carries, so an entry whose approval carries
+// an approver, a decision time or a state other than pending is not one the
+// plane minted. The pass counts it unreadable, writes nothing on its trail and
+// asks the store nothing; the entry as written is closed.
+func TestAJournalEntryNotAsMintedIsNeverClosed(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		edit   func(*controlv1.Approval)
+		closes bool
+	}{
+		{"as minted", func(*controlv1.Approval) {}, true},
+		{"a reserved approver", func(a *controlv1.Approval) { a.ApproverId = "authn:roster/x:mallory" }, false},
+		{"a plain approver", func(a *controlv1.Approval) { a.ApproverId = "night-officer" }, false},
+		{"approved", func(a *controlv1.Approval) { a.State = approved }, false},
+		{"decided", func(a *controlv1.Approval) { a.DecidedAt = a.GetRequestedAt() }, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			snap := snapshot(t, approveRefunds)
+			jd := &journalDouble{}
+			store := newFakeStore()
+			first := build(t, modeEnforce, snap, func(cfg *gateway.Config) {
+				cfg.Journal = jd
+				cfg.Approvals = store
+			})
+			hold(t, first)
+			next := build(t, modeApprove, snap, func(cfg *gateway.Config) {
+				cfg.Journal = editingJournal{journalDouble: jd, edit: c.edit}
+				cfg.Approvals = store
+				cfg.Sink = first.sink
+				cfg.NewID = restartIDs()
+			})
+			next.clock.set(base().Add(time.Minute))
+			r := next.p.Reconcile(context.Background())
+			trail := first.trailOf("req-1")
+			if c.closes {
+				if r.Closed != 1 || r.Unreadable != 0 || len(trail) != 5 {
+					t.Fatalf("the entry as minted: %+v, a trail of %d event(s); want it closed", r, len(trail))
+				}
+				return
+			}
+			if r.Closed != 0 || r.Unreadable != 1 || r.Complete {
+				t.Errorf("Reconcile = %+v; want the entry counted unreadable and the pass incomplete", r)
+			}
+			expectKinds(t, kindsOf(trail), []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested})
+			if got := store.resolves.Load(); got != 0 {
+				t.Errorf("the store was asked to resolve %d time(s)", got)
+			}
+		})
+	}
 }

@@ -23,8 +23,8 @@ type signerRun struct {
 // TestTwoSignersOfOneSerialWriteOnce: two signers of one roster id at serial
 // 2, over the roster at serial 1, both pass the check made before the lock.
 // The second, started while the first holds the output directory's lock,
-// neither finishes nor writes until the first wrote, and then finds serial 2
-// at --out and refuses, so --out holds the first's roster and no fork exists.
+// finds it held and waits until the first wrote, and then finds serial 2 at
+// --out and refuses, so --out holds the first's roster and no fork exists.
 func TestTwoSignersOfOneSerialWriteOnce(t *testing.T) {
 	tr := newRosterTree(t)
 	now := time.Date(2026, 10, 30, 9, 0, 0, 0, time.UTC)
@@ -38,7 +38,7 @@ func TestTwoSignersOfOneSerialWriteOnce(t *testing.T) {
 
 	a, b, held := signDuringSign(t, tr, first, second, now.Add(time.Minute))
 	if !held {
-		t.Error("the second signer finished while the first held the output directory's lock")
+		t.Error("the second signer never found the output directory's lock held")
 	}
 	if a.status != exitOK || a.stderr.Len() != 0 {
 		t.Errorf("the first signer: exit %d, stderr %q", a.status, a.stderr.String())
@@ -53,32 +53,39 @@ func TestTwoSignersOfOneSerialWriteOnce(t *testing.T) {
 	}
 }
 
-// signDuringSign signs firstSource and, from inside that signing once it read
-// --out under the lock, starts a signing of secondSource. held reports whether
-// the second had not finished raceWindow later.
+// signDuringSign signs firstSource and, from inside that signing once it
+// holds the lock, starts a signing of secondSource. held reports whether the
+// second found the lock held before it finished.
 func signDuringSign(t *testing.T, tr rosterTree, firstSource, secondSource string, now time.Time) (a, b *signerRun, held bool) {
 	t.Helper()
 	a, b = &signerRun{}, &signerRun{}
 	v := rosterSignValues{key: tr.key, out: tr.out, validFor: trust.DefaultLifetime}
-	secondDone := make(chan struct{})
+	secondDone, contended := make(chan struct{}), make(chan struct{}, 1)
 	started := false
-	afterRosterRead = func() {
+	lockContended = func() {
+		select {
+		case contended <- struct{}{}:
+		default:
+		}
+	}
+	afterRosterLock = func() {
 		started = true
-		afterRosterRead = func() {}
+		afterRosterLock = func() {}
 		go func() {
 			b.status = rosterSign(v, secondSource, now, &b.stdout, &b.stderr)
 			close(secondDone)
 		}()
 		select {
-		case <-secondDone:
-		case <-time.After(raceWindow):
+		case <-contended:
 			held = true
+		case <-secondDone:
+		case <-time.After(rosterLockWait):
 		}
 	}
-	defer func() { afterRosterRead = func() {} }()
+	defer func() { afterRosterLock, lockContended = func() {}, func() {} }()
 	a.status = rosterSign(v, firstSource, now, &a.stdout, &a.stderr)
 	if !started {
-		t.Fatalf("the first signer never read --out under the lock: exit %d, stderr %q", a.status, a.stderr.String())
+		t.Fatalf("the first signer never took the lock: exit %d, stderr %q", a.status, a.stderr.String())
 	}
 	select {
 	case <-secondDone:

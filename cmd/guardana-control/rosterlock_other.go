@@ -13,3 +13,7 @@ import (
 func lockRoot(context.Context, *os.Root) (func() error, error) {
 	return nil, errors.New("this platform has no lock that keeps two signers of one roster apart")
 }
+
+// lockContended never runs here; it stands so the tests build on every
+// platform.
+var lockContended = func() {}
