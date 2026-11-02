@@ -19,15 +19,21 @@ verify one.
   its fingerprints were taken from, asks for the majors below them, where no
   fix exists. Its search and tree tools ran with them. Nothing this project
   ships uses either.
+- The gateway no longer takes an approver id from its approval store that
+  reads as the reserved `authn:` prefix. Such an answer runs nothing: a retry
+  closes the held trail with the plane's own approval, expired, and a
+  reconciliation closes a lost hold `APPROVAL_STATE_UNKNOWN`. Both shipped
+  stores already refused such records; a store that did not was believed.
 
 ### Added
 
 - `guardana-control operators roster sign` signs a roster of operator keys under
   a trust root, each key with grants of one tenant, one project and a level,
   for 24 hours unless told otherwise and at most 7 days, each signing at a
-  higher serial; `operators floor init` starts the floor a plane raises as it
-  takes a roster. The roster, operator authentication and operator
-  authorization are ports with these as their defaults, and a veto may only
+  higher serial, under a lock on the output directory so two signers never
+  write one serial; `operators floor init` starts the floor a plane raises as
+  it takes a roster, for a roster id the roster port takes. The roster,
+  operator authentication and operator authorization are ports with these as their defaults, and a veto may only
   deny. No plane reads a roster yet
   ([ADR-0071](docs/adr/0071-operators-are-named-by-a-signed-roster.md)).
 - `observe import` reads an egress proxy's access log. A source of kind

@@ -96,8 +96,11 @@ type ApprovalStore interface {
 	// compare-and-swap, and returns it as decided. approvalID is the approval
 	// the plane minted for that request and keeps in its own record of the
 	// hold: a record filed under the same binding and request id carrying any
-	// other approval id is not the plane's to spend, so it answers
-	// ErrNoApproval and leaves that record exactly as it was. An empty
+	// other approval id is not the plane's to spend, so Consume never answers
+	// from its approval and leaves that record exactly as it was. Where no
+	// unresolved record of approvalID is left, a store may still answer
+	// ErrApprovalConsumed for such a record that was spent, since it proves
+	// the request ran; a denial, never an execution. An empty
 	// approvalID names no approval at all: it is refused, by whatever the
 	// implementation calls that, and never read as any approval will do. It
 	// answers ErrZeroTime for a zero now, ErrNoApproval when the request is
@@ -115,7 +118,8 @@ type ApprovalStore interface {
 	// nothing spent its approval and nothing will, so a later identical call
 	// is held anew rather than told that an action ran. It grants nothing and
 	// spends nothing. A record of any other approval id is left exactly as it
-	// was, and an empty approvalID is refused, as for Consume. It takes
+	// was, and may answer ErrApprovalConsumed when it was spent, and an empty
+	// approvalID is refused, as for Consume. It takes
 	// ResolutionNotResumed and
 	// refuses every other resolution with ErrResolution, since only Consume
 	// may mark a record spent; a zero now with ErrZeroTime, a request it does
