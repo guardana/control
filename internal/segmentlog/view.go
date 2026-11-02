@@ -55,15 +55,14 @@ func Inspect(dir string, maxLineBytes int) (*View, error) {
 	if v.live, err = scan(f, maxLineBytes, nil); err != nil {
 		return nil, fmt.Errorf("%s: %w", LiveName, err)
 	}
-	if err := v.sealPending(root); err != nil {
-		return nil, err
-	}
 	return v, nil
 }
 
-// sealPending refuses, as moved, a view read after a seal named the live
-// segment sealed and before it renamed the file: the newest sealed segment
-// has no file, and the live file begins with that segment's first line.
+// sealPending refuses, as moved, the live file of a view read after a seal
+// named the live segment sealed and before it renamed the file: the newest
+// sealed segment has no file, and the live file begins with that segment's
+// first line. Only an open of the live file is refused, so a reader of the
+// manifest alone, and the writer that completes the seal, still read it.
 func (v *View) sealPending(root *os.Root) error {
 	if len(v.segs) == 0 || v.live.lines == 0 {
 		return nil
@@ -158,7 +157,8 @@ func (v *View) First() SegmentAnswer {
 // unless it holds what the manifest names it with. A live segment that no
 // longer begins with the line it began with when the view was read, or whose
 // manifest, read again once the file is open, names a segment the view did
-// not, was sealed since, and is ErrMoved; so is a sealed segment pruned since.
+// not, was sealed since, and is ErrMoved; so is one a seal named sealed and
+// has not yet renamed, and a sealed segment pruned since.
 func (v *View) Open(s Segment) (*os.File, int64, error) {
 	if s.State != StateSealed && s.State != StateLive {
 		return nil, 0, fmt.Errorf("%w: segment %d is %s", ErrPrune, s.Seq, s.State)
@@ -182,7 +182,7 @@ func (v *View) Open(s Segment) (*os.File, int64, error) {
 	}
 	size, err := v.check(f, s)
 	if err == nil && s.State == StateLive {
-		err = v.stillLive(root)
+		err = errors.Join(v.stillLive(root), v.sealPending(root))
 	}
 	if err != nil {
 		return nil, 0, errors.Join(err, f.Close())

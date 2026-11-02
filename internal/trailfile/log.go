@@ -42,7 +42,10 @@ type Log struct {
 	dir             string
 	tenant, project string
 	ids             index
-	// failed is a prune after which the index could not be read again.
+	// stale is an index a prune left naming pruned lines; the next append
+	// reads the segments left again first.
+	stale bool
+	// failed is an index that could not be read again after a prune.
 	failed error
 }
 
@@ -133,6 +136,9 @@ func (l *Log) Append(ctx context.Context, events []*controlv1.Event) error {
 	case l.failed != nil:
 		return l.failed
 	}
+	if err := l.reindex(); err != nil {
+		return err
+	}
 	buf, added, err := l.ids.fresh(events, lines)
 	if err != nil || len(buf) == 0 {
 		return err
@@ -144,9 +150,9 @@ func (l *Log) Append(ctx context.Context, events []*controlv1.Event) error {
 	return nil
 }
 
-// Prune prunes the sealed segments through the one numbered through, and
-// indexes the segments left again, so an event whose line was pruned is
-// written again when it is sent again.
+// Prune prunes the sealed segments through the one numbered through. The
+// next append indexes the segments left again first, so an event whose line
+// was pruned is written again when it is sent again.
 func (l *Log) Prune(through int) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -159,6 +165,16 @@ func (l *Log) Prune(through int) error {
 	if err := l.rl.Prune(through); err != nil {
 		return err
 	}
+	l.ids, l.stale = nil, true
+	return nil
+}
+
+// reindex reads the segments a prune left into the index when it is stale.
+// A read that fails fails the log, whose index no longer says what it holds.
+func (l *Log) reindex() error {
+	if !l.stale {
+		return nil
+	}
 	// The log's own count of the bytes it holds leaves out anything written
 	// past it after the last line it wrote.
 	r, _, done, err := openLog(l.dir)
@@ -167,9 +183,10 @@ func (l *Log) Prune(through int) error {
 		done()
 	}
 	if err != nil {
-		l.failed = fmt.Errorf("%w: indexing the segments the prune left: %w", segmentlog.ErrFailed, err)
+		l.failed = fmt.Errorf("%w: the prune completed, and indexing the segments it left failed: %w", segmentlog.ErrFailed, err)
 		return l.failed
 	}
+	l.stale = false
 	return nil
 }
 

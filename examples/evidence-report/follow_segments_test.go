@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -168,6 +169,39 @@ func TestAnAlertLoggedInTheNextSegmentBeforeACrashIsNotRaisedAgain(t *testing.T)
 	}
 	if got := consume(t, dir, b); got.code == 2 || alertLines(got.stderr) != "" {
 		t.Errorf("the same export again: exit %d, alerts %q; want none raised again", got.code, alertLines(got.stderr))
+	}
+	if log := alertLog(t, dir); log != raised {
+		t.Errorf("alerts.jsonl:\n%s\nwant each alert once:\n%s", log, raised)
+	}
+}
+
+// TestATailGapLoggedInTheNextSegmentBeforeACrashIsNotRaisedAgain: the gap
+// after the last newline carries no cursor to name its segment; one a run
+// logged in the next segment and stopped before saving is not raised again
+// by the same export run again.
+func TestATailGapLoggedInTheNextSegmentBeforeACrashIsNotRaisedAgain(t *testing.T) {
+	first := chain("a", allowed...)
+	dir := newState(t)
+	a := framed("a.trail", first, 0, len(first), 1000)
+	if got := consume(t, dir, a); got.code != 0 {
+		t.Fatalf("the first segment: exit %d, %s", got.code, got.stderr)
+	}
+	c := chain("c", allowed...)
+	b := segmentAfter(t, a, c, 0, len(c))
+	end := regexp.MustCompile(`"scanned_bytes":(\d+)`).FindStringSubmatch(b)
+	if end == nil {
+		t.Fatal("the next segment's trailer names no scanned_bytes")
+	}
+	b = strings.Replace(b, `{"type":"trailer"`, `{"type":"gap","offset":`+end[1]+`,"reason":"partial_tail"}`+"\n"+`{"type":"trailer"`, 1)
+	b = strings.Replace(strings.Replace(b, `"tail_bytes":0`, `"tail_bytes":5`, 1), `"gap":0`, `"gap":1`, 1)
+	crashOnce(t, "alerts")
+	got := consume(t, dir, b)
+	raised := alertLines(got.stderr)
+	if got.code != 2 || !strings.Contains(raised, `"note":"partial_tail"`) {
+		t.Fatalf("the run that stopped: exit %d, alerts %q; want 2 after the tail gap's alert", got.code, raised)
+	}
+	if again := consume(t, dir, b); again.code == 2 || alertLines(again.stderr) != "" {
+		t.Errorf("the same export again: exit %d, alerts %q, %s; want none raised again", again.code, alertLines(again.stderr), again.stderr)
 	}
 	if log := alertLog(t, dir); log != raised {
 		t.Errorf("alerts.jsonl:\n%s\nwant each alert once:\n%s", log, raised)

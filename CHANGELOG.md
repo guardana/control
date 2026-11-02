@@ -19,10 +19,10 @@ verify one.
   its fingerprints were taken from, asks for the majors below them, where no
   fix exists. Its search and tree tools ran with them. Nothing this project
   ships uses either.
-- `trail export` and `trail` refused a segment of a log named by its path
-  but read one reached through a symbolic link as a whole trail file, so
-  coverage and `supervise` took a log with pruned segments as whole. The
-  file opened is now judged by its real directory.
+- `trail export` refused a segment of a log named by its path but exported
+  one reached through a symbolic link as a whole trail file, so coverage and
+  `supervise` took a log with pruned segments as whole. The file opened is
+  now judged by its real directory.
 - The spool's quarantine took a record carrying an event id it already held
   as preserved, without comparing content, so a second record with that id,
   or with no id, was acknowledged and lost. It now tells records apart by
@@ -85,6 +85,8 @@ verify one.
 
 ### Changed
 
+- **Breaking:** `trail <file>` refuses a file in a log's directory, named
+  directly or through a symbolic link, exit 1: name the directory instead.
 - `trail` of a directory ends its counts line with `segments pruned <n>`.
 - Both approval stores decide whether an approval may be spent in one order
   ([approvals](docs/concepts/approvals-and-the-held-call.md)). An expired
@@ -263,8 +265,9 @@ verify one.
 - `prune` with the clock before a segment's seal wrote a tombstone the
   manifest reader refuses, leaving the directory unreadable. It is now refused
   with nothing changed.
-- A reader that inspected a log between a seal's manifest and its rename
-  counted the sealed bytes as the next live segment; it now retries.
+- An export or a read of a log between a seal's manifest and its rename took
+  the sealed bytes as the next live segment; it now refuses them as moved and
+  starts again, and fails once the stopped seal outlasts its retries.
 - After `Prune` on an open log, an event whose line was pruned and sent again
   was taken as written; the index now covers only the segments left.
 - `evidence-report -state` refused its own state after a request stayed open

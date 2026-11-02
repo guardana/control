@@ -159,7 +159,7 @@ succeeds, and nothing is pruned to make room.</p>
 names it with; so is a name no collect leaves. A last line of <code>live.jsonl</code>
 with no newline is what a crash leaves, and is removed only when it can be
 the start of an evidence line. A seal or a prune a crash stopped part way is
-finished. Do not change the files while collect runs: a live segment removed,
+finished by the next collect or prune. Do not change the files while collect runs: a live segment removed,
 renamed, cut or extended under it makes it answer 503 until you start it
 again, and the plane keeps the records in its spool.</p>
 <h3 id="3-point-the-plane-at-it">3. Point the plane at it</h3>
@@ -201,7 +201,7 @@ guardana-gateway prune --through 3 trail/plane
 at the log's end; before it, export again after <code>next_cursor</code>, which leads into
 the next segment. A cursor of a pruned segment is refused as expired, exit 2.
 A segment's file named on its own, <code>trail export trail/plane/segment-00000002.jsonl</code>,
-directly or through a link, is refused, exit 2: export the directory, whose header counts the segments
+directly or through a symbolic link, is refused, exit 2: export the directory, whose header counts the segments
 pruned before. <code>evidence-report -state</code> follows the log from segment to
 segment.</p>
 <p><code>trail segments</code> prints the manifest: how many segments are sealed, pruned
