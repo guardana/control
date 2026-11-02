@@ -250,7 +250,7 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>manifest</td>
-<td>what the upstreams list plus the operator's classification of each definition, pinned by fingerprint; where a tool's effect class, resource type and trust zone come from</td>
+<td>for the MCP gateway, what the upstreams list plus the operator's classification of each definition, pinned by fingerprint; where a tool's effect class, resource type and trust zone come from</td>
 <td><code>adapters/mcp/manifest.go</code></td>
 </tr>
 <tr>
@@ -277,6 +277,11 @@ for the same thing; the right column is where the code defines it.</p>
 <td>pipeline</td>
 <td>the protocol-neutral enforcement pipeline an enforcement point runs: <code>Admit</code>, <code>Preview</code>, <code>Close</code> and <code>Abort</code>, the mode, the trail and the holds</td>
 <td><code>Pipeline</code> in <code>internal/gateway/pipeline.go</code></td>
+</tr>
+<tr>
+<td>port</td>
+<td>a decision about authority behind an interface, with a tested default kind, an unavailable answer that blocks, bounds and conformance cases; <code>scripts/ports.txt</code> lists the ports that exist, and a port's record states where it still falls short</td>
+<td><a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>, <code>testdata/ports/</code></td>
 </tr>
 <tr>
 <td>principal</td>
@@ -350,13 +355,18 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>trail segments</td>
-<td>the directory the collector writes, bound to one tenant and project: sealed segments, each a trail file, a live one appends go to, and a manifest naming each, sealed or pruned; bounded in bytes, pruned only by an operator</td>
+<td>the directory the collector writes, bound to one tenant and project: sealed segments, each a trail file, a live one appends go to, and <code>segments.json</code> naming each, sealed or pruned; bounded in bytes, pruned only by an operator</td>
 <td><code>trailfile.Log</code> in <code>internal/trailfile/log.go</code> over <code>internal/segmentlog/</code></td>
 </tr>
 <tr>
 <td>trust</td>
 <td>how far an observation's source can be believed, from its descriptor: <code>TRUST_SELF_REPORTED</code> (the agent's own process), <code>TRUST_PLATFORM</code> (the platform it runs on) or <code>TRUST_INDEPENDENT</code> (something the agent cannot influence)</td>
 <td><code>Trust</code> in <code>api/proto/guardana/control/observe/v1alpha1/source.proto</code></td>
+</tr>
+<tr>
+<td>trust roster</td>
+<td>the signed file that names operator keys and the tenant, project and level each may act on, under a pinned root, for at most 7 days at a serial that only climbs; no plane reads one yet</td>
+<td><code>internal/trust/</code>, <a href="/docs/adr/0071-operators-are-named-by-a-signed-roster">ADR-0071</a></td>
 </tr>
 <tr>
 <td>unrecorded read</td>

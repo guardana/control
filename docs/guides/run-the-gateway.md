@@ -171,9 +171,8 @@ curl -s http://127.0.0.1:8081/healthz | jq
 ```
 
 `policy.freshness` is `confirmed`, `unconfirmed` or `expired`, beside its
-expiry and the poll counts. A plane whose policy is not
-confirmed answers `"status":"degraded"` with `200`; one that takes no
-material call, or whose pause state is unknown, answers `503`.
+expiry and poll counts. A plane with an unconfirmed policy answers `"status":"degraded"` with `200`; one halted, or whose
+pause or stop state is unknown, `503`; a pause or `LOCKDOWN` alone, `200`.
 
 ### 7. Move to ENFORCE
 

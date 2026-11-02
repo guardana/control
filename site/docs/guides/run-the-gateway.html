@@ -242,9 +242,8 @@ schema changes is unclassified again until you look at it.</p>
 <pre><code>curl -s http://127.0.0.1:8081/healthz | jq
 </code></pre>
 <p><code>policy.freshness</code> is <code>confirmed</code>, <code>unconfirmed</code> or <code>expired</code>, beside its
-expiry and the poll counts. A plane whose policy is not
-confirmed answers <code>&quot;status&quot;:&quot;degraded&quot;</code> with <code>200</code>; one that takes no
-material call, or whose pause state is unknown, answers <code>503</code>.</p>
+expiry and poll counts. A plane with an unconfirmed policy answers <code>&quot;status&quot;:&quot;degraded&quot;</code> with <code>200</code>; one halted, or whose
+pause or stop state is unknown, <code>503</code>; a pause or <code>LOCKDOWN</code> alone, <code>200</code>.</p>
 <h3 id="7-move-to-enforce">7. Move to ENFORCE</h3>
 <p>Run <code>doctor</code> again with <code>GUARDANA_CONTROL_MODE=ENFORCE</code>: outside <code>OBSERVE</code> an
 unclassified tool is not a pass, which shows whether the overrides are
