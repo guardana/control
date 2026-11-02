@@ -97,7 +97,7 @@ the format does not have is refused:
   parent (empty for a root) and whether it is closed. Rules that rest on what
   was not seen are checked only on a closed run.
 - `tree` lists the other runs of its tree, each after its parent, for a `0.2`
-  procedure; `[]` is the run alone.
+  procedure, only its children under `separate`; `[]` is the run alone.
 - `evidence` holds exports, each either `{"path": "<export file>"}`, a file
   the gateway's trail export wrote, or `{"whole": <bool>, "events": [...]}`
   with the events as that export writes them.

@@ -266,8 +266,8 @@ declares but <code>READ</code>, so a class added later fails it until the pack n
 <p>Two consequences to know before relying on it:</p>
 <ul>
 <li>After the run took in untrusted content, a message to an untrusted
-destination is blocked, never put to an approver: undetermined while nothing
-confidential was read, denied after. An undetermined <code>DENY</code> outranks
+destination is blocked, never put to an approver: denied once a known read
+reached confidential, otherwise undetermined, as after an undeclared result. An undetermined <code>DENY</code> outranks
 <code>REQUIRE_APPROVAL</code>, and a plane's calls carry no data label to settle it.</li>
 <li><code>prod</code> is matched as written. An upstream whose <code>environment</code> is
 <code>production</code> gets its deletes held for approval, not denied. Name every

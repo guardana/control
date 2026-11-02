@@ -104,7 +104,7 @@ and the total refused, not each reason, and any refusal makes it exit 1.
 
 | `refused_by` key | The line |
 | --- | --- |
-| `line_too_long` | is over 64 KiB (`MaxLineBytes` in `internal/ingest/egresslog/lines.go`); it is never held in memory, and the next line is read whole |
+| `line_too_long` | is over 64 KiB (`MaxLineBytes` in `internal/ingest/egresslog/lines.go`); it becomes no observation, and the next line is read whole |
 | `not_an_object` | is not one JSON object, or not UTF-8 |
 | `duplicate_member` | names a member twice, mapped or not, however the name is escaped |
 | `time` | has no time, or one its format cannot read |
@@ -133,8 +133,8 @@ that no descriptor of this kind given with that log names
 ([coverage](coverage.md)).
 
 Importing a log again refuses its bad line again and writes another report
-counting it, so a log that ever held one exits 1 on every import, and keeps
-`coverage` at 1 until the observation log is rotated by hand
+counting it, so a log that still holds one exits 1 on every import, and the
+reports keep `coverage` at 1 until the observation log is rotated by hand
 ([observations](observations.md)). An input is read whole, up to 256 MiB,
 before a line is mapped, and the import holds every observation it made in
 memory until it writes them.
@@ -148,7 +148,7 @@ prefixed by its length (`ConnectionID` in `internal/observe/connection.go`).
 Importing a file again, grown or rotated, writes only what is new; two
 connections alike in all of these are one duplicate. Trust and the caller's
 basis are not in the id, so importing a connection again after the
-descriptor changed its trust or its caller basis is a conflict. Every record this kind writes is schema `0.3`
+descriptor changed its trust, or a kept caller's basis, is a conflict. Every record this kind writes is schema `0.3`
 and names the kind in `source.kind` ([versions](versions.md)). A log holds
 one kind per source: `observe import` refuses a write whose kind is not that
 of the records the log already holds for its source, tenant and project.

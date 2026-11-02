@@ -6,8 +6,8 @@ event looks like, not what a release sends. What Claude Code 2.1.303 sent is
 judged by the qualification in `../qualification/`. Ids and paths are
 scrubbed.
 
-The file name is the case id a claim in `../profile.json` names in
-`backed_by`, and `../cases.json` holds what each one must come to.
+The file name is a case id in `../cases.json`, which holds what each one must
+come to; a claim in `../profile.json` names some of them in `backed_by`.
 
 - `pre-*` that read: an admit of a shell call, a file write, a file edit and a
   question, the integer and depth bounds of a tool input on both sides.

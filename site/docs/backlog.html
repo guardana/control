@@ -177,21 +177,21 @@ issue. Completion requires code, documentation and the applicable checks.</p>
 <tbody>
 <tr>
 <td>B21</td>
-<td>Add an egress sensor independent of the agent</td>
+<td>Attribute an egress proxy's connections to runs</td>
 <td>none</td>
-<td>The source descriptor's checks are neutral to the sensor's kind, with the checks specific to one kind beside its importer (<a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a> amended), so a descriptor may be marked independent. An importer reads an egress proxy's access log under such a descriptor; a connection is attributed to a run only as well as the proxy identifies its caller, and an unattributed one stays unknown. The coverage map shows an egress destination the plane never decided on</td>
+<td>A connection the egress access-log importer reads (<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>) names a run only as well as the proxy identifies its caller, and an unattributed one stays unknown; <code>supervise</code> reads such a source for the runs its connections name</td>
 </tr>
 <tr>
 <td>B35</td>
 <td>Add a process sensor independent of the agent</td>
-<td>B21</td>
-<td>A second importer reads process events from the host the agent runs on, under such a descriptor</td>
+<td>none</td>
+<td>A second importer reads process events from the agent's host, under a source descriptor marked independent</td>
 </tr>
 <tr>
 <td>B12</td>
 <td>Publish the port contracts and add TypeScript</td>
-<td>B21</td>
-<td>Sensor, detector, reaction and notifier contracts are published with conformance suites of input and expected output files any language runs, once two consumers have used each. An outside program can write an observation and a finding that names its detector. An external detector or notifier built from them alone passes its suite. Queue bounds, lag and failures are visible and cannot affect authorization. TypeScript passes the same client fixtures. A Go seam is promoted only with its own ADR and two consumers; nothing is loaded into a plane at run time</td>
+<td>none</td>
+<td>Sensor, detector, reaction and notifier contracts are published with conformance suites of input and expected output files any language runs, once two consumers have used each. An outside program can write an observation and a finding that names its detector, whose signed descriptor states the highest source class it may claim; an unknown, expired or wrongly signed detector cannot stop a run. A detector's default rule pack is a versioned document whose digest each finding records. An external detector or notifier built from them alone passes its suite. Queue bounds, lag and failures are visible and cannot affect authorization. TypeScript passes the same client fixtures. A Go seam is promoted only with its own ADR and two consumers; nothing is loaded into a plane at run time</td>
 </tr>
 <tr>
 <td>B25</td>
@@ -206,6 +206,12 @@ issue. Completion requires code, documentation and the applicable checks.</p>
 <td>A report names both policy digests, input provenance and per-case before/after verdicts, obligations and missing facts. Reuse the kernel's evaluation; publish denominators and unknowns. Cases cover broadened effects/resources, rule conflict, absent arguments or flow context, missing historic policy, gaps and changed definitions. Simulation sends no tool call, consumes no approval and cannot activate a policy</td>
 </tr>
 <tr>
+<td>B36</td>
+<td>Put the remaining decisions about authority behind ports</td>
+<td>none</td>
+<td>Each decision in <a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a> without a port gets one, its current behaviour as the default, with a closed kind selector, an unavailable state that blocks, bounds, and conformance cases with negative controls: the end user's identity, the policy language, the policy source, the signer, the signature algorithm (its own record first: the v1 bundle names Ed25519), the detector descriptor and the evidence export. <code>scripts/ports.txt</code> lists each</td>
+</tr>
+<tr>
 <td>B11</td>
 <td>Ship one framework integration</td>
 <td>none</td>
@@ -215,10 +221,10 @@ issue. Completion requires code, documentation and the applicable checks.</p>
 </table>
 <p>The order is the table's (<a href="/docs/adr/0064-milestone-two-starts-with-an-independent-sensor">ADR-0064</a>):
 the sensor contract B12 publishes needs a second kind of sensor, and B28
-needs both. The process sensor is B35. B21 is built for 0.15.0
-(<a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>)
-but for one clause: no connection is attributed to a run yet, so each stays
-unknown. B35 comes later. B25 and B27 block nothing and go beside them.
+needs both. The process sensor is B35. The egress sensor itself is built
+(<a href="/docs/status">status</a>); B21 adds attribution, so each connection stays
+unknown until then. B35 comes later. B25, B27 and B36 block nothing and
+go beside them.
 LangGraph and the OpenAI Agents SDK are framework candidates for what remains
 of B11. A second coding runtime waits until adopters name one. Transport
 retries may not replay a material tool execution.
@@ -245,13 +251,13 @@ mappings.</p>
 <td>B13</td>
 <td>Authenticate operators and scope authority</td>
 <td>none</td>
-<td>Reader/operator/admin capabilities are receiver-enforced; approval authority comes from authentication. Cross-project reads and operations are refused; a pause or a stop names its actual run, agent or principal scope, and only an authenticated author may sign a reaction route. Two users and overlapping runs pass adversarial tests. MCP upstream credentials remain separate from inbound credentials. The collector is authenticated to the plane on a unix socket with a peer-credential check</td>
+<td>Reader/operator/admin capabilities are receiver-enforced; approval authority comes from authentication, through the operator ports of <a href="/docs/adr/0071-operators-are-named-by-a-signed-roster">ADR-0071</a>, the plane verifies each signed approval answer, and only the plane marks an approval spent, in its own store. Cross-project reads and operations are refused; a pause or a stop names its actual run, agent or principal scope; the pause file, the runs, the routes and the stop list's header are signed; <code>/healthz</code> names no run. Only an authenticated author may sign a reaction route. Two users and overlapping runs pass adversarial tests. MCP upstream credentials remain separate from inbound credentials. The collector is authenticated to the plane on a unix socket with a peer-credential check</td>
 </tr>
 <tr>
 <td>B14</td>
 <td>Add retention and recovery</td>
 <td>none</td>
-<td>Rotation, disk budget, cursor expiry, duplicates, interrupted export and backup/restore are tested for evidence and observations. A restored process cannot reuse spent approval authority or forget its rollback floor. Read-only inspection cannot mutate recovery state without saying so</td>
+<td>Rotation, disk budget, cursor expiry, duplicates, interrupted export and backup/restore are tested for evidence and observations. A restored process cannot reuse spent approval authority or forget its rollback floor. Read-only inspection cannot mutate recovery state without saying so. The findings and observation logs take the RecordLog port, which then moves to its consumer with a read interface, a kind selector, its bounds and its diagnostics (<a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a>)</td>
 </tr>
 <tr>
 <td>B26</td>
@@ -289,7 +295,7 @@ The coding runtime's hooks (qualified) and B11 are the two integrations.</p>
 <tr>
 <td>B30</td>
 <td>Maintain a second digest implementation</td>
-<td>B12</td>
+<td>none</td>
 <td>A TypeScript implementation of <code>digest_v1</code>, the arguments hash and the approval binding passes every golden and refusal vector of <code>testdata/digest/</code> in CI, beside the Go one, and any result that differs from a vector's expected one fails the run</td>
 </tr>
 <tr>

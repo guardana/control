@@ -14,6 +14,8 @@ Amends [ADR-0009](0009-open-core-boundary.md),
 
 Amended by [ADR-0071](0071-operators-are-named-by-a-signed-roster.md): a port
 whose answer is sealed is declared by the package that mints the answer.
+Amended by [ADR-0072](0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md):
+RecordLog meets properties 1, 3 and 6 only once it has a second kind.
 
 ## Context
 

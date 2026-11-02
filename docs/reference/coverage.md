@@ -30,7 +30,7 @@ on a read-only mount excepted; read without this shell's environment |
 | `--source`, `--log` | a source descriptor and its observation log's directory, paired in order ([observations](observations.md)) |
 | `--evidence` | the evidence export of the `--plane` before it, as `guardana-gateway trail export` writes it ([contracts](../contracts.md#the-evidence-export)); at most one per plane, refused when another account or a group can write it |
 
-A descriptor that is absent turns its paths not covered, never observed. A
+A descriptor that is absent gives its source's paths no coverage. A
 log holding an egress source's records is refused unless its egress
 descriptor is given with the same directory, as one absent, of another kind
 or renamed is not; its hosts would go unprinted, and the pairing is the
