@@ -19,6 +19,15 @@ verify one.
   its fingerprints were taken from, asks for the majors below them, where no
   fix exists. Its search and tree tools ran with them. Nothing this project
   ships uses either.
+- The gateway no longer takes an approver id from its approval store that
+  reads as the reserved `authn:` prefix. Such an answer runs nothing: a retry
+  closes the held trail with the plane's own approval, expired, and a
+  reconciliation closes a lost hold `APPROVAL_STATE_UNKNOWN`. Both shipped
+  stores already refused such records; a store that did not was believed.
+- The hook profile's qualification harness writes the runtime's stream only
+  through a filter that keeps the tool calls, their answers and the run's
+  status; the model's text and reasoning never reach the disk, where before
+  they sat in the work directory until the scrubbed copy was made.
 - `trail export` refused a segment of a log named by its path but exported
   one reached through a symbolic link as a whole trail file, so coverage and
   `supervise` took a log with pruned segments as whole. The file opened is
@@ -30,13 +39,31 @@ verify one.
 
 ### Added
 
+- A test holds `scripts/ports.txt` to the tree: every line whole, its
+  interface an exported interface of its package, its conformance cases
+  present with a negative control for every rule, its doctor key named, and
+  `none` only where the port's record says the component has no `doctor`;
+  a `testdata/ports/` directory, or an interface whose comment calls it a
+  port, with no line fails it
+  ([ADR-0066](docs/adr/0066-each-decision-about-authority-is-a-port.md)).
+- The dependency rule refuses, in a non-test file under `adapters/`,
+  importing `internal/policy/reasons` (`check-imports.sh` reads every file
+  whatever its build constraints; depguard too), and composing or holding a
+  v1 `Decision` by value (a type check; reflection is out of its reach),
+  each shown refusing a planted violation by `check-imports-probe.sh`.
+- A test holds `docs/adr/README.md` to one row per record.
+
 - `guardana-control operators roster sign` signs a roster of operator keys under
   a trust root, each key with grants of one tenant, one project and a level,
   for 24 hours unless told otherwise and at most 7 days, each signing at a
-  higher serial; `operators floor init` starts the floor a plane raises as it
-  takes a roster. The roster, operator authentication and operator
-  authorization are ports with these as their defaults, and a veto may only
-  deny. No plane reads a roster yet
+  higher serial. Signers writing into one `--out` directory hold a lock on it,
+  so they never write one serial twice; it needs `flock`, and without it the
+  command refuses. Of two rosters of one serial written elsewhere, the roster
+  port's floor takes the first and refuses the second.
+  `operators floor init` starts the floor a plane raises as it takes a
+  roster, for a roster id the roster port takes. The roster, operator
+  authentication and operator authorization are ports with these as their
+  defaults, and a veto may only deny. No plane reads a roster yet
   ([ADR-0071](docs/adr/0071-operators-are-named-by-a-signed-roster.md)).
 - `observe import` reads an egress proxy's access log. A source of kind
   `egress-access-log` names which top-level member of each JSON line holds
@@ -264,6 +291,17 @@ verify one.
 
 ### Fixed
 
+- `policy test` skipped a case named `*.json` that is a pipe or a socket and
+  passed on the rest; it now refuses the directory, naming the entry.
+- `dev` ended with status 0 after its console exited with a failure; it now
+  reports the console's failure.
+- `scan-binaries.sh` passed over a file whose first bytes it could not read,
+  which could be a Go binary left unscanned; it now refuses it.
+- `fuzz-list` and `fuzz-smoke` missed a fuzz target that a build constraint
+  leaves out when a comment stood between `func` and its name; every
+  declaration gofmt can leave is now read.
+- The qualification harness passed `block` when the runtime was stopped
+  before it answered the refused call; such a run is now unknown.
 - A collector whose live segment changed under it refused that append but
   went on to seal it, writing a manifest its next start refused. The log now
   takes nothing more until it is started again, and that holds too when the
