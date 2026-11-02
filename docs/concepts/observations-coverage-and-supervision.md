@@ -34,7 +34,7 @@ flowchart LR
     EV --> CO[coverage]
     OL --> CO
     EV --> SV[supervise]
-    OL --> SV
+    OL -->|spans, not connections| SV
     PR[(Procedure)] --> SV
     SV --> FL[(Findings log)]
     FL --> NO[notify]

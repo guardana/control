@@ -15,7 +15,7 @@ files run every step on a Unix-like system;
 | `refund-0.2.procedure.json` | `0.2`: the same, bound to one order, with an approved export waived |
 | `refund-0.2.cases.json` | `procedure test` cases |
 | `route.json` | Findings that may stop a run |
-| `runtime.source.json` | The runtime's spans |
+| `runtime.source.json` | The spans' descriptor |
 
 Each test signs the policy and the route as
 [run-the-gateway.md](../../docs/guides/run-the-gateway.md) shows, opens two

@@ -49,10 +49,11 @@ What `call` does for you:
   effect happened; raise `NotSent` only when the bytes never left;
 - returns only when the tool ran and the closing record landed. Anything else
   raises. Only an `EnforceError` tells you, in `answer.ran`, whether the tool
-  ran: entered, and not ended by `NotSent`. Any other exception is the tool's own, raised again after its
-  run was reported `UNKNOWN`; one your clock or an interrupt raised between
-  the admit and the tool, raised again after the abort; or a `TypeError` or
-  `ValueError` for a call misused before anything was sent;
+  ran: entered, and not ended by `NotSent`. Any other exception is the tool's
+  own, or an interrupt after it returned, raised again once the run was
+  reported `UNKNOWN`; one your clock or an interrupt raised before the tool,
+  raised again after the abort; or a `TypeError` or `ValueError` for a call
+  misused before sending;
 - raises `ToolRaised`, an `EnforceError` with the outer call's answer, when
   your tool lets out the exception of a call of its own, alone or in a group
   of exceptions.
