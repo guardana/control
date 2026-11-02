@@ -46,6 +46,12 @@ denied=(
   internal/ingest
 )
 
+# Trees of this module that no non-test file under adapters/ may import: an
+# adapter translates, and the core spells every reason code. Its tests may.
+adapter_denied=(
+  internal/policy/reasons
+)
+
 # Modules outside this one, every package of which a guarded tree may import.
 modules=(
   google.golang.org/protobuf

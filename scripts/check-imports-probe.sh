@@ -26,6 +26,10 @@
 #                                       guarded or reached tree
 #   go mod tidy -diff                   a module imported with no direct
 #                                       requirement in go.mod
+#   check-imports.sh, depguard          the reason-code registry imported by
+#                                       a non-test file under adapters/
+#   layering_test.go                    a v1 Decision composed there, by a
+#                                       composite literal and by new
 #
 # The lint fixture goes into every package of every guarded tree and of each
 # tree the probe names itself, its package clause rewritten, and into one new
@@ -69,6 +73,8 @@ staged="$(repo_stage "${copy}")"
 
 module="$(cd "${copy}" && GOWORK=off go list -m)"
 adapter="${module}/adapters/probeadapter"
+adapter_rule_dir="adapters/probereasons"
+registry="${module}/internal/policy/reasons"
 helper="${module}/internal/probehelper"
 not_allowed="which the dependency rule does not allow"
 left_out="which build constraints leave out on this platform"
@@ -174,6 +180,7 @@ for tree in "${trees[@]}"; do
   plant platform "${tree}/ioprobe" ioprobe
   plant nameonly "${tree}/nameprobe" nameprobe
 done
+plant adapterrule "${adapter_rule_dir}" probereasons
 
 failures=0
 expected=0
@@ -250,11 +257,14 @@ expect_walker() {
 
 run check-imports.sh scripts/check-imports.sh
 expect_walker check-imports.sh "FAIL "
+expect check-imports.sh "FAIL ${module}/${adapter_rule_dir} imports ${registry}, which no adapter may import"
 
 run layering_test.go go test -count=1 \
-  -run '^(TestGuardedTreesImportOnlyAllowedPackages|TestGuardedTreesTakeNoInlineException|TestGuardedAndReachedFilesHoldNoBuildConstraint|TestGuardedFilesAreNamedByEveryListing|TestReachedPackagesReadNothingByName)$' \
+  -run '^(TestGuardedTreesImportOnlyAllowedPackages|TestGuardedTreesTakeNoInlineException|TestGuardedAndReachedFilesHoldNoBuildConstraint|TestGuardedFilesAreNamedByEveryListing|TestReachedPackagesReadNothingByName|TestAdaptersBuildNoDecision)$' \
   ./internal/core/
 expect_walker layering_test.go ""
+expect layering_test.go "${adapter_rule_dir}/zz_probe_adapter.go:" "composes a v1 Decision by a composite literal"
+expect layering_test.go "${adapter_rule_dir}/zz_probe_adapter.go:" "composes a v1 Decision by new"
 for dir in "${lint_dirs[@]}"; do
   expect layering_test.go "${dir}/zz_probe.go:" "excuses a guarded file from forbidigo"
   expect layering_test.go "${dir}/zz_probe_test.go:" "excuses a guarded file from depguard"
@@ -278,6 +288,7 @@ lint=(golangci-lint run --config .golangci.yml --uniq-by-line=false
 for tree in "${trees[@]}" "${reached_trees[@]}"; do
   lint+=("./${tree}/...")
 done
+lint+=("./${adapter_rule_dir}/...")
 run golangci-lint "${lint[@]}"
 for dir in "${lint_dirs[@]}"; do
   for imp in net os io/ioutil golang.org/x/sync/errgroup "${adapter}"; do
@@ -286,6 +297,7 @@ for dir in "${lint_dirs[@]}"; do
   expect depguard "${dir}/zz_probe_test.go:" "import 'net/http' is not allowed from list 'core-tests'"
   expect forbidigo "${dir}/zz_probe.go:" "use of \`time.Now\` forbidden"
 done
+expect depguard "${adapter_rule_dir}/zz_probe_adapter.go:" "import '${registry}' is not allowed from list 'adapters'"
 for dir in "${lint_dirs[@]}" "${reads_dirs[@]}"; do
   for call in probeclock.Now probeclock.Since probeclock.Until probeclock.After \
     probeclock.AfterFunc probeclock.Tick probeclock.NewTicker probeclock.NewTimer \

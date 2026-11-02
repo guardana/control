@@ -214,6 +214,17 @@ linters:
               desc: "core must not import the ingest pipeline"
             - pkg: "github.com/guardana/control/internal/ingest/"
               desc: "core must not import the ingest pipeline"
+        # adapter_denied in scripts/lib/dependency-rule.sh: an adapter
+        # translates, and the core spells every reason code. Tests may import it.
+        adapters:
+          files:
+            - "**/adapters/**"
+            - "!$test"
+          deny:
+            - pkg: "github.com/guardana/control/internal/policy/reasons$"
+              desc: "an adapter translates; the core spells every reason code"
+            - pkg: "github.com/guardana/control/internal/policy/reasons/"
+              desc: "an adapter translates; the core spells every reason code"
   exclusions:
     # Written out whole in internal/core/layering_agreement_test.go, because
     # each line here can switch the rule off: a path or a rule stops reporting
