@@ -80,7 +80,8 @@ one quoted key per line, carries none either.
   rules and findings, and the records it gives keep schema `0.1`.
 - **Finding log.** A log with no header is read as it is; an empty one gains
   a header when it is opened. A reader of schema `0.1` alone, such as an
-  earlier release's, refuses every `0.2` line by name.
+  earlier release's, refuses every `0.2` line by name, and a reader without
+  `sources_in_doubt` refuses a report naming a source by that field.
 - **Findings export.** A cursor holds only in its own log, known by the
   header's `log_id`, or by its first line in a log that has no header; the
   trailer's `identity` says which.

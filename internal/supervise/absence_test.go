@@ -1,7 +1,10 @@
 package supervise_test
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,6 +49,9 @@ func TestASourceNamedButNotReadPutsAnAbsenceInDoubt(t *testing.T) {
 	if !reflect.DeepEqual(res.SourcesNotRead, []string{"sources/s2.json"}) {
 		t.Fatalf("sources not read %q", res.SourcesNotRead)
 	}
+	if got := inDoubt(res); got != "0.2 SOURCE_STATE_NOT_READ::0" {
+		t.Fatalf("the report names %q, want the source not read and no path", got)
+	}
 
 	in.Exports = []supervise.Export{export(denials(4)...)}
 	sameFindings(t, evaluate(t, in).Findings, want(p, "REPEATED_DENIAL", high, alert, confirmed,
@@ -61,18 +67,55 @@ func TestASourceIsSilentOnlyPastItsHeartbeat(t *testing.T) {
 	heard := func(id string, at time.Duration, ok bool) supervise.Source {
 		return supervise.Source{SourceID: id, Kind: otelKind, Tenant: tenant, Project: proj, HeartbeatSeconds: 300, LastHeard: t0.Add(at), Heard: ok}
 	}
+	never := heard("s3", time.Hour, false)
+	never.HeartbeatSeconds = 60
 	res := evaluate(t, supervise.Input{Procedure: procWith(t), Run: supervise.Run{Closed: true},
 		Exports: []supervise.Export{export(conforming()...)},
 		Sources: []supervise.Source{
-			heard("s1", -267*time.Second, true), heard("s2", -267*time.Second-1, true), heard("s3", time.Hour, false),
-			heard("s4", time.Hour, true),
+			heard("s1", -267*time.Second, true), heard("s2", -267*time.Second-1, true), never, heard("s4", time.Hour, true),
 		}})
 	if !reflect.DeepEqual(res.Silent, []string{"s2"}) || !reflect.DeepEqual(res.NeverHeard, []string{"s3"}) {
 		t.Fatalf("silent %q, never heard %q; want [s2] and [s3]", res.Silent, res.NeverHeard)
+	}
+	if got := inDoubt(res); got != "0.2 SOURCE_STATE_NEVER_HEARD:s3:60 SOURCE_STATE_SILENT:s2:300" {
+		t.Fatalf("the report names %q, want s3 never heard, then s2 silent", got)
 	}
 	quiet := evaluate(t, supervise.Input{Procedure: procWith(t), Run: supervise.Run{Closed: true},
 		Exports: []supervise.Export{export(conforming()...)}, Sources: []supervise.Source{heard("s1", -267*time.Second, true)}})
 	if quiet.Silent != nil || quiet.NeverHeard != nil {
 		t.Fatalf("silent %q, never heard %q; want none", quiet.Silent, quiet.NeverHeard)
+	}
+	if got := inDoubt(quiet); got != "0.1" {
+		t.Fatalf("the report names %q, want no source and schema 0.1", got)
+	}
+}
+
+// inDoubt is the report's schema, then each source it names as
+// state:id:heartbeat.
+func inDoubt(res *supervise.Result) string {
+	out := []string{res.Report.GetSchemaVersion()}
+	for _, s := range res.Report.GetSourcesInDoubt() {
+		out = append(out, fmt.Sprintf("%s:%s:%d", s.GetState(), s.GetSourceId(), s.GetHeartbeatSeconds()))
+	}
+	return strings.Join(out, " ")
+}
+
+// TestASupervisionIsGivenAtMostMaxSources: MaxSources sources, read or not,
+// are judged; one more is refused.
+func TestASupervisionIsGivenAtMostMaxSources(t *testing.T) {
+	in := supervise.Input{Procedure: procWith(t), Run: supervise.Run{ID: runID, Tenant: tenant, Closed: true},
+		Exports: []supervise.Export{export(conforming()...)}}
+	for i := range supervise.MaxSources - 1 {
+		s := source()
+		s.SourceID = fmt.Sprintf("s%02d", i)
+		in.Sources = append(in.Sources, s)
+	}
+	in.SourcesNotRead = []string{"gone.json"}
+	if _, err := supervise.Evaluate(in); err != nil {
+		t.Fatalf("%d sources: %v", supervise.MaxSources, err)
+	}
+	in.SourcesNotRead = append(in.SourcesNotRead, "gone-too.json")
+	if _, err := supervise.Evaluate(in); !errors.Is(err, supervise.ErrInput) {
+		t.Fatalf("%d sources: %v, want ErrInput", supervise.MaxSources+1, err)
 	}
 }

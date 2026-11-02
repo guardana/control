@@ -364,7 +364,8 @@ one.</li>
 rules and findings, and the records it gives keep schema <code>0.1</code>.</li>
 <li><strong>Finding log.</strong> A log with no header is read as it is; an empty one gains
 a header when it is opened. A reader of schema <code>0.1</code> alone, such as an
-earlier release's, refuses every <code>0.2</code> line by name.</li>
+earlier release's, refuses every <code>0.2</code> line by name, and a reader without
+<code>sources_in_doubt</code> refuses a report naming a source by that field.</li>
 <li><strong>Findings export.</strong> A cursor holds only in its own log, known by the
 header's <code>log_id</code>, or by its first line in a log that has no header; the
 trailer's <code>identity</code> says which.</li>

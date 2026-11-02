@@ -144,6 +144,7 @@ A record is schema `0.2` exactly when it carries a member `0.1` lacks
 | `FindingRecord.refs_left_out` | references cut past ten, doubtful ones kept; the verdict weighed all |
 | `SuperviseReport.children` | the procedure's `children`, as `CHILDREN_MODE_INHERIT` or `_SEPARATE` |
 | `SuperviseReport.run_tree` | each run's id and parent, the supervised run first, each other after its parent |
+| `SuperviseReport.sources_in_doubt` | `--source`s not judged against |
 | `LogHeader` | a new log's first line: `log_id`, `log-` and 32 hex digits of 128 random bits |
 
 The reader refuses an unknown schema or a member its schema lacks.
