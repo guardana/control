@@ -34,9 +34,10 @@ verify one.
   port, with no line fails it
   ([ADR-0066](docs/adr/0066-each-decision-about-authority-is-a-port.md)).
 - The dependency rule refuses, in a non-test file under `adapters/`,
-  importing `internal/policy/reasons` (in `check-imports.sh` and depguard)
-  and composing a v1 `Decision` (a source test), each shown refusing a
-  planted violation by `check-imports-probe.sh`.
+  importing `internal/policy/reasons` (`check-imports.sh` reads every file
+  whatever its build constraints; depguard too), and composing or holding a
+  v1 `Decision` by value (a type check; reflection is out of its reach),
+  each shown refusing a planted violation by `check-imports-probe.sh`.
 - A test holds `docs/adr/README.md` to one row per record.
 
 - `guardana-control operators roster sign` signs a roster of operator keys under

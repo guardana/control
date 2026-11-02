@@ -30,8 +30,8 @@ var noDoctor = map[string][2]string{
 }
 
 // portDoc is how a doc comment documents an interface as a port: "Roster is
-// the trust roster port: ...".
-var portDoc = regexp.MustCompile(`^([A-Z]\w*) is the [a-z ]*\bport[:.,]`)
+// the trust roster port: ...", "X is the record-gauge port.", "X is a port,".
+var portDoc = regexp.MustCompile(`^([A-Z]\w*) is (?:an?|the(?: [A-Za-z0-9-]+)*) port[:.,;]`)
 
 type portLine struct {
 	at                    int
@@ -336,6 +336,13 @@ func TestPortsListEveryPortWhole(t *testing.T) {
 	for _, problem := range portProblems(repoFS(t), goFiles) {
 		t.Error(problem)
 	}
+	var problems []string
+	found := documentedPorts(repoFS(t), goFiles, &problems)
+	for _, iface := range []string{"internal/trust.Roster", "internal/operators.Authenticator", "internal/operators.Authorizer", "internal/segmentlog.RecordLog"} {
+		if !slices.Contains(found, iface) {
+			t.Errorf("%s is not documented as a port, so the documented side would check nothing: found %q", iface, found)
+		}
+	}
 }
 
 // stagePorts copies from the repository what portProblems reads about the
@@ -397,6 +404,11 @@ func replaceIn(t *testing.T, stage fstest.MapFS, rel, old, repl string) {
 	stage[rel] = &fstest.MapFile{Data: bytes.Replace(f.Data, []byte(old), []byte(repl), 1)}
 }
 
+// addLine appends one line to the staged list, beside the lines it holds.
+func addLine(stage fstest.MapFS, line string) {
+	stage[portsFile] = &fstest.MapFile{Data: append(slices.Clone(stage[portsFile].Data), []byte(line+"\n")...)}
+}
+
 func removeUnder(stage fstest.MapFS, dir string) {
 	for rel := range stage {
 		if strings.HasPrefix(rel, dir+"/") {
@@ -456,13 +468,13 @@ func TestPortProblemsRefuseEachPlantedDefect(t *testing.T) {
 			replaceIn(t, s, portsFile, trustLine, strings.Replace(trustLine, " file ", "  ", 1))
 		}, "none of them empty"},
 		"the interface is a struct": {func(s fstest.MapFS) {
-			replaceIn(t, s, portsFile, "internal/segmentlog.RecordLog", "internal/segmentlog.Config")
+			addLine(s, "record-log internal/segmentlog.Config segments testdata/ports/record-log none")
 		}, "is a type of internal/segmentlog that is not an interface"},
 		"the interface is unexported": {func(s fstest.MapFS) {
-			replaceIn(t, s, portsFile, "internal/segmentlog.RecordLog", "internal/segmentlog.recordLog")
+			addLine(s, "record-log internal/segmentlog.recordLog segments testdata/ports/record-log none")
 		}, "does not name an exported type"},
 		"the package declares no such type": {func(s fstest.MapFS) {
-			replaceIn(t, s, portsFile, "internal/segmentlog.RecordLog", "internal/segmentlog.Journal")
+			addLine(s, "record-log internal/segmentlog.Journal segments testdata/ports/record-log none")
 		}, "is not a type declared in internal/segmentlog"},
 		"the conformance directory is absent": {func(s fstest.MapFS) {
 			removeUnder(s, "testdata/ports/record-log")
@@ -486,6 +498,15 @@ func TestPortProblemsRefuseEachPlantedDefect(t *testing.T) {
 		"a conformance directory no line lists": {func(s fstest.MapFS) {
 			s["testdata/ports/planted/cases.json"] = &fstest.MapFile{Data: []byte(`{"cases":[]}`)}
 		}, "testdata/ports/planted holds conformance cases and no line"},
+		"an interface documented as a hyphenated port no line lists": {func(s fstest.MapFS) {
+			s["internal/planted/gauge.go"] = &fstest.MapFile{Data: []byte("package planted\n\n// Gauge is the record-gauge port: what a gauge reads.\ntype Gauge interface{ Read() int }\n")}
+		}, "internal/planted.Gauge is documented as a port"},
+		"an interface documented as a port by a capitalised name no line lists": {func(s fstest.MapFS) {
+			s["internal/planted/meter.go"] = &fstest.MapFile{Data: []byte("package planted\n\n// Meter is the Meter port: what a meter reads.\ntype Meter interface{ Read() int }\n")}
+		}, "internal/planted.Meter is documented as a port"},
+		"an interface documented as a port alone no line lists": {func(s fstest.MapFS) {
+			s["internal/planted/dial.go"] = &fstest.MapFile{Data: []byte("package planted\n\n// Dial is a port: what a dial reads.\ntype Dial interface{ Read() int }\n")}
+		}, "internal/planted.Dial is documented as a port"},
 		"an interface documented as a port no line lists": {func(s fstest.MapFS) {
 			s["internal/planted/gauge.go"] = &fstest.MapFile{Data: []byte("package planted\n\n// Gauge is the gauge port: what a gauge reads.\ntype Gauge interface{ Read() int }\n")}
 		}, "internal/planted.Gauge is documented as a port"},

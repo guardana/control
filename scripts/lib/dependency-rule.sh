@@ -46,8 +46,9 @@ denied=(
   internal/ingest
 )
 
-# Trees of this module that no non-test file under adapters/ may import: an
-# adapter translates, and the core spells every reason code. Its tests may.
+# Trees of this module that no non-test file under adapters/ may import, in
+# any file whatever its build constraints: the reason-code registry is the
+# core's. Only the import is refused; an adapter's tests may import it.
 adapter_denied=(
   internal/policy/reasons
 )

@@ -134,19 +134,19 @@ func TestAnAgentConnectionKeepsASmallSendBuffer(t *testing.T) {
 	}
 }
 
-// slowAnswerBound is the answer bound the steady reader runs under: a 64 KiB
-// slice takes it some 125ms at pacedAgentRate, so only a stall of the whole
-// process for ten seconds cuts the answer, while a slice waiting on megabytes
-// of reading would still be cut.
+// slowAnswerBound is the answer bound the steady reader runs under. A slice
+// is cut only when more than bound times pacedAgentRate, 1.25 MiB, must drain
+// before it is taken: a stall of the whole process for ten seconds, or a send
+// buffer grown to megabytes, which the 64 KiB one forbids.
 const slowAnswerBound = 10 * time.Second
 
 // pacedAgentRate is how fast the steady agent reads: every read sleeps for its
 // bytes at this rate, so the answer takes at least 24 seconds, more than twice
 // the bound.
-const pacedAgentRate = 512 << 10
+const pacedAgentRate = 128 << 10
 
 // bigAnswerBytes is the upstream's answer, far past every socket buffer.
-const bigAnswerBytes = 12 << 20
+const bigAnswerBytes = 3 << 20
 
 // pacedConn reads no faster than pacedAgentRate bytes a second, each read
 // waiting as long as its bytes take at that rate.

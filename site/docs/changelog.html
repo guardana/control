@@ -146,9 +146,10 @@ port, with no line fails it
 </li>
 <li>
 <p>The dependency rule refuses, in a non-test file under <code>adapters/</code>,
-importing <code>internal/policy/reasons</code> (in <code>check-imports.sh</code> and depguard)
-and composing a v1 <code>Decision</code> (a source test), each shown refusing a
-planted violation by <code>check-imports-probe.sh</code>.</p>
+importing <code>internal/policy/reasons</code> (<code>check-imports.sh</code> reads every file
+whatever its build constraints; depguard too), and composing or holding a
+v1 <code>Decision</code> by value (a type check; reflection is out of its reach),
+each shown refusing a planted violation by <code>check-imports-probe.sh</code>.</p>
 </li>
 <li>
 <p>A test holds <code>docs/adr/README.md</code> to one row per record.</p>

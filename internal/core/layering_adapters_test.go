@@ -18,7 +18,9 @@ const decisionPackage = "api/gen/go/guardana/control/v1"
 // TestAdaptersBuildNoDecision refuses a non-test Go file under adapters/,
 // whatever its build constraints, that composes a v1 Decision through a
 // composite literal or new: an adapter forwards the core's decision and never
-// makes one. scripts/check-imports-probe.sh plants one of each.
+// makes one. It reads syntax only, in every file whatever its constraints;
+// internal/docscheck's TestAdaptersHoldNoDecisionValue type-checks the files
+// this platform builds. scripts/check-imports-probe.sh plants one of each.
 func TestAdaptersBuildNoDecision(t *testing.T) {
 	modulePath, moduleDir := mainModule(t)
 	mustExist(t, moduleDir, "adapters")
