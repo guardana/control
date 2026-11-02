@@ -319,11 +319,13 @@ func TestAZeroNineReaderRefusesEveryLineOfSchema02ByName(t *testing.T) {
 	}
 }
 
-// TestAReaderBeforeSourcesInDoubtRefusesThemByName: a build that reads
-// "0.2" and does not know sources_in_doubt, simulated as above, refuses a
-// report naming a source by that field and reads the other "0.2" report, so
-// it never takes such a report for one that read every source.
-func TestAReaderBeforeSourcesInDoubtRefusesThemByName(t *testing.T) {
+// TestAStrictDecoderWithoutSourcesInDoubtRefusesThem: the strict decoder of
+// a build that reads "0.2" and does not know sources_in_doubt, simulated as
+// above, refuses a report naming a source and still decodes the other "0.2"
+// report, so such a build never takes that report for one that read every
+// source. The build's own log reader then names no field: it refuses the log
+// as damaged at that line.
+func TestAStrictDecoderWithoutSourcesInDoubtRefusesThem(t *testing.T) {
 	report := protodesc.ToFileDescriptorProto(findingv1alpha1.File_guardana_control_finding_v1alpha1_report_proto)
 	report.EnumType = dropEnum(report.EnumType, "SourceState")
 	report.MessageType = dropMessage(report.MessageType, "SourceInDoubt")
@@ -337,10 +339,10 @@ func TestAReaderBeforeSourcesInDoubtRefusesThemByName(t *testing.T) {
 		return (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal([]byte(inner), m)
 	}
 	if err := read(report02); err != nil {
-		t.Fatalf("the earlier reader refuses a 0.2 report of a tree: %v", err)
+		t.Fatalf("the earlier decoder refuses a 0.2 report of a tree: %v", err)
 	}
 	if err := read(sources02); err == nil || !strings.Contains(err.Error(), `unknown field "sourcesInDoubt"`) {
-		t.Errorf("the earlier reader on %s: %v; want it to refuse sourcesInDoubt by name", sources02, err)
+		t.Errorf("the earlier decoder on %s: %v; want it to refuse sourcesInDoubt", sources02, err)
 	}
 }
 

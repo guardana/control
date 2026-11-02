@@ -191,9 +191,9 @@ classified. <code>Validate</code> does not change (<a href="/docs/adr/0067-the-p
 on in <code>sources_in_doubt</code>: one not read by its state alone, one never heard
 or silent by its id and heartbeat. A report that names one is schema <code>0.2</code>
 whatever its procedure's schema, so the findings log and <code>findings export</code>
-now say what the exit status said; a reader that does not know the field,
-an earlier release's included, refuses such a line by name. <code>supervise</code>
-refuses more than 32 sources.</p>
+now say what the exit status said. An earlier release refuses a log holding
+such a line as damaged at that line, and misreads nothing. <code>supervise</code>
+refuses more than 32 sources before reading any file.</p>
 </li>
 <li>
 <p>Both approval stores decide whether an approval may be spent in one order

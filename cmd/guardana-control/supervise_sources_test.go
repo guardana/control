@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/guardana/control/internal/findinglog"
+	"github.com/guardana/control/internal/supervise"
 )
 
 // TestSuperviseSaysWhatOfASourceItRead: a descriptor that does not exist is
@@ -367,5 +368,26 @@ func TestSuperviseAnotherSourcesDoubtIsNotThisSources(t *testing.T) {
 	code, stdout, _ = invoke(t, tr.args("--evidence", x, "--source", other, "--log", log)...)
 	if want := `source "other-runtime" is in doubt`; code != exitFail || !strings.Contains(stdout, want) {
 		t.Errorf("supervised against the other source: exit %d, stdout\n%s\nwant 1 and %q", code, stdout, want)
+	}
+}
+
+// TestSuperviseRefusesTooManySourcesBeforeReading: past MaxSources pairs the
+// command refuses before it reads any file, even a procedure that does not
+// exist; at the bound it goes on to read the procedure and refuses that.
+func TestSuperviseRefusesTooManySourcesBeforeReading(t *testing.T) {
+	tr := newSupTree(t)
+	gone := filepath.Join(tr.dir, "gone")
+	for n, want := range map[int]string{
+		supervise.MaxSources:     "procedure",
+		supervise.MaxSources + 1: fmt.Sprintf("%d sources are given, bound %d", supervise.MaxSources+1, supervise.MaxSources),
+	} {
+		args := []string{"supervise", "--procedure", gone, "--runs", tr.runs, "--run", tr.run, "--findings", tr.findings}
+		for i := range n {
+			args = append(args, "--source", fmt.Sprintf("%s-%d.json", gone, i), "--log", tr.dir)
+		}
+		code, stdout, stderr := invoke(t, args...)
+		if code != exitUsage || stdout != "" || !strings.Contains(stderr, want) {
+			t.Errorf("%d sources: exit %d, stdout %q, stderr %q; want 2 and %q", n, code, stdout, stderr, want)
+		}
 	}
 }
