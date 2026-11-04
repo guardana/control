@@ -140,3 +140,49 @@ func TestAnEnvIndexIsSpelledOnce(t *testing.T) {
 		})
 	}
 }
+
+// TestAnOverrideOfWhatTheAuthorityRestsOnIsListed: keys the environment sets
+// under the protected prefixes are listed, sorted; a key the environment sets
+// elsewhere, and a protected key the file alone sets, are not.
+func TestAnOverrideOfWhatTheAuthorityRestsOnIsListed(t *testing.T) {
+	path := write(t, fileProvider+withRoute+"\npause:\n  file: pause/pause.json\n")
+	if got := ProtectedOverrides(load(t, path)); len(got) != 0 {
+		t.Errorf("ProtectedOverrides with nothing set from the environment = %q, want none", got)
+	}
+	setEnv(t, "reaction.stops", "stops-elsewhere")
+	setEnv(t, "listener.address", "127.0.0.1:9090")
+	setEnv(t, "pause.file", "paused/pause.json")
+	setEnv(t, "policy.public_key", "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC=")
+	setEnv(t, "approvals.dir", "approvals-elsewhere")
+	got := ProtectedOverrides(load(t, path))
+	want := []string{"approvals.dir", "pause.file", "policy.public_key", "reaction.stops"}
+	if !slices.Equal(got, want) {
+		t.Errorf("ProtectedOverrides = %q, want %q", got, want)
+	}
+}
+
+// TestEveryProtectedPrefixIsListed: each of the seven prefixes is held to,
+// including those no key of this release spells, and a name that only
+// begins like one is not under it.
+func TestEveryProtectedPrefixIsListed(t *testing.T) {
+	keys := []string{
+		"trust.root", "operators.roster", "approvals.authority", "pause.file",
+		"reaction.route", "runs.dir", "policy.state_dir",
+		"trusted.root", "export.endpoint", "mode",
+	}
+	c := &Config{source: map[string]string{}}
+	for _, key := range keys {
+		c.source[key] = brand.Env(EnvName(key))
+	}
+	c.source["policy.key_id"] = "gateway.yaml:7"
+	want := []string{
+		"approvals.authority", "operators.roster", "pause.file", "policy.state_dir",
+		"reaction.route", "runs.dir", "trust.root",
+	}
+	if got := ProtectedOverrides(c); !slices.Equal(got, want) {
+		t.Errorf("ProtectedOverrides = %q, want %q", got, want)
+	}
+	if got := ProtectedPrefixes(); len(got) != 7 {
+		t.Errorf("ProtectedPrefixes = %q, want the seven", got)
+	}
+}
