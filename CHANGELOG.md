@@ -11,8 +11,24 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- `approvals.authority: signed`: a held call runs only on an answer an
+  operator of the trust roster signed (`approval-answer/v1alpha1`), filed in
+  `approvals.inbox_dir`, whose every member matches the hold and whose
+  signer's grants let them approve the call's tenant and project. It reads
+  `trust.*` and `operators.*`; `doctor` and `/healthz` report `trust`,
+  `operators.authenticator`, `operators.authorizer` and `approvals.authority`
+  ([ADR-0073](docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
+
 ### Changed
 
+- **Breaking:** `approvals.authority` (`memory`, `directory` or `signed`)
+  replaces `approvals.provider` and has no default. A configuration without
+  it, or with the old key, is refused naming both; `provider: file` becomes
+  `authority: directory`. `approvals.hold_journal_dir` is required beside
+  every directory. `/healthz` reports `approvals.authority` in place of
+  `approvals.provider`.
 - **Breaking:** the approvals directory is format `2.0`: a record carries no
   resolution and takes the held or the answered name only. A `1.0` directory
   or record is refused with a message naming both versions; empty the
@@ -26,6 +42,14 @@ verify one.
 
 ### Security
 
+- Under `approvals.authority: signed` any valid rejection wins, a rejection
+  counts only from an operator who may approve, whatever time it names. An
+  answer the roster or the authorizer could not judge, a batch read in part,
+  or an inbox file for the approval that cannot be read leaves the call
+  `INDETERMINATE` rather than reads as no rejection. A start under it refuses
+  a configuration file or trust root key file the plane's account could
+  change and any key set in the environment. A spend records the
+  authenticated approver and the answer's digest in the plane's ledger only.
 - Only the plane marks an approval spent or given up, in a ledger (`1.0`)
   under `ledger/` in `approvals.hold_journal_dir`, under the journal's lock
   and owned by the plane's account. A file an approver writes into the
