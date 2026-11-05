@@ -289,7 +289,7 @@ func approvalFields(want, a *controlv1.Approval, expires, now time.Time, kind Au
 // built from an authentication under the signed kind.
 func approverOfKind(id string, kind AuthorityKind) bool {
 	if kind == AuthoritySigned {
-		return strings.HasPrefix(id, approval.AuthnPrefix)
+		return approval.ApproverAuthenticated(id)
 	}
 	return approval.CheckClaimedApproverID(id) == nil
 }

@@ -11,6 +11,7 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/approvals"
+	"github.com/guardana/control/internal/approvals/inbox"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/operators"
@@ -47,7 +48,7 @@ func (a *claimAuthority) Status(context.Context) gateway.AuthorityStatus {
 
 // inboxAuthority is the signed kind's inbox as its authority: the signed
 // answers filed for an approval, none of which it vouches for.
-type inboxAuthority struct{ inbox *approvals.Inbox }
+type inboxAuthority struct{ inbox *inbox.Inbox }
 
 var _ gateway.ApprovalAuthority = (*inboxAuthority)(nil)
 
@@ -213,12 +214,12 @@ func (p *plane) openAuthority(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		inbox, err := approvals.OpenInbox(p.cfg.Resolve(p.cfg.Approvals.InboxDir))
+		in, err := inbox.OpenInbox(p.cfg.Resolve(p.cfg.Approvals.InboxDir))
 		if err != nil {
 			return fmt.Errorf("approvals.inbox_dir: %w", err)
 		}
-		p.signed, p.inbox = ports, inbox
-		p.authority, p.authorityKind = &inboxAuthority{inbox: inbox}, gateway.AuthoritySigned
+		p.signed, p.inbox = ports, in
+		p.authority, p.authorityKind = &inboxAuthority{inbox: in}, gateway.AuthoritySigned
 		return nil
 	}
 	memory, ok := p.store.(*gateway.MemoryApprovals)
@@ -258,9 +259,9 @@ func (p *plane) authorityHealth(ctx context.Context, answers map[string]uint64) 
 // pruneInbox removes the answer files of approvals no longer held, older than
 // one approval lifetime. A hold whose record cannot be read counts as held, so
 // nothing an approver filed for it is removed.
-func (p *plane) pruneInbox(ctx context.Context, now time.Time) (approvals.InboxPruned, error) {
+func (p *plane) pruneInbox(ctx context.Context, now time.Time) (inbox.Pruned, error) {
 	if p.inbox == nil {
-		return approvals.InboxPruned{}, nil
+		return inbox.Pruned{}, nil
 	}
 	return p.inbox.Prune(ctx, now, p.cfg.Approvals.TTL, func(approvalID string) bool {
 		_, err := p.records.Claim(ctx, approvalID)

@@ -216,8 +216,9 @@ so a retry is paired with its hold and a record of a spent hold refuses the
 next identical call.</p>
 <h2 id="validation">Validation</h2>
 <p><code>testdata/ports/approval-authority/cases.json</code>, run under both kinds by
-<code>internal/gateway</code>; the inbox, answer format and its fuzz target in
-<code>internal/approvals</code>; the configuration refusals in <code>internal/gatewayconfig</code>;
+<code>internal/gateway</code>; the answer format and its fuzz target in
+<code>internal/approvals</code>, and the inbox in <code>internal/approvals/inbox</code>, which the
+console does not link; the configuration refusals in <code>internal/gatewayconfig</code>;
 the start checks and the pinned key registry in <code>cmd/guardana-gateway</code>.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md">docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
 </main>

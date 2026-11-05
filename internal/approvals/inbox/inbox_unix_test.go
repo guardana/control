@@ -1,6 +1,6 @@
 //go:build unix
 
-package approvals_test
+package inbox_test
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/guardana/control/internal/approvals"
+	"github.com/guardana/control/internal/approvals/inbox"
 	"github.com/guardana/control/internal/policy"
 )
 
@@ -39,7 +40,7 @@ func answerFile(t *testing.T, approvalID string) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := approvals.MarshalAnswerFile(policy.StatementEnvelope{
+	raw, err := inbox.MarshalAnswerFile(policy.StatementEnvelope{
 		PayloadType: "application/vnd.agent-approval-answer+json", Payload: body,
 		Signatures: []policy.StatementSignature{{KeyID: "key-1", Signature: bytes.Repeat([]byte{1}, 64)}},
 	})
@@ -56,9 +57,9 @@ func put(t *testing.T, dir, name string, raw []byte) {
 	}
 }
 
-func openInbox(t *testing.T, dir string) *approvals.Inbox {
+func openInbox(t *testing.T, dir string) *inbox.Inbox {
 	t.Helper()
-	in, err := approvals.OpenInbox(dir)
+	in, err := inbox.OpenInbox(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,8 +73,8 @@ func TestAnInboxOthersMayWriteIsSticky(t *testing.T) {
 	for mode, taken := range map[os.FileMode]bool{
 		0o750: true, 0o770: false, 0o770 | os.ModeSticky: true, 0o757: false, 0o777 | os.ModeSticky: true,
 	} {
-		_, err := approvals.OpenInbox(inboxDir(t, mode))
-		if (err == nil) != taken || (!taken && !errors.Is(err, approvals.ErrInboxPermissions)) {
+		_, err := inbox.OpenInbox(inboxDir(t, mode))
+		if (err == nil) != taken || (!taken && !errors.Is(err, inbox.ErrInboxPermissions)) {
 			t.Errorf("mode %04o: OpenInbox = %v, taken %v", mode, err, taken)
 		}
 	}
@@ -99,7 +100,7 @@ func TestAFileOfAnotherAnswerIsLeftOutAlone(t *testing.T) {
 		t.Fatalf("read %d envelope(s), truncated %v, unjudged %v; want alice's alone, whole", len(batch.Envelopes), batch.Truncated, batch.Unjudged)
 	}
 	got := in.Counts()
-	if got[approvals.InboxForeignName] != 2 || got[approvals.InboxOtherApproval] != 1 {
+	if got[inbox.InboxForeignName] != 2 || got[inbox.InboxOtherApproval] != 1 {
 		t.Errorf("counts %v; want two foreign names and one answer of another approval", got)
 	}
 }
@@ -117,18 +118,18 @@ func unjudgedPlants() map[string]unjudgedPlant {
 			if err := os.Symlink(filepath.Join(dir, "APPROVAL1.alice.answer"), filepath.Join(dir, name)); err != nil {
 				t.Fatal(err)
 			}
-		}, approvals.InboxNotRegular},
+		}, inbox.InboxNotRegular},
 		"a pipe": {func(t *testing.T, dir, name string) {
 			if err := syscall.Mkfifo(filepath.Join(dir, name), 0o600); err != nil {
 				t.Fatal(err)
 			}
-		}, approvals.InboxNotRegular},
+		}, inbox.InboxNotRegular},
 		"junk at the bound": {func(t *testing.T, dir, name string) {
-			put(t, dir, name, bytes.Repeat([]byte("x"), approvals.MaxAnswerFileBytes))
-		}, approvals.InboxMalformed},
+			put(t, dir, name, bytes.Repeat([]byte("x"), inbox.MaxAnswerFileBytes))
+		}, inbox.InboxMalformed},
 		"one byte over the bound": {func(t *testing.T, dir, name string) {
-			put(t, dir, name, bytes.Repeat([]byte("x"), approvals.MaxAnswerFileBytes+1))
-		}, approvals.InboxTooLarge},
+			put(t, dir, name, bytes.Repeat([]byte("x"), inbox.MaxAnswerFileBytes+1))
+		}, inbox.InboxTooLarge},
 		"a file the plane may not read": {func(t *testing.T, dir, name string) {
 			if os.Geteuid() == 0 {
 				t.Skip("root reads a file of mode 0000")
@@ -137,7 +138,7 @@ func unjudgedPlants() map[string]unjudgedPlant {
 			if err := os.Chmod(filepath.Join(dir, name), 0); err != nil {
 				t.Fatal(err)
 			}
-		}, approvals.InboxUnreadable},
+		}, inbox.InboxUnreadable},
 	}
 }
 
@@ -169,7 +170,7 @@ func TestAnAnswerFileTheInboxCannotReadUnjudgesTheBatch(t *testing.T) {
 // TestTheInboxBoundsTruncateTheBatch: one answer past the bound on one
 // approval's answers truncates its batch; at the bound it does not.
 func TestTheInboxBoundsTruncateTheBatch(t *testing.T) {
-	for n, truncated := range map[int]bool{approvals.MaxAnswersPerApproval: false, approvals.MaxAnswersPerApproval + 1: true} {
+	for n, truncated := range map[int]bool{inbox.MaxAnswersPerApproval: false, inbox.MaxAnswersPerApproval + 1: true} {
 		dir := inboxDir(t, 0o750)
 		for i := range n {
 			put(t, dir, fmt.Sprintf("APPROVAL1.op%02d.answer", i), answerFile(t, "APPROVAL1"))
@@ -178,11 +179,11 @@ func TestTheInboxBoundsTruncateTheBatch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if batch.Truncated != truncated || len(batch.Envelopes) != min(n, approvals.MaxAnswersPerApproval) {
+		if batch.Truncated != truncated || len(batch.Envelopes) != min(n, inbox.MaxAnswersPerApproval) {
 			t.Errorf("%d answers: truncated %v with %d envelope(s)", n, batch.Truncated, len(batch.Envelopes))
 		}
 	}
-	for n, truncated := range map[int]bool{approvals.MaxInboxEntries: false, approvals.MaxInboxEntries + 1: true} {
+	for n, truncated := range map[int]bool{inbox.MaxInboxEntries: false, inbox.MaxInboxEntries + 1: true} {
 		dir := inboxDir(t, 0o750)
 		for i := range n {
 			put(t, dir, fmt.Sprintf("APPROVAL2.op%04d.answer", i), nil)
@@ -205,7 +206,7 @@ func TestAnInboxThatChangedIsNotRead(t *testing.T) {
 	if err := os.Chmod(dir, 0o770); err != nil { //nolint:gosec // G302: the mode under test is one the inbox refuses
 		t.Fatal(err)
 	}
-	if _, err := in.Read(context.Background(), "APPROVAL1"); !errors.Is(err, approvals.ErrInboxPermissions) {
+	if _, err := in.Read(context.Background(), "APPROVAL1"); !errors.Is(err, inbox.ErrInboxPermissions) {
 		t.Fatalf("Read = %v", err)
 	}
 	if in.Usable() {
@@ -214,15 +215,15 @@ func TestAnInboxThatChangedIsNotRead(t *testing.T) {
 }
 
 func TestAnAnswerFileIsNamedByItsApproval(t *testing.T) {
-	if name, err := approvals.AnswerFileName("APPROVAL1", "alice"); err != nil || name != "APPROVAL1.alice.answer" {
+	if name, err := inbox.AnswerFileName("APPROVAL1", "alice"); err != nil || name != "APPROVAL1.alice.answer" {
 		t.Fatalf("AnswerFileName = %q, %v", name, err)
 	}
-	for _, c := range [][2]string{{"../x", "alice"}, {"APPROVAL1", "a.b"}, {"APPROVAL1", ""}, {"APPROVAL1", string(bytes.Repeat([]byte("l"), approvals.MaxAnswerLabelBytes+1))}} {
-		if _, err := approvals.AnswerFileName(c[0], c[1]); !errors.Is(err, approvals.ErrRecordName) {
+	for _, c := range [][2]string{{"../x", "alice"}, {"APPROVAL1", "a.b"}, {"APPROVAL1", ""}, {"APPROVAL1", string(bytes.Repeat([]byte("l"), inbox.MaxAnswerLabelBytes+1))}} {
+		if _, err := inbox.AnswerFileName(c[0], c[1]); !errors.Is(err, approvals.ErrRecordName) {
 			t.Errorf("AnswerFileName(%q, %q) = %v", c[0], c[1], err)
 		}
 	}
-	if _, err := approvals.AnswerFileName("APPROVAL1", string(bytes.Repeat([]byte("l"), approvals.MaxAnswerLabelBytes))); err != nil {
+	if _, err := inbox.AnswerFileName("APPROVAL1", string(bytes.Repeat([]byte("l"), inbox.MaxAnswerLabelBytes))); err != nil {
 		t.Errorf("a label at the bound was refused: %v", err)
 	}
 }
@@ -247,7 +248,7 @@ func TestThePruneRemovesOnlyStaleAnswersOfNoLiveHold(t *testing.T) {
 	in := openInbox(t, dir)
 	live := func(id string) bool { return id == "LIVE1" }
 	got, err := in.Prune(context.Background(), now, ttl, live)
-	if err != nil || got != (approvals.InboxPruned{Removed: 1}) {
+	if err != nil || got != (inbox.Pruned{Removed: 1}) {
 		t.Fatalf("Prune = %+v, %v; want GONE1's answer removed alone", got, err)
 	}
 	if left, err := os.ReadDir(dir); err != nil || len(left) != 3 {
@@ -276,7 +277,7 @@ func TestAnUnlinkThePruneMayNotMakeIsCountedAndStopsNothing(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) }) //nolint:gosec // G302: gives the temp dir back to its cleanup
 	got, err := in.Prune(context.Background(), now, 15*time.Minute, func(string) bool { return false })
-	if err != nil || got != (approvals.InboxPruned{Refused: 1}) || in.Counts()[approvals.InboxUnremoved] != 1 {
+	if err != nil || got != (inbox.Pruned{Refused: 1}) || in.Counts()[inbox.InboxUnremoved] != 1 {
 		t.Errorf("a refused unlink: %+v, %v, counts %v", got, err, in.Counts())
 	}
 }

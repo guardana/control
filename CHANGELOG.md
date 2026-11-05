@@ -40,8 +40,9 @@ verify one.
   `approvals.inbox_dir`, whose every member matches the hold and whose
   signer's grants let them approve the call's tenant and project. It reads
   `trust.*` and `operators.*`; `doctor` and `/healthz` report `trust`,
-  `operators.authenticator`, `operators.authorizer` and `approvals.authority`
-  ([ADR-0073](docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
+  `operators.authenticator`, `operators.authorizer` and `approvals.authority`,
+  and `pipeline_answers_refused_total` counts the answers it did not take, by
+  cause ([ADR-0073](docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
 
 ### Changed
 

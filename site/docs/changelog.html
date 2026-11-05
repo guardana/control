@@ -148,8 +148,9 @@ operator of the trust roster signed (<code>approval-answer/v1alpha1</code>), fil
 <code>approvals.inbox_dir</code>, whose every member matches the hold and whose
 signer's grants let them approve the call's tenant and project. It reads
 <code>trust.*</code> and <code>operators.*</code>; <code>doctor</code> and <code>/healthz</code> report <code>trust</code>,
-<code>operators.authenticator</code>, <code>operators.authorizer</code> and <code>approvals.authority</code>
-(<a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a>).</li>
+<code>operators.authenticator</code>, <code>operators.authorizer</code> and <code>approvals.authority</code>,
+and <code>pipeline_answers_refused_total</code> counts the answers it did not take, by
+cause (<a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a>).</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
