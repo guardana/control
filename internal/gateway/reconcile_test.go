@@ -2,6 +2,7 @@ package gateway_test
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/core"
+	"github.com/guardana/control/internal/core/approval"
 	"github.com/guardana/control/internal/evidence"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/policy"
@@ -566,4 +568,75 @@ func expectClosedLostHold(t *testing.T, h *harness, outcome controlv1.EventKind,
 		t.Errorf("ACTION_BLOCKED carries %+v; want this plane's %s naming %s", blocked, verdict, code)
 	}
 	return trail
+}
+
+// TestASettledHoldLeavesTheStore: a lost hold the reconciliation settles is
+// forgotten by the store, so no approver is offered an answer nothing will
+// read. A store that will not forget it is counted and the ledger's mark
+// still holds. A hold whose approval the ledger marks spent keeps its record:
+// TestALedgerThatFailsAfterItsWriteNeverRunsTheCallTwice refuses the next
+// identical call on that record and that mark.
+func TestASettledHoldLeavesTheStore(t *testing.T) {
+	for _, c := range []struct {
+		name       string
+		releaseErr error
+		gone, kept bool
+		unheld     uint64
+	}{
+		{"settled and forgotten", nil, false, false, 0},
+		{"a store that will not forget", errStore, false, true, 1},
+		{"a record already gone", nil, true, false, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			store := newFakeStore()
+			store.releaseErr = c.releaseErr
+			var a *controlv1.Approval
+			_, _, next := lostUnder(t, store, base().Add(time.Minute), func(pending gateway.Disposition) {
+				a = approvalOfHold(t, store.MemoryApprovals, pending)
+				if c.gone {
+					if err := store.MemoryApprovals.Release(ctx(), bindingOfHeld(t, a), a.GetRequestId(), a.GetApprovalId()); err != nil {
+						t.Fatal(err)
+					}
+				}
+			})
+			_, err := store.MemoryApprovals.Find(ctx(), bindingOfHeld(t, a), base().Add(time.Minute))
+			if kept := err == nil; kept != c.kept {
+				t.Errorf("the store keeps the settled record: %v (%v), want %v", kept, err, c.kept)
+			}
+			marks, err := next.spy.MemoryLedger.Lookup(ctx(), bindingOfHeld(t, a), base())
+			if err != nil || marks[a.GetRequestId()] != gateway.ResolutionNotResumed {
+				t.Errorf("the ledger marks %v, %v; want the hold settled", marks, err)
+			}
+			if s := next.p.Stats(); s.UnheldRecords != c.unheld {
+				t.Errorf("Stats().UnheldRecords = %d, want %d", s.UnheldRecords, c.unheld)
+			}
+		})
+	}
+}
+
+// TestMemoryApprovalsReleaseOnlyTheApprovalNamed: Release forgets the record
+// of the approval and request it names, and nothing filed under another.
+func TestMemoryApprovalsReleaseOnlyTheApprovalNamed(t *testing.T) {
+	var store gateway.MemoryApprovals
+	binding := approval.Binding("sha256:release")
+	mustHold(t, &store, held(binding, "a-1", "req-1"))
+	for name, call := range map[string]func() error{
+		"another approval": func() error { return store.Release(ctx(), binding, "req-1", "a-2") },
+		"another request":  func() error { return store.Release(ctx(), binding, "req-2", "a-1") },
+		"another binding":  func() error { return store.Release(ctx(), "sha256:other", "req-1", "a-1") },
+		"no approval":      func() error { return store.Release(ctx(), binding, "req-1", "") },
+	} {
+		if err := call(); !errors.Is(err, gateway.ErrNoApproval) {
+			t.Errorf("Release of %s = %v, want ErrNoApproval", name, err)
+		}
+	}
+	if found, err := store.Find(ctx(), binding, base()); err != nil || len(found) != 1 {
+		t.Fatalf("after the refused releases the store keeps %d record(s), %v; want the one", len(found), err)
+	}
+	if err := store.Release(ctx(), binding, "req-1", "a-1"); err != nil {
+		t.Fatalf("Release: %v", err)
+	}
+	if _, err := store.Find(ctx(), binding, base()); !errors.Is(err, gateway.ErrNoApproval) {
+		t.Errorf("Find after the release = %v, want ErrNoApproval", err)
+	}
 }

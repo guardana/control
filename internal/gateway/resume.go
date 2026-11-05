@@ -261,16 +261,13 @@ func (c *call) resumeApproved(own *heldRequest, a *controlv1.Approval) Dispositi
 	return c.start(trail)
 }
 
-// resumeRejected closes the held trail on the rejection the store answered,
-// checked as an approval is. Only a record that is the held approval, and
-// rejected, is written as APPROVAL_DECIDED; any other answer is one the plane
+// resumeRejected closes the held trail on a rejection, checked as an approval
+// is: approval.Consumable has already read a as rejected. Only one that passes
+// the field checks is written as APPROVAL_DECIDED; any other is one the plane
 // cannot stand behind, so the window closes with its own approval, expired.
 func (c *call) resumeRejected(own *heldRequest, a *controlv1.Approval) Disposition {
 	if verdict, code, refused := approvalFields(own.approval, a, own.expires, c.now); refused {
 		return c.resumeBlocked(own, verdict, code, expiredEvent(own.approval))
-	}
-	if a.GetState() != approvalRejected {
-		return c.resumeBlocked(own, verdictIndeterminate, codeEvidenceUnavailable, expiredEvent(own.approval))
 	}
 	return c.resumeBlocked(own, verdictDeny, codeApprovalRejected, decidedEvent(a))
 }

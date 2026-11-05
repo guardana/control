@@ -61,6 +61,12 @@ type ApprovalStore interface {
 	// it and an unspecified state, and refuses no other record. It refuses a
 	// zero now with ErrZeroTime.
 	Find(ctx context.Context, binding approval.Binding, now time.Time) ([]Held, error)
+	// Release forgets the plane's own record of approvalID, held for
+	// requestID under binding, once the plane settled it in its ledger, so no
+	// approver is offered an answer nothing will read. It answers
+	// ErrNoApproval when no such record is kept, and removes nothing filed
+	// under another request or binding.
+	Release(ctx context.Context, binding approval.Binding, requestID, approvalID string) error
 }
 
 // MemoryApprovals is an ApprovalStore in process memory. The zero value is
@@ -177,6 +183,20 @@ func (m *MemoryApprovals) Answer(approvalID string, state controlv1.ApprovalStat
 		}
 	}
 	return ErrNoApproval
+}
+
+// Release drops the record of approvalID held for requestID under binding.
+func (m *MemoryApprovals) Release(ctx context.Context, binding approval.Binding, requestID, approvalID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if r := m.find(binding, requestID); r == nil || approvalID == "" || r.held.Approval.GetApprovalId() != approvalID {
+		return ErrNoApproval
+	}
+	m.keep(binding, func(r *heldRecord) bool { return r.held.Approval.GetRequestId() != requestID })
+	return nil
 }
 
 // find returns the record of requestID under binding, or nil. mu is held.

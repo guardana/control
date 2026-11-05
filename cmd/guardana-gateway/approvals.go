@@ -48,6 +48,10 @@ func (s *approvalStore) Find(ctx context.Context, binding approval.Binding, now 
 	return out, nil
 }
 
+func (s *approvalStore) Release(ctx context.Context, binding approval.Binding, requestID, approvalID string) error {
+	return storeError(s.plane.Release(ctx, binding, requestID, approvalID))
+}
+
 // storeErrors is the translation the store's package documents, one entry per
 // refusal the pipeline names.
 var storeErrors = map[approvals.Error]gateway.Error{

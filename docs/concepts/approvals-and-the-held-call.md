@@ -60,17 +60,16 @@ it field by field ([reference/cli](../reference/cli.md),
 [reference/configuration](../reference/configuration.md)). Under
 `approvals.provider: memory` the records live in the process that holds them,
 nothing outside it answers, and a plane refuses to start in `APPROVE` with
-that provider, because holding every material call where nothing can answer
-is a total denial wearing a pending state. What the agent is told on the wire
+that provider, because holding every material call where nothing answers is
+a total denial. What the agent is told on the wire
 is on [the MCP gateway](mcp-gateway.md) page.
 
 ## Who may approve
 
 **Write access to the approvals directory is the approval authority.** The
 records are files; whoever can write them can answer a held request.
-`approver_id` on an answer is an unauthenticated claim, recorded as given
-because an operator reading the evidence months later wants a name, and worth
-exactly what the directory's permissions are worth. Nothing in the plane
+`approver_id` on an answer is an unauthenticated claim, recorded because an
+operator wants a name, and worth what the directory's permissions are worth. Nothing in the plane
 treats it as an identity, and no authenticated provider exists. The
 directory is refused at open when another account owns it or a group or the
 world may write it, and each record is written `0600`.
@@ -98,7 +97,7 @@ next start the plane reads the journal and closes each of those trails:
 
 | What the store says about the record | On the trail | Then |
 | --- | --- | --- |
-| an approver approved it, and it passes the same field checks a live resume makes | `APPROVAL_DECIDED` with the answer, then `ACTION_BLOCKED` with `DENY` and `APPROVAL_NOT_RESUMED` | the ledger marks it not resumed, never spent |
+| an approver approved it, and it passes the same field checks a live resume makes | `APPROVAL_DECIDED` with the answer, then `ACTION_BLOCKED` with `DENY` and `APPROVAL_NOT_RESUMED` | settled not resumed in the ledger, record forgotten |
 | an approver rejected it | `APPROVAL_DECIDED` with the answer, then `ACTION_BLOCKED` with `DENY` and `APPROVAL_REJECTED` | the same |
 | nobody answered, the record's expiry has passed, the store marks the record expired, or there is no record and the approval the plane minted has expired | `APPROVAL_EXPIRED`, then `ACTION_BLOCKED` with `DENY` and `APPROVAL_EXPIRED` | the same |
 | the store cannot be read, has no record before that expiry, or answers with a record the checks refuse, an approval with no approver, or a state no answer has | `APPROVAL_EXPIRED` with the plane's own approval, then `ACTION_BLOCKED` with `INDETERMINATE` and `APPROVAL_STATE_UNKNOWN` | the same |
@@ -207,8 +206,8 @@ Sources: `internal/gateway/approve.go`, `internal/gateway/resume.go`,
 | it expired before a retry resumed it, answered or not | `APPROVAL_EXPIRED`, `ACTION_BLOCKED` with `DENY`, `APPROVAL_EXPIRED`; written by the next call that opens a trail, at most `maxSweep` holds per call, before the request id is freed | a retry after the expiry is a new request with a new hold |
 | a retry finds the approver rejected it | `APPROVAL_DECIDED` with the answer, `ACTION_BLOCKED` with `DENY`, `APPROVAL_REJECTED`; a rejection that fails a check below is recorded as the enforcement point's own approval, `APPROVAL_EXPIRED`; a rejection nobody retries after is closed at the expiry like an unanswered hold | that block |
 | the agent gave up on its retry before the approval was consumed or the call handed out | this call's own trail: `ACTION_PROPOSED`, `POLICY_DECIDED`, `ACTION_BLOCKED` with `INDETERMINATE`, `EVIDENCE_UNAVAILABLE`; nothing is spent and the hold stands; after the consume, the execution is aborted unsent and the approval is spent | nothing: the agent is gone |
-| the store would not keep the hold, or `MaxHeld` holds stand | `APPROVAL_EXPIRED`, `ACTION_BLOCKED` with `INDETERMINATE`, `EVIDENCE_UNAVAILABLE`: the window the enforcement point opened is closed first, since the chain lets nothing else follow a request for approval| that block |
-| the store or the ledger cannot answer, or the hold was dropped or resumed before the flip to running | this call's own trail: `ACTION_PROPOSED`, `POLICY_DECIDED`, `ACTION_BLOCKED` with `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` | that block |
+| the store would not keep the hold, or `MaxHeld` holds stand | `APPROVAL_EXPIRED`, `ACTION_BLOCKED` with `INDETERMINATE`, `EVIDENCE_UNAVAILABLE`: the window it opened is closed first, since nothing else may follow a request for approval | that block |
+| the hold was dropped or resumed before the flip to running, or the store or the ledger cannot answer | this call's own trail: `ACTION_PROPOSED`, `POLICY_DECIDED`, `ACTION_BLOCKED` with `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` | that block |
 | the trail cannot be written | nothing more: the block is not recorded either | `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` |
 | the plane stopped while the request was held | at its next start: `APPROVAL_DECIDED` with the answer and `ACTION_BLOCKED` with `APPROVAL_NOT_RESUMED` or `APPROVAL_REJECTED`, or `APPROVAL_EXPIRED` and `ACTION_BLOCKED` with `APPROVAL_EXPIRED` or `APPROVAL_STATE_UNKNOWN`; nothing at all where no journal is configured | nothing: that connection was answered pending long ago, and a later identical call is held anew or, if the plane had spent the approval, refused `APPROVAL_ALREADY_USED` until it expires |
 
@@ -217,21 +216,20 @@ the effect may have happened; that failure is a new request.
 
 ## What is checked before the held request runs
 
-The enforcement point never trusts the store's answer. Every field an
-approval is honoured on is compared with the enforcement point's own record of
-the hold, and `reason` and the value of `approver_id` are recorded as the store
-gave them. An answer that fails a check is recorded as the enforcement point's
-own approval, `APPROVAL_EXPIRED`, never as decided:
+The enforcement point never trusts the store's answer: it judges only the
+record of the approval it minted, by approval and request id, and records
+`reason` and `approver_id` as the store gave them.
 
-| Check | If it fails |
+| The answer | What happens |
 | --- | --- |
-| the answer exists, is `APPROVED`, names an `approver_id`, carries the held `approval_id` and `request_id`, and is not multi-use | `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` |
-| its schema version is `MAJOR.MINOR` of major 1, its `requested_at` is the held one, and it was decided at or after that time and not after now | `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` |
-| its action digest is the held one | `DENY`, `APPROVAL_DIGEST_MISMATCH` |
-| its bundle digest is the held one | `DENY`, `APPROVAL_BUNDLE_MISMATCH` |
-| its expiry is set and after now | `DENY`, `APPROVAL_EXPIRED` |
-| its expiry is no later than the one the enforcement point minted | `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` |
-| the hold is still the one on its trail, flipped to running in one step under the enforcement point's lock | `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` |
+| pending, approved with no `approver_id`, multi-use (counted), or decided never, before `requested_at` or after now | the hold waits; the retry is told the same `approval_id` |
+| missing, or filed under another request | the retry is held anew |
+| two records of the minted approval, an unnamed state, or a store or ledger that cannot answer | this call's own trail is blocked `INDETERMINATE`, `EVIDENCE_UNAVAILABLE`; the hold stands, unspent |
+| expired, or with no expiry, and not marked spent | the held trail closes `DENY`, `APPROVAL_EXPIRED` |
+| approved or rejected, but of another major, another `requested_at`, a refused `approver_id`, or an expiry later than minted | the held trail closes with the plane's own approval, expired, `INDETERMINATE`, `EVIDENCE_UNAVAILABLE` |
+| another action or bundle digest | the same close, `DENY`, `APPROVAL_DIGEST_MISMATCH` or `APPROVAL_BUNDLE_MISMATCH` |
+| rejected, passing those checks | `APPROVAL_DECIDED`, then `DENY`, `APPROVAL_REJECTED` |
+| approved, passing those checks | spent in the ledger, then `APPROVAL_DECIDED` and `ACTION_STARTED` once the hold flips to running; a mark already there answers `APPROVAL_ALREADY_USED`, a hold another call took `INDETERMINATE` |
 
 **Expiry is judged up to four times.** The store's answer is checked before
 the spend; the expiry is checked again by the plane's clock with the pause
@@ -253,7 +251,7 @@ before the consume, where a stale or replaced bundle spends nothing
 The plane marks a spend in `ledger/` inside `approvals.hold_journal_dir` with
 a create that never replaces a mark; no approvals directory file says an
 approval was spent. A lost ledger only turns `APPROVAL_ALREADY_USED` into a
-new hold. A multi-use answer stays pending.
+new hold.
 
 ## Bounds
 

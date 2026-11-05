@@ -109,6 +109,37 @@ func (p *Plane) Hold(ctx context.Context, h Hold, now time.Time) error {
 	return nil
 }
 
+// Release forgets the record of approvalID and its projection, once the
+// plane settled that approval in its own ledger, so no approver is offered an
+// answer nothing will read. The plane wrote the record, so only the plane
+// removes it. It refuses an approval id that cannot name a file with
+// ErrRecordName, answers ErrNoApproval when no record of approvalID is there,
+// and removes nothing, with ErrRecordMismatch, when the record names another
+// request or binding. A record whose approver id the claim rule refuses still
+// says which request it holds, and is judged by that.
+func (p *Plane) Release(ctx context.Context, binding approval.Binding, requestID, approvalID string) error {
+	if err := checkApprovalID(approvalID); err != nil {
+		return err
+	}
+	if err := p.begin(ctx); err != nil {
+		return err
+	}
+	defer p.s.mu.Unlock()
+	rec, _, err := p.s.readRecord(approvalID, stateHeld)
+	if own, refused := refusedOnlyItself(err); refused {
+		rec, err = own, nil
+	}
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return ErrNoApproval
+	case err != nil:
+		return err
+	case rec.RequestID != requestID || rec.Binding != binding:
+		return fmt.Errorf("%w: %q holds request %q", ErrRecordMismatch, cause(approvalID), cause(rec.RequestID))
+	}
+	return p.s.drop(approvalID)
+}
+
 // heldRecord turns a hold into the record it is written as, and refuses a hold
 // that is not the plane's own freshly minted one: an approval that already
 // carries an answer is one the plane would be granting itself.

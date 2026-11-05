@@ -22,10 +22,12 @@ verify one.
 ### Security
 
 - Only the plane marks an approval spent or given up, in a ledger (`1.0`)
-  under `ledger/` in `approvals.hold_journal_dir`, under the journal's lock.
-  A writer of the approvals directory can no longer forge a spent or a
-  not-resumed mark; a name that once meant either is refused as foreign
-  (the limit ADR-0016 stated is gone).
+  under `ledger/` in `approvals.hold_journal_dir`, under the journal's lock
+  and owned by the plane's account. A file an approver writes into the
+  approvals directory can no longer make the plane read an approval as spent
+  or given up; a name that once meant either is refused as foreign. A hold
+  the plane settles at start leaves that directory, so `approvals list` and
+  the console no longer offer it.
 
 ## [0.15.0] - 2026-11-02
 

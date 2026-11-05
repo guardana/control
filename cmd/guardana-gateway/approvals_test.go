@@ -478,10 +478,8 @@ func TestRunClosesTheHoldsItLostAndPrunesAfterwards(t *testing.T) {
 		t.Fatalf("run answered %d; stderr: %s", status, stderr.String())
 	}
 
-	if got := recordsUnder(t, records); !slices.Equal(got, []string{
-		lostApproval + ` APPROVAL_STATE_PENDING ""`,
-	}) {
-		t.Errorf("the record after the reconciliation is %v; the plane writes nothing to it", got)
+	if got := recordsUnder(t, records); len(got) != 0 {
+		t.Errorf("the records after the reconciliation are %v; a settled hold leaves the directory", got)
 	}
 	if marks := ledgerMarks(t, holds, binding); !maps.Equal(marks, map[string]holdjournal.Mark{lostRequest: holdjournal.MarkNotResumed}) {
 		t.Errorf("the ledger after the reconciliation marks %v; a lost hold is settled not resumed and never spent", marks)

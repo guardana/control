@@ -22,10 +22,11 @@ import (
 var errStore = errors.New("store: unavailable")
 
 // fakeStore is a memory store whose answers a test can break: an error from
-// Hold or Find, or a rewrite of what Find hands out.
+// Hold, Find or Release, or a rewrite of what Find hands out.
 type fakeStore struct {
 	*gateway.MemoryApprovals
 	holdErr, findErr error
+	releaseErr       error
 	found            func(*controlv1.Approval)
 	listed           func([]gateway.Held) []gateway.Held
 }
@@ -53,6 +54,13 @@ func (f *fakeStore) Find(ctx context.Context, b approval.Binding, now time.Time)
 		helds = f.listed(helds)
 	}
 	return helds, err
+}
+
+func (f *fakeStore) Release(ctx context.Context, b approval.Binding, requestID, approvalID string) error {
+	if f.releaseErr != nil {
+		return f.releaseErr
+	}
+	return f.MemoryApprovals.Release(ctx, b, requestID, approvalID)
 }
 
 // lieAbout makes f hand out every record through lie, and leave out one lie

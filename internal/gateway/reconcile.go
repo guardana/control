@@ -179,14 +179,24 @@ func judgeLostAnswer(entry HoldEntry, a *controlv1.Approval, now time.Time) (*co
 	return nil, verdictIndeterminate, codeApprovalStateUnknown
 }
 
-// settleLostHold tells the ledger the request will not be resumed. A ledger
-// that will not take it holds no mark for the record, which the next
-// identical call reads as a record it cannot prove was used, so that call is
-// held anew: the failure direction is a second approval, never an action
-// reported as run. A ledger that answers the approval spent is counted the
-// same way, and its mark stands.
+// settleLostHold tells the ledger the request will not be resumed, then has
+// the store forget the plane's own record of it, so no approver is offered an
+// answer nothing will read. A ledger that will not take it holds no mark for
+// the record, which the next identical call reads as a record it cannot prove
+// was used, so that call is held anew: the failure direction is a second
+// approval, never an action reported as run. A ledger that answers the
+// approval spent is counted the same way and the record is kept, since its
+// mark and the record together refuse the next identical call. A record the
+// store will not forget is counted; the ledger's mark still holds.
 func (p *Pipeline) settleLostHold(ctx context.Context, entry HoldEntry, now time.Time) {
-	res, err := p.cfg.Ledger.Settle(ctx, entry.Binding, entry.Approval.GetRequestId(), entry.Approval.GetApprovalId(), now)
+	requestID, approvalID := entry.Approval.GetRequestId(), entry.Approval.GetApprovalId()
+	res, err := p.cfg.Ledger.Settle(ctx, entry.Binding, requestID, approvalID, now)
+	if err == nil && res == ResolutionNotResumed {
+		err = p.cfg.Approvals.Release(ctx, entry.Binding, requestID, approvalID)
+		if errors.Is(err, ErrNoApproval) {
+			err = nil
+		}
+	}
 	if err != nil || res != ResolutionNotResumed {
 		p.counts.add(func(s *Stats) *uint64 { return &s.UnheldRecords })
 	}

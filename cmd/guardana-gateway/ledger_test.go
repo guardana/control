@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"os"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/approvals"
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/core/approval"
 	"github.com/guardana/control/internal/gateway"
@@ -185,5 +188,38 @@ func TestTheLedgerForgetsAtOpenOnlyWhatOutlivedTheApprovalLifetime(t *testing.T)
 	marks, err := planeLedger(holds).Lookup(context.Background(), b, now)
 	if err != nil || !maps.Equal(marks, map[string]gateway.Resolution{"req-live": gateway.ResolutionConsumed}) {
 		t.Errorf("after the open the ledger marks %v, %v; want the mark inside the lifetime alone", marks, err)
+	}
+}
+
+// TestASettledHoldIsNoLongerOfferedToAnApprover: a plane that comes back and
+// settles a hold it lost removes its own record of it, so the listing an
+// approver reads, which the console renders, no longer shows it, and an
+// answer to it is refused as one to an approval nobody holds. The control is
+// the same listing before the reconciliation.
+func TestASettledHoldIsNoLongerOfferedToAnApprover(t *testing.T) {
+	tr := newTree(t)
+	records, holds := tr.fileProvider(t)
+	lostHold(t, records, holds, time.Now().Add(10*time.Minute))
+	if got := recordsUnder(t, records); len(got) != 1 {
+		t.Fatalf("before the reconciliation the listing shows %v, want the lost hold", got)
+	}
+	p := tr.plane(t)
+	if r := p.pipeline.Reconcile(context.Background()); r.Closed != 1 {
+		t.Fatalf("the reconciliation settled %+v, want the lost hold closed", r)
+	}
+	if got := recordsUnder(t, records); len(got) != 0 {
+		t.Errorf("after the reconciliation the listing shows %v, want nothing", got)
+	}
+	approver, err := approvals.OpenApprover(records)
+	if err != nil {
+		t.Fatalf("OpenApprover: %v", err)
+	}
+	defer func() { _ = approver.Close() }()
+	_, err = approver.Answer(context.Background(), lostApproval, controlv1.ApprovalState_APPROVAL_STATE_APPROVED, "duty-officer", "", time.Now())
+	if !errors.Is(err, approvals.ErrNoApproval) {
+		t.Errorf("an answer to the settled hold = %v, want ErrNoApproval", err)
+	}
+	if s := p.pipeline.Stats(); s.UnheldRecords != 0 {
+		t.Errorf("Stats().UnheldRecords = %d, want 0: the record was forgotten", s.UnheldRecords)
 	}
 }
