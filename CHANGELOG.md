@@ -11,6 +11,20 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- The gateway applies the `read_only`, `restrict_resources` and
+  `deny_external_sink` obligations itself, for every adapter, before an
+  approval is asked for. The enforcement API and the hook bridge, which denied
+  every call under a rule with one of them, now run a call the check holds
+  for; `shorten_timeout` stays a `DENY` there. On `enforce_api`,
+  `restrict_resources` needs `resource_from` on the tool, or the empty
+  resource id is refused. Over MCP a failing check is now the gateway's own
+  `DENY` with `OBLIGATION_NOT_UNDERSTOOD`, recorded `ACTION_BLOCKED` with no
+  `ACTION_STARTED`, and under `APPROVE` such a call is denied instead of held.
+  An adapter that declares a type the gateway applies is refused at start
+  ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+
 ## [0.15.0] - 2026-11-02
 
 Upgrading from 0.14 changes four things an operator must act on. `collect`
