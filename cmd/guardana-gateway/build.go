@@ -13,6 +13,7 @@ import (
 	adaptermcp "github.com/guardana/control/adapters/mcp"
 	"github.com/guardana/control/adapters/otel"
 	"github.com/guardana/control/internal/approvals"
+	"github.com/guardana/control/internal/approvals/inbox"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/holdjournal"
@@ -58,7 +59,7 @@ type plane struct {
 	authority     gateway.ApprovalAuthority
 	authorityKind gateway.AuthorityKind
 	signed        *signedPorts
-	inbox         *approvals.Inbox
+	inbox         *inbox.Inbox
 	// signedStart is the start check of the signed authority, and nil for
 	// checkSignedStart: only a dev plane, whose trust root dev drew itself,
 	// is held to another.

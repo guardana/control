@@ -125,6 +125,7 @@ next identical call.
 ## Validation
 
 `testdata/ports/approval-authority/cases.json`, run under both kinds by
-`internal/gateway`; the inbox, answer format and its fuzz target in
-`internal/approvals`; the configuration refusals in `internal/gatewayconfig`;
+`internal/gateway`; the answer format and its fuzz target in
+`internal/approvals`, and the inbox in `internal/approvals/inbox`, which the
+console does not link; the configuration refusals in `internal/gatewayconfig`;
 the start checks and the pinned key registry in `cmd/guardana-gateway`.

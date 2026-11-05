@@ -1,4 +1,4 @@
-package approvals
+package inbox
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/guardana/control/internal/approvals"
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policykey"
 )
@@ -26,7 +27,7 @@ const (
 	// read as truncated.
 	MaxAnswersPerApproval = 16
 	// MaxAnswerFileBytes bounds one answer file: a DSSE envelope of a body at
-	// MaxAnswerBodyBytes with its signature.
+	// approvals.MaxAnswerBodyBytes with its signature.
 	MaxAnswerFileBytes = 32768
 	// MaxAnswerLabelBytes bounds the label an answer file carries after its
 	// approval id.
@@ -50,7 +51,7 @@ const (
 
 // ErrInboxPermissions is an inbox a group or the world may write that is not
 // sticky, so any writer could remove or replace another's answer.
-const ErrInboxPermissions Error = "approvals: the inbox may be written by others and is not sticky"
+const ErrInboxPermissions Error = "inbox: the inbox may be written by others and is not sticky"
 
 // Inbox is the directory operators file signed answers in, as the plane
 // reads it. Every file in it is untrusted: the plane authenticates each
@@ -105,10 +106,10 @@ func (in *Inbox) judge() error {
 	return nil
 }
 
-// InboxBatch is what one read of the inbox found for an approval: the
+// Batch is what one read of the inbox found for an approval: the
 // envelopes, whether a bound stopped the read, and whether a file named for
 // the approval could not be read as an answer.
-type InboxBatch struct {
+type Batch struct {
 	Envelopes []policy.StatementEnvelope
 	Truncated bool
 	Unjudged  bool
@@ -119,11 +120,11 @@ type InboxBatch struct {
 // be filed under and a label of anything but ASCII letters, digits, "_" and
 // "-" within MaxAnswerLabelBytes.
 func AnswerFileName(approvalID, label string) (string, error) {
-	if err := checkApprovalID(approvalID); err != nil {
+	if err := approvals.CheckApprovalID(approvalID); err != nil {
 		return "", err
 	}
 	if !answerLabel(label) {
-		return "", fmt.Errorf("%w: the label is not 1 to %d letters, digits, _ or -", ErrRecordName, MaxAnswerLabelBytes)
+		return "", fmt.Errorf("%w: the label is not 1 to %d letters, digits, _ or -", approvals.ErrRecordName, MaxAnswerLabelBytes)
 	}
 	return approvalID + "." + label + answerSuffix, nil
 }
@@ -137,32 +138,32 @@ func cutAnswerName(name string) (id, label string, ok bool) {
 }
 
 func answerLabel(label string) bool {
-	return label != "" && len(label) <= MaxAnswerLabelBytes && checkApprovalID(label) == nil
+	return label != "" && len(label) <= MaxAnswerLabelBytes && approvals.CheckApprovalID(label) == nil
 }
 
 // Read returns the answers filed for approvalID, sorted by name. An error is
 // a directory that could not be listed or judged, which the caller reads as
 // unavailable.
-func (in *Inbox) Read(ctx context.Context, approvalID string) (InboxBatch, error) {
+func (in *Inbox) Read(ctx context.Context, approvalID string) (Batch, error) {
 	if in == nil || in.root == nil {
-		return InboxBatch{}, ErrClosed
+		return Batch{}, approvals.ErrClosed
 	}
-	if err := checkApprovalID(approvalID); err != nil {
-		return InboxBatch{}, err
+	if err := approvals.CheckApprovalID(approvalID); err != nil {
+		return Batch{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return InboxBatch{}, err
+		return Batch{}, err
 	}
 	in.mu.Lock()
 	defer in.mu.Unlock()
 	if err := in.judge(); err != nil {
-		return InboxBatch{}, err
+		return Batch{}, err
 	}
 	names, truncated, err := in.list(approvalID)
 	if err != nil {
-		return InboxBatch{}, err
+		return Batch{}, err
 	}
-	out := InboxBatch{Truncated: truncated}
+	out := Batch{Truncated: truncated}
 	for _, name := range names {
 		env, ok, unjudged := in.readAnswer(name, approvalID)
 		if ok {
@@ -192,7 +193,7 @@ func (in *Inbox) list(approvalID string) ([]string, bool, error) {
 	var names []string
 	for _, e := range entries[:min(len(entries), MaxInboxEntries)] {
 		id, label, ok := cutAnswerName(e.Name())
-		if !ok || checkApprovalID(id) != nil || !answerLabel(label) {
+		if !ok || approvals.CheckApprovalID(id) != nil || !answerLabel(label) {
 			in.counts[InboxForeignName]++
 			continue
 		}
@@ -250,7 +251,7 @@ func (in *Inbox) readAnswer(name, approvalID string) (_ policy.StatementEnvelope
 	if err != nil {
 		return refuse(InboxMalformed)
 	}
-	if named, err := ReadAnswer(env.Payload); err == nil && named.ApprovalID != approvalID {
+	if named, err := approvals.ReadAnswer(env.Payload); err == nil && named.ApprovalID != approvalID {
 		return refuse(InboxOtherApproval)
 	}
 	return env, true, false
@@ -282,9 +283,9 @@ func MarshalAnswerFile(env policy.StatementEnvelope) ([]byte, error) {
 	return policykey.MarshalEnvelope(env, MaxAnswerFileBytes)
 }
 
-// InboxPruned is what one prune of the inbox did: the answer files it
+// Pruned is what one prune of the inbox did: the answer files it
 // removed, and those it may not remove, which are counted and left.
-type InboxPruned struct {
+type Pruned struct {
 	Removed, Refused int
 }
 
@@ -295,13 +296,13 @@ type InboxPruned struct {
 // allow, such as another account's file under the sticky bit when the plane
 // does not own the directory, is counted in Refused and never stops the
 // prune. An error is a directory that could not be listed or judged.
-func (in *Inbox) Prune(ctx context.Context, now time.Time, ttl time.Duration, live func(approvalID string) bool) (InboxPruned, error) {
-	var out InboxPruned
+func (in *Inbox) Prune(ctx context.Context, now time.Time, ttl time.Duration, live func(approvalID string) bool) (Pruned, error) {
+	var out Pruned
 	if in == nil || in.root == nil {
-		return out, ErrClosed
+		return out, approvals.ErrClosed
 	}
 	if now.IsZero() {
-		return out, ErrZeroTime
+		return out, approvals.ErrZeroTime
 	}
 	in.mu.Lock()
 	defer in.mu.Unlock()
@@ -317,7 +318,7 @@ func (in *Inbox) Prune(ctx context.Context, now time.Time, ttl time.Duration, li
 }
 
 // pruneEach reads d a bound's worth of names at a time and prunes each.
-func (in *Inbox) pruneEach(ctx context.Context, d *os.File, cutoff time.Time, live func(string) bool, out *InboxPruned) error {
+func (in *Inbox) pruneEach(ctx context.Context, d *os.File, cutoff time.Time, live func(string) bool, out *Pruned) error {
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -337,9 +338,9 @@ func (in *Inbox) pruneEach(ctx context.Context, d *os.File, cutoff time.Time, li
 
 // pruneOne removes name when it is an answer file of an approval no longer
 // held, last modified at or before cutoff.
-func (in *Inbox) pruneOne(name string, cutoff time.Time, live func(string) bool, out *InboxPruned) {
+func (in *Inbox) pruneOne(name string, cutoff time.Time, live func(string) bool, out *Pruned) {
 	id, label, ok := cutAnswerName(name)
-	if !ok || checkApprovalID(id) != nil || !answerLabel(label) || live(id) {
+	if !ok || approvals.CheckApprovalID(id) != nil || !answerLabel(label) || live(id) {
 		return
 	}
 	info, err := in.root.Lstat(name)
@@ -358,7 +359,7 @@ func (in *Inbox) pruneOne(name string, cutoff time.Time, live func(string) bool,
 // whether it holds more.
 func (in *Inbox) Entries() (int, bool, error) {
 	if in == nil || in.root == nil {
-		return 0, false, ErrClosed
+		return 0, false, approvals.ErrClosed
 	}
 	in.mu.Lock()
 	defer in.mu.Unlock()

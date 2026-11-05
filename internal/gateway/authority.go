@@ -111,6 +111,14 @@ const (
 	AnswerClaimIgnored     = "claim_ignored"
 )
 
+// AnswerCauses is every cause Stats.Answers counts, in a fixed order.
+func AnswerCauses() []string {
+	return []string{
+		AnswerBatchUnavailable, AnswerBatchTruncated, AnswerUnauthenticated, AnswerAuthnUnavailable, AnswerBody,
+		AnswerOtherHold, AnswerWindow, AnswerUnauthorized, AnswerAuthzUnavailable, AnswerApproverID, AnswerClaimIgnored,
+	}
+}
+
 // heldFacts is the plane's own record of a hold, which every answer about
 // it is compared with.
 type heldFacts struct {

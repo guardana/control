@@ -11,6 +11,7 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/approvals"
+	"github.com/guardana/control/internal/approvals/inbox"
 	"github.com/guardana/control/internal/operators"
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/bundle"
@@ -41,7 +42,7 @@ func signAnswer(command, decision string, ans answer, dir, id string, stdout, st
 	if err != nil {
 		return failHinted(stderr, command, err)
 	}
-	name, err := approvals.AnswerFileName(a.ApprovalID, approvals.AnswerLabel(a))
+	name, err := inbox.AnswerFileName(a.ApprovalID, approvals.AnswerLabel(a))
 	if err != nil {
 		return fail(stderr, command, err)
 	}
@@ -89,14 +90,14 @@ func signedAnswerFile(a approvals.Answer, key ed25519.PrivateKey) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
-	return approvals.MarshalAnswerFile(policy.StatementEnvelope{
+	return inbox.MarshalAnswerFile(policy.StatementEnvelope{
 		PayloadType: operators.AnswerPayloadType, Payload: body,
 		Signatures: []policy.StatementSignature{{KeyID: a.KeyID, Signature: sig}},
 	})
 }
 
 func fileInInbox(dir, name string, raw []byte) error {
-	in, err := approvals.OpenInbox(dir)
+	in, err := inbox.OpenInbox(dir)
 	if err != nil {
 		return err
 	}

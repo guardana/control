@@ -1,4 +1,4 @@
-package approvals
+package inbox
 
 import (
 	"crypto/rand"
@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+
+	"github.com/guardana/control/internal/approvals"
 )
 
 // answerFileMode is the mode an answer file is filed with. Nobody but its
@@ -13,18 +15,25 @@ import (
 // answer, a rejection among them; the plane's account reads it.
 const answerFileMode fs.FileMode = 0o644
 
+// The temporary name an answer is written under before it is linked into
+// place; the listing never reads it, since it does not end in the answer suffix.
+const (
+	tmpPrefix = "tmp."
+	tmpSuffix = ".part"
+)
+
 // File files raw under name in the inbox, where name is an answer file name.
 // The file is written whole under a temporary name and linked into place,
 // so the plane never reads half an answer and nothing ever replaces one: a
-// name the inbox holds already is refused with ErrAnswerFiled. An inbox that
+// name the inbox holds already is refused with approvals.ErrAnswerFiled. An inbox that
 // others may write and is not sticky is refused as OpenInbox refuses it.
 func (in *Inbox) File(name string, raw []byte) error {
 	if in == nil || in.root == nil {
-		return ErrClosed
+		return approvals.ErrClosed
 	}
 	id, label, ok := cutAnswerName(name)
-	if !ok || checkApprovalID(id) != nil || !answerLabel(label) {
-		return fmt.Errorf("%w: %q is not an answer file name", ErrRecordName, cause(name))
+	if !ok || approvals.CheckApprovalID(id) != nil || !answerLabel(label) {
+		return fmt.Errorf("%w: not an answer file name", approvals.ErrRecordName)
 	}
 	in.mu.Lock()
 	defer in.mu.Unlock()
@@ -44,7 +53,7 @@ func (in *Inbox) File(name string, raw []byte) error {
 	}
 	err = in.root.Link(tmp, name)
 	if errors.Is(err, fs.ErrExist) {
-		return errors.Join(ErrAnswerFiled, in.root.Remove(tmp))
+		return errors.Join(approvals.ErrAnswerFiled, in.root.Remove(tmp))
 	}
 	if err != nil {
 		return errors.Join(err, in.root.Remove(tmp))
