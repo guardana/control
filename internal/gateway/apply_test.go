@@ -200,6 +200,26 @@ func TestApproveDeniesACallThatFailsACheck(t *testing.T) {
 	}
 }
 
+// TestARequiredApprovalThatFailsACheckIsBlocked: under ENFORCE a
+// REQUIRE_APPROVAL rule's failing check blocks the call instead of holding it
+// for an approval that could not let it run; one that holds is held.
+func TestARequiredApprovalThatFailsACheckIsBlocked(t *testing.T) {
+	held := func(obligation string) string {
+		return `{"id":"held-orders","effect":"REQUIRE_APPROVAL","obligations":[` + obligation + `],"when":{"action":{"name":["orders.update"]}}}`
+	}
+	h := build(t, modeEnforce, snapshot(t, held(`{"type":"read_only"}`)))
+	d := h.admit(writeEnvelope(), []byte(`{}`))
+	expectBlock(t, d, verdictDeny, codeObligationNotUnderstood, gateway.PDPType)
+	if codes := d.Decision.GetReasonCodes(); !slices.Equal(codes, []string{codeObligationNotUnderstood}) {
+		t.Errorf("the block carries %v, want %s alone", codes, codeObligationNotUnderstood)
+	}
+	expectKinds(t, h.kinds(), []controlv1.EventKind{kindProposed, kindDecided, kindBlocked})
+	h = build(t, modeEnforce, snapshot(t, held(`{"type":"restrict_resources","params":{"ids":"ord-1"}}`)))
+	if d := h.admit(writeEnvelope(), []byte(`{}`)); d.Action != core.AwaitApproval || d.Pending == nil {
+		t.Errorf("a required approval whose check holds: Action = %d, pending %+v; want it held", d.Action, d.Pending)
+	}
+}
+
 // TestPlaneObligationsAreTheRewritingThenTheCheckingTypes: the list New
 // declares to the kernel, as a copy.
 func TestPlaneObligationsAreTheRewritingThenTheCheckingTypes(t *testing.T) {

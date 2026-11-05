@@ -130,7 +130,8 @@ for; <code>shorten_timeout</code> stays a <code>DENY</code> there. On <code>enfo
 <code>restrict_resources</code> needs <code>resource_from</code> on the tool, or the empty
 resource id is refused. Over MCP a failing check is now the gateway's own
 <code>DENY</code> with <code>OBLIGATION_NOT_UNDERSTOOD</code>, recorded <code>ACTION_BLOCKED</code> with no
-<code>ACTION_STARTED</code>, and under <code>APPROVE</code> such a call is denied instead of held.
+<code>ACTION_STARTED</code>, and a call that would be held for an approval, under
+<code>APPROVE</code> or by a <code>REQUIRE_APPROVAL</code> rule, is denied instead.
 An adapter that declares a type the gateway applies is refused at start
 (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</li>
 </ul>

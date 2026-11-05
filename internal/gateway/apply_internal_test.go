@@ -25,9 +25,10 @@ func TestApplyRefusesACheckingTypeWithNoCheck(t *testing.T) {
 	}
 }
 
-// TestApplyChecksBeforeItRewrites: a failing check refuses the call even when
-// the rewrite would apply, and a holding one leaves the rewrite's bytes.
-func TestApplyChecksBeforeItRewrites(t *testing.T) {
+// TestApplyRefusesAFailingCheckBesideARewrite: a failing check refuses the
+// call even when the rewrite would apply, and a holding one leaves the
+// rewrite's bytes.
+func TestApplyRefusesAFailingCheckBesideARewrite(t *testing.T) {
 	env := &controlv1.ActionEnvelope{Resource: &controlv1.Resource{Id: "ord-1"}}
 	capped := obligation("cap_amount", false, "max", "1")
 	if out, _, err := apply(env, []byte(`{"amount":5}`), []*controlv1.Obligation{capped, obligation("restrict_resources", false, "ids", "ord-1")}); err != nil || string(out) != `{"amount":1}` {

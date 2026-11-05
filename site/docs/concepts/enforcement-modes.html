@@ -171,7 +171,7 @@ runs, <code>INDETERMINATE</code> goes to the fail-closed table, see
 <tr>
 <td><code>ALLOW_WITH_OBLIGATIONS</code></td>
 <td>runs, with the proposed bytes and nothing rewritten or applied</td>
-<td>a read runs with its obligations; a material call that fails a check the plane applies is blocked, any other is held, and its obligations apply when it resumes</td>
+<td>a read runs with its obligations; a material call is held, and its obligations apply when it resumes</td>
 <td>runs with its obligations applied</td>
 <td>a read runs with its obligations; a material call is blocked with <code>LOCKDOWN</code></td>
 </tr>
@@ -198,6 +198,9 @@ runs, <code>INDETERMINATE</code> goes to the fail-closed table, see
 </tr>
 </tbody>
 </table>
+<p>In every mode but <code>OBSERVE</code>, a call that fails <code>read_only</code>,
+<code>restrict_resources</code> or <code>deny_external_sink</code> is blocked before it would run
+or be held for an approval, a read included.</p>
 <p><code>OBSERVE</code> enforces nothing the decision says, so it executes the proposed
 bytes without applying an obligation, and it takes a call nothing
 classifies; it is how an operator learns which tools exist before classifying

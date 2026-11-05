@@ -56,10 +56,14 @@ runs, `INDETERMINATE` goes to the fail-closed table, see
 | Verdict | `OBSERVE` | `APPROVE` | `ENFORCE` | `LOCKDOWN` |
 | --- | --- | --- | --- | --- |
 | `ALLOW` | runs, with the proposed bytes | a read runs; a material call is held | runs | a read runs; a material call is blocked with `LOCKDOWN` |
-| `ALLOW_WITH_OBLIGATIONS` | runs, with the proposed bytes and nothing rewritten or applied | a read runs with its obligations; a material call that fails a check the plane applies is blocked, any other is held, and its obligations apply when it resumes | runs with its obligations applied | a read runs with its obligations; a material call is blocked with `LOCKDOWN` |
+| `ALLOW_WITH_OBLIGATIONS` | runs, with the proposed bytes and nothing rewritten or applied | a read runs with its obligations; a material call is held, and its obligations apply when it resumes | runs with its obligations applied | a read runs with its obligations; a material call is blocked with `LOCKDOWN` |
 | `REQUIRE_APPROVAL` | runs, with the proposed bytes | held | held | a read is held; a material call is blocked with `LOCKDOWN` |
 | `DENY` | runs, with the proposed bytes | blocked | blocked | blocked; a material call with the enforcement point's `LOCKDOWN` decision on the block, a read with the kernel's |
 | `INDETERMINATE` | runs, with the proposed bytes | the fail-closed table | the fail-closed table | a material call is blocked with `LOCKDOWN`; a read goes to the fail-closed table with fail-open reads off, so it blocks |
+
+In every mode but `OBSERVE`, a call that fails `read_only`,
+`restrict_resources` or `deny_external_sink` is blocked before it would run
+or be held for an approval, a read included.
 
 `OBSERVE` enforces nothing the decision says, so it executes the proposed
 bytes without applying an obligation, and it takes a call nothing
