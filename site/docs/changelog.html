@@ -122,6 +122,18 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.15.0...HEAD">Unreleased</a></h2>
 <h3 id="added">Added</h3>
 <ul>
+<li><code>pause add --run &lt;id&gt;</code>, <code>--agent &lt;id&gt;</code> and <code>--principal &lt;id&gt;</code> pause one
+opened run, or every run under a root, one agent or one principal. A run
+is named by its id from <code>runs open</code>, and any other spelling is refused. Each is
+matched against what the plane vouches for: the opened run the listener
+resolved from its token, and the agent and principal its configuration
+names, never a run id or a client name the client sent. A call under no
+opened run is paused by every run entry.</li>
+<li><code>/healthz</code>'s <code>pause.coverage</code> says per entry whether it covers <code>all</code>,
+<code>some</code> or <code>none</code> of the plane's calls, and <code>pause.coverage_causes</code> why a
+run entry covers none: its run is not in <code>runs.dir</code>, is another project's,
+expired or closed. <code>doctor</code> counts the three and names each agent or
+principal entry that is not the listener's and each such run entry.</li>
 <li><code>guardana-gateway spool drain &lt;dir&gt; &lt;out&gt;</code> moves a stopped plane's spool
 quarantine into a new owner-only file of JSON Lines, synced before the
 quarantine is emptied, so its bytes stop counting against
@@ -139,6 +151,8 @@ resolution and takes the held or the answered name only. A <code>1.0</code> dire
 or record is refused with a message naming both versions; empty the
 directory, whose holds expire within <code>approvals.ttl</code>. <code>approvals list</code> and
 the console no longer print a resolution.</li>
+<li>The pause commands write pause file <code>2</code>; a plane and the commands read <code>1</code>
+as before.</li>
 <li>The release workflow makes its draft release before the build, through
 <code>scripts/draft-release.sh</code>, and proves the release list and the upload host
 serve it before anything is uploaded; a tag that already has a release, or
