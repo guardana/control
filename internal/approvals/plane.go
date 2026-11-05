@@ -131,7 +131,6 @@ func heldRecord(h Hold, maxWindow time.Duration) (Record, error) {
 		ApprovalID:    a.GetApprovalId(),
 		RequestID:     a.GetRequestId(),
 		Binding:       h.Binding,
-		Resolution:    ResolutionPending,
 		Approval:      proto.CloneOf(a),
 	}
 	if err := rec.check(maxWindow); err != nil {
@@ -215,9 +214,9 @@ func (p *Plane) begin(ctx context.Context) error {
 }
 
 // Prune forgets every record whose approval has expired at now, and its
-// projection, and reports how many it forgot. Nothing else removes a record
-// the plane did not consume: a directory left to grow refuses holds at its
-// bound, which is a refusal an operator can see.
+// projection, and reports how many it forgot. Nothing else removes a record:
+// a directory left to grow refuses holds at its bound, which is a refusal an
+// operator can see.
 //
 // A directory past its bound is read only as far as the bound. What that pass
 // read is pruned, and ErrTooManyRecords beside the count says the sweep did

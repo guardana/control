@@ -34,6 +34,7 @@ func lost(t *testing.T, snap *policy.Snapshot, first *harness, j gateway.HoldJou
 	next := build(t, modeApprove, snap, func(cfg *gateway.Config) {
 		cfg.Journal = j
 		cfg.Approvals = first.store
+		cfg.Ledger = first.ledger
 		cfg.Sink = first.sink
 		cfg.NewID = restartIDs()
 	})
@@ -53,7 +54,7 @@ func holdLost(t *testing.T, snap *policy.Snapshot, j gateway.HoldJournal) (*harn
 // TestTheReconciliationClosesALostHoldWithTheAnswerItFinds: an approver said
 // yes while the plane was gone. The trail is closed with that answer and a
 // DENY naming APPROVAL_NOT_RESUMED, because the approval was granted and the
-// call was never run; the record is resolved rather than spent, so the next
+// call was never run; the approval is settled rather than spent, so the next
 // identical call is held anew instead of being told that an action ran.
 func TestTheReconciliationClosesALostHoldWithTheAnswerItFinds(t *testing.T) {
 	snap := snapshot(t, approveRefunds)
@@ -80,14 +81,14 @@ func TestTheReconciliationClosesALostHoldWithTheAnswerItFinds(t *testing.T) {
 		t.Errorf("Stats = %+v; want one hold closed, counted, and a measured pass", s)
 	}
 
-	// The record was given up, not spent: the next identical call is held
+	// The approval was settled, not spent: the next identical call is held
 	// anew, and the plane counts nothing it cannot prove.
 	again := next.admit(retry(t, "req-2"), refundArgs())
 	if again.Action != core.AwaitApproval {
 		t.Fatalf("the call after a lost hold: Action = %d, want a hold of its own", again.Action)
 	}
 	if s := next.p.Stats(); s.UnheldRecords != 0 {
-		t.Errorf("Stats().UnheldRecords = %d; the reconciliation resolved that record, so nothing is unprovable about it", s.UnheldRecords)
+		t.Errorf("Stats().UnheldRecords = %d; the reconciliation settled that approval, so nothing is unprovable about it", s.UnheldRecords)
 	}
 }
 
@@ -124,24 +125,29 @@ func TestTheReconciliationClosesARefusedHoldAsRefused(t *testing.T) {
 
 // lostUnder holds one refund on a plane over store, lets setUp answer or
 // break the store, and reconciles from the plane that comes back to the same
-// journal, store and evidence with its clock at at. The pass must close the
-// one trail.
+// journal, store, ledger and evidence with its clock at at. The pass must
+// close the one trail. The ledger the two planes share is the restarted
+// plane's spy.
 func lostUnder(t *testing.T, store gateway.ApprovalStore, at time.Time, setUp func(pending gateway.Disposition)) (*harness, gateway.Disposition, *harness) {
 	t.Helper()
 	snap := snapshot(t, approveRefunds)
 	j := &journalDouble{}
+	ledger := &fakeLedger{}
 	first := build(t, modeEnforce, snap, func(cfg *gateway.Config) {
 		cfg.Journal = j
 		cfg.Approvals = store
+		cfg.Ledger = ledger
 	})
 	pending := hold(t, first)
 	setUp(pending)
 	next := build(t, modeApprove, snap, func(cfg *gateway.Config) {
 		cfg.Journal = j
 		cfg.Approvals = store
+		cfg.Ledger = ledger
 		cfg.Sink = first.sink
 		cfg.NewID = restartIDs()
 	})
+	next.spy = ledger
 	next.clock.set(at)
 	if r := next.p.Reconcile(context.Background()); (r != gateway.Reconciliation{Closed: 1, Complete: true}) {
 		t.Errorf("Reconcile = %+v; want one trail closed", r)
@@ -207,7 +213,7 @@ func TestTheReconciliationClosesAnUnansweredOrLapsedHoldAsExpired(t *testing.T) 
 			if s := next.p.Stats(); s.Blocks[codeApprovalExpired] != 1 || len(s.Blocks) != 1 {
 				t.Errorf("Stats().Blocks = %v; want the close counted once as APPROVAL_EXPIRED", s.Blocks)
 			}
-			expectResolvedOnce(t, store)
+			expectSettledOnce(t, next)
 		})
 	}
 }
@@ -264,18 +270,16 @@ func TestTheReconciliationClosesAnAnswerItCannotReadOrTrustAsUnknown(t *testing.
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeStore()
-			consumed := 0
-			store.beforeConsume = func() { consumed++ }
 			first, pending, next := lostUnder(t, store, tc.at, func(pending gateway.Disposition) { tc.setUp(t, store, pending) })
-			if consumed != 0 {
-				t.Errorf("the reconciliation consumed %d record(s); an answer to a lost hold is never spent", consumed)
+			if spends, _ := next.spy.asked(); spends != 0 {
+				t.Errorf("the reconciliation spent %d approval(s); an answer to a lost hold is never spent", spends)
 			}
 			trail := expectClosedLostHold(t, first, kindApprovalExpired, verdictIndeterminate, codeApprovalStateUnknown)
 			expectOwnApprovalExpired(t, trail, pending)
 			if s := next.p.Stats(); s.Blocks[codeApprovalStateUnknown] != 1 || len(s.Blocks) != 1 || s.HoldsClosed != 1 || s.Executed != 0 {
 				t.Errorf("Stats = %+v; want nothing run and the one close counted as APPROVAL_STATE_UNKNOWN", s)
 			}
-			expectResolvedOnce(t, store)
+			expectSettledOnce(t, next)
 		})
 	}
 }
@@ -312,17 +316,18 @@ func TestTheLostHoldCodesTellTheFourAnswersApart(t *testing.T) {
 			if s := next.p.Stats(); s.Executed != 0 || s.Blocks[tc.code] != 1 || len(s.Blocks) != 1 {
 				t.Errorf("Stats = %+v; want nothing run and the close counted once as %s", s, tc.code)
 			}
-			expectResolvedOnce(t, store)
+			expectSettledOnce(t, next)
 		})
 	}
 }
 
-// expectResolvedOnce asserts the reconciliation told the store once that the
-// request will not be resumed, whatever the close said.
-func expectResolvedOnce(t *testing.T, store *fakeStore) {
+// expectSettledOnce asserts the reconciliation told the ledger once that the
+// request will not be resumed, whatever the close said, and that the ledger
+// marks it so.
+func expectSettledOnce(t *testing.T, next *harness) {
 	t.Helper()
-	if got := store.resolves.Load(); got != 1 {
-		t.Errorf("the store was asked to resolve %d time(s); want once per closed hold", got)
+	if _, settles := next.spy.asked(); settles != 1 {
+		t.Errorf("the ledger was asked to settle %d time(s); want once per closed hold", settles)
 	}
 }
 
@@ -419,10 +424,12 @@ func TestAJournalEntryThatWillNotDecodeIsUnmeasured(t *testing.T) {
 func TestAnExecutionThatNeverClosedIsReportedAndNotReopened(t *testing.T) {
 	snap := snapshot(t, approveRefunds)
 	j := &journalDouble{}
-	store := &resolutionStore{}
+	store := &gateway.MemoryApprovals{}
+	ledger := &fakeLedger{}
 	first := build(t, modeEnforce, snap, func(cfg *gateway.Config) {
 		cfg.Journal = j
 		cfg.Approvals = store
+		cfg.Ledger = ledger
 	})
 	pending := hold(t, first)
 	if err := store.Answer(pending.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
@@ -438,6 +445,7 @@ func TestAnExecutionThatNeverClosedIsReportedAndNotReopened(t *testing.T) {
 	next := build(t, modeApprove, snap, func(cfg *gateway.Config) {
 		cfg.Journal = j
 		cfg.Approvals = store
+		cfg.Ledger = ledger
 		cfg.Sink = first.sink
 		cfg.NewID = restartIDs()
 	})
@@ -449,11 +457,17 @@ func TestAnExecutionThatNeverClosedIsReportedAndNotReopened(t *testing.T) {
 	if got, kept := j.state("req-1"); !kept || got != gateway.HoldResuming {
 		t.Errorf("the entry is %d, kept %v; want it left at resuming for the report", got, kept)
 	}
-	if _, resolves := store.asked(); resolves != 0 {
-		t.Errorf("the reconciliation resolved %d record(s) of an execution that may have run; want none", resolves)
+	if _, settles := ledger.asked(); settles != 0 {
+		t.Errorf("the reconciliation settled %d approval(s) of an execution that may have run; want none", settles)
 	}
 	if s := next.p.Stats(); s.HoldsUnmeasured != 1 || s.HoldsClosed != 0 {
 		t.Errorf("Stats = %+v; want one entry unmeasured and none closed", s)
+	}
+	// The same retry after the restart is the next identical call: the
+	// approval it would spend is marked spent, so nothing runs twice.
+	expectBlock(t, next.admit(retry(t, "req-3"), refundArgs()), verdictDeny, codeApprovalAlreadyUsed, gateway.PDPType)
+	if s := next.p.Stats(); s.Executed != 0 {
+		t.Errorf("the restarted plane ran %d call(s); want none", s.Executed)
 	}
 }
 

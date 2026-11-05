@@ -11,6 +11,22 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** the approvals directory is format `2.0`: a record carries no
+  resolution and takes the held or the answered name only. A `1.0` directory
+  or record is refused with a message naming both versions; empty the
+  directory, whose holds expire within `approvals.ttl`. `approvals list` and
+  the console no longer print a resolution.
+
+### Security
+
+- Only the plane marks an approval spent or given up, in a ledger (`1.0`)
+  under `ledger/` in `approvals.hold_journal_dir`, under the journal's lock.
+  A writer of the approvals directory can no longer forge a spent or a
+  not-resumed mark; a name that once meant either is refused as foreign
+  (the limit ADR-0016 stated is gone).
+
 ## [0.15.0] - 2026-11-02
 
 Upgrading from 0.14 changes four things an operator must act on. `collect`
