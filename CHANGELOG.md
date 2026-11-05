@@ -11,6 +11,24 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- `pause add --run <id>`, `--agent <id>` and `--principal <id>` pause one
+  opened run, or every run under a root, one agent or one principal. Each is
+  matched against what the plane vouches for: the opened run the listener
+  resolved from its token, and the agent and principal its configuration
+  names, never a run id or a client name the client sent. A call under no
+  opened run is paused by every run entry.
+- `/healthz`'s `pause.coverage` says per entry whether it covers `all`,
+  `some` or `none` of the plane's calls; `doctor` counts the three and names
+  each agent or principal entry that is not the listener's.
+
+### Changed
+
+- **Breaking:** the pause file is `2`. A plane reads a `1` file as an unknown
+  pause state and blocks every call: move it aside, run `pause init` and add
+  the entries again.
+
 ## [0.15.0] - 2026-11-02
 
 Upgrading from 0.14 changes four things an operator must act on. `collect`

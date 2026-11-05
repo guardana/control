@@ -50,8 +50,9 @@ type healthAnswer struct {
 
 // pauseAnswer is the pause state without a reason in it: the state, how many
 // entries are in force and whether one is global, the entries that pause
-// only calls to names no upstream lists, how old the read is, why an unknown
-// state is unknown, and what the reader counted.
+// only calls to names no upstream lists, the share of this plane's calls each
+// entry can cover, how old the read is, why an unknown state is unknown, and
+// what the reader counted.
 type pauseAnswer struct {
 	State   string `json:"state"`
 	Cause   string `json:"cause,omitempty"`
@@ -63,6 +64,8 @@ type pauseAnswer struct {
 	// enforce_api plane it names the entries of a provider or a tool its tool
 	// table lacks, which pause no call the plane runs.
 	UnlistedOnly []string `json:"unlisted_only"`
+	// Coverage is, by entry id, all, some or none of this plane's calls.
+	Coverage map[string]string `json:"coverage"`
 	// AgeMS is left out where nothing was read: a plane with no pause file.
 	AgeMS *int64 `json:"age_ms,omitempty"`
 	// Polls is what the reader counted: its reads, the failed ones by cause
@@ -248,9 +251,11 @@ func (p *plane) pauseAnswer(snap pause.Snapshot, now time.Time) pauseAnswer {
 	out := pauseAnswer{
 		State: snap.State().String(), Entries: len(entries), Global: hasGlobal(entries), UnlistedOnly: []string{},
 	}
-	for _, e := range p.strayEntries(entries) {
+	stray := p.strayEntries(entries)
+	for _, e := range stray {
 		out.UnlistedOnly = append(out.UnlistedOnly, e.id)
 	}
+	out.Coverage = coverage(entries, p.cfg, stray)
 	if snap.State() == pause.Unknown {
 		out.Cause = string(snap.Cause())
 	}

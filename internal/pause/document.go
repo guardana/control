@@ -9,13 +9,12 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/guardana/control/internal/channel"
 	"github.com/guardana/control/pkg/contract"
 )
 
 // SchemaVersion is the one version of the pause file this build reads and
 // writes.
-const SchemaVersion = "1"
+const SchemaVersion = "2"
 
 // The bounds of one document. A file past any of them is refused whole.
 // MaxEntries entries with every field at its bound and escaped at twice its
@@ -28,61 +27,6 @@ const (
 	MaxNameBytes   = 256
 	MaxReasonBytes = 512
 )
-
-// ScopeKind is what a pause entry covers.
-type ScopeKind string
-
-// The three scopes. Principal, agent and tenant are refused until a listener
-// authenticates: on a listener that authenticates nobody each is the whole
-// plane or nothing, and an entry that silently pauses nothing is the unsafe
-// failure of an emergency control.
-const (
-	ScopeGlobal   ScopeKind = "global"
-	ScopeProvider ScopeKind = "provider"
-	ScopeAction   ScopeKind = "action"
-)
-
-// The kinds of call an action scope names, as the envelope's action kind
-// spells them.
-const (
-	ActionTool     = channel.KindTool
-	ActionPrompt   = channel.KindPrompt
-	ActionResource = channel.KindResource
-)
-
-// Scope is the calls one entry pauses. Provider is an upstream by its
-// configured name; Action and Name are set only on an action scope, and Name
-// only for a tool. A prompt and a resource are paused by their provider only:
-// the plane routes either by its upstream alone, so its name or URI is the
-// client's spelling and could be written another way to slip past an exact
-// match.
-type Scope struct {
-	Kind     ScopeKind
-	Provider string
-	Action   string
-	Name     string
-}
-
-// Matches reports whether s covers a call of the action kind, provider and
-// name the envelope carries. A field the call does not carry matches, as an
-// absent input restricts: a call nothing classifies carries no provider, so
-// every entry pauses it. A kind outside the plane's vocabulary matches every
-// action scope, as an absent one does, and a scope of a kind this build does
-// not know matches every call.
-func (s Scope) Matches(kind, provider, name string) bool {
-	switch s.Kind {
-	case ScopeGlobal:
-		return true
-	case ScopeProvider:
-		return absentOr(provider, s.Provider)
-	case ScopeAction:
-		return (!channel.KnownKind(kind) || kind == s.Action) && absentOr(provider, s.Provider) &&
-			(s.Name == "" || absentOr(name, s.Name))
-	}
-	return true
-}
-
-func absentOr(got, want string) bool { return got == "" || got == want }
 
 // Entry is one pause. CreatedAt and Reason are for the operator and decide
 // nothing.
@@ -181,7 +125,7 @@ func parseEntry(raw json.RawMessage) (Entry, error) {
 // parseScope reads a scope's members. A member that is present is never
 // empty: an empty one would read as absent and slip past Scope.Check.
 func parseScope(m map[string]json.RawMessage) (Scope, error) {
-	if err := only(m, "kind", "provider", "action", "name"); err != nil {
+	if err := only(m, "kind", "provider", "action", "name", "id"); err != nil {
 		return Scope{}, err
 	}
 	kind, err := member(m, "kind", str)
@@ -192,7 +136,7 @@ func parseScope(m map[string]json.RawMessage) (Scope, error) {
 	for _, f := range []struct {
 		name string
 		to   *string
-	}{{"provider", &s.Provider}, {"action", &s.Action}, {"name", &s.Name}} {
+	}{{"provider", &s.Provider}, {"action", &s.Action}, {"name", &s.Name}, {"id", &s.ID}} {
 		if _, set := m[f.name]; !set {
 			continue
 		}
@@ -250,44 +194,6 @@ func (e Entry) Check() error {
 	return e.Scope.Check()
 }
 
-// Check refuses a scope of an unknown kind, a global scope that names
-// anything, a provider scope without its provider or with an action or a
-// name, an action scope without its kind of call or its provider, a tool
-// scope without its name, and a prompt or resource scope with one.
-func (s Scope) Check() error {
-	switch s.Kind {
-	case ScopeGlobal:
-		if s.Provider != "" || s.Action != "" || s.Name != "" {
-			return fmt.Errorf("scope: a global scope names nothing else")
-		}
-		return nil
-	case ScopeProvider:
-		if s.Action != "" || s.Name != "" {
-			return fmt.Errorf("scope: a provider scope names its provider and nothing else")
-		}
-		return checkName("scope.provider", s.Provider, MaxNameBytes)
-	case ScopeAction:
-		return s.checkAction()
-	}
-	return fmt.Errorf("scope.kind: %q is not one of %s, %s, %s", s.Kind, ScopeGlobal, ScopeProvider, ScopeAction)
-}
-
-func (s Scope) checkAction() error {
-	if err := checkName("scope.provider", s.Provider, MaxNameBytes); err != nil {
-		return err
-	}
-	switch s.Action {
-	case ActionTool:
-		return checkName("scope.name", s.Name, MaxNameBytes)
-	case ActionPrompt, ActionResource:
-		if s.Name != "" {
-			return fmt.Errorf("scope.name: a %s is paused by its provider only, since the plane routes it by its upstream alone and its name is the client's to spell", s.Action)
-		}
-		return nil
-	}
-	return fmt.Errorf("scope.action: %q is not one of %s, %s, %s", s.Action, ActionTool, ActionPrompt, ActionResource)
-}
-
 // checkName refuses an empty value, one over limit bytes, and one the
 // contract refuses as an identifier. The value is never repeated: it is the
 // operator's, and the refusal may be printed where it should not be.
@@ -326,6 +232,7 @@ type wireScope struct {
 	Provider string    `json:"provider,omitempty"`
 	Action   string    `json:"action,omitempty"`
 	Name     string    `json:"name,omitempty"`
+	ID       string    `json:"id,omitempty"`
 }
 
 // Marshal renders d as the file holds it, or refuses a document Check
@@ -338,7 +245,7 @@ func Marshal(d Document) ([]byte, error) {
 	for _, e := range d.Entries {
 		w.Entries = append(w.Entries, wireEntry{
 			ID: e.ID, CreatedAt: e.CreatedAt.UTC().Format(time.RFC3339Nano), Reason: e.Reason,
-			Scope: wireScope{Kind: e.Scope.Kind, Provider: e.Scope.Provider, Action: e.Scope.Action, Name: e.Scope.Name},
+			Scope: wireScope{Kind: e.Scope.Kind, Provider: e.Scope.Provider, Action: e.Scope.Action, Name: e.Scope.Name, ID: e.Scope.ID},
 		})
 	}
 	var buf bytes.Buffer

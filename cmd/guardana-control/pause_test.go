@@ -74,6 +74,9 @@ func TestPauseCommandsWriteWhatTheyPrint(t *testing.T) {
 			pause.Scope{Kind: "action", Action: "prompt", Provider: "orders"}, "prompt orders"},
 		{[]string{"--action", "resource", "--provider", "files"},
 			pause.Scope{Kind: "action", Action: "resource", Provider: "files"}, "resource files"},
+		{[]string{"--run", "run-a"}, pause.Scope{Kind: "run", ID: "run-a"}, "run run-a"},
+		{[]string{"--agent", "orders-assistant"}, pause.Scope{Kind: "agent", ID: "orders-assistant"}, "agent orders-assistant"},
+		{[]string{"--principal", "agent-runner"}, pause.Scope{Kind: "principal", ID: "agent-runner"}, "principal agent-runner"},
 	} {
 		expectAdded(t, path, c.args, c.want, c.list)
 	}
@@ -145,6 +148,13 @@ func TestPauseAddTakesExactlyOneScope(t *testing.T) {
 		{"a name with no action", []string{"--provider", "orders", "--name", "refund"}, []string{"--provider", "orders", "--action", "tool", "--name", "refund"}},
 		{"a name alone", []string{"--name", "refund"}, []string{"--provider", "orders", "--action", "tool", "--name", "refund"}},
 		{"an empty provider", []string{"--provider", ""}, []string{"--provider", "orders"}},
+		{"a run and global", []string{"--run", "run-a", "--global"}, []string{"--run", "run-a"}},
+		{"an agent and a provider", []string{"--agent", "a", "--provider", "orders"}, []string{"--agent", "a"}},
+		{"a principal and an action", []string{"--principal", "u", "--action", "tool", "--provider", "o", "--name", "n"}, []string{"--principal", "u"}},
+		{"a run and a name", []string{"--run", "run-a", "--name", "refund"}, []string{"--run", "run-a"}},
+		{"a run and an agent", []string{"--run", "run-a", "--agent", "a"}, []string{"--agent", "a"}},
+		{"an agent and a principal", []string{"--agent", "a", "--principal", "u"}, []string{"--principal", "u"}},
+		{"an empty run", []string{"--run", ""}, []string{"--run", "run-a"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			path := initialized(t)
@@ -191,6 +201,10 @@ func TestPauseAddCarriesEveryRefusalOfTheEntry(t *testing.T) {
 			[]string{"--provider", strings.Repeat("p", 256)}},
 		{"a provider led by a space", []string{"--provider", " orders"}, "scope.provider",
 			[]string{"--provider", "orders"}},
+		{"a run led by a space", []string{"--run", " run-a"}, "scope.id",
+			[]string{"--run", "run-a"}},
+		{"an agent one byte over its bound", []string{"--agent", strings.Repeat("a", 257)}, "the bound is 256",
+			[]string{"--agent", strings.Repeat("a", 256)}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			path := initialized(t)
