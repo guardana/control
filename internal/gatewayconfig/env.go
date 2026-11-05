@@ -59,33 +59,17 @@ func envName(name string) bool {
 	return true
 }
 
-// protectedPrefixes hold the keys an approval authority signed by operators
-// rests on: the trust root and the roster say who may approve, the approvals,
-// pause, reaction and runs keys where answers, halts, stops and run records
-// lie, and the policy keys which bundle, key and floors decide. The plane's
-// account sets its own environment when it restarts, so a key set there is
-// one no placement of a file protects.
-var protectedPrefixes = []string{"trust.", "operators.", "approvals.", "pause.", "reaction.", "runs.", "policy."}
-
-// ProtectedPrefixes returns the prefixes ProtectedOverrides holds to. The
-// list is a copy.
-func ProtectedPrefixes() []string { return slices.Clone(protectedPrefixes) }
-
-// ProtectedOverrides returns, sorted, the keys under ProtectedPrefixes that
-// the environment set. A key the file set and the environment did not is not
-// listed, and a Config that Load did not make holds nothing the environment
+// EnvironmentOverrides returns, sorted, every key the environment set, a
+// header named as its key reads, such as pdp.headers.<name>, and never a
+// value. No key is exempt: the plane's account sets its own environment when
+// it restarts, so any key set there is one no placement of the configuration
+// protects. A Config that Load did not make holds nothing the environment
 // set.
-func ProtectedOverrides(c *Config) []string {
+func EnvironmentOverrides(c *Config) []string {
 	var keys []string
 	for key, source := range c.source {
-		if source != brand.EnvPrefix+EnvName(key) {
-			continue
-		}
-		for _, prefix := range protectedPrefixes {
-			if strings.HasPrefix(key, prefix) {
-				keys = append(keys, key)
-				break
-			}
+		if strings.HasPrefix(source, brand.EnvPrefix) && envName(source) {
+			keys = append(keys, key)
 		}
 	}
 	slices.Sort(keys)

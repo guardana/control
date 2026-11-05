@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -52,6 +54,15 @@ func writableAt(t *testing.T, paths ...string) {
 		return writable(info), nil
 	}
 	t.Cleanup(func() { planeMayWrite = accessWrite })
+}
+
+// aclAt makes the check read each of paths, by identity, and nothing else,
+// as an entry that carries an access control list.
+func aclAt(t *testing.T, paths ...string) {
+	t.Helper()
+	carries := identities(t, paths...)
+	hasACL = func(_ string, info fs.FileInfo) (bool, error) { return carries(info), nil }
+	t.Cleanup(func() { hasACL = aclPresent })
 }
 
 // identities reports whether an entry is, by identity, one of paths as they
@@ -156,6 +167,10 @@ func TestAnEntryThePlaneOwnsIsRefused(t *testing.T) {
 			link := symlink(t, file, filepath.Join(tempDir(t), "gateway.yaml"))
 			return link, link, "the link " + link
 		}},
+		{"the root of the file system", func(t *testing.T) (string, string, string) {
+			_, file := rootsTree(t)
+			return file, string(filepath.Separator), "the directory " + string(filepath.Separator) + ":"
+		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			path, owned, says := c.lay(t)
@@ -194,6 +209,10 @@ func TestAnEntryThePlaneMayWriteIsRefused(t *testing.T) {
 			dir, _ := rootsTree(t)
 			mkdirMode(t, dir, fs.ModeSticky|0o777)
 			return dir, dir, "the directory " + dir
+		}},
+		{"the root of the file system", func(t *testing.T) (string, string, string) {
+			_, file := rootsTree(t)
+			return file, string(filepath.Separator), "the directory " + string(filepath.Separator) + ":"
 		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -365,5 +384,119 @@ func TestTheKernelIsAsked(t *testing.T) {
 	root := rootFile(t)
 	if err := CheckNotPlaneWritable(root); err != nil {
 		t.Errorf("CheckNotPlaneWritable(%s), root's: %v", root, err)
+	}
+}
+
+// TestAnEmptyPathIsRefused: an empty path names no entry, and is not read as
+// the working directory.
+func TestAnEmptyPathIsRefused(t *testing.T) {
+	refusedAt(t, CheckNotPlaneWritable(""), errEmptyPath, "empty")
+}
+
+// TestAnEntryCarryingAnACLIsRefused: access(2) does not ask for the append,
+// delete or ownership an access control list may grant, so any entry on the
+// path that carries one is refused, a sticky directory and a link among
+// them, and so is an entry the platform cannot answer for.
+func TestAnEntryCarryingAnACLIsRefused(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		lay  func(t *testing.T) (path, carries, says string)
+	}{
+		{"the file", func(t *testing.T) (string, string, string) {
+			_, file := rootsTree(t)
+			return file, file, file
+		}},
+		{"a directory above the file", func(t *testing.T) (string, string, string) {
+			dir, file := rootsTree(t)
+			return file, dir, "the directory " + dir
+		}},
+		{"a sticky directory above the file", func(t *testing.T) (string, string, string) {
+			dir, file := rootsTree(t)
+			mkdirMode(t, dir, fs.ModeSticky|0o777)
+			return file, dir, "the directory " + dir
+		}},
+		{"a link on the path", func(t *testing.T) (string, string, string) {
+			_, file := rootsTree(t)
+			link := symlink(t, file, filepath.Join(tempDir(t), "gateway.yaml"))
+			return link, link, "the link " + link
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			path, carries, says := c.lay(t)
+			planeOwns(t)
+			writableAt(t)
+			aclAt(t)
+			if err := CheckNotPlaneWritable(path); err != nil {
+				t.Fatalf("CheckNotPlaneWritable(%s) with no access control list: %v", path, err)
+			}
+			aclAt(t, carries)
+			refusedAt(t, CheckNotPlaneWritable(path), errACL, says)
+		})
+	}
+	t.Run("unanswered", func(t *testing.T) {
+		_, file := rootsTree(t)
+		planeOwns(t)
+		writableAt(t)
+		unanswered := errors.New("no answer")
+		hasACL = func(path string, _ fs.FileInfo) (bool, error) {
+			if path == file {
+				return false, unanswered
+			}
+			return false, nil
+		}
+		t.Cleanup(func() { hasACL = aclPresent })
+		refusedAt(t, CheckNotPlaneWritable(file), unanswered, file)
+	})
+}
+
+// TestAnACLIsSeen makes an access control list that lets this account append
+// to a file of mode 0400, which access(2) calls not writable, and reads it
+// through the platform's own question.
+func TestAnACLIsSeen(t *testing.T) {
+	_, file := rootsTree(t)
+	if err := os.Chmod(file, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	planeOwns(t)
+	writableAt(t)
+	if err := CheckNotPlaneWritable(file); err != nil {
+		t.Fatalf("CheckNotPlaneWritable(%s) before the list was made: %v", file, err)
+	}
+	me, err := user.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("chmod", "+a", "user:"+me.Username+" allow append", file).CombinedOutput() //nolint:gosec // G204: the test's own file and account
+	if err != nil {
+		t.Skipf("chmod +a cannot make an access control list here: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	refusedAt(t, CheckNotPlaneWritable(file), errACL, file)
+}
+
+// TestTheKernelAnswersOnlyForTheRealIDs: access(2) answers for the real uid
+// and gid, so a plane whose effective uid or gid differs is refused rather
+// than answered for another account; equal ids are answered.
+func TestTheKernelAnswersOnlyForTheRealIDs(t *testing.T) {
+	dir := tempDir(t)
+	was := planeIDs
+	t.Cleanup(func() { planeIDs = was })
+	for _, c := range []struct {
+		name string
+		ids  [4]int
+		says string
+	}{
+		{"the uids", [4]int{501, 0, 20, 20}, "uids differ"},
+		{"the gids", [4]int{501, 501, 20, 0}, "gids differ"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			planeIDs = func() (int, int, int, int) { return c.ids[0], c.ids[1], c.ids[2], c.ids[3] }
+			if _, err := accessWrite(dir); err == nil || !strings.Contains(err.Error(), c.says) {
+				t.Errorf("accessWrite with %s apart = %v, want a refusal saying %q", c.name, err, c.says)
+			}
+		})
+	}
+	planeIDs = func() (int, int, int, int) { return 501, 501, 20, 20 }
+	if _, err := accessWrite(dir); err != nil {
+		t.Errorf("accessWrite with equal ids: %v", err)
 	}
 }

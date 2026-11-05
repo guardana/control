@@ -12,10 +12,15 @@ import (
 // planeMayWrite asks whether the plane's account may write a path.
 var planeMayWrite = accessWrite
 
+// hasACL asks whether an entry carries an access control list.
+var hasACL = aclPresent
+
 var (
 	errPlaneIsRoot = errors.New("the plane runs as root, which may write every path, so no placement keeps one from it")
 	errPlaneOwns   = errors.New("owned by the plane's account, which may change its mode whatever the mode says")
 	errPlaneWrites = errors.New("the plane's account may write it")
+	errACL         = errors.New("it carries an access control list, which may let an account append to, delete or take it over whatever access(2) answers")
+	errEmptyPath   = errors.New("the path is empty and names no entry")
 )
 
 // planeJudge refuses a directory or a link on the path that the plane's
@@ -28,7 +33,11 @@ var planeJudge = walkJudge{
 		return nil
 	},
 	link: func(link string, info fs.FileInfo) error {
-		if err := judgePlaneOwner(info); err != nil {
+		err := judgePlaneOwner(info)
+		if err == nil {
+			err = judgeACL(link, info)
+		}
+		if err != nil {
 			return fmt.Errorf("the link %s: %w", link, err)
 		}
 		return nil
@@ -46,8 +55,22 @@ var planeJudge = walkJudge{
 // missing, since an entry the plane could create is one it may write. A plane
 // run as root is refused outright: root may write every path. Root's entries
 // of mode 0644 in root's directories of mode 0755 are the shape that passes.
-// A refusal names the entry and the reason, never what a file holds.
+// Any entry that carries an access control list is refused too, on Linux and
+// Darwin, since access(2) does not ask for the append, delete or ownership an
+// entry may grant; and so is a plane whose real and effective ids differ, or
+// that holds, on Linux, a capability that writes past access(2). A refusal
+// names the entry and the reason, never what a file holds.
+//
+// It does not see a bind mount or a user namespace the plane's account
+// controls, a network file system such as NFS or SMB whose server decides,
+// an access control list outside Linux and Darwin, or a capability outside
+// Linux. The environment outside the product's prefix, such as SSL_CERT_FILE
+// and SSL_CERT_DIR, still feeds the decision point's TLS roots, which can
+// only veto (ADR-0017).
 func CheckNotPlaneWritable(path string) error {
+	if path == "" {
+		return errEmptyPath
+	}
 	if !files.PermissionBits {
 		return fmt.Errorf("%s: %w", path, files.ErrNoPermissionBits)
 	}
@@ -116,6 +139,9 @@ func judgePlaneEntry(path string, info fs.FileInfo, passed bool) error {
 	if err := judgePlaneOwner(info); err != nil {
 		return err
 	}
+	if err := judgeACL(path, info); err != nil {
+		return err
+	}
 	if passed && info.Mode()&fs.ModeSticky != 0 {
 		return nil
 	}
@@ -132,6 +158,19 @@ func judgePlaneEntry(path string, info fs.FileInfo, passed bool) error {
 	}
 	if writable {
 		return errPlaneWrites
+	}
+	return nil
+}
+
+// judgeACL refuses an entry that carries an access control list, or one the
+// platform cannot say whether it does.
+func judgeACL(path string, info fs.FileInfo) error {
+	acl, err := hasACL(path, info)
+	switch {
+	case err != nil:
+		return fmt.Errorf("whether it carries an access control list is not known: %w", err)
+	case acl:
+		return errACL
 	}
 	return nil
 }
