@@ -42,6 +42,14 @@ verify one.
   `trust.*` and `operators.*`; `doctor` and `/healthz` report `trust`,
   `operators.authenticator`, `operators.authorizer` and `approvals.authority`
   ([ADR-0073](docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
+- `approvals approve|reject --key <file> --inbox <dir>` signs an answer
+  with an operator's key from the plane's own record of the hold and files it
+  in the inbox, never replacing a file; a key file the group or others may
+  read is refused. `console --inbox <dir>` names the inbox in the command
+  each signed hold shows, and without `--approver-id` only reads, refusing to
+  start as the plane's account. `dev` runs its plane under `signed`, with a
+  roster and an operator key of its own, and prints `inbox`, `operator_key`
+  and `approve_command`.
 
 ### Changed
 
@@ -55,7 +63,16 @@ verify one.
   resolution and takes the held or the answered name only. A `1.0` directory
   or record is refused with a message naming both versions; empty the
   directory, whose holds expire within `approvals.ttl`. `approvals list` and
-  the console no longer print a resolution.
+  the console no longer print a resolution. This build writes `2.1`, whose
+  record names the authority holding it and the call's tenant and project,
+  and reads `2.0` as held under `directory`; a `2.0` reader refuses a `2.1`
+  record.
+- **Breaking:** a claim (`approvals approve|reject --approver-id`, or the
+  console) for a hold under `signed` is refused naming the signing command,
+  where it was written and ignored; the console answers no signed hold. On a
+  `dev` plane the page shows the hold and the command, and approves nothing.
+- `operators roster sign` refuses, writing nothing, when `--out` changed
+  between its first read and the replace under the lock.
 - The pause commands write pause file `2`; a plane and the commands read `1`
   as before.
 - The gateway applies the `read_only`, `restrict_resources` and

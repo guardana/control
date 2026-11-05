@@ -119,7 +119,7 @@ func (s *store) readBounded(name string, limit int) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("%w: %q is not a regular file", ErrForeignFile, cause(name))
 	}
-	if err := checkFile(name, info); err != nil {
+	if err := s.checkFile(name, info); err != nil {
 		return nil, err
 	}
 	raw, err := io.ReadAll(io.LimitReader(f, int64(limit)+1))
@@ -132,14 +132,20 @@ func (s *store) readBounded(name string, limit int) ([]byte, error) {
 	return raw, nil
 }
 
-// checkFile refuses a file a group or the world may write, or another account
-// owns. The directory being this account's alone does not keep out an account
-// that may write the file itself, and what is in a record is an approval.
-func checkFile(name string, info fs.FileInfo) error {
+// checkFile refuses a file a group or the world may write, or an account
+// other than the directory's owns. The directory being one account's alone
+// does not keep out an account that may write the file itself, and what is in
+// a record is an approval. The directory's owner is this process's account
+// for every handle but the reader.
+func (s *store) checkFile(name string, info fs.FileInfo) error {
 	if info.Mode().Perm()&writableByOthers != 0 {
 		return fmt.Errorf("%w: %q has mode %04o", ErrForeignFile, cause(name), info.Mode().Perm())
 	}
-	if err := files.CheckOwnedBy(info, effectiveUID()); err != nil {
+	owner := effectiveUID()
+	if s.reader {
+		owner = int(s.opened.uid)
+	}
+	if err := files.CheckOwnedBy(info, owner); err != nil {
 		return fmt.Errorf("%w: %q: %w", ErrForeignFile, cause(name), err)
 	}
 	return nil

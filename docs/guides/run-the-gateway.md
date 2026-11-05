@@ -213,8 +213,8 @@ operators:
 
 Under `directory`, write access to `approvals.dir` is the approval authority
 and `--approver-id` is a claim ([reference/cli.md](../reference/cli.md)).
-Under `signed`, an answer is an operator's signed file
-`<approval id>.<label>.answer`, at most 16 per approval, 32 KiB each
+Under `signed`, an operator files an answer with `approvals approve --key`,
+at most 16 per approval
 ([ADR-0073](../adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)). A
 lost hold never runs; the next start closes its trail
 ([concepts/approvals-and-the-held-call.md](../concepts/approvals-and-the-held-call.md)).

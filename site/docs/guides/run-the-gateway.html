@@ -300,8 +300,8 @@ operators:
 </code></pre>
 <p>Under <code>directory</code>, write access to <code>approvals.dir</code> is the approval authority
 and <code>--approver-id</code> is a claim (<a href="/docs/reference/cli">reference/cli.md</a>).
-Under <code>signed</code>, an answer is an operator's signed file
-<code>&lt;approval id&gt;.&lt;label&gt;.answer</code>, at most 16 per approval, 32 KiB each
+Under <code>signed</code>, an operator files an answer with <code>approvals approve --key</code>,
+at most 16 per approval
 (<a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a>). A
 lost hold never runs; the next start closes its trail
 (<a href="/docs/concepts/approvals-and-the-held-call">concepts/approvals-and-the-held-call.md</a>).</p>
