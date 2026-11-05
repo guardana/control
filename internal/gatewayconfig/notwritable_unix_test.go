@@ -468,7 +468,7 @@ func TestAnACLIsSeen(t *testing.T) {
 	}
 	out, err := exec.Command("chmod", "+a", "user:"+me.Username+" allow append", file).CombinedOutput() //nolint:gosec // G204: the test's own file and account
 	if err != nil {
-		t.Skipf("chmod +a cannot make an access control list here: %v: %s", err, strings.TrimSpace(string(out)))
+		t.Skipf("chmod +a cannot make an access control list here: %v: %s", err, strings.Join(strings.Fields(string(out)), " "))
 	}
 	refusedAt(t, CheckNotPlaneWritable(file), errACL, file)
 }
