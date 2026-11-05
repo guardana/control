@@ -18,6 +18,11 @@ verify one.
   or record is refused with a message naming both versions; empty the
   directory, whose holds expire within `approvals.ttl`. `approvals list` and
   the console no longer print a resolution.
+- The release workflow makes its draft release before the build, through
+  `scripts/draft-release.sh`, and proves the release list and the upload host
+  serve it before anything is uploaded; a tag that already has a release, or
+  a draft of the same name, is refused, a draft a failed run left included
+  ([RELEASING.md](RELEASING.md)).
 
 ### Security
 
