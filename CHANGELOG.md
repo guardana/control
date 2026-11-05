@@ -13,6 +13,28 @@ verify one.
 
 ### Added
 
+- `pause add --run <id>`, `--agent <id>` and `--principal <id>` pause one
+  opened run, or every run under a root, one agent or one principal. A run
+  is named by its id from `runs open`, and any other spelling is refused. Each is
+  matched against what the plane vouches for: the opened run the listener
+  resolved from its token, and the agent and principal its configuration
+  names, never a run id or a client name the client sent. A call under no
+  opened run is paused by every run entry.
+- `/healthz`'s `pause.coverage` says per entry whether it covers `all`,
+  `some` or `none` of the plane's calls, and `pause.coverage_causes` why a
+  run entry covers none: its run is not in `runs.dir`, is another project's,
+  expired or closed. `doctor` counts the three and names each agent or
+  principal entry that is not the listener's and each such run entry.
+- `guardana-gateway spool drain <dir> <out>` moves a stopped plane's spool
+  quarantine into a new owner-only file of JSON Lines, synced before the
+  quarantine is emptied, so its bytes stop counting against
+  `evidence.max_bytes`. It is refused while a plane holds the spool.
+- `guardana-control runs prune --expired-before <time> --archive <dir>
+  <runs-dir>` removes whole run trees whose every run expired before the
+  time, after copying their records and state into a new owner-only archive.
+  A tree whose root is live is left alone. One whose root expired is kept,
+  named, and the command exits 1, when a run under it did not expire, a
+  plane holds its state lock or a file of it cannot be read.
 - `approvals.authority: signed`: a held call runs only on an answer an
   operator of the trust roster signed (`approval-answer/v1alpha1`), filed in
   `approvals.inbox_dir`, whose every member matches the hold and whose
@@ -34,11 +56,33 @@ verify one.
   or record is refused with a message naming both versions; empty the
   directory, whose holds expire within `approvals.ttl`. `approvals list` and
   the console no longer print a resolution.
+- The pause commands write pause file `2`; a plane and the commands read `1`
+  as before.
+- The gateway applies the `read_only`, `restrict_resources` and
+  `deny_external_sink` obligations itself, for every adapter, before an
+  approval is asked for. The enforcement API and the hook bridge, which denied
+  every call under a rule with one of them, now run a call the check holds
+  for; `shorten_timeout` stays a `DENY` there. On `enforce_api`,
+  `restrict_resources` needs `resource_from` on the tool, or the empty
+  resource id is refused. Over MCP a failing check is now the gateway's own
+  `DENY` with `OBLIGATION_NOT_UNDERSTOOD`, recorded `ACTION_BLOCKED` with no
+  `ACTION_STARTED`, and a call that would be held for an approval, under
+  `APPROVE` or by a `REQUIRE_APPROVAL` rule, is denied instead.
+  An adapter that declares a type the gateway applies is refused at start
+  ([ADR-0067](docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
 - The release workflow makes its draft release before the build, through
   `scripts/draft-release.sh`, and proves the release list and the upload host
   serve it before anything is uploaded; a tag that already has a release, or
   a draft of the same name, is refused, a draft a failed run left included
   ([RELEASING.md](RELEASING.md)).
+
+### Fixed
+
+- A long-running plane no longer reaches `approvals.max_records` and refuses
+  every hold: it forgets expired approval records and ledger marks older
+  than `approvals.ttl` every quarter of `approvals.ttl` while it serves, not
+  only at start. A sweep that fails is logged and counted under
+  `approvals.sweep` in `/healthz`.
 
 ### Security
 

@@ -205,11 +205,11 @@ reason over its bound — each on its own line, naming what to do about it.</p>
 <code>pause.file</code> (<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>), and
 <a href="/docs/concepts/enforcement-modes">concepts/enforcement-modes.md</a> says what a
 pause does to a call. <code>pause init</code> creates the file, pausing nothing, and
-refuses a name that is taken. <code>pause add</code> takes exactly one scope: <code>--global</code>,
-every call; <code>--provider &lt;p&gt;</code>, every call to that upstream by its configured
-name; or <code>--action &lt;k&gt;</code> with <code>--provider &lt;p&gt;</code>, where <code>&lt;k&gt;</code> is <code>tool</code>, <code>prompt</code>
-or <code>resource</code> and a tool also takes <code>--name &lt;n&gt;</code>, the name the plane routes
-by. A prompt or a resource takes no name. <code>&lt;f&gt;</code> is the pause file, relative to the working directory. It prints
+refuses a name that is taken. <code>pause add</code> takes exactly one scope: <code>--global</code>;
+<code>--provider &lt;p&gt;</code>, an upstream by its configured name; <code>--action &lt;k&gt;</code>
+(<code>tool</code>, <code>prompt</code> or <code>resource</code>) with <code>--provider &lt;p&gt;</code>, and for a tool
+<code>--name &lt;n&gt;</code>, the name the plane routes by; <code>--run &lt;id&gt;</code>; <code>--agent &lt;id&gt;</code>; or
+<code>--principal &lt;id&gt;</code>, each as <a href="/docs/concepts/enforcement-modes#pausing-calls">pausing calls</a> says. <code>&lt;f&gt;</code> is the pause file, relative to the working directory. It prints
 only the id it drew for the entry, and <code>pause remove &lt;file&gt; &lt;id&gt;</code>
 takes that id; removing the last entry leaves a file pausing nothing,
 because a missing file blocks every call. <code>pause list</code> prints one line per
@@ -224,8 +224,8 @@ value. A writer waits up to ten seconds for another writer's lock; a
 running plane takes none. A pause blocks every call not yet handed out
 when the plane reads it, within one <code>pause.poll_interval</code>; it cancels
 nothing already running.</p>
-<p>The <code>runs</code> commands open, close and list the runs a plane with <code>runs.dir</code>
-serves: <a href="/docs/reference/runs">runs.md</a>.</p>
+<p>The <code>runs</code> commands open, close, list and prune the runs a plane with
+<code>runs.dir</code> serves: <a href="/docs/reference/runs">runs.md</a>.</p>
 <p>The <code>observe</code> commands import spans or access logs into an observation log
 and export it: <a href="/docs/reference/observations">observations.md</a>. <code>coverage</code>
 is <a href="/docs/reference/coverage">coverage.md</a>, <code>supervise</code>, <code>notify</code> and <code>findings export</code>
@@ -250,13 +250,15 @@ profile's statuses, <a href="/docs/extending/runtime-profiles">extending/runtime
   guardana-control approvals approve --approver-id &lt;id&gt; [--reason &lt;text&gt;] &lt;dir&gt; &lt;approval-id&gt;
   guardana-control approvals reject --approver-id &lt;id&gt; [--reason &lt;text&gt;] &lt;dir&gt; &lt;approval-id&gt;
   guardana-control pause init &lt;file&gt;
-  guardana-control pause add --provider &lt;p&gt; [--action &lt;k&gt; [--name &lt;n&gt;]]|--global [--reason &lt;r&gt;] &lt;f&gt;
+  guardana-control pause add (--global | --provider &lt;p&gt; [--action &lt;k&gt; [--name &lt;n&gt;]]
+      | --run &lt;id&gt; | --agent &lt;id&gt; | --principal &lt;id&gt;) [--reason &lt;r&gt;] &lt;f&gt;
   guardana-control pause remove &lt;file&gt; &lt;id&gt;
   guardana-control pause list &lt;file&gt;
   guardana-control runs open --project --tenant --principal-type --principal --agent
       --ttl [--parent] &lt;dir&gt;
   guardana-control runs close &lt;dir&gt; &lt;run-id&gt;
   guardana-control runs list &lt;dir&gt;
+  guardana-control runs prune --expired-before &lt;time&gt; --archive &lt;dir&gt; &lt;dir&gt;
   guardana-control observe import --source &lt;file&gt; --log &lt;dir&gt; &lt;file&gt;
   guardana-control observe export [--after] [--limit] [--max-bytes] &lt;file&gt;
   guardana-control coverage --inventory &lt;file&gt; [--plane &lt;config&gt; [--evidence &lt;export&gt;]]...
@@ -322,12 +324,13 @@ holding it, or past 100,000 lines. <code>trail export</code> of a directory expo
 segment and, as <code>trail</code>, refuses a file inside it and an expired cursor.
 <code>prune</code>
 removes sealed segments,
-tombstones first, while no <code>collect</code> holds them.</p>
+tombstones first, while no <code>collect</code> holds them. <code>spool drain</code>:
+<a href="/docs/concepts/evidence-and-the-spool">evidence-and-the-spool.md</a>.</p>
 <p><code>scenario run</code> holds a running plane to scenario files
 (<a href="/docs/reference/scenario-format">scenario-format.md</a>); it exits 1 when one differed, and
 2, a failure too, when one could not run.</p>
 <p><code>dev</code>: <a href="/docs/reference/dev">dev.md</a>.</p>
-<pre><code>usage: guardana-gateway [run --config &lt;file&gt; [--run-token-file &lt;file&gt;] | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --dir &lt;dir&gt; --tenant &lt;id&gt; --project &lt;id&gt; --credential-file &lt;file&gt; [--segment-bytes &lt;n&gt;] [--max-bytes &lt;n&gt;] | trail [segments] [export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] [--request &lt;id&gt;]... [--run &lt;id&gt;]... [--tenant &lt;id&gt;]... [--project &lt;id&gt;]... [--kind &lt;kind&gt;]...] &lt;file or dir&gt; | prune --through &lt;segment&gt; &lt;dir&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--decision-point=silent] [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
+<pre><code>usage: guardana-gateway [run --config &lt;file&gt; [--run-token-file &lt;file&gt;] | doctor --config &lt;file&gt; | collect --listen &lt;addr&gt; --dir &lt;dir&gt; --tenant &lt;id&gt; --project &lt;id&gt; --credential-file &lt;file&gt; [--segment-bytes &lt;n&gt;] [--max-bytes &lt;n&gt;] | trail [segments] [export [--after &lt;cursor&gt;] [--limit &lt;n&gt;] [--max-bytes &lt;n&gt;] [--request &lt;id&gt;]... [--run &lt;id&gt;]... [--tenant &lt;id&gt;]... [--project &lt;id&gt;]... [--kind &lt;kind&gt;]...] &lt;file or dir&gt; | prune --through &lt;segment&gt; &lt;dir&gt; | spool drain &lt;dir&gt; &lt;out&gt; | scenario run --config &lt;file&gt; --trail &lt;file&gt; [--control &lt;file&gt;] [--timeout &lt;d&gt;] &lt;path&gt;... | dev --config &lt;file&gt; --policy &lt;file&gt; [--decision-point=silent] [--state &lt;dir&gt;] [--scenario &lt;file&gt;]...]
 
 run
   -config string
@@ -376,6 +379,8 @@ trail
 prune
   -through segment
     	prune every sealed segment up to and including this segment number
+
+spool
 
 scenario
   -config string

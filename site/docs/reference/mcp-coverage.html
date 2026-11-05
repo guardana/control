@@ -172,7 +172,7 @@ child process (<code>upstreams[].command</code>).</p>
 </tr>
 <tr>
 <td><code>tools/call</code></td>
-<td>Admits an <code>ActionEnvelope</code>; only if the mode lets it run, applies rewriting obligations, none under <code>OBSERVE</code>, sends exactly the authorized bytes and closes the trail with their digest</td>
+<td>Admits an <code>ActionEnvelope</code>; if the mode lets it run, applies the plane's obligations, none under <code>OBSERVE</code>, sends exactly the authorized bytes and closes the trail with their digest</td>
 <td>yes</td>
 </tr>
 <tr>
@@ -372,7 +372,7 @@ block in every mode. The codes below are the enforcement point's own.</p>
 </tr>
 <tr>
 <td><code>PAUSED</code></td>
-<td>an operator's pause covers the call: <code>global</code>, its upstream, or its kind, upstream and name; in every mode, reads included, and never in a listing</td>
+<td>an operator's pause covers the call (<a href="/docs/concepts/enforcement-modes#pausing-calls">scopes</a>); in every mode, reads included, and never in a listing</td>
 </tr>
 <tr>
 <td><code>RUN_STOPPED</code></td>

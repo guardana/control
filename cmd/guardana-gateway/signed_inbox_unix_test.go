@@ -5,7 +5,9 @@ package main
 import (
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,5 +144,24 @@ func TestTheInboxPruneKeepsWhatAHoldStillNeeds(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(tr.dir, "inbox", held.Pending.ApprovalID+".alice.answer")); err != nil {
 		t.Errorf("the held call's answer is gone: %v", err)
+	}
+}
+
+// TestTheServingSweepPrunesTheInbox: the sweep a serving plane runs removes an
+// answer to an approval it no longer holds once a lifetime has passed, and
+// counts it on the health page.
+func TestTheServingSweepPrunesTheInbox(t *testing.T) {
+	tr, p := signedHoldingPlane(t)
+	held := admitTransfer(t, p, "req-hold-1")
+	gone := held
+	gone.Pending = &gateway.Pending{ApprovalID: "GONE1", ActionDigest: held.Pending.ActionDigest}
+	fileAnswer(t, tr, gone, "alice")
+	p.sweepStores(context.Background(), time.Now().Add(p.cfg.Approvals.TTL+time.Minute))
+	if _, err := os.Stat(filepath.Join(tr.dir, "inbox", "GONE1.alice.answer")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the answer to GONE1 is still there: %v", err)
+	}
+	got := p.sweeps.counters()
+	if got["answers_forgotten"] != uint64(1) || got["answers_failed"] != uint64(0) || got["answers_refused"] != uint64(0) {
+		t.Errorf("sweep counters = %v; want one answer forgotten, none failed or refused", got)
 	}
 }

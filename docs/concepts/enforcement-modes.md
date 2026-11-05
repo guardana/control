@@ -38,7 +38,7 @@ Sources: `internal/gateway/admit.go`, `internal/gateway/pipeline.go`.
 
 The mode is applied in `applyMode`, after the kernel decided and before
 anything is written. It is also read where the kernel is built, where
-`OBSERVE` skips the rewriting obligations, and where `OBSERVE` takes a call
+`OBSERVE` skips the obligations the plane applies, and where `OBSERVE` takes a call
 nothing classifies. It changes the action and never the decision:
 `POLICY_DECIDED` carries the kernel's decision, and a block the mode made
 carries a decision the enforcement point minted, with `pdp_type: gateway` and
@@ -61,8 +61,12 @@ runs, `INDETERMINATE` goes to the fail-closed table, see
 | `DENY` | runs, with the proposed bytes | blocked | blocked | blocked; a material call with the enforcement point's `LOCKDOWN` decision on the block, a read with the kernel's |
 | `INDETERMINATE` | runs, with the proposed bytes | the fail-closed table | the fail-closed table | a material call is blocked with `LOCKDOWN`; a read goes to the fail-closed table with fail-open reads off, so it blocks |
 
+In every mode but `OBSERVE`, a call that fails `read_only`,
+`restrict_resources` or `deny_external_sink` is blocked before it would run
+or be held for an approval, a read included.
+
 `OBSERVE` enforces nothing the decision says, so it executes the proposed
-bytes without applying a rewriting obligation, and it takes a call nothing
+bytes without applying an obligation, and it takes a call nothing
 classifies; it is how an operator learns which tools exist before classifying
 them. It never takes a call the adapter could not translate for any other
 reason, nor one whose envelope names a kind or a protocol outside the plane's
@@ -118,10 +122,10 @@ before each step that cannot be undone, as the next section says.
 
 ## Pausing calls
 
-An operator stops one tool, one upstream or everything without a restart by
-writing an entry into the pause file `pause.file` names, with
-`guardana-control pause add`, and lifts it with `pause remove`. An entry has
-one of three scopes:
+An operator stops one tool, one upstream, one run, one agent, one principal
+or everything without a restart by writing an entry into the pause file
+`pause.file` names, with `guardana-control pause add`, and lifts it with
+`pause remove`. An entry has one of six scopes:
 
 - `global`: every call.
 - `provider`: every call to one upstream, by its configured name.
@@ -130,21 +134,39 @@ one of three scopes:
   their upstream only: the plane routes either by its upstream alone, so its
   name or URI is the client's to spell and an exact match could be
   sidestepped. The format refuses a name on either.
+- `run`: the opened run of that id, or every run whose root it is, named by
+  the id `runs open` printed. A run's root is the top of its tree, so naming
+  a child pauses that child alone.
+- `agent` and `principal`: every call of that agent or principal id.
+
+A run, an agent and a principal are matched only against what the plane
+vouches for: the opened run the listener resolved from its token, and the
+agent and principal the listener's configuration names. A run id in the run
+context, `_meta` or `clientInfo` neither aims a pause nor escapes one.
 
 A field the call does not carry matches, as an absent input restricts: a call
 nothing routes to an upstream is covered by every provider entry, and by an
-action entry of its kind and, for a tool, its name. No scope reads anything
-else the client wrote. A pause sits above every mode: it blocks in `OBSERVE`,
+action entry of its kind and, for a tool, its name; a call under no opened
+run, a local run's included, is covered by every run entry. No scope reads
+anything else the client wrote. A pause sits above every mode: it blocks in `OBSERVE`,
 reads included, and whatever the policy decided. A file holds at most 64
 entries; a full one refuses another, a global one included, until an entry is
 removed.
 
-An entry naming an upstream the configuration lacks, or a tool its upstream
-does not list, pauses only calls that carry no provider, which are calls to
-names no upstream lists. `doctor`, the `unlisted_only` member of `/healthz`'s
-`pause` and the plane's log name every such entry; a tool is judged once the
-upstreams have answered. The log names them at warn at start and with each
-change of the file.
+An entry that pauses less than it names is never silent. The `coverage`
+member of `/healthz`'s `pause` says, per entry id, whether it covers `all`,
+`some` or `none` of the plane's calls, and `doctor` counts them. Every call
+carries the listener's agent and principal, so an agent or principal entry
+covers all or none of them, and `doctor` names each that is not the
+listener's. A run entry covers all on a plane without `runs.dir`. On one
+with it, it covers some while its run is the plane's project's, unexpired and
+open, or a closed root whose runs stay open; otherwise none, and
+`coverage_causes` says why. An entry naming an upstream the configuration lacks, or a tool
+its upstream does not list, is `none`: it pauses only calls that carry no
+provider, which are calls to names no upstream lists. `doctor`, the
+`unlisted_only` member and the plane's log name every such entry; a tool is
+judged once the upstreams have answered. The log names them at warn at start
+and with each change of the file.
 
 The plane reads the file every `pause.poll_interval` into a snapshot, and once
 more before it listens, since a slow start can outlast the first read. A call

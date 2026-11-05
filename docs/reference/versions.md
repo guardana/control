@@ -33,7 +33,7 @@ version. [status.md](../status.md) is the inventory.
 | Approval answer (`kind`) | `approval-answer/v1alpha1` | `approval-answer/v1alpha1` | `experimental` | [ADR-0073](../adr/0073-an-approval-counts-only-as-the-plane-judges-it.md) |
 | Floor directories (`schema_version`) | `1.0` | `1.x` | `experimental` | [cli.md](cli.md#guardana-control) |
 | Scenario (`kind`) | — | `agent-scenario/v1alpha1` | `experimental` | [scenario-format.md](scenario-format.md#the-document) |
-| Pause file (`schema_version`) | `1` | `1` | `experimental` | [cli.md](cli.md#guardana-control) |
+| Pause file (`schema_version`) | `2` | `1`, `2` | `experimental` | [cli.md](cli.md#guardana-control) |
 | Approvals directory (`schema_version`) | `2.0` | `2.x` | `experimental` | [approvals](../concepts/approvals-and-the-held-call.md#what-is-held-and-by-whom) |
 | Hold journal (`schema_version`) | `1.0` | `1.x` | `experimental` | [approvals](../concepts/approvals-and-the-held-call.md#a-hold-the-plane-loses) |
 | Spent ledger (`schema_version`) | `1.0` | `1.x` | `experimental` | [approvals](../concepts/approvals-and-the-held-call.md#an-approval-is-spent-once) |

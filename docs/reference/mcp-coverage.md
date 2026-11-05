@@ -35,7 +35,7 @@ child process (`upstreams[].command`).
 | Method | What the gateway does | Decided |
 | --- | --- | --- |
 | `tools/list` | Answers from the manifest, without a [withheld](../concepts/mcp-gateway.md#an-answer-that-quotes-a-credential) definition, shaped for the principal, with `cacheScope: private` and the operator's `ttlMs` | under `annotate` or `hide`, one preview per classified tool one upstream serves; a cached list, one naming the bundle in force; nothing recorded |
-| `tools/call` | Admits an `ActionEnvelope`; only if the mode lets it run, applies rewriting obligations, none under `OBSERVE`, sends exactly the authorized bytes and closes the trail with their digest | yes |
+| `tools/call` | Admits an `ActionEnvelope`; if the mode lets it run, applies the plane's obligations, none under `OBSERVE`, sends exactly the authorized bytes and closes the trail with their digest | yes |
 | `resources/read` | Translated as a `READ` of the URI. Routed only when one upstream is configured; with several it is `ACTION_UNCLASSIFIED`, since nothing says which server holds the URI | yes |
 | `prompts/get` | Translated as a `READ` of the prompt, its arguments authorized as a canonical JSON object of strings. Routed as above | yes |
 | `resources/list`, `resources/templates/list`, `prompts/list` | Merged from every upstream, bounded, with the gateway's own `_meta` keys stripped and `cacheScope: private`; `-31103` when an item quotes a credential | no: a listing names no action |
@@ -121,7 +121,7 @@ block in every mode. The codes below are the enforcement point's own.
 | --- | --- |
 | `ACTION_UNCLASSIFIED` | no manifest entry classifies the operation; blocked outside `OBSERVE` |
 | `LOCKDOWN` | a material call under `LOCKDOWN` |
-| `PAUSED` | an operator's pause covers the call: `global`, its upstream, or its kind, upstream and name; in every mode, reads included, and never in a listing |
+| `PAUSED` | an operator's pause covers the call ([scopes](../concepts/enforcement-modes.md#pausing-calls)); in every mode, reads included, and never in a listing |
 | `RUN_STOPPED` | a stop names the call's opened run, reads included |
 | `PAUSE_STATE_UNAVAILABLE`, `STOP_STATE_UNAVAILABLE` | the pause file or stop list is unreadable or untrusted, or its last read is stale or dated ahead; every call is blocked |
 | `EVIDENCE_UNAVAILABLE` | a record the decision depends on could not be written, kept or read back: the sink refused an event, a bound on held requests or open executions was reached, or the approval store or the hold journal could not answer, or answered with an approval that names another request, is not approved, or outlives the expiry the gateway minted; or, under `runs.dir`, its run ([runs.md](runs.md#what-a-plane-does-with-a-token)) |
