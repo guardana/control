@@ -123,9 +123,9 @@ verify one.</p>
 <h3 id="changed">Changed</h3>
 <ul>
 <li>The release workflow makes its draft release before the build, through
-<code>scripts/draft-release.sh</code>, and proves the upload host serves it before
-anything is uploaded; a tag that already has a release, a draft a failed
-run left included, is refused until the draft is deleted by hand
+<code>scripts/draft-release.sh</code>, and proves the release list and the upload host
+serve it before anything is uploaded; a tag that already has a release, or
+a draft of the same name, is refused, a draft a failed run left included
 (<a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a>).</li>
 </ul>
 <h2 id="0150---2026-11-02"><a href="https://github.com/guardana/control/releases/tag/v0.15.0">0.15.0</a> - 2026-11-02</h2>

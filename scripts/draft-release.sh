@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Makes the draft release the release workflow uploads into, before anything
-# is built. goreleaser once uploaded into a draft it had created a moment
-# earlier and the upload host answered 404, so the draft is made here, read
-# back until the API serves it, and proven on the upload host with a probe
-# asset that is removed again; goreleaser then takes the draft as its own
-# (.goreleaser.yaml: use_existing_draft), finding it by its name, so <name>
-# is what goreleaser's name_template renders. Run by the release workflow only.
+# is built, and proves both GitHub hosts serve it: the release list, where
+# goreleaser looks for it, and the upload host, with a probe asset that is
+# removed again. goreleaser takes the draft as its own (.goreleaser.yaml:
+# use_existing_draft) by its name alone, so <name> is what goreleaser's
+# name_template renders. Run by the release workflow only.
 #
 #   scripts/draft-release.sh <tag> <commit> <name>
 #
-# Prints the draft's id. Any release for the tag that exists already, a
-# published one or a draft a failed run left, refuses the script: the workflow
-# publishes only the one draft for its tag, and a leftover is the maintainer's
-# to delete (RELEASING.md).
+# Prints the draft's id. A release for the tag, or a draft of that name for
+# any tag, refuses the script: goreleaser would take the first draft of the
+# name, and Publish publishes only the one draft this run made. Whatever the
+# script leaves after a refusal is a draft at most; RELEASING.md says what to
+# do with it.
 set -euo pipefail
 
 die() {
@@ -21,7 +21,7 @@ die() {
 }
 
 # How often, and how long apart, each host is asked before the draft is given
-# up: a minute in all, far past the lag seen so far.
+# up: a minute in all.
 tries=12
 pause=5
 
@@ -40,28 +40,36 @@ command -v jq >/dev/null 2>&1 || die "jq is not on PATH"
 prerelease=false
 [[ "${tag}" == *-* ]] && prerelease=true
 
-existing="$(gh api "repos/${repo}/releases?per_page=100" --paginate |
-  jq -r -s --arg tag "${tag}" '[.[][] | select(.tag_name == $tag) | "\(.id) (draft: \(.draft))"] | .[]')" ||
-  die "the releases of ${repo} could not be listed"
+# list_releases prints every release of the repository as one JSON array.
+list_releases() {
+  gh api "repos/${repo}/releases?per_page=100" --paginate | jq -s 'add // []'
+}
+
+releases="$(list_releases)" || die "the releases of ${repo} could not be listed"
+existing="$(jq -r --arg tag "${tag}" --arg name "${name}" \
+  '.[] | select(.tag_name == $tag or (.draft and .name == $name)) | "\(.id) (\(.tag_name), draft: \(.draft))"' <<<"${releases}")"
 [[ -z "${existing}" ]] ||
-  die "a release for ${tag} exists already: ${existing//$'\n'/, }; a draft a failed run left is deleted by hand, and a published tag never moves"
+  die "a release for ${tag} or a draft named ${name} exists already: ${existing//$'\n'/, }"
 
 id="$(gh api --method POST "repos/${repo}/releases" \
   -f "tag_name=${tag}" -f "target_commitish=${commit}" -f "name=${name}" \
   -F draft=true -F "prerelease=${prerelease}" --jq .id)" || die "the draft for ${tag} could not be made"
 [[ "${id}" =~ ^[0-9]+$ ]] || die "the draft's id is not a number: ${id}"
 
+# The list, not the release by its id, is what goreleaser reads, so the draft
+# counts as served only once the list names it, and it alone, under the name.
 served=false
 for _ in $(seq "${tries}"); do
-  answer="$(gh api "repos/${repo}/releases/${id}" --jq '"\(.tag_name) \(.draft)"' 2>/dev/null || true)"
-  if [[ "${answer}" == "${tag} true" ]]; then
+  ids="$(list_releases 2>/dev/null | jq -r --arg name "${name}" \
+    '[.[] | select(.draft and .name == $name) | .id] | map(tostring) | join(",")' 2>/dev/null || true)"
+  if [[ "${ids}" == "${id}" ]]; then
     served=true
     break
   fi
   sleep "${pause}"
 done
 [[ "${served}" == true ]] ||
-  die "the API does not serve draft ${id} for ${tag}; delete it by hand and run the job again"
+  die "the release list does not name draft ${id} alone under ${name}; delete the draft by hand"
 
 probe="$(mktemp)"
 printf 'probe\n' >"${probe}"
@@ -76,10 +84,10 @@ for _ in $(seq "${tries}"); do
 done
 rm -f "${probe}"
 [[ "${asset}" =~ ^[0-9]+$ ]] ||
-  die "the upload host does not serve draft ${id} for ${tag}; delete it by hand and run the job again"
+  die "the upload host does not serve draft ${id} for ${tag}; delete the draft by hand"
 gh api --method DELETE "repos/${repo}/releases/assets/${asset}" >/dev/null ||
-  die "the probe asset ${asset} on draft ${id} could not be removed; remove it by hand, then delete the draft and run the job again"
+  die "the probe asset ${asset} on draft ${id} could not be removed; delete the draft by hand"
 left="$(gh api "repos/${repo}/releases/${id}/assets?per_page=100" --paginate --jq '.[].name' | paste -sd, -)" ||
-  die "the assets of draft ${id} could not be listed"
-[[ -z "${left}" ]] || die "draft ${id} holds assets before the build: ${left}"
+  die "the assets of draft ${id} could not be listed; delete the draft by hand"
+[[ -z "${left}" ]] || die "draft ${id} holds assets before the build: ${left}; delete the draft by hand"
 printf '%s\n' "${id}"

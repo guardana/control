@@ -380,15 +380,11 @@ jobs:
 
       - name: Draft the release
         id: draft
-        # Before the build: goreleaser once uploaded into a draft it had made
-        # a moment earlier and the upload host answered 404. The script makes
-        # the draft, reads it back from the API and proves the upload host
-        # serves it with a probe asset it removes again; goreleaser then takes
-        # the draft as its own (.goreleaser.yaml: use_existing_draft), which
-        # it finds by the name alone, so the name here is the one its
-        # name_template renders; a name that differs would make it a second
-        # draft, which Publish refuses. Any release for this tag that exists
-        # already refuses the step.
+        # Before the build, so both hosts are known to serve the draft before
+        # anything is uploaded into it; goreleaser then takes it as its own
+        # (.goreleaser.yaml: use_existing_draft), finding it by the name its
+        # name_template renders, which is the name passed here. A release for
+        # this tag, or a draft of this name, refuses the step.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
