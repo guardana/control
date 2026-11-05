@@ -323,7 +323,7 @@ What it does not do:
   counters. Both default to `127.0.0.1`, which every local account can reach.
 - **`collect` trusts whoever holds its credential**, answering others 401
   (`TestARequestWithoutTheCredentialIsRefusedBeforeItIsRead`): who reads its
-  file or the plane's configuration, or binds its port while down, gets
+  file or the plane's configuration, or binds its TCP port while down, gets
   it ([ADR-0072](../adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md)).
 - The spool writes its files `0600` and refuses a directory another account
   owns or that others can write.
@@ -375,7 +375,7 @@ What the plane does today:
   included, and a loopback origin is admitted only while the listener is on the
   loopback (`adapters/mcp/listener.go`, `internal/gatewayconfig/check.go`;
   `TestOriginIsValidated`).
-- `collect` listens on a loopback address only (`internal/loopback/`;
+- `collect` listens on the loopback or a socket only (`internal/loopback/`;
   `TestCollectListensOnTheLoopbackOnly`), and `dev` binds and reaches loopback
   IP literals only (`TestDevAddressesAreLoopbackLiterals`).
 
@@ -386,10 +386,11 @@ What it does not do:
   configured principal, under `runs.dir` with a run token they hold. There is no TLS setting on it.
 - The health listener is the same: plain HTTP, no credential, wherever
   `health.address` puts it.
-- A plaintext export stays on the host, unprotected there: an account that
-  can capture loopback traffic reads the headers and the events, and one that
-  holds the collector's port first receives them and can answer with the
-  acceptance that releases a record from the spool.
+- A plaintext export stays on the host, unprotected there: an account
+  capturing loopback traffic reads the headers and the events, and one holding
+  the collector's port first receives them and can answer with the acceptance
+  that releases them; a unix endpoint checks the collector's account
+  (`TestACollectorOfAnotherAccountIsSentNothing`).
 
 ## A tampered release
 

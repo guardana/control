@@ -14,7 +14,9 @@ import (
 // the state and why an unknown one is unknown, how old the read is, the
 // active stops, at most reaction.MaxListedEntries of them, the list's use of
 // its bounds, the active stops naming a run the runs directory does not hold
-// for the plane's project, and what the reader counted. A plane with no route says only disabled.
+// for the plane's project, and what the reader counted. A plane with no route
+// says only disabled. The entries and the runs they name are the whole
+// answer's; counted leaves them out.
 type stopsAnswer struct {
 	State  string       `json:"state"`
 	Cause  string       `json:"cause,omitempty"`
@@ -25,16 +27,18 @@ type stopsAnswer struct {
 	AgeMS *int64 `json:"age_ms,omitempty"`
 	// Active is how many stops are active; Entries lists the first of them.
 	Active  int               `json:"active"`
-	Entries []stopEntryAnswer `json:"entries"`
+	Entries []stopEntryAnswer `json:"entries,omitempty"`
 	Usage   *usageAnswer      `json:"usage,omitempty"`
 	// Degraded says the list is past nine tenths of a bound, past which the
 	// emitter can write no more stops.
 	Degraded bool `json:"degraded"`
 	// UnheldRuns are the listed stops' runs the runs directory holds no
 	// record of for the plane's project, and UnreadRuns those whose record
-	// could not be read.
-	UnheldRuns []string       `json:"unheld_runs"`
-	UnreadRuns []string       `json:"unread_runs"`
+	// could not be read; Unheld and Unread count them.
+	Unheld     int            `json:"unheld"`
+	Unread     int            `json:"unread"`
+	UnheldRuns []string       `json:"unheld_runs,omitempty"`
+	UnreadRuns []string       `json:"unread_runs,omitempty"`
 	Polls      map[string]any `json:"polls,omitempty"`
 }
 
@@ -91,6 +95,7 @@ func (p *plane) stopsAnswer(snap reaction.Snapshot, now time.Time) stopsAnswer {
 		})
 	}
 	out.UnheldRuns, out.UnreadRuns = unheldRuns(p.runsDir, p.cfg.ProjectID, entries)
+	out.Unheld, out.Unread = len(out.UnheldRuns), len(out.UnreadRuns)
 	if u := held.Usage(); u != (reaction.Usage{}) {
 		out.Usage = &usageAnswer{Bytes: u.Bytes, MaxBytes: reaction.MaxListBytes, Lines: u.Lines, MaxLines: reaction.MaxListLines}
 		out.Degraded = u.Degraded()
@@ -145,4 +150,12 @@ func unheldRuns(dir *runs.Plane, project string, entries []reaction.Entry) (unhe
 		}
 	}
 	return unheld, unread
+}
+
+// counted is a as GET /healthz answers it: the stops' entries and the runs
+// they name left out, their counts kept, so no run id reaches a listener any
+// local account can read.
+func (a healthAnswer) counted() healthAnswer {
+	a.Stops.Entries, a.Stops.UnheldRuns, a.Stops.UnreadRuns = nil, nil, nil
+	return a
 }
