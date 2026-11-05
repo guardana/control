@@ -30,6 +30,11 @@ verify one.
 
 - The pause commands write pause file `2`; a plane and the commands read `1`
   as before.
+- The release workflow makes its draft release before the build, through
+  `scripts/draft-release.sh`, and proves the release list and the upload host
+  serve it before anything is uploaded; a tag that already has a release, or
+  a draft of the same name, is refused, a draft a failed run left included
+  ([RELEASING.md](RELEASING.md)).
 
 ## [0.15.0] - 2026-11-02
 
