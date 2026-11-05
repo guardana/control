@@ -134,6 +134,11 @@ resource id is refused. Over MCP a failing check is now the gateway's own
 <code>APPROVE</code> or by a <code>REQUIRE_APPROVAL</code> rule, is denied instead.
 An adapter that declares a type the gateway applies is refused at start
 (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</li>
+<li>The release workflow makes its draft release before the build, through
+<code>scripts/draft-release.sh</code>, and proves the release list and the upload host
+serve it before anything is uploaded; a tag that already has a release, or
+a draft of the same name, is refused, a draft a failed run left included
+(<a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a>).</li>
 </ul>
 <h2 id="0150---2026-11-02"><a href="https://github.com/guardana/control/releases/tag/v0.15.0">0.15.0</a> - 2026-11-02</h2>
 <p>Upgrading from 0.14 changes four things an operator must act on. <code>collect</code>
