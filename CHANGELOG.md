@@ -28,6 +28,11 @@ verify one.
 
 ### Changed
 
+- **Breaking:** the approvals directory is format `2.0`: a record carries no
+  resolution and takes the held or the answered name only. A `1.0` directory
+  or record is refused with a message naming both versions; empty the
+  directory, whose holds expire within `approvals.ttl`. `approvals list` and
+  the console no longer print a resolution.
 - The pause commands write pause file `2`; a plane and the commands read `1`
   as before.
 - The release workflow makes its draft release before the build, through
@@ -35,6 +40,16 @@ verify one.
   serve it before anything is uploaded; a tag that already has a release, or
   a draft of the same name, is refused, a draft a failed run left included
   ([RELEASING.md](RELEASING.md)).
+
+### Security
+
+- Only the plane marks an approval spent or given up, in a ledger (`1.0`)
+  under `ledger/` in `approvals.hold_journal_dir`, under the journal's lock
+  and owned by the plane's account. A file an approver writes into the
+  approvals directory can no longer make the plane read an approval as spent
+  or given up; a name that once meant either is refused as foreign. A hold
+  the plane settles at start leaves that directory, so `approvals list` and
+  the console no longer offer it.
 
 ## [0.15.0] - 2026-11-02
 
