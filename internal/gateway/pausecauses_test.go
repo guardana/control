@@ -283,9 +283,6 @@ func TestEveryUnknownPauseStateBlocksWithItsOwnCode(t *testing.T) {
 		"unknown version": func(t *testing.T) pause.Snapshot {
 			return readMode(t, strings.Replace(valid, `"2"`, `"3"`, 1), 0o600, 0o700)
 		},
-		"the version before": func(t *testing.T) pause.Snapshot {
-			return readMode(t, strings.Replace(valid, `"2"`, `"1"`, 1), 0o600, 0o700)
-		},
 		"stale": func(t *testing.T) pause.Snapshot {
 			return pause.Read(pauseFile(t), base().Add(-3*pauseInterval-time.Nanosecond), pauseInterval)
 		},

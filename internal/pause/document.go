@@ -12,9 +12,12 @@ import (
 	"github.com/guardana/control/pkg/contract"
 )
 
-// SchemaVersion is the one version of the pause file this build reads and
-// writes.
-const SchemaVersion = "2"
+// SchemaVersion is the version of the pause file this build writes. It reads
+// subsetVersion too, a version that names no run, agent or principal.
+const (
+	SchemaVersion = "2"
+	subsetVersion = "1"
+)
 
 // The bounds of one document. A file past any of them is refused whole.
 // MaxEntries entries with every field at its bound and escaped at twice its
@@ -44,10 +47,11 @@ type Document struct {
 
 // Parse reads a pause document strictly. It refuses, with ErrTooLarge, a
 // document over MaxFileBytes; with ErrVersion, a schema version other than
-// SchemaVersion; and with ErrMalformed, anything else it cannot read exactly:
-// text that is not UTF-8 or not one JSON object, an unknown, repeated or
-// missing member, a value of the wrong type, out of its bound or its set,
-// more than MaxEntries entries, and two entries under one id.
+// SchemaVersion and subsetVersion; and with ErrMalformed, anything else it
+// cannot read exactly: text that is not UTF-8 or not one JSON object, an
+// unknown, repeated or missing member, a value of the wrong type, out of its
+// bound or its set, more than MaxEntries entries, two entries under one id,
+// and a scope a subsetVersion file cannot name.
 func Parse(raw []byte) (Document, error) {
 	if len(raw) > MaxFileBytes {
 		return Document{}, fmt.Errorf("%w: %d bytes, the bound is %d", ErrTooLarge, len(raw), MaxFileBytes)
@@ -63,8 +67,8 @@ func Parse(raw []byte) (Document, error) {
 	if err != nil {
 		return Document{}, malformed("%v", err)
 	}
-	if version != SchemaVersion {
-		return Document{}, fmt.Errorf("%w: %q, this build reads %q", ErrVersion, bounded(version), SchemaVersion)
+	if version != SchemaVersion && version != subsetVersion {
+		return Document{}, fmt.Errorf("%w: %q, this build reads %q and %q", ErrVersion, bounded(version), subsetVersion, SchemaVersion)
 	}
 	if err := only(top, "schema_version", "entries"); err != nil {
 		return Document{}, malformed("%v", err)
@@ -76,16 +80,29 @@ func Parse(raw []byte) (Document, error) {
 	if len(list) > MaxEntries {
 		return Document{}, malformed("%d entries, the bound is %d", len(list), MaxEntries)
 	}
+	doc, err := parseEntries(list, version)
+	if err != nil {
+		return Document{}, err
+	}
+	if err := doc.Check(); err != nil {
+		return Document{}, err
+	}
+	return doc, nil
+}
+
+// parseEntries reads the entries of a file of version, refusing a scope a
+// subsetVersion file cannot name.
+func parseEntries(list []json.RawMessage, version string) (Document, error) {
 	doc := Document{Entries: make([]Entry, 0, len(list))}
 	for i, raw := range list {
 		e, err := parseEntry(raw)
 		if err != nil {
 			return Document{}, malformed("entries.%d: %v", i, err)
 		}
+		if version == subsetVersion && !inSubset(e.Scope) {
+			return Document{}, malformed("entries.%d: a version %s file names no run, agent or principal", i, subsetVersion)
+		}
 		doc.Entries = append(doc.Entries, e)
-	}
-	if err := doc.Check(); err != nil {
-		return Document{}, err
 	}
 	return doc, nil
 }
@@ -148,6 +165,11 @@ func parseScope(m map[string]json.RawMessage) (Scope, error) {
 		}
 	}
 	return s, nil
+}
+
+// inSubset reports whether s is a scope a version 1 file could name.
+func inSubset(s Scope) bool {
+	return s.ID == "" && (s.Kind == ScopeGlobal || s.Kind == ScopeProvider || s.Kind == ScopeAction)
 }
 
 // Check refuses a document Parse would refuse for its values: more than

@@ -20,7 +20,7 @@ func FuzzParse(f *testing.F) {
 		`{"schema_version":"2","entries":[],"entries":[]}`,
 		`{"schema_version":"1","entries":[]}`,
 		docJSON(entryJSON("r", runScope, ""), entryJSON("g", agentScope, ""), entryJSON("u", principalScope, "")),
-		docJSON(entryJSON("a", `{"kind":"run","id":"run-a","provider":"orders"}`, "")),
+		docJSON(entryJSON("a", `{"kind":"run","id":"run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","provider":"orders"}`, "")),
 		docJSON(entryJSON("a", `{"kind":"action","action":"resource","provider":"f","name":"x"}`, "")),
 		docJSON(entryJSON("a", `{"kind":"action","action":"prompt","provider":"f","name":"x"}`, "")),
 		docJSON(entryJSON("a", `{"kind":"action","action":"prompt","provider":"f"}`, "<\u2028>")),

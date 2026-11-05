@@ -126,50 +126,6 @@ func (p *plane) warnStray() {
 	}
 }
 
-// The share of a plane's calls a pause entry can cover.
-const (
-	coverAll  = "all"
-	coverSome = "some"
-	coverNone = "none"
-)
-
-// coverage names, by entry id, the share of cfg's plane's calls each entry
-// can cover. A run entry covers all where no runs.dir opens a run, since a
-// call under no opened run matches every run entry; an agent or a principal
-// entry all or none, since every call carries the listener's; a provider or
-// action entry none when stray names it. An entry that covers none is the
-// unsafe failure of an emergency control, so it is never left unsaid.
-func coverage(entries []pause.Entry, cfg *gatewayconfig.Config, stray []strayEntry) map[string]string {
-	out := make(map[string]string, len(entries))
-	for _, e := range entries {
-		share := coverAll
-		switch s := e.Scope; s.Kind {
-		case pause.ScopeRun:
-			if cfg.Runs.Dir != "" {
-				share = coverSome
-			}
-		case pause.ScopeAgent:
-			share = allOrNone(s.ID == cfg.Listener.AgentID)
-		case pause.ScopePrincipal:
-			share = allOrNone(s.ID == cfg.Listener.PrincipalID)
-		case pause.ScopeProvider, pause.ScopeAction:
-			share = coverSome
-			if slices.ContainsFunc(stray, func(x strayEntry) bool { return x.id == e.ID }) {
-				share = coverNone
-			}
-		}
-		out[e.ID] = share
-	}
-	return out
-}
-
-func allOrNone(all bool) string {
-	if all {
-		return coverAll
-	}
-	return coverNone
-}
-
 // hasGlobal reports whether an entry pauses every call.
 func hasGlobal(entries []pause.Entry) bool {
 	return slices.ContainsFunc(entries, func(e pause.Entry) bool { return e.Scope.Kind == pause.ScopeGlobal })
@@ -179,8 +135,8 @@ func hasGlobal(entries []pause.Entry) bool {
 // takes no lock and writes nothing: the file's directory is the writers'
 // (ADR-0019). It prints the path, the state, the number of entries, how many
 // cover all, some or none of this plane's calls, each entry naming an
-// upstream this configuration does not have and each naming an agent or a
-// principal that is not the listener's, and never a reason. A file the start
+// upstream this configuration does not have and each that printCoverage
+// names, and never a reason. A file the start
 // would refuse fails here, naming the cause. On an MCP plane the entries
 // naming a tool are judged by the upstreams check, once the manifest is read;
 // an enforce_api plane's tool table is judged here.
@@ -197,10 +153,7 @@ func (d *examination) pauseFile(context.Context) (string, string, string) {
 	entries := snap.Entries()
 	d.pauseEntries = entries
 	stray := strayEntries(entries, targetsOf(d.cfg, nil, false))
-	covers := coverage(entries, d.cfg, stray)
-	d.strangers(entries, covers)
-	shares := fmt.Sprintf("%d covering all of this plane's calls, %d some, %d none",
-		countShare(covers, coverAll), countShare(covers, coverSome), countShare(covers, coverNone))
+	shares := d.printCoverage(entries, stray)
 	if d.cfg.Listener.Kind == gatewayconfig.ListenerEnforceAPI {
 		for _, e := range stray {
 			if e.tool != "" {
@@ -218,29 +171,8 @@ func (d *examination) pauseFile(context.Context) (string, string, string) {
 		writeLine(d.out, fmt.Sprintf("       pause entry %s names upstream %s, which this configuration does not have: it pauses only calls that carry no provider, which are calls to names no upstream lists",
 			oneLine(e.id), oneLine(strconv.Quote(e.provider))))
 	}
-	return verdictOK, "pause", fmt.Sprintf("%s is %s: %d entry(ies), %d naming an upstream this configuration does not have; %s; read every %s",
+	return verdictOK, "pause", fmt.Sprintf("%s is %s: %d entry(ies), %d naming an upstream this configuration does not have; %s, before the upstreams check judges the tools; read every %s",
 		path, snap.State(), len(entries), len(stray), shares, d.cfg.Pause.PollInterval)
-}
-
-// strangers prints each agent or principal entry that covers none of this
-// plane's calls, since every call carries the listener's agent and principal.
-func (d *examination) strangers(entries []pause.Entry, covers map[string]string) {
-	for _, e := range entries {
-		if k := e.Scope.Kind; covers[e.ID] == coverNone && (k == pause.ScopeAgent || k == pause.ScopePrincipal) {
-			writeLine(d.out, fmt.Sprintf("       pause entry %s names %s %s, which is not this listener's: it pauses no call this plane runs",
-				oneLine(e.ID), k, oneLine(strconv.Quote(e.Scope.ID))))
-		}
-	}
-}
-
-func countShare(covers map[string]string, share string) int {
-	n := 0
-	for _, s := range covers {
-		if s == share {
-			n++
-		}
-	}
-	return n
 }
 
 // strayTools prints each pause entry naming a tool its upstream does not

@@ -99,7 +99,7 @@ func TestEveryUnreadableFileIsUnknownWithItsCause(t *testing.T) {
 		}, pause.CauseTooLarge},
 		{"malformed", func(t *testing.T) string { return dirWith(t, valid[:len(valid)-1], 0o600) }, pause.CauseMalformed},
 		{"an unknown version", func(t *testing.T) string { return dirWith(t, strings.Replace(valid, `"2"`, `"3"`, 1), 0o600) }, pause.CauseVersion},
-		{"the version before this one", func(t *testing.T) string { return dirWith(t, strings.Replace(valid, `"2"`, `"1"`, 1), 0o600) }, pause.CauseVersion},
+		{"a version 0 file", func(t *testing.T) string { return dirWith(t, strings.Replace(valid, `"2"`, `"0"`, 1), 0o600) }, pause.CauseVersion},
 		{"an unknown member", func(t *testing.T) string {
 			return dirWith(t, strings.Replace(valid, `"entries"`, `"extra":0,"entries"`, 1), 0o600)
 		}, pause.CauseMalformed},

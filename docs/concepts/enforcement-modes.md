@@ -130,8 +130,9 @@ or everything without a restart by writing an entry into the pause file
   their upstream only: the plane routes either by its upstream alone, so its
   name or URI is the client's to spell and an exact match could be
   sidestepped. The format refuses a name on either.
-- `run`: the opened run of that id, or every run whose root it is. A run's
-  root is the top of its tree, so naming a child pauses that child alone.
+- `run`: the opened run of that id, or every run whose root it is, named by
+  the id `runs open` printed. A run's root is the top of its tree, so naming
+  a child pauses that child alone.
 - `agent` and `principal`: every call of that agent or principal id.
 
 A run, an agent and a principal are matched only against what the plane
@@ -153,8 +154,10 @@ member of `/healthz`'s `pause` says, per entry id, whether it covers `all`,
 `some` or `none` of the plane's calls, and `doctor` counts them. Every call
 carries the listener's agent and principal, so an agent or principal entry
 covers all or none of them, and `doctor` names each that is not the
-listener's. A run entry covers all on a plane without `runs.dir`, and some on
-one with it. An entry naming an upstream the configuration lacks, or a tool
+listener's. A run entry covers all on a plane without `runs.dir`. On one
+with it, it covers some while its run is the plane's project's, unexpired and
+open, or a closed root whose runs stay open; otherwise none, and
+`coverage_causes` says why. An entry naming an upstream the configuration lacks, or a tool
 its upstream does not list, is `none`: it pauses only calls that carry no
 provider, which are calls to names no upstream lists. `doctor`, the
 `unlisted_only` member and the plane's log name every such entry; a tool is

@@ -16,8 +16,8 @@ func TestAnIdentityPauseThroughThePage(t *testing.T) {
 		want   pause.Scope
 		covers string
 	}{
-		{`{"kind":"run","provider":"","action":"","name":"","id":"run-a"}`, pause.Scope{Kind: pause.ScopeRun, ID: "run-a"},
-			"run run-a, or every run under it as their root"},
+		{`{"kind":"run","provider":"","action":"","name":"","id":"run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`, pause.Scope{Kind: pause.ScopeRun, ID: "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+			"run run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, or every run under it as their root"},
 		{`{"kind":"agent","provider":"","action":"","name":"","id":"orders-assistant"}`, pause.Scope{Kind: pause.ScopeAgent, ID: "orders-assistant"},
 			"every call of agent orders-assistant"},
 		{`{"kind":"principal","provider":"","action":"","name":"","id":"agent-runner"}`, pause.Scope{Kind: pause.ScopePrincipal, ID: "agent-runner"},

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/guardana/control/internal/channel"
+	"github.com/guardana/control/internal/runs"
 )
 
 // ScopeKind is what a pause entry covers.
@@ -87,7 +88,8 @@ func absentOr(got, want string) bool { return got == "" || got == want }
 // anything, a provider scope without its provider or with an action, a name
 // or an id, an action scope without its kind of call or its provider or with
 // an id, a tool scope without its name, a prompt or resource scope with one,
-// and a run, agent or principal scope without its id or with anything else.
+// a run, agent or principal scope without its id or with anything else, and
+// a run scope whose id is not in the form a run is named by.
 func (s Scope) Check() error {
 	switch s.Kind {
 	case ScopeGlobal:
@@ -109,7 +111,13 @@ func (s Scope) Check() error {
 		if anySet(s.Provider, s.Action, s.Name) {
 			return fmt.Errorf("scope: a %s scope names its id and nothing else", s.Kind)
 		}
-		return checkName("scope.id", s.ID, MaxNameBytes)
+		if err := checkName("scope.id", s.ID, MaxNameBytes); err != nil {
+			return err
+		}
+		if s.Kind == ScopeRun && runs.CheckRunID(s.ID) != nil {
+			return fmt.Errorf("scope.id: a run is named by run- and 32 lower-case hex digits")
+		}
+		return nil
 	}
 	return fmt.Errorf("scope.kind: %q is not one of %s, %s, %s, %s, %s, %s", s.Kind,
 		ScopeGlobal, ScopeProvider, ScopeAction, ScopeRun, ScopeAgent, ScopePrincipal)

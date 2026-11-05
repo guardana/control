@@ -14,20 +14,22 @@ verify one.
 ### Added
 
 - `pause add --run <id>`, `--agent <id>` and `--principal <id>` pause one
-  opened run, or every run under a root, one agent or one principal. Each is
+  opened run, or every run under a root, one agent or one principal. A run
+  is named by its id from `runs open`, and any other spelling is refused. Each is
   matched against what the plane vouches for: the opened run the listener
   resolved from its token, and the agent and principal its configuration
   names, never a run id or a client name the client sent. A call under no
   opened run is paused by every run entry.
 - `/healthz`'s `pause.coverage` says per entry whether it covers `all`,
-  `some` or `none` of the plane's calls; `doctor` counts the three and names
-  each agent or principal entry that is not the listener's.
+  `some` or `none` of the plane's calls, and `pause.coverage_causes` why a
+  run entry covers none: its run is not in `runs.dir`, is another project's,
+  expired or closed. `doctor` counts the three and names each agent or
+  principal entry that is not the listener's and each such run entry.
 
 ### Changed
 
-- **Breaking:** the pause file is `2`. A plane reads a `1` file as an unknown
-  pause state and blocks every call: move it aside, run `pause init` and add
-  the entries again.
+- The pause commands write pause file `2`; a plane and the commands read `1`
+  as before.
 
 ## [0.15.0] - 2026-11-02
 

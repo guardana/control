@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -17,7 +16,6 @@ import (
 
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/pause"
-	"github.com/guardana/control/internal/runs"
 )
 
 // Pause documents as the file spells them, written byte for byte so a case
@@ -29,7 +27,7 @@ const (
 	scopeOrders      = `{"kind":"provider","provider":"orders"}`
 	scopeElsewhere   = `{"kind":"provider","provider":"billing"}`
 	scopeReadOrder   = `{"kind":"action","action":"tool","provider":"orders","name":"read_order"}`
-	scopeRun         = `{"kind":"run","id":"run-a"}`
+	scopeRun         = `{"kind":"run","id":"run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`
 	scopeOurAgent    = `{"kind":"agent","id":"orders-assistant"}`
 	scopeOtherAgent  = `{"kind":"agent","id":"billing-assistant"}`
 	scopeOurUser     = `{"kind":"principal","id":"agent-runner"}`
@@ -168,7 +166,6 @@ func unknownCauses() []unknownCause {
 		{"one byte over the bound", "too large", write(over)},
 		{"not JSON", "malformed", write(`{"schema_version":"2","entries":[`)},
 		{"an unknown version", "unknown version", write(`{"schema_version":"3","entries":[]}`)},
-		{"the version before this one", "unknown version", write(`{"schema_version":"1","entries":[]}`)},
 		{"an unknown member", "malformed", write(`{"schema_version":"2","entries":[],"paused":true}`)},
 		{"an unknown scope", "malformed", write(pauseDocument(pauseEntry("p1", `{"kind":"principal","provider":"orders"}`)))},
 		{"a resource scope with a name", "malformed", write(pauseDocument(pauseEntry("p1", `{"kind":"action","action":"resource","provider":"orders","name":"file:///a"}`)))},
@@ -265,7 +262,7 @@ func TestDoctorReportsThePauseFile(t *testing.T) {
 			doctor(context.Background(), tr.config, &stdout, &stderr)
 			out := tr.output(stdout.String())
 			line := reportLine(out, "pause")
-			if want := "ok      pause         <tree>/pause/pause.json " + c.want + "; read every 250ms"; line != want {
+			if want := "ok      pause         <tree>/pause/pause.json " + c.want + ", before the upstreams check judges the tools; read every 250ms"; line != want {
 				t.Errorf("the pause line is\n%q, want\n%q", line, want)
 			}
 			if !strings.Contains(out, "ok      seams") {
@@ -357,29 +354,6 @@ func TestHealthAnswersThePauseState(t *testing.T) {
 				t.Errorf("a readable state carries a cause: %v", member)
 			}
 		})
-	}
-}
-
-// TestARunEntryCoversSomeCallsWhereRunsAreOpened: on a plane with runs.dir a
-// run entry covers only the calls of the run or the root it names, while a
-// global entry and one naming the listener's agent cover them all.
-func TestARunEntryCoversSomeCallsWhereRunsAreOpened(t *testing.T) {
-	tr := newTree(t)
-	runsDir := filepath.Join(tr.dir, "runs")
-	if err := os.Mkdir(runsDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	admin, err := runs.InitAdmin(context.Background(), runsDir)
-	if err = errors.Join(err, admin.Close()); err != nil {
-		t.Fatalf("making the runs directory: %v", err)
-	}
-	setEnv(t, "runs.dir", runsDir)
-	tr.withPauseFile(t, pauseDocument(pauseEntry("run", scopeRun), pauseEntry("ours", scopeOurAgent), pauseEntry("all", scopeGlobal)), time.Second)
-	p := tr.plane(t)
-	_, body := p.healthAt(p.poller.Current().ReadAt())
-	want := map[string]any{"run": "some", "ours": "all", "all": "all"}
-	if covers, ok := pauseMember(t, body)["coverage"].(map[string]any); !ok || !maps.Equal(covers, want) {
-		t.Errorf("pause.coverage = %v, want %v", pauseMember(t, body)["coverage"], want)
 	}
 }
 

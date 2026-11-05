@@ -123,20 +123,22 @@ verify one.</p>
 <h3 id="added">Added</h3>
 <ul>
 <li><code>pause add --run &lt;id&gt;</code>, <code>--agent &lt;id&gt;</code> and <code>--principal &lt;id&gt;</code> pause one
-opened run, or every run under a root, one agent or one principal. Each is
+opened run, or every run under a root, one agent or one principal. A run
+is named by its id from <code>runs open</code>, and any other spelling is refused. Each is
 matched against what the plane vouches for: the opened run the listener
 resolved from its token, and the agent and principal its configuration
 names, never a run id or a client name the client sent. A call under no
 opened run is paused by every run entry.</li>
 <li><code>/healthz</code>'s <code>pause.coverage</code> says per entry whether it covers <code>all</code>,
-<code>some</code> or <code>none</code> of the plane's calls; <code>doctor</code> counts the three and names
-each agent or principal entry that is not the listener's.</li>
+<code>some</code> or <code>none</code> of the plane's calls, and <code>pause.coverage_causes</code> why a
+run entry covers none: its run is not in <code>runs.dir</code>, is another project's,
+expired or closed. <code>doctor</code> counts the three and names each agent or
+principal entry that is not the listener's and each such run entry.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
-<li><strong>Breaking:</strong> the pause file is <code>2</code>. A plane reads a <code>1</code> file as an unknown
-pause state and blocks every call: move it aside, run <code>pause init</code> and add
-the entries again.</li>
+<li>The pause commands write pause file <code>2</code>; a plane and the commands read <code>1</code>
+as before.</li>
 </ul>
 <h2 id="0150---2026-11-02"><a href="https://github.com/guardana/control/releases/tag/v0.15.0">0.15.0</a> - 2026-11-02</h2>
 <p>Upgrading from 0.14 changes four things an operator must act on. <code>collect</code>

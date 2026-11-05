@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	pauseRunA      = `{"kind":"run","id":"run-a"}`
-	pauseRoot1     = `{"kind":"run","id":"root-1"}`
+	pauseRunA      = `{"kind":"run","id":"run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`
+	pauseRoot1     = `{"kind":"run","id":"run-11111111111111111111111111111111"}`
 	pauseAgent1    = `{"kind":"agent","id":"agent-1"}`
 	pauseAgent2    = `{"kind":"agent","id":"agent-2"}`
 	pausePrincipal = `{"kind":"principal","id":"user-1"}`
@@ -41,23 +41,23 @@ func claimingRun(requestID, claim string) *controlv1.ActionEnvelope {
 // names and none of another's. What the client wrote in its run context or
 // its client tag neither aims a pause nor slips past one.
 func TestAPauseScopeNamesTheIdentityThePlaneVouchesFor(t *testing.T) {
-	runA, runB, runC := opened("run-a", "root-1"), opened("run-b", "root-1"), opened("run-c", "root-2")
+	runA, runB, runC := opened("run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "run-11111111111111111111111111111111"), opened("run-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "run-11111111111111111111111111111111"), opened("run-cccccccccccccccccccccccccccccccc", "run-22222222222222222222222222222222")
 	for _, c := range []struct {
 		name  string
 		scope string
 		calls []scopedCall
 	}{
 		{"a run entry", pauseRunA, []scopedCall{{runA, "", true}, {runB, "", false}, {runC, "", false}}},
-		{"a run entry and a context naming the paused run", pauseRunA, []scopedCall{{runB, "run-a", false}, {runC, "run-a", false}}},
-		{"a run entry and a context naming another run", pauseRunA, []scopedCall{{runA, "run-b", true}, {runA, "", true}}},
-		{"a root's entry", pauseRoot1, []scopedCall{{runA, "", true}, {runB, "", true}, {runC, "root-1", false}}},
+		{"a run entry and a context naming the paused run", pauseRunA, []scopedCall{{runB, "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false}, {runC, "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false}}},
+		{"a run entry and a context naming another run", pauseRunA, []scopedCall{{runA, "run-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", true}, {runA, "", true}}},
+		{"a root's entry", pauseRoot1, []scopedCall{{runA, "", true}, {runB, "", true}, {runC, "run-11111111111111111111111111111111", false}}},
 		{"the listener's agent", pauseAgent1, []scopedCall{{runA, "", true}, {runB, "", true}, {runC, "", true}}},
 		{"another agent", pauseAgent2, []scopedCall{{runA, "agent-2", false}, {runB, "", false}}},
 		{"the listener's principal", pausePrincipal, []scopedCall{{runA, "", true}, {runB, "", true}}},
 		{"another principal", pauseOther, []scopedCall{{runA, "user-2", false}, {runB, "", false}}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			h := build(t, modeEnforce, snapshot(t, allowReads), withRuns(newRuns("root-1", "root-2")))
+			h := build(t, modeEnforce, snapshot(t, allowReads), withRuns(newRuns("run-11111111111111111111111111111111", "run-22222222222222222222222222222222")))
 			h.pause.set(paused(t, c.scope))
 			for i, call := range c.calls {
 				requestID := c.name + "/" + string(rune('a'+i))
@@ -80,7 +80,7 @@ func TestAPauseScopeNamesTheIdentityThePlaneVouchesFor(t *testing.T) {
 // another agent leaves it running.
 func TestARunEntryPausesACallUnderNoOpenedRun(t *testing.T) {
 	h := build(t, modeEnforce, snapshot(t, allowReads))
-	h.pause.set(paused(t, `{"kind":"run","id":"run-elsewhere"}`))
+	h.pause.set(paused(t, `{"kind":"run","id":"run-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}`))
 	expectPlaneBlock(t, h, h.admitA(admission(claimingRun("r-local", "run-1"), []byte(`{}`))), verdictDeny, codePaused)
 
 	h = build(t, modeEnforce, snapshot(t, allowReads))

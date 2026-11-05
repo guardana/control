@@ -210,7 +210,7 @@ refuses a name that is taken. <code>pause add</code> takes exactly one scope: <c
 <code>--provider &lt;p&gt;</code>, an upstream by its configured name; <code>--action &lt;k&gt;</code>
 (<code>tool</code>, <code>prompt</code> or <code>resource</code>) with <code>--provider &lt;p&gt;</code>, and for a tool
 <code>--name &lt;n&gt;</code>, the name the plane routes by; <code>--run &lt;id&gt;</code>; <code>--agent &lt;id&gt;</code>; or
-<code>--principal &lt;id&gt;</code>. <code>&lt;f&gt;</code> is the pause file, relative to the working directory. It prints
+<code>--principal &lt;id&gt;</code>, each as <a href="/docs/concepts/enforcement-modes#pausing-calls">pausing calls</a> says. <code>&lt;f&gt;</code> is the pause file, relative to the working directory. It prints
 only the id it drew for the entry, and <code>pause remove &lt;file&gt; &lt;id&gt;</code>
 takes that id; removing the last entry leaves a file pausing nothing,
 because a missing file blocks every call. <code>pause list</code> prints one line per

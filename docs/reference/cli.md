@@ -103,7 +103,7 @@ refuses a name that is taken. `pause add` takes exactly one scope: `--global`;
 `--provider <p>`, an upstream by its configured name; `--action <k>`
 (`tool`, `prompt` or `resource`) with `--provider <p>`, and for a tool
 `--name <n>`, the name the plane routes by; `--run <id>`; `--agent <id>`; or
-`--principal <id>`. `<f>` is the pause file, relative to the working directory. It prints
+`--principal <id>`, each as [pausing calls](../concepts/enforcement-modes.md#pausing-calls) says. `<f>` is the pause file, relative to the working directory. It prints
 only the id it drew for the entry, and `pause remove <file> <id>`
 takes that id; removing the last entry leaves a file pausing nothing,
 because a missing file blocks every call. `pause list` prints one line per

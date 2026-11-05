@@ -66,6 +66,8 @@ type pauseAnswer struct {
 	UnlistedOnly []string `json:"unlisted_only"`
 	// Coverage is, by entry id, all, some or none of this plane's calls.
 	Coverage map[string]string `json:"coverage"`
+	// CoverageCauses names, by entry id, why a run entry covers none.
+	CoverageCauses map[string]string `json:"coverage_causes,omitempty"`
 	// AgeMS is left out where nothing was read: a plane with no pause file.
 	AgeMS *int64 `json:"age_ms,omitempty"`
 	// Polls is what the reader counted: its reads, the failed ones by cause
@@ -255,7 +257,16 @@ func (p *plane) pauseAnswer(snap pause.Snapshot, now time.Time) pauseAnswer {
 	for _, e := range stray {
 		out.UnlistedOnly = append(out.UnlistedOnly, e.id)
 	}
-	out.Coverage = coverage(entries, p.cfg, stray)
+	out.Coverage = map[string]string{}
+	for id, c := range coverage(entries, p.cfg, stray, p.runsDir, now) {
+		out.Coverage[id] = c.share
+		if c.cause != "" {
+			if out.CoverageCauses == nil {
+				out.CoverageCauses = map[string]string{}
+			}
+			out.CoverageCauses[id] = c.cause
+		}
+	}
 	if snap.State() == pause.Unknown {
 		out.Cause = string(snap.Cause())
 	}
