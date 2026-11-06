@@ -30,8 +30,9 @@ digest, tenant and project, and the `approvals approve` and `reject` commands
 that sign an answer, naming `--inbox` when given; an approval or a rejection
 of it is refused with a 409 naming them. With `--inbox` and no
 `--approver-id` the page only reads the directory, which may then be another
-account's, answers nothing, and refuses to start under the account that owns
-the directory, which is the plane's.
+account's through its group (`0750`, files `0640`), answers nothing, and
+refuses to start under the account that owns the directory, which is the
+plane's.
 
 ## What it prints
 

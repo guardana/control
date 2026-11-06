@@ -309,18 +309,29 @@ func stamp(ts *timestamppb.Timestamp) string {
 }
 
 // signCommands are the approvals commands that sign an answer to approvalID,
-// approve and then reject, with the inbox this page was told of.
+// approve and then reject, with the inbox this page was told of, each path
+// one shell word and the directory after "--", so a name starting with a dash
+// is not read as a flag.
 func (p *page) signCommands(approvalID string) []string {
 	inbox := "<the plane's approvals.inbox_dir>"
 	if p.o.Inbox != "" {
-		inbox = keytext.Printable(p.o.Inbox)
+		inbox = shellWord(p.o.Inbox)
 	}
 	var out []string
 	for _, verb := range []string{"approve", "reject"} {
-		out = append(out, brand.CLI+" approvals "+verb+" --key <operator key file> --inbox "+inbox+" "+
-			keytext.Printable(p.o.Directory)+" "+keytext.Printable(approvalID))
+		out = append(out, keytext.Printable(brand.CLI+" approvals "+verb+" --key <operator key file> --inbox "+inbox+" -- "+
+			shellWord(p.o.Directory)+" "+shellWord(approvalID)))
 	}
 	return out
+}
+
+// shellWord is s as one word of a POSIX shell: as it stands when it holds
+// only characters no shell treats specially, single-quoted otherwise.
+func shellWord(s string) string {
+	if s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_./:=+@%,") == "" {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // mayClaim reports whether this page may file a claim for rec: a page over

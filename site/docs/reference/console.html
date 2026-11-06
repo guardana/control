@@ -131,8 +131,9 @@ digest, tenant and project, and the <code>approvals approve</code> and <code>rej
 that sign an answer, naming <code>--inbox</code> when given; an approval or a rejection
 of it is refused with a 409 naming them. With <code>--inbox</code> and no
 <code>--approver-id</code> the page only reads the directory, which may then be another
-account's, answers nothing, and refuses to start under the account that owns
-the directory, which is the plane's.</p>
+account's through its group (<code>0750</code>, files <code>0640</code>), answers nothing, and
+refuses to start under the account that owns the directory, which is the
+plane's.</p>
 <h2 id="what-it-prints">What it prints</h2>
 <p>It listens on <code>127.0.0.1</code> at a port the system picks and prints exactly one
 line on stdout:</p>

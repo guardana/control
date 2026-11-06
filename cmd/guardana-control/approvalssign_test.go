@@ -64,8 +64,12 @@ func TestASignedAnswerIsTheRecordsSigned(t *testing.T) {
 	keyFile, pub, inbox := operatorKey(t)
 	before := files(t, dir)
 	code, stdout, stderr := invoke(t, "approvals", "approve", "--key", keyFile, "--inbox", inbox, "--reason", "checked", dir, waitingID)
-	if code != exitOK || stderr != "" {
+	if code != exitOK {
 		t.Fatalf("exit %d, stderr %q", code, stderr)
+	}
+	// The test runs as the account owning the directory, the plane's.
+	if line := oneStderrLine(t, stderr); !strings.Contains(line, "plane's account") || !strings.Contains(line, "operator's own account") {
+		t.Errorf("signing as the directory's owner warned %q, want the separation named", line)
 	}
 	name := waitingID + "." + keyLabel(pub) + "-approve.answer"
 	if !strings.Contains(stdout, string(digestOf(t, waitingID))) || !strings.Contains(stdout, filepath.Join(inbox, name)) {
@@ -157,7 +161,7 @@ func TestASignedAnswerRefusesAndFilesNothing(t *testing.T) {
 				t.Fatalf("the first answer: %d %q", code, stderr)
 			}
 			return waitingID
-		}, "nothing was replaced"},
+		}, "owned by uid"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir, plane := signedStore(t)
@@ -166,7 +170,7 @@ func TestASignedAnswerRefusesAndFilesNothing(t *testing.T) {
 			id := c.arrange(t, keyFile, inbox, dir)
 			before := files(t, inbox)
 			code, stdout, stderr := invoke(t, "approvals", "approve", "--key", keyFile, "--inbox", inbox, dir, id)
-			if line := oneStderrLine(t, stderr); code != exitFail || stdout != "" || !strings.Contains(line, c.want) {
+			if line := lastLine(stderr); code != exitFail || stdout != "" || !strings.Contains(line, c.want) {
 				t.Errorf("exit %d, stdout %q, stderr %q; want a refusal naming %q", code, stdout, line, c.want)
 			}
 			if after := files(t, inbox); !maps.Equal(before, after) {
@@ -250,4 +254,10 @@ func TestAReadOnlyConsoleRefusesThePlanesAccount(t *testing.T) {
 	if line := oneStderrLine(t, stderr); code != exitFail || stdout != "" || !strings.Contains(line, "plane's") {
 		t.Errorf("exit %d, stdout %q, stderr %q; want the plane's account refused", code, stdout, line)
 	}
+}
+
+// lastLine is the last line of s, without its newline.
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimSuffix(s, "\n"), "\n")
+	return lines[len(lines)-1]
 }

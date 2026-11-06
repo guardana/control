@@ -3,6 +3,7 @@ package approvals_test
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -162,5 +163,34 @@ func TestAnAnswerIsTheRecordsAnswer(t *testing.T) {
 func TestWithAuthorityTakesTheTwoKinds(t *testing.T) {
 	if _, err := approvals.OpenPlane(t.TempDir(), approvals.WithAuthority("memory")); !errors.Is(err, approvals.ErrInvalidOption) {
 		t.Errorf("OpenPlane under memory = %v, want ErrInvalidOption", err)
+	}
+}
+
+// TestOnlyASignedHoldIsHeldToTheAnswersIDBound: a tenant past the 256 bytes
+// a signed answer may name is refused under signed and held under the
+// directory authority, which no signed answer names.
+func TestOnlyASignedHoldIsHeldToTheAnswersIDBound(t *testing.T) {
+	long := strings.Repeat("t", approvals.MaxAnswerIDBytes+1)
+	for _, c := range []struct {
+		name string
+		opts []approvals.Option
+		want error
+	}{
+		{"signed", []approvals.Option{approvals.WithAuthority(approvals.HeldUnderSigned)}, approvals.ErrInvalidHold},
+		{"directory", nil, nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p, _ := openPlane(t, c.opts...)
+			h := held(t, "APPROVAL1", "req-1")
+			h.Envelope.TenantId = long
+			if err := p.Hold(t.Context(), h, minted); !errors.Is(err, c.want) && (c.want != nil || err != nil) {
+				t.Fatalf("Hold with a %d-byte tenant = %v, want %v", len(long), err, c.want)
+			}
+			h = held(t, "APPROVAL2", "req-2")
+			h.Envelope.TenantId = long[:approvals.MaxAnswerIDBytes]
+			if err := p.Hold(t.Context(), h, minted); err != nil {
+				t.Errorf("Hold with a %d-byte tenant: %v", approvals.MaxAnswerIDBytes, err)
+			}
+		})
 	}
 }

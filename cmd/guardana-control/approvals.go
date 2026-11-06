@@ -122,7 +122,10 @@ func answerApproval(command string, state controlv1.ApprovalState, args []string
 }
 
 // answerFormRefusal is the refusal of flags that are neither the signing form
-// nor the claiming form, or "".
+// nor the claiming form, or "". It checks the arguments of the signing form
+// for key text once they are parsed, which is still before any file is read
+// or any line printed; the claiming form's fields are held to the store's own
+// rule, whose refusals say which field is wrong.
 func answerFormRefusal(ans answer, args []string) string {
 	switch {
 	case (ans.key == "") != (ans.inbox == ""):
@@ -203,7 +206,7 @@ func answerHint(err error) string {
 	case errors.Is(err, approvals.ErrNotSigned):
 		return "answer it with --approver-id instead; nothing was filed"
 	case errors.Is(err, approvals.ErrAnswerFiled):
-		return "this operator filed this answer to this approval already; nothing was replaced"
+		return "any account that may write the inbox can take a name, so check that file before answering again; nothing was replaced"
 	}
 	return ""
 }

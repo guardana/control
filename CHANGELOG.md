@@ -64,10 +64,9 @@ verify one.
   resolution and takes the held or the answered name only. A `1.0` directory
   or record is refused with a message naming both versions; empty the
   directory, whose holds expire within `approvals.ttl`. `approvals list` and
-  the console no longer print a resolution. This build writes `2.1`, whose
-  record names the authority holding it and the call's tenant and project,
-  and reads `2.0` as held under `directory`; a `2.0` reader refuses a `2.1`
-  record.
+  the console no longer print a resolution. A record is `2.1`: it names the
+  authority holding it and the call's tenant and project. Under `signed` the
+  plane writes its files `0640`, for an operators' group to read.
 - **Breaking:** a claim (`approvals approve|reject --approver-id`, or the
   console) for a hold under `signed` is refused naming the signing command,
   where it was written and ignored; the console answers no signed hold. On a

@@ -74,9 +74,11 @@ The key reaches the command only as a path, and no refusal quotes it. Both
 refuse on a platform without permission bits
 ([ADR-0018](../adr/0018-keys-and-bundles-on-disk.md)).
 
-Flags come first. `--key` signs from the plane's record of the hold and files
+Flags come first. `--key` signs from the plane's record of the hold, read
+through the operators' group (`0750` directory, `0640` files), and files
 `<approval id>.<key id>-<decision>.answer`, mode `0644`, never replacing one;
-`--approver-id` is a claim, refused for a signed hold.
+run as the plane's account it warns. `--approver-id` is a claim, refused for
+a signed hold.
 
 `approvals list` prints, for each record, its state, both digests and the
 readable fields of the projection the plane wrote at hold time, which are

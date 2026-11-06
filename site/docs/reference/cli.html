@@ -185,9 +185,11 @@ place.</p>
 <p>The key reaches the command only as a path, and no refusal quotes it. Both
 refuse on a platform without permission bits
 (<a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>).</p>
-<p>Flags come first. <code>--key</code> signs from the plane's record of the hold and files
+<p>Flags come first. <code>--key</code> signs from the plane's record of the hold, read
+through the operators' group (<code>0750</code> directory, <code>0640</code> files), and files
 <code>&lt;approval id&gt;.&lt;key id&gt;-&lt;decision&gt;.answer</code>, mode <code>0644</code>, never replacing one;
-<code>--approver-id</code> is a claim, refused for a signed hold.</p>
+run as the plane's account it warns. <code>--approver-id</code> is a claim, refused for
+a signed hold.</p>
 <p><code>approvals list</code> prints, for each record, its state, both digests and the
 readable fields of the projection the plane wrote at hold time, which are
 not bound to the digest; the listing says so. A listing the store

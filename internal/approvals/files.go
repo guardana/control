@@ -32,12 +32,15 @@ const errExists Error = "approvals: the name exists already"
 // the unlink itself, which the error carries, leaves the name in place.
 func (s *store) commit(name string, body []byte) error {
 	tmp := tmpPrefix + rand.Text() + tmpSuffix
-	f, err := s.root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	mode := s.fileMode()
+	f, err := s.root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {
 		return err
 	}
 	_, err = f.Write(body)
-	if err = errors.Join(err, f.Sync(), f.Close()); err != nil {
+	// The mode is set on the descriptor: the umask may have taken the group's
+	// read bit an operator needs under signed.
+	if err = errors.Join(err, f.Chmod(mode), f.Sync(), f.Close()); err != nil {
 		return errors.Join(err, s.root.Remove(tmp))
 	}
 	err = s.root.Link(tmp, name)
@@ -52,6 +55,17 @@ func (s *store) commit(name string, body []byte) error {
 		return errors.Join(err, s.undo(name))
 	}
 	return nil
+}
+
+// fileMode is the mode every file of the store is written with: owner-only,
+// or under the signed authority readable by the directory's group as well, so
+// an operator's own account can read the hold it signs an answer to. Only the
+// owner ever writes.
+func (s *store) fileMode() fs.FileMode {
+	if s.opts.authority == HeldUnderSigned {
+		return 0o640
+	}
+	return 0o600
 }
 
 // undo unlinks a name this store linked and could not make durable. A name

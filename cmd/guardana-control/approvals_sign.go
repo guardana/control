@@ -12,6 +12,7 @@ import (
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/approvals"
 	"github.com/guardana/control/internal/approvals/inbox"
+	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/operators"
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/bundle"
@@ -38,9 +39,13 @@ func signAnswer(command, decision string, ans answer, dir, id string, stdout, st
 		return fail(stderr, command, fmt.Errorf("--key: %w", err))
 	}
 	defer clear(key)
-	a, raw, err := signedFromRecord(dir, id, decision, ans.reason, key, time.Now())
+	a, raw, planeAccount, err := signedFromRecord(dir, id, decision, ans.reason, key, time.Now())
 	if err != nil {
 		return failHinted(stderr, command, err)
+	}
+	if planeAccount {
+		writeLine(stderr, brand.CLI+": "+command+": this account owns the approvals directory, which is the plane's account: "+
+			"an answer it signs separates nothing, since the plane's account can then sign as this operator; sign from an operator's own account")
 	}
 	name, err := inbox.AnswerFileName(a.ApprovalID, approvals.AnswerLabel(a))
 	if err != nil {
@@ -61,22 +66,23 @@ func signAnswer(command, decision string, ans answer, dir, id string, stdout, st
 }
 
 // signedFromRecord reads the plane's record of approvalID from dir and signs
-// the answer to it at now.
-func signedFromRecord(dir, approvalID, decision, reason string, key ed25519.PrivateKey, now time.Time) (approvals.Answer, []byte, error) {
+// the answer to it at now. planeAccount reports whether this process owns
+// dir, which makes it the plane's account.
+func signedFromRecord(dir, approvalID, decision, reason string, key ed25519.PrivateKey, now time.Time) (a approvals.Answer, raw []byte, planeAccount bool, err error) {
 	r, err := approvals.OpenReader(dir)
 	if err != nil {
-		return approvals.Answer{}, nil, err
+		return approvals.Answer{}, nil, false, err
 	}
+	planeAccount = r.PlaneAccount()
 	rec, err := r.Held(context.Background(), approvalID)
 	if err = errors.Join(err, r.Close()); err != nil {
-		return approvals.Answer{}, nil, err
+		return approvals.Answer{}, nil, false, err
 	}
-	a, err := approvals.AnswerFor(rec, decision, reason, now, policykey.KeyID(publicHalf(key)))
-	if err != nil {
-		return approvals.Answer{}, nil, err
+	if a, err = approvals.AnswerFor(rec, decision, reason, now, policykey.KeyID(publicHalf(key))); err != nil {
+		return approvals.Answer{}, nil, false, err
 	}
-	raw, err := signedAnswerFile(a, key)
-	return a, raw, err
+	raw, err = signedAnswerFile(a, key)
+	return a, raw, planeAccount, err
 }
 
 // signedAnswerFile signs a with key under the operator answer payload type
@@ -96,12 +102,19 @@ func signedAnswerFile(a approvals.Answer, key ed25519.PrivateKey) ([]byte, error
 	})
 }
 
+// fileInInbox files raw under name in the inbox at dir. A name taken already
+// is refused naming the account that owns that file, which need not be this
+// operator: any account that may write the inbox can take a name.
 func fileInInbox(dir, name string, raw []byte) error {
 	in, err := inbox.OpenInbox(dir)
 	if err != nil {
 		return err
 	}
-	return errors.Join(in.File(name, raw), in.Close())
+	err = errors.Join(in.File(name, raw), in.Close())
+	if errors.Is(err, approvals.ErrAnswerFiled) {
+		return fmt.Errorf("%w: %s is %s", err, name, ownerText(filepath.Join(dir, name)))
+	}
+	return err
 }
 
 // failHinted is fail with what an operator can do about the refusal.

@@ -199,9 +199,9 @@ func (r Record) checkIdentity() error {
 	return nil
 }
 
-// checkHolder holds a 2.1 record to an authority this build names and to a
-// tenant and a project a signed answer could name, and a 2.0 record to
-// carrying none of the three.
+// checkHolder holds a 2.1 record to an authority this build names and to
+// identifiers for its tenant and project, which under signed a signed answer
+// could name, and a 2.0 record to carrying none of the three.
 func (r Record) checkHolder() error {
 	if r.SchemaVersion == legacyVersion {
 		if r.Authority != "" || r.Tenant != "" || r.Project != "" {
@@ -213,8 +213,13 @@ func (r Record) checkHolder() error {
 		return fmt.Errorf("%w: held under %q, not %s or %s", ErrInvalidHold, cause(r.Authority), HeldUnderDirectory, HeldUnderSigned)
 	}
 	for _, id := range [...]struct{ name, v string }{{"tenant", r.Tenant}, {"project", r.Project}} {
-		if id.v == "" || len(id.v) > MaxAnswerIDBytes || contract.CheckIdentifier(id.v) != nil {
-			return fmt.Errorf("%w: the %s is not an identifier within %d bytes", ErrInvalidHold, id.name, MaxAnswerIDBytes)
+		if contract.CheckIdentifier(id.v) != nil {
+			return fmt.Errorf("%w: the %s is not an identifier", ErrInvalidHold, id.name)
+		}
+		// Only a signed answer names these, within its own bound; a hold no
+		// answer can name could never be approved.
+		if r.Authority == HeldUnderSigned && (id.v == "" || len(id.v) > MaxAnswerIDBytes) {
+			return fmt.Errorf("%w: under %s the %s is 1 to %d bytes, as a signed answer names it", ErrInvalidHold, HeldUnderSigned, id.name, MaxAnswerIDBytes)
 		}
 	}
 	return nil
@@ -226,7 +231,7 @@ func (r Record) checkHolder() error {
 // kept the spent mark beside the answers, so its operator is told what to do.
 func checkSchemaVersion(v string) error {
 	if !strictjson.IsVersion(v, "2") {
-		return fmt.Errorf("%w: %q; this build reads approvals 2.0 and refuses 1.0: empty the directory, whose holds expire within approvals.ttl",
+		return fmt.Errorf("%w: %q; this build reads approvals 2.0 and 2.1 and refuses 1.0: empty the directory, whose holds expire within approvals.ttl",
 			ErrSchemaVersion, cause(v))
 	}
 	return nil

@@ -26,7 +26,9 @@ const (
 // The file is written whole under a temporary name and linked into place,
 // so the plane never reads half an answer and nothing ever replaces one: a
 // name the inbox holds already is refused with approvals.ErrAnswerFiled. An inbox that
-// others may write and is not sticky is refused as OpenInbox refuses it.
+// others may write and is not sticky is refused as OpenInbox refuses it. A
+// failure after the link takes the answer back and reports
+// approvals.ErrOutcomeUnknown: the plane may have read it in between.
 func (in *Inbox) File(name string, raw []byte) error {
 	if in == nil || in.root == nil {
 		return approvals.ErrClosed
@@ -58,9 +60,19 @@ func (in *Inbox) File(name string, raw []byte) error {
 	if err != nil {
 		return errors.Join(err, in.root.Remove(tmp))
 	}
+	if err := errors.Join(in.root.Remove(tmp), in.syncDir()); err != nil {
+		// The answer was linked, and the plane may have read it already.
+		return errors.Join(fmt.Errorf("%w: the answer was linked and could not be made durable, so it may have been read", approvals.ErrOutcomeUnknown),
+			err, in.root.Remove(name))
+	}
+	return nil
+}
+
+// syncDir forces the inbox's entries to disk.
+func (in *Inbox) syncDir() error {
 	d, err := in.root.Open(".")
 	if err != nil {
-		return errors.Join(err, in.root.Remove(tmp))
+		return err
 	}
-	return errors.Join(in.root.Remove(tmp), d.Sync(), d.Close())
+	return errors.Join(d.Sync(), d.Close())
 }

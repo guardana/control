@@ -55,8 +55,8 @@ func TestASignedHoldIsShownWithTheCommandThatSignsIt(t *testing.T) {
 	}
 	r := st.Approvals.Records[0]
 	wantSign := []string{
-		brand.CLI + " approvals approve --key <operator key file> --inbox <the plane's approvals.inbox_dir> " + dir + " SIGNED1",
-		brand.CLI + " approvals reject --key <operator key file> --inbox <the plane's approvals.inbox_dir> " + dir + " SIGNED1",
+		brand.CLI + " approvals approve --key <operator key file> --inbox <the plane's approvals.inbox_dir> -- " + dir + " SIGNED1",
+		brand.CLI + " approvals reject --key <operator key file> --inbox <the plane's approvals.inbox_dir> -- " + dir + " SIGNED1",
 	}
 	if r.Answerable || !r.Signed || r.Tenant != "tenant-1" || r.Project != "proj-1" || !slices.Equal(r.SignWith, wantSign) {
 		t.Errorf("the card is %+v", r)
@@ -123,5 +123,17 @@ func TestAReaderPageRefusesThePlanesAccount(t *testing.T) {
 	o.Approvals, o.ApproverID = a, testApprover
 	if _, err := New(o); err != nil {
 		t.Errorf("a page over the approver: %v", err)
+	}
+}
+
+func TestASignCommandQuotesItsWords(t *testing.T) {
+	p := &page{o: Options{Directory: "-held dir", Inbox: "/var/the inbox"}}
+	got := p.signCommands("ID1")[0]
+	want := brand.CLI + " approvals approve --key <operator key file> --inbox '/var/the inbox' -- '-held dir' ID1"
+	if got != want {
+		t.Errorf("signCommands = %q, want %q", got, want)
+	}
+	if w := shellWord("it's"); w != `'it'\''s'` {
+		t.Errorf("shellWord(it's) = %s", w)
 	}
 }

@@ -172,10 +172,9 @@ every directory. <code>/healthz</code> reports <code>approvals.authority</code> 
 resolution and takes the held or the answered name only. A <code>1.0</code> directory
 or record is refused with a message naming both versions; empty the
 directory, whose holds expire within <code>approvals.ttl</code>. <code>approvals list</code> and
-the console no longer print a resolution. This build writes <code>2.1</code>, whose
-record names the authority holding it and the call's tenant and project,
-and reads <code>2.0</code> as held under <code>directory</code>; a <code>2.0</code> reader refuses a <code>2.1</code>
-record.</li>
+the console no longer print a resolution. A record is <code>2.1</code>: it names the
+authority holding it and the call's tenant and project. Under <code>signed</code> the
+plane writes its files <code>0640</code>, for an operators' group to read.</li>
 <li><strong>Breaking:</strong> a claim (<code>approvals approve|reject --approver-id</code>, or the
 console) for a hold under <code>signed</code> is refused naming the signing command,
 where it was written and ignored; the console answers no signed hold. On a

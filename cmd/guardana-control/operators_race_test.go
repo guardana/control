@@ -135,9 +135,9 @@ func TestFloorInitTakesOnlyARosterIDThePortTakes(t *testing.T) {
 }
 
 // TestARosterChangedSinceItWasReadIsNotReplaced: a roster of another root
-// put at --out after roster sign read it and before it took the lock passes
-// the serial check, which reads only this root's rosters; it is refused all
-// the same, and --out keeps it.
+// put at --out after roster sign first read it, here once it holds the lock,
+// as a writer that skips the lock could, passes the serial check, which reads
+// only this root's rosters; it is refused all the same, and --out keeps it.
 func TestARosterChangedSinceItWasReadIsNotReplaced(t *testing.T) {
 	tr := newRosterTree(t)
 	now := time.Date(2026, 10, 30, 9, 0, 0, 0, time.UTC)
