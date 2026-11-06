@@ -84,15 +84,17 @@ type pauseAnswer struct {
 	// Polls is what the reader counted: its reads, the failed ones by cause
 	// and the changes of the snapshot. It is left out where nothing reads.
 	Polls map[string]any `json:"polls,omitempty"`
-	// Signed is the serial of the signed document in force under the signed
-	// authority and the floor the plane holds, left out where no signed
-	// document stands behind the state. It names no operator: doctor does.
+	// Signed is the signed document in force under the signed authority and
+	// the floor the plane holds, left out where no signed document stands
+	// behind the state. Only health.socket names the operator.
 	Signed *pauseSigned `json:"signed,omitempty"`
 }
 
 type pauseSigned struct {
-	Serial int64 `json:"serial"`
-	Floor  int64 `json:"floor"`
+	Subject string `json:"subject,omitempty"`
+	KeyID   string `json:"key_id,omitempty"`
+	Serial  int64  `json:"serial"`
+	Floor   int64  `json:"floor"`
 }
 
 // signedAnswer is the health page's member for a snapshot signed by by, and
@@ -101,7 +103,7 @@ func signedAnswer(by pause.SignedBy, ok bool) *pauseSigned {
 	if !ok {
 		return nil
 	}
-	return &pauseSigned{Serial: by.Serial, Floor: by.Floor}
+	return &pauseSigned{Subject: by.Subject, KeyID: by.KeyID, Serial: by.Serial, Floor: by.Floor}
 }
 
 // haltAnswer names the plane's halts of ADR-0013 by what raised each. A

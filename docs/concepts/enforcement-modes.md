@@ -204,7 +204,8 @@ is unknown and blocks every call; the causes are `unsigned`,
 `owned by the plane's account`, `not authorized`,
 `authority unavailable`, `below the floor`, `forked` and `floor unavailable`.
 It refuses to start when its own account may write the file or a directory
-on its path. `/healthz` gives the serial and the floor under `pause.signed`.
+on its path. `/healthz` gives the serial and the floor under `pause.signed`,
+and `health.socket` also the signer.
 
 The file's directory may not be, or sit inside, the spool's, the approvals
 store's or the hold journal's, which a running plane locks. The check compares

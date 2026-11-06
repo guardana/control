@@ -22,8 +22,8 @@ verify one.
   floor in the new `pause.floor_dir`, which `pause floor init` makes, so an
   older signed file put back is refused after a restart too, and a copy of
   another plane's file is refused. `/healthz` gives the serial and the floor
-  under `pause.signed`, and `doctor` checks the file without raising the
-  floor (ADR-0075).
+  under `pause.signed`, `health.socket` also the signer, and `doctor` checks
+  the file without raising the floor (ADR-0075).
 - `pause add --run <id>`, `--agent <id>` and `--principal <id>` pause one
   opened run, or every run under a root, one agent or one principal. A run
   is named by its id from `runs open`, and any other spelling is refused. Each is
