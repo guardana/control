@@ -69,7 +69,9 @@ type plane struct {
 	holds   gateway.HoldJournal
 	journal *holdjournal.Journal
 	// poller reads the operator's pause file, and is nil where none is
-	// configured: the pipeline is then handed the disabled source.
+	// configured: the pipeline is then handed the disabled source. Under the
+	// signed authority only a serving plane opens it, after the operator
+	// ports, and an inspecting plane leaves the file to doctor's own check.
 	poller *pause.Poller
 	// stops is the route and the stop list's reader of a serving plane with a
 	// route, and nil otherwise: the pipeline is then handed the disabled
@@ -137,8 +139,10 @@ func buildChecked(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time,
 	}
 	p := &plane{cfg: cfg, logger: logger, role: r, holder: pp.holder, policy: pp, started: now, grace: shutdownGrace, callBound: callBound(cfg),
 		signedStart: signedStart}
-	if p.poller, err = openPause(cfg, logger, p.strayIDs); err != nil {
-		return nil, errors.Join(err, p.close())
+	if !signedPause(cfg) {
+		if p.poller, err = openPause(cfg, logger, p.strayIDs, nil); err != nil {
+			return nil, errors.Join(err, p.close())
+		}
 	}
 	p.spool = new(spool.Spool)
 	if r == roleServe {
@@ -190,6 +194,15 @@ func (p *plane) open(r role, tokenPath string) error {
 	p.store, p.records = store, records
 	if err := p.openAuthority(context.Background()); err != nil {
 		return err
+	}
+	if signedPause(p.cfg) {
+		judge, err := p.pauseJudge()
+		if err != nil {
+			return err
+		}
+		if p.poller, err = openPause(p.cfg, p.logger, p.strayIDs, judge); err != nil {
+			return err
+		}
 	}
 	holds, journal, err := openJournal(p.cfg)
 	if err != nil {

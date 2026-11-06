@@ -169,3 +169,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0071: Operators are named by a signed roster, and authorized by its grants](adr/0071-operators-are-named-by-a-signed-roster.md): accepted
 - [ADR-0072: The collector keeps bounded segments of one project, behind a credential](adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md): accepted
 - [ADR-0073: An approval counts only as the plane judges it, from an authority it names](adr/0073-an-approval-counts-only-as-the-plane-judges-it.md): accepted
+- [ADR-0075: A signed plane takes a pause only from an operator's signature](adr/0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature.md): accepted

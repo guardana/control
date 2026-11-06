@@ -78,6 +78,28 @@ type pauseAnswer struct {
 	// Polls is what the reader counted: its reads, the failed ones by cause
 	// and the changes of the snapshot. It is left out where nothing reads.
 	Polls map[string]any `json:"polls,omitempty"`
+	// Signed is who signed the document in force under the signed authority,
+	// its serial and the floor the plane holds, left out where no signed
+	// document stands behind the state.
+	Signed *pauseSigned `json:"signed,omitempty"`
+}
+
+// pauseSigned names the operator by subject and key id and says nothing the
+// document holds.
+type pauseSigned struct {
+	Subject string `json:"subject"`
+	KeyID   string `json:"key_id"`
+	Serial  int64  `json:"serial"`
+	Floor   int64  `json:"floor"`
+}
+
+// signedAnswer is the health page's member for a snapshot signed by by, and
+// nil where ok says no signed document stands behind it.
+func signedAnswer(by pause.SignedBy, ok bool) *pauseSigned {
+	if !ok {
+		return nil
+	}
+	return &pauseSigned{Subject: by.Subject, KeyID: by.KeyID, Serial: by.Serial, Floor: by.Floor}
 }
 
 // haltAnswer names the plane's halts of ADR-0013 by what raised each. A
@@ -278,6 +300,7 @@ func (p *plane) pauseAnswer(snap pause.Snapshot, now time.Time) pauseAnswer {
 	if snap.State() == pause.Unknown {
 		out.Cause = string(snap.Cause())
 	}
+	out.Signed = signedAnswer(snap.SignedBy())
 	if !snap.ReadAt().IsZero() {
 		age := now.Sub(snap.ReadAt()).Milliseconds()
 		out.AgeMS = &age

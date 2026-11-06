@@ -13,6 +13,15 @@ verify one.
 
 ### Added
 
+- Under `approvals.authority: signed` the pause file is version `3`, signed
+  by a roster operator granted `operate` over the plane's tenant and project:
+  `pause init --key <k> --tenant <t> --project <p>` makes one, and
+  `pause add` and `pause remove` with `--key` sign the whole file at the next
+  serial. The plane checks it at every read and raises a floor in the new
+  `pause.floor_dir`, which `pause floor init` makes, so an older signed file
+  put back is refused after a restart too. `/healthz` names the signer, the
+  serial and the floor under `pause.signed`, and `doctor` checks the file
+  without raising the floor (ADR-0075).
 - `pause add --run <id>`, `--agent <id>` and `--principal <id>` pause one
   opened run, or every run under a root, one agent or one principal. A run
   is named by its id from `runs open`, and any other spelling is refused. Each is
@@ -54,6 +63,12 @@ verify one.
 
 ### Changed
 
+- **Breaking:** under `approvals.authority: signed` a pause file of version
+  `1` or `2` blocks every call, `pause.floor_dir` is required with
+  `pause.file`, and the plane refuses to start when its own account may write
+  the pause file or a directory on its path. `pause add` and `pause remove`
+  without `--key` refuse a signed file, and the console writes no pause under
+  `signed` or into a signed file, naming the command that signs it.
 - **Breaking:** `approvals.authority` (`memory`, `directory` or `signed`)
   replaces `approvals.provider` and has no default. A configuration without
   it, or with the old key, is refused naming both; `provider: file` becomes
