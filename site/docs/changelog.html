@@ -131,8 +131,8 @@ sign it at the next serial. The plane checks it at every read and raises a
 floor in the new <code>pause.floor_dir</code>, which <code>pause floor init</code> makes, so an
 older signed file put back is refused after a restart too, and a copy of
 another plane's file is refused. <code>/healthz</code> gives the serial and the floor
-under <code>pause.signed</code>, and <code>doctor</code> checks the file without raising the
-floor (ADR-0075).</li>
+under <code>pause.signed</code>, <code>health.socket</code> also the signer, and <code>doctor</code> checks
+the file without raising the floor (ADR-0075).</li>
 <li><code>pause add --run &lt;id&gt;</code>, <code>--agent &lt;id&gt;</code> and <code>--principal &lt;id&gt;</code> pause one
 opened run, or every run under a root, one agent or one principal. A run
 is named by its id from <code>runs open</code>, and any other spelling is refused. Each is
