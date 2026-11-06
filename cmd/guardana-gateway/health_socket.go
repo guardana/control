@@ -36,7 +36,7 @@ func (p *plane) bindHealthSocket(stdout io.Writer, bound []listening) ([]listeni
 		allowed = append(allowed, a.ID)
 	}
 	path := p.cfg.Resolve(p.cfg.Health.Socket)
-	ln, err := listenHealthSocket(path)
+	ln, err := listenHealthSocket(path, p.cfg.Health.SocketUID.Set)
 	if err != nil {
 		return nil, errors.Join(err, closeListeners(bound))
 	}

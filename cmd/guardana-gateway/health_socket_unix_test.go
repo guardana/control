@@ -253,7 +253,7 @@ func TestTheHealthSocketBindsOverNoFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := listenHealthSocket(path); err == nil || !strings.Contains(err.Error(), "is not a socket of this account") {
+	if _, err := listenHealthSocket(path, false); err == nil || !strings.Contains(err.Error(), "is not a socket of this account") {
 		t.Errorf("over a file: %v", err)
 	}
 	if raw, err := os.ReadFile(path); err != nil || string(raw) != "keep" { //nolint:gosec // G304: the test's own file
@@ -270,7 +270,7 @@ func TestTheHealthSocketReplacesOnlyItsOwnStaleSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := listenHealthSocket(path); err == nil || !strings.Contains(err.Error(), "something answers") {
+	if _, err := listenHealthSocket(path, false); err == nil || !strings.Contains(err.Error(), "something answers") {
 		t.Errorf("over a live socket: %v", err)
 	}
 	live.(*net.UnixListener).SetUnlinkOnClose(false)
@@ -280,7 +280,7 @@ func TestTheHealthSocketReplacesOnlyItsOwnStaleSocket(t *testing.T) {
 	if _, err := os.Lstat(path); err != nil {
 		t.Fatalf("the stale socket is not there: %v", err)
 	}
-	ln, err := listenHealthSocket(path)
+	ln, err := listenHealthSocket(path, false)
 	if err != nil {
 		t.Fatalf("over a stale socket of this account: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestTheHealthSocketReplacesOnlyItsOwnStaleSocket(t *testing.T) {
 // only while it is still the socket the plane bound.
 func TestTheHealthSocketLeavesAFileThatReplacedIt(t *testing.T) {
 	path := shortSocketPath(t)
-	ln, err := listenHealthSocket(path)
+	ln, err := listenHealthSocket(path, false)
 	if err != nil {
 		t.Fatal(err)
 	}

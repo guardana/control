@@ -27,7 +27,7 @@ type stopsAnswer struct {
 	AgeMS *int64 `json:"age_ms,omitempty"`
 	// Active is how many stops are active; Entries lists the first of them.
 	Active  int               `json:"active"`
-	Entries []stopEntryAnswer `json:"entries,omitempty"`
+	Entries []stopEntryAnswer `json:"entries"`
 	Usage   *usageAnswer      `json:"usage,omitempty"`
 	// Degraded says the list is past nine tenths of a bound, past which the
 	// emitter can write no more stops.
@@ -37,8 +37,8 @@ type stopsAnswer struct {
 	// could not be read; Unheld and Unread count them.
 	Unheld     int            `json:"unheld"`
 	Unread     int            `json:"unread"`
-	UnheldRuns []string       `json:"unheld_runs,omitempty"`
-	UnreadRuns []string       `json:"unread_runs,omitempty"`
+	UnheldRuns []string       `json:"unheld_runs"`
+	UnreadRuns []string       `json:"unread_runs"`
 	Polls      map[string]any `json:"polls,omitempty"`
 }
 
@@ -152,10 +152,24 @@ func unheldRuns(dir *runs.Plane, project string, entries []reaction.Entry) (unhe
 	return unheld, unread
 }
 
-// counted is a as GET /healthz answers it: the stops' entries and the runs
-// they name left out, their counts kept, so no run id reaches a listener any
-// local account can read.
-func (a healthAnswer) counted() healthAnswer {
-	a.Stops.Entries, a.Stops.UnheldRuns, a.Stops.UnreadRuns = nil, nil, nil
-	return a
+// countedHealth is the health answer as GET /healthz gives it: the stops'
+// entries and the runs they name left out, their counts kept, so no run id
+// reaches a listener any local account can read.
+type countedHealth struct {
+	healthAnswer
+	Stops countedStops `json:"stops"`
+}
+
+// countedStops shadows the members of stopsAnswer that name runs with
+// members that are always empty and so never encoded.
+type countedStops struct {
+	stopsAnswer
+	Entries    *struct{} `json:"entries,omitempty"`
+	UnheldRuns *struct{} `json:"unheld_runs,omitempty"`
+	UnreadRuns *struct{} `json:"unread_runs,omitempty"`
+}
+
+// counted is a as GET /healthz answers it.
+func (a healthAnswer) counted() countedHealth {
+	return countedHealth{healthAnswer: a, Stops: countedStops{stopsAnswer: a.Stops}}
 }

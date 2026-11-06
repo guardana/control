@@ -16,17 +16,19 @@ import (
 	"github.com/guardana/control/internal/gateway"
 )
 
-const plaintextWarning = "warning: a plaintext TCP collector hands the credential to whoever holds "
+const (
+	tcpWarning       = "warning: TCP export goes in 0.17; export.endpoint: unix:///path with export.collector_uid sends the credential only to the collector's account" //nolint:gosec // G101: a warning's text, which holds no credential
+	plaintextWarning = ", and a plaintext TCP collector hands it to whoever holds "
+)
 
-// TestDoctorWarnsOfAPlaintextCollectorAlone: a plaintext loopback endpoint
-// is warned of, naming the unix form; a unix endpoint is not, and its line
-// names the socket and the account the credential goes to.
-func TestDoctorWarnsOfAPlaintextCollectorAlone(t *testing.T) {
+// TestDoctorWarnsOfATCPCollector: a plaintext loopback endpoint and an
+// https one are warned of, naming the unix form, the plaintext one with its
+// port; a unix endpoint is not, and its line names the socket and the
+// account the credential goes to.
+func TestDoctorWarnsOfATCPCollector(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	doctor(context.Background(), newTree(t).config, &stdout, &stderr)
-	if out := stdout.String(); !strings.Contains(out, plaintextWarning+"127.0.0.1:4318") ||
-		!strings.Contains(out, "export.endpoint: unix:///path with export.collector_uid") ||
-		!strings.Contains(out, "plaintext TCP export goes in 0.17") {
+	if out := stdout.String(); !strings.Contains(out, tcpWarning+plaintextWarning+"127.0.0.1:4318 while it is down") {
 		t.Errorf("doctor does not warn of the plaintext collector:\n%s", out)
 	}
 
@@ -35,7 +37,8 @@ func TestDoctorWarnsOfAPlaintextCollectorAlone(t *testing.T) {
 	setEnv(t, "export.allow_plaintext", "false")
 	stdout.Reset()
 	doctor(context.Background(), secure.config, &stdout, &stderr)
-	if out := stdout.String(); strings.Contains(out, plaintextWarning) || !strings.Contains(reportLine(out, "export"), "https://collector.example") {
+	if out := stdout.String(); !strings.Contains(out, tcpWarning+"\n") || strings.Contains(out, plaintextWarning) ||
+		!strings.Contains(reportLine(out, "export"), "https://collector.example") {
 		t.Errorf("doctor over an https collector:\n%s", out)
 	}
 
@@ -46,7 +49,7 @@ func TestDoctorWarnsOfAPlaintextCollectorAlone(t *testing.T) {
 	stdout.Reset()
 	doctor(context.Background(), tr.config, &stdout, &stderr)
 	out := stdout.String()
-	if strings.Contains(out, plaintextWarning) {
+	if strings.Contains(out, "warning: TCP export") {
 		t.Errorf("doctor warns of a unix collector:\n%s", out)
 	}
 	if line := reportLine(out, "export"); !strings.HasPrefix(line, "ok ") ||

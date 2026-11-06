@@ -165,7 +165,7 @@ Unix socket of mode <code>0600</code> that answers only the plane's own account 
 <code>health.socket_uid</code>; any other peer is closed unanswered. Anything at the
 path but a stale socket of the plane's account is refused, and the plane
 removes its socket when it stops.</li>
-<li><code>doctor</code> warns of a plaintext <code>export.endpoint</code>, naming the unix form.</li>
+<li><code>doctor</code> warns of every TCP <code>export.endpoint</code>, naming the unix form.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
@@ -173,10 +173,9 @@ removes its socket when it stops.</li>
 carries the counts <code>unheld</code> and <code>unread</code>, and leaves out <code>entries</code>,
 <code>unheld_runs</code> and <code>unread_runs</code>, which only <code>health.socket</code> answers. A
 reader of the old shape finds no <code>schema</code> member.</li>
-<li>Plaintext TCP export (<code>export.allow_plaintext</code> to a loopback collector)
-stays in this release with a <code>doctor</code> warning and goes in 0.17: whoever
-holds the port while the collector is down receives the credential. Move to
-<code>export.endpoint: unix:///path</code>.</li>
+<li>TCP export stays in this release with a <code>doctor</code> warning and goes in 0.17:
+over plaintext, whoever holds the port while the collector is down
+receives the credential. Move to <code>export.endpoint: unix:///path</code>.</li>
 <li><strong>Breaking:</strong> <code>approvals.authority</code> (<code>memory</code>, <code>directory</code> or <code>signed</code>)
 replaces <code>approvals.provider</code> and has no default. A configuration without
 it, or with the old key, is refused naming both; <code>provider: file</code> becomes

@@ -57,7 +57,7 @@ verify one.
   `health.socket_uid`; any other peer is closed unanswered. Anything at the
   path but a stale socket of the plane's account is refused, and the plane
   removes its socket when it stops.
-- `doctor` warns of a plaintext `export.endpoint`, naming the unix form.
+- `doctor` warns of every TCP `export.endpoint`, naming the unix form.
 
 ### Changed
 
@@ -65,10 +65,9 @@ verify one.
   carries the counts `unheld` and `unread`, and leaves out `entries`,
   `unheld_runs` and `unread_runs`, which only `health.socket` answers. A
   reader of the old shape finds no `schema` member.
-- Plaintext TCP export (`export.allow_plaintext` to a loopback collector)
-  stays in this release with a `doctor` warning and goes in 0.17: whoever
-  holds the port while the collector is down receives the credential. Move to
-  `export.endpoint: unix:///path`.
+- TCP export stays in this release with a `doctor` warning and goes in 0.17:
+  over plaintext, whoever holds the port while the collector is down
+  receives the credential. Move to `export.endpoint: unix:///path`.
 - **Breaking:** `approvals.authority` (`memory`, `directory` or `signed`)
   replaces `approvals.provider` and has no default. A configuration without
   it, or with the old key, is refused naming both; `provider: file` becomes

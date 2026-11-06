@@ -98,7 +98,7 @@ ok      operators.authorizer not read: approvals.authority is memory, which auth
 ok      pause         disabled: pause.file is not set, so no call can be paused without a restart
 ok      runs          local: one run per principal and agent, kept in memory, so a new process starts clean (ADR-0021)
 ok      reaction      disabled: reaction.route is not set, so no finding stops a run
-       warning: a plaintext TCP collector hands the credential to whoever holds 127.0.0.1:4318 while it is down; export.endpoint: unix:///path with export.collector_uid sends it only to the collector's account, and plaintext TCP export goes in 0.17
+       warning: TCP export goes in 0.17; export.endpoint: unix:///path with export.collector_uid sends the credential only to the collector's account, and a plaintext TCP collector hands it to whoever holds 127.0.0.1:4318 while it is down
 ok      export        OTLP/HTTP JSON logs to http://127.0.0.1:4318/v1/logs, 0 header(s), at most 128 record(s) per request, 4 in flight
 ok      secrets       upstream answers are scanned for 0 configured value(s); 0 value(s) shorter than 8 bytes are not
 ok      seams         the mcp adapter declares observe_request, observe_result, enforcement_inline, see_resource_ids, which covers what OBSERVE needs; at most 128 held and 256 open, an approval lasts 15m0s and a retry is asked for after 30s
