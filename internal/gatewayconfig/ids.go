@@ -6,14 +6,21 @@ import (
 	"github.com/guardana/control/pkg/contract"
 )
 
-// checkIdentifiers refuses a project, tenant or environment, of the plane or
-// of an upstream, that contract.CheckID refuses, naming the key: every
-// envelope carries the plane's and every call to an upstream its own, so the
-// contract would refuse each call instead. An empty optional key is unset;
-// checkRequired has refused an empty required one.
+// checkIdentifiers refuses a key an envelope carries that contract.CheckID
+// refuses, naming the key: the plane's project, tenant and environment, the
+// listener's principal and agent, and an upstream's tenant and environment.
+// Validate holds each of these fields to the identifier rule and its bound,
+// so the contract would refuse every call instead. An empty optional key is
+// unset; checkRequired has refused an empty required one.
 func (c *Config) checkIdentifiers() error {
 	type key struct{ path, value string }
-	keys := []key{{"project_id", c.ProjectID}, {"tenant_id", c.TenantID}, {"environment", c.Environment}}
+	l := c.Listener
+	keys := []key{
+		{"project_id", c.ProjectID}, {"tenant_id", c.TenantID}, {"environment", c.Environment},
+		{"listener.principal.id", l.PrincipalID}, {"listener.principal.type", l.PrincipalType},
+		{"listener.principal.tenant_id", l.PrincipalTenant},
+		{"listener.agent.id", l.AgentID}, {"listener.agent.framework", l.AgentFramework}, {"listener.agent.version", l.AgentVersion},
+	}
 	for i, up := range c.Upstreams {
 		keys = append(keys, key{fmt.Sprintf("upstreams.%d.tenant_id", i), up.TenantID},
 			key{fmt.Sprintf("upstreams.%d.environment", i), up.Environment})

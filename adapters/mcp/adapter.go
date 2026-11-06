@@ -140,7 +140,8 @@ var _ gateway.Adapter = (*Adapter)(nil)
 // an authenticator on stdio, a listener without an identity, a run token
 // source that does not fit the listener, an upstream without a transport or
 // with a name no envelope can carry, two upstreams with one name, a project,
-// tenant or environment of the listener or of an upstream that is set and that
+// tenant or environment of the listener or of an upstream, a string of the
+// listener's identity or its authentication strength, that is set and that
 // contract.CheckID refuses, an override that names no known upstream, is
 // incomplete, carries a classification classify.Check refuses or needs an
 // environment or a tenant the listener, its principal or its upstream leaves

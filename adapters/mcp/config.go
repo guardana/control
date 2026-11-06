@@ -252,21 +252,35 @@ func checkUpstreams(upstreams []Upstream) (map[string]bool, error) {
 }
 
 // checkPlaneIDs refuses a ProjectID, TenantID or Environment, of the listener
-// or of an upstream, that is set and that contract.CheckID refuses. An empty
-// one is refused by checkUpstreamKeys where an override needs it.
+// or of an upstream, or a string of the listener's identity or its
+// authentication strength, that is set and that contract.CheckID refuses:
+// Validate holds every one of them to the identifier rule and its bound. An
+// empty one is refused by checkUpstreamKeys where an override needs it.
 func checkPlaneIDs(cfg Config) error {
-	type field struct{ name, value string }
-	fields := []field{{"ProjectID", cfg.ProjectID}, {"TenantID", cfg.TenantID}, {"Environment", cfg.Environment}}
+	type field struct {
+		name, value string
+		err         Error
+	}
+	p, a := cfg.Listener.Identity.Principal, cfg.Listener.Identity.Agent
+	fields := []field{
+		{"ProjectID", cfg.ProjectID, ErrPlaneKey}, {"TenantID", cfg.TenantID, ErrPlaneKey}, {"Environment", cfg.Environment, ErrPlaneKey},
+		{"Listener.Identity.Principal.Id", p.GetId(), ErrIdentity}, {"Listener.Identity.Principal.Type", p.GetType(), ErrIdentity},
+		{"Listener.Identity.Principal.AuthnStrength", p.GetAuthnStrength(), ErrIdentity},
+		{"Listener.Identity.Principal.TenantId", p.GetTenantId(), ErrIdentity},
+		{"Listener.Identity.Agent.Id", a.GetId(), ErrIdentity}, {"Listener.Identity.Agent.InstanceId", a.GetInstanceId(), ErrIdentity},
+		{"Listener.Identity.Agent.Framework", a.GetFramework(), ErrIdentity}, {"Listener.Identity.Agent.Version", a.GetVersion(), ErrIdentity},
+		{"Listener.Identity.Agent.ModelRef", a.GetModelRef(), ErrIdentity}, {"Listener.AuthnStrength", cfg.Listener.AuthnStrength, ErrIdentity},
+	}
 	for i, up := range cfg.Upstreams {
-		fields = append(fields, field{fmt.Sprintf("Upstreams[%d].TenantID", i), up.TenantID},
-			field{fmt.Sprintf("Upstreams[%d].Environment", i), up.Environment})
+		fields = append(fields, field{fmt.Sprintf("Upstreams[%d].TenantID", i), up.TenantID, ErrPlaneKey},
+			field{fmt.Sprintf("Upstreams[%d].Environment", i), up.Environment, ErrPlaneKey})
 	}
 	for _, f := range fields {
 		if f.value == "" {
 			continue
 		}
 		if err := contract.CheckID(f.value); err != nil {
-			return fmt.Errorf("%w: %s: %w", ErrPlaneKey, f.name, err)
+			return fmt.Errorf("%w: %s: %w", f.err, f.name, err)
 		}
 	}
 	return nil

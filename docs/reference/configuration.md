@@ -31,7 +31,8 @@ envelope needs a resource id (`WRITE`, `DELETE`, `TRANSACT`, `IDENTITY_OR_ACCESS
 `COMMUNICATE` needs `trust_zone`; `WRITE`, `DELETE` and `CONFIGURE` need `environment` set, and in
 an override its upstream's `environment` too, and in an override `TRANSACT` and `IDENTITY_OR_ACCESS`
 need the upstream's `tenant_id`; a tool's `name` and `provider`, an upstream's `name`,
-which is every call's `action.provider`, `project_id`, and the plane's and each upstream's
+which is every call's `action.provider`, `project_id`, the `listener.principal.*` and
+`listener.agent.*` keys, and the plane's and each upstream's
 `tenant_id` and `environment` are identifiers of at most 1024 bytes too. An identifier is held to the contract's rule
 ([contracts](../contracts.md#decoding-and-validation)): invalid UTF-8 is refused, and so
 are White_Space at either end and, anywhere, a space other than U+0020, a code point in

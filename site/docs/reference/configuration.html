@@ -135,7 +135,8 @@ envelope needs a resource id (<code>WRITE</code>, <code>DELETE</code>, <code>TRA
 <code>COMMUNICATE</code> needs <code>trust_zone</code>; <code>WRITE</code>, <code>DELETE</code> and <code>CONFIGURE</code> need <code>environment</code> set, and in
 an override its upstream's <code>environment</code> too, and in an override <code>TRANSACT</code> and <code>IDENTITY_OR_ACCESS</code>
 need the upstream's <code>tenant_id</code>; a tool's <code>name</code> and <code>provider</code>, an upstream's <code>name</code>,
-which is every call's <code>action.provider</code>, <code>project_id</code>, and the plane's and each upstream's
+which is every call's <code>action.provider</code>, <code>project_id</code>, the <code>listener.principal.*</code> and
+<code>listener.agent.*</code> keys, and the plane's and each upstream's
 <code>tenant_id</code> and <code>environment</code> are identifiers of at most 1024 bytes too. An identifier is held to the contract's rule
 (<a href="/docs/contracts#decoding-and-validation">contracts</a>): invalid UTF-8 is refused, and so
 are White_Space at either end and, anywhere, a space other than U+0020, a code point in

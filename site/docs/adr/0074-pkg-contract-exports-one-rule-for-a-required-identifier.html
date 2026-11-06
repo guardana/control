@@ -123,8 +123,8 @@ did. The rule it applies is <a href="/docs/adr/0011-contract-corrections-before-
 passes, and the bound on its length is <code>Validate</code>'s, not its own. Every
 caller that requires an identifier outside an envelope added both: the
 policy reader's ids, the kernel's decision point and request id, a
-classification's strings, an obligation's identifiers and resource prefix.
-Six copies of one rule agree today and drift on the first change, which is
+classification's strings, an obligation's identifiers and resource prefix, a
+procedure's identifiers. Seven copies of one rule agree today and drift on the first change, which is
 how the gateway's configuration came to load a <code>tenant_id</code> with a trailing
 space that the contract refused at the first call.</p>
 <h2 id="decision">Decision</h2>
@@ -134,9 +134,13 @@ space that the contract refused at the first call.</p>
 never repeats the string. <code>CheckIdentifier</code> keeps its meaning, so a walk over
 optional fields still passes an empty one.</p>
 <p>Each former copy calls it and keeps its own error vocabulary. The gateway's
-configuration holds <code>project_id</code>, <code>tenant_id</code>, <code>environment</code> and an upstream's
-<code>tenant_id</code> and <code>environment</code> to it when the file loads, naming the key, and
-the MCP and enforcement adapters do the same in <code>New</code> for a Go caller.</p>
+configuration holds every key an envelope carries to it when the file loads,
+naming the key: <code>project_id</code>, <code>tenant_id</code>, <code>environment</code>, the
+<code>listener.principal.*</code> and <code>listener.agent.*</code> keys, and an upstream's
+<code>tenant_id</code> and <code>environment</code>. <code>Validate</code> holds each of those fields to the
+identifier rule and its bound. The MCP and enforcement adapters do the same in
+<code>New</code> for a Go caller, over the plane's keys and every string of the
+listener's principal and agent.</p>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>Additive in <code>pkg/contract</code>: a new exported function, pinned by
 <code>TestExportedFunctionSetIsClosed</code> and documented on <code>docs/contracts.md</code>. It
@@ -163,8 +167,9 @@ reaches every caller in the same build.</p>
 <p><code>TestCheckIDHoldsPresenceTheBoundAndTheRule</code> holds the empty string, 1024 and
 1025 bytes, a bound counted in bytes rather than runes, white space at either
 end, U+00A0 and U+3000 included, a bidi control, a NUL and invalid UTF-8 to
-literal sentinels; <code>TestCheckIDRefusalCarriesNoCallerText</code> keeps the string
-out of the refusal. Each former site's own refusal test stays.
+literal sentinels, and <code>TestCheckIDIsValidateOnARequiredIdentifier</code> holds
+<code>Validate</code> to the same verdict and sentinel on <code>request_id</code>;
+<code>TestCheckIDRefusalCarriesNoCallerText</code> keeps the string out of the refusal. Each former site's own refusal test stays.
 <code>TestAnIdentifierEveryEnvelopeCarriesIsRefusedAtLoad</code> and both adapters'
 <code>TestNewRefusesAPlaneKeyNoEnvelopeCarries</code> hold the configuration to it.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0074-pkg-contract-exports-one-rule-for-a-required-identifier.md">docs/adr/0074-pkg-contract-exports-one-rule-for-a-required-identifier.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>

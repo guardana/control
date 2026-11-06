@@ -66,9 +66,9 @@ func TestDoctorRepeatsNoKeyTextAndForgesNoLine(t *testing.T) {
 		"body line as pause.file":         {"pause.file", body, "pause.file: holds a PEM marker"},
 		"body line as policy.bundle_file": {"policy.bundle_file", body, "policy.bundle_file: holds a PEM marker"},
 		"whole PEM as project_id":         {"project_id", pemFile, `project_id: "contract: invalid field value: white space U+000A at the end"`},
-		"whole PEM as a version":          {"listener.agent.version", pemFile, `"[key text withheld]\n"`},
+		"whole PEM as policy.key_id":      {"policy.key_id", pemFile, `"[key text withheld]\n"`},
 		"forged ok line in environment":   {"environment", "dev\n" + forgedCheck, `environment: "contract: invalid field value: a control character U+000A at byte 3"`},
-		"forged ok line in a framework":   {"listener.agent.framework", "dev\n" + forgedCheck, `"dev\n` + forgedCheck + `"`},
+		"forged ok line in policy.key_id": {"policy.key_id", "dev\n" + forgedCheck, `"dev\n` + forgedCheck + `"`},
 		"forged ok line in pause.file":    {"pause.file", "pause\n" + forgedCheck, `pause\n` + forgedCheck + ` cannot be read`},
 	} {
 		t.Run(name, func(t *testing.T) {

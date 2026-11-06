@@ -196,16 +196,28 @@ func checkTool(tool Tool) error {
 	return nil
 }
 
-// checkPlaneIDs refuses a ProjectID, TenantID or Environment that is set and
-// that contract.CheckID refuses. An empty one is refused by checkPlaneKeys
-// where a tool needs it.
+// checkPlaneIDs refuses a ProjectID, TenantID or Environment, or a string of
+// the identity, that is set and that contract.CheckID refuses: Validate holds
+// every one of them to the identifier rule and its bound. An empty one is
+// refused by checkListener or checkPlaneKeys where it is needed.
 func checkPlaneIDs(cfg Config) error {
-	for _, f := range []struct{ name, value string }{{"ProjectID", cfg.ProjectID}, {"TenantID", cfg.TenantID}, {"Environment", cfg.Environment}} {
+	p, a := cfg.Identity.Principal, cfg.Identity.Agent
+	for _, f := range []struct {
+		name, value string
+		err         Error
+	}{
+		{"ProjectID", cfg.ProjectID, ErrPlaneKey}, {"TenantID", cfg.TenantID, ErrPlaneKey}, {"Environment", cfg.Environment, ErrPlaneKey},
+		{"Identity.Principal.Id", p.GetId(), ErrIdentity}, {"Identity.Principal.Type", p.GetType(), ErrIdentity},
+		{"Identity.Principal.AuthnStrength", p.GetAuthnStrength(), ErrIdentity}, {"Identity.Principal.TenantId", p.GetTenantId(), ErrIdentity},
+		{"Identity.Agent.Id", a.GetId(), ErrIdentity}, {"Identity.Agent.InstanceId", a.GetInstanceId(), ErrIdentity},
+		{"Identity.Agent.Framework", a.GetFramework(), ErrIdentity}, {"Identity.Agent.Version", a.GetVersion(), ErrIdentity},
+		{"Identity.Agent.ModelRef", a.GetModelRef(), ErrIdentity},
+	} {
 		if f.value == "" {
 			continue
 		}
 		if err := contract.CheckID(f.value); err != nil {
-			return fmt.Errorf("%w: %s: %w", ErrPlaneKey, f.name, err)
+			return fmt.Errorf("%w: %s: %w", f.err, f.name, err)
 		}
 	}
 	return nil

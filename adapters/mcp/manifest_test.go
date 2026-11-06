@@ -319,7 +319,8 @@ func TestNewRefusesAnOverrideWhoseEnvelopeKeyIsEmpty(t *testing.T) {
 }
 
 // TestNewRefusesAPlaneKeyNoEnvelopeCarries: the project, tenant and
-// environment of the listener and of each upstream are held to
+// environment of the listener and of each upstream, and the listener's
+// identity, are held to
 // contract.CheckID when they are set, naming the field, so a Go caller that
 // pads one learns it at New rather than at the first call. An inner space and
 // a value at the bound are the controls.
@@ -329,20 +330,28 @@ func TestNewRefusesAPlaneKeyNoEnvelopeCarries(t *testing.T) {
 	for _, tc := range []struct {
 		name, field string
 		mut         func(*mcp.Config)
+		want        error
 	}{
-		{"a project led by a space", "ProjectID", func(c *mcp.Config) { c.ProjectID = " p1" }},
-		{"a project past the bound", "ProjectID", func(c *mcp.Config) { c.ProjectID = strings.Repeat("p", 1025) }},
-		{"a tenant ending in a NUL", "TenantID", func(c *mcp.Config) { c.TenantID = "t1\x00" }},
-		{"an environment ending in a no-break space", "Environment", func(c *mcp.Config) { c.Environment = "prod\u00a0" }},
-		{"an upstream tenant led by an ideographic space", "Upstreams[0].TenantID", func(c *mcp.Config) { c.Upstreams[0].TenantID = "\u3000t1" }},
-		{"an upstream environment with a bidi override", "Upstreams[0].Environment", func(c *mcp.Config) { c.Upstreams[0].Environment = "pr\u202eod" }},
+		{"a project led by a space", "ProjectID", func(c *mcp.Config) { c.ProjectID = " p1" }, mcp.ErrPlaneKey},
+		{"a project past the bound", "ProjectID", func(c *mcp.Config) { c.ProjectID = strings.Repeat("p", 1025) }, mcp.ErrPlaneKey},
+		{"a tenant ending in a NUL", "TenantID", func(c *mcp.Config) { c.TenantID = "t1\x00" }, mcp.ErrPlaneKey},
+		{"an environment ending in a no-break space", "Environment", func(c *mcp.Config) { c.Environment = "prod\u00a0" }, mcp.ErrPlaneKey},
+		{"an upstream tenant led by an ideographic space", "Upstreams[0].TenantID", func(c *mcp.Config) { c.Upstreams[0].TenantID = "\u3000t1" }, mcp.ErrPlaneKey},
+		{"an upstream environment with a bidi override", "Upstreams[0].Environment", func(c *mcp.Config) { c.Upstreams[0].Environment = "pr\u202eod" }, mcp.ErrPlaneKey},
+		{"a principal id ending in a space", "Listener.Identity.Principal.Id", func(c *mcp.Config) { c.Listener.Identity.Principal.Id = "svc-agent " }, mcp.ErrIdentity},
+		{"a principal type with a line break", "Listener.Identity.Principal.Type", func(c *mcp.Config) { c.Listener.Identity.Principal.Type = "service\n" }, mcp.ErrIdentity},
+		{"a principal tenant ending in a space", "Listener.Identity.Principal.TenantId", func(c *mcp.Config) { c.Listener.Identity.Principal.TenantId = "t1 " }, mcp.ErrIdentity},
+		{"an agent id past the bound", "Listener.Identity.Agent.Id", func(c *mcp.Config) { c.Listener.Identity.Agent.Id = strings.Repeat("a", 1025) }, mcp.ErrIdentity},
+		{"an agent framework with a bidi override", "Listener.Identity.Agent.Framework", func(c *mcp.Config) { c.Listener.Identity.Agent.Framework = "fw\u202e" }, mcp.ErrIdentity},
+		{"an agent version led by a space", "Listener.Identity.Agent.Version", func(c *mcp.Config) { c.Listener.Identity.Agent.Version = " 1.0" }, mcp.ErrIdentity},
+		{"an authentication strength ending in a space", "Listener.AuthnStrength", func(c *mcp.Config) { c.Listener.AuthnStrength = "bearer " }, mcp.ErrIdentity},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := newConfig(t, v, mcp.KindStdio, ct, rigOptions{})
 			tc.mut(&cfg)
 			a, err := mcp.New(cfg)
-			if a != nil || !errors.Is(err, mcp.ErrPlaneKey) || !strings.Contains(err.Error(), tc.field+":") {
-				t.Fatalf("New = %v, adapter returned %t; want ErrPlaneKey naming %s", err, a != nil, tc.field)
+			if a != nil || !errors.Is(err, tc.want) || !strings.Contains(err.Error(), tc.field+":") {
+				t.Fatalf("New = %v, adapter returned %t; want %v naming %s", err, a != nil, tc.want, tc.field)
 			}
 		})
 	}

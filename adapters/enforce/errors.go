@@ -19,7 +19,9 @@ const (
 	// above MaxBodyBytes.
 	ErrBodyBound Error = "enforce: the body bound is outside its limits"
 	// ErrIdentity is a listener with no principal, no principal id or no
-	// agent id: the run a token names is checked against this identity.
+	// agent id, or a string of the identity that is set and that
+	// contract.CheckID refuses: the run a token names is checked against this
+	// identity, and every envelope carries it.
 	ErrIdentity Error = "enforce: the listener's identity is missing"
 	// ErrPlaneKey is a ProjectID, TenantID or Environment that is set and
 	// that contract.CheckID refuses: every envelope carries all three.

@@ -141,32 +141,40 @@ func TestNewRefusesAToolWhoseEnvelopeKeyIsEmpty(t *testing.T) {
 	}
 }
 
-// TestNewRefusesAPlaneKeyNoEnvelopeCarries: the project, the tenant and the
-// environment every envelope carries are held to contract.CheckID when they
-// are set, so a Go caller that pads one learns it at New rather than at the
+// TestNewRefusesAPlaneKeyNoEnvelopeCarries: the project, the tenant, the
+// environment and the identity every envelope carries are held to
+// contract.CheckID when they are set, so a Go caller that pads one learns it at New rather than at the
 // first call. An inner space and a value at the bound are the controls.
 func TestNewRefusesAPlaneKeyNoEnvelopeCarries(t *testing.T) {
 	for _, tc := range []struct {
 		name, field string
 		mut         func(*enforce.Config)
+		want        error
 	}{
-		{"a project led by a space", "ProjectID", func(c *enforce.Config) { c.ProjectID = " proj-1" }},
-		{"a project past the bound", "ProjectID", func(c *enforce.Config) { c.ProjectID = strings.Repeat("p", 1025) }},
-		{"a tenant ending in a NUL", "TenantID", func(c *enforce.Config) { c.TenantID = "tenant-1\x00" }},
-		{"a tenant ending in a no-break space", "TenantID", func(c *enforce.Config) { c.TenantID = "tenant-1\u00a0" }},
-		{"an environment led by an ideographic space", "Environment", func(c *enforce.Config) { c.Environment = "\u3000prod" }},
+		{"a project led by a space", "ProjectID", func(c *enforce.Config) { c.ProjectID = " proj-1" }, enforce.ErrPlaneKey},
+		{"a project past the bound", "ProjectID", func(c *enforce.Config) { c.ProjectID = strings.Repeat("p", 1025) }, enforce.ErrPlaneKey},
+		{"a tenant ending in a NUL", "TenantID", func(c *enforce.Config) { c.TenantID = "tenant-1\x00" }, enforce.ErrPlaneKey},
+		{"a tenant ending in a no-break space", "TenantID", func(c *enforce.Config) { c.TenantID = "tenant-1\u00a0" }, enforce.ErrPlaneKey},
+		{"an environment led by an ideographic space", "Environment", func(c *enforce.Config) { c.Environment = "\u3000prod" }, enforce.ErrPlaneKey},
+		{"a principal id ending in a space", "Identity.Principal.Id", func(c *enforce.Config) { c.Identity.Principal.Id = "user-1 " }, enforce.ErrIdentity},
+		{"a principal type with a line break", "Identity.Principal.Type", func(c *enforce.Config) { c.Identity.Principal.Type = "user\n" }, enforce.ErrIdentity},
+		{"a principal tenant ending in a space", "Identity.Principal.TenantId", func(c *enforce.Config) { c.Identity.Principal.TenantId = "tenant-1 " }, enforce.ErrIdentity},
+		{"an agent id past the bound", "Identity.Agent.Id", func(c *enforce.Config) { c.Identity.Agent.Id = strings.Repeat("a", 1025) }, enforce.ErrIdentity},
+		{"an agent framework with a bidi override", "Identity.Agent.Framework", func(c *enforce.Config) { c.Identity.Agent.Framework = "fw\u202e" }, enforce.ErrIdentity},
+		{"an agent version led by a space", "Identity.Agent.Version", func(c *enforce.Config) { c.Identity.Agent.Version = " 1.0" }, enforce.ErrIdentity},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := validConfig()
 			tc.mut(&cfg)
 			a, err := enforce.New(cfg)
-			if a != nil || !errors.Is(err, enforce.ErrPlaneKey) || !strings.Contains(err.Error(), tc.field+":") {
-				t.Fatalf("New = %v, adapter returned %t; want ErrPlaneKey naming %s", err, a != nil, tc.field)
+			if a != nil || !errors.Is(err, tc.want) || !strings.Contains(err.Error(), tc.field+":") {
+				t.Fatalf("New = %v, adapter returned %t; want %v naming %s", err, a != nil, tc.want, tc.field)
 			}
 		})
 	}
 	cfg := validConfig()
 	cfg.ProjectID, cfg.TenantID = "proj 1", strings.Repeat("t", 1024)
+	cfg.Identity.Agent.Framework, cfg.Identity.Agent.Version = "my framework", "1.0"
 	if _, err := enforce.New(cfg); err != nil {
 		t.Errorf("an inner space and a tenant at the bound were refused: %v", err)
 	}

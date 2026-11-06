@@ -441,7 +441,7 @@ func CheckID(s string) error                                 // the same, requir
 func CheckHost(host string) error                            // the host rule below
 func CheckMapKey(key string) error                           // the map-key rule below
 </code></pre>
-<p>The three <code>Check</code> functions are <code>Validate</code>'s own value rules, exported so that
+<p><code>CheckIdentifier</code>, <code>CheckHost</code> and <code>CheckMapKey</code> are <code>Validate</code>'s own value rules, exported so that
 whatever names an identifier, a host or a map key outside an envelope, the
 evidence builder and the policy parser first, holds it to the same rule rather
 than to a second copy. A rule that names a spelling no envelope can carry never
@@ -451,9 +451,10 @@ a <code>ValidationError</code> with no field, wrapping <code>ErrInvalidValue</co
 each function to <code>Validate</code>'s verdict and reason on the field it governs.</p>
 <p><code>CheckID</code> is the rule for an identifier that must be present: <code>&quot;&quot;</code> is refused
 as <code>ErrMissingField</code>, more than <code>MaxStringBytes</code> bytes as <code>ErrTooLarge</code>, and
-anything else as <code>CheckIdentifier</code> decides. The kernel, the policy reader, the
-classification and the gateway's configuration call it rather than keeping a
-copy of the bound (<a href="/docs/adr/0074-pkg-contract-exports-one-rule-for-a-required-identifier">ADR-0074</a>).
+anything else as <code>CheckIdentifier</code> decides, and a test holds it to <code>Validate</code>'s
+verdict and reason on <code>request_id</code>. The kernel, the policy reader, the
+procedure reader, the classification and the gateway's configuration call it
+rather than keeping a copy of the bound (<a href="/docs/adr/0074-pkg-contract-exports-one-rule-for-a-required-identifier">ADR-0074</a>).
 Its refusal never repeats the string.</p>
 <p><code>ValidateUnclassified</code> applies every rule of <code>Validate</code>, from the same code and
 in the same order, except the effect class's presence and the fields a class

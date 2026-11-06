@@ -69,11 +69,9 @@ func (c *Config) checkUpstream(i int) error {
 // classification of one upstream's tool, which the adapter would let replace
 // the first.
 func (c *Config) checkOverrides() error {
-	names := map[string]int{}
+	names := make(map[string]int, len(c.Upstreams))
 	for i, up := range c.Upstreams {
-		if _, ok := names[up.Name]; !ok {
-			names[up.Name] = i
-		}
+		names[up.Name] = i
 	}
 	type tool struct{ upstream, name string }
 	seen := make(map[tool]int, len(c.Overrides))

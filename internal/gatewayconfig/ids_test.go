@@ -23,13 +23,15 @@ func loadWith(t *testing.T, doc string, values map[string]string) (*Config, erro
 	return Load(path, environ)
 }
 
-// TestAnIdentifierEveryEnvelopeCarriesIsRefusedAtLoad: the project, the
-// tenant and the environment of the plane and of an upstream are refused
-// when the file loads, naming the key, for what the contract would refuse at
-// the first call; the refusal never repeats the value.
+// TestAnIdentifierEveryEnvelopeCarriesIsRefusedAtLoad: every key an envelope
+// carries, the plane's, an upstream's and the listener's principal and agent,
+// is refused when the file loads, naming the key, for what the contract would
+// refuse at the first call; the refusal never repeats the value.
 func TestAnIdentifierEveryEnvelopeCarriesIsRefusedAtLoad(t *testing.T) {
 	const marker = "acme-HUNTER2"
-	keys := []string{"project_id", "tenant_id", "environment", "upstreams.0.tenant_id", "upstreams.0.environment"}
+	keys := []string{"project_id", "tenant_id", "environment", "upstreams.0.tenant_id", "upstreams.0.environment",
+		"listener.principal.id", "listener.principal.type", "listener.principal.tenant_id",
+		"listener.agent.id", "listener.agent.framework", "listener.agent.version"}
 	for _, key := range keys {
 		for _, c := range []struct {
 			name, value string

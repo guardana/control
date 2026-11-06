@@ -14,8 +14,8 @@ did. The rule it applies is [ADR-0011](0011-contract-corrections-before-publicat
 passes, and the bound on its length is `Validate`'s, not its own. Every
 caller that requires an identifier outside an envelope added both: the
 policy reader's ids, the kernel's decision point and request id, a
-classification's strings, an obligation's identifiers and resource prefix.
-Six copies of one rule agree today and drift on the first change, which is
+classification's strings, an obligation's identifiers and resource prefix, a
+procedure's identifiers. Seven copies of one rule agree today and drift on the first change, which is
 how the gateway's configuration came to load a `tenant_id` with a trailing
 space that the contract refused at the first call.
 
@@ -28,9 +28,13 @@ never repeats the string. `CheckIdentifier` keeps its meaning, so a walk over
 optional fields still passes an empty one.
 
 Each former copy calls it and keeps its own error vocabulary. The gateway's
-configuration holds `project_id`, `tenant_id`, `environment` and an upstream's
-`tenant_id` and `environment` to it when the file loads, naming the key, and
-the MCP and enforcement adapters do the same in `New` for a Go caller.
+configuration holds every key an envelope carries to it when the file loads,
+naming the key: `project_id`, `tenant_id`, `environment`, the
+`listener.principal.*` and `listener.agent.*` keys, and an upstream's
+`tenant_id` and `environment`. `Validate` holds each of those fields to the
+identifier rule and its bound. The MCP and enforcement adapters do the same in
+`New` for a Go caller, over the plane's keys and every string of the
+listener's principal and agent.
 
 ## Security / compatibility impact
 
@@ -63,7 +67,8 @@ reaches every caller in the same build.
 `TestCheckIDHoldsPresenceTheBoundAndTheRule` holds the empty string, 1024 and
 1025 bytes, a bound counted in bytes rather than runes, white space at either
 end, U+00A0 and U+3000 included, a bidi control, a NUL and invalid UTF-8 to
-literal sentinels; `TestCheckIDRefusalCarriesNoCallerText` keeps the string
-out of the refusal. Each former site's own refusal test stays.
+literal sentinels, and `TestCheckIDIsValidateOnARequiredIdentifier` holds
+`Validate` to the same verdict and sentinel on `request_id`;
+`TestCheckIDRefusalCarriesNoCallerText` keeps the string out of the refusal. Each former site's own refusal test stays.
 `TestAnIdentifierEveryEnvelopeCarriesIsRefusedAtLoad` and both adapters'
 `TestNewRefusesAPlaneKeyNoEnvelopeCarries` hold the configuration to it.

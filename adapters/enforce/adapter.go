@@ -85,8 +85,8 @@ var _ gateway.Adapter = (*Adapter)(nil)
 // identity with no principal id or agent id, a nil run resolver, a tool table
 // that is empty or holds a repeated tool, one of a class that needs a
 // delegation, or one whose name, provider or classification no envelope could
-// carry, a ProjectID, TenantID or Environment that is set and that
-// contract.CheckID refuses, a tool of a class that needs an environment while
+// carry, a ProjectID, TenantID or Environment, or a string of the identity,
+// that is set and that contract.CheckID refuses, a tool of a class that needs an environment while
 // Environment is empty, the resource's tenant while TenantID is or the
 // principal's while the identity's principal has none, a negative bound, and a
 // nil clock or id source.

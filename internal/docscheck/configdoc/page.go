@@ -150,7 +150,8 @@ func classificationRule() (string, error) {
 		joinAnd(needsZone) + " needs `trust_zone`; " + joinAnd(needsEnv) + " need `environment` set, and in\n" +
 		"an override its upstream's `environment` too, and in an override " + joinAnd(needsTenant) + "\n" +
 		"need the upstream's `tenant_id`; a tool's `name` and `provider`, an upstream's `name`,\n" +
-		"which is every call's `action.provider`, `project_id`, and the plane's and each upstream's\n" +
+		"which is every call's `action.provider`, `project_id`, the `listener.principal.*` and\n" +
+		"`listener.agent.*` keys, and the plane's and each upstream's\n" +
 		"`tenant_id` and `environment` are identifiers of at most " + strconv.Itoa(contract.MaxStringBytes) + " bytes too. An identifier is held to the contract's rule\n" +
 		"([contracts](../contracts.md#decoding-and-validation)): invalid UTF-8 is refused, and so\n" +
 		"are White_Space at either end and, anywhere, a space other than U+0020, a code point in\n" +
