@@ -18,9 +18,13 @@ import (
 // The zero value is not a directory. Every method on it answers ErrClosed.
 type Admin struct {
 	d *dir
+	// records is the absolute path of a signed layout's records/, which
+	// every record it signs names, and empty for an unsigned directory.
+	records string
 }
 
-// OpenAdmin opens dir for the operator and writes nothing to it. It refuses a
+// OpenAdmin opens dir for the operator and writes nothing to it: an unsigned
+// directory, or a signed layout's records/. It refuses a
 // group- or world-writable directory with ErrPermissions, a directory that is
 // not a runs directory, an empty one among them, with ErrNotRunsDir, and one
 // holding a file this package does not write with ErrForeignFile. It waits
@@ -38,7 +42,14 @@ func InitAdmin(ctx context.Context, dir string) (*Admin, error) {
 }
 
 func openAdmin(ctx context.Context, dir string, initialise bool) (*Admin, error) {
-	d, err := openDir(dir)
+	signed, err := signedLayout(dir)
+	if err != nil {
+		return nil, err
+	}
+	if signed {
+		return openSignedAdmin(ctx, dir, false)
+	}
+	d, err := openDir(dir, roleFlat, false)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +89,10 @@ func onlyLeftovers(entries []os.DirEntry) bool {
 	return true
 }
 
+// Signed reports whether the directory is a signed layout, whose records
+// only OpenSigned and CloseSigned write.
+func (a *Admin) Signed() bool { return a != nil && a.records != "" }
+
 // Close releases the handle. A later call answers ErrClosed.
 func (a *Admin) Close() error {
 	if a == nil {
@@ -108,8 +123,25 @@ type OpenRequest struct {
 // with ErrIdentity, a parent that does not exist, is closed, is expired at Now
 // or is another tenant's or project's with the ErrParent sentinel saying
 // which, and a run that would expire after its parent with an
-// *OutlivesParentError.
-func (a *Admin) Open(ctx context.Context, req OpenRequest) (_ Record, _ string, err error) {
+// *OutlivesParentError. A signed layout refuses it with ErrSigned.
+func (a *Admin) Open(ctx context.Context, req OpenRequest) (Record, string, error) {
+	return a.open(ctx, req, nil, nil)
+}
+
+// OpenSigned is Open for a signed layout: the record is signed with s and
+// names the layout's records/, and a root gets no state, which its plane
+// makes. A parent counts only once its record names this records/ and j
+// takes it, so no record anybody else wrote is carried into a signature; the
+// record signed is written only once j takes it too. An unsigned directory
+// refuses it with ErrLayout.
+func (a *Admin) OpenSigned(ctx context.Context, req OpenRequest, s Signer, j Judge) (Record, string, error) {
+	return a.open(ctx, req, &s, j)
+}
+
+func (a *Admin) open(ctx context.Context, req OpenRequest, s *Signer, j Judge) (_ Record, _ string, err error) {
+	if err := a.signedWrite(s); err != nil {
+		return Record{}, "", err
+	}
 	if err := req.check(); err != nil {
 		return Record{}, "", err
 	}
@@ -118,31 +150,19 @@ func (a *Admin) Open(ctx context.Context, req OpenRequest) (_ Record, _ string, 
 		return Record{}, "", err
 	}
 	defer func() { err = errors.Join(err, end()) }()
-	id, err := newRunID()
+	rec, secret, err := a.newRecord(ctx, req, j)
 	if err != nil {
 		return Record{}, "", err
 	}
-	root, err := a.rootFor(id, req)
+	id := rec.ID
+	body, err := a.encode(ctx, rec, s, j)
 	if err != nil {
 		return Record{}, "", err
 	}
-	secret, hash, err := newSecret()
-	if err != nil {
+	if err := a.fresh(id, req.Parent == "" && !a.Signed()); err != nil {
 		return Record{}, "", err
 	}
-	now := canonTime(req.Now)
-	rec := Record{
-		ID: id, Who: req.Who, Root: root, Parent: req.Parent,
-		OpenedAt: now, ExpiresAt: now.Add(req.TTL), SecretSHA256: hash,
-	}
-	body, err := a.encodeRecord(rec)
-	if err != nil {
-		return Record{}, "", err
-	}
-	if err := a.fresh(id, req.Parent == ""); err != nil {
-		return Record{}, "", err
-	}
-	if req.Parent == "" {
+	if req.Parent == "" && !a.Signed() {
 		if err := a.startRoot(id); err != nil {
 			return Record{}, "", err
 		}
@@ -151,6 +171,28 @@ func (a *Admin) Open(ctx context.Context, req OpenRequest) (_ Record, _ string, 
 		return Record{}, "", err
 	}
 	return rec, id + "." + secret, nil
+}
+
+// newRecord is the record of a fresh run for req and the secret its hash is
+// of.
+func (a *Admin) newRecord(ctx context.Context, req OpenRequest, j Judge) (Record, string, error) {
+	id, err := newRunID()
+	if err != nil {
+		return Record{}, "", err
+	}
+	root, err := a.rootFor(ctx, id, req, j)
+	if err != nil {
+		return Record{}, "", err
+	}
+	secret, hash, err := newSecret()
+	if err != nil {
+		return Record{}, "", err
+	}
+	now := canonTime(req.Now)
+	return Record{
+		ID: id, Who: req.Who, Root: root, Parent: req.Parent,
+		OpenedAt: now, ExpiresAt: now.Add(req.TTL), SecretSHA256: hash,
+	}, secret, nil
 }
 
 func (req OpenRequest) check() error {
@@ -165,20 +207,25 @@ func (req OpenRequest) check() error {
 
 // rootFor is the root a new run shares: its own id with no parent, else its
 // parent's root once the parent is shown open, unexpired, the tenant's and
-// the project's, and expiring no earlier than the new run would.
-func (a *Admin) rootFor(id string, req OpenRequest) (string, error) {
+// the project's, and expiring no earlier than the new run would; in a signed
+// layout, also signed for it and taken by j.
+func (a *Admin) rootFor(ctx context.Context, id string, req OpenRequest, j Judge) (string, error) {
 	if req.Parent == "" {
 		return id, nil
 	}
 	if err := checkRunID(req.Parent); err != nil {
 		return "", fmt.Errorf("parent: %w", err)
 	}
-	parent, err := a.d.readRecord(req.Parent)
+	stored, err := a.d.readStored(req.Parent)
+	if err == nil && a.Signed() {
+		_, err = a.verify(ctx, stored, j)
+	}
+	parent := stored.Record
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return "", fmt.Errorf("%w: %s", ErrParentUnknown, req.Parent)
 	case err != nil:
-		return "", err
+		return "", fmt.Errorf("parent: %w", err)
 	case parent.Closed():
 		return "", fmt.Errorf("%w: %s", ErrParentClosed, req.Parent)
 	case !req.Now.Before(parent.ExpiresAt):
@@ -233,33 +280,97 @@ func (a *Admin) startRoot(id string) error {
 // CloseRun closes the run id at now by replacing its record. It closes none of
 // the runs opened under it. It refuses a zero now with ErrZeroTime, a run no
 // record names with ErrNoRun and a run closed already with ErrAlreadyClosed.
-func (a *Admin) CloseRun(ctx context.Context, id string, now time.Time) (err error) {
+// A signed layout refuses it with ErrSigned.
+func (a *Admin) CloseRun(ctx context.Context, id string, now time.Time) error {
+	_, _, err := a.closeRun(ctx, id, now, nil, nil)
+	return err
+}
+
+// CloseSigned is CloseRun for a signed layout: the closed record is signed
+// with s. The open record it replaces counts only once it names this
+// records/ and j takes it, so a record nobody may sign is never signed over;
+// CloseSigned returns the record it signed closed and who signed the open
+// one. An unsigned directory refuses it with ErrLayout.
+func (a *Admin) CloseSigned(ctx context.Context, id string, now time.Time, s Signer, j Judge) (Record, SignedBy, error) {
+	return a.closeRun(ctx, id, now, &s, j)
+}
+
+func (a *Admin) closeRun(ctx context.Context, id string, now time.Time, s *Signer, j Judge) (_ Record, by SignedBy, err error) {
+	if err := a.signedWrite(s); err != nil {
+		return Record{}, SignedBy{}, err
+	}
 	if now.IsZero() {
-		return ErrZeroTime
+		return Record{}, SignedBy{}, ErrZeroTime
 	}
 	if err := checkRunID(id); err != nil {
-		return err
+		return Record{}, SignedBy{}, err
 	}
 	end, err := a.begin(ctx)
 	if err != nil {
-		return err
+		return Record{}, SignedBy{}, err
 	}
 	defer func() { err = errors.Join(err, end()) }()
-	rec, err := a.d.readRecord(id)
+	stored, err := a.d.readStored(id)
+	if err == nil && a.Signed() {
+		by, err = a.verify(ctx, stored, j)
+	}
+	rec := stored.Record
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("%w: %s", ErrNoRun, id)
+		return Record{}, SignedBy{}, fmt.Errorf("%w: %s", ErrNoRun, id)
 	case err != nil:
-		return err
+		return Record{}, SignedBy{}, err
 	case rec.Closed():
-		return fmt.Errorf("%w: %s", ErrAlreadyClosed, id)
+		return Record{}, SignedBy{}, fmt.Errorf("%w: %s", ErrAlreadyClosed, id)
 	}
 	rec.ClosedAt = canonTime(now)
-	body, err := a.encodeRecord(rec)
+	body, err := a.encode(ctx, rec, s, j)
 	if err != nil {
-		return err
+		return Record{}, SignedBy{}, err
 	}
-	return a.d.replace(id+recordTemp, id+recordSuffix, body)
+	if err := a.d.replace(id+recordTemp, id+recordSuffix, body); err != nil {
+		return Record{}, SignedBy{}, err
+	}
+	return rec, by, nil
+}
+
+// signedWrite refuses an unsigned write to a signed layout with ErrSigned,
+// and a signed one to an unsigned directory with ErrLayout.
+func (a *Admin) signedWrite(s *Signer) error {
+	switch {
+	case a.Signed() && s == nil:
+		return ErrSigned
+	case !a.Signed() && s != nil:
+		return fmt.Errorf("%w: the directory holds unsigned runs; a signed layout starts in an empty directory", ErrLayout)
+	}
+	return nil
+}
+
+// encode is rec as the directory holds it: in a signed layout signed with s
+// and refused unless j takes it, so no command writes a record a plane would
+// refuse.
+func (a *Admin) encode(ctx context.Context, rec Record, s *Signer, j Judge) ([]byte, error) {
+	if s == nil {
+		return a.encodeRecord(rec)
+	}
+	raw, err := a.signRecord(rec, *s, a.records)
+	if err != nil {
+		return nil, err
+	}
+	sr, err := decodeSignedFile(raw)
+	if err == nil {
+		_, err = a.verify(ctx, sr, j)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("the record signed: %w", err)
+	}
+	return raw, nil
+}
+
+// verify takes a record read from a signed layout through the check every
+// reader makes: signed for this records/, then taken by j.
+func (a *Admin) verify(ctx context.Context, sr SignedRecord, j Judge) (SignedBy, error) {
+	return judgeRecord(ctx, sr, a.records, j)
 }
 
 // Listing is a bounded listing of the directory's records.
@@ -286,7 +397,7 @@ func (a *Admin) List(ctx context.Context, bound int) (_ Listing, err error) {
 	if err != nil {
 		return Listing{}, err
 	}
-	ids, err := scan(entries)
+	ids, err := a.d.scan(entries)
 	if err != nil {
 		return Listing{}, err
 	}

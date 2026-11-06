@@ -83,3 +83,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0072](0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential.md) | The collector keeps bounded segments of one project, behind a credential |
 | [0073](0073-an-approval-counts-only-as-the-plane-judges-it.md) | An approval counts only as the plane judges it, from an authority it names |
 | [0075](0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature.md) | A signed plane takes a pause only from an operator's signature |
+| [0076](0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md) | A signed plane takes a run only from an operator's signature |

@@ -2,7 +2,7 @@
 title: Runs
 summary: The runs directory, what runs open, close, list and prune print and refuse, and what a plane with runs.dir does with a token.
 type: reference
-covers: [cmd/guardana-control/runs.go, internal/runs/**, cmd/guardana-gateway/runs.go, adapters/mcp/runs.go]
+covers: [cmd/guardana-control/runs.go, cmd/guardana-control/runs_signed.go, internal/runs/**, cmd/guardana-gateway/runs.go, cmd/guardana-gateway/doctor_runs.go, adapters/mcp/runs.go]
 ---
 
 # Runs
@@ -97,6 +97,36 @@ lock, or a file of it cannot be read; a record that does not decode refuses the
 whole prune.
 
 No command repeats a token, or a value given as a run id that is not one.
+
+## A signed runs directory
+
+Under `approvals.authority: signed` the directory holds `records/`, owned by
+the operators' account, mode `0750`, its records `0640`, and `state/`, owned
+by the plane's account, mode `0700`, and nothing else
+([ADR-0076](../adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md)).
+`runs open` with `--key <operator key file> --roster <roster file>
+--trust-root <root public key file>` makes an empty directory one, giving
+`state/` to the account that ran it: `chown` it to the plane's account, and
+put that account in `records/`'s group. A plane refuses an unsigned
+directory, and refuses to start when its account may write `records/` or a
+directory on its path.
+
+Each record is a `3.0` envelope an operator granted `operate` signed for the
+run's tenant and project, naming the absolute path of the `records/` it was
+signed for; a plane compares that with its own, spelled the same way.
+`runs open` and `runs close` with the three flags check against the roster
+the parent and the record a close replaces before signing over them, and the
+record they write; `runs close` prints what it signed. Without `--key` both
+refuse the directory, naming the flags. `runs list` and `runs prune` read it
+as they read any directory; prune removes records only.
+
+A record that is unsigned, signed for another directory, of another tenant
+or project, or by a key the roster does not grant `operate` refuses its calls
+as `unreadable`. When the plane takes a closed record, at a call or when it
+starts, it writes the close into `state/`, and the open record put back
+after is refused as `closed`. `/healthz` counts under `runs.signed` the
+records judged, each refusal cause and the closes carried; `doctor` counts
+the records, open, closed and refused, by signer.
 
 ## What a plane does with a token
 

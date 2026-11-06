@@ -185,6 +185,31 @@ the command exits 1 when a run under it expires later, a plane holds its state
 lock, or a file of it cannot be read; a record that does not decode refuses the
 whole prune.</p>
 <p>No command repeats a token, or a value given as a run id that is not one.</p>
+<h2 id="a-signed-runs-directory">A signed runs directory</h2>
+<p>Under <code>approvals.authority: signed</code> the directory holds <code>records/</code>, owned by
+the operators' account, mode <code>0750</code>, its records <code>0640</code>, and <code>state/</code>, owned
+by the plane's account, mode <code>0700</code>, and nothing else
+(<a href="/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature">ADR-0076</a>).
+<code>runs open</code> with <code>--key &lt;operator key file&gt; --roster &lt;roster file&gt; --trust-root &lt;root public key file&gt;</code> makes an empty directory one, giving
+<code>state/</code> to the account that ran it: <code>chown</code> it to the plane's account, and
+put that account in <code>records/</code>'s group. A plane refuses an unsigned
+directory, and refuses to start when its account may write <code>records/</code> or a
+directory on its path.</p>
+<p>Each record is a <code>3.0</code> envelope an operator granted <code>operate</code> signed for the
+run's tenant and project, naming the absolute path of the <code>records/</code> it was
+signed for; a plane compares that with its own, spelled the same way.
+<code>runs open</code> and <code>runs close</code> with the three flags check against the roster
+the parent and the record a close replaces before signing over them, and the
+record they write; <code>runs close</code> prints what it signed. Without <code>--key</code> both
+refuse the directory, naming the flags. <code>runs list</code> and <code>runs prune</code> read it
+as they read any directory; prune removes records only.</p>
+<p>A record that is unsigned, signed for another directory, of another tenant
+or project, or by a key the roster does not grant <code>operate</code> refuses its calls
+as <code>unreadable</code>. When the plane takes a closed record, at a call or when it
+starts, it writes the close into <code>state/</code>, and the open record put back
+after is refused as <code>closed</code>. <code>/healthz</code> counts under <code>runs.signed</code> the
+records judged, each refusal cause and the closes carried; <code>doctor</code> counts
+the records, open, closed and refused, by signer.</p>
 <h2 id="what-a-plane-does-with-a-token">What a plane does with a token</h2>
 <table>
 <thead>

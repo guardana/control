@@ -87,7 +87,7 @@ func (d *dir) members(head Record, bound int, keep func(head, r Record) bool) ([
 	if err != nil {
 		return nil, err
 	}
-	ids, err := scan(entries)
+	ids, err := d.scan(entries)
 	if err != nil {
 		return nil, err
 	}

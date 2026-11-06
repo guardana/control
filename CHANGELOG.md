@@ -22,6 +22,16 @@ verify one.
   put back is refused after a restart too. `/healthz` names the signer, the
   serial and the floor under `pause.signed`, and `doctor` checks the file
   without raising the floor (ADR-0075).
+- Under `approvals.authority: signed` a run counts only from a record `3.0`
+  an operator granted `operate` signed for the run's tenant and project and
+  for the plane's own `runs.dir`: `runs open` and `runs close` take
+  `--key <k> --roster <r> --trust-root <p>`, check against the roster every
+  record they sign over and the one they write, and `runs close` prints what
+  it signed. When the plane takes a closed record it carries the close into
+  `state/`, at a call or at its start, so the open record put back is
+  refused. `/healthz` counts the records judged and refused by cause under
+  `runs.signed`, and `doctor` counts the records by state and by signer
+  (ADR-0076).
 - `pause add --run <id>`, `--agent <id>` and `--principal <id>` pause one
   opened run, or every run under a root, one agent or one principal. A run
   is named by its id from `runs open`, and any other spelling is refused. Each is
@@ -63,6 +73,13 @@ verify one.
 
 ### Changed
 
+- **Breaking:** under `approvals.authority: signed` `runs.dir` holds
+  `records/`, the operators', and `state/`, the plane's; a runs directory of
+  unsigned records, and a `2.0` record in `records/`, are refused. The plane
+  refuses to start when its own account may write `records/` or a directory
+  on its path, and `runs open` and `runs close` without `--key` refuse the
+  directory, naming the flags. Open the runs again into a new, empty
+  directory with `--key`.
 - **Breaking:** under `approvals.authority: signed` a pause file of version
   `1` or `2` blocks every call, `pause.floor_dir` is required with
   `pause.file`, and the plane refuses to start when its own account may write

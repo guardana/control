@@ -21,15 +21,16 @@ const (
 	runsCloseName = "runs close"
 	runsListName  = "runs list"
 	runsPruneName = "runs prune"
-	runsOpenForm  = "--project --tenant --principal-type --principal --agent\n      --ttl [--parent] <dir>"
-	runsCloseForm = "<dir> <run-id>"
+	runsOpenForm  = "--project --tenant --principal-type --principal --agent\n      --ttl [--parent] [--key --roster --trust-root] <dir>"
+	runsCloseForm = "[--key --roster --trust-root] <dir> <run-id>"
 	runsPruneForm = "--expired-before <time> --archive <dir> <dir>"
 )
 
 // runsAuthority is what the help and docs/reference/cli.md both say about who
 // may open a run and what its token is worth.
 const runsAuthority = "Write access to the runs directory is the authority to open and to close a run;\n" +
-	"a token acts as its run until it expires or is closed, and runs open prints it once."
+	"under approvals.authority signed, only a record an operator signed with --key counts.\n" +
+	"A token acts as its run until it expires or is closed, and runs open prints it once."
 
 // runsListBound is the most records runs list prints.
 const runsListBound = 1000
@@ -51,6 +52,7 @@ type openFlagValues struct {
 	who    runs.Identity
 	parent string
 	ttl    time.Duration
+	sign   runSignFlags
 }
 
 // requiredOpenFlags are the flags runs open refuses to run without. An empty
@@ -68,6 +70,7 @@ func runsOpenFlags(command string, out io.Writer) (*flag.FlagSet, *openFlagValue
 	flags.StringVar(&v.who.AgentID, "agent", "", "the agent that presents the token")
 	flags.DurationVar(&v.ttl, "ttl", 0, "how long the run lives, from one minute to 720 hours")
 	flags.StringVar(&v.parent, "parent", "", "the open run of the same project and tenant to open this one under")
+	v.sign = runsSignFlags(flags)
 	return flags, &v
 }
 
@@ -76,14 +79,20 @@ func runsOpenFlagSet(command string, out io.Writer) *flag.FlagSet {
 	return flags
 }
 
-// runsCloseFlagSet declares no flag. It is there so the command is reached
-// with its two arguments and parses them itself.
+// runsCloseFlags declares the flags of a signed close.
+func runsCloseFlags(command string, out io.Writer) (*flag.FlagSet, runSignFlags) {
+	flags := commandFlags(command, out)
+	return flags, runsSignFlags(flags)
+}
+
 func runsCloseFlagSet(command string, out io.Writer) *flag.FlagSet {
-	return commandFlags(command, out)
+	flags, _ := runsCloseFlags(command, out)
+	return flags
 }
 
 // runsOpenCommand opens one run and prints its token, which is the only copy:
-// the directory keeps its hash.
+// the directory keeps its hash. With --key the record is signed, and an
+// empty directory becomes a signed layout.
 func runsOpenCommand(args []string, stdout, stderr io.Writer) int {
 	flags, v := runsOpenFlags(runsOpenName, stderr)
 	if err := flags.Parse(args); err != nil {
@@ -99,25 +108,55 @@ func runsOpenCommand(args []string, stdout, stderr io.Writer) int {
 			return usageError(stderr, runsOpenName, "--"+name+" is missing; every flag but --parent is required")
 		}
 	}
-	admin, err := openRuns(runs.InitAdmin, flags.Arg(0))
+	signed, problem := v.sign.given()
+	if problem != "" {
+		return usageError(stderr, runsOpenName, problem)
+	}
+	init := runs.InitAdmin
+	if signed {
+		init = runs.InitSignedAdmin
+	}
+	admin, err := openRuns(init, flags.Arg(0))
 	if err != nil {
 		return fail(stderr, runsOpenName, err)
 	}
-	status := openAndPrint(admin, *v, stdout, stderr)
+	status := openAndPrint(admin, *v, signed, stdout, stderr)
 	if err := admin.Close(); err != nil && status == exitOK {
 		return fail(stderr, runsOpenName, err)
 	}
 	return status
 }
 
-func openAndPrint(admin *runs.Admin, v openFlagValues, stdout, stderr io.Writer) int {
+func openAndPrint(admin *runs.Admin, v openFlagValues, signed bool, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), runsLockWait)
 	defer cancel()
-	rec, token, err := admin.Open(ctx, runs.OpenRequest{Who: v.who, Parent: v.parent, TTL: v.ttl, Now: time.Now()})
-	if err != nil {
-		return fail(stderr, runsOpenName, withheldRunID(err, "--parent"))
+	now := time.Now()
+	req := runs.OpenRequest{Who: v.who, Parent: v.parent, TTL: v.ttl, Now: now}
+	var (
+		rec    runs.Record
+		token  string
+		err    error
+		signer runs.Signer
+	)
+	if signed {
+		var judge runs.Judge
+		var release func()
+		if signer, judge, release, err = v.sign.authority(now); err != nil {
+			return fail(stderr, runsOpenName, err)
+		}
+		defer release()
+		rec, token, err = admin.OpenSigned(ctx, req, signer, judge)
+	} else {
+		rec, token, err = admin.Open(ctx, req)
 	}
-	out := fmt.Sprintf("run_id: %s\nroot: %s\nexpires_at: %s\ntoken: %s\n", rec.ID, rec.Root, stampOf(rec.ExpiresAt), token)
+	if err != nil {
+		return fail(stderr, runsOpenName, runsHint(withheldRunID(err, "--parent")))
+	}
+	out := fmt.Sprintf("run_id: %s\nroot: %s\nexpires_at: %s\n", rec.ID, rec.Root, stampOf(rec.ExpiresAt))
+	if signed {
+		out += "signed_by: key " + signer.KeyID + "\n"
+	}
+	out += "token: " + token + "\n"
 	if _, err := io.WriteString(stdout, out); err != nil {
 		return fail(stderr, runsOpenName, fmt.Errorf("writing to standard output: %w; run %s is open and nobody holds its token, so close it", err, rec.ID))
 	}
@@ -125,18 +164,27 @@ func openAndPrint(admin *runs.Admin, v openFlagValues, stdout, stderr io.Writer)
 }
 
 func runsCloseCommand(args []string, stdout, stderr io.Writer) int {
-	flags := runsCloseFlagSet(runsCloseName, stderr)
+	flags, sign := runsCloseFlags(runsCloseName, stderr)
 	if err := flags.Parse(args); err != nil {
 		return exitUsage
 	}
 	if flags.NArg() != 2 {
 		return usageError(stderr, runsCloseName, "takes the runs directory and a run id")
 	}
+	signed, problem := sign.given()
+	if problem != "" {
+		return usageError(stderr, runsCloseName, problem)
+	}
 	admin, err := openRuns(runs.OpenAdmin, flags.Arg(0))
 	if err != nil {
 		return fail(stderr, runsCloseName, err)
 	}
-	status := closeAndPrint(admin, flags.Arg(1), stdout, stderr)
+	var status int
+	if signed {
+		status = closeSignedAndPrint(admin, flags.Arg(1), sign, stdout, stderr)
+	} else {
+		status = closeAndPrint(admin, flags.Arg(1), stdout, stderr)
+	}
 	if err := admin.Close(); err != nil && status == exitOK {
 		return fail(stderr, runsCloseName, err)
 	}
@@ -147,9 +195,37 @@ func closeAndPrint(admin *runs.Admin, id string, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), runsLockWait)
 	defer cancel()
 	if err := admin.CloseRun(ctx, id, time.Now()); err != nil {
-		return fail(stderr, runsCloseName, withheldRunID(err, "the argument"))
+		return fail(stderr, runsCloseName, runsHint(withheldRunID(err, "the argument")))
 	}
 	if _, err := io.WriteString(stdout, "closed "+id+"\n"); err != nil {
+		return fail(stderr, runsCloseName, fmt.Errorf("writing to standard output: %w; the run was closed as asked", err))
+	}
+	return exitOK
+}
+
+// closeSignedAndPrint closes a run of a signed layout with the operator's key
+// and prints what it signed: the run's identity and lineage as its open
+// record holds them, and whose signature that record carries, which the
+// roster took before anything was signed.
+func closeSignedAndPrint(admin *runs.Admin, id string, sign runSignFlags, stdout, stderr io.Writer) int {
+	ctx, cancel := context.WithTimeout(context.Background(), runsLockWait)
+	defer cancel()
+	now := time.Now()
+	signer, judge, release, err := sign.authority(now)
+	if err != nil {
+		return fail(stderr, runsCloseName, err)
+	}
+	defer release()
+	rec, by, err := admin.CloseSigned(ctx, id, now, signer, judge)
+	if err != nil {
+		return fail(stderr, runsCloseName, withheldRunID(err, "the argument"))
+	}
+	out := fmt.Sprintf("closed %s\nroot %s project_id %s tenant_id %s principal_type %s principal_id %s agent_id %s opened_at %s expires_at %s closed_at %s\n"+
+		"opened by %s (key %s), closed by key %s\n",
+		rec.ID, oneLine(rec.Root), oneLine(rec.Who.ProjectID), oneLine(rec.Who.TenantID), oneLine(rec.Who.PrincipalType),
+		oneLine(rec.Who.PrincipalID), oneLine(rec.Who.AgentID), stampOf(rec.OpenedAt), stampOf(rec.ExpiresAt), stampOf(rec.ClosedAt),
+		oneLine(by.Subject), oneLine(by.KeyID), signer.KeyID)
+	if _, err := io.WriteString(stdout, out); err != nil {
 		return fail(stderr, runsCloseName, fmt.Errorf("writing to standard output: %w; the run was closed as asked", err))
 	}
 	return exitOK

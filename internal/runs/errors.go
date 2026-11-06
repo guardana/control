@@ -64,6 +64,41 @@ const (
 	ErrNameMismatch Error = "runs: the file's name disagrees with what it holds"
 )
 
+// The vocabulary of a signed layout: records/ beside state/, each record an
+// operator's signature.
+const (
+	// ErrLayout is a directory of one layout opened as the other, or a
+	// signed layout's directory holding anything but records/ and state/.
+	ErrLayout Error = "runs: the directory is not of the layout asked for"
+	// ErrUnsigned is a record in records/ that is no signed envelope, one of
+	// major 2 among them.
+	ErrUnsigned Error = "runs: the record is not signed"
+	// ErrOtherDirectory is a signed record signed for another records/
+	// directory than the one it is read from.
+	ErrOtherDirectory Error = "runs: the record was signed for another runs directory"
+	// ErrUnauthenticated is a record whose signature no operator key of the
+	// roster verifies.
+	ErrUnauthenticated Error = "runs: the record's signature is not an operator's"
+	// ErrOtherScope is a record of another tenant or project than the
+	// plane's.
+	ErrOtherScope Error = "runs: the record is for another tenant or project"
+	// ErrUnauthorized is a record whose signer may not operate in its
+	// tenant and project.
+	ErrUnauthorized Error = "runs: the record's signer may not open or close a run there"
+	// ErrAuthority is a record the operator ports could not judge.
+	ErrAuthority Error = "runs: the operator authority could not judge the record"
+	// ErrUnjudged is a record read where no judge was given, which counts
+	// for nothing.
+	ErrUnjudged Error = "runs: no judge was given, so no record counts"
+	// ErrReplayed is an open record of a run whose closed record the plane
+	// took: the open one was put back after the close.
+	ErrReplayed Error = "runs: the run's close was taken, and its open record was put back"
+	// ErrSigned is an unsigned write to a signed layout.
+	ErrSigned Error = "runs: the directory holds signed records, and a write to it is signed"
+	// ErrSigner is a signer with no function, or one that failed.
+	ErrSigner Error = "runs: the signer cannot sign"
+)
+
 // The vocabulary of the operator's side.
 const (
 	// ErrRunID is a run id that is not "run-" and 32 lower-case hex digits.

@@ -131,6 +131,16 @@ serial. The plane checks it at every read and raises a floor in the new
 put back is refused after a restart too. <code>/healthz</code> names the signer, the
 serial and the floor under <code>pause.signed</code>, and <code>doctor</code> checks the file
 without raising the floor (ADR-0075).</li>
+<li>Under <code>approvals.authority: signed</code> a run counts only from a record <code>3.0</code>
+an operator granted <code>operate</code> signed for the run's tenant and project and
+for the plane's own <code>runs.dir</code>: <code>runs open</code> and <code>runs close</code> take
+<code>--key &lt;k&gt; --roster &lt;r&gt; --trust-root &lt;p&gt;</code>, check against the roster every
+record they sign over and the one they write, and <code>runs close</code> prints what
+it signed. When the plane takes a closed record it carries the close into
+<code>state/</code>, at a call or at its start, so the open record put back is
+refused. <code>/healthz</code> counts the records judged and refused by cause under
+<code>runs.signed</code>, and <code>doctor</code> counts the records by state and by signer
+(ADR-0076).</li>
 <li><code>pause add --run &lt;id&gt;</code>, <code>--agent &lt;id&gt;</code> and <code>--principal &lt;id&gt;</code> pause one
 opened run, or every run under a root, one agent or one principal. A run
 is named by its id from <code>runs open</code>, and any other spelling is refused. Each is
@@ -171,6 +181,13 @@ and <code>approve_command</code>.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
+<li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> <code>runs.dir</code> holds
+<code>records/</code>, the operators', and <code>state/</code>, the plane's; a runs directory of
+unsigned records, and a <code>2.0</code> record in <code>records/</code>, are refused. The plane
+refuses to start when its own account may write <code>records/</code> or a directory
+on its path, and <code>runs open</code> and <code>runs close</code> without <code>--key</code> refuse the
+directory, naming the flags. Open the runs again into a new, empty
+directory with <code>--key</code>.</li>
 <li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> a pause file of version
 <code>1</code> or <code>2</code> blocks every call, <code>pause.floor_dir</code> is required with
 <code>pause.file</code>, and the plane refuses to start when its own account may write
