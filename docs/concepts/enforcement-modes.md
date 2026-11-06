@@ -190,21 +190,21 @@ therefore blocks everything; it never lifts a pause. A plane without
 
 Under `approvals.authority: signed` the file is version 3, which an operator
 signs from their own account: `pause init --key <k> --tenant <t> --project <p>`
-makes one, `pause add` and `pause remove` with `--key` sign the whole file
-again at the next serial and refuse one that changed under them, and without
-`--key` they refuse it. It is a DSSE envelope over the entries, the plane's
-`tenant_id` and `project_id`, the key and a serial; `pause floor init`
-makes the floor. At every read the plane checks the signature against an operator key
+makes one, and `pause add` and `pause remove` with `--key`, `--roster` and
+`--root-key` check the file against the roster, then sign it again at the
+next serial. Only the account owning it can write it. It is a DSSE envelope over the entries, the plane's
+`tenant_id` and `project_id`, its own path, the key and a serial; `pause
+floor init` makes the floor. At every read the plane checks the signature against an operator key
 of its trust roster, the tenant and project, a grant of `operate` or `admin`
 there, and the serial against its floor in `pause.floor_dir`, which it raises
 to each serial it takes, so an older signed file replayed is refused after a
 restart too. A file failing any of these, a version 1 or 2 file among them,
 is unknown and blocks every call; the causes are `unsigned`,
-`not authenticated`, `another tenant or project`, `not authorized`,
+`not authenticated`, `another tenant or project`, `another pause file`,
+`owned by the plane's account`, `not authorized`,
 `authority unavailable`, `below the floor`, `forked` and `floor unavailable`.
-It reads a file of any owner, and refuses to start when its own account may
-write the file or a directory on its path. `/healthz` names the
-signer's subject and key id, the serial and the floor under `pause.signed`.
+It refuses to start when its own account may write the file or a directory
+on its path. `/healthz` gives the serial and the floor under `pause.signed`.
 
 The file's directory may not be, or sit inside, the spool's, the approvals
 store's or the hold journal's, which a running plane locks. The check compares

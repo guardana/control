@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -149,7 +150,9 @@ func (c *pageClient) pauseAll(t *testing.T, values map[string]string) func() {
 	if code != http.StatusConflict || !strings.Contains(out, "pause add --key") {
 		t.Fatalf("the page answered a pause of a signed plane with %d %q, want 409 naming the signing command", code, out)
 	}
-	code, id, stderr := pauseCommand(t, "add", "--global", "--key", values["operator_key"], "--", values["pause"])
+	sign := []string{"--key", values["operator_key"], "--roster", filepath.Join(values["state"], "trust", "roster.json"),
+		"--root-key", filepath.Join(values["state"], "trust", "root.pub")}
+	code, id, stderr := pauseCommand(t, slices.Concat([]string{"add", "--global"}, sign, []string{"--", values["pause"]})...)
 	id = strings.TrimSpace(id)
 	if code != 0 || id == "" {
 		t.Fatalf("pausing: exit %d, %q", code, stderr)
@@ -162,7 +165,7 @@ func (c *pageClient) pauseAll(t *testing.T, values map[string]string) func() {
 		if code, out := c.post(t, "/api/unpause", map[string]string{"id": id}); code != http.StatusConflict {
 			t.Fatalf("the page answered a lift of a signed plane with %d %q, want 409", code, out)
 		}
-		if code, _, stderr := pauseCommand(t, "remove", "--key", values["operator_key"], "--", values["pause"], id); code != 0 {
+		if code, _, stderr := pauseCommand(t, slices.Concat([]string{"remove"}, sign, []string{"--", values["pause"], id})...); code != 0 {
 			t.Fatalf("lifting the pause: exit %d, %q", code, stderr)
 		}
 		if err := r.pauseRead(context.Background(), 0); err != nil {

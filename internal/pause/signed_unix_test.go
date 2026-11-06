@@ -29,11 +29,12 @@ func testPublic(name string) ed25519.PublicKey { return testKey(name).Public().(
 
 func testKeyID(name string) string { return policykey.KeyID(testPublic(name)) }
 
-// signer signs as the key called name, under its own id.
+// signer signs as the key called name, under its own id, and accepts every
+// signed file a write starts from.
 func signer(name string) Signer {
 	return Signer{KeyID: testKeyID(name), Sign: func(payloadType string, body []byte) ([]byte, error) {
 		return bundle.SignBytesAs(payloadType, body, testKey(name))
-	}}
+	}, Accept: func(Signed) error { return nil }}
 }
 
 // judgeFunc is a Judge of the test's making.
@@ -84,15 +85,30 @@ func (p *signedPlane) writeRaw(t *testing.T, raw []byte) {
 	}
 }
 
+// header is a header of t1/A at serial signed by the key called by, bound to
+// a pause file no test writes; p.header binds it to p's.
 func header(by string, serial int64) Header {
-	return Header{KeyID: testKeyID(by), Tenant: "t1", Project: "A", Serial: serial}
+	return Header{KeyID: testKeyID(by), Tenant: "t1", Project: "A", File: "/srv/pause/pause.json", Serial: serial}
+}
+
+func (p *signedPlane) header(t *testing.T, by string, serial int64) Header {
+	t.Helper()
+	file, err := BindingOf(p.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := header(by, serial)
+	h.File = file
+	return h
 }
 
 var paused = Document{Entries: []Entry{globalEntry}}
 
-// read reads the file as a plane would under j.
+// read reads the file as a plane would under j, its account another than the
+// one that owns the file.
 func (p *signedPlane) read(t *testing.T, j Judge) Snapshot {
 	t.Helper()
+	actAs(t, os.Geteuid()+1)
 	return ReadSigned(t.Context(), p.path, signedNow, time.Second, j)
 }
 
@@ -193,6 +209,7 @@ func TestAPollerUnderSignedNeverUnpausesOnARefusal(t *testing.T) {
 		}
 		return takes(f)
 	})
+	actAs(t, os.Geteuid()+1)
 	poller, err := Open(Options{Path: p.path, Interval: time.Second, Clock: func() time.Time { return signedNow }, Judge: j})
 	if err != nil {
 		t.Fatal(err)
@@ -211,19 +228,42 @@ func TestAPollerUnderSignedNeverUnpausesOnARefusal(t *testing.T) {
 	}
 }
 
-// TestASignedPlaneReadsAFileOfAnyOwnerAndNoWritableOne: the file and its
-// directory owned by the plane's account or another are read alike; a file
-// or directory the group may write is not, whoever owns it.
-func TestASignedPlaneReadsAFileOfAnyOwnerAndNoWritableOne(t *testing.T) {
+// TestASignedPlaneRefusesAFileItsOwnAccountOwns: the directory, then the
+// file, owned by the plane's account are refused at every read, the judge
+// never asked; read as another account they pause; a poller of a dev plane,
+// whose one account is the operator's too, takes them; a file or directory
+// the group may write is refused whoever owns it.
+func TestASignedPlaneRefusesAFileItsOwnAccountOwns(t *testing.T) {
 	p := newSignedPlane(t)
 	p.write(t, "alice", header("alice", 1), paused)
 	me, other := os.Geteuid(), os.Geteuid()+1
-	for _, uids := range [][]int{{me}, {other}, {other, me}, {me, other}} {
-		actAs(t, uids...)
-		if s := ReadSigned(t.Context(), p.path, signedNow, time.Second, takes); s.State() != Paused {
-			t.Errorf("read as %v: %s, %q: %s", uids, s.State(), s.Cause(), s.Detail())
+	asked := false
+	j := judgeFunc(func(f Signed) (SignedBy, error) { asked = true; return takes(f) })
+	for _, c := range []struct {
+		name string
+		uids []int
+	}{{"the directory", []int{me}}, {"the file", []int{other, me}}} {
+		actAs(t, c.uids...)
+		s := ReadSigned(t.Context(), p.path, signedNow, time.Second, j)
+		wantUnknown(t, c.name+" owned by the plane's account", s, CausePlaneOwned)
+		if !strings.Contains(s.Detail(), c.name) {
+			t.Errorf("%s: the detail %q does not name it", c.name, s.Detail())
 		}
 	}
+	if asked {
+		t.Error("the judge was asked about a file the plane's account owns")
+	}
+	if s := p.read(t, takes); s.State() != Paused {
+		t.Errorf("read as another account: %s, %q: %s", s.State(), s.Cause(), s.Detail())
+	}
+	actAs(t, me)
+	for _, planeOwned := range []bool{false, true} {
+		poller, err := Open(Options{Path: p.path, Interval: time.Second, Clock: func() time.Time { return signedNow }, Judge: takes, PlaneOwned: planeOwned})
+		if (err == nil) != planeOwned || (planeOwned && poller.Current().State() != Paused) {
+			t.Errorf("a poller with PlaneOwned %v over the plane's own file: %v", planeOwned, err)
+		}
+	}
+	actAs(t, other)
 	if err := os.Chmod(p.path, 0o660); err != nil { //nolint:gosec // G302: the group-writable file under test
 		t.Fatal(err)
 	}
@@ -252,17 +292,17 @@ func TestTheSignedWriterRaisesTheSerialAndKeepsTheScope(t *testing.T) {
 	if err := InitSigned(ctx, p.path, header("alice", 1), signer("alice")); err != nil {
 		t.Fatal(err)
 	}
-	if err := AddSigned(ctx, p.path, globalEntry, signer("carol")); err != nil {
+	if _, err := AddSigned(ctx, p.path, globalEntry, signer("carol")); err != nil {
 		t.Fatal(err)
 	}
-	wantListed(t, "after the add", p.path, header("carol", 2), 1)
+	wantListed(t, "after the add", p.path, p.header(t, "carol", 2), 1)
 	if info, err := os.Stat(p.path); err != nil || info.Mode().Perm() != 0o640 {
 		t.Errorf("the signed file's mode = %v, %v; want 0640, which the plane's account reads through the group", info.Mode().Perm(), err)
 	}
-	if err := RemoveSigned(ctx, p.path, "g", signer("alice")); err != nil {
+	if _, err := RemoveSigned(ctx, p.path, "g", signer("alice")); err != nil {
 		t.Fatal(err)
 	}
-	wantListed(t, "after the removal", p.path, header("alice", 3), 0)
+	wantListed(t, "after the removal", p.path, p.header(t, "alice", 3), 0)
 }
 
 // wantListed fails unless the file at path lists under h with n entries.
@@ -291,15 +331,73 @@ func TestTheSignedWriterRefusesAWriteOfTheOtherKind(t *testing.T) {
 	if err := Remove(ctx, p.path, "g"); !errors.Is(err, ErrSigned) {
 		t.Errorf("an unsigned removal from a signed file = %v, want ErrSigned", err)
 	}
-	if err := AddSigned(ctx, p.path, globalEntry, Signer{KeyID: testKeyID("alice")}); !errors.Is(err, ErrSigner) {
+	if _, err := AddSigned(ctx, p.path, globalEntry, Signer{KeyID: testKeyID("alice")}); !errors.Is(err, ErrSigner) {
 		t.Errorf("a signer that cannot sign = %v, want ErrSigner", err)
 	}
 	unsigned := filepath.Join(filepath.Dir(p.path), "unsigned.json")
 	if err := Init(ctx, unsigned); err != nil {
 		t.Fatal(err)
 	}
-	if err := AddSigned(ctx, unsigned, globalEntry, signer("alice")); !errors.Is(err, ErrUnsigned) {
+	if _, err := AddSigned(ctx, unsigned, globalEntry, signer("alice")); !errors.Is(err, ErrUnsigned) {
 		t.Errorf("a signed add to an unsigned file = %v, want ErrUnsigned", err)
+	}
+}
+
+// TestTheSignedWriterSignsOnlyAFileItsSignerAccepts: a file Accept refuses is
+// left as it was and nothing is signed; a signer with no Accept signs
+// nothing; the control, a file it accepts, is signed at the next serial.
+func TestTheSignedWriterSignsOnlyAFileItsSignerAccepts(t *testing.T) {
+	p := newSignedPlane(t)
+	if err := InitSigned(t.Context(), p.path, header("alice", 1), signer("alice")); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(p.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var judged Signed
+	refuses := signer("alice")
+	refuses.Accept = func(f Signed) error { judged = f; return errors.New("not the roster's") }
+	if _, err := AddSigned(t.Context(), p.path, globalEntry, refuses); !errors.Is(err, ErrNotVouched) {
+		t.Errorf("an add over a file the signer refuses = %v, want ErrNotVouched", err)
+	}
+	if judged.Body.Header != p.header(t, "alice", 1) {
+		t.Errorf("Accept was handed %+v, not the file the write starts from", judged.Body.Header)
+	}
+	none := signer("alice")
+	none.Accept = nil
+	if _, err := RemoveSigned(t.Context(), p.path, "g", none); !errors.Is(err, ErrSigner) {
+		t.Errorf("a signer that judges nothing = %v, want ErrSigner", err)
+	}
+	if now, _ := os.ReadFile(p.path); string(now) != string(before) {
+		t.Error("a refused write changed the file")
+	}
+	got, err := AddSigned(t.Context(), p.path, globalEntry, signer("alice"))
+	if err != nil || got.Header != p.header(t, "alice", 2) || len(got.Entries) != 1 {
+		t.Errorf("the control = %+v, %v", got, err)
+	}
+}
+
+// TestASignedFileIsBoundToItsOwnPath: a signed file copied from one path to
+// another is refused by the writer at the second.
+func TestASignedFileIsBoundToItsOwnPath(t *testing.T) {
+	a, b := newSignedPlane(t), newSignedPlane(t)
+	if err := InitSigned(t.Context(), a.path, header("alice", 1), signer("alice")); err != nil {
+		t.Fatal(err)
+	}
+	if l, err := List(a.path); err != nil || l.Signed.File != a.header(t, "alice", 1).File {
+		t.Fatalf("the file names %+v, %v; want its own path", l.Signed, err)
+	}
+	raw, err := os.ReadFile(a.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.writeRaw(t, raw)
+	if _, err := AddSigned(t.Context(), b.path, globalEntry, signer("alice")); !errors.Is(err, ErrOtherFile) {
+		t.Errorf("an add to a copy of another path's file = %v, want ErrOtherFile", err)
+	}
+	if _, err := AddSigned(t.Context(), a.path, globalEntry, signer("alice")); err != nil {
+		t.Errorf("the control, an add at the file's own path = %v", err)
 	}
 }
 
@@ -310,16 +408,16 @@ func TestTheSignedWriterRefusesAFileThatChangedUnderIt(t *testing.T) {
 	if err := InitSigned(t.Context(), p.path, header("alice", 1), signer("alice")); err != nil {
 		t.Fatal(err)
 	}
-	theirs, err := signFile(header("alice", 2), paused, signer("alice"))
+	theirs, err := signFile(p.header(t, "alice", 2), paused, signer("alice"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	beforeReplace = func() { p.writeRaw(t, theirs) }
 	t.Cleanup(func() { beforeReplace = nil })
-	if err := RemoveSigned(t.Context(), p.path, "none", signer("alice")); !errors.Is(err, ErrNoEntry) {
+	if _, err := RemoveSigned(t.Context(), p.path, "none", signer("alice")); !errors.Is(err, ErrNoEntry) {
 		t.Fatalf("a removal of no entry = %v", err)
 	}
-	err = AddSigned(t.Context(), p.path, Entry{ID: "h", Scope: Scope{Kind: ScopeGlobal}, CreatedAt: signedNow}, signer("alice"))
+	_, err = AddSigned(t.Context(), p.path, Entry{ID: "h", Scope: Scope{Kind: ScopeGlobal}, CreatedAt: signedNow}, signer("alice"))
 	if !errors.Is(err, ErrChanged) {
 		t.Errorf("an add over a file that changed = %v, want ErrChanged", err)
 	}
@@ -327,7 +425,7 @@ func TestTheSignedWriterRefusesAFileThatChangedUnderIt(t *testing.T) {
 		t.Error("the writer replaced a file that changed under it")
 	}
 	beforeReplace = nil
-	if err := AddSigned(t.Context(), p.path, Entry{ID: "h", Scope: Scope{Kind: ScopeGlobal}, CreatedAt: signedNow}, signer("alice")); err != nil {
+	if _, err := AddSigned(t.Context(), p.path, Entry{ID: "h", Scope: Scope{Kind: ScopeGlobal}, CreatedAt: signedNow}, signer("alice")); err != nil {
 		t.Errorf("the same add over a file that stood still = %v", err)
 	}
 }
@@ -335,7 +433,7 @@ func TestTheSignedWriterRefusesAFileThatChangedUnderIt(t *testing.T) {
 func TestParseSignedHoldsTheFormat(t *testing.T) {
 	good := map[string]any{
 		"schema_version": "3", "alg": "ed25519", "keyId": testKeyID("alice"), "tenant": "t1", "project": "A",
-		"serial": int64(1), "entries": []any{},
+		"file": "/srv/pause/pause.json", "serial": int64(1), "entries": []any{},
 	}
 	body := func(change func(map[string]any)) []byte {
 		m := map[string]any{}
@@ -365,6 +463,11 @@ func TestParseSignedHoldsTheFormat(t *testing.T) {
 		{"no tenant", func(m map[string]any) { delete(m, "tenant") }, ErrMalformed},
 		{"an empty project", func(m map[string]any) { m["project"] = "" }, ErrMalformed},
 		{"a tenant past its bound", func(m map[string]any) { m["tenant"] = strings.Repeat("t", MaxNameBytes+1) }, ErrMalformed},
+		{"no file", func(m map[string]any) { delete(m, "file") }, ErrMalformed},
+		{"a relative file", func(m map[string]any) { m["file"] = "pause/pause.json" }, ErrMalformed},
+		{"a file not in its clean form", func(m map[string]any) { m["file"] = "/srv/pause/../pause/pause.json" }, ErrMalformed},
+		{"a file with a control character", func(m map[string]any) { m["file"] = "/srv/pause/p\u0007.json" }, ErrMalformed},
+		{"a file past its bound", func(m map[string]any) { m["file"] = "/" + strings.Repeat("p", MaxFilePathBytes) }, ErrMalformed},
 	} {
 		if _, err := ParseSigned(body(c.change)); !errors.Is(err, c.want) {
 			t.Errorf("%s: %v, want %v", c.name, err, c.want)
@@ -372,6 +475,9 @@ func TestParseSignedHoldsTheFormat(t *testing.T) {
 	}
 	if _, err := ParseSigned(body(func(m map[string]any) { m["tenant"] = strings.Repeat("t", MaxNameBytes) })); err != nil {
 		t.Errorf("a tenant at its bound: %v", err)
+	}
+	if _, err := ParseSigned(body(func(m map[string]any) { m["file"] = "/" + strings.Repeat("p", MaxFilePathBytes-1) })); err != nil {
+		t.Errorf("a file at its bound: %v", err)
 	}
 	if _, err := MarshalSigned(header("alice", policy.MaxSerial), Document{}); err != nil {
 		t.Errorf("the highest serial: %v", err)

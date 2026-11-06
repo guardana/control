@@ -70,10 +70,11 @@ func (p *plane) pauseSource() gateway.PauseSource {
 // openPause opens the reader of the pause file, whose first read has to find
 // a state it can serve: a plane never starts on a pause state it cannot read
 // (ADR-0019). Under the signed authority each read is judged by authority
-// and raises the pause floor; otherwise the reader takes no lock and writes
-// nothing. It logs with each change the entries unlisted names. Without
+// and raises the pause floor, and a file the plane's own account owns is
+// refused unless planeOwned, which only a dev plane passes; otherwise the
+// reader takes no lock and writes nothing. It logs with each change the entries unlisted names. Without
 // pause.file there is nothing to read and it returns nil.
-func openPause(cfg *gatewayconfig.Config, logger *slog.Logger, unlisted func([]pause.Entry) []string, judge pause.Judge) (*pause.Poller, error) {
+func openPause(cfg *gatewayconfig.Config, logger *slog.Logger, unlisted func([]pause.Entry) []string, judge pause.Judge, planeOwned bool) (*pause.Poller, error) {
 	if cfg.Pause.File == "" {
 		return nil, nil
 	}
@@ -83,6 +84,7 @@ func openPause(cfg *gatewayconfig.Config, logger *slog.Logger, unlisted func([]p
 		Clock:        time.Now,
 		Logger:       logger,
 		Judge:        judge,
+		PlaneOwned:   planeOwned,
 		UnlistedOnly: unlisted,
 	})
 	if err != nil {
@@ -101,7 +103,8 @@ func signedPause(cfg *gatewayconfig.Config) bool {
 // pause file by: its operator ports, its own tenant and project, and its
 // pause floor.
 func (p *plane) pauseJudge() (pause.Judge, error) {
-	j, err := signedpause.New(p.signed.authn, p.signed.authz, p.cfg.TenantID, p.cfg.ProjectID, p.cfg.Resolve(p.cfg.Pause.FloorDir))
+	j, err := signedpause.New(p.signed.authn, p.signed.authz, p.cfg.TenantID, p.cfg.ProjectID,
+		p.cfg.Resolve(p.cfg.Pause.File), p.cfg.Resolve(p.cfg.Pause.FloorDir))
 	if err != nil {
 		return nil, fmt.Errorf("pause.floor_dir: %w", err)
 	}

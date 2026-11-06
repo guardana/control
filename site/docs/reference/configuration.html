@@ -127,7 +127,7 @@ under the <code>interval</code> policy and refused under <code>every_record</cod
 journal directory may be neither the spool's nor the approvals directory, nor inside
 either; <code>signed</code> needs, and every other authority refuses, <code>approvals.inbox_dir</code>, apart
 from those three, every <code>trust.*</code> and <code>operators.*</code> key, and with <code>pause.file</code>
-<code>pause.floor_dir</code>, which may not hold the pause file's directory; and <code>APPROVE</code> needs
+<code>pause.floor_dir</code>, which may not be, hold or sit in the pause file's directory; and <code>APPROVE</code> needs
 <code>directory</code> or <code>signed</code>, since nothing outside the process answers a request held in
 memory. An entry of <code>overrides</code> or <code>tools</code> is refused when no call to its tool could carry
 an envelope the contract takes: <code>resource_type</code> is an identifier of at most 1024 bytes,

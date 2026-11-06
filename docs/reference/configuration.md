@@ -23,7 +23,7 @@ under the `interval` policy and refused under `every_record`; `approvals.authori
 journal directory may be neither the spool's nor the approvals directory, nor inside
 either; `signed` needs, and every other authority refuses, `approvals.inbox_dir`, apart
 from those three, every `trust.*` and `operators.*` key, and with `pause.file`
-`pause.floor_dir`, which may not hold the pause file's directory; and `APPROVE` needs
+`pause.floor_dir`, which may not be, hold or sit in the pause file's directory; and `APPROVE` needs
 `directory` or `signed`, since nothing outside the process answers a request held in
 memory. An entry of `overrides` or `tools` is refused when no call to its tool could carry
 an envelope the contract takes: `resource_type` is an identifier of at most 1024 bytes,

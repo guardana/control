@@ -62,7 +62,8 @@ type plane struct {
 	inbox         *inbox.Inbox
 	// signedStart is the start check of the signed authority, and nil for
 	// checkSignedStart: only a dev plane, whose trust root dev drew itself,
-	// is held to another.
+	// is held to another, and it alone reads a pause file its own account
+	// owns.
 	signedStart func(*gatewayconfig.Config) error
 	// holds is the seam the pipeline writes its journal through, and journal
 	// the directory behind it. Both are nil where no journal is configured.
@@ -140,7 +141,7 @@ func buildChecked(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time,
 	p := &plane{cfg: cfg, logger: logger, role: r, holder: pp.holder, policy: pp, started: now, grace: shutdownGrace, callBound: callBound(cfg),
 		signedStart: signedStart}
 	if !signedPause(cfg) {
-		if p.poller, err = openPause(cfg, logger, p.strayIDs, nil); err != nil {
+		if p.poller, err = openPause(cfg, logger, p.strayIDs, nil, false); err != nil {
 			return nil, errors.Join(err, p.close())
 		}
 	}
@@ -200,7 +201,7 @@ func (p *plane) open(r role, tokenPath string) error {
 		if err != nil {
 			return err
 		}
-		if p.poller, err = openPause(p.cfg, p.logger, p.strayIDs, judge); err != nil {
+		if p.poller, err = openPause(p.cfg, p.logger, p.strayIDs, judge, p.signedStart != nil); err != nil {
 			return err
 		}
 	}

@@ -25,7 +25,7 @@ func newSignedPauseFile(t *testing.T) string {
 	key := ed25519.NewKeyFromSeed(seed[:])
 	s := pause.Signer{KeyID: policykey.KeyID(key.Public().(ed25519.PublicKey)), Sign: func(payloadType string, body []byte) ([]byte, error) {
 		return bundle.SignBytesAs(payloadType, body, key)
-	}}
+	}, Accept: func(pause.Signed) error { return nil }}
 	dir := filepath.Join(t.TempDir(), "pause")
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		t.Fatal(err)
@@ -34,7 +34,7 @@ func newSignedPauseFile(t *testing.T) string {
 	if err := pause.InitSigned(context.Background(), file, pause.Header{KeyID: s.KeyID, Tenant: "t1", Project: "A", Serial: 1}, s); err != nil {
 		t.Fatal(err)
 	}
-	if err := pause.AddSigned(context.Background(), file, pause.Entry{ID: "g", Scope: pause.Scope{Kind: pause.ScopeGlobal}, CreatedAt: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}, s); err != nil {
+	if _, err := pause.AddSigned(context.Background(), file, pause.Entry{ID: "g", Scope: pause.Scope{Kind: pause.ScopeGlobal}, CreatedAt: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}, s); err != nil {
 		t.Fatal(err)
 	}
 	return file

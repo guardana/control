@@ -67,6 +67,9 @@ func (d *devPlane) layOutTrust(ctx context.Context, control sibling, tenant, pro
 	if _, err := control.run(ctx, "operators", "floor", "init", "--roster-id", devRosterID, st.path(stateTrustFlr)); err != nil {
 		return fmt.Errorf("creating the roster's floor: %w", err)
 	}
+	if err := os.Mkdir(filepath.Dir(st.path(statePause)), 0o700); err != nil {
+		return err
+	}
 	if _, err := control.run(ctx, "pause", "floor", "init", "--tenant", tenant, "--project", project, st.path(statePauseFlr)); err != nil {
 		return fmt.Errorf("creating the pause floor: %w", err)
 	}
@@ -120,6 +123,8 @@ func devSignedStart(st devState) func(*gatewayconfig.Config) error {
 			{"trust.roster", cfg.Resolve(cfg.Trust.Roster), st.path(stateRoster)},
 			{"trust.floor_dir", cfg.Resolve(cfg.Trust.FloorDir), st.path(stateTrustFlr)},
 			{"approvals.inbox_dir", cfg.Resolve(cfg.Approvals.InboxDir), st.path(stateInbox)},
+			{"pause.file", cfg.Resolve(cfg.Pause.File), st.path(statePause)},
+			{"pause.floor_dir", cfg.Resolve(cfg.Pause.FloorDir), st.path(statePauseFlr)},
 		} {
 			if k.got != k.want {
 				return fmt.Errorf("%s is %s, and a dev plane takes only the one dev laid out at %s", k.key, k.got, k.want)

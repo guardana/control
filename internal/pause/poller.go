@@ -25,6 +25,9 @@ type Options struct {
 	// Judge, when set, is what every read is judged by under the signed
 	// authority, with ReadSigned; nil reads with Read.
 	Judge Judge
+	// PlaneOwned lets a signed read take a file the plane's own account
+	// owns. Only a dev plane sets it: its one account is the operator's too.
+	PlaneOwned bool
 	// UnlistedOnly names the entries of a read that pause only calls
 	// carrying no provider, which are calls to names no upstream lists. A
 	// change that leaves any is logged at warn, naming them; nil names none.
@@ -90,7 +93,11 @@ func (p *Poller) Poll() Snapshot {
 		s = Read(p.opts.Path, p.opts.Clock(), p.opts.Interval)
 	} else {
 		ctx, cancel := context.WithTimeout(context.Background(), p.opts.Interval)
-		s = ReadSigned(ctx, p.opts.Path, p.opts.Clock(), p.opts.Interval, p.opts.Judge)
+		o := ownedByAnother
+		if p.opts.PlaneOwned {
+			o = anyOwner
+		}
+		s = readSignedAs(ctx, p.opts.Path, p.opts.Clock(), p.opts.Interval, p.opts.Judge, o)
 		cancel()
 	}
 	prev := p.current.Swap(&s)

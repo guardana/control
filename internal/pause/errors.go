@@ -63,6 +63,16 @@ const (
 	// ErrOtherScope is a signed document for another tenant or project than
 	// the plane's.
 	ErrOtherScope Error = "pause: the signed pause names another tenant or project than the plane's"
+	// ErrOtherFile is a signed document for another pause file than the one
+	// it was read from: a copy of another plane's.
+	ErrOtherFile Error = "pause: the signed pause names another pause file than the one it was read from"
+	// ErrNotVouched is a signed file a writer starts from that the roster
+	// does not vouch for: a writer that signed it again would sign entries
+	// someone without a roster key put there.
+	ErrNotVouched Error = "pause: the signed pause file the write starts from is not one the roster vouches for"
+	// ErrPlaneOwned is a pause file or its directory owned by the account of
+	// a plane under the signed authority, which could then rewrite it.
+	ErrPlaneOwned Error = "pause: under the signed authority the plane's own account owns it"
 	// ErrUnauthorized is a signer the roster grants no operate over the
 	// plane's tenant and project.
 	ErrUnauthorized Error = "pause: the signer may not operate in the plane's tenant and project"
