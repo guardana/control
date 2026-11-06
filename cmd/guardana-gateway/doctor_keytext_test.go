@@ -59,14 +59,16 @@ func checkNoKeyTextOrForgedLine(t *testing.T, out, body string) {
 // path is refused by its key, a whole PEM given for another key is withheld
 // from the settings, and a line break in a value is quoted, in the settings
 // and in a check's line, so none reaches either stream and no forged check
-// line appears.
+// line appears. An identifier holding either is refused at load without it.
 func TestDoctorRepeatsNoKeyTextAndForgesNoLine(t *testing.T) {
 	pemFile, body := fixtureKeyText(t)
 	for name, c := range map[string]struct{ key, value, want string }{
 		"body line as pause.file":         {"pause.file", body, "pause.file: holds a PEM marker"},
 		"body line as policy.bundle_file": {"policy.bundle_file", body, "policy.bundle_file: holds a PEM marker"},
-		"whole PEM as project_id":         {"project_id", pemFile, `"[key text withheld]\n"`},
-		"forged ok line in environment":   {"environment", "dev\n" + forgedCheck, `"dev\n` + forgedCheck + `"`},
+		"whole PEM as project_id":         {"project_id", pemFile, `project_id: "contract: invalid field value: white space U+000A at the end"`},
+		"whole PEM as policy.key_id":      {"policy.key_id", pemFile, `"[key text withheld]\n"`},
+		"forged ok line in environment":   {"environment", "dev\n" + forgedCheck, `environment: "contract: invalid field value: a control character U+000A at byte 3"`},
+		"forged ok line in policy.key_id": {"policy.key_id", "dev\n" + forgedCheck, `"dev\n` + forgedCheck + `"`},
 		"forged ok line in pause.file":    {"pause.file", "pause\n" + forgedCheck, `pause\n` + forgedCheck + ` cannot be read`},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -126,7 +128,7 @@ func TestDoctorPrintsNoKeyTextFromAnUpstreamOrAnOverride(t *testing.T) {
 		{"/" + body, []string{`orders -> command server (2 arguments)`, `orders/[key text withheld] is READ on order from "[key text withheld]"`}},
 		{body, []string{`overrides.0.resource_from: classify: the resource pointer is not RFC 6901`}},
 	} {
-		if err := os.WriteFile(tr.config, []byte(doc+override(c.from)), 0o600); err != nil { //nolint:gosec // G703: the configuration copy under the test's temp dir
+		if err := os.WriteFile(tr.config, []byte(doc+override(c.from)), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		out := doctorOutput(t, tr.config)

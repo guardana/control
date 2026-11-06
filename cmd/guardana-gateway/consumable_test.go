@@ -368,6 +368,9 @@ func writeRecord(t *testing.T, path string, a *controlv1.Approval, binding appro
 		"request_id":     a.GetRequestId(),
 		"binding":        string(binding),
 		"approval":       json.RawMessage(raw),
+		"authority":      approvals.HeldUnderDirectory,
+		"tenant":         "acme",
+		"project":        "orders",
 	})
 	if err != nil {
 		t.Fatalf("json: %v", err)
@@ -382,7 +385,7 @@ func writeFramed(t *testing.T, path string, body []byte) {
 	copy(out, recordMagic)
 	binary.BigEndian.PutUint32(out[len(recordMagic):], uint32(len(body))) //nolint:gosec // G115: a test record is a few hundred bytes
 	binary.BigEndian.PutUint32(out[len(recordMagic)+4:], crc32.Checksum(body, crc32.MakeTable(crc32.Castagnoli)))
-	if err := os.WriteFile(path, append(out, body...), 0o600); err != nil { //nolint:gosec // G703: the test's own temporary directory
+	if err := os.WriteFile(path, append(out, body...), 0o600); err != nil {
 		t.Fatalf("writing %s: %v", path, err)
 	}
 }

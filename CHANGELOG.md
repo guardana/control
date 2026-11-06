@@ -43,6 +43,14 @@ verify one.
   `operators.authenticator`, `operators.authorizer` and `approvals.authority`,
   and `pipeline_answers_refused_total` counts the answers it did not take, by
   cause ([ADR-0073](docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
+- `approvals approve|reject --key <file> --inbox <dir>` signs an answer
+  with an operator's key from the plane's own record of the hold and files it
+  in the inbox, never replacing a file; a key file the group or others may
+  read is refused. `console --inbox <dir>` names the inbox in the command
+  each signed hold shows, and without `--approver-id` only reads, refusing to
+  start as the plane's account. `dev` runs its plane under `signed`, with a
+  roster and an operator key of its own, and prints `inbox`, `operator_key`
+  and `approve_command`.
 - `export.endpoint: unix:///path` with the required `export.collector_uid`
   sends the evidence over a Unix socket. On every connection the plane reads
   the peer's account (`SO_PEERCRED` on Linux, `LOCAL_PEERCRED` on macOS) and
@@ -78,9 +86,28 @@ verify one.
   resolution and takes the held or the answered name only. A `1.0` directory
   or record is refused with a message naming both versions; empty the
   directory, whose holds expire within `approvals.ttl`. `approvals list` and
-  the console no longer print a resolution.
+  the console no longer print a resolution. A record is `2.1`: it names the
+  authority holding it and the call's tenant and project. Under `signed` the
+  plane writes its files `0640`, for an operators' group to read.
+- **Breaking:** a claim (`approvals approve|reject --approver-id`, or the
+  console) for a hold under `signed` is refused naming the signing command,
+  where it was written and ignored; the console answers no signed hold. On a
+  `dev` plane the page shows the hold and the command, and approves nothing.
+- `operators roster sign` refuses, writing nothing, when `--out` changed
+  between its first read and the replace under the lock.
 - The pause commands write pause file `2`; a plane and the commands read `1`
   as before.
+- **Breaking:** `project_id`, `tenant_id`, `environment`, the
+  `listener.principal.*` and `listener.agent.*` keys and an upstream's
+  `tenant_id` and `environment` are refused when the file loads, naming the
+  key, if the contract's identifier rule refuses them, white space at either
+  end for one; such a configuration loaded and had every call refused. Two
+  upstreams with one name are refused at load, naming both, rather than when
+  the gateway starts. `adapters/mcp.New` and `adapters/enforce.New` refuse the
+  same values, any string of the listener's identity, and a `TRANSACT` or
+  `IDENTITY_OR_ACCESS` tool while the listener's principal has no tenant.
+  `pkg/contract.CheckID` is the one rule for a required identifier
+  ([ADR-0074](docs/adr/0074-pkg-contract-exports-one-rule-for-a-required-identifier.md)).
 - The gateway applies the `read_only`, `restrict_resources` and
   `deny_external_sink` obligations itself, for every adapter, before an
   approval is asked for. The enforcement API and the hook bridge, which denied

@@ -47,7 +47,7 @@ func listenHealthSocket(path string, reachable bool) (net.Listener, error) {
 // directory of this account, that the group or others may write, or, unless
 // another account is to reach the socket, that they may enter at all.
 func healthDir(dir string, reachable bool) error {
-	info, err := os.Lstat(dir) //nolint:gosec // G703: the socket path the operator configured
+	info, err := os.Lstat(dir)
 	forbidden := fs.FileMode(0o077)
 	if reachable {
 		forbidden = 0o022
@@ -64,7 +64,7 @@ func healthDir(dir string, reachable bool) error {
 // clearStaleHealthSocket removes a socket of this account at path that
 // refuses a connection, and refuses anything else that is there.
 func clearStaleHealthSocket(path string) error {
-	info, err := os.Lstat(path) //nolint:gosec // G703: the socket path the operator configured
+	info, err := os.Lstat(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return nil
@@ -80,7 +80,7 @@ func clearStaleHealthSocket(path string) error {
 	if !errors.Is(err, syscall.ECONNREFUSED) {
 		return fmt.Errorf("health.socket: %s is there and may be live: %w", path, err)
 	}
-	if err := os.Remove(path); err != nil { //nolint:gosec // G703: the socket path the operator configured
+	if err := os.Remove(path); err != nil {
 		return fmt.Errorf("health.socket: %w", err)
 	}
 	return nil

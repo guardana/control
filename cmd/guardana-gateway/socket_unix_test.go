@@ -25,7 +25,7 @@ func swapToLink(t *testing.T) string {
 		t.Fatal(err)
 	}
 	socketBound = func(bound string) {
-		if err := os.Remove(bound); err != nil { //nolint:gosec // G703: a path in this test's own directory
+		if err := os.Remove(bound); err != nil {
 			t.Error(err)
 		}
 		if err := os.Symlink(target, bound); err != nil {

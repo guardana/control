@@ -31,7 +31,7 @@ func bindSocket(final string, mode fs.FileMode) (*boundSocket, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = os.RemoveAll(private) }() //nolint:gosec // G703: the directory this call made
+	defer func() { _ = os.RemoveAll(private) }()
 	root, err := os.OpenRoot(private)
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func placeSocket(root *os.Root, tmp, final string, mode fs.FileMode) (fs.FileInf
 	if err := unix.Linkat(unix.AT_FDCWD, tmp, unix.AT_FDCWD, final, 0); err != nil {
 		return nil, fmt.Errorf("%s: %w", final, err)
 	}
-	placed, err := os.Lstat(final) //nolint:gosec // G703: the socket path the operator configured
+	placed, err := os.Lstat(final)
 	if err == nil {
 		err = ownSocket(placed, nil)
 	}
@@ -109,8 +109,8 @@ func (s *boundSocket) Addr() net.Addr { return &net.UnixAddr{Name: s.path, Net: 
 func (s *boundSocket) Close() error {
 	s.once.Do(func() {
 		s.closed = s.UnixListener.Close()
-		if now, err := os.Lstat(s.path); err == nil && os.SameFile(now, s.bound) { //nolint:gosec // G703: the socket path the operator configured
-			s.closed = errors.Join(s.closed, os.Remove(s.path)) //nolint:gosec // G703: the socket path the operator configured
+		if now, err := os.Lstat(s.path); err == nil && os.SameFile(now, s.bound) {
+			s.closed = errors.Join(s.closed, os.Remove(s.path))
 		}
 	})
 	return s.closed
@@ -120,7 +120,7 @@ func (s *boundSocket) Close() error {
 // directory, is owned by an account other than this one or root, or that
 // the group or others may write unless it is sticky.
 func checkSocketDir(dir string) error {
-	info, err := os.Lstat(dir) //nolint:gosec // G703: the socket path the operator configured
+	info, err := os.Lstat(dir)
 	if err != nil {
 		return err
 	}
