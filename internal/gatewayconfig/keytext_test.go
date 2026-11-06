@@ -61,14 +61,15 @@ func TestAPathHoldingKeyTextIsRefusedByItsKey(t *testing.T) {
 
 // TestKeyTextOutsideAPathIsLoaded: a key that is not a path, and an
 // upstream's argument, which may carry a certificate, take key text; only
-// printing it is withheld.
+// printing it is withheld. An identifier takes no line break, so only the
+// body line goes to one.
 func TestKeyTextOutsideAPathIsLoaded(t *testing.T) {
 	pemFile, body := keyFile(t)
 	path := write(t, "")
-	setEnv(t, "environment", pemFile)
+	setEnv(t, "listener.agent.framework", pemFile)
 	setEnv(t, "project_id", body)
 	cfg := load(t, path)
-	if cfg.Environment != pemFile || cfg.ProjectID != body {
+	if cfg.Listener.AgentFramework != pemFile || cfg.ProjectID != body {
 		t.Errorf("the values were not taken as given")
 	}
 	doc := strings.Replace(document, "    endpoint: http://127.0.0.1:1/mcp\n",

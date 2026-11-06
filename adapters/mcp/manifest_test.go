@@ -299,6 +299,9 @@ func TestNewRefusesAnOverrideWhoseEnvelopeKeyIsEmpty(t *testing.T) {
 		{"a read with none", controlv1.EffectClass_EFFECT_CLASS_READ, func(c *mcp.Config) {
 			c.Environment, c.Upstreams[0].Environment, c.Upstreams[0].TenantID = "", "", ""
 		}, ""},
+		{"a transact with no principal tenant", controlv1.EffectClass_EFFECT_CLASS_TRANSACT, func(c *mcp.Config) { c.Listener.Identity.Principal.TenantId = "" }, "needs Listener.Identity.Principal.TenantId, which is empty"},
+		{"an identity change with no principal tenant", controlv1.EffectClass_EFFECT_CLASS_IDENTITY_OR_ACCESS, func(c *mcp.Config) { c.Listener.Identity.Principal.TenantId = "" }, "needs Listener.Identity.Principal.TenantId, which is empty"},
+		{"a write with no principal tenant", controlv1.EffectClass_EFFECT_CLASS_WRITE, func(c *mcp.Config) { c.Listener.Identity.Principal.TenantId = "" }, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := newConfig(t, v, mcp.KindStdio, ct, rigOptions{})
@@ -312,6 +315,42 @@ func TestNewRefusesAnOverrideWhoseEnvelopeKeyIsEmpty(t *testing.T) {
 				t.Fatalf("New = %v; want ErrOverride saying %q", err, tc.want)
 			}
 		})
+	}
+}
+
+// TestNewRefusesAPlaneKeyNoEnvelopeCarries: the project, tenant and
+// environment of the listener and of each upstream are held to
+// contract.CheckID when they are set, naming the field, so a Go caller that
+// pads one learns it at New rather than at the first call. An inner space and
+// a value at the bound are the controls.
+func TestNewRefusesAPlaneKeyNoEnvelopeCarries(t *testing.T) {
+	v := newVictim()
+	ct, _ := sdk.NewInMemoryTransports()
+	for _, tc := range []struct {
+		name, field string
+		mut         func(*mcp.Config)
+	}{
+		{"a project led by a space", "ProjectID", func(c *mcp.Config) { c.ProjectID = " p1" }},
+		{"a project past the bound", "ProjectID", func(c *mcp.Config) { c.ProjectID = strings.Repeat("p", 1025) }},
+		{"a tenant ending in a NUL", "TenantID", func(c *mcp.Config) { c.TenantID = "t1\x00" }},
+		{"an environment ending in a no-break space", "Environment", func(c *mcp.Config) { c.Environment = "prod\u00a0" }},
+		{"an upstream tenant led by an ideographic space", "Upstreams[0].TenantID", func(c *mcp.Config) { c.Upstreams[0].TenantID = "\u3000t1" }},
+		{"an upstream environment with a bidi override", "Upstreams[0].Environment", func(c *mcp.Config) { c.Upstreams[0].Environment = "pr\u202eod" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := newConfig(t, v, mcp.KindStdio, ct, rigOptions{})
+			tc.mut(&cfg)
+			a, err := mcp.New(cfg)
+			if a != nil || !errors.Is(err, mcp.ErrPlaneKey) || !strings.Contains(err.Error(), tc.field+":") {
+				t.Fatalf("New = %v, adapter returned %t; want ErrPlaneKey naming %s", err, a != nil, tc.field)
+			}
+		})
+	}
+	cfg := newConfig(t, v, mcp.KindStdio, ct, rigOptions{})
+	cfg.ProjectID, cfg.Upstreams[0].TenantID = "p 1", strings.Repeat("t", 1024)
+	cfg.TenantID = cfg.Upstreams[0].TenantID
+	if _, err := mcp.New(cfg); err != nil {
+		t.Errorf("an inner space and a tenant at the bound were refused: %v", err)
 	}
 }
 

@@ -119,6 +119,13 @@ func TestNewRefusesAToolWhoseEnvelopeKeyIsEmpty(t *testing.T) {
 		{"a write with no environment", func(c *enforce.Config) { c.Tools[1].Classification = write; c.Environment = "" }, "tools[1]: WRITE needs Environment, which is empty"},
 		{"a transact with no tenant", func(c *enforce.Config) { c.TenantID = "" }, "tools[0]: TRANSACT needs TenantID, which is empty"},
 		{"a read with neither", func(c *enforce.Config) { c.Tools = c.Tools[1:2]; c.Environment, c.TenantID = "", "" }, ""},
+		{"a transact with no principal tenant", func(c *enforce.Config) { c.Identity.Principal.TenantId = "" }, "tools[0]: TRANSACT needs Identity.Principal.TenantId, which is empty"},
+		{"an identity change with no principal tenant", func(c *enforce.Config) {
+			c.Tools[1].Classification = classify.Classification{Effect: controlv1.EffectClass_EFFECT_CLASS_IDENTITY_OR_ACCESS, ResourceType: "role", ResourceFrom: "/role"}
+			c.Tools = c.Tools[1:2]
+			c.Identity.Principal.TenantId = ""
+		}, "tools[0]: IDENTITY_OR_ACCESS needs Identity.Principal.TenantId, which is empty"},
+		{"a read and a message with no principal tenant", func(c *enforce.Config) { c.Tools = c.Tools[1:]; c.Identity.Principal.TenantId = "" }, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := validConfig()
@@ -131,6 +138,37 @@ func TestNewRefusesAToolWhoseEnvelopeKeyIsEmpty(t *testing.T) {
 				t.Fatalf("New = %v; want ErrTool saying %q", err, tc.want)
 			}
 		})
+	}
+}
+
+// TestNewRefusesAPlaneKeyNoEnvelopeCarries: the project, the tenant and the
+// environment every envelope carries are held to contract.CheckID when they
+// are set, so a Go caller that pads one learns it at New rather than at the
+// first call. An inner space and a value at the bound are the controls.
+func TestNewRefusesAPlaneKeyNoEnvelopeCarries(t *testing.T) {
+	for _, tc := range []struct {
+		name, field string
+		mut         func(*enforce.Config)
+	}{
+		{"a project led by a space", "ProjectID", func(c *enforce.Config) { c.ProjectID = " proj-1" }},
+		{"a project past the bound", "ProjectID", func(c *enforce.Config) { c.ProjectID = strings.Repeat("p", 1025) }},
+		{"a tenant ending in a NUL", "TenantID", func(c *enforce.Config) { c.TenantID = "tenant-1\x00" }},
+		{"a tenant ending in a no-break space", "TenantID", func(c *enforce.Config) { c.TenantID = "tenant-1\u00a0" }},
+		{"an environment led by an ideographic space", "Environment", func(c *enforce.Config) { c.Environment = "\u3000prod" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validConfig()
+			tc.mut(&cfg)
+			a, err := enforce.New(cfg)
+			if a != nil || !errors.Is(err, enforce.ErrPlaneKey) || !strings.Contains(err.Error(), tc.field+":") {
+				t.Fatalf("New = %v, adapter returned %t; want ErrPlaneKey naming %s", err, a != nil, tc.field)
+			}
+		})
+	}
+	cfg := validConfig()
+	cfg.ProjectID, cfg.TenantID = "proj 1", strings.Repeat("t", 1024)
+	if _, err := enforce.New(cfg); err != nil {
+		t.Errorf("an inner space and a tenant at the bound were refused: %v", err)
 	}
 }
 
