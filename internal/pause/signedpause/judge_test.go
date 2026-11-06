@@ -44,14 +44,19 @@ var now = time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
 // operates A, bob only reads A and carol operates B; the operator ports over
 // it; and a pause floor of its own.
 type plane struct {
-	authn operators.Authenticator
-	authz operators.Authorizer
-	floor string
+	authn  operators.Authenticator
+	authz  operators.Authorizer
+	roster trust.Document
+	floor  string
+	// file is the plane's pause file and bound the path a document for it
+	// names.
+	file, bound string
 }
 
-func newPlane(t *testing.T) *plane {
+// writeRoster writes the roster the root signed into base and returns its
+// path and the document it verifies as.
+func writeRoster(t *testing.T, base string) (string, trust.Document) {
 	t.Helper()
-	base := t.TempDir()
 	body, err := canon.Canonicalize(map[string]any{
 		"kind": trust.DocumentKind, "rosterId": "roster-a", "serial": int64(1),
 		"issuedAt": "2026-10-30T00:00:00Z", "expiresAt": "2026-10-31T00:00:00Z",
@@ -64,15 +69,26 @@ func newPlane(t *testing.T) *plane {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := trust.MarshalFile(trust.Envelope{PayloadType: trust.PayloadType, Payload: body,
-		Signatures: []trust.Signature{{KeyID: keyID("root"), Signature: sig}}})
+	env := trust.Envelope{PayloadType: trust.PayloadType, Payload: body, Signatures: []trust.Signature{{KeyID: keyID("root"), Signature: sig}}}
+	raw, err := trust.MarshalFile(env)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rosterPath := filepath.Join(base, "roster.json")
-	if err := os.WriteFile(rosterPath, raw, 0o600); err != nil {
+	path := filepath.Join(base, "roster.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	doc, err := trust.VerifyDocument(env, public("root"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path, doc
+}
+
+func newPlane(t *testing.T) *plane {
+	t.Helper()
+	base := t.TempDir()
+	rosterPath, doc := writeRoster(t, base)
 	authorityFloor := filepath.Join(base, "authority")
 	if err := policystate.InitAuthority(t.Context(), authorityFloor, "roster-a"); err != nil {
 		t.Fatal(err)
@@ -82,7 +98,13 @@ func newPlane(t *testing.T) *plane {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := &plane{floor: filepath.Join(base, "pausefloor")}
+	p := &plane{roster: doc, floor: filepath.Join(base, "pausefloor"), file: filepath.Join(base, "pause", "pause.json")}
+	if err := os.Mkdir(filepath.Dir(p.file), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if p.bound, err = pause.BindingOf(p.file); err != nil {
+		t.Fatal(err)
+	}
 	if p.authn, err = operators.NewAuthenticator("", roster, operators.Bounds{}); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +120,7 @@ func newPlane(t *testing.T) *plane {
 // judge is a judge of p, as a plane started now would hold it.
 func (p *plane) judge(t *testing.T) *signedpause.Authority {
 	t.Helper()
-	j, err := signedpause.New(p.authn, p.authz, "t1", "A", p.floor)
+	j, err := signedpause.New(p.authn, p.authz, "t1", "A", p.file, p.floor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,9 +131,15 @@ var global = pause.Document{Entries: []pause.Entry{{ID: "g", Scope: pause.Scope{
 
 // signed is a document of tenant and project at serial over d, signed by the
 // key called by under the key id of the key called as.
-func signed(t *testing.T, by, as, tenant, project string, serial int64, d pause.Document) pause.Signed {
+func (p *plane) signed(t *testing.T, by, as, tenant, project string, serial int64, d pause.Document) pause.Signed {
 	t.Helper()
-	h := pause.Header{KeyID: keyID(as), Tenant: tenant, Project: project, Serial: serial}
+	return signedFor(t, by, as, tenant, project, p.bound, serial, d)
+}
+
+// signedFor is signed for the pause file at file.
+func signedFor(t *testing.T, by, as, tenant, project, file string, serial int64, d pause.Document) pause.Signed {
+	t.Helper()
+	h := pause.Header{KeyID: keyID(as), Tenant: tenant, Project: project, File: file, Serial: serial}
 	body, err := pause.MarshalSigned(h, d)
 	if err != nil {
 		t.Fatal(err)
@@ -131,8 +159,8 @@ func signed(t *testing.T, by, as, tenant, project string, serial int64, d pause.
 	}
 }
 
-func byAlice(serial int64, d pause.Document) func(*testing.T) pause.Signed {
-	return func(t *testing.T) pause.Signed { return signed(t, "alice", "alice", "t1", "A", serial, d) }
+func (p *plane) byAlice(serial int64, d pause.Document) func(*testing.T) pause.Signed {
+	return func(t *testing.T) pause.Signed { return p.signed(t, "alice", "alice", "t1", "A", serial, d) }
 }
 
 func wantRefused(t *testing.T, what string, by pause.SignedBy, err error, want pause.Error) {
@@ -153,7 +181,7 @@ func TestThePayloadTypeAndTheBoundAreTheOperatorPorts(t *testing.T) {
 
 func TestAPermittedOperatorsPauseIsTakenAndRaisesTheFloor(t *testing.T) {
 	p := newPlane(t)
-	by, err := p.judge(t).Judge(t.Context(), byAlice(1, global)(t))
+	by, err := p.judge(t).Judge(t.Context(), p.byAlice(1, global)(t))
 	if err != nil || by != (pause.SignedBy{Subject: "alice", KeyID: keyID("alice"), Serial: 1, Floor: 1}) {
 		t.Fatalf("alice's pause = %+v, %v", by, err)
 	}
@@ -172,21 +200,21 @@ func TestNoOneButAPermittedOperatorPausesOrLifts(t *testing.T) {
 		f    pause.Signed
 		want pause.Error
 	}{
-		{"bob, who only reads A", signed(t, "bob", "bob", "t1", "A", 1, pause.Document{}), pause.ErrUnauthorized},
-		{"carol, who operates B", signed(t, "carol", "carol", "t1", "A", 1, pause.Document{}), pause.ErrUnauthorized},
-		{"alice for another tenant", signed(t, "alice", "alice", "t2", "A", 1, pause.Document{}), pause.ErrOtherScope},
-		{"carol for her own project", signed(t, "carol", "carol", "t1", "B", 1, pause.Document{}), pause.ErrOtherScope},
-		{"a key the roster does not name", signed(t, "mallory", "mallory", "t1", "A", 1, pause.Document{}), pause.ErrUnauthenticated},
-		{"mallory under alice's key id", signed(t, "mallory", "alice", "t1", "A", 1, pause.Document{}), pause.ErrUnauthenticated},
+		{"bob, who only reads A", p.signed(t, "bob", "bob", "t1", "A", 1, pause.Document{}), pause.ErrUnauthorized},
+		{"carol, who operates B", p.signed(t, "carol", "carol", "t1", "A", 1, pause.Document{}), pause.ErrUnauthorized},
+		{"alice for another tenant", p.signed(t, "alice", "alice", "t2", "A", 1, pause.Document{}), pause.ErrOtherScope},
+		{"carol for her own project", p.signed(t, "carol", "carol", "t1", "B", 1, pause.Document{}), pause.ErrOtherScope},
+		{"a key the roster does not name", p.signed(t, "mallory", "mallory", "t1", "A", 1, pause.Document{}), pause.ErrUnauthenticated},
+		{"mallory under alice's key id", p.signed(t, "mallory", "alice", "t1", "A", 1, pause.Document{}), pause.ErrUnauthenticated},
 	} {
 		by, err := j.Judge(t.Context(), c.f)
 		wantRefused(t, c.name, by, err, c.want)
 	}
-	if _, err := j.Judge(t.Context(), byAlice(1, pause.Document{})(t)); err != nil {
+	if _, err := j.Judge(t.Context(), p.byAlice(1, pause.Document{})(t)); err != nil {
 		t.Fatalf("the control, a body alice signed: %v", err)
 	}
-	tampered := byAlice(2, global)(t)
-	tampered.Envelope.Payload = byAlice(2, pause.Document{})(t).Envelope.Payload
+	tampered := p.byAlice(2, global)(t)
+	tampered.Envelope.Payload = p.byAlice(2, pause.Document{})(t).Envelope.Payload
 	by, err := j.Judge(t.Context(), tampered)
 	wantRefused(t, "a paused body swapped for a clear one under the same signature", by, err, pause.ErrUnauthenticated)
 	if f, err := policystate.ReadPause(p.floor, "t1", "A"); err != nil || f.Serial != 1 {
@@ -200,8 +228,8 @@ func TestNoOneButAPermittedOperatorPausesOrLifts(t *testing.T) {
 func TestAnOlderSignedPauseIsRefusedAfterARestart(t *testing.T) {
 	p := newPlane(t)
 	first := p.judge(t)
-	older := byAlice(1, pause.Document{})(t)
-	for _, f := range []pause.Signed{older, byAlice(2, global)(t)} {
+	older := p.byAlice(1, pause.Document{})(t)
+	for _, f := range []pause.Signed{older, p.byAlice(2, global)(t)} {
 		if _, err := first.Judge(t.Context(), f); err != nil {
 			t.Fatal(err)
 		}
@@ -209,9 +237,9 @@ func TestAnOlderSignedPauseIsRefusedAfterARestart(t *testing.T) {
 	restarted := p.judge(t)
 	by, err := restarted.Judge(t.Context(), older)
 	wantRefused(t, "serial 1 replayed after a restart", by, err, pause.ErrBelowFloor)
-	by, err = restarted.Judge(t.Context(), byAlice(2, pause.Document{})(t))
+	by, err = restarted.Judge(t.Context(), p.byAlice(2, pause.Document{})(t))
 	wantRefused(t, "another document under serial 2", by, err, pause.ErrForked)
-	if by, err := restarted.Judge(t.Context(), byAlice(2, global)(t)); err != nil || by.Floor != 2 {
+	if by, err := restarted.Judge(t.Context(), p.byAlice(2, global)(t)); err != nil || by.Floor != 2 {
 		t.Errorf("the document at the floor read again = %+v, %v", by, err)
 	}
 }
@@ -232,7 +260,7 @@ func (unavailable) Status() operators.Status { return operators.Status{} }
 
 func TestAPortOrAFloorThatGivesNoAnswerRefuses(t *testing.T) {
 	p := newPlane(t)
-	f := byAlice(1, global)(t)
+	f := p.byAlice(1, global)(t)
 	for _, c := range []struct {
 		name  string
 		authn operators.Authenticator
@@ -244,24 +272,25 @@ func TestAPortOrAFloorThatGivesNoAnswerRefuses(t *testing.T) {
 		{"an authorizer with no answer", p.authn, unavailable{}, p.floor, pause.ErrAuthority},
 		{"a missing floor directory", p.authn, p.authz, filepath.Join(t.TempDir(), "missing"), pause.ErrFloor},
 	} {
-		j, err := signedpause.New(c.authn, c.authz, "t1", "A", c.floor)
+		j, err := signedpause.New(c.authn, c.authz, "t1", "A", p.file, c.floor)
 		if err != nil {
 			t.Fatal(err)
 		}
 		by, err := j.Judge(t.Context(), f)
 		wantRefused(t, c.name, by, err, c.want)
 	}
-	for name, args := range map[string][3]string{
-		"no tenant": {"", "A", p.floor}, "no project": {"t1", "", p.floor}, "no floor": {"t1", "A", ""},
+	for name, args := range map[string][4]string{
+		"no tenant": {"", "A", p.file, p.floor}, "no project": {"t1", "", p.file, p.floor},
+		"no file": {"t1", "A", "", p.floor}, "no floor": {"t1", "A", p.file, ""},
 	} {
-		if _, err := signedpause.New(p.authn, p.authz, args[0], args[1], args[2]); !errors.Is(err, pause.ErrOptions) {
+		if _, err := signedpause.New(p.authn, p.authz, args[0], args[1], args[2], args[3]); !errors.Is(err, pause.ErrOptions) {
 			t.Errorf("New with %s = %v, want ErrOptions", name, err)
 		}
 	}
-	if _, err := signedpause.New(nil, p.authz, "t1", "A", p.floor); !errors.Is(err, pause.ErrOptions) {
+	if _, err := signedpause.New(nil, p.authz, "t1", "A", p.file, p.floor); !errors.Is(err, pause.ErrOptions) {
 		t.Errorf("New with no authenticator = %v", err)
 	}
-	if _, err := signedpause.New(p.authn, nil, "t1", "A", p.floor); !errors.Is(err, pause.ErrOptions) {
+	if _, err := signedpause.New(p.authn, nil, "t1", "A", p.file, p.floor); !errors.Is(err, pause.ErrOptions) {
 		t.Errorf("New with no authorizer = %v", err)
 	}
 }

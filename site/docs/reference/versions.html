@@ -360,7 +360,9 @@ policy bundle, a freshness statement, a route and a lift carry no version of
 their own, only the payload type each is signed under, and the evidence
 spool frames its segments with no version at all, so a spool another release
 wrote is not promised readable. <code>notify</code>'s <code>--state</code> list of delivered alerts,
-one quoted key per line, carries none either.</p>
+one quoted key per line, carries none either. A plane under
+<code>approvals.authority: signed</code> reads pause file <code>3</code> alone, and any other <code>1</code>
+and <code>2</code> alone.</p>
 <h2 id="reading-files-an-older-release-wrote">Reading files an older release wrote</h2>
 <ul>
 <li><strong>Wire messages, the evidence export, the runs directory's marker and

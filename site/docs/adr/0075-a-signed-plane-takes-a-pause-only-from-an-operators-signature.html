@@ -129,18 +129,25 @@ put back, which lifts every pause added since.</p>
 <li>Under <code>signed</code> the pause file is version <code>3</code>: a DSSE envelope of
 <code>application/vnd.agent-pause+json</code> (<code>operators.ActPause</code>, level <code>operate</code>)
 over a canonical body naming the signing key, the plane's tenant and
-project, a serial and the entries. Versions <code>1</code> and <code>2</code> are refused there,
+project, the pause file it was signed for, as an absolute path with its
+directory's links resolved, a serial and the entries. The plane compares
+that path with its own <code>pause.file</code>, so a copy into another plane's file is
+refused. Versions <code>1</code> and <code>2</code> are refused there,
 and version <code>3</code> is refused under every other authority.</li>
 <li>At every read the plane takes the file through the authenticator, its own
 tenant and project, the authorizer and its pause floor in
 <code>pause.floor_dir</code>, in that order, and raises the floor to the serial it
 took. A file failing any step is the unknown state of ADR-0019, counted
 under its cause: it blocks every call and never reads as a lift.</li>
-<li>The plane reads a file of any owner, and refuses to start when its own
-account may write the pause file or any directory on its path.</li>
-<li><code>pause add</code> and <code>pause remove</code> with <code>--key</code> sign the whole file at the next
-serial; without <code>--key</code> they refuse a signed file. The console holds no
-key and writes no pause under <code>signed</code> or into a signed file.</li>
+<li>The plane refuses to start when its own account may write the pause file
+or any directory on its path, and refuses at every read a file or
+directory that account owns; only a dev plane, one account, reads its own.</li>
+<li><code>pause add</code> and <code>pause remove</code> with <code>--key</code> judge the file they start from
+against the roster (<code>--roster</code>, <code>--root-key</code>) and its binding before they
+sign the whole file at the next serial, so a writer without a roster key
+cannot have its entries signed by the next operator. Without <code>--key</code> they
+refuse a signed file. The console holds no key and writes no pause under
+<code>signed</code> or into a signed file.</li>
 </ul>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>Breaking under <code>signed</code>: a version <code>1</code> or <code>2</code> file blocks every call, and the
@@ -155,7 +162,10 @@ covers, so a lift could not be told from a deletion.</li>
 </ul>
 <h2 id="consequences">Consequences</h2>
 <p>Each change rewrites and re-signs the whole file, so two operators writing
-at once is refused, not merged. A signed body is held to the authenticator's
+at once is refused, not merged. The writer owns the file and its directory,
+so only one OS account can write a signed pause file; other operators sign
+from it. A writer cannot read the plane's floor: an older file put back is
+signed again at a serial the floor refuses. A signed body is held to the authenticator's
 16 KiB bound, below the file bound of version <code>2</code>.</p>
 <h2 id="validation">Validation</h2>
 <p><code>internal/pause/signedpause</code> tests each refusal, a replay after a restart and

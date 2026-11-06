@@ -158,8 +158,8 @@ usage:
   guardana-control pause init [--key <k> --tenant <t> --project <p> [--serial <n>]] <file>
   guardana-control pause add (--global | --provider <p> [--action <k> [--name <n>]]
       | --run <id> | --agent <id> | --principal <id>) [--reason <r>]
-      [--key <k>] <f>
-  guardana-control pause remove [--key <k>] <file> <id>
+      [--key <k> --roster <f> --root-key <f>] <f>
+  guardana-control pause remove [--key <k> --roster <f> --root-key <f>] <file> <id>
   guardana-control pause list <file>
   guardana-control pause floor init --tenant <t> --project <p> <dir>
   guardana-control runs open --project --tenant --principal-type --principal --agent

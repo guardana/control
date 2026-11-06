@@ -32,7 +32,7 @@ const (
 	stateBundle    = "policy.bundle"
 	stateStatement = "policy.statement"
 	stateFloors    = "floors"
-	statePause     = "pause.json"
+	statePause     = "pause/pause.json"
 	statePauseFlr  = "pausefloor"
 	stateSettings  = "settings.txt"
 )

@@ -3,11 +3,9 @@ package main
 import (
 	"fmt"
 	"path/filepath"
-	"slices"
 
-	"github.com/guardana/control/internal/operators"
 	"github.com/guardana/control/internal/pause"
-	"github.com/guardana/control/internal/policy"
+	"github.com/guardana/control/internal/pause/signedpause"
 	"github.com/guardana/control/internal/policystate"
 	"github.com/guardana/control/internal/trust"
 )
@@ -23,7 +21,7 @@ func (d *examination) signedPauseFile() ([]pause.Entry, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	body, env := f.Body, f.Envelope
+	body := f.Body
 	root, err := readRouteKey(d.cfg.Resolve(d.cfg.Trust.RootPublicKey))
 	if err != nil {
 		return nil, "", fmt.Errorf("trust.root_public_key: %w", err)
@@ -32,7 +30,7 @@ func (d *examination) signedPauseFile() ([]pause.Entry, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("trust.roster: %w", err)
 	}
-	subject, err := pauseSigner(roster, env, body, d.cfg.TenantID, d.cfg.ProjectID)
+	subject, err := pauseSigner(roster, f, d.cfg.TenantID, d.cfg.ProjectID, path)
 	if err != nil {
 		return nil, "", err
 	}
@@ -45,31 +43,29 @@ func (d *examination) signedPauseFile() ([]pause.Entry, string, error) {
 	case body.Serial == floor.Serial && body.Digest != floor.Digest:
 		return nil, "", fmt.Errorf("%w: serial %d", pause.ErrForked, body.Serial)
 	}
-	return body.Entries, fmt.Sprintf("signed by %s (key %s) at serial %d, the floor at %d", oneLine(subject), body.KeyID, body.Serial, floor.Serial), nil
+	return body.Entries, fmt.Sprintf("signed by %s (key %s) for this pause file at serial %d, the floor at %d", subject, body.KeyID, body.Serial, floor.Serial), nil
 }
 
-// pauseSigner is the subject of the operator key of roster that signed env,
-// granted operate or admin over tenant and project, refusing as the plane's
-// authenticator and authorizer would.
-func pauseSigner(roster trust.Document, env policy.StatementEnvelope, body pause.SignedDocument, tenant, project string) (string, error) {
-	if body.Tenant != tenant || body.Project != project {
+// pauseSigner is the subject of the operator key of roster that signed f,
+// for tenant, project and the pause file at file, refusing as the plane's
+// judge would short of its floor.
+func pauseSigner(roster trust.Document, f pause.Signed, tenant, project, file string) (string, error) {
+	h := f.Body.Header
+	if h.Tenant != tenant || h.Project != project {
 		return "", pause.ErrOtherScope
 	}
-	keys := roster.Keys()
-	i := slices.IndexFunc(keys, func(k trust.Key) bool { return k.ID() == body.KeyID })
-	if i < 0 || keys[i].Role() != trust.RoleOperator {
-		return "", fmt.Errorf("%w: the roster names no operator key %s", pause.ErrUnauthenticated, body.KeyID)
+	bound, err := pause.BindingOf(file)
+	if err != nil {
+		return "", err
 	}
-	key := keys[i]
-	if err := key.Verify(operators.PausePayloadType, env.Payload, env.Signatures[0].Signature); err != nil {
-		return "", fmt.Errorf("%w: %w", pause.ErrUnauthenticated, err)
+	if h.File != bound {
+		return "", fmt.Errorf("%w: it names %s, and this plane reads %s", pause.ErrOtherFile, oneLine(h.File), oneLine(bound))
 	}
-	if !slices.ContainsFunc(key.Grants(), func(g trust.Grant) bool {
-		return g.Tenant == tenant && g.Project == project && g.Level >= trust.LevelOperate
-	}) {
-		return "", fmt.Errorf("%w: %s", pause.ErrUnauthorized, oneLine(key.Subject()))
+	subject, err := signedpause.Vouched(roster, f)
+	if err != nil {
+		return "", err
 	}
-	return key.Subject(), nil
+	return oneLine(subject), nil
 }
 
 // signedPauseVerdict is pauseFile's verdict over what signedPauseFile found.

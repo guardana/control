@@ -66,6 +66,8 @@ const (
 	CauseSignedFile      Cause = "signed, and the authority is not"
 	CauseUnauthenticated Cause = "not authenticated"
 	CauseOtherScope      Cause = "another tenant or project"
+	CauseOtherFile       Cause = "another pause file"
+	CausePlaneOwned      Cause = "owned by the plane's account"
 	CauseUnauthorized    Cause = "not authorized"
 	CauseAuthority       Cause = "authority unavailable"
 	CauseBelowFloor      Cause = "below the floor"
@@ -79,7 +81,7 @@ func Causes() []Cause {
 	return []Cause{
 		CauseNeverRead, CauseMissing, CauseUnreadable, CauseLink, CauseFileMode, CauseDirMode,
 		CauseFileOwner, CauseDirOwner, CauseTooLarge, CauseMalformed, CauseVersion, CauseStale, CauseAhead,
-		CauseUnsigned, CauseSignedFile, CauseUnauthenticated, CauseOtherScope, CauseUnauthorized,
+		CauseUnsigned, CauseSignedFile, CauseUnauthenticated, CauseOtherScope, CauseOtherFile, CausePlaneOwned, CauseUnauthorized,
 		CauseAuthority, CauseBelowFloor, CauseForked, CauseFloor,
 	}
 }
@@ -224,23 +226,31 @@ const readAttempts = 3
 // owner is whose account a pause file and its directory have to be owned
 // by. A writer, and a plane under any authority but signed, needs them its
 // own: another owner may rewrite either whatever its mode says. A plane
-// under the signed authority reads an operator's file, takes a pause only
-// from its signature, and is held at start to a placement its own account
-// cannot write, so it reads a file of any owner.
+// under the signed authority reads an operator's file and refuses one its
+// own account owns, which it could rewrite; anyOwner is a dev plane's alone,
+// whose one account is the operator's too.
 type owner uint8
 
 const (
 	ownedByThisUser owner = iota
+	ownedByAnother
 	anyOwner
 )
 
 // judge refuses, with mine, an entry this process's effective user does not
-// own under ownedByThisUser, and nothing under anyOwner.
+// own under ownedByThisUser, with ErrPlaneOwned one it owns under
+// ownedByAnother, and nothing under anyOwner.
 func (o owner) judge(info fs.FileInfo, mine Error) error {
 	if o == anyOwner {
 		return nil
 	}
-	if err := files.CheckOwnedBy(info, effectiveUID()); err != nil {
+	err := files.CheckOwnedBy(info, effectiveUID())
+	switch {
+	case o == ownedByThisUser && err != nil:
+		return fmt.Errorf("%w: %w", mine, err)
+	case o == ownedByAnother && err == nil:
+		return ErrPlaneOwned
+	case o == ownedByAnother && !errors.Is(err, files.ErrOwner):
 		return fmt.Errorf("%w: %w", mine, err)
 	}
 	return nil
@@ -334,6 +344,8 @@ func causeOf(err error) Cause {
 		{ErrSignedFile, CauseSignedFile},
 		{ErrUnauthenticated, CauseUnauthenticated},
 		{ErrOtherScope, CauseOtherScope},
+		{ErrOtherFile, CauseOtherFile},
+		{ErrPlaneOwned, CausePlaneOwned},
 		{ErrUnauthorized, CauseUnauthorized},
 		{ErrAuthority, CauseAuthority},
 		{ErrBelowFloor, CauseBelowFloor},

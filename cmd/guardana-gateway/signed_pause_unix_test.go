@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/operators"
 	"github.com/guardana/control/internal/pause"
 	"github.com/guardana/control/internal/policy"
@@ -46,17 +48,34 @@ func signedPauseTree(t *testing.T) tree {
 	return tr
 }
 
+// signerOf signs as the key called name, taking every file a write starts
+// from: what a writer with no roster to judge by would do.
+func signerOf(name string) pause.Signer {
+	key := signedTestKey(name)
+	return pause.Signer{KeyID: policykey.KeyID(signedTestPublic(name)), Sign: func(payloadType string, body []byte) ([]byte, error) {
+		return bundle.SignBytesAs(payloadType, body, key)
+	}, Accept: func(pause.Signed) error { return nil }}
+}
+
 // aliceSigner signs as the operator alice of signedPlaneTree.
-func aliceSigner() pause.Signer {
-	alice := signedTestKey("alice")
-	return pause.Signer{KeyID: policykey.KeyID(signedTestPublic("alice")), Sign: func(payloadType string, body []byte) ([]byte, error) {
-		return bundle.SignBytesAs(payloadType, body, alice)
-	}}
+func aliceSigner() pause.Signer { return signerOf("alice") }
+
+// buildOneAccount builds tr's plane as dev does, with a start check that
+// passes and a pause file its own account owns, which a served plane refuses.
+func buildOneAccount(t *testing.T, tr tree) (*plane, error) {
+	t.Helper()
+	p, err := buildChecked(tr.load(t), slog.New(slog.DiscardHandler), time.Now(), roleServe, "", func(*gatewayconfig.Config) error { return nil })
+	if err == nil {
+		t.Cleanup(func() { _ = p.close() })
+	}
+	return p, err
 }
 
 // TestASignedStartRefusesAPauseFileThePlanesAccountMayWrite: a pause file or
 // directory the plane's account may write refuses the start, naming the key;
-// placed apart, the plane serves alice's signed file.
+// placed apart, a file its own account owns is refused at the first read;
+// on one account, as dev runs, the plane serves alice's signed file and
+// /healthz names its serial and floor.
 func TestASignedStartRefusesAPauseFileThePlanesAccountMayWrite(t *testing.T) {
 	tr := signedPauseTree(t)
 	placedApart(t, "pause.json")
@@ -64,16 +83,19 @@ func TestASignedStartRefusesAPauseFileThePlanesAccountMayWrite(t *testing.T) {
 		t.Fatalf("build over a plane-writable pause file = %v", err)
 	}
 	placedApart(t)
-	p, err := buildSigned(t, tr)
+	if _, err := buildSigned(t, tr); !errors.Is(err, pause.ErrNotServable) || !strings.Contains(err.Error(), string(pause.CausePlaneOwned)) {
+		t.Fatalf("build over a pause file the plane's account owns = %v", err)
+	}
+	p, err := buildOneAccount(t, tr)
 	if err != nil {
-		t.Fatalf("build placed apart = %v", err)
+		t.Fatalf("build on one account = %v", err)
 	}
 	snap := p.poller.Current()
 	if snap.State() != pause.Clear {
 		t.Fatalf("the pause state = %s, %q: %s", snap.State(), snap.Cause(), snap.Detail())
 	}
 	got := p.pauseAnswer(snap, time.Now()).Signed
-	if got == nil || got.Subject != "operator-a" || got.Serial != 1 || got.Floor != 1 || got.KeyID != aliceSigner().KeyID {
+	if got == nil || *got != (pauseSigned{Serial: 1, Floor: 1}) {
 		t.Errorf("the health page's signed pause = %+v", got)
 	}
 }
@@ -84,8 +106,7 @@ func TestASignedStartRefusesAPauseFileThePlanesAccountMayWrite(t *testing.T) {
 func TestASignedPlaneTakesOnlyAPermittedNewerPause(t *testing.T) {
 	tr := signedPauseTree(t)
 	file := filepath.Join(tr.dir, "pause", "pause.json")
-	placedApart(t)
-	p, err := buildSigned(t, tr)
+	p, err := buildOneAccount(t, tr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,15 +115,11 @@ func TestASignedPlaneTakesOnlyAPermittedNewerPause(t *testing.T) {
 		t.Fatal(err)
 	}
 	global := pause.Entry{ID: "g", Scope: pause.Scope{Kind: pause.ScopeGlobal}, CreatedAt: time.Now().UTC()}
-	if err := pause.AddSigned(t.Context(), file, global, aliceSigner()); err != nil {
+	if _, err := pause.AddSigned(t.Context(), file, global, aliceSigner()); err != nil {
 		t.Fatal(err)
 	}
 	polled(t, p, "alice's pause", pause.Paused, "")
-	mallory := signedTestKey("mallory")
-	forged := pause.Signer{KeyID: policykey.KeyID(signedTestPublic("mallory")), Sign: func(payloadType string, body []byte) ([]byte, error) {
-		return bundle.SignBytesAs(payloadType, body, mallory)
-	}}
-	if err := pause.RemoveSigned(t.Context(), file, "g", forged); err != nil {
+	if _, err := pause.RemoveSigned(t.Context(), file, "g", signerOf("mallory")); err != nil {
 		t.Fatal(err)
 	}
 	polled(t, p, "mallory's lift", pause.Unknown, pause.CauseUnauthenticated)
@@ -111,7 +128,7 @@ func TestASignedPlaneTakesOnlyAPermittedNewerPause(t *testing.T) {
 	if err := p.close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := buildSigned(t, tr); !errors.Is(err, pause.ErrNotServable) || !strings.Contains(err.Error(), string(pause.CauseBelowFloor)) {
+	if _, err := buildOneAccount(t, tr); !errors.Is(err, pause.ErrNotServable) || !strings.Contains(err.Error(), string(pause.CauseBelowFloor)) {
 		t.Errorf("a restart over serial 1 replayed = %v", err)
 	}
 }
@@ -152,9 +169,14 @@ func TestDoctorJudgesASignedPauseAsThePlaneWould(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	signedBy := func(signer, as, project string, d pause.Document) (policy.StatementEnvelope, pause.SignedDocument) {
-		h := pause.Header{KeyID: policykey.KeyID(signedTestPublic(as)), Tenant: "acme", Project: project, Serial: 1}
-		body, err := pause.MarshalSigned(h, d)
+	file := filepath.Join(t.TempDir(), "pause.json")
+	bound, err := pause.BindingOf(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signedBy := func(signer, as, project, boundTo string) pause.Signed {
+		h := pause.Header{KeyID: policykey.KeyID(signedTestPublic(as)), Tenant: "acme", Project: project, File: boundTo, Serial: 1}
+		body, err := pause.MarshalSigned(h, pause.Document{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -166,38 +188,37 @@ func TestDoctorJudgesASignedPauseAsThePlaneWould(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return policy.StatementEnvelope{PayloadType: operators.PausePayloadType, Payload: body,
-			Signatures: []policy.StatementSignature{{KeyID: h.KeyID, Signature: sig}}}, parsed
+		return pause.Signed{Body: parsed, Envelope: policy.StatementEnvelope{PayloadType: operators.PausePayloadType, Payload: body,
+			Signatures: []policy.StatementSignature{{KeyID: h.KeyID, Signature: sig}}}}
 	}
-	e, b := signedBy("alice", "alice", "orders", pause.Document{})
-	if subject, err := pauseSigner(roster, e, b, "acme", "orders"); err != nil || subject != "alice" {
+	if subject, err := pauseSigner(roster, signedBy("alice", "alice", "orders", bound), "acme", "orders", file); err != nil || subject != "alice" {
 		t.Fatalf("alice's pause = %q, %v", subject, err)
 	}
 	for _, c := range []struct {
-		name, signer, as, project string
-		want                      pause.Error
+		name, signer, as, project, file string
+		want                            pause.Error
 	}{
-		{"a pause of another project", "alice", "alice", "other", pause.ErrOtherScope},
-		{"mallory under alice's key id", "mallory", "alice", "orders", pause.ErrUnauthenticated},
-		{"a key the roster does not name", "mallory", "mallory", "orders", pause.ErrUnauthenticated},
-		{"bob, who only reads orders", "bob", "bob", "orders", pause.ErrUnauthorized},
+		{"a pause of another project", "alice", "alice", "other", bound, pause.ErrOtherScope},
+		{"a pause of another plane's file", "alice", "alice", "orders", "/srv/other/pause.json", pause.ErrOtherFile},
+		{"mallory under alice's key id", "mallory", "alice", "orders", bound, pause.ErrUnauthenticated},
+		{"a key the roster does not name", "mallory", "mallory", "orders", bound, pause.ErrUnauthenticated},
+		{"bob, who only reads orders", "bob", "bob", "orders", bound, pause.ErrUnauthorized},
 	} {
-		e, b := signedBy(c.signer, c.as, c.project, pause.Document{})
-		if _, err := pauseSigner(roster, e, b, "acme", "orders"); !errors.Is(err, c.want) {
+		if _, err := pauseSigner(roster, signedBy(c.signer, c.as, c.project, c.file), "acme", "orders", file); !errors.Is(err, c.want) {
 			t.Errorf("%s = %v, want %v", c.name, err, c.want)
 		}
 	}
 }
 
-// TestTheHealthPageNamesThePausesSignerAndFloorOnly: the member carries the
-// operator's subject and key id, the serial and the floor, and is left out
-// where no signed document stands behind the state.
-func TestTheHealthPageNamesThePausesSignerAndFloorOnly(t *testing.T) {
+// TestTheHealthPageNamesThePausesSerialAndFloorOnly: the member carries the
+// serial and the floor and no operator's name or key, and is left out where
+// no signed document stands behind the state.
+func TestTheHealthPageNamesThePausesSerialAndFloorOnly(t *testing.T) {
 	raw, err := json.Marshal(pauseAnswer{UnlistedOnly: []string{}, Signed: signedAnswer(pause.SignedBy{Subject: "alice", KeyID: "ed25519:ab", Serial: 3, Floor: 3}, true)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := `"signed":{"subject":"alice","key_id":"ed25519:ab","serial":3,"floor":3}`; !strings.Contains(string(raw), want) {
+	if want := `"signed":{"serial":3,"floor":3}`; !strings.Contains(string(raw), want) || strings.Contains(string(raw), "alice") {
 		t.Errorf("the pause answer = %s, want %s", raw, want)
 	}
 	if raw, _ := json.Marshal(pauseAnswer{Signed: signedAnswer(pause.SignedBy{Subject: "alice"}, false)}); strings.Contains(string(raw), "signed") {

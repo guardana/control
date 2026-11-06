@@ -58,14 +58,15 @@ func (p *play) pause(ctx context.Context, i int, ps *scenario.Pause) error {
 	return p.r.pauseRead(ctx, p.entries)
 }
 
-// signWith is the flag that signs a pause write with the operator key the
-// runner was handed, which a signed plane's pause file takes alone; nothing
-// where it was handed none.
+// signWith is the flags that sign a pause write with the operator key the
+// runner was handed, judging the file it starts from by the plane's roster,
+// which a signed plane's pause file takes alone; nothing where it was handed
+// no key.
 func (p *play) signWith() []string {
 	if p.r.plane.operatorKey == "" {
 		return nil
 	}
-	return []string{"--key", p.r.plane.operatorKey}
+	return []string{"--key", p.r.plane.operatorKey, "--roster", p.r.plane.roster, "--root-key", p.r.plane.rootKey}
 }
 
 // entryLines is every entry the pause file holds, by id, as the line pause

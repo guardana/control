@@ -11,10 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/guardana/control/internal/brand"
+	ondisk "github.com/guardana/control/internal/files"
 	"github.com/guardana/control/internal/pause"
+	"github.com/guardana/control/internal/pause/signedpause"
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policykey"
 	"github.com/guardana/control/internal/policystate"
+	"github.com/guardana/control/internal/trust"
 )
 
 // The names these commands report themselves under, and how the help spells
@@ -27,8 +31,8 @@ const (
 	pauseListName      = "pause list"
 	pauseFloorInitName = "pause floor init"
 	pauseInitForm      = "[--key <k> --tenant <t> --project <p> [--serial <n>]] <file>"
-	pauseAddForm       = "(--global | --provider <p> [--action <k> [--name <n>]]\n      | --run <id> | --agent <id> | --principal <id>) [--reason <r>]\n      [--key <k>] <f>"
-	pauseRemoveForm    = "[--key <k>] <file> <id>"
+	pauseAddForm       = "(--global | --provider <p> [--action <k> [--name <n>]]\n      | --run <id> | --agent <id> | --principal <id>) [--reason <r>]\n      [--key <k> --roster <f> --root-key <f>] <f>"
+	pauseRemoveForm    = "[--key <k> --roster <f> --root-key <f>] <file> <id>"
 	pauseFloorInitForm = "--tenant <t> --project <p> <dir>"
 )
 
@@ -48,9 +52,44 @@ func keyFlag(flags *flag.FlagSet) *string {
 	return flags.String("key", "", "the operator's private key file, which signs the whole pause file for a plane under the signed authority")
 }
 
+// pauseSignFlags is what a signed write of an existing file is told: the
+// operator's key, and the roster and its trust root that the file it starts
+// from is judged against.
+type pauseSignFlags struct{ key, roster, rootKey *string }
+
+func pauseSignFlagsOf(flags *flag.FlagSet) pauseSignFlags {
+	return pauseSignFlags{
+		key:     keyFlag(flags),
+		roster:  flags.String("roster", "", "the plane's trust.roster, which the signed file a write starts from has to be signed under"),
+		rootKey: flags.String("root-key", "", "the plane's trust.root_public_key, which the roster has to verify under"),
+	}
+}
+
+// problem says what is wrong with the flags together: --roster and
+// --root-key go with --key, and a signed write needs both.
+func (f pauseSignFlags) problem() string {
+	switch {
+	case *f.key == "" && *f.roster+*f.rootKey != "":
+		return "--roster and --root-key judge a signed write, with --key"
+	case *f.key != "" && (*f.roster == "" || *f.rootKey == ""):
+		return "a signed write names --roster and --root-key, the plane's, to judge the file it starts from"
+	}
+	return ""
+}
+
 // pauseSigner reads the operator key at path into the signer a signed write
-// signs with. The key is kept for the command's life and cleared by release.
-func pauseSigner(path string) (pause.Signer, func(), error) {
+// signs with, judging the file a write starts from against the roster at
+// roster, verified under the trust root at rootKey and usable now, rather
+// than signing again entries no roster key signed. The key is kept for the
+// command's life and cleared by release.
+func pauseSigner(path, roster, rootKey string) (pause.Signer, func(), error) {
+	var doc trust.Document
+	if roster != "" {
+		var err error
+		if doc, err = readRoster(roster, rootKey); err != nil {
+			return pause.Signer{}, nil, err
+		}
+	}
 	key, err := policykey.ReadPrivate(path)
 	if err != nil {
 		return pause.Signer{}, nil, fmt.Errorf("--key: %w", err)
@@ -58,7 +97,48 @@ func pauseSigner(path string) (pause.Signer, func(), error) {
 	s := pause.Signer{KeyID: policykey.KeyID(publicHalf(key)), Sign: func(payloadType string, body []byte) ([]byte, error) {
 		return bundle.SignBytesAs(payloadType, body, key)
 	}}
+	if roster != "" {
+		s.Accept = func(f pause.Signed) error {
+			_, err := signedpause.Vouched(doc, f)
+			return err
+		}
+	}
 	return s, func() { clear(key) }, nil
+}
+
+// readRoster reads the roster file at path and verifies it under the root
+// key at rootKey, usable now.
+func readRoster(path, rootKey string) (trust.Document, error) {
+	root, err := readPublicKey("--root-key", rootKey)
+	if err != nil {
+		return trust.Document{}, err
+	}
+	raw, err := ondisk.ReadRegular(path, trust.MaxFileBytes, 0)
+	if err != nil {
+		return trust.Document{}, fmt.Errorf("--roster: %w", err)
+	}
+	env, err := trust.ParseFile(raw)
+	if err != nil {
+		return trust.Document{}, fmt.Errorf("--roster: %w", err)
+	}
+	doc, err := trust.VerifyDocument(env, root)
+	if err == nil {
+		err = doc.UsableAt(time.Now())
+	}
+	if err != nil {
+		return trust.Document{}, fmt.Errorf("--roster: %w", err)
+	}
+	return doc, nil
+}
+
+// signedLine is what a signed write says it signed, on standard error.
+func signedLine(command string, d pause.SignedDocument) string {
+	ids := make([]string, 0, len(d.Entries))
+	for _, e := range d.Entries {
+		ids = append(ids, oneLine(e.ID))
+	}
+	return fmt.Sprintf("%s: %s: signed serial %d for tenant %s project %s of %s, %d entry(ies): %s", brand.CLI, command,
+		d.Serial, oneLine(d.Tenant), oneLine(d.Project), oneLine(d.File), len(ids), strings.Join(ids, " "))
 }
 
 // pauseHint is what an operator does about a write the file's signing
@@ -70,6 +150,8 @@ func pauseHint(err error) error {
 		return fmt.Errorf("%w; sign the change with --key <operator key file>", err)
 	case errors.Is(err, pause.ErrUnsigned):
 		return fmt.Errorf("%w; a signed pause file starts with pause init --key", err)
+	case errors.Is(err, pause.ErrNotVouched), errors.Is(err, pause.ErrOtherFile):
+		return fmt.Errorf("%w; nothing was signed: someone without a roster key may have written the file, so read it and start a new one with pause init --key above the plane's floor", err)
 	}
 	return err
 }
@@ -79,7 +161,7 @@ type scopeFlags struct {
 	global                         bool
 	provider, action, name, reason string
 	run, agent, principal          string
-	key                            *string
+	sign                           pauseSignFlags
 }
 
 func pauseAddFlags(command string, out io.Writer) (*flag.FlagSet, *scopeFlags) {
@@ -93,7 +175,7 @@ func pauseAddFlags(command string, out io.Writer) (*flag.FlagSet, *scopeFlags) {
 	flags.StringVar(&s.agent, "agent", "", "the agent, as the listener's configuration names it, whose calls to pause")
 	flags.StringVar(&s.principal, "principal", "", "the principal, as the listener's configuration names it, whose calls to pause")
 	flags.StringVar(&s.reason, "reason", "", "why, for whoever lifts the pause; it decides nothing")
-	s.key = keyFlag(flags)
+	s.sign = pauseSignFlagsOf(flags)
 	return flags, &s
 }
 
@@ -102,9 +184,9 @@ func pauseAddFlagSet(command string, out io.Writer) *flag.FlagSet {
 	return flags
 }
 
-func pauseRemoveFlags(command string, out io.Writer) (*flag.FlagSet, *string) {
+func pauseRemoveFlags(command string, out io.Writer) (*flag.FlagSet, pauseSignFlags) {
 	flags := commandFlags(command, out)
-	return flags, keyFlag(flags)
+	return flags, pauseSignFlagsOf(flags)
 }
 
 func pauseRemoveFlagSet(command string, out io.Writer) *flag.FlagSet {
@@ -224,7 +306,7 @@ func pauseInitCommand(args []string, stdout, stderr io.Writer) int {
 	if !given["tenant"] || !given["project"] {
 		return usageError(stderr, pauseInitName, "a signed pause file names the plane's --tenant and --project")
 	}
-	signer, release, err := pauseSigner(*v.key)
+	signer, release, err := pauseSigner(*v.key, "", "")
 	if err != nil {
 		return fail(stderr, pauseInitName, err)
 	}
@@ -249,6 +331,9 @@ func pauseAddCommand(args []string, stdout, stderr io.Writer) int {
 		return usageError(stderr, pauseAddName, "takes the pause file, with every flag before it")
 	}
 	scope, problem := s.scope()
+	if problem == "" {
+		problem = s.sign.problem()
+	}
 	if problem != "" {
 		return usageError(stderr, pauseAddName, problem)
 	}
@@ -256,9 +341,9 @@ func pauseAddCommand(args []string, stdout, stderr io.Writer) int {
 	if err := e.Check(); err != nil {
 		return fail(stderr, pauseAddName, fmt.Errorf("the entry: %w", err))
 	}
-	err := writePause(*s.key, func(ctx context.Context, signer *pause.Signer) error {
+	err := writePause(pauseAddName, s.sign, stderr, func(ctx context.Context, signer *pause.Signer) (pause.SignedDocument, error) {
 		if signer == nil {
-			return pause.Add(ctx, flags.Arg(0), e)
+			return pause.SignedDocument{}, pause.Add(ctx, flags.Arg(0), e)
 		}
 		return pause.AddSigned(ctx, flags.Arg(0), e, *signer)
 	})
@@ -269,17 +354,20 @@ func pauseAddCommand(args []string, stdout, stderr io.Writer) int {
 }
 
 func pauseRemoveCommand(args []string, stdout, stderr io.Writer) int {
-	flags, key := pauseRemoveFlags(pauseRemoveName, stderr)
+	flags, sign := pauseRemoveFlags(pauseRemoveName, stderr)
 	if err := flags.Parse(args); err != nil {
 		return exitUsage
 	}
 	if flags.NArg() != 2 {
 		return usageError(stderr, pauseRemoveName, "takes the pause file and the id of the entry to remove, with every flag before them")
 	}
+	if problem := sign.problem(); problem != "" {
+		return usageError(stderr, pauseRemoveName, problem)
+	}
 	path, id := flags.Arg(0), flags.Arg(1)
-	err := writePause(*key, func(ctx context.Context, signer *pause.Signer) error {
+	err := writePause(pauseRemoveName, sign, stderr, func(ctx context.Context, signer *pause.Signer) (pause.SignedDocument, error) {
 		if signer == nil {
-			return pause.Remove(ctx, path, id)
+			return pause.SignedDocument{}, pause.Remove(ctx, path, id)
 		}
 		return pause.RemoveSigned(ctx, path, id, *signer)
 	})
@@ -289,12 +377,13 @@ func pauseRemoveCommand(args []string, stdout, stderr io.Writer) int {
 	return report(stdout, stderr, pauseRemoveName, "removed "+oneLine(id))
 }
 
-// writePause runs write under the writers' lock wait, with the signer the
-// key file at key makes, or none where key is empty.
-func writePause(key string, write func(context.Context, *pause.Signer) error) error {
+// writePause runs write under the writers' lock wait, with the signer sign
+// makes, or none where it names no key, and says on stderr what a signed
+// write signed.
+func writePause(command string, sign pauseSignFlags, stderr io.Writer, write func(context.Context, *pause.Signer) (pause.SignedDocument, error)) error {
 	var signer *pause.Signer
-	if key != "" {
-		s, release, err := pauseSigner(key)
+	if *sign.key != "" {
+		s, release, err := pauseSigner(*sign.key, *sign.roster, *sign.rootKey)
 		if err != nil {
 			return err
 		}
@@ -303,7 +392,14 @@ func writePause(key string, write func(context.Context, *pause.Signer) error) er
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), pauseLockWait)
 	defer cancel()
-	return pauseHint(write(ctx, signer))
+	signed, err := write(ctx, signer)
+	if err != nil {
+		return pauseHint(err)
+	}
+	if signer != nil {
+		writeLine(stderr, signedLine(command, signed))
+	}
+	return nil
 }
 
 // pauseFloorInitCommand makes a directory the pause floor of a plane of one

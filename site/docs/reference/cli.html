@@ -257,8 +257,8 @@ profile's statuses, <a href="/docs/extending/runtime-profiles">extending/runtime
   guardana-control pause init [--key &lt;k&gt; --tenant &lt;t&gt; --project &lt;p&gt; [--serial &lt;n&gt;]] &lt;file&gt;
   guardana-control pause add (--global | --provider &lt;p&gt; [--action &lt;k&gt; [--name &lt;n&gt;]]
       | --run &lt;id&gt; | --agent &lt;id&gt; | --principal &lt;id&gt;) [--reason &lt;r&gt;]
-      [--key &lt;k&gt;] &lt;f&gt;
-  guardana-control pause remove [--key &lt;k&gt;] &lt;file&gt; &lt;id&gt;
+      [--key &lt;k&gt; --roster &lt;f&gt; --root-key &lt;f&gt;] &lt;f&gt;
+  guardana-control pause remove [--key &lt;k&gt; --roster &lt;f&gt; --root-key &lt;f&gt;] &lt;file&gt; &lt;id&gt;
   guardana-control pause list &lt;file&gt;
   guardana-control pause floor init --tenant &lt;t&gt; --project &lt;p&gt; &lt;dir&gt;
   guardana-control runs open --project --tenant --principal-type --principal --agent

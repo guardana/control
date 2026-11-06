@@ -1,14 +1,64 @@
 package main
 
 import (
+	"bytes"
+	"crypto/ed25519"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/guardana/control/internal/canon"
 	"github.com/guardana/control/internal/pause"
+	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policykey"
 	"github.com/guardana/control/internal/policystate"
+	"github.com/guardana/control/internal/trust"
 )
+
+// rosterOf writes a roster naming pub as an operator of t1/A, signed under a
+// root drawn for it, and returns the flags that judge a signed write by it.
+func rosterOf(t *testing.T, pub ed25519.PublicKey) []string {
+	t.Helper()
+	dir := t.TempDir()
+	root := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{0x7e}, ed25519.SeedSize))
+	source, err := canon.Canonicalize(map[string]any{
+		"kind": trust.DocumentKind, "rosterId": "roster-a", "serial": 1,
+		"keys": []any{map[string]any{
+			"keyId": policykey.KeyID(pub), "alg": "ed25519", "role": "operator", "subject": "alice",
+			"publicKey": policykey.FormatPublic(pub),
+			"grants":    []any{map[string]any{"tenant": "t1", "project": "A", "level": "operate"}},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, _, err := trust.SignDocument(source, time.Now().UTC().Truncate(time.Second), time.Hour, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := trust.MarshalFile(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roster, rootKey := filepath.Join(dir, "roster.json"), filepath.Join(dir, "root.pub")
+	if err := os.WriteFile(roster, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rootKey, []byte(policykey.FormatPublic(root.Public().(ed25519.PublicKey))+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return []string{"--roster", roster, "--root-key", rootKey}
+}
+
+// invokeSigned is invoke of the pause command words, then --key keyFile and
+// the roster flags judge, then rest.
+func invokeSigned(t *testing.T, words []string, keyFile string, judge []string, rest ...string) (int, string, string) {
+	t.Helper()
+	args := append(append(append(append([]string{"pause"}, words...), "--key", keyFile), judge...), rest...)
+	return invoke(t, args...)
+}
 
 // signedInitialized is a pause file signed with the operator key at keyFile
 // for t1/A at serial 7.
@@ -28,16 +78,24 @@ func signedInitialized(t *testing.T, keyFile string) string {
 // signer.
 func TestSignedPauseCommandsSignEveryChangeAtTheNextSerial(t *testing.T) {
 	keyFile, pub, _ := operatorKey(t)
+	judge := rosterOf(t, pub)
 	path := signedInitialized(t, keyFile)
-	code, id, stderr := invoke(t, "pause", "add", "--global", "--key", keyFile, path)
+	code, id, stderr := invokeSigned(t, []string{"add", "--global"}, keyFile, judge, path)
 	id = strings.TrimSpace(id)
 	if code != exitOK || !drawnID.MatchString(id) {
 		t.Fatalf("pause add --key answered %d: %q %q", code, id, stderr)
 	}
-	want := pause.Header{KeyID: policykey.KeyID(pub), Tenant: "t1", Project: "A", Serial: 8}
+	if !strings.Contains(stderr, "signed serial 8 for tenant t1 project A of ") || !strings.Contains(stderr, "1 entry(ies): "+id) {
+		t.Errorf("pause add --key said %q, not what it signed", stderr)
+	}
+	bound, err := pause.BindingOf(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := pause.Header{KeyID: policykey.KeyID(pub), Tenant: "t1", Project: "A", File: bound, Serial: 8}
 	holdsSigned(t, path, want, id)
 	listsSigned(t, path, "signed by key "+want.KeyID+" for tenant t1 project A at serial 8;", id+" global")
-	if code, _, stderr := invoke(t, "pause", "remove", "--key", keyFile, path, id); code != exitOK {
+	if code, _, stderr := invokeSigned(t, []string{"remove"}, keyFile, judge, path, id); code != exitOK {
 		t.Fatalf("pause remove --key answered %d: %q", code, stderr)
 	}
 	if l, err := pause.List(path); err != nil || l.Signed == nil || l.Signed.Serial != 9 || len(l.Entries) != 0 {
@@ -67,9 +125,11 @@ func listsSigned(t *testing.T, path, first, entry string) {
 
 // TestASignedPauseFileRefusesAnUnsignedWrite: an add or a removal without
 // --key is refused naming the flag, and writes nothing; one with --key to an
-// unsigned file is refused naming the signed init.
+// unsigned file is refused naming the signed init; --key needs the roster
+// flags, and they need --key.
 func TestASignedPauseFileRefusesAnUnsignedWrite(t *testing.T) {
-	keyFile, _, _ := operatorKey(t)
+	keyFile, pub, _ := operatorKey(t)
+	judge := rosterOf(t, pub)
 	path := signedInitialized(t, keyFile)
 	before := fileBytes(t, path)
 	expectRefusal(t, "pause add", "sign the change with --key <operator key file>", "pause", "add", "--global", path)
@@ -78,8 +138,60 @@ func TestASignedPauseFileRefusesAnUnsignedWrite(t *testing.T) {
 		t.Error("a refused unsigned write changed the signed file")
 	}
 	unsigned := initialized(t)
-	expectRefusal(t, "pause add", "a signed pause file starts with pause init --key", "pause", "add", "--global", "--key", keyFile, unsigned)
-	expectRefusal(t, "pause add", "--key", "pause", "add", "--global", "--key", filepath.Join(t.TempDir(), "missing"), path)
+	code, _, stderr := invokeSigned(t, []string{"add", "--global"}, keyFile, judge, unsigned)
+	if code != exitFail || !strings.Contains(stderr, "a signed pause file starts with pause init --key") {
+		t.Errorf("a signed add to an unsigned file answered %d: %q", code, stderr)
+	}
+	for _, args := range [][]string{
+		{"add", "--global", "--key", keyFile, path},
+		{"add", "--global", "--key", keyFile, "--roster", judge[1], path},
+		{"remove", "--key", keyFile, path, "P1"},
+		{"add", "--global", "--roster", judge[1], "--root-key", judge[3], path},
+	} {
+		if code, _, _ := invoke(t, append([]string{"pause"}, args...)...); code != exitUsage {
+			t.Errorf("pause %v answered %d, want the usage status", args, code)
+		}
+	}
+	if fileBytes(t, path) != before {
+		t.Error("a refused write changed the signed file")
+	}
+}
+
+// TestASignedWriteSignsNoEntriesAKeylessWriterPutThere: a file a writer
+// signed with a key the roster does not name is refused by add and remove
+// with --key, naming what they found, and left as it was.
+func TestASignedWriteSignsNoEntriesAKeylessWriterPutThere(t *testing.T) {
+	keyFile, pub, _ := operatorKey(t)
+	judge := rosterOf(t, pub)
+	path := signedInitialized(t, keyFile)
+	bound, err := pause.BindingOf(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mallory := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{0x6d}, ed25519.SeedSize))
+	forged := pause.Signer{KeyID: policykey.KeyID(mallory.Public().(ed25519.PublicKey)), Sign: func(payloadType string, body []byte) ([]byte, error) {
+		return bundle.SignBytesAs(payloadType, body, mallory)
+	}, Accept: func(pause.Signed) error { return nil }}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := pause.InitSigned(t.Context(), path, pause.Header{KeyID: forged.KeyID, Tenant: "t1", Project: "A", File: bound, Serial: 9}, forged); err != nil {
+		t.Fatal(err)
+	}
+	before := fileBytes(t, path)
+	for _, words := range [][]string{{"add", "--global"}, {"remove"}} {
+		rest := []string{path}
+		if words[0] == "remove" {
+			rest = append(rest, "P1")
+		}
+		code, stdout, stderr := invokeSigned(t, words, keyFile, judge, rest...)
+		if code != exitFail || stdout != "" || !strings.Contains(stderr, "not one the roster vouches for") || !strings.Contains(stderr, "serial 9 signed by key "+forged.KeyID) {
+			t.Errorf("pause %s over mallory's file answered %d: %q %q", words[0], code, stdout, stderr)
+		}
+	}
+	if fileBytes(t, path) != before {
+		t.Error("a refused write changed mallory's file")
+	}
 }
 
 // TestPauseInitTakesTheSignedFlagsTogether: --tenant, --project and

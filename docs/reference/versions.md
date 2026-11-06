@@ -63,7 +63,9 @@ policy bundle, a freshness statement, a route and a lift carry no version of
 their own, only the payload type each is signed under, and the evidence
 spool frames its segments with no version at all, so a spool another release
 wrote is not promised readable. `notify`'s `--state` list of delivered alerts,
-one quoted key per line, carries none either.
+one quoted key per line, carries none either. A plane under
+`approvals.authority: signed` reads pause file `3` alone, and any other `1`
+and `2` alone.
 
 ## Reading files an older release wrote
 

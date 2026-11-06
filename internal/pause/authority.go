@@ -11,18 +11,23 @@ import (
 // project, and its serial against the pause floor, which a taken document
 // raises. It answers who signed, or a refusal wrapping one of this package's
 // errors, which names the cause: ErrUnauthenticated, ErrOtherScope,
-// ErrUnauthorized, ErrAuthority, ErrBelowFloor, ErrForked or ErrFloor.
+// ErrOtherFile, ErrUnauthorized, ErrAuthority, ErrBelowFloor, ErrForked or
+// ErrFloor.
 type Judge interface {
 	Judge(ctx context.Context, f Signed) (SignedBy, error)
 }
 
 // ReadSigned is Read for a plane under the signed authority, judging with j.
-// The file and its directory may be owned by any account, the operator's
-// rather than the plane's, and the file has to be signed and taken by j. A
-// file that fails any of these reads as Unknown with that cause, as a file
-// Read refuses does.
+// The file and its directory may not be owned by this process's effective
+// user, which is the plane's account, and the file has to be signed and
+// taken by j. A file that fails any of these reads as Unknown with that
+// cause, as a file Read refuses does.
 func ReadSigned(ctx context.Context, path string, now time.Time, interval time.Duration, j Judge) Snapshot {
-	by, doc, err := readSigned(ctx, path, j)
+	return readSignedAs(ctx, path, now, interval, j, ownedByAnother)
+}
+
+func readSignedAs(ctx context.Context, path string, now time.Time, interval time.Duration, j Judge, o owner) Snapshot {
+	by, doc, err := readSigned(ctx, path, j, o)
 	if err != nil {
 		return unknown(causeOf(err), bounded(err.Error()), now, interval)
 	}
@@ -31,11 +36,11 @@ func ReadSigned(ctx context.Context, path string, now time.Time, interval time.D
 	return s
 }
 
-func readSigned(ctx context.Context, path string, j Judge) (SignedBy, Document, error) {
+func readSigned(ctx context.Context, path string, j Judge, o owner) (SignedBy, Document, error) {
 	if j == nil {
 		return SignedBy{}, Document{}, ErrOptions
 	}
-	f, err := Inspect(path)
+	f, err := inspect(path, o)
 	if err != nil {
 		return SignedBy{}, Document{}, err
 	}
@@ -47,7 +52,11 @@ func readSigned(ctx context.Context, path string, j Judge) (SignedBy, Document, 
 // the file and its directory, and returns it unjudged: it is for a check
 // that may not raise a floor.
 func Inspect(path string) (Signed, error) {
-	f, err := load(path, anyOwner)
+	return inspect(path, ownedByAnother)
+}
+
+func inspect(path string, o owner) (Signed, error) {
+	f, err := load(path, o)
 	switch {
 	case err != nil:
 		return Signed{}, err

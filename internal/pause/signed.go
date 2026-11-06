@@ -6,9 +6,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/guardana/control/internal/canon"
 	"github.com/guardana/control/internal/policy"
@@ -32,15 +36,36 @@ const MaxSignedBodyBytes = 16384
 const signedAlg = "ed25519"
 
 // signedMembers is every member of a signed body, each required.
-var signedMembers = []string{"alg", "entries", "keyId", "project", "schema_version", "serial", "tenant"}
+var signedMembers = []string{"alg", "entries", "file", "keyId", "project", "schema_version", "serial", "tenant"}
 
 // Header is what a signed pause document says besides its entries: the key
-// that signed it, the tenant and project it pauses in, and its serial, which
-// only ever rises.
+// that signed it, the tenant and project it pauses in, the pause file it was
+// signed for, as an absolute and clean path, and its serial, which only ever
+// rises. File binds a document to one plane's file, so a copy into another
+// plane's of the same tenant and project is refused.
 type Header struct {
 	KeyID           string
 	Tenant, Project string
+	File            string
 	Serial          int64
+}
+
+// MaxFilePathBytes bounds the pause file's path a signed body names.
+const MaxFilePathBytes = 1024
+
+// BindingOf is the path a signed document names for the pause file at path:
+// absolute and clean, with every link on the way to its directory resolved,
+// so a writer and a plane that spell the one file two ways bind it alike.
+func BindingOf(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("%w: the pause file's path: %w", ErrMalformed, err)
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Dir(abs))
+	if err != nil {
+		return "", fmt.Errorf("the pause file's directory: %w", missing(err))
+	}
+	return filepath.Join(dir, filepath.Base(abs)), nil
 }
 
 // SignedDocument is a signed pause document as its body holds it, judged by
@@ -51,11 +76,15 @@ type SignedDocument struct {
 	Digest string
 }
 
-// Signer is an operator key a writer signs with: its id, and a function that
-// signs a body under a payload type.
+// Signer is an operator key a writer signs with: its id, a function that
+// signs a body under a payload type, and Accept, which judges the signed file
+// the write starts from before anything in it is signed again: without it, a
+// writer holding no roster key could put entries in the file for the next
+// signed write to sign as its own.
 type Signer struct {
-	KeyID string
-	Sign  func(payloadType string, body []byte) ([]byte, error)
+	KeyID  string
+	Sign   func(payloadType string, body []byte) ([]byte, error)
+	Accept func(Signed) error
 }
 
 // file is a pause file as read: its document, and for a signed one the
@@ -160,7 +189,7 @@ func readHeader(top map[string]json.RawMessage) (Header, error) {
 		return Header{}, fmt.Errorf("%w: a signed body of %q, this build signs %q", ErrVersion, bounded(version), SignedVersion)
 	}
 	var h Header
-	for name, to := range map[string]*string{"keyId": &h.KeyID, "tenant": &h.Tenant, "project": &h.Project} {
+	for name, to := range map[string]*string{"keyId": &h.KeyID, "tenant": &h.Tenant, "project": &h.Project, "file": &h.File} {
 		if *to, err = member(top, name, str); err != nil {
 			return Header{}, malformed("%v", err)
 		}
@@ -194,8 +223,25 @@ func (h Header) check() error {
 	if err := checkName("project", h.Project, MaxNameBytes); err != nil {
 		return malformed("%v", err)
 	}
+	if err := checkFile(h.File); err != nil {
+		return err
+	}
 	if h.Serial < 1 || h.Serial > policy.MaxSerial {
 		return malformed("serial: %d is outside 1 to %d", h.Serial, int64(policy.MaxSerial))
+	}
+	return nil
+}
+
+// checkFile refuses a bound path that is empty, past MaxFilePathBytes, not
+// absolute, not in its clean form, or holding a control character.
+func checkFile(path string) error {
+	switch {
+	case path == "" || len(path) > MaxFilePathBytes:
+		return malformed("file: empty or past %d bytes", MaxFilePathBytes)
+	case !filepath.IsAbs(path) || filepath.Clean(path) != path:
+		return malformed("file: not an absolute path in its clean form")
+	case !utf8.ValidString(path) || strings.IndexFunc(path, func(r rune) bool { return unicode.In(r, unicode.Cc, unicode.Cf) }) >= 0:
+		return malformed("file: not UTF-8, or holding a control or format character")
 	}
 	return nil
 }
@@ -223,7 +269,7 @@ func MarshalSigned(h Header, d Document) ([]byte, error) {
 	}
 	body, err := canon.Canonicalize(map[string]any{
 		"schema_version": SignedVersion, "alg": signedAlg, "keyId": h.KeyID,
-		"tenant": h.Tenant, "project": h.Project, "serial": h.Serial, "entries": entries,
+		"tenant": h.Tenant, "project": h.Project, "file": h.File, "serial": h.Serial, "entries": entries,
 	})
 	if err != nil {
 		return nil, malformed("%v", err)
