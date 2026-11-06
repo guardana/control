@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/guardana/control/internal/approvals"
+	"github.com/guardana/control/internal/approvals/inbox"
 	"github.com/guardana/control/internal/files"
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/operators"
@@ -122,17 +122,17 @@ func (d *examination) authority(context.Context) (string, string, string) {
 	switch d.cfg.Approvals.Authority {
 	case gatewayconfig.AuthoritySigned:
 		dir := d.cfg.Resolve(d.cfg.Approvals.InboxDir)
-		inbox, err := approvals.OpenInbox(dir)
+		in, err := inbox.OpenInbox(dir)
 		if err != nil {
 			return verdictFail, doctorAuthority, "approvals.inbox_dir: " + err.Error()
 		}
-		n, more, entriesErr := inbox.Entries()
-		if err := errors.Join(entriesErr, inbox.Close()); err != nil {
+		n, more, entriesErr := in.Entries()
+		if err := errors.Join(entriesErr, in.Close()); err != nil {
 			return verdictUnknown, doctorAuthority, "approvals.inbox_dir opened and could not be listed: " + err.Error()
 		}
 		found := fmt.Sprintf(
 			"signed: answers are read from %s, which holds %d of at most %d name(s), at most %d per approval and %d bytes each, and each is authenticated, compared with its hold and authorized before it counts; a valid rejection wins",
-			filepath.ToSlash(dir), n, approvals.MaxInboxEntries, approvals.MaxAnswersPerApproval, approvals.MaxAnswerFileBytes)
+			filepath.ToSlash(dir), n, inbox.MaxInboxEntries, inbox.MaxAnswersPerApproval, inbox.MaxAnswerFileBytes)
 		if more {
 			return verdictUnknown, doctorAuthority, found + "; the inbox is past its bound, so every signed hold is read as truncated"
 		}

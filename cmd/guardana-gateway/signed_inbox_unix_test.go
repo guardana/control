@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/guardana/control/internal/approvals"
+	"github.com/guardana/control/internal/approvals/inbox"
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/operators"
@@ -61,12 +62,12 @@ func fileAnswer(t *testing.T, tr tree, held gateway.Disposition, label string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := approvals.MarshalAnswerFile(policy.StatementEnvelope{PayloadType: operators.AnswerPayloadType, Payload: body,
+	raw, err := inbox.MarshalAnswerFile(policy.StatementEnvelope{PayloadType: operators.AnswerPayloadType, Payload: body,
 		Signatures: []policy.StatementSignature{{KeyID: policykey.KeyID(signedTestPublic("alice")), Signature: sig}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	name, err := approvals.AnswerFileName(held.Pending.ApprovalID, label)
+	name, err := inbox.AnswerFileName(held.Pending.ApprovalID, label)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +87,7 @@ func TestASignedPlaneReadsItsInbox(t *testing.T) {
 		runs  bool
 	}{
 		{"one answer", 1, nil, true},
-		{"seventeen answers", approvals.MaxAnswersPerApproval + 1, nil, false},
+		{"seventeen answers", inbox.MaxAnswersPerApproval + 1, nil, false},
 		{"an inbox others may write", 1, func(tr tree) {
 			_ = os.Chmod(filepath.Join(tr.dir, "inbox"), 0o770) //nolint:gosec // G302: the mode under test is one the inbox refuses
 		}, false},
@@ -139,7 +140,7 @@ func TestTheInboxPruneKeepsWhatAHoldStillNeeds(t *testing.T) {
 	gone.Pending = &gateway.Pending{ApprovalID: "GONE1", ActionDigest: held.Pending.ActionDigest}
 	fileAnswer(t, tr, gone, "alice")
 	got, err := p.pruneInbox(context.Background(), time.Now().Add(p.cfg.Approvals.TTL+time.Minute))
-	if err != nil || got != (approvals.InboxPruned{Removed: 1}) {
+	if err != nil || got != (inbox.Pruned{Removed: 1}) {
 		t.Fatalf("pruneInbox = %+v, %v; want the answer to GONE1 removed alone", got, err)
 	}
 	if _, err := os.Stat(filepath.Join(tr.dir, "inbox", held.Pending.ApprovalID+".alice.answer")); err != nil {
