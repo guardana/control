@@ -166,13 +166,14 @@ func buildChecked(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time,
 // on its own. It opens no runs directory and serves local runs, but over an
 // enforce_api listener, whose adapter resolves a run on every request: it
 // opens the directory then as run does, which takes no lock and writes
-// nothing there.
+// nothing there; under the signed authority it holds no judge, so no record
+// counts.
 func (p *plane) open(r role, tokenPath string) error {
 	if r == roleInspect {
 		memory := &gateway.MemoryApprovals{}
 		p.store, p.authority, p.authorityKind = memory, memory, gateway.AuthorityDirectory
 		if p.cfg.Listener.Kind == gatewayconfig.ListenerEnforceAPI {
-			dir, _, err := openRuns(p.cfg, "")
+			dir, _, err := openRuns(p.cfg, "", nil, p.signedStart != nil)
 			if err != nil {
 				return err
 			}
@@ -180,11 +181,7 @@ func (p *plane) open(r role, tokenPath string) error {
 		}
 		return p.wire()
 	}
-	dir, token, err := openRuns(p.cfg, tokenPath)
-	if err != nil {
-		return err
-	}
-	p.runsDir, p.runToken = dir, token
+	var err error
 	if !signedStops(p.cfg) {
 		if p.stops, err = openStops(p.cfg, p.logger, nil); err != nil {
 			return err
@@ -196,6 +193,9 @@ func (p *plane) open(r role, tokenPath string) error {
 	}
 	p.store, p.records = store, records
 	if err := p.openAuthority(context.Background()); err != nil {
+		return err
+	}
+	if err := p.openRunsDir(tokenPath); err != nil {
 		return err
 	}
 	if err := p.openSignedReaders(); err != nil {

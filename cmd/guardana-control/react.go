@@ -26,11 +26,13 @@ import (
 const (
 	reactName = "react"
 	reactForm = "--findings <dir> --runs <dir> --route <file>\n" +
-		"      (--public-key <f> | --roster <f> --root-key <f> --approvals <dir>) --stops <dir>"
+		"      (--public-key <f> | --roster <f> --root-key <f> --approvals <dir>) --stops <dir>\n" +
+		"      [--tenant <t> --project <p>]"
 )
 
 type reactArgs struct {
 	routeFlags
+	read                  runsReadFlags
 	findings, runs, stops string
 	// approvals is the plane's approvals directory, whose owner is the
 	// plane's account, which react under the signed authority is not.
@@ -44,6 +46,7 @@ func reactFlags(command string, out io.Writer) (*flag.FlagSet, *reactArgs) {
 	flags := commandFlags(command, out)
 	a := &reactArgs{lockWait: stopsLockWait}
 	a.declare(flags)
+	a.read.declareScope(flags)
 	flags.StringVar(&a.findings, "findings", "", "the findings log directory supervise writes")
 	flags.StringVar(&a.runs, "runs", "", "the runs directory, read and never written")
 	flags.StringVar(&a.stops, "stops", "", "the stops directory stops init started")
@@ -100,14 +103,16 @@ func react(ctx context.Context, a reactArgs, clock func() time.Time, stdout, std
 	if err != nil {
 		return fail(stderr, reactName, fmt.Errorf("--findings %s: %w", a.findings, err))
 	}
-	plane, err := runs.OpenPlane(a.runs)
+	read := a.read
+	read.routeRoster, read.routeRootKey = a.roster, a.rootKey
+	lookup, closeRuns, err := openRunsLookup(a.runs, read)
 	if err != nil {
 		return fail(stderr, reactName, fmt.Errorf("--runs %s: %w", a.runs, err))
 	}
-	r := newReactor(ctx, route, list, plane.Lookup, a.stops, clock)
+	r := newReactor(ctx, route, list, lookup, a.stops, clock)
 	r.lockWait = a.lockWait
 	err = r.each(records)
-	if cerr := plane.Close(); cerr != nil {
+	if cerr := closeRuns(); cerr != nil {
 		err = errors.Join(err, fmt.Errorf("--runs %s: %w", a.runs, cerr))
 	}
 	lines := slices.Concat(r.written, r.unwritten, []string{fmt.Sprintf(
@@ -125,7 +130,7 @@ func react(ctx context.Context, a reactArgs, clock func() time.Time, stdout, std
 	return exitOK
 }
 
-// lookupRun is runs.Plane's Lookup.
+// lookupRun is runs.Plane's Lookup, or runs.Admin's on a signed layout.
 type lookupRun func(ctx context.Context, id string) (runs.Record, error)
 
 // reactor is one pass over a findings log.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/operators"
 	"github.com/guardana/control/internal/policykey"
+	"github.com/guardana/control/internal/runs"
 	"github.com/guardana/control/internal/trust"
 )
 
@@ -88,9 +90,10 @@ var (
 
 // checkSignedStart refuses a start under the signed kind that the plane's own
 // account could turn: a configuration file, a trust root key file, a pause
-// file, a route file or a stops directory it may write, or whose directory
-// it may write, and any key the environment set, since that account sets its
-// own environment when it restarts (ADR-0073).
+// file, a route file, a stops directory or the runs directory's records/ it
+// may write, or a directory on their path it may write, and any key the
+// environment set, since that account sets its own environment when it
+// restarts (ADR-0073).
 func checkSignedStart(cfg *gatewayconfig.Config) error {
 	if keys := environmentOverrides(cfg); len(keys) > 0 {
 		return fmt.Errorf("approvals.authority: signed, and the environment sets %s; the plane's own account sets its environment, so under signed every key is read from the configuration file alone (ADR-0073)",
@@ -107,6 +110,9 @@ func checkSignedStart(cfg *gatewayconfig.Config) error {
 		checked = append(checked,
 			struct{ key, path string }{"reaction.route", cfg.Resolve(cfg.Reaction.Route)},
 			struct{ key, path string }{"reaction.stops", cfg.Resolve(cfg.Reaction.Stops)})
+	}
+	if cfg.Runs.Dir != "" {
+		checked = append(checked, struct{ key, path string }{"runs.dir", filepath.Join(cfg.Resolve(cfg.Runs.Dir), runs.RecordsDir)})
 	}
 	for _, f := range checked {
 		if err := notPlaneWritable(f.path); err != nil {

@@ -25,12 +25,19 @@ const ActStops Act = "stops"
 // ActLift signs a lift, which ends the stops of one run on one list.
 const ActLift Act = "lift"
 
+// ActRun signs a run's record, which opens the run, and its closed record,
+// which closes it.
+const ActRun Act = "run"
+
 // AnswerPayloadType is the DSSE payload type an approval answer is signed
 // under.
 const AnswerPayloadType = "application/vnd.agent-approval-answer+json"
 
 // PausePayloadType is the DSSE payload type a pause document is signed under.
 const PausePayloadType = "application/vnd.agent-pause+json"
+
+// RunPayloadType is the DSSE payload type a run record is signed under.
+const RunPayloadType = "application/vnd.agent-run-record+json"
 
 // actRule is the payload type an act is signed under and the level a grant
 // needs to permit it.
@@ -52,6 +59,7 @@ var acts = map[Act]actRule{
 	ActLift:    {payloadType: LiftPayloadType, level: trust.LevelOperate},
 	ActApprove: {payloadType: AnswerPayloadType, level: trust.LevelOperate},
 	ActPause:   {payloadType: PausePayloadType, level: trust.LevelOperate},
+	ActRun:     {payloadType: RunPayloadType, level: trust.LevelOperate},
 }
 
 // Cause says why an answer is not a positive one. It is a closed set,
