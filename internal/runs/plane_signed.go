@@ -69,8 +69,8 @@ func closesAnyway(rec Record, err error) bool {
 // carry writes the close of run id into state/, where it outlives the closed
 // record: a run once closed stays closed whatever records/ holds later. A
 // close carried already is left as it is. A close it fails to write is held
-// in the handle instead, so the run's open record put back is refused while
-// the handle lives.
+// in the handle instead, so the run's open record put back is refused, until
+// writeHeld writes it.
 func (p *Plane) carry(id string) error {
 	if err := p.st.createEmpty(id + closedSuffix); err != nil {
 		p.uncarried.add(id)
@@ -81,10 +81,64 @@ func (p *Plane) carry(id string) error {
 	return nil
 }
 
+// maxUncarried is the most closes a plane holds that state/ did not take.
+// Holding one more could fail, and a close forgotten would let the run's open
+// record count again, so at the bound the plane refuses every signed resolve.
+const maxUncarried = 64
+
+// writeHeld writes into state/ every close the handle holds, dropping each
+// once written, and returns what still refused, each naming its run. A
+// signed resolve calls it first, as do the survey and Close, so a held close
+// reaches state/ as soon as state/ takes it.
+func (p *Plane) writeHeld() error {
+	var errs []error
+	for _, id := range p.uncarried.list() {
+		if err := p.st.createEmpty(id + closedSuffix); err != nil {
+			errs = append(errs, fmt.Errorf("the close of %s was not carried: %w", id, err))
+			continue
+		}
+		p.uncarried.remove(id)
+		p.counts.add("closes_carried")
+	}
+	return errors.Join(errs...)
+}
+
+// ready writes the held closes and refuses with ErrUncarried while the
+// handle still holds maxUncarried of them.
+func (p *Plane) ready() error {
+	err := p.writeHeld()
+	if n := p.uncarried.size(); n >= maxUncarried {
+		return errors.Join(fmt.Errorf("%w: %d", ErrUncarried, n), err)
+	}
+	return nil
+}
+
 // closeSet is a set of run ids safe for concurrent use.
 type closeSet struct {
 	mu  sync.Mutex
 	ids map[string]bool
+}
+
+func (c *closeSet) remove(id string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.ids, id)
+}
+
+func (c *closeSet) size() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.ids)
+}
+
+func (c *closeSet) list() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]string, 0, len(c.ids))
+	for id := range c.ids {
+		out = append(out, id)
+	}
+	return out
 }
 
 func (c *closeSet) add(id string) {
@@ -140,8 +194,8 @@ type Survey struct {
 // put back after a close the plane never resolved is refused all the same.
 // A serving plane calls it at its start. A record that does not count is
 // counted and left: it refuses only the calls it would cover. A close it
-// cannot write stops the read with an error naming the run, which a serving
-// plane does not start past.
+// cannot write, one the handle held among them, stops the read with an error
+// naming the run, which a serving plane does not start past.
 func (p *Plane) CarryCloses(ctx context.Context, bound int, now time.Time) (Survey, error) {
 	return p.survey(ctx, bound, now, true)
 }
@@ -164,6 +218,11 @@ func (p *Plane) survey(ctx context.Context, bound int, now time.Time, carry bool
 		return Survey{}, err
 	}
 	defer end()
+	if carry {
+		if err := p.writeHeld(); err != nil {
+			return Survey{}, err
+		}
+	}
 	entries, err := p.d.readDir()
 	if err != nil {
 		return Survey{}, err

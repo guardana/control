@@ -62,8 +62,11 @@ signature over a union nobody judged.
   record put back later is refused. Taint is joined: untrusted where either
   side is, the higher read, unknown above all. Each root's state is read and
   written under the root's lock, the one a plane raises it under, so a plane
-  sharing the runs directory that raises a root meanwhile is never lowered. A state lost beside its lock file or its record joins as
-  untrusted with an unknown read under both authorities.
+  sharing the runs directory that raises a root meanwhile is never lowered.
+  A close such a plane holds because `state/` did not take it is in no
+  file, so the restore cannot carry it (ADR-0076). A state lost beside its
+  lock file or its record joins as untrusted with an unknown read under
+  both authorities.
 - Under `directory` the pause file is the union of both; under `signed`
   only the pause floor is raised, and `doctor` names what an operator puts
   back.

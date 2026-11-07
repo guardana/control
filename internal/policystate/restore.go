@@ -230,8 +230,9 @@ type floorKind[V any] struct {
 	// listEmpty lists an id neither directory holds a serial for, with no
 	// file, rather than leave it out.
 	listEmpty bool
-	// stampsLive restores an id only live lists from its own floor, as
-	// restored(cur, *cur), rather than leave it as it is.
+	// stampsLive restores an id only live lists, or one the backup lists
+	// with no file, from its own floor, as restored(cur, *cur), rather than
+	// leave it as it is.
 	stampsLive  bool
 	judge       func(*dir, []os.DirEntry) ([]string, error)
 	writeMarker func(d *dir, ids []string, create bool) error
@@ -389,9 +390,13 @@ func restoreOne[V any](k floorKind[V], d *dir, listed *[]string, id string, bk *
 }
 
 // nextFloor is the floor a restore writes for one id from cur and bk, and
-// false where it writes none: a backup with no file, or no serial on either
-// side, leaves the id as it is.
+// false where it writes none: no serial on either side leaves the id as it
+// is, and so does a backup with no file, except where k stamps live's own
+// floor as it stamps an id only live lists.
 func nextFloor[V any](k floorKind[V], cur, bk *V) (V, bool, error) {
+	if bk == nil && k.stampsLive && cur != nil && k.hasSerial(*cur) {
+		return k.restored(cur, *cur)
+	}
 	if bk == nil || (!k.hasSerial(*bk) && (cur == nil || !k.hasSerial(*cur))) {
 		var none V
 		return none, false, nil

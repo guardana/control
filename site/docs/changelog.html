@@ -177,8 +177,11 @@ and say on standard error what they signed. A plane refuses a <code>records/</co
 or a record its own account owns. When the plane takes a closed record it carries the close into
 <code>state/</code>, at a call or at its start, so the open record put back is
 refused; a close whose signer may no longer operate there is carried too. A
-close it cannot write is refused as carried until the plane stops, and a
-start that cannot carry one refuses, naming the run. A record
+close <code>state/</code> does not take is held and refused as carried, written at
+the next signed resolve, start or stop that can, and counted as
+<code>carry_failed</code>; holding 64, the plane refuses every signed resolve, and a
+start that cannot carry one refuses, naming the run. A held close protects
+only its own plane. A record
 copied from another path counts in neither; planes that use one path on two
 hosts must differ in tenant or project. The plane writes a root's state at
 its first admitted call and blocks the root's calls when that state is later
