@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -86,6 +84,54 @@ func RestoreUnsigned(ctx context.Context, live, backup string, now time.Time, st
 		return Restored{}, err
 	}
 	return a.writeMerged(cur, merged, step)
+}
+
+// CheckRestoreUnsigned refuses what RestoreUnsigned would refuse of live
+// and backup, ErrTwoHistories and ErrLayout among them, and writes nothing.
+func CheckRestoreUnsigned(live, backup string, now time.Time) error {
+	if now.IsZero() {
+		return ErrZeroTime
+	}
+	var from flatRuns
+	if backup != "" {
+		var err error
+		if from, err = readFlat(backup); err != nil {
+			return fmt.Errorf("the backup's runs: %w", err)
+		}
+	}
+	cur, err := liveFlat(live)
+	if err != nil {
+		return err
+	}
+	_, err = mergeRuns(cur, from, now)
+	return err
+}
+
+// liveFlat is what live holds as RestoreUnsigned finds it: no run where no
+// directory, or one holding only what a crash left, stands.
+func liveFlat(live string) (flatRuns, error) {
+	if _, err := os.Lstat(live); errors.Is(err, fs.ErrNotExist) {
+		return flatRuns{}, nil
+	}
+	if signed, err := signedLayout(live); err != nil || signed {
+		return flatRuns{}, errors.Join(err, fmt.Errorf("%w: %s is a signed layout", ErrLayout, clip(live)))
+	}
+	d, err := openDir(live, roleFlat, ownedByThisUser)
+	if err != nil {
+		return flatRuns{}, err
+	}
+	defer func() { _ = d.close() }()
+	entries, err := d.readDir()
+	if err != nil {
+		return flatRuns{}, fmt.Errorf("%w: %w", ErrNotRunsDir, err)
+	}
+	if onlyLeftovers(entries) {
+		return flatRuns{}, nil
+	}
+	if err := d.judgeContents(entries); err != nil {
+		return flatRuns{}, err
+	}
+	return d.flat()
 }
 
 // flatRuns is what an unsigned directory holds: its records, and the state
@@ -252,175 +298,4 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	slices.Sort(keys)
 	return keys
-}
-
-// RestoreSigned carries the close of every run whose record live's or
-// backup's records/ names into live's state/, and joins each state backup's
-// state/ holds into live's; a missing state is a root's first. It reads the
-// records' names and judges no record: a close carried is the safe side. It
-// writes nothing to records/, and step is called before each write. An
-// empty backup is none: live's runs are closed all the same.
-func RestoreSigned(ctx context.Context, live, backup string, step func(string) error) (out Restored, err error) {
-	if err := ctx.Err(); err != nil {
-		return Restored{}, err
-	}
-	if step == nil {
-		step = func(string) error { return nil }
-	}
-	ids, states, err := signedBackup(backup)
-	if err != nil {
-		return Restored{}, fmt.Errorf("the backup's runs: %w", err)
-	}
-	more, err := signedIDs(live)
-	if err != nil {
-		return Restored{}, err
-	}
-	ids = append(ids, more...)
-	slices.Sort(ids)
-	ids = slices.Compact(ids)
-	if err := step("carry"); err != nil {
-		return Restored{}, err
-	}
-	if err := CarryClosed(live, ids); err != nil {
-		return Restored{}, err
-	}
-	out.Carried = len(ids)
-	out.States, err = joinSigned(live, states, step)
-	return out, err
-}
-
-// joinSigned joins each of states into the state/ of live, a missing one
-// counting as a root's first, and returns how many it wrote.
-func joinSigned(live string, states map[string]State, step func(string) error) (n int, err error) {
-	st, err := openState(live)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { err = errors.Join(err, st.close()) }()
-	for _, root := range sortedKeys(states) {
-		have, err := st.readState(root)
-		switch {
-		case errors.Is(err, fs.ErrNotExist):
-			have = initialState
-		case err != nil:
-			return n, err
-		}
-		next := JoinStates(have, states[root])
-		if next == have {
-			continue
-		}
-		if err := step("state " + root); err != nil {
-			return n, err
-		}
-		if err := st.writeState(root, next); err != nil {
-			return n, err
-		}
-		n++
-	}
-	return n, nil
-}
-
-// signedBackup is the run ids backup's records/ names and the states its
-// state/ holds; an empty backup is none.
-func signedBackup(backup string) ([]string, map[string]State, error) {
-	if backup == "" {
-		return nil, map[string]State{}, nil
-	}
-	ids, err := signedIDs(backup)
-	if err != nil {
-		return nil, nil, err
-	}
-	states, err := signedStates(backup)
-	if err != nil {
-		return nil, nil, err
-	}
-	return ids, states, nil
-}
-
-// CarryClosed writes into the state/ of dir, a signed layout, the close of
-// each run of ids, so an open record of one of them is refused whatever
-// records/ holds later. It refuses an id CheckRunID refuses before it
-// writes any, leaves a close carried already as it is, and judges nothing
-// else: closing is the safe side.
-func CarryClosed(dir string, ids []string) (err error) {
-	for _, id := range ids {
-		if err := checkRunID(id); err != nil {
-			return err
-		}
-	}
-	st, err := openState(dir)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, st.close()) }()
-	for _, id := range ids {
-		if err := st.createEmpty(id + closedSuffix); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func openState(dir string) (*dir, error) {
-	if signed, err := signedLayout(dir); err != nil || !signed {
-		return nil, errors.Join(err, fmt.Errorf("%w: %s is not a signed layout", ErrLayout, clip(dir)))
-	}
-	if err := judgeTop(dir, true); err != nil {
-		return nil, err
-	}
-	st, err := openDir(filepath.Join(dir, StateDir), roleState, ownedByThisUser)
-	if err != nil {
-		return nil, fmt.Errorf("%s/: %w", StateDir, err)
-	}
-	if err := st.checkContents(); err != nil {
-		return nil, errors.Join(err, st.close())
-	}
-	return st, nil
-}
-
-// signedIDs is every run id a record's name under dir's records/ holds.
-func signedIDs(dir string) ([]string, error) {
-	entries, err := os.ReadDir(filepath.Join(dir, RecordsDir))
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrNotRunsDir, err)
-	}
-	var ids []string
-	for _, e := range entries {
-		switch k, id := classify(e.Name(), roleRecords); {
-		case !e.Type().IsRegular() || k == kindForeign:
-			return nil, fmt.Errorf("%w: %q", ErrForeignFile, clip(e.Name()))
-		case k == kindRecord:
-			ids = append(ids, id)
-		}
-	}
-	return ids, nil
-}
-
-// signedStates is every state dir's state/ holds, by root.
-func signedStates(dir string) (map[string]State, error) {
-	st, err := openDir(filepath.Join(dir, StateDir), roleState, ownedByThisUser)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = st.close() }()
-	entries, err := st.readDir()
-	if err != nil {
-		return nil, err
-	}
-	if _, err := st.scan(entries); err != nil {
-		return nil, err
-	}
-	out := map[string]State{}
-	for _, e := range entries {
-		root, ok := strings.CutSuffix(e.Name(), stateSuffix)
-		if !ok || checkRunID(root) != nil {
-			continue
-		}
-		s, err := st.readState(root)
-		if err != nil {
-			return nil, err
-		}
-		out[root] = s
-	}
-	return out, nil
 }

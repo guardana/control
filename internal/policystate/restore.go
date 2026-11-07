@@ -31,7 +31,9 @@ type Restored struct {
 // floors backup holds, a copy of one, and stamps every floor it holds a
 // serial for at now: the higher serial of the two with its digest, issued
 // at now and latest at now, so no statement issued before now confirms that
-// serial again. It refuses the same serial with two digests with
+// serial again. now is rounded up to the whole second, the precision of a
+// statement's issuedAt, so none issued earlier in now's second confirms
+// either. It refuses the same serial with two digests with
 // policy.ErrFloorSerialReused and a clock behind either floor's latest
 // issuedAt with policy.ErrClockBehindFloor, before it writes that id. An id
 // neither holds a serial for is listed and given no file, so a start refuses
@@ -39,8 +41,17 @@ type Restored struct {
 // missing live is built under a temporary sibling name and renamed into
 // place.
 func RestorePlane(ctx context.Context, live, backup string, now time.Time, step Step) (Restored, error) {
-	at := now.UTC().Truncate(time.Second)
-	k := floorKind[Record]{
+	return restoreFloors(ctx, planeKind(now), live, backup, step)
+}
+
+// CheckPlane refuses what RestorePlane would refuse, writing nothing.
+func CheckPlane(ctx context.Context, live, backup string, now time.Time) error {
+	return checkFloors(ctx, planeKind(now), live, backup)
+}
+
+func planeKind(now time.Time) floorKind[Record] {
+	at := stampAt(now)
+	return floorKind[Record]{
 		listEmpty:   true,
 		judge:       func(d *dir, e []os.DirEntry) ([]string, error) { return d.judgeContents(e, KindPlane) },
 		writeMarker: func(d *dir, ids []string, create bool) error { return d.writeMarker(KindPlane, ids, create) },
@@ -51,7 +62,15 @@ func RestorePlane(ctx context.Context, live, backup string, now time.Time, step 
 		restored:    func(cur *Record, bk Record) (Record, bool, error) { return stampFloor(cur, bk, at) },
 		write:       (*dir).writeRecord,
 	}
-	return restoreFloors(ctx, k, live, backup, step)
+}
+
+// stampAt is now rounded up to the whole second.
+func stampAt(now time.Time) time.Time {
+	at := now.UTC().Truncate(time.Second)
+	if at.Before(now) {
+		at = at.Add(time.Second)
+	}
+	return at
 }
 
 // stampFloor is the floor a restore at at writes for one bundle id, and false
@@ -101,7 +120,16 @@ func higherFloor(c, top policy.Floor) (policy.Floor, error) {
 // one serial with two digests with ErrRouteForked. An id backup holds no
 // serial for is left out; one only live lists is left as it is.
 func RestoreRoute(ctx context.Context, live, backup string, step Step) (Restored, error) {
-	k := floorKind[RouteFloor]{
+	return restoreFloors(ctx, routeKind(), live, backup, step)
+}
+
+// CheckRoute refuses what RestoreRoute would refuse, writing nothing.
+func CheckRoute(ctx context.Context, live, backup string) error {
+	return checkFloors(ctx, routeKind(), live, backup)
+}
+
+func routeKind() floorKind[RouteFloor] {
+	return floorKind[RouteFloor]{
 		judge:       (*dir).judgeRouteContents,
 		writeMarker: (*dir).writeRouteMarker,
 		maxIDs:      MaxRouteIDs,
@@ -111,13 +139,21 @@ func RestoreRoute(ctx context.Context, live, backup string, step Step) (Restored
 		restored:    higherSerial[RouteFloor],
 		write:       func(d *dir, f RouteFloor) error { return f.writeTo(d) },
 	}
-	return restoreFloors(ctx, k, live, backup, step)
 }
 
 // RestoreAuthority is RestoreRoute for an authority floor directory, which
 // refuses one serial with two digests with ErrAuthorityForked.
 func RestoreAuthority(ctx context.Context, live, backup string, step Step) (Restored, error) {
-	k := floorKind[AuthorityFloor]{
+	return restoreFloors(ctx, authorityKind(), live, backup, step)
+}
+
+// CheckAuthority refuses what RestoreAuthority would refuse, writing nothing.
+func CheckAuthority(ctx context.Context, live, backup string) error {
+	return checkFloors(ctx, authorityKind(), live, backup)
+}
+
+func authorityKind() floorKind[AuthorityFloor] {
+	return floorKind[AuthorityFloor]{
 		judge:       (*dir).judgeAuthorityContents,
 		writeMarker: (*dir).writeAuthorityMarker,
 		maxIDs:      MaxRosterIDs,
@@ -127,7 +163,6 @@ func RestoreAuthority(ctx context.Context, live, backup string, step Step) (Rest
 		restored:    higherSerial[AuthorityFloor],
 		write:       func(d *dir, f AuthorityFloor) error { return f.writeTo(d) },
 	}
-	return restoreFloors(ctx, k, live, backup, step)
 }
 
 // RestorePause is RestoreRoute for the pause floor directory of tenant and
@@ -137,7 +172,19 @@ func RestorePause(ctx context.Context, live, backup, tenant, project string, ste
 	if err := checkPauseScope(tenant, project); err != nil {
 		return Restored{}, err
 	}
-	k := floorKind[PauseFloor]{
+	return restoreFloors(ctx, pauseKind(tenant, project), live, backup, step)
+}
+
+// CheckPause refuses what RestorePause would refuse, writing nothing.
+func CheckPause(ctx context.Context, live, backup, tenant, project string) error {
+	if err := checkPauseScope(tenant, project); err != nil {
+		return err
+	}
+	return checkFloors(ctx, pauseKind(tenant, project), live, backup)
+}
+
+func pauseKind(tenant, project string) floorKind[PauseFloor] {
+	return floorKind[PauseFloor]{
 		// read refuses a directory kept for another tenant or project.
 		judge: func(d *dir, e []os.DirEntry) ([]string, error) {
 			_, err := d.judgePauseContents(e)
@@ -157,7 +204,6 @@ func RestorePause(ctx context.Context, live, backup, tenant, project string, ste
 		restored:  higherSerial[PauseFloor],
 		write:     func(d *dir, f PauseFloor) error { return f.writeTo(d) },
 	}
-	return restoreFloors(ctx, k, live, backup, step)
 }
 
 // higherSerial is the floor a restore writes from cur, nil when its file is
@@ -231,6 +277,29 @@ func restoreFloors[V any](ctx context.Context, k floorKind[V], live, backup stri
 		}
 	}
 	return out, nil
+}
+
+// checkFloors refuses what restoreFloors would refuse by k's rules, writing
+// nothing: it runs the same judgement with every write left out.
+func checkFloors[V any](ctx context.Context, k floorKind[V], live, backup string) error {
+	k.write = func(*dir, V) error { return nil }
+	k.writeMarker = func(*dir, []string, bool) error { return nil }
+	if _, err := os.Lstat(live); !errors.Is(err, fs.ErrNotExist) {
+		_, err := restoreFloors(ctx, k, live, backup, nil)
+		return err
+	}
+	ids, held, err := readBackup(k, backup)
+	if err != nil {
+		return fmt.Errorf("the backup's %s: %w", clip(backup), err)
+	}
+	for _, id := range ids {
+		if held[id] != nil && k.hasSerial(*held[id]) {
+			if _, _, err := k.restored(nil, *held[id]); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // restoreOne restores one id of live from bk, listing it first where the

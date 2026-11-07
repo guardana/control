@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -69,17 +70,31 @@ func stateRestoreCommand(args []string, stdout, stderr io.Writer) int {
 	}
 	report, err := recovery.Restore(context.Background(), cfg, dir, time.Now())
 	if err != nil {
-		return fail(stderr, stateRestoreName, err)
+		var written []string
+		for _, done := range report.Done {
+			written = append(written, "done before the failure: "+done)
+		}
+		return fail(stderr, stateRestoreName, errors.Join(err, writeLines(stdout, written)))
 	}
-	lines := append([]string{}, report.Done...)
-	for _, key := range report.PutBack {
-		lines = append(lines, key+": an operator's signed file, never written by a restore; the backup holds a copy to put back")
-	}
-	lines = append(lines,
-		"a statement issued before the restore at a higher serial than the floor still confirms, within policy.max_stale",
-		"next: "+brand.Gateway+" doctor --config <config> names each signed file the raised floors refuse")
+	lines := restoreLines(cfg.Approvals.Authority == gatewayconfig.AuthoritySigned, report)
 	if err := writeLines(stdout, lines); err != nil {
 		return fail(stderr, stateRestoreName, err)
 	}
 	return exitOK
+}
+
+// restoreLines is what a restore that ended prints: what it did per key, each
+// signed file to put back, under signed what putting back an older one
+// brings back, then the stamp's residual and the next step.
+func restoreLines(signed bool, report recovery.Report) []string {
+	lines := append([]string{}, report.Done...)
+	for _, key := range report.PutBack {
+		lines = append(lines, key+": an operator's signed file, never written by a restore; put back the newest signed copy you hold, the backup's only when you hold none newer")
+	}
+	if signed {
+		lines = append(lines, "a floor raised only to the backup's serial takes an older signed file put back, the roster, the route, the pause file and the stop list among them, and with it a grant revoked, a route changed or a pause signed after the backup")
+	}
+	return append(lines,
+		"a statement issued before the restore at a higher serial than the floor still confirms, within policy.max_stale",
+		"next: "+brand.Gateway+" doctor --config <config> names each signed file the raised floors refuse")
 }

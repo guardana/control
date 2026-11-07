@@ -26,9 +26,9 @@ const (
 	// ErrUnlisted is a file in the backup the manifest does not name, or an
 	// entry that is not a regular file.
 	ErrUnlisted Error = "recovery: the backup holds a file the manifest does not name"
-	// ErrStops is a restore of a plane that keeps a stop list, which this
-	// build does not restore yet: it refuses rather than leave the list behind.
-	ErrStops Error = "recovery: the stop list is not restored yet"
+	// ErrStopHistories is a stop list that survived and neither begins with
+	// the backup's list nor carries it: two histories of the plane's stops.
+	ErrStopHistories Error = "recovery: the stop list and the backup's are two histories"
 	// ErrPlaneRunning is a backup or a restore while a plane holds the
 	// spool's or the hold journal's directory.
 	ErrPlaneRunning Error = "recovery: a plane holds its directories; stop it first"

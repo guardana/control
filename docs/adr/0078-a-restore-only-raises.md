@@ -24,35 +24,50 @@ signature over a union nobody judged.
 ## Decision
 
 - `guardana-control state backup <config> <dir>` copies, per class, the
-  plane floors, the route floors, the runs directory and the pause file,
-  and under `signed` the roster's and the pause's floors, into a new
+  plane floors, the route floors, the runs directory, the pause file and the
+  stop list, and under `signed` the roster's, the pause's and the stop
+  list's floors, into a new
   owner-only directory with `backup.json` (schema `0.1`) written last. The
   spool, the hold journal and its ledger, the approvals store and inbox, the
   trail, the signer's floors and every key are never copied. A test holds
   every configuration key naming a file to one side or the other.
 - `state restore <config> <dir>` runs as the plane's account, holding the
   spool's and the journal's locks for its whole run, and writes only what
-  that account owns: floors, runs and, under `directory`, the pause file. It
-  refuses another tenant, project or authority, a source the configuration
-  does not name, a tampered or unlisted file and another major, before it
-  writes.
+  that account owns: floors, runs and, under `directory`, the pause file and
+  the stop list. It refuses another tenant, project or authority, a source
+  the configuration does not name, a tampered or unlisted file and another
+  major. It copies the bytes it verified into an owner-only temporary
+  directory and restores only from that copy, and it runs every class's
+  check, two histories and a lost signed runs layout among them, before its
+  first write.
+- The manifest is unsigned. Its hashes catch a corrupted backup, not a
+  hostile writer of the backup directory, which only the plane's account
+  and the operator may write.
 - The locks are the directory locks the spool and the journal take, taken
   without linking either, so the approver's binary still reaches neither
   the gateway nor evidence. Where the system has no file lock, both
   commands refuse.
 - Every floor ends at the higher serial of the backup's and the live one. A
-  plane floor is stamped with issued and latest at the restore time, a raise
-  in the floor's own order, so no statement issued before the restore
-  confirms that serial again. The floor format does not change.
+  plane floor is stamped with issued and latest at the restore time rounded
+  up to the second, a raise in the floor's own order, so no statement issued
+  before the restore confirms that serial again. The floor format does not
+  change. The stop list floor rises in its own order: the higher serial, and
+  at one serial and head the longer accepted part where the live list or
+  the backup's copy begins with both parts; anything else is refused.
 - Every run closes at the restore time. Under `signed` the restore writes
   `state/<id>.closed` for every run the backup or `records/` names, the
   close ADR-0076 carries, so an open record put back later is refused.
   Taint is joined: untrusted where either side is, the higher read, unknown
-  above all.
+  above all. A state lost beside its lock file or its record joins as
+  untrusted with an unknown read under both authorities.
 - Under `directory` the pause file is the union of both; under `signed`
   only the pause floor is raised, and `doctor` names what an operator puts
   back.
-- A stop list is refused until its list floor exists, never skipped.
+- Under `directory` a surviving stop list is kept when it begins with the
+  backup's or carries it; with none, the backup's is carried into a list of
+  a new id, so a lift bound to the old list does not verify there; any other
+  list is two histories and refused. Under `signed` the list is an
+  operator's file, never written, and only its floor is raised.
 
 ## Security / compatibility impact
 
@@ -60,7 +75,11 @@ A restore cannot grant authority: it only raises floors, closes runs and
 adds pauses, and never writes a hold, an approval or an operator's file. A
 statement at a higher serial than the restored floor, issued before the
 restore, still confirms within `policy.max_stale`. Under `signed` the floors
-are only as strong as the plane's account. A raw volume copy stays
+are only as strong as the plane's account, and the roster, route, pause and
+stop list floors rise only to the backup's serial: an older signed file put
+back, the backup's copy among them, brings back a grant revoked, a route
+changed or a pause signed after the backup, so an operator puts back the
+newest signed file they hold. A raw volume copy stays
 unsupported. No wire contract changes; `backup.json` is a new format.
 
 ## Alternatives considered
@@ -74,12 +93,15 @@ unsupported. No wire contract changes; `backup.json` is a new format.
 ## Consequences
 
 An operator stops the plane, makes the spool and journal directories again
-and restores; a lost hold is lost, and an operator decides again. A plane
-with a stop list cannot be restored until the list floor exists.
+and restores; a lost hold is lost, and an operator decides again. A stop
+added or lifted after the backup is lost with the list, and a stop lifted
+after it is back until an operator lifts it again.
 
 ## Validation
 
 `internal/recovery`'s tests restore after a loss and over surviving state,
-refuse each bad backup and a held lock with the tree unchanged, stop a
-restore before each write and rerun it to the same tree, and draw random
-backups per class to show nothing ends lower (`TestRestoreNeverLowers`).
+refuse each bad backup, a held lock, a backup file changed after its check
+and two histories of runs, pauses or stops with the tree unchanged, stop a
+restore before each write under each authority and rerun it to the same
+tree, and draw random backups per class to show nothing ends lower
+(`TestRestoreNeverLowers`).

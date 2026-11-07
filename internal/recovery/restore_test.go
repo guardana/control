@@ -176,7 +176,6 @@ func TestRestoreRefusesBeforeWriting(t *testing.T) {
 		{"a major the build does not read", func(t *testing.T, _ *plane, dir string) {
 			edit(t, filepath.Join(dir, recovery.ManifestName), `"schema_version": "0.1"`, `"schema_version": "1.0"`)
 		}, recovery.ErrVersion},
-		{"a stop list configured", func(_ *testing.T, p *plane, _ string) { p.cfg.Reaction.Stops = "stops" }, recovery.ErrStops},
 		{"a missing manifest", func(t *testing.T, _ *plane, dir string) {
 			if err := os.Remove(filepath.Join(dir, recovery.ManifestName)); err != nil {
 				t.Fatal(err)
@@ -333,4 +332,65 @@ func edit(t *testing.T, path, from, to string) {
 func describe(f policy.Floor) string {
 	return fmt.Sprintf("%s serial %d %s issued %s latest %s", f.BundleID(), f.Serial(), f.Digest(),
 		policy.FormatIssuedAt(f.IssuedAt()), policy.FormatIssuedAt(f.LatestIssuedAt()))
+}
+
+// TestRestoreTakesOnlyTheBytesItVerified: a backup file swapped after the
+// manifest's check, at the first write, is not what the restore takes; the
+// copy it reads is owner-only and gone once it returns.
+func TestRestoreTakesOnlyTheBytesItVerified(t *testing.T) {
+	scratch := t.TempDir()
+	t.Setenv("TMPDIR", scratch)
+	p, dir, _ := backedUp(t)
+	q := newPlane(t, directoryBlock)
+	q.addPause(t, "unverified")
+	swap, err := os.ReadFile(q.path("pause/pause.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(p.path("pause/pause.json")); err != nil {
+		t.Fatal(err)
+	}
+	swapped := false
+	defer recovery.SetKillPoint(func(string) error {
+		if swapped {
+			return nil
+		}
+		swapped = true
+		if err := oneOwnerOnlyDir(scratch); err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(dir, "pause", "pause.json"), swap, 0o600)
+	})()
+	if _, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	if !swapped {
+		t.Fatal("the restore passed no write; nothing was swapped")
+	}
+	if ids := p.pauses(t); fmt.Sprint(ids) != "[p1]" {
+		t.Fatalf("pauses = %v, want the backup's [p1] as verified", ids)
+	}
+	if left, err := os.ReadDir(scratch); err != nil || len(left) != 0 {
+		t.Fatalf("the verified copy was left: %v, %v", left, err)
+	}
+}
+
+// oneOwnerOnlyDir refuses a dir that holds anything but one directory of
+// mode 0700.
+func oneOwnerOnlyDir(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	if len(entries) != 1 {
+		return fmt.Errorf("%s holds %d entries, want the one verified copy", dir, len(entries))
+	}
+	info, err := entries[0].Info()
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode().Perm() != 0o700 {
+		return fmt.Errorf("the verified copy is %v, want an owner-only directory", info.Mode())
+	}
+	return nil
 }

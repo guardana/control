@@ -229,7 +229,7 @@ func TestRestoreUnsignedRefusesASignedLayout(t *testing.T) {
 
 // TestRestoreSignedRefusesTheOpenRecordPutBack: a record the backup holds
 // open, put back into records/ after the restore, is refused by the plane's
-// replay check, and the backup's taint is joined into state/.
+// replay check, and a state lost beside its lock file joins as the worst.
 func TestRestoreSignedRefusesTheOpenRecordPutBack(t *testing.T) {
 	live, a := newSigned(t)
 	rec, token := openSignedRoot(t, a, "alice")
@@ -254,8 +254,83 @@ func TestRestoreSignedRefusesTheOpenRecordPutBack(t *testing.T) {
 	if _, err := p.Resolve(t.Context(), token, alice, opened.Add(time.Minute)); !errors.Is(err, runs.ErrReplayed) {
 		t.Fatalf("the open record put back: err = %v, want ErrReplayed", err)
 	}
-	if s, err := p.State(t.Context(), rec.ID); err != nil || s != (runs.State{Untrusted: true, MaxRead: confidential}) {
-		t.Fatalf("state = %+v, %v", s, err)
+	if s, err := p.State(t.Context(), rec.ID); err != nil || s != (runs.State{Untrusted: true, MaxRead: unknown}) {
+		t.Fatalf("state = %+v, %v, want untrusted and unknown", s, err)
+	}
+}
+
+// TestRestoreSignedTakesALostStateAsTheWorst: live's state of a root is
+// gone while its lock file or its record stays, so the plane refuses it;
+// a restore never turns it into the backup's lower taint.
+func TestRestoreSignedTakesALostStateAsTheWorst(t *testing.T) {
+	for _, kept := range []string{"lock", "record"} {
+		t.Run(kept, func(t *testing.T) {
+			live, a := newSigned(t)
+			rec, _ := openSignedRoot(t, a, "alice")
+			setState(t, signedPlane(t, live, alicesJudge), rec.ID, runs.State{Untrusted: false, MaxRead: confidential})
+			backup := copyTree(t, live)
+			setState(t, signedPlane(t, live, alicesJudge), rec.ID, runs.State{Untrusted: true, MaxRead: secret})
+			lost := []string{filepath.Join(live, "state", rec.ID+".state.json")}
+			if kept == "record" {
+				lost = append(lost, filepath.Join(live, "state", rec.ID+".lock"))
+			} else {
+				lost = append(lost, recordPath(live, rec.ID))
+			}
+			for _, path := range lost {
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := runs.RestoreSigned(t.Context(), live, backup, nil); err != nil {
+				t.Fatalf("RestoreSigned: %v", err)
+			}
+			s, err := signedPlane(t, live, alicesJudge).State(t.Context(), rec.ID)
+			if err != nil || s != (runs.State{Untrusted: true, MaxRead: unknown}) {
+				t.Fatalf("state = %+v, %v, want untrusted and unknown", s, err)
+			}
+		})
+	}
+}
+
+// TestRestoreSignedStartsARootLiveNeverHeldFromTheBackup: a root live holds
+// no record, state or lock file of is the backup's, not the worst.
+func TestRestoreSignedStartsARootLiveNeverHeldFromTheBackup(t *testing.T) {
+	live, a := newSigned(t)
+	rec, _ := openSignedRoot(t, a, "alice")
+	setState(t, signedPlane(t, live, alicesJudge), rec.ID, runs.State{Untrusted: false, MaxRead: confidential})
+	backup := copyTree(t, live)
+	for _, path := range []string{recordPath(live, rec.ID), filepath.Join(live, "state", rec.ID+".state.json"), filepath.Join(live, "state", rec.ID+".lock")} {
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := runs.RestoreSigned(t.Context(), live, backup, nil); err != nil {
+		t.Fatalf("RestoreSigned: %v", err)
+	}
+	if s, err := signedPlane(t, live, alicesJudge).State(t.Context(), rec.ID); err != nil || s != (runs.State{Untrusted: false, MaxRead: confidential}) {
+		t.Fatalf("state = %+v, %v, want the backup's", s, err)
+	}
+}
+
+// TestRestoreSignedClosesARunOnlyLiveRecords: a run opened after the backup,
+// whose record only live's records/ holds, is closed by the restore.
+func TestRestoreSignedClosesARunOnlyLiveRecords(t *testing.T) {
+	live, a := newSigned(t)
+	openSignedRoot(t, a, "alice")
+	backup := copyTree(t, live)
+	later, token := openSignedRoot(t, a, "alice")
+	got, err := runs.RestoreSigned(t.Context(), live, backup, nil)
+	if err != nil {
+		t.Fatalf("RestoreSigned: %v", err)
+	}
+	if got.Carried != 2 {
+		t.Fatalf("Restored = %+v, want two closes carried", got)
+	}
+	if _, err := os.Lstat(filepath.Join(live, "state", later.ID+".closed")); err != nil {
+		t.Fatalf("the close of the run only live records: %v", err)
+	}
+	if _, err := signedPlane(t, live, alicesJudge).Resolve(t.Context(), token, alice, opened.Add(time.Minute)); !errors.Is(err, runs.ErrReplayed) {
+		t.Fatalf("the run only live records: err = %v, want ErrReplayed", err)
 	}
 }
 

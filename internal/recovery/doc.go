@@ -2,7 +2,8 @@
 // that nothing restored is lower than what survived or what the backup holds
 // (ADR-0078). It runs as the plane's account while no plane runs, and
 // restores only what that account owns: the floors, the runs and, under the
-// directory authority, the pause file. An operator's signed file is never
+// directory authority, the pause file and the stop list. An operator's
+// signed file is never
 // written; the floors it is judged against are raised, and doctor names what
 // an operator has to put back.
 //

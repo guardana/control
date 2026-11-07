@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policystate"
@@ -77,6 +78,31 @@ func TestRestoredFloorTakesOnlyAStatementIssuedAfterIt(t *testing.T) {
 	}
 	if _, err := s.Raise(t.Context(), statement(t, idA, 5, d5, "13:30:00"), at(t, "14:00:00")); err != nil {
 		t.Fatalf("a statement issued after the restore: %v", err)
+	}
+}
+
+// TestRestoreStampRoundsUpToTheSecond: a restore part of the way into a
+// second stamps the next one, so a statement issued earlier in its own
+// second is below the floor; one on the second exactly stamps that second.
+func TestRestoreStampRoundsUpToTheSecond(t *testing.T) {
+	live := floorsAt(t, 5, d5, "11:00:00")
+	backup := floorsAt(t, 5, d5, "11:00:00")
+	if _, err := policystate.RestorePlane(t.Context(), live, backup, at(t, "13:00:00").Add(time.Millisecond), nil); err != nil {
+		t.Fatalf("RestorePlane: %v", err)
+	}
+	s := open(t, live)
+	if _, err := s.Raise(t.Context(), statement(t, idA, 5, d5, "13:00:00"), at(t, "14:00:00")); !errors.Is(err, policy.ErrBelowFloor) {
+		t.Fatalf("a statement of the restore's second: err = %v, want ErrBelowFloor", err)
+	}
+	if _, err := s.Raise(t.Context(), statement(t, idA, 5, d5, "13:00:01"), at(t, "14:00:00")); err != nil {
+		t.Fatalf("a statement of the next second: %v", err)
+	}
+	exact := floorsAt(t, 5, d5, "11:00:00")
+	if _, err := policystate.RestorePlane(t.Context(), exact, backup, at(t, "13:00:00"), nil); err != nil {
+		t.Fatalf("RestorePlane: %v", err)
+	}
+	if got, err := floorOf(t, exact, idA); err != nil || !got.IssuedAt().Equal(at(t, "13:00:00")) {
+		t.Fatalf("a restore on the second: floor = %s, %v", describe(got), err)
 	}
 }
 

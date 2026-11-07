@@ -8,6 +8,7 @@ const (
 	ClassRouteFloor     = "floor/route"
 	ClassAuthorityFloor = "floor/authority"
 	ClassPauseFloor     = "floor/pause"
+	ClassStopsFloor     = "floor/stops"
 	ClassRuns           = "runs"
 	ClassPause          = "pause"
 	ClassStops          = "stops"
@@ -31,6 +32,7 @@ var classes = []class{
 	{ClassRouteFloor, "reaction.floor_dir", func(c *gatewayconfig.Config) string { return c.Reaction.FloorDir }, true, false},
 	{ClassAuthorityFloor, "trust.floor_dir", func(c *gatewayconfig.Config) string { return c.Trust.FloorDir }, true, true},
 	{ClassPauseFloor, "pause.floor_dir", func(c *gatewayconfig.Config) string { return c.Pause.FloorDir }, true, true},
+	{ClassStopsFloor, "reaction.stops_floor_dir", func(c *gatewayconfig.Config) string { return c.Reaction.StopsFloorDir }, true, true},
 	{ClassRuns, "runs.dir", func(c *gatewayconfig.Config) string { return c.Runs.Dir }, true, false},
 	{ClassPause, "pause.file", func(c *gatewayconfig.Config) string { return c.Pause.File }, false, false},
 	{ClassStops, "reaction.stops", func(c *gatewayconfig.Config) string { return c.Reaction.Stops }, true, false},

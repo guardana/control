@@ -23,6 +23,17 @@ const ErrMergeConflict Error = "pause: one entry id names two pauses"
 // returns how many entries it added, and writes nothing when that is none
 // and the file stands.
 func Merge(ctx context.Context, path string, backup []byte) (int, error) {
+	return merge(ctx, path, backup, true)
+}
+
+// CheckMerge refuses what Merge would refuse of the file at path and
+// backup, and writes nothing.
+func CheckMerge(ctx context.Context, path string, backup []byte) error {
+	_, err := merge(ctx, path, backup, false)
+	return err
+}
+
+func merge(ctx context.Context, path string, backup []byte, write bool) (int, error) {
 	from, err := decodeFile(backup)
 	switch {
 	case err != nil:
@@ -46,22 +57,28 @@ func Merge(ctx context.Context, path string, backup []byte) (int, error) {
 			return err
 		}
 		added = n
-		if added == 0 && !missing {
+		if !write || (added == 0 && !missing) {
 			return nil
 		}
-		body, err := Marshal(next)
-		if err != nil {
-			return err
-		}
-		if missing {
-			return files.CreateNoReplaceIn(root, filepath.Base(path), body, fileMode)
-		}
-		return files.ReplaceIn(root, filepath.Base(path), body, fileMode)
+		return writeUnion(root, path, next, missing)
 	})
 	if err != nil {
 		return 0, err
 	}
 	return added, nil
+}
+
+// writeUnion writes next as the file at path, which root holds, making it
+// where it is missing.
+func writeUnion(root *os.Root, path string, next Document, missing bool) error {
+	body, err := Marshal(next)
+	if err != nil {
+		return err
+	}
+	if missing {
+		return files.CreateNoReplaceIn(root, filepath.Base(path), body, fileMode)
+	}
+	return files.ReplaceIn(root, filepath.Base(path), body, fileMode)
 }
 
 // union is have with every entry of add it does not hold appended, and how

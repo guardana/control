@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -30,17 +31,23 @@ type Report struct {
 
 // Restore raises the state cfg configures to what the backup in dir holds,
 // so no floor ends below the higher of the two, and closes every run at now.
-// It refuses, before it writes anything: a backup readBackup refuses; a
-// plane that keeps a stop list, with ErrStops; and a plane holding the
-// spool's or the hold journal's lock, which it then holds to the end. Under
-// the signed authority it writes only what the plane's account owns: the
-// floors and the runs' state/. The spool, the hold journal, the approvals
-// store and every key are never written, so nothing held resumes.
+// It refuses, before it writes anything: a backup readBackup refuses, a plane
+// holding the spool's or the hold journal's lock, which it then holds to the
+// end, and every conflict a class's own check finds, two histories of runs,
+// pauses or stops and a lost signed runs layout among them. Under the signed
+// authority it writes only what the plane's account owns: the floors and the
+// runs' state/. The spool, the hold journal, the approvals store and every
+// key are never written, so nothing held resumes.
 func Restore(ctx context.Context, cfg *gatewayconfig.Config, dir string, now time.Time) (_ Report, err error) {
 	if now.IsZero() {
 		return Report{}, errors.New("recovery: the clock reads zero")
 	}
-	m, err := readBackup(cfg, dir)
+	verified, err := os.MkdirTemp("", "state-restore-")
+	if err != nil {
+		return Report{}, err
+	}
+	defer func() { err = errors.Join(err, os.RemoveAll(verified)) }()
+	m, err := readBackup(cfg, dir, verified)
 	if err != nil {
 		return Report{}, err
 	}
@@ -48,15 +55,17 @@ func Restore(ctx context.Context, cfg *gatewayconfig.Config, dir string, now tim
 	for _, e := range m.Entries {
 		held[e.Class] = true
 	}
-	if cfg.Reaction.Stops != "" || held[ClassStops] {
-		return Report{}, fmt.Errorf("%w: reaction.stops; restore a plane without one, or wait for the build that carries the list", ErrStops)
-	}
 	release, err := holdPlane(cfg)
 	if err != nil {
 		return Report{}, err
 	}
 	defer func() { err = errors.Join(err, release()) }()
-	r := restorer{ctx: ctx, cfg: cfg, dir: dir, now: now, held: held}
+	r := restorer{ctx: ctx, cfg: cfg, dir: verified, now: now, held: held}
+	for _, c := range classes {
+		if err := r.check(c); err != nil {
+			return Report{}, fmt.Errorf("%s: %w", c.key, err)
+		}
+	}
 	for _, c := range classes {
 		if err := r.class(c); err != nil {
 			return r.out, fmt.Errorf("%s: %w", c.key, err)
@@ -83,19 +92,81 @@ func (r *restorer) step(c class) func(string) error {
 	}
 }
 
+// paths is where class c lives and where the backup's verified copy of it
+// is.
+func (r *restorer) paths(c class) (live, from string, err error) {
+	live, err = filepath.Abs(r.cfg.Resolve(c.value(r.cfg)))
+	return live, filepath.Join(r.dir, filepath.FromSlash(c.name)), err
+}
+
+func (r *restorer) signed() bool { return r.cfg.Approvals.Authority == gatewayconfig.AuthoritySigned }
+
+// check refuses what restoring class c would refuse, and writes nothing.
+func (r *restorer) check(c class) error {
+	if !r.restores(c) {
+		return nil
+	}
+	live, from, err := r.paths(c)
+	if err != nil {
+		return err
+	}
+	switch c.name {
+	case ClassPlaneFloor, ClassRouteFloor, ClassAuthorityFloor, ClassPauseFloor, ClassStopsFloor:
+		return r.checkFloor(c, live, from)
+	case ClassRuns:
+		if !r.held[ClassRuns] {
+			from = ""
+		}
+		if r.signed() {
+			return runs.CheckRestoreSigned(live, from)
+		}
+		return runs.CheckRestoreUnsigned(live, from, r.now)
+	case ClassPause:
+		if r.signed() {
+			return nil
+		}
+		raw, err := readListed(filepath.Join(from, filepath.Base(live)), pause.MaxFileBytes)
+		if err != nil {
+			return err
+		}
+		return pause.CheckMerge(r.ctx, live, raw)
+	case ClassStops:
+		if r.signed() {
+			return nil
+		}
+		_, err := r.planStops(live, from)
+		return err
+	}
+	return nil
+}
+
+// checkFloor refuses what restoring the floor class c would refuse.
+func (r *restorer) checkFloor(c class, live, from string) error {
+	switch c.name {
+	case ClassPlaneFloor:
+		return policystate.CheckPlane(r.ctx, live, from, r.now)
+	case ClassRouteFloor:
+		return policystate.CheckRoute(r.ctx, live, from)
+	case ClassAuthorityFloor:
+		return policystate.CheckAuthority(r.ctx, live, from)
+	case ClassPauseFloor:
+		return policystate.CheckPause(r.ctx, live, from, r.cfg.TenantID, r.cfg.ProjectID)
+	}
+	return policystate.CheckStops(r.ctx, live, from, r.cfg.ListenerTenant(), r.cfg.ProjectID, r.stopLists())
+}
+
 // class restores one class: from the backup's copy where it holds one, and
 // the runs whether or not it does, since every run closes at a restore.
 func (r *restorer) class(c class) error {
 	if !r.restores(c) {
 		return nil
 	}
-	live, err := filepath.Abs(r.cfg.Resolve(c.value(r.cfg)))
+	live, from, err := r.paths(c)
 	if err != nil {
 		return err
 	}
-	from := filepath.Join(r.dir, filepath.FromSlash(c.name))
 	step := r.step(c)
-	signed := r.cfg.Approvals.Authority == gatewayconfig.AuthoritySigned
+	signed := r.signed()
 	var did string
 	switch c.name {
 	case ClassPlaneFloor:
@@ -114,10 +185,16 @@ func (r *restorer) class(c class) error {
 		var got policystate.Restored
 		got, err = policystate.RestorePause(r.ctx, live, from, r.cfg.TenantID, r.cfg.ProjectID, step)
 		did = fmt.Sprintf("%d pause floor raised", len(got.Written))
+	case ClassStopsFloor:
+		var got policystate.Restored
+		got, err = policystate.RestoreStops(r.ctx, live, from, r.cfg.ListenerTenant(), r.cfg.ProjectID, r.stopLists(), step)
+		did = fmt.Sprintf("%d stop list floor raised", len(got.Written))
 	case ClassRuns:
 		did, err = r.runs(live, from, signed, step)
 	case ClassPause:
 		did, err = r.pause(live, from, signed, step)
+	case ClassStops:
+		did, err = r.stops(live, from, signed, step)
 	}
 	if err != nil {
 		return err

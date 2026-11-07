@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,7 +35,14 @@ func aliceSigner() runs.Signer {
 // backup of it.
 func signedPlane(t *testing.T) (*plane, string, runs.Record) {
 	t.Helper()
-	p := newPlane(t, signedBlock)
+	return signedPlaneOf(t, signedBlock, nil)
+}
+
+// signedPlaneOf is signedPlane of the configuration base and block, more
+// run on it before the backup.
+func signedPlaneOf(t *testing.T, block string, more func(*plane, runs.Record)) (*plane, string, runs.Record) {
+	t.Helper()
+	p := newPlane(t, block)
 	p.raiseFloor(t, 1, d1, t0)
 	if err := policystate.InitAuthority(t.Context(), p.path("trust/floors"), "roster-a"); err != nil {
 		t.Fatal(err)
@@ -62,6 +70,9 @@ func signedPlane(t *testing.T) (*plane, string, runs.Record) {
 	rec, _, err := a.OpenSigned(t.Context(), runs.OpenRequest{Who: alice, TTL: time.Hour, Now: t0}, aliceSigner(), takeAll{})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if more != nil {
+		more(p, rec)
 	}
 	dir := filepath.Join(t.TempDir(), "backup")
 	if _, err := recovery.Backup(t.Context(), p.cfg, dir, t0); err != nil {
@@ -121,5 +132,147 @@ func TestSignedRestoreRefusesADirectoryBackup(t *testing.T) {
 	p, _, _ := signedPlane(t)
 	if _, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt); !errors.Is(err, recovery.ErrOtherPlane) {
 		t.Fatalf("err = %v, want ErrOtherPlane", err)
+	}
+}
+
+const signedStopsBlock = `reaction:
+  route: route/route.json
+  floor_dir: routefloor
+  stops: stops
+  stops_floor_dir: stopsfloor
+`
+
+// signedList is the stop list signedStops puts in reaction.stops; a restore
+// under signed reads it only to show a floor's history.
+var signedList = []byte("header\nstop one\nstop two\nlift\n")
+
+func stopsFloorAt(serial, length int64) policystate.StopsFloor {
+	return policystate.StopsFloor{Tenant: "acme", Project: "orders", Serial: serial, Digest: digestOf(serial), Length: length, Prefix: prefixOf(signedList[:length])}
+}
+
+func prefixOf(b []byte) string {
+	sum := sha256.Sum256(b)
+	return fmt.Sprintf("sha256:%x", sum)
+}
+
+// setStopsFloor makes the plane's stop list floor f, or none at serial 0.
+func (p *plane) setStopsFloor(t *testing.T, f policystate.StopsFloor) {
+	t.Helper()
+	if err := os.RemoveAll(p.path("stopsfloor")); err != nil {
+		t.Fatal(err)
+	}
+	if err := policystate.InitStops(t.Context(), p.path("stopsfloor"), "acme", "orders"); err != nil {
+		t.Fatal(err)
+	}
+	if f.Serial == 0 {
+		return
+	}
+	if _, err := policystate.RaiseStops(t.Context(), p.path("stopsfloor"), f); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (p *plane) stopsFloor(t *testing.T) policystate.StopsFloor {
+	t.Helper()
+	f, err := policystate.ReadStops(p.path("stopsfloor"), "acme", "orders")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+// setSignedState raises the state of the signed run root to s.
+func (p *plane) setSignedState(t *testing.T, root string, s runs.State) {
+	t.Helper()
+	pl, err := runs.OpenSignedPlane(p.path("runs"), runs.SignedOptions{Judge: takeAll{}, PlaneOwned: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = pl.Close() }()
+	if err := pl.Raise(t.Context(), root, func(runs.State) runs.State { return s }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// signedStops is signedPlane with the run's state raised and a stop list
+// floor at serial 2 holding 16 bytes of signedList, which reaction.stops
+// holds.
+func signedStops(t *testing.T) (*plane, string, runs.Record) {
+	t.Helper()
+	return signedPlaneOf(t, signedBlock+signedStopsBlock, func(p *plane, rec runs.Record) {
+		p.setSignedState(t, rec.ID, confidential)
+		p.setStopsFloor(t, stopsFloorAt(2, 16))
+		if err := os.Mkdir(p.path("stops"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, p.path("stops/stops.jsonl"), signedList)
+	})
+}
+
+// TestSignedRestoreRaisesTheStopListFloor: a lost stop list floor is the
+// backup's again and the list is left for an operator to put back; a floor
+// that grew past the backup's along the list, the live one or the backup's
+// copy, is kept.
+func TestSignedRestoreRaisesTheStopListFloor(t *testing.T) {
+	t.Run("lost", func(t *testing.T) {
+		p, dir, _ := signedStops(t)
+		for _, lost := range []string{"stopsfloor", "stops/stops.jsonl"} {
+			if err := os.RemoveAll(p.path(lost)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		report, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt)
+		if err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+		if f := p.stopsFloor(t); f != stopsFloorAt(2, 16) {
+			t.Fatalf("stop list floor = %+v", f)
+		}
+		if _, err := os.Lstat(p.path("stops/stops.jsonl")); !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("restore wrote the operator's stop list: %v", err)
+		}
+		if !slices.Contains(report.PutBack, "reaction.stops") {
+			t.Fatalf("PutBack = %q names no stop list", report.PutBack)
+		}
+	})
+	t.Run("grown", func(t *testing.T) {
+		p, dir, _ := signedStops(t)
+		p.setStopsFloor(t, stopsFloorAt(2, 25))
+		if _, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+		if f := p.stopsFloor(t); f != stopsFloorAt(2, 25) {
+			t.Fatalf("stop list floor = %+v, want the longer live part", f)
+		}
+	})
+	t.Run("shown by the backup's list", func(t *testing.T) {
+		p, dir, _ := signedStops(t)
+		p.setStopsFloor(t, stopsFloorAt(2, 25))
+		writeFile(t, p.path("stops/stops.jsonl"), []byte("another list of no history\n"))
+		if _, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+		if f := p.stopsFloor(t); f != stopsFloorAt(2, 25) {
+			t.Fatalf("stop list floor = %+v, want the longer live part", f)
+		}
+	})
+}
+
+// TestSignedRestoreRefusesTwoStopListHistories: a live floor's part that no
+// list shows one history with the backup's is refused before anything is
+// written.
+func TestSignedRestoreRefusesTwoStopListHistories(t *testing.T) {
+	p, dir, _ := signedStops(t)
+	other := []byte("another list, 25 bytes...")
+	p.setStopsFloor(t, policystate.StopsFloor{Tenant: "acme", Project: "orders", Serial: 2, Digest: digestOf(2), Length: 25, Prefix: prefixOf(other)})
+	if err := os.RemoveAll(p.path("floors")); err != nil {
+		t.Fatal(err)
+	}
+	before := tree(t, p.root)
+	if _, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt); !errors.Is(err, policystate.ErrStopsRewritten) {
+		t.Fatalf("err = %v, want ErrStopsRewritten", err)
+	}
+	if after := tree(t, p.root); fmt.Sprint(after) != fmt.Sprint(before) {
+		t.Fatal("a refused restore changed the plane's tree")
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/guardana/control/internal/holdjournal"
 	"github.com/guardana/control/internal/pause"
 	"github.com/guardana/control/internal/policystate"
+	"github.com/guardana/control/internal/recovery"
 )
 
 // planeConfig is a directory plane whose paths are relative to the file.
@@ -135,4 +136,19 @@ func TestStateCommandsRefuse(t *testing.T) {
 		t.Fatalf("backup: exit %d", code)
 	}
 	backupRefused(t, "a backup into an existing directory", exitFail, "exists", "state", "backup", config, backup)
+}
+
+// TestRestoreLinesNameTheNewestFileToPutBack: a signed restore tells the
+// operator to put back the newest signed copy and what an older one brings
+// back; a directory restore names neither.
+func TestRestoreLinesNameTheNewestFileToPutBack(t *testing.T) {
+	signed := strings.Join(restoreLines(true, recovery.Report{PutBack: []string{"pause.file"}}), "\n")
+	for _, want := range []string{"pause.file: an operator's signed file", "put back the newest signed copy you hold", "a grant revoked, a route changed or a pause signed after the backup"} {
+		if !strings.Contains(signed, want) {
+			t.Errorf("a signed restore printed %q, without %q", signed, want)
+		}
+	}
+	if directory := strings.Join(restoreLines(false, recovery.Report{}), "\n"); strings.Contains(directory, "grant revoked") {
+		t.Errorf("a directory restore printed the signed residual: %q", directory)
+	}
 }

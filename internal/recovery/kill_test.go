@@ -6,6 +6,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,35 +50,45 @@ func copyPlane(t *testing.T, p *plane) *plane {
 
 // TestRestoreKilledAtEveryStepConverges stops a restore before each of its
 // writes, runs it again, and requires the tree an unbroken restore leaves,
-// over lost state and over state that survived.
+// over lost state and over state that survived, under each authority and
+// with a stop list.
 func TestRestoreKilledAtEveryStepConverges(t *testing.T) {
 	template := newPlane(t, directoryBlock)
 	template.raiseFloor(t, 1, d1, t0)
 	rec := template.openRun(t, confidential)
 	template.addPause(t, "p1")
-	scenarios := map[string]func(t *testing.T, p *plane){
-		"lost": func(t *testing.T, p *plane) {
-			for _, d := range []string{"floors", "runs", "pause/pause.json"} {
-				if err := os.RemoveAll(p.path(d)); err != nil {
-					t.Fatal(err)
-				}
-			}
-		},
-		"survived": func(t *testing.T, p *plane) {
+	stops, _, _ := stopsPlane(t)
+	signed, _, signedRec := signedStops(t)
+	scenarios := map[string]struct {
+		template *plane
+		after    func(t *testing.T, p *plane)
+		// passes is a prefix of a step each restore has to pass.
+		passes []string
+	}{
+		"lost": {template, func(t *testing.T, p *plane) {
+			removeAll(t, p, "floors", "runs", "pause/pause.json")
+		}, []string{"floor/plane: build", "runs: state", "runs: record", "pause: merge"}},
+		"survived": {template, func(t *testing.T, p *plane) {
 			p.raiseFloor(t, 2, d2, t0.Add(time.Hour))
 			p.setState(t, rec.ID, secretTaint)
 			p.addPause(t, "p2")
-		},
+		}, []string{"floor/plane: write", "runs: record"}},
+		"a stop list lost": {stops, func(t *testing.T, p *plane) {
+			removeAll(t, p, "stops")
+		}, []string{"stops: make", "stops: carry"}},
+		"signed, lost": {signed, func(t *testing.T, p *plane) {
+			removeAll(t, p, "floors", "trust/floors", "pausefloor", "stopsfloor", "runs/state/"+signedRec.ID+".state.json")
+		}, []string{"floor/plane: build", "floor/authority: build", "floor/pause: build", "floor/stops: build", "runs: carry", "runs: state"}},
 	}
-	for name, after := range scenarios {
+	for name, sc := range scenarios {
 		t.Run(name, func(t *testing.T) {
 			prepare := func(t *testing.T) (*plane, string) {
-				p := copyPlane(t, template)
+				p := copyPlane(t, sc.template)
 				dir := filepath.Join(t.TempDir(), "backup")
 				if _, err := recovery.Backup(t.Context(), p.cfg, dir, t0); err != nil {
 					t.Fatal(err)
 				}
-				after(t, p)
+				sc.after(t, p)
 				return p, dir
 			}
 			var steps []string
@@ -87,10 +99,12 @@ func TestRestoreKilledAtEveryStepConverges(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(steps) < 3 {
-				t.Fatalf("%d steps %q; the seam is not reached", len(steps), steps)
+			for _, want := range sc.passes {
+				if !slices.ContainsFunc(steps, func(s string) bool { return strings.HasPrefix(s, want) }) {
+					t.Fatalf("steps %q pass no %q; the seam is not reached there", steps, want)
+				}
 			}
-			wantTree := tree(t, want.root)
+			wantTree := settled(t, want.root)
 			for i, step := range steps {
 				p, dir := prepare(t)
 				n := 0
@@ -110,10 +124,31 @@ func TestRestoreKilledAtEveryStepConverges(t *testing.T) {
 				if _, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt); err != nil {
 					t.Fatalf("the rerun after %q: %v", step, err)
 				}
-				if got := tree(t, p.root); fmt.Sprint(got) != fmt.Sprint(wantTree) {
-					t.Fatalf("killed at %q, the rerun left another tree", step)
+				if got := settled(t, p.root); fmt.Sprint(got) != fmt.Sprint(wantTree) {
+					t.Fatalf("killed at %q, the rerun left another tree:\n%v\nwant\n%v", step, got, wantTree)
 				}
 			}
 		})
 	}
+}
+
+func removeAll(t *testing.T, p *plane, rel ...string) {
+	t.Helper()
+	for _, r := range rel {
+		if err := os.RemoveAll(p.path(r)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// settled is tree of root with a carried stop list's header, which holds
+// the list id the carry drew, cut away.
+func settled(t *testing.T, root string) map[string]string {
+	t.Helper()
+	out := tree(t, root)
+	if list, ok := out["stops/stops.jsonl"]; ok {
+		_, rest, _ := strings.Cut(list, "\n")
+		out["stops/stops.jsonl"] = rest
+	}
+	return out
 }

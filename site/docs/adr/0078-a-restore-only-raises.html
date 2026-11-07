@@ -134,42 +134,61 @@ signature over a union nobody judged.</p>
 <h2 id="decision">Decision</h2>
 <ul>
 <li><code>guardana-control state backup &lt;config&gt; &lt;dir&gt;</code> copies, per class, the
-plane floors, the route floors, the runs directory and the pause file,
-and under <code>signed</code> the roster's and the pause's floors, into a new
+plane floors, the route floors, the runs directory, the pause file and the
+stop list, and under <code>signed</code> the roster's, the pause's and the stop
+list's floors, into a new
 owner-only directory with <code>backup.json</code> (schema <code>0.1</code>) written last. The
 spool, the hold journal and its ledger, the approvals store and inbox, the
 trail, the signer's floors and every key are never copied. A test holds
 every configuration key naming a file to one side or the other.</li>
 <li><code>state restore &lt;config&gt; &lt;dir&gt;</code> runs as the plane's account, holding the
 spool's and the journal's locks for its whole run, and writes only what
-that account owns: floors, runs and, under <code>directory</code>, the pause file. It
-refuses another tenant, project or authority, a source the configuration
-does not name, a tampered or unlisted file and another major, before it
-writes.</li>
+that account owns: floors, runs and, under <code>directory</code>, the pause file and
+the stop list. It refuses another tenant, project or authority, a source
+the configuration does not name, a tampered or unlisted file and another
+major. It copies the bytes it verified into an owner-only temporary
+directory and restores only from that copy, and it runs every class's
+check, two histories and a lost signed runs layout among them, before its
+first write.</li>
+<li>The manifest is unsigned. Its hashes catch a corrupted backup, not a
+hostile writer of the backup directory, which only the plane's account
+and the operator may write.</li>
 <li>The locks are the directory locks the spool and the journal take, taken
 without linking either, so the approver's binary still reaches neither
 the gateway nor evidence. Where the system has no file lock, both
 commands refuse.</li>
 <li>Every floor ends at the higher serial of the backup's and the live one. A
-plane floor is stamped with issued and latest at the restore time, a raise
-in the floor's own order, so no statement issued before the restore
-confirms that serial again. The floor format does not change.</li>
+plane floor is stamped with issued and latest at the restore time rounded
+up to the second, a raise in the floor's own order, so no statement issued
+before the restore confirms that serial again. The floor format does not
+change. The stop list floor rises in its own order: the higher serial, and
+at one serial and head the longer accepted part where the live list or
+the backup's copy begins with both parts; anything else is refused.</li>
 <li>Every run closes at the restore time. Under <code>signed</code> the restore writes
 <code>state/&lt;id&gt;.closed</code> for every run the backup or <code>records/</code> names, the
 close ADR-0076 carries, so an open record put back later is refused.
 Taint is joined: untrusted where either side is, the higher read, unknown
-above all.</li>
+above all. A state lost beside its lock file or its record joins as
+untrusted with an unknown read under both authorities.</li>
 <li>Under <code>directory</code> the pause file is the union of both; under <code>signed</code>
 only the pause floor is raised, and <code>doctor</code> names what an operator puts
 back.</li>
-<li>A stop list is refused until its list floor exists, never skipped.</li>
+<li>Under <code>directory</code> a surviving stop list is kept when it begins with the
+backup's or carries it; with none, the backup's is carried into a list of
+a new id, so a lift bound to the old list does not verify there; any other
+list is two histories and refused. Under <code>signed</code> the list is an
+operator's file, never written, and only its floor is raised.</li>
 </ul>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>A restore cannot grant authority: it only raises floors, closes runs and
 adds pauses, and never writes a hold, an approval or an operator's file. A
 statement at a higher serial than the restored floor, issued before the
 restore, still confirms within <code>policy.max_stale</code>. Under <code>signed</code> the floors
-are only as strong as the plane's account. A raw volume copy stays
+are only as strong as the plane's account, and the roster, route, pause and
+stop list floors rise only to the backup's serial: an older signed file put
+back, the backup's copy among them, brings back a grant revoked, a route
+changed or a pause signed after the backup, so an operator puts back the
+newest signed file they hold. A raw volume copy stays
 unsupported. No wire contract changes; <code>backup.json</code> is a new format.</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
 <ul>
@@ -181,13 +200,16 @@ the floor's order, so a new format buys nothing.</li>
 </ul>
 <h2 id="consequences">Consequences</h2>
 <p>An operator stops the plane, makes the spool and journal directories again
-and restores; a lost hold is lost, and an operator decides again. A plane
-with a stop list cannot be restored until the list floor exists.</p>
+and restores; a lost hold is lost, and an operator decides again. A stop
+added or lifted after the backup is lost with the list, and a stop lifted
+after it is back until an operator lifts it again.</p>
 <h2 id="validation">Validation</h2>
 <p><code>internal/recovery</code>'s tests restore after a loss and over surviving state,
-refuse each bad backup and a held lock with the tree unchanged, stop a
-restore before each write and rerun it to the same tree, and draw random
-backups per class to show nothing ends lower (<code>TestRestoreNeverLowers</code>).</p>
+refuse each bad backup, a held lock, a backup file changed after its check
+and two histories of runs, pauses or stops with the tree unchanged, stop a
+restore before each write under each authority and rerun it to the same
+tree, and draw random backups per class to show nothing ends lower
+(<code>TestRestoreNeverLowers</code>).</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0078-a-restore-only-raises.md">docs/adr/0078-a-restore-only-raises.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
