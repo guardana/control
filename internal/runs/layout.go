@@ -120,19 +120,45 @@ func makeSignedLayout(dir string) error {
 	if len(entries) != 0 {
 		return fmt.Errorf("%w: %s holds files already; a signed layout starts in an empty directory", ErrLayout, clip(dir))
 	}
+	top, err := os.OpenRoot(dir)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrNotRunsDir, err)
+	}
 	for _, sub := range []struct {
 		name string
 		mode fs.FileMode
 	}{{RecordsDir, recordsDirMode}, {StateDir, stateDirMode}} {
-		path := filepath.Join(dir, sub.name)
-		if err := os.Mkdir(path, sub.mode); err != nil && !errors.Is(err, fs.ErrExist) {
-			return err
+		// A name another writer made since the directory was read is refused.
+		if err := top.Mkdir(sub.name, sub.mode); err != nil {
+			return errors.Join(fmt.Errorf("%w: %s: %w", ErrLayout, sub.name, err), top.Close())
 		}
-		if err := os.Chmod(path, sub.mode); err != nil {
-			return err
+		if err := chmodMade(top, sub.name, sub.mode); err != nil {
+			return errors.Join(err, top.Close())
 		}
 	}
-	return files.SyncDir(dir)
+	return errors.Join(top.Close(), files.SyncDir(dir))
+}
+
+// chmodMade sets the mode of the directory name, just made under top, through
+// a handle on that directory, so a link or another directory put in its place
+// is refused rather than changed.
+func chmodMade(top *os.Root, name string, mode fs.FileMode) error {
+	made, err := top.Lstat(name)
+	if err != nil {
+		return err
+	}
+	f, err := top.Open(name)
+	if err != nil {
+		return err
+	}
+	opened, err := f.Stat()
+	if err == nil && (!made.IsDir() || !os.SameFile(made, opened)) {
+		err = fmt.Errorf("%w: %s was replaced while it was made", ErrLayout, name)
+	}
+	if err == nil {
+		err = f.Chmod(mode)
+	}
+	return errors.Join(err, f.Close())
 }
 
 // openSignedAdmin opens a signed layout's records/ for the operator, which

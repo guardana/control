@@ -21,6 +21,9 @@ type Admin struct {
 	// records is the absolute path of a signed layout's records/, which
 	// every record it signs names, and empty for an unsigned directory.
 	records string
+	// judge is what Lookup, Tree and Children take a signed layout's records
+	// through.
+	judge Judge
 }
 
 // OpenAdmin opens dir for the operator and writes nothing to it: an unsigned
@@ -92,6 +95,15 @@ func onlyLeftovers(entries []os.DirEntry) bool {
 // Signed reports whether the directory is a signed layout, whose records
 // only OpenSigned and CloseSigned write.
 func (a *Admin) Signed() bool { return a != nil && a.records != "" }
+
+// JudgeWith makes j what Lookup, Tree and Children take every record of a
+// signed layout through before it counts; with none they refuse it with
+// ErrUnjudged. An unsigned directory reads as it did.
+func (a *Admin) JudgeWith(j Judge) {
+	if a != nil {
+		a.judge = j
+	}
+}
 
 // Binding is the records/ path every record a signed layout's handle signs
 // names, and empty for an unsigned directory.

@@ -134,7 +134,12 @@ func who(project string) runs.Identity {
 // written all the same.
 func (w *world) open(t *testing.T, by, project string) (runs.Record, string) {
 	t.Helper()
-	rec, token, err := w.admin.OpenSigned(t.Context(), runs.OpenRequest{Who: who(project), TTL: time.Hour, Now: now}, signer(by),
+	return w.openAs(t, by, who(project))
+}
+
+func (w *world) openAs(t *testing.T, by string, id runs.Identity) (runs.Record, string) {
+	t.Helper()
+	rec, token, err := w.admin.OpenSigned(t.Context(), runs.OpenRequest{Who: id, TTL: time.Hour, Now: now}, signer(by),
 		judgeFunc(func(runs.SignedRecord) {}))
 	if err != nil {
 		t.Fatalf("OpenSigned by %s: %v", by, err)
@@ -173,7 +178,8 @@ func TestTheRecordPayloadTypeIsTheRunActs(t *testing.T) {
 // TestBothJudgesTakeOnlyAnOperatorOfThePlanesProject: alice's record of A is
 // taken by the ports of a plane of A and by the roster; a reader's, an
 // operator of another project's, an unknown key's and a record of another
-// project are each refused with their own cause, by both judges.
+// project or of another tenant are each refused with their own cause, by
+// both judges.
 func TestBothJudgesTakeOnlyAnOperatorOfThePlanesProject(t *testing.T) {
 	w := newWorld(t)
 	scoped := signedruns.Roster{Document: w.roster.Document, Tenant: "t1", Project: "A"}
@@ -203,6 +209,15 @@ func TestBothJudgesTakeOnlyAnOperatorOfThePlanesProject(t *testing.T) {
 	rec, _ := w.open(t, "carol", "B")
 	if _, err := w.roster.Judge(t.Context(), w.stored(t, rec.ID)); err != nil {
 		t.Errorf("the unscoped roster judge refuses carol's record of B: %v", err)
+	}
+	other := who("A")
+	other.TenantID = "t2"
+	rec, _ = w.openAs(t, "alice", other)
+	sr := w.stored(t, rec.ID)
+	for name, j := range map[string]runs.Judge{"ports": w.ports, "roster": scoped} {
+		if _, err := j.Judge(t.Context(), sr); !errors.Is(err, runs.ErrOtherScope) {
+			t.Errorf("alice's record of tenant t2, project A, %s: %v; want %v", name, err, runs.ErrOtherScope)
+		}
 	}
 }
 

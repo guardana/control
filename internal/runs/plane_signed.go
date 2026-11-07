@@ -52,6 +52,15 @@ func (p *Plane) notReplayed(rec Record) error {
 	return fmt.Errorf("%w: %s", ErrReplayed, rec.ID)
 }
 
+// closesAnyway reports whether a closed record the judge refused still
+// carries its close: one whose signature an operator key of the roster makes,
+// for this directory and the plane's tenant and project, whose signer may no
+// longer operate there. Carrying it errs toward closed, and leaving it would
+// let the open record put back count again.
+func closesAnyway(rec Record, err error) bool {
+	return rec.Closed() && errors.Is(err, ErrUnauthorized)
+}
+
 // carry writes the close of run id into state/, where it outlives the closed
 // record: a run once closed stays closed whatever records/ holds later. A
 // close carried already is left as it is.
@@ -156,6 +165,9 @@ func (p *Plane) surveyOne(ctx context.Context, id string, now time.Time, carry b
 	}
 	if err != nil {
 		out.Refused[recordCause(err)]++
+		if carry && closesAnyway(stored.Record, err) && p.carry(id) {
+			out.Carried++
+		}
 		return
 	}
 	out.Signers[by.Subject]++

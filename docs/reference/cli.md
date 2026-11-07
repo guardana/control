@@ -179,6 +179,7 @@ usage:
   guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --findings <dir>
       [--evidence <export>]... [--source <descriptor> --log <dir>]...
       [--view <file> [--view-all]]
+      [--roster <file> --root-key <file> --tenant <t> --project <p>]
   guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <duration>]
       -- <program> [<arg>]...
   guardana-control findings export --findings <dir> [--after <cursor>] [--limit <n>]
@@ -193,7 +194,7 @@ usage:
       [--through <line>] <dir>
   guardana-control stops list --route <file> --public-key <file> <dir>
   guardana-control react --findings <dir> --runs <dir> --route <file> --public-key <file>
-      --stops <dir>
+      --stops <dir> [--roster <file> --root-key <file> --tenant <t> --project <p>]
   guardana-control hook (--profile <id> | --profile-file <file>) --socket <path>
       --state-dir <dir>
   guardana-control console --approvals <dir> [--pause <f>] [--approver-id <id>] [--inbox <dir>]
