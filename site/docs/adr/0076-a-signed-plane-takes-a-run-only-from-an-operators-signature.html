@@ -139,8 +139,10 @@ refuses such a pause file.</li>
 <code>application/vnd.agent-run-record+json</code> (<code>operators.ActRun</code>, level
 <code>operate</code>) over a canonical body holding every member of a <code>2.0</code> record,
 the signing key and the absolute path, links resolved, of the <code>records/</code>
-it was signed for, which binds it to one plane's directory. A close is a
-signed record too, which replaces the open one.</li>
+it was signed for, which binds it to one path. A copy between two paths
+counts in neither; planes that use one path on two hosts must differ in
+tenant or project, or a copy between them counts. A close is a signed
+record too, which replaces the open one.</li>
 <li>A record counts only once it names the plane's own <code>records/</code>, its run is
 of the plane's tenant and project, and the authenticator and the
 authorizer take it. Any other record, a <code>2.0</code> one included, refuses the
@@ -148,20 +150,33 @@ calls it would cover as <code>unreadable</code>, counted by cause.</li>
 <li>The replay of an open record after its close is held by the close carried
 into <code>state/</code>, not by a floor: when the plane takes a closed record, at a
 call or at its start, it writes the run's close there, and an open record
-of a run whose close it holds is refused as closed.</li>
+of a run whose close it holds is refused as closed. A close bound to this
+directory and signed by a roster operator key is carried even once its
+signer may no longer operate there.</li>
+<li>The plane makes a root's state and then its lock in <code>state/</code> at the root's
+first admitted call; a missing state reads as the start only while its
+lock is missing too, and blocks the root's calls after.</li>
 <li><code>runs open</code> and <code>runs close</code> with <code>--key</code>, <code>--roster</code> and <code>--root-key</code>
 sign; they verify any record they sign over, a parent's or the one a close
 replaces, against the roster, the plane's tenant and project (<code>runs close</code>
 takes them as <code>--tenant</code> and <code>--project</code>) and the directory, refuse one
 that fails naming why, verify the record they write, and say on standard
 error what they signed. Without <code>--key</code> they refuse a signed layout.</li>
+<li><code>supervise</code> and <code>react</code> read a signed layout as the operator does and take
+each record only through the roster judge their <code>--roster</code>, <code>--root-key</code>,
+<code>--tenant</code> and <code>--project</code> make; without all four they refuse it, naming
+them. A refused record is no run fact: it refuses <code>supervise</code>'s input and
+stops <code>react</code>'s pass, naming the record.</li>
 </ul>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>Breaking under <code>signed</code>: an unsigned runs directory refuses the start, so the
 runs are opened again into a new, empty directory. Nothing changes under
 <code>memory</code> or <code>directory</code>. <code>state/</code> is the plane's to write, so its own account
-can still remove a carried close; a close the plane neither resolved nor
-found at its start can be undone by whoever may write <code>records/</code>. Records are
+can still remove a carried close, and remove a root's state together with its
+lock, which the next call makes again clean; with both it can undo a close and
+what the run took in. A close the plane neither resolved nor found at its
+start can be undone by whoever may write <code>records/</code>. <code>supervise</code> and <code>react</code>
+read <code>records/</code> without <code>state/</code>, so they do not see a carried close. Records are
 group-readable, so the plane's account belongs to the records' group.</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
 <ul>
@@ -171,15 +186,17 @@ so no single serial orders them, and a floor per run is the carried close.</li>
 access to the plane's own state.</li>
 </ul>
 <h2 id="consequences">Consequences</h2>
-<p>A root's state and lock are made by the plane at the root's first raise; a
-missing state reads as the start. <code>runs prune</code> removes records only, and
+<p><code>runs prune</code> removes records only, and
 the plane's state of a pruned tree stays in <code>state/</code>.</p>
 <h2 id="validation">Validation</h2>
 <p><code>internal/runs</code> tests each refusal, the replay after a close seen at a call
-and at a start, a record copied from another directory, and prune over the
-split; <code>internal/runs/signedruns</code> tests both judges against one roster;
+and at a start, a close whose signer lost <code>operate</code>, a state removed after
+its first call, a record copied from another directory, the operator's
+judged reads, and prune over the split; <code>internal/runs/signedruns</code> tests both judges against one roster;
 <code>cmd/guardana-control</code> tests the signed commands and a close over a record of
-a key the roster lacks, another tenant, project or directory, or unsigned;
+a key the roster lacks, another tenant, project or directory, or unsigned,
+and <code>supervise</code> and <code>react</code> over a record of a key the roster lacks or of
+another directory;
 <code>cmd/guardana-gateway</code> tests the start refusals, the carry across a restart
 and doctor's counts.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md">docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>

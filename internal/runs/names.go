@@ -62,16 +62,14 @@ const (
 
 // classify says what a name under a directory of role r is, and for a record
 // the run id it holds. A temporary name of internal/files is what a crash
-// while the marker was created leaves, and nothing reads it; a state
-// directory has no marker, so it holds none.
+// while the marker, or a root's first state in state/, was created leaves,
+// and nothing reads it; a state directory has no marker.
 func classify(name string, r role) (kind, string) {
-	if r != roleState {
-		if name == markerFile {
-			return kindMarker, ""
-		}
-		if files.IsTemp(name) {
-			return kindOther, ""
-		}
+	if r != roleState && name == markerFile {
+		return kindMarker, ""
+	}
+	if files.IsTemp(name) {
+		return kindOther, ""
 	}
 	for _, s := range suffixes[r] {
 		if id, ok := strings.CutSuffix(name, s); ok && checkRunID(id) == nil {

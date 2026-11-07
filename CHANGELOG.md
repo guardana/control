@@ -20,8 +20,9 @@ verify one.
   `--root-key` check the file they start from against the roster before they
   sign it at the next serial. The plane checks it at every read and raises a
   floor in the new `pause.floor_dir`, which `pause floor init` makes, so an
-  older signed file put back is refused after a restart too, and a copy of
-  another plane's file is refused. `/healthz` gives the serial and the floor
+  older signed file put back is refused after a restart too, and a copy from
+  another path is refused; planes that use one path on two hosts must differ
+  in tenant or project, or a copy between them is taken. `/healthz` gives the serial and the floor
   under `pause.signed`, `health.socket` also the signer, and `doctor` checks
   the file without raising the floor (ADR-0075).
 - Under `approvals.authority: signed` a run counts only from a record `3.0`
@@ -33,7 +34,13 @@ verify one.
   and say on standard error what they signed. A plane refuses a `records/`
   or a record its own account owns. When the plane takes a closed record it carries the close into
   `state/`, at a call or at its start, so the open record put back is
-  refused. `/healthz` counts the records judged and refused by cause under
+  refused; a close whose signer may no longer operate there is carried too. A record
+  copied from another path counts in neither; planes that use one path on two
+  hosts must differ in tenant or project. The plane writes a root's state at
+  its first admitted call and blocks the root's calls when that state is later
+  removed. `supervise` and `react` read a signed layout only with
+  `--roster`, `--root-key`, `--tenant` and `--project`, and take a record
+  only as the plane would. `/healthz` counts the records judged and refused by cause under
   `runs.signed`, and `doctor` counts the records by state and by signer
   (ADR-0076).
 - `pause add --run <id>`, `--agent <id>` and `--principal <id>` pause one

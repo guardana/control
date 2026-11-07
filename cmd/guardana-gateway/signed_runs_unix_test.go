@@ -16,7 +16,6 @@ import (
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policykey"
 	"github.com/guardana/control/internal/runs"
-	"github.com/guardana/control/internal/runs/signedruns"
 )
 
 // takesAny is the judge a fixture writes its records through, so a record
@@ -188,25 +187,15 @@ func TestDoctorCountsASignedLayoutsRecordsAndSigners(t *testing.T) {
 	if entries, err := os.ReadDir(filepath.Join(tr.dir, "runs", runs.StateDir)); err != nil || len(entries) != 0 {
 		t.Errorf("state/ after doctor = %v, %v; want it untouched", entries, err)
 	}
-	root, err := readRouteKey(d.cfg.Resolve(d.cfg.Trust.RootPublicKey))
-	if err != nil {
-		t.Fatal(err)
+	doctorPlaneOwned = true
+	t.Cleanup(func() { doctorPlaneOwned = false })
+	verdict, _, line = d.runs(t.Context())
+	if verdict != verdictOK {
+		t.Fatalf("doctor's runs line, records/ allowed to be this account's = %s, %q", verdict, line)
 	}
-	roster, err := d.roster(root)
-	if err != nil {
-		t.Fatal(err)
+	if entries, err := os.ReadDir(filepath.Join(tr.dir, "runs", runs.StateDir)); err != nil || len(entries) != 0 {
+		t.Errorf("state/ after doctor read it = %v, %v; want it untouched", entries, err)
 	}
-	p, err := runs.OpenSignedPlane(d.cfg.Resolve(d.cfg.Runs.Dir), runs.SignedOptions{
-		Judge: signedruns.Roster{Document: roster, Tenant: listenerTenant(d.cfg), Project: d.cfg.ProjectID}, PlaneOwned: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = p.Close() }()
-	s, err := p.Inspect(t.Context(), doctorRunsBound, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-	line = signedRunsLine("runs", s)
 	if !strings.Contains(line, "2 record(s), 1 open, 0 closed, 0 expired, signed by 1 operator(s) (operator-a 1)") ||
 		!strings.Contains(line, "1 count for nothing and refuse their calls (unauthenticated 1)") {
 		t.Fatalf("doctor's line over that survey = %q", line)

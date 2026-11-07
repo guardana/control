@@ -16,6 +16,10 @@ import (
 // doctorRunsBound is the most records doctor reads of a signed layout.
 const doctorRunsBound = 1 << 16
 
+// doctorPlaneOwned lets the check read a records/ the plane's own account
+// owns. Only a test sets it, where one account owns every directory.
+var doctorPlaneOwned = false
+
 // openRunsCheck opens the runs directory for a check, which writes nothing
 // there: unsigned as run opens it, and a signed layout judged against the
 // roster file as the plane's ports would judge it, refusing a records/ the
@@ -33,7 +37,8 @@ func (d *examination) openRunsCheck() (*runs.Plane, error) {
 		return nil, fmt.Errorf("trust.roster: %w", err)
 	}
 	return runs.OpenSignedPlane(d.cfg.Resolve(d.cfg.Runs.Dir), runs.SignedOptions{
-		Judge: signedruns.Roster{Document: roster, Tenant: listenerTenant(d.cfg), Project: d.cfg.ProjectID}})
+		Judge:      signedruns.Roster{Document: roster, Tenant: listenerTenant(d.cfg), Project: d.cfg.ProjectID},
+		PlaneOwned: doctorPlaneOwned})
 }
 
 // signedRunsLine is what doctor says of a signed layout: how many records it

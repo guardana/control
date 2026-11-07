@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"time"
+
+	"github.com/guardana/control/internal/files"
 )
 
 // Plane is the plane's handle on a runs directory. It resolves tokens, looks
@@ -109,7 +111,9 @@ type Run struct {
 // On a signed layout a record the judge does not take, or one that is not
 // signed, is CauseUnreadable after the secret is shown right; a closed record
 // taken is carried into state/ before CauseClosed is answered, and an open
-// record of a run whose close was carried is CauseClosed with ErrReplayed.
+// record of a run whose close was carried is CauseClosed with ErrReplayed. A
+// run admitted there has its root's state and lock in state/ before Resolve
+// answers, which it makes at the root's first admission.
 func (p *Plane) Resolve(ctx context.Context, token string, who Identity, now time.Time) (Run, error) {
 	if token == "" {
 		return Run{}, refuse(CauseMissing, nil)
@@ -143,7 +147,22 @@ func (p *Plane) Resolve(ctx context.Context, token string, who Identity, now tim
 	if now.IsZero() || !now.Before(rec.ExpiresAt) {
 		return Run{}, refuse(CauseExpired, nil)
 	}
+	if err := p.admit(rec); err != nil {
+		return Run{}, refuse(CauseUnreadable, err)
+	}
 	return Run{ID: rec.ID, Root: rec.Root, Who: rec.Who, Expires: rec.ExpiresAt}, nil
+}
+
+// admit makes, on a signed layout, the state of the root of a run Resolve
+// admits, where the root has none yet.
+func (p *Plane) admit(rec Record) error {
+	if !p.signed {
+		return nil
+	}
+	if err := p.startRoot(rec.Root); err != nil {
+		return fmt.Errorf("the state of %s: %w", rec.Root, err)
+	}
+	return nil
 }
 
 // standing judges a record whose secret was shown right: taken by the judge
@@ -153,6 +172,9 @@ func (p *Plane) standing(ctx context.Context, stored SignedRecord, who Identity)
 	rec := stored.Record
 	if p.signed {
 		if err := p.take(ctx, stored); err != nil {
+			if closesAnyway(rec, err) {
+				p.carry(rec.ID)
+			}
 			return refuse(CauseUnreadable, err)
 		}
 	}
@@ -217,8 +239,9 @@ func (p *Plane) Lookup(ctx context.Context, id string) (Record, error) {
 // State reads root's state. A missing or unreadable state file is an error:
 // the operator wrote it when the root opened, so a missing one was removed,
 // and reading it as a clean start would wash what the run took in. On a
-// signed layout the plane writes a root's state when it first raises it, so
-// a missing one there is the state a root starts with.
+// signed layout the plane writes a root's state and lock file when it first
+// admits or raises the root, so a missing state there is the state a root
+// starts with only while its lock file is missing too.
 func (p *Plane) State(ctx context.Context, root string) (State, error) {
 	if p == nil {
 		return State{}, ErrClosed
@@ -234,22 +257,51 @@ func (p *Plane) State(ctx context.Context, root string) (State, error) {
 	return p.readState(root)
 }
 
-// readState is root's state, the initial one for a root of a signed layout
-// the plane has not raised yet.
+// readState is root's state. On a signed layout a root no call admitted yet
+// has neither a state nor a lock file, and reads as the initial state; once
+// its lock file exists a missing state is one somebody removed, which is
+// refused rather than read as a clean start.
 func (p *Plane) readState(root string) (State, error) {
 	s, err := p.st.readState(root)
-	if p.signed && errors.Is(err, fs.ErrNotExist) {
-		return initialState, nil
+	if !p.signed || !errors.Is(err, fs.ErrNotExist) {
+		return s, err
 	}
-	return s, err
+	switch _, lerr := p.st.root.Lstat(root + lockSuffix); {
+	case errors.Is(lerr, fs.ErrNotExist):
+		return initialState, nil
+	case lerr != nil:
+		return State{}, errors.Join(err, lerr)
+	}
+	return State{}, fmt.Errorf("the state of %s is gone and its lock file is not, so it was removed: %w", root, err)
+}
+
+// startRoot makes a root's state and then its lock file in state/, where the
+// lock file is missing, and leaves both alone once it exists: a state made
+// after its lock file would start clean a root whose state was removed. Two
+// planes that start one root together both find the state made once.
+func (p *Plane) startRoot(root string) error {
+	switch _, err := p.st.root.Lstat(root + lockSuffix); {
+	case err == nil:
+		return nil
+	case !errors.Is(err, fs.ErrNotExist):
+		return err
+	}
+	body, err := encodeState(root, initialState)
+	if err != nil {
+		return err
+	}
+	if err := files.CreateNoReplaceIn(p.st.root, root+stateSuffix, body, p.st.mode); err != nil && !errors.Is(err, files.ErrExists) {
+		return err
+	}
+	return p.st.createEmpty(root + lockSuffix)
 }
 
 // Raise reads root's state under the root's exclusive lock, applies join to
 // it, and when the result differs writes it whole and forces it to disk before
 // it returns. The lock is taken through root's lock file, which Raise never
-// creates: a missing one is an error. On a signed layout Raise creates a
-// root's lock file and state where they are missing. While another writer
-// holds the lock, Raise tries again until ctx ends.
+// creates: a missing one is an error. On a signed layout Raise makes a root's
+// state and lock file as Resolve does where the lock file is missing. While
+// another writer holds the lock, Raise tries again until ctx ends.
 //
 // join decides alone whether the state rises; nothing else writes it.
 func (p *Plane) Raise(ctx context.Context, root string, join func(State) State) (err error) {
@@ -293,11 +345,11 @@ func (p *Plane) Raise(ctx context.Context, root string, join func(State) State) 
 	return p.st.replace(root+stateTemp, root+stateSuffix, body)
 }
 
-// openLock opens root's lock file, which on a signed layout it creates where
-// it is missing.
+// openLock opens root's lock file, which on a signed layout startRoot makes
+// where it is missing.
 func (p *Plane) openLock(root string) (*os.File, error) {
 	if p.signed {
-		if err := p.st.createEmpty(root + lockSuffix); err != nil {
+		if err := p.startRoot(root); err != nil {
 			return nil, err
 		}
 	}

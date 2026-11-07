@@ -473,6 +473,7 @@ func TestALongestSignedRecordFitsItsBound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSigned at every bound: %v", err)
 	}
+	a.JudgeWith(alicesJudge)
 	if got, err := a.Lookup(t.Context(), rec.ID); err != nil || got.Who != who {
 		t.Fatalf("Lookup = %+v, %v", got, err)
 	}
