@@ -140,12 +140,22 @@ func TestStateCommandsRefuse(t *testing.T) {
 
 // TestRestoreLinesNameTheNewestFileToPutBack: a signed restore tells the
 // operator to put back the newest signed copy and what an older one brings
-// back; a directory restore names neither.
+// back, and for the stop list the way to a list the backup's floor refuses;
+// a directory restore names neither.
 func TestRestoreLinesNameTheNewestFileToPutBack(t *testing.T) {
 	signed := strings.Join(restoreLines(true, recovery.Report{PutBack: []string{"pause.file"}}), "\n")
 	for _, want := range []string{"pause.file: an operator's signed file", "put back the newest signed copy you hold", "a grant revoked, a route changed or a pause signed after the backup"} {
 		if !strings.Contains(signed, want) {
 			t.Errorf("a signed restore printed %q, without %q", signed, want)
+		}
+	}
+	if strings.Contains(signed, "stops_floor_dir") {
+		t.Errorf("a restore that put back no stop list printed the stop list's way back: %q", signed)
+	}
+	stops := strings.Join(restoreLines(true, recovery.Report{PutBack: []string{"reaction.stops"}}), "\n")
+	for _, want := range []string{"refuses one two or more serials above", "each list of the chain in serial order", "move reaction.stops_floor_dir aside", "stops floor init"} {
+		if !strings.Contains(stops, want) {
+			t.Errorf("a restore that put back the stop list printed %q, without %q", stops, want)
 		}
 	}
 	if directory := strings.Join(restoreLines(false, recovery.Report{}), "\n"); strings.Contains(directory, "grant revoked") {

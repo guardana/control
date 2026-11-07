@@ -84,12 +84,18 @@ func stateRestoreCommand(args []string, stdout, stderr io.Writer) int {
 }
 
 // restoreLines is what a restore that ended prints: what it did per key, each
-// signed file to put back, under signed what putting back an older one
-// brings back, then the stamp's residual and the next step.
+// signed file to put back, the way back to a stop list two or more serials
+// above a floor put back at the backup's, under signed what putting back an
+// older file brings back, then the stamp's residual and the next step.
 func restoreLines(signed bool, report recovery.Report) []string {
 	lines := append([]string{}, report.Done...)
 	for _, key := range report.PutBack {
 		lines = append(lines, key+": an operator's signed file, never written by a restore; put back the newest signed copy you hold, the backup's only when you hold none newer")
+		if key == "reaction.stops" {
+			lines = append(lines, "reaction.stops: a stop list floor at the backup's serial takes a later list only when that list names the backup's list head as its previous, "+
+				"so it refuses one two or more serials above; let the plane take each list of the chain in serial order, "+
+				"or move reaction.stops_floor_dir aside, make it again with "+brand.CLI+" "+stopsFloorInitName+" and put back the newest list, which a floor with no serial takes")
+		}
 	}
 	if signed {
 		lines = append(lines, "a floor raised only to the backup's serial takes an older signed file put back, the roster, the route, the pause file and the stop list among them, and with it a grant revoked, a route changed or a pause signed after the backup")

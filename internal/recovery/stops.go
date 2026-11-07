@@ -38,7 +38,9 @@ type stopsPlan struct {
 // backup's copy: a live list that begins with the backup's, or whose lines
 // after its header begin with what a carry of the backup's writes, is kept;
 // with no live list the backup's is carried; any other live list is
-// ErrStopHistories.
+// ErrStopHistories. Short of a live list the backup's begins, the backup's is
+// judged against the route at once, so a list no carry would take is refused
+// before a restore's first write.
 func (r *restorer) planStops(live, from string) (stopsPlan, error) {
 	backup, err := readListed(filepath.Join(from, stoplist.FileName), reaction.MaxListBytes)
 	switch {
@@ -59,12 +61,12 @@ func (r *restorer) planStops(live, from string) (stopsPlan, error) {
 	if rerr != nil {
 		return stopsPlan{}, rerr
 	}
-	if missing {
-		return stopsPlan{route: route}, nil
-	}
 	carried, err := stopwrite.CarriedLines(route, backup, r.now)
 	if err != nil {
 		return stopsPlan{}, fmt.Errorf("the backup's list: %w", err)
+	}
+	if missing {
+		return stopsPlan{route: route}, nil
 	}
 	if _, rest, _ := bytes.Cut(cur, []byte{'\n'}); bytes.HasPrefix(rest, carried) {
 		return stopsPlan{keep: true, why: "kept; it carries the backup's list"}, nil

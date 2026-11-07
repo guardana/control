@@ -7,10 +7,9 @@ covers: [internal/recovery/**, cmd/guardana-control/state.go, internal/policysta
 
 # Back up and restore a plane
 
-A plane keeps authority state on disk: policy floors, opened runs and their
-taint, its pause file and stop list, and under the signed authority the
-roster's, the pause's and the stop list's floors. `state backup` copies it; after a loss, `state restore`
-raises what survived to the backup and never lowers anything
+A plane keeps authority state on disk: floors, runs and their taint, a
+pause file and a stop list. `state backup` copies it; after a loss,
+`state restore` raises what survived to the backup and never lowers anything
 ([ADR-0078](../adr/0078-a-restore-only-raises.md)). Both are `experimental`;
 [status.md](../status.md) is the inventory.
 
@@ -59,9 +58,9 @@ raises what survived to the backup and never lowers anything
 
 ## What a backup holds
 
-`backup.json`, schema `0.1`, names the authority, the tenant, the project,
-when the backup was taken, and for every file its class, the configuration
-key, its absolute source, its path in the backup, its SHA-256 and its size.
+`backup.json`, schema `0.1`, names the authority, tenant, project and time
+of the backup, and per file its class, configuration key, absolute source,
+path in the backup, SHA-256 and size.
 A restore refuses a backup of another tenant, project or authority, a file
 whose source is not where the configuration puts it today, a size or hash
 that differs, a file the manifest does not list, and a major other than `0`.
@@ -72,22 +71,22 @@ Copied, each under its class: `policy.state_dir`, `reaction.floor_dir`,
 the approvals store and inbox, the trail, the signer's floors, the bundle
 and its statement, the roster, the route and every key.
 
-The manifest is unsigned: its hashes catch a corrupted backup, not someone
-who rewrites the backup directory and its manifest together. Keep the
-backup where only the plane's account and the operator can write. A
-restore copies the files it verified into an owner-only temporary directory
-and reads only that copy.
+The manifest is unsigned: its hashes catch corruption, not a rewrite of the
+backup and its manifest together, so keep the backup where only the plane's
+account and the operator write. A restore copies the files it verified
+into an owner-only `state-restore-*` directory under `$TMPDIR` and reads
+only that copy, which a killed restore leaves behind.
 
 ## What a restore does
 
 - Plane floor, per bundle id: the higher serial of the backup's and the
   live one, with its digest, stamped issued and latest at the restore time,
-  rounded up to the whole second.
-  The bundle's own statement, issued before the restore, confirms nothing;
-  the next renewal does. Two digests at one serial, or a clock behind
-  either floor, refuse before that id is written. An id neither side holds
-  a serial for is listed with no file, so the start refuses until
-  `policy state reset`.
+  rounded up to the whole second; a plane started within that second
+  refuses until it passes. The bundle's own statement, issued before the
+  restore, confirms nothing; the next renewal does. Two digests at one
+  serial, or a clock behind either floor, refuse before that id is written.
+  An id neither side holds a serial for is listed with no file, so the
+  start refuses until `policy state reset`.
 - Route, roster and pause floors: the higher serial of the two. Stop list
   floor: the higher serial; at one serial and head, the longer accepted
   part when the live list or the backup's copy begins with both parts.
@@ -103,13 +102,13 @@ and reads only that copy.
 - Pause: under `directory` the union of both files' entries; an id holding
   two different pauses refuses. Under `signed` only its floor is raised.
 - Stop list: under `directory`, a surviving list that begins with the
-  backup's, or carries it, is kept. With none, the backup's list is carried
-  into a list of a new id, judged against `reaction.route`: every stop no
-  lift ended, and a covered line for every other finding. A lift made for
-  the old list does not verify in the new one. Any other surviving list is
-  two histories, and the restore refuses; move it aside to carry the
-  backup's. Under `signed` the list is an operator's file, and only its
-  floor is raised.
+  backup's, or carries it, is kept. With none, the backup's list is carried,
+  judged against `reaction.route`, into a list of a new id holding every
+  stop no lift ended, where a lift made for the old list does not verify.
+  Any other surviving list is two histories, and the restore refuses;
+  moving it aside lets the restore carry the backup's and loses the stops
+  added to it since. Under `signed` the list is an operator's file, and only
+  its floor is raised.
 
 Nothing held resumes: the journal, the ledger and the approvals store are
 never written, so a lost hold stays lost and a spent approval stays spent.
@@ -121,23 +120,47 @@ one does.
 
 `doctor` reads each signed file against the raised floors. Under `signed`
 the restore never writes an operator's file: the pause file, the stop list
-and `records/` among them. Put back the newest signed copy you hold, and the
-backup's only when you hold none newer: it is bound to the same path, and
-the plane takes it wherever the raised floor still does. A lower signed
-pause file blocks every call until an operator signs a new one.
+and `records/` among them. Put back the newest signed copy you hold, the
+backup's only when you hold none newer; the plane takes it wherever the
+raised floor still does. A lower signed pause file blocks every call until
+an operator signs a new one.
+
+## Take a stop list back
+
+Under `signed`, a stop list floor put back at the backup's serial takes only
+a list whose previous head is the backup's. To reach a list carried twice
+since, let the plane take the chain in serial order, or put the newest list
+back under a new floor, which takes the first list it reads:
+
+```sh
+mv <reaction.stops_floor_dir> <aside>
+guardana-control stops floor init --tenant <t> --project <p> <reaction.stops_floor_dir>
+```
+
+Under `directory` the backup holds no route, so once `reaction.route` was
+replaced, restore with the old route back in its place, then put the
+current one back and carry the list the restore wrote into a new directory
+that replaces `reaction.stops`:
+
+```sh
+guardana-control stops init --carry <reaction.stops> --carry-route <old route> \
+  --route <current route> --public-key <route key> <new dir>
+```
+
+With the route key replaced too, no carry reaches the current route.
 
 ## Limits
 
-- A statement at a higher serial than the restored floor, issued before
-  the restore, still confirms, within `policy.max_stale`.
+- A statement issued before the restore above the restored floor's serial
+  still confirms within `policy.max_stale`.
 - A run neither the backup nor `records/` names reopens only through an
   operator's signed write.
-- The roster, route, pause and stop list floors rise only to the higher of
-  the live and the backup's serial. An older signed file put back, the
-  backup's copy among them, is taken, and with it a grant revoked, a route
-  changed or a pause signed after the backup.
+- An older signed file put back, the backup's among them, brings back a
+  grant revoked, a route changed or a pause signed after the backup.
 - A stop added after the backup is lost with the list, and one lifted after
   it is back until an operator lifts it again.
+- A floor file removed beside its marker is restored from the backup, as
+  if its directory were lost.
 - A plane started while a restore runs may raise `policy.state_dir` before
   the spool's lock refuses it. It only raises.
 - Copying a volume back by hand is unsupported: it lowers floors, reopens

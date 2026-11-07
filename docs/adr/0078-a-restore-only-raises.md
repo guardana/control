@@ -79,7 +79,17 @@ are only as strong as the plane's account, and the roster, route, pause and
 stop list floors rise only to the backup's serial: an older signed file put
 back, the backup's copy among them, brings back a grant revoked, a route
 changed or a pause signed after the backup, so an operator puts back the
-newest signed file they hold. A raw volume copy stays
+newest signed file they hold. A stop list floor put back at the backup's
+serial takes a later list only when that list names the backup's head as
+its previous, so a list carried twice since the backup is refused. The way
+back is to let the plane take each list of the chain in serial order, or to
+make `reaction.stops_floor_dir` again with `stops floor init` and put back
+the newest list, which a floor with no serial takes. Under `directory` the
+backup holds no route: after the route is replaced, the restore refuses
+the backup's list until the route it was written under stands at
+`reaction.route` again, and a list carried under it is then carried into
+the current route; with the route key replaced too, the backup's stops are
+lost. A raw volume copy stays
 unsupported. No wire contract changes; `backup.json` is a new format.
 
 ## Alternatives considered
