@@ -42,6 +42,8 @@ const (
 
 // judging is one judge's walk over a list's new lines.
 type judging struct {
+	// ctx holds the voucher's answers about the lines walked.
+	ctx       context.Context
 	route     Route
 	now       time.Time
 	tolerance time.Duration
@@ -75,7 +77,7 @@ func Judge(route Route, accepted Prefix, content []byte, now time.Time, toleranc
 	if err != nil {
 		return List{}, err
 	}
-	return walk(route, List{}, complete, lines, sum, now, tolerance)
+	return walk(context.Background(), route, List{}, complete, lines, sum, now, tolerance)
 }
 
 // JudgeFrom is Judge from the prefix of from, the List the judge before
@@ -106,7 +108,7 @@ func JudgeFromContext(ctx context.Context, route Route, from List, content []byt
 		if err := vouchAgain(ctx, route, nil); err != nil {
 			return List{}, err
 		}
-		return walk(route, List{}, complete, lines, sum, now, tolerance)
+		return walk(ctx, route, List{}, complete, lines, sum, now, tolerance)
 	}
 	if h := from.header; h.RouteID != route.id || h.RouteSerial != route.serial || h.RouteDigest != route.digest {
 		return List{}, fmt.Errorf("line 1: %w", ErrListRoute)
@@ -120,7 +122,7 @@ func JudgeFromContext(ctx context.Context, route Route, from List, content []byt
 	if int64(len(complete)) == from.prefix.length {
 		return from, nil
 	}
-	return walk(route, from, complete, lines, sum, now, tolerance)
+	return walk(ctx, route, from, complete, lines, sum, now, tolerance)
 }
 
 // JudgeCarrySource is Judge from the zero Prefix with no tolerance past now,
@@ -136,7 +138,7 @@ func JudgeCarrySource(route Route, content []byte, now time.Time) (List, error) 
 	if err != nil {
 		return List{}, err
 	}
-	return walk(route, List{}, complete, lines, sum, now, 0)
+	return walk(context.Background(), route, List{}, complete, lines, sum, now, 0)
 }
 
 // judgeable is content's complete lines and their count, refused when route,
@@ -202,12 +204,12 @@ func checkPrefix(accepted Prefix, complete []byte, h hash.Hash) error {
 }
 
 // walk judges the lines of complete after from's prefix, from adds to and
-// sum is complete's SHA-256.
-func walk(route Route, from List, complete []byte, lines int64, sum [sha256.Size]byte, now time.Time, tolerance time.Duration) (List, error) {
+// sum is complete's SHA-256, the voucher's answers held to ctx.
+func walk(ctx context.Context, route Route, from List, complete []byte, lines int64, sum [sha256.Size]byte, now time.Time, tolerance time.Duration) (List, error) {
 	if lines == 0 {
 		return List{}, fmt.Errorf("%w: the list holds no line", ErrHeaderPlace)
 	}
-	j := judging{route: route, now: now, tolerance: tolerance, header: from.header, signer: from.signer, seen: from.seen.fork()}
+	j := judging{ctx: ctx, route: route, now: now, tolerance: tolerance, header: from.header, signer: from.signer, seen: from.seen.fork()}
 	j.firstNew = len(j.seen.stops)
 	rest := complete[from.prefix.length:]
 	for n := from.usage.Lines + 1; len(rest) > 0; n++ {
@@ -271,7 +273,7 @@ func (j *judging) headerLine(h Header, env Envelope) error {
 		return ErrListRoute
 	}
 	if j.route.signed {
-		signer, err := judgeSignedHeader(j.route, h, env)
+		signer, err := judgeSignedHeader(j.ctx, j.route, h, env)
 		if err != nil {
 			return err
 		}
@@ -332,7 +334,7 @@ func (j *judging) liftLine(n int64, l LiftLine) error {
 		return ErrLiftAgain
 	}
 	if j.route.signed {
-		signed, who, err := VerifySignedLiftLine(l, j.header, j.route)
+		signed, who, err := verifySignedLiftLine(j.ctx, l, j.header, j.route)
 		if err != nil {
 			return err
 		}

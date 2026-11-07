@@ -166,17 +166,19 @@ func (p *Plane) Resolve(ctx context.Context, token string, who Identity, now tim
 }
 
 // beginResolve is begin for Resolve, which on a signed layout writes the
-// held closes first and refuses while the handle holds too many.
+// held closes first and refuses while the handle holds too many, counting
+// the resolves under way.
 func (p *Plane) beginResolve(ctx context.Context) (func(), error) {
 	end, err := p.begin(ctx)
 	if err != nil || !p.signed {
 		return end, err
 	}
-	if err := p.ready(); err != nil {
+	done, err := p.ready()
+	if err != nil {
 		end()
 		return nil, err
 	}
-	return end, nil
+	return func() { done(); end() }, nil
 }
 
 // admit makes, on a signed layout, the state of the root of a run Resolve

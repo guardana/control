@@ -129,8 +129,7 @@ as `unreadable`. When the plane takes a closed record, at a call or when it
 starts, it writes the close into `state/`, and the open record put back
 after is refused as `closed`. `/healthz` counts under `runs.signed` the
 records judged, each refusal cause, the closes carried and `carry_failed`,
-held per plane; `doctor` counts the records by state and by
-signer.
+held per plane; `doctor` counts records by state and signer.
 
 ## What a plane does with a token
 

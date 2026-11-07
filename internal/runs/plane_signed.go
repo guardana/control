@@ -72,6 +72,8 @@ func closesAnyway(rec Record, err error) bool {
 // in the handle instead, so the run's open record put back is refused, until
 // writeHeld writes it.
 func (p *Plane) carry(id string) error {
+	p.uncarried.writing.Lock()
+	defer p.uncarried.writing.Unlock()
 	if err := p.st.createEmpty(id + closedSuffix); err != nil {
 		p.uncarried.add(id)
 		p.counts.add("carry_failed")
@@ -83,17 +85,21 @@ func (p *Plane) carry(id string) error {
 
 // maxUncarried is the most closes a plane holds that state/ did not take.
 // Holding one more could fail, and a close forgotten would let the run's open
-// record count again, so at the bound the plane refuses every signed resolve.
+// record count again, so at the bound the plane refuses every signed resolve,
+// counting with the closes held each resolve admitted, which may hold one.
 const maxUncarried = 64
 
 // writeHeld writes into state/ every close the handle holds, dropping each
-// once written, and returns what still refused, each naming its run. A
-// signed resolve calls it first, as do the survey and Close, so a held close
-// reaches state/ as soon as state/ takes it.
+// once written, and returns what still refused, each naming its run and
+// counted as carry_failed. A signed resolve calls it first, as do the survey
+// and Close, so a held close reaches state/ as soon as state/ takes it.
 func (p *Plane) writeHeld() error {
+	p.uncarried.writing.Lock()
+	defer p.uncarried.writing.Unlock()
 	var errs []error
 	for _, id := range p.uncarried.list() {
 		if err := p.st.createEmpty(id + closedSuffix); err != nil {
+			p.counts.add("carry_failed")
 			errs = append(errs, fmt.Errorf("the close of %s was not carried: %w", id, err))
 			continue
 		}
@@ -103,20 +109,44 @@ func (p *Plane) writeHeld() error {
 	return errors.Join(errs...)
 }
 
-// ready writes the held closes and refuses with ErrUncarried while the
-// handle still holds maxUncarried of them.
-func (p *Plane) ready() error {
+// ready writes the held closes and admits one resolve, refusing with
+// ErrUncarried while the closes held and the resolves admitted reach
+// maxUncarried. The resolve calls the func it returns when it ends.
+func (p *Plane) ready() (func(), error) {
 	err := p.writeHeld()
-	if n := p.uncarried.size(); n >= maxUncarried {
-		return errors.Join(fmt.Errorf("%w: %d", ErrUncarried, n), err)
+	if n, ok := p.uncarried.admit(maxUncarried); !ok {
+		return nil, errors.Join(fmt.Errorf("%w: %d held", ErrUncarried, n), err)
 	}
-	return nil
+	return p.uncarried.done, nil
 }
 
-// closeSet is a set of run ids safe for concurrent use.
+// closeSet is a set of run ids safe for concurrent use, with the resolves
+// admitted that may each add one.
 type closeSet struct {
-	mu  sync.Mutex
-	ids map[string]bool
+	mu       sync.Mutex
+	ids      map[string]bool
+	admitted int
+	// writing makes a close's write and the set's change one step, so a
+	// write that finds another's file half made never drops the id.
+	writing sync.Mutex
+}
+
+// admit counts one more resolve and reports true, or the ids held and false
+// where they and the resolves counted already reach bound.
+func (c *closeSet) admit(bound int) (int, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.ids)+c.admitted >= bound {
+		return len(c.ids), false
+	}
+	c.admitted++
+	return 0, true
+}
+
+func (c *closeSet) done() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.admitted--
 }
 
 func (c *closeSet) remove(id string) {
