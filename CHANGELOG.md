@@ -26,7 +26,10 @@ verify one.
   each signing says on standard error what it signed. The plane holds the
   header and the part of the list it accepted to a stop list floor in the new
   `reaction.stops_floor_dir`, which `stops floor init` makes for the
-  listener's tenant, and refuses a list cut back below it; `/healthz` gives the header serial and
+  listener's tenant, and refuses a list cut back below it. At every read it
+  asks the operator ports again about the header and each lift's signer, so
+  a revoked operator or ports that cannot answer make the stop state unknown;
+  `/healthz` gives the header serial and
   `health.socket` also who signed the header and the route (ADR-0077).
 - `guardana-control state backup <config> <dir>` copies a stopped plane's
   floors, runs, pause file and stop list into a new owner-only directory

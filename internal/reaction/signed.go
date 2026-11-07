@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"path"
+	"slices"
 
 	"github.com/guardana/control/internal/policy/strictjson"
 )
@@ -65,7 +66,9 @@ type Signer struct {
 // level kind needs, or refuses; nothing it answers is read as a pass unless
 // the error is nil. An error wrapping ErrUnanswered says it could not
 // answer, which a plane reports apart from a refusal. It is asked only about
-// a body whose tenant, project and file are the plane's.
+// a body whose tenant, project and file are the plane's. Once it took a
+// document, what it answers about it depends only on the kind and the key
+// that signed it, so a judge asks it again about one document of each.
 type Voucher interface {
 	Plane() Plane
 	Vouch(kind SignedKind, env Envelope) (Signer, error)
@@ -131,6 +134,44 @@ func vouched(v Voucher, kind SignedKind, env Envelope, tenant, project, file str
 		return Signer{}, fmt.Errorf("%w: %w", ErrUnvouched, err)
 	}
 	return s, nil
+}
+
+// vouchedDoc is a signed document of a list a voucher took: its line, kind
+// and envelope, the tenant, project and file its body names, and its signer.
+type vouchedDoc struct {
+	line                  int64
+	kind                  SignedKind
+	env                   Envelope
+	tenant, project, file string
+	signer                Signer
+}
+
+// took records d unless s holds a document of its kind and signer already.
+func (s *seen) took(d vouchedDoc) {
+	if !slices.ContainsFunc(s.vouched, func(o vouchedDoc) bool { return o.kind == d.kind && o.signer == d.signer }) {
+		s.vouched = append(s.vouched, d)
+	}
+}
+
+// vouchAgain asks route's voucher again about each document s holds, and
+// refuses the first it no longer takes from the same signer, or cannot
+// answer about, as the line's refusal when it was first judged.
+func (s *seen) vouchAgain(route Route) error {
+	for _, d := range s.vouched {
+		who, err := vouched(route.voucher, d.kind, d.env, d.tenant, d.project, d.file)
+		if err == nil && who != d.signer {
+			err = fmt.Errorf("%w: the key now names %q, not %q", ErrUnvouched, who.Subject, d.signer.Subject)
+		}
+		if err == nil {
+			continue
+		}
+		refusal := ErrSignedLiftUnvouched
+		if d.kind == VouchHeader {
+			refusal = ErrHeaderUnsigned
+		}
+		return &LineError{Line: d.line, Err: fmt.Errorf("%w: %w", refusal, err)}
+	}
+	return nil
 }
 
 // boundFile reads raw as a bound path: absolute, clean, at most

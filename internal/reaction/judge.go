@@ -82,7 +82,9 @@ func Judge(route Route, accepted Prefix, content []byte, now time.Time, toleranc
 // accepts and refuses what Judge would over the whole of content at now: the
 // prefix's SHA-256 is checked again, its header held to route and its latest
 // created_at to now plus tolerance, and nothing else a line accepted before
-// was held to depends on the clock.
+// was held to depends on the clock. Under a signed route the voucher is asked
+// again about the prefix's header and a lift of each signer, so a signer it
+// no longer takes, or a voucher that cannot answer, refuses the list.
 func JudgeFrom(route Route, from List, content []byte, now time.Time, tolerance time.Duration) (List, error) {
 	complete, lines, err := judgeable(route, CheckStopping, content, now, tolerance)
 	if err != nil {
@@ -100,6 +102,9 @@ func JudgeFrom(route Route, from List, content []byte, now time.Time, tolerance 
 	}
 	if from.seen.latest.After(now.Add(tolerance)) {
 		return List{}, fmt.Errorf("line %d: %w", from.seen.latestLine, ErrDatedAhead)
+	}
+	if err := from.seen.vouchAgain(route); err != nil {
+		return List{}, err
 	}
 	if int64(len(complete)) == from.prefix.length {
 		return from, nil
@@ -260,6 +265,8 @@ func (j *judging) headerLine(h Header, env Envelope) error {
 			return err
 		}
 		j.signer = signer
+		j.seen.took(vouchedDoc{line: 1, kind: VouchHeader, env: env, tenant: h.Signed.TenantID, project: h.Signed.ProjectID,
+			file: h.Signed.File, signer: signer})
 	}
 	j.header = h
 	return nil
@@ -313,13 +320,14 @@ func (j *judging) liftLine(n int64, l LiftLine) error {
 	if j.seen.lifts[key] {
 		return ErrLiftAgain
 	}
-	var err error
 	if j.route.signed {
-		_, _, err = VerifySignedLiftLine(l, j.header, j.route)
-	} else {
-		_, err = VerifyLiftLine(l, j.header, j.route)
-	}
-	if err != nil {
+		signed, who, err := VerifySignedLiftLine(l, j.header, j.route)
+		if err != nil {
+			return err
+		}
+		j.seen.took(vouchedDoc{line: n, kind: VouchLift, env: l.Envelope, tenant: signed.TenantID, project: signed.Project,
+			file: signed.File, signer: who})
+	} else if _, err := VerifyLiftLine(l, j.header, j.route); err != nil {
 		return err
 	}
 	j.seen.lifts[key] = true
