@@ -15,10 +15,16 @@ import (
 	"github.com/guardana/control/internal/reaction"
 )
 
-// healthAnswer is what GET /healthz says about the plane. It carries no
+// healthSchema names the shape of the health answer, so a reader tells it
+// from an answer with no schema member.
+const healthSchema = "2"
+
+// healthAnswer is what the plane says about itself. It carries no
 // configuration and no credential: the mode, the bundle it serves, what each
-// seam counted, and whether the plane still takes material calls.
+// seam counted, and whether the plane still takes material calls. GET
+// /healthz answers it counted; health.socket answers it whole.
 type healthAnswer struct {
+	Schema  string       `json:"schema"`
 	Status  string       `json:"status"`
 	Mode    string       `json:"mode"`
 	Adapter string       `json:"adapter"`
@@ -78,15 +84,17 @@ type pauseAnswer struct {
 	// Polls is what the reader counted: its reads, the failed ones by cause
 	// and the changes of the snapshot. It is left out where nothing reads.
 	Polls map[string]any `json:"polls,omitempty"`
-	// Signed is the serial of the signed document in force under the signed
-	// authority and the floor the plane holds, left out where no signed
-	// document stands behind the state. It names no operator: doctor does.
+	// Signed is the signed document in force under the signed authority and
+	// the floor the plane holds, left out where no signed document stands
+	// behind the state. Only health.socket names the operator.
 	Signed *pauseSigned `json:"signed,omitempty"`
 }
 
 type pauseSigned struct {
-	Serial int64 `json:"serial"`
-	Floor  int64 `json:"floor"`
+	Subject string `json:"subject,omitempty"`
+	KeyID   string `json:"key_id,omitempty"`
+	Serial  int64  `json:"serial"`
+	Floor   int64  `json:"floor"`
 }
 
 // signedAnswer is the health page's member for a snapshot signed by by, and
@@ -95,7 +103,7 @@ func signedAnswer(by pause.SignedBy, ok bool) *pauseSigned {
 	if !ok {
 		return nil
 	}
-	return &pauseSigned{Serial: by.Serial, Floor: by.Floor}
+	return &pauseSigned{Subject: by.Subject, KeyID: by.KeyID, Serial: by.Serial, Floor: by.Floor}
 }
 
 // haltAnswer names the plane's halts of ADR-0013 by what raised each. A
@@ -182,7 +190,7 @@ func (p *plane) serveHealth(w http.ResponseWriter, _ *http.Request) {
 	if !ok {
 		status = http.StatusServiceUnavailable
 	}
-	writeJSON(w, p.logger, status, answer)
+	writeJSON(w, p.logger, status, answer.counted())
 }
 
 // health reads every seam's counters, the pause and stop states before the
@@ -203,6 +211,7 @@ func (p *plane) health(src gateway.PauseSource, clock func() time.Time) (healthA
 	// its records uncounted.
 	spoolStats, spoolErr := p.spool.Stats()
 	answer := healthAnswer{
+		Schema:    healthSchema,
 		Status:    "ok",
 		Mode:      p.cfg.ModeName,
 		Adapter:   p.seam().Name(),

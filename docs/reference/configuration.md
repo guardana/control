@@ -17,7 +17,7 @@ Required matters only where the default is empty. Some requirements depend on an
 key and are not in the table: an MCP HTTP listener needs `listener.address`, and only a
 `stateful_http` listener takes `listener.session_idle`, from one minute to a day, and
 `listener.max_sessions`, from 1 to 16384; an upstream
-needs exactly one of `endpoint` and `command`; `evidence.fsync_interval` is needed
+needs a `name` no other upstream has and exactly one of `endpoint` and `command`; `evidence.fsync_interval` is needed
 under the `interval` policy and refused under `every_record`; `approvals.authority`
 `directory` and `signed` need `approvals.dir` and `approvals.hold_journal_dir`, and that
 journal directory may be neither the spool's nor the approvals directory, nor inside
@@ -31,8 +31,10 @@ an envelope the contract takes: `resource_type` is an identifier of at most 1024
 envelope needs a resource id (`WRITE`, `DELETE`, `TRANSACT`, `IDENTITY_OR_ACCESS` and `CONFIGURE`) needs `resource_from`, and
 `COMMUNICATE` needs `trust_zone`; `WRITE`, `DELETE` and `CONFIGURE` need `environment` set, and in
 an override its upstream's `environment` too, and in an override `TRANSACT` and `IDENTITY_OR_ACCESS`
-need the upstream's `tenant_id`; a tool's `name` and `provider`, and an upstream's
-`name`, which is every call's `action.provider`, are identifiers of at most 1024 bytes too. An identifier is held to the contract's rule
+need the upstream's `tenant_id`; a tool's `name` and `provider`, an upstream's `name`,
+which is every call's `action.provider`, `project_id`, the `listener.principal.*` and
+`listener.agent.*` keys, and the plane's and each upstream's
+`tenant_id` and `environment` are identifiers of at most 1024 bytes too. An identifier is held to the contract's rule
 ([contracts](../contracts.md#decoding-and-validation)): invalid UTF-8 is refused, and so
 are White_Space at either end and, anywhere, a space other than U+0020, a code point in
 Cc, Cf, Zl or Zp, or a Default_Ignorable_Code_Point. An `enforce_api` listener serves the enforcement API on the Unix
@@ -92,6 +94,8 @@ Rendered from the field table in `internal/gatewayconfig`. Rebuild it with
 | `listener.agent.framework` | `GUARDANA_CONTROL_LISTENER_AGENT_FRAMEWORK` | string |  | no |  |
 | `listener.agent.version` | `GUARDANA_CONTROL_LISTENER_AGENT_VERSION` | string |  | no |  |
 | `health.address` | `GUARDANA_CONTROL_HEALTH_ADDRESS` | string | `127.0.0.1:8081` | no |  |
+| `health.socket` | `GUARDANA_CONTROL_HEALTH_SOCKET` | string |  | no |  |
+| `health.socket_uid` | `GUARDANA_CONTROL_HEALTH_SOCKET_UID` | a numeric user id |  | no |  |
 | `policy.bundle_id` | `GUARDANA_CONTROL_POLICY_BUNDLE_ID` | string |  | yes |  |
 | `policy.bundle_file` | `GUARDANA_CONTROL_POLICY_BUNDLE_FILE` | string |  | yes |  |
 | `policy.key_id` | `GUARDANA_CONTROL_POLICY_KEY_ID` | string |  | yes |  |
@@ -146,6 +150,7 @@ Rendered from the field table in `internal/gatewayconfig`. Rebuild it with
 | `evidence.on_unwritable` | `GUARDANA_CONTROL_EVIDENCE_ON_UNWRITABLE` | one of | `block` | yes | `block`, `allow_reads` |
 | `export.endpoint` | `GUARDANA_CONTROL_EXPORT_ENDPOINT` | string |  | yes |  |
 | `export.allow_plaintext` | `GUARDANA_CONTROL_EXPORT_ALLOW_PLAINTEXT` | true or false | `false` | no |  |
+| `export.collector_uid` | `GUARDANA_CONTROL_EXPORT_COLLECTOR_UID` | a numeric user id |  | no |  |
 | `export.timeout` | `GUARDANA_CONTROL_EXPORT_TIMEOUT` | duration | `10s` | no |  |
 | `export.in_flight` | `GUARDANA_CONTROL_EXPORT_IN_FLIGHT` | integer | `4` | no |  |
 | `export.max_batch` | `GUARDANA_CONTROL_EXPORT_MAX_BATCH` | integer | `128` | no |  |

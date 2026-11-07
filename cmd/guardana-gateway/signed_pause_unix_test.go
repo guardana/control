@@ -74,8 +74,8 @@ func buildOneAccount(t *testing.T, tr tree) (*plane, error) {
 // TestASignedStartRefusesAPauseFileThePlanesAccountMayWrite: a pause file or
 // directory the plane's account may write refuses the start, naming the key;
 // placed apart, a file its own account owns is refused at the first read;
-// on one account, as dev runs, the plane serves alice's signed file and
-// /healthz names its serial and floor.
+// on one account, as dev runs, the plane serves alice's signed file and its
+// health answer names the signer, the serial and the floor.
 func TestASignedStartRefusesAPauseFileThePlanesAccountMayWrite(t *testing.T) {
 	tr := signedPauseTree(t)
 	placedApart(t, "pause.json")
@@ -95,7 +95,7 @@ func TestASignedStartRefusesAPauseFileThePlanesAccountMayWrite(t *testing.T) {
 		t.Fatalf("the pause state = %s, %q: %s", snap.State(), snap.Cause(), snap.Detail())
 	}
 	got := p.pauseAnswer(snap, time.Now()).Signed
-	if got == nil || *got != (pauseSigned{Serial: 1, Floor: 1}) {
+	if got == nil || *got != (pauseSigned{Subject: "operator-a", KeyID: got.KeyID, Serial: 1, Floor: 1}) || got.KeyID == "" {
 		t.Errorf("the health page's signed pause = %+v", got)
 	}
 }
@@ -210,16 +210,27 @@ func TestDoctorJudgesASignedPauseAsThePlaneWould(t *testing.T) {
 	}
 }
 
-// TestTheHealthPageNamesThePausesSerialAndFloorOnly: the member carries the
-// serial and the floor and no operator's name or key, and is left out where
-// no signed document stands behind the state.
+// TestTheHealthPageNamesThePausesSerialAndFloorOnly: GET /healthz's member
+// carries the serial and the floor and no operator's name or key, which only
+// health.socket's whole answer gives, and is left out where no signed
+// document stands behind the state.
 func TestTheHealthPageNamesThePausesSerialAndFloorOnly(t *testing.T) {
-	raw, err := json.Marshal(pauseAnswer{UnlistedOnly: []string{}, Signed: signedAnswer(pause.SignedBy{Subject: "alice", KeyID: "ed25519:ab", Serial: 3, Floor: 3}, true)})
+	whole := healthAnswer{Pause: pauseAnswer{UnlistedOnly: []string{}, Signed: signedAnswer(pause.SignedBy{Subject: "alice", KeyID: "ed25519:ab", Serial: 3, Floor: 3}, true)}}
+	raw, err := json.Marshal(whole.counted())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := `"signed":{"serial":3,"floor":3}`; !strings.Contains(string(raw), want) || strings.Contains(string(raw), "alice") {
-		t.Errorf("the pause answer = %s, want %s", raw, want)
+	if want := `"signed":{"serial":3,"floor":3}`; !strings.Contains(string(raw), want) || strings.Contains(string(raw), "alice") || strings.Contains(string(raw), "ed25519:ab") {
+		t.Errorf("the counted answer = %s, want %s", raw, want)
+	}
+	if raw, err = json.Marshal(whole); err != nil {
+		t.Fatal(err)
+	}
+	if want := `"signed":{"subject":"alice","key_id":"ed25519:ab","serial":3,"floor":3}`; !strings.Contains(string(raw), want) {
+		t.Errorf("the whole answer = %s, want %s", raw, want)
+	}
+	if whole.Pause.Signed.Subject != "alice" {
+		t.Error("counted changed the whole answer's pause member")
 	}
 	if raw, _ := json.Marshal(pauseAnswer{Signed: signedAnswer(pause.SignedBy{Subject: "alice"}, false)}); strings.Contains(string(raw), "signed") {
 		t.Errorf("an unsigned state's answer = %s", raw)

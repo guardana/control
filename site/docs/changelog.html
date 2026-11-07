@@ -131,8 +131,8 @@ sign it at the next serial. The plane checks it at every read and raises a
 floor in the new <code>pause.floor_dir</code>, which <code>pause floor init</code> makes, so an
 older signed file put back is refused after a restart too, and a copy of
 another plane's file is refused. <code>/healthz</code> gives the serial and the floor
-under <code>pause.signed</code>, and <code>doctor</code> checks the file without raising the
-floor (ADR-0075).</li>
+under <code>pause.signed</code>, <code>health.socket</code> also the signer, and <code>doctor</code> checks
+the file without raising the floor (ADR-0075).</li>
 <li>Under <code>approvals.authority: signed</code> a run counts only from a record <code>3.0</code>
 an operator granted <code>operate</code> signed for the run's tenant and project and
 for the plane's own <code>runs.dir</code>: <code>runs open</code> and <code>runs close</code> take
@@ -182,9 +182,31 @@ each signed hold shows, and without <code>--approver-id</code> only reads, refus
 start as the plane's account. <code>dev</code> runs its plane under <code>signed</code>, with a
 roster and an operator key of its own, and prints <code>inbox</code>, <code>operator_key</code>
 and <code>approve_command</code>.</li>
+<li><code>export.endpoint: unix:///path</code> with the required <code>export.collector_uid</code>
+sends the evidence over a Unix socket. On every connection the plane reads
+the peer's account (<code>SO_PEERCRED</code> on Linux, <code>LOCAL_PEERCRED</code> on macOS) and
+writes nothing, the credential included, to another or to one it cannot
+name; the records stay in the spool, the attempt counts as
+<code>exporter.retried_peer</code>, and each cause is logged once.
+<code>guardana-gateway collect --listen unix:///path</code> creates such a socket and
+prints the <code>export.collector_uid</code> to set; <code>--listen host:port</code> works as
+before. Other platforms refuse both keys at load.</li>
+<li><code>health.socket</code> serves the whole health answer, run ids included, on a
+Unix socket of mode <code>0600</code> that answers only the plane's own account and
+<code>health.socket_uid</code>; any other peer is closed unanswered. Anything at the
+path but a stale socket of the plane's account is refused, and the plane
+removes its socket when it stops.</li>
+<li><code>doctor</code> warns of every TCP <code>export.endpoint</code>, naming the unix form.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
+<li><strong>Breaking:</strong> <code>/healthz</code> answers <code>&quot;schema&quot;: &quot;2&quot;</code> and names no run: <code>stops</code>
+carries the counts <code>unheld</code> and <code>unread</code>, and leaves out <code>entries</code>,
+<code>unheld_runs</code> and <code>unread_runs</code>, which only <code>health.socket</code> answers. A
+reader of the old shape finds no <code>schema</code> member.</li>
+<li>TCP export stays in this release with a <code>doctor</code> warning and goes in 0.17:
+over plaintext, whoever holds the port while the collector is down
+receives the credential. Move to <code>export.endpoint: unix:///path</code>.</li>
 <li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> <code>runs.dir</code> holds
 <code>records/</code>, the operators', and <code>state/</code>, the plane's; a runs directory of
 unsigned records, and a <code>2.0</code> record in <code>records/</code>, are refused. The plane
@@ -220,6 +242,17 @@ where it was written and ignored; the console answers no signed hold. On a
 between its first read and the replace under the lock.</li>
 <li>The pause commands write pause file <code>2</code>; a plane and the commands read <code>1</code>
 as before.</li>
+<li><strong>Breaking:</strong> <code>project_id</code>, <code>tenant_id</code>, <code>environment</code>, the
+<code>listener.principal.*</code> and <code>listener.agent.*</code> keys and an upstream's
+<code>tenant_id</code> and <code>environment</code> are refused when the file loads, naming the
+key, if the contract's identifier rule refuses them, white space at either
+end for one; such a configuration loaded and had every call refused. Two
+upstreams with one name are refused at load, naming both, rather than when
+the gateway starts. <code>adapters/mcp.New</code> and <code>adapters/enforce.New</code> refuse the
+same values, any string of the listener's identity, and a <code>TRANSACT</code> or
+<code>IDENTITY_OR_ACCESS</code> tool while the listener's principal has no tenant.
+<code>pkg/contract.CheckID</code> is the one rule for a required identifier
+(<a href="/docs/adr/0074-pkg-contract-exports-one-rule-for-a-required-identifier">ADR-0074</a>).</li>
 <li>The gateway applies the <code>read_only</code>, <code>restrict_resources</code> and
 <code>deny_external_sink</code> obligations itself, for every adapter, before an
 approval is asked for. The enforcement API and the hook bridge, which denied
