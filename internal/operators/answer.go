@@ -15,6 +15,16 @@ const ActApprove Act = "approve"
 // ActPause signs a plane's whole pause document, which pauses and lifts.
 const ActPause Act = "pause"
 
+// ActRoute signs a v1alpha2 reaction route: which findings may stop a run
+// of one project. It is the admin level's.
+const ActRoute Act = "route"
+
+// ActStops signs a stop list's header, which starts or carries a list.
+const ActStops Act = "stops"
+
+// ActLift signs a lift, which ends the stops of one run on one list.
+const ActLift Act = "lift"
+
 // AnswerPayloadType is the DSSE payload type an approval answer is signed
 // under.
 const AnswerPayloadType = "application/vnd.agent-approval-answer+json"
@@ -29,7 +39,17 @@ type actRule struct {
 	level       trust.Level
 }
 
+// The payload types of the three stop acts.
+const (
+	RoutePayloadType       = "application/vnd.agent-reaction-route.v1alpha2+json"
+	StopsHeaderPayloadType = "application/vnd.agent-stop-list-header+json"
+	LiftPayloadType        = "application/vnd.agent-reaction-lift.v1alpha2+json"
+)
+
 var acts = map[Act]actRule{
+	ActRoute:   {payloadType: RoutePayloadType, level: trust.LevelAdmin},
+	ActStops:   {payloadType: StopsHeaderPayloadType, level: trust.LevelOperate},
+	ActLift:    {payloadType: LiftPayloadType, level: trust.LevelOperate},
 	ActApprove: {payloadType: AnswerPayloadType, level: trust.LevelOperate},
 	ActPause:   {payloadType: PausePayloadType, level: trust.LevelOperate},
 }

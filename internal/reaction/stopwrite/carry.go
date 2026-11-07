@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/reaction"
 	"github.com/guardana/control/internal/reaction/stoplist"
 )
@@ -43,6 +44,45 @@ var carrying func()
 // stays locked until the new one is written, whole or not at all, so no write
 // to it falls between the two; a dir that already holds a list is ErrExists.
 func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir string, route reaction.Route, now time.Time) (Carried, error) {
+	return carry(ctx, from, fromRoute, dir, route, now, func(reaction.List) (reaction.Header, []byte, error) {
+		h, err := newHeader(route)
+		if err != nil {
+			return reaction.Header{}, nil, err
+		}
+		line, err := h.Marshal()
+		if err != nil {
+			return reaction.Header{}, nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		}
+		return h, line, nil
+	})
+}
+
+// CarrySigned is Carry between two lists of v1alpha2 routes, each of which a
+// voucher took: the old list is judged, its header and lifts through the
+// old route's voucher, before anything of it is signed again, and the new
+// header, signed by s, takes the next serial and names the old list's head
+// as its previous, so the plane's floor follows the carry.
+func CarrySigned(ctx context.Context, from string, fromRoute reaction.Route, dir string, route reaction.Route, now time.Time, s Signer) (Carried, error) {
+	if !fromRoute.Signed() || !route.Signed() {
+		return Carried{}, fmt.Errorf("%w: a signed carry is from and into lists of v1alpha2 routes", ErrRefused)
+	}
+	return carry(ctx, from, fromRoute, dir, route, now, func(old reaction.List) (reaction.Header, []byte, error) {
+		prev := old.Header().Signed
+		if prev.Serial >= policy.MaxSerial {
+			return reaction.Header{}, nil, fmt.Errorf("%w: the old list's serial is the last", ErrRefused)
+		}
+		return signedHeader(route, s, prev.Serial+1, prev.Digest)
+	})
+}
+
+// headerFor is the header of a carry's new list, given the old list as
+// judged, and its line.
+type headerFor func(old reaction.List) (reaction.Header, []byte, error)
+
+func carry(ctx context.Context, from string, fromRoute reaction.Route, dir string, route reaction.Route, now time.Time, next headerFor) (Carried, error) {
+	if fromRoute.Signed() != route.Signed() {
+		return Carried{}, fmt.Errorf("%w: a carry keeps its list's format, 1.0 or 2.0", ErrRefused)
+	}
 	var out Carried
 	err := locked(ctx, from, func(root *os.Root) error {
 		same, err := sameDir(root, dir)
@@ -61,13 +101,9 @@ func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 			return err
 		}
 		list := part.list
-		h, err := newHeader(route)
+		h, header, err := next(list)
 		if err != nil {
 			return err
-		}
-		header, err := h.Marshal()
-		if err != nil {
-			return fmt.Errorf("%w: %w", ErrRefused, err)
 		}
 		out = Carried{Header: h, LeftOut: part.leftOut, Refused: part.refused}
 		lines := [][]byte{header}
@@ -167,7 +203,8 @@ func coveredLines(old []byte, kept map[string]bool) ([][]byte, error) {
 		var c reaction.Covered
 		switch l.Kind {
 		case reaction.KindStop:
-			c = reaction.Covered{FindingID: l.Stop.FindingID, TenantID: l.Stop.TenantID, RunID: l.Stop.RunID, CreatedAt: l.Stop.CreatedAt}
+			c = reaction.Covered{FindingID: l.Stop.FindingID, TenantID: l.Stop.TenantID, RunID: l.Stop.RunID,
+				ProjectID: l.Stop.ProjectID, CreatedAt: l.Stop.CreatedAt}
 		case reaction.KindCovered:
 			c = l.Covered
 		default:

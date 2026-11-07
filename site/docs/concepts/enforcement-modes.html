@@ -75,6 +75,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -409,7 +410,8 @@ is unknown and blocks every call; the causes are <code>unsigned</code>,
 <code>owned by the plane's account</code>, <code>not authorized</code>,
 <code>authority unavailable</code>, <code>below the floor</code>, <code>forked</code> and <code>floor unavailable</code>.
 It refuses to start when its own account may write the file or a directory
-on its path. <code>/healthz</code> gives the serial and the floor under <code>pause.signed</code>.</p>
+on its path. <code>/healthz</code> gives the serial and the floor under <code>pause.signed</code>,
+and <code>health.socket</code> also the signer.</p>
 <p>The file's directory may not be, or sit inside, the spool's, the approvals
 store's or the hold journal's, which a running plane locks. The check compares
 the directories by identity as well as by path, so a link to one of them, or
@@ -598,6 +600,7 @@ causes, <code>internal/pause</code> reads and writes the pause file, and
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

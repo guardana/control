@@ -58,6 +58,10 @@ const (
 	CauseClock        Cause = "clock unusable"
 	CauseStale        Cause = "stale"
 	CauseAhead        Cause = "read ahead"
+	// The causes only a 2.0 list under a v1alpha2 route can have.
+	CauseVersion    Cause = "another format version"
+	CauseUnsigned   Cause = "a header that does not verify"
+	CauseOtherPlane Cause = "another plane's"
 )
 
 // Causes is every cause this package names, in the order declared. The slice
@@ -66,6 +70,7 @@ func Causes() []Cause {
 	return []Cause{
 		CauseNeverRead, CauseTooLarge, CauseMalformed, CauseRoute, CauseHeader, CauseShrunk, CauseRewritten,
 		CauseNotPermitted, CauseDatedAhead, CauseLift, CauseClock, CauseStale, CauseAhead,
+		CauseVersion, CauseUnsigned, CauseOtherPlane,
 	}
 }
 
@@ -81,6 +86,10 @@ func CauseOf(err error) Cause {
 		{ErrListShrunk, CauseShrunk}, {ErrListRewritten, CauseRewritten},
 		{ErrStopRefused, CauseNotPermitted}, {ErrDatedAhead, CauseDatedAhead},
 		{ErrLiftUnsigned, CauseLift}, {ErrLiftMismatch, CauseLift}, {ErrJudgeClock, CauseClock},
+		{ErrSignedLiftUnvouched, CauseLift}, {ErrSignedLiftMismatch, CauseLift},
+		{ErrListVersion, CauseVersion}, {ErrHeaderOther, CauseOtherPlane}, {ErrOtherPlane, CauseOtherPlane},
+		{ErrOtherFile, CauseOtherPlane}, {ErrHeaderUnsigned, CauseUnsigned},
+		{ErrNoVoucher, CauseUnsigned},
 	} {
 		if errors.Is(err, c.err) {
 			return c.cause
