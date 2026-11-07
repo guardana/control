@@ -91,8 +91,8 @@ func signedRouteFile(t *testing.T, path, who string) {
 	writeTestFile(t, path, raw)
 }
 
-// initStopsState makes under dir the stops and runs directories and the
-// route and stop list floors a signed start reads.
+// initStopsState makes under dir the stops directory, a signed runs layout
+// and the route and stop list floors a signed start reads.
 func initStopsState(t *testing.T, dir string) {
 	t.Helper()
 	for _, sub := range []string{"stops", "runs"} {
@@ -100,7 +100,7 @@ func initStopsState(t *testing.T, dir string) {
 			t.Fatal(err)
 		}
 	}
-	admin, err := runs.InitAdmin(t.Context(), filepath.Join(dir, "runs"))
+	admin, err := runs.InitSignedAdmin(t.Context(), filepath.Join(dir, "runs"))
 	if err == nil {
 		err = admin.Close()
 	}

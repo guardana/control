@@ -195,10 +195,10 @@ func (p *plane) open(r role, tokenPath string) error {
 	if err := p.openAuthority(context.Background()); err != nil {
 		return err
 	}
-	if err := p.openRunsDir(tokenPath); err != nil {
+	if err := p.openSignedReaders(); err != nil {
 		return err
 	}
-	if err := p.openSignedReaders(); err != nil {
+	if err := p.openRunsDir(tokenPath); err != nil {
 		return err
 	}
 	holds, journal, err := openJournal(p.cfg)
