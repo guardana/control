@@ -74,8 +74,8 @@ func buildOneAccount(t *testing.T, tr tree) (*plane, error) {
 // TestASignedStartRefusesAPauseFileThePlanesAccountMayWrite: a pause file or
 // directory the plane's account may write refuses the start, naming the key;
 // placed apart, a file its own account owns is refused at the first read;
-// on one account, as dev runs, the plane serves alice's signed file and
-// /healthz names its serial and floor.
+// on one account, as dev runs, the plane serves alice's signed file and its
+// health answer names the signer, the serial and the floor.
 func TestASignedStartRefusesAPauseFileThePlanesAccountMayWrite(t *testing.T) {
 	tr := signedPauseTree(t)
 	placedApart(t, "pause.json")
@@ -95,7 +95,7 @@ func TestASignedStartRefusesAPauseFileThePlanesAccountMayWrite(t *testing.T) {
 		t.Fatalf("the pause state = %s, %q: %s", snap.State(), snap.Cause(), snap.Detail())
 	}
 	got := p.pauseAnswer(snap, time.Now()).Signed
-	if got == nil || *got != (pauseSigned{Serial: 1, Floor: 1}) {
+	if got == nil || *got != (pauseSigned{Subject: "operator-a", KeyID: got.KeyID, Serial: 1, Floor: 1}) || got.KeyID == "" {
 		t.Errorf("the health page's signed pause = %+v", got)
 	}
 }
