@@ -73,7 +73,7 @@ func TestEveryListenersStrengthIsItsProtocolsInTheOneTable(t *testing.T) {
 				t.Fatalf("coverage reads the protocol %q (%v) for %s, want %q", protocol, err, c.kind, c.protocol)
 			}
 			if got := channel.StrengthOf(protocol); got != c.want {
-				t.Errorf("coverage reports strength %d for %s, want %d", got, c.kind, c.want)
+				t.Errorf("the table gives strength %d to %s, the protocol coverage reads for %s, want %d", got, protocol, c.kind, c.want)
 			}
 			name, enforcement := builtSeam(t, cfg)
 			if name != protocol {

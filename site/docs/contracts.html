@@ -934,8 +934,10 @@ one from the caller:</p>
 </tbody>
 </table>
 <p>The gateway's adapters spell the action's <code>kind</code> as <code>tool</code>, <code>prompt</code> or
-<code>resource</code> and its <code>protocol</code> as <code>mcp</code> or <code>enforce</code> (<code>internal/channel</code>), and
-the gateway refuses any other spelling from them as <code>INVALID_FIELD_VALUE</code>.
+<code>resource</code> and its <code>protocol</code> as <code>mcp</code> or <code>enforce</code> (<code>internal/channel</code>). The
+gateway refuses, as <code>INVALID_FIELD_VALUE</code>, a kind outside that vocabulary and a
+protocol other than the adapter's own name; a call the adapter already refused
+keeps its own refusal.
 <code>Validate</code> checks neither, so a v1 producer elsewhere may digest another
 (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</p>
 <p>Keys are the protobuf JSON names. <strong>Every member is present at its proto zero

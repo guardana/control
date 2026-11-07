@@ -11,9 +11,9 @@ authorizer.
 
 Amended by [ADR-0075](0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature.md),
 [ADR-0076](0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md)
-and ADR-0077: under signed the plane also refuses to start when its own
-account may write the pause file, the run records or the stops directory,
-each record holding its half.
+and [ADR-0077](0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures.md): under signed the plane also refuses to start when its own
+account may write the pause file, the run records, the route file or the stops
+directory, each record holding its part.
 
 ## Context
 

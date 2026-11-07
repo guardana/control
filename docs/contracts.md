@@ -705,8 +705,10 @@ one from the caller:
 | `authorizedArguments` | the arguments document, as a value |
 
 The gateway's adapters spell the action's `kind` as `tool`, `prompt` or
-`resource` and its `protocol` as `mcp` or `enforce` (`internal/channel`), and
-the gateway refuses any other spelling from them as `INVALID_FIELD_VALUE`.
+`resource` and its `protocol` as `mcp` or `enforce` (`internal/channel`). The
+gateway refuses, as `INVALID_FIELD_VALUE`, a kind outside that vocabulary and a
+protocol other than the adapter's own name; a call the adapter already refused
+keeps its own refusal.
 `Validate` checks neither, so a v1 producer elsewhere may digest another
 ([ADR-0067](adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
 
