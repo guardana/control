@@ -2,6 +2,7 @@ package reaction
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"hash"
@@ -82,8 +83,17 @@ func Judge(route Route, accepted Prefix, content []byte, now time.Time, toleranc
 // accepts and refuses what Judge would over the whole of content at now: the
 // prefix's SHA-256 is checked again, its header held to route and its latest
 // created_at to now plus tolerance, and nothing else a line accepted before
-// was held to depends on the clock.
+// was held to depends on the clock. Under a signed route the voucher is asked
+// again about the route, the header and a lift of each signer, and a signer
+// it no longer takes, or no answer, refuses the list.
 func JudgeFrom(route Route, from List, content []byte, now time.Time, tolerance time.Duration) (List, error) {
+	return JudgeFromContext(context.Background(), route, from, content, now, tolerance)
+}
+
+// JudgeFromContext is JudgeFrom whose questions to the voucher asked again
+// are held to ctx: one ended before they are answered refuses the list as a
+// voucher that cannot answer.
+func JudgeFromContext(ctx context.Context, route Route, from List, content []byte, now time.Time, tolerance time.Duration) (List, error) {
 	complete, lines, err := judgeable(route, CheckStopping, content, now, tolerance)
 	if err != nil {
 		return List{}, err
@@ -93,6 +103,9 @@ func JudgeFrom(route Route, from List, content []byte, now time.Time, tolerance 
 		return List{}, err
 	}
 	if from.seen == nil {
+		if err := vouchAgain(ctx, route, nil); err != nil {
+			return List{}, err
+		}
 		return walk(route, List{}, complete, lines, sum, now, tolerance)
 	}
 	if h := from.header; h.RouteID != route.id || h.RouteSerial != route.serial || h.RouteDigest != route.digest {
@@ -100,6 +113,9 @@ func JudgeFrom(route Route, from List, content []byte, now time.Time, tolerance 
 	}
 	if from.seen.latest.After(now.Add(tolerance)) {
 		return List{}, fmt.Errorf("line %d: %w", from.seen.latestLine, ErrDatedAhead)
+	}
+	if err := vouchAgain(ctx, route, from.seen); err != nil {
+		return List{}, err
 	}
 	if int64(len(complete)) == from.prefix.length {
 		return from, nil
@@ -260,6 +276,8 @@ func (j *judging) headerLine(h Header, env Envelope) error {
 			return err
 		}
 		j.signer = signer
+		j.seen.took(vouchedDoc{line: 1, kind: VouchHeader, env: env, tenant: h.Signed.TenantID, project: h.Signed.ProjectID,
+			file: h.Signed.File, signer: signer})
 	}
 	j.header = h
 	return nil
@@ -313,13 +331,14 @@ func (j *judging) liftLine(n int64, l LiftLine) error {
 	if j.seen.lifts[key] {
 		return ErrLiftAgain
 	}
-	var err error
 	if j.route.signed {
-		_, _, err = VerifySignedLiftLine(l, j.header, j.route)
-	} else {
-		_, err = VerifyLiftLine(l, j.header, j.route)
-	}
-	if err != nil {
+		signed, who, err := VerifySignedLiftLine(l, j.header, j.route)
+		if err != nil {
+			return err
+		}
+		j.seen.took(vouchedDoc{line: n, kind: VouchLift, env: l.Envelope, tenant: signed.TenantID, project: signed.Project,
+			file: signed.File, signer: who})
+	} else if _, err := VerifyLiftLine(l, j.header, j.route); err != nil {
 		return err
 	}
 	j.seen.lifts[key] = true
