@@ -2,6 +2,7 @@ package reaction
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"hash"
@@ -83,9 +84,16 @@ func Judge(route Route, accepted Prefix, content []byte, now time.Time, toleranc
 // prefix's SHA-256 is checked again, its header held to route and its latest
 // created_at to now plus tolerance, and nothing else a line accepted before
 // was held to depends on the clock. Under a signed route the voucher is asked
-// again about the prefix's header and a lift of each signer, so a signer it
-// no longer takes, or a voucher that cannot answer, refuses the list.
+// again about the route, the header and a lift of each signer, and a signer
+// it no longer takes, or no answer, refuses the list.
 func JudgeFrom(route Route, from List, content []byte, now time.Time, tolerance time.Duration) (List, error) {
+	return JudgeFromContext(context.Background(), route, from, content, now, tolerance)
+}
+
+// JudgeFromContext is JudgeFrom whose questions to the voucher asked again
+// are held to ctx: one ended before they are answered refuses the list as a
+// voucher that cannot answer.
+func JudgeFromContext(ctx context.Context, route Route, from List, content []byte, now time.Time, tolerance time.Duration) (List, error) {
 	complete, lines, err := judgeable(route, CheckStopping, content, now, tolerance)
 	if err != nil {
 		return List{}, err
@@ -95,6 +103,9 @@ func JudgeFrom(route Route, from List, content []byte, now time.Time, tolerance 
 		return List{}, err
 	}
 	if from.seen == nil {
+		if err := vouchAgain(ctx, route, nil); err != nil {
+			return List{}, err
+		}
 		return walk(route, List{}, complete, lines, sum, now, tolerance)
 	}
 	if h := from.header; h.RouteID != route.id || h.RouteSerial != route.serial || h.RouteDigest != route.digest {
@@ -103,7 +114,7 @@ func JudgeFrom(route Route, from List, content []byte, now time.Time, tolerance 
 	if from.seen.latest.After(now.Add(tolerance)) {
 		return List{}, fmt.Errorf("line %d: %w", from.seen.latestLine, ErrDatedAhead)
 	}
-	if err := from.seen.vouchAgain(route); err != nil {
+	if err := vouchAgain(ctx, route, from.seen); err != nil {
 		return List{}, err
 	}
 	if int64(len(complete)) == from.prefix.length {

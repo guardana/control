@@ -33,15 +33,17 @@ A plane reads the route, the header and each lift through its operator ports
 and refuses a document no operator with the act's grant over its tenant and
 project signed; ports that cannot answer read as `operator ports
 unavailable`, never as a refusal or a pass. At every read of the list it
-asks its ports again about the header and one lift of each operator who
-signed one, so revoking either operator, or ports that stop answering, makes
-the stop state unknown until they answer again. The stop list floor, which `stops
+asks its ports again, within one poll interval, about the route, the header
+and one lift of each operator who signed one, so revoking any of them,
+taking the route's admin grant away, or ports that do not answer in time
+make the stop state unknown until they answer again; a route refused then
+reads as `a route no operator vouches for`. The stop list floor, which `stops
 floor init --tenant --project` makes and `reaction.stops_floor_dir` names, is
 kept for the tenant the listener serves (`listener.principal_tenant` when set,
 else `tenant_id`) and the project. It keeps the highest header serial the
 plane took, that header's digest, and the length and SHA-256 of the part of
-that list the plane accepted, held to and raised under the floor's lock each
-time that part grows. A plane
+that list the plane accepted, held to at every read and raised under the
+floor's lock each time that part grows. A plane
 refuses a list below the floor's serial, one at that serial with another head,
 one above it whose `previous` is not the floor's head, and, as a broken chain,
 one at that serial shorter than the part the floor holds or beginning with
@@ -86,5 +88,3 @@ header to the stop list floor without raising it, and names who signed each.
   the list. A stop appended and cut before a plane read it was never
   accepted, and no floor holds it.
 - A plane serves a carried list after a restart, as any new list.
-- The route is judged through the ports at start only: a route whose admin
-  the roster revokes later is served until the plane restarts.

@@ -101,13 +101,20 @@ func TestARosterThatRevokesALiftsSignerTakesTheClearAway(t *testing.T) {
 	}
 }
 
-// TestARosterThatRevokesTheHeadersSignerTakesTheClearAway: the header's
-// signer revoked after the list was accepted makes the next poll unknown.
+// TestARosterThatRevokesTheHeadersSignerTakesTheClearAway: bob's header
+// under alice's route and lift, bob revoked after the list was accepted,
+// makes the next poll unknown.
 func TestARosterThatRevokesTheHeadersSignerTakesTheClearAway(t *testing.T) {
 	v := newRosterVoucher()
-	r, content, s := liftedByBob(t, v)
-	v.revoked[keyIDOf(operatorKey())] = true
-	expectUnknown(t, "the same list after alice is revoked", s.Next(r, content, sNow.Add(time.Second), time.Second), reaction.CauseUnsigned)
+	r := vouchedRoute(t, v)
+	header, head := signedHeaderLine(t, r, headerOpts{key: strangerKey()})
+	content := joinLines(header, signedStop(t, sProject), liftOf(t, head, operatorKey(), 2))
+	s := reaction.Snapshot{}.Next(r, content, sNow, time.Second)
+	if s.State() != reaction.Clear {
+		t.Fatalf("the list: %v %q %s", s.State(), s.Cause(), s.Detail())
+	}
+	v.revoked[keyIDOf(strangerKey())] = true
+	expectUnknown(t, "the same list after bob is revoked", s.Next(r, content, sNow.Add(time.Second), time.Second), reaction.CauseUnsigned)
 }
 
 // TestPortsThatStopAnsweringAfterAcceptanceTakeTheClearAway: ports that
@@ -136,8 +143,8 @@ func liftOf(t *testing.T, head string, key ed25519.PrivateKey, through int64) []
 }
 
 // TestAPollAsksAgainAboutEachSignerOnce: a list whose lifts alice signed
-// once and bob twice is asked about again once for its header and once for
-// each lift's signer; bob revoked, or named under another subject, behind
+// once and bob twice is asked about again once for its route, once for its
+// header and once for each lift's signer; bob revoked, or named under another subject, behind
 // alice's earlier lift, makes the poll unknown.
 func TestAPollAsksAgainAboutEachSignerOnce(t *testing.T) {
 	v := newRosterVoucher()
@@ -151,8 +158,8 @@ func TestAPollAsksAgainAboutEachSignerOnce(t *testing.T) {
 		t.Fatalf("the list: %v %q %s", s.State(), s.Cause(), s.Detail())
 	}
 	v.asked = 0
-	if again := s.Next(r, content, sNow.Add(time.Second), time.Second); again.State() != reaction.Clear || v.asked != 3 {
-		t.Errorf("the same list again: %v %q, the voucher asked %d times, want clear after 3", again.State(), again.Cause(), v.asked)
+	if again := s.Next(r, content, sNow.Add(time.Second), time.Second); again.State() != reaction.Clear || v.asked != 4 {
+		t.Errorf("the same list again: %v %q, the voucher asked %d times, want clear after 4", again.State(), again.Cause(), v.asked)
 	}
 	bob := keyIDOf(strangerKey())
 	v.revoked[bob] = true
