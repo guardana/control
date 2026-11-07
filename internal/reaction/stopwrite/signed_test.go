@@ -149,7 +149,7 @@ func TestCarrySignedChainsTheNewHeaderToTheOld(t *testing.T) {
 	}
 	into := emptyDir(t)
 	route := signedRouteIn(t, into, 4)
-	c, err := stopwrite.CarrySigned(bg, from, fromRoute, into, route, clock0, signer())
+	c, err := stopwrite.CarrySigned(bg, from, fromRoute, into, route, clock0, signer(), nil)
 	if err != nil {
 		t.Fatalf("CarrySigned: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestACarryBetweenTheFormatsOrPastTheLastSerialIsRefused(t *testing.T) {
 			}},
 		{"CarrySigned between v1alpha1 routes", func(string) reaction.Route { return testRoute(t) }, func(string) reaction.Route { return routeOf(t, 4, false) },
 			func(f string, fr reaction.Route, i string, ir reaction.Route) error {
-				_, err := stopwrite.CarrySigned(bg, f, fr, i, ir, clock0, signer())
+				_, err := stopwrite.CarrySigned(bg, f, fr, i, ir, clock0, signer(), nil)
 				return err
 			}},
 	} {
@@ -199,7 +199,7 @@ func TestACarryBetweenTheFormatsOrPastTheLastSerialIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := emptyDir(t)
-	if _, err := stopwrite.CarrySigned(bg, top, topRoute, next, signedRouteIn(t, next, 4), clock0, signer()); !errors.Is(err, stopwrite.ErrRefused) {
+	if _, err := stopwrite.CarrySigned(bg, top, topRoute, next, signedRouteIn(t, next, 4), clock0, signer(), nil); !errors.Is(err, stopwrite.ErrRefused) {
 		t.Errorf("a carry from the last serial: %v", err)
 	}
 }

@@ -22,6 +22,7 @@ func TestCausesNameEachCauseOnce(t *testing.T) {
 	for _, want := range []reaction.Cause{
 		"missing", "unreadable", "a link", "writable by others", "owned by another account", "too large", "shrunk", "never read",
 		"owned by the plane's account", "below its floor", "forked at its floor", "a broken chain", "floor unusable",
+		"operator ports unavailable",
 	} {
 		if !slices.Contains(all, want) {
 			t.Errorf("Causes lacks %q", want)

@@ -31,12 +31,17 @@ carried or restored after it.
 
 A plane reads the route, the header and each lift through its operator ports
 and refuses a document no operator with the act's grant over its tenant and
-project signed. The stop list floor, which `stops floor init --tenant
---project` makes and `reaction.stops_floor_dir` names, keeps the highest
-header serial the plane took and that header's digest. A plane refuses a list
-below the floor's serial, one at that serial with another head, and one above
-it whose `previous` is not the floor's head, and raises the floor when its
-first read is served. It refuses `reaction.route`, `reaction.stops` or the
+project signed; ports that cannot answer read as `operator ports
+unavailable`, never as a refusal or a pass. The stop list floor, which `stops
+floor init --tenant --project` makes and `reaction.stops_floor_dir` names, is
+kept for the tenant the listener serves (`listener.principal_tenant` when set,
+else `tenant_id`) and the project. It keeps the highest header serial the
+plane took, that header's digest, and the length and SHA-256 of the part of
+that list the plane accepted, raised each time that part grows. A plane
+refuses a list below the floor's serial, one at that serial with another head,
+one above it whose `previous` is not the floor's head, and, as a broken chain,
+one at that serial shorter than the part the floor holds or beginning with
+other bytes. It refuses `reaction.route`, `reaction.stops` or the
 directory of either when its own account may write them, and a route file,
 stop list or their directory its own account owns; only `dev`, on one
 account, reads them. A `v1alpha1` route, `reaction.public_key` and a `1.0`
@@ -46,9 +51,22 @@ list are refused.
 operator's key, and `stops init`, `stops lift` and `stops list` take
 `--roster` and `--root-key` in place of `--public-key`: each judges the route,
 the list and its lifts on disk through the roster before it signs, and says
-on standard error what it signed. `react` takes `--approvals`, the plane's
-approvals directory, and refuses to run as the account that owns it. The
-console writes no stop and no lift at any setting.
+on standard error what it signed. A carry judges every line of the old list
+as a plane does; with `--stops-floor`, the plane's floor directory, it also
+refuses an old list cut back below the part the plane accepted, and without
+it says that the floor was not read. `react` takes `--approvals`, the plane's
+approvals directory, and will not run as the account that owns it; the
+directory is the caller's to name, so this guards against a mistake and does
+not keep the plane's account out. The console writes no stop and no lift at
+any setting.
+
+`--serial` matters only while the floor holds no serial: once it holds one, a
+new list is taken only as a carry naming the floor's head. When the old list
+cannot be carried, the plane's account makes a new floor with `stops floor
+init` in a new directory and names it in `reaction.stops_floor_dir`, an
+operator starts a new list with `stops init --key`, and `react` stops again
+what may still stop. A new floor takes any list, so this is the step that
+lowers it.
 
 `doctor` judges the route and the header through the roster file, holds the
 header to the stop list floor without raising it, and names who signed each.
@@ -57,8 +75,10 @@ header to the stop list floor without raising it, and names who signed each.
 
 ## Limits
 
-- Under the signed authority a plane takes the floor at its start only: a
-  carried list is served after a restart, as any new list is. The floor keeps
-  a serial and a head, not a length, so a list cut back within one serial is
-  caught by the placement checks and, while a plane runs, by its accepted
-  prefix.
+- The plane's own account writes its floor: it can lower or remove the
+  floor, or name a new one, and a list the stop writers' account cut back is
+  then taken without the stops it dropped. The stop writers' account alone
+  cannot cut what the floor holds, and the plane's account alone cannot write
+  the list. A stop appended and cut before a plane read it was never
+  accepted, and no floor holds it.
+- A plane serves a carried list after a restart, as any new list.

@@ -146,16 +146,19 @@ on the way to its directory resolved. A plane compares it with its own, so
 a copy to another plane of the same tenant and project is refused.</li>
 <li>A plane reads the route, the header and each lift through its operator
 ports. The stop list floor in <code>reaction.stops_floor_dir</code> is a serial floor
-of the kind the route and pause floors are: the header serial the plane
-took and the header's digest. A list below it, at its serial with another
-head, or above it naming another previous head is refused; the plane
-raises it when its first read is served. A restore raises it to the
-higher of its own and the backup's.</li>
+of the kind the route and pause floors are, kept for the listener's tenant
+and the project: the header serial the plane took, the header's digest,
+and the length and SHA-256 of the part of that list the plane accepted,
+raised each time that part grows. A list below it, at its serial with
+another head, above it naming another previous head, or at its serial
+shorter than that part or beginning with other bytes is refused. A carry
+given the floor refuses an old list cut back below that part.</li>
 <li>The plane refuses to start when its own account may write the route file,
 the stops directory or either's directory, and refuses at the read a route
 file, stop list or directory that account owns; only a dev plane, one
-account, reads its own. <code>react</code> refuses to run as the account that owns
-the approvals directory. The console writes no stop and no lift.</li>
+account, reads its own. <code>react</code> will not run as the account that owns the
+approvals directory it is given, a guard against a mistake, since the
+caller names that directory. The console writes no stop and no lift.</li>
 <li>The commands that sign with <code>--key</code> judge what they start from on disk
 against the roster before they sign, and say on standard error what they
 signed.</li>
@@ -165,30 +168,37 @@ signed.</li>
 the plane needs <code>reaction.stops_floor_dir</code>. A <code>1.0</code> list is not carried into
 <code>2.0</code>; operators start a new list and <code>react</code> stops again what may still
 stop. Nothing changes under <code>memory</code> or <code>directory</code>. The floor is the plane's
-to write, so its own account can lower it and put an older list back; the
-placement checks and the signatures keep everyone else out.</p>
+to write: its own account can lower or replace it, after which an older list,
+or a list the stop writers' account cut back, is taken. Neither account
+alone can: the stop writers cannot cut what the floor holds, and the plane's
+account cannot write the list. A stop appended and cut before a plane read
+it was never accepted, and no floor holds it.</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
 <ul>
 <li>Signing each stop line: <code>react</code> holds no operator key, and a missing line
 is an absence no line signature covers.</li>
-<li>A floor that keeps the list's length: a header is signed once and its list
-grows unsigned, so a length would hold only what the plane already read,
-which its accepted prefix holds within one life.</li>
+<li>A floor of the header alone: the header covers no line after it, so a
+list cut back to its header across a restart would be taken with none of
+its stops.</li>
 </ul>
 <h2 id="consequences">Consequences</h2>
-<p>A plane takes the floor at its start: a carried list is served after a
-restart, as before. <code>react</code> writes lines no operator signs; what it writes is
+<p>A plane raises the floor at its start and at each read that grows the part
+it accepted; a carried list is served after a restart, as before. When the
+old list cannot be carried, the plane's account starts a new floor, which is
+the step that lowers it. <code>react</code> writes lines no operator signs; what it writes is
 bounded by the route an admin signed and by the stops directory being out of
 the plane's reach. A lift made against one list never ends a stop of a list
 carried or restored after it.</p>
 <h2 id="validation">Validation</h2>
 <p><code>internal/reaction</code> tests each refusal of a signed route, header, stop,
 covered line and lift, and a lift for one head refused under another;
-<code>internal/reaction/signedstops</code> tests both vouchers, the floor's chain and a
-copy between two planes of one project; <code>internal/reaction/stopwrite</code> and
+<code>internal/reaction/signedstops</code> tests both vouchers, the floor's chain, a
+list cut back across a restart and in a carry, and a copy between two planes
+of one project; <code>internal/reaction/stopwrite</code> and
 <code>internal/reaction/stoplist</code> test the writer's chain and the reader's owner
 checks; <code>cmd/guardana-gateway</code> and <code>cmd/guardana-control</code> test the start
-refusals, the floor raised at start and the commands through a roster.</p>
+refusals, the floor raised at start, a start over a list cut back, and the
+commands through a roster.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures.md">docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">

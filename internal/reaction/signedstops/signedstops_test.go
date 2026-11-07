@@ -221,14 +221,14 @@ func TestPortsThatGiveNoAnswerAreUnavailableNotARefusal(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = v.Vouch(reaction.VouchHeader, statement(t, reaction.SignedHeaderPayloadType, "alice", "alice"))
-	if !signedstops.IsUnavailable(err) || errors.Is(err, signedstops.ErrUnauthenticated) {
+	if !signedstops.IsUnavailable(err) || !errors.Is(err, reaction.ErrUnanswered) || errors.Is(err, signedstops.ErrUnauthenticated) {
 		t.Fatalf("an authenticator with no answer: %v", err)
 	}
 	if v, err = signedstops.NewPorts(f.authn, unavailable{}, f.plane); err != nil {
 		t.Fatal(err)
 	}
 	_, err = v.Vouch(reaction.VouchHeader, statement(t, reaction.SignedHeaderPayloadType, "alice", "alice"))
-	if !signedstops.IsUnavailable(err) || errors.Is(err, signedstops.ErrUnauthorized) {
+	if !signedstops.IsUnavailable(err) || !errors.Is(err, reaction.ErrUnanswered) || errors.Is(err, signedstops.ErrUnauthorized) {
 		t.Fatalf("an authorizer with no answer: %v", err)
 	}
 	if _, err := signedstops.NewPorts(nil, f.authz, f.plane); !errors.Is(err, signedstops.ErrOptions) {

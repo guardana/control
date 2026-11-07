@@ -26,7 +26,7 @@ const (
 	stopsListName      = "stops list"
 	stopsFloorInitName = "stops floor init"
 	stopsInitForm      = "--route <f> (--public-key <f> | --roster <f> --root-key <f> --key <k>\n" +
-		"      [--serial <n>]) [--carry <dir> --carry-route <file>] <dir>"
+		"      [--serial <n>]) [--carry <dir> --carry-route <file> [--stops-floor <dir>]] <dir>"
 	stopsLiftForm = "--route <f> (--public-key <f> | --roster <f> --root-key <f>) --key <k>\n" +
 		"      --run <run-id> [--through <line>] <dir>"
 	stopsListForm      = "--route <f> (--public-key <f> | --roster <f> --root-key <f>) <dir>"
@@ -73,6 +73,7 @@ type stopsInitArgs struct {
 	carry, carryRoute string
 	key               string
 	serial            int64
+	stopsFloor        string
 }
 
 func stopsInitFlags(command string, out io.Writer) (*flag.FlagSet, *stopsInitArgs) {
@@ -82,13 +83,22 @@ func stopsInitFlags(command string, out io.Writer) (*flag.FlagSet, *stopsInitArg
 	flags.StringVar(&a.carry, "carry", "", "the stops directory of the list to carry into the new one")
 	flags.StringVar(&a.carryRoute, "carry-route", "", "the signed route the list carried from is judged against")
 	flags.StringVar(&a.key, "key", "", "the operator's private key file, which signs a 2.0 list's header")
-	flags.Int64Var(&a.serial, "serial", 1, "a new 2.0 list's first serial, above the plane's stop list floor; a carry takes the next")
+	flags.Int64Var(&a.serial, "serial", 1, "a new 2.0 list's first serial, taken only by a plane whose stop list floor holds none; a carry takes the next")
+	flags.StringVar(&a.stopsFloor, "stops-floor", "", "the plane's reaction.stops_floor_dir, which a signed carry holds the old list to")
 	return flags, a
 }
 
 func stopsInitFlagSet(command string, out io.Writer) *flag.FlagSet {
 	flags, _ := stopsInitFlags(command, out)
 	return flags
+}
+
+// usable reports whether the flags name a route and its check, a key exactly
+// when the route is signed, --carry and --carry-route together, a --serial
+// only for a new signed list and a --stops-floor only for a signed carry.
+func (a stopsInitArgs) usable(serialGiven bool) bool {
+	return a.set() && (a.carry == "") == (a.carryRoute == "") && (a.key != "") == a.signed() &&
+		(!serialGiven || (a.signed() && a.carry == "")) && (a.stopsFloor == "" || (a.signed() && a.carry != ""))
 }
 
 func stopsInitCommand(args []string, stdout, stderr io.Writer) int {
@@ -99,10 +109,10 @@ func stopsInitCommand(args []string, stdout, stderr io.Writer) int {
 	err := flags.Parse(args)
 	serialGiven := false
 	flags.Visit(func(f *flag.Flag) { serialGiven = serialGiven || f.Name == "serial" })
-	if err != nil || flags.NArg() != 1 || !a.set() || (a.carry == "") != (a.carryRoute == "") ||
-		(a.key != "") != a.signed() || (serialGiven && (!a.signed() || a.carry != "")) {
+	if err != nil || flags.NArg() != 1 || !a.usable(serialGiven) {
 		return usageError(stderr, stopsInitName,
-			"takes --route with --public-key, or with --roster, --root-key and --key, --carry and --carry-route together or neither, a --serial only for a new signed list, then the stops directory")
+			"takes --route with --public-key, or with --roster, --root-key and --key, --carry and --carry-route together or neither, "+
+				"a --serial only for a new signed list, a --stops-floor only for a signed carry, then the stops directory")
 	}
 	if a.signed() {
 		return stopsInitSigned(*a, flags.Arg(0), time.Now(), stdout, stderr)

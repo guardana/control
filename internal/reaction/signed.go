@@ -63,8 +63,9 @@ type Signer struct {
 // Voucher judges operator signatures for one plane. Vouch answers who signed
 // env for kind, holding a grant over the plane's tenant and project at the
 // level kind needs, or refuses; nothing it answers is read as a pass unless
-// the error is nil. It is asked only about a body whose tenant, project and
-// file are the plane's.
+// the error is nil. An error wrapping ErrUnanswered says it could not
+// answer, which a plane reports apart from a refusal. It is asked only about
+// a body whose tenant, project and file are the plane's.
 type Voucher interface {
 	Plane() Plane
 	Vouch(kind SignedKind, env Envelope) (Signer, error)
@@ -76,6 +77,7 @@ const (
 	ErrOtherPlane  Error = "reaction: the signed document names another tenant or project than the plane's"
 	ErrOtherFile   Error = "reaction: the signed document is bound to another file than the plane reads"
 	ErrUnvouched   Error = "reaction: no operator granted the act signed the document"
+	ErrUnanswered  Error = "reaction: the voucher could not answer who signed the document"
 	ErrSignedShape Error = "reaction: the signed envelope is not one signature of its format's payload type within its bound"
 	ErrSignerKey   Error = "reaction: the signed body names another key or algorithm than its signature"
 )

@@ -47,7 +47,7 @@ func reactFlags(command string, out io.Writer) (*flag.FlagSet, *reactArgs) {
 	flags.StringVar(&a.findings, "findings", "", "the findings log directory supervise writes")
 	flags.StringVar(&a.runs, "runs", "", "the runs directory, read and never written")
 	flags.StringVar(&a.stops, "stops", "", "the stops directory stops init started")
-	flags.StringVar(&a.approvals, "approvals", "", "the plane's approvals.dir, for a v1alpha2 route: react refuses to run as the account that owns it")
+	flags.StringVar(&a.approvals, "approvals", "", "the plane's approvals.dir, for a v1alpha2 route: a guard, react will not run as the account that owns it")
 	return flags, a
 }
 

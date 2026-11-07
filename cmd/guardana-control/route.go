@@ -200,9 +200,6 @@ func readSignedRoute(routeFlag, path, publicKey string, verify func(reaction.Env
 	return r, nil
 }
 
-// signedRouteEnvelope signs the v1alpha2 route document doc with the
-// operator's key for the route file out, bound as the plane binds it, and
-// returns the envelope and the route it signs.
 // routeEnvelope signs route, read from doc: a v1alpha2 route for the file at
 // out, saying on stderr what it signed, and a v1alpha1 route as it is.
 func routeEnvelope(doc []byte, route reaction.Route, out string, key ed25519.PrivateKey, stderr io.Writer) (reaction.Envelope, reaction.Route, error) {
@@ -218,6 +215,9 @@ func routeEnvelope(doc []byte, route reaction.Route, out string, key ed25519.Pri
 	return env, signed, nil
 }
 
+// signedRouteEnvelope signs the v1alpha2 route document doc with the
+// operator's key for the route file out, bound as the plane binds it, and
+// returns the envelope and the route it signs.
 func signedRouteEnvelope(doc []byte, out string, key ed25519.PrivateKey) (reaction.Envelope, reaction.Route, error) {
 	bound, err := signedstops.BindingOf(out)
 	if err != nil {

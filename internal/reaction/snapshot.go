@@ -62,6 +62,7 @@ const (
 	CauseVersion    Cause = "another format version"
 	CauseUnsigned   Cause = "a header that does not verify"
 	CauseOtherPlane Cause = "another plane's"
+	CauseUnanswered Cause = "operator ports unavailable"
 )
 
 // Causes is every cause this package names, in the order declared. The slice
@@ -70,17 +71,18 @@ func Causes() []Cause {
 	return []Cause{
 		CauseNeverRead, CauseTooLarge, CauseMalformed, CauseRoute, CauseHeader, CauseShrunk, CauseRewritten,
 		CauseNotPermitted, CauseDatedAhead, CauseLift, CauseClock, CauseStale, CauseAhead,
-		CauseVersion, CauseUnsigned, CauseOtherPlane,
+		CauseVersion, CauseUnsigned, CauseOtherPlane, CauseUnanswered,
 	}
 }
 
-// CauseOf names the cause of a Judge refusal. A refusal it does not know is
-// CauseMalformed.
+// CauseOf names the cause of a Judge refusal, a voucher that could not answer
+// before any refusal it wraps. A refusal it does not know is CauseMalformed.
 func CauseOf(err error) Cause {
 	for _, c := range []struct {
 		err   Error
 		cause Cause
 	}{
+		{ErrUnanswered, CauseUnanswered},
 		{ErrListTooLarge, CauseTooLarge}, {ErrListLines, CauseTooLarge},
 		{ErrListRoute, CauseRoute}, {ErrListHeader, CauseHeader},
 		{ErrListShrunk, CauseShrunk}, {ErrListRewritten, CauseRewritten},

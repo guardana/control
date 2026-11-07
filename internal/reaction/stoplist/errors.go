@@ -39,7 +39,7 @@ const (
 const (
 	ErrBelowFloor Error = "stoplist: the signed list's serial is below the plane's stop list floor"
 	ErrForked     Error = "stoplist: the signed list's serial is the floor's and its head is another"
-	ErrChain      Error = "stoplist: the signed list rises above the floor and does not name the floor's list as its previous"
+	ErrChain      Error = "stoplist: the signed list does not follow the floor: it rises above it naming another previous list, or cuts or changes lines the floor holds"
 	ErrFloor      Error = "stoplist: the stop list floor cannot be read or raised"
 )
 

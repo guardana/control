@@ -13,8 +13,9 @@ import (
 )
 
 // KindStops is the floor of the signed stop lists one plane takes: the
-// highest header serial it took for its tenant and project and the list
-// head's digest at it. Its directory holds that one floor, and only
+// highest header serial it took for its tenant and project, the list head's
+// digest at it, and the length and SHA-256 of the part of that list it
+// accepted. Its directory holds that one floor, and only
 // InitStops, ReadStops and RaiseStops open it.
 const KindStops Kind = "stops"
 
@@ -29,6 +30,10 @@ const (
 	// ErrStopsForked is a stop list at its floor's serial with another head
 	// digest: two lists signed under one serial.
 	ErrStopsForked Error = "policystate: the stop list's serial is the floor's but its head digest is another"
+	// ErrStopsRewritten is a stop list at its floor's serial and head whose
+	// accepted part is shorter than the floor's, or of its length with other
+	// bytes: lines the plane accepted were cut or changed.
+	ErrStopsRewritten Error = "policystate: the stop list's accepted part is shorter than the floor's or other bytes"
 	// ErrStopsScope is a stop list floor directory kept for another tenant
 	// or project than the one asked for.
 	ErrStopsScope Error = "policystate: the stop list floor is another tenant's or project's"
@@ -42,16 +47,20 @@ const (
 
 var (
 	stopsMarkerMembers = []string{"schema_version", "kind", "tenant", "project"}
-	stopsFileMembers   = []string{"schema_version", "tenant", "project", "serial", "digest"}
+	stopsFileMembers   = []string{"schema_version", "tenant", "project", "serial", "digest", "length", "prefix"}
 )
 
-// StopsFloor is a plane's stop list floor: its tenant and project, and the
-// highest header serial taken with the head digest of the list at it. Serial is 0 and
-// Digest empty while the floor holds no serial yet.
+// StopsFloor is a plane's stop list floor: its tenant and project, the
+// highest header serial taken with the head digest of the list at it, and
+// the Length in bytes and the SHA-256 Prefix of that list's part the plane
+// accepted. Serial and Length are 0 and the digests empty while the floor
+// holds no serial yet.
 type StopsFloor struct {
 	Tenant, Project string
 	Serial          int64
 	Digest          string
+	Length          int64
+	Prefix          string
 }
 
 // HasSerial reports whether a signed stop list was ever taken into the floor.
@@ -139,21 +148,25 @@ func ReadStops(dir, tenant, project string) (_ StopsFloor, err error) {
 }
 
 // RaiseStops holds the directory's exclusive lock while it reads the stop list
-// floor, and takes a stop list of tenant and project at serial with digest:
-// one above the floor's serial replaces the file whole, and one at it with its
-// digest leaves the file as it was. It refuses a lower serial with
-// ErrStopsBelowFloor, the floor's serial with another digest with
-// ErrStopsForked, and a serial or digest no stop list carries with
-// ErrStopsInvalid, each leaving the file as it was, and every refusal
-// ReadStops makes. It never creates a directory, a marker or a floor file,
-// and waits for the lock until ctx ends.
-func RaiseStops(ctx context.Context, dir, tenant, project string, serial int64, digest string) (StopsFloor, error) {
-	return raiseSerial(ctx, dir, StopsFloor{Tenant: tenant, Project: project, Serial: serial, Digest: digest})
+// floor of next's tenant and project, and takes next: a serial above the
+// floor's, or a longer accepted part at its serial and head, replaces the file
+// whole, and the floor's own serial, head and part leave it as they were. It
+// refuses a lower serial with ErrStopsBelowFloor, the floor's serial with
+// another head with ErrStopsForked, a shorter part or one of the floor's
+// length with another SHA-256 with ErrStopsRewritten, and a serial, digest or
+// length no stop list carries with ErrStopsInvalid, each leaving the file as
+// it was, and every refusal ReadStops makes. Whether a longer part begins with
+// the floor's is the caller's to check before. It never creates a directory, a
+// marker or a floor file, and waits for the lock until ctx ends.
+func RaiseStops(ctx context.Context, dir string, next StopsFloor) (StopsFloor, error) {
+	return raiseSerial(ctx, dir, next)
 }
 
-var stopsRefusals = serialRefusals{invalid: ErrStopsInvalid, below: ErrStopsBelowFloor, forked: ErrStopsForked}
+var stopsRefusals = serialRefusals{invalid: ErrStopsInvalid, below: ErrStopsBelowFloor, forked: ErrStopsForked, rewritten: ErrStopsRewritten}
 
-func (f StopsFloor) at() serialAt           { return serialAt{serial: f.Serial, digest: f.Digest} }
+func (f StopsFloor) at() serialAt {
+	return serialAt{serial: f.Serial, digest: f.Digest, length: f.Length, prefix: f.Prefix}
+}
 func (StopsFloor) refusals() serialRefusals { return stopsRefusals }
 func (f StopsFloor) readFrom(d *dir) (StopsFloor, error) {
 	return d.readStopsFloor(f.Tenant, f.Project)
@@ -236,12 +249,16 @@ func (f StopsFloor) check() error {
 		return err
 	}
 	switch {
-	case f.Serial == 0 && f.Digest == "":
+	case f.Serial == 0 && f.Digest == "" && f.Length == 0 && f.Prefix == "":
 		return nil
 	case f.Serial < 1 || f.Serial > policy.MaxSerial:
 		return fmt.Errorf("%w: serial %d", ErrStopsInvalid, f.Serial)
 	case !canon.ValidDigest(f.Digest):
 		return fmt.Errorf("%w: the digest", ErrStopsInvalid)
+	case f.Length < 1:
+		return fmt.Errorf("%w: length %d", ErrStopsInvalid, f.Length)
+	case !canon.ValidDigest(f.Prefix):
+		return fmt.Errorf("%w: the prefix", ErrStopsInvalid)
 	}
 	return nil
 }

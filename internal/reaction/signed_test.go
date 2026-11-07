@@ -144,6 +144,10 @@ func TestASignedListIsRefusedAndNeverReadAsNoStops(t *testing.T) {
 			reaction.ErrSignedLiftUnvouched, reaction.CauseLift},
 		{"a lift of another project", joinLines(header, signedStop(t, sProject), signedLiftLine(t, head, "other", operatorKey())),
 			reaction.ErrSignedLiftMismatch, reaction.CauseLift},
+		{"a lift signed for another run", joinLines(header, signedStop(t, sProject), liftLineAs(t, head, sProject, operatorKey(), "run-2", 2)),
+			reaction.ErrSignedLiftMismatch, reaction.CauseLift},
+		{"a lift signed for another line", joinLines(header, signedStop(t, sProject), liftLineAs(t, head, sProject, operatorKey(), "run-1", 1)),
+			reaction.ErrSignedLiftMismatch, reaction.CauseLift},
 	} {
 		_, err := reaction.Judge(r, reaction.Prefix{}, c.content, sNow, 0)
 		if !errors.Is(err, c.want) {
@@ -154,6 +158,23 @@ func TestASignedListIsRefusedAndNeverReadAsNoStops(t *testing.T) {
 		if snap.State() != reaction.Unknown || snap.Cause() != c.cause {
 			t.Errorf("%s: snapshot %v %q, want unknown with %q", c.name, snap.State(), snap.Cause(), c.cause)
 		}
+	}
+}
+
+// TestAVoucherThatCannotAnswerIsItsOwnCause: a header judged while the
+// voucher cannot answer is refused, and the snapshot names the ports, not a
+// header that does not verify.
+func TestAVoucherThatCannotAnswerIsItsOwnCause(t *testing.T) {
+	v := newVoucher()
+	r := vouchedRoute(t, v)
+	header, _ := signedHeaderLine(t, r, headerOpts{})
+	v.unanswered = true
+	if _, err := reaction.Judge(r, reaction.Prefix{}, joinLines(header), sNow, 0); !errors.Is(err, reaction.ErrUnanswered) {
+		t.Fatalf("a header judged while the voucher cannot answer: %v", err)
+	}
+	snap := reaction.Snapshot{}.Next(r, joinLines(header), sNow, time.Second)
+	if snap.State() != reaction.Unknown || snap.Cause() != reaction.CauseUnanswered {
+		t.Fatalf("the snapshot: %v %q, want unknown with %q", snap.State(), snap.Cause(), reaction.CauseUnanswered)
 	}
 }
 

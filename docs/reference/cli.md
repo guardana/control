@@ -185,7 +185,7 @@ usage:
       [--valid-for <duration>] <roster.json>
   guardana-control operators floor init --roster-id <id> <dir>
   guardana-control stops init --route <f> (--public-key <f> | --roster <f> --root-key <f> --key <k>
-      [--serial <n>]) [--carry <dir> --carry-route <file>] <dir>
+      [--serial <n>]) [--carry <dir> --carry-route <file> [--stops-floor <dir>]] <dir>
   guardana-control stops lift --route <f> (--public-key <f> | --roster <f> --root-key <f>) --key <k>
       --run <run-id> [--through <line>] <dir>
   guardana-control stops list --route <f> (--public-key <f> | --roster <f> --root-key <f>) <dir>

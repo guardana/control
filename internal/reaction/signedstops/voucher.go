@@ -115,7 +115,7 @@ func (p *Ports) Vouch(kind reaction.SignedKind, env reaction.Envelope) (reaction
 	case operators.AuthRefused:
 		return reaction.Signer{}, fmt.Errorf("%w: %s", ErrUnauthenticated, who.Cause())
 	default:
-		return reaction.Signer{}, fmt.Errorf("%w: the authenticator: %s", ErrAuthority, who.Cause())
+		return reaction.Signer{}, fmt.Errorf("%w: %w: the authenticator: %s", ErrAuthority, reaction.ErrUnanswered, who.Cause())
 	}
 	perm := p.authz.Authorize(ctx, who, operators.Request{Act: r.act, Tenant: p.plane.Tenant, Project: p.plane.Project})
 	switch perm.State() {
@@ -123,7 +123,7 @@ func (p *Ports) Vouch(kind reaction.SignedKind, env reaction.Envelope) (reaction
 	case operators.PermDenied:
 		return reaction.Signer{}, fmt.Errorf("%w: %s", ErrUnauthorized, perm.Cause())
 	default:
-		return reaction.Signer{}, fmt.Errorf("%w: the authorizer: %s", ErrAuthority, perm.Cause())
+		return reaction.Signer{}, fmt.Errorf("%w: %w: the authorizer: %s", ErrAuthority, reaction.ErrUnanswered, perm.Cause())
 	}
 	return reaction.Signer{Subject: who.Subject(), KeyID: who.KeyID()}, nil
 }

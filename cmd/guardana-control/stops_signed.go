@@ -121,7 +121,11 @@ func stopsInitSigned(a stopsInitArgs, dir string, now time.Time, stdout, stderr 
 		writeLine(stderr, headerSignedLine(stopsInitName, h))
 		return emit(stdout, stderr, stopsInitName, headerLines(h), dir)
 	}
-	c, err := stopwrite.CarrySigned(ctx, a.carry, from, dir, route, now, headerSigner(key))
+	hold, err := carryHold(a.stopsFloor, from, stderr)
+	if err != nil {
+		return fail(stderr, stopsInitName, err)
+	}
+	c, err := stopwrite.CarrySigned(ctx, a.carry, from, dir, route, now, headerSigner(key), hold)
 	if err != nil {
 		return fail(stderr, stopsInitName, err)
 	}
@@ -131,6 +135,23 @@ func stopsInitSigned(a stopsInitArgs, dir string, now time.Time, stdout, stderr 
 		lines = append(lines, fmt.Sprintf("left out: the last %d line(s) of the old list, from %s", c.LeftOut, oneLine(c.Refused.Error())))
 	}
 	return emit(stdout, stderr, stopsInitName, lines, dir)
+}
+
+// carryHold is what a signed carry holds the old list to: the stop list
+// floor in floorDir of the old route's tenant and project, read once, which
+// refuses a list cut back below the part the plane accepted. With no
+// floorDir it says on stderr that the floor was not read, and holds nothing.
+func carryHold(floorDir string, from reaction.Route, stderr io.Writer) (func(reaction.List, []byte) error, error) {
+	if floorDir == "" {
+		writeLine(stderr, brand.CLI+": "+stopsInitName+": the plane's stop list floor was not read (--stops-floor), "+
+			"so a list cut back since the plane read it is carried as it stands")
+		return nil, nil
+	}
+	stored, err := policystate.ReadStops(floorDir, from.TenantID(), from.ProjectID())
+	if err != nil {
+		return nil, fmt.Errorf("--stops-floor %s: %w", floorDir, err)
+	}
+	return func(l reaction.List, content []byte) error { return signedstops.Hold(stored, l, content) }, nil
 }
 
 // stopsLiftSigned refuses in a fixed order and writes nothing on any

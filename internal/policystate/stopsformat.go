@@ -22,6 +22,8 @@ type stopsFileBody struct {
 	Project       string  `json:"project"`
 	Serial        *int64  `json:"serial"`
 	Digest        *string `json:"digest"`
+	Length        *int64  `json:"length"`
+	Prefix        *string `json:"prefix"`
 }
 
 func encodeStopsMarker(tenant, project string) ([]byte, error) {
@@ -70,7 +72,7 @@ func encodeStopsFile(f StopsFloor) ([]byte, error) {
 	}
 	out := stopsFileBody{SchemaVersion: SchemaVersion, Tenant: f.Tenant, Project: f.Project}
 	if f.HasSerial() {
-		out.Serial, out.Digest = &f.Serial, &f.Digest
+		out.Serial, out.Digest, out.Length, out.Prefix = &f.Serial, &f.Digest, &f.Length, &f.Prefix
 	}
 	body, err := encode(out)
 	if err != nil {
@@ -83,8 +85,8 @@ func encodeStopsFile(f StopsFloor) ([]byte, error) {
 	return body, nil
 }
 
-// decodeStopsFile reads one stop list floor file: serial and digest both null,
-// or a serial and digest check takes.
+// decodeStopsFile reads one stop list floor file: serial, digest, length and
+// prefix all null, or all set to what check takes.
 func decodeStopsFile(raw []byte) (StopsFloor, error) {
 	members, err := readObject(raw, stopsFileMembers)
 	if err != nil {
@@ -102,24 +104,45 @@ func decodeStopsFile(raw []byte) (StopsFloor, error) {
 		return StopsFloor{}, fmt.Errorf("%w: tenant or project is not a string", ErrMalformed)
 	}
 	f := StopsFloor{Tenant: tenant, Project: project}
-	serial, digest := members["serial"], members["digest"]
-	switch {
-	case isNull(serial) != isNull(digest):
-		return StopsFloor{}, fmt.Errorf("%w: serial and digest are not both set or both null", ErrMalformed)
-	case !isNull(serial):
-		var ok bool
-		if f.Serial, err = strconv.ParseInt(string(serial), 10, 64); err != nil {
-			return StopsFloor{}, fmt.Errorf("%w: serial is not an integer", ErrMalformed)
+	set := 0
+	for _, name := range []string{"serial", "digest", "length", "prefix"} {
+		if !isNull(members[name]) {
+			set++
 		}
-		if f.Digest, ok = strictjson.String(digest); !ok {
-			return StopsFloor{}, fmt.Errorf("%w: digest is not a string", ErrMalformed)
+	}
+	switch set {
+	case 0:
+	case 4:
+		if err := readStopsAt(members, &f); err != nil {
+			return StopsFloor{}, err
 		}
-		if f.Serial == 0 {
-			return StopsFloor{}, fmt.Errorf("%w: serial 0", ErrMalformed)
-		}
+	default:
+		return StopsFloor{}, fmt.Errorf("%w: serial, digest, length and prefix are not all set or all null", ErrMalformed)
 	}
 	if err := f.check(); err != nil {
 		return StopsFloor{}, fmt.Errorf("%w: %w", ErrMalformed, err)
 	}
 	return f, nil
+}
+
+// readStopsAt reads the serial, the head digest, the length and the prefix
+// of a floor that holds a serial.
+func readStopsAt(members strictjson.Object, f *StopsFloor) error {
+	var err error
+	if f.Serial, err = strconv.ParseInt(string(members["serial"]), 10, 64); err != nil {
+		return fmt.Errorf("%w: serial is not an integer", ErrMalformed)
+	}
+	if f.Serial == 0 {
+		return fmt.Errorf("%w: serial 0", ErrMalformed)
+	}
+	if f.Length, err = strconv.ParseInt(string(members["length"]), 10, 64); err != nil {
+		return fmt.Errorf("%w: length is not an integer", ErrMalformed)
+	}
+	var okD, okP bool
+	f.Digest, okD = strictjson.String(members["digest"])
+	f.Prefix, okP = strictjson.String(members["prefix"])
+	if !okD || !okP {
+		return fmt.Errorf("%w: digest or prefix is not a string", ErrMalformed)
+	}
+	return nil
 }

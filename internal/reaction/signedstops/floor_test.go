@@ -1,6 +1,8 @@
 package signedstops_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
@@ -62,16 +64,23 @@ func (f *fixture) dir(t *testing.T, name string) string {
 	return dir
 }
 
-func judged(t *testing.T, dir string, r reaction.Route) (reaction.List, error) {
+// listAt is a list a judge accepted and the bytes it was judged from.
+type listAt struct {
+	l   reaction.List
+	raw []byte
+}
+
+func judged(t *testing.T, dir string, r reaction.Route) (listAt, error) {
 	t.Helper()
 	raw, err := stoplist.Read(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return reaction.Judge(r, reaction.Prefix{}, raw, now, 0)
+	l, err := reaction.Judge(r, reaction.Prefix{}, raw, now, 0)
+	return listAt{l: l, raw: raw}, err
 }
 
-func mustJudge(t *testing.T, dir string, r reaction.Route) reaction.List {
+func mustJudge(t *testing.T, dir string, r reaction.Route) listAt {
 	t.Helper()
 	l, err := judged(t, dir, r)
 	if err != nil {
@@ -80,13 +89,18 @@ func mustJudge(t *testing.T, dir string, r reaction.Route) reaction.List {
 	return l
 }
 
+func (c chainFixture) take(t *testing.T, x listAt) (policystate.StopsFloor, error) {
+	t.Helper()
+	return c.floor.Take(t.Context(), x.l, x.raw)
+}
+
 // chainFixture is a plane's stop list floor and the first list its plane
 // took, at serial 1.
 type chainFixture struct {
 	*fixture
 	floorDir string
 	floor    signedstops.Floor
-	first    reaction.List
+	first    listAt
 }
 
 func newChain(t *testing.T) chainFixture {
@@ -112,7 +126,7 @@ func newChain(t *testing.T) chainFixture {
 
 // fresh is a list started in a directory of its own at serial, naming no
 // previous header.
-func (c chainFixture) fresh(t *testing.T, name string, serial int64) reaction.List {
+func (c chainFixture) fresh(t *testing.T, name string, serial int64) listAt {
 	t.Helper()
 	dir := c.dir(t, name)
 	r := c.routeFor(t, c.plane.RouteFile, dir, reaction.VerifySignedRoute)
@@ -123,27 +137,35 @@ func (c chainFixture) fresh(t *testing.T, name string, serial int64) reaction.Li
 }
 
 // carried is the first list carried into a directory of its own.
-func (c chainFixture) carried(t *testing.T) reaction.List {
+func (c chainFixture) carried(t *testing.T) listAt {
 	t.Helper()
 	from, into := filepath.Join(c.base, "stops"), c.dir(t, "stops2")
 	fromRoute := c.routeFor(t, c.plane.RouteFile, from, reaction.VerifySignedCarrySource)
 	r := c.routeFor(t, c.plane.RouteFile, into, reaction.VerifySignedRoute)
-	got, err := stopwrite.CarrySigned(t.Context(), from, fromRoute, into, r, now, alice())
+	got, err := stopwrite.CarrySigned(t.Context(), from, fromRoute, into, r, now, alice(), nil)
 	if err != nil {
 		t.Fatalf("CarrySigned: %v", err)
 	}
-	if got.Header.Signed.Serial != 2 || got.Header.Signed.Previous != c.first.Header().Signed.Digest {
+	if got.Header.Signed.Serial != 2 || got.Header.Signed.Previous != c.first.l.Header().Signed.Digest {
 		t.Fatalf("the carry's header: %+v", got.Header.Signed)
 	}
 	return mustJudge(t, into, r)
 }
 
-func (c chainFixture) expectFloor(t *testing.T, what string, serial int64, l reaction.List) {
+// expectFloor expects the floor at serial, x's head and the whole of x's
+// bytes as its accepted part.
+func (c chainFixture) expectFloor(t *testing.T, what string, serial int64, x listAt) {
 	t.Helper()
 	stored, err := policystate.ReadStops(c.floorDir, "t1", "A")
-	if err != nil || stored.Serial != serial || stored.Digest != l.Header().Signed.Digest {
-		t.Fatalf("%s: the floor %+v, %v; want serial %d", what, stored, err, serial)
+	if err != nil || stored.Serial != serial || stored.Digest != x.l.Header().Signed.Digest ||
+		stored.Length != int64(len(x.raw)) || stored.Prefix != sha256Of(x.raw) {
+		t.Fatalf("%s: the floor %+v, %v; want serial %d and %d bytes", what, stored, err, serial, len(x.raw))
 	}
+}
+
+func sha256Of(b []byte) string {
+	sum := sha256.Sum256(b)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // TestTheFloorFollowsTheChainOfHeaders: the plane takes a new list, again,
@@ -151,13 +173,13 @@ func (c chainFixture) expectFloor(t *testing.T, what string, serial int64, l rea
 func TestTheFloorFollowsTheChainOfHeaders(t *testing.T) {
 	c := newChain(t)
 	for range 2 {
-		if _, err := c.floor.Take(t.Context(), c.first); err != nil {
+		if _, err := c.take(t, c.first); err != nil {
 			t.Fatalf("Take of the first list: %v", err)
 		}
 	}
 	c.expectFloor(t, "the first list", 1, c.first)
 	second := c.carried(t)
-	if _, err := c.floor.Take(t.Context(), second); err != nil {
+	if _, err := c.take(t, second); err != nil {
 		t.Fatalf("Take of the carry: %v", err)
 	}
 	c.expectFloor(t, "the carry", 2, second)
@@ -170,21 +192,21 @@ func TestTheFloorFollowsTheChainOfHeaders(t *testing.T) {
 func TestTheFloorRefusesAListOffTheChain(t *testing.T) {
 	c := newChain(t)
 	second := c.carried(t)
-	for _, l := range []reaction.List{c.first, second} {
-		if _, err := c.floor.Take(t.Context(), l); err != nil {
+	for _, l := range []listAt{c.first, second} {
+		if _, err := c.take(t, l); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, r := range []struct {
 		name string
-		l    reaction.List
+		l    listAt
 		want error
 	}{
 		{"the list the carry replaced", c.first, stoplist.ErrBelowFloor},
 		{"a fresh list above the floor", c.fresh(t, "stops3", 3), stoplist.ErrChain},
 		{"another list at the floor's serial", c.fresh(t, "stops4", 2), stoplist.ErrForked},
 	} {
-		if _, err := c.floor.Take(t.Context(), r.l); !errors.Is(err, r.want) {
+		if _, err := c.take(t, r.l); !errors.Is(err, r.want) {
 			t.Errorf("%s: %v, want %v", r.name, err, r.want)
 		}
 	}
@@ -193,7 +215,7 @@ func TestTheFloorRefusesAListOffTheChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := other.Take(t.Context(), second); !errors.Is(err, stoplist.ErrFloor) {
+	if _, err := other.Take(t.Context(), second.l, second.raw); !errors.Is(err, stoplist.ErrFloor) {
 		t.Fatalf("a floor of another project: %v", err)
 	}
 	if _, err := signedstops.NewFloor(c.floorDir, "t1", ""); !errors.Is(err, signedstops.ErrOptions) {

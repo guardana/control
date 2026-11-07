@@ -30,11 +30,11 @@ type Options struct {
 	// Owner is whose account the list and its directory are owned by:
 	// OwnedByAnother under the signed authority.
 	Owner Owner
-	// Take, when set, is what each list with a header not accepted before
-	// is held to once the judge accepted it: the stop list floor under the
-	// signed authority. A refusal makes the read Unknown and keeps the list
-	// accepted before.
-	Take func(reaction.List) error
+	// Take, when set, is what each list whose accepted part grew is held
+	// to once the judge accepted it from the bytes read: the stop list floor
+	// under the signed authority. A refusal makes the read Unknown and keeps
+	// the list accepted before.
+	Take func(l reaction.List, content []byte) error
 }
 
 // PollStats is what a Poller counted since Open.
@@ -102,13 +102,14 @@ func (p *Poller) Poll() reaction.Snapshot {
 	now := p.opts.Clock()
 	prev := p.Current()
 	var next reaction.Snapshot
-	if raw, err := ReadAs(p.opts.Dir, p.opts.Owner); err != nil {
+	raw, err := ReadAs(p.opts.Dir, p.opts.Owner)
+	if err != nil {
 		next = prev.Unknown(CauseOf(err), err.Error(), now, p.opts.Interval)
 	} else {
 		next = prev.Next(p.opts.Route, raw, now, p.opts.Interval)
 	}
-	if t := p.opts.Take; t != nil && next.State() != reaction.Unknown && next.Header() != prev.AcceptedList().Header() {
-		if err := t(next.AcceptedList()); err != nil {
+	if t := p.opts.Take; t != nil && next.State() != reaction.Unknown && next.Accepted() != prev.Accepted() {
+		if err := t(next.AcceptedList(), raw); err != nil {
 			next = prev.Unknown(CauseOf(err), err.Error(), now, p.opts.Interval)
 		}
 	}

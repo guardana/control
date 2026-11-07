@@ -3,8 +3,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policykey"
 	"github.com/guardana/control/internal/policystate"
@@ -220,8 +223,9 @@ func TestASignedStartTakesOnlyAStopListAndRouteItsAccountCannotRewrite(t *testin
 // grant signed, each refuse the start.
 func TestASignedStartRefusesAListBelowItsFloorAndARouteNoAdminSigned(t *testing.T) {
 	tr := signedStopsTree(t)
-	if _, err := policystate.RaiseStops(context.Background(), filepath.Join(tr.dir, "stopsfloor"), "acme", "orders", 2,
-		"sha256:"+strings.Repeat("ab", 32)); err != nil {
+	ab := "sha256:" + strings.Repeat("ab", 32)
+	if _, err := policystate.RaiseStops(context.Background(), filepath.Join(tr.dir, "stopsfloor"),
+		policystate.StopsFloor{Tenant: "acme", Project: "orders", Serial: 2, Digest: ab, Length: 1, Prefix: ab}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := buildOneAccount(t, tr); !errors.Is(err, stoplist.ErrNotServable) || !strings.Contains(err.Error(), string(stoplist.CauseBelowFloor)) {
@@ -231,5 +235,67 @@ func TestASignedStartRefusesAListBelowItsFloorAndARouteNoAdminSigned(t *testing.
 	signedRouteFile(t, filepath.Join(other.dir, "route.json"), "alice")
 	if _, err := buildOneAccount(t, other); !errors.Is(err, reaction.ErrUnvouched) {
 		t.Fatalf("build over a route alice signed = %v", err)
+	}
+}
+
+// TestASignedStartRefusesAListCutBackBelowWhatItsFloorHolds: a plane takes
+// the list grown by a covered line and raises the floor to it, and starts
+// again over the same list; the list cut back to its header, which holds no
+// line the judge refuses, refuses the next start as a broken chain.
+func TestASignedStartRefusesAListCutBackBelowWhatItsFloorHolds(t *testing.T) {
+	tr := signedStopsTree(t)
+	list := filepath.Join(tr.dir, "stops", stoplist.FileName)
+	header, err := os.ReadFile(list) //nolint:gosec // G304: a file under the test's own temp dir
+	if err != nil {
+		t.Fatal(err)
+	}
+	covered, err := reaction.Covered{FindingID: "f-1", TenantID: "acme", RunID: "run-1", ProjectID: "orders",
+		CreatedAt: time.Now().UTC().Truncate(time.Second)}.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	grown := append(append(bytes.Clone(header), covered...), '\n')
+	writeTestFile(t, list, grown)
+	for _, start := range []string{"first", "second"} {
+		p, err := buildChecked(tr.load(t), slog.New(slog.DiscardHandler), time.Now(), roleServe, "", func(*gatewayconfig.Config) error { return nil })
+		if err != nil {
+			t.Fatalf("the %s build over the grown list = %v", start, err)
+		}
+		if err := p.close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	floor, err := policystate.ReadStops(filepath.Join(tr.dir, "stopsfloor"), "acme", "orders")
+	if err != nil || floor.Length != int64(len(grown)) {
+		t.Fatalf("the floor after the grown list = %+v, %v; want %d bytes", floor, err, len(grown))
+	}
+	writeTestFile(t, list, header)
+	if _, err := buildOneAccount(t, tr); !errors.Is(err, stoplist.ErrNotServable) || !strings.Contains(err.Error(), string(stoplist.CauseChain)) {
+		t.Fatalf("build over the list cut back to its header = %v", err)
+	}
+}
+
+// TestTheStopListFloorIsKeptForTheListenersTenant: with
+// listener.principal.tenant_id naming the route's tenant and tenant_id
+// another, the plane binds its documents and keeps its stop list floor for
+// the listener's tenant, so a floor made for that tenant is taken.
+func TestTheStopListFloorIsKeptForTheListenersTenant(t *testing.T) {
+	tr := signedStopsTree(t)
+	raw, err := os.ReadFile(tr.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := strings.Replace(string(raw), "tenant_id: acme\n", "tenant_id: elsewhere\n", 1)
+	cfg = strings.Replace(cfg, "  principal:\n    id: agent-runner\n", "  principal:\n    id: agent-runner\n    tenant_id: acme\n", 1)
+	if !strings.Contains(cfg, "tenant_id: elsewhere") || !strings.Contains(cfg, "    tenant_id: acme") {
+		t.Fatal("the fixture configuration names no tenant_id or principal to replace")
+	}
+	writeTestFile(t, tr.config, []byte(cfg))
+	if _, err := buildOneAccount(t, tr); err != nil {
+		t.Fatalf("build with the listener's tenant apart from tenant_id = %v", err)
+	}
+	floor, err := policystate.ReadStops(filepath.Join(tr.dir, "stopsfloor"), "acme", "orders")
+	if err != nil || floor.Serial != 1 {
+		t.Fatalf("the listener tenant's floor after the start = %+v, %v", floor, err)
 	}
 }

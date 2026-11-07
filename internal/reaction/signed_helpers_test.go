@@ -3,6 +3,7 @@ package reaction_test
 import (
 	"crypto/ed25519"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -33,9 +34,10 @@ func strangerKey() ed25519.PrivateKey { return seededKey(0x73) }
 // with the payload type of the kind asked about, and denies each kind deny
 // names, as an operator with no grant for it.
 type fakeVoucher struct {
-	plane reaction.Plane
-	deny  map[reaction.SignedKind]bool
-	asked map[reaction.SignedKind]int
+	plane      reaction.Plane
+	deny       map[reaction.SignedKind]bool
+	asked      map[reaction.SignedKind]int
+	unanswered bool
 }
 
 func newVoucher() *fakeVoucher {
@@ -49,6 +51,9 @@ func (f *fakeVoucher) Plane() reaction.Plane { return f.plane }
 
 func (f *fakeVoucher) Vouch(kind reaction.SignedKind, env reaction.Envelope) (reaction.Signer, error) {
 	f.asked[kind]++
+	if f.unanswered {
+		return reaction.Signer{}, fmt.Errorf("%w: the fake voucher's ports are down", reaction.ErrUnanswered)
+	}
 	if f.deny[kind] {
 		return reaction.Signer{}, errDenied
 	}
@@ -156,6 +161,13 @@ func signedStop(t testing.TB, project string) []byte {
 // key, of project.
 func signedLiftLine(t testing.TB, head, project string, key ed25519.PrivateKey) []byte {
 	t.Helper()
+	return liftLineAs(t, head, project, key, "run-1", 2)
+}
+
+// liftLineAs is signedLiftLine whose signed body names run-1 through line 2
+// and whose line names run through line through.
+func liftLineAs(t testing.TB, head, project string, key ed25519.PrivateKey, run string, through int64) []byte {
+	t.Helper()
 	l := reaction.SignedLift{KeyID: keyIDOf(key), ListHead: head, RunID: "run-1", ThroughLine: 2,
 		TenantID: sTenant, Project: project, File: sListFile}
 	body, err := l.Payload()
@@ -163,7 +175,7 @@ func signedLiftLine(t testing.TB, head, project string, key ed25519.PrivateKey) 
 		t.Fatalf("SignedLift.Payload: %v", err)
 	}
 	env := envelopeOf(t, reaction.SignedLiftPayloadType, body, key, keyIDOf(key))
-	line, err := reaction.LiftLine{RunID: "run-1", ThroughLine: 2, Envelope: env}.Marshal()
+	line, err := reaction.LiftLine{RunID: run, ThroughLine: through, Envelope: env}.Marshal()
 	if err != nil {
 		t.Fatalf("LiftLine.Marshal: %v", err)
 	}
