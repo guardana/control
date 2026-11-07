@@ -13,6 +13,21 @@ verify one.
 
 ### Added
 
+- Under `approvals.authority: signed` roster operators sign the reaction
+  documents, bound to the plane's route file or stop list: an `admin` signs a
+  `reaction-route/v1alpha2` route with `route sign --key`, naming a
+  `project_id` and a `scope` on each rule; an operator signs stop list `2.0`'s
+  header with `stops init --key`, at any `--serial` while the plane's floor
+  holds none or, carried, at the next serial naming the old header, the old
+  list held to the plane's floor with `--stops-floor`; and an operator signs a
+  `reaction-lift/v1alpha2` lift with `stops lift --key`, naming the header it
+  lifts from. `stops init`, `lift` and `list` take `--roster` and
+  `--root-key` and judge what is on disk through the roster before they sign;
+  each signing says on standard error what it signed. The plane holds the
+  header and the part of the list it accepted to a stop list floor in the new
+  `reaction.stops_floor_dir`, which `stops floor init` makes for the
+  listener's tenant, and refuses a list cut back below it; `/healthz` gives the header serial and
+  `health.socket` also who signed the header and the route (ADR-0077).
 - `guardana-control state backup <config> <dir>` copies a stopped plane's
   floors, runs and pause file into a new owner-only directory under a
   `backup.json` manifest `0.1`, never the spool, the hold journal, the
@@ -108,6 +123,14 @@ verify one.
 
 ### Changed
 
+- **Breaking:** under `approvals.authority: signed` a `v1alpha1` route, a
+  `1.0` stop list, a lift of the route's lift key and `reaction.public_key`
+  are refused; `reaction.stops_floor_dir` is required with `reaction.route`;
+  the plane refuses to start when its own account may write the route file,
+  the stops directory or either's directory, and refuses at the read one that
+  account owns. `react` needs `--approvals` and will not run as the account
+  that owns it. A `1.0` list is not carried into `2.0`: start a new list.
+  Nothing changes under `memory` or `directory`.
 - **Breaking:** `/healthz` answers `"schema": "2"` and names no run: `stops`
   carries the counts `unheld` and `unread`, and leaves out `entries`,
   `unheld_runs` and `unread_runs`, which only `health.socket` answers. A
