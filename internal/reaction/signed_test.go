@@ -148,6 +148,8 @@ func TestASignedListIsRefusedAndNeverReadAsNoStops(t *testing.T) {
 			reaction.ErrSignedLiftMismatch, reaction.CauseLift},
 		{"a lift signed for another line", joinLines(header, signedStop(t, sProject), liftLineAs(t, head, sProject, operatorKey(), "run-1", 1)),
 			reaction.ErrSignedLiftMismatch, reaction.CauseLift},
+		{"a lift naming a later line than it was signed for", joinLines(header, signedStop(t, sProject), signedStopOf(t, sProject, "f-2"),
+			liftLineAs(t, head, sProject, operatorKey(), "run-1", 3)), reaction.ErrSignedLiftMismatch, reaction.CauseLift},
 	} {
 		_, err := reaction.Judge(r, reaction.Prefix{}, c.content, sNow, 0)
 		if !errors.Is(err, c.want) {

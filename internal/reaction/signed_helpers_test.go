@@ -146,9 +146,14 @@ var sCreated = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 // signedStop is a 2.0 stop of run-1 for finding f-1, of project.
 func signedStop(t testing.TB, project string) []byte {
 	t.Helper()
+	return signedStopOf(t, project, "f-1")
+}
+
+func signedStopOf(t testing.TB, project, finding string) []byte {
+	t.Helper()
 	line, err := reaction.Stop{
-		EntryID: reaction.EntryID("f-1"), TenantID: sTenant, ProjectID: project, Scope: reaction.ScopeRun,
-		RunID: "run-1", FindingID: "f-1", ProcedureID: "refund", ProcedureVersion: "3", ProcedureDigest: procDigest,
+		EntryID: reaction.EntryID(finding), TenantID: sTenant, ProjectID: project, Scope: reaction.ScopeRun,
+		RunID: "run-1", FindingID: finding, ProcedureID: "refund", ProcedureVersion: "3", ProcedureDigest: procDigest,
 		RuleID: "STEP_OUTSIDE_PROCEDURE", RuleVersion: "1", CreatedAt: sCreated, ExpiresAt: sCreated.Add(30 * time.Minute),
 	}.Marshal()
 	if err != nil {
