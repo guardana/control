@@ -32,6 +32,9 @@ type Plane struct {
 	signed  bool
 	records string
 	counts  *signedCounts
+	// uncarried holds the closes a carry failed to write, which notReplayed
+	// counts as carried for as long as the handle lives.
+	uncarried closeSet
 }
 
 // OpenPlane opens dir for a plane. It refuses a group- or world-writable
@@ -173,7 +176,7 @@ func (p *Plane) standing(ctx context.Context, stored SignedRecord, who Identity)
 	if p.signed {
 		if err := p.take(ctx, stored); err != nil {
 			if closesAnyway(rec, err) {
-				p.carry(rec.ID)
+				err = errors.Join(err, p.carry(rec.ID))
 			}
 			return refuse(CauseUnreadable, err)
 		}
@@ -182,10 +185,11 @@ func (p *Plane) standing(ctx context.Context, stored SignedRecord, who Identity)
 	case rec.Who != who:
 		return refuse(CauseIdentity, nil)
 	case rec.Closed():
+		var err error
 		if p.signed {
-			p.carry(rec.ID)
+			err = p.carry(rec.ID)
 		}
-		return refuse(CauseClosed, nil)
+		return refuse(CauseClosed, err)
 	}
 	switch err := p.notReplayed(rec); {
 	case errors.Is(err, ErrReplayed):

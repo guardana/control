@@ -33,10 +33,15 @@ func (p *Plane) take(ctx context.Context, sr SignedRecord) error {
 }
 
 // notReplayed refuses, with ErrReplayed, an open record of a run whose close
-// state/ holds. It is nil off a signed layout and for a closed record.
+// state/ holds or the handle failed to carry. It is nil off a signed layout
+// and for a closed record.
 func (p *Plane) notReplayed(rec Record) error {
 	if !p.signed || rec.Closed() {
 		return nil
+	}
+	if p.uncarried.has(rec.ID) {
+		p.counts.refused(ErrReplayed)
+		return fmt.Errorf("%w: %s, whose close was not carried", ErrReplayed, rec.ID)
 	}
 	f, err := p.st.openRegular(rec.ID+closedSuffix, os.O_RDONLY)
 	switch {
@@ -63,14 +68,38 @@ func closesAnyway(rec Record, err error) bool {
 
 // carry writes the close of run id into state/, where it outlives the closed
 // record: a run once closed stays closed whatever records/ holds later. A
-// close carried already is left as it is.
-func (p *Plane) carry(id string) bool {
+// close carried already is left as it is. A close it fails to write is held
+// in the handle instead, so the run's open record put back is refused while
+// the handle lives.
+func (p *Plane) carry(id string) error {
 	if err := p.st.createEmpty(id + closedSuffix); err != nil {
+		p.uncarried.add(id)
 		p.counts.add("carry_failed")
-		return false
+		return fmt.Errorf("the close of %s was not carried: %w", id, err)
 	}
 	p.counts.add("closes_carried")
-	return true
+	return nil
+}
+
+// closeSet is a set of run ids safe for concurrent use.
+type closeSet struct {
+	mu  sync.Mutex
+	ids map[string]bool
+}
+
+func (c *closeSet) add(id string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.ids == nil {
+		c.ids = map[string]bool{}
+	}
+	c.ids[id] = true
+}
+
+func (c *closeSet) has(id string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.ids[id]
 }
 
 // createEmpty creates the empty file name and forces it and the directory to
@@ -110,7 +139,9 @@ type Survey struct {
 // the close of each closed record its judge takes, so that the open record
 // put back after a close the plane never resolved is refused all the same.
 // A serving plane calls it at its start. A record that does not count is
-// counted and left: it refuses only the calls it would cover.
+// counted and left: it refuses only the calls it would cover. A close it
+// cannot write stops the read with an error naming the run, which a serving
+// plane does not start past.
 func (p *Plane) CarryCloses(ctx context.Context, bound int, now time.Time) (Survey, error) {
 	return p.survey(ctx, bound, now, true)
 }
@@ -146,14 +177,16 @@ func (p *Plane) survey(ctx context.Context, bound int, now time.Time, carry bool
 		ids = ids[:bound]
 	}
 	for _, id := range ids {
-		p.surveyOne(ctx, id, now, carry, &out)
+		if err := p.surveyOne(ctx, id, now, carry, &out); err != nil {
+			return out, err
+		}
 	}
 	return out, nil
 }
 
 // surveyOne judges the record of id and counts it into out, carrying its
-// close where carry.
-func (p *Plane) surveyOne(ctx context.Context, id string, now time.Time, carry bool, out *Survey) {
+// close where carry; the error is a close it could not carry.
+func (p *Plane) surveyOne(ctx context.Context, id string, now time.Time, carry bool, out *Survey) error {
 	out.Records++
 	stored, err := p.d.readStored(id)
 	var by SignedBy
@@ -165,24 +198,34 @@ func (p *Plane) surveyOne(ctx context.Context, id string, now time.Time, carry b
 	}
 	if err != nil {
 		out.Refused[recordCause(err)]++
-		if carry && closesAnyway(stored.Record, err) && p.carry(id) {
-			out.Carried++
+		if carry && closesAnyway(stored.Record, err) {
+			return p.carryCounted(id, out)
 		}
-		return
+		return nil
 	}
 	out.Signers[by.Subject]++
 	rec := stored.Record
 	switch {
 	case rec.Closed():
 		out.Closed++
-		if carry && p.carry(id) {
-			out.Carried++
+		if carry {
+			return p.carryCounted(id, out)
 		}
 	case now.IsZero() || !now.Before(rec.ExpiresAt):
 		out.Expired++
 	default:
 		out.Open++
 	}
+	return nil
+}
+
+// carryCounted carries the close of id and counts it into out.
+func (p *Plane) carryCounted(id string, out *Survey) error {
+	if err := p.carry(id); err != nil {
+		return err
+	}
+	out.Carried++
+	return nil
 }
 
 // RecordCauses is every label a record that did not count is counted under,

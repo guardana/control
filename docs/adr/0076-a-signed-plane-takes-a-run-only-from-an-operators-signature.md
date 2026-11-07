@@ -47,7 +47,9 @@ close that replaced it.
   call or at its start, it writes the run's close there, and an open record
   of a run whose close it holds is refused as closed. A close bound to this
   directory and signed by a roster operator key is carried even once its
-  signer may no longer operate there.
+  signer may no longer operate there. A close the plane cannot write is held
+  in its memory until it stops, and a start that cannot carry a close
+  refuses, naming the run.
 - The plane makes a root's state and then its lock in `state/` at the root's
   first admitted call; a missing state reads as the start only while its
   lock is missing too, and blocks the root's calls after.

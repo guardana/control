@@ -35,9 +35,11 @@ verify one.
   backup of another plane or a tampered one, restores only the bytes it
   verified, holds the spool's and the journal's locks, checks every class
   before its first write, raises every floor to the higher of the two,
-  stamps a plane floor at the restore time rounded up to the second so the
-  old statement confirms nothing, closes every run and joins taint, a state
-  lost beside its lock or record as the worst. Under `directory` it keeps a
+  stamps every plane floor, one only live holds included, at the restore
+  time rounded up to the second so the old statement confirms nothing,
+  closes every run, a run named only by a close the backup carried
+  included, and joins taint under each root's lock, a state lost beside
+  its lock or record as the worst. Under `directory` it keeps a
   stop list that holds the backup's, carries the backup's into a new list
   where none survived, and refuses two histories; under `signed` it writes
   no operator file, raises the stop list floor in its own order, and names
@@ -63,7 +65,9 @@ verify one.
   and say on standard error what they signed. A plane refuses a `records/`
   or a record its own account owns. When the plane takes a closed record it carries the close into
   `state/`, at a call or at its start, so the open record put back is
-  refused; a close whose signer may no longer operate there is carried too. A record
+  refused; a close whose signer may no longer operate there is carried too. A
+  close it cannot write is refused as carried until the plane stops, and a
+  start that cannot carry one refuses, naming the run. A record
   copied from another path counts in neither; planes that use one path on two
   hosts must differ in tenant or project. The plane writes a root's state at
   its first admitted call and blocks the root's calls when that state is later
