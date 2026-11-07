@@ -13,6 +13,15 @@ verify one.
 
 ### Added
 
+- `guardana-control state backup <config> <dir>` copies a stopped plane's
+  floors, runs and pause file into a new owner-only directory under a
+  `backup.json` manifest `0.1`, never the spool, the hold journal, the
+  approvals store or a key. `state restore <config> <dir>` refuses a backup
+  of another plane or a tampered one, holds the spool's and the journal's
+  locks, raises every floor to the higher of the two, stamps a plane floor
+  at the restore time so the old statement confirms nothing, closes every
+  run and joins taint; under `signed` it writes no operator file. A plane
+  with `reaction.stops` is refused for now (ADR-0078).
 - Under `approvals.authority: signed` the pause file is version `3`, signed
   by a roster operator granted `operate` over the plane's tenant and project:
   `pause init --key <k> --tenant <t> --project <p>` makes one bound to its

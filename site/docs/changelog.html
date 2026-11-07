@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -122,6 +123,15 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.15.0...HEAD">Unreleased</a></h2>
 <h3 id="added">Added</h3>
 <ul>
+<li><code>guardana-control state backup &lt;config&gt; &lt;dir&gt;</code> copies a stopped plane's
+floors, runs and pause file into a new owner-only directory under a
+<code>backup.json</code> manifest <code>0.1</code>, never the spool, the hold journal, the
+approvals store or a key. <code>state restore &lt;config&gt; &lt;dir&gt;</code> refuses a backup
+of another plane or a tampered one, holds the spool's and the journal's
+locks, raises every floor to the higher of the two, stamps a plane floor
+at the restore time so the old statement confirms nothing, closes every
+run and joins taint; under <code>signed</code> it writes no operator file. A plane
+with <code>reaction.stops</code> is refused for now (ADR-0078).</li>
 <li>Under <code>approvals.authority: signed</code> the pause file is version <code>3</code>, signed
 by a roster operator granted <code>operate</code> over the plane's tenant and project:
 <code>pause init --key &lt;k&gt; --tenant &lt;t&gt; --project &lt;p&gt;</code> makes one bound to its
@@ -2427,6 +2437,7 @@ independence of this project from Guardana
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
