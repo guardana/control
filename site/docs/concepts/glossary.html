@@ -241,7 +241,7 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>health socket</td>
-<td>the Unix socket <code>health.socket</code> names, mode <code>0600</code>, where the plane serves its whole health answer, the run ids and signers <code>/healthz</code> leaves out included, to its own account and <code>health.socket_uid</code> alone; any other peer is closed unanswered</td>
+<td>the Unix socket <code>health.socket</code> names; the plane serves its whole health answer there, with the run ids and signers <code>/healthz</code> leaves out, to its own account and to <code>health.socket_uid</code>, and closes any other peer unanswered</td>
 <td><code>bindHealthSocket</code> in <code>cmd/guardana-gateway/health_socket.go</code></td>
 </tr>
 <tr>
@@ -346,12 +346,12 @@ for the same thing; the right column is where the code defines it.</p>
 </tr>
 <tr>
 <td>signed authority</td>
-<td><code>approvals.authority: signed</code>; a plane under it, a signed plane, takes an approval, a pause, a run and a stop list only as a roster operator signed it for the plane's tenant and project, refuses to start when its own account may write the pause file, <code>records/</code>, the route or the stops directory, and holds each signed file to a serial floor</td>
+<td><code>approvals.authority: signed</code>; a plane under it, a signed plane, takes an approval, a pause, a run and a stop list only as a roster operator signed it for the plane's tenant and project, refuses to start when its own account may write the pause file, <code>records/</code>, the route or the stops directory, and holds the roster, the pause file, the route and the stop list each to a serial floor</td>
 <td><code>AuthoritySigned</code> in <code>internal/gatewayconfig/config.go</code>, <a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a>, <a href="/docs/adr/0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature">ADR-0075</a>, <a href="/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature">ADR-0076</a>, <a href="/docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures">ADR-0077</a></td>
 </tr>
 <tr>
 <td>signed run record</td>
-<td>a run record <code>3.0</code> in <code>runs.dir</code>'s <code>records/</code>, signed by a roster operator granted <code>operate</code> for the run's tenant and project and bound to that directory; the only record a signed plane counts, carrying each close it takes into <code>state/</code> so the open record put back is refused</td>
+<td>a run record <code>3.0</code> in <code>runs.dir</code>'s <code>records/</code>, signed by a roster operator granted <code>operate</code> for the run's tenant and project and bound to that directory; the only record a signed plane counts; the plane copies each close it takes into <code>state/</code>, so the run's open record put back later is refused</td>
 <td><code>SignedRecordVersion</code> in <code>internal/runs/signed.go</code>, judged by <code>internal/runs/signedruns/</code>, <a href="/docs/reference/runs#a-signed-runs-directory">reference/runs</a></td>
 </tr>
 <tr>

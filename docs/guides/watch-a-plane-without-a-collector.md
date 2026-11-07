@@ -165,9 +165,9 @@ The live segment is never pruned.
   write evidence into the trail, including a chain made up to pass the check.
 - An event sent again after its segment was pruned is written again, and a
   trail whose first events were pruned fails the chain check.
-- Over TCP, before collect is up, whoever binds its loopback port first is
-  sent the token in plaintext by the plane's next retry; TCP export goes in
-  0.17. A socket's peer must be `export.collector_uid`.
+- Over TCP, the plane's next retry sends the token in plaintext to whoever
+  binds collect's loopback port first, before collect is up; TCP export is
+  removed in 0.17. A socket's peer must be `export.collector_uid`.
 - At 10,000 sealed segments a request that needs a seal is answered 503 until
   a prune; past that, each seal drops the oldest tombstone.
 - `trail` checks each chain's shape: its links, its order and its identifiers.

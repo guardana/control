@@ -450,12 +450,10 @@ which is not refused: the trail file and the hold journal accept one. On
 Linux an ACL's grant to another account shows in the group bits, refused.</li>
 </ul>
 <h2 id="the-same-local-account">The same local account</h2>
-<p>Outside <code>approvals.authority: signed</code>, the plane's account is the authority
-for everything on disk. <strong>Any process
-running as that account can approve, reject, pause and lift a pause, sign a
-bundle or a statement with a key it can read, lower a policy's floor, read the
-plane's environment, its header
-credentials included, and rewrite the evidence.</strong> That includes a
+<p>The plane's account controls everything on disk no operator signs. <strong>Any process running as that account can sign a bundle or a statement
+with a key it can read, lower a floor, read the plane's environment, its header
+credentials included, and rewrite the evidence; outside
+<code>approvals.authority: signed</code> it can also approve, reject, pause and unpause.</strong> That includes a
 <code>stdio</code> upstream, the page's starter, and a tool behind the plane that can
 write files (<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>,
 <a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>,
@@ -473,8 +471,9 @@ in <code>internal/gateway/store_test.go</code>).</li>
 <li>Under <code>signed</code>, approvals, pauses, runs and stop lists count only signed by
 roster operators, and the plane refuses to start when its account may write
 the pause file, the run records or the stop list (ADR-0075, ADR-0076,
-ADR-0077). It still keeps their floors, so it can lower one, or withhold a
-newer roster while the one it holds lasts.</li>
+ADR-0077). The plane's account still owns the roster, pause, route and stop list
+floors: it can lower one, or withhold a newer roster until its current one
+expires.</li>
 <li>The gateway binary holds none of the approver's code, no private-key
 parser and no code that makes or lowers a floor, so the process that serves
 agents cannot answer an approval, read a signing key or reset its own floor

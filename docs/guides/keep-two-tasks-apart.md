@@ -40,7 +40,8 @@ first `runs open` makes it a runs directory; a plane refuses it before that.
 This guide's plane runs under `approvals.authority` `memory` or `directory`.
 Under `signed` the directory holds `records/`, an operator's, and `state/`,
 the plane's, and an operator opens and closes each run from their own account
-with `--key`, `--roster` and `--root-key`
+with `--key`, `--roster` and `--root-key`, a close also with `--tenant` and
+`--project`
 ([a signed runs directory](../reference/runs.md#a-signed-runs-directory)).
 
 ### 2. Open a run per task

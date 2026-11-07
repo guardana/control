@@ -38,7 +38,7 @@ is published with each release, whose notes name its digest.
      nothing to run in this image.
    - The collector at an `https` endpoint. A plaintext export is admitted only
      to a loopback IP literal, which here is the container itself, and
-     `doctor` warns of any TCP endpoint, since TCP export goes in 0.17.
+     `doctor` warns of any TCP endpoint, since TCP export is removed in 0.17.
    - `policy.state_dir: /var/lib/guardana/floors`, a volume that outlives the
      container, beside the spool and the approvals directory. Make it on the
      host with `guardana-control policy state init --kind plane --bundle-id <bundle id>

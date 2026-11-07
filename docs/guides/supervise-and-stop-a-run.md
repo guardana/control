@@ -120,7 +120,7 @@ guardana-gateway collect --listen 127.0.0.1:4318 --dir trail/plane --tenant acme
   --credential-file state/collector.credential
 ```
 
-`doctor` warns of this TCP endpoint, since TCP export goes in 0.17; a unix
+`doctor` warns of this TCP endpoint, since TCP export is removed in 0.17; a unix
 socket is [watch a plane without a collector](watch-a-plane-without-a-collector.md).
 Open both runs as step 5 shows first. Then check the configuration; every
 check line should begin `ok`:

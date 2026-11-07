@@ -213,7 +213,8 @@ func lead(listDefault, classificationRule string) string {
 		"every other authority refuses `reaction.stops_floor_dir`; a route needs `runs.dir`,\n" +
 		"`reaction.poll_interval` takes 100ms to a minute, and the stops directory may not be,\n" +
 		"hold or sit inside the runs directory, the spool, the approvals directory, the hold\n" +
-		"journal, any floor directory or the pause file's directory, compared through\n" +
+		"journal, the policy, route, stop list or pause floor directory or the pause file's\n" +
+		"directory, compared through\n" +
 		"symbolic links too. A `unix:///path` `export.endpoint` needs `export.collector_uid`\n" +
 		"and refuses `export.allow_plaintext`, any other refuses `export.collector_uid`, and\n" +
 		"`health.socket_uid` needs `health.socket`; a platform that cannot name a socket peer's\n" +

@@ -145,7 +145,7 @@ which is mounted read-only.</li>
 nothing to run in this image.</li>
 <li>The collector at an <code>https</code> endpoint. A plaintext export is admitted only
 to a loopback IP literal, which here is the container itself, and
-<code>doctor</code> warns of any TCP endpoint, since TCP export goes in 0.17.</li>
+<code>doctor</code> warns of any TCP endpoint, since TCP export is removed in 0.17.</li>
 <li><code>policy.state_dir: /var/lib/guardana/floors</code>, a volume that outlives the
 container, beside the spool and the approvals directory. Make it on the
 host with <code>guardana-control policy state init --kind plane --bundle-id &lt;bundle id&gt; floors</code>, then <code>chown -R 65532 floors</code>: the plane refuses a floor directory another user
