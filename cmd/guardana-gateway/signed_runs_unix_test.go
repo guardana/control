@@ -16,6 +16,7 @@ import (
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policykey"
 	"github.com/guardana/control/internal/runs"
+	"github.com/guardana/control/internal/runs/signedruns"
 )
 
 // takesAny is the judge a fixture writes its records through, so a record
@@ -78,8 +79,10 @@ func resolveOn(t *testing.T, p *plane, token string) error {
 
 // TestASignedStartRefusesARecordsDirectoryThePlanesAccountMayWrite: records/
 // or a directory on its path the plane's account may write refuses the
-// start, naming runs.dir; placed apart, the plane resolves alice's run and
-// refuses mallory's, whom the roster does not name, and /healthz counts both.
+// start, naming runs.dir; placed apart, a records/ the plane's own account
+// owns refuses it too; on one account, as dev runs, the plane resolves
+// alice's run and refuses mallory's, whom the roster does not name, and
+// /healthz counts both.
 func TestASignedStartRefusesARecordsDirectoryThePlanesAccountMayWrite(t *testing.T) {
 	tr, a := signedRunsTree(t)
 	_, token := openSignedRun(t, tr, a, "alice")
@@ -89,9 +92,12 @@ func TestASignedStartRefusesARecordsDirectoryThePlanesAccountMayWrite(t *testing
 		t.Fatalf("build over a plane-writable records/ = %v", err)
 	}
 	placedApart(t)
-	p, err := buildSigned(t, tr)
+	if _, err := buildSigned(t, tr); !errors.Is(err, runs.ErrPlaneOwned) || !strings.Contains(err.Error(), "runs.dir") {
+		t.Fatalf("build over a records/ the plane's account owns = %v, want ErrPlaneOwned naming runs.dir", err)
+	}
+	p, err := buildOneAccount(t, tr)
 	if err != nil {
-		t.Fatalf("build placed apart = %v", err)
+		t.Fatalf("build on one account = %v", err)
 	}
 	if err := resolveOn(t, p, token); err != nil {
 		t.Fatalf("alice's run = %v", err)
@@ -122,14 +128,11 @@ func TestASignedPlaneCarriesTheClosesItFindsAtItsStart(t *testing.T) {
 	if _, _, err := a.CloseSigned(t.Context(), rec.ID, time.Now(), runSigner("alice"), takesAny{}); err != nil {
 		t.Fatal(err)
 	}
-	placedApart(t)
-	p, err := buildSigned(t, tr)
+	p, err := buildOneAccount(t, tr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, open, 0o600); err != nil { //nolint:gosec // G703: a file under the test's temp dir
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, open)
 	for _, when := range []string{"after the start", "after a restart"} {
 		err := resolveOn(t, p, token)
 		var refusal *gateway.RunRefusal
@@ -139,7 +142,7 @@ func TestASignedPlaneCarriesTheClosesItFindsAtItsStart(t *testing.T) {
 		if err := p.close(); err != nil {
 			t.Fatal(err)
 		}
-		if p, err = buildSigned(t, tr); err != nil {
+		if p, err = buildOneAccount(t, tr); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -169,19 +172,43 @@ func TestASignedStartRefusesAnUnsignedRunsDirectory(t *testing.T) {
 	}
 }
 
-// TestDoctorCountsASignedLayoutsRecordsAndSigners: doctor reads the records
-// as the plane would judge them, names who signed them and how many count
-// for nothing, and writes nothing.
+// TestDoctorCountsASignedLayoutsRecordsAndSigners: doctor refuses a records/
+// the plane's own account owns, as run does, and writes nothing; over records
+// an operators' account owns it reads them as the plane would judge them,
+// names who signed them and how many count for nothing.
 func TestDoctorCountsASignedLayoutsRecordsAndSigners(t *testing.T) {
 	tr, a := signedRunsTree(t)
 	openSignedRun(t, tr, a, "alice")
 	openSignedRun(t, tr, a, "mallory")
-	verdict, _, line := (&examination{cfg: tr.load(t)}).runs(t.Context())
-	if verdict != verdictOK || !strings.Contains(line, "2 record(s), 1 open, 0 closed, 0 expired, signed by 1 operator(s) (operator-a 1)") ||
-		!strings.Contains(line, "1 count for nothing and refuse their calls (unauthenticated 1)") {
-		t.Fatalf("doctor's runs line = %s, %q", verdict, line)
+	d := &examination{cfg: tr.load(t)}
+	verdict, _, line := d.runs(t.Context())
+	if verdict != verdictFail || !strings.Contains(line, runs.ErrPlaneOwned.Error()) {
+		t.Fatalf("doctor's runs line over records/ this account owns = %s, %q", verdict, line)
 	}
 	if entries, err := os.ReadDir(filepath.Join(tr.dir, "runs", runs.StateDir)); err != nil || len(entries) != 0 {
 		t.Errorf("state/ after doctor = %v, %v; want it untouched", entries, err)
+	}
+	root, err := readRouteKey(d.cfg.Resolve(d.cfg.Trust.RootPublicKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	roster, err := d.roster(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := runs.OpenSignedPlane(d.cfg.Resolve(d.cfg.Runs.Dir), runs.SignedOptions{
+		Judge: signedruns.Roster{Document: roster, Tenant: listenerTenant(d.cfg), Project: d.cfg.ProjectID}, PlaneOwned: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = p.Close() }()
+	s, err := p.Inspect(t.Context(), doctorRunsBound, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	line = signedRunsLine("runs", s)
+	if !strings.Contains(line, "2 record(s), 1 open, 0 closed, 0 expired, signed by 1 operator(s) (operator-a 1)") ||
+		!strings.Contains(line, "1 count for nothing and refuse their calls (unauthenticated 1)") {
+		t.Fatalf("doctor's line over that survey = %q", line)
 	}
 }

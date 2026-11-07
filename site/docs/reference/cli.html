@@ -262,8 +262,8 @@ profile's statuses, <a href="/docs/extending/runtime-profiles">extending/runtime
   guardana-control pause list &lt;file&gt;
   guardana-control pause floor init --tenant &lt;t&gt; --project &lt;p&gt; &lt;dir&gt;
   guardana-control runs open --project --tenant --principal-type --principal --agent
-      --ttl [--parent] [--key --roster --trust-root] &lt;dir&gt;
-  guardana-control runs close [--key --roster --trust-root] &lt;dir&gt; &lt;run-id&gt;
+      --ttl [--parent] [--key --roster --root-key] &lt;dir&gt;
+  guardana-control runs close [--key --roster --root-key --tenant --project] &lt;dir&gt; &lt;run-id&gt;
   guardana-control runs list &lt;dir&gt;
   guardana-control runs prune --expired-before &lt;time&gt; --archive &lt;dir&gt; &lt;dir&gt;
   guardana-control observe import --source &lt;file&gt; --log &lt;dir&gt; &lt;file&gt;

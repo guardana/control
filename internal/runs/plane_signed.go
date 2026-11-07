@@ -177,7 +177,7 @@ func (p *Plane) surveyOne(ctx context.Context, id string, now time.Time, carry b
 // in the order a counter lists them. None names a run.
 func RecordCauses() []string {
 	return []string{"unsigned", "malformed", "other_directory", "unauthenticated", "other_scope", "unauthorized",
-		"authority", "unjudged", "replayed", "unreadable"}
+		"authority", "unjudged", "replayed", "plane_owned", "unreadable"}
 }
 
 // recordCause is the label of a refusal of a record.
@@ -188,7 +188,7 @@ func recordCause(err error) string {
 	}{
 		{ErrUnsigned, "unsigned"}, {ErrOtherDirectory, "other_directory"}, {ErrUnauthenticated, "unauthenticated"},
 		{ErrOtherScope, "other_scope"}, {ErrUnauthorized, "unauthorized"}, {ErrAuthority, "authority"},
-		{ErrUnjudged, "unjudged"}, {ErrReplayed, "replayed"},
+		{ErrUnjudged, "unjudged"}, {ErrReplayed, "replayed"}, {ErrPlaneOwned, "plane_owned"},
 		{ErrMalformed, "malformed"}, {ErrSchemaVersion, "malformed"}, {ErrUnknownField, "malformed"},
 		{ErrMissingField, "malformed"}, {ErrDuplicateField, "malformed"}, {ErrEncoding, "malformed"},
 		{ErrNameMismatch, "malformed"},

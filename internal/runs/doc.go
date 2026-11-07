@@ -39,13 +39,17 @@
 //
 // Under the signed authority the directory holds records/ and state/ and
 // nothing else. records/ is the operators' account's and holds the marker,
-// the records and their temporary names; a plane reads it as whichever
-// account owns it and never writes it. state/ is the plane's and holds the
+// the records and their temporary names; a plane reads it as the account
+// that owns it, which may not be the plane's own, and never writes it.
+// state/ is the plane's and holds the
 // states, the lock files and, for each run whose closed record the plane
 // took, an empty <id>.closed; no operator command writes it. A plane makes a
 // root's state and lock when a call first raises it, so a missing state there
 // is the state a root starts with. A record there is the signed format of
-// signed.go, and counts only once a Judge takes it.
+// signed.go, and counts only once a Judge takes it. It names the records/ it
+// was signed for, absolute and with the links on its way resolved, and a
+// reader refuses one that names another, so a record copied between two
+// planes' directories counts in neither.
 //
 // # The token
 //

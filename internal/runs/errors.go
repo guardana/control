@@ -93,6 +93,14 @@ const (
 	// ErrReplayed is an open record of a run whose closed record the plane
 	// took: the open one was put back after the close.
 	ErrReplayed Error = "runs: the run's close was taken, and its open record was put back"
+	// ErrPlaneOwned is a signed layout's records/, or a record in it, that
+	// the account of the plane reading it owns, and so could rewrite.
+	ErrPlaneOwned Error = "runs: under the signed authority the plane's own account owns the records"
+	// ErrNotVouched is a record a signed write reads and signs over, a
+	// child's parent or the run it closes, that is not signed for this
+	// records/ by a key its judge takes: signing over it would sign what
+	// somebody without a roster key wrote.
+	ErrNotVouched Error = "runs: the record a signed write starts from is not one the roster vouches for"
 	// ErrSigned is an unsigned write to a signed layout.
 	ErrSigned Error = "runs: the directory holds signed records, and a write to it is signed"
 	// ErrSigner is a signer with no function, or one that failed.

@@ -18,7 +18,8 @@ const doctorRunsBound = 1 << 16
 
 // openRunsCheck opens the runs directory for a check, which writes nothing
 // there: unsigned as run opens it, and a signed layout judged against the
-// roster file as the plane's ports would judge it.
+// roster file as the plane's ports would judge it, refusing a records/ the
+// plane's own account owns as run does.
 func (d *examination) openRunsCheck() (*runs.Plane, error) {
 	if d.cfg.Approvals.Authority != gatewayconfig.AuthoritySigned {
 		return runs.OpenPlane(d.cfg.Resolve(d.cfg.Runs.Dir))
@@ -31,8 +32,8 @@ func (d *examination) openRunsCheck() (*runs.Plane, error) {
 	if err != nil {
 		return nil, fmt.Errorf("trust.roster: %w", err)
 	}
-	return runs.OpenSignedPlane(d.cfg.Resolve(d.cfg.Runs.Dir),
-		signedruns.Roster{Document: roster, Tenant: listenerTenant(d.cfg), Project: d.cfg.ProjectID})
+	return runs.OpenSignedPlane(d.cfg.Resolve(d.cfg.Runs.Dir), runs.SignedOptions{
+		Judge: signedruns.Roster{Document: roster, Tenant: listenerTenant(d.cfg), Project: d.cfg.ProjectID}})
 }
 
 // signedRunsLine is what doctor says of a signed layout: how many records it

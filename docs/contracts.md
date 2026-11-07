@@ -1324,7 +1324,8 @@ A record in `records/` is a DSSE envelope of
 its own canonical JSON holding every key of the table above with
 `schema_version` `3.0`, and `alg` (`ed25519`), `keyId` (the signing key's,
 the signature's `keyid`) and `records` (the absolute, cleaned path of the
-`records/` it was signed for, at most 512 bytes). Any other minor of major
+`records/` it was signed for, with the links on its way resolved, at most
+512 bytes). Any other minor of major
 `3` is read, and nothing else is read there. `state/` holds the states, the
 roots' lock files, and an empty `<id>.closed` for each run whose closed
 record the plane took.

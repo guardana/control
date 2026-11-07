@@ -46,7 +46,7 @@ func OpenPlane(dir string) (*Plane, error) {
 	case signed:
 		return nil, fmt.Errorf("%w: %s holds signed runs, which only a plane under the signed authority reads", ErrLayout, clip(dir))
 	}
-	d, err := openDir(dir, roleFlat, false)
+	d, err := openDir(dir, roleFlat, ownedByThisUser)
 	if err != nil {
 		return nil, err
 	}

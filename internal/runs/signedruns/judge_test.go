@@ -145,7 +145,7 @@ func (w *world) open(t *testing.T, by, project string) (runs.Record, string) {
 func (w *world) stored(t *testing.T, id string) runs.SignedRecord {
 	t.Helper()
 	var got runs.SignedRecord
-	p, err := runs.OpenSignedPlane(w.dir, judgeFunc(func(r runs.SignedRecord) { got = r }))
+	p, err := runs.OpenSignedPlane(w.dir, runs.SignedOptions{Judge: judgeFunc(func(r runs.SignedRecord) { got = r }), PlaneOwned: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestASignatureOfAnotherRecordIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, j := range map[string]runs.Judge{"ports": w.ports, "roster": w.roster} {
-		p, err := runs.OpenSignedPlane(w.dir, j)
+		p, err := runs.OpenSignedPlane(w.dir, runs.SignedOptions{Judge: j, PlaneOwned: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -263,4 +263,66 @@ func TestNewRefusesAJudgeOfNothing(t *testing.T) {
 			t.Errorf("New for %q = %v, want ErrUnjudged", scope, err)
 		}
 	}
+}
+
+// unavailable answers every statement and request with the zero answers,
+// which are unavailable.
+type unavailable struct{}
+
+func (unavailable) Authenticate(context.Context, operators.Act, operators.Envelope) operators.Authentication {
+	return operators.Authentication{}
+}
+
+func (unavailable) Authorize(context.Context, operators.Authentication, operators.Request) operators.Permission {
+	return operators.Permission{}
+}
+
+func (unavailable) Status() operators.Status { return operators.Status{} }
+
+// TestARecordNoPortCanJudgeRefusesItsCall: a plane whose authenticator or
+// authorizer gives no answer refuses alice's run as unreadable through
+// Resolve, and so does Lookup; the control, the plane's own ports, resolves
+// it.
+func TestARecordNoPortCanJudgeRefusesItsCall(t *testing.T) {
+	w := newWorld(t)
+	rec, token := w.open(t, "alice", "A")
+	for _, c := range []struct {
+		name  string
+		authn operators.Authenticator
+		authz operators.Authorizer
+		want  error
+	}{
+		{"the control, the plane's ports", w.authn, w.authz, nil},
+		{"an authenticator with no answer", unavailable{}, w.authz, runs.ErrAuthority},
+		{"an authorizer with no answer", w.authn, unavailable{}, runs.ErrAuthority},
+	} {
+		resolveErr, lookupErr := w.askWith(t, c.authn, c.authz, token, rec.ID)
+		var r *runs.Refusal
+		switch {
+		case c.want == nil && (resolveErr != nil || lookupErr != nil):
+			t.Errorf("%s: Resolve = %v, Lookup = %v; want the run", c.name, resolveErr, lookupErr)
+		case c.want != nil && (!errors.As(resolveErr, &r) || r.Cause != runs.CauseUnreadable || !errors.Is(resolveErr, c.want)):
+			t.Errorf("%s: Resolve = %v, want unreadable and %v", c.name, resolveErr, c.want)
+		case c.want != nil && !errors.Is(lookupErr, c.want):
+			t.Errorf("%s: Lookup = %v, want %v", c.name, lookupErr, c.want)
+		}
+	}
+}
+
+// askWith resolves token and looks up id on a plane of t1/A judging with
+// authn and authz, and returns both answers' errors.
+func (w *world) askWith(t *testing.T, authn operators.Authenticator, authz operators.Authorizer, token, id string) (error, error) {
+	t.Helper()
+	j, err := signedruns.New(authn, authz, "t1", "A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := runs.OpenSignedPlane(w.dir, runs.SignedOptions{Judge: j, PlaneOwned: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = p.Close() }()
+	_, resolveErr := p.Resolve(t.Context(), token, who("A"), now.Add(time.Minute))
+	_, lookupErr := p.Lookup(t.Context(), id)
+	return resolveErr, lookupErr
 }

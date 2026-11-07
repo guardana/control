@@ -131,14 +131,16 @@ close that replaced it.</p>
 <ul>
 <li>Under <code>signed</code> <code>runs.dir</code> is a signed layout: <code>records/</code>, the operators'
 account's, which the plane only reads, and <code>state/</code>, the plane's, which no
-operator command writes. The plane refuses an unsigned directory, and
-refuses to start when its account may write <code>records/</code> or a directory on
-its path.</li>
+operator command writes. The plane refuses an unsigned directory, refuses
+to start when its account may write <code>records/</code> or a directory on its path,
+and refuses a <code>records/</code> or a record its own account owns, as ADR-0075
+refuses such a pause file.</li>
 <li>A record there is version <code>3.0</code>: a DSSE envelope of
 <code>application/vnd.agent-run-record+json</code> (<code>operators.ActRun</code>, level
 <code>operate</code>) over a canonical body holding every member of a <code>2.0</code> record,
-the signing key and the absolute path of the <code>records/</code> it was signed
-for. A close is a signed record too, which replaces the open one.</li>
+the signing key and the absolute path, links resolved, of the <code>records/</code>
+it was signed for, which binds it to one plane's directory. A close is a
+signed record too, which replaces the open one.</li>
 <li>A record counts only once it names the plane's own <code>records/</code>, its run is
 of the plane's tenant and project, and the authenticator and the
 authorizer take it. Any other record, a <code>2.0</code> one included, refuses the
@@ -147,9 +149,12 @@ calls it would cover as <code>unreadable</code>, counted by cause.</li>
 into <code>state/</code>, not by a floor: when the plane takes a closed record, at a
 call or at its start, it writes the run's close there, and an open record
 of a run whose close it holds is refused as closed.</li>
-<li><code>runs open</code> and <code>runs close</code> with <code>--key</code> sign; they verify against the
-roster any record they sign over, a parent's or the one a close replaces,
-and the record they write, and without <code>--key</code> they refuse a signed layout.</li>
+<li><code>runs open</code> and <code>runs close</code> with <code>--key</code>, <code>--roster</code> and <code>--root-key</code>
+sign; they verify any record they sign over, a parent's or the one a close
+replaces, against the roster, the plane's tenant and project (<code>runs close</code>
+takes them as <code>--tenant</code> and <code>--project</code>) and the directory, refuse one
+that fails naming why, verify the record they write, and say on standard
+error what they signed. Without <code>--key</code> they refuse a signed layout.</li>
 </ul>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>Breaking under <code>signed</code>: an unsigned runs directory refuses the start, so the
@@ -173,9 +178,10 @@ the plane's state of a pruned tree stays in <code>state/</code>.</p>
 <p><code>internal/runs</code> tests each refusal, the replay after a close seen at a call
 and at a start, a record copied from another directory, and prune over the
 split; <code>internal/runs/signedruns</code> tests both judges against one roster;
-<code>cmd/guardana-control</code> tests the signed commands and a close over a forged
-record; <code>cmd/guardana-gateway</code> tests the start refusal, the carry across a
-restart and doctor's counts.</p>
+<code>cmd/guardana-control</code> tests the signed commands and a close over a record of
+a key the roster lacks, another tenant, project or directory, or unsigned;
+<code>cmd/guardana-gateway</code> tests the start refusals, the carry across a restart
+and doctor's counts.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md">docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">

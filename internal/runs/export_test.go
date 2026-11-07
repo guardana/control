@@ -15,3 +15,7 @@ func SetEffectiveUID(uid func() int) (restore func()) {
 func (a *Admin) PruneStoppedAfterArchive(ctx context.Context, req PruneRequest, archived func() error) (Pruned, error) {
 	return a.prune(ctx, req, archived)
 }
+
+// RecordsOwnedByAnother holds p's records/ to ownedByAnother from now on,
+// as a plane opened without PlaneOwned holds it, whoever owns it.
+func (p *Plane) RecordsOwnedByAnother() { p.d.owner = ownedByAnother }

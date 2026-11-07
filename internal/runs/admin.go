@@ -49,7 +49,7 @@ func openAdmin(ctx context.Context, dir string, initialise bool) (*Admin, error)
 	if signed {
 		return openSignedAdmin(ctx, dir, false)
 	}
-	d, err := openDir(dir, roleFlat, false)
+	d, err := openDir(dir, roleFlat, ownedByThisUser)
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +93,15 @@ func onlyLeftovers(entries []os.DirEntry) bool {
 // only OpenSigned and CloseSigned write.
 func (a *Admin) Signed() bool { return a != nil && a.records != "" }
 
+// Binding is the records/ path every record a signed layout's handle signs
+// names, and empty for an unsigned directory.
+func (a *Admin) Binding() string {
+	if a == nil {
+		return ""
+	}
+	return a.records
+}
+
 // Close releases the handle. A later call answers ErrClosed.
 func (a *Admin) Close() error {
 	if a == nil {
@@ -131,9 +140,9 @@ func (a *Admin) Open(ctx context.Context, req OpenRequest) (Record, string, erro
 // OpenSigned is Open for a signed layout: the record is signed with s and
 // names the layout's records/, and a root gets no state, which its plane
 // makes. A parent counts only once its record names this records/ and j
-// takes it, so no record anybody else wrote is carried into a signature; the
-// record signed is written only once j takes it too. An unsigned directory
-// refuses it with ErrLayout.
+// takes it, so no record anybody else wrote is carried into a signature: one
+// that does not is refused with ErrNotVouched. The record signed is written
+// only once j takes it too. An unsigned directory refuses it with ErrLayout.
 func (a *Admin) OpenSigned(ctx context.Context, req OpenRequest, s Signer, j Judge) (Record, string, error) {
 	return a.open(ctx, req, &s, j)
 }
@@ -216,11 +225,7 @@ func (a *Admin) rootFor(ctx context.Context, id string, req OpenRequest, j Judge
 	if err := checkRunID(req.Parent); err != nil {
 		return "", fmt.Errorf("parent: %w", err)
 	}
-	stored, err := a.d.readStored(req.Parent)
-	if err == nil && a.Signed() {
-		_, err = a.verify(ctx, stored, j)
-	}
-	parent := stored.Record
+	parent, _, err := a.readOver(ctx, req.Parent, j)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return "", fmt.Errorf("%w: %s", ErrParentUnknown, req.Parent)
@@ -288,7 +293,8 @@ func (a *Admin) CloseRun(ctx context.Context, id string, now time.Time) error {
 
 // CloseSigned is CloseRun for a signed layout: the closed record is signed
 // with s. The open record it replaces counts only once it names this
-// records/ and j takes it, so a record nobody may sign is never signed over;
+// records/ and j takes it, so a record nobody may sign is never signed over:
+// one that does not is refused with ErrNotVouched and left as it is.
 // CloseSigned returns the record it signed closed and who signed the open
 // one. An unsigned directory refuses it with ErrLayout.
 func (a *Admin) CloseSigned(ctx context.Context, id string, now time.Time, s Signer, j Judge) (Record, SignedBy, error) {
@@ -310,11 +316,7 @@ func (a *Admin) closeRun(ctx context.Context, id string, now time.Time, s *Signe
 		return Record{}, SignedBy{}, err
 	}
 	defer func() { err = errors.Join(err, end()) }()
-	stored, err := a.d.readStored(id)
-	if err == nil && a.Signed() {
-		by, err = a.verify(ctx, stored, j)
-	}
-	rec := stored.Record
+	rec, by, err := a.readOver(ctx, id, j)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return Record{}, SignedBy{}, fmt.Errorf("%w: %s", ErrNoRun, id)
@@ -365,6 +367,24 @@ func (a *Admin) encode(ctx context.Context, rec Record, s *Signer, j Judge) ([]b
 		return nil, fmt.Errorf("the record signed: %w", err)
 	}
 	return raw, nil
+}
+
+// readOver reads the record of id that a write signs over and, in a signed
+// layout, who signed it. There it counts only once verify takes it, and any
+// record that cannot be read or taken, short of a missing one, is refused
+// with ErrNotVouched.
+func (a *Admin) readOver(ctx context.Context, id string, j Judge) (Record, SignedBy, error) {
+	stored, err := a.d.readStored(id)
+	switch {
+	case errors.Is(err, fs.ErrNotExist) || !a.Signed():
+		return stored.Record, SignedBy{}, err
+	case err == nil:
+		var by SignedBy
+		if by, err = a.verify(ctx, stored, j); err == nil {
+			return stored.Record, by, nil
+		}
+	}
+	return Record{}, SignedBy{}, fmt.Errorf("%w: %s: %w", ErrNotVouched, id, err)
 }
 
 // verify takes a record read from a signed layout through the check every

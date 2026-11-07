@@ -173,7 +173,7 @@ func (p *plane) open(r role, tokenPath string) error {
 		memory := &gateway.MemoryApprovals{}
 		p.store, p.authority, p.authorityKind = memory, memory, gateway.AuthorityDirectory
 		if p.cfg.Listener.Kind == gatewayconfig.ListenerEnforceAPI {
-			dir, _, err := openRuns(p.cfg, "", nil)
+			dir, _, err := openRuns(p.cfg, "", nil, p.signedStart != nil)
 			if err != nil {
 				return err
 			}

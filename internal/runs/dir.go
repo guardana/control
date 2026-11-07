@@ -39,9 +39,9 @@ type dir struct {
 	open   bool
 	// role says which names the directory holds.
 	role role
-	// anyOwner is a plane's records/: an operators' account owns it, and
-	// every file read has to be that account's rather than this user's.
-	anyOwner bool
+	// owner is whose account the directory and every file read in it have
+	// to be.
+	owner ownership
 	// mode is what a file this handle creates is given.
 	mode fs.FileMode
 }
@@ -49,11 +49,27 @@ type dir struct {
 // effectiveUID is the user a runs directory has to belong to.
 var effectiveUID = os.Geteuid
 
+// ownership is whose account a directory has to be.
+type ownership uint8
+
+const (
+	// ownedByThisUser is every directory but a plane's records/.
+	ownedByThisUser ownership = iota
+	// ownedByAnother is the records/ a plane under the signed authority
+	// reads: an operators' account owns it and every record in it, and the
+	// plane's own account, which could rewrite them, owns none of them.
+	ownedByAnother
+	// anyOwner is ownedByAnother that lets the plane's own account own
+	// records/, for a plane whose one account is the operator's too.
+	anyOwner
+)
+
 // openDir opens name as a directory of role r and judges it as a directory:
 // the caller judges what it holds, so a plane's binary carries none of the
 // code that makes an empty directory a runs directory. The directory has to
-// be this user's, unless anyOwner, when its owner owns every file read in it.
-func openDir(name string, r role, anyOwner bool) (*dir, error) {
+// be this user's under ownedByThisUser; otherwise its owner owns every file
+// read in it, and under ownedByAnother that owner may not be this user.
+func openDir(name string, r role, o ownership) (*dir, error) {
 	// The trailing "." fails on anything but a directory rather than wait on
 	// a named pipe put at name.
 	root, err := os.OpenRoot(name + string(os.PathSeparator) + ".")
@@ -71,14 +87,27 @@ func openDir(name string, r role, anyOwner bool) (*dir, error) {
 	if err != nil {
 		return nil, errors.Join(err, root.Close())
 	}
-	if euid := effectiveUID(); !anyOwner && (euid < 0 || int64(id.uid) != int64(euid)) {
-		return nil, errors.Join(fmt.Errorf("%w: %s is owned by uid %d", ErrOwner, clip(name), id.uid), root.Close())
+	if err := o.judgeDir(id.uid); err != nil {
+		return nil, errors.Join(fmt.Errorf("%s: %w", clip(name), err), root.Close())
 	}
 	mode := fs.FileMode(0o600)
 	if r == roleRecords {
 		mode = recordsFileMode
 	}
-	return &dir{name: name, root: root, opened: id, open: true, role: r, anyOwner: anyOwner, mode: mode}, nil
+	return &dir{name: name, root: root, opened: id, open: true, role: r, owner: o, mode: mode}, nil
+}
+
+// judgeDir refuses a directory owned by uid that o does not let it be.
+func (o ownership) judgeDir(uid uint32) error {
+	euid := effectiveUID()
+	mine := euid >= 0 && int64(uid) == int64(euid)
+	switch {
+	case o == ownedByThisUser && !mine:
+		return fmt.Errorf("%w: owned by uid %d", ErrOwner, uid)
+	case o == ownedByAnother && (mine || euid < 0):
+		return fmt.Errorf("%w: uid %d", ErrPlaneOwned, uid)
+	}
+	return nil
 }
 
 // checkContents reads the marker and refuses a directory holding anything
@@ -263,6 +292,9 @@ func (d *dir) openRegular(name string, flag int) (*os.File, error) {
 	if after.Mode().Perm()&writableByOthers != 0 {
 		return nil, errors.Join(fmt.Errorf("%w: %q has mode %04o", ErrForeignFile, clip(name), after.Mode().Perm()), f.Close())
 	}
+	if d.owner == ownedByAnother && files.CheckOwnedBy(after, effectiveUID()) == nil {
+		return nil, errors.Join(fmt.Errorf("%w: %q", ErrPlaneOwned, clip(name)), f.Close())
+	}
 	if err := files.CheckOwnedBy(after, d.fileOwner()); err != nil {
 		return nil, errors.Join(fmt.Errorf("%w: %q: %w", ErrForeignFile, clip(name), err), f.Close())
 	}
@@ -271,7 +303,7 @@ func (d *dir) openRegular(name string, flag int) (*os.File, error) {
 
 // fileOwner is the user every file read has to belong to.
 func (d *dir) fileOwner() int {
-	if d.anyOwner {
+	if d.owner != ownedByThisUser {
 		return int(d.opened.uid)
 	}
 	return effectiveUID()

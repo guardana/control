@@ -52,6 +52,10 @@ func takeKey(names ...string) runs.Judge {
 
 var alicesJudge = takeKey("alice")
 
+// ownedHere opens a signed layout as alice's judge, with records/ this
+// test's own account's, as a plane on the operator's one account reads it.
+var ownedHere = runs.SignedOptions{Judge: alicesJudge, PlaneOwned: true}
+
 // newSigned is a signed layout opened for the operator, and its directory.
 func newSigned(t *testing.T) (string, *runs.Admin) {
 	t.Helper()
@@ -66,7 +70,7 @@ func newSigned(t *testing.T) (string, *runs.Admin) {
 
 func signedPlane(t *testing.T, dir string, j runs.Judge) *runs.Plane {
 	t.Helper()
-	p, err := runs.OpenSignedPlane(dir, j)
+	p, err := runs.OpenSignedPlane(dir, runs.SignedOptions{Judge: j, PlaneOwned: true})
 	if err != nil {
 		t.Fatalf("OpenSignedPlane: %v", err)
 	}
@@ -332,7 +336,7 @@ func TestALayoutIsWrittenOnlyAsItIs(t *testing.T) {
 	if _, _, err := fa.OpenSigned(t.Context(), runs.OpenRequest{Who: alice, TTL: time.Hour, Now: opened}, testSigner("alice"), alicesJudge); !errors.Is(err, runs.ErrLayout) {
 		t.Errorf("OpenSigned on an unsigned directory = %v, want ErrLayout", err)
 	}
-	if _, err := runs.OpenSignedPlane(flat, alicesJudge); !errors.Is(err, runs.ErrLayout) {
+	if _, err := runs.OpenSignedPlane(flat, ownedHere); !errors.Is(err, runs.ErrLayout) {
 		t.Errorf("OpenSignedPlane of an unsigned directory = %v, want ErrLayout", err)
 	}
 	openRoot(t, fa)
@@ -346,7 +350,7 @@ func TestALayoutIsWrittenOnlyAsItIs(t *testing.T) {
 func TestASignedLayoutHoldsOnlyItsTwoDirectories(t *testing.T) {
 	dir, _ := newSigned(t)
 	writeFile(t, filepath.Join(dir, "notes"), []byte("x"))
-	if _, err := runs.OpenSignedPlane(dir, alicesJudge); !errors.Is(err, runs.ErrForeignFile) {
+	if _, err := runs.OpenSignedPlane(dir, ownedHere); !errors.Is(err, runs.ErrForeignFile) {
 		t.Errorf("a file beside records/ = %v, want ErrForeignFile", err)
 	}
 	if err := os.Remove(filepath.Join(dir, "notes")); err != nil {
@@ -355,7 +359,7 @@ func TestASignedLayoutHoldsOnlyItsTwoDirectories(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, "state")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runs.OpenSignedPlane(dir, alicesJudge); !errors.Is(err, runs.ErrLayout) {
+	if _, err := runs.OpenSignedPlane(dir, ownedHere); !errors.Is(err, runs.ErrLayout) {
 		t.Errorf("no state/ = %v, want ErrLayout", err)
 	}
 }
@@ -402,7 +406,7 @@ func TestThePlaneWritesItsStateInStateOnly(t *testing.T) {
 func TestAStateDirectoryAnotherUserOwnsIsRefused(t *testing.T) {
 	dir, _ := newSigned(t)
 	restore := runs.SetEffectiveUID(func() int { return os.Geteuid() + 1 })
-	_, err := runs.OpenSignedPlane(dir, alicesJudge)
+	_, err := runs.OpenSignedPlane(dir, ownedHere)
 	restore()
 	if !errors.Is(err, runs.ErrOwner) || !strings.Contains(err.Error(), "state") {
 		t.Fatalf("OpenSignedPlane with state/ another user's = %v, want ErrOwner naming state/", err)
@@ -446,7 +450,7 @@ func TestPruneOverTheSplitRemovesRecordsOnly(t *testing.T) {
 // TestALongestSignedRecordFitsItsBound: a record at every identity bound,
 // under the longest records/ path, is signed and read back.
 func TestALongestSignedRecordFitsItsBound(t *testing.T) {
-	dir := t.TempDir()
+	dir := resolvedTempDir(t)
 	for left := runs.MaxRecordsPathBytes - len(dir) - len("/records"); left > 1; {
 		n := min(left-1, 100)
 		dir = filepath.Join(dir, strings.Repeat("d", n))
@@ -477,7 +481,7 @@ func TestALongestSignedRecordFitsItsBound(t *testing.T) {
 // TestARecordsPathPastItsBoundIsRefused: a records/ one byte past the bound
 // a signed record may name is refused before anything is signed.
 func TestARecordsPathPastItsBoundIsRefused(t *testing.T) {
-	dir := t.TempDir()
+	dir := resolvedTempDir(t)
 	for target := runs.MaxRecordsPathBytes + 1 - len("/records"); len(dir) < target; {
 		dir = filepath.Join(dir, strings.Repeat("d", max(1, min(100, target-len(dir)-1))))
 	}
@@ -504,5 +508,97 @@ func TestARecordIsReadAsTheRecordsOwnersWhoeverThePlaneIs(t *testing.T) {
 	restore()
 	if err != nil {
 		t.Fatalf("Lookup by a plane of another user = %v", err)
+	}
+}
+
+// resolvedTempDir is a temporary directory with every link on its path
+// resolved, as a signed record names it.
+func resolvedTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// TestRecordsThePlanesOwnAccountOwnsAreRefused: a plane that does not let
+// its own account own records/ refuses to open one it owns, before it reads
+// anything there, and refuses a record it owns at the read, counted by that
+// cause; the control, the same directory opened with PlaneOwned, resolves
+// the run.
+func TestRecordsThePlanesOwnAccountOwnsAreRefused(t *testing.T) {
+	dir, a := newSigned(t)
+	_, token := openSignedRoot(t, a, "alice")
+	if _, err := runs.OpenSignedPlane(dir, runs.SignedOptions{Judge: alicesJudge}); !errors.Is(err, runs.ErrPlaneOwned) {
+		t.Fatalf("OpenSignedPlane of records/ this account owns = %v, want ErrPlaneOwned", err)
+	}
+	p := signedPlane(t, dir, alicesJudge)
+	if _, err := p.Resolve(t.Context(), token, alice, opened.Add(time.Minute)); err != nil {
+		t.Fatalf("the control, opened with PlaneOwned: %v", err)
+	}
+	p.RecordsOwnedByAnother()
+	_, err := p.Resolve(t.Context(), token, alice, opened.Add(time.Minute))
+	if causeOf(t, err) != runs.CauseUnreadable || !errors.Is(err, runs.ErrPlaneOwned) {
+		t.Fatalf("Resolve of a record this account owns = %v, want unreadable, ErrPlaneOwned", err)
+	}
+	if got := p.SignedCounts()["refused_plane_owned"]; got != 1 {
+		t.Errorf("refused_plane_owned = %d, want 1", got)
+	}
+	empty, _ := newSigned(t)
+	if err := os.Remove(filepath.Join(empty, "records", "runs.meta")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.OpenSignedPlane(empty, runs.SignedOptions{Judge: alicesJudge}); !errors.Is(err, runs.ErrPlaneOwned) {
+		t.Errorf("OpenSignedPlane of an empty records/ this account owns = %v, want ErrPlaneOwned before anything in it is read", err)
+	}
+}
+
+// TestALayoutSpelledThroughALinkBindsAlike: an operator who opens a run
+// through a link on the way to the runs directory signs it for the directory
+// the link leads to, so a plane that spells the directory by its own path
+// takes it.
+func TestALayoutSpelledThroughALinkBindsAlike(t *testing.T) {
+	target := newDir(t)
+	link := filepath.Join(t.TempDir(), "parent")
+	if err := os.Symlink(filepath.Dir(target), link); err != nil {
+		t.Fatal(err)
+	}
+	a, err := runs.InitSignedAdmin(t.Context(), filepath.Join(link, filepath.Base(target)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = a.Close() })
+	_, token := openSignedRoot(t, a, "alice")
+	if _, err := signedPlane(t, target, alicesJudge).Resolve(t.Context(), token, alice, opened.Add(time.Minute)); err != nil {
+		t.Fatalf("Resolve by the directory's own path of a run opened through a link: %v", err)
+	}
+}
+
+// TestAClosedRunStaysClosedAcrossARestart: the close a plane carried into
+// state/ outlives the plane, so a plane opened after it refuses the open
+// record put back without reading the close again.
+func TestAClosedRunStaysClosedAcrossARestart(t *testing.T) {
+	dir, a := newSigned(t)
+	rec, token := openSignedRoot(t, a, "alice")
+	open := readBytes(t, recordPath(dir, rec.ID))
+	if _, _, err := a.CloseSigned(t.Context(), rec.ID, opened.Add(time.Minute), testSigner("alice"), alicesJudge); err != nil {
+		t.Fatal(err)
+	}
+	at := opened.Add(2 * time.Minute)
+	first, err := runs.OpenSignedPlane(dir, ownedHere)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.Resolve(t.Context(), token, alice, at); causeOf(t, err) != runs.CauseClosed {
+		t.Fatalf("Resolve of the closed record = %v, want closed", err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, recordPath(dir, rec.ID), open)
+	_, err = signedPlane(t, dir, alicesJudge).Resolve(t.Context(), token, alice, at)
+	if causeOf(t, err) != runs.CauseClosed || !errors.Is(err, runs.ErrReplayed) {
+		t.Fatalf("Resolve after a restart of the open record put back = %v, want closed, ErrReplayed", err)
 	}
 }

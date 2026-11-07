@@ -21,8 +21,8 @@ const (
 	runsCloseName = "runs close"
 	runsListName  = "runs list"
 	runsPruneName = "runs prune"
-	runsOpenForm  = "--project --tenant --principal-type --principal --agent\n      --ttl [--parent] [--key --roster --trust-root] <dir>"
-	runsCloseForm = "[--key --roster --trust-root] <dir> <run-id>"
+	runsOpenForm  = "--project --tenant --principal-type --principal --agent\n      --ttl [--parent] [--key --roster --root-key] <dir>"
+	runsCloseForm = "[--key --roster --root-key --tenant --project] <dir> <run-id>"
 	runsPruneForm = "--expired-before <time> --archive <dir> <dir>"
 )
 
@@ -79,10 +79,35 @@ func runsOpenFlagSet(command string, out io.Writer) *flag.FlagSet {
 	return flags
 }
 
+// closeFlagValues is what a signed close is told: the signing flags, and the
+// plane's tenant and project, which the record it signs over has to be of.
+type closeFlagValues struct {
+	sign            runSignFlags
+	tenant, project string
+}
+
+// problem says what is wrong with the flags together: --tenant and
+// --project go with the signing flags, and a signed close needs both.
+func (v closeFlagValues) problem() (bool, string) {
+	signed, problem := v.sign.given()
+	switch {
+	case problem != "":
+		return signed, problem
+	case !signed && v.tenant+v.project != "":
+		return signed, "--tenant and --project judge a signed close, with " + runsSignHint
+	case signed && (v.tenant == "" || v.project == ""):
+		return signed, "a signed close names the plane's --tenant and --project, which the run it closes has to be of"
+	}
+	return signed, ""
+}
+
 // runsCloseFlags declares the flags of a signed close.
-func runsCloseFlags(command string, out io.Writer) (*flag.FlagSet, runSignFlags) {
+func runsCloseFlags(command string, out io.Writer) (*flag.FlagSet, *closeFlagValues) {
 	flags := commandFlags(command, out)
-	return flags, runsSignFlags(flags)
+	v := closeFlagValues{sign: runsSignFlags(flags)}
+	flags.StringVar(&v.tenant, "tenant", "", "with --key: the plane's tenant, which the run closed has to be of")
+	flags.StringVar(&v.project, "project", "", "with --key: the plane's project, which the run closed has to be of")
+	return flags, &v
 }
 
 func runsCloseFlagSet(command string, out io.Writer) *flag.FlagSet {
@@ -130,8 +155,7 @@ func runsOpenCommand(args []string, stdout, stderr io.Writer) int {
 func openAndPrint(admin *runs.Admin, v openFlagValues, signed bool, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), runsLockWait)
 	defer cancel()
-	now := time.Now()
-	req := runs.OpenRequest{Who: v.who, Parent: v.parent, TTL: v.ttl, Now: now}
+	req := runs.OpenRequest{Who: v.who, Parent: v.parent, TTL: v.ttl, Now: time.Now()}
 	var (
 		rec    runs.Record
 		token  string
@@ -141,7 +165,7 @@ func openAndPrint(admin *runs.Admin, v openFlagValues, signed bool, stdout, stde
 	if signed {
 		var judge runs.Judge
 		var release func()
-		if signer, judge, release, err = v.sign.authority(now); err != nil {
+		if signer, judge, release, err = v.sign.authority(v.who.TenantID, v.who.ProjectID); err != nil {
 			return fail(stderr, runsOpenName, err)
 		}
 		defer release()
@@ -152,11 +176,10 @@ func openAndPrint(admin *runs.Admin, v openFlagValues, signed bool, stdout, stde
 	if err != nil {
 		return fail(stderr, runsOpenName, runsHint(withheldRunID(err, "--parent")))
 	}
-	out := fmt.Sprintf("run_id: %s\nroot: %s\nexpires_at: %s\n", rec.ID, rec.Root, stampOf(rec.ExpiresAt))
 	if signed {
-		out += "signed_by: key " + signer.KeyID + "\n"
+		writeSigned(stderr, runsOpenName, rec, admin.Binding(), signer.KeyID)
 	}
-	out += "token: " + token + "\n"
+	out := fmt.Sprintf("run_id: %s\nroot: %s\nexpires_at: %s\ntoken: %s\n", rec.ID, rec.Root, stampOf(rec.ExpiresAt), token)
 	if _, err := io.WriteString(stdout, out); err != nil {
 		return fail(stderr, runsOpenName, fmt.Errorf("writing to standard output: %w; run %s is open and nobody holds its token, so close it", err, rec.ID))
 	}
@@ -164,14 +187,14 @@ func openAndPrint(admin *runs.Admin, v openFlagValues, signed bool, stdout, stde
 }
 
 func runsCloseCommand(args []string, stdout, stderr io.Writer) int {
-	flags, sign := runsCloseFlags(runsCloseName, stderr)
+	flags, v := runsCloseFlags(runsCloseName, stderr)
 	if err := flags.Parse(args); err != nil {
 		return exitUsage
 	}
 	if flags.NArg() != 2 {
 		return usageError(stderr, runsCloseName, "takes the runs directory and a run id")
 	}
-	signed, problem := sign.given()
+	signed, problem := v.problem()
 	if problem != "" {
 		return usageError(stderr, runsCloseName, problem)
 	}
@@ -181,7 +204,7 @@ func runsCloseCommand(args []string, stdout, stderr io.Writer) int {
 	}
 	var status int
 	if signed {
-		status = closeSignedAndPrint(admin, flags.Arg(1), sign, stdout, stderr)
+		status = closeSignedAndPrint(admin, flags.Arg(1), *v, stdout, stderr)
 	} else {
 		status = closeAndPrint(admin, flags.Arg(1), stdout, stderr)
 	}
@@ -203,29 +226,24 @@ func closeAndPrint(admin *runs.Admin, id string, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
-// closeSignedAndPrint closes a run of a signed layout with the operator's key
-// and prints what it signed: the run's identity and lineage as its open
-// record holds them, and whose signature that record carries, which the
-// roster took before anything was signed.
-func closeSignedAndPrint(admin *runs.Admin, id string, sign runSignFlags, stdout, stderr io.Writer) int {
+// closeSignedAndPrint closes a run of a signed layout with the operator's key,
+// once the roster vouched for the open record it signs over, and says on
+// stderr what it signed and whose signature that record carried.
+func closeSignedAndPrint(admin *runs.Admin, id string, v closeFlagValues, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), runsLockWait)
 	defer cancel()
-	now := time.Now()
-	signer, judge, release, err := sign.authority(now)
+	signer, judge, release, err := v.sign.authority(v.tenant, v.project)
 	if err != nil {
 		return fail(stderr, runsCloseName, err)
 	}
 	defer release()
-	rec, by, err := admin.CloseSigned(ctx, id, now, signer, judge)
+	rec, by, err := admin.CloseSigned(ctx, id, time.Now(), signer, judge)
 	if err != nil {
-		return fail(stderr, runsCloseName, withheldRunID(err, "the argument"))
+		return fail(stderr, runsCloseName, runsHint(withheldRunID(err, "the argument")))
 	}
-	out := fmt.Sprintf("closed %s\nroot %s project_id %s tenant_id %s principal_type %s principal_id %s agent_id %s opened_at %s expires_at %s closed_at %s\n"+
-		"opened by %s (key %s), closed by key %s\n",
-		rec.ID, oneLine(rec.Root), oneLine(rec.Who.ProjectID), oneLine(rec.Who.TenantID), oneLine(rec.Who.PrincipalType),
-		oneLine(rec.Who.PrincipalID), oneLine(rec.Who.AgentID), stampOf(rec.OpenedAt), stampOf(rec.ExpiresAt), stampOf(rec.ClosedAt),
-		oneLine(by.Subject), oneLine(by.KeyID), signer.KeyID)
-	if _, err := io.WriteString(stdout, out); err != nil {
+	writeSigned(stderr, runsCloseName, rec, admin.Binding(), signer.KeyID)
+	writeLine(stderr, fmt.Sprintf("%s: %s: over the open record %s signed with key %s", brand.CLI, runsCloseName, oneLine(by.Subject), oneLine(by.KeyID)))
+	if _, err := io.WriteString(stdout, "closed "+id+"\n"); err != nil {
 		return fail(stderr, runsCloseName, fmt.Errorf("writing to standard output: %w; the run was closed as asked", err))
 	}
 	return exitOK

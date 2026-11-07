@@ -163,8 +163,8 @@ usage:
   guardana-control pause list <file>
   guardana-control pause floor init --tenant <t> --project <p> <dir>
   guardana-control runs open --project --tenant --principal-type --principal --agent
-      --ttl [--parent] [--key --roster --trust-root] <dir>
-  guardana-control runs close [--key --roster --trust-root] <dir> <run-id>
+      --ttl [--parent] [--key --roster --root-key] <dir>
+  guardana-control runs close [--key --roster --root-key --tenant --project] <dir> <run-id>
   guardana-control runs list <dir>
   guardana-control runs prune --expired-before <time> --archive <dir> <dir>
   guardana-control observe import --source <file> --log <dir> <file>

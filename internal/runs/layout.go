@@ -72,13 +72,21 @@ func judgeTop(dir string, needState bool) error {
 	return nil
 }
 
-// recordsPath is the absolute, cleaned path of dir's records/, which a
-// signed record names and a reader compares with its own.
+// recordsPath is the absolute, cleaned path of dir's records/, with every
+// link on the way to dir resolved, which a signed record names and a reader
+// compares with its own: an operator and a plane that spell one directory
+// two ways bind it alike, and a record copied into another directory names
+// the one it was signed for.
 func recordsPath(dir string) (string, error) {
-	p, err := filepath.Abs(filepath.Join(dir, RecordsDir))
+	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return "", err
 	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrNotRunsDir, err)
+	}
+	p := filepath.Join(resolved, RecordsDir)
 	if err := checkRecordsPath(p); err != nil {
 		return "", fmt.Errorf("the runs directory's path: %w", err)
 	}
@@ -137,7 +145,7 @@ func openSignedAdmin(ctx context.Context, dir string, initialise bool) (*Admin, 
 	if err != nil {
 		return nil, err
 	}
-	d, err := openDir(filepath.Join(dir, RecordsDir), roleRecords, false)
+	d, err := openDir(filepath.Join(dir, RecordsDir), roleRecords, ownedByThisUser)
 	if err != nil {
 		return nil, err
 	}
@@ -148,15 +156,25 @@ func openSignedAdmin(ctx context.Context, dir string, initialise bool) (*Admin, 
 	return a, nil
 }
 
+// SignedOptions is how a plane opens a signed layout: Judge, which every
+// record has to be taken by before it counts, and PlaneOwned, which lets the
+// plane's own account own records/ and its records, for a plane whose one
+// account is the operator's too.
+type SignedOptions struct {
+	Judge      Judge
+	PlaneOwned bool
+}
+
 // OpenSignedPlane opens a signed layout for a plane under the signed
-// authority, whose records count only once j took them; a nil j takes none.
-// records/ may be another account's, and every record has to be that
-// account's; state/ has to be this user's. Like OpenPlane it refuses a
-// directory a group or the world may write and a file this package does not
-// write, and it writes nothing: a state, a lock or a carried close is
-// written when a call needs it. An unsigned directory is refused with
-// ErrLayout.
-func OpenSignedPlane(dir string, j Judge) (*Plane, error) {
+// authority, whose records count only once o.Judge took them; a nil judge
+// takes none. records/ has to be another account's than this user's, unless
+// o.PlaneOwned, and every record has to be that account's, which is refused
+// with ErrPlaneOwned at opening and at every read; state/ has to be this
+// user's. Like OpenPlane it refuses a directory a group or the world may
+// write and a file this package does not write, and it writes nothing: a
+// state, a lock or a carried close is written when a call needs it. An
+// unsigned directory is refused with ErrLayout.
+func OpenSignedPlane(dir string, o SignedOptions) (*Plane, error) {
 	signed, err := signedLayout(dir)
 	switch {
 	case err != nil:
@@ -171,19 +189,23 @@ func OpenSignedPlane(dir string, j Judge) (*Plane, error) {
 	if err != nil {
 		return nil, err
 	}
-	records, err := openDir(filepath.Join(dir, RecordsDir), roleRecords, true)
+	owner := ownedByAnother
+	if o.PlaneOwned {
+		owner = anyOwner
+	}
+	records, err := openDir(filepath.Join(dir, RecordsDir), roleRecords, owner)
 	if err != nil {
 		return nil, err
 	}
 	if err := records.checkContents(); err != nil {
 		return nil, errors.Join(err, records.close())
 	}
-	state, err := openDir(filepath.Join(dir, StateDir), roleState, false)
+	state, err := openDir(filepath.Join(dir, StateDir), roleState, ownedByThisUser)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("%s/: %w", StateDir, err), records.close())
 	}
 	if err := state.checkContents(); err != nil {
 		return nil, errors.Join(err, state.close(), records.close())
 	}
-	return &Plane{d: records, st: state, judge: j, signed: true, records: path, counts: newSignedCounts()}, nil
+	return &Plane{d: records, st: state, judge: o.Judge, signed: true, records: path, counts: newSignedCounts()}, nil
 }

@@ -78,7 +78,7 @@ var _ runs.Judge = Roster{}
 func (j Roster) Judge(_ context.Context, r runs.SignedRecord) (runs.SignedBy, error) {
 	who := r.Record.Who
 	if (j.Tenant != "" && who.TenantID != j.Tenant) || (j.Project != "" && who.ProjectID != j.Project) {
-		return runs.SignedBy{}, runs.ErrOtherScope
+		return runs.SignedBy{}, fmt.Errorf("%w: tenant %q project %q", runs.ErrOtherScope, who.TenantID, who.ProjectID)
 	}
 	key, err := j.signer(r)
 	if err != nil {

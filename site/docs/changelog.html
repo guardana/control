@@ -136,9 +136,11 @@ floor (ADR-0075).</li>
 <li>Under <code>approvals.authority: signed</code> a run counts only from a record <code>3.0</code>
 an operator granted <code>operate</code> signed for the run's tenant and project and
 for the plane's own <code>runs.dir</code>: <code>runs open</code> and <code>runs close</code> take
-<code>--key &lt;k&gt; --roster &lt;r&gt; --trust-root &lt;p&gt;</code>, check against the roster every
-record they sign over and the one they write, and <code>runs close</code> prints what
-it signed. When the plane takes a closed record it carries the close into
+<code>--key &lt;k&gt; --roster &lt;r&gt; --root-key &lt;p&gt;</code>, <code>runs close</code> also the plane's
+<code>--tenant</code> and <code>--project</code>; they refuse to sign over a record the roster
+does not vouch for, of another tenant, project or directory, or unsigned,
+and say on standard error what they signed. A plane refuses a <code>records/</code>
+or a record its own account owns. When the plane takes a closed record it carries the close into
 <code>state/</code>, at a call or at its start, so the open record put back is
 refused. <code>/healthz</code> counts the records judged and refused by cause under
 <code>runs.signed</code>, and <code>doctor</code> counts the records by state and by signer
@@ -187,7 +189,7 @@ and <code>approve_command</code>.</li>
 <code>records/</code>, the operators', and <code>state/</code>, the plane's; a runs directory of
 unsigned records, and a <code>2.0</code> record in <code>records/</code>, are refused. The plane
 refuses to start when its own account may write <code>records/</code> or a directory
-on its path, and <code>runs open</code> and <code>runs close</code> without <code>--key</code> refuse the
+on its path, or owns <code>records/</code>, and <code>runs open</code> and <code>runs close</code> without <code>--key</code> refuse the
 directory, naming the flags. Open the runs again into a new, empty
 directory with <code>--key</code>.</li>
 <li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> a pause file of version

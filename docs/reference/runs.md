@@ -105,20 +105,21 @@ the operators' account, mode `0750`, its records `0640`, and `state/`, owned
 by the plane's account, mode `0700`, and nothing else
 ([ADR-0076](../adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md)).
 `runs open` with `--key <operator key file> --roster <roster file>
---trust-root <root public key file>` makes an empty directory one, giving
+--root-key <root public key file>` makes an empty directory one, giving
 `state/` to the account that ran it: `chown` it to the plane's account, and
 put that account in `records/`'s group. A plane refuses an unsigned
-directory, and refuses to start when its account may write `records/` or a
-directory on its path.
+directory and a `records/` or record its own account owns, and will not
+start when that account may write `records/` or a directory on its path.
 
 Each record is a `3.0` envelope an operator granted `operate` signed for the
-run's tenant and project, naming the absolute path of the `records/` it was
-signed for; a plane compares that with its own, spelled the same way.
-`runs open` and `runs close` with the three flags check against the roster
-the parent and the record a close replaces before signing over them, and the
-record they write; `runs close` prints what it signed. Without `--key` both
-refuse the directory, naming the flags. `runs list` and `runs prune` read it
-as they read any directory; prune removes records only.
+run's tenant and project and for one `records/`, named by its absolute path
+with links resolved, so a copy into another plane's directory counts in
+neither. With the three flags (`runs close` adds the plane's `--tenant` and
+`--project`), `runs open` and `runs close` check the parent and the record a
+close replaces as a plane would, refuse one that fails, and say on standard
+error what they signed. Without `--key` both refuse the directory, naming
+the flags. `runs list` reads it as any directory; `runs prune` removes
+records only.
 
 A record that is unsigned, signed for another directory, of another tenant
 or project, or by a key the roster does not grant `operate` refuses its calls
@@ -126,7 +127,7 @@ as `unreadable`. When the plane takes a closed record, at a call or when it
 starts, it writes the close into `state/`, and the open record put back
 after is refused as `closed`. `/healthz` counts under `runs.signed` the
 records judged, each refusal cause and the closes carried; `doctor` counts
-the records, open, closed and refused, by signer.
+the records by state and by signer.
 
 ## What a plane does with a token
 

@@ -27,9 +27,11 @@ verify one.
 - Under `approvals.authority: signed` a run counts only from a record `3.0`
   an operator granted `operate` signed for the run's tenant and project and
   for the plane's own `runs.dir`: `runs open` and `runs close` take
-  `--key <k> --roster <r> --trust-root <p>`, check against the roster every
-  record they sign over and the one they write, and `runs close` prints what
-  it signed. When the plane takes a closed record it carries the close into
+  `--key <k> --roster <r> --root-key <p>`, `runs close` also the plane's
+  `--tenant` and `--project`; they refuse to sign over a record the roster
+  does not vouch for, of another tenant, project or directory, or unsigned,
+  and say on standard error what they signed. A plane refuses a `records/`
+  or a record its own account owns. When the plane takes a closed record it carries the close into
   `state/`, at a call or at its start, so the open record put back is
   refused. `/healthz` counts the records judged and refused by cause under
   `runs.signed`, and `doctor` counts the records by state and by signer
@@ -79,7 +81,7 @@ verify one.
   `records/`, the operators', and `state/`, the plane's; a runs directory of
   unsigned records, and a `2.0` record in `records/`, are refused. The plane
   refuses to start when its own account may write `records/` or a directory
-  on its path, and `runs open` and `runs close` without `--key` refuse the
+  on its path, or owns `records/`, and `runs open` and `runs close` without `--key` refuse the
   directory, naming the flags. Open the runs again into a new, empty
   directory with `--key`.
 - **Breaking:** under `approvals.authority: signed` a pause file of version
