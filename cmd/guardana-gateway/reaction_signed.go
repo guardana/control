@@ -156,12 +156,16 @@ func (d *examination) signedRoute() (reaction.Route, stopListRead, error) {
 	if err != nil {
 		return reaction.Route{}, stopListRead{}, fmt.Errorf("reaction: %w", err)
 	}
-	route, err := readSignedRoute(d.cfg, v, false)
+	route, err := readSignedRoute(d.cfg, v, doctorPlaneOwned)
 	if err != nil {
 		return reaction.Route{}, stopListRead{}, err
 	}
+	owner := stoplist.OwnedByAnother
+	if doctorPlaneOwned {
+		owner = stoplist.AnyOwner
+	}
 	dir := d.cfg.Resolve(d.cfg.Reaction.StopsFloorDir)
-	return route, stopListRead{owner: stoplist.OwnedByAnother, take: func(l reaction.List, content []byte) error {
+	return route, stopListRead{owner: owner, take: func(l reaction.List, content []byte) error {
 		stored, err := policystate.ReadStops(dir, d.cfg.ListenerTenant(), d.cfg.ProjectID)
 		if err != nil {
 			return fmt.Errorf("reaction.stops_floor_dir: %w: %w", stoplist.ErrFloor, err)

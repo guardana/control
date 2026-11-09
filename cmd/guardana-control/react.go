@@ -91,7 +91,8 @@ func react(ctx context.Context, a reactArgs, clock func() time.Time, stdout, std
 			return fail(stderr, reactName, err)
 		}
 	}
-	route, err := a.verified(a.stops)
+	note := &rosterNote{w: stderr, command: reactName}
+	route, err := a.verified(a.stops, note)
 	if err != nil {
 		return fail(stderr, reactName, err)
 	}
@@ -104,7 +105,7 @@ func react(ctx context.Context, a reactArgs, clock func() time.Time, stdout, std
 		return fail(stderr, reactName, fmt.Errorf("--findings %s: %w", a.findings, err))
 	}
 	read := a.read
-	read.routeRoster, read.routeRootKey = a.roster, a.rootKey
+	read.routeRoster, read.routeRootKey, read.note = a.roster, a.rootKey, note
 	lookup, closeRuns, err := openRunsLookup(a.runs, read)
 	if err != nil {
 		return fail(stderr, reactName, fmt.Errorf("--runs %s: %w", a.runs, err))
