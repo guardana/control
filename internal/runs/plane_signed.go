@@ -43,18 +43,57 @@ func (p *Plane) notReplayed(rec Record) error {
 		p.counts.refused(ErrReplayed)
 		return fmt.Errorf("%w: %s, whose close was not carried", ErrReplayed, rec.ID)
 	}
-	f, err := p.st.openRegular(rec.ID+closedSuffix, os.O_RDONLY)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return nil
+	switch closed, err := p.marked(rec.ID + closedSuffix); {
 	case err != nil:
 		return fmt.Errorf("the close of %s: %w", rec.ID, err)
-	}
-	if err := f.Close(); err != nil {
-		return err
+	case !closed:
+		return nil
 	}
 	p.counts.refused(ErrReplayed)
 	return fmt.Errorf("%w: %s", ErrReplayed, rec.ID)
+}
+
+// parentStands refuses, with ErrParentClosed, an open child the plane never
+// admitted whose parent's close state/ holds or the handle failed to carry.
+// A child admitted before keeps running: closing a parent closes none of its
+// children. The plane's own <id>.seen tells the two apart, never a signed
+// time, which two operators' clocks would skew. It is nil off a signed layout
+// and for a root.
+func (p *Plane) parentStands(rec Record) error {
+	if !p.signed || rec.Parent == "" {
+		return nil
+	}
+	switch seen, err := p.marked(rec.ID + seenSuffix); {
+	case err != nil:
+		return fmt.Errorf("the first admission of %s: %w", rec.ID, err)
+	case seen:
+		return nil
+	}
+	closed := p.uncarried.has(rec.Parent)
+	if !closed {
+		var err error
+		if closed, err = p.marked(rec.Parent + closedSuffix); err != nil {
+			return fmt.Errorf("the close of %s: %w", rec.Parent, err)
+		}
+	}
+	if !closed {
+		return nil
+	}
+	p.counts.refused(ErrParentClosed)
+	return fmt.Errorf("%w: %s was closed before this run was first admitted", ErrParentClosed, rec.Parent)
+}
+
+// marked reports whether state/ holds the empty marker name, refusing one
+// that is not a regular file of the plane's alone.
+func (p *Plane) marked(name string) (bool, error) {
+	f, err := p.st.openRegular(name, os.O_RDONLY)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	return true, f.Close()
 }
 
 // closesAnyway reports whether a closed record the judge refused still
@@ -321,7 +360,7 @@ func (p *Plane) carryCounted(id string, out *Survey) error {
 // in the order a counter lists them. None names a run.
 func RecordCauses() []string {
 	return []string{"unsigned", "malformed", "other_directory", "unauthenticated", "other_scope", "unauthorized",
-		"authority", "unjudged", "replayed", "plane_owned", "unreadable"}
+		"authority", "unjudged", "replayed", "parent_closed", "plane_owned", "unreadable"}
 }
 
 // recordCause is the label of a refusal of a record.
@@ -332,7 +371,7 @@ func recordCause(err error) string {
 	}{
 		{ErrUnsigned, "unsigned"}, {ErrOtherDirectory, "other_directory"}, {ErrUnauthenticated, "unauthenticated"},
 		{ErrOtherScope, "other_scope"}, {ErrUnauthorized, "unauthorized"}, {ErrAuthority, "authority"},
-		{ErrUnjudged, "unjudged"}, {ErrReplayed, "replayed"}, {ErrPlaneOwned, "plane_owned"},
+		{ErrUnjudged, "unjudged"}, {ErrReplayed, "replayed"}, {ErrParentClosed, "parent_closed"}, {ErrPlaneOwned, "plane_owned"},
 		{ErrMalformed, "malformed"}, {ErrSchemaVersion, "malformed"}, {ErrUnknownField, "malformed"},
 		{ErrMissingField, "malformed"}, {ErrDuplicateField, "malformed"}, {ErrEncoding, "malformed"},
 		{ErrNameMismatch, "malformed"},
