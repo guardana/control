@@ -1,10 +1,11 @@
 // Command line entry point for the product. Without arguments it answers with
 // the version and the status line; the `policy` commands (lint, test,
-// explain, keygen, sign, renew and state), the `approvals` commands, the
+// explain, keygen, sign, renew and state), `state backup` and `state
+// restore`, the `approvals` commands, the
 // `pause` commands, the `runs` commands, `observe`, `coverage`, the
 // `procedure` commands (lint and test), `supervise`, `notify`, `findings
 // export`, `route sign`, the `operators` commands (roster sign and floor
-// init), the `stops` commands (init, lift and list), `react`,
+// init), the `stops` commands (init, lift, list and floor init), `react`,
 // and `console`, the page that answers approvals and writes pauses, are the
 // commands with behaviour, and docs/guides/write-and-test-a-policy.md,
 // docs/guides/test-a-procedure.md and docs/reference/cli.md are their pages.
@@ -125,13 +126,16 @@ var commands = []subcommand{
 	{"policy", "renew", renewForm, renewFlagSet, renewCommand, writes},
 	{"policy", "state init", stateInitForm, stateInitFlagSet, stateInitCommand, writes},
 	{"policy", "state reset", stateResetForm, stateResetFlagSet, stateResetCommand, writes},
+	{"state", "backup", stateForm, stateFlagSet, stateBackupCommand, writes},
+	{"state", "restore", stateForm, stateFlagSet, stateRestoreCommand, writes},
 	{"approvals", "list", "<dir>", nil, func(args []string, stdout, stderr io.Writer) int { return approvalsList(args[0], stdout, stderr) }, inspects},
 	{"approvals", "approve", answerForm, answerFlagSet, approveCommand, writes},
 	{"approvals", "reject", answerForm, answerFlagSet, rejectCommand, writes},
-	{"pause", "init", "<file>", nil, pauseInitCommand, writes},
+	{"pause", "init", pauseInitForm, pauseInitFlagSet, pauseInitCommand, writes},
 	{"pause", "add", pauseAddForm, pauseAddFlagSet, pauseAddCommand, writes},
 	{"pause", "remove", pauseRemoveForm, pauseRemoveFlagSet, pauseRemoveCommand, writes},
 	{"pause", "list", "<file>", nil, pauseListCommand, inspects},
+	{"pause", "floor init", pauseFloorInitForm, pauseFloorInitFlagSet, pauseFloorInitCommand, writes},
 	{"runs", "open", runsOpenForm, runsOpenFlagSet, runsOpenCommand, writes},
 	{"runs", "close", runsCloseForm, runsCloseFlagSet, runsCloseCommand, writes},
 	{"runs", "list", "<dir>", nil, runsListCommand, inspects},
@@ -150,6 +154,7 @@ var commands = []subcommand{
 	{"stops", "init", stopsInitForm, stopsInitFlagSet, stopsInitCommand, writes},
 	{"stops", "lift", stopsLiftForm, stopsLiftFlagSet, stopsLiftCommand, writes},
 	{"stops", "list", stopsListForm, stopsListFlagSet, stopsListCommand, inspects},
+	{"stops", "floor init", stopsFloorInitForm, stopsFloorInitFlagSet, stopsFloorInitCommand, writes},
 	{"react", "", reactForm, reactFlagSet, reactCommand, writes},
 	{"hook", "", hookForm, hookFlagSet, hookCommand, writes},
 	{"console", "", consoleForm, consoleFlagSet, consoleCommand, writes},

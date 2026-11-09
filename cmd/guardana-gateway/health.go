@@ -15,10 +15,16 @@ import (
 	"github.com/guardana/control/internal/reaction"
 )
 
-// healthAnswer is what GET /healthz says about the plane. It carries no
+// healthSchema names the shape of the health answer, so a reader tells it
+// from an answer with no schema member.
+const healthSchema = "2"
+
+// healthAnswer is what the plane says about itself. It carries no
 // configuration and no credential: the mode, the bundle it serves, what each
-// seam counted, and whether the plane still takes material calls.
+// seam counted, and whether the plane still takes material calls. GET
+// /healthz answers it counted; health.socket answers it whole.
 type healthAnswer struct {
+	Schema  string       `json:"schema"`
 	Status  string       `json:"status"`
 	Mode    string       `json:"mode"`
 	Adapter string       `json:"adapter"`
@@ -78,6 +84,26 @@ type pauseAnswer struct {
 	// Polls is what the reader counted: its reads, the failed ones by cause
 	// and the changes of the snapshot. It is left out where nothing reads.
 	Polls map[string]any `json:"polls,omitempty"`
+	// Signed is the signed document in force under the signed authority and
+	// the floor the plane holds, left out where no signed document stands
+	// behind the state. Only health.socket names the operator.
+	Signed *pauseSigned `json:"signed,omitempty"`
+}
+
+type pauseSigned struct {
+	Subject string `json:"subject,omitempty"`
+	KeyID   string `json:"key_id,omitempty"`
+	Serial  int64  `json:"serial"`
+	Floor   int64  `json:"floor"`
+}
+
+// signedAnswer is the health page's member for a snapshot signed by by, and
+// nil where ok says no signed document stands behind it.
+func signedAnswer(by pause.SignedBy, ok bool) *pauseSigned {
+	if !ok {
+		return nil
+	}
+	return &pauseSigned{Subject: by.Subject, KeyID: by.KeyID, Serial: by.Serial, Floor: by.Floor}
 }
 
 // haltAnswer names the plane's halts of ADR-0013 by what raised each. A
@@ -164,7 +190,7 @@ func (p *plane) serveHealth(w http.ResponseWriter, _ *http.Request) {
 	if !ok {
 		status = http.StatusServiceUnavailable
 	}
-	writeJSON(w, p.logger, status, answer)
+	writeJSON(w, p.logger, status, answer.counted())
 }
 
 // health reads every seam's counters, the pause and stop states before the
@@ -185,6 +211,7 @@ func (p *plane) health(src gateway.PauseSource, clock func() time.Time) (healthA
 	// its records uncounted.
 	spoolStats, spoolErr := p.spool.Stats()
 	answer := healthAnswer{
+		Schema:    healthSchema,
 		Status:    "ok",
 		Mode:      p.cfg.ModeName,
 		Adapter:   p.seam().Name(),
@@ -205,6 +232,7 @@ func (p *plane) health(src gateway.PauseSource, clock func() time.Time) (healthA
 		answer.Pipeline = pipelineCounters(stats, p.adapter.Stats())
 		answer.Runs = runCounters(p.runsDir != nil, stats, p.adapter.Stats())
 	}
+	answer.Runs = p.withSignedRuns(answer.Runs)
 	policySnap := p.holder.Current()
 	if policySnap != nil {
 		ref := policySnap.Ref()
@@ -278,6 +306,7 @@ func (p *plane) pauseAnswer(snap pause.Snapshot, now time.Time) pauseAnswer {
 	if snap.State() == pause.Unknown {
 		out.Cause = string(snap.Cause())
 	}
+	out.Signed = signedAnswer(snap.SignedBy())
 	if !snap.ReadAt().IsZero() {
 		age := now.Sub(snap.ReadAt()).Milliseconds()
 		out.AgeMS = &age
@@ -317,4 +346,13 @@ func writeJSON(w http.ResponseWriter, logger *slog.Logger, status int, body any)
 	if _, err := w.Write(append(raw, '\n')); err != nil {
 		logger.Debug("answer not delivered", "err", err)
 	}
+}
+
+// withSignedRuns adds to the runs member what a signed runs directory
+// counted, under signed; elsewhere it is runs as it was.
+func (p *plane) withSignedRuns(runs map[string]any) map[string]any {
+	if p.runsDir.Signed() {
+		runs["signed"] = p.runsDir.SignedCounts()
+	}
+	return runs
 }

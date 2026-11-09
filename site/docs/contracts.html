@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -932,6 +934,13 @@ one from the caller:</p>
 </tr>
 </tbody>
 </table>
+<p>The gateway's adapters spell the action's <code>kind</code> as <code>tool</code>, <code>prompt</code> or
+<code>resource</code> and its <code>protocol</code> as <code>mcp</code> or <code>enforce</code> (<code>internal/channel</code>). The
+gateway refuses, as <code>INVALID_FIELD_VALUE</code>, a kind outside that vocabulary and a
+protocol other than the adapter's own name; a call the adapter already refused
+keeps its own refusal.
+<code>Validate</code> checks neither, so a v1 producer elsewhere may digest another
+(<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</p>
 <p>Keys are the protobuf JSON names. <strong>Every member is present at its proto zero
 value</strong>: an absent string is <code>&quot;&quot;</code>, an absent map is <code>{}</code>, an absent repeated
 field is <code>[]</code>, an absent enum is its zero name. Nothing is omitted and <code>null</code>
@@ -1092,6 +1101,13 @@ exception is the flow tags below, which the comparison leaves out: the retry's
 fresh decision already weighs what the run has taken in since, and has to equal
 the held decision in verdict, rules, obligations and digest, so a flow that
 matters stops the resume there (ADR-0021).</p>
+<p>An approver id <code>authn:&lt;issuer&gt;:&lt;subject&gt;</code> is spelled only by
+<code>internal/core/approval</code>, from what the plane's authenticator established
+about a signed answer; only the gateway's pipeline calls it. A claimed approver
+id that begins with <code>authn:</code>, or could read as it, is refused wherever one is
+read. The id changes no wire field, digest or binding
+(<a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>,
+<a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a>).</p>
 <h3 id="the-flow-tags">The flow tags</h3>
 <p>The gateway records the flow state each decision used as run-context tags on
 the envelope that <code>ACTION_PROPOSED</code> carries, under the prefix <code>flow.v1.</code>:</p>
@@ -1628,6 +1644,18 @@ edited in place.</p>
 </table>
 <p>A state only rises: <code>untrusted</code> never goes back to <code>false</code>, and <code>max_read</code>
 never falls, <code>UNKNOWN</code> included.</p>
+<p>Under <code>approvals.authority: signed</code> the directory holds <code>records/</code> and
+<code>state/</code> (<a href="/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature">ADR-0076</a>).
+A record in <code>records/</code> is a DSSE envelope of
+<code>application/vnd.agent-run-record+json</code> with one signature, over a body in
+its own canonical JSON holding every key of the table above with
+<code>schema_version</code> <code>3.0</code>, and <code>alg</code> (<code>ed25519</code>), <code>keyId</code> (the signing key's,
+the signature's <code>keyid</code>) and <code>records</code> (the absolute, cleaned path of the
+<code>records/</code> it was signed for, with the links on its way resolved, at most
+512 bytes). Any other minor of major
+<code>3</code> is read, and nothing else is read there. <code>state/</code> holds the states, the
+roots' lock files, and an empty <code>&lt;id&gt;.closed</code> for each run whose closed
+record the plane took.</p>
 <h2 id="the-reaction-route-and-the-stop-list">The reaction route and the stop list</h2>
 <p>What a route and a stop list hold, for an operator who writes a route and a
 program that reads a list. <code>experimental</code>, in <code>internal/reaction/</code>
@@ -1770,6 +1798,52 @@ of at most 4 KiB.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="under-the-signed-authority">Under the signed authority</h3>
+<p>Under <code>approvals.authority: signed</code>
+(<a href="/docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures">ADR-0077</a>)
+each of the three is one DSSE signature by a roster operator over a body of
+at most 16 KiB in its canonical form, which names <code>alg</code> <code>ed25519</code>, the
+signature's <code>keyId</code>, <code>tenant_id</code>, <code>project_id</code> and <code>file</code>: the absolute,
+cleaned path of the route file or of <code>stops.jsonl</code> it was signed for, at most
+1024 bytes, with every link on the way to its directory resolved. A plane
+refuses a body whose tenant, project or file is not its own.</p>
+<table>
+<thead>
+<tr>
+<th>Document</th>
+<th>Payload type</th>
+<th><code>kind</code></th>
+<th>Members besides the five above</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Route</td>
+<td><code>application/vnd.agent-reaction-route.v1alpha2+json</code></td>
+<td><code>reaction-route/v1alpha2</code></td>
+<td><code>route_id</code>, <code>serial</code>, <code>rules</code>, each rule as above with <code>scope</code> <code>run</code> and no route-wide <code>scope</code> or <code>lift_public_key</code></td>
+</tr>
+<tr>
+<td>Stop list header</td>
+<td><code>application/vnd.agent-stop-list-header+json</code></td>
+<td><code>reaction-list-header/2.0</code></td>
+<td><code>list_id</code>, <code>serial</code>, <code>route_id</code>, <code>route_serial</code>, <code>route_digest</code>, and <code>previous</code>, the digest of the header carried from, only in a carried list</td>
+</tr>
+<tr>
+<td>Lift</td>
+<td><code>application/vnd.agent-reaction-lift.v1alpha2+json</code></td>
+<td><code>reaction-lift/v1alpha2</code></td>
+<td><code>list_head</code>, the digest of the header of the list it lifts in, <code>run_id</code>, <code>through_line</code></td>
+</tr>
+</tbody>
+</table>
+<p>A list under a <code>v1alpha2</code> route is version <code>2.0</code>: its header line is
+<code>{&quot;envelope&quot;:…,&quot;kind&quot;:&quot;header&quot;,&quot;version&quot;:&quot;2.0&quot;}</code>, a <code>stop</code> line adds
+<code>project_id</code> and <code>scope</code> <code>run</code>, a <code>covered</code> line adds <code>project_id</code>, and a
+<code>lift</code> line's envelope is a <code>v1alpha2</code> lift. A header's digest is <code>sha256:</code>
+and the lowercase hex SHA-256 of its signed body. Every line of a list is of
+one version, and a <code>2.0</code> line is refused under a <code>v1alpha1</code> route, as a
+<code>1.0</code> one is under a <code>v1alpha2</code> route.</p>
 <h3 id="the-codes">The codes</h3>
 <table>
 <thead>
@@ -1972,7 +2046,7 @@ closing records.</p>
 </tr>
 </tbody>
 </table>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/contracts.md">docs/contracts.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/contracts.md">docs/contracts.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -1980,6 +2054,7 @@ closing records.</p>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -2022,6 +2097,7 @@ closing records.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

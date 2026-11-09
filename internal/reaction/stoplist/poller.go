@@ -27,6 +27,15 @@ type Options struct {
 	// Logger takes each change of the state and each stop that becomes
 	// active or ends; nil logs nothing.
 	Logger *slog.Logger
+	// Owner is whose account the list and its directory are owned by:
+	// OwnedByAnother under the signed authority.
+	Owner Owner
+	// Take, when set, is what the list each read accepts is held to, with
+	// the bytes read, whether or not its accepted part grew: the stop list
+	// floor under the signed authority, which another reader may have raised
+	// since. A refusal makes the read Unknown and keeps the list accepted
+	// before.
+	Take func(l reaction.List, content []byte) error
 }
 
 // PollStats is what a Poller counted since Open.
@@ -84,7 +93,9 @@ func (p *Poller) Current() reaction.Snapshot {
 
 // Poll reads the list now, judges it from the prefix accepted so far,
 // publishes the snapshot and returns it. A file that cannot be read is
-// Unknown with the file's cause, and keeps the accepted prefix.
+// Unknown with the file's cause, and keeps the accepted prefix. What a
+// signed read asks its voucher again is held to one interval, so ports that
+// do not answer in it leave the read Unknown rather than the poll stalled.
 func (p *Poller) Poll() reaction.Snapshot {
 	if p == nil {
 		return p.Current()
@@ -94,10 +105,18 @@ func (p *Poller) Poll() reaction.Snapshot {
 	now := p.opts.Clock()
 	prev := p.Current()
 	var next reaction.Snapshot
-	if raw, err := Read(p.opts.Dir); err != nil {
+	raw, err := ReadAs(p.opts.Dir, p.opts.Owner)
+	if err != nil {
 		next = prev.Unknown(CauseOf(err), err.Error(), now, p.opts.Interval)
 	} else {
-		next = prev.Next(p.opts.Route, raw, now, p.opts.Interval)
+		ctx, cancel := context.WithTimeout(context.Background(), p.opts.Interval)
+		next = prev.NextContext(ctx, p.opts.Route, raw, now, p.opts.Interval)
+		cancel()
+	}
+	if t := p.opts.Take; t != nil && next.State() != reaction.Unknown {
+		if err := t(next.AcceptedList(), raw); err != nil {
+			next = prev.Unknown(CauseOf(err), err.Error(), now, p.opts.Interval)
+		}
 	}
 	p.current.Store(&next)
 	p.count(prev, next, now)

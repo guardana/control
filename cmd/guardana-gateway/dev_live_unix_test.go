@@ -161,7 +161,7 @@ func rewrite(t *testing.T, path, from, to string) {
 	if !strings.Contains(string(raw), from) {
 		t.Fatalf("%s holds no %q", path, from)
 	}
-	if err := os.WriteFile(path, []byte(strings.Replace(string(raw), from, to, 1)), 0o600); err != nil { //nolint:gosec // G703: a file under the test's own directory
+	if err := os.WriteFile(path, []byte(strings.Replace(string(raw), from, to, 1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -286,7 +286,7 @@ func TestTheTokenStaysOnDevsStdout(t *testing.T) {
 			t.Errorf("the arguments or the environment of %d carry the token", pid)
 		}
 	}
-	if names, want := stateNames(t, state), []string{"approvals", "floors", "holds", "inbox", "operator", "pause.json", "policy.bundle", "policy.statement", "settings.txt", "spool", "trail", "trust"}; !slices.Equal(names, want) {
+	if names, want := stateNames(t, state), []string{"approvals", "floors", "holds", "inbox", "operator", "pause", "pausefloor", "policy.bundle", "policy.statement", "settings.txt", "spool", "trail", "trust"}; !slices.Equal(names, want) {
 		t.Errorf("the state directory holds %q, want %q", names, want)
 	}
 	prefix := []byte(policykey.PKCS8Prefix)

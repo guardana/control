@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -242,7 +244,7 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <tr>
 <td>the runs directory, <code>runs.dir</code></td>
 <td>each run's record, its project, tenant, principal, agent, lifetime and the SHA-256 of its token's secret, and each root run's flow state</td>
-<td>the operator's account, in a directory only it may write, until the operator removes them</td>
+<td>the operator's account, in a directory only it may write, until the operator removes them; under <code>approvals.authority: signed</code>, <code>records/</code> is the operators', each record also naming its signer's key id and the <code>records/</code> path, and <code>state/</code> the plane's</td>
 </tr>
 <tr>
 <td>the spool, <code>evidence.dir</code></td>
@@ -262,7 +264,12 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <tr>
 <td>the approvals directory</td>
 <td>per held call, the approval record and a projection: principal, agent, tool, upstream, resource type and id, effect class, rule ids, times</td>
-<td>the plane's account: records are <code>0600</code>, and the directory is refused when another account owns it or others may write it</td>
+<td>the plane's account: records are <code>0600</code>, and the directory is refused when another account owns it or others may write it; under <code>approvals.authority: signed</code> the plane writes them <code>0640</code> for an operators' group</td>
+</tr>
+<tr>
+<td>the inbox, <code>approvals.inbox_dir</code></td>
+<td>per signed answer, the tenant, project, request and approval ids, both digests, the decision, its time, the optional reason and the signer's key id</td>
+<td>the operators' group the directory admits; each answer is <code>0644</code></td>
 </tr>
 <tr>
 <td>the approvals page and <code>approvals list</code></td>
@@ -285,14 +292,24 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 <td>the plane's account: the directory is owner-only and its files <code>0600</code></td>
 </tr>
 <tr>
+<td>the other floor directories, <code>trust.floor_dir</code>, <code>pause.floor_dir</code>, <code>reaction.floor_dir</code> and <code>reaction.stops_floor_dir</code></td>
+<td>the serial and digest of the newest roster, signed pause file, route and stop list header taken, with the tenant and project for the pause file and the stop list, and the length and digest of the stop list part accepted</td>
+<td>the plane's account, as <code>policy.state_dir</code></td>
+</tr>
+<tr>
+<td>the trust roster, <code>trust.roster</code></td>
+<td>per operator key, its subject, public key and grants</td>
+<td>any account the file's modes let read it</td>
+</tr>
+<tr>
 <td>the pause file</td>
-<td>each entry's scope and its optional reason</td>
-<td>the plane's account, and any account the file's and directory's modes let read it</td>
+<td>each entry's scope and its optional reason; a signed one also the tenant, project, its path, serial and signer's key id</td>
+<td>the plane's account, and any account the file's and directory's modes let read it; under <code>approvals.authority: signed</code> the operator's account, never the plane's</td>
 </tr>
 <tr>
 <td>the stop list, <code>reaction.stops</code></td>
 <td>per stop the tenant, run id, finding id, procedure, rule and times; per covered finding its id, tenant and run; per lift the run, a line number and its signature</td>
-<td>the plane's account, and any account the file's and directory's modes let read it: a new list is <code>0600</code>, and the list is refused when another account owns it or its directory, or a group or others may write either</td>
+<td>the plane's account, and any account the file's and directory's modes let read it: a new list is <code>0600</code>, and the list is refused when another account owns it or its directory, or a group or others may write either; under <code>approvals.authority: signed</code> it is refused when the plane's own account owns either, and its header and lifts also name the signing operator's key id, the project and the stop list's path</td>
 </tr>
 <tr>
 <td>the decision point at <code>pdp.identifier</code></td>
@@ -301,8 +318,8 @@ to the plane, no field of the contract holds it, and no adapter reads it.</p>
 </tr>
 <tr>
 <td><code>/metrics</code> and <code>/healthz</code></td>
-<td>counts and states; <code>/healthz</code> also the mode, the bundle's id, version, digest and serial, its confirmation and expiry times, the id of every pause entry with the share of calls it covers, and the ids of those that match no listed tool; with a route, also the route's id, serial and digest, its floor's serial and digest, the stop list's <code>list_id</code>, state and age, and, for each active stop up to 64, its entry id, run id, finding id, rule id and expiry, and the run ids of those stops the runs directory does not hold for the plane's project or cannot read. No metric label carries an identifier, a digest or free text; <code>pipeline_blocks_total</code> is labelled with a reason code (<a href="/docs/reference/metrics">reference/metrics</a>)</td>
-<td>anyone who reaches <code>health.address</code>, which takes no credential</td>
+<td>counts and states; <code>/healthz</code> also the mode, the bundle's id, version, digest and serial, its confirmation and expiry times, the id of every pause entry with the share of calls it covers, the ids of those that match no listed tool, and a signed pause's serial and floor; with a route, also the route's id, serial and digest, its floor's serial and digest, the stop list's <code>list_id</code>, state, age and stop list header's serial, and how many stops are active and how many of their runs the runs directory does not hold for the plane's project or cannot read; <code>health.socket</code> adds the subject and key id that signed the pause and, for each active stop up to 64, its entry id, run id, finding id, rule id and expiry, and those runs' ids, and under <code>approvals.authority: signed</code> the subject and key id of the operators who signed the stop list's header and the route. No metric label carries an identifier, a digest or free text; <code>pipeline_blocks_total</code> is labelled with a reason code (<a href="/docs/reference/metrics">reference/metrics</a>)</td>
+<td>anyone who reaches <code>health.address</code>, which takes no credential; <code>health.socket</code>, the plane's account and <code>health.socket_uid</code></td>
 </tr>
 <tr>
 <td>the observation log, <code>observe import --log</code></td>
@@ -420,7 +437,7 @@ a tool or prompt name, the client's reported name.</p>
 the collector, the decision point and its proxy, and, for <code>scenario run</code>, the
 plane it tests. No address of the project or its authors is built into them,
 and they send no usage data, crash report or update check.</p>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/privacy.md">docs/concepts/privacy.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/privacy.md">docs/concepts/privacy.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -428,6 +445,7 @@ and they send no usage data, crash report or update check.</p>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -470,6 +488,7 @@ and they send no usage data, crash report or update check.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

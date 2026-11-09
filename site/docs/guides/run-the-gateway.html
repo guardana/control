@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -189,8 +191,8 @@ evidence:
   dir: spool
 
 export:
-  endpoint: http://127.0.0.1:4318/v1/logs
-  allow_plaintext: true         # a plaintext collector is a loopback one, and you say so
+  endpoint: unix:///run/collector/logs.sock
+  collector_uid: 1001           # the collector&#39;s account
 
 upstreams:
   - name: orders
@@ -242,7 +244,8 @@ agent needs. Take the fingerprint from <code>doctor</code> and add an override:<
 <p>The fingerprint covers the whole definition: a tool whose description or
 schema changes is unclassified again until you look at it.</p>
 <h3 id="6-read-the-health">6. Read the health</h3>
-<pre><code>curl -s http://127.0.0.1:8081/healthz | jq
+<pre><code>curl -s http://127.0.0.1:8081/healthz | jq     # schema 2: counts, no run ids
+curl -s --unix-socket /run/guardana/health.sock http://plane/healthz | jq   # with health.socket: the runs too, to this account alone
 </code></pre>
 <p><code>policy.freshness</code> is <code>confirmed</code>, <code>unconfirmed</code> or <code>expired</code>, beside its
 expiry and poll counts. A plane with an unconfirmed policy answers <code>&quot;status&quot;:&quot;degraded&quot;</code> with <code>200</code>; one halted, or whose
@@ -333,14 +336,21 @@ No test here runs a second account. A lost hold never runs; the next start close
 </tbody>
 </table>
 <h3 id="10-pause-a-tool">10. Pause a tool</h3>
-<p>As the plane's user, before setting <code>pause.file</code> and restarting:</p>
-<pre><code>mkdir -m 700 /srv/pause
+<p>Before setting <code>pause.file</code> and restarting:</p>
+<pre><code># directory: as the plane&#39;s user
+mkdir -m 700 /srv/pause
 guardana-control pause init /srv/pause/pause.json
+guardana-control pause add --action tool --provider orders --name refund /srv/pause/pause.json
+
+# signed: as the operator, who owns /srv/pause (0750, the plane&#39;s group), and floor init as the plane
+guardana-control pause init --key op.key --tenant acme --project orders /srv/pause/pause.json
+guardana-control pause floor init --tenant acme --project orders /var/lib/guardana/pause-floor
+guardana-control pause add --action tool --provider orders --name refund \
+  --key op.key --roster /etc/guardana/roster.json --root-key /etc/guardana/root.pub /srv/pause/pause.json
 </code></pre>
 <pre><code class="language-yaml">pause:
   file: /srv/pause/pause.json
-</code></pre>
-<pre><code>guardana-control pause add --action tool --provider orders --name refund /srv/pause/pause.json
+  floor_dir: /var/lib/guardana/pause-floor   # signed only
 </code></pre>
 <p><code>refund</code> is blocked with <code>PAUSED</code> until <code>pause remove</code>
 (<a href="/docs/concepts/enforcement-modes#pausing-calls">more</a>).</p>
@@ -375,7 +385,7 @@ recording; a pause, a mismatch halt or unwritable evidence can still block a
 call. To stop enforcing altogether, point the agent back at the server and
 stop the gateway; the spool keeps its records, and the exporter drains them on
 the next run from the collector's last acknowledgement.</p>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/run-the-gateway.md">docs/guides/run-the-gateway.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/run-the-gateway.md">docs/guides/run-the-gateway.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -383,6 +393,7 @@ the next run from the collector's last acknowledgement.</p>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -425,6 +436,7 @@ the next run from the collector's last acknowledgement.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

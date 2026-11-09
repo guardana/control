@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -191,6 +193,13 @@ version. <a href="/docs/status">status.md</a> is the inventory.</p>
 <td><a href="/docs/reference/cli#guardana-control">cli.md</a></td>
 </tr>
 <tr>
+<td>State backup manifest (<code>schema_version</code>)</td>
+<td><code>0.1</code></td>
+<td><code>0.x</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/guides/back-up-and-restore-a-plane#what-a-backup-holds">back up and restore a plane</a></td>
+</tr>
+<tr>
 <td>Scenario (<code>kind</code>)</td>
 <td>—</td>
 <td><code>agent-scenario/v1alpha1</code></td>
@@ -199,10 +208,10 @@ version. <a href="/docs/status">status.md</a> is the inventory.</p>
 </tr>
 <tr>
 <td>Pause file (<code>schema_version</code>)</td>
-<td><code>2</code></td>
-<td><code>1</code>, <code>2</code></td>
+<td><code>2</code>, <code>3</code></td>
+<td><code>1</code>, <code>2</code>, <code>3</code></td>
 <td><code>experimental</code></td>
-<td><a href="/docs/reference/cli#guardana-control">cli.md</a></td>
+<td><a href="/docs/concepts/enforcement-modes#pausing-calls">pausing calls</a></td>
 </tr>
 <tr>
 <td>Approvals directory (<code>schema_version</code>)</td>
@@ -252,6 +261,13 @@ version. <a href="/docs/status">status.md</a> is the inventory.</p>
 <td><code>2.x</code></td>
 <td><code>experimental</code></td>
 <td><a href="/docs/contracts#the-runs-directory">contracts.md</a></td>
+</tr>
+<tr>
+<td>Signed run record (<code>schema_version</code>)</td>
+<td><code>3.0</code></td>
+<td><code>3.x</code></td>
+<td><code>experimental</code></td>
+<td><a href="/docs/reference/runs#a-signed-runs-directory">runs.md</a></td>
 </tr>
 <tr>
 <td>Observation records and log (<code>guardana.control.observe.v1alpha1</code>)</td>
@@ -333,23 +349,30 @@ version. <a href="/docs/status">status.md</a> is the inventory.</p>
 <tr>
 <td>Reaction route (<code>kind</code>)</td>
 <td>—</td>
-<td><code>reaction-route/v1alpha1</code></td>
+<td><code>reaction-route/v1alpha1</code>, <code>reaction-route/v1alpha2</code></td>
 <td><code>experimental</code></td>
 <td><a href="/docs/contracts#the-route">contracts.md</a></td>
 </tr>
 <tr>
 <td>Stop list (<code>version</code>)</td>
-<td><code>1.0</code></td>
-<td><code>1.0</code></td>
+<td><code>1.0</code>, <code>2.0</code></td>
+<td><code>1.0</code>, <code>2.0</code></td>
 <td><code>experimental</code></td>
 <td><a href="/docs/contracts#the-stop-list">contracts.md</a></td>
 </tr>
 <tr>
 <td>Lift (<code>kind</code>, <code>version</code>)</td>
-<td><code>reaction-lift/v1alpha1</code>, <code>1.0</code></td>
-<td><code>reaction-lift/v1alpha1</code>, <code>1.0</code></td>
+<td><code>reaction-lift/v1alpha1</code>, <code>1.0</code>, <code>reaction-lift/v1alpha2</code></td>
+<td><code>reaction-lift/v1alpha1</code>, <code>1.0</code>, <code>reaction-lift/v1alpha2</code></td>
 <td><code>experimental</code></td>
 <td><a href="/docs/contracts#the-lift">contracts.md</a></td>
+</tr>
+<tr>
+<td>Health answer (<code>schema</code>)</td>
+<td><code>2</code></td>
+<td>—</td>
+<td><code>experimental</code></td>
+<td><a href="/docs/guides/run-the-gateway#6-read-the-health">run the gateway</a></td>
 </tr>
 </tbody>
 </table>
@@ -360,12 +383,20 @@ policy bundle, a freshness statement, a route and a lift carry no version of
 their own, only the payload type each is signed under, and the evidence
 spool frames its segments with no version at all, so a spool another release
 wrote is not promised readable. <code>notify</code>'s <code>--state</code> list of delivered alerts,
-one quoted key per line, carries none either.</p>
+one quoted key per line, carries none either. A plane under
+<code>approvals.authority: signed</code> reads pause file <code>3</code> alone, and any other <code>1</code>
+and <code>2</code> alone. It reads a <code>reaction-route/v1alpha2</code> route alone, with stop
+list <code>2.0</code>, whose signed header is <code>reaction-list-header/2.0</code>, and lift
+<code>reaction-lift/v1alpha2</code>; any other plane reads a <code>v1alpha1</code> route alone,
+with stop list <code>1.0</code> and lift <code>reaction-lift/v1alpha1</code>. A <code>1.0</code> list is not
+carried into <code>2.0</code>: start a new list, and <code>react</code> stops again the findings
+that still may stop a run.</p>
 <h2 id="reading-files-an-older-release-wrote">Reading files an older release wrote</h2>
 <ul>
 <li><strong>Wire messages, the evidence export, the runs directory's marker and
 root states, the hold journal, the spent ledger and the floor
-directories.</strong> Any minor of major 1 is read. A member the reader does not
+directories,</strong> a bundle's, a signer's, a trust roster's, a route's, a
+signed pause file's and a stop list's alike. Any minor of major 1 is read. A member the reader does not
 know is refused, so a file a later minor extended is refused when that
 member arrives, never read with it dropped.</li>
 <li><strong>Approvals directory.</strong> Any minor of major 2 is read. A 2.1 record names
@@ -373,7 +404,8 @@ the authority holding it and the call's tenant and project; a 2.0 record
 names none of them and is read as held under <code>directory</code>. A 1.0 directory
 kept the plane's spent mark beside the answers, so it is refused: empty
 it; its holds expire within <code>approvals.ttl</code>.</li>
-<li><strong>Run record.</strong> Any minor of major 2 is read. A record of major 1 names no
+<li><strong>Run record.</strong> Any minor of major 2 is read, except in a signed runs directory's
+<code>records/</code>, which reads major 3 alone. A record of major 1 names no
 project, so it is refused, never read as any project's run: open the run
 again (<a href="/docs/reference/runs#runs-an-earlier-release-opened">runs.md</a>).</li>
 <li><strong>Policy document, scenario, reaction route, freshness statement and
@@ -408,7 +440,7 @@ an <code>unsupported_version</code> gap.</li>
 readers in the code. It fails when a version changes there, when a format is
 missing from this page, and, for each reader it can call, when that reader
 accepts a version the page does not name.</p>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/versions.md">docs/reference/versions.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/versions.md">docs/reference/versions.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -416,6 +448,7 @@ accepts a version the page does not name.</p>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -458,6 +491,7 @@ accepts a version the page does not name.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

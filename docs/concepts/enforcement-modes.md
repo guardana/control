@@ -123,7 +123,7 @@ before each step that cannot be undone, as the next section says.
 ## Pausing calls
 
 An operator stops one tool, one upstream, one run, one agent, one principal
-or everything without a restart by writing an entry into the pause file
+or everything without a restart by writing an entry into the file
 `pause.file` names, with `guardana-control pause add`, and lifts it with
 `pause remove`. An entry has one of six scopes:
 
@@ -179,19 +179,39 @@ approvals store or a sink that syncs can outlast a snapshot; a state that
 covers the call or cannot be read blocks it there. A file that is missing, a
 link, writable by the group or others, in a directory they may write or whose
 own name is a link, owned, or in a directory owned, by another account than
-the plane's, too large, malformed or of an
+the plane's outside `signed`, too large, malformed or of an
 unknown version, and a snapshot older than three intervals or dated ahead of
 the plane's clock, are all an unknown state: every call is blocked with
 `PAUSE_STATE_UNAVAILABLE` and `/healthz` answers 503 naming the cause. The
 same checks at start refuse the start, and the commands refuse a directory
-another account owns, so run them as the plane's user. Deleting the file
+another account owns, so run them as the file's owner. Deleting the file
 therefore blocks everything; it never lifts a pause. A plane without
 `pause.file` is disabled and says so.
 
+Under `approvals.authority: signed` the file is version 3, which an operator
+signs from their own account: `pause init --key <k> --tenant <t> --project <p>`
+makes one, and `pause add` and `pause remove` with `--key`, `--roster` and
+`--root-key` check the file, then re-sign it at the next serial. Only the account owning it can write it. It is a DSSE envelope over the entries, the plane's
+`tenant_id` and `project_id`, its own path, the key and a serial, so a copy
+from another path is refused; one from another host at the same path is taken
+unless tenant or project differ. `pause floor init` makes the
+floor. At every read the plane checks the signature against an operator key
+of its roster, the tenant and project, a grant of `operate` or `admin`
+there, and the serial against its floor in `pause.floor_dir`, raised
+to each serial it takes, so an older file replayed is refused across
+restarts. A file failing any of these, version 1 and 2 included,
+is unknown and blocks every call; the causes are `unsigned`,
+`not authenticated`, `another tenant or project`, `another pause file`,
+`owned by the plane's account`, `not authorized`,
+`authority unavailable`, `below the floor`, `forked` and `floor unavailable`.
+It refuses to start when its own account may write the file or a directory
+on its path. `/healthz` gives `pause.signed`'s serial and floor, `health.socket`
+the signer.
+
 The file's directory may not be, or sit inside, the spool's, the approvals
-store's or the hold journal's, which a running plane locks. The check compares
-the directories by identity as well as by path, so a link to one of them, or
-a spelling in another case on a volume that ignores case, is refused too.
+store's or the hold journal's, which a running plane locks. Directories are
+compared by identity and by path, so a link to one, or another case on a
+case-blind volume, is refused too.
 
 A pause bites on every call not yet recorded as started when the plane reads
 it. Nothing already running is cancelled: an execution handed out before

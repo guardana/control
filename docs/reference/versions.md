@@ -2,7 +2,7 @@
 title: Format versions
 summary: Every versioned file and message a user writes or reads, the version this tree writes, the versions it reads, and how stable each is.
 type: reference
-covers: [internal/evidence/event.go, internal/evidence/version.go, internal/core/codes.go, adapters/mcp/translate.go, adapters/enforce/**, internal/gateway/decisions.go, internal/gateway/journal.go, internal/trailfile/export.go, internal/coverage/export.go, internal/coverage/inventory.go, internal/policy/rules/rules.go, internal/policy/statement.go, internal/scenario/scenario.go, internal/supervise/ruletable.go, internal/supervise/evaluate.go, internal/supervise/record.go, internal/supervise/report.go, cmd/guardana-control/procedure_cases.go, internal/findinglog/**, internal/observe/version.go, internal/ingest/*/descriptor.go, internal/observelog/export.go, internal/runs/strict.go, internal/reaction/**, internal/pause/document.go, internal/approvals/record.go, internal/holdjournal/**, internal/policystate/format.go, internal/hookbridge/**, internal/enforceclient/client.go, internal/policy/bundle/bundle.go, internal/spool/frame.go]
+covers: [internal/evidence/event.go, internal/evidence/version.go, internal/core/codes.go, adapters/mcp/translate.go, adapters/enforce/**, internal/gateway/decisions.go, internal/gateway/journal.go, internal/trailfile/export.go, internal/coverage/export.go, internal/coverage/inventory.go, internal/policy/rules/rules.go, internal/policy/statement.go, internal/scenario/scenario.go, internal/supervise/ruletable.go, internal/supervise/evaluate.go, internal/supervise/record.go, internal/supervise/report.go, cmd/guardana-control/procedure_cases.go, internal/findinglog/**, internal/observe/version.go, internal/ingest/*/descriptor.go, internal/observelog/export.go, internal/runs/s*.go, internal/reaction/**, internal/pause/*.go, internal/approvals/record.go, internal/holdjournal/**, internal/policystate/format.go, internal/hookbridge/**, internal/enforceclient/client.go, internal/policy/bundle/bundle.go, internal/spool/frame.go]
 generated: go test ./internal/docscheck -run TestVersionsPageIsTheCode
 ---
 
@@ -32,8 +32,9 @@ version. [status.md](../status.md) is the inventory.
 | Trust roster (`kind`) | `trust-roster/v1alpha1` | `trust-roster/v1alpha1` | `experimental` | [ADR-0071](../adr/0071-operators-are-named-by-a-signed-roster.md) |
 | Approval answer (`kind`) | `approval-answer/v1alpha1` | `approval-answer/v1alpha1` | `experimental` | [ADR-0073](../adr/0073-an-approval-counts-only-as-the-plane-judges-it.md) |
 | Floor directories (`schema_version`) | `1.0` | `1.x` | `experimental` | [cli.md](cli.md#guardana-control) |
+| State backup manifest (`schema_version`) | `0.1` | `0.x` | `experimental` | [back up and restore a plane](../guides/back-up-and-restore-a-plane.md#what-a-backup-holds) |
 | Scenario (`kind`) | — | `agent-scenario/v1alpha1` | `experimental` | [scenario-format.md](scenario-format.md#the-document) |
-| Pause file (`schema_version`) | `2` | `1`, `2` | `experimental` | [cli.md](cli.md#guardana-control) |
+| Pause file (`schema_version`) | `2`, `3` | `1`, `2`, `3` | `experimental` | [pausing calls](../concepts/enforcement-modes.md#pausing-calls) |
 | Approvals directory (`schema_version`) | `2.1` | `2.x` | `experimental` | [approvals](../concepts/approvals-and-the-held-call.md#what-is-held-and-by-whom) |
 | Hold journal (`schema_version`) | `1.0` | `1.x` | `experimental` | [approvals](../concepts/approvals-and-the-held-call.md#a-hold-the-plane-loses) |
 | Spent ledger (`schema_version`) | `1.0` | `1.x` | `experimental` | [approvals](../concepts/approvals-and-the-held-call.md#an-approval-is-spent-once) |
@@ -41,6 +42,7 @@ version. [status.md](../status.md) is the inventory.
 | Hook bridge handles (`version`) | `1.0` | `1.x` | `experimental` | [runtime-profiles](../extending/runtime-profiles.md#what-the-bridge-does) |
 | Runs directory marker and root state (`schema_version`) | `1.0` | `1.x` | `experimental` | [contracts.md](../contracts.md#the-runs-directory) |
 | Run record (`schema_version`) | `2.0` | `2.x` | `experimental` | [contracts.md](../contracts.md#the-runs-directory) |
+| Signed run record (`schema_version`) | `3.0` | `3.x` | `experimental` | [runs.md](runs.md#a-signed-runs-directory) |
 | Observation records and log (`guardana.control.observe.v1alpha1`) | `0.1`, `0.2`, `0.3` | `0.1`, `0.2`, `0.3` | `experimental` | [observations.md](observations.md#the-log) |
 | Source descriptor (`schema_version`) | — | `0.1`, `0.2` | `experimental` | [observations.md](observations.md#the-source-descriptor) |
 | OpenTelemetry GenAI spans, imported | — | conventions `1.41.0`, OTLP `1.11.1` | `experimental` | [observations.md](observations.md#what-an-import-keeps) |
@@ -52,9 +54,10 @@ version. [status.md](../status.md) is the inventory.
 | Finding records and log (`guardana.control.finding.v1alpha1`) | `0.1`, `0.2` | `0.1`, `0.2` | `experimental` | [supervision.md](supervision.md#the-finding-record-and-its-log) |
 | Findings export (`guardana.control.findings-export`) | `0.1` | — | `experimental` | [supervision.md](supervision.md#findings-export) |
 | Enforcement API (`guardana.control.enforce.v1alpha1`) | `v1alpha1` | `v1alpha1` | `experimental` | [contracts.md](../contracts.md#the-enforcement-api) |
-| Reaction route (`kind`) | — | `reaction-route/v1alpha1` | `experimental` | [contracts.md](../contracts.md#the-route) |
-| Stop list (`version`) | `1.0` | `1.0` | `experimental` | [contracts.md](../contracts.md#the-stop-list) |
-| Lift (`kind`, `version`) | `reaction-lift/v1alpha1`, `1.0` | `reaction-lift/v1alpha1`, `1.0` | `experimental` | [contracts.md](../contracts.md#the-lift) |
+| Reaction route (`kind`) | — | `reaction-route/v1alpha1`, `reaction-route/v1alpha2` | `experimental` | [contracts.md](../contracts.md#the-route) |
+| Stop list (`version`) | `1.0`, `2.0` | `1.0`, `2.0` | `experimental` | [contracts.md](../contracts.md#the-stop-list) |
+| Lift (`kind`, `version`) | `reaction-lift/v1alpha1`, `1.0`, `reaction-lift/v1alpha2` | `reaction-lift/v1alpha1`, `1.0`, `reaction-lift/v1alpha2` | `experimental` | [contracts.md](../contracts.md#the-lift) |
+| Health answer (`schema`) | `2` | — | `experimental` | [run the gateway](../guides/run-the-gateway.md#6-read-the-health) |
 
 The gateway's configuration file and a `policy test` case carry no version.
 Each refuses a key it does not know, so a file that names a key a later
@@ -63,13 +66,21 @@ policy bundle, a freshness statement, a route and a lift carry no version of
 their own, only the payload type each is signed under, and the evidence
 spool frames its segments with no version at all, so a spool another release
 wrote is not promised readable. `notify`'s `--state` list of delivered alerts,
-one quoted key per line, carries none either.
+one quoted key per line, carries none either. A plane under
+`approvals.authority: signed` reads pause file `3` alone, and any other `1`
+and `2` alone. It reads a `reaction-route/v1alpha2` route alone, with stop
+list `2.0`, whose signed header is `reaction-list-header/2.0`, and lift
+`reaction-lift/v1alpha2`; any other plane reads a `v1alpha1` route alone,
+with stop list `1.0` and lift `reaction-lift/v1alpha1`. A `1.0` list is not
+carried into `2.0`: start a new list, and `react` stops again the findings
+that still may stop a run.
 
 ## Reading files an older release wrote
 
 - **Wire messages, the evidence export, the runs directory's marker and
   root states, the hold journal, the spent ledger and the floor
-  directories.** Any minor of major 1 is read. A member the reader does not
+  directories,** a bundle's, a signer's, a trust roster's, a route's, a
+  signed pause file's and a stop list's alike. Any minor of major 1 is read. A member the reader does not
   know is refused, so a file a later minor extended is refused when that
   member arrives, never read with it dropped.
 - **Approvals directory.** Any minor of major 2 is read. A 2.1 record names
@@ -77,7 +88,8 @@ one quoted key per line, carries none either.
   names none of them and is read as held under `directory`. A 1.0 directory
   kept the plane's spent mark beside the answers, so it is refused: empty
   it; its holds expire within `approvals.ttl`.
-- **Run record.** Any minor of major 2 is read. A record of major 1 names no
+- **Run record.** Any minor of major 2 is read, except in a signed runs directory's
+  `records/`, which reads major 3 alone. A record of major 1 names no
   project, so it is refused, never read as any project's run: open the run
   again ([runs.md](runs.md#runs-an-earlier-release-opened)).
 - **Policy document, scenario, reaction route, freshness statement and

@@ -2,7 +2,7 @@
 title: Wire contracts
 summary: What the v1 messages are versioned by, what a receiver refuses them for, and how the evidence events chain.
 type: spec
-covers: [api/proto/guardana/control/v1/**, api/gen/go/guardana/control/v1/**, api/proto/guardana/control/enforce/**, api/gen/go/guardana/control/enforce/**, pkg/contract/**, internal/canon/**, internal/evidence/chain.go, internal/evidence/version.go, internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, internal/lineexport/**, internal/runs/record.go, internal/runs/state.go, internal/reaction/route.go, internal/reaction/line.go, internal/reaction/lift.go, internal/reaction/envelope.go, internal/reaction/judge.go, testdata/contracts/**, testdata/digest/**, testdata/enforce/**, testdata/export/**]
+covers: [api/proto/guardana/control/v1/**, api/gen/go/guardana/control/v1/**, api/proto/guardana/control/enforce/**, api/gen/go/guardana/control/enforce/**, pkg/contract/**, internal/canon/**, internal/evidence/chain.go, internal/evidence/version.go, internal/trailfile/export.go, internal/trailfile/export_records.go, internal/trailfile/cursor.go, internal/lineexport/**, internal/runs/record.go, internal/runs/state.go, internal/reaction/route.go, internal/reaction/line.go, internal/reaction/lift.go, internal/reaction/envelope.go, internal/reaction/judge.go, internal/reaction/signed.go, internal/reaction/route2.go, internal/reaction/header2.go, internal/reaction/lift2.go, testdata/contracts/**, testdata/digest/**, testdata/enforce/**, testdata/export/**]
 stability: stable
 ---
 
@@ -704,6 +704,14 @@ one from the caller:
 | `destination` | `trustZone`, `host` |
 | `authorizedArguments` | the arguments document, as a value |
 
+The gateway's adapters spell the action's `kind` as `tool`, `prompt` or
+`resource` and its `protocol` as `mcp` or `enforce` (`internal/channel`). The
+gateway refuses, as `INVALID_FIELD_VALUE`, a kind outside that vocabulary and a
+protocol other than the adapter's own name; a call the adapter already refused
+keeps its own refusal.
+`Validate` checks neither, so a v1 producer elsewhere may digest another
+([ADR-0067](adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate.md)).
+
 Keys are the protobuf JSON names. **Every member is present at its proto zero
 value**: an absent string is `""`, an absent map is `{}`, an absent repeated
 field is `[]`, an absent enum is its zero name. Nothing is omitted and `null`
@@ -880,6 +888,14 @@ exception is the flow tags below, which the comparison leaves out: the retry's
 fresh decision already weighs what the run has taken in since, and has to equal
 the held decision in verdict, rules, obligations and digest, so a flow that
 matters stops the resume there (ADR-0021).
+
+An approver id `authn:<issuer>:<subject>` is spelled only by
+`internal/core/approval`, from what the plane's authenticator established
+about a signed answer; only the gateway's pipeline calls it. A claimed approver
+id that begins with `authn:`, or could read as it, is refused wherever one is
+read. The id changes no wire field, digest or binding
+([ADR-0066](adr/0066-each-decision-about-authority-is-a-port.md),
+[ADR-0073](adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
 
 ### The flow tags
 
@@ -1326,6 +1342,19 @@ edited in place.
 A state only rises: `untrusted` never goes back to `false`, and `max_read`
 never falls, `UNKNOWN` included.
 
+Under `approvals.authority: signed` the directory holds `records/` and
+`state/` ([ADR-0076](adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md)).
+A record in `records/` is a DSSE envelope of
+`application/vnd.agent-run-record+json` with one signature, over a body in
+its own canonical JSON holding every key of the table above with
+`schema_version` `3.0`, and `alg` (`ed25519`), `keyId` (the signing key's,
+the signature's `keyid`) and `records` (the absolute, cleaned path of the
+`records/` it was signed for, with the links on its way resolved, at most
+512 bytes). Any other minor of major
+`3` is read, and nothing else is read there. `state/` holds the states, the
+roots' lock files, and an empty `<id>.closed` for each run whose closed
+record the plane took.
+
 ## The reaction route and the stop list
 
 What a route and a stop list hold, for an operator who writes a route and a
@@ -1406,6 +1435,31 @@ of at most 4 KiB.
 | `route_digest` | the header's, and the route's |
 | `run_id` | the lift line's |
 | `through_line` | the lift line's: the last line whose stops of that run it ends |
+
+### Under the signed authority
+
+Under `approvals.authority: signed`
+([ADR-0077](adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures.md))
+each of the three is one DSSE signature by a roster operator over a body of
+at most 16 KiB in its canonical form, which names `alg` `ed25519`, the
+signature's `keyId`, `tenant_id`, `project_id` and `file`: the absolute,
+cleaned path of the route file or of `stops.jsonl` it was signed for, at most
+1024 bytes, with every link on the way to its directory resolved. A plane
+refuses a body whose tenant, project or file is not its own.
+
+| Document | Payload type | `kind` | Members besides the five above |
+| --- | --- | --- | --- |
+| Route | `application/vnd.agent-reaction-route.v1alpha2+json` | `reaction-route/v1alpha2` | `route_id`, `serial`, `rules`, each rule as above with `scope` `run` and no route-wide `scope` or `lift_public_key` |
+| Stop list header | `application/vnd.agent-stop-list-header+json` | `reaction-list-header/2.0` | `list_id`, `serial`, `route_id`, `route_serial`, `route_digest`, and `previous`, the digest of the header carried from, only in a carried list |
+| Lift | `application/vnd.agent-reaction-lift.v1alpha2+json` | `reaction-lift/v1alpha2` | `list_head`, the digest of the header of the list it lifts in, `run_id`, `through_line` |
+
+A list under a `v1alpha2` route is version `2.0`: its header line is
+`{"envelope":…,"kind":"header","version":"2.0"}`, a `stop` line adds
+`project_id` and `scope` `run`, a `covered` line adds `project_id`, and a
+`lift` line's envelope is a `v1alpha2` lift. A header's digest is `sha256:`
+and the lowercase hex SHA-256 of its signed body. Every line of a list is of
+one version, and a `2.0` line is refused under a `v1alpha1` route, as a
+`1.0` one is under a `v1alpha2` route.
 
 ### The codes
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/guardana/control/internal/gatewayconfig"
 	"github.com/guardana/control/internal/operators"
 	"github.com/guardana/control/internal/policykey"
+	"github.com/guardana/control/internal/runs"
 	"github.com/guardana/control/internal/trust"
 )
 
@@ -87,18 +89,32 @@ var (
 )
 
 // checkSignedStart refuses a start under the signed kind that the plane's own
-// account could turn: a configuration file or a trust root key file it may
-// write, and any key the environment set, since that account sets its own
-// environment when it restarts (ADR-0073).
+// account could turn: a configuration file, a trust root key file, a pause
+// file, a route file, a stops directory or the runs directory's records/ it
+// may write, or a directory on their path it may write, and any key the
+// environment set, since that account sets its own environment when it
+// restarts (ADR-0073).
 func checkSignedStart(cfg *gatewayconfig.Config) error {
 	if keys := environmentOverrides(cfg); len(keys) > 0 {
 		return fmt.Errorf("approvals.authority: signed, and the environment sets %s; the plane's own account sets its environment, so under signed every key is read from the configuration file alone (ADR-0073)",
 			strings.Join(keys, ", "))
 	}
-	for _, f := range []struct{ key, path string }{
+	checked := []struct{ key, path string }{
 		{"the configuration file", cfg.File()},
 		{"trust.root_public_key", cfg.Resolve(cfg.Trust.RootPublicKey)},
-	} {
+	}
+	if cfg.Pause.File != "" {
+		checked = append(checked, struct{ key, path string }{"pause.file", cfg.Resolve(cfg.Pause.File)})
+	}
+	if cfg.Reaction.Configured() {
+		checked = append(checked,
+			struct{ key, path string }{"reaction.route", cfg.Resolve(cfg.Reaction.Route)},
+			struct{ key, path string }{"reaction.stops", cfg.Resolve(cfg.Reaction.Stops)})
+	}
+	if cfg.Runs.Dir != "" {
+		checked = append(checked, struct{ key, path string }{"runs.dir", filepath.Join(cfg.Resolve(cfg.Runs.Dir), runs.RecordsDir)})
+	}
+	for _, f := range checked {
 		if err := notPlaneWritable(f.path); err != nil {
 			return fmt.Errorf("%s: under the signed authority the plane's own account may not be able to change it: %w (ADR-0073)", f.key, err)
 		}
@@ -134,7 +150,9 @@ var pinnedKeys = []pinnedKey{
 		return k, true, err
 	}},
 	{"the route's lift_public_key", func(c *gatewayconfig.Config) (ed25519.PublicKey, bool, error) {
-		if c.Reaction.Route == "" {
+		// A v1alpha2 route, the one the signed authority reads, names no
+		// lift key: its lifts are operators'.
+		if c.Reaction.Route == "" || c.Approvals.Authority == gatewayconfig.AuthoritySigned {
 			return nil, false, nil
 		}
 		route, err := readRoute(c)

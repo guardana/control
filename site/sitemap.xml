@@ -77,6 +77,10 @@
   <url><loc>https://control.guardana.dev/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0074-pkg-contract-exports-one-rule-for-a-required-identifier</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0078-a-restore-only-raises</loc></url>
   <url><loc>https://control.guardana.dev/docs/backlog</loc></url>
   <url><loc>https://control.guardana.dev/docs/changelog</loc></url>
   <url><loc>https://control.guardana.dev/docs/concepts/approvals-and-the-held-call</loc></url>
@@ -95,6 +99,7 @@
   <url><loc>https://control.guardana.dev/docs/extending/adapters</loc></url>
   <url><loc>https://control.guardana.dev/docs/extending/runtime-profiles</loc></url>
   <url><loc>https://control.guardana.dev/docs/get-started/try-the-demo</loc></url>
+  <url><loc>https://control.guardana.dev/docs/guides/back-up-and-restore-a-plane</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/connect-an-existing-mcp-setup</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/decide-a-tool-of-your-own</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/keep-two-tasks-apart</loc></url>
@@ -123,6 +128,7 @@
   <url><loc>https://control.guardana.dev/docs/reference/policy-explain</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/policy-format</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/reaction</loc></url>
+  <url><loc>https://control.guardana.dev/docs/reference/reaction-signed</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/reason-codes</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/run-view</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/runs</loc></url>
