@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -120,6 +122,7 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 </ul>
 <h2 id="guides">Guides</h2>
 <ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a>: Copy a stopped plane's floors, runs, pause file and stop list, and after a loss raise them back so no floor ends lower, every run is closed and no hold resumes.</li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a>: Put the plane between an MCP client and a server you already use, classify the server's tools, hold its writes for approval, and end in a local report.</li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a>: Serve the enforcement API, classify your tools by name, and have a client ask before each call and report how it ended, under one policy and trail.</li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a>: Open a run per task in a runs directory, point a plane at it, and give each agent its token, so what one task took in never decides another's calls.</li>
@@ -164,6 +167,7 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/reference/observations">Observations</a>: The source descriptor and its kinds, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export.</li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a>: What <code>guardana-control policy explain</code> reads, every line it prints, which rule decided and which input a rule could not read, and its bounds.</li>
 <li><a href="/docs/reference/policy-format">Policy document format</a>: Every member of an agent-policy/v1alpha1 document, the values each admits, the bounds, and the members of a policy test case.</li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a>: How a signed plane takes its route, stop list header and lifts from roster operators, holds them to a stop list floor, and which commands sign them.</li>
 <li><a href="/docs/reference/reaction">Reaction</a>: The signed route, the stop list and the commands that write them, and how a plane refuses a stopped run's calls and reports its stops.</li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a>: Every reason code a decision may carry, with its number and the verdict it usually accompanies.</li>
 <li><a href="/docs/reference/run-view">Run view</a>: The page guardana-control supervise --view draws for one run, what each mark on it means, and what the command refuses to overwrite.</li>
@@ -273,8 +277,12 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072: The collector keeps bounded segments of one project, behind a credential</a>: accepted</li>
 <li><a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073: An approval counts only as the plane judges it, from an authority it names</a>: accepted</li>
 <li><a href="/docs/adr/0074-pkg-contract-exports-one-rule-for-a-required-identifier">ADR-0074: pkg/contract exports one rule for a required identifier</a>: accepted</li>
+<li><a href="/docs/adr/0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature">ADR-0075: A signed plane takes a pause only from an operator's signature</a>: accepted</li>
+<li><a href="/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature">ADR-0076: A signed plane takes a run only from an operator's signature</a>: accepted</li>
+<li><a href="/docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures">ADR-0077: A signed plane takes a stop list only from operators' signatures</a>: accepted</li>
+<li><a href="/docs/adr/0078-a-restore-only-raises">ADR-0078: A restore only raises</a>: accepted</li>
 </ul>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/index.md">docs/index.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/index.md">docs/index.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/" aria-current="page">Overview</a></li></ul>
@@ -282,6 +290,7 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -324,6 +333,7 @@ with <code>make docs-gen</code>; an edit made here does not survive the next run
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

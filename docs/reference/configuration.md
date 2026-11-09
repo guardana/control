@@ -22,7 +22,8 @@ under the `interval` policy and refused under `every_record`; `approvals.authori
 `directory` and `signed` need `approvals.dir` and `approvals.hold_journal_dir`, and that
 journal directory may be neither the spool's nor the approvals directory, nor inside
 either; `signed` needs, and every other authority refuses, `approvals.inbox_dir`, apart
-from those three, and every `trust.*` and `operators.*` key; and `APPROVE` needs
+from those three, every `trust.*` and `operators.*` key, and with `pause.file`
+`pause.floor_dir`, which may not be, hold or sit in the pause file's directory; and `APPROVE` needs
 `directory` or `signed`, since nothing outside the process answers a request held in
 memory. An entry of `overrides` or `tools` is refused when no call to its tool could carry
 an envelope the contract takes: `resource_type` is an identifier of at most 1024 bytes,
@@ -56,11 +57,17 @@ may be negative. `runs.dir` may not be, hold or sit inside the spool, the
 approvals directory, the hold journal or the pause file's directory, needs a
 `listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a
 plane keeps in memory. `reaction.route`, `reaction.public_key`, `reaction.floor_dir` and
-`reaction.stops` are set together or not at all; a route needs `runs.dir`,
+`reaction.stops` are set together or not at all, under `signed` with
+`reaction.stops_floor_dir` in place of `reaction.public_key`, which it refuses, and
+every other authority refuses `reaction.stops_floor_dir`; a route needs `runs.dir`,
 `reaction.poll_interval` takes 100ms to a minute, and the stops directory may not be,
 hold or sit inside the runs directory, the spool, the approvals directory, the hold
-journal, either floor directory or the pause file's directory, compared through
-symbolic links too. Every `pdp.` key is refused while `pdp.identifier` is empty,
+journal, the policy, route, stop list or pause floor directory or the pause file's
+directory, compared through
+symbolic links too. A `unix:///path` `export.endpoint` needs `export.collector_uid`
+and refuses `export.allow_plaintext`, any other refuses `export.collector_uid`, and
+`health.socket_uid` needs `health.socket`; a platform that cannot name a socket peer's
+account refuses both sockets. Every `pdp.` key is refused while `pdp.identifier` is empty,
 since it would apply to no decision point, and the identifier is written into every
 decision that consulted the decision point, so a credential goes in `pdp.headers`,
 never in it. Other directories are compared as paths and not as what they
@@ -132,12 +139,14 @@ Rendered from the field table in `internal/gatewayconfig`. Rebuild it with
 | `operators.authorizer.kind` | `GUARDANA_CONTROL_OPERATORS_AUTHORIZER_KIND` | one of |  | no | `roster` |
 | `pause.file` | `GUARDANA_CONTROL_PAUSE_FILE` | string |  | no |  |
 | `pause.poll_interval` | `GUARDANA_CONTROL_PAUSE_POLL_INTERVAL` | duration | `1s` | no |  |
+| `pause.floor_dir` | `GUARDANA_CONTROL_PAUSE_FLOOR_DIR` | string |  | no |  |
 | `runs.dir` | `GUARDANA_CONTROL_RUNS_DIR` | string |  | no |  |
 | `flow.max_runs` | `GUARDANA_CONTROL_FLOW_MAX_RUNS` | integer | `64` | no |  |
 | `reaction.route` | `GUARDANA_CONTROL_REACTION_ROUTE` | string |  | no |  |
 | `reaction.public_key` | `GUARDANA_CONTROL_REACTION_PUBLIC_KEY` | string |  | no |  |
 | `reaction.floor_dir` | `GUARDANA_CONTROL_REACTION_FLOOR_DIR` | string |  | no |  |
 | `reaction.stops` | `GUARDANA_CONTROL_REACTION_STOPS` | string |  | no |  |
+| `reaction.stops_floor_dir` | `GUARDANA_CONTROL_REACTION_STOPS_FLOOR_DIR` | string |  | no |  |
 | `reaction.poll_interval` | `GUARDANA_CONTROL_REACTION_POLL_INTERVAL` | duration | `1s` | no |  |
 | `evidence.dir` | `GUARDANA_CONTROL_EVIDENCE_DIR` | string |  | yes |  |
 | `evidence.max_bytes` | `GUARDANA_CONTROL_EVIDENCE_MAX_BYTES` | bytes, plain or with KiB, MiB, GiB | `1GiB` | no |  |

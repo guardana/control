@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -146,7 +148,11 @@ export PATH=&#34;$WORK/bin:$PATH&#34;
 <h3 id="2-sign-the-policy">2. Sign the policy</h3>
 <p>Make four keys: the policy's, the freshness statement's, the route's and the
 lift key, which signs the end of a stop. Here they sit on one machine,
-outside the plane's state; in use, keep the private keys off the plane's host.</p>
+outside the plane's state; in use, keep the private keys off the plane's host.
+This guide's plane runs under <code>approvals.authority: directory</code>. Under <code>signed</code>
+there is no route or lift key: roster operators sign the route, the stop
+list header and each lift, as
+<a href="/docs/reference/reaction-signed">signed reaction</a> says.</p>
 <pre><code>$ cd &#34;$WORK&#34;
 $ guardana-control policy keygen --out keys/bundle
 key_id: ed25519-640a7a9ba6644930
@@ -195,7 +201,9 @@ in a terminal of its own:</p>
 <pre><code>guardana-gateway collect --listen 127.0.0.1:4318 --dir trail/plane --tenant acme --project refunds \
   --credential-file state/collector.credential
 </code></pre>
-<p>Open both runs as step 5 shows first. Then check the configuration; every
+<p><code>doctor</code> warns of this TCP endpoint, since TCP export is removed in 0.17; a unix
+socket is <a href="/docs/guides/watch-a-plane-without-a-collector">watch a plane without a collector</a>.
+Open both runs as step 5 shows first. Then check the configuration; every
 check line should begin <code>ok</code>:</p>
 <pre><code>$ guardana-gateway doctor --config plane.yaml
 …
@@ -360,7 +368,7 @@ map have their own pages: <a href="/docs/reference/observations">observations.md
 <a href="/docs/reference/coverage">coverage.md</a>. The example's README describes its
 <code>0.1</code> run; <code>notify</code> and child runs are in
 <a href="/docs/reference/supervision">supervision.md</a>.</p>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/supervise-and-stop-a-run.md">docs/guides/supervise-and-stop-a-run.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/supervise-and-stop-a-run.md">docs/guides/supervise-and-stop-a-run.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -368,6 +376,7 @@ map have their own pages: <a href="/docs/reference/observations">observations.md
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -410,6 +419,7 @@ map have their own pages: <a href="/docs/reference/observations">observations.md
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

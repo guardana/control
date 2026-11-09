@@ -12,9 +12,32 @@ type Act string
 // ActApprove answers a held call: an approval or a rejection.
 const ActApprove Act = "approve"
 
+// ActPause signs a plane's whole pause document, which pauses and lifts.
+const ActPause Act = "pause"
+
+// ActRoute signs a v1alpha2 reaction route: which findings may stop a run
+// of one project. It is the admin level's.
+const ActRoute Act = "route"
+
+// ActStops signs a stop list's header, which starts or carries a list.
+const ActStops Act = "stops"
+
+// ActLift signs a lift, which ends the stops of one run on one list.
+const ActLift Act = "lift"
+
+// ActRun signs a run's record, which opens the run, and its closed record,
+// which closes it.
+const ActRun Act = "run"
+
 // AnswerPayloadType is the DSSE payload type an approval answer is signed
 // under.
 const AnswerPayloadType = "application/vnd.agent-approval-answer+json"
+
+// PausePayloadType is the DSSE payload type a pause document is signed under.
+const PausePayloadType = "application/vnd.agent-pause+json"
+
+// RunPayloadType is the DSSE payload type a run record is signed under.
+const RunPayloadType = "application/vnd.agent-run-record+json"
 
 // actRule is the payload type an act is signed under and the level a grant
 // needs to permit it.
@@ -23,8 +46,20 @@ type actRule struct {
 	level       trust.Level
 }
 
+// The payload types of the three stop acts.
+const (
+	RoutePayloadType       = "application/vnd.agent-reaction-route.v1alpha2+json"
+	StopsHeaderPayloadType = "application/vnd.agent-stop-list-header+json"
+	LiftPayloadType        = "application/vnd.agent-reaction-lift.v1alpha2+json"
+)
+
 var acts = map[Act]actRule{
+	ActRoute:   {payloadType: RoutePayloadType, level: trust.LevelAdmin},
+	ActStops:   {payloadType: StopsHeaderPayloadType, level: trust.LevelOperate},
+	ActLift:    {payloadType: LiftPayloadType, level: trust.LevelOperate},
 	ActApprove: {payloadType: AnswerPayloadType, level: trust.LevelOperate},
+	ActPause:   {payloadType: PausePayloadType, level: trust.LevelOperate},
+	ActRun:     {payloadType: RunPayloadType, level: trust.LevelOperate},
 }
 
 // Cause says why an answer is not a positive one. It is a closed set,

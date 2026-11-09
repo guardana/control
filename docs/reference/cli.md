@@ -46,6 +46,7 @@ floor, then writes the statement it signs with the freshness key. `policy
 state init` and `reset` make and lower floors
 ([ADR-0038](../adr/0038-a-signed-freshness-statement-and-a-serial-floor.md));
 a reset reaches a running plane's clock check only when it restarts.
+`state backup|restore`: [the guide](../guides/back-up-and-restore-a-plane.md).
 
 `policy keygen` creates the directory `--out` names, mode `0700`, and refuses a
 path that exists. Into it go `signing.key`, the private key as one PKCS#8 PEM
@@ -109,9 +110,9 @@ takes that id; removing the last entry leaves a file pausing nothing,
 because a missing file blocks every call. `pause list` prints one line per
 entry, its reason included, or `no entries`.
 
-Write access to the pause file is the authority to pause and to lift one:
-any process running as the plane's user can empty the file, so run the commands
-as that user. They refuse, writing nothing, a file or directory the group or
+Outside `signed`, write access to the pause file is the authority to pause
+and to lift: any process of the plane's user can empty the file, so run the
+commands as that user. They refuse, writing nothing, a file or directory the group or
 others may write or another account owns, a link, a file the plane would
 refuse to read, a second scope or none, a name, a reason or a scope the file
 cannot hold, and a 65th entry, each on one line that does not repeat the
@@ -119,6 +120,9 @@ value. A writer waits up to ten seconds for another writer's lock; a
 running plane takes none. A pause blocks every call not yet handed out
 when the plane reads it, within one `pause.poll_interval`; it cancels
 nothing already running.
+
+Signed pause files, `--key` and `pause floor init`:
+[pausing calls](../concepts/enforcement-modes.md#pausing-calls).
 
 The `runs` commands open, close, list and prune the runs a plane with
 `runs.dir` serves: [runs.md](runs.md).
@@ -131,7 +135,7 @@ is [coverage.md](coverage.md), `supervise`, `notify` and `findings export`
 and `react` [reaction.md](reaction.md), and `hook`, exiting with its
 profile's statuses, [extending/runtime-profiles.md](../extending/runtime-profiles.md).
 
-`console` serves a page that answers approvals and writes pauses:
+`console` answers approvals and, outside `signed`, writes pauses:
 [console.md](console.md).
 
 <!-- generated: go test ./cmd/guardana-control -run TestCLIPage -->
@@ -147,19 +151,23 @@ usage:
       (--bundle-id <id> | --route-id <id>) <dir>
   guardana-control policy state reset --kind plane|signer --bundle-id <id> --reason <text>
       (--empty | --serial <n> --digest <d> --issued-at <t>) <dir>
+  guardana-control state backup <config> <dir>
+  guardana-control state restore <config> <dir>
   guardana-control approvals list <dir>
   guardana-control approvals approve (--key <file> --inbox <dir> | --approver-id <id>)
       [--reason <text>] <dir> <approval-id>
   guardana-control approvals reject (--key <file> --inbox <dir> | --approver-id <id>)
       [--reason <text>] <dir> <approval-id>
-  guardana-control pause init <file>
+  guardana-control pause init [--key <k> --tenant <t> --project <p> [--serial <n>]] <file>
   guardana-control pause add (--global | --provider <p> [--action <k> [--name <n>]]
-      | --run <id> | --agent <id> | --principal <id>) [--reason <r>] <f>
-  guardana-control pause remove <file> <id>
+      | --run <id> | --agent <id> | --principal <id>) [--reason <r>]
+      [--key <k> --roster <f> --root-key <f>] <f>
+  guardana-control pause remove [--key <k> --roster <f> --root-key <f>] <file> <id>
   guardana-control pause list <file>
+  guardana-control pause floor init --tenant <t> --project <p> <dir>
   guardana-control runs open --project --tenant --principal-type --principal --agent
-      --ttl [--parent] <dir>
-  guardana-control runs close <dir> <run-id>
+      --ttl [--parent] [--key --roster --root-key] <dir>
+  guardana-control runs close [--key --roster --root-key --tenant --project] <dir> <run-id>
   guardana-control runs list <dir>
   guardana-control runs prune --expired-before <time> --archive <dir> <dir>
   guardana-control observe import --source <file> --log <dir> <file>
@@ -171,6 +179,7 @@ usage:
   guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --findings <dir>
       [--evidence <export>]... [--source <descriptor> --log <dir>]...
       [--view <file> [--view-all]]
+      [--roster <file> --root-key <file> --tenant <t> --project <p>]
   guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <duration>]
       -- <program> [<arg>]...
   guardana-control findings export --findings <dir> [--after <cursor>] [--limit <n>]
@@ -179,13 +188,15 @@ usage:
   guardana-control operators roster sign --key <file> --out <file>
       [--valid-for <duration>] <roster.json>
   guardana-control operators floor init --roster-id <id> <dir>
-  guardana-control stops init --route <file> --public-key <file>
-      [--carry <dir> --carry-route <file>] <dir>
-  guardana-control stops lift --route <file> --public-key <file> --key <file> --run <run-id>
-      [--through <line>] <dir>
-  guardana-control stops list --route <file> --public-key <file> <dir>
-  guardana-control react --findings <dir> --runs <dir> --route <file> --public-key <file>
-      --stops <dir>
+  guardana-control stops init --route <f> (--public-key <f> | --roster <f> --root-key <f> --key <k>
+      [--serial <n>]) [--carry <dir> --carry-route <file> [--stops-floor <dir>]] <dir>
+  guardana-control stops lift --route <f> (--public-key <f> | --roster <f> --root-key <f>) --key <k>
+      --run <run-id> [--through <line>] <dir>
+  guardana-control stops list --route <f> (--public-key <f> | --roster <f> --root-key <f>) <dir>
+  guardana-control stops floor init --tenant <t> --project <p> <dir>
+  guardana-control react --findings <dir> --runs <dir> --route <file>
+      (--public-key <f> | --roster <f> --root-key <f> --approvals <dir>) --stops <dir>
+      [--tenant <t> --project <p>]
   guardana-control hook (--profile <id> | --profile-file <file>) --socket <path>
       --state-dir <dir>
   guardana-control console --approvals <dir> [--pause <f>] [--approver-id <id>] [--inbox <dir>]
@@ -196,13 +207,16 @@ Under approvals.authority: signed a plane takes only an answer an operator signs
 Write access to the approvals directory is the approval authority:
 --approver-id is a claim recorded as given, never an identity.
 An id that could read as authn:, mixes scripts or holds a hidden or restyled character is refused.
-Write access to the pause file is the authority to pause a call and to lift a pause.
+Write access to the pause file is the authority to pause a call and to lift a pause;
+under approvals.authority signed, only a pause file signed with an operator's --key counts.
 Write access to the runs directory is the authority to open and to close a run;
-a token acts as its run until it expires or is closed, and runs open prints it once.
+under approvals.authority signed, only a record an operator signed with --key counts.
+A token acts as its run until it expires or is closed, and runs open prints it once.
 Write access to a floor directory is the authority to lower its floors;
 policy state reset is the one way that records why.
 Only the lift key lifts a stop while a plane runs; write access to the stops directory
-adds any stop the route allows and, across a restart, can start a new list with none.
+adds any stop the route allows and, across a restart, can start a new list with none;
+under approvals.authority signed, an admin signs the route and an operator each header and lift.
 The trust root names every operator key until its roster expires, and each signing
 needs a higher serial; write access to its floor directory lowers the floor.
 ```

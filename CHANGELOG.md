@@ -11,8 +11,113 @@ verify one.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-07
+
+Upgrading from 0.15 changes four things an operator must act on.
+`approvals.authority` (`memory`, `directory` or `signed`) replaces
+`approvals.provider` and has no default; `provider: file` becomes
+`authority: directory`, and `approvals.hold_journal_dir` is required beside
+every approvals directory. The approvals directory is format `2.0` and a
+`1.0` one is refused: let its holds expire, within `approvals.ttl`, then
+empty it. `/healthz` answers schema `2` without run ids; a reader that needs
+them queries `health.socket`. An identifier the contract's rule refuses, such
+as a `project_id` with white space at either end, is refused when the
+configuration loads. The TCP export still works with a `doctor` warning and
+is removed in 0.17: set `export.endpoint: unix:///path` and
+`export.collector_uid` instead.
+
+New: under `approvals.authority: signed` a plane takes authority only from
+operators a signed roster names. A held call runs only on an answer an
+operator signs. The pause file (`3`), the run records (`3.0`), the stop list
+(`2.0`) and its route and lifts (`v1alpha2`) are signed and held to floors
+the plane raises, and the plane refuses to start where its own account could
+write any of them
+([ADR-0073](docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md),
+[ADR-0075](docs/adr/0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature.md),
+[ADR-0076](docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md),
+[ADR-0077](docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures.md)).
+To move a plane to `signed`, open its runs again in a new, empty directory
+and start a new stop list. `state backup` and `state restore` copy a stopped
+plane's floors, runs, pause file and stop list, and a restore only raises a
+floor ([ADR-0078](docs/adr/0078-a-restore-only-raises.md)). A pause can name
+one run, agent or principal. Under `signed` the plane's own account still
+raises the roster's floor, so it can withhold a newer roster within the held
+one's lifetime. The hook profile's qualification was not run again for this
+release.
+
 ### Added
 
+- Under `approvals.authority: signed` roster operators sign the reaction
+  documents, bound to the plane's route file or stop list: an `admin` signs a
+  `reaction-route/v1alpha2` route with `route sign --key`, naming a
+  `project_id` and a `scope` on each rule; an operator signs stop list `2.0`'s
+  header with `stops init --key`, at any `--serial` while the plane's floor
+  holds none or, carried, at the next serial naming the old header, the old
+  list held to the plane's floor with `--stops-floor`; and an operator signs a
+  `reaction-lift/v1alpha2` lift with `stops lift --key`, naming the header it
+  lifts from. `stops init`, `lift` and `list` take `--roster` and
+  `--root-key` and judge what is on disk through the roster before they sign;
+  each signing says on standard error what it signed. The plane holds the
+  header and the part of the list it accepted to a stop list floor in the new
+  `reaction.stops_floor_dir`, which `stops floor init` makes for the
+  listener's tenant, and refuses a list cut back below it, also at a read
+  that found nothing new. At every read it asks the operator ports again,
+  within one poll interval, about the route, the header and each lift's
+  signer, so a revoked operator, a route admin without the grant, or ports
+  that do not answer in time make the stop state unknown;
+  `/healthz` gives the header serial and
+  `health.socket` also who signed the header and the route (ADR-0077).
+- `guardana-control state backup <config> <dir>` copies a stopped plane's
+  floors, runs, pause file and stop list into a new owner-only directory
+  under a `backup.json` manifest `0.1`, never the spool, the hold journal,
+  the approvals store or a key. `state restore <config> <dir>` refuses a
+  backup of another plane or a tampered one, restores only the bytes it
+  verified, holds the spool's and the journal's locks, checks every class
+  before its first write, raises every floor to the higher of the two,
+  stamps every plane floor, one only live holds included, at the restore
+  time rounded up to the second so the old statement confirms nothing,
+  closes every run, a run named only by a close the backup carried
+  included, and joins taint under each root's lock, a state lost beside
+  its lock or record as the worst. Under `directory` it keeps a
+  stop list that holds the backup's, carries the backup's into a new list
+  where none survived, and refuses two histories; under `signed` it writes
+  no operator file, raises the stop list floor in its own order, and names
+  the files to put back (ADR-0078).
+- Under `approvals.authority: signed` the pause file is version `3`, signed
+  by a roster operator granted `operate` over the plane's tenant and project:
+  `pause init --key <k> --tenant <t> --project <p>` makes one bound to its
+  own path, and `pause add` and `pause remove` with `--key`, `--roster` and
+  `--root-key` check the file they start from against the roster before they
+  sign it at the next serial. The plane checks it at every read and raises a
+  floor in the new `pause.floor_dir`, which `pause floor init` makes, so an
+  older signed file put back is refused after a restart too, and a copy from
+  another path is refused; planes that use one path on two hosts must differ
+  in tenant or project, or a copy between them is taken. `/healthz` gives the serial and the floor
+  under `pause.signed`, `health.socket` also the signer, and `doctor` checks
+  the file without raising the floor (ADR-0075).
+- Under `approvals.authority: signed` a run counts only from a record `3.0`
+  an operator granted `operate` signed for the run's tenant and project and
+  for the plane's own `runs.dir`: `runs open` and `runs close` take
+  `--key <k> --roster <r> --root-key <p>`, `runs close` also the plane's
+  `--tenant` and `--project`; they refuse to sign over a record the roster
+  does not vouch for, of another tenant, project or directory, or unsigned,
+  and say on standard error what they signed. A plane refuses a `records/`
+  or a record its own account owns. When the plane takes a closed record it carries the close into
+  `state/`, at a call or at its start, so the open record put back is
+  refused; a close whose signer may no longer operate there is carried too. A
+  close `state/` does not take is held and refused as carried, written at
+  the next signed resolve, start or stop that can, and counted as
+  `carry_failed`; holding 64, the plane refuses every signed resolve, and a
+  start that cannot carry one refuses, naming the run. A held close protects
+  only its own plane. A record
+  copied from another path counts in neither; planes that use one path on two
+  hosts must differ in tenant or project. The plane writes a root's state at
+  its first admitted call and blocks the root's calls when that state is later
+  removed. `supervise` and `react` read a signed layout only with
+  `--roster`, `--root-key`, `--tenant` and `--project`, and take a record
+  only as the plane would. `/healthz` counts the records judged and refused by cause under
+  `runs.signed`, and `doctor` counts the records by state and by signer
+  (ADR-0076).
 - `pause add --run <id>`, `--agent <id>` and `--principal <id>` pause one
   opened run, or every run under a root, one agent or one principal. A run
   is named by its id from `runs open`, and any other spelling is refused. Each is
@@ -61,14 +166,24 @@ verify one.
   prints the `export.collector_uid` to set; `--listen host:port` works as
   before. Other platforms refuse both keys at load.
 - `health.socket` serves the whole health answer, run ids included, on a
-  Unix socket of mode `0600` that answers only the plane's own account and
-  `health.socket_uid`; any other peer is closed unanswered. Anything at the
+  Unix socket that answers only the plane's own account and
+  `health.socket_uid`; any other peer is closed unanswered. The socket is
+  `0600`, or `0666` with `health.socket_uid`, so that account can connect
+  and the peer's account alone decides. Anything at the
   path but a stale socket of the plane's account is refused, and the plane
   removes its socket when it stops.
 - `doctor` warns of every TCP `export.endpoint`, naming the unix form.
 
 ### Changed
 
+- **Breaking:** under `approvals.authority: signed` a `v1alpha1` route, a
+  `1.0` stop list, a lift of the route's lift key and `reaction.public_key`
+  are refused; `reaction.stops_floor_dir` is required with `reaction.route`;
+  the plane refuses to start when its own account may write the route file,
+  the stops directory or either's directory, and refuses at the read one that
+  account owns. `react` needs `--approvals` and will not run as the account
+  that owns it. A `1.0` list is not carried into `2.0`: start a new list.
+  Nothing changes under `memory` or `directory`.
 - **Breaking:** `/healthz` answers `"schema": "2"` and names no run: `stops`
   carries the counts `unheld` and `unread`, and leaves out `entries`,
   `unheld_runs` and `unread_runs`, which only `health.socket` answers. A
@@ -76,6 +191,20 @@ verify one.
 - TCP export stays in this release with a `doctor` warning and goes in 0.17:
   over plaintext, whoever holds the port while the collector is down
   receives the credential. Move to `export.endpoint: unix:///path`.
+- **Breaking:** under `approvals.authority: signed` `runs.dir` holds
+  `records/`, the operators', and `state/`, the plane's; a runs directory of
+  unsigned records, and a `2.0` record in `records/`, are refused. The plane
+  refuses to start when its own account may write `records/` or a directory
+  on its path, or owns `records/`, and `runs open` and `runs close` without `--key` refuse the
+  directory, naming the flags. Open the runs again into a new, empty
+  directory with `--key`.
+- **Breaking:** under `approvals.authority: signed` a pause file of version
+  `1` or `2` blocks every call, `pause.floor_dir` is required with
+  `pause.file`, and the plane refuses to start when its own account may write
+  the pause file or a directory on its path, and refuses a file that account
+  owns at every read. `dev` keeps its pause file in `pause/`. `pause add` and `pause remove`
+  without `--key` refuse a signed file, and the console writes no pause under
+  `signed` or into a signed file, naming the command that signs it.
 - **Breaking:** `approvals.authority` (`memory`, `directory` or `signed`)
   replaces `approvals.provider` and has no default. A configuration without
   it, or with the old key, is refused naming both; `provider: file` becomes
@@ -2224,7 +2353,8 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/guardana/control/releases/tag/v0.16.0
 [0.15.0]: https://github.com/guardana/control/releases/tag/v0.15.0
 [0.14.0]: https://github.com/guardana/control/releases/tag/v0.14.0
 [0.13.0]: https://github.com/guardana/control/releases/tag/v0.13.0

@@ -185,7 +185,8 @@ func lead(listDefault, classificationRule string) string {
 		"`directory` and `signed` need `approvals.dir` and `approvals.hold_journal_dir`, and that\n" +
 		"journal directory may be neither the spool's nor the approvals directory, nor inside\n" +
 		"either; `signed` needs, and every other authority refuses, `approvals.inbox_dir`, apart\n" +
-		"from those three, and every `trust.*` and `operators.*` key; and `APPROVE` needs\n" +
+		"from those three, every `trust.*` and `operators.*` key, and with `pause.file`\n" +
+		"`pause.floor_dir`, which may not be, hold or sit in the pause file's directory; and `APPROVE` needs\n" +
 		"`directory` or `signed`, since nothing outside the process answers a request held in\n" +
 		"memory. " + classificationRule + " An `enforce_api` listener serves the enforcement API on the Unix\n" +
 		"socket `listener.socket` names, at most 103 bytes as it resolves; the plane checks that\n" +
@@ -207,11 +208,17 @@ func lead(listDefault, classificationRule string) string {
 		"approvals directory, the hold journal or the pause file's directory, needs a\n" +
 		"`listener.principal.type`, and refuses `flow.max_runs`, which bounds only the runs a\n" +
 		"plane keeps in memory. `reaction.route`, `reaction.public_key`, `reaction.floor_dir` and\n" +
-		"`reaction.stops` are set together or not at all; a route needs `runs.dir`,\n" +
+		"`reaction.stops` are set together or not at all, under `signed` with\n" +
+		"`reaction.stops_floor_dir` in place of `reaction.public_key`, which it refuses, and\n" +
+		"every other authority refuses `reaction.stops_floor_dir`; a route needs `runs.dir`,\n" +
 		"`reaction.poll_interval` takes 100ms to a minute, and the stops directory may not be,\n" +
 		"hold or sit inside the runs directory, the spool, the approvals directory, the hold\n" +
-		"journal, either floor directory or the pause file's directory, compared through\n" +
-		"symbolic links too. Every `pdp.` key is refused while `pdp.identifier` is empty,\n" +
+		"journal, the policy, route, stop list or pause floor directory or the pause file's\n" +
+		"directory, compared through\n" +
+		"symbolic links too. A `unix:///path` `export.endpoint` needs `export.collector_uid`\n" +
+		"and refuses `export.allow_plaintext`, any other refuses `export.collector_uid`, and\n" +
+		"`health.socket_uid` needs `health.socket`; a platform that cannot name a socket peer's\n" +
+		"account refuses both sockets. Every `pdp.` key is refused while `pdp.identifier` is empty,\n" +
 		"since it would apply to no decision point, and the identifier is written into every\n" +
 		"decision that consulted the decision point, so a credential goes in `pdp.headers`,\n" +
 		"never in it. Other directories are compared as paths and not as what they\n" +

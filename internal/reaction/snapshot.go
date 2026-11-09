@@ -1,6 +1,7 @@
 package reaction
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -58,6 +59,12 @@ const (
 	CauseClock        Cause = "clock unusable"
 	CauseStale        Cause = "stale"
 	CauseAhead        Cause = "read ahead"
+	// The causes only a 2.0 list under a v1alpha2 route can have.
+	CauseVersion        Cause = "another format version"
+	CauseUnsigned       Cause = "a header that does not verify"
+	CauseOtherPlane     Cause = "another plane's"
+	CauseUnanswered     Cause = "operator ports unavailable"
+	CauseRouteUnvouched Cause = "a route no operator vouches for"
 )
 
 // Causes is every cause this package names, in the order declared. The slice
@@ -66,21 +73,27 @@ func Causes() []Cause {
 	return []Cause{
 		CauseNeverRead, CauseTooLarge, CauseMalformed, CauseRoute, CauseHeader, CauseShrunk, CauseRewritten,
 		CauseNotPermitted, CauseDatedAhead, CauseLift, CauseClock, CauseStale, CauseAhead,
+		CauseVersion, CauseUnsigned, CauseOtherPlane, CauseUnanswered, CauseRouteUnvouched,
 	}
 }
 
-// CauseOf names the cause of a Judge refusal. A refusal it does not know is
-// CauseMalformed.
+// CauseOf names the cause of a Judge refusal, a voucher that could not answer
+// before any refusal it wraps. A refusal it does not know is CauseMalformed.
 func CauseOf(err error) Cause {
 	for _, c := range []struct {
 		err   Error
 		cause Cause
 	}{
+		{ErrUnanswered, CauseUnanswered},
 		{ErrListTooLarge, CauseTooLarge}, {ErrListLines, CauseTooLarge},
 		{ErrListRoute, CauseRoute}, {ErrListHeader, CauseHeader},
 		{ErrListShrunk, CauseShrunk}, {ErrListRewritten, CauseRewritten},
 		{ErrStopRefused, CauseNotPermitted}, {ErrDatedAhead, CauseDatedAhead},
 		{ErrLiftUnsigned, CauseLift}, {ErrLiftMismatch, CauseLift}, {ErrJudgeClock, CauseClock},
+		{ErrSignedLiftUnvouched, CauseLift}, {ErrSignedLiftMismatch, CauseLift},
+		{ErrListVersion, CauseVersion}, {ErrHeaderOther, CauseOtherPlane}, {ErrOtherPlane, CauseOtherPlane},
+		{ErrOtherFile, CauseOtherPlane}, {ErrHeaderUnsigned, CauseUnsigned},
+		{ErrNoVoucher, CauseUnsigned}, {ErrRouteUnvouched, CauseRouteUnvouched},
 	} {
 		if errors.Is(err, c.err) {
 			return c.cause
@@ -121,7 +134,13 @@ func DisabledSnapshot() Snapshot { return Snapshot{state: Disabled} }
 // for staleAfter intervals. A refused list is Unknown with its cause, and
 // keeps the list s accepted.
 func (s Snapshot) Next(route Route, content []byte, now time.Time, interval time.Duration) Snapshot {
-	l, err := JudgeFrom(route, s.accepted, content, now, interval)
+	return s.NextContext(context.Background(), route, content, now, interval)
+}
+
+// NextContext is Next whose questions to the voucher asked again are held to
+// ctx, as JudgeFromContext holds them.
+func (s Snapshot) NextContext(ctx context.Context, route Route, content []byte, now time.Time, interval time.Duration) Snapshot {
+	l, err := JudgeFromContext(ctx, route, s.accepted, content, now, interval)
 	if err != nil {
 		return s.Unknown(CauseOf(err), err.Error(), now, interval)
 	}

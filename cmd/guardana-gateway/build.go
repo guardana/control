@@ -62,14 +62,17 @@ type plane struct {
 	inbox         *inbox.Inbox
 	// signedStart is the start check of the signed authority, and nil for
 	// checkSignedStart: only a dev plane, whose trust root dev drew itself,
-	// is held to another.
+	// is held to another, and it alone reads a pause file its own account
+	// owns.
 	signedStart func(*gatewayconfig.Config) error
 	// holds is the seam the pipeline writes its journal through, and journal
 	// the directory behind it. Both are nil where no journal is configured.
 	holds   gateway.HoldJournal
 	journal *holdjournal.Journal
 	// poller reads the operator's pause file, and is nil where none is
-	// configured: the pipeline is then handed the disabled source.
+	// configured: the pipeline is then handed the disabled source. Under the
+	// signed authority only a serving plane opens it, after the operator
+	// ports, and an inspecting plane leaves the file to doctor's own check.
 	poller *pause.Poller
 	// stops is the route and the stop list's reader of a serving plane with a
 	// route, and nil otherwise: the pipeline is then handed the disabled
@@ -137,8 +140,10 @@ func buildChecked(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time,
 	}
 	p := &plane{cfg: cfg, logger: logger, role: r, holder: pp.holder, policy: pp, started: now, grace: shutdownGrace, callBound: callBound(cfg),
 		signedStart: signedStart}
-	if p.poller, err = openPause(cfg, logger, p.strayIDs); err != nil {
-		return nil, errors.Join(err, p.close())
+	if !signedPause(cfg) {
+		if p.poller, err = openPause(cfg, logger, p.strayIDs, nil, false); err != nil {
+			return nil, errors.Join(err, p.close())
+		}
 	}
 	p.spool = new(spool.Spool)
 	if r == roleServe {
@@ -161,13 +166,14 @@ func buildChecked(cfg *gatewayconfig.Config, logger *slog.Logger, now time.Time,
 // on its own. It opens no runs directory and serves local runs, but over an
 // enforce_api listener, whose adapter resolves a run on every request: it
 // opens the directory then as run does, which takes no lock and writes
-// nothing there.
+// nothing there; under the signed authority it holds no judge, so no record
+// counts.
 func (p *plane) open(r role, tokenPath string) error {
 	if r == roleInspect {
 		memory := &gateway.MemoryApprovals{}
 		p.store, p.authority, p.authorityKind = memory, memory, gateway.AuthorityDirectory
 		if p.cfg.Listener.Kind == gatewayconfig.ListenerEnforceAPI {
-			dir, _, err := openRuns(p.cfg, "")
+			dir, _, err := openRuns(p.cfg, "", nil, p.signedStart != nil)
 			if err != nil {
 				return err
 			}
@@ -175,13 +181,11 @@ func (p *plane) open(r role, tokenPath string) error {
 		}
 		return p.wire()
 	}
-	dir, token, err := openRuns(p.cfg, tokenPath)
-	if err != nil {
-		return err
-	}
-	p.runsDir, p.runToken = dir, token
-	if p.stops, err = openStops(p.cfg, p.logger); err != nil {
-		return err
+	var err error
+	if !signedStops(p.cfg) {
+		if p.stops, err = openStops(p.cfg, p.logger, nil); err != nil {
+			return err
+		}
 	}
 	store, records, err := openApprovals(p.cfg)
 	if err != nil {
@@ -191,12 +195,41 @@ func (p *plane) open(r role, tokenPath string) error {
 	if err := p.openAuthority(context.Background()); err != nil {
 		return err
 	}
+	if err := p.openSignedReaders(); err != nil {
+		return err
+	}
+	if err := p.openRunsDir(tokenPath); err != nil {
+		return err
+	}
 	holds, journal, err := openJournal(p.cfg)
 	if err != nil {
 		return err
 	}
 	p.holds, p.journal = holds, journal
 	return p.wire()
+}
+
+// openSignedReaders opens the readers of the pause file and the stop list
+// that judge through the operator ports, which only the signed authority has.
+func (p *plane) openSignedReaders() error {
+	if signedPause(p.cfg) {
+		judge, err := p.pauseJudge()
+		if err != nil {
+			return err
+		}
+		if p.poller, err = openPause(p.cfg, p.logger, p.strayIDs, judge, p.signedStart != nil); err != nil {
+			return err
+		}
+	}
+	if !signedStops(p.cfg) {
+		return nil
+	}
+	authority, err := p.stopsAuthority()
+	if err != nil {
+		return err
+	}
+	p.stops, err = openStops(p.cfg, p.logger, authority)
+	return err
 }
 
 // wire builds the adapter the listener's kind serves, the decision point's

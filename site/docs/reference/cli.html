@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -160,7 +162,8 @@ approvals directory, from outside the gateway process.</p>
 <p><code>policy renew</code> verifies the bundle against its public key, raises a signer's
 floor, then writes the statement it signs with the freshness key. <code>policy state init</code> and <code>reset</code> make and lower floors
 (<a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>);
-a reset reaches a running plane's clock check only when it restarts.</p>
+a reset reaches a running plane's clock check only when it restarts.
+<code>state backup|restore</code>: <a href="/docs/guides/back-up-and-restore-a-plane">the guide</a>.</p>
 <p><code>policy keygen</code> creates the directory <code>--out</code> names, mode <code>0700</code>, and refuses a
 path that exists. Into it go <code>signing.key</code>, the private key as one PKCS#8 PEM
 block, mode <code>0600</code>, and <code>signing.pub</code>, the public key as one line of standard
@@ -215,9 +218,9 @@ only the id it drew for the entry, and <code>pause remove &lt;file&gt; &lt;id&gt
 takes that id; removing the last entry leaves a file pausing nothing,
 because a missing file blocks every call. <code>pause list</code> prints one line per
 entry, its reason included, or <code>no entries</code>.</p>
-<p>Write access to the pause file is the authority to pause and to lift one:
-any process running as the plane's user can empty the file, so run the commands
-as that user. They refuse, writing nothing, a file or directory the group or
+<p>Outside <code>signed</code>, write access to the pause file is the authority to pause
+and to lift: any process of the plane's user can empty the file, so run the
+commands as that user. They refuse, writing nothing, a file or directory the group or
 others may write or another account owns, a link, a file the plane would
 refuse to read, a second scope or none, a name, a reason or a scope the file
 cannot hold, and a 65th entry, each on one line that does not repeat the
@@ -225,6 +228,8 @@ value. A writer waits up to ten seconds for another writer's lock; a
 running plane takes none. A pause blocks every call not yet handed out
 when the plane reads it, within one <code>pause.poll_interval</code>; it cancels
 nothing already running.</p>
+<p>Signed pause files, <code>--key</code> and <code>pause floor init</code>:
+<a href="/docs/concepts/enforcement-modes#pausing-calls">pausing calls</a>.</p>
 <p>The <code>runs</code> commands open, close, list and prune the runs a plane with
 <code>runs.dir</code> serves: <a href="/docs/reference/runs">runs.md</a>.</p>
 <p>The <code>observe</code> commands import spans or access logs into an observation log
@@ -234,7 +239,7 @@ is <a href="/docs/reference/coverage">coverage.md</a>, <code>supervise</code>, <
 <a href="/docs/guides/test-a-procedure">guides/test-a-procedure.md</a>, <code>route</code>, <code>stops</code>
 and <code>react</code> <a href="/docs/reference/reaction">reaction.md</a>, and <code>hook</code>, exiting with its
 profile's statuses, <a href="/docs/extending/runtime-profiles">extending/runtime-profiles.md</a>.</p>
-<p><code>console</code> serves a page that answers approvals and writes pauses:
+<p><code>console</code> answers approvals and, outside <code>signed</code>, writes pauses:
 <a href="/docs/reference/console">console.md</a>.</p>
 <pre><code>usage:
   guardana-control policy lint &lt;file&gt;
@@ -247,19 +252,23 @@ profile's statuses, <a href="/docs/extending/runtime-profiles">extending/runtime
       (--bundle-id &lt;id&gt; | --route-id &lt;id&gt;) &lt;dir&gt;
   guardana-control policy state reset --kind plane|signer --bundle-id &lt;id&gt; --reason &lt;text&gt;
       (--empty | --serial &lt;n&gt; --digest &lt;d&gt; --issued-at &lt;t&gt;) &lt;dir&gt;
+  guardana-control state backup &lt;config&gt; &lt;dir&gt;
+  guardana-control state restore &lt;config&gt; &lt;dir&gt;
   guardana-control approvals list &lt;dir&gt;
   guardana-control approvals approve (--key &lt;file&gt; --inbox &lt;dir&gt; | --approver-id &lt;id&gt;)
       [--reason &lt;text&gt;] &lt;dir&gt; &lt;approval-id&gt;
   guardana-control approvals reject (--key &lt;file&gt; --inbox &lt;dir&gt; | --approver-id &lt;id&gt;)
       [--reason &lt;text&gt;] &lt;dir&gt; &lt;approval-id&gt;
-  guardana-control pause init &lt;file&gt;
+  guardana-control pause init [--key &lt;k&gt; --tenant &lt;t&gt; --project &lt;p&gt; [--serial &lt;n&gt;]] &lt;file&gt;
   guardana-control pause add (--global | --provider &lt;p&gt; [--action &lt;k&gt; [--name &lt;n&gt;]]
-      | --run &lt;id&gt; | --agent &lt;id&gt; | --principal &lt;id&gt;) [--reason &lt;r&gt;] &lt;f&gt;
-  guardana-control pause remove &lt;file&gt; &lt;id&gt;
+      | --run &lt;id&gt; | --agent &lt;id&gt; | --principal &lt;id&gt;) [--reason &lt;r&gt;]
+      [--key &lt;k&gt; --roster &lt;f&gt; --root-key &lt;f&gt;] &lt;f&gt;
+  guardana-control pause remove [--key &lt;k&gt; --roster &lt;f&gt; --root-key &lt;f&gt;] &lt;file&gt; &lt;id&gt;
   guardana-control pause list &lt;file&gt;
+  guardana-control pause floor init --tenant &lt;t&gt; --project &lt;p&gt; &lt;dir&gt;
   guardana-control runs open --project --tenant --principal-type --principal --agent
-      --ttl [--parent] &lt;dir&gt;
-  guardana-control runs close &lt;dir&gt; &lt;run-id&gt;
+      --ttl [--parent] [--key --roster --root-key] &lt;dir&gt;
+  guardana-control runs close [--key --roster --root-key --tenant --project] &lt;dir&gt; &lt;run-id&gt;
   guardana-control runs list &lt;dir&gt;
   guardana-control runs prune --expired-before &lt;time&gt; --archive &lt;dir&gt; &lt;dir&gt;
   guardana-control observe import --source &lt;file&gt; --log &lt;dir&gt; &lt;file&gt;
@@ -271,6 +280,7 @@ profile's statuses, <a href="/docs/extending/runtime-profiles">extending/runtime
   guardana-control supervise --procedure &lt;file&gt; --runs &lt;dir&gt; --run &lt;run-id&gt; --findings &lt;dir&gt;
       [--evidence &lt;export&gt;]... [--source &lt;descriptor&gt; --log &lt;dir&gt;]...
       [--view &lt;file&gt; [--view-all]]
+      [--roster &lt;file&gt; --root-key &lt;file&gt; --tenant &lt;t&gt; --project &lt;p&gt;]
   guardana-control notify --findings &lt;dir&gt; --state &lt;dir&gt; [--init] [--timeout &lt;duration&gt;]
       -- &lt;program&gt; [&lt;arg&gt;]...
   guardana-control findings export --findings &lt;dir&gt; [--after &lt;cursor&gt;] [--limit &lt;n&gt;]
@@ -279,13 +289,15 @@ profile's statuses, <a href="/docs/extending/runtime-profiles">extending/runtime
   guardana-control operators roster sign --key &lt;file&gt; --out &lt;file&gt;
       [--valid-for &lt;duration&gt;] &lt;roster.json&gt;
   guardana-control operators floor init --roster-id &lt;id&gt; &lt;dir&gt;
-  guardana-control stops init --route &lt;file&gt; --public-key &lt;file&gt;
-      [--carry &lt;dir&gt; --carry-route &lt;file&gt;] &lt;dir&gt;
-  guardana-control stops lift --route &lt;file&gt; --public-key &lt;file&gt; --key &lt;file&gt; --run &lt;run-id&gt;
-      [--through &lt;line&gt;] &lt;dir&gt;
-  guardana-control stops list --route &lt;file&gt; --public-key &lt;file&gt; &lt;dir&gt;
-  guardana-control react --findings &lt;dir&gt; --runs &lt;dir&gt; --route &lt;file&gt; --public-key &lt;file&gt;
-      --stops &lt;dir&gt;
+  guardana-control stops init --route &lt;f&gt; (--public-key &lt;f&gt; | --roster &lt;f&gt; --root-key &lt;f&gt; --key &lt;k&gt;
+      [--serial &lt;n&gt;]) [--carry &lt;dir&gt; --carry-route &lt;file&gt; [--stops-floor &lt;dir&gt;]] &lt;dir&gt;
+  guardana-control stops lift --route &lt;f&gt; (--public-key &lt;f&gt; | --roster &lt;f&gt; --root-key &lt;f&gt;) --key &lt;k&gt;
+      --run &lt;run-id&gt; [--through &lt;line&gt;] &lt;dir&gt;
+  guardana-control stops list --route &lt;f&gt; (--public-key &lt;f&gt; | --roster &lt;f&gt; --root-key &lt;f&gt;) &lt;dir&gt;
+  guardana-control stops floor init --tenant &lt;t&gt; --project &lt;p&gt; &lt;dir&gt;
+  guardana-control react --findings &lt;dir&gt; --runs &lt;dir&gt; --route &lt;file&gt;
+      (--public-key &lt;f&gt; | --roster &lt;f&gt; --root-key &lt;f&gt; --approvals &lt;dir&gt;) --stops &lt;dir&gt;
+      [--tenant &lt;t&gt; --project &lt;p&gt;]
   guardana-control hook (--profile &lt;id&gt; | --profile-file &lt;file&gt;) --socket &lt;path&gt;
       --state-dir &lt;dir&gt;
   guardana-control console --approvals &lt;dir&gt; [--pause &lt;f&gt;] [--approver-id &lt;id&gt;] [--inbox &lt;dir&gt;]
@@ -296,13 +308,16 @@ Under approvals.authority: signed a plane takes only an answer an operator signs
 Write access to the approvals directory is the approval authority:
 --approver-id is a claim recorded as given, never an identity.
 An id that could read as authn:, mixes scripts or holds a hidden or restyled character is refused.
-Write access to the pause file is the authority to pause a call and to lift a pause.
+Write access to the pause file is the authority to pause a call and to lift a pause;
+under approvals.authority signed, only a pause file signed with an operator&#39;s --key counts.
 Write access to the runs directory is the authority to open and to close a run;
-a token acts as its run until it expires or is closed, and runs open prints it once.
+under approvals.authority signed, only a record an operator signed with --key counts.
+A token acts as its run until it expires or is closed, and runs open prints it once.
 Write access to a floor directory is the authority to lower its floors;
 policy state reset is the one way that records why.
 Only the lift key lifts a stop while a plane runs; write access to the stops directory
-adds any stop the route allows and, across a restart, can start a new list with none.
+adds any stop the route allows and, across a restart, can start a new list with none;
+under approvals.authority signed, an admin signs the route and an operator each header and lift.
 The trust root names every operator key until its roster expires, and each signing
 needs a higher serial; write access to its floor directory lowers the floor.
 </code></pre>
@@ -410,7 +425,7 @@ dev
   -state string
     	a new directory for the plane&#39;s state; by default a temporary one
 </code></pre>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/cli.md">docs/reference/cli.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/cli.md">docs/reference/cli.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -418,6 +433,7 @@ dev
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -460,6 +476,7 @@ dev
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

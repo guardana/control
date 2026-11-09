@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -119,9 +121,111 @@
 <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
-<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.15.0...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.16.0...HEAD">Unreleased</a></h2>
+<h2 id="0160---2026-11-07"><a href="https://github.com/guardana/control/releases/tag/v0.16.0">0.16.0</a> - 2026-11-07</h2>
+<p>Upgrading from 0.15 changes four things an operator must act on.
+<code>approvals.authority</code> (<code>memory</code>, <code>directory</code> or <code>signed</code>) replaces
+<code>approvals.provider</code> and has no default; <code>provider: file</code> becomes
+<code>authority: directory</code>, and <code>approvals.hold_journal_dir</code> is required beside
+every approvals directory. The approvals directory is format <code>2.0</code> and a
+<code>1.0</code> one is refused: let its holds expire, within <code>approvals.ttl</code>, then
+empty it. <code>/healthz</code> answers schema <code>2</code> without run ids; a reader that needs
+them queries <code>health.socket</code>. An identifier the contract's rule refuses, such
+as a <code>project_id</code> with white space at either end, is refused when the
+configuration loads. The TCP export still works with a <code>doctor</code> warning and
+is removed in 0.17: set <code>export.endpoint: unix:///path</code> and
+<code>export.collector_uid</code> instead.</p>
+<p>New: under <code>approvals.authority: signed</code> a plane takes authority only from
+operators a signed roster names. A held call runs only on an answer an
+operator signs. The pause file (<code>3</code>), the run records (<code>3.0</code>), the stop list
+(<code>2.0</code>) and its route and lifts (<code>v1alpha2</code>) are signed and held to floors
+the plane raises, and the plane refuses to start where its own account could
+write any of them
+(<a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a>,
+<a href="/docs/adr/0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature">ADR-0075</a>,
+<a href="/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature">ADR-0076</a>,
+<a href="/docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures">ADR-0077</a>).
+To move a plane to <code>signed</code>, open its runs again in a new, empty directory
+and start a new stop list. <code>state backup</code> and <code>state restore</code> copy a stopped
+plane's floors, runs, pause file and stop list, and a restore only raises a
+floor (<a href="/docs/adr/0078-a-restore-only-raises">ADR-0078</a>). A pause can name
+one run, agent or principal. Under <code>signed</code> the plane's own account still
+raises the roster's floor, so it can withhold a newer roster within the held
+one's lifetime. The hook profile's qualification was not run again for this
+release.</p>
 <h3 id="added">Added</h3>
 <ul>
+<li>Under <code>approvals.authority: signed</code> roster operators sign the reaction
+documents, bound to the plane's route file or stop list: an <code>admin</code> signs a
+<code>reaction-route/v1alpha2</code> route with <code>route sign --key</code>, naming a
+<code>project_id</code> and a <code>scope</code> on each rule; an operator signs stop list <code>2.0</code>'s
+header with <code>stops init --key</code>, at any <code>--serial</code> while the plane's floor
+holds none or, carried, at the next serial naming the old header, the old
+list held to the plane's floor with <code>--stops-floor</code>; and an operator signs a
+<code>reaction-lift/v1alpha2</code> lift with <code>stops lift --key</code>, naming the header it
+lifts from. <code>stops init</code>, <code>lift</code> and <code>list</code> take <code>--roster</code> and
+<code>--root-key</code> and judge what is on disk through the roster before they sign;
+each signing says on standard error what it signed. The plane holds the
+header and the part of the list it accepted to a stop list floor in the new
+<code>reaction.stops_floor_dir</code>, which <code>stops floor init</code> makes for the
+listener's tenant, and refuses a list cut back below it, also at a read
+that found nothing new. At every read it asks the operator ports again,
+within one poll interval, about the route, the header and each lift's
+signer, so a revoked operator, a route admin without the grant, or ports
+that do not answer in time make the stop state unknown;
+<code>/healthz</code> gives the header serial and
+<code>health.socket</code> also who signed the header and the route (ADR-0077).</li>
+<li><code>guardana-control state backup &lt;config&gt; &lt;dir&gt;</code> copies a stopped plane's
+floors, runs, pause file and stop list into a new owner-only directory
+under a <code>backup.json</code> manifest <code>0.1</code>, never the spool, the hold journal,
+the approvals store or a key. <code>state restore &lt;config&gt; &lt;dir&gt;</code> refuses a
+backup of another plane or a tampered one, restores only the bytes it
+verified, holds the spool's and the journal's locks, checks every class
+before its first write, raises every floor to the higher of the two,
+stamps every plane floor, one only live holds included, at the restore
+time rounded up to the second so the old statement confirms nothing,
+closes every run, a run named only by a close the backup carried
+included, and joins taint under each root's lock, a state lost beside
+its lock or record as the worst. Under <code>directory</code> it keeps a
+stop list that holds the backup's, carries the backup's into a new list
+where none survived, and refuses two histories; under <code>signed</code> it writes
+no operator file, raises the stop list floor in its own order, and names
+the files to put back (ADR-0078).</li>
+<li>Under <code>approvals.authority: signed</code> the pause file is version <code>3</code>, signed
+by a roster operator granted <code>operate</code> over the plane's tenant and project:
+<code>pause init --key &lt;k&gt; --tenant &lt;t&gt; --project &lt;p&gt;</code> makes one bound to its
+own path, and <code>pause add</code> and <code>pause remove</code> with <code>--key</code>, <code>--roster</code> and
+<code>--root-key</code> check the file they start from against the roster before they
+sign it at the next serial. The plane checks it at every read and raises a
+floor in the new <code>pause.floor_dir</code>, which <code>pause floor init</code> makes, so an
+older signed file put back is refused after a restart too, and a copy from
+another path is refused; planes that use one path on two hosts must differ
+in tenant or project, or a copy between them is taken. <code>/healthz</code> gives the serial and the floor
+under <code>pause.signed</code>, <code>health.socket</code> also the signer, and <code>doctor</code> checks
+the file without raising the floor (ADR-0075).</li>
+<li>Under <code>approvals.authority: signed</code> a run counts only from a record <code>3.0</code>
+an operator granted <code>operate</code> signed for the run's tenant and project and
+for the plane's own <code>runs.dir</code>: <code>runs open</code> and <code>runs close</code> take
+<code>--key &lt;k&gt; --roster &lt;r&gt; --root-key &lt;p&gt;</code>, <code>runs close</code> also the plane's
+<code>--tenant</code> and <code>--project</code>; they refuse to sign over a record the roster
+does not vouch for, of another tenant, project or directory, or unsigned,
+and say on standard error what they signed. A plane refuses a <code>records/</code>
+or a record its own account owns. When the plane takes a closed record it carries the close into
+<code>state/</code>, at a call or at its start, so the open record put back is
+refused; a close whose signer may no longer operate there is carried too. A
+close <code>state/</code> does not take is held and refused as carried, written at
+the next signed resolve, start or stop that can, and counted as
+<code>carry_failed</code>; holding 64, the plane refuses every signed resolve, and a
+start that cannot carry one refuses, naming the run. A held close protects
+only its own plane. A record
+copied from another path counts in neither; planes that use one path on two
+hosts must differ in tenant or project. The plane writes a root's state at
+its first admitted call and blocks the root's calls when that state is later
+removed. <code>supervise</code> and <code>react</code> read a signed layout only with
+<code>--roster</code>, <code>--root-key</code>, <code>--tenant</code> and <code>--project</code>, and take a record
+only as the plane would. <code>/healthz</code> counts the records judged and refused by cause under
+<code>runs.signed</code>, and <code>doctor</code> counts the records by state and by signer
+(ADR-0076).</li>
 <li><code>pause add --run &lt;id&gt;</code>, <code>--agent &lt;id&gt;</code> and <code>--principal &lt;id&gt;</code> pause one
 opened run, or every run under a root, one agent or one principal. A run
 is named by its id from <code>runs open</code>, and any other spelling is refused. Each is
@@ -169,14 +273,24 @@ name; the records stay in the spool, the attempt counts as
 prints the <code>export.collector_uid</code> to set; <code>--listen host:port</code> works as
 before. Other platforms refuse both keys at load.</li>
 <li><code>health.socket</code> serves the whole health answer, run ids included, on a
-Unix socket of mode <code>0600</code> that answers only the plane's own account and
-<code>health.socket_uid</code>; any other peer is closed unanswered. Anything at the
+Unix socket that answers only the plane's own account and
+<code>health.socket_uid</code>; any other peer is closed unanswered. The socket is
+<code>0600</code>, or <code>0666</code> with <code>health.socket_uid</code>, so that account can connect
+and the peer's account alone decides. Anything at the
 path but a stale socket of the plane's account is refused, and the plane
 removes its socket when it stops.</li>
 <li><code>doctor</code> warns of every TCP <code>export.endpoint</code>, naming the unix form.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
+<li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> a <code>v1alpha1</code> route, a
+<code>1.0</code> stop list, a lift of the route's lift key and <code>reaction.public_key</code>
+are refused; <code>reaction.stops_floor_dir</code> is required with <code>reaction.route</code>;
+the plane refuses to start when its own account may write the route file,
+the stops directory or either's directory, and refuses at the read one that
+account owns. <code>react</code> needs <code>--approvals</code> and will not run as the account
+that owns it. A <code>1.0</code> list is not carried into <code>2.0</code>: start a new list.
+Nothing changes under <code>memory</code> or <code>directory</code>.</li>
 <li><strong>Breaking:</strong> <code>/healthz</code> answers <code>&quot;schema&quot;: &quot;2&quot;</code> and names no run: <code>stops</code>
 carries the counts <code>unheld</code> and <code>unread</code>, and leaves out <code>entries</code>,
 <code>unheld_runs</code> and <code>unread_runs</code>, which only <code>health.socket</code> answers. A
@@ -184,6 +298,20 @@ reader of the old shape finds no <code>schema</code> member.</li>
 <li>TCP export stays in this release with a <code>doctor</code> warning and goes in 0.17:
 over plaintext, whoever holds the port while the collector is down
 receives the credential. Move to <code>export.endpoint: unix:///path</code>.</li>
+<li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> <code>runs.dir</code> holds
+<code>records/</code>, the operators', and <code>state/</code>, the plane's; a runs directory of
+unsigned records, and a <code>2.0</code> record in <code>records/</code>, are refused. The plane
+refuses to start when its own account may write <code>records/</code> or a directory
+on its path, or owns <code>records/</code>, and <code>runs open</code> and <code>runs close</code> without <code>--key</code> refuse the
+directory, naming the flags. Open the runs again into a new, empty
+directory with <code>--key</code>.</li>
+<li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> a pause file of version
+<code>1</code> or <code>2</code> blocks every call, <code>pause.floor_dir</code> is required with
+<code>pause.file</code>, and the plane refuses to start when its own account may write
+the pause file or a directory on its path, and refuses a file that account
+owns at every read. <code>dev</code> keeps its pause file in <code>pause/</code>. <code>pause add</code> and <code>pause remove</code>
+without <code>--key</code> refuse a signed file, and the console writes no pause under
+<code>signed</code> or into a signed file, naming the command that signs it.</li>
 <li><strong>Breaking:</strong> <code>approvals.authority</code> (<code>memory</code>, <code>directory</code> or <code>signed</code>)
 replaces <code>approvals.provider</code> and has no default. A configuration without
 it, or with the old key, is refused naming both; <code>provider: file</code> becomes
@@ -2382,7 +2510,7 @@ conduct, trademark terms and 25 architecture decision records, among them the
 independence of this project from Guardana
 (<a href="/docs/adr/0024-control-and-guardana-are-independent">ADR-0024</a>).</li>
 </ul>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/CHANGELOG.md">CHANGELOG.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/CHANGELOG.md">CHANGELOG.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -2390,6 +2518,7 @@ independence of this project from Guardana
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -2432,6 +2561,7 @@ independence of this project from Guardana
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

@@ -7,24 +7,33 @@ import (
 )
 
 // serialAt is where a serial floor stands, or where a document asks it to
-// stand: a serial and the digest at it. A floor with no serial holds 0 and no
-// digest.
+// stand: a serial and the digest at it, and for a document that grows under
+// one serial the length and SHA-256 of the part taken. A floor with no serial
+// holds 0 and no digest; a kind whose documents do not grow holds no length.
 type serialAt struct {
 	serial int64
 	digest string
+	length int64
+	prefix string
+	// begins is set where the document's part was held, under the floor's
+	// lock, to begin with the floor's part.
+	begins bool
 }
 
 // serialRefusals are what one kind of serial floor refuses with: a serial
-// or digest no document carries, a serial below the floor's, and the floor's
-// serial with another digest.
+// or digest no document carries, a serial below the floor's, the floor's
+// serial with another digest, and at the floor's serial and digest a part
+// shorter than the floor's or of its length with other bytes.
 type serialRefusals struct {
-	invalid, below, forked Error
+	invalid, below, forked, rewritten Error
 }
 
 // takes reports whether a floor at f takes next by raising itself to it. A
-// floor with no serial holds 0, below every document's; one at next's serial
-// and digest takes it as it is; a lower serial, or the same with another
-// digest, is refused.
+// floor with no serial holds 0, below every document's; a higher serial is
+// taken; at next's serial and digest the floor's own part is taken as it is,
+// and a longer part only where next begins with it; a lower serial, the same
+// with another digest, a shorter part, one of the floor's length with another
+// SHA-256 and a longer part not held to begin with the floor's are refused.
 func (r serialRefusals) takes(f, next serialAt) (raise bool, err error) {
 	switch {
 	case next.serial > f.serial:
@@ -33,6 +42,10 @@ func (r serialRefusals) takes(f, next serialAt) (raise bool, err error) {
 		return false, fmt.Errorf("%w: serial %d, the floor's %d", r.below, next.serial, f.serial)
 	case next.digest != f.digest:
 		return false, fmt.Errorf("%w: serial %d", r.forked, next.serial)
+	case next.length > f.length && next.begins:
+		return true, nil
+	case next.length != f.length || next.prefix != f.prefix:
+		return false, fmt.Errorf("%w: %d bytes, the floor's %d", r.rewritten, next.length, f.length)
 	}
 	return false, nil
 }
@@ -50,11 +63,19 @@ type serialFloor[F any] interface {
 
 // raiseSerial holds the exclusive lock of the directory at path while it
 // reads the floor of next's id, and takes next: a serial above the floor's
-// replaces the file whole, and the floor's serial with its digest leaves it as
-// it was. It refuses a next of serial 0 and every refusal of check, takes,
-// readFrom and the directory, each leaving the file as it was. It returns the
-// floor it leaves, and waits for the lock until ctx ends.
-func raiseSerial[F serialFloor[F]](ctx context.Context, path string, next F) (_ F, err error) {
+// replaces the file whole, and the floor's serial with its digest and part
+// leaves it as it was. It refuses a next of serial 0 and every refusal of
+// check, takes, readFrom and the directory, each leaving the file as it was.
+// It returns the floor it leaves, and waits for the lock until ctx ends.
+func raiseSerial[F serialFloor[F]](ctx context.Context, path string, next F) (F, error) {
+	return raiseSerialHeld(ctx, path, next, nil)
+}
+
+// raiseSerialHeld is raiseSerial that, once it read the floor under the
+// lock, also refuses what hold refuses of it, and takes a longer part at the
+// floor's serial and digest, which hold must refuse unless it begins with
+// the floor's part. A nil hold takes no longer part.
+func raiseSerialHeld[F serialFloor[F]](ctx context.Context, path string, next F, hold func(stored F) error) (_ F, err error) {
 	var none F
 	if err := next.check(); err != nil {
 		return none, err
@@ -76,7 +97,14 @@ func raiseSerial[F serialFloor[F]](ctx context.Context, path string, next F) (_ 
 	if err != nil {
 		return none, err
 	}
-	raise, err := next.refusals().takes(stored.at(), next.at())
+	at := next.at()
+	if hold != nil {
+		if err := hold(stored); err != nil {
+			return none, err
+		}
+		at.begins = true
+	}
+	raise, err := next.refusals().takes(stored.at(), at)
 	switch {
 	case err != nil:
 		return none, err

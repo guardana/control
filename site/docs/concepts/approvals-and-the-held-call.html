@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -119,9 +121,10 @@ retry that is the same request again resumes it; the approval is consumed
 once, binds to one action digest under one bundle, and expires
 (<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>,
 <a href="/docs/adr/0011-contract-corrections-before-publication">ADR-0011</a>).</p>
-<p><a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a> says who may
-answer, an approver writing a file in the approvals directory, and what
-becomes of a hold the plane loses.</p>
+<p><a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a> says what
+becomes of a hold the plane loses, and
+<a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a>
+which answer counts.</p>
 <h2 id="one-held-request-end-to-end">One held request, end to end</h2>
 <figure class="dg-text" id="diagram-1"><figcaption>One held request, end to end</figcaption><p>The call is held and the agent told it is pending; an approver answers in the store; the agent&#39;s identical retry is decided again, the answer is checked and spent once in the plane&#39;s ledger, and only the authorized bytes reach the upstream. <a href="https://github.com/guardana/control/blob/main/docs/concepts/approvals-and-the-held-call.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">sequenceDiagram
     accTitle: One held request, end to end
@@ -260,9 +263,9 @@ hand-out, or move a journal entry that may stand out of <code>held</code>, leave
 trail open, reserves its request id until restart so no other call writes under
 it, and counts it in <code>held_trails_left_open</code>; after hand-out it counts
 <code>sink_failures_after_effect</code>. The next start reports its entry, if any.</p>
-<p><strong>A plane configured without <code>approvals.hold_journal_dir</code> does not close a hold
-it loses.</strong> That is the behaviour of a plane under the memory authority, it is
-named rather than hidden, and <code>doctor</code> and <code>/healthz</code> both say it out loud.</p>
+<p><strong>A plane under <code>memory</code> keeps no hold journal and does not close a hold it
+loses.</strong> The other two authorities require <code>approvals.hold_journal_dir</code>, and
+<code>doctor</code> and <code>/healthz</code> both say it out loud.</p>
 <h2 id="what-is-held-and-by-whom">What is held, and by whom</h2>
 <table>
 <thead>
@@ -289,7 +292,7 @@ named rather than hidden, and <code>doctor</code> and <code>/healthz</code> both
 <td>spending once</td>
 </tr>
 <tr>
-<td>the hold journal, where configured</td>
+<td>the hold journal, outside <code>memory</code></td>
 <td>one entry per hold: the trail's identifiers and position, the binding, the approval and the expiry</td>
 <td>closing a hold this plane lost to a restart</td>
 </tr>
@@ -451,7 +454,7 @@ one the retry equals, oldest first.</p>
 </tr>
 <tr>
 <td>the plane stopped while the request was held</td>
-<td>at its next start: <code>APPROVAL_DECIDED</code> with the answer and <code>ACTION_BLOCKED</code> with <code>APPROVAL_NOT_RESUMED</code> or <code>APPROVAL_REJECTED</code>, or <code>APPROVAL_EXPIRED</code> and <code>ACTION_BLOCKED</code> with <code>APPROVAL_EXPIRED</code> or <code>APPROVAL_STATE_UNKNOWN</code>; nothing at all where no journal is configured</td>
+<td>at its next start: <code>APPROVAL_DECIDED</code> with the answer and <code>ACTION_BLOCKED</code> with <code>APPROVAL_NOT_RESUMED</code> or <code>APPROVAL_REJECTED</code>, or <code>APPROVAL_EXPIRED</code> and <code>ACTION_BLOCKED</code> with <code>APPROVAL_EXPIRED</code> or <code>APPROVAL_STATE_UNKNOWN</code>; nothing at all under <code>memory</code></td>
 <td>nothing: that connection was answered pending long ago, and a later identical call is held anew or, if the plane had spent the approval, refused <code>APPROVAL_ALREADY_USED</code> until it expires</td>
 </tr>
 </tbody>
@@ -627,7 +630,7 @@ the plane's journal and ledger; <code>internal/core/approval/</code>
 computes the binding and decides when an approval may be spent. The pending
 state an agent is told is <code>gateway.Pending</code> in <code>internal/gateway/pipeline.go</code>;
 its MCP shape is in <code>adapters/mcp/answer.go</code>.</p>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/approvals-and-the-held-call.md">docs/concepts/approvals-and-the-held-call.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/approvals-and-the-held-call.md">docs/concepts/approvals-and-the-held-call.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -635,6 +638,7 @@ its MCP shape is in <code>adapters/mcp/answer.go</code>.</p>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -677,6 +681,7 @@ its MCP shape is in <code>adapters/mcp/answer.go</code>.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction" aria-current="page">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -118,8 +120,9 @@ route refuses the run's later calls <code>RUN_STOPPED</code>, and no other run's
 <code>experimental</code>: <a href="/docs/status">status.md</a> is the inventory,
 <a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a> and
 <a href="/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047</a>
-the records, and <a href="/docs/contracts#the-reaction-route-and-the-stop-list">contracts.md</a>
-gives the formats. <code>examples/refund-supervision/</code> runs it on a live plane.</p>
+the records, <a href="/docs/contracts#the-reaction-route-and-the-stop-list">contracts.md</a>
+the formats and <a href="/docs/reference/reaction-signed">signed reaction</a> the signed authority's.
+<code>examples/refund-supervision/</code> runs it on a live plane.</p>
 <pre><code>guardana-control route sign --key &lt;file&gt; --out &lt;file&gt; &lt;route.json&gt;
 guardana-control policy state init --kind route --route-id &lt;id&gt; &lt;dir&gt;
 guardana-control stops init --route &lt;file&gt; --public-key &lt;file&gt; [--carry &lt;dir&gt; --carry-route &lt;file&gt;] &lt;dir&gt;
@@ -198,7 +201,7 @@ open.</p>
 <p>At start, a plane with <code>reaction.route</code> refuses to serve unless all four of
 <code>reaction.route</code>, <code>reaction.public_key</code>, <code>reaction.floor_dir</code> and
 <code>reaction.stops</code> are set, with <code>runs.dir</code>; the route verifies under the key
-<code>reaction.public_key</code> names; its tenant is the listener's; the route key, the lift key, the policy key and the freshness key
+<code>reaction.public_key</code> names; its tenant is the listener's; the route, lift, policy and freshness keys
 are four keys, compared as points up to their sign; the floor takes the route;
 and the first read of the list finds a state it can serve.</p>
 <p>It reads the list every <code>reaction.poll_interval</code> into a snapshot, like the
@@ -263,7 +266,7 @@ stop that becomes active, expires or is lifted, with its finding id.
 <li>A call already handed out when the stop is read is not cut:
 the stop bites on the run's next call, within one poll interval of the line
 being written.</li>
-<li>Any process of the plane's account can add a stop the route allows for any
+<li>Outside <code>signed</code>, any process of the plane's account can add a stop the route allows for any
 opened run of its tenant, or block every call by writing a line the route
 refuses. It cannot lift a stop without the lift key, nor shorten the list
 while a plane runs unseen, but it can start a new list and restart the
@@ -272,7 +275,7 @@ continuity is checked within one plane's life only.</li>
 <li>The checks read mode bits and owners, not a darwin access control list.</li>
 <li>A wall clock that jumps forward ends stops early.</li>
 </ul>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/reaction.md">docs/reference/reaction.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/reaction.md">docs/reference/reaction.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -280,6 +283,7 @@ continuity is checked within one plane's life only.</li>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -322,6 +326,7 @@ continuity is checked within one plane's life only.</li>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction" aria-current="page">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

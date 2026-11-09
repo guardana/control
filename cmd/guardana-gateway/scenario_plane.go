@@ -34,8 +34,10 @@ type planeTarget struct {
 	approvals, pauseFile        string
 	// operatorKey and inbox sign an answer where the plane holds under the
 	// signed authority and the runner was handed an operator's key; dev
-	// alone hands one over.
+	// alone hands one over. roster and rootKey are the plane's own, which a
+	// signed pause write judges the file it starts from by.
 	operatorKey, inbox string
+	roster, rootKey    string
 	callTimeout        time.Duration
 }
 
@@ -56,6 +58,9 @@ func targetOf(cfg *gatewayconfig.Config) (planeTarget, error) {
 	}
 	if cfg.Approvals.Authority == gatewayconfig.AuthorityDirectory || cfg.Approvals.Authority == gatewayconfig.AuthoritySigned {
 		t.approvals = cfg.Resolve(cfg.Approvals.Dir)
+	}
+	if cfg.Approvals.Authority == gatewayconfig.AuthoritySigned {
+		t.roster, t.rootKey = cfg.Resolve(cfg.Trust.Roster), cfg.Resolve(cfg.Trust.RootPublicKey)
 	}
 	return t, nil
 }
@@ -174,9 +179,9 @@ func (b healthBody) state(status int) (planeState, error) {
 // not halted and whose policy is confirmed: a scenario's verdicts are a
 // confirmed policy's, and under a policy that is not confirmed every mode but
 // OBSERVE blocks every material call. A pause state unknown only because the
-// plane's last read aged past its bound is a read running late on a busy
-// machine: it is read again until the timeout, and any other cause is refused
-// at once.
+// plane's last read aged past its bound, or because a signed read outran the
+// one interval it is held to, is a read running late on a busy machine: it is
+// read again until the timeout, and any other cause is refused at once.
 func (r *runner) serving(ctx context.Context) (planeState, error) {
 	deadline := time.Now().Add(r.timeout)
 	for {
@@ -186,7 +191,7 @@ func (r *runner) serving(ctx context.Context) (planeState, error) {
 			return planeState{}, err
 		case s.status == http.StatusOK && !s.halted:
 			return s.confirmed()
-		case !s.halted && s.pauseState == pause.Unknown.String() && s.pauseCause == string(pause.CauseStale) &&
+		case !s.halted && s.pauseState == pause.Unknown.String() && lateRead(s.pauseCause) &&
 			time.Now().Before(deadline):
 			if err := pauseFor(ctx, healthPoll); err != nil {
 				return planeState{}, err
@@ -195,6 +200,13 @@ func (r *runner) serving(ctx context.Context) (planeState, error) {
 		}
 		return planeState{}, fmt.Errorf("/healthz answered %d, halted %t, pause %s", s.status, s.halted, s.pauseState)
 	}
+}
+
+// lateRead says a pause state is unknown for a cause a later read clears on
+// its own: the last read aged past its bound, or a signed read's roster and
+// floor did not answer within its interval.
+func lateRead(cause string) bool {
+	return cause == string(pause.CauseStale) || cause == string(pause.CauseAuthority)
 }
 
 // confirmed is s, or a refusal when the plane's policy is not confirmed.

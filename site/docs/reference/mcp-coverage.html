@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -148,7 +150,7 @@ decisions.</p>
 </tr>
 </tbody>
 </table>
-<p>No configuration key wires an authenticator, so every call is made by the
+<p>No configuration key wires an end user's authenticator, so every call is made by the
 principal the operator configured. <code>_meta.clientInfo</code> is a run-context tag no
 digest covers. A request with a body gets 30 seconds for it, and 30 seconds
 per 64 KiB slice of its answer: a client reading slower is cut, and one reading
@@ -228,7 +230,7 @@ child process (<code>upstreams[].command</code>).</p>
 </tr>
 <tr>
 <td>Telling one approver from another</td>
-<td>Write access to the approvals directory is the approval authority, and <code>approver_id</code> is a claim (ADR-0016)</td>
+<td>Under <code>directory</code>, write access to the approvals directory is the approval authority and <code>approver_id</code> a claim (ADR-0016); under <code>signed</code>, a roster operator's key (ADR-0073)</td>
 </tr>
 <tr>
 <td>A client other than the library's own</td>
@@ -276,8 +278,7 @@ when it is not <code>none</code> in a mode that does not enforce.</p>
 <p>A preview carries no arguments, so no resource id. A tool whose effect class
 needs the id is no verdict at preview and stays listed; one whose only <code>ALLOW</code>
 reads the id stays listed, marked <code>DECIDED_PER_CALL</code> under <code>annotate</code>, unless
-a rule denies it without its arguments. Shaping subtracts what policy denies,
-never what it could not decide.</p>
+a rule denies it without its arguments.</p>
 <h2 id="the-codes-the-adapter-mints">The codes the adapter mints</h2>
 <p>A <code>tools/call</code> answers a block and a pending state as a tool result with
 <code>isError: true</code>, the fields below in its <code>_meta</code> under <code>&lt;ns&gt;/</code> and no
@@ -408,7 +409,7 @@ block in every mode. The codes below are the enforcement point's own.</p>
 </tr>
 <tr>
 <td><code>OBLIGATION_NOT_UNDERSTOOD</code></td>
-<td>a non-advisory obligation the plane cannot apply, or whose parameters it cannot read, or a rewrite changed the member <code>resource_from</code> reads</td>
+<td>a non-advisory obligation the plane cannot apply, whose parameters it cannot read, or whose check the call fails, or a rewrite changed the member <code>resource_from</code> reads</td>
 </tr>
 <tr>
 <td><code>INVALID_FIELD_VALUE</code></td>
@@ -428,7 +429,7 @@ block in every mode. The codes below are the enforcement point's own.</p>
 </tr>
 </tbody>
 </table>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/mcp-coverage.md">docs/reference/mcp-coverage.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/mcp-coverage.md">docs/reference/mcp-coverage.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -436,6 +437,7 @@ block in every mode. The codes below are the enforcement point's own.</p>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -478,6 +480,7 @@ block in every mode. The codes below are the enforcement point's own.</p>
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>

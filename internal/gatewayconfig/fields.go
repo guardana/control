@@ -132,6 +132,7 @@ var configFields = []field[Config]{
 
 	filePath(stringField("pause.file", "", false, func(c *Config) *string { return &c.Pause.File })),
 	durationField("pause.poll_interval", "1s", func(c *Config) *time.Duration { return &c.Pause.PollInterval }),
+	filePath(stringField("pause.floor_dir", "", false, func(c *Config) *string { return &c.Pause.FloorDir })),
 
 	filePath(stringField("runs.dir", "", false, func(c *Config) *string { return &c.Runs.Dir })),
 	intField("flow.max_runs", "64", func(c *Config) *int { return &c.Flow.MaxRuns }),
@@ -140,6 +141,7 @@ var configFields = []field[Config]{
 	filePath(stringField("reaction.public_key", "", false, func(c *Config) *string { return &c.Reaction.PublicKey })),
 	filePath(stringField("reaction.floor_dir", "", false, func(c *Config) *string { return &c.Reaction.FloorDir })),
 	filePath(stringField("reaction.stops", "", false, func(c *Config) *string { return &c.Reaction.Stops })),
+	filePath(stringField("reaction.stops_floor_dir", "", false, func(c *Config) *string { return &c.Reaction.StopsFloorDir })),
 	durationField("reaction.poll_interval", "1s", func(c *Config) *time.Duration { return &c.Reaction.PollInterval }),
 
 	filePath(stringField("evidence.dir", "", true, func(c *Config) *string { return &c.Evidence.Dir })),
@@ -255,7 +257,8 @@ var mapFields = []mapField{
 
 // Field describes one key of the configuration for a reader: where it sits,
 // what it takes, its default, whether a value is required, the variable that
-// sets it and, for a key that takes one of a closed set, the spellings.
+// sets it, for a key that takes one of a closed set the spellings, and
+// whether its value names a file or a directory.
 type Field struct {
 	Path     string
 	Kind     string
@@ -263,6 +266,7 @@ type Field struct {
 	Required bool
 	Env      string
 	Values   []string
+	File     bool
 }
 
 // IndexPlaceholder stands for an entry's index, from 0, in the path of a key
@@ -321,7 +325,7 @@ func appendFields[T any](out []Field, prefix string, fields []field[T]) []Field 
 		path := prefix + f.path
 		out = append(out, Field{
 			Path: path, Kind: f.kind, Default: f.def, Required: f.required,
-			Env: brand.Env(EnvName(path)), Values: slices.Clone(f.values),
+			Env: brand.Env(EnvName(path)), Values: slices.Clone(f.values), File: f.file,
 		})
 	}
 	return out

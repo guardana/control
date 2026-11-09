@@ -30,6 +30,7 @@ import (
 	"github.com/guardana/control/internal/pause"
 	"github.com/guardana/control/internal/policy/rules"
 	"github.com/guardana/control/internal/reaction"
+	"github.com/guardana/control/internal/recovery"
 	"github.com/guardana/control/internal/scenario"
 	"github.com/guardana/control/internal/segmentlog"
 	"github.com/guardana/control/internal/supervise"
@@ -110,6 +111,17 @@ func versionSpecs() map[string]versionSpec {
 				{"internal/policystate/format.go#checkSchemaVersion/major", readsMajor},
 			},
 		},
+		"State backup manifest": {
+			cites: []versionCite{
+				{"internal/recovery/manifest.go#ManifestVersion", writes},
+				{"internal/recovery/manifest.go#manifestMajor", readsMajor},
+			},
+			refuses: func(v string) (bool, error) {
+				_, err := recovery.ParseManifest([]byte(`{"schema_version":` + strconv.Quote(v) + `,"kind":"state-backup","authority":"directory",` +
+					`"tenant":"t","project":"p","taken_at":"2026-01-01T00:00:00Z","entries":[]}`))
+				return errors.Is(err, recovery.ErrVersion), nil
+			},
+		},
 		"Scenario": {
 			cites: []versionCite{{"internal/scenario/scenario.go#Kind", reads}},
 			refuses: func(v string) (bool, error) {
@@ -121,9 +133,14 @@ func versionSpecs() map[string]versionSpec {
 			cites: []versionCite{
 				{"internal/pause/document.go#SchemaVersion", writes | reads},
 				{"internal/pause/document.go#subsetVersion", reads},
+				{"internal/pause/signed.go#SignedVersion", writes | reads},
 			},
 			refuses: func(v string) (bool, error) {
-				_, err := pause.Parse([]byte(`{"schema_version":` + strconv.Quote(v) + `,"entries":[]}`))
+				if _, err := pause.Parse([]byte(`{"schema_version":` + strconv.Quote(v) + `,"entries":[]}`)); !errors.Is(err, pause.ErrVersion) {
+					return false, nil
+				}
+				body := `{"alg":"ed25519","entries":[],"keyId":"k","project":"p","schema_version":` + strconv.Quote(v) + `,"serial":1,"tenant":"t"}`
+				_, err := pause.ParseSigned([]byte(body))
 				return errors.Is(err, pause.ErrVersion), nil
 			},
 		},
@@ -170,6 +187,12 @@ func versionSpecs() map[string]versionSpec {
 			cites: []versionCite{
 				{"internal/runs/strict.go#RecordVersion", writes},
 				{"internal/runs/strict.go#checkRecordVersion/major", readsMajor},
+			},
+		},
+		"Signed run record": {
+			cites: []versionCite{
+				{"internal/runs/signed.go#SignedRecordVersion", writes},
+				{"internal/runs/signed.go#decodeSignedBody/major", readsMajor},
 			},
 		},
 		"Enforcement API": {
@@ -251,14 +274,20 @@ func versionSpecs() map[string]versionSpec {
 			cites: []versionCite{{"internal/findinglog/export.go#ExportVersion", writes}},
 		},
 		"Reaction route": {
-			cites: []versionCite{{"internal/reaction/route.go#RouteKind", reads}},
+			cites: []versionCite{
+				{"internal/reaction/route.go#RouteKind", reads},
+				{"internal/reaction/route2.go#SignedRouteKind", reads},
+			},
 			refuses: func(v string) (bool, error) {
 				_, err := reaction.ParseRoute([]byte(`{"kind":` + strconv.Quote(v) + `}`))
 				return errors.Is(err, reaction.ErrRouteKind), nil
 			},
 		},
 		"Stop list": {
-			cites: []versionCite{{"internal/reaction/line.go#ListVersion", writes | reads}},
+			cites: []versionCite{
+				{"internal/reaction/line.go#ListVersion", writes | reads},
+				{"internal/reaction/line.go#SignedListVersion", writes | reads},
+			},
 			refuses: func(v string) (bool, error) {
 				_, err := reaction.ParseLine([]byte(`{"kind":"header","version":` + strconv.Quote(v) + `}`))
 				return errors.Is(err, reaction.ErrLineVersion), nil
@@ -268,6 +297,7 @@ func versionSpecs() map[string]versionSpec {
 			cites: []versionCite{
 				{"internal/reaction/lift.go#LiftKind", writes | reads},
 				{"internal/reaction/lift.go#LiftVersion", writes | reads},
+				{"internal/reaction/lift2.go#SignedLiftKind", writes | reads},
 			},
 		},
 	}

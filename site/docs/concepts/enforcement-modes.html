@@ -16,7 +16,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap bar">
   <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
-  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.15.0"><span class="ver">v0.15.0</span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.16.0"><span class="ver">v0.16.0</span></a>
   <nav aria-label="Primary">
     <a href="/docs/">Docs</a>
     <a href="/docs/status">Status</a>
@@ -33,6 +33,7 @@
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -75,6 +76,7 @@
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
@@ -333,7 +335,7 @@ policy and the clock are taken once more, and the halts judged again, right
 before each step that cannot be undone, as the next section says.</p>
 <h2 id="pausing-calls">Pausing calls</h2>
 <p>An operator stops one tool, one upstream, one run, one agent, one principal
-or everything without a restart by writing an entry into the pause file
+or everything without a restart by writing an entry into the file
 <code>pause.file</code> names, with <code>guardana-control pause add</code>, and lifts it with
 <code>pause remove</code>. An entry has one of six scopes:</p>
 <ul>
@@ -386,18 +388,37 @@ approvals store or a sink that syncs can outlast a snapshot; a state that
 covers the call or cannot be read blocks it there. A file that is missing, a
 link, writable by the group or others, in a directory they may write or whose
 own name is a link, owned, or in a directory owned, by another account than
-the plane's, too large, malformed or of an
+the plane's outside <code>signed</code>, too large, malformed or of an
 unknown version, and a snapshot older than three intervals or dated ahead of
 the plane's clock, are all an unknown state: every call is blocked with
 <code>PAUSE_STATE_UNAVAILABLE</code> and <code>/healthz</code> answers 503 naming the cause. The
 same checks at start refuse the start, and the commands refuse a directory
-another account owns, so run them as the plane's user. Deleting the file
+another account owns, so run them as the file's owner. Deleting the file
 therefore blocks everything; it never lifts a pause. A plane without
 <code>pause.file</code> is disabled and says so.</p>
+<p>Under <code>approvals.authority: signed</code> the file is version 3, which an operator
+signs from their own account: <code>pause init --key &lt;k&gt; --tenant &lt;t&gt; --project &lt;p&gt;</code>
+makes one, and <code>pause add</code> and <code>pause remove</code> with <code>--key</code>, <code>--roster</code> and
+<code>--root-key</code> check the file, then re-sign it at the next serial. Only the account owning it can write it. It is a DSSE envelope over the entries, the plane's
+<code>tenant_id</code> and <code>project_id</code>, its own path, the key and a serial, so a copy
+from another path is refused; one from another host at the same path is taken
+unless tenant or project differ. <code>pause floor init</code> makes the
+floor. At every read the plane checks the signature against an operator key
+of its roster, the tenant and project, a grant of <code>operate</code> or <code>admin</code>
+there, and the serial against its floor in <code>pause.floor_dir</code>, raised
+to each serial it takes, so an older file replayed is refused across
+restarts. A file failing any of these, version 1 and 2 included,
+is unknown and blocks every call; the causes are <code>unsigned</code>,
+<code>not authenticated</code>, <code>another tenant or project</code>, <code>another pause file</code>,
+<code>owned by the plane's account</code>, <code>not authorized</code>,
+<code>authority unavailable</code>, <code>below the floor</code>, <code>forked</code> and <code>floor unavailable</code>.
+It refuses to start when its own account may write the file or a directory
+on its path. <code>/healthz</code> gives <code>pause.signed</code>'s serial and floor, <code>health.socket</code>
+the signer.</p>
 <p>The file's directory may not be, or sit inside, the spool's, the approvals
-store's or the hold journal's, which a running plane locks. The check compares
-the directories by identity as well as by path, so a link to one of them, or
-a spelling in another case on a volume that ignores case, is refused too.</p>
+store's or the hold journal's, which a running plane locks. Directories are
+compared by identity and by path, so a link to one, or another case on a
+case-blind volume, is refused too.</p>
 <p>A pause bites on every call not yet recorded as started when the plane reads
 it. Nothing already running is cancelled: an execution handed out before
 it finishes and is recorded, since cancelling it would turn an effect into an
@@ -532,7 +553,7 @@ not enforce it or the adapter cannot serve it (ADR-0013).</li>
 the decision, <code>internal/gateway/pause.go</code> names the enforcement point's own
 causes, <code>internal/pause</code> reads and writes the pause file, and
 <code>adapters/mcp/list.go</code> shapes a <code>tools/list</code> from the preview.</p>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/enforcement-modes.md">docs/concepts/enforcement-modes.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.15.0, and <a href="https://github.com/guardana/control/tree/v0.15.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/enforcement-modes.md">docs/concepts/enforcement-modes.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.16.0, and <a href="https://github.com/guardana/control/tree/v0.16.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
@@ -540,6 +561,7 @@ causes, <code>internal/pause</code> reads and writes the pause file, and
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
@@ -582,6 +604,7 @@ causes, <code>internal/pause</code> reads and writes the pause file, and
 <li><a href="/docs/reference/observations">Observations</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
