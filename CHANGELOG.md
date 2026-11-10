@@ -13,6 +13,19 @@ verify one.
 
 ### Changed
 
+- **Breaking:** under `approvals.authority: signed` a plane whose own account
+  may write the `trust.roster` file, or a directory on its path, refuses to
+  start, and `doctor` fails its `trust` check: that account could put an
+  older roster back. Place the roster where only its signer's account
+  writes, as `/etc/guardana` is.
+- Every operator command that judges with `--roster` and `--root-key`
+  (`pause`, `stops`, `runs open` and `runs close`, `supervise`, `react`)
+  says on standard error, before it signs or lists, `judged with roster <id>
+  serial <n>, expires <time>`. Its judgement has no roster floor; the
+  plane's is the one that counts.
+- `runs open --key` reads the roster and the key before it makes an empty
+  directory a signed layout, so a roster that does not read leaves the
+  directory as it was.
 - `dev` runs its collector on a unix socket in a directory of its own under
   the system's temporary directory, and refuses, naming `TMPDIR`, where that
   path would not fit a socket address.
