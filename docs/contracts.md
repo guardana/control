@@ -1473,6 +1473,28 @@ class before an external decision point is asked, in the order
 [ADR-0046](adr/0046-a-finding-stops-one-run-through-a-signed-route.md) gives.
 A decision names no stop's entry id.
 
+## Signed files and their project checks
+
+Each file or answer a plane takes on a signature, where it holds that to the
+plane's own `tenant_id` and `project_id`, and the test that refuses another
+project's. A row with no project check says so. Outside
+`approvals.authority: signed`, answers, pauses and runs are claims of whoever
+may write where they are read ([status.md](status.md)). A test in
+`internal/docscheck` fails when a function or test cited here is gone.
+
+| Receiver | What it takes | Tenant and project check | Where | Pinned by |
+| --- | --- | --- | --- | --- |
+| Trust roster | `trust.roster`, signed by the root key | none: one roster serves every project and each grant names one; its id has to be `trust.roster_id` | `internal/trust/file.go` `fileRoster.candidate` | `internal/trust` `TestARestartNeverTakesARosterOfAnotherID` |
+| Approval answer | an operator's answer in `approvals.inbox_dir` | the authorizer is asked about the held call's own tenant and project, and a grant matches both exactly | `internal/gateway/authority.go` `Pipeline.judgeEnvelope` `internal/operators/authorize.go` `rosterAuthorizer.Authorize` | `internal/gateway` `TestBobsAnswerResumesNothingAndAlicesOnce` `internal/operators` `TestTwoOperatorsEachActOnlyWhereTheirGrantsReach` |
+| Pause file | `pause.file` of version `3` | its tenant and project are the plane's | `internal/pause/signedpause/judge.go` `Authority.Judge` | `internal/pause/signedpause` `TestNoOneButAPermittedOperatorPausesOrLifts` |
+| Run record | a `3.0` record in `records/` of `runs.dir` | its tenant and project are the plane's | `internal/runs/signedruns/judge.go` `Authority.Judge` | `internal/runs/signedruns` `TestBothJudgesTakeOnlyAnOperatorOfThePlanesProject` |
+| Route | `reaction.route` of `v1alpha2` | its tenant, project and file are the plane's | `internal/reaction/signed.go` `vouchedWithin` | `internal/reaction` `TestASignedRouteIsRefusedWithItsCause` |
+| Stop list header | the `2.0` header of `reaction.stops` | its tenant and project are the route's | `internal/reaction/header2.go` `judgeSignedHeader` | `internal/reaction` `TestASignedListIsRefusedAndNeverReadAsNoStops` |
+| Stop and covered lines | each line of that list | a stop's project, and a covered line's tenant and project, are the route's | `internal/reaction/permits.go` `Route.Permits` `internal/reaction/judge.go` `judging.coveredLine` | `internal/reaction` `TestASignedRoutePermitsOnlyAStopOfItsProjectAndScope` `TestASignedListIsRefusedAndNeverReadAsNoStops` |
+| Lift | a `v1alpha2` lift line | its tenant and project are the route's | `internal/reaction/lift2.go` `verifySignedLiftLine` | `internal/reaction` `TestASignedListIsRefusedAndNeverReadAsNoStops` |
+| Policy bundle and statement | `policy.bundle_file` and `policy.statement_file`, signed by the pinned policy and freshness keys | none: a bundle names no tenant or project; its id has to be `policy.bundle_id` | `internal/policy/holder.go` `Holder.loadPinned` | `internal/policy` `TestInstallUnconfirmedHoldsToTheFloor` |
+| Route under a route key | outside `signed`, a `v1alpha1` route signed by `reaction.public_key`, and its lifts | tenant only: such a route names no project, and a stop's tenant is the route's | `internal/reaction/permits.go` `Route.Permits` | `internal/reaction` `TestJudgeHoldsEveryStopToTheRoute` |
+
 ## The enforcement API
 
 How a tool outside MCP asks before it acts and reports what it did: the

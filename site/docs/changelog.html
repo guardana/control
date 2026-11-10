@@ -136,6 +136,10 @@ plane's is the one that counts.</li>
 <li><code>runs open --key</code> reads the roster and the key before it makes an empty
 directory a signed layout, so a roster that does not read leaves the
 directory as it was.</li>
+<li><code>doctor</code>'s <code>trust</code> line names every file the signed start checked, the
+roster among them, and counts the roster's <code>read</code> grants, which grant
+nothing yet: a plane is read through <code>health.socket</code> by peer uid and
+through files by their modes.</li>
 </ul>
 <h2 id="0160---2026-11-07"><a href="https://github.com/guardana/control/releases/tag/v0.16.0">0.16.0</a> - 2026-11-07</h2>
 <p>Upgrading from 0.15 changes four things an operator must act on.
