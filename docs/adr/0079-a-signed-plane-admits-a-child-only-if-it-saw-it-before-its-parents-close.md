@@ -24,16 +24,21 @@ has to tell a child opened before the close from one opened after it.
 
 - Under `signed`, at every resolve of a run with a parent, after its own
   record is taken and is not refused as replayed, the plane reads
-  `state/<id>.seen`. Where it stands, the parent is not looked at.
-- Where it does not, and the parent's close is carried (`state/<parent>.closed`
-  stands, or the plane holds the close because `state/` did not take it),
-  the call is refused as `closed` with `runs.ErrParentClosed`, counted under
-  `runs.signed` as `refused_parent_closed`, apart from a replay.
+  `state/<id>.seen`. Where it stands, no ancestor is looked at.
+- Where it does not, the plane walks up from the parent. At each ancestor
+  whose close is carried (`state/<ancestor>.closed` stands, or the plane
+  holds the close because `state/` did not take it) the call is refused as
+  `closed` with `runs.ErrParentClosed`, naming that ancestor, counted under
+  `runs.signed` as `refused_parent_closed`, apart from a replay. The walk
+  stops at the root or at an ancestor with a `.seen`, whose descendants
+  keep ADR-0034; between the two it reads and judges each ancestor's record
+  as any record, so a child refused under a put-back parent cannot vouch
+  for a grandchild. A record that does not count, or more than 32
+  ancestors with no `.seen`, refuses the call as `unreadable`.
 - Otherwise the plane creates an empty `state/<id>.seen`, forced to disk,
   before the call is admitted. A write that fails refuses the call; a marker
   that is not a regular file of the plane's alone refuses it as
   `unreadable`.
-- Only the immediate parent is judged; a grandparent's close is not.
 - `.closed` keeps its empty format. Nothing changes off `signed`.
 - A restore closes every run (ADR-0078), so it neither copies nor needs a
   `.seen`: it accepts one in `state/`, the live one or the backup's, and
@@ -50,8 +55,9 @@ A child signed before the close whose first call comes after the carry is
 refused all the same.
 
 Limits: a close the plane never took leaves no marker, so a child of a
-parent whose close the plane neither resolved nor found at its start is
-admitted. The plane's own account can delete a `.closed` or create a `.seen`
+parent whose close the plane has not carried yet is admitted and marked. A
+stdio plane resolves its token at the start before it carries the closes it
+finds there, so its own child is judged before those closes are carried. The plane's own account can delete a `.closed` or create a `.seen`
 (ADR-0076). A child whose first call races the carry of its parent's close
 may be admitted: it was signed before the carry, and no lock is taken for
 it.
@@ -75,8 +81,10 @@ backup copies. An operator reopens a child refused after an upgrade.
 
 `internal/runs` tests the put-back parent with a child signed by the
 operator's path, carried at a call and at the start, refused at every
-resolve; a child admitted before the carry across a restart; a child signed
-before the close but first called after it; a held close; a `.seen` write
-that fails and a marker that is no regular file of the plane's; an unsigned
-layout; and a restore over `.seen`. `internal/recovery` restores a backup
-holding one.
+resolve, and a grandchild signed under that child; a grandchild under a
+child's carried close and under an admitted child of a closed root; an
+ancestor's close or record the plane cannot trust; the walk's bound; a child
+admitted before the carry across a restart; a child signed before the close
+but first called after it; a held close; a `.seen` write that fails and a
+marker that is no regular file of the plane's; an unsigned layout; and a
+restore over `.seen`. `internal/recovery` restores a backup holding one.

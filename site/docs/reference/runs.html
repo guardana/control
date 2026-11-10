@@ -200,7 +200,8 @@ start when that account may write <code>records/</code> or a directory on its pa
 <p>Each record is a <code>3.0</code> envelope an operator granted <code>operate</code> signed for the
 run's tenant and project and for one <code>records/</code> path
 (<a href="/docs/contracts#the-runs-directory">contracts.md</a>); planes using one path
-on two hosts must differ in tenant or project. With the three flags (<code>runs close</code> adds the plane's <code>--tenant</code> and
+on two hosts must differ in tenant or project, or a copy between them
+counts. With the three flags (<code>runs close</code> adds the plane's <code>--tenant</code> and
 <code>--project</code>), <code>runs open</code> and <code>runs close</code> check the parent and the record a
 close replaces as a plane would, refuse one that fails, and say on standard
 error what they signed. Without <code>--key</code> both refuse the directory, naming
@@ -211,9 +212,9 @@ given its <code>--roster</code>, <code>--root-key</code>, <code>--tenant</code> 
 or project, or by a key the roster does not grant <code>operate</code> refuses its calls
 as <code>unreadable</code>. When the plane takes a closed record, at a call or when it
 starts, it writes the close into <code>state/</code>, and the open record put back
-after is refused as <code>closed</code>. So is a child with no <code>state/&lt;id&gt;.seen</code>, which
-the plane writes at the child's first admitted call, once its parent's close
-is carried (<a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>). <code>/healthz</code> counts under
+after is refused as <code>closed</code>. So is a child it never admitted
+(<code>state/&lt;id&gt;.seen</code>) once an ancestor's close is carried
+(<a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>). <code>/healthz</code> counts under
 <code>runs.signed</code> the records judged, each refusal cause, the closes carried and
 <code>carry_failed</code>, held per plane; <code>doctor</code> counts records by state and signer.</p>
 <h2 id="what-a-plane-does-with-a-token">What a plane does with a token</h2>
@@ -261,8 +262,8 @@ project. It is never read as any project's run: its token is refused as
 no project, <code>runs list</code> refuses the directory while it holds one, and
 <code>runs close</code>, <code>runs open --parent</code> and <code>react</code>, for a finding that names it,
 refuse that run.</p>
-<p>Move to a new, empty directory: while one <code>1.0</code> record is left,
-<code>runs list</code> refuses the whole directory, and
+<p>Move to a new, empty directory, never into the old one: while one <code>1.0</code>
+record is left, <code>runs list</code> refuses the whole directory, and
 so does <code>supervise</code> of every run under a procedure that reads children. Open
 each run again there with <code>runs open --project</code>, point <code>runs.dir</code> at it, and
 remove the old directory once no plane names it.</p>

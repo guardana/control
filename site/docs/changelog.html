@@ -125,13 +125,13 @@ verify one.</p>
 <h3 id="changed">Changed</h3>
 <ul>
 <li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> a plane refuses, as
-<code>closed</code>, a child run it never admitted once it carried its parent's
-close, and writes an empty <code>state/&lt;id&gt;.seen</code> at a child's first admitted
-call; <code>/healthz</code> counts the refusal under <code>runs.signed</code> as
-<code>refused_parent_closed</code>. A child an operator signs after putting a closed
-parent's record back no longer runs. A child a 0.16 plane admitted has no
-<code>.seen</code>, so once its parent's close is carried it is refused: open it
-again
+<code>closed</code>, a child run it never admitted once it carried the close of its
+parent or of an ancestor above it, up to a run it admitted; it writes an
+empty <code>state/&lt;id&gt;.seen</code> at a child's first admitted call, and <code>/healthz</code>
+counts the refusal under <code>runs.signed</code> as <code>refused_parent_closed</code>. A run
+an operator signs, at any depth, under a closed parent's record put back
+no longer runs. A child a 0.16 plane admitted has no <code>.seen</code>, so once its
+parent's close is carried it is refused: open it again
 (<a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>).</li>
 </ul>
 <h2 id="0160---2026-11-07"><a href="https://github.com/guardana/control/releases/tag/v0.16.0">0.16.0</a> - 2026-11-07</h2>

@@ -137,8 +137,8 @@ under <code>approvals.authority: signed</code> the runs directory holds <code>re
 for its own <code>records/</code>.</p>
 <p>Amended by <a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>:
 under <code>signed</code>, closing a parent closes none of the children the plane
-admitted before it carried the close; a child it first sees after is
-refused.</p>
+admitted before it carried the close, nor their descendants; a run it first
+sees after, below no run it admitted, is refused.</p>
 <h2 id="context">Context</h2>
 <p>ADR-0021 keys a run by the listener and the principal and agent it resolves.
 With no authenticator, which is every listener in this build, that is one run

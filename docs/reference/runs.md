@@ -114,7 +114,8 @@ start when that account may write `records/` or a directory on its path.
 Each record is a `3.0` envelope an operator granted `operate` signed for the
 run's tenant and project and for one `records/` path
 ([contracts.md](../contracts.md#the-runs-directory)); planes using one path
-on two hosts must differ in tenant or project. With the three flags (`runs close` adds the plane's `--tenant` and
+on two hosts must differ in tenant or project, or a copy between them
+counts. With the three flags (`runs close` adds the plane's `--tenant` and
 `--project`), `runs open` and `runs close` check the parent and the record a
 close replaces as a plane would, refuse one that fails, and say on standard
 error what they signed. Without `--key` both refuse the directory, naming
@@ -126,9 +127,9 @@ A record that is unsigned, signed for another directory, of another tenant
 or project, or by a key the roster does not grant `operate` refuses its calls
 as `unreadable`. When the plane takes a closed record, at a call or when it
 starts, it writes the close into `state/`, and the open record put back
-after is refused as `closed`. So is a child with no `state/<id>.seen`, which
-the plane writes at the child's first admitted call, once its parent's close
-is carried ([ADR-0079](../adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)). `/healthz` counts under
+after is refused as `closed`. So is a child it never admitted
+(`state/<id>.seen`) once an ancestor's close is carried
+([ADR-0079](../adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)). `/healthz` counts under
 `runs.signed` the records judged, each refusal cause, the closes carried and
 `carry_failed`, held per plane; `doctor` counts records by state and signer.
 
@@ -168,8 +169,8 @@ no project, `runs list` refuses the directory while it holds one, and
 `runs close`, `runs open --parent` and `react`, for a finding that names it,
 refuse that run.
 
-Move to a new, empty directory: while one `1.0` record is left,
-`runs list` refuses the whole directory, and
+Move to a new, empty directory, never into the old one: while one `1.0`
+record is left, `runs list` refuses the whole directory, and
 so does `supervise` of every run under a procedure that reads children. Open
 each run again there with `runs open --project`, point `runs.dir` at it, and
 remove the old directory once no plane names it.

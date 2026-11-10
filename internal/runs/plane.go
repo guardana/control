@@ -226,7 +226,7 @@ func (p *Plane) standing(ctx context.Context, stored SignedRecord, who Identity)
 	}
 	err := p.notReplayed(rec)
 	if err == nil {
-		err = p.parentStands(rec)
+		err = p.parentStands(ctx, rec)
 	}
 	switch {
 	case errors.Is(err, ErrReplayed), errors.Is(err, ErrParentClosed):

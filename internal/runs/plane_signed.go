@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"sync"
 	"time"
 )
@@ -51,49 +50,6 @@ func (p *Plane) notReplayed(rec Record) error {
 	}
 	p.counts.refused(ErrReplayed)
 	return fmt.Errorf("%w: %s", ErrReplayed, rec.ID)
-}
-
-// parentStands refuses, with ErrParentClosed, an open child the plane never
-// admitted whose parent's close state/ holds or the handle failed to carry.
-// A child admitted before keeps running: closing a parent closes none of its
-// children. The plane's own <id>.seen tells the two apart, never a signed
-// time, which two operators' clocks would skew. It is nil off a signed layout
-// and for a root.
-func (p *Plane) parentStands(rec Record) error {
-	if !p.signed || rec.Parent == "" {
-		return nil
-	}
-	switch seen, err := p.marked(rec.ID + seenSuffix); {
-	case err != nil:
-		return fmt.Errorf("the first admission of %s: %w", rec.ID, err)
-	case seen:
-		return nil
-	}
-	closed := p.uncarried.has(rec.Parent)
-	if !closed {
-		var err error
-		if closed, err = p.marked(rec.Parent + closedSuffix); err != nil {
-			return fmt.Errorf("the close of %s: %w", rec.Parent, err)
-		}
-	}
-	if !closed {
-		return nil
-	}
-	p.counts.refused(ErrParentClosed)
-	return fmt.Errorf("%w: %s was closed before this run was first admitted", ErrParentClosed, rec.Parent)
-}
-
-// marked reports whether state/ holds the empty marker name, refusing one
-// that is not a regular file of the plane's alone.
-func (p *Plane) marked(name string) (bool, error) {
-	f, err := p.st.openRegular(name, os.O_RDONLY)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return false, nil
-	case err != nil:
-		return false, err
-	}
-	return true, f.Close()
 }
 
 // closesAnyway reports whether a closed record the judge refused still
