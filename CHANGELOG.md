@@ -30,6 +30,11 @@ verify one.
   roster among them, and counts the roster's `read` grants, which grant
   nothing yet: a plane is read through `health.socket` by peer uid and
   through files by their modes.
+- `dev` runs its collector on a unix socket in a directory of its own under
+  the system's temporary directory, and refuses, naming `TMPDIR`, where that
+  path would not fit a socket address.
+- `doctor` no longer warns of a TCP `export.endpoint`: an `https` one is
+  reported as export over TLS, and nothing else but a unix socket loads.
 - **Breaking:** under `approvals.authority: signed` a plane refuses, as
   `closed`, a child run it never admitted once it carried the close of its
   parent or of an ancestor above it, up to a run it admitted; it writes an
@@ -39,6 +44,20 @@ verify one.
   no longer runs. A child a 0.16 plane admitted has no `.seen`, so once its
   parent's close is carried it is refused: open it again
   ([ADR-0079](docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)).
+
+### Removed
+
+- **Breaking:** plaintext evidence export
+  ([ADR-0080](docs/adr/0080-evidence-leaves-a-plane-over-a-unix-socket-or-tls.md)).
+  An `http://` `export.endpoint` and `export.allow_plaintext: true` are
+  refused at load, naming 0.17. Run `collect --listen unix:///path` and set
+  `export.endpoint: unix:///path` with `export.collector_uid` to the account
+  `collect` prints, or reach the collector over `https`. A unix endpoint's
+  socket path is at most 103 bytes.
+- **Breaking:** `collect --listen host:port` is refused; `collect` listens on
+  `unix:///path` only.
+- **Breaking:** `otel.Options.AllowPlaintext` is gone, and the exporter
+  refuses an `http` endpoint even when built directly.
 
 ## [0.16.0] - 2026-11-07
 
