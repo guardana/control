@@ -176,3 +176,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0076: A signed plane takes a run only from an operator's signature](adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md): accepted
 - [ADR-0077: A signed plane takes a stop list only from operators' signatures](adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures.md): accepted
 - [ADR-0078: A restore only raises](adr/0078-a-restore-only-raises.md): accepted
+- [ADR-0081: Tests that need a second account run in a required job](adr/0081-tests-that-need-a-second-account-run-in-a-required-job.md): accepted

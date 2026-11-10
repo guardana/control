@@ -87,3 +87,4 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0076](0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md) | A signed plane takes a run only from an operator's signature |
 | [0077](0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures.md) | A signed plane takes a stop list only from operators' signatures |
 | [0078](0078-a-restore-only-raises.md) | A restore only raises |
+| [0081](0081-tests-that-need-a-second-account-run-in-a-required-job.md) | Tests that need a second account run in a required job |

@@ -66,8 +66,9 @@ journal, the policy, route, stop list or pause floor directory or the pause file
 directory, compared through
 symbolic links too. A `unix:///path` `export.endpoint` needs `export.collector_uid`
 and refuses `export.allow_plaintext`, any other refuses `export.collector_uid`, and
-`health.socket_uid` needs `health.socket`; a platform that cannot name a socket peer's
-account refuses both sockets. Every `pdp.` key is refused while `pdp.identifier` is empty,
+`health.socket_uid` needs `health.socket`, and a start refuses it naming the plane's own
+account; a platform that cannot name a socket peer's account refuses both sockets.
+Every `pdp.` key is refused while `pdp.identifier` is empty,
 since it would apply to no decision point, and the identifier is written into every
 decision that consulted the decision point, so a credential goes in `pdp.headers`,
 never in it. Other directories are compared as paths and not as what they
