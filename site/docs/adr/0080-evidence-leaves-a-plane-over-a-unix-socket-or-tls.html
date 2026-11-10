@@ -130,7 +130,7 @@ write evidence with it, and can answer with the acceptance that releases the
 records from the spool. 0.16 added <code>unix:///path</code> with
 <code>export.collector_uid</code>, where the plane reads the socket peer's account from
 the kernel before it sends anything, kept TCP one more release with a
-<code>doctor</code> warning, and announced that TCP export goes in 0.17.</p>
+<code>doctor</code> warning, and announced that TCP export would be removed in 0.17.</p>
 <h2 id="decision">Decision</h2>
 <ul>
 <li><code>export.endpoint</code> is <code>unix:///path</code> with <code>export.collector_uid</code>, or an
@@ -143,7 +143,8 @@ address holds, checked at load as <code>listener.socket</code> is.</li>
 <li>The exporter refuses <code>http</code> even when built directly, and has no setting
 that allows it.</li>
 <li><code>collect --listen</code> takes <code>unix:///path</code> only; a TCP address is refused,
-naming 0.17. <code>doctor</code> no longer warns, since nothing it would warn of loads.</li>
+naming 0.17. <code>doctor</code> drops its plaintext warning, since a plaintext
+endpoint no longer loads.</li>
 <li><code>dev</code> runs its collector on a unix socket in a directory of its own under
 the system's temporary directory, apart from the state, whose path grows
 with <code>--state</code> and a scenario's name.</li>

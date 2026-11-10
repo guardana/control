@@ -19,7 +19,7 @@ write evidence with it, and can answer with the acceptance that releases the
 records from the spool. 0.16 added `unix:///path` with
 `export.collector_uid`, where the plane reads the socket peer's account from
 the kernel before it sends anything, kept TCP one more release with a
-`doctor` warning, and announced that TCP export goes in 0.17.
+`doctor` warning, and announced that TCP export would be removed in 0.17.
 
 ## Decision
 
@@ -33,7 +33,8 @@ the kernel before it sends anything, kept TCP one more release with a
 - The exporter refuses `http` even when built directly, and has no setting
   that allows it.
 - `collect --listen` takes `unix:///path` only; a TCP address is refused,
-  naming 0.17. `doctor` no longer warns, since nothing it would warn of loads.
+  naming 0.17. `doctor` drops its plaintext warning, since a plaintext
+  endpoint no longer loads.
 - `dev` runs its collector on a unix socket in a directory of its own under
   the system's temporary directory, apart from the state, whose path grows
   with `--state` and a scenario's name.
