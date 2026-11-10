@@ -4,7 +4,9 @@
 # One entry per line, "<import path> <test name>", one space between the two,
 # a top-level test only. scripts/two-accounts.sh runs each one alone, as root,
 # beside the accounts GUARDANA_TEST_OTHER_UID and GUARDANA_TEST_THIRD_UID name;
-# the root tests of scripts/expected-skips.txt are here too.
+# the root tests of scripts/expected-skips.txt are here too. internal/docscheck
+# refuses a list that leaves out a top-level test of a twoaccounts file or a
+# test skipped as needing root, or names any other.
 github.com/guardana/control/cmd/guardana-control TestAnOperatorsSignedRunIsTakenByAPlaneInItsGroup
 github.com/guardana/control/cmd/guardana-control TestReactUnderASignedRouteRunsAsTheOperatorBesideThePlane
 github.com/guardana/control/cmd/guardana-gateway TestTheHealthSocketAnswersTheNamedAccountAndClosesAThird

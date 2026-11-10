@@ -189,7 +189,7 @@ func serveCollector(path string) int {
 		fmt.Fprintf(os.Stderr, "listen: %v\n", err)
 		return 2
 	}
-	if err := os.Chmod(path, 0o666); err != nil { //nolint:gosec // G302: the collector's own peer check, not the mode, is under test
+	if err := os.Chmod(path, 0o666); err != nil { //nolint:gosec // G302: the exporter's peer check of the collector, not the socket's mode, is under test
 		fmt.Fprintf(os.Stderr, "chmod: %v\n", err)
 		return 2
 	}

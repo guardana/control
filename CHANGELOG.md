@@ -17,11 +17,13 @@ verify one.
   its directory as a start judges it, and a warning naming the first
   directory above the socket that `health.socket_uid` may not search, since
   that account is then never answered.
-- A required CI job, "Two accounts", runs the tests that need root and two
+- A CI job, "Two accounts", runs the tests that need root and two
   more accounts: the health and export sockets' peers, a signed start's file
   placement and an operator's signed runs directory, each under real
   ownership. It fails unless every test `scripts/expected-runs.txt` names
   passed ([ADR-0081](docs/adr/0081-tests-that-need-a-second-account-run-in-a-required-job.md)).
+  `scripts/lib/github-settings.sh` declares it a required check; it gates a
+  pull request once the maintainer applies those settings.
 
 ### Changed
 

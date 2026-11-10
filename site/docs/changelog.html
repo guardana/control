@@ -128,11 +128,13 @@ verify one.</p>
 its directory as a start judges it, and a warning naming the first
 directory above the socket that <code>health.socket_uid</code> may not search, since
 that account is then never answered.</li>
-<li>A required CI job, &quot;Two accounts&quot;, runs the tests that need root and two
+<li>A CI job, &quot;Two accounts&quot;, runs the tests that need root and two
 more accounts: the health and export sockets' peers, a signed start's file
 placement and an operator's signed runs directory, each under real
 ownership. It fails unless every test <code>scripts/expected-runs.txt</code> names
-passed (<a href="/docs/adr/0081-tests-that-need-a-second-account-run-in-a-required-job">ADR-0081</a>).</li>
+passed (<a href="/docs/adr/0081-tests-that-need-a-second-account-run-in-a-required-job">ADR-0081</a>).
+<code>scripts/lib/github-settings.sh</code> declares it a required check; it gates a
+pull request once the maintainer applies those settings.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>

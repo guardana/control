@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/guardana/control/internal/peercred"
 )
 
 // TestTheHealthSocketAnswersTheNamedAccountAndClosesAThird: a plane run as
@@ -24,7 +22,7 @@ func TestTheHealthSocketAnswersTheNamedAccountAndClosesAThird(t *testing.T) {
 	other, third := twoAccounts(t)
 	path, _ := searchableSocketPath(t, 0o755)
 	p, own, foreign := stoppedRuns(t, path, strconv.FormatUint(uint64(other.uid), 10))
-	serveSocket(t, p, peercred.UID)
+	serveAsBuilt(t, p)
 	info, err := os.Lstat(path)
 	if err != nil || info.Mode().Type() != os.ModeSocket || info.Mode().Perm() != 0o666 {
 		t.Fatalf("the socket is %v, %v; want a socket of mode 0666", info, err)
@@ -51,7 +49,7 @@ func TestTheHealthSocketOfThePlaneAloneTakesNoOtherConnection(t *testing.T) {
 	other, _ := twoAccounts(t)
 	path, _ := searchableSocketPath(t, 0o700)
 	p, _, _ := stoppedRuns(t, path, "")
-	serveSocket(t, p, peercred.UID)
+	serveAsBuilt(t, p)
 	if info, err := os.Lstat(path); err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatalf("the socket is %v, %v; want mode 0600", info, err)
 	}
@@ -73,7 +71,7 @@ func TestADirectoryTheNamedAccountCannotSearchKeepsItOutAndDoctorSaysSo(t *testi
 	uid := strconv.FormatUint(uint64(other.uid), 10)
 	path, resolved := searchableSocketPath(t, 0o700)
 	p, _, _ := stoppedRuns(t, path, uid)
-	serveSocket(t, p, peercred.UID)
+	serveAsBuilt(t, p)
 	answer, stderr, code := other.as(t, "ask", path)
 	if code != 3 || answer != "" || !strings.Contains(stderr, "permission denied") {
 		t.Errorf("the named account got exit %d, %q, %q; want its connect refused", code, answer, stderr)
@@ -88,4 +86,20 @@ func TestADirectoryTheNamedAccountCannotSearchKeepsItOutAndDoctorSaysSo(t *testi
 	if !strings.Contains(stdout.String(), want) {
 		t.Errorf("doctor does not say %q:\n%s", want, stdout.String())
 	}
+}
+
+// serveAsBuilt serves the health socket p binds with the listener exactly as
+// the plane builds it, so the peer is read by the plane's own wiring and a
+// test names no account through it.
+func serveAsBuilt(t *testing.T, p *plane) {
+	t.Helper()
+	bound, err := p.bindHealthSocket(io.Discard, nil)
+	if err != nil {
+		t.Fatalf("binding the health socket: %v", err)
+	}
+	if len(bound) != 1 {
+		t.Fatalf("bound %d listeners, want the socket", len(bound))
+	}
+	go func() { _ = bound[0].server.Serve(bound[0].listener) }()
+	t.Cleanup(func() { _ = bound[0].server.Close() })
 }

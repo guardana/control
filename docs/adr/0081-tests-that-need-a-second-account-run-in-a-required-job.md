@@ -23,7 +23,9 @@ root; ADR-0063 lists them as expected skips, and no gate of record ran them.
 
 ## Decision
 
-The CI job "Two accounts" in `ci.yml`, a required check, makes two system
+The CI job "Two accounts" in `ci.yml` is declared a required check in
+`scripts/lib/github-settings.sh`, and is required once the maintainer
+applies those settings to the repository. It makes two system
 accounts with `useradd`, sets their uids in `GUARDANA_TEST_OTHER_UID` and
 `GUARDANA_TEST_THIRD_UID`, and runs `scripts/two-accounts.sh`. The script
 builds each package `scripts/expected-runs.txt` names with the build tag
@@ -37,13 +39,21 @@ event and fails unless each listed test passed: a skip anywhere, a listed test
 missing, a failed build, a stream with no event and a list that names nothing
 each fail the job. The tagged files are not compiled by `make quality`, so the
 expected skips need no entry for them; the root tests of those skips are in
-the list too.
+the list too. Since the job runs only what the list names, the main gate's
+`internal/docscheck` parses the tagged files and refuses a list that leaves
+out one of their top-level tests, the helper the child processes run
+excepted, or a test `expected-skips.txt` skips as needing root, and a line
+that names any other test.
 
 ## Security / compatibility impact
 
-No product code changes. The job runs repository code as root on a disposable
-runner, with a read-only token, no secret and no cache write. A test of this
-kind that stops running fails a required check rather than passing unseen.
+The same change refuses at start a `health.socket_uid` that names the plane's
+own account, which only opened the socket `0666`, and adds a `doctor` check
+of `health.socket` that warns about a directory above the socket the named
+account may not search. The job runs repository code as root on a disposable
+runner, with a read-only token, no secret and no cache write. Once the job is
+required, a test of this kind that stops running fails it rather than passing
+unseen; until the settings are applied, the job reports and blocks nothing.
 
 ## Alternatives considered
 
@@ -67,5 +77,7 @@ variables.
 
 `internal/testreport`'s tests refuse a planted stream with a skip, a missing
 test, no event, a failed build, a failed test and a pass from another package,
-and refuse an empty or malformed list. The job's own transcript names each
+and refuse an empty or malformed list. `internal/docscheck` refuses a planted
+tagged test or needs-root skip the list leaves out, and a list line naming a
+test no file declares or an ordinary one. The job's own transcript names each
 listed test `PASSED`.
