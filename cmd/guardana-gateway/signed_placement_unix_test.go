@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/ed25519"
 	"errors"
 	"os"
 	"path/filepath"
@@ -93,10 +94,7 @@ func startRefusedNaming(err error, key string) bool {
 // key in neither fails, so a file key added later cannot go unjudged.
 func TestEveryFileKeyIsCheckedAtASignedStartOrNamedWithItsReason(t *testing.T) {
 	cfg := fullSignedTree(t).load(t)
-	values := map[string]string{}
-	for _, s := range cfg.Settings() {
-		values[s.Path] = s.Value
-	}
+	values := settingsOf(cfg)
 	files := map[string]bool{}
 	for _, f := range gatewayconfig.Fields() {
 		if !f.File {
@@ -117,6 +115,36 @@ func TestEveryFileKeyIsCheckedAtASignedStartOrNamedWithItsReason(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestEveryFileKeyOfAMinimalSignedTreeIsChecked: the same classification
+// over a tree that sets only what a signed start needs, so a check that
+// holds only while another key is set fails here.
+func TestEveryFileKeyOfAMinimalSignedTreeIsChecked(t *testing.T) {
+	cfg := signedPlaneTree(t, "roster-a", []ed25519.PublicKey{signedTestPublic("alice")}, "roster-a").load(t)
+	values := settingsOf(cfg)
+	judged := 0
+	for _, f := range gatewayconfig.Fields() {
+		if f.File && values[f.Path] != "" {
+			judged++
+			judgeFileKey(t, cfg, f.Path, values[f.Path])
+		}
+	}
+	if values["trust.roster"] == "" || values["pause.file"] != "" || values["reaction.route"] != "" || values["runs.dir"] != "" {
+		t.Errorf("the minimal tree sets roster %q, pause %q, route %q, runs %q; want the roster alone of them",
+			values["trust.roster"], values["pause.file"], values["reaction.route"], values["runs.dir"])
+	}
+	if judged == 0 {
+		t.Error("the minimal tree sets no file key")
+	}
+}
+
+func settingsOf(cfg *gatewayconfig.Config) map[string]string {
+	values := map[string]string{}
+	for _, s := range cfg.Settings() {
+		values[s.Path] = s.Value
+	}
+	return values
 }
 
 // judgeFileKey makes the entry of key, whose value the configuration holds,

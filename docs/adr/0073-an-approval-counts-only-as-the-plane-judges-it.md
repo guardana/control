@@ -112,9 +112,9 @@ NFS and SMB answer for access as their server does; `SSL_CERT_FILE` and
 `SSL_CERT_DIR` still feed the decision point's roots, which can only veto.
 The plane's account still raises the roster's floor, so it can withhold a
 newer roster within the roster's lifetime, as ADR-0071 says. Amended in
-0.17: the roster file is out of that account's reach, so keeping an older
-roster in force takes write access to the floor directory and a restore of
-the roster file.
+0.17: the roster file is out of that account's reach, so it can no longer put
+an older roster in place; raising the floor it writes still withholds a newer
+one until the held roster expires.
 
 ## Alternatives considered
 

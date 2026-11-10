@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/findinglog"
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policykey"
 	"github.com/guardana/control/internal/trust"
@@ -160,5 +161,32 @@ func TestSuperviseSaysWhichRosterItJudgedARunWith(t *testing.T) {
 	first, _, _ := strings.Cut(stderr, "\n")
 	if !judgedOnce(stderr, superviseName, judged, "") || !strings.Contains(first, judged) {
 		t.Fatalf("supervise of a signed layout said %q; want %q first", stderr, judged)
+	}
+}
+
+// TestReactUnderASignedRouteSaysWhichRosterItJudgedWith: past its guard
+// against the plane's account, which every directory trips on one account,
+// react under a v1alpha2 route says the roster's line once, first.
+func TestReactUnderASignedRouteSaysWhichRosterItJudgedWith(t *testing.T) {
+	saved := reactPlaneAccount
+	reactPlaneAccount = func(string) error { return nil }
+	t.Cleanup(func() { reactPlaneAccount = saved })
+	tr := newSignedTree(t)
+	judged := resignRoster(t, tr.judge[1], seeded(0x7e))
+	if code, _, stderr := tr.run(t, "stops init", "--key", tr.keys["alice"], tr.stops); code != exitOK {
+		t.Fatalf("stops init: %d, %q", code, stderr)
+	}
+	findings := ownerDir(t, filepath.Join(tr.dir, "findings"))
+	if err := os.WriteFile(filepath.Join(findings, findinglog.FileName), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runsAt := runsDir(t)
+	openRun(t, runsAt, who, "1h")
+	code, stdout, stderr := invoke(t, "react", "--findings", findings, "--runs", runsAt, "--route", tr.route,
+		"--roster", tr.judge[1], "--root-key", tr.judge[3], "--approvals", filepath.Join(tr.dir, "approvals"), "--stops", tr.stops)
+	first, _, _ := strings.Cut(stderr, "\n")
+	if code != exitOK || !strings.Contains(stdout, "stops 0, covered 0") || !judgedOnce(stderr, reactName, judged, "") ||
+		!strings.Contains(first, judged) {
+		t.Fatalf("react under a signed route answered %d: %q %q; want %q first", code, stdout, stderr, judged)
 	}
 }

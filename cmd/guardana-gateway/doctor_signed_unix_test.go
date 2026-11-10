@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,6 +15,8 @@ import (
 	"github.com/guardana/control/internal/canon"
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policykey"
+	"github.com/guardana/control/internal/reaction/stoplist"
+	"github.com/guardana/control/internal/runs"
 	"github.com/guardana/control/internal/trust"
 )
 
@@ -114,4 +117,29 @@ func writeAdminOnlyRoster(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, path, raw)
+}
+
+// TestDoctorRefusesWhatThePlanesOwnAccountOwnsUnderSigned: off the one-account
+// test switch, where this account is the plane's and owns every file, doctor
+// fails at the runs check naming records/ the plane's account owns, its
+// reaction check names the route that account owns, and the stop list read as
+// doctor reads it is refused as that account's.
+func TestDoctorRefusesWhatThePlanesOwnAccountOwnsUnderSigned(t *testing.T) {
+	placedApart(t)
+	tr := signedStopsTree(t)
+	status, out, stderr, line := doctorRun(t, tr, "fail    runs ")
+	if status != exitFail || !strings.HasPrefix(stderr, "doctor: runs: ") || !strings.Contains(line, runs.ErrPlaneOwned.Error()) {
+		t.Fatalf("doctor on one account = %d, stderr %q:\n%s", status, stderr, out)
+	}
+	d := &examination{cfg: tr.load(t)}
+	if verdict, _, found := d.reaction(t.Context()); verdict != verdictFail || !strings.Contains(found, "reaction.route: ") ||
+		!strings.Contains(found, errPlaneOwnedRoute.Error()) {
+		t.Errorf("doctor's reaction check on one account = %s, %q; want the route the plane's account owns", verdict, found)
+	}
+	doc := writeLeveledRoster(t, filepath.Join(tr.dir, "trust", "roster.json"))
+	route := rosterRouteOf(t, doc, filepath.Join(tr.dir, "route.json"), filepath.Join(tr.dir, "stops"))
+	if _, err := openStopList(d.cfg, route, nil, d.signedListRead()); !errors.Is(err, stoplist.ErrNotServable) ||
+		!strings.Contains(err.Error(), string(stoplist.CausePlaneOwned)) {
+		t.Errorf("the stop list read as doctor reads it on one account = %v; want it refused as the plane's own", err)
+	}
 }

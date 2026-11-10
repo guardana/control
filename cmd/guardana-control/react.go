@@ -87,7 +87,7 @@ var beforeStopsLock = func() {}
 func react(ctx context.Context, a reactArgs, clock func() time.Time, stdout, stderr io.Writer) int {
 	now := clock().UTC().Truncate(time.Second)
 	if a.signed() {
-		if err := notPlaneAccount(a.approvals); err != nil {
+		if err := reactPlaneAccount(a.approvals); err != nil {
 			return fail(stderr, reactName, err)
 		}
 	}
@@ -343,6 +343,10 @@ func projectOf(route reaction.Route, fr *findingv1alpha1.FindingRecord) string {
 	}
 	return fr.GetProjectId()
 }
+
+// reactPlaneAccount is react's guard against running as the plane's account,
+// a variable so a test on one account reaches what follows it.
+var reactPlaneAccount = notPlaneAccount
 
 // notPlaneAccount refuses this process when it owns the approvals directory
 // at dir, which makes it the plane's account: the signal the console takes.

@@ -123,7 +123,9 @@ that floor itself, so its account writes it. That account can therefore roll
 the roster back only to an older or equal serial of the same roster id,
 within that roster's lifetime of at most 7 days, and that is the whole limit.
 Amended in 0.17: the start refuses a roster file that account can write
-too, so the rollback also takes a restore of the roster file.
+too, so it can no longer put an older roster in place; raising the floor it
+writes still keeps the held roster against a newer one until the held one
+expires.
 
 ## Alternatives considered
 
