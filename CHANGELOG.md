@@ -30,6 +30,15 @@ verify one.
   roster among them, and counts the roster's `read` grants, which grant
   nothing yet: a plane is read through `health.socket` by peer uid and
   through files by their modes.
+- **Breaking:** under `approvals.authority: signed` a plane refuses, as
+  `closed`, a child run it never admitted once it carried the close of its
+  parent or of an ancestor above it, up to a run it admitted; it writes an
+  empty `state/<id>.seen` at a child's first admitted call, and `/healthz`
+  counts the refusal under `runs.signed` as `refused_parent_closed`. A run
+  an operator signs, at any depth, under a closed parent's record put back
+  no longer runs. A child a 0.16 plane admitted has no `.seen`, so once its
+  parent's close is carried it is refused: open it again
+  ([ADR-0079](docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)).
 
 ## [0.16.0] - 2026-11-07
 
