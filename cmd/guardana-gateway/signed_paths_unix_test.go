@@ -4,6 +4,7 @@ package main
 
 import (
 	"crypto/ed25519"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -26,16 +27,16 @@ func writableByIdentity(t *testing.T, writable string) *[]string {
 	}
 	judged := &[]string{}
 	saved := notPlaneWritable
-	notPlaneWritable = func(path string) error {
+	notPlaneWritable = func(path string) (fs.FileInfo, error) {
 		*judged = append(*judged, path)
 		info, err := os.Stat(path)
 		switch {
 		case err != nil:
-			return err
+			return nil, err
 		case os.SameFile(info, marked):
-			return errPlaneWritesForTest
+			return nil, errPlaneWritesForTest
 		}
-		return nil
+		return info, nil
 	}
 	t.Cleanup(func() { notPlaneWritable = saved })
 	return judged
@@ -148,5 +149,37 @@ func TestASignedStartJudgesTheConfigurationItRuns(t *testing.T) {
 	}
 	if info, err := os.Stat(cfg.File()); err != nil || !os.SameFile(info, read) {
 		t.Errorf("the configuration judged, %s, is not the file the plane read (%v)", cfg.File(), err)
+	}
+}
+
+// TestASignedStartJudgesTheFileLoadRead: the start check holds the
+// configuration it judges to the file Load read. A protected file renamed
+// over the path after the read, while the file read is the plane's to write,
+// is refused as not the file the plane read; the file left in place passes.
+func TestASignedStartJudgesTheFileLoadRead(t *testing.T) {
+	tr := signedPlaneTree(t, "roster-a", []ed25519.PublicKey{signedTestPublic("alice")}, "roster-a")
+	cfg := tr.load(t)
+	placedApart(t)
+	if err := checkSignedStart(cfg); err != nil {
+		t.Fatalf("the file Load read, still at its path: the start check = %v", err)
+	}
+
+	aside := filepath.Join(t.TempDir(), "read.yaml")
+	if err := os.Link(tr.config, aside); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(tr.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(filepath.Dir(tr.config), "other.yaml")
+	writeTestFile(t, other, raw)
+	if err := os.Rename(other, tr.config); err != nil {
+		t.Fatal(err)
+	}
+	writableByIdentity(t, aside)
+	err = checkSignedStart(cfg)
+	if err == nil || !strings.Contains(err.Error(), "the configuration file: "+cfg.File()+" is not the file the plane read") {
+		t.Errorf("the file Load read is plane-writable and a protected one was renamed over its path: the start check = %v; want it refused as not the file read", err)
 	}
 }

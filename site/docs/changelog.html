@@ -154,6 +154,11 @@ an operator signs, at any depth, under a closed parent's record put back
 no longer runs. A child a 0.16 plane admitted has no <code>.seen</code>, so once its
 parent's close is carried it is refused: open it again
 (<a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>).</li>
+<li>On every plane, a <code>--config</code> path or an absolute path in a key that holds
+a symbolic link followed by <code>..</code> is cleaned before it is read: the <code>..</code>
+drops the component before it rather than leaving the link's target. Such
+a path may now name another file or directory than the one read before,
+<code>evidence.dir</code> and the other state directories included.</li>
 </ul>
 <h3 id="removed">Removed</h3>
 <ul>
@@ -171,10 +176,11 @@ refuses an <code>http</code> endpoint even when built directly.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
-<li>A path that holds a symbolic link followed by <code>..</code>, in <code>--config</code> or in
-a key such as <code>trust.roster</code>, is read with the <code>..</code> taken first, as it is
-judged: a signed start no longer passes a protected file while the plane
-reads one its own account may write.</li>
+<li>A signed start judges the configuration file as the very file the plane
+read, and refuses one renamed over its path since; a path holding a
+symbolic link followed by <code>..</code> is judged where it is read. It no longer
+passes a protected file while the plane runs one its own account may
+write.</li>
 </ul>
 <h3 id="security">Security</h3>
 <ul>

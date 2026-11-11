@@ -3,6 +3,7 @@ package gatewayconfig
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -33,7 +34,7 @@ func Load(path string, environ []string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	text, err := readConfigFile(file, path)
+	text, read, err := readConfigFile(file, path)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +42,7 @@ func Load(path string, environ []string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	b := &binder{cfg: &Config{dir: filepath.Dir(file), path: file, source: map[string]string{}}, headers: map[string]string{}}
+	b := &binder{cfg: &Config{dir: filepath.Dir(file), path: file, read: read, source: map[string]string{}}, headers: map[string]string{}}
 	for _, m := range mapFields {
 		*m.get(b.cfg) = map[string]string{}
 	}
@@ -75,15 +76,15 @@ func Load(path string, environ []string) (*Config, error) {
 // without waiting on it: a named pipe there is refused rather than opened for
 // a writer that may never come. A refusal names the path as the operator gave
 // it.
-func readConfigFile(file, path string) (string, error) {
-	raw, err := readJudged(file)
+func readConfigFile(file, path string) (string, fs.FileInfo, error) {
+	raw, read, err := readJudged(file)
 	switch {
 	case errors.Is(err, files.ErrTooLarge):
-		return "", fmt.Errorf("%s: over %d bytes", path, maxConfigBytes)
+		return "", nil, fmt.Errorf("%s: over %d bytes", path, maxConfigBytes)
 	case err != nil:
-		return "", fmt.Errorf("reading the configuration %s: %w", path, err)
+		return "", nil, fmt.Errorf("reading the configuration %s: %w", path, err)
 	}
-	return string(raw), nil
+	return string(raw), read, nil
 }
 
 // binder sets keys on one configuration. The file's keys are bound first and

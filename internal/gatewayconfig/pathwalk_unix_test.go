@@ -266,7 +266,7 @@ func TestAFileWithASecondNameIsRefused(t *testing.T) {
 		if err := os.Link(source, path); err != nil {
 			t.Skipf("this system refuses a second name for root's file: %v", err)
 		}
-		_, err := readConfigFile(path, path)
+		_, _, err := readConfigFile(path, path)
 		refusedFor(t, err, errSecondName, path)
 	})
 }
@@ -582,7 +582,7 @@ func TestTheFilesDirectorySwappedAfterTheWalkIsRefused(t *testing.T) {
 // judge, as a read-only mount presents one, where the system has one to read.
 func TestARootOwnedFileIsRead(t *testing.T) {
 	p := rootFile(t)
-	if _, err := readConfigFile(p, p); err != nil && !errors.Is(err, files.ErrTooLarge) {
+	if _, _, err := readConfigFile(p, p); err != nil && !errors.Is(err, files.ErrTooLarge) {
 		t.Errorf("readConfigFile(%s), root's: %v", p, err)
 	}
 }

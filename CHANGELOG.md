@@ -44,6 +44,11 @@ verify one.
   no longer runs. A child a 0.16 plane admitted has no `.seen`, so once its
   parent's close is carried it is refused: open it again
   ([ADR-0079](docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)).
+- On every plane, a `--config` path or an absolute path in a key that holds
+  a symbolic link followed by `..` is cleaned before it is read: the `..`
+  drops the component before it rather than leaving the link's target. Such
+  a path may now name another file or directory than the one read before,
+  `evidence.dir` and the other state directories included.
 
 ### Removed
 
@@ -61,10 +66,11 @@ verify one.
 
 ### Fixed
 
-- A path that holds a symbolic link followed by `..`, in `--config` or in
-  a key such as `trust.roster`, is read with the `..` taken first, as it is
-  judged: a signed start no longer passes a protected file while the plane
-  reads one its own account may write.
+- A signed start judges the configuration file as the very file the plane
+  read, and refuses one renamed over its path since; a path holding a
+  symbolic link followed by `..` is judged where it is read. It no longer
+  passes a protected file while the plane runs one its own account may
+  write.
 
 ### Security
 

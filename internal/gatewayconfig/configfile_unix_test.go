@@ -325,3 +325,78 @@ func TestALinkFollowedByDotDotReadsTheFileThePathNames(t *testing.T) {
 		t.Errorf("Resolve(spool) = %s, want %s", got, want)
 	}
 }
+
+// TestIsFileReadHoldsToTheFileLoadRead: the file Load read is the file read
+// while it stands at File; a file renamed over that path since, another
+// file, no file, and a configuration Load did not make are not.
+func TestIsFileReadHoldsToTheFileLoadRead(t *testing.T) {
+	named := writeDocument(t, document)
+	cfg := load(t, named)
+	read, err := os.Stat(named)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.IsFileRead(read) {
+		t.Fatalf("IsFileRead of %s as Load left it = false", named)
+	}
+	elsewhere := filepath.Join(t.TempDir(), "gateway.yaml")
+	if err := os.WriteFile(elsewhere, []byte(document), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	other, err := os.Stat(elsewhere)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IsFileRead(other) {
+		t.Errorf("IsFileRead of another file holding the same document = true")
+	}
+	if cfg.IsFileRead(nil) {
+		t.Errorf("IsFileRead of no file = true")
+	}
+	if (&Config{}).IsFileRead(read) {
+		t.Errorf("IsFileRead on a configuration Load did not make = true")
+	}
+	if err := os.Rename(elsewhere, named); err != nil {
+		t.Fatal(err)
+	}
+	now, err := os.Stat(cfg.File())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IsFileRead(now) {
+		t.Errorf("IsFileRead of the file renamed over %s after the read = true", cfg.File())
+	}
+}
+
+// TestARelativeConfigurationUnderALinkedWorkingDirectoryIsTheFileRead: a
+// relative --config under a PWD that spells the working directory through a
+// link and "..": the file read and File are one file.
+func TestARelativeConfigurationUnderALinkedWorkingDirectoryIsTheFileRead(t *testing.T) {
+	named := writeDocument(t, document)
+	base := filepath.Dir(named)
+	cwd := filepath.Join(base, "c")
+	if err := os.MkdirAll(filepath.Join(cwd, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cwd, "gateway.yaml"), []byte(document), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	x := filepath.Join(base, "x")
+	if err := os.MkdirAll(x, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	decoy := strings.Replace(document, "project_id: orders", "project_id: elsewhere", 1)
+	if err := os.WriteFile(filepath.Join(x, "gateway.yaml"), []byte(decoy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(cwd, "sub"), filepath.Join(x, "l")); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(cwd)
+	t.Setenv("PWD", filepath.Join(x, "l")+string(filepath.Separator)+"..")
+	cfg := load(t, "gateway.yaml")
+	raw, err := os.ReadFile(cfg.File())
+	if err != nil || !strings.Contains(string(raw), "project_id: "+cfg.ProjectID+"\n") {
+		t.Errorf("Load read project_id %q, and File() = %s holds another configuration (%v)", cfg.ProjectID, cfg.File(), err)
+	}
+}
