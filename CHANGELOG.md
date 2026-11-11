@@ -17,14 +17,14 @@ verify one.
   may write the `trust.roster` file, or a directory on its path, refuses to
   start, and `doctor` fails its `trust` check: that account could put an
   older roster back. Place the roster where only its signer's account
-  writes, as `/etc/guardana` is.
+  writes, such as `/etc/guardana`.
 - Every operator command that judges with `--roster` and `--root-key`
   (`pause`, `stops`, `runs open` and `runs close`, `supervise`, `react`)
   says on standard error, before it signs or lists, `judged with roster <id>
   serial <n>, expires <time>`. Its judgement has no roster floor; the
   plane's is the one that counts.
 - `runs open --key` reads the roster and the key before it makes an empty
-  directory a signed layout, so a roster that does not read leaves the
+  directory a signed layout, so a roster it cannot read leaves the
   directory as it was.
 - `dev` runs its collector on a unix socket in a directory of its own under
   the system's temporary directory, and refuses, naming `TMPDIR`, where that
@@ -36,9 +36,10 @@ verify one.
   parent or of an ancestor above it, up to a run it admitted; it writes an
   empty `state/<id>.seen` at a child's first admitted call, and `/healthz`
   counts the refusal under `runs.signed` as `refused_parent_closed`. A run
-  an operator signs, at any depth, under a closed parent's record put back
-  no longer runs. A child a 0.16 plane admitted has no `.seen`, so once its
-  parent's close is carried it is refused: open it again
+  an operator signs, at any depth, under a closed parent no longer runs,
+  even where an open record of that parent was put back. A child a 0.16
+  plane admitted has no `.seen`, so once its parent's close is carried it
+  is refused: open it again
   ([ADR-0079](docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)).
 
 ### Removed
