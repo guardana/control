@@ -136,6 +136,10 @@ plane's is the one that counts.</li>
 <li><code>runs open --key</code> reads the roster and the key before it makes an empty
 directory a signed layout, so a roster that does not read leaves the
 directory as it was.</li>
+<li><code>doctor</code>'s <code>trust</code> line names every file the signed start checked, the
+roster among them, and counts the roster's <code>read</code> grants, which grant
+nothing yet: a plane is read through <code>health.socket</code> by peer uid and
+through files by their modes.</li>
 <li><code>dev</code> runs its collector on a unix socket in a directory of its own under
 the system's temporary directory, and refuses, naming <code>TMPDIR</code>, where that
 path would not fit a socket address.</li>
@@ -171,6 +175,12 @@ refuses an <code>http</code> endpoint even when built directly.</li>
 a key such as <code>trust.roster</code>, is read with the <code>..</code> taken first, as it is
 judged: a signed start no longer passes a protected file while the plane
 reads one its own account may write.</li>
+</ul>
+<h3 id="security">Security</h3>
+<ul>
+<li>Built with Go 1.27.4, which fixes GO-2026-6859 in <code>net/http</code>: a race on
+<code>MaxBytesReader</code>'s header could crash an HTTP/1 server. <code>govulncheck</code>
+found it reachable from the plane's HTTP servers under 1.27.3.</li>
 </ul>
 <h2 id="0160---2026-11-07"><a href="https://github.com/guardana/control/releases/tag/v0.16.0">0.16.0</a> - 2026-11-07</h2>
 <p>Upgrading from 0.15 changes four things an operator must act on.
@@ -420,7 +430,7 @@ than <code>approvals.ttl</code> every quarter of <code>approvals.ttl</code> whil
 only at start. A sweep that fails is logged and counted under
 <code>approvals.sweep</code> in <code>/healthz</code>.</li>
 </ul>
-<h3 id="security">Security</h3>
+<h3 id="security-1">Security</h3>
 <ul>
 <li>Under <code>approvals.authority: signed</code> any valid rejection wins, a rejection
 counts only from an operator who may approve, whatever time it names. An
@@ -462,7 +472,7 @@ counts an egress path as observed by the connections of the sources it names
 Operators can sign a roster of operator keys, though no plane reads it yet
 (<a href="/docs/adr/0071-operators-are-named-by-a-signed-roster">ADR-0071</a>). The
 hook profile's qualification was not run again for this release.</p>
-<h3 id="security-1">Security</h3>
+<h3 id="security-2">Security</h3>
 <ul>
 <li>The filesystem server the guide's MCP client check installs takes <code>glob</code>
 14.0.2, which fixes GHSA-3g3m-2fjr-6pw4, and <code>minimatch</code> 11.0.1, which
@@ -949,7 +959,7 @@ a <code>--source</code> of another tenant or project is refused, and <code>cap_a
 is held to the integer range the canonical form writes.
 The project is still alpha, and the <code>0.x</code> series makes no compatibility promise
 between minor versions.</p>
-<h3 id="security-2">Security</h3>
+<h3 id="security-3">Security</h3>
 <ul>
 <li><code>mcp.New</code> refuses an override whose <code>ReturnsTrust</code> or <code>ReturnsSensitivity</code>
 is a number the contract does not declare. Such an override loaded through
@@ -1599,7 +1609,7 @@ run's own calls, so no run can get another one stopped, and a child run can
 now be stopped on its own. <code>procedure lint</code> and <code>procedure test</code> check a
 procedure with cases, and <code>findings export</code> reads the findings log with a
 cursor. The fixes come from an audit of this release's own changes.</p>
-<h3 id="security-3">Security</h3>
+<h3 id="security-4">Security</h3>
 <ul>
 <li>Built with Go 1.27.2, which fixes GO-2026-6599, GO-2026-6600, GO-2026-6603,
 GO-2026-6604, GO-2026-6605, GO-2026-6607, GO-2026-6608 and GO-2026-6610 in

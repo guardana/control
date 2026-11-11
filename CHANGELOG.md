@@ -26,6 +26,10 @@ verify one.
 - `runs open --key` reads the roster and the key before it makes an empty
   directory a signed layout, so a roster that does not read leaves the
   directory as it was.
+- `doctor`'s `trust` line names every file the signed start checked, the
+  roster among them, and counts the roster's `read` grants, which grant
+  nothing yet: a plane is read through `health.socket` by peer uid and
+  through files by their modes.
 - `dev` runs its collector on a unix socket in a directory of its own under
   the system's temporary directory, and refuses, naming `TMPDIR`, where that
   path would not fit a socket address.
@@ -61,6 +65,12 @@ verify one.
   a key such as `trust.roster`, is read with the `..` taken first, as it is
   judged: a signed start no longer passes a protected file while the plane
   reads one its own account may write.
+
+### Security
+
+- Built with Go 1.27.4, which fixes GO-2026-6859 in `net/http`: a race on
+  `MaxBytesReader`'s header could crash an HTTP/1 server. `govulncheck`
+  found it reachable from the plane's HTTP servers under 1.27.3.
 
 ## [0.16.0] - 2026-11-07
 
