@@ -272,15 +272,19 @@ func (c *Config) Mode() (controlv1.EnforcementMode, error) {
 	return controlv1.EnforcementMode(number), nil
 }
 
-// File is the configuration file Load read, as an absolute path.
+// File is the configuration file Load read, as an absolute, clean path.
 func (c *Config) File() string { return c.path }
 
 // Resolve reads a path from the configuration against the directory of the
 // file it was read from, so a relative path means the same thing wherever the
-// program is started.
+// program is started. Either form comes back clean, so a check that walks the
+// path and a reader that cleans it name one file.
 func (c *Config) Resolve(path string) string {
-	if path == "" || filepath.IsAbs(path) {
+	switch {
+	case path == "":
 		return path
+	case filepath.IsAbs(path):
+		return filepath.Clean(path)
 	}
 	return filepath.Join(c.dir, path)
 }

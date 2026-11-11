@@ -294,3 +294,34 @@ func TestAFileSwappedWhileReadIsRefused(t *testing.T) {
 		t.Errorf("Load after the file was swapped = %v, want a refusal of a changed file", err)
 	}
 }
+
+// TestALinkFollowedByDotDotReadsTheFileThePathNames: through conf/l/.. the
+// kernel would reach the link's target's parent, while File and the start
+// check that judges it name conf; the file read is conf's, so what is judged
+// is what is read.
+func TestALinkFollowedByDotDotReadsTheFileThePathNames(t *testing.T) {
+	named := writeDocument(t, document)
+	dir := filepath.Dir(named)
+	away := filepath.Join(dir, "away")
+	if err := os.MkdirAll(filepath.Join(away, "a"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	decoy := strings.Replace(document, "project_id: orders", "project_id: elsewhere", 1)
+	if err := os.WriteFile(filepath.Join(away, "gateway.yaml"), []byte(decoy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(away, "a"), filepath.Join(dir, "l")); err != nil {
+		t.Fatal(err)
+	}
+	cfg := load(t, filepath.Join(dir, "l")+string(filepath.Separator)+".."+string(filepath.Separator)+"gateway.yaml")
+	if cfg.ProjectID != "orders" || cfg.File() != named {
+		t.Fatalf("Load read project_id %q and names %s; want orders, read from %s", cfg.ProjectID, cfg.File(), named)
+	}
+	raw, err := os.ReadFile(cfg.File())
+	if err != nil || !strings.Contains(string(raw), "project_id: "+cfg.ProjectID+"\n") {
+		t.Errorf("File() = %s holds another configuration than the one read (%v)", cfg.File(), err)
+	}
+	if got, want := cfg.Resolve("spool"), filepath.Join(dir, "spool"); got != want {
+		t.Errorf("Resolve(spool) = %s, want %s", got, want)
+	}
+}

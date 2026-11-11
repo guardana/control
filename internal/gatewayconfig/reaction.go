@@ -150,9 +150,8 @@ func sharesDir(a, b string) (bool, error) {
 }
 
 // asResolved is dir as the system resolves it where it exists, every link
-// followed before the ".." after it, as the plane's opens take it; a path
-// cleaned first would drop the link and name another directory. A dir that
-// does not exist yet and names ".." cannot be compared, so it is refused.
+// followed, so a link that puts one directory inside another is caught. A dir
+// that does not exist yet and names ".." cannot be compared, so it is refused.
 func asResolved(dir string) (string, error) {
 	resolved, err := filepath.EvalSymlinks(dir)
 	switch {

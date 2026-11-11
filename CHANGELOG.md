@@ -55,6 +55,13 @@ verify one.
 - **Breaking:** `otel.Options.AllowPlaintext` is gone, and the exporter
   refuses an `http` endpoint even when built directly.
 
+### Fixed
+
+- A path that holds a symbolic link followed by `..`, in `--config` or in
+  a key such as `trust.roster`, is read with the `..` taken first, as it is
+  judged: a signed start no longer passes a protected file while the plane
+  reads one its own account may write.
+
 ## [0.16.0] - 2026-11-07
 
 Upgrading from 0.15 changes four things an operator must act on.
