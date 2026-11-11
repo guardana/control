@@ -183,19 +183,22 @@ func (p *Plane) beginResolve(ctx context.Context) (func(), error) {
 	return func() { done(); end() }, nil
 }
 
-// admit makes, on a signed layout, a child's first admission and the state
-// of the root of a run Resolve admits, where neither is there yet.
+// admit makes, on a signed layout, the state of the root of a run Resolve
+// admits and then a child's first admission, where neither is there yet. The
+// .seen comes last and goes again if it cannot be forced to disk: one left by
+// a refused call would let the child run after its parent's close is carried.
 func (p *Plane) admit(rec Record) error {
 	if !p.signed {
 		return nil
 	}
-	if rec.Parent != "" {
-		if err := p.st.createEmpty(rec.ID + seenSuffix); err != nil {
-			return fmt.Errorf("the first admission of %s: %w", rec.ID, err)
-		}
-	}
 	if err := p.startRoot(rec.Root); err != nil {
 		return fmt.Errorf("the state of %s: %w", rec.Root, err)
+	}
+	if rec.Parent == "" {
+		return nil
+	}
+	if err := p.st.createEmptyOrNone(rec.ID + seenSuffix); err != nil {
+		return fmt.Errorf("the first admission of %s: %w", rec.ID, err)
 	}
 	return nil
 }

@@ -30,3 +30,16 @@ func ChmodMade(top *os.Root, name string, mode fs.FileMode) error { return chmod
 
 // MaxAncestry is how many ancestors a child's first admission reads.
 const MaxAncestry = maxAncestry
+
+// FailSyncAfterMaking makes the directory sync once a plane made name answer
+// fail(), until the returned function restores the real sync.
+func FailSyncAfterMaking(name string, fail func() error) (restore func()) {
+	saved := syncMade
+	syncMade = func(d *dir, made string) error {
+		if made == name {
+			return fail()
+		}
+		return saved(d, made)
+	}
+	return func() { syncMade = saved }
+}

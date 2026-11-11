@@ -36,8 +36,9 @@ has to tell a child opened before the close from one opened after it.
   for a grandchild. A record that does not count, or more than 32
   ancestors with no `.seen`, refuses the call as `unreadable`.
 - Otherwise the plane creates an empty `state/<id>.seen`, forced to disk,
-  before the call is admitted. A write that fails refuses the call; a marker
-  that is not a regular file of the plane's alone refuses it as
+  as the last step before the call is admitted, after the root's state. A
+  write that fails refuses the call and removes the marker it created; a
+  marker that is not a regular file of the plane's alone refuses it as
   `unreadable`.
 - `.closed` keeps its empty format. Nothing changes off `signed`.
 - A restore closes every run (ADR-0078), so it neither copies nor needs a
@@ -75,7 +76,10 @@ it.
 ## Consequences
 
 `state/` holds one empty file per child the plane admitted, which a
-backup copies. An operator reopens a child refused after an upgrade.
+backup copies. An operator reopens a child refused after an upgrade. A crash
+between the marker's creation and the end of the admission, or a removal
+that fails, leaves a `.seen` for a refused call, and that child then runs
+after its parent's close is carried.
 
 ## Validation
 
@@ -85,6 +89,8 @@ resolve, and a grandchild signed under that child; a grandchild under a
 child's carried close and under an admitted child of a closed root; an
 ancestor's close or record the plane cannot trust; the walk's bound; a child
 admitted before the carry across a restart; a child signed before the close
-but first called after it; a held close; a `.seen` write that fails and a
+but first called after it; a held close; a first admission whose root's
+state or `.seen` fails to reach the disk, leaving no marker, a marker found
+kept by a failing call, a removal that fails named in the error, and a
 marker that is no regular file of the plane's; an unsigned layout; and a
 restore over `.seen`. `internal/recovery` restores a backup holding one.
