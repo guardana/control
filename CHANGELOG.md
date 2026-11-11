@@ -13,10 +13,10 @@ verify one.
 
 ### Added
 
-- `doctor` checks `health.socket` when it is set: whom the socket answers,
-  its directory as a start judges it, and a warning naming the first
-  directory above the socket that `health.socket_uid` may not search, since
-  that account is then never answered.
+- When `health.socket` is set, `doctor` checks whom the socket answers and
+  judges its directory as a start does. It warns about the first directory
+  above the socket that `health.socket_uid` may not search, since that
+  account is then never answered.
 - A CI job, "Two accounts", runs the tests that need root and two
   more accounts: the health and export sockets' peers, a signed start's file
   placement and an operator's signed runs directory, each under real
@@ -27,9 +27,9 @@ verify one.
 
 ### Changed
 
-- **Breaking:** `health.socket_uid` naming the plane's own account refuses
-  the start, and `doctor` fails its `health.socket` check: the socket answers
-  that account already, and the setting only opened it `0666`. Unset it, or
+- **Breaking:** the plane refuses to start when `health.socket_uid` names
+  the plane's own account, and `doctor` fails its `health.socket` check: the
+  socket answers that account already, and the setting only opened it `0666`. Unset it, or
   name the other account that is to read the socket.
 - **Breaking:** under `approvals.authority: signed` a plane whose own account
   may write the `trust.roster` file, or a directory on its path, refuses to
@@ -66,7 +66,7 @@ verify one.
 - On every plane, a `--config` path or an absolute path in a key that holds
   a symbolic link followed by `..` is cleaned before it is read: the `..`
   drops the component before it rather than leaving the link's target. Such
-  a path may now name another file or directory than the one read before,
+  a path may now name a different file or directory from the one read before,
   `evidence.dir` and the other state directories included.
 
 ### Removed
@@ -85,8 +85,8 @@ verify one.
 
 ### Fixed
 
-- A signed start judges the configuration file as the very file the plane
-  read, and refuses one renamed over its path since; a path holding a
+- A signed start judges the very configuration file the plane read, and
+  refuses a file renamed over its path after the read; a path holding a
   symbolic link followed by `..` is judged where it is read. It no longer
   passes a protected file while the plane runs one its own account may
   write.
