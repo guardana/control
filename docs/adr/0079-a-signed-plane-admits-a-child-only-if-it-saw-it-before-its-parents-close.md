@@ -37,9 +37,11 @@ has to tell a child opened before the close from one opened after it.
   ancestors with no `.seen`, refuses the call as `unreadable`.
 - Otherwise the plane creates an empty `state/<id>.seen`, forced to disk,
   as the last step before the call is admitted, after the root's state. A
-  write that fails refuses the call and removes the marker it created; a
-  marker that is not a regular file of the plane's alone refuses it as
-  `unreadable`.
+  write that fails refuses the call and removes the marker it created,
+  forcing the removal to disk; a marker that is not a regular file of the
+  plane's alone refuses it as `unreadable`. Within one plane the calls of a
+  child take these steps one at a time, from the read of its `.seen` on, so
+  none relies on a marker another has not finished.
 - `.closed` keeps its empty format. Nothing changes off `signed`.
 - A restore closes every run (ADR-0078), so it neither copies nor needs a
   `.seen`: it accepts one in `state/`, the live one or the backup's, and
@@ -77,9 +79,11 @@ it.
 
 `state/` holds one empty file per child the plane admitted, which a
 backup copies. An operator reopens a child refused after an upgrade. A crash
-between the marker's creation and the end of the admission, or a removal
-that fails, leaves a `.seen` for a refused call, and that child then runs
-after its parent's close is carried.
+between the marker's creation and the end of the admission or of its
+removal, or a removal that fails, leaves a `.seen` for a refused call, and
+that child then runs after its parent's close is carried. Planes that share
+one runs directory do not wait for each other, so one may rely on a marker
+another plane has not finished.
 
 ## Validation
 
@@ -90,7 +94,9 @@ child's carried close and under an admitted child of a closed root; an
 ancestor's close or record the plane cannot trust; the walk's bound; a child
 admitted before the carry across a restart; a child signed before the close
 but first called after it; a held close; a first admission whose root's
-state or `.seen` fails to reach the disk, leaving no marker, a marker found
-kept by a failing call, a removal that fails named in the error, and a
-marker that is no regular file of the plane's; an unsigned layout; and a
+state, `.seen` or its directory fails to reach the disk, leaving no marker,
+a removal forced to disk, a marker found kept by a failing call, a removal
+that fails named in the error, a second call held while a first forces its
+marker, before and after the carry, and a marker that is no regular file of
+the plane's; an unsigned layout; and a
 restore over `.seen`. `internal/recovery` restores a backup holding one.

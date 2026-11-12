@@ -36,9 +36,12 @@ func TestAFirstAdmissionThatFailsLeavesNoSeen(t *testing.T) {
 		rootStarted bool
 		// failing is the run whose write fails and the file it makes.
 		failing func(root, child string) (string, string)
+		// fail fails the directory's sync or the file's own.
+		fail func(name string, fail func() error) func()
 	}{
-		"the root's state":  {false, func(root, _ string) (string, string) { return root, root + ".lock" }},
-		"the child's .seen": {true, func(_, child string) (string, string) { return child, child + ".seen" }},
+		"the root's state":        {false, func(root, _ string) (string, string) { return root, root + ".lock" }, runs.FailSyncAfterMaking},
+		"the child's .seen":       {true, func(_, child string) (string, string) { return child, child + ".seen" }, runs.FailSyncAfterMaking},
+		"the child's .seen's own": {true, func(_, child string) (string, string) { return child, child + ".seen" }, runs.FailFileSyncOf},
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir, a := newSigned(t)
@@ -52,7 +55,7 @@ func TestAFirstAdmissionThatFailsLeavesNoSeen(t *testing.T) {
 				}
 			}
 			id, file := c.failing(parent.ID, child.ID)
-			restore := runs.FailSyncAfterMaking(file, syncFails)
+			restore := c.fail(file, syncFails)
 			t.Cleanup(restore)
 			run, err := p.Resolve(t.Context(), childToken, alice, at)
 			if causeOf(t, err) != runs.CauseUnreadable || !errors.Is(err, errSyncFailed) || run != (runs.Run{}) {
@@ -135,4 +138,32 @@ func TestASeenThatCannotBeRemovedIsInTheError(t *testing.T) {
 	restore()
 	writable(t, dir)
 	requireSeen(t, dir, child.ID, true)
+}
+
+// TestARemovedSeenIsForcedToDisk: the .seen a failed first admission made is
+// removed and the directory then forced to disk, so a crash after the
+// refusal cannot bring the marker back.
+func TestARemovedSeenIsForcedToDisk(t *testing.T) {
+	dir, a := newSigned(t)
+	parent, parentToken := openSignedRoot(t, a, "alice")
+	child, childToken := openSignedChild(t, a, parent.ID, opened)
+	p := signedPlane(t, dir, alicesJudge)
+	at := opened.Add(time.Minute)
+	if _, err := p.Resolve(t.Context(), parentToken, alice, at); err != nil {
+		t.Fatalf("the parent's call, which starts the root's state: %v", err)
+	}
+	t.Cleanup(runs.FailFileSyncOf(child.ID+".seen", syncFails))
+	var gone []bool
+	t.Cleanup(runs.FailSyncAfterMaking(child.ID+".seen", func() error {
+		_, err := os.Lstat(seenPath(dir, child.ID))
+		gone = append(gone, errors.Is(err, fs.ErrNotExist))
+		return nil
+	}))
+	if _, err := p.Resolve(t.Context(), childToken, alice, at); causeOf(t, err) != runs.CauseUnreadable || !errors.Is(err, errSyncFailed) {
+		t.Fatalf("Resolve with the .seen's own sync failing = %v, want unreadable", err)
+	}
+	if len(gone) != 1 || !gone[0] {
+		t.Fatalf("the directory syncs for the .seen, true where it was gone = %v, want [true]", gone)
+	}
+	requireSeen(t, dir, child.ID, false)
 }
