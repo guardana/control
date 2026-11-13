@@ -23,7 +23,10 @@ type Config struct {
 	ProjectID   string
 	TenantID    string
 	Environment string
-	LogLevel    string
+	// PlaneID names this plane under the signed authority, which alone reads
+	// it; the operator chooses it, and no two planes may share one.
+	PlaneID  string
+	LogLevel string
 
 	Listener  ListenerConfig
 	Health    HealthConfig

@@ -56,7 +56,8 @@ func signedPlaneTree(t *testing.T, rosterFileID string, operatorKeys []ed25519.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	signed := strings.Replace(string(raw), "approvals:\n  authority: memory\n", `approvals:
+	signed := strings.Replace(string(raw), "approvals:\n  authority: memory\n", `plane_id: plane-a
+approvals:
   authority: signed
   dir: `+recordsDir+`
   hold_journal_dir: `+holdsDir+`
@@ -152,8 +153,9 @@ func buildSigned(t *testing.T, tr tree) (*plane, error) {
 
 // TestASignedStartRefusesWhatThePlanesAccountCouldTurn: the configuration
 // file or the root key file the plane's account may change, and any key the
-// environment sets, refuse the start; a tree with none of them starts, its
-// authority usable and its roster taken.
+// environment sets, the plane's id among them, refuse the start; a tree with
+// none of them starts, its authority usable, its roster taken and its id
+// named.
 func TestASignedStartRefusesWhatThePlanesAccountCouldTurn(t *testing.T) {
 	alice := signedTestPublic("alice")
 	for name, c := range map[string]struct {
@@ -166,6 +168,10 @@ func TestASignedStartRefusesWhatThePlanesAccountCouldTurn(t *testing.T) {
 			placedApart(t)
 			setEnv(t, "approvals.ttl", "5m")
 		}, "approvals.ttl"},
+		"the plane's id from the environment": {func(t *testing.T) {
+			placedApart(t)
+			setEnv(t, "plane_id", "plane-b")
+		}, "the environment sets plane_id"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			tr := signedPlaneTree(t, "roster-a", []ed25519.PublicKey{alice}, "roster-a")
@@ -181,12 +187,22 @@ func TestASignedStartRefusesWhatThePlanesAccountCouldTurn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a tree placed apart was refused: %v", err)
 	}
-	if got := p.trustHealth(context.Background()); got["state"] != "usable" || got["roster_id"] != "roster-a" {
-		t.Errorf("trust = %v; want roster-a usable", got)
-	}
+	expectTrustHealth(t, p)
 	writeTestFile(t, filepath.Join(tr.dir, "inbox", "notes.txt"), []byte("x"))
 	if got := p.authorityHealth(context.Background(), nil); got["kind"] != "signed" || got["state"] != "usable" || got["limits"] != nil || got["inbox_entries"] != 1 || got["inbox_full"] != false {
 		t.Errorf("approvals.authority = %v; want signed, usable, no claim limit and the inbox's one name", got)
+	}
+}
+
+// expectTrustHealth fails the test unless p's health names roster-a usable
+// on plane-a.
+func expectTrustHealth(t *testing.T, p *plane) {
+	t.Helper()
+	got := p.trustHealth(context.Background())
+	for key, want := range map[string]string{"state": "usable", "roster_id": "roster-a", "plane_id": "plane-a"} {
+		if got[key] != want {
+			t.Errorf("trust %s = %v, want %s; the whole member: %v", key, got[key], want, got)
+		}
 	}
 }
 

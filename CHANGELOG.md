@@ -11,6 +11,18 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- Under `approvals.authority: signed` a plane needs `plane_id`, an
+  identifier the operator chooses for it, set in the configuration file; any
+  other authority refuses the key. Nothing is bound to it yet; later changes
+  in this release put it into the signed files a plane takes. Add one to every
+  signed configuration, a different one for each plane.
+- Under `signed` a plane serves one tenant: a `listener.principal.tenant_id`
+  that differs from `tenant_id` is refused at load. Remove it, or set it to
+  `tenant_id`, and serve another tenant from a plane of its own
+  ([ADR-0082](docs/adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant.md)).
+
 ### Security
 
 - The filesystem server the MCP client check installs locks `hono` 4.13.18,
