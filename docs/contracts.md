@@ -1502,8 +1502,9 @@ may write where they are read ([status.md](status.md)). A test in
 | Route under a route key | outside `signed`, a `v1alpha1` route signed by `reaction.public_key`, and its lifts | tenant only: the route's tenant is the listener's, and a stop's the route's; such a route names no project | `internal/gatewayconfig/reaction.go` `Config.CheckRoute` `internal/reaction/permits.go` `Route.Permits` | `internal/gatewayconfig` `TestARouteIsOfTheListenersTenant` `internal/reaction` `TestJudgeHoldsEveryStopToTheRoute` |
 
 Under `signed` a `listener.principal.tenant_id` that differs from
-`tenant_id` is refused at load, so one grant over the plane's tenant and
-project covers answers, pauses, runs and stops alike.
+`tenant_id` is refused at load, so an operator's grants for answers, pauses,
+runs and stops all name the plane's one tenant and its project; the level
+each asks for is unchanged.
 
 ## The enforcement API
 

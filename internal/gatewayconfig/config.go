@@ -24,7 +24,8 @@ type Config struct {
 	TenantID    string
 	Environment string
 	// PlaneID names this plane under the signed authority, which alone reads
-	// it; the operator chooses it, and no two planes may share one.
+	// it; the operator chooses it, one per plane, and nothing here checks
+	// that it is unique.
 	PlaneID  string
 	LogLevel string
 

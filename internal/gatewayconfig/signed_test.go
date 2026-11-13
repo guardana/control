@@ -77,6 +77,12 @@ func TestASignedPlaneServesOneTenant(t *testing.T) {
 		}
 	}
 
+	for _, near := range []string{"acmf", "Acme", "ACME"} {
+		if _, err := Load(writeDocument(t, signed(principal(near))), os.Environ()); err == nil {
+			t.Errorf("a signed plane with the listener tenant %q beside tenant_id acme was accepted", near)
+		}
+	}
+
 	for name, c := range map[string]struct{ doc, tenant string }{
 		"signed, the listener's tenant the plane's": {signed(principal("acme")), "acme"},
 		"signed, no listener tenant":                {signed(document), "acme"},

@@ -384,8 +384,7 @@ their own, only the payload type each is signed under, and the evidence
 spool frames its segments with no version at all, so a spool another release
 wrote is not promised readable. <code>notify</code>'s <code>--state</code> list of delivered alerts,
 one quoted key per line, carries none either.</p>
-<p>A plane under <code>approvals.authority: signed</code> reads these alone, and any
-other plane those beside them:</p>
+<p>Which version a plane reads depends on its authority:</p>
 <ul>
 <li>Pause file: <code>3</code> under <code>signed</code>; <code>1</code> and <code>2</code> elsewhere.</li>
 <li>Route: <code>reaction-route/v1alpha2</code> under <code>signed</code>; <code>v1alpha1</code> elsewhere.</li>

@@ -29,7 +29,9 @@ authority for one tenant and the rest for another.
   operator chooses it; it is held to the contract's identifier rule. It is
   read from the configuration file alone, which the signed start already
   judges not plane-writable, and a signed start refuses any key the
-  environment sets, this one included.
+  environment sets, this one included. `guardana-gateway dev` is the one
+  exception: it sets an id of its own through its layer and refuses a demo
+  that sets the key.
 - The plane's id joins `file` in each signed body a plane takes from an
   operator, the pause file, the route, the stop list header and the lift,
   and in the state backup manifest. Those formats carry it in later changes

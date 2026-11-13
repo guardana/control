@@ -68,8 +68,7 @@ spool frames its segments with no version at all, so a spool another release
 wrote is not promised readable. `notify`'s `--state` list of delivered alerts,
 one quoted key per line, carries none either.
 
-A plane under `approvals.authority: signed` reads these alone, and any
-other plane those beside them:
+Which version a plane reads depends on its authority:
 
 - Pause file: `3` under `signed`; `1` and `2` elsewhere.
 - Route: `reaction-route/v1alpha2` under `signed`; `v1alpha1` elsewhere.

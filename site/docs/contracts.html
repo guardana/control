@@ -1970,8 +1970,9 @@ may write where they are read (<a href="/docs/status">status.md</a>). A test in
 </tbody>
 </table>
 <p>Under <code>signed</code> a <code>listener.principal.tenant_id</code> that differs from
-<code>tenant_id</code> is refused at load, so one grant over the plane's tenant and
-project covers answers, pauses, runs and stops alike.</p>
+<code>tenant_id</code> is refused at load, so an operator's grants for answers, pauses,
+runs and stops all name the plane's one tenant and its project; the level
+each asks for is unchanged.</p>
 <h2 id="the-enforcement-api">The enforcement API</h2>
 <p>How a tool outside MCP asks before it acts and reports what it did: the
 package <code>guardana.control.enforce.v1alpha1</code>, in

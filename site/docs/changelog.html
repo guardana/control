@@ -124,12 +124,14 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.17.0...HEAD">Unreleased</a></h2>
 <h3 id="changed">Changed</h3>
 <ul>
-<li>Under <code>approvals.authority: signed</code> a plane needs <code>plane_id</code>, an
+<li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> a plane needs <code>plane_id</code>, an
 identifier the operator chooses for it, set in the configuration file; any
 other authority refuses the key. Nothing is bound to it yet; later changes
 in this release put it into the signed files a plane takes. Add one to every
-signed configuration, a different one for each plane.</li>
-<li>Under <code>signed</code> a plane serves one tenant: a <code>listener.principal.tenant_id</code>
+signed configuration, a different one for each plane. <code>doctor</code>'s trust line
+and the <code>trust</code> member <code>health.socket</code> answers name it; <code>GET /healthz</code>,
+which takes no credential, does not.</li>
+<li><strong>Breaking:</strong> under <code>signed</code> a plane serves one tenant: a <code>listener.principal.tenant_id</code>
 that differs from <code>tenant_id</code> is refused at load. Remove it, or set it to
 <code>tenant_id</code>, and serve another tenant from a plane of its own
 (<a href="/docs/adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant">ADR-0082</a>).</li>

@@ -206,6 +206,53 @@ func expectTrustHealth(t *testing.T, p *plane) {
 	}
 }
 
+// renamePlane rewrites the tree's configuration to name the plane id.
+func renamePlane(t *testing.T, tr tree, id string) {
+	t.Helper()
+	raw, err := os.ReadFile(tr.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renamed := strings.Replace(string(raw), "plane_id: plane-a\n", "plane_id: "+id+"\n", 1)
+	if renamed == string(raw) {
+		t.Fatal("the tree's configuration names no plane-a to rename")
+	}
+	writeTestFile(t, tr.config, []byte(renamed))
+}
+
+// TestHealthAndDoctorNameTheConfiguredPlane: a tree configured as plane-b
+// says plane-b in the health answer's trust member, whether its roster is
+// usable or not, and at the head of doctor's trust line; GET /healthz, which
+// takes no credential, leaves the id out and keeps the rest of the member.
+func TestHealthAndDoctorNameTheConfiguredPlane(t *testing.T) {
+	alice := []ed25519.PublicKey{signedTestPublic("alice")}
+	for file, state := range map[string]string{"roster-a": "usable", "roster-b": "unavailable"} {
+		tr := signedPlaneTree(t, file, alice, "roster-a", "roster-b")
+		renamePlane(t, tr, "plane-b")
+		placedApart(t)
+		p, err := buildSigned(t, tr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := p.trustHealth(context.Background())
+		if got["state"] != state || got["plane_id"] != "plane-b" {
+			t.Errorf("a roster of %s on plane-b: trust = %v; want %s and plane-b", file, got, state)
+		}
+		counted := healthAnswer{Trust: got}.counted().Trust
+		if _, named := counted["plane_id"]; named || counted["state"] != state {
+			t.Errorf("a roster of %s: the counted trust member = %v; want no plane_id and state %s", file, counted, state)
+		}
+		if got["plane_id"] != "plane-b" {
+			t.Errorf("counting the answer changed the whole one: %v", got)
+		}
+	}
+	tr := signedPlaneTree(t, "roster-a", alice, "roster-a")
+	renamePlane(t, tr, "plane-b")
+	if found := trustFound(t, tr); !strings.HasPrefix(found, "plane plane-b, one tenant acme: ") {
+		t.Errorf("doctor's trust line on plane-b = %q", found)
+	}
+}
+
 // TestARestartOverAFloorListingTwoIdsTakesOnlyTheConfiguredRoster: a floor
 // listing roster-a and roster-b, and a roster file of roster-b, give no
 // roster at all to a plane configured for roster-a, which says other_roster;
