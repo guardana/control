@@ -43,6 +43,7 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [The MCP gateway](concepts/mcp-gateway.md): How a tools/call becomes a decision, an authorized set of bytes and a trail, before the server sees it.
 - [Observations, coverage, supervision and a stop](concepts/observations-coverage-and-supervision.md): How what a source reports, the coverage map, the supervisor's findings and a stop of one run fit together, and what each promises and does not.
 - [Privacy](concepts/privacy.md): What the plane records about a call, where each record goes and who can read it, how long it stays, and that nothing goes to the project.
+- [Signed operations](concepts/signed-operations.md): What is signed in Guardana Control, by whom, what each signature proves, what is not signed, and what a signature never proves.
 - [Threat model](concepts/threat-model.md): What the plane protects, from whom, what it does about each attacker today with the code and the test behind it, and where it stops.
 
 ## Reference
@@ -180,3 +181,4 @@ with `make docs-gen`; an edit made here does not survive the next run.
 - [ADR-0080: Evidence leaves a plane over a unix socket or TLS](adr/0080-evidence-leaves-a-plane-over-a-unix-socket-or-tls.md): accepted
 - [ADR-0081: Tests that need a second account run in a required job](adr/0081-tests-that-need-a-second-account-run-in-a-required-job.md): accepted
 - [ADR-0082: A signed document names its plane, and a signed plane serves one tenant](adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant.md): accepted
+- [ADR-0085: The 1.0 bar is met by the project's own evidence, and what needs outside people stays not met](adr/0085-the-1-0-bar-is-met-by-own-evidence-and-what-needs-outside-people-stays-not-met.md): accepted

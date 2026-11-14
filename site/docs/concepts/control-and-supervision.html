@@ -58,6 +58,7 @@
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
 <li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/signed-operations">Signed operations</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>
 <h2>Reference</h2><ul>
@@ -218,7 +219,9 @@ an effect.</p>
 eligible deterministic, <code>CONFIRMED</code> finding can produce a stop under a signed
 route. Observations alone and unknown findings stop nothing. Every scope
 needs an explicit authority; a sensor, detector or notifier never grants it.
-The default authorization path runs no model.</p>
+The default authorization path runs no model.
+<a href="/docs/concepts/signed-operations">Signed operations</a> says which of these authorities a
+plane takes only on a signature, and what that signature proves.</p>
 <h2 id="three-api-roles">Three API roles</h2>
 <table>
 <thead>
@@ -271,7 +274,9 @@ tamper-evident. These limits stay visible until their controls are built and
 verified.</p>
 <p>1.0 needs supported contracts and integrations, declared coverage per channel,
 authenticated scopes, exercised recovery and adversarial tests for reactions.
-It also needs the external review and compatibility work the roadmap names.
+It also needs the compatibility work and the evidence the roadmap's release
+bar names; what needs people from outside the project, such as an outside
+review, is stated there as not met.
 Wider fleet management, new protocol adapters and outcome-cost analysis are
 demand-led work, rather than prerequisites hidden in the word &quot;observation&quot;.</p>
 <p>The decisions behind this model are
@@ -312,6 +317,7 @@ demand-led work, rather than prerequisites hidden in the word &quot;observation&
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
 <li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/signed-operations">Signed operations</a></li>
 <li><a href="/docs/concepts/threat-model">Threat model</a></li>
 </ul>
 <h2>Reference</h2><ul>

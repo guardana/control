@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Signed operations · Guardana Control</title>
+<meta name="description" content="What is signed in Guardana Control, by whom, what each signature proves, what is not signed, and what a signature never proves."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/concepts/signed-operations"/>
+<meta name="theme-color" content="#0B8F80"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap bar">
+  <a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.17.0"><span class="ver">v0.17.0</span></a>
+  <nav aria-label="Primary">
+    <a href="/docs/">Docs</a>
+    <a href="/docs/status">Status</a>
+    <a class="hide-s" href="/docs/roadmap">Roadmap</a>
+    <a class="gh" href="https://github.com/guardana/control" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span class="hide-s">GitHub</span></a>
+  </nav>
+</div></header>
+<div class="wrap shell">
+<details class="mnav">
+<summary>Menu · <b>Signed operations</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/supervise-and-stop-a-run">Supervise and stop a run</a></li>
+<li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/signed-operations" aria-current="page">Signed operations</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/egress-access-log">Egress access log</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/run-view">Run view</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/versions">Format versions</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+<li><a href="/docs/extending/runtime-profiles">Adding a coding runtime&#39;s hooks</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/adoption-and-incident-workflows">Adoption and incident workflows</a></li>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</details>
+<main id="main" class="prose">
+<h1 id="signed-operations">Signed operations</h1>
+<p>A plane takes its policy, and under <code>approvals.authority: signed</code> the
+operators' answers, pauses, runs and stops, only with a signature it checks;
+a stop route carries one at every setting. <a href="/docs/status">status.md</a> is the
+inventory, and
+<a href="/docs/contracts#signed-files-and-their-project-checks">contracts.md</a> lists
+each signed file a plane takes with its project check and the test behind it.
+Nothing in this repository is a security boundary yet.</p>
+<h2 id="who-signs-what">Who signs what</h2>
+<figure class="dg" id="dg35d8311"><style>.dg{margin:28px 0 32px;container-type:inline-size;overflow-x:auto}.dg svg{display:block;height:auto;margin:0 auto}.dg .dg-n{display:none}.dg text{text-anchor:middle;dominant-baseline:central}.dg .n rect,.dg .n path{fill:var(--panel,#fff);stroke:var(--line,#E6E8EF);stroke-width:1.2}.dg .n .lip{fill:none}.dg .n text{fill:var(--ink,#0F1115);font:500 13px var(--sans,system-ui,sans-serif)}.dg .accent rect,.dg .accent path{fill:var(--brand-soft,#E6F4F2);stroke:var(--brand,#0B8F80)}.dg .accent .lip{fill:none}.dg .accent text{fill:var(--brand-ink,#08705F)}.dg .cmd text{font:400 12.5px var(--mono,ui-monospace,monospace)}.dg .muted rect,.dg .muted path{stroke-dasharray:4 3}.dg .muted text{fill:var(--muted,#566070)}.dg .e{fill:none;stroke:var(--faint,#8A92A0);stroke-width:1.4}.dg .e.dot{stroke-dasharray:3 4}.dg .e.main{stroke:var(--brand,#0B8F80);stroke-width:1.8;stroke-dasharray:7 5;animation:dg-flow 1.4s linear infinite}.dg .h{fill:var(--faint,#8A92A0)}.dg .h.main{fill:var(--brand,#0B8F80)}.dg .g rect{fill:color-mix(in srgb,var(--brand-soft,#E6F4F2) 45%,transparent);stroke:var(--line,#E6E8EF)}.dg .g text{text-anchor:start;font:500 11px var(--mono,ui-monospace,monospace);letter-spacing:.08em;text-transform:uppercase;fill:var(--muted,#566070)}.dg .l rect{fill:var(--bg,#FBFBFD)}.dg .l text{font:400 11.5px var(--mono,ui-monospace,monospace);fill:var(--muted,#566070)}@keyframes dg-flow{to{stroke-dashoffset:-24}}@media (prefers-reduced-motion:reduce){.dg .e.main{animation:none}}</style><svg class="dg-w" style="width:100%;max-width:1138px;min-width:853.5px" viewBox="0 0 1138 516" width="1138" height="516" role="img" aria-labelledby="dg35d8311w-t dg35d8311w-d" xmlns="http://www.w3.org/2000/svg"><title id="dg35d8311w-t">Who signs what a plane takes</title><desc id="dg35d8311w-d">A pinned root key signs the trust roster, which names the operator keys and their grants. Under the signed authority, operators sign pauses, routes and stop list headers, which the plane judges against its tenant, project and file; approval answers, each bound to one held call; and run records and lifts, judged against the tenant and project, a lift also against the list it was made for. Outside the signed authority a route key signs a v1alpha1 route and the route&#x27;s lift key its lifts. The policy key signs the bundle and a separate freshness key the statement that keeps it current. The floors and the evidence trail are written by the plane and signed by no one. A release tag builds archives whose checksums are signed and whose provenance is attested.</desc><defs><marker id="dg35d8311w-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="h solid" d="M0 0L10 5L0 10z"/></marker><marker id="dg35d8311w-main" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="h main" d="M0 0L10 5L0 10z"/></marker></defs><path class="e solid" d="M507.5 42C507.5 70 387 70 387 98" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M387 136C387 164 569 164 569 192" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M569 230C569 258 125 258 125 286" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M569 230C569 258 336.5 258 336.5 286" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M569 230C569 258 510.5 258 510.5 286" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M125 324C125 352 569 352 569 380" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M336.5 324C336.5 352 569 352 569 380" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M510.5 324C510.5 352 569 352 569 380" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M746 324C746 352 569 352 569 380" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M945.5 324C945.5 352 569 352 569 380" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M1072.5 324C1072.5 352 569 352 569 380" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M569 418C569 446 569 446 569 474" marker-end="url(#dg35d8311w-solid)"/><path class="e solid" d="M643 42C643 70 636 70 636 98" marker-end="url(#dg35d8311w-solid)"/><g class="l"><rect x="415" y="61" width="64.5" height="18" rx="5"/><text x="447.2" y="70">&quot;signs&quot;</text></g><g class="l"><rect x="385.8" y="155" width="184.5" height="18" rx="5"/><text x="478" y="164">&quot;names keys and grants&quot;</text></g><g class="l"><rect x="318.5" y="249" width="57" height="18" rx="5"/><text x="347" y="258">&quot;sign&quot;</text></g><g class="l"><rect x="424.2" y="249" width="57" height="18" rx="5"/><text x="452.8" y="258">&quot;sign&quot;</text></g><g class="l"><rect x="511.2" y="249" width="57" height="18" rx="5"/><text x="539.8" y="258">&quot;sign&quot;</text></g><g class="l"><rect x="142.2" y="343" width="409.5" height="18" rx="5"/><text x="347" y="352">&quot;judged against tenant, project and the plane&#x27;s file&quot;</text></g><g class="l"><rect x="356.8" y="343" width="192" height="18" rx="5"/><text x="452.8" y="352">&quot;bound to one held call&quot;</text></g><g class="l"><rect x="308.8" y="343" width="462" height="18" rx="5"/><text x="539.8" y="352">&quot;judged against tenant and project; a lift against its list&quot;</text></g><g class="l"><rect x="512.8" y="343" width="289.5" height="18" rx="5"/><text x="657.5" y="352">&quot;sign a v1alpha1 route and its lifts&quot;</text></g><g class="l"><rect x="683.8" y="343" width="147" height="18" rx="5"/><text x="757.2" y="352">&quot;signs the bundle&quot;</text></g><g class="l"><rect x="672.2" y="343" width="297" height="18" rx="5"/><text x="820.8" y="352">&quot;signs the statement that confirms it&quot;</text></g><g class="l"><rect x="495.5" y="437" width="147" height="18" rx="5"/><text x="569" y="446">&quot;writes, unsigned&quot;</text></g><g class="l"><rect x="603.5" y="61" width="72" height="18" rx="5"/><text x="639.5" y="70">&quot;builds&quot;</text></g><g class="n"><rect x="442.5" y="4" width="130" height="38" rx="10"/><text x="507.5" y="23">Pinned root key</text></g><g class="n"><rect x="329" y="98" width="116" height="38" rx="10"/><text x="387" y="117">Trust roster</text></g><g class="n"><rect x="464.5" y="192" width="209" height="38" rx="10"/><text x="569" y="211">Operator keys, under signed</text></g><g class="n"><rect x="4" y="286" width="242" height="38" rx="10"/><text x="125" y="305">Pauses, routes, stop list headers</text></g><g class="n"><rect x="264" y="286" width="145" height="38" rx="10"/><text x="336.5" y="305">Approval answers</text></g><g class="n"><rect x="427" y="286" width="167" height="38" rx="10"/><text x="510.5" y="305">Run records and lifts</text></g><g class="n"><rect x="536" y="380" width="66" height="38" rx="10"/><text x="569" y="399">Plane</text></g><g class="n"><rect x="612" y="286" width="268" height="38" rx="10"/><text x="746" y="305">Route key and lift key, outside signed</text></g><g class="n"><rect x="898" y="286" width="95" height="38" rx="10"/><text x="945.5" y="305">Policy key</text></g><g class="n"><rect x="1011" y="286" width="123" height="38" rx="10"/><text x="1072.5" y="305">Freshness key</text></g><g class="n"><rect x="474.5" y="474" width="189" height="38" rx="10"/><text x="569" y="493">Floors and evidence trail</text></g><g class="n"><rect x="590.5" y="4" width="105" height="38" rx="10"/><text x="643" y="23">Release tag</text></g><g class="n"><rect x="463" y="98" width="346" height="38" rx="10"/><text x="636" y="117">Archives, signed checksums, attested provenance</text></g></svg></figure>
+<p>Sources: <code>internal/trust/file.go</code>, <code>internal/policy/bundle/bundle.go</code>,
+<code>internal/policy/statement.go</code>, <code>internal/gateway/authority.go</code>,
+<code>internal/pause/signedpause/judge.go</code>, <code>internal/reaction/header2.go</code>,
+<code>internal/reaction/lift2.go</code>, <code>internal/reaction/judge.go</code>,
+<code>internal/gatewayconfig/reaction.go</code>, <code>internal/evidence/chain.go</code>,
+<code>.goreleaser.yaml</code>.</p>
+<table>
+<thead>
+<tr>
+<th>What is signed</th>
+<th>By whom</th>
+<th>What the plane checks</th>
+<th>Status</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The policy bundle</td>
+<td>the holder of the policy key, with <code>policy sign</code></td>
+<td>an Ed25519 signature over the DSSE encoding of the bundle's canonical bytes, under the bundle's payload type, by a key the plane pins; a holder pinned to one bundle id refuses every other</td>
+<td><code>implemented</code></td>
+<td><code>internal/policy/bundle/</code>, <code>internal/policy/holder.go</code></td>
+</tr>
+<tr>
+<td>The freshness statement and the serial floor</td>
+<td>the holder of a second key, the freshness key, with <code>policy renew</code></td>
+<td>a statement bound to the bundle's id, serial and digest, signed by the freshness key, which may not be the bundle's key; the floor keeps a bundle from going back</td>
+<td><code>experimental</code></td>
+<td><code>internal/policy/statement.go</code>, <code>internal/policy/floor.go</code>, <code>internal/policystate/</code></td>
+</tr>
+<tr>
+<td>The trust roster</td>
+<td>the holder of the root key, with <code>operators roster sign</code></td>
+<td>a roster signed by the pinned root, of the configured id, unexpired, with a serial that only climbs; it names each operator's key and grants of tenant, project and level</td>
+<td><code>experimental</code></td>
+<td><code>internal/trust/</code></td>
+</tr>
+<tr>
+<td>Approval answers, pause files, run records, routes, stop list headers and lifts</td>
+<td>roster operators, each with <code>--key</code> on its own command</td>
+<td>under <code>approvals.authority: signed</code> only: the signer is a roster operator whose grant covers the act, the tenant and the project; a pause file, a route and a stop list header also name the file the plane reads, an answer the held call, and a lift the list it was made against</td>
+<td><code>experimental</code></td>
+<td><code>internal/gateway/authority.go</code>, <code>internal/pause/signedpause/</code>, <code>internal/runs/signedruns/</code>, <code>internal/reaction/</code></td>
+</tr>
+<tr>
+<td>A <code>v1alpha1</code> route and its lifts</td>
+<td>outside <code>signed</code>: the holder of the route key, with <code>route sign</code>, and the holder of the lift key the route names, with <code>stops lift</code></td>
+<td>the route verifies under <code>reaction.public_key</code> and names the listener's tenant, and no project; a lift verifies under the route's lift key; the route, lift, policy and freshness keys are four different keys</td>
+<td><code>experimental</code></td>
+<td><code>internal/gatewayconfig/reaction.go</code>, <code>internal/reaction/route.go</code>, <code>internal/reaction/judge.go</code></td>
+</tr>
+<tr>
+<td>Releases</td>
+<td>the release workflow, from a tag on <code>main</code></td>
+<td>not a plane's check: <code>checksums.txt</code> is signed without a stored key, and each archive and the image carry a build provenance attestation, which a user verifies with the commands in <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a></td>
+<td><code>experimental</code></td>
+<td><code>.goreleaser.yaml</code>, <code>.github/workflows/release.yml</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-a-signature-proves-here">What a signature proves here</h2>
+<p>A bundle's signature proves that the holder of the pinned policy key signed
+those exact bytes as a policy; the bundle digest every decision records names
+them. A freshness statement records that the freshness key's holder signed
+for that bundle's id, serial and digest at a stated time. The floor refuses
+an older bundle, and a snapshot no statement confirms decides
+<code>POLICY_STALE</code>. A roster proves that the root key's holder named these
+operators with these grants until its expiry.</p>
+<p>Under <code>signed</code>, an operator's signature proves that a key the roster names
+signed this answer, pause, run, route, header or lift, and the plane counts
+it only within that operator's grant over the tenant and project it names,
+which have to be the ones the plane serves. A signed pause file, route or
+stop list header names the file it was signed for, and a plane refuses one
+that names another. An answer counts for the one held call it names, by its
+tenant, project, request, approval, action digest and bundle digest, and only
+the plane marks it spent (<a href="/docs/concepts/approvals-and-the-held-call">approvals</a>).
+Outside <code>signed</code>, a route's signature proves only that the route key's holder
+signed it, and a lift's that the lift key's holder did.</p>
+<p>The certificate on the signature of <code>checksums.txt</code> names the release
+workflow and the tag; each attestation names the workflow and the source an
+archive was built from.</p>
+<h2 id="what-is-not-signed">What is not signed</h2>
+<ul>
+<li><strong>The evidence trail.</strong> Events are linked by order, not by hash, and no
+checkpoint is signed; whoever can write the trail can rewrite it. Hash
+links and signed checkpoints are backlog task B29, <code>planned</code>
+(<a href="/docs/concepts/threat-model#evidence-what-a-trail-proves">threat model</a>).</li>
+<li><strong>The floors.</strong> The policy serial floor, the roster's floor and the pause,
+route and stop list floors are state the plane's account writes itself, as
+is the time a restore stamps on them. That account can lower one, or
+withhold a newer roster until the held one expires.</li>
+<li><strong>The backup manifest.</strong> Its hashes catch a corrupted backup, not a hostile
+writer of it (<a href="/docs/guides/back-up-and-restore-a-plane">back up and restore</a>).</li>
+<li><strong>The lines <code>react</code> writes.</strong> A stop line is signed by no operator. It
+counts only where the route permits it: under a <code>v1alpha2</code> route a stop of
+its project and scope, under a <code>v1alpha1</code> route a stop of its tenant.</li>
+<li><strong>Answers, pauses and run records outside <code>signed</code>.</strong> Under <code>directory</code> or
+<code>memory</code>, write access to where the plane reads them is the authority, and
+<code>approver_id</code> is a claim recorded as given.</li>
+</ul>
+<h2 id="what-a-signature-does-not-prove">What a signature does not prove</h2>
+<ul>
+<li><strong>That the signer was right.</strong> A signed policy can allow the wrong call,
+and an operator can approve the wrong action. The signature names who
+decided, not whether they should have.</li>
+<li><strong>That a key was held by the person it names.</strong> Whoever holds a key file
+signs as its owner; the account that can read a key can use it.</li>
+<li><strong>That a cooperating client obeyed.</strong> A tool behind the enforcement API
+receives a decision; the receiver cannot prove the tool followed it.</li>
+<li><strong>Anything about a path the plane does not see.</strong> A call that goes around
+the plane is decided by no signed policy, and a signature on a stop reaches
+only the enforcement paths that read the list
+(<a href="/docs/concepts/control-and-supervision">control and supervision</a>).</li>
+<li><strong>That a release's commit was reviewed.</strong> The attestation names the
+workflow and the source, not who looked at it.</li>
+</ul>
+<p>The record of what happened is the part not built yet, and the
+<a href="/docs/backlog">backlog</a> holds it as B29.</p>
+<h2 id="why">Why</h2>
+<ul>
+<li>A policy is the authority over every call, so it counts only signed by a
+key the plane pins; the signature is Ed25519 over DSSE, and the key id only
+selects a key the operator pinned (ADR-0011).</li>
+<li>A signed policy can be replayed, so a second key confirms that it is
+current and a floor keeps it from going back (ADR-0038).</li>
+<li>Write access to a directory names no person, so under <code>signed</code> operators
+are named by a roster signed under a pinned root (ADR-0071), and an
+approval, a pause, a run and a stop list count only as the plane judges
+their signatures (ADR-0073, ADR-0075, ADR-0076, ADR-0077).</li>
+<li>Each decision about keys, signers and algorithms is a port, so a key store
+or algorithm can change without a fork (ADR-0066).</li>
+<li>A release tag is the root of every signature and attestation of that
+release: the workflow builds every asset from the tag, signs the checksums
+and attests every archive before it publishes, and no tag moves (ADR-0025).</li>
+</ul>
+<h2 id="where-the-code-lives">Where the code lives</h2>
+<p><code>internal/policy/bundle/</code> signs and verifies bundle bytes, and
+<code>internal/policy/holder.go</code>, <code>statement.go</code> and <code>floor.go</code> pin, confirm and
+floor them; <code>internal/policykey/</code> reads the key files. <code>internal/trust/</code> holds
+the roster and <code>internal/operators/</code> the authenticator and authorizer over it.
+<code>internal/gateway/authority.go</code> judges an approval answer,
+<code>internal/pause/signedpause/</code> a pause file and <code>internal/runs/signedruns/</code> a
+run record. <code>internal/reaction/</code> verifies routes, stop list headers and lifts,
+and <code>internal/gatewayconfig/reaction.go</code> checks a route at start.
+<code>internal/policystate/</code> keeps the floors. The commands that sign are in
+<code>cmd/guardana-control/</code>; the release signing is in <code>.goreleaser.yaml</code> and
+<code>.github/workflows/release.yml</code>.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/concepts/signed-operations.md">docs/concepts/signed-operations.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.17.0, and <a href="https://github.com/guardana/control/tree/v0.17.0/docs">its documentation</a> is in its tag.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/supervise-and-stop-a-run">Supervise and stop a run</a></li>
+<li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/signed-operations" aria-current="page">Signed operations</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/egress-access-log">Egress access log</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/run-view">Run view</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/versions">Format versions</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+<li><a href="/docs/extending/runtime-profiles">Adding a coding runtime&#39;s hooks</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/adoption-and-incident-workflows">Adoption and incident workflows</a></li>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="foot"><div class="wrap row">
+  <p>Guardana Control · Apache-2.0</p>
+  <ul>
+    <li><a href="https://github.com/guardana/control">GitHub</a></li>
+    <li><a href="https://github.com/guardana/control/releases">Releases</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/LICENSE">Licence Apache-2.0</a></li>
+    <li><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

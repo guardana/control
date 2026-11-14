@@ -98,6 +98,8 @@ eligible deterministic, `CONFIRMED` finding can produce a stop under a signed
 route. Observations alone and unknown findings stop nothing. Every scope
 needs an explicit authority; a sensor, detector or notifier never grants it.
 The default authorization path runs no model.
+[Signed operations](signed-operations.md) says which of these authorities a
+plane takes only on a signature, and what that signature proves.
 
 ## Three API roles
 
@@ -136,7 +138,9 @@ verified.
 
 1.0 needs supported contracts and integrations, declared coverage per channel,
 authenticated scopes, exercised recovery and adversarial tests for reactions.
-It also needs the external review and compatibility work the roadmap names.
+It also needs the compatibility work and the evidence the roadmap's release
+bar names; what needs people from outside the project, such as an outside
+review, is stated there as not met.
 Wider fleet management, new protocol adapters and outcome-cost analysis are
 demand-led work, rather than prerequisites hidden in the word "observation".
 
