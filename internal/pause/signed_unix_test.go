@@ -18,6 +18,7 @@ import (
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policykey"
+	"github.com/guardana/control/pkg/contract"
 )
 
 func testKey(name string) ed25519.PrivateKey {
@@ -85,10 +86,10 @@ func (p *signedPlane) writeRaw(t *testing.T, raw []byte) {
 	}
 }
 
-// header is a header of t1/A at serial signed by the key called by, bound to
-// a pause file no test writes; p.header binds it to p's.
+// header is a header of plane-a's t1/A at serial signed by the key called
+// by, bound to a pause file no test writes; p.header binds it to p's.
 func header(by string, serial int64) Header {
-	return Header{KeyID: testKeyID(by), Tenant: "t1", Project: "A", File: "/srv/pause/pause.json", Serial: serial}
+	return Header{KeyID: testKeyID(by), PlaneID: "plane-a", Tenant: "t1", Project: "A", File: "/srv/pause/pause.json", Serial: serial}
 }
 
 func (p *signedPlane) header(t *testing.T, by string, serial int64) Header {
@@ -432,7 +433,7 @@ func TestTheSignedWriterRefusesAFileThatChangedUnderIt(t *testing.T) {
 
 func TestParseSignedHoldsTheFormat(t *testing.T) {
 	good := map[string]any{
-		"schema_version": "3", "alg": "ed25519", "keyId": testKeyID("alice"), "tenant": "t1", "project": "A",
+		"schema_version": "4", "alg": "ed25519", "keyId": testKeyID("alice"), "plane_id": "plane-a", "tenant": "t1", "project": "A",
 		"file": "/srv/pause/pause.json", "serial": int64(1), "entries": []any{},
 	}
 	body := func(change func(map[string]any)) []byte {
@@ -459,6 +460,14 @@ func TestParseSignedHoldsTheFormat(t *testing.T) {
 		{"a serial as text", func(m map[string]any) { m["serial"] = "1" }, ErrMalformed},
 		{"another alg", func(m map[string]any) { m["alg"] = "rsa" }, ErrMalformed},
 		{"version 2", func(m map[string]any) { m["schema_version"] = "2" }, ErrVersion},
+		{"version 3, which names no plane", func(m map[string]any) { m["schema_version"] = "3"; delete(m, "plane_id") }, ErrVersion},
+		{"version 3 naming a plane", func(m map[string]any) { m["schema_version"] = "3" }, ErrVersion},
+		{"version 5", func(m map[string]any) { m["schema_version"] = "5" }, ErrVersion},
+		{"no plane_id", func(m map[string]any) { delete(m, "plane_id") }, ErrMalformed},
+		{"an empty plane_id", func(m map[string]any) { m["plane_id"] = "" }, ErrMalformed},
+		{"a plane_id as a number", func(m map[string]any) { m["plane_id"] = int64(7) }, ErrMalformed},
+		{"a plane_id with a control character", func(m map[string]any) { m["plane_id"] = "plane\u0007a" }, ErrMalformed},
+		{"a plane_id past its bound", func(m map[string]any) { m["plane_id"] = strings.Repeat("p", contract.MaxStringBytes+1) }, ErrMalformed},
 		{"an unknown member", func(m map[string]any) { m["extra"] = "x" }, ErrMalformed},
 		{"no tenant", func(m map[string]any) { delete(m, "tenant") }, ErrMalformed},
 		{"an empty project", func(m map[string]any) { m["project"] = "" }, ErrMalformed},
@@ -475,6 +484,16 @@ func TestParseSignedHoldsTheFormat(t *testing.T) {
 	}
 	if _, err := ParseSigned(body(func(m map[string]any) { m["tenant"] = strings.Repeat("t", MaxNameBytes) })); err != nil {
 		t.Errorf("a tenant at its bound: %v", err)
+	}
+	if _, err := ParseSigned(body(func(m map[string]any) { m["plane_id"] = strings.Repeat("p", contract.MaxStringBytes) })); err != nil {
+		t.Errorf("a plane_id at its bound: %v", err)
+	}
+	if _, err := ParseSigned(body(func(m map[string]any) { m["plane_id"] = "../planes/a" })); err != nil {
+		t.Errorf("a plane_id the contract takes, slashes and dots included: %v", err)
+	}
+	_, err := ParseSigned(body(func(m map[string]any) { m["schema_version"] = "3"; delete(m, "plane_id") }))
+	if want := "pause sign --plane-id"; err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("a version 3 body = %v, want a refusal naming %q", err, want)
 	}
 	if _, err := ParseSigned(body(func(m map[string]any) { m["file"] = "/" + strings.Repeat("p", MaxFilePathBytes-1) })); err != nil {
 		t.Errorf("a file at its bound: %v", err)

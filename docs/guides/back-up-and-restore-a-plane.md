@@ -20,6 +20,7 @@ pause file and a stop list. `state backup` copies it; after a loss,
   system without a file lock, Windows among them, both refuse.
 - The plane's account and environment: the commands read the configuration
   as the plane does, and a restore writes only what that account owns.
+  Under `signed` they refuse any key the environment sets.
 - `approvals.authority` set to `directory` or `signed`. Under `memory` there
   is nothing to restore, and both commands refuse.
 
@@ -58,12 +59,14 @@ pause file and a stop list. `state backup` copies it; after a loss,
 
 ## What a backup holds
 
-`backup.json`, schema `0.1`, names the authority, tenant, project and time
-of the backup, and per file its class, configuration key, absolute source,
-path in the backup, SHA-256 and size.
-A restore refuses a backup of another tenant, project or authority, a file
+`backup.json`, schema `0.2`, names the authority, tenant, project, under
+`signed` the `plane_id`, and time of the backup, and per file its class,
+configuration key, absolute source, path in the backup, SHA-256 and size.
+A restore refuses a backup of another tenant, project, authority or plane, a file
 whose source is not where the configuration puts it today, a size or hash
 that differs, a file the manifest does not list, and a major other than `0`.
+A `0.1` manifest names no plane, so a signed restore says `plane not
+checked`.
 
 Copied, each under its class: `policy.state_dir`, `reaction.floor_dir`,
 `runs.dir`, `pause.file` and `reaction.stops`, and under `signed` also
@@ -110,17 +113,15 @@ only that copy, which a killed restore leaves behind.
   added to it since. Under `signed` the list is an operator's file, and only
   its floor is raised.
 
-Nothing held resumes: the journal, the ledger and the approvals store are
-never written, so a lost hold stays lost and a spent approval stays spent.
+Nothing held resumes: a lost hold stays lost and a spent approval stays
+spent.
 A missing floor directory is built under a temporary name and renamed into
 place; a restore stopped at any write and run again ends where an unbroken
 one does.
 
 ## Verify
 
-`doctor` reads each signed file against the raised floors. Under `signed`
-the restore never writes an operator's file: the pause file, the stop list
-and `records/` among them. Put back the newest signed copy you hold, the
+`doctor` reads each signed file against the raised floors. Put back the newest signed copy you hold, the
 backup's only when you hold none newer; the plane takes it wherever the
 raised floor still does. A lower signed pause file blocks every call until
 an operator signs a new one.

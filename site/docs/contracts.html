@@ -1913,10 +1913,10 @@ may write where they are read (<a href="/docs/status">status.md</a>). A test in
 </tr>
 <tr>
 <td>Pause file</td>
-<td><code>pause.file</code> of version <code>3</code></td>
-<td>its tenant is <code>tenant_id</code> and its project the plane's</td>
-<td><code>internal/pause/signedpause/judge.go</code> <code>Authority.Judge</code></td>
-<td><code>internal/pause/signedpause</code> <code>TestNoOneButAPermittedOperatorPausesOrLifts</code></td>
+<td><code>pause.file</code> of version <code>4</code>; <code>3</code> is refused, naming <code>pause sign</code></td>
+<td>its tenant is <code>tenant_id</code>, and its project, <code>plane_id</code> and file the plane's</td>
+<td><code>internal/pause/signedpause/judge.go</code> <code>Authority.Judge</code> <code>Binding.Check</code></td>
+<td><code>internal/pause/signedpause</code> <code>TestNoOneButAPermittedOperatorPausesOrLifts</code> <code>TestTheJudgeRefusesADocumentOfAnotherBinding</code> <code>TestACopyBetweenTwoPlanesOfOneProjectIsRefused</code></td>
 </tr>
 <tr>
 <td>Run record</td>

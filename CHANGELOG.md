@@ -24,6 +24,27 @@ verify one.
   that differs from `tenant_id` is refused at load. Remove it, or set it to
   `tenant_id`, and serve another tenant from a plane of its own
   ([ADR-0082](docs/adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant.md)).
+- **Breaking:** a signed pause file is version `4` and names the plane's
+  `plane_id`; a plane takes it only when the id is its own, so a copy from
+  another plane at the same path, tenant and project is refused. A version `3`
+  file blocks every call, as any unreadable pause file does, and its refusal
+  names the way forward. With the plane stopped, run
+  `guardana-control pause sign --key <k> --roster <f> --root-key <f> --plane-id <id> <file>`
+  as the operator: it signs the same entries as version `4` at the next serial.
+  Do not delete the file and run `pause init`: that lifts every pause.
+- **Breaking:** `pause init --key` needs `--plane-id`, and says on standard
+  error the serial, the plane and the entry count before it signs.
+- **Breaking:** the state backup manifest is `0.2`, and under `signed` names
+  the plane; a restore refuses a backup of another plane. A `0.1` backup still
+  restores in this release, and under `signed` the restore says `plane not
+  checked` on standard error. 0.17 refuses a signed `0.2` backup, so take a new
+  backup after the upgrade and keep the old one for 0.17.
+- **Breaking:** under `signed`, `state backup` and `state restore` refuse any
+  configuration key the environment sets, as a signed start does. Unset the
+  `GUARDANA_CONTROL_*` variables that name keys before running them.
+- `doctor` judges a signed pause file with the plane's own check of its plane,
+  tenant, project and file, so it names a version `3` file or another plane's
+  as the plane refuses it.
 
 ### Security
 
