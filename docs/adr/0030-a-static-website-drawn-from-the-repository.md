@@ -18,6 +18,12 @@ Amended by [ADR-0049](0049-the-site-names-the-published-release.md): the
 header's version is the `released` of `docs/docs.json`, set after a release is
 published, rather than the newest dated section of `CHANGELOG.md`.
 
+Amended by [ADR-0084](0084-the-site-is-redrawn-in-one-system.md): the
+visual system is `site/assets/control/v2/` with Geist and Geist Mono under the
+SIL Open Font License 1.1, brand v1 and its IBM Plex files are removed, the
+landing page draws its own illustrations and no README block, and its labels
+are checked against their rows and tasks as that record says.
+
 ## Context
 
 The project had no page of its own outside GitHub. A landing page has to say

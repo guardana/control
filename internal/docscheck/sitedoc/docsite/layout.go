@@ -20,37 +20,43 @@ var (
 	sectionProject = indexdoc.Section("project")
 )
 
-// mark is the landing page's logotype, so both kinds of page wear one header:
-// the product name with its last word set bold.
-var mark = func() string {
-	first, last, _ := strings.Cut(brand.Name, " ")
-	return `<a class="mark" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>` +
-		esc(first) + ` <b>` + esc(last) + `</b></span></a>`
-}()
+// shield is the product's mark, drawn inline in the page's accent.
+const shield = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>`
+
+// logo is the product's mark and name, linking the landing page.
+var logo = `<a class="logo" href="/">` + shield + esc(brand.Name) + `</a>`
 
 // repository is the project's home on its host.
 var repository = "https://" + brand.ModulePath
 
-// githubIcon is the host's mark, drawn inline because the site loads no image
-// from another host.
-const githubIcon = `<svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>`
+// themeSwitch is a checkbox that selects the theme the system did not ask
+// for, read by the tokens' :has() rule, so the switch needs no script.
+const themeSwitch = `<input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>`
 
-// header is the site's one header, the landing page's as well: the mark, the
-// released version's pill and the primary navigation. The landing page holds
-// the same bytes with the pill inside its release slot.
+// header is the site's one header, the landing page's as well: the logo, the
+// released version's pill, the primary navigation and the theme switch. The
+// landing page holds the same bytes with the pill inside its release slot.
 func header(pill string) string {
-	return `<header class="top"><div class="wrap bar">
-  ` + mark + `
+	return `<header class="top"><div class="w">
+  ` + logo + `
   ` + pill + `
-  <nav aria-label="Primary">
-    <a href="/docs/">Docs</a>
-    <a href="/docs/status">Status</a>
-    <a class="hide-s" href="/docs/roadmap">Roadmap</a>
-    <a class="gh" href="` + repository + `" aria-label="GitHub">` + githubIcon + `<span class="hide-s">GitHub</span></a>
-  </nav>
+  <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
+  <div class="right">
+    ` + themeSwitch + `
+    <a class="btn s sm" href="` + repository + `">GitHub</a>
+  </div>
 </div></header>
 `
 }
+
+// footer is the site's one footer, the landing page's as well.
+var footer = `<footer class="ft"><div class="w">
+  <div class="fb">` + logo + `<p>A control and supervision layer for AI agents. <a href="` + repository + `/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
+  <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
+  <div><b>Project</b><a href="` + repository + `">GitHub</a><a href="` + repository + `/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="` + repository + `/blob/main/SECURITY.md">Security</a><a href="` + repository + `/blob/main/TRADEMARKS.md">Trademarks</a></div>
+</div></footer>
+`
 
 type navEntry struct{ label, url string }
 
@@ -100,15 +106,16 @@ func layout(p *page, nav []navSection, released string, body []byte) []byte {
 <title>` + esc(title) + `</title>
 <meta name="description" content="` + esc(p.summary) + `"/>
 <link rel="canonical" href="` + Origin + p.url + `"/>
-<meta name="theme-color" content="#0B8F80"/>
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)"/>
+<meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: dark)"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
-<link rel="stylesheet" href="/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/v2/tokens.css"/>
 <link rel="stylesheet" href="/assets/control/control.css"/>
 <link rel="stylesheet" href="/assets/control/docs.css"/>
 </head>
 <body class="doc">
 <a class="skip" href="#main">Skip to content</a>
-` + header(sitedoc.Pill(released)) + `<div class="wrap shell">
+` + header(sitedoc.Pill(released)) + `<div class="w shell">
 <details class="mnav">
 <summary>Menu · <b>` + esc(p.title) + `</b></summary>
 <nav class="inner" aria-label="Documentation">
@@ -124,17 +131,7 @@ func layout(p *page, nav []navSection, released string, body []byte) []byte {
 <nav class="side" aria-label="Documentation">
 ` + sections + `</nav>
 </div>
-<footer class="foot"><div class="wrap row">
-  <p>` + esc(brand.Name) + ` · Apache-2.0</p>
-  <ul>
-    <li><a href="` + repository + `">GitHub</a></li>
-    <li><a href="` + repository + `/releases">Releases</a></li>
-    <li><a href="` + repository + `/blob/main/SECURITY.md">Security</a></li>
-    <li><a href="` + repository + `/blob/main/LICENSE">Licence Apache-2.0</a></li>
-    <li><a href="` + repository + `/blob/main/TRADEMARKS.md">Trademarks</a></li>
-  </ul>
-</div></footer>
-</body>
+` + footer + `</body>
 </html>
 `)
 	return []byte(b.String())

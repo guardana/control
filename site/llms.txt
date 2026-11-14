@@ -1,0 +1,180 @@
+# Guardana Control
+
+> Guardana Control puts your rules between an AI agent and its tools. Each call that goes through it is allowed, blocked or held for a person before it runs.
+
+This is alpha software and not a security boundary: do not deploy it as one. What exists today is listed on the status page, each capability with its label, implemented, experimental or planned: https://control.guardana.dev/docs/status
+
+## Get started
+
+- [Try the demo](https://control.guardana.dev/docs/get-started/try-the-demo): Start a plane in front of two vulnerable MCP servers, answer a held call, pause a server, read the trail and the counters, and run the demo's scenarios.
+
+## Guides
+
+- [Back up and restore a plane](https://control.guardana.dev/docs/guides/back-up-and-restore-a-plane): Copy a stopped plane's floors, runs, pause file and stop list, and after a loss raise them back so no floor ends lower, every run is closed and no hold resumes.
+- [Connect an existing MCP setup](https://control.guardana.dev/docs/guides/connect-an-existing-mcp-setup): Put the plane between an MCP client and a server you already use, classify the server's tools, hold its writes for approval, and end in a local report.
+- [Decide a tool of your own](https://control.guardana.dev/docs/guides/decide-a-tool-of-your-own): Serve the enforcement API, classify your tools by name, and have a client ask before each call and report how it ended, under one policy and trail.
+- [Keep two tasks apart](https://control.guardana.dev/docs/guides/keep-two-tasks-apart): Open a run per task in a runs directory, point a plane at it, and give each agent its token, so what one task took in never decides another's calls.
+- [Let a decision point veto calls](https://control.guardana.dev/docs/guides/let-a-decision-point-veto): Point the gateway at an AuthZEN decision point, write the two rules that let it veto a scope, test what each answer does, and check the plane before it serves.
+- [Read the evidence from a program](https://control.guardana.dev/docs/guides/read-the-evidence-from-a-program): Export a trail file in the versioned format, resume where the last export stopped, and rebuild each call's lifecycle without importing the project's internals.
+- [Run the gateway in a container](https://control.guardana.dev/docs/guides/run-in-a-container): Run the release image of the gateway with Docker, with its evidence on a volume and its port reachable from the host alone.
+- [Run the gateway](https://control.guardana.dev/docs/guides/run-the-gateway): Set up a plane's policy files, start the MCP gateway in OBSERVE, keep its policy confirmed, read its health, classify the tools it sees, and move it to ENFORCE.
+- [Supervise and stop a run](https://control.guardana.dev/docs/guides/supervise-and-stop-a-run): Run the refund example by hand on a live plane, supervise the run against its procedure, read its page, and stop it on a confirmed finding.
+- [Test a procedure](https://control.guardana.dev/docs/guides/test-a-procedure): Lint a procedure document, then prove what supervise finds with cases that state a run, its evidence and every expected finding.
+- [Watch a plane without a collector](https://control.guardana.dev/docs/guides/watch-a-plane-without-a-collector): Run the collector the gateway binary ships, point a plane at it with its credential, read each request's trail in the segments it writes, and prune them.
+- [Watch an egress proxy](https://control.guardana.dev/docs/guides/watch-an-egress-proxy): Have Envoy or Squid write their access log as JSON lines, import it as observations, and see in the coverage map the destinations the proxy logged.
+- [Write and test a policy](https://control.guardana.dev/docs/guides/write-and-test-a-policy): Write an agent-policy/v1alpha1 document, lint it, prove what it decides with cases, sign it into the bundle a plane loads, and vouch that the bundle is current.
+
+## Concepts
+
+- [Approvals and the held request](https://control.guardana.dev/docs/concepts/approvals-and-the-held-call): What the enforcement point holds when a call needs an approval, what a retry must equal to resume it, and the ways a hold ends.
+- [Architecture](https://control.guardana.dev/docs/concepts/architecture): The system in context, its containers, the request path from a proposed action to a decision and its evidence, the dependency rule, and where it is going.
+- [Control and supervision](https://control.guardana.dev/docs/concepts/control-and-supervision): The 1.0 goal for connected observation, procedure checks and scoped reactions, with today's alpha and the three API roles kept explicit.
+- [Enforcement modes](https://control.guardana.dev/docs/concepts/enforcement-modes): What each mode does with the kernel's decision, what it needs from an adapter, and which modes this build runs.
+- [Evidence and the spool](https://control.guardana.dev/docs/concepts/evidence-and-the-spool): The trail every call leaves, the order its events may take, and how the spool keeps them on disk before an exporter sees them.
+- [Glossary](https://control.guardana.dev/docs/concepts/glossary): One name per concept, as the pages and the code use it, with the symbol or path that defines each.
+- [How a call is decided](https://control.guardana.dev/docs/concepts/how-a-call-is-decided): From a proposed action to one of five verdicts and the action enforced for it, including what happens when the kernel cannot decide.
+- [The MCP gateway](https://control.guardana.dev/docs/concepts/mcp-gateway): How a tools/call becomes a decision, an authorized set of bytes and a trail, before the server sees it.
+- [Observations, coverage, supervision and a stop](https://control.guardana.dev/docs/concepts/observations-coverage-and-supervision): How what a source reports, the coverage map, the supervisor's findings and a stop of one run fit together, and what each promises and does not.
+- [Privacy](https://control.guardana.dev/docs/concepts/privacy): What the plane records about a call, where each record goes and who can read it, how long it stays, and that nothing goes to the project.
+- [Signed operations](https://control.guardana.dev/docs/concepts/signed-operations): What is signed in Guardana Control, by whom, what each signature proves, what is not signed, and what a signature never proves.
+- [Threat model](https://control.guardana.dev/docs/concepts/threat-model): What the plane protects, from whom, what it does about each attacker today with the code and the test behind it, and where it stops.
+
+## Reference
+
+- [Benchmarks](https://control.guardana.dev/docs/reference/benchmarks): What three calls on the authorization path and one tool call through the gateway cost on one machine, how they are measured, and what the numbers are not.
+- [Claude Code hooks](https://control.guardana.dev/docs/reference/claude-code-hooks): What the claude-code hook profile covers, the hook settings it needs, what the bridge reads and answers per event, and the gaps it leaves.
+- [Command line](https://control.guardana.dev/docs/reference/cli): The two binaries, what each prints as its help, and the exit statuses they share.
+- [Configuration](https://control.guardana.dev/docs/reference/configuration): Every key the gateway reads, with its environment variable, kind, default, whether it is required and the spellings it takes.
+- [The approvals page](https://control.guardana.dev/docs/reference/console): What guardana-control console serves, what it prints, what it refuses and what it cannot tell you.
+- [Coverage](https://control.guardana.dev/docs/reference/coverage): What guardana-control coverage reads, its inventory, the state of each declared path and each undeclared egress host, the join, and its exit status.
+- [Dev mode](https://control.guardana.dev/docs/reference/dev): What guardana-gateway dev lays out, refuses, prints and stops, and how --scenario runs each scenario on a plane of its own.
+- [Egress access log](https://control.guardana.dev/docs/reference/egress-access-log): The descriptor of an egress proxy's access log, how its lines map to connection observations, what is never read, each refusal, and the trust it claims.
+- [Failure modes](https://control.guardana.dev/docs/reference/failure-modes): What a plane does when its collector, spool, decision point, upstream, pause file, stop list, freshness statement or clock fails, or it is killed holding calls.
+- [MCP enforcement coverage](https://control.guardana.dev/docs/reference/mcp-coverage): Per revision, transport and method, what the gateway enforces today and what it does not.
+- [Metrics](https://control.guardana.dev/docs/reference/metrics): Every metric a plane answers on /metrics, with its type, its label, the statistic it reads and what it counts.
+- [Obligations](https://control.guardana.dev/docs/reference/obligations): The catalogue of obligation types a policy rule may name, the parameters each takes, and what the tree does with one.
+- [Observations](https://control.guardana.dev/docs/reference/observations): The source descriptor and its kinds, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export.
+- [Policy explain](https://control.guardana.dev/docs/reference/policy-explain): What `guardana-control policy explain` reads, every line it prints, which rule decided and which input a rule could not read, and its bounds.
+- [Policy document format](https://control.guardana.dev/docs/reference/policy-format): Every member of an agent-policy/v1alpha1 document, the values each admits, the bounds, and the members of a policy test case.
+- [Signed reaction](https://control.guardana.dev/docs/reference/reaction-signed): How a signed plane takes its route, stop list header and lifts from roster operators, holds them to a stop list floor, and which commands sign them.
+- [Reaction](https://control.guardana.dev/docs/reference/reaction): The signed route, the stop list and the commands that write them, and how a plane refuses a stopped run's calls and reports its stops.
+- [Reason codes](https://control.guardana.dev/docs/reference/reason-codes): Every reason code a decision may carry, with its number and the verdict it usually accompanies.
+- [Run view](https://control.guardana.dev/docs/reference/run-view): The page guardana-control supervise --view draws for one run, what each mark on it means, and what the command refuses to overwrite.
+- [Runs](https://control.guardana.dev/docs/reference/runs): The runs directory, what runs open, close, list and prune print and refuse, and what a plane with runs.dir does with a token.
+- [Scenario format](https://control.guardana.dev/docs/reference/scenario-format): Every member of an agent-scenario/v1alpha1 document, how scenario run holds a live plane to one, and what it exits with.
+- [Starter policy packs](https://control.guardana.dev/docs/reference/starter-packs): The read-only and approval-for-writes packs, what each decides, what it assumes about the plane, the cases that prove it, and what it leaves unguarded.
+- [Supervision](https://control.guardana.dev/docs/reference/supervision): The procedure document, what guardana-control supervise checks for one opened run, the finding record and its log, and how notify delivers findings.
+- [Format versions](https://control.guardana.dev/docs/reference/versions): Every versioned file and message a user writes or reads, the version this tree writes, the versions it reads, and how stable each is.
+- [action_envelope.proto](https://control.guardana.dev/docs/reference/wire/action_envelope): The messages and enums of action_envelope.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
+- [approval.proto](https://control.guardana.dev/docs/reference/wire/approval): The messages and enums of approval.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
+- [bundle.proto](https://control.guardana.dev/docs/reference/wire/bundle): The messages and enums of bundle.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
+- [common.proto](https://control.guardana.dev/docs/reference/wire/common): The messages and enums of common.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
+- [decision.proto](https://control.guardana.dev/docs/reference/wire/decision): The messages and enums of decision.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
+- [event.proto](https://control.guardana.dev/docs/reference/wire/event): The messages and enums of event.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
+- [finding.proto](https://control.guardana.dev/docs/reference/wire/finding): The messages and enums of finding.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
+- [result.proto](https://control.guardana.dev/docs/reference/wire/result): The messages and enums of result.proto as the compiled descriptor declares them, each field with its number, cardinality and type.
+
+## Specification
+
+- [Wire contracts](https://control.guardana.dev/docs/contracts): What the v1 messages are versioned by, what a receiver refuses them for, and how the evidence events chain.
+
+## Extending
+
+- [Writing an adapter](https://control.guardana.dev/docs/extending/adapters): The internal seam a protocol adapter implements, the capabilities it declares, and the conformance each one owes.
+- [Adding a coding runtime's hooks](https://control.guardana.dev/docs/extending/runtime-profiles): The profile a coding runtime's hook protocol is described by, what the hook bridge does with it, and what a profile needs before its page may claim anything.
+
+## Project
+
+- [Adoption and incident workflows](https://control.guardana.dev/docs/adoption-and-incident-workflows): Planned acceptance requirements for MCP setup, coding hooks, tool-definition review, policy simulation and incident review.
+- [Delivery backlog](https://control.guardana.dev/docs/backlog): Planned work ordered by user value, with dependencies and observable acceptance checks.
+- [Changelog](https://control.guardana.dev/docs/changelog): What each release changed, and what is unreleased on main.
+- [Dependencies](https://control.guardana.dev/docs/dependencies): Every direct dependency and pinned tool of the module, why the standard library will not do, its licence and whether it sits in the request path.
+- [Roadmap](https://control.guardana.dev/docs/roadmap): What has to become true, in the order it is planned.
+- [Implementation status](https://control.guardana.dev/docs/status): What exists in this repository today, component by component, the one inventory every other page points to.
+
+## Optional
+
+- [ADR-0001: Go, one pinned compiler version](https://control.guardana.dev/docs/adr/0001-language-and-toolchain): Decision record, accepted.
+- [ADR-0002: Protobuf contracts, generated code committed](https://control.guardana.dev/docs/adr/0002-wire-contracts-and-versioning): Decision record, accepted.
+- [ADR-0003: Structured predicates, deny-overrides, external PDP over AuthZEN](https://control.guardana.dev/docs/adr/0003-policy-model-and-external-pdp): Decision record, accepted.
+- [ADR-0004: Evidence defaults to metadata; content capture is opt-in](https://control.guardana.dev/docs/adr/0004-evidence-and-privacy-defaults): Decision record, accepted.
+- [ADR-0005: One canonical digest identifies an action](https://control.guardana.dev/docs/adr/0005-canonical-action-digest): Decision record, accepted.
+- [ADR-0006: The product name is a working name and can be switched](https://control.guardana.dev/docs/adr/0006-product-name-switch): Decision record, accepted.
+- [ADR-0007: Repository layout and the dependency rule for the decision path](https://control.guardana.dev/docs/adr/0007-repository-layout-and-dependency-rule): Decision record, accepted.
+- [ADR-0008: Protected main, DCO, semver, releases built by CI](https://control.guardana.dev/docs/adr/0008-branching-and-release-policy): Decision record, accepted.
+- [ADR-0009: Everything in this repository is Apache-2.0 and stays open](https://control.guardana.dev/docs/adr/0009-open-core-boundary): Decision record, accepted.
+- [ADR-0010: The digest domain tag is fixed and carries no product name](https://control.guardana.dev/docs/adr/0010-digest-domain-separation): Decision record, accepted.
+- [ADR-0011: Corrections to the v1 contract before it is first published](https://control.guardana.dev/docs/adr/0011-contract-corrections-before-publication): Decision record, accepted.
+- [ADR-0012: How the built-in policy kernel decides](https://control.guardana.dev/docs/adr/0012-policy-kernel-semantics): Decision record, accepted.
+- [ADR-0013: The MCP gateway intercepts a call before it happens](https://control.guardana.dev/docs/adr/0013-mcp-interception-approvals-and-modes): Decision record, accepted.
+- [ADR-0014: Evidence goes to a local spool first, and the spool decides what blocks](https://control.guardana.dev/docs/adr/0014-evidence-spool-and-sinks): Decision record, accepted.
+- [ADR-0015: The documentation is a checked structure](https://control.guardana.dev/docs/adr/0015-documentation-structure-and-checks): Decision record, accepted.
+- [ADR-0016: An approver outside the plane answers, and a lost hold is closed](https://control.guardana.dev/docs/adr/0016-approval-providers-and-the-lost-hold): Decision record, accepted.
+- [ADR-0017: An external decision point can veto what the signed policy allows](https://control.guardana.dev/docs/adr/0017-an-external-decision-point-can-veto): Decision record, accepted.
+- [ADR-0018: A policy key and a signed bundle each have one format on disk](https://control.guardana.dev/docs/adr/0018-keys-and-bundles-on-disk): Decision record, accepted.
+- [ADR-0019: An operator can pause calls, and a pause the plane cannot read blocks](https://control.guardana.dev/docs/adr/0019-an-operator-can-pause-calls): Decision record, accepted.
+- [ADR-0020: A plane's trail can land in a local file, and its counters in /metrics](https://control.guardana.dev/docs/adr/0020-a-trail-and-counters-without-a-collector): Decision record, accepted.
+- [ADR-0021: The plane keeps what each run took in, so a flow rule can fire](https://control.guardana.dev/docs/adr/0021-a-run-carries-what-it-took-in): Decision record, accepted.
+- [ADR-0022: A scenario is data a live plane is held to](https://control.guardana.dev/docs/adr/0022-scenarios-are-data): Decision record, accepted.
+- [ADR-0023: A local page answers through the directory](https://control.guardana.dev/docs/adr/0023-a-local-page-answers-through-the-directory): Decision record, accepted.
+- [ADR-0024: Guardana Control and Guardana are independent](https://control.guardana.dev/docs/adr/0024-control-and-guardana-are-independent): Decision record, accepted.
+- [ADR-0025: The public repository: who pushes, who merges, who releases](https://control.guardana.dev/docs/adr/0025-public-repository-merges-and-releases): Decision record, accepted.
+- [ADR-0026: First value and readable evidence come before the supervisor's breadth](https://control.guardana.dev/docs/adr/0026-first-value-and-external-extension-paths): Decision record, accepted.
+- [ADR-0027: An approval's expiry holds until the call is handed out, and an unreadable lost hold is unknown](https://control.guardana.dev/docs/adr/0027-expiry-at-hand-out-and-an-unreadable-lost-hold): Decision record, accepted.
+- [ADR-0028: A stdio upstream gets only the environment it is given](https://control.guardana.dev/docs/adr/0028-a-stdio-upstream-gets-only-the-environment-it-is-given): Decision record, accepted.
+- [ADR-0029: The canonical form accepts a fraction a double holds exactly, and a tool definition any finite number](https://control.guardana.dev/docs/adr/0029-exact-fractions-in-the-canonical-form): Decision record, accepted.
+- [ADR-0030: A static website drawn from the repository](https://control.guardana.dev/docs/adr/0030-a-static-website-drawn-from-the-repository): Decision record, accepted.
+- [ADR-0031: The documentation is served on the website](https://control.guardana.dev/docs/adr/0031-the-documentation-is-served-on-the-website): Decision record, accepted.
+- [ADR-0032: The enforcement mode has no default](https://control.guardana.dev/docs/adr/0032-the-enforcement-mode-has-no-default): Decision record, accepted.
+- [ADR-0033: A demo archive a release user runs without Go](https://control.guardana.dev/docs/adr/0033-a-demo-archive-a-release-user-runs-without-go): Decision record, accepted.
+- [ADR-0034: A run the operator opens has an identity of its own](https://control.guardana.dev/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own): Decision record, accepted.
+- [ADR-0035: A versioned evidence export and a bounded query](https://control.guardana.dev/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query): Decision record, accepted.
+- [ADR-0036: `policy explain` reads the kernel's own evaluation](https://control.guardana.dev/docs/adr/0036-policy-explain-reads-the-kernels-own-evaluation): Decision record, accepted.
+- [ADR-0037: An evidence consumer in a module of its own](https://control.guardana.dev/docs/adr/0037-an-evidence-consumer-in-a-module-of-its-own): Decision record, accepted.
+- [ADR-0038: A signed freshness statement and a serial floor that outlives the process](https://control.guardana.dev/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor): Decision record, accepted.
+- [ADR-0039: Many channels into one core: what each may see, claim and do](https://control.guardana.dev/docs/adr/0039-many-channels-into-one-core): Decision record, accepted.
+- [ADR-0040: Observations: a record, a source descriptor, a log and one importer](https://control.guardana.dev/docs/adr/0040-observations-a-record-a-log-and-one-importer): Decision record, accepted.
+- [ADR-0041: Coverage per declared path](https://control.guardana.dev/docs/adr/0041-coverage-per-declared-path): Decision record, accepted.
+- [ADR-0042: An answer that quotes a configured credential is withheld](https://control.guardana.dev/docs/adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld): Decision record, accepted.
+- [ADR-0043: A refused over-long name is recorded by its digest](https://control.guardana.dev/docs/adr/0043-a-refused-over-long-name-is-recorded-by-its-digest): Decision record, accepted.
+- [ADR-0044: Coverage judges each plane and joins only a whole export](https://control.guardana.dev/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export): Decision record, accepted.
+- [ADR-0045: One run is supervised against its procedure](https://control.guardana.dev/docs/adr/0045-one-run-is-supervised-against-its-procedure): Decision record, accepted.
+- [ADR-0046: A finding stops one run through a signed route](https://control.guardana.dev/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route): Decision record, accepted.
+- [ADR-0047: A procedure states its exceptions, resources and children](https://control.guardana.dev/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children): Decision record, accepted.
+- [ADR-0048: One run drawn as a page, and findings exported with a cursor](https://control.guardana.dev/docs/adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor): Decision record, accepted.
+- [ADR-0049: The site names the published release](https://control.guardana.dev/docs/adr/0049-the-site-names-the-published-release): Decision record, accepted.
+- [ADR-0050: Adoption workflows preserve authority and evidence](https://control.guardana.dev/docs/adr/0050-adoption-workflows-preserve-authority-and-evidence): Decision record, accepted.
+- [ADR-0051: A tool outside MCP is admitted, completed and aborted through an enforcement API](https://control.guardana.dev/docs/adr/0051-a-tool-outside-mcp-is-admitted-completed-and-aborted-through-an-enforcement-api): Decision record, accepted.
+- [ADR-0052: A change is gated on its pull request, and releases keep a rhythm](https://control.guardana.dev/docs/adr/0052-a-change-is-gated-on-its-pull-request): Decision record, accepted.
+- [ADR-0053: A Python client of the enforcement API lives in this repository](https://control.guardana.dev/docs/adr/0053-a-python-client-of-the-enforcement-api-in-this-repository): Decision record, accepted.
+- [ADR-0054: The enforcement receiver holds a lock beside its socket](https://control.guardana.dev/docs/adr/0054-the-enforcement-receiver-holds-a-lock-beside-its-socket): Decision record, accepted.
+- [ADR-0055: A call is handed out only while the policy it was decided under stands](https://control.guardana.dev/docs/adr/0055-a-call-is-handed-out-only-while-its-policy-stands): Decision record, accepted.
+- [ADR-0056: A coding runtime's hooks reach the plane through one bridge, by value](https://control.guardana.dev/docs/adr/0056-a-coding-runtimes-hooks-reach-the-plane-through-one-bridge): Decision record, accepted.
+- [ADR-0057: An MCP client outside the Go SDK runs the guide on every pull request](https://control.guardana.dev/docs/adr/0057-an-external-mcp-client-runs-the-guide-on-every-pull-request): Decision record, accepted.
+- [ADR-0058: A copy an import never read is doubt for the runs it claimed](https://control.guardana.dev/docs/adr/0058-a-copy-an-import-never-read-is-doubt-for-the-runs-it-claimed): Decision record, accepted.
+- [ADR-0059: A tool's classification is one type, checked when it loads](https://control.guardana.dev/docs/adr/0059-a-tools-classification-is-one-type-checked-when-it-loads): Decision record, accepted.
+- [ADR-0060: pkg/contract exports what each effect class requires](https://control.guardana.dev/docs/adr/0060-pkg-contract-exports-what-each-effect-class-requires): Decision record, accepted.
+- [ADR-0061: An obligation's parameters are the catalogue's](https://control.guardana.dev/docs/adr/0061-an-obligations-parameters-are-the-catalogues): Decision record, accepted.
+- [ADR-0062: The gate is guarded at its entry points, and fuzzed at night](https://control.guardana.dev/docs/adr/0062-the-gate-is-guarded-at-its-entry-points-and-fuzzed-at-night): Decision record, accepted.
+- [ADR-0063: A skipped test fails the gate unless the repository expects it](https://control.guardana.dev/docs/adr/0063-a-skipped-test-fails-the-gate-unless-the-repository-expects-it): Decision record, accepted.
+- [ADR-0064: Milestone 2 starts with an independent sensor, and the 1.0 bar is a list of tasks](https://control.guardana.dev/docs/adr/0064-milestone-two-starts-with-an-independent-sensor): Decision record, accepted.
+- [ADR-0065: A request's events name one run](https://control.guardana.dev/docs/adr/0065-a-requests-events-name-one-run): Decision record, accepted.
+- [ADR-0066: Each decision about authority is a port with a default, and none fails open](https://control.guardana.dev/docs/adr/0066-each-decision-about-authority-is-a-port): Decision record, accepted.
+- [ADR-0067: The pipeline refuses what an adapter could not translate](https://control.guardana.dev/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate): Decision record, accepted.
+- [ADR-0068: A run belongs to one project](https://control.guardana.dev/docs/adr/0068-a-run-belongs-to-one-project): Decision record, accepted.
+- [ADR-0069: An egress proxy's access log is an independent sensor on a kind-neutral descriptor](https://control.guardana.dev/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor): Decision record, accepted.
+- [ADR-0070: A listing hides only what no call could be allowed](https://control.guardana.dev/docs/adr/0070-a-listing-hides-only-what-no-call-could-be-allowed): Decision record, accepted.
+- [ADR-0071: Operators are named by a signed roster, and authorized by its grants](https://control.guardana.dev/docs/adr/0071-operators-are-named-by-a-signed-roster): Decision record, accepted.
+- [ADR-0072: The collector keeps bounded segments of one project, behind a credential](https://control.guardana.dev/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential): Decision record, accepted.
+- [ADR-0073: An approval counts only as the plane judges it, from an authority it names](https://control.guardana.dev/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it): Decision record, accepted.
+- [ADR-0074: pkg/contract exports one rule for a required identifier](https://control.guardana.dev/docs/adr/0074-pkg-contract-exports-one-rule-for-a-required-identifier): Decision record, accepted.
+- [ADR-0075: A signed plane takes a pause only from an operator's signature](https://control.guardana.dev/docs/adr/0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature): Decision record, accepted.
+- [ADR-0076: A signed plane takes a run only from an operator's signature](https://control.guardana.dev/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature): Decision record, accepted.
+- [ADR-0077: A signed plane takes a stop list only from operators' signatures](https://control.guardana.dev/docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures): Decision record, accepted.
+- [ADR-0078: A restore only raises](https://control.guardana.dev/docs/adr/0078-a-restore-only-raises): Decision record, accepted.
+- [ADR-0079: A signed plane admits a child only if it saw it before its parent's close](https://control.guardana.dev/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close): Decision record, accepted.
+- [ADR-0080: Evidence leaves a plane over a unix socket or TLS](https://control.guardana.dev/docs/adr/0080-evidence-leaves-a-plane-over-a-unix-socket-or-tls): Decision record, accepted.
+- [ADR-0081: Tests that need a second account run in a required job](https://control.guardana.dev/docs/adr/0081-tests-that-need-a-second-account-run-in-a-required-job): Decision record, accepted.
+- [ADR-0082: A signed document names its plane, and a signed plane serves one tenant](https://control.guardana.dev/docs/adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant): Decision record, accepted.
+- [ADR-0084: The site is redrawn: one system for the landing page and the docs, a light and a dark theme, llms.txt](https://control.guardana.dev/docs/adr/0084-the-site-is-redrawn-in-one-system): Decision record, accepted.
+- [ADR-0085: The 1.0 bar is met by the project's own evidence, and what needs outside people stays not met](https://control.guardana.dev/docs/adr/0085-the-1-0-bar-is-met-by-own-evidence-and-what-needs-outside-people-stays-not-met): Decision record, accepted.

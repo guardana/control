@@ -17,13 +17,14 @@ import (
 )
 
 const (
-	siteDir       = "site"
-	brandDir      = "site/assets/brand/v1"
-	ogCard        = "scripts/og-card.html"
-	siteOrigin    = "https://control.guardana.dev/"
-	brandV1Digest = "6d177eb80cb233c8fce3b613f11788f548ca0cbfc7bd573e2fada5debcb64e4c"
-	brandV1Files  = 10
-	minSiteLinks  = 20
+	siteDir      = "site"
+	themeDir     = "site/assets/control/v2"
+	themeCSS     = "/assets/control/v2/tokens.css"
+	ogCard       = "scripts/og-card.html"
+	siteOrigin   = "https://control.guardana.dev/"
+	themeDigest  = "ef3d42d8ef82c2770730f95240cd4aca61923269f467d935574bb01eb6ded4b0"
+	themeFiles   = 4
+	minSiteLinks = 20
 	// minDocsPages is a floor under the rendered set: a render that found
 	// no page would otherwise compare nothing with nothing.
 	minDocsPages = 60
@@ -33,26 +34,21 @@ const (
 )
 
 // siteManifest is every file under site/ that no generator writes; the
-// documentation pages and the sitemap are what docsite.Build writes.
+// documentation pages, the sitemap and llms.txt are what docsite.Build writes.
 var siteManifest = []string{
 	".assetsignore",
 	"_headers",
-	"assets/brand/v1/SHA256SUMS",
-	"assets/brand/v1/fonts/OFL.txt",
-	"assets/brand/v1/fonts/ibm-plex-mono-latin-400-normal.woff2",
-	"assets/brand/v1/fonts/ibm-plex-mono-latin-500-normal.woff2",
-	"assets/brand/v1/fonts/ibm-plex-sans-latin-400-normal.woff2",
-	"assets/brand/v1/fonts/ibm-plex-sans-latin-500-normal.woff2",
-	"assets/brand/v1/fonts/ibm-plex-sans-latin-600-normal.woff2",
-	"assets/brand/v1/fonts/ibm-plex-sans-latin-700-normal.woff2",
-	"assets/brand/v1/icon.svg",
-	"assets/brand/v1/mark.svg",
-	"assets/brand/v1/tokens.css",
 	"assets/control/control.css",
 	"assets/control/docs.css",
+	"assets/control/home.css",
 	"assets/control/icon.svg",
 	"assets/control/mark-dark.svg",
 	"assets/control/mark.svg",
+	"assets/control/v2/SHA256SUMS",
+	"assets/control/v2/fonts/OFL.txt",
+	"assets/control/v2/fonts/geist-mono-variable.woff2",
+	"assets/control/v2/fonts/geist-variable.woff2",
+	"assets/control/v2/tokens.css",
 	"favicon.svg",
 	"index.html",
 	"og.png",
@@ -147,16 +143,16 @@ func TestDocsPagesAreRendered(t *testing.T) {
 	}
 }
 
-func TestBrandFilesMatchThePinnedSums(t *testing.T) {
-	sub, err := fs.Sub(repoFS(t), brandDir)
+func TestTokenFilesMatchThePinnedSums(t *testing.T) {
+	sub, err := fs.Sub(repoFS(t), themeDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	report(t, brandDir, brandProblems(sub, brandV1Digest, brandV1Files))
+	report(t, themeDir, brandProblems(sub, themeDigest, themeFiles))
 }
 
-// The home page draws its own diagrams in HTML, so a phone reflows them, and
-// draws no README block: the README's Mermaid is for GitHub. A re-render
+// The home page draws its own illustrations, each with its text alternative,
+// and draws no README block: the README's Mermaid is for GitHub. A re-render
 // leaves the page as committed.
 func TestTheHomePageDrawsNoReadmeBlock(t *testing.T) {
 	fsys := repoFS(t)
@@ -183,14 +179,10 @@ func TestTheHomePageDrawsNoReadmeBlock(t *testing.T) {
 		t.Errorf("%s changes when rendered; run `make docs-gen`", sitedoc.Page)
 	}
 	doc := loadPage(t, page)
-	figures := 0
-	doc.walk(func(n *xnode) {
-		if n.name == "figure" && n.hasClass("fig") {
-			figures++
-		}
-	})
-	if figures < 3 {
-		t.Errorf("%s holds %d diagrams, want at least three", sitedoc.Page, figures)
+	problems, drawn := illustrationProblems(doc)
+	report(t, sitedoc.Page, problems)
+	if drawn < 3 {
+		t.Errorf("%s holds %d illustrations, want at least three", sitedoc.Page, drawn)
 	}
 	report(t, sitedoc.Page, idProblems(doc))
 }
@@ -234,7 +226,121 @@ func TestSiteItemsNameTheirSources(t *testing.T) {
 	if len(status) < minComponentRows || len(backlog) < 5 {
 		t.Fatalf("read %d status rows and %d backlog ids; the sources were not parsed", len(status), len(backlog))
 	}
-	report(t, sitedoc.Page, tagProblems(loadPage(t, loadSite(t)["index.html"]), status, backlog, 5, 8, 5))
+	doc := loadPage(t, loadSite(t)["index.html"])
+	report(t, sitedoc.Page, tagProblems(doc, status, backlog, 12, minLandingTasks))
+	report(t, sitedoc.Page, itemListProblems(pageItems(doc), landingItems))
+}
+
+// A sentence that calls something planned or promises later work names its
+// task, on the page and in README, so neither can promise work the backlog
+// does not hold.
+func TestSitePlannedSentencesNameTheirTask(t *testing.T) {
+	fsys := repoFS(t)
+	page, err := fs.ReadFile(fsys, sitedoc.Page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readme, err := fs.ReadFile(fsys, readmeName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	segments, err := readmeSegments(readme)
+	if err != nil {
+		t.Fatalf("%s: %v", readmeName, err)
+	}
+	tasks := backlogTitles(readLines(t, fsys, "docs/backlog.md"))
+	for _, c := range []struct {
+		name     string
+		segments []proseSegment
+		tasks    map[string]string
+	}{{sitedoc.Page, pageSegments(loadPage(t, page)), nil}, {readmeName, segments, tasks}} {
+		problems, read := plannedOutsideBacklog(c.name, c.segments, c.tasks)
+		for _, p := range problems {
+			t.Error(p)
+		}
+		if read == 0 {
+			t.Errorf("%s: no sentence calling something planned was read", c.name)
+		}
+	}
+}
+
+// llms.txt quotes README's lede as its description and says what the
+// project is not ready for.
+func TestLLMsSaysWhatTheProjectIs(t *testing.T) {
+	fsys := repoFS(t)
+	lede, err := readmeLede(readLines(t, fsys, readmeName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	report(t, docsite.LLMs, llmsProblems(string(loadSite(t)["llms.txt"]), lede))
+}
+
+// No stylesheet but the tokens sets a token, and none writes words through
+// content; the pages' style attributes and elements are held the same way.
+func TestStylesheetsSetNoTokenAndWriteNoWords(t *testing.T) {
+	site := loadSite(t)
+	tokens := tokenNames(string(site["assets/control/v2/tokens.css"]))
+	if len(tokens) < 10 {
+		t.Fatalf("read %d tokens from tokens.css; it was not parsed", len(tokens))
+	}
+	sheets, pages := 0, 0
+	for _, name := range sortedKeys(site) {
+		switch {
+		case name == "assets/control/v2/tokens.css":
+		case path.Ext(name) == ".css":
+			sheets++
+			report(t, name, styleProblems(string(site[name]), tokens))
+		case path.Ext(name) == ".html":
+			pages++
+			loadPage(t, site[name]).walk(func(n *xnode) {
+				if style, ok := n.attrs["style"]; ok {
+					report(t, name, styleProblems("{"+style+"}", tokens))
+				}
+				if n.name == "style" {
+					report(t, name, styleProblems(n.text(), tokens))
+				}
+			})
+		}
+	}
+	if sheets < 3 || pages < minDocsPages {
+		t.Errorf("read %d stylesheets and %d pages, want at least 3 and %d", sheets, pages, minDocsPages)
+	}
+}
+
+// No page runs script: no script element in any namespace and no event
+// handler attribute, read from the parsed page rather than its text.
+func TestSitePagesRunNoScript(t *testing.T) {
+	site := loadSite(t)
+	pages := 0
+	for _, name := range sortedKeys(site) {
+		if path.Ext(name) != ".html" {
+			continue
+		}
+		pages++
+		report(t, name, scriptProblems(loadPage(t, site[name])))
+	}
+	if pages < minDocsPages {
+		t.Errorf("read %d pages, want at least %d", pages, minDocsPages)
+	}
+}
+
+// Every page switches its theme without script: one checkbox the tokens'
+// :has() rules read, a label for it, and the tokens stylesheet loaded; the
+// tokens give the switched theme exactly the other scheme's palette.
+func TestThemeSwitchNeedsNoScript(t *testing.T) {
+	site := loadSite(t)
+	report(t, themeDir+"/tokens.css", themeTokenProblems(site["assets/control/v2/tokens.css"]))
+	pages := 0
+	for _, name := range sortedKeys(site) {
+		if path.Ext(name) != ".html" {
+			continue
+		}
+		pages++
+		report(t, name, themeSwitchProblems(loadPage(t, site[name]), themeCSS))
+	}
+	if pages < minDocsPages {
+		t.Errorf("read %d pages, want at least %d", pages, minDocsPages)
+	}
 }
 
 // A free sentence that promises later work lags the moment the work ships;
@@ -297,6 +403,13 @@ func TestTaglinesAreTheReadmes(t *testing.T) {
 		if problem := taglineProblem(loadPage(t, data), want); problem != "" {
 			t.Errorf("%s: %s", name, problem)
 		}
+	}
+	lede, err := readmeLede(readLines(t, fsys, readmeName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if problem := oneTextProblem(loadPage(t, loadSite(t)["index.html"]), "lede", lede); problem != "" {
+		t.Errorf("%s: %s", sitedoc.Page, problem)
 	}
 }
 

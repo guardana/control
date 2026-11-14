@@ -37,6 +37,18 @@ verify one.
   alone) and widens B11, B12, B13, B16, B23, B26, B33, B36 and B38.
   [Signed operations](docs/concepts/signed-operations.md) says what is
   signed, by whom, what each signature proves and what is not signed.
+- The website is redrawn in one system for the landing page and the
+  documentation, with a light and a dark theme a reader switches without
+  script, Geist fonts served from the site, and the new headline, "Decide what
+  your AI agents run. Check what they did.", which README and the social card
+  now open with. Each label on the landing page is checked against its row in
+  the status page or its task in the backlog
+  ([ADR-0084](docs/adr/0084-the-site-is-redrawn-in-one-system.md)).
+
+### Added
+
+- `llms.txt` on the website: every documentation page with its address and
+  summary, grouped as the index groups them, and the records.
 
 ### Security
 

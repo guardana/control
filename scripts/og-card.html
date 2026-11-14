@@ -5,28 +5,25 @@
 <title>Social card</title>
 <!-- Rendered by hand to site/og.png at 1200x630, and at 1280x640 for the
      repository's social preview, with headless Chrome over file://. -->
-<link rel="stylesheet" href="../site/assets/brand/v1/tokens.css"/>
+<link rel="stylesheet" href="../site/assets/control/v2/tokens.css"/>
 <style>
-:root{color-scheme:light;--brand:#0B8F80;--brand-ink:#08705F;--brand-soft:#E6F4F2;--bg:#FBFBFD;--ink:#0F1115;--muted:#566070;--line:#E6E8EF}
+:root{color-scheme:light}
 html,body{margin:0;width:100vw;height:100vh;overflow:hidden}
-body{background:var(--bg);color:var(--ink);font-family:var(--sans);position:relative;isolation:isolate}
-body::before{content:"";position:absolute;inset:0;z-index:-2;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:48px 48px;-webkit-mask-image:radial-gradient(ellipse 80% 70% at 70% 20%,#000 20%,transparent 75%);mask-image:radial-gradient(ellipse 80% 70% at 70% 20%,#000 20%,transparent 75%)}
-body::after{content:"";position:absolute;right:-12%;top:-40%;width:80%;height:110%;z-index:-1;background:radial-gradient(closest-side,rgba(11,143,128,.20),transparent 70%)}
-.card{position:absolute;inset:0;padding:6.5vh 6vw;display:flex;flex-direction:column}
-.mark{display:flex;align-items:center;gap:16px;font-weight:700;font-size:34px;letter-spacing:-.02em}
-.mark svg{width:44px;height:44px;color:var(--brand)}
-.mark b{color:var(--brand);font-weight:inherit}
-.tagline{margin:auto 0;font-size:62px;line-height:1.1;letter-spacing:-.035em;font-weight:700;max-width:25ch;text-wrap:balance}
-.tagline span{color:var(--brand);white-space:nowrap}
-.foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:26px;font:500 21px var(--mono);color:var(--muted);white-space:nowrap;gap:24px}
-.foot .verbs{color:var(--brand-ink)}
+body{background-color:#FAFAFA;background-image:radial-gradient(rgba(0,0,0,.09) 1px,transparent 1px);background-size:20px 20px;color:#0A0A0A;font-family:var(--sans);-webkit-font-smoothing:antialiased}
+.card{position:absolute;inset:0;padding:7vh 6.5vw;display:flex;flex-direction:column}
+.logo{display:flex;align-items:center;gap:14px;font-weight:600;font-size:30px;letter-spacing:-.015em}
+.logo svg{width:36px;height:36px;color:#0A7C6F}
+.tagline{margin:auto 0;font-size:70px;line-height:1.04;letter-spacing:-.048em;font-weight:600}
+.tagline span{display:block;color:#4D4D4D}
+.foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #EAEAEA;padding-top:26px;font:500 21px var(--mono);color:#737373;white-space:nowrap;gap:24px}
+.foot .k{color:#0A7C6F}
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="mark"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana <b>Control</b></span></div>
-  <p class="tagline">Supervise your <span>AI agents.</span> Decide what runs.</p>
-  <div class="foot"><span class="verbs">observe · supervise · react</span><span>open source · Apache-2.0 · alpha</span></div>
+  <div class="logo"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg><span>Guardana Control</span></div>
+  <p class="tagline">Decide what your AI agents run. <span>Check what they did.</span></p>
+  <div class="foot"><span class="k">allow · block · ask a person</span><span>open source · Apache-2.0 · alpha</span></div>
 </div>
 </body>
 </html>

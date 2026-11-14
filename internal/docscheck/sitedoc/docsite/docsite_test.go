@@ -8,6 +8,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/docscheck/impact"
 )
 
@@ -29,6 +30,7 @@ func fixture(body string) fstest.MapFS {
 		"CHANGELOG.md":           {Data: []byte("# Changelog\n\n## [Unreleased]\n\n## [0.2.0] - 2026-01-02\n\n## [0.1.0] - 2026-01-01\n")},
 		"cmd/tool/main.go":       {Data: []byte("package main\n")},
 		"examples/demo/x.txt":    {Data: []byte("x\n")},
+		"README.md":              {Data: []byte("# Product\n\n**Watch every call.**\n\nIt decides each call\nbefore it runs.\n\n## More\n")},
 	}
 }
 
@@ -178,8 +180,8 @@ func TestEveryPageIsWrittenAndListed(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{"index.html", "concepts/a.html", "concepts/b.html", "adr/0001-first.html", "roadmap.html", "changelog.html"}
-	if len(files) != len(want)+1 {
-		t.Errorf("Build wrote %d files, want %d pages and the sitemap", len(files), len(want))
+	if len(files) != len(want)+2 {
+		t.Errorf("Build wrote %d files, want %d pages, the sitemap and llms.txt", len(files), len(want))
 	}
 	sitemap := string(files[Sitemap])
 	for _, name := range want {
@@ -212,11 +214,13 @@ func TestThePageCarriesTheHeaderAndTheMenu(t *testing.T) {
 	a := renderA(t, "# A\n")
 	for _, want := range []string{
 		`<a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.1.0"><span class="ver">v0.1.0</span></a>`,
-		`<a href="/docs/">Docs</a>`,
-		`<a href="/docs/status">Status</a>`,
-		`<a class="hide-s" href="/docs/roadmap">Roadmap</a>`,
-		`<a class="gh" href="https://github.com/guardana/control" aria-label="GitHub"><svg viewBox="0 0 16 16"`,
-		`<span class="hide-s">GitHub</span></a>`,
+		`<nav class="links" aria-label="Primary"><a href="/#how">How it works</a>`,
+		`<a href="/docs/">Docs</a></nav>`,
+		`<input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme"`,
+		`<a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>`,
+		`<footer class="ft">`,
+		`<a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a>`,
+		`<link rel="stylesheet" href="/assets/control/v2/tokens.css"/>`,
 		"<details class=\"mnav\">\n<summary>Menu · <b>A page</b></summary>\n<nav class=\"inner\" aria-label=\"Documentation\">",
 	} {
 		if !strings.Contains(a, want) {
@@ -244,7 +248,7 @@ func TestEveryPageNamesTheReleasedVersion(t *testing.T) {
 		`The latest release is v0.1.0, and <a href="https://github.com/guardana/control/tree/v0.1.0/docs">its documentation</a> is in its tag.</p>`
 	pages := 0
 	for name, data := range files {
-		if name == Sitemap {
+		if name == Sitemap || name == LLMs {
 			continue
 		}
 		pages++
@@ -297,6 +301,57 @@ func TestTextXHTMLCannotCarryIsRefused(t *testing.T) {
 	} {
 		if _, err := build(t, body); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("body %q: err = %v, want %q", body, err, want)
+		}
+	}
+}
+
+// llms.txt names the product, quotes the README's lede, says the status, and
+// lists every page under its type's heading and every record as optional,
+// each with its address and summary, and the index itself nowhere.
+func TestLLMsListsEveryPageUnderItsType(t *testing.T) {
+	files, err := build(t, "# A\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(files[LLMs])
+	want := "# " + brand.Name + "\n\n" +
+		"> It decides each call before it runs.\n\n" +
+		llmsStatus + " " + Origin + "/docs/status\n" +
+		"\n## Concepts\n\n" +
+		"- [A page](" + Origin + "/docs/concepts/a): What the page is for.\n" +
+		"- [A page](" + Origin + "/docs/concepts/b): What the page is for.\n" +
+		"\n## Project\n\n" +
+		"- [Changelog](" + Origin + "/docs/changelog): What each release changed, and what is unreleased on main.\n" +
+		"- [Roadmap](" + Origin + "/docs/roadmap): What has to become true, in the order it is planned.\n" +
+		"\n## Optional\n\n" +
+		"- [ADR-0001: First](" + Origin + "/docs/adr/0001-first): Decision record, accepted.\n"
+	if got != want {
+		t.Errorf("llms.txt =\n%s\nwant\n%s", got, want)
+	}
+}
+
+// The map quotes the README's lede; a README with no tagline, or none
+// followed by a paragraph, stops the render rather than leaving it out.
+func TestLLMsNeedsTheReadmesLede(t *testing.T) {
+	for name, c := range map[string]struct{ readme, want string }{
+		"no tagline":         {"# Product\n\nIt decides each call.\n", "no line is set wholly in bold"},
+		"nothing after it":   {"# Product\n\n**Watch every call.**\n\n", "no paragraph follows the tagline on line 3"},
+		"no README":          {"", "README.md"},
+		"a lede to the end":  {"**Watch.**\nIt decides.", ""},
+		"a tagline in words": {"# Product\n\nWatch **every** call.\n\nIt decides.\n", "no line is set wholly in bold"},
+	} {
+		fsys := fixture("# A\n")
+		if c.readme == "" {
+			delete(fsys, "README.md")
+		} else {
+			fsys["README.md"] = &fstest.MapFile{Data: []byte(c.readme)}
+		}
+		_, err := buildAll(fsys)
+		switch {
+		case c.want == "" && err != nil:
+			t.Errorf("%s: %v", name, err)
+		case c.want != "" && (!errors.Is(err, ErrSite) || !strings.Contains(err.Error(), c.want)):
+			t.Errorf("%s: err = %v, want %q", name, err, c.want)
 		}
 	}
 }

@@ -7,6 +7,11 @@ Amended by [ADR-0030](0030-a-static-website-drawn-from-the-repository.md): the
 website's IBM Plex fonts under `site/assets/brand/v1/fonts/` are third-party
 files under the SIL Open Font License 1.1, which ships beside them.
 
+Amended by [ADR-0084](0084-the-site-is-redrawn-in-one-system.md): the
+website's fonts are now Geist and Geist Mono under
+`site/assets/control/v2/fonts/`, under the same licence, which ships beside
+them; the IBM Plex files are removed.
+
 Amended by [ADR-0066](0066-each-decision-about-authority-is-a-port.md),
 which decides that each pluggable part this record names is a port with a
 default, a closed kind and at most one remote kind.

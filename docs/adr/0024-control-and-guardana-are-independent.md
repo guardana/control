@@ -7,6 +7,10 @@ Amended by [ADR-0030](0030-a-static-website-drawn-from-the-repository.md): the
 website's visual system is a copy of Guardana's brand that Control owns from
 the day it was taken; nothing in the site or its checks reads Guardana.
 
+Amended by [ADR-0084](0084-the-site-is-redrawn-in-one-system.md): the
+website's visual system is now Control's own, at `site/assets/control/v2/`;
+the copy of Guardana's brand is removed.
+
 ## Context
 
 Two open-source projects share the Guardana name and organization.
