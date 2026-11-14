@@ -22,6 +22,25 @@ var (
 // list, every task of the backlog's release bar table carries one, and the
 // tasks ROADMAP's release bar names are exactly the tasks that carry one.
 func releaseBarProblems(backlog, roadmap []string) []string {
+	marked, problems := backlogDispositions(backlog)
+	named, more := roadmapBarTasks(roadmap)
+	problems = append(problems, more...)
+	for _, id := range sortedKeys(named) {
+		if !marked[id] {
+			problems = append(problems, fmt.Sprintf("ROADMAP.md names %s in its release bar, and no backlog task %s carries a disposition", id, id))
+		}
+	}
+	for _, id := range sortedKeys(marked) {
+		if !named[id] {
+			problems = append(problems, fmt.Sprintf("%s carries a disposition, and ROADMAP.md's release bar does not name it", id))
+		}
+	}
+	return problems
+}
+
+// backlogDispositions reads the backlog's task rows: the tasks that carry a
+// disposition, and each row or line that breaks the rule.
+func backlogDispositions(backlog []string) (map[string]bool, []string) {
 	var problems []string
 	marked := map[string]bool{}
 	barRows := 0
@@ -31,12 +50,7 @@ func releaseBarProblems(backlog, roadmap []string) []string {
 			section = strings.TrimSpace(line)
 		}
 		marks := dispositionMark.FindAllStringSubmatch(line, -1)
-		id := ""
-		if s := strings.TrimSpace(line); strings.HasPrefix(s, "|") {
-			if cells := tableCells(s); backlogID.MatchString(cells[0]) {
-				id = cells[0]
-			}
-		}
+		id := backlogRowID(line)
 		if id == "" {
 			if len(marks) > 0 {
 				problems = append(problems, fmt.Sprintf("docs/backlog.md:%d: a disposition outside a task row", i+1))
@@ -61,19 +75,19 @@ func releaseBarProblems(backlog, roadmap []string) []string {
 	if barRows == 0 {
 		problems = append(problems, "docs/backlog.md: no task row under "+releaseBarHeading)
 	}
-	named, more := roadmapBarTasks(roadmap)
-	problems = append(problems, more...)
-	for _, id := range sortedKeys(named) {
-		if !marked[id] {
-			problems = append(problems, fmt.Sprintf("ROADMAP.md names %s in its release bar, and no backlog task %s carries a disposition", id, id))
-		}
+	return marked, problems
+}
+
+// backlogRowID is the task identifier a backlog table row opens with, or "".
+func backlogRowID(line string) string {
+	s := strings.TrimSpace(line)
+	if !strings.HasPrefix(s, "|") {
+		return ""
 	}
-	for _, id := range sortedKeys(marked) {
-		if !named[id] {
-			problems = append(problems, fmt.Sprintf("%s carries a disposition, and ROADMAP.md's release bar does not name it", id))
-		}
+	if cells := tableCells(s); backlogID.MatchString(cells[0]) {
+		return cells[0]
 	}
-	return problems
+	return ""
 }
 
 // roadmapBarTasks reads the task identifiers of ROADMAP's release bar
@@ -92,10 +106,10 @@ func roadmapBarTasks(roadmap []string) (map[string]bool, []string) {
 			continue
 		}
 		for _, m := range barTaskRef.FindAllStringSubmatch(line, -1) {
-			from, _ := strconv.Atoi(m[1])
-			to := from
-			if m[2] != "" {
-				to, _ = strconv.Atoi(m[2])
+			from, to, err := barRange(m)
+			if err != nil {
+				problems = append(problems, fmt.Sprintf("ROADMAP.md: the task reference %s does not read: %v", m[0], err))
+				continue
 			}
 			if to < from {
 				problems = append(problems, fmt.Sprintf("ROADMAP.md: the range %s runs backwards", m[0]))
@@ -173,4 +187,16 @@ func TestReleaseBarProblems(t *testing.T) {
 			t.Errorf("%s: got %q, want %q", name, got, c.want)
 		}
 	}
+}
+
+// barRange is the first and last task number a reference names.
+func barRange(m []string) (from, to int, err error) {
+	if from, err = strconv.Atoi(m[1]); err != nil {
+		return 0, 0, err
+	}
+	if m[2] == "" {
+		return from, from, nil
+	}
+	to, err = strconv.Atoi(m[2])
+	return from, to, err
 }
