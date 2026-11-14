@@ -58,6 +58,7 @@
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
 <li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/signed-operations">Signed operations</a></li>
 <li><a href="/docs/concepts/threat-model" aria-current="page">Threat model</a></li>
 </ul>
 <h2>Reference</h2><ul>
@@ -470,7 +471,7 @@ in <code>internal/gateway/store_test.go</code>).</li>
 <li>A writer of that directory can still deny a chosen action and bundle
 (ADR-0016); only the plane's ledger marks an approval spent.</li>
 <li>Under <code>signed</code>, approvals, pauses, runs and stop lists count only signed by
-roster operators, and the plane refuses to start when its account may write
+roster operators (<a href="/docs/concepts/signed-operations">signed operations</a>), and the plane refuses to start when its account may write
 the roster, the pause file, the run records or the stop list (ADR-0073,
 ADR-0075, ADR-0076, ADR-0077). That account still owns every floor: it can
 lower one, or withhold a newer roster until the held one expires, but no
@@ -572,6 +573,7 @@ credential can post events to <code>collect</code>. What a record holds is on th
 <li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
 <li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
 <li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/signed-operations">Signed operations</a></li>
 <li><a href="/docs/concepts/threat-model" aria-current="page">Threat model</a></li>
 </ul>
 <h2>Reference</h2><ul>

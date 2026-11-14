@@ -24,6 +24,19 @@ verify one.
   that differs from `tenant_id` is refused at load. Remove it, or set it to
   `tenant_id`, and serve another tenant from a plane of its own
   ([ADR-0082](docs/adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant.md)).
+- The 1.0 release bar no longer waits for people from outside the project
+  ([ADR-0085](docs/adr/0085-the-1-0-bar-is-met-by-own-evidence-and-what-needs-outside-people-stays-not-met.md)).
+  An outside threat-model review, trials with new users and new approvers'
+  understanding stay written and are stated as not met; the rest of the bar
+  is met by the project's own evidence, from runs whose manifest is fixed
+  before they start. Each task the bar names carries its disposition, and
+  `make docs-check` refuses one that carries none or another word. The
+  backlog gains B39 to B43 (a run drawn as a graph beside a rule editor, a
+  mapping to the published risk lists, approvals that need more than one
+  operator, usage and cost as observations, a rebuild from the public pages
+  alone) and widens B11, B12, B13, B16, B23, B26, B33, B36 and B38.
+  [Signed operations](docs/concepts/signed-operations.md) says what is
+  signed, by whom, what each signature proves and what is not signed.
 
 ### Security
 
