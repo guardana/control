@@ -2,9 +2,9 @@
 
 # <img src="site/assets/control/mark.svg" height="30" alt=""> Guardana Control
 
-**Supervise your AI agents. Decide what runs.**
+**Decide what your AI agents run. Check what they did.**
 
-An open-source AI agent supervision framework that checks recorded runs against procedures and uses policy to decide connected actions.
+Guardana Control puts your rules between an AI agent and its tools. Each call that goes through it is allowed, blocked or held for a person before it runs.
 
 [![CI](https://github.com/guardana/control/actions/workflows/ci.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/ci.yml)
 [![Security](https://github.com/guardana/control/actions/workflows/security.yml/badge.svg)](https://github.com/guardana/control/actions/workflows/security.yml)
@@ -19,176 +19,94 @@ An open-source AI agent supervision framework that checks recorded runs against 
 
 </div>
 
-## Try the alpha
-
-[Run the local demo](docs/get-started/try-the-demo.md): allow a call, block
-another and approve one exact action, without Go or a model key.
-[Connect your MCP setup](docs/guides/connect-an-existing-mcp-setup.md) next.
-
-The gateway is `experimental`. Caller identity comes from configuration.
-The evidence trail is not tamper-evident. Do not deploy this as a security
-boundary. [Status](docs/status.md) is the inventory of what exists.
-
 ## What you can do today
 
-- Hold writes for an expiring approval of one exact action:
-  [starter policies](docs/reference/starter-packs.md).
-- Let your authorization service veto configured calls through the
-  [AuthZEN API](docs/guides/let-a-decision-point-veto.md).
-- Let a tool of your own ask before it acts, through the
-  [Enforcement API](docs/guides/decide-a-tool-of-your-own.md).
-- Import runtime traces and egress proxy logs, inspect coverage, check a
-  recorded run against its procedure, and stop its later calls where a signed
-  route allows:
-  [supervision](docs/guides/supervise-and-stop-a-run.md).
-- Under `approvals.authority: signed`, take approvals, pauses, runs and stop
-  routes only from operators named in a signed roster:
-  [who may approve](docs/concepts/approvals-and-the-held-call.md#who-may-approve).
-- Block a tool whose definition no longer matches its reviewed fingerprint,
-  except under `OBSERVE`: [MCP gateway](docs/concepts/mcp-gateway.md).
+- Put the gateway in front of an MCP server and decide each tool call from a
+  signed policy before it runs (`experimental`).
+- Hold a risky call for a person. An approval covers one exact call, expires
+  and works once (`implemented`).
+- Let the authorization service you already run veto calls over AuthZEN. It
+  can refuse a call and never widen what your policy allows (`experimental`).
+- Let a tool of your own ask before it acts, through the enforcement API or
+  a coding agent's hooks. Your client enforces the answer (`experimental`).
+- Check a recorded run against its procedure, and stop that run's later calls
+  through a signed route (`experimental`).
+- Read each decision with the policy version that made it, and see in the
+  coverage map which paths nobody observed (`experimental`).
 
-Supervision and reaction run when you invoke them. A stop never interrupts
-a running operation. Paths around the gateway stay outside its control.
+[Status](docs/status.md) is the one inventory of what exists.
 
-## The 1.0 goal: observe, supervise, react
+## Try the demo
 
-Guardana Control is a control and supervision layer for AI agents. Its 1.0
-goal is `planned` ([roadmap](ROADMAP.md)):
+The demo needs no Go and no model key. On Linux or macOS:
 
-- **Observe** actions and outcomes across connected tools, APIs, runtimes,
-  network and process sources. State each path's coverage, source trust and gaps.
-- **Supervise** runs against procedures and permissions. Report deviations,
-  denied actions tried another way, skipped work and uncertain outcomes.
-- **React** within scoped authority: inform, alert, request review, hold an
-  exact action for approval, pause calls or stop further actions.
+1. From the [latest release](https://github.com/guardana/control/releases/latest),
+   download `guardana-control-demo_<version>_<os>_<arch>.tar.gz`, check it as
+   [RELEASING.md](RELEASING.md) shows, extract it and enter its directory.
+2. Start the gateway in front of the demo's two servers:
 
-Full observation means coverage of connected paths with unknowns visible,
-not every action visible or controllable. Sensors report;
-enforcement points decide before effects. Read
-[the product model](docs/concepts/control-and-supervision.md).
+   ```
+   bin/guardana-gateway dev --decision-point=silent \
+     --config examples/vulnerable-mcp-agent/demo.yaml \
+     --policy examples/vulnerable-mcp-agent/policy.json
+   ```
 
-## How a call is decided
+3. In a second terminal, set `MCP` to the `mcp` address it printed and call
+   the tools as an agent would:
 
-The MCP gateway consults signed policy before a tool call. An external PDP
-can veto but never widen local authority (`experimental`). Its silence blocks
-the calls it governs in an enforcing mode. It receives action metadata, not
-arguments. Evidence names the policy version and records the outcome.
+   ```
+   examples/vulnerable-mcp-agent/call.sh "$MCP" read_order '{"id":"ord-1"}'
+   examples/vulnerable-mcp-agent/call.sh "$MCP" refund '{"id":"ord-1","amount":"500.00"}'
+   examples/vulnerable-mcp-agent/call.sh "$MCP" update_order '{"id":"ord-1","status":"cancelled"}'
+   ```
 
-```mermaid
-flowchart LR
-    accTitle: How a tool call is decided today
-    accDescr: The enforcement point decides an agent's proposed call from the built-in policy engine, an external decision point that can only veto, and the approval authority when a person has to approve. An allowed call goes to the tool or API. Decisions are appended to the evidence, which is exported over OpenTelemetry; a call whose record cannot be appended is blocked, unless the operator let a read run unrecorded.
-    AG[Agent] --> PEP[Enforcement point]
-    POL[Built-in policy engine] --> PEP
-    PDP[External PDP] -.->|can veto| PEP
-    APR[Approval authority] --> PEP
-    PEP -->|allowed call| TOOL[Tool or API]
-    PEP --> EV[(Append-only evidence)]
-    EV --> OTEL[OpenTelemetry export]
-    classDef accent fill:#E6F4F2,stroke:#0B8F80,color:#0F1115
-    class PEP accent
+   The read runs, the refund is blocked, and the update waits for a person.
+   Approve it with the `approve_command` the gateway printed, then send the same
+   call again: it runs once.
+
+[The tutorial](docs/get-started/try-the-demo.md) goes on with a pause, the
+trail, the counters and the demo's scenarios.
+
+## How to use it
+
+```
+guardana-gateway run --config <file>
+guardana-control policy test <dir>
+guardana-control policy sign --key <file> --out <file> <document>
+guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --findings <dir>
 ```
 
-Decisions do not wait for evidence export. A full spool blocks calls unless
-the operator explicitly let a read run unrecorded.
+- `run` puts the gateway between your agent and its MCP servers:
+  [connect an existing MCP setup](docs/guides/connect-an-existing-mcp-setup.md).
+- `policy test` proves what your policy decides, case by case, and
+  `policy sign` makes the bundle the gateway loads:
+  [write and test a policy](docs/guides/write-and-test-a-policy.md).
+- `supervise` compares a recorded run with its procedure:
+  [supervise and stop a run](docs/guides/supervise-and-stop-a-run.md).
 
-| Verdict | Under `ENFORCE` |
-| --- | --- |
-| `ALLOW` | Proceed. |
-| `DENY` | Block. |
-| `REQUIRE_APPROVAL` | Hold this exact action for one approval. |
-| `ALLOW_WITH_OBLIGATIONS` | Proceed under enforced conditions, unless advisory. |
-| `INDETERMINATE` | No decision; never an allow. |
-
-`OBSERVE` records decisions; pauses, stops and halts still block calls. No
-model grants authority. Content capture is off by default; hidden reasoning
-is never stored.
-
-## Connected channels towards 1.0
-
-The `planned` target connects enforcement and observation through one
-vocabulary ([ADR-0039](docs/adr/0039-many-channels-into-one-core.md)).
-An [Enforcement API](docs/adr/0051-a-tool-outside-mcp-is-admitted-completed-and-aborted-through-an-enforcement-api.md)
-(`experimental`) is distinct from AuthZEN vetoes: custom tools ask before
-acting and report completion or abort. A cooperating client enforces its
-answer; the receiver does not.
-
-```mermaid
-flowchart TB
-    accTitle: The connected-channel target for 1.0
-    accDescr: The planned 1.0 target connects tools through the MCP gateway and cooperating clients over an enforcement API, and observations from runtimes, proxies and processes. A supervisor checks procedures and raises findings. Notifiers report them; scoped reactions stop later calls only at connected enforcement points. Coverage and missing observations remain explicit.
-    AG[Agents]
-    subgraph EP[Enforcement points]
-        MCP["MCP gateway, today"]
-        HK[Custom tools and framework hooks]
-    end
-    subgraph SN[Sensors]
-        TR[Runtime traces and logs]
-        PX[Proxy access logs]
-        PR[Process events]
-    end
-    TL[Tools and APIs]
-    EV[(Evidence)]
-    OB[(Observations)]
-    SV["Supervisor: procedures, detectors, coverage"]
-    subgraph OUT[Outputs]
-        AL["Alerts: webhooks, chat"]
-        EX["OpenTelemetry, SIEM"]
-        GR[Run graph]
-    end
-    RE["Reaction: scoped stops where allowed"]
-    AG --> MCP
-    AG --> HK
-    MCP -->|allowed calls| TL
-    HK --> TL
-    AG -.-> TR
-    AG -.-> PX
-    AG -.-> PR
-    MCP --> EV
-    HK --> EV
-    TR --> OB
-    PX --> OB
-    PR --> OB
-    EV --> SV
-    OB --> SV
-    SV --> AL
-    SV --> EX
-    SV --> GR
-    SV -.-> RE
-    classDef accent fill:#E6F4F2,stroke:#0B8F80,color:#0F1115
-    class MCP,SV accent
-```
-
-## Install
-
-Each release has archives of `guardana-gateway` and `guardana-control` for
-Linux and macOS on amd64 and arm64. Download one from
-[releases](https://github.com/guardana/control/releases), check it against
-the signed `checksums.txt` ([RELEASING.md](RELEASING.md)) and put the
-binaries on your `PATH`.
-
-With Go 1.27.4 or later, build from source (version `dev`):
+Each release has archives of both binaries for Linux and macOS on amd64 and
+arm64, with a signed `checksums.txt`. With Go 1.27.4 or later:
 
 ```bash
 go install github.com/guardana/control/cmd/guardana-gateway@latest
 go install github.com/guardana/control/cmd/guardana-control@latest
 ```
 
+## What it is not
+
+It is an AI agent supervision framework in alpha, not a security boundary: do
+not deploy it as one. It decides only the calls that go through it. The
+caller's identity is configured, not logged in. The evidence trail is checked
+for order, not yet for tampering (`planned`, [B29](docs/backlog.md)).
+Supervision runs when you start it, and a stop refuses later calls without
+undoing what already ran. No model grants authority, and prompt and tool
+content capture is off by default.
+
 ## Related project: Guardana
 
 [Guardana](https://github.com/guardana/guardana) verifies AI systems before
-and after deployment. Control observes and controls agents while they run.
-The projects are independent.
-
-```mermaid
-flowchart LR
-    accTitle: Where Guardana and Guardana Control sit in a system's life
-    accDescr: Guardana checks a build before its release. While the released agents run, Guardana Control observes their runs and decides connected calls. After the release, Guardana compares what changed.
-    B[Build] --> G1["Guardana<br/>checks before release"]
-    G1 --> R[Release]
-    R --> C["Guardana Control<br/>observes and controls runs"]
-    C --> G2["Guardana<br/>compares after release"]
-```
+and after deployment. Control decides and checks what agents do while they
+run. The projects are independent.
 
 [Governance](GOVERNANCE.md) · [Decision records](docs/adr/README.md) ·
 [Code of conduct](CODE_OF_CONDUCT.md) · [Trademarks](TRADEMARKS.md)

@@ -13,7 +13,7 @@ import (
 )
 
 // futurePhrase matches a sentence that promises work for later.
-var futurePhrase = regexp.MustCompile(`(?i)\b(?:comes?\s+next|coming\s+soon|next\s+release|will\s+ship|is\s+next|are\s+next|up\s+next|soon)\b`)
+var futurePhrase = regexp.MustCompile(`(?i)\b(?:comes?\s+next|coming\s+soon|next\s+release|will\s+ship|is\s+next|are\s+next|up\s+next|soon|on\s+the\s+roadmap|we\s+plan\s+to|later\s+this\s+year|will\s+be\s+added)\b`)
 
 // inlineElements continue a sentence; every other element ends one.
 var inlineElements = map[string]bool{

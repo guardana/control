@@ -1,0 +1,34 @@
+/* Type and colour tokens, v2. Light by default, dark when the system asks for
+   it; a checked #theme checkbox anywhere on the page selects the other one.
+   A change is a v3 at a new path, never an edit here. */
+@font-face{font-family:"Geist";font-style:normal;font-weight:100 900;font-display:swap;src:url("fonts/geist-variable.woff2") format("woff2")}
+@font-face{font-family:"Geist Mono";font-style:normal;font-weight:100 900;font-display:swap;src:url("fonts/geist-mono-variable.woff2") format("woff2")}
+:root{
+  color-scheme:light;
+  --bg:#FFFFFF;--bg2:#FAFAFA;--surface:#FFFFFF;--ink:#0A0A0A;--ink2:#4D4D4D;--muted:#737373;--line:#EAEAEA;--line2:#DCDCDC;
+  --accent:#0A7C6F;--accent-soft:#E8F5F3;--ok:#16794C;--no:#C22F23;--wait:#96690A;--hl:#FFF7E0;
+  --btn:#0A0A0A;--btn-ink:#FFFFFF;--code-bg:#0A0A0A;--code-ink:#EDEDED;--code-mute:#8F8F8F;
+  --shadow:0 0 0 1px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04),0 10px 28px -10px rgba(0,0,0,.10),0 36px 72px -32px rgba(0,0,0,.14);
+  --dots:rgba(0,0,0,.09);
+  --sans:"Geist",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  color-scheme:dark;
+  --bg:#0A0A0A;--bg2:#0F0F0F;--surface:#111111;--ink:#EDEDED;--ink2:#B4B4B4;--muted:#8A8A8A;--line:#1F1F1F;--line2:#2E2E2E;
+  --accent:#5EDDCF;--accent-soft:#0F2B28;--ok:#4ADE94;--no:#FF7B6E;--wait:#F0C454;--hl:#2A2410;
+  --btn:#EDEDED;--btn-ink:#0A0A0A;--code-bg:#111111;--code-ink:#EDEDED;--code-mute:#7A7A7A;
+  --shadow:0 0 0 1px rgba(255,255,255,.09),0 24px 60px -24px rgba(0,0,0,.9);--dots:rgba(255,255,255,.10)}}
+@media (prefers-color-scheme:light){html:has(#theme:checked){
+  color-scheme:dark;
+  --bg:#0A0A0A;--bg2:#0F0F0F;--surface:#111111;--ink:#EDEDED;--ink2:#B4B4B4;--muted:#8A8A8A;--line:#1F1F1F;--line2:#2E2E2E;
+  --accent:#5EDDCF;--accent-soft:#0F2B28;--ok:#4ADE94;--no:#FF7B6E;--wait:#F0C454;--hl:#2A2410;
+  --btn:#EDEDED;--btn-ink:#0A0A0A;--code-bg:#111111;--code-ink:#EDEDED;--code-mute:#7A7A7A;
+  --shadow:0 0 0 1px rgba(255,255,255,.09),0 24px 60px -24px rgba(0,0,0,.9);--dots:rgba(255,255,255,.10)}}
+@media (prefers-color-scheme:dark){html:has(#theme:checked){
+  color-scheme:light;
+  --bg:#FFFFFF;--bg2:#FAFAFA;--surface:#FFFFFF;--ink:#0A0A0A;--ink2:#4D4D4D;--muted:#737373;--line:#EAEAEA;--line2:#DCDCDC;
+  --accent:#0A7C6F;--accent-soft:#E8F5F3;--ok:#16794C;--no:#C22F23;--wait:#96690A;--hl:#FFF7E0;
+  --btn:#0A0A0A;--btn-ink:#FFFFFF;--code-bg:#0A0A0A;--code-ink:#EDEDED;--code-mute:#8F8F8F;
+  --shadow:0 0 0 1px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04),0 10px 28px -10px rgba(0,0,0,.10),0 36px 72px -32px rgba(0,0,0,.14);--dots:rgba(0,0,0,.09)}}
+html{--ok-soft:color-mix(in srgb,var(--ok) 13%,var(--surface));--no-soft:color-mix(in srgb,var(--no) 12%,var(--surface));--wait-soft:color-mix(in srgb,var(--wait) 16%,var(--surface))}
