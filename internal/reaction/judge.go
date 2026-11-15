@@ -69,7 +69,7 @@ type judging struct {
 // signed run, line, list id and route digest are not its line's and the
 // header's. A refusal returns no List: a list is accepted whole or not.
 func Judge(route Route, accepted Prefix, content []byte, now time.Time, tolerance time.Duration) (List, error) {
-	complete, lines, err := judgeable(route, false, content, now, tolerance)
+	complete, lines, err := judgeable(route, CheckStopping, false, content, now, tolerance)
 	if err != nil {
 		return List{}, err
 	}
@@ -96,7 +96,7 @@ func JudgeFrom(route Route, from List, content []byte, now time.Time, tolerance 
 // are held to ctx: one ended before they are answered refuses the list as a
 // voucher that cannot answer.
 func JudgeFromContext(ctx context.Context, route Route, from List, content []byte, now time.Time, tolerance time.Duration) (List, error) {
-	complete, lines, err := judgeable(route, false, content, now, tolerance)
+	complete, lines, err := judgeable(route, CheckStopping, false, content, now, tolerance)
 	if err != nil {
 		return List{}, err
 	}
@@ -130,7 +130,7 @@ func JudgeFromContext(ctx context.Context, route Route, from List, content []byt
 // which it holds to CheckCarrySource in place of CheckStopping, and which may
 // be a v1alpha2 route, whose list is 2.0. Nothing but a carry calls it.
 func JudgeCarrySource(route Route, content []byte, now time.Time) (List, error) {
-	complete, lines, err := judgeable(route, true, content, now, 0)
+	complete, lines, err := judgeable(route, CheckCarrySource, true, content, now, 0)
 	if err != nil {
 		return List{}, err
 	}
@@ -142,35 +142,20 @@ func JudgeCarrySource(route Route, content []byte, now time.Time) (List, error) 
 }
 
 // judgeable is content's complete lines and their count, refused when route,
-// clock or tolerance cannot judge it or it is over a bound. A v1alpha2 route
-// judges a list only as the source of a carry: anywhere else it is
-// ErrRouteUpgrade.
-func judgeable(route Route, carrySource bool, content []byte, now time.Time, tolerance time.Duration) ([]byte, int64, error) {
+// its rules, clock or tolerance cannot judge it or it is over a bound. A
+// v1alpha2 route judges a list only as the source of a carry: anywhere else
+// it is ErrRouteUpgrade. The carry's rules are passed in, so a plane's binary
+// never links them.
+func judgeable(route Route, rules func(Route) error, carrySource bool, content []byte, now time.Time,
+	tolerance time.Duration) ([]byte, int64, error) {
 	if route.digest == "" {
 		return nil, 0, fmt.Errorf("%w: no route was read", ErrListRoute)
-	}
-	rules := CheckStopping
-	if carrySource {
-		rules = CheckCarrySource
 	}
 	if err := rules(route); err != nil {
 		return nil, 0, err
 	}
-	switch route.format {
-	case FormatV1Alpha1:
-	case FormatV1Alpha2Carry:
-		if !carrySource {
-			return nil, 0, ErrRouteUpgrade
-		}
-		if route.voucher == nil {
-			return nil, 0, fmt.Errorf("%w: the route was not taken through VerifySignedCarrySource", ErrNoVoucher)
-		}
-	case FormatV1Alpha3:
-		if route.voucher == nil {
-			return nil, 0, fmt.Errorf("%w: the route was not taken through VerifySignedRoute", ErrNoVoucher)
-		}
-	default:
-		return nil, 0, fmt.Errorf("%w: no route was read", ErrListRoute)
+	if err := formatJudges(route, carrySource); err != nil {
+		return nil, 0, err
 	}
 	if !policy.UsableTime(now) || tolerance < 0 {
 		return nil, 0, ErrJudgeClock
@@ -184,6 +169,30 @@ func judgeable(route Route, carrySource bool, content []byte, now time.Time, tol
 		return nil, 0, fmt.Errorf("%w: %d lines, limit %d", ErrListLines, lines, MaxListLines)
 	}
 	return complete, int64(lines), nil
+}
+
+// formatJudges refuses route unless its format judges a list here: a
+// v1alpha2 route only as a carry's source, and a signed route only as a
+// voucher took it.
+func formatJudges(route Route, carrySource bool) error {
+	switch route.format {
+	case FormatV1Alpha1:
+		return nil
+	case FormatV1Alpha2Carry:
+		if !carrySource {
+			return ErrRouteUpgrade
+		}
+		if route.voucher == nil {
+			return fmt.Errorf("%w: the route was not taken through VerifySignedCarrySource", ErrNoVoucher)
+		}
+		return nil
+	case FormatV1Alpha3:
+		if route.voucher == nil {
+			return fmt.Errorf("%w: the route was not taken through VerifySignedRoute", ErrNoVoucher)
+		}
+		return nil
+	}
+	return fmt.Errorf("%w: no route was read", ErrListRoute)
 }
 
 // extends refuses complete unless it begins with the accepted prefix, naming

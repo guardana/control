@@ -24,13 +24,9 @@ func v2RouteIn(t *testing.T, dir string, serial int) reaction.Route {
 		"rules": []any{map[string]any{"procedure_id": "refund", "version": "1", "digest": refundDigest(t),
 			"rule_id": "STEP_OUTSIDE_PROCEDURE", "rule_version": "1", "scope": "run", "expires_seconds": 3600}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	body, err := canon.CanonicalizeJSON(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	r, err := reaction.VerifySignedCarrySource(envelopeBy(t, operatorKey(), reaction.SignedRoutePayloadType, body), planeVoucher(dir))
 	if err != nil {
 		t.Fatalf("VerifySignedCarrySource: %v", err)
@@ -45,37 +41,25 @@ func v2ListIn(t *testing.T, dir string, r reaction.Route, serial int64) string {
 	t.Helper()
 	body, err := reaction.HeaderBody(reaction.Header{ListID: "lst-old", RouteID: r.ID(), RouteSerial: r.Serial(), RouteDigest: r.Digest(),
 		Signed: reaction.HeaderSigned{KeyID: operatorID(), TenantID: "acme", ProjectID: "shop", File: listPath(dir), Serial: serial}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	header, err := reaction.SignedHeaderLine(envelopeBy(t, operatorKey(), reaction.SignedHeaderPayloadType, body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	head := bundle.Digest(body)
 	liftBody, err := reaction.SignedLift{KeyID: operatorID(), ListHead: head, RunID: "run-2", ThroughLine: 3,
 		TenantID: "acme", Project: "shop", File: listPath(dir)}.Payload()
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	stop := func(finding, run string) []byte {
 		s := stopOf(t, finding, run, clock0)
 		s.ProjectID, s.Scope = "shop", reaction.ScopeRun
 		line, err := s.Marshal()
-		if err != nil {
-			t.Fatal(err)
-		}
+		noErr(t, err)
 		return line
 	}
 	lift, err := reaction.LiftLine{RunID: "run-2", ThroughLine: 3,
 		Envelope: envelopeBy(t, operatorKey(), reaction.SignedLiftPayloadType, liftBody)}.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	covered, err := reaction.Covered{FindingID: "f-4", TenantID: "acme", RunID: "run-1", ProjectID: "shop", CreatedAt: clock0}.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	for _, line := range [][]byte{header, stop("f-1", "run-1"), stop("f-2", "run-2"), lift, covered} {
 		appendRaw(t, dir, line)
 	}
@@ -95,29 +79,30 @@ func TestACarryFromA20ListChainsA30Header(t *testing.T) {
 	into := emptyDir(t)
 	route := signedRouteIn(t, into, 4)
 	c, err := stopwrite.CarrySigned(bg, from, fromRoute, into, route, clock0, signer(), nil)
-	if err != nil {
-		t.Fatalf("CarrySigned: %v", err)
-	}
+	noErr(t, err)
 	if s := c.Header.Signed; s.Serial != 6 || s.Previous != head || s.PlaneID != "plane-a" || c.Stops != 1 || c.Covered != 2 {
 		t.Fatalf("carried: serial %d previous %q plane %q, %d stops, %d covered", s.Serial, s.Previous, s.PlaneID, c.Stops, c.Covered)
 	}
 	raw := content(t, into)
-	for i, line := range bytes.Split(bytes.TrimSuffix(raw, []byte{'\n'}), []byte{'\n'}) {
-		l, err := reaction.ParseLine(line)
-		if err != nil || l.Version != reaction.SignedListVersionV3 {
-			t.Fatalf("line %d: version %q, %v", i+1, l.Version, err)
-		}
-	}
+	expectEveryLine30(t, raw)
 	l, err := reaction.Judge(route, reaction.Prefix{}, raw, clock0, poll)
-	if err != nil {
-		t.Fatalf("Judge of the carried list: %v", err)
-	}
+	noErr(t, err)
 	e := l.Entries()
 	if len(e) != 1 || e[0].RunID != "run-1" || e[0].Scope != reaction.ScopeRun || e[0].Subject != "run-1" {
 		t.Fatalf("entries %+v, want run-1's stop of subject run-1", e)
 	}
 	if _, err := reaction.Judge(route, reaction.Prefix{}, content(t, from), clock0, poll); !errors.Is(err, reaction.ErrListUpgrade) {
 		t.Fatalf("the old list under the new route: %v, want %v", err, reaction.ErrListUpgrade)
+	}
+}
+
+func expectEveryLine30(t *testing.T, raw []byte) {
+	t.Helper()
+	for i, line := range bytes.Split(bytes.TrimSuffix(raw, []byte{'\n'}), []byte{'\n'}) {
+		l, err := reaction.ParseLine(line)
+		if err != nil || l.Version != reaction.SignedListVersionV3 {
+			t.Fatalf("line %d: version %q, %v", i+1, l.Version, err)
+		}
 	}
 }
 
@@ -139,5 +124,12 @@ func TestACarryIntoA20ListIsRefused(t *testing.T) {
 	}
 	if _, _, err := appendFinding(bg, from, fromRoute, signedStop(t, "f-9", "run-9", "shop", clock0.Add(time.Second)), clock0); !errors.Is(err, reaction.ErrRouteUpgrade) {
 		t.Fatalf("a stop appended under a v1alpha2 route: %v", err)
+	}
+}
+
+func noErr(t testing.TB, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
 	}
 }

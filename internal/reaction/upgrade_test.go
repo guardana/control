@@ -56,11 +56,11 @@ func expectUpgrade(t *testing.T, what string, s reaction.Snapshot, command strin
 	}
 }
 
-// TestEveryServingEntryPointRefusesA017Document: a v1alpha2 route, a 2.0
-// list and a v1alpha2 lift, each validly signed for the plane's tenant,
-// project and files, still parse and carry, but nothing a plane serves from
-// takes them, and each refusal names the command that upgrades it.
-func TestEveryServingEntryPointRefusesA017Document(t *testing.T) {
+// TestEveryServingEntryPointRefusesAV1alpha2Route: a v1alpha2 route validly
+// signed for the plane's tenant, project and file still parses and is taken
+// as a carry's source, but nothing a plane serves from takes it, and the
+// refusal names route sign.
+func TestEveryServingEntryPointRefusesAV1alpha2Route(t *testing.T) {
 	env := v2RouteEnvelope(t)
 	if r, err := reaction.ParseRoute(env.Payload); err != nil || r.Format() != reaction.FormatV1Alpha2Carry {
 		t.Fatalf("ParseRoute of a v1alpha2 body: format %d, %v", r.Format(), err)
@@ -70,24 +70,33 @@ func TestEveryServingEntryPointRefusesA017Document(t *testing.T) {
 		t.Fatalf("VerifySignedRoute of a v1alpha2 route: %v, want %v", err, reaction.ErrRouteUpgrade)
 	}
 	from, err := reaction.VerifySignedCarrySource(env, newVoucher())
-	if err != nil {
-		t.Fatalf("VerifySignedCarrySource of a v1alpha2 route: %v", err)
-	}
+	noErr(t, err)
 	old := v2List(t, from)
 	if l, err := reaction.JudgeCarrySource(from, old, sNow); err != nil || len(l.Entries()) != 1 {
 		t.Fatalf("JudgeCarrySource of a 2.0 list: %d entries, %v", len(l.Entries()), err)
 	}
-	if _, err := reaction.Judge(from, reaction.Prefix{}, old, sNow, 0); !errors.Is(err, reaction.ErrRouteUpgrade) {
-		t.Errorf("Judge under a v1alpha2 route: %v, want %v", err, reaction.ErrRouteUpgrade)
-	}
 	ctx := context.Background()
-	if _, err := reaction.JudgeFromContext(ctx, from, reaction.List{}, old, sNow, 0); !errors.Is(err, reaction.ErrRouteUpgrade) {
-		t.Errorf("JudgeFromContext under a v1alpha2 route: %v, want %v", err, reaction.ErrRouteUpgrade)
+	for name, err := range map[string]error{
+		"Judge": func() error { _, err := reaction.Judge(from, reaction.Prefix{}, old, sNow, 0); return err }(),
+		"JudgeFromContext": func() error {
+			_, err := reaction.JudgeFromContext(ctx, from, reaction.List{}, old, sNow, 0)
+			return err
+		}(),
+	} {
+		if !errors.Is(err, reaction.ErrRouteUpgrade) {
+			t.Errorf("%s under a v1alpha2 route: %v, want %v", name, err, reaction.ErrRouteUpgrade)
+		}
 	}
 	expectUpgrade(t, "a snapshot under a v1alpha2 route", reaction.Snapshot{}.NextContext(ctx, from, old, sNow, time.Second), "route sign")
+}
 
+// TestA20ListAndAV1alpha2LiftAreRefusedUnderAV1alpha3Route: a 2.0 list and a
+// v1alpha2 lift in a 3.0 list, each validly signed, are refused by the judge
+// and the snapshot, naming stops init --carry.
+func TestA20ListAndAV1alpha2LiftAreRefusedUnderAV1alpha3Route(t *testing.T) {
+	ctx := context.Background()
 	r := vouchedRoute(t, newVoucher())
-	_, err = reaction.Judge(r, reaction.Prefix{}, v2List(t, r), sNow, 0)
+	_, err := reaction.Judge(r, reaction.Prefix{}, v2List(t, r), sNow, 0)
 	if !errors.Is(err, reaction.ErrListUpgrade) || !strings.Contains(err.Error(), "stops init --carry") {
 		t.Errorf("Judge of a 2.0 list under a v1alpha3 route: %v, want %v", err, reaction.ErrListUpgrade)
 	}
@@ -96,14 +105,10 @@ func TestEveryServingEntryPointRefusesA017Document(t *testing.T) {
 	header, head := signedHeaderLine(t, r, headerOpts{})
 	v2Lift, err := reaction.SignedLift{KeyID: keyIDOf(operatorKey()), ListHead: head, RunID: "run-1", ThroughLine: 2,
 		TenantID: sTenant, Project: sProject, File: sListFile}.Payload()
-	if err != nil {
-		t.Fatalf("SignedLift.Payload: %v", err)
-	}
+	noErr(t, err)
 	lift, err := reaction.LiftLine{Scope: reaction.ScopeRun, Subject: "run-1", ThroughLine: 2,
 		Envelope: operatorSigned(t, reaction.SignedLiftPayloadType, v2Lift)}.Marshal()
-	if err != nil {
-		t.Fatalf("LiftLine.Marshal: %v", err)
-	}
+	noErr(t, err)
 	withLift := joinLines(header, signedStop(t, sProject), lift)
 	if _, err := reaction.Judge(r, reaction.Prefix{}, withLift, sNow, 0); !errors.Is(err, reaction.ErrLiftUpgrade) {
 		t.Errorf("a v1alpha2 lift in a 3.0 list: %v, want %v", err, reaction.ErrLiftUpgrade)
@@ -204,5 +209,12 @@ func TestASignedBodyIsHeldToTheBoundOfItsVersion(t *testing.T) {
 	}
 	if _, err := (reaction.LiftLine{RunID: "run-1", ThroughLine: 2, Envelope: big}).Marshal(); !errors.Is(err, reaction.ErrLineValue) {
 		t.Fatalf("a 2.0 lift line holding a body of MaxSignedBytes: %v, want %v", err, reaction.ErrLineValue)
+	}
+}
+
+func noErr(t testing.TB, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
 	}
 }

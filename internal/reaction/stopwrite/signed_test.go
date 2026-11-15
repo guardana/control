@@ -92,9 +92,10 @@ func TestInitSignedWritesAHeaderThePlaneTakes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InitSigned: %v", err)
 	}
-	if h.Signed.Serial != 4 || h.Signed.Previous != "" || h.Signed.File != listPath(dir) || h.Signed.ProjectID != "shop" ||
-		h.Signed.PlaneID != "plane-a" || h.Signed.Digest == "" {
-		t.Fatalf("the header: %+v", h.Signed)
+	want := reaction.HeaderSigned{KeyID: operatorID(), PlaneID: "plane-a", TenantID: "acme", ProjectID: "shop", File: listPath(dir),
+		Serial: 4, Digest: h.Signed.Digest}
+	if h.Signed.Digest == "" || h.Signed != want {
+		t.Fatalf("the header: %+v, want %+v", h.Signed, want)
 	}
 	l, err := reaction.Judge(r, reaction.Prefix{}, content(t, dir), clock0, poll)
 	if err != nil || l.Header().Signed.Digest != h.Signed.Digest || l.Signer().Subject != "alice" {

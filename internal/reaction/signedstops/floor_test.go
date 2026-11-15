@@ -264,42 +264,28 @@ func TestADocumentCopiedToAnotherPlaneOfTheSameProjectIsRefused(t *testing.T) {
 	secondRouteFile := filepath.Join(f.base, "second", "route.json")
 	secondStops := f.dir(t, "second-stops")
 	plane2, err := signedstops.PlaneOf("plane-a", "t1", "A", secondRouteFile, secondStops, stoplist.FileName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	v2, err := signedstops.NewRoster(f.roster, plane2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	body, err := reaction.SignedRouteBody([]byte(routeDoc), keyID("dave"), f.plane.RouteFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	sig, err := bundle.SignBytesAs(reaction.SignedRoutePayloadType, body, key("dave"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	copied := reaction.Envelope{PayloadType: reaction.SignedRoutePayloadType, Payload: body,
 		Signatures: []reaction.Signature{{KeyID: keyID("dave"), Signature: sig}}}
 	if _, err := reaction.VerifySignedRoute(copied, v2); !errors.Is(err, reaction.ErrOtherFile) {
 		t.Fatalf("the first plane's route at the second: %v", err)
 	}
 	samePaths, err := signedstops.PlaneOf("plane-b", "t1", "A", f.plane.RouteFile, first, stoplist.FileName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	v3, err := signedstops.NewRoster(f.roster, samePaths)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	if _, err := reaction.VerifySignedRoute(copied, v3); !errors.Is(err, reaction.ErrOtherPlane) {
 		t.Fatalf("the first plane's route at a plane of the same paths and another id: %v", err)
 	}
 
 	raw, err := stoplist.Read(first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	if err := os.WriteFile(filepath.Join(secondStops, stoplist.FileName), raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -309,5 +295,12 @@ func TestADocumentCopiedToAnotherPlaneOfTheSameProjectIsRefused(t *testing.T) {
 	}
 	if _, err := judged(t, first, r1); err != nil {
 		t.Fatalf("the list at its own plane: %v", err)
+	}
+}
+
+func noErr(t testing.TB, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
 	}
 }

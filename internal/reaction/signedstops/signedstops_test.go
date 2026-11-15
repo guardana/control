@@ -237,6 +237,13 @@ func TestPortsThatGiveNoAnswerAreUnavailableNotARefusal(t *testing.T) {
 	if _, err := signedstops.NewRoster(f.roster, reaction.Plane{Tenant: "t1", Project: "A"}); !errors.Is(err, signedstops.ErrOptions) {
 		t.Fatalf("a plane with no files: %v", err)
 	}
+}
+
+// TestAPlaneWithNoIDIsRefused: neither voucher takes a plane that names no
+// id, and PlaneOf makes none; the fixture's plane is what PlaneOf makes of
+// its id and paths.
+func TestAPlaneWithNoIDIsRefused(t *testing.T) {
+	f := newFixture(t)
 	noID := f.plane
 	noID.ID = ""
 	if _, err := signedstops.NewRoster(f.roster, noID); !errors.Is(err, signedstops.ErrOptions) {

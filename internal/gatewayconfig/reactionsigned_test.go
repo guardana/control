@@ -46,14 +46,14 @@ func TestASignedRouteNeedsAStopListFloorAndNoRouteKey(t *testing.T) {
 	}
 }
 
-// routeDocFor is a route of kind for plane, tenant and project, as a plane
-// reads it once an operator signed it: a v1alpha2 one names no plane.
-func routeDocFor(t *testing.T, kind, plane, tenant, project string) reaction.Route {
+// routeDocFor is a route of kind for plane, tenant acme and project, as a
+// plane reads it once an operator signed it: a v1alpha2 one names no plane.
+func routeDocFor(t *testing.T, kind, plane, project string) reaction.Route {
 	t.Helper()
 	doc := map[string]any{"kind": kind, "alg": "ed25519", "keyId": "ed25519-0000000000000000", "route_id": "refunds", "serial": 1,
-		"tenant_id": tenant, "project_id": project, "file": "/plane/route.json", "plane_id": plane,
+		"tenant_id": "acme", "project_id": project, "file": "/plane/route.json", "plane_id": plane,
 		"rules": []any{map[string]any{"procedure_id": "refund", "version": "3",
-			"digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			"digest":  "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 			"rule_id": "STEP_OUTSIDE_PROCEDURE", "rule_version": "1", "scope": "run"}}}
 	if plane == "" {
 		delete(doc, "plane_id")
@@ -84,7 +84,7 @@ func TestARouteIsOfTheAuthoritysFormatAndThePlanesProject(t *testing.T) {
 		t.Fatal(err)
 	}
 	v3, v2 := reaction.SignedRouteKindV3, reaction.SignedRouteKind
-	if err := signed.CheckRoute(routeDocFor(t, v3, "plane-a", "acme", "orders"), nil); err != nil {
+	if err := signed.CheckRoute(routeDocFor(t, v3, "plane-a", "orders"), nil); err != nil {
 		t.Errorf("a v1alpha3 route of the plane's id and project: %v", err)
 	}
 	other := routeConfig(t, seeded(1), seeded(2))
@@ -94,13 +94,13 @@ func TestARouteIsOfTheAuthoritysFormatAndThePlanesProject(t *testing.T) {
 		route reaction.Route
 		says  string
 	}{
-		{"another project", signed, routeDocFor(t, v3, "plane-a", "acme", "billing"), "project_id"},
-		{"another plane_id", signed, routeDocFor(t, v3, "plane-b", "acme", "orders"), "plane_id"},
+		{"another project", signed, routeDocFor(t, v3, "plane-a", "billing"), "project_id"},
+		{"another plane_id", signed, routeDocFor(t, v3, "plane-b", "orders"), "plane_id"},
 		{"a v1alpha1 route under signed", signed, routeFor(t, "acme", seeded(4)), "v1alpha1 route under the signed authority"},
-		{"a v1alpha2 route under signed", signed, routeDocFor(t, v2, "", "acme", "orders"), "route sign"},
+		{"a v1alpha2 route under signed", signed, routeDocFor(t, v2, "", "orders"), "route sign"},
 		{"the zero route under signed", signed, reaction.Route{}, "reaction.route: "},
-		{"a v1alpha3 route under memory", other, routeDocFor(t, v3, "plane-a", "acme", "orders"), "v1alpha3 route under the memory authority"},
-		{"a v1alpha2 route under memory", other, routeDocFor(t, v2, "", "acme", "orders"), "route sign"},
+		{"a v1alpha3 route under memory", other, routeDocFor(t, v3, "plane-a", "orders"), "v1alpha3 route under the memory authority"},
+		{"a v1alpha2 route under memory", other, routeDocFor(t, v2, "", "orders"), "route sign"},
 	} {
 		if err := c.cfg.CheckRoute(c.route, seeded(3)); err == nil || !strings.Contains(err.Error(), c.says) {
 			t.Errorf("%s: %v, want a refusal saying %q", c.name, err, c.says)

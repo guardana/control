@@ -135,7 +135,7 @@ func headerBindings(t *testing.T) []bindingCase {
 		}
 	}
 	with := func(o headerOpts) func(*testing.T) error {
-		return judge(func(v *fakeVoucher) []byte {
+		return judge(func(_ *fakeVoucher) []byte {
 			line, _ := signedHeaderLine(t, vouchedRoute(t, newVoucher()), o)
 			return line
 		})
@@ -255,6 +255,9 @@ func TestAZeroRouteOrPlaneNeverJudgesClear(t *testing.T) {
 		}
 		if _, err := reaction.VerifySignedCarrySource(env, zv); !errors.Is(err, reaction.ErrOtherPlane) {
 			t.Errorf("a carry source for plane %+v: %v, want %v", p, err, reaction.ErrOtherPlane)
+		}
+		if _, err := reaction.VerifySignedCarrySource(v2RouteEnvelope(t), zv); !errors.Is(err, reaction.ErrOtherPlane) {
+			t.Errorf("a v1alpha2 carry source for plane %+v: %v, want %v", p, err, reaction.ErrOtherPlane)
 		}
 	}
 }

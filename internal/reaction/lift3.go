@@ -75,10 +75,7 @@ func readSignedLiftV3(body []byte) (SignedLiftV3, error) {
 	if l.PlaneID, ok = planeIdentifier(o[memberPlaneID]); !ok {
 		return SignedLiftV3{}, fmt.Errorf("%w: %s", ErrLiftValue, memberPlaneID)
 	}
-	if l.Scope, ok = readScope(o[memberScope]); !ok {
-		return SignedLiftV3{}, fmt.Errorf("%w: %s", ErrLiftValue, memberScope)
-	}
-	if err := scopeServed(l.Scope); err != nil {
+	if l.Scope, err = liftScope(o[memberScope]); err != nil {
 		return SignedLiftV3{}, err
 	}
 	if l.ListHead, ok = strictjson.String(o[memberListHead]); !ok || !canon.ValidDigest(l.ListHead) {
@@ -94,6 +91,15 @@ func readSignedLiftV3(body []byte) (SignedLiftV3, error) {
 		return SignedLiftV3{}, fmt.Errorf("%w: %s", ErrLiftValue, memberAlg)
 	}
 	return l, nil
+}
+
+// liftScope is a lift's scope: one the grammar names and this build serves.
+func liftScope(raw []byte) (string, error) {
+	scope, ok := readScope(raw)
+	if !ok {
+		return "", fmt.Errorf("%w: %s", ErrLiftValue, memberScope)
+	}
+	return scope, scopeServed(scope)
 }
 
 // verifySignedLiftLineV3 is verifySignedLiftLine for a 3.0 lift line under a

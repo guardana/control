@@ -148,19 +148,8 @@ func vouchedWithin(ctx context.Context, v Voucher, kind SignedKind, env Envelope
 	if v == nil {
 		return Signer{}, ErrNoVoucher
 	}
-	p := v.Plane()
-	if b.tenant != p.Tenant || b.project != p.Project {
-		return Signer{}, ErrOtherPlane
-	}
-	if err := samePlane(p, b); err != nil {
+	if err := b.within(v.Plane(), kind); err != nil {
 		return Signer{}, err
-	}
-	want := p.ListFile
-	if kind == VouchRoute {
-		want = p.RouteFile
-	}
-	if want == "" || b.file != want {
-		return Signer{}, fmt.Errorf("%w: it names %q, and the plane reads %q", ErrOtherFile, b.file, want)
 	}
 	if err := ctx.Err(); err != nil {
 		return Signer{}, fmt.Errorf("%w: %w: %w", ErrUnvouched, ErrUnanswered, err)
@@ -179,6 +168,25 @@ func vouchedWithin(ctx context.Context, v Voucher, kind SignedKind, env Envelope
 		return Signer{}, fmt.Errorf("%w: %w", ErrUnvouched, err)
 	}
 	return s, nil
+}
+
+// within refuses b unless it names p's tenant, project and plane, and the
+// file p reads for kind.
+func (b binding) within(p Plane, kind SignedKind) error {
+	if b.tenant != p.Tenant || b.project != p.Project {
+		return ErrOtherPlane
+	}
+	if err := samePlane(p, b); err != nil {
+		return err
+	}
+	want := p.ListFile
+	if kind == VouchRoute {
+		want = p.RouteFile
+	}
+	if want == "" || b.file != want {
+		return fmt.Errorf("%w: it names %q, and the plane reads %q", ErrOtherFile, b.file, want)
+	}
+	return nil
 }
 
 // samePlane refuses b unless p names a plane and b names that plane: a

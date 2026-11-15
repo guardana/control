@@ -34,10 +34,17 @@ func InitSigned(ctx context.Context, dir string, route reaction.Route, now time.
 	return h, nil
 }
 
+// signedUnder reports whether route is a v1alpha3 route a voucher of its own
+// plane took, naming the plane's list file.
+func signedUnder(route reaction.Route) bool {
+	p := route.Plane()
+	return route.Format() == reaction.FormatV1Alpha3 && p.ListFile != "" && p.ID == route.PlaneID()
+}
+
 // signedHeader is the 3.0 header of a new list under route, signed by s,
 // and its line.
 func signedHeader(route reaction.Route, s Signer, serial int64, previous string) (reaction.Header, []byte, error) {
-	if route.Format() != reaction.FormatV1Alpha3 || route.Plane().ListFile == "" || route.Plane().ID != route.PlaneID() {
+	if !signedUnder(route) {
 		return reaction.Header{}, nil, fmt.Errorf("%w: a signed header is written under a v1alpha3 route a voucher took", ErrRefused)
 	}
 	if s.Sign == nil || s.KeyID == "" {

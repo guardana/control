@@ -26,9 +26,7 @@ import (
 func operatorEnvelope(t *testing.T, who, payloadType string, body []byte) reaction.Envelope {
 	t.Helper()
 	sig, err := bundle.SignBytesAs(payloadType, body, signedTestKey(who))
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	return reaction.Envelope{PayloadType: payloadType, Payload: body,
 		Signatures: []reaction.Signature{{KeyID: policykey.KeyID(signedTestPublic(who)), Signature: sig}}}
 }
@@ -38,9 +36,7 @@ func operatorEnvelope(t *testing.T, who, payloadType string, body []byte) reacti
 func writeRouteOf(t *testing.T, path, kind, plane string, serial int) {
 	t.Helper()
 	file, err := signedstops.BindingOf(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	doc := map[string]any{
 		"kind": kind, "alg": "ed25519", "keyId": policykey.KeyID(signedTestPublic("dave")), "route_id": fixtureRouteID, "serial": serial,
 		"tenant_id": "acme", "project_id": "orders", "file": file,
@@ -51,17 +47,11 @@ func writeRouteOf(t *testing.T, path, kind, plane string, serial int) {
 		doc["plane_id"] = plane
 	}
 	raw, err := json.Marshal(doc)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	body, err := canon.CanonicalizeJSON(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	out, err := reaction.MarshalRouteFile(operatorEnvelope(t, "dave", reaction.SignedRoutePayloadType, body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	writeTestFile(t, path, out)
 }
 
@@ -71,41 +61,25 @@ func writeRouteOf(t *testing.T, path, kind, plane string, serial int) {
 func write20List(t *testing.T, doc trust.Document, routePath, stops string) reaction.Route {
 	t.Helper()
 	plane, err := signedstops.PlaneOf("plane-a", "acme", "orders", routePath, stops, stoplist.FileName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	v, err := signedstops.NewRoster(doc, plane)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	raw, err := os.ReadFile(routePath) //nolint:gosec // G304: a file under the test's own temp dir
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	env, err := reaction.ParseRouteFile(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	from, err := reaction.VerifySignedCarrySource(env, v)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	body, err := reaction.HeaderBody(reaction.Header{ListID: "lst-017", RouteID: from.ID(), RouteSerial: from.Serial(), RouteDigest: from.Digest(),
 		Signed: reaction.HeaderSigned{KeyID: policykey.KeyID(signedTestPublic("alice")), TenantID: "acme", ProjectID: "orders",
 			File: plane.ListFile, Serial: 3}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	header, err := reaction.SignedHeaderLine(operatorEnvelope(t, "alice", reaction.SignedHeaderPayloadType, body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	s := stopOf("run-1", fixtureFinding, time.Now())
 	s.ProjectID, s.Scope = "orders", reaction.ScopeRun
 	stop, err := s.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	writeTestFile(t, filepath.Join(stops, stoplist.FileName), append(append(append(header, '\n'), stop...), '\n'))
 	return from
 }
@@ -131,8 +105,7 @@ func expectNoFloorRaised(t *testing.T, tr tree, what string, route bool) {
 // dave's v1alpha2 route is refused naming route sign; over a v1alpha3 route
 // of another plane, as another plane; over a v1alpha3 route and alice's 2.0
 // list, naming stops init --carry; none raises a floor. Once the list is
-// carried into a 3.0 list and reaction.stops names it, the start takes it:
-// run-1 is stopped and the floor holds the carried head.
+// carried into a 3.0 list and reaction.stops names it, the start takes it.
 func TestASignedStartRefusesA017RouteAndListUntilTheyAreCarried(t *testing.T) {
 	tr := signedStopsTree(t)
 	routePath, stops := filepath.Join(tr.dir, "route.json"), filepath.Join(tr.dir, "stops")
@@ -155,23 +128,25 @@ func TestASignedStartRefusesA017RouteAndListUntilTheyAreCarried(t *testing.T) {
 		t.Fatalf("a start over a 2.0 list = %v, want a refusal naming stops init --carry", err)
 	}
 	expectNoFloorRaised(t, tr, "a start over a 2.0 list", false)
+	expectCarriedListTaken(t, tr, doc, from)
+}
 
+// expectCarriedListTaken carries the 2.0 list of tr under from into a 3.0
+// list under tr's route, points reaction.stops at it, and expects a start to
+// take it with run-1 stopped and the floor at the carried head.
+func expectCarriedListTaken(t *testing.T, tr tree, doc trust.Document, from reaction.Route) {
+	t.Helper()
+	routePath, stops := filepath.Join(tr.dir, "route.json"), filepath.Join(tr.dir, "stops")
 	carried := filepath.Join(tr.dir, "stops-018")
-	if err := os.Mkdir(carried, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, os.Mkdir(carried, 0o700))
 	route := rosterRouteOf(t, doc, routePath, carried)
 	alice := stopwrite.Signer{KeyID: policykey.KeyID(signedTestPublic("alice")), Sign: func(payloadType string, body []byte) ([]byte, error) {
 		return bundle.SignBytesAs(payloadType, body, signedTestKey("alice"))
 	}}
 	c, err := stopwrite.CarrySigned(t.Context(), stops, from, carried, route, time.Now(), alice, nil)
-	if err != nil {
-		t.Fatalf("the carry: %v", err)
-	}
+	noErr(t, err)
 	cfg, err := os.ReadFile(tr.config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	noErr(t, err)
 	writeTestFile(t, tr.config, []byte(strings.Replace(string(cfg), "  stops: stops\n", "  stops: stops-018\n", 1)))
 	p, err := buildOneAccount(t, tr)
 	if err != nil {
@@ -211,5 +186,12 @@ func TestDoctorNamesA017RouteAndListAsThePlaneRefusesThem(t *testing.T) {
 		if status != exitFail || !strings.HasPrefix(stderr, "doctor: reaction: ") || !strings.Contains(line, c.says) {
 			t.Errorf("doctor over %s = %d, reaction line %q, stderr %q; want it to say %q:\n%s", c.name, status, line, stderr, c.says, out)
 		}
+	}
+}
+
+func noErr(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
 	}
 }
