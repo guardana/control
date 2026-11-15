@@ -25,7 +25,8 @@ import (
 // golden017 is a signed plane as v0.17.0 wrote it (testdata/upgrade-0.17):
 // dave's v1alpha2 route and alice's 2.0 list at serial 4 with stops of run-1
 // and run-2, a covered line of run-1 and alice's lift of run-2, each naming
-// the plane's files at /srv/plane, and the floors that plane kept.
+// the plane's files at /srv/plane, and the floors that plane kept; no pause
+// file. It is judged and carried here through the library, not the commands.
 const golden017 = "testdata/upgrade-0.17"
 
 // The golden's files as its documents name them, and the time it was written.
@@ -278,9 +279,10 @@ func routeEnvelopeAt(t *testing.T, path string) reaction.Envelope {
 	return env
 }
 
-// writeV2Plane writes into dir what a 0.17 operator signed for the files
-// there: dave's v1alpha2 route at route.json and alice's 2.0 list in stops
-// at serial 3 with a stop of run-1; it returns the list's head.
+// writeV2Plane writes into dir, with this build's writers, the documents a
+// 0.17 operator signed for the files there: dave's v1alpha2 route at
+// route.json and alice's 2.0 list in stops at serial 3 with a stop of run-1;
+// it returns the list's head. What 0.17 itself wrote is golden017.
 func writeV2Plane(t *testing.T, dir string) string {
 	t.Helper()
 	routePath, stops := filepath.Join(dir, "route.json"), ownerDir(t, filepath.Join(dir, "stops"))
@@ -330,7 +332,7 @@ func operatorEnvelope(t *testing.T, who, payloadType string, body []byte) reacti
 
 // TestStopsInitCarriesA017ListIntoA30One: stops init refuses a new list under
 // a v1alpha2 route, naming route sign; with --carry and --carry-route it
-// carries the 2.0 list of that route into a 3.0 list of the v1alpha3 route,
+// carries writeV2Plane's 2.0 list into a 3.0 list of the v1alpha3 route,
 // at the next serial, chained to the old head, with run-1's stop as scope run
 // and subject run-1.
 func TestStopsInitCarriesA017ListIntoA30One(t *testing.T) {

@@ -53,13 +53,15 @@ verify one.
   at start, naming the way forward, and raises no floor. With the plane
   stopped, as an admin of the roster, edit the route document to
   `reaction-route/v1alpha3`, add `plane_id` and raise its serial, then sign it
-  with `guardana-control route sign`; as an operator, carry the old list with
-  `guardana-control stops init --key <k> --route <new route> --roster <f>
-  --root-key <f> --carry <old stops dir> --carry-route <old route>
-  --stops-floor <floor dir> <new stops dir>`, which signs a `3.0` header at the
-  next serial naming the old head, and set `reaction.stops` to the new
-  directory. `route sign` refuses a `v1alpha2` document, and `react`, `stops
-  lift` and `stops list` a `v1alpha2` route
+  at a new path with `guardana-control route sign`, since a signed route names
+  its own file and the carry reads the old one at its path; as an operator,
+  carry the old list with `guardana-control stops init --key <k> --route <new
+  route> --roster <f> --root-key <f> --carry <old stops dir> --carry-route <old
+  route> --stops-floor <floor dir> <new stops dir>`, which signs a `3.0` header
+  at the next serial naming the old head; then set `reaction.route` to the new
+  route's path and `reaction.stops` to the new directory, and run `react` with
+  this release against them. `route sign` refuses a `v1alpha2` document, and
+  `react`, `stops lift` and `stops list` a `v1alpha2` route
   ([upgrade a signed plane from 0.17](docs/guides/upgrade-a-signed-plane-from-0-17.md)).
 - `doctor` names a `v1alpha2` route or a `2.0` stop list as the plane refuses
   it.

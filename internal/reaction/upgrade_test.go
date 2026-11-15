@@ -1,6 +1,7 @@
 package reaction_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -216,5 +217,33 @@ func noErr(t testing.TB, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestAListOfAnotherVersionIsNamedForWhatItIs: only a 2.0 list under a
+// v1alpha3 route is told to carry; a 2.0 list under a v1alpha1 route and a
+// 2.0 line within a 3.0 list are lines of another version, and their refusal
+// names no carry.
+func TestAListOfAnotherVersionIsNamedForWhatItIs(t *testing.T) {
+	v1 := listRoute(t)
+	r := vouchedRoute(t, newVoucher())
+	header, _ := signedHeaderLine(t, r, headerOpts{})
+	old := v2List(t, r)
+	mixed := joinLines(header, bytes.SplitN(old, []byte{'\n'}, 3)[1])
+	for _, c := range []struct {
+		name    string
+		route   reaction.Route
+		content []byte
+	}{
+		{"a 2.0 list under a v1alpha1 route", v1, v2List(t, v1)},
+		{"a 2.0 line in a 3.0 list", r, mixed},
+	} {
+		_, err := reaction.Judge(c.route, reaction.Prefix{}, c.content, sNow, 0)
+		if !errors.Is(err, reaction.ErrListVersion) || errors.Is(err, reaction.ErrListUpgrade) || strings.Contains(err.Error(), "carry") {
+			t.Errorf("%s: %v, want %v naming no carry", c.name, err, reaction.ErrListVersion)
+		}
+	}
+	if _, err := reaction.Judge(r, reaction.Prefix{}, mixed, sNow, 0); err == nil || !strings.Contains(err.Error(), "whose header is 3.0") {
+		t.Errorf("a 2.0 line in a 3.0 list: %v, want it named a line of another version than its header", err)
 	}
 }

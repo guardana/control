@@ -33,6 +33,7 @@ guardana-control pause sign --key op.key --roster /etc/guardana/roster.json \
 
 # 2. The route: edit the route document to kind reaction-route/v1alpha3, add
 # "plane_id": "orders-eu-1" and raise its serial by one; keep its route_id.
+# Sign it at a new path: step 3 reads the old route at its own.
 guardana-control route sign --key admin.key --out /srv/plane/route-018.json route.json
 
 # 3. The stop list: carried into a new directory, judged first as 0.17 judged it.
@@ -45,9 +46,15 @@ guardana-control stops init --key op.key --route /srv/plane/route-018.json \
 guardana-control state backup gateway.yaml /backups/plane-2
 ```
 
-Then move `route-018.json` to the path `reaction.route` names, signing it
-there in step 2 if the paths differ, since a signed route names its own file;
-set `reaction.stops` to `/srv/plane/stops-018`; and start the plane.
+Then set `reaction.route` to `/srv/plane/route-018.json` and
+`reaction.stops` to `/srv/plane/stops-018`, and start the plane. Leave the new
+route where step 2 signed it: a signed route names its own file and the new
+list's header names that route, so a route moved to the old path is refused.
+Keep `route.json` and `stops` for a roll back.
+
+Run `react` with the 0.18 binary, with `--route /srv/plane/route-018.json` and
+`--stops /srv/plane/stops-018`. A 0.17 `react` left on the old route and
+directory keeps appending to a list the plane no longer reads.
 
 `stops init --carry` is the one command that reads a `reaction-route/v1alpha2`
 route and a `2.0` list. It judges every line through the roster, as a 0.17
@@ -72,7 +79,19 @@ lifted run's findings are carried as covered.
 0.17 refuses a `reaction-route/v1alpha3` route, a `3.0` list and a backup
 whose manifest names a plane. To go back, stop the plane, point
 `reaction.route` and `reaction.stops` at the 0.17 files you kept, restore the
-0.17 pause file, and start 0.17. Its stop list floor holds the serial 0.18
-took, so the old list is refused below it: make a new floor with `stops floor
-init` in a new directory, name it in `reaction.stops_floor_dir`, and start a
-new list with `stops init --key`; `react` stops again what may still stop.
+0.17 pause file, and start 0.17. Two floors hold what 0.18 took:
+
+- The route floor holds the new route's serial, so 0.17 refuses the old
+  route below it. Make a new route floor with `policy state init --kind route
+  --route-id <route_id>` in a new directory and name it in
+  `reaction.floor_dir`, or sign with 0.17's `route sign` a
+  `reaction-route/v1alpha2` route at a serial above the new route's, at the
+path `reaction.route` names. A new
+  route needs a new list, since a header names its route.
+- The stop list floor holds the carried list's serial, so 0.17 refuses the
+  old list below it. Make a new floor with `stops floor init` in a new
+  directory, name it in `reaction.stops_floor_dir`, and start a new list with
+  `stops init --key`.
+
+Run `react` with the 0.17 binary against them; it stops again what may still
+stop.

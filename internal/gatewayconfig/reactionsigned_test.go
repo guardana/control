@@ -88,6 +88,10 @@ func TestARouteIsOfTheAuthoritysFormatAndThePlanesProject(t *testing.T) {
 		t.Errorf("a v1alpha3 route of the plane's id and project: %v", err)
 	}
 	other := routeConfig(t, seeded(1), seeded(2))
+	// The zero route's tenant is empty, so only a configuration of no tenant
+	// lets it past the tenant check to the format check.
+	untenanted := *signed
+	untenanted.TenantID, untenanted.Listener.PrincipalTenant = "", ""
 	for _, c := range []struct {
 		name  string
 		cfg   *Config
@@ -98,7 +102,7 @@ func TestARouteIsOfTheAuthoritysFormatAndThePlanesProject(t *testing.T) {
 		{"another plane_id", signed, routeDocFor(t, v3, "plane-b", "orders"), "plane_id"},
 		{"a v1alpha1 route under signed", signed, routeFor(t, "acme", seeded(4)), "v1alpha1 route under the signed authority"},
 		{"a v1alpha2 route under signed", signed, routeDocFor(t, v2, "", "orders"), "route sign"},
-		{"the zero route under signed", signed, reaction.Route{}, "reaction.route: "},
+		{"the zero route under signed", &untenanted, reaction.Route{}, "no route was read"},
 		{"a v1alpha3 route under memory", other, routeDocFor(t, v3, "plane-a", "orders"), "v1alpha3 route under the memory authority"},
 		{"a v1alpha2 route under memory", other, routeDocFor(t, v2, "", "orders"), "route sign"},
 	} {

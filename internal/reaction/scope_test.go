@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/guardana/control/internal/reaction"
 )
@@ -104,5 +105,26 @@ func TestALiftOfAnAgentScopeIsRefused(t *testing.T) {
 		if _, err := reaction.ParseLine([]byte(edited)); !errors.Is(err, reaction.ErrRouteScope) {
 			t.Errorf("a 3.0 lift line of scope %s: %v, want %v", scope, err, reaction.ErrRouteScope)
 		}
+	}
+}
+
+// TestA20LineNamesScopeRunAlone: a 2.0 stop line, which 0.17 wrote and a
+// carry still reads, names scope run and no subject; scope agent is refused.
+func TestA20LineNamesScopeRunAlone(t *testing.T) {
+	stop, err := reaction.Stop{
+		EntryID: reaction.EntryID("f-1"), TenantID: sTenant, ProjectID: sProject, Scope: reaction.ScopeRun, RunID: "run-1",
+		FindingID: "f-1", ProcedureID: "refund", ProcedureVersion: "3", ProcedureDigest: procDigest,
+		RuleID: "STEP_OUTSIDE_PROCEDURE", RuleVersion: "1", CreatedAt: sCreated, ExpiresAt: sCreated.Add(time.Hour),
+	}.Marshal()
+	noErr(t, err)
+	if l, err := reaction.ParseLine(stop); err != nil || l.Version != reaction.SignedListVersion {
+		t.Fatalf("a 2.0 stop line of scope run: version %q, %v", l.Version, err)
+	}
+	agent := strings.Replace(string(stop), `"scope":"run"`, `"scope":"agent"`, 1)
+	if agent == string(stop) {
+		t.Fatal("the 2.0 stop line names no scope")
+	}
+	if _, err := reaction.ParseLine([]byte(agent)); !errors.Is(err, reaction.ErrLineValue) {
+		t.Fatalf("a 2.0 stop line of scope agent: %v, want %v", err, reaction.ErrLineValue)
 	}
 }

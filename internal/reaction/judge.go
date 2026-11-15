@@ -269,6 +269,19 @@ func walk(ctx context.Context, route Route, from List, complete []byte, lines in
 	return l, nil
 }
 
+// versionRefusal is the refusal of line n of version v under a route whose
+// lists are want: a 2.0 header under a v1alpha3 route is a list to carry,
+// and any other line of another version is one its list does not hold.
+func versionRefusal(n int64, v, want string) error {
+	switch {
+	case n == 1 && v == SignedListVersion && want == SignedListVersionV3:
+		return ErrListUpgrade
+	case n == 1:
+		return fmt.Errorf("%w: %s, and the route's lists are %s", ErrListVersion, v, want)
+	}
+	return fmt.Errorf("%w: a line of version %s in a list whose header is %s", ErrListVersion, v, want)
+}
+
 func (j *judging) line(n int64, raw []byte) error {
 	l, err := ParseLine(raw)
 	if err != nil {
@@ -282,10 +295,7 @@ func (j *judging) line(n int64, raw []byte) error {
 		return err
 	}
 	if l.Version != want {
-		if l.Version == SignedListVersion && want == SignedListVersionV3 {
-			return ErrListUpgrade
-		}
-		return fmt.Errorf("%w: %s, and the route's lists are %s", ErrListVersion, l.Version, want)
+		return versionRefusal(n, l.Version, want)
 	}
 	switch l.Kind {
 	case KindHeader:
@@ -392,8 +402,8 @@ func (j *judging) liftLine(n int64, l LiftLine) error {
 }
 
 // liftedRun is the run whose stops l ends: the run a 1.0 or 2.0 lift line
-// names, and the subject of a 3.0 one under ScopeRun. A lift of any other
-// scope ends no run's stops.
+// names, and the subject of a 3.0 one under ScopeRun. Any other lift is
+// refused: a scope this build does not serve, or a run lift naming no run.
 func liftedRun(l LiftLine) (string, error) {
 	switch {
 	case l.Scope == "" && l.Subject == "" && l.RunID != "":
@@ -401,7 +411,10 @@ func liftedRun(l LiftLine) (string, error) {
 	case l.Scope == ScopeRun && l.Subject != "" && l.RunID == "":
 		return l.Subject, nil
 	}
-	return "", scopeServed(l.Scope)
+	if err := scopeServed(l.Scope); err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("%w: a lift of scope %s names no run", ErrLineValue, l.Scope)
 }
 
 // VerifyLiftLine verifies l's envelope under r's lift key and ties the lift

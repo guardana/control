@@ -3,6 +3,7 @@ package stopwrite_test
 import (
 	"crypto/ed25519"
 	"errors"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -207,5 +208,29 @@ func TestACarryBetweenTheFormatsOrPastTheLastSerialIsRefused(t *testing.T) {
 	next := emptyDir(t)
 	if _, err := stopwrite.CarrySigned(bg, top, topRoute, next, signedRouteIn(t, next, 4), clock0, signer(), nil); !errors.Is(err, stopwrite.ErrRefused) {
 		t.Errorf("a carry from the last serial: %v", err)
+	}
+}
+
+// TestACarryByRouteKeyTakesNoSignedList: Carry neither reads a signed list
+// nor writes one, so a 3.0 list is not carried down into a 1.0 one, nor
+// into another 3.0 list without a signer.
+func TestACarryByRouteKeyTakesNoSignedList(t *testing.T) {
+	from := emptyDir(t)
+	fromRoute := signedRouteIn(t, from, 3)
+	_, err := stopwrite.InitSigned(bg, from, fromRoute, clock0, signer(), 7)
+	noErr(t, err)
+	_, _, err = appendFinding(bg, from, fromRoute, signedStop(t, "f-1", "run-1", "shop", clock0), clock0)
+	noErr(t, err)
+	for name, into := range map[string]func(string) reaction.Route{
+		"a v1alpha1 route": func(string) reaction.Route { return routeOf(t, 4, false) },
+		"a v1alpha3 route": func(d string) reaction.Route { return signedRouteIn(t, d, 4) },
+	} {
+		dir := emptyDir(t)
+		if _, err := stopwrite.Carry(bg, from, fromRoute, dir, into(dir), clock0); !errors.Is(err, stopwrite.ErrRefused) {
+			t.Errorf("a 3.0 list carried by route key into %s: %v, want ErrRefused", name, err)
+		}
+		if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+			t.Errorf("a refused carry into %s left %d files, %v", name, len(entries), err)
+		}
 	}
 }

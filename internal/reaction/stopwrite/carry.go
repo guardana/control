@@ -44,11 +44,9 @@ var carrying func()
 // stays locked until the new one is written, whole or not at all, so no write
 // to it falls between the two; a dir that already holds a list is ErrExists.
 // Both routes are v1alpha1: a list an operator signed is carried by
-// CarrySigned.
+// CarrySigned, and the unsigned list Carry would write under another route is
+// refused by the judge every write passes.
 func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir string, route reaction.Route, now time.Time) (Carried, error) {
-	if fromRoute.Format() != reaction.FormatV1Alpha1 || route.Format() != reaction.FormatV1Alpha1 {
-		return Carried{}, fmt.Errorf("%w: a carry by route key is from and into lists of v1alpha1 routes", ErrRefused)
-	}
 	return carry(ctx, from, fromRoute, dir, route, now, func(part) (reaction.Header, []byte, error) {
 		h, err := newHeader(route)
 		if err != nil {

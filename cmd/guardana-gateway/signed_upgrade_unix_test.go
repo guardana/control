@@ -84,16 +84,13 @@ func write20List(t *testing.T, doc trust.Document, routePath, stops string) reac
 	return from
 }
 
-// expectNoFloorRaised fails unless the stop list floor of tr holds no
-// serial, and, with route, the route floor none either.
-func expectNoFloorRaised(t *testing.T, tr tree, what string, route bool) {
+// expectNoFloorRaised fails unless neither the stop list floor of tr nor its
+// route floor holds a serial: a refused start leaves both where they were.
+func expectNoFloorRaised(t *testing.T, tr tree, what string) {
 	t.Helper()
 	stops, err := policystate.ReadStops(filepath.Join(tr.dir, "stopsfloor"), "acme", "orders")
 	if err != nil || stops.HasSerial() {
 		t.Errorf("%s raised the stop list floor: %+v, %v", what, stops, err)
-	}
-	if !route {
-		return
 	}
 	r, err := policystate.ReadRoute(filepath.Join(tr.dir, "routefloor"), fixtureRouteID)
 	if err != nil || r.HasSerial() {
@@ -115,19 +112,19 @@ func TestASignedStartRefusesA017RouteAndListUntilTheyAreCarried(t *testing.T) {
 	if _, err := buildOneAccount(t, tr); err == nil || !strings.Contains(err.Error(), "route sign") {
 		t.Fatalf("a start over a v1alpha2 route = %v, want a refusal naming route sign", err)
 	}
-	expectNoFloorRaised(t, tr, "a start over a v1alpha2 route", true)
+	expectNoFloorRaised(t, tr, "a start over a v1alpha2 route")
 
 	writeRouteOf(t, routePath, reaction.SignedRouteKindV3, "plane-b", 1)
 	if _, err := buildOneAccount(t, tr); !errors.Is(err, reaction.ErrOtherPlane) {
 		t.Fatalf("a start over plane-b's route = %v, want %v", err, reaction.ErrOtherPlane)
 	}
-	expectNoFloorRaised(t, tr, "a start over another plane's route", true)
+	expectNoFloorRaised(t, tr, "a start over another plane's route")
 
 	writeRouteOf(t, routePath, reaction.SignedRouteKindV3, "plane-a", 2)
 	if _, err := buildOneAccount(t, tr); err == nil || !strings.Contains(err.Error(), "stops init --carry") {
 		t.Fatalf("a start over a 2.0 list = %v, want a refusal naming stops init --carry", err)
 	}
-	expectNoFloorRaised(t, tr, "a start over a 2.0 list", false)
+	expectNoFloorRaised(t, tr, "a start over a 2.0 list")
 	expectCarriedListTaken(t, tr, doc, from)
 }
 
