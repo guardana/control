@@ -45,10 +45,15 @@ type Config struct {
 	// older than it answers for, blocks every call.
 	Pause PauseSource
 	// Stops serves the stop state; StopsDisabled where no route is
-	// configured, and any other source only with Runs, since a stop names an
-	// opened run. A snapshot nobody read, or one older than it answers for,
-	// blocks every call.
+	// configured, and any other source only with Runs and Listener. A
+	// snapshot nobody read, or one older than it answers for, blocks every
+	// call.
 	Stops StopSource
+	// Listener is the tenant, principal and agent the plane serves, from its
+	// own configuration: a stop of an agent or a principal is matched against
+	// it, and a stop of a run within its tenant. Neither the envelope nor a
+	// run record reaches it, so no client can rename its way past a stop.
+	Listener RunIdentity
 	// Sink takes every event of every trail.
 	Sink evidence.Sink
 	// Approvals holds the requests the plane holds, and their projections an
@@ -136,8 +141,13 @@ func checkConfig(cfg Config) (string, Capabilities, error) {
 	if err := checkAuthority(cfg); err != nil {
 		return "", Capabilities{}, err
 	}
-	if _, disabled := cfg.Stops.(disabledStops); !disabled && cfg.Runs == nil {
-		return "", Capabilities{}, ErrStopsWithoutRuns
+	if _, disabled := cfg.Stops.(disabledStops); !disabled {
+		switch l := cfg.Listener; {
+		case cfg.Runs == nil:
+			return "", Capabilities{}, ErrStopsWithoutRuns
+		case l.TenantID == "" || l.PrincipalID == "" || l.AgentID == "":
+			return "", Capabilities{}, ErrStopsWithoutIdentity
+		}
 	}
 	if err := checkBounds(cfg); err != nil {
 		return "", Capabilities{}, err

@@ -53,7 +53,7 @@ func expect(t *testing.T, what string, s reaction.Snapshot, state reaction.State
 		t.Errorf("%s: accepted %d bytes, want %d", what, got, length)
 	}
 	for i, run := range []string{"run-1", "run-2"} {
-		if got := s.Active(run, "acme", clock0, time.Time{}); got != runs[i] {
+		if got := s.Matches(reaction.Subject{Tenant: "acme", Run: run}, clock0, time.Time{}).Has(reaction.StopRun); got != runs[i] {
 			t.Errorf("%s: Active(%s) = %v, want %v", what, run, got, runs[i])
 		}
 	}
