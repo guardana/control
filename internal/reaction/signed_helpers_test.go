@@ -39,6 +39,9 @@ type fakeVoucher struct {
 	deny       map[reaction.SignedKind]bool
 	asked      map[reaction.SignedKind]int
 	unanswered bool
+	// blankAfter, when set, empties the plane's id once a document of that
+	// kind was vouched for.
+	blankAfter reaction.SignedKind
 }
 
 func newVoucher() *fakeVoucher {
@@ -70,6 +73,9 @@ func (f *fakeVoucher) Vouch(kind reaction.SignedKind, env reaction.Envelope) (re
 	}
 	if err := bundle.VerifyBytesAs(types[kind], env.Payload, sig.Signature, id, bundle.Keyring{id: pubOf(operatorKey())}); err != nil {
 		return reaction.Signer{}, err
+	}
+	if kind == f.blankAfter {
+		f.plane.ID = ""
 	}
 	return reaction.Signer{Subject: "alice", KeyID: id}, nil
 }

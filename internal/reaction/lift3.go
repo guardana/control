@@ -49,13 +49,10 @@ func (l SignedLiftV3) Payload() ([]byte, error) {
 	return body, nil
 }
 
-// readSignedLiftV3 reads a v1alpha3 lift's body of at most MaxSignedBytes.
-// Its scope is one the grammar names and this build serves, and its subject
-// an identifier: a missing or empty one ends nothing.
+// readSignedLiftV3 reads a v1alpha3 lift's body, which signedBody holds to
+// MaxSignedBytes. Its scope is one the grammar names and this build serves,
+// and its subject an identifier: a missing or empty one ends nothing.
 func readSignedLiftV3(body []byte) (SignedLiftV3, error) {
-	if n := len(body); n > MaxSignedBytes {
-		return SignedLiftV3{}, fmt.Errorf("%w: %d bytes, limit %d", ErrLiftTooLarge, n, MaxSignedBytes)
-	}
 	refusals := docRefusals{json: ErrLiftJSON, repeated: ErrLiftRepeated, kind: ErrLiftKind, member: ErrLiftMember}
 	o, err := readDoc(body, SignedLiftKindV3, refusals, signedLiftMembersV3, signedLiftMembersV3)
 	if err != nil {

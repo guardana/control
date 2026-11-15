@@ -78,15 +78,16 @@ func readSignedHeaderLine(o strictjson.Object, v string) (Header, Envelope, erro
 	return h, env, nil
 }
 
-// readHeaderBody reads a 3.0 header's signed body when v3, and a 2.0
-// header's, held to the bound it was signed under, when not.
+// readHeaderBody reads a 3.0 header's signed body when v3, which
+// signedBody holds to MaxSignedBytes, and a 2.0 header's, held to the bound
+// it was signed under, when not.
 func readHeaderBody(body []byte, v3 bool) (Header, error) {
-	kind, bound, required := SignedHeaderKindV3, MaxSignedBytes, append([]string{memberPlaneID}, headerMembers...)
+	kind, required := SignedHeaderKindV3, append([]string{memberPlaneID}, headerMembers...)
 	if !v3 {
-		kind, bound, required = SignedHeaderKind, maxUpgradeBodyBytes, headerMembers
-	}
-	if n := len(body); n > bound {
-		return Header{}, fmt.Errorf("%w: the header's body is %d bytes, limit %d", ErrLineValue, n, bound)
+		kind, required = SignedHeaderKind, headerMembers
+		if n := len(body); n > maxUpgradeBodyBytes {
+			return Header{}, fmt.Errorf("%w: the header's body is %d bytes, limit %d", ErrLineValue, n, maxUpgradeBodyBytes)
+		}
 	}
 	refusals := docRefusals{json: ErrLineJSON, repeated: ErrLineRepeat, kind: ErrLineKind, member: ErrLineMember}
 	o, err := readDoc(body, kind, refusals, append([]string{memberPrevious}, required...), required)
