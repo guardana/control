@@ -106,7 +106,8 @@ subject that lasts as long, whichever run either was about.
 
 A plane matches such a stop against the agent and principal its listener's
 configuration names, within the listener's tenant, never against the
-envelope or a run record. Every opened run of a plane carries the listener's
+envelope or a run record; a principal stop matches the principal's id
+alone, never its type. Every opened run of a plane carries the listener's
 identity, so **on one plane a stop of its agent or principal stops the
 plane**: every run, a run opened after the stop, and a call with no run, each
 `AGENT_OR_PRINCIPAL_STOPPED` (48, `DENY`). The tool listing is not stopped.

@@ -39,7 +39,8 @@ route a scope per rule, but served only `run`.
   so on one plane a stop of its agent or principal stops the plane: every
   run, runs opened after the stop, and calls with no run. The tool listing
   is unchanged, as under a run stop. An active stop whose subject the call
-  does not name reads as unknown, never as clear.
+  does not name reads as unknown, never as clear. A principal stop matches
+  the principal's id alone, never its type, so it can only block more.
 - One reason code, `AGENT_OR_PRINCIPAL_STOPPED` (48, DENY), for both scopes,
   right after `RUN_STOPPED` in the plane's causes; a call under both lists
   both. `supervise` counts it as a plane block and never as a denial, so a
@@ -60,7 +61,11 @@ an admin and the lifetime is required, so the widening is deliberate and
 bounded. A reader of `/healthz` or `health.socket` that reads
 `unheld_runs` or `unread_runs` reads `unheld_entries` and `unread_entries`.
 No contract under `api/proto` changes; reason code numbers below 48 are
-unchanged.
+unchanged. The MCP adapter can bind a principal through a listener
+authenticator, which no configuration of the gateway binary wires; a plane
+that wired one would still match a principal stop against the configured
+principal, not the authenticated user, so such a stop would match none of
+its calls.
 
 ## Alternatives considered
 

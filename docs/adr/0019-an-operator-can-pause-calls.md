@@ -29,8 +29,10 @@ none of the three, is still read.
 
 Amended by [ADR-0083](0083-a-finding-may-stop-an-agent-or-a-principal.md):
 `AGENT_OR_PRINCIPAL_STOPPED` follows `RUN_STOPPED` in the order of the
-plane's causes, and a stop of an agent or a principal is matched, as a pause
-entry of that scope is, against the listener's configured identity.
+plane's causes. A stop of an agent or a principal is matched against the
+listener's configured identity; a pause entry of that scope is matched
+against the envelope's, which the MCP adapter fills from the same
+configuration.
 
 Amended by [ADR-0075](0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature.md):
 under `approvals.authority: signed` the plane takes a pause only from a
