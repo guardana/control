@@ -177,22 +177,49 @@ func promiseProblems(name string, segments []proseSegment) ([]string, int) {
 }
 
 // deliveredNames maps each phrase that names a component row labelled
-// implemented or experimental to its label: the row's name as the page shows
-// it, Markdown code spans unwrapped, and its id.
+// implemented or experimental, in lower case, to its label: the row's id,
+// its name as the page shows it, Markdown code spans unwrapped, and the
+// shorter names a reader uses for it.
 func deliveredNames(status map[string]componentRow) map[string]string {
 	names := map[string]string{}
 	for _, row := range status {
 		if row.label == "implemented" || row.label == "experimental" {
-			names[unwrapCode(row.name)] = row.label
 			names[row.id] = row.label
+			for _, name := range shortNames(unwrapCode(row.name)) {
+				names[strings.ToLower(name)] = row.label
+			}
 		}
 	}
 	return names
 }
 
+var (
+	// abbreviated is a run of words its abbreviation follows in brackets,
+	// such as "Model Context Protocol (MCP)".
+	abbreviated = regexp.MustCompile(`(?:[\w-]+ )+\(([A-Z0-9]+)\)`)
+	// nameJoint is where a name's head ends and its qualifiers begin.
+	nameJoint = regexp.MustCompile(`,| (?:and|of|through|against|per|for|from|to|on|in|over|with) `)
+)
+
+// shortNames lists name and the shorter names a sentence may use for it:
+// with its abbreviation alone or without it, and its head before a comma
+// or a joining word. A name of one word is too common a word to match.
+func shortNames(name string) []string {
+	names := []string{name}
+	if abbreviated.MatchString(name) {
+		names = append(names, abbreviated.ReplaceAllString(name, "$1"), strings.ReplaceAll(abbreviated.ReplaceAllStringFunc(name, func(m string) string {
+			return m[:strings.LastIndex(m, " (")]
+		}), "  ", " "))
+	}
+	if i := nameJoint.FindStringIndex(name); i != nil {
+		names = append(names, name[:i[0]])
+	}
+	return slices.DeleteFunc(names, func(n string) bool { return len(strings.Fields(n)) < 2 && n != name })
+}
+
 // plannedProblems refuses each `planned` code element whose sentence names a
-// delivered component row by its name or its id, and counts the elements it
-// read.
+// delivered component row by its id, its name or a shorter name, in any
+// case, and counts the elements it read.
 func plannedProblems(name string, segments []proseSegment, status map[string]componentRow) ([]string, int) {
 	delivered := deliveredNames(status)
 	phrases := sortedKeys(delivered)
@@ -209,7 +236,7 @@ func plannedProblems(name string, segments []proseSegment, status map[string]com
 			}
 			sentence := seg.text[spans[i][0]:spans[i][1]]
 			for _, phrase := range phrases {
-				if namesRow(sentence, phrase) {
+				if namesRow(strings.ToLower(sentence), phrase) {
 					problems = append(problems, fmt.Sprintf("%s: the sentence %q calls %q planned; docs/status.md labels it %s", name, sentence, phrase, delivered[phrase]))
 				}
 			}

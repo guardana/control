@@ -286,7 +286,7 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td>mcp-gateway</td>
 <td>Model Context Protocol (MCP) gateway</td>
 <td><code>experimental</code></td>
-<td>Sits between an MCP client and its servers and decides each tool call, resource read and prompt from a signed policy before it reaches the server. <a href="#mcp-gateway">details</a></td>
+<td>Decides each tool call, resource read and prompt from a signed policy before it reaches an MCP server; <code>policy.fail_open_read</code> lets a read run while the policy is unavailable. <a href="#mcp-gateway">details</a></td>
 </tr>
 <tr>
 <td>credential-echo</td>
@@ -409,7 +409,7 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td>coverage-map</td>
 <td>Coverage map per declared path</td>
 <td><code>experimental</code></td>
-<td>Reads plane configurations, evidence exports and observations from files and says, per declared path, whether its calls were decided, only observed or not seen. <a href="#coverage-map">details</a></td>
+<td>Reads plane configurations, evidence exports and observations from files and says, per declared path, whether its calls were enforced, decided but not enforced, observed, unknown or not covered. <a href="#coverage-map">details</a></td>
 </tr>
 <tr>
 <td>host-process-events</td>
@@ -580,7 +580,7 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td>benchmarks</td>
 <td>Benchmarks</td>
 <td><code>implemented</code></td>
-<td>Measures validation, the digest, a decision at 10 to 1000 rules and one MCP call through the gateway against the same call made directly. <a href="#benchmarks">details</a></td>
+<td>Measures validation, the digest, a decision at 10, 100 and 1000 rules and one MCP call through the gateway against the same call made directly. <a href="#benchmarks">details</a></td>
 </tr>
 <tr>
 <td>website</td>
@@ -644,11 +644,11 @@ a malformed value; <code>policy explain</code> and loading a bundle do not check
 the rules that matched and the inputs a rule lacked
 (<a href="/docs/adr/0036-policy-explain-reads-the-kernels-own-evaluation">ADR-0036</a>).
 <code>policy renew</code> writes a freshness statement and keeps a serial floor, and
-<code>policy state init</code> and <code>reset</code> make and reset a floor (<code>experimental</code>, rows
-below).</p>
+<code>policy state init</code> and <code>reset</code> make and reset a floor (<code>experimental</code>,
+<a href="#policy-floor">rows below</a>).</p>
 <p>The same binary holds the <code>approvals</code> commands and the <code>console</code> page in the
-approval authority row below, and the page's loopback listener is its one
-server; <code>policy diff</code> is <code>planned</code></p>
+<a href="#approval-authority">approval authority row</a> below, and the page's loopback
+listener is its one server; <code>policy diff</code> is <code>planned</code></p>
 <h3 id="starter-packs">starter-packs</h3>
 <p><code>examples/starter-packs/</code>,
 <a href="/docs/reference/starter-packs">reference/starter-packs.md</a>. Each is a document and
@@ -720,10 +720,11 @@ setting for a private certificate authority</p>
 <code>internal/gateway/</code> holds a request for approval, keeps the record of what it
 minted itself, and spends the approval exactly once on the retry, in its own
 ledger (<a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a>). An
-approver outside the plane answers through the approval authority below; a hold
-does not survive a restart, and a plane that keeps a hold journal closes the
-trail of one it lost at its next start, and counts one it cannot close as left
-open (<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>)</p>
+approver outside the plane answers through the
+<a href="#approval-authority">approval authority</a> below; a hold does not survive a
+restart, and a plane that keeps a hold journal closes the trail of one it lost
+at its next start, and counts one it cannot close as left open
+(<a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>)</p>
 <h3 id="approval-authority">approval-authority</h3>
 <ul>
 <li><code>internal/approvals/</code> (a directory of records an approver writes and the plane
@@ -751,32 +752,27 @@ format <code>approval-answer/v1alpha1</code> and the inbox in
 <code>internal/gatewayconfig/</code>, which have no default</li>
 <li><a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a></li>
 <li><a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a></li>
-<li><a href="/docs/concepts/approvals-and-the-held-call">concepts/approvals-and-the-held-call.md</a>.</li>
+<li><a href="/docs/concepts/approvals-and-the-held-call">concepts/approvals-and-the-held-call.md</a></li>
 </ul>
 <p>Only the plane marks an approval spent, in its own store: approvals directory
 <code>2.1</code> holds what the plane held, under which authority, and what approvers
-answered, and no file there reads as spent or given up.</p>
-<ul>
-<li>Under <code>directory</code> and <code>memory</code>, write access to where answers are read is the
-approval authority and <code>approver_id</code> is an unauthenticated claim, and one that
-reads as the reserved <code>authn:</code> prefix is refused when it is written and when
-it is read (<a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>)</li>
-<li>under <code>signed</code> an answer counts only signed by a roster operator granted the
-call's tenant and project, and the console, which holds no operator key, shows
-a signed hold and the command that signs it and answers nothing, and writes no
-pause under <code>signed</code> or into a signed pause file</li>
-<li>a <code>dev</code> plane runs <code>signed</code> with an operator key in its own state directory,
-so its own account approves and pauses</li>
-<li>a <code>memory</code> plane keeps no hold journal and does not close a lost hold</li>
-<li>a hold journal restored from a copy older than its approval's spend is read as
-live, so the next start closes a hold that ran <code>APPROVAL_NOT_RESUMED</code> on a
-trail already closed and its chain forks, though nothing runs twice: restore
-is B14's, <code>planned</code></li>
-<li>the page's printed token and the session it trades for are the only thing
-between it and another local account or a web page, and it cannot tell whether
-a plane reads its pause file</li>
-<li>signed webhook callbacks are <code>planned</code></li>
-</ul>
+answered, and no file there reads as spent or given up. Under <code>directory</code> and
+<code>memory</code>, write access to where answers are read is the approval authority and
+<code>approver_id</code> is an unauthenticated claim, and one that reads as the reserved
+<code>authn:</code> prefix is refused when it is written and when it is read
+(<a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>); under
+<code>signed</code> an answer counts only signed by a roster operator granted the call's
+tenant and project, and the console, which holds no operator key, shows a signed
+hold and the command that signs it and answers nothing, and writes no pause
+under <code>signed</code> or into a signed pause file; a <code>dev</code> plane runs <code>signed</code> with an
+operator key in its own state directory, so its own account approves and pauses;
+a <code>memory</code> plane keeps no hold journal and does not close a lost hold; a hold
+journal restored from a copy older than its approval's spend is read as live, so
+the next start closes a hold that ran <code>APPROVAL_NOT_RESUMED</code> on a trail already
+closed and its chain forks, though nothing runs twice: restore is B14's,
+<code>planned</code>; the page's printed token and the session it trades for are the only
+thing between it and another local account or a web page, and it cannot tell
+whether a plane reads its pause file; signed webhook callbacks are <code>planned</code></p>
 <h3 id="candidate-policy">candidate-policy</h3>
 <p><a href="/docs/backlog">backlog B27</a>,
 <a href="/docs/adoption-and-incident-workflows#b27-compare-and-simulate-a-candidate-policy">adoption requirements</a>;
@@ -784,8 +780,7 @@ a plane reads its pause file</li>
 built</p>
 <h3 id="mcp-gateway">mcp-gateway</h3>
 <ul>
-<li>
-<p><code>internal/gateway/</code> (the protocol-neutral pipeline: <code>Admit</code>, <code>Close</code>, <code>Abort</code>,
+<li><code>internal/gateway/</code> (the protocol-neutral pipeline: <code>Admit</code>, <code>Close</code>, <code>Abort</code>,
 <code>Preview</code>, the mode table with its start-time refusals, the executed-arguments
 digest, the plane-owned hold and its memory approval store; in every mode,
 <code>OBSERVE</code> included, it refuses a translation refused for more than nothing
@@ -797,31 +792,21 @@ resource pointer that is not RFC 6901, and rewritten bytes that name another
 resource than the one decided on; at start it refuses an adapter named after
 no protocol of <code>internal/channel</code> or declaring another strength than its
 protocol's,
-<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>)</p>
-</li>
-<li>
-<p><code>internal/channel/</code> (the action kinds, the protocol names and each protocol's
+<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>)</li>
+<li><code>internal/channel/</code> (the action kinds, the protocol names and each protocol's
 enforcement strength, whose zero is none, read by the gateway, both adapters,
-the pause, supervision, coverage and the run view)</p>
-</li>
-<li>
-<p><code>internal/transportcause/</code> (the type a transport failure is logged by, never
-its text)</p>
-</li>
-<li>
-<p><code>internal/adapterkit/</code> (the resource id a pointer names, the refusal of a call
+the pause, supervision, coverage and the run view)</li>
+<li><code>internal/transportcause/</code> (the type a transport failure is logged by, never
+its text)</li>
+<li><code>internal/adapterkit/</code> (the resource id a pointer names, the refusal of a call
 nothing classifies, the run token, the trace context and the arguments hash,
-read alike by both adapters)</p>
-</li>
-<li>
-<p><code>adapters/mcp/</code> (stateless and stateful HTTP and stdio listeners, one upstream
+read alike by both adapters)</li>
+<li><code>adapters/mcp/</code> (stateless and stateful HTTP and stdio listeners, one upstream
 client per server, the manifest with fingerprints and the operator's
 overrides, <code>tools/call</code>, <code>tools/list</code> shaping, <code>resources/read</code> and
 <code>prompts/get</code>, and the caller's W3C <code>traceparent</code> from <code>_meta</code> into the
-envelope's <code>trace_id</code> and <code>span_id</code>, which correlate and decide nothing)</p>
-</li>
-<li>
-<p><code>cmd/guardana-gateway/</code> (<code>run</code>, <code>doctor</code>, <code>collect</code>, <code>trail</code> and <code>prune</code>, a
+envelope's <code>trace_id</code> and <code>span_id</code>, which correlate and decide nothing)</li>
+<li><code>cmd/guardana-gateway/</code> (<code>run</code>, <code>doctor</code>, <code>collect</code>, <code>trail</code> and <code>prune</code>, a
 <code>stateful_http</code> listener that caps live sessions at <code>listener.max_sessions</code>
 and counts its refusals in <code>/metrics</code>, <code>GET /healthz</code>, which answers
 <code>degraded</code> while the policy is not confirmed and, under <code>schema</code> <code>2</code>, counts
@@ -829,23 +814,17 @@ without naming a run, a <code>health.socket</code> that answers it whole only to
 plane's account and <code>health.socket_uid</code>, the peer read by <code>internal/peercred/</code>
 on Linux and macOS, <code>GET /metrics</code> in the Prometheus text format from
 <code>internal/metrics</code>, whose names <a href="/docs/reference/metrics">reference/metrics.md</a>
-is rendered from, and <code>GET /brand</code>)</p>
-</li>
-<li>
-<p><code>internal/gatewayconfig/</code> (the configuration file, its <code>GUARDANA_CONTROL_*</code>
+is rendered from, and <code>GET /brand</code>)</li>
+<li><code>internal/gatewayconfig/</code> (the configuration file, its <code>GUARDANA_CONTROL_*</code>
 variables and the field table
 <a href="/docs/reference/configuration">reference/configuration.md</a> is rendered from;
 with both adapters' <code>New</code>, it refuses a tool whose envelope needs an
-environment or a tenant the plane leaves unset)</p>
-</li>
-<li>
-<p><code>internal/classify/</code> (a tool's classification as one type, its spelling and
+environment or a tenant the plane leaves unset)</li>
+<li><code>internal/classify/</code> (a tool's classification as one type, its spelling and
 the one check the configuration and both adapters apply, which refuses a
 classification no envelope could carry,
-<a href="/docs/adr/0059-a-tools-classification-is-one-type-checked-when-it-loads">ADR-0059</a>)</p>
-</li>
-<li>
-<p><code>internal/pause/</code> and <code>pause init</code>, <code>add</code>, <code>remove</code>, <code>sign</code>, <code>list</code> and
+<a href="/docs/adr/0059-a-tools-classification-is-one-type-checked-when-it-loads">ADR-0059</a>)</li>
+<li><code>internal/pause/</code> and <code>pause init</code>, <code>add</code>, <code>remove</code>, <code>sign</code>, <code>list</code> and
 <code>floor init</code> in <code>cmd/guardana-control/</code> (the operator's pause file, its strict
 reader, its writer under an exclusive lock, and the poller a plane decides
 every call under, <a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>; under
@@ -857,50 +836,28 @@ as <code>4</code> with its entries,
 <a href="/docs/adr/0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature">ADR-0075</a>),
 the <code>reaction</code> keys (<code>route</code>, <code>public_key</code>, <code>floor_dir</code>, <code>stops</code>,
 <code>stops_floor_dir</code>, <code>poll_interval</code>), under which a plane refuses a stopped
-run's calls (row below)</p>
-</li>
-<li>
-<p><a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a></p>
-</li>
-<li>
-<p><a href="/docs/guides/run-the-gateway">guides/run-the-gateway.md</a></p>
-</li>
-<li>
-<p><a href="/docs/reference/mcp-coverage">reference/mcp-coverage.md</a>.</p>
-</li>
-<li>
+run's calls (<a href="#run-stop">row below</a>)</li>
+<li><a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a></li>
+<li><a href="/docs/guides/run-the-gateway">guides/run-the-gateway.md</a></li>
+<li><a href="/docs/reference/mcp-coverage">reference/mcp-coverage.md</a></li>
+</ul>
 <p><code>OBSERVE</code>, <code>APPROVE</code>, <code>ENFORCE</code> and <code>LOCKDOWN</code> run and <code>SHADOW</code> and <code>WARN</code> are
-refused at start</p>
-</li>
-<li>
-<p>no configuration key wires an authenticator, so no call binds an end user</p>
-</li>
-<li>
-<p>a run is the listener's principal and agent, one per plane without an
-authenticator, unless <code>runs.dir</code> serves the runs an operator opens (row
-below), and a policy's <code>flow</code> constraints read what the run's executions
-declared they return (<a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a>)</p>
-</li>
-<li>
-<p>after untrusted input a flow rule denies a call to an untrusted destination
-once a known read reached its floor, and otherwise, an undeclared result
-included, leaves it undetermined, and a mode that enforces blocks either</p>
-</li>
-<li>
-<p><code>APPROVE</code> needs an approval authority that can answer, <code>directory</code> or
-<code>signed</code>, and is refused at start under <code>memory</code></p>
-</li>
-<li>
-<p>a pause bites up to one poll interval after it is written, never on an
+refused at start; no configuration key wires an authenticator, so no call binds
+an end user; a run is the listener's principal and agent, one per plane without
+an authenticator, unless <code>runs.dir</code> serves the runs an operator opens
+(<a href="#operator-runs">row below</a>), and a policy's <code>flow</code> constraints read what the
+run's executions declared they return
+(<a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a>); after untrusted input a
+flow rule denies a call to an untrusted destination once a known read reached
+its floor, and otherwise, an undeclared result included, leaves it undetermined,
+and a mode that enforces blocks either; <code>APPROVE</code> needs an approval authority
+that can answer, <code>directory</code> or <code>signed</code>, and is refused at start under
+<code>memory</code>; a pause bites up to one poll interval after it is written, never on an
 execution already running, names a run, an agent or a principal only as the
 plane vouches for it, says per entry in <code>/healthz</code> and <code>doctor</code> whether it
-covers all, some or none of the plane's calls, and cannot name a tenant</p>
-</li>
-<li>
-<p>elicitation, multi-round requests (an upstream's <code>input_required</code>, which ends
+covers all, some or none of the plane's calls, and cannot name a tenant;
+elicitation, multi-round requests (an upstream's <code>input_required</code>, which ends
 the call failed) and the Tasks extension are <code>planned</code></p>
-</li>
-</ul>
 <h3 id="credential-echo">credential-echo</h3>
 <p><code>internal/secretscan/</code> (the scan: every key, string and number of an answer, as
 written, percent-decoded and JSON-unescaped, for each credential raw,
@@ -922,8 +879,8 @@ that breaks its rule must fail it, and the answer vectors: a status and a body
 with the reading or the refusal a client must give, where a <code>may_refuse</code> vector
 lets a client other than the Go reference refuse what the reference reads).</p>
 <p><code>go test ./internal/enforceclient/</code> runs every case and vector against a
-receiver that answers from the files; the receiver in <code>adapters/enforce/</code> (row
-below) runs the same contract</p>
+receiver that answers from the files; the receiver in <code>adapters/enforce/</code>
+(<a href="#enforce-receiver">row below</a>) runs the same contract</p>
 <h3 id="python-client">python-client</h3>
 <p><code>clients/python/</code> (<code>guardana_control.enforce</code>, a project of its own outside the
 Go module: one synchronous call that admits, runs the tool only with the
@@ -956,7 +913,7 @@ aborted and answered <code>BLOCK</code>)</li>
 <li><code>internal/adapterkit/</code> and <code>internal/classify/</code> (shared with <code>adapters/mcp/</code>)</li>
 <li><code>testdata/enforce/receiver/</code> (the receiver cases, each with a negative
 control)</li>
-<li><a href="/docs/adr/0051-a-tool-outside-mcp-is-admitted-completed-and-aborted-through-an-enforcement-api">ADR-0051</a>.</li>
+<li><a href="/docs/adr/0051-a-tool-outside-mcp-is-admitted-completed-and-aborted-through-an-enforcement-api">ADR-0051</a></li>
 </ul>
 <p><code>go test ./adapters/enforce/</code> runs every receiver case against the adapter in
 front of an in-process plane. <code>guardana-gateway run</code> serves it under
@@ -1068,7 +1025,7 @@ file or every segment back with each trail's chain checked;
 <code>--credential-file</code>), <code>trail</code>, <code>trail segments</code> and <code>prune</code></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">guides/watch-a-plane-without-a-collector.md</a></li>
 <li><a href="/docs/adr/0020-a-trail-and-counters-without-a-collector">ADR-0020</a></li>
-<li><a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a>.</li>
+<li><a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-behind-a-credential">ADR-0072</a></li>
 </ul>
 <p>A trail is at least once, its check proves each chain's shape, not its
 integrity, and the token goes only to a socket peer of <code>export.collector_uid</code>,
@@ -1078,18 +1035,15 @@ collector's name</p>
 <p><code>internal/trailfile/</code> (<code>Export</code>), <code>internal/lineexport/</code> (the cursor and the
 read side a JSON Lines export shares), <code>guardana-gateway trail export</code>,
 <a href="/docs/adr/0035-a-versioned-evidence-export-and-a-bounded-query">ADR-0035</a>,
-<a href="/docs/guides/read-the-evidence-from-a-program">guides/read-the-evidence-from-a-program.md</a>.</p>
-<ul>
-<li>Writes the events of a trail file, or of one segment at a time with
-<code>end_reached</code> at the log's end, to standard output in the versioned format
-<code>1.1</code> of <a href="/docs/contracts#the-evidence-export">contracts.md</a>, whose header counts
-the segments pruned before the one exported, which coverage refuses as whole:
-a header, each event's line as the file holds it, a record for every line it
-cannot read or that repeats an event id, and a trailer</li>
-<li>resumes after a cursor checked against the file's content</li>
-<li>filters by request, run, tenant, project and kind</li>
-<li>exits 1 on any gap.</li>
-</ul>
+<a href="/docs/guides/read-the-evidence-from-a-program">guides/read-the-evidence-from-a-program.md</a>.
+Writes the events of a trail file, or of one segment at a time with
+<code>end_reached</code> at the log's end, to standard output in the versioned format <code>1.1</code>
+of <a href="/docs/contracts#the-evidence-export">contracts.md</a>, whose header counts the
+segments pruned before the one exported, which coverage refuses as whole: a
+header, each event's line as the file holds it, a record for every line it
+cannot read or that repeats an event id, and a trailer; resumes after a cursor
+checked against the file's content; filters by request, run, tenant, project and
+kind; exits 1 on any gap.</p>
 <p>Each event's schema major is checked where evidence is read for a verdict, and
 the collector refuses an event of another major. <code>examples/evidence-report</code>, a
 Go module of its own
@@ -1103,71 +1057,36 @@ run that timed out or whose outcome is unknown as uncertain, exiting 1 on any of
 them</p>
 <h3 id="observations">observations</h3>
 <ul>
-<li>
-<p><code>internal/observe/</code> (the version table, the table of source kinds and their
-neutral checks, the observation and connection ids and the line codec)</p>
-</li>
-<li>
-<p><code>internal/ingest/</code> (the one descriptor reader and the importer of each kind)</p>
-</li>
-<li>
-<p><code>internal/observelog/</code> (the log under one writer's lock and its export)</p>
-</li>
-<li>
-<p><code>internal/ingest/otelgenai/</code> (OTLP/JSON trace lines under the GenAI
-conventions 1.41.0)</p>
-</li>
-<li>
-<p><code>internal/ingest/egresslog/</code> (an egress proxy's JSON access log under the
+<li><code>internal/observe/</code> (the version table, the table of source kinds and their
+neutral checks, the observation and connection ids and the line codec)</li>
+<li><code>internal/ingest/</code> (the one descriptor reader and the importer of each kind)</li>
+<li><code>internal/observelog/</code> (the log under one writer's lock and its export)</li>
+<li><code>internal/ingest/otelgenai/</code> (OTLP/JSON trace lines under the GenAI
+conventions 1.41.0)</li>
+<li><code>internal/ingest/egresslog/</code> (an egress proxy's JSON access log under the
 descriptor's mapping, a host or a CONNECT authority, with Envoy and Squid
-fixtures)</p>
-</li>
-<li>
-<p><code>internal/netname/</code> (the one spelling of a host and a caller address),
-<code>guardana-control observe import</code> and <code>observe export</code></p>
-</li>
-<li>
-<p><a href="/docs/reference/observations">reference/observations.md</a></p>
-</li>
-<li>
-<p><a href="/docs/reference/egress-access-log">reference/egress-access-log.md</a></p>
-</li>
-<li>
-<p><a href="/docs/guides/watch-an-egress-proxy">guides/watch-an-egress-proxy.md</a></p>
-</li>
-<li>
-<p><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></p>
-</li>
-<li>
-<p><a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a></p>
-</li>
-<li>
-<p><a href="/docs/adr/0058-a-copy-an-import-never-read-is-doubt-for-the-runs-it-claimed">ADR-0058</a></p>
-</li>
-<li>
-<p><a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>.</p>
-</li>
-<li>
+fixtures)</li>
+<li><code>internal/netname/</code> (the one spelling of a host and a caller address),
+<code>guardana-control observe import</code> and <code>observe export</code></li>
+<li><a href="/docs/reference/observations">reference/observations.md</a></li>
+<li><a href="/docs/reference/egress-access-log">reference/egress-access-log.md</a></li>
+<li><a href="/docs/guides/watch-an-egress-proxy">guides/watch-an-egress-proxy.md</a></li>
+<li><a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a></li>
+<li><a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a></li>
+<li><a href="/docs/adr/0058-a-copy-an-import-never-read-is-doubt-for-the-runs-it-claimed">ADR-0058</a></li>
+<li><a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a></li>
+</ul>
 <p>The record is <code>guardana.control.observe.v1alpha1</code>, version <code>0.1</code>, <code>0.2</code> for an
 import report naming the runs its refused copies claimed, or <code>0.3</code> for a
 connection, refusals by reason or a record naming its source's kind, and the
-descriptor <code>0.1</code>, or <code>0.2</code> for an egress source, outside the v1 promise</p>
-</li>
-<li>
-<p>an egress source may declare <code>TRUST_INDEPENDENT</code> on an unsigned descriptor,
-the operator's word that the agent cannot write the log</p>
-</li>
-<li>
-<p>no connection names a run, and <code>supervise</code> refuses such a source</p>
-</li>
-<li>
-<p><code>buf breaking</code> ignores that package and <code>scripts/proto-breaking-probe.sh</code>
-shows v1 still compared.</p>
-</li>
-</ul>
+descriptor <code>0.1</code>, or <code>0.2</code> for an egress source, outside the v1 promise; an
+egress source may declare <code>TRUST_INDEPENDENT</code> on an unsigned descriptor, the
+operator's word that the agent cannot write the log; no connection names a run,
+and <code>supervise</code> refuses such a source; <code>buf breaking</code> ignores that package and
+<code>scripts/proto-breaking-probe.sh</code> shows v1 still compared.</p>
 <p>No content is kept and a capture setting is refused; the plane never reads an
 observation; <code>guardana-control coverage</code> joins one to a plane event by trace and
-span id against a whole evidence export (row below)</p>
+span id against a whole evidence export (<a href="#coverage-map">row below</a>)</p>
 <h3 id="coverage-map">coverage-map</h3>
 <p><code>internal/coverage/</code> (the inventory, the evidence export reader, one state per
 declared path, the join), <code>coverage</code> in <code>cmd/guardana-control/</code>,
@@ -1189,45 +1108,26 @@ so is each egress source whose import refused a line; either makes the exit 1
 <p>none chosen</p>
 <h3 id="operator-runs">operator-runs</h3>
 <ul>
-<li>
-<p><code>internal/runs/</code> (the runs directory: a record per run, a state and a lock
+<li><code>internal/runs/</code> (the runs directory: a record per run, a state and a lock
 file per root run, two openers kept apart by the compiler), <code>runs open</code>,
 <code>close</code>, <code>list</code> and <code>prune</code> in <code>cmd/guardana-control/</code> (<code>prune</code> removes whole
 trees whose every run expired, after copying them into a new owner-only
 archive, leaves a tree whose root is live, and names each expired tree it
 keeps: one with a run that has not expired, a held state lock or a file it
 cannot read), <code>runs.dir</code> and <code>run --run-token-file</code> in
-<code>cmd/guardana-gateway/</code>, the <code>Run-Token</code> check in <code>adapters/mcp/</code></p>
-</li>
-<li>
-<p><a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a></p>
-</li>
-<li>
-<p><a href="/docs/adr/0068-a-run-belongs-to-one-project">ADR-0068</a></p>
-</li>
-<li>
-<p><a href="/docs/guides/keep-two-tasks-apart">guides/keep-two-tasks-apart.md</a>.</p>
-</li>
-<li>
+<code>cmd/guardana-gateway/</code>, the <code>Run-Token</code> check in <code>adapters/mcp/</code></li>
+<li><a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a></li>
+<li><a href="/docs/adr/0068-a-run-belongs-to-one-project">ADR-0068</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">guides/keep-two-tasks-apart.md</a></li>
+</ul>
 <p>A plane with <code>runs.dir</code> admits a call only under a token that resolves for the
 plane's <code>project_id</code> and the listener's principal and agent, judged on every
-request and every message</p>
-</li>
-<li>
-<p>a run record is <code>2.0</code> and names its project, and one of <code>1.0</code> is refused</p>
-</li>
-<li>
-<p>a run tree, <code>supervise</code>, <code>react</code> and <code>doctor</code> hold a run to its record's
-project (<a href="/docs/adr/0068-a-run-belongs-to-one-project">ADR-0068</a>)</p>
-</li>
-<li>
-<p>a call reads its root's state once and raises it before <code>ACTION_STARTED</code>, and
-a state it cannot read or raise blocks the call</p>
-</li>
-<li>
-<p>a hold resumes only from its own run.</p>
-</li>
-<li>
+request and every message; a run record is <code>2.0</code> and names its project, and one
+of <code>1.0</code> is refused; a run tree, <code>supervise</code>, <code>react</code> and <code>doctor</code> hold a run to
+its record's project (<a href="/docs/adr/0068-a-run-belongs-to-one-project">ADR-0068</a>); a
+call reads its root's state once and raises it before <code>ACTION_STARTED</code>, and a
+state it cannot read or raise blocks the call; a hold resumes only from its own
+run.</p>
 <p>Write access to the runs directory is the authority to open a run, for every
 project that shares it, except under <code>approvals.authority: signed</code>, where the
 directory holds <code>records/</code> the plane only reads and <code>state/</code> it writes, and a
@@ -1238,18 +1138,10 @@ carried into <code>state/</code> so the open record put back is refused
 (<a href="/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature">ADR-0076</a>),
 and a child the plane never admitted is refused once an ancestor's close is
 carried
-(<a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>)</p>
-</li>
-<li>
-<p>a token acts as its run until it expires or is closed</p>
-</li>
-<li>
-<p>a run closed after its call passed the listener still runs that call</p>
-</li>
-<li>
-<p><code>dev</code> and scenarios serve local runs only</p>
-</li>
-</ul>
+(<a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>);
+a token acts as its run until it expires or is closed; a run closed after its
+call passed the listener still runs that call; <code>dev</code> and scenarios serve local
+runs only</p>
 <h3 id="run-supervision">run-supervision</h3>
 <ul>
 <li><code>internal/supervise/</code> (a guarded tree: procedure schemas <code>0.1</code> and <code>0.2</code>, the
@@ -1271,13 +1163,13 @@ and <code>procedure test</code> in <code>cmd/guardana-control/</code></li>
 <li><a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a></li>
 <li><a href="/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047</a></li>
 <li><a href="/docs/adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor">ADR-0048</a></li>
-<li><a href="/docs/adr/0058-a-copy-an-import-never-read-is-doubt-for-the-runs-it-claimed">ADR-0058</a>.</li>
+<li><a href="/docs/adr/0058-a-copy-an-import-never-read-is-doubt-for-the-runs-it-claimed">ADR-0058</a></li>
 </ul>
 <p>It reads exports and logs when an operator runs it; nothing in a plane reads a
 finding, and <code>react</code> turns a confirmed one into a stop of the run it names, a
-root or a child (row below). A finding resting on what a runtime reported is
-suspected at most; a skipped step is never confirmed; the report names each
-source not read, never heard or silent</p>
+root or a child (<a href="#run-stop">row below</a>). A finding resting on what a runtime
+reported is suspected at most; a skipped step is never confirmed; the report
+names each source not read, never heard or silent</p>
 <h3 id="run-stop">run-stop</h3>
 <ul>
 <li><code>internal/reaction/</code> (the route, the six rules a route may name, the stop
@@ -1296,7 +1188,7 @@ the <code>route</code> and <code>stops</code> kinds of <code>internal/policystat
 <code>/metrics</code> in <code>cmd/guardana-gateway/</code></li>
 <li><code>examples/refund-supervision/</code></li>
 <li><a href="/docs/reference/reaction">reference/reaction.md</a></li>
-<li><a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a>.</li>
+<li><a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a></li>
 </ul>
 <p>A plane with a route refuses a stopped run's later calls <code>RUN_STOPPED</code> and no
 other run's, and every call <code>STOP_STATE_UNAVAILABLE</code> while it cannot read or
@@ -1314,53 +1206,35 @@ bits, not darwin access control lists</p>
 findings export exists, but no case review history or joined incident package is
 built</p>
 <h3 id="web-ui">web-ui</h3>
-<p>no path chosen yet; one run's static page is <code>supervise --view</code> (row above)</p>
+<p>no path chosen yet; one run's static page is <code>supervise --view</code>
+(<a href="#run-supervision">row above</a>)</p>
 <h3 id="graph-api">graph-api</h3>
 <p>no path chosen yet, and no milestone names it</p>
 <h3 id="trust-roster">trust-roster</h3>
 <ul>
-<li>
-<p><code>internal/trust/</code> (the <code>Roster</code> port and its <code>file</code> kind: one DSSE envelope of
+<li><code>internal/trust/</code> (the <code>Roster</code> port and its <code>file</code> kind: one DSSE envelope of
 <code>trust-roster/v1alpha1</code> signed by a pinned root, operator keys with grants of
 tenant, project and level, an expiry of at most 7 days, a serial that only
-climbs, held by the <code>authority</code> floor of <code>internal/policystate/</code>)</p>
-</li>
-<li>
-<p><code>internal/operators/</code> (the <code>Authenticator</code> and <code>Authorizer</code> ports and their
+climbs, held by the <code>authority</code> floor of <code>internal/policystate/</code>)</li>
+<li><code>internal/operators/</code> (the <code>Authenticator</code> and <code>Authorizer</code> ports and their
 <code>roster</code> kinds, a veto that only denies, a timeout and a bound on calls in
 flight), <code>operators roster sign</code> and <code>operators floor init</code> in
 <code>cmd/guardana-control/</code>, the conformance cases in <code>testdata/ports/</code> listed in
-<code>scripts/ports.txt</code>, which a test holds to the tree</p>
-</li>
-<li>
-<p><a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a></p>
-</li>
-<li>
-<p><a href="/docs/adr/0071-operators-are-named-by-a-signed-roster">ADR-0071</a>.</p>
-</li>
-<li>
-<p>A plane reads a roster only under <code>approvals.authority: signed</code>, where it
-needs a <code>plane_id</code>, serves one tenant
+<code>scripts/ports.txt</code>, which a test holds to the tree</li>
+<li><a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a></li>
+<li><a href="/docs/adr/0071-operators-are-named-by-a-signed-roster">ADR-0071</a></li>
+</ul>
+<p>A plane reads a roster only under <code>approvals.authority: signed</code>, where it needs
+a <code>plane_id</code>, serves one tenant
 (<a href="/docs/adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant">ADR-0082</a>),
 and <code>doctor</code> and <code>/healthz</code> report <code>trust</code>, naming that id,
-<code>operators.authenticator</code> and <code>operators.authorizer</code></p>
-</li>
-<li>
-<p>the plane refuses to start when its account may write the roster file, so that
-account cannot put an older roster in place</p>
-</li>
-<li>
-<p>it still raises the roster's floor, so it can withhold a newer roster within
-the held one's lifetime</p>
-</li>
-<li>
-<p>a <code>read</code> grant parses and grants nothing yet, which <code>doctor</code> says</p>
-</li>
-<li>
-<p><a href="/docs/contracts#signed-files-and-their-project-checks">contracts.md</a> lists each
+<code>operators.authenticator</code> and <code>operators.authorizer</code>; the plane refuses to start
+when its account may write the roster file, so that account cannot put an older
+roster in place; it still raises the roster's floor, so it can withhold a newer
+roster within the held one's lifetime; a <code>read</code> grant parses and grants nothing
+yet, which <code>doctor</code> says;
+<a href="/docs/contracts#signed-files-and-their-project-checks">contracts.md</a> lists each
 signed file a plane takes with its project check</p>
-</li>
-</ul>
 <h3 id="scenario-runs">scenario-runs</h3>
 <p><code>internal/scenario/</code> reads <code>agent-scenario/v1alpha1</code> strictly;
 <code>guardana-gateway scenario run</code> (<code>cmd/guardana-gateway/</code>) calls a running plane

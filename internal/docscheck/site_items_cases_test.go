@@ -74,11 +74,21 @@ func TestLLMsProblems(t *testing.T) {
 		"This is alpha software and not a security boundary: do not deploy it as one. https://example.org/docs/status\n"
 	wantNone(t, "a map that quotes the lede and states the status", llmsProblems(good, lede))
 	for name, c := range map[string]struct{ from, to, want string }{
-		"a status that claims readiness": {"This is alpha software and not a security boundary: do not deploy it as one.", "This is production-ready software and a security boundary you can deploy.", `it does not say "alpha"`},
-		"the boundary dropped":           {"not a security boundary", "a boundary", `it does not say "not a security boundary"`},
-		"another description":            {"> It decides each call that goes through it.", "> It decides each call.", "the description is not README's lede"},
+		"a status that claims readiness":     {"This is alpha software and not a security boundary: do not deploy it as one.", "This is production-ready software and a security boundary you can deploy.", `it does not say "alpha"`},
+		"the boundary dropped":               {"not a security boundary", "a boundary", `it does not say "not a security boundary"`},
+		"another description":                {"> It decides each call that goes through it.", "> It decides each call.", "the description is not README's lede"},
+		"readiness claimed beside the facts": {"This is alpha software", "Past alpha, production-ready; earlier releases were alpha software", `it says "production-ready"`},
 	} {
 		wantProblem(t, name, llmsProblems(strings.Replace(good, c.from, c.to, 1), lede), c.want)
+	}
+}
+
+func TestReadinessProblems(t *testing.T) {
+	wantNone(t, "alpha, deletes in production", readinessProblems("Alpha software. Deletes in production are denied."))
+	for _, text := range []string{"It is production-ready.", "Production ready today.", "production\nready", "PRODUCTION-READY"} {
+		if len(readinessProblems(text)) != 1 {
+			t.Errorf("%q: readiness not refused", text)
+		}
 	}
 }
 

@@ -403,29 +403,36 @@ func TestPlannedProblems(t *testing.T) {
 		"evidence-spool": {id: "evidence-spool", name: "Evidence spool", label: "experimental"},
 		"kernel-x":       {id: "kernel-x", name: "Kernel `x`", label: "implemented"},
 		"web-ui":         {id: "web-ui", name: "Web UI", label: "planned"},
+		"run-stop":       {id: "run-stop", name: "Stopping a run through a signed route", label: "experimental"},
+		"mcp-gateway":    {id: "mcp-gateway", name: "Model Context Protocol (MCP) gateway", label: "experimental"},
+		"backup-restore": {id: "backup-restore", name: "Backup and restore of authority state", label: "experimental"},
 	}
 	for name, page := range map[string]string{
 		"planned work that is not built":      `<html><p>A <code>planned</code> Web UI.</p></html>`,
 		"a delivered row in another sentence": `<html><p>The Evidence spool is experimental. Other work is <code>planned</code>.</p></html>`,
 		"a delivered row in another block":    `<html><ul><li>Evidence spool</li><li><code>planned</code> work</li></ul></html>`,
 		"part of a row's name":                `<html><p>Evidence is <code>planned</code>.</p></html>`,
-		"a row's name in another case":        `<html><p>An evidence spool is <code>planned</code>.</p></html>`,
 		"a row's name inside a longer word":   `<html><p>Evidence spools are <code>planned</code>.</p></html>`,
 		"planned outside code":                `<html><p>The Evidence spool was planned.</p></html>`,
 		"a planned row's id":                  `<html><p>The web-ui is <code>planned</code>.</p></html>`,
 		"an id inside a longer id":            `<html><p>An evidence-spool-mirror is <code>planned</code>.</p></html>`,
-		"an id's words without the hyphen":    `<html><p>An evidence spool mirror is <code>planned</code>.</p></html>`,
+		"a name's one-word head":              `<html><p>A backup is <code>planned</code>.</p></html>`,
+		"a lone abbreviation":                 `<html><p>Another MCP proxy is <code>planned</code>.</p></html>`,
 	} {
 		problems, _ := plannedProblems("index.html", pageSegments(mustParse(t, page)), status)
 		wantNone(t, name, problems)
 	}
 	for name, c := range map[string]struct{ page, want string }{
 		"an experimental row called planned": {`<html><p>The Evidence spool is <code>planned</code>.</p></html>`,
-			`index.html: the sentence "The Evidence spool is planned." calls "Evidence spool" planned; docs/status.md labels it experimental`},
-		"a capital Planned": {`<html><p><code>Planned</code>: the Evidence spool. Then more.</p></html>`, `"Planned: the Evidence spool." calls "Evidence spool" planned`},
+			`index.html: the sentence "The Evidence spool is planned." calls "evidence spool" planned; docs/status.md labels it experimental`},
+		"a capital Planned": {`<html><p><code>Planned</code>: the Evidence spool. Then more.</p></html>`, `"Planned: the Evidence spool." calls "evidence spool" planned`},
 		"an implemented row with a code span": {`<html><p>The Kernel <code>x</code> is <code>planned</code>.</p></html>`,
-			`calls "Kernel x" planned; docs/status.md labels it implemented`},
-		"the last sentence of two": {`<html><p>A gateway. <code>planned</code>: Evidence spool</p></html>`, `"planned: Evidence spool" calls "Evidence spool"`},
+			`calls "kernel x" planned; docs/status.md labels it implemented`},
+		"the last sentence of two":        {`<html><p>A gateway. <code>planned</code>: Evidence spool</p></html>`, `"planned: Evidence spool" calls "evidence spool"`},
+		"a row's name in another case":    {`<html><p>An evidence spool is <code>planned</code>.</p></html>`, `calls "evidence spool" planned`},
+		"a name's head":                   {`<html><p>Stopping a run is <code>planned</code>.</p></html>`, `calls "stopping a run" planned; docs/status.md labels it experimental`},
+		"a name's abbreviation":           {`<html><p>An MCP gateway is <code>planned</code>.</p></html>`, `calls "mcp gateway" planned`},
+		"a name without its abbreviation": {`<html><p>A Model Context Protocol gateway is <code>planned</code>.</p></html>`, `calls "model context protocol gateway" planned`},
 		"a delivered row's id": {`<html><p>The <code>evidence-spool</code> row is <code>planned</code>.</p></html>`,
 			`the sentence "The evidence-spool row is planned." calls "evidence-spool" planned; docs/status.md labels it experimental`},
 		"an id before a full stop": {`<html><p><code>planned</code>: kernel-x.</p></html>`, `calls "kernel-x" planned; docs/status.md labels it implemented`},

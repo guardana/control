@@ -32,7 +32,7 @@ const goodStatus = "# Status\n\nIntro.\n\n## Components\n\n" +
 	"### tool-definition-review-and-alert\n\n- `internal/x/`\n- `internal/y/`\n\n" +
 	"### evidence-spool\n\n`internal/spool/`.\n\n" +
 	"### run-stop\n\n`internal/reaction/`.\n\n" +
-	"### dev-mode\n\n`cmd/x/`.\n\n" +
+	"### dev-mode\n\n`cmd/x/`; a \\| b is escaped.\n\n```text\na | b\n```\n\n<!-- a | b -->\n\n" +
 	"### go-module\n\n`go.mod`.\n\n" +
 	"## What it supervises today\n\n| Aim | Today |\n| --- | --- |\n| a | b |\n"
 
@@ -84,7 +84,15 @@ func TestStatusComponentProblems(t *testing.T) {
 		"a row with no details":      {"### go-module\n\n`go.mod`.\n\n", "", `"go-module" has no heading under Details`},
 		"details twice":              {"### go-module\n\n`go.mod`.\n\n", "### go-module\n\n`go.mod`.\n\n### go-module\n\nAgain.\n\n", `"go-module" has 2 headings under Details`},
 		"details with no row":        {"### go-module\n\n`go.mod`.\n\n", "### go-module\n\n`go.mod`.\n\n### gone-row\n\nOld.\n\n", `the details heading "gone-row" names no row`},
-		"empty details":              {"### go-module\n\n`go.mod`.\n\n", "### go-module\n\n", `the details of "go-module" are empty`},
+		"empty details":              {"### go-module\n\n`go.mod`.\n\n", "### go-module\n\n", `the details of "go-module" hold no line of prose`},
+		"details of a comment":       {"### go-module\n\n`go.mod`.\n\n", "### go-module\n\n<!-- moved -->\n\n", `the details of "go-module" hold no line of prose`},
+		"details of a long comment":  {"### go-module\n\n`go.mod`.\n\n", "### go-module\n\n<!--\nmoved\n-->\n\n", `the details of "go-module" hold no line of prose`},
+		"details of a subheading":    {"### go-module\n\n`go.mod`.\n\n", "### go-module\n\n#### Notes\n\n", `the details of "go-module" hold no line of prose`},
+		"details of a code block":    {"### go-module\n\n`go.mod`.\n\n", "### go-module\n\n```\ngo.mod\n```\n\n", `the details of "go-module" hold no line of prose`},
+		"a row with no first pipe":   {"| dev-mode |", "ghost-row | Ghost | `implemented` | Anything. |\n| dev-mode |", "a pipe on a line that does not start with one is a table row this check cannot read: ghost-row"},
+		"a bare pipe in the details": {"; a \\| b", "; a | b", "a pipe on a line that does not start with one"},
+		"a sentence after a code":    {"One module. [details]", "One module. `go` builds it. [details]", "more than one sentence"},
+		"a sentence after a digit":   {"One module. [details]", "One module. 2 tools build it. [details]", "more than one sentence"},
 		"details out of order":       {"### decision-kernel\n\n`internal/core/`, [ADR-0012](adr/0012.md).\n\n### candidate-policy\n\nNo command.\n\n", "### candidate-policy\n\nNo command.\n\n### decision-kernel\n\n`internal/core/`, [ADR-0012](adr/0012.md).\n\n", `details heading 1 is "candidate-policy", want "decision-kernel", the tables' order`},
 		"no details section":         {"## Details\n\n", "## Notes\n\n", `no "## Details" section`},
 		"details before components":  {"Intro.\n\n## Components", "Intro.\n\n## Details\n\n## Components", `"## Details" comes before "## Components"`},
@@ -99,6 +107,24 @@ func TestStatusComponentProblems(t *testing.T) {
 	swapped := strings.NewReplacer("### Decisions", "### Integrations", "### Integrations", "### Decisions").Replace(goodStatus)
 	_, problems = statusComponents(strings.Split(swapped, "\n"), 7)
 	wantProblem(t, "two groups swapped", problems, `the groups are ["Integrations" "Decisions" "Evidence"`)
+}
+
+func TestPinnedIDProblems(t *testing.T) {
+	rows, _ := statusComponents(strings.Split(goodStatus, "\n"), 7)
+	good := "# pinned\n\ndecision-kernel\ncandidate-policy\ntool-definition-review-and-alert\nevidence-spool\nrun-stop\ndev-mode\ngo-module\n"
+	wantNone(t, "every id pinned once", pinnedIDProblems(rows, strings.Split(good, "\n")))
+	for name, c := range map[string]struct{ from, to, want string }{
+		"an id renamed on the page": {"run-stop\n", "run-halt\n", `the published id "run-halt" is gone`},
+		"a new id not appended":     {"dev-mode\n", "", `the id "dev-mode" is not in internal/docscheck/testdata/status-ids.txt`},
+		"an id pinned twice":        {"go-module\n", "go-module\ngo-module\n", `"go-module" is pinned twice`},
+		"no id pinned":              {good, "# pinned\n", "pins no id"},
+	} {
+		list := strings.Replace(good, c.from, c.to, 1)
+		if list == good {
+			t.Fatalf("%s: the fixture edit changed nothing", name)
+		}
+		wantProblem(t, name, pinnedIDProblems(rows, strings.Split(list, "\n")), c.want)
+	}
 }
 
 func TestStatusRowsByID(t *testing.T) {

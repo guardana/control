@@ -413,6 +413,19 @@ func TestTaglinesAreTheReadmes(t *testing.T) {
 	}
 }
 
+// The README, the landing page and llms.txt never call the project ready
+// for production.
+func TestNothingClaimsProductionReadiness(t *testing.T) {
+	fsys := repoFS(t)
+	for _, name := range []string{readmeName, sitedoc.Page, docsite.LLMs} {
+		data, err := fs.ReadFile(fsys, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report(t, name, readinessProblems(string(data)))
+	}
+}
+
 func TestWranglerConfigIsExact(t *testing.T) {
 	data, err := fs.ReadFile(repoFS(t), "wrangler.json")
 	if err != nil {

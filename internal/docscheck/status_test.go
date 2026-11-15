@@ -29,7 +29,12 @@ var (
 	// summaryRefused is what belongs in the details, not in the sentence: a
 	// path, a record's number, a test's name.
 	summaryRefused = regexp.MustCompile(`/|\bADR-?[0-9]|\b(?:Test|Fuzz|Benchmark|Example)[A-Z]`)
-	sentenceBreak  = regexp.MustCompile(`[.!?] +[A-Z]`)
+	// sentenceBreak is a full stop, question or exclamation mark and the
+	// start of another sentence: a capital, a code span or a digit.
+	sentenceBreak = regexp.MustCompile("[.!?] +[A-Z0-9`]")
+	// barePipe is a pipe no backslash escapes: on a line that does not start
+	// with one, the renderer still draws a table row nothing here reads.
+	barePipe = regexp.MustCompile(`(?:^|[^\\])\|`)
 )
 
 // componentRow is one row of a component table.
@@ -78,14 +83,35 @@ type statusPage struct {
 	detailBody                map[string]int
 	section, group, detail    string
 	tableLine                 int
+	fenced, comment           bool
 }
 
 func (p *statusPage) add(format string, a ...any) {
 	p.problems = append(p.problems, fmt.Sprintf(format, a...))
 }
 
-// read takes line n, trimmed.
+// read takes line n, trimmed. Fenced code and HTML comments are neither
+// structure nor prose.
 func (p *statusPage) read(n int, s string) {
+	switch {
+	case strings.HasPrefix(s, "```"):
+		p.fenced = !p.fenced
+		return
+	case p.fenced:
+		return
+	case p.comment || strings.HasPrefix(s, "<!--"):
+		p.comment = !strings.Contains(s, "-->")
+		return
+	case !strings.HasPrefix(s, "|") && barePipe.MatchString(s):
+		p.add("line %d: a pipe on a line that does not start with one is a table row this check cannot read: %s", n, s)
+	}
+	p.structure(n, s)
+}
+
+// structure takes line n as a section, a group, a table line, a details
+// heading or a line of a details body; a body counts only prose, not a
+// heading of its own.
+func (p *statusPage) structure(n int, s string) {
 	switch {
 	case strings.HasPrefix(s, "## "):
 		p.section, p.group, p.detail = strings.TrimPrefix(s, "## "), "", ""
@@ -99,7 +125,7 @@ func (p *statusPage) read(n int, s string) {
 		p.detail = strings.TrimPrefix(s, "### ")
 		p.details = append(p.details, p.detail)
 		p.detailLines[p.detail] = append(p.detailLines[p.detail], n)
-	case p.section == "Details" && p.detail != "" && s != "":
+	case p.section == "Details" && p.detail != "" && s != "" && !strings.HasPrefix(s, "#"):
 		p.detailBody[p.detail]++
 	}
 }
@@ -195,7 +221,7 @@ func detailProblems(rows []componentRow, details []string, lines map[string][]in
 		case n > 1:
 			problems = append(problems, fmt.Sprintf("%q has %d headings under Details, at lines %v", r.id, n, lines[r.id]))
 		case body[r.id] == 0:
-			problems = append(problems, fmt.Sprintf("line %d: the details of %q are empty", lines[r.id][0], r.id))
+			problems = append(problems, fmt.Sprintf("line %d: the details of %q hold no line of prose", lines[r.id][0], r.id))
 		}
 	}
 	for _, d := range details {
@@ -222,6 +248,51 @@ func statusRows(lines []string) (map[string]componentRow, []string) {
 		byID[r.id] = r
 	}
 	return byID, problems
+}
+
+// statusIDs pins every id the page has published: the landing page and any
+// link bind to one, so an id is never renamed or dropped, and a new one is
+// appended to the file on purpose.
+const statusIDs = "internal/docscheck/testdata/status-ids.txt"
+
+// pinnedIDProblems compares the page's ids with the pinned list in lines:
+// one id per line, blank lines and lines starting with # ignored.
+func pinnedIDProblems(rows []componentRow, lines []string) []string {
+	var problems, pinned []string
+	for i, line := range lines {
+		id := strings.TrimSpace(line)
+		switch {
+		case id == "" || strings.HasPrefix(id, "#"):
+		case slices.Contains(pinned, id):
+			problems = append(problems, fmt.Sprintf("%s:%d: %q is pinned twice", statusIDs, i+1, id))
+		default:
+			pinned = append(pinned, id)
+		}
+	}
+	if len(pinned) == 0 {
+		return append(problems, statusIDs+" pins no id")
+	}
+	for _, id := range pinned {
+		if !slices.ContainsFunc(rows, func(r componentRow) bool { return r.id == id }) {
+			problems = append(problems, fmt.Sprintf("the published id %q is gone; an id is never renamed or dropped", id))
+		}
+	}
+	for _, r := range rows {
+		if !slices.Contains(pinned, r.id) {
+			problems = append(problems, fmt.Sprintf("line %d: the id %q is not in %s; append it there on purpose", r.line, r.id, statusIDs))
+		}
+	}
+	return problems
+}
+
+func TestStatusIDsArePinned(t *testing.T) {
+	fsys := repoFS(t)
+	rows, _ := statusRows(readLines(t, fsys, "docs/status.md"))
+	list := make([]componentRow, 0, len(rows))
+	for _, r := range rows {
+		list = append(list, r)
+	}
+	report(t, "docs/status.md", pinnedIDProblems(list, readLines(t, fsys, statusIDs)))
 }
 
 // TestStatusComponents is the load-bearing check. The root documents no

@@ -291,13 +291,18 @@ func (b boxedTables) Register(kind ast.NodeKind, f renderer.NodeRendererFunc) {
 	}
 	b.reg.Register(kind, func(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if entering {
-			_, _ = w.WriteString("<div class=\"tbl\">\n")
+			if _, err := w.WriteString("<div class=\"tbl\">\n"); err != nil {
+				return ast.WalkStop, err
+			}
 		}
 		status, err := f(w, source, n, entering)
-		if !entering {
-			_, _ = w.WriteString("</div>\n")
+		if err != nil || entering {
+			return status, err
 		}
-		return status, err
+		if _, err := w.WriteString("</div>\n"); err != nil {
+			return ast.WalkStop, err
+		}
+		return status, nil
 	})
 }
 

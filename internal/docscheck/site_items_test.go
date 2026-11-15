@@ -147,6 +147,19 @@ func llmsProblems(llms, lede string) []string {
 			problems = append(problems, fmt.Sprintf("it does not say %q", fact))
 		}
 	}
+	return append(problems, readinessProblems(llms)...)
+}
+
+var readinessPhrase = regexp.MustCompile(`(?i)\bproduction[\s-]+ready\b`)
+
+// readinessProblems refuses each claim in text that the project is ready
+// for production: the status page says it is alpha, and no sentence that
+// says otherwise is true, however it is hedged.
+func readinessProblems(text string) []string {
+	var problems []string
+	for _, m := range readinessPhrase.FindAllString(text, -1) {
+		problems = append(problems, fmt.Sprintf("it says %q; the project is alpha", m))
+	}
 	return problems
 }
 
