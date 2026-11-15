@@ -129,9 +129,15 @@ func generated(file string) bool {
 // unlinked returns line without what the rule lets name the runtime: the
 // target of each link to the page, its text when that is the page's title,
 // and the whole of an index row of the title and summary. Only a Markdown
-// file or a generated one has links the rule reads.
+// file or a generated one has links the rule reads; llms.txt holds only rows
+// of that shape that link the site.
 func (n runtimeName) unlinked(file, line string) string {
 	switch {
+	case file == docsite.LLMs:
+		if m := mdIndex.FindStringSubmatch(line); m != nil && m[1] == n.title && n.urlTo(m[2]) && m[3] == n.summary {
+			return ""
+		}
+		return line
 	case strings.HasSuffix(file, ".md"):
 		return n.unlinkedMarkdown(file, line)
 	case generated(file):

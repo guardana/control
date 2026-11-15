@@ -8,6 +8,10 @@ order inside the integrations milestone and on what counts as an outside
 integration for 1.0. Builds on
 [ADR-0039](0039-many-channels-into-one-core.md), whose ports it orders.
 
+Amended by [ADR-0085](0085-the-1-0-bar-is-met-by-own-evidence-and-what-needs-outside-people-stays-not-met.md):
+1.0 no longer waits for the outside review, which stays not met, and B11's
+framework is the maintainer's choice with its reasons published.
+
 ## Context
 
 The whole-tree audit before 0.15.0 found milestone 2 unmoved since 0.13.0:

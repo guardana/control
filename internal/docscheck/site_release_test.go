@@ -153,24 +153,28 @@ func TestFootProblems(t *testing.T) {
 	}
 }
 
-// siteHeader returns the one `<header class="top">` element of a page, as
-// written.
-func siteHeader(page []byte) ([]byte, error) {
-	const open, closing = `<header class="top">`, `</header>`
+// siteElement returns the one element of a page that opens with open and
+// closes with closing, as written.
+func siteElement(page []byte, open, closing string) ([]byte, error) {
 	if n := bytes.Count(page, []byte(open)); n != 1 {
-		return nil, fmt.Errorf("holds %d site headers, want 1", n)
+		return nil, fmt.Errorf("holds %d of %s, want 1", n, open)
 	}
 	start := bytes.Index(page, []byte(open))
 	end := bytes.Index(page[start:], []byte(closing))
 	if end < 0 {
-		return nil, fmt.Errorf("the site header is not closed")
+		return nil, fmt.Errorf("%s is not closed", open)
 	}
 	return page[start : start+end+len(closing)], nil
 }
 
-// headerDifference quotes the first line where a page's header leaves the
-// landing page's.
-func headerDifference(landing, page string) string {
+// siteHeader returns the one `<header class="top">` element of a page.
+func siteHeader(page []byte) ([]byte, error) {
+	return siteElement(page, `<header class="top">`, `</header>`)
+}
+
+// chromeDifference quotes the first line where a page's header or footer
+// leaves the landing page's.
+func chromeDifference(landing, page string) string {
 	a, b := strings.Split(landing, "\n"), strings.Split(page, "\n")
 	for i := range min(len(a), len(b)) {
 		if a[i] != b[i] {
@@ -203,7 +207,42 @@ func TestSiteHeaderIsOneOnEveryPage(t *testing.T) {
 		case err != nil:
 			t.Errorf("%s: %v", name, err)
 		case string(got) != want:
-			t.Errorf("%s: the header differs from %s's: %s", name, sitedoc.Page, headerDifference(want, string(got)))
+			t.Errorf("%s: the header differs from %s's: %s", name, sitedoc.Page, chromeDifference(want, string(got)))
+		}
+	}
+	if pages < minDocsPages-1 {
+		t.Errorf("read %d documentation pages, want at least %d", pages, minDocsPages-1)
+	}
+}
+
+// Every page holds one footer, and the landing page's is the bytes every
+// documentation page carries.
+func TestSiteFooterIsOneOnEveryPage(t *testing.T) {
+	const open, closing = `<footer class="ft">`, `</footer>`
+	site := loadSite(t)
+	want, err := siteElement(site["index.html"], open, closing)
+	if err != nil {
+		t.Fatalf("%s: %v", sitedoc.Page, err)
+	}
+	for _, name := range sortedKeys(site) {
+		if path.Ext(name) == ".html" {
+			if problem := footerCountProblem(loadPage(t, site[name])); problem != "" {
+				t.Errorf("%s: %s", name, problem)
+			}
+		}
+	}
+	pages := 0
+	for _, name := range sortedKeys(site) {
+		if !strings.HasPrefix(name, "docs/") || path.Ext(name) != ".html" {
+			continue
+		}
+		pages++
+		got, err := siteElement(site[name], open, closing)
+		switch {
+		case err != nil:
+			t.Errorf("%s: %v", name, err)
+		case !bytes.Equal(got, want):
+			t.Errorf("%s: the footer differs from %s's: %s", name, sitedoc.Page, chromeDifference(string(want), string(got)))
 		}
 	}
 	if pages < minDocsPages-1 {

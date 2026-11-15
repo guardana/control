@@ -18,11 +18,13 @@ import (
 	"strings"
 )
 
-// xnode is one element of a page read as XML.
+// xnode is one element of a page read as XML: attrs holds the attributes in
+// no namespace, nsattrs the others, keyed by namespace and local name.
 type xnode struct {
-	name  string
-	attrs map[string]string
-	parts []xpart
+	name    string
+	attrs   map[string]string
+	nsattrs map[string]string
+	parts   []xpart
 }
 
 // xpart is a run of text or a child element, in document order.
@@ -50,10 +52,12 @@ func parseXHTML(data []byte) (*xnode, error) {
 		top := stack[len(stack)-1]
 		switch t := tok.(type) {
 		case xml.StartElement:
-			n := &xnode{name: t.Name.Local, attrs: map[string]string{}}
+			n := &xnode{name: t.Name.Local, attrs: map[string]string{}, nsattrs: map[string]string{}}
 			for _, a := range t.Attr {
 				if a.Name.Space == "" {
 					n.attrs[a.Name.Local] = a.Value
+				} else {
+					n.nsattrs[a.Name.Space+":"+a.Name.Local] = a.Value
 				}
 			}
 			top.parts = append(top.parts, xpart{node: n})
@@ -248,6 +252,7 @@ var hostRules = []struct {
 	{"an <image> or <feImage> reference", regexp.MustCompile(`<(image|feimage)\b[^>]*href`)},
 	{"a ping attribute", regexp.MustCompile(`\sping\s*=`)},
 	{"an image-set()", regexp.MustCompile(`image-set\(`)},
+	{"an animated reference", regexp.MustCompile(`<(set|animate|animatetransform|animatemotion)\b[^>]*\battributename\s*=\s*["']\s*(xlink:)?href\s*["']`)},
 }
 
 var (
@@ -269,12 +274,14 @@ func hostProblems(files map[string][]byte) []string {
 		}
 		read[ext]++
 		found := fileHostProblems(strings.ToLower(string(files[name])))
-		if ext == ".html" {
-			decoded, err := decodedTags(files[name])
+		if ext == ".html" || ext == ".svg" {
+			doc, err := parseXHTML(files[name])
 			if err != nil {
 				found = append(found, fmt.Sprintf("does not parse: %v", err))
+			} else {
+				found = append(found, fileHostProblems(strings.ToLower(decodedTags(doc)))...)
+				found = append(found, attributeURLProblems(doc)...)
 			}
-			found = append(found, fileHostProblems(strings.ToLower(decoded))...)
 		}
 		slices.Sort(found)
 		for _, problem := range slices.Compact(found) {
@@ -292,11 +299,7 @@ func hostProblems(files map[string][]byte) []string {
 // decodedTags writes a page's start tags back out with their attribute
 // values as the XML reader decoded them, and the text of its style
 // elements, so a character reference cannot hide a URL from the rules.
-func decodedTags(page []byte) (string, error) {
-	doc, err := parseXHTML(page)
-	if err != nil {
-		return "", err
-	}
+func decodedTags(doc *xnode) string {
 	var b strings.Builder
 	doc.walk(func(n *xnode) {
 		b.WriteString("<" + n.name)
@@ -308,8 +311,57 @@ func decodedTags(page []byte) (string, error) {
 			b.WriteString(n.text())
 		}
 	})
-	return b.String(), nil
+	return b.String()
 }
+
+var (
+	absoluteURL  = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.\-]*://[^\s"'<>]*`)
+	originOfLink = regexp.MustCompile(`^[a-z][a-z0-9+.\-]*://[^/]+/`)
+)
+
+// attributeURLProblems refuses an attribute value, in any namespace, that
+// holds an address with a scheme and a host, unless it is a link's href,
+// which the link check reads, a namespace declaration, or an address under
+// the page's own origin as its canonical link names it.
+func attributeURLProblems(doc *xnode) []string {
+	origin := ""
+	doc.walk(func(n *xnode) {
+		if isCanonical(n) {
+			origin = originOfLink.FindString(n.attrs["href"])
+		}
+	})
+	var problems []string
+	doc.walk(func(n *xnode) {
+		values := addressedValues(n)
+		for _, attr := range sortedKeys(values) {
+			for _, u := range absoluteURL.FindAllString(values[attr], -1) {
+				if origin == "" || !strings.HasPrefix(u, origin) {
+					problems = append(problems, fmt.Sprintf("the %s of a <%s> holds %s, an address of another host", attr, n.name, u))
+				}
+			}
+		}
+	})
+	return problems
+}
+
+// addressedValues lists the attributes of n whose addresses are read: all
+// but a link's href, which the link check reads, and namespace declarations.
+func addressedValues(n *xnode) map[string]string {
+	values := map[string]string{}
+	for attr, value := range n.attrs {
+		if attr != "xmlns" && (attr != "href" || n.name != "a" && !isCanonical(n)) {
+			values[attr] = value
+		}
+	}
+	for attr, value := range n.nsattrs {
+		if !strings.HasPrefix(attr, "xmlns:") {
+			values[attr] = value
+		}
+	}
+	return values
+}
+
+func isCanonical(n *xnode) bool { return n.name == "link" && n.attrs["rel"] == "canonical" }
 
 // fileHostProblems judges one lowercased file: every rule, every <link> but
 // a canonical one to another host, and every url() that is not a site path.

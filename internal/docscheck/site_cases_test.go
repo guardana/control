@@ -85,8 +85,10 @@ func TestManifestProblems(t *testing.T) {
 
 func TestHostProblems(t *testing.T) {
 	base := map[string][]byte{
-		"index.html": []byte(`<html><head><link rel="canonical" href="https://example.org/"/><link rel="stylesheet" href="/a.css"/></head>` +
-			`<body><a href="https://example.org/x">x</a><svg><path marker-end="url(#m)"/></svg></body></html>`),
+		"index.html": []byte(`<html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="canonical" href="https://example.org/"/><link rel="stylesheet" href="/a.css"/>` +
+			`<meta property="og:image" content="https://example.org/og.png"/></head>` +
+			`<body><a href="https://other.example/x">x</a><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path marker-end="url(#m)"/>` +
+			`<g opacity="0"><animate attributeName="opacity" values="0;1"/></g></svg></body></html>`),
 		"a.css": []byte(`@font-face{src:url("fonts/x.woff2")} .a{fill:url( #g )}`),
 		"b.svg": []byte(`<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>`),
 	}
@@ -111,6 +113,14 @@ func TestHostProblems(t *testing.T) {
 		"a ping":                   {"index.html", `<a href="/" ping="/count">x</a>`, "a ping attribute"},
 		"an image-set()":           {"a.css", `.a{background:image-set("a.png" 1x)}`, "an image-set()"},
 		"an entity-encoded source": {"index.html", `<img src="&#104;ttps://evil.example/p.png"/>`, "a remote source"},
+		"an animated image href":   {"index.html", `<svg><image><set attributeName="href" to="https://tracker.example/p.png"/></image></svg>`, "an animated reference"},
+		"an animated use href":     {"index.html", `<svg><use><animate attributeName="xlink:href" values="https://tracker.example/p.svg#a"/></use></svg>`, "an animated reference"},
+		"an animated href in svg":  {"b.svg", `<image><set attributeName="href" to="/p.png"/></image>`, "an animated reference"},
+		"a set to another host":    {"index.html", `<svg><image><set attributeName="x" to="https://tracker.example/p.png"/></image></svg>`, "the to of a <set> holds https://tracker.example/p.png, an address of another host"},
+		"a meta to another host":   {"index.html", `<meta property="og:image" content="https://tracker.example/p.png"/>`, "the content of a <meta> holds https://tracker.example/p.png"},
+		"a data attribute's host":  {"index.html", `<div data-src="https://tracker.example/p.png">x</div>`, "the data-src of a <div> holds"},
+		"a namespaced reference":   {"index.html", `<svg xmlns:xlink="http://www.w3.org/1999/xlink"><a xlink:title="https://tracker.example/"/></svg>`, "holds https://tracker.example/, an address of another host"},
+		"a link to another host":   {"index.html", `<link rel="icon" href="https://tracker.example/i.png"/>`, "the href of a <link> holds https://tracker.example/i.png"},
 	} {
 		files := maps.Clone(base)
 		if c.file == "index.html" {

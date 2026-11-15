@@ -352,7 +352,7 @@ What bounds it:
 - A writer of that directory can still deny a chosen action and bundle
   (ADR-0016); only the plane's ledger marks an approval spent.
 - Under `signed`, approvals, pauses, runs and stop lists count only signed by
-  roster operators, and the plane refuses to start when its account may write
+  roster operators ([signed operations](signed-operations.md)), and the plane refuses to start when its account may write
   the roster, the pause file, the run records or the stop list (ADR-0073,
   ADR-0075, ADR-0076, ADR-0077). That account still owns every floor: it can
   lower one, or withhold a newer roster until the held one expires, but no

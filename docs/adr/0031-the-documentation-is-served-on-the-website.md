@@ -12,6 +12,10 @@ Amended by [ADR-0049](0049-the-site-names-the-published-release.md): each
 page's foot also names the published release and links the documentation at
 its tag.
 
+Amended by [ADR-0084](0084-the-site-is-redrawn-in-one-system.md): the pages
+wear the landing page's header, footer, tokens and theme switch, and the
+renderer also writes `site/llms.txt`.
+
 ## Context
 
 The landing page sends a reader to GitHub's file view for every page: the

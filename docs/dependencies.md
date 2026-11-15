@@ -292,30 +292,24 @@ product contains what this section lists.
   over `cmd/`, `pkg/`, `adapters/` and `examples/` does not reach it, so no
   binary or image of the product contains it.
 
-### IBM Plex Sans and IBM Plex Mono
+### Geist and Geist Mono
 
-- Problem it solves: the website's type, six WOFF2 files served from the site
-  itself, so the page loads nothing from another host.
-- Why not the system fonts: the page shares its visual system with Guardana's
-  site; the system font stacks stay the fallback in `tokens.css`.
-- Licence: SIL Open Font License 1.1, copyright IBM Corp., read from
-  `site/assets/brand/v1/fonts/OFL.txt`, which is served beside the fonts as the
-  licence asks of every copy.
-- Maintenance signal: `IBM/plex` is not archived and was last pushed on
-  2026-09-22.
-- Request path: no.
-
-### Brand v1, copied from Guardana
-
-- Problem it solves: the colour and type tokens, fonts and marks the two
-  projects' sites share, in `site/assets/brand/v1/`.
-- Why a copy: Control depends on nothing from Guardana
-  ([ADR-0024](adr/0024-control-and-guardana-are-independent.md)). The copy is
-  Control's own from the day it was taken; a test pins the digest of its
-  `SHA256SUMS`, and a change is a v2 at a new path, never an edit in place.
-- Licence: Apache-2.0, as Guardana's repository; the fonts as above. Guardana's
-  marks in the copy remain Guardana's.
-- Maintenance signal: none needed; nothing follows the original.
+- Problem it solves: the website's type, one variable WOFF2 file for each
+  family in `site/assets/control/v2/fonts/`, served from the site itself, so
+  the pages load nothing from another host
+  ([ADR-0084](adr/0084-the-site-is-redrawn-in-one-system.md)).
+- Why not the system fonts: the approved design is set in them; the system
+  font stacks stay the fallback in `tokens.css`.
+- Licence: SIL Open Font License 1.1, copyright The Geist Project Authors,
+  read from the `OFL.txt` of the fonts' v1.9.2 release, which is served beside
+  the files as the licence asks of every copy. The files are the release's
+  `Geist[wght].woff2` and `GeistMono[wght].woff2`, renamed and otherwise
+  unchanged; a test pins them through the digest of `SHA256SUMS`. They come
+  from the release asset `geist-font-v1.9.2.zip`, SHA-256
+  `15f066d58dcb99fb10014a49913009fdaf41e464cfb8851a44b44e593c95d3d8`, the
+  digest the release publishes for it.
+- Maintenance signal: `vercel/geist-font` published v1.9.2 on 2026-11-06,
+  checked on 2026-11-14.
 - Request path: no.
 
 ## GitHub Actions used by the workflows

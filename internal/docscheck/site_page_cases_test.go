@@ -82,35 +82,173 @@ func TestIDProblemsAndFigureIndexes(t *testing.T) {
 
 func TestTagProblems(t *testing.T) {
 	status := map[string]string{"Kernel `x`": "implemented", "Spool": "experimental", "Web UI": "planned"}
-	backlog := map[string]string{"B01": "Build the first thing", "B02": "Build the second thing"}
-	good := `<html><p>An <code class="st" data-status="Spool">experimental</code> spool.</p><ul>` +
-		`<li data-status="Kernel ` + "`x`" + `"><span class="st implemented">implemented</span><span class="t">Kernel ` + "`x`" + `</span></li>` +
-		`<li data-status="Spool"><span class="st">experimental</span><span class="t">Spool</span></li>` +
-		`<li data-backlog="B01"><span class="id">B01</span><span class="t">Build the first thing</span></li>` +
-		`<li data-backlog="B02"><span class="id">B02</span><span class="t">Build the second thing</span></li></ul></html>`
-	wantNone(t, "items that name their sources", tagProblems(mustParse(t, good), status, backlog, 2, 2, 2))
+	backlog := map[string]string{"B01": "Build the `first` thing", "B02": "Build the second thing"}
+	good := `<html><head><title>A page</title><style>.st{content:""}</style></head>` +
+		`<p>An <code class="st" data-status="Spool" title="Spool">experimental</code> spool.</p>` +
+		`<p class="state" data-status="Kernel ` + "`x`" + `" title="Kernel x"><span class="st">implemented</span> today</p>` +
+		`<li data-status="Spool" title="Spool"><b>Spool</b><small class="st">experimental</small></li>` +
+		`<section data-backlog="B01" title="Build the first thing"><p>Next · <code>planned</code> · <a class="id" href="/b">B01</a></p></section>` +
+		`<p data-backlog="B02" title="Build the second thing">Later, <code>planned</code> (<a class="id" href="/b">B02</a>).</p></html>`
+	wantNone(t, "labels and items that name their sources", tagProblems(mustParse(t, good), status, backlog, 3, 2))
 	for name, c := range map[string]struct{ from, to, want string }{
-		"a label not the row's":          {`<span class="st">experimental</span><span class="t">Spool`, `<span class="st">implemented</span><span class="t">Spool`, `shows ["implemented"], want the row's label "experimental"`},
-		"no label shown":                 {`<span class="st">experimental</span><span class="t">Spool`, `<span class="t">Spool`, "shows []"},
-		"a title not the row's":          {`<span class="t">Spool</span>`, `<span class="t">Production-ready spool</span>`, `titled ["Production-ready spool"], want the row "Spool"`},
-		"no title":                       {`<span class="t">Spool</span>`, ``, `titled [], want the row "Spool"`},
-		"an unknown row":                 {`<li data-status="Spool">`, `<li data-status="Spool store">`, "names no row"},
-		"an empty data-status":           {`<li data-status="Spool">`, `<li data-status="">`, "an empty data-status"},
-		"a label with no data-status":    {`<li data-status="Spool">`, `<li>`, `a status label "experimental" outside a data-status item`},
-		"an inline label not the row's":  {`data-status="Spool">experimental</code>`, `data-status="Spool">implemented</code>`, `shows ["implemented"], want the row's label "experimental"`},
-		"an inline label with no row":    {`<code class="st" data-status="Spool">`, `<code class="st">`, `a status label "experimental" outside a data-status item`},
+		"a label not the row's":          {`<small class="st">experimental</small>`, `<small class="st">implemented</small>`, `shows ["implemented"], want the row's label "experimental"`},
+		"no label shown":                 {`<small class="st">experimental</small>`, ``, `data-status "Spool" shows []`},
+		"two labels shown":               {`<small class="st">experimental</small>`, `<small class="st">experimental</small><i class="st">experimental</i>`, `shows ["experimental" "experimental"]`},
+		"an unknown row":                 {`<li data-status="Spool"`, `<li data-status="Spool store"`, "names no row"},
+		"an empty data-status":           {`<li data-status="Spool"`, `<li data-status=""`, "an empty data-status"},
+		"a label with no data-status":    {`<li data-status="Spool" title="Spool">`, `<li>`, `a status label "experimental" outside a data-status item`},
+		"an inline label not the row's":  {`title="Spool">experimental</code>`, `title="Spool">implemented</code>`, `shows ["implemented"], want the row's label "experimental"`},
+		"an inline label with no row":    {`<code class="st" data-status="Spool" title="Spool">`, `<code class="st">`, `a status label "experimental" outside a data-status item`},
+		"a row's title missing":          {`<li data-status="Spool" title="Spool">`, `<li data-status="Spool">`, `data-status "Spool" carries the title "", want the row's name`},
+		"another row's title":            {`<li data-status="Spool" title="Spool">`, `<li data-status="Spool" title="Kernel x">`, `data-status "Spool" carries the title "Kernel x"`},
+		"a task's title missing":         {` title="Build the second thing"`, ``, `data-backlog "B02" carries the title "", want the task's Work cell "Build the second thing"`},
+		"a code span left in a title":    {`title="Build the first thing"`, "title=\"Build the `first` thing\"", "data-backlog \"B01\" carries the title \"Build the `first` thing\""},
+		"a bare label":                   {`</html>`, `<small>experimental</small></html>`, `the word "experimental" in "experimental" is tied to no row or task`},
+		"a bare label in capitals":       {`</html>`, `<p>Implemented</p></html>`, `the word "Implemented" in "Implemented"`},
+		"a label in a sentence":          {`</html>`, `<p>All six are experimental today.</p></html>`, `the word "experimental" in "All six are experimental today."`},
+		"a label with a full stop":       {`</html>`, `<small>implemented.</small></html>`, `the word "implemented" in "implemented."`},
+		"a label beside an empty icon":   {`</html>`, `<small><i></i>implemented</small></html>`, `the word "implemented" in "implemented"`},
+		"a label after a word":           {`</html>`, `<small>Status: implemented</small></html>`, `the word "implemented" in "Status: implemented"`},
+		"a claim in prose":               {`</html>`, `<p>The web UI is implemented.</p></html>`, `the word "implemented" in "The web UI is implemented."`},
+		"a label beside the row's label": {`<b>Spool</b>`, `<b>Spool is implemented</b>`, `the word "implemented" in "Spool is implemented"`},
+		"a label inside a task":          {`Later, <code>planned</code>`, `Later, <code>implemented</code>`, `the word "implemented" in "implemented"`},
+		"planned outside a backlog":      {`<p data-backlog="B02" title="Build the second thing">`, `<p>`, `the word "planned" in "planned"`},
 		"an unknown backlog id":          {`data-backlog="B02"`, `data-backlog="B99"`, `"B99" names no task`},
 		"an empty data-backlog":          {`data-backlog="B02"`, `data-backlog=""`, "an empty data-backlog"},
-		"a backlog title not the task's": {`<span class="t">Build the second thing</span>`, `<span class="t">Ship the second thing</span>`, `titled ["Ship the second thing"], want the task "Build the second thing"`},
-		"too few status items":           {`<li data-status="Spool"><span class="st">experimental</span><span class="t">Spool</span></li>`, ``, "1 status items, want 2 to 2"},
-		"too many status items":          {`</ul>`, `<li data-status="Web UI"><span class="st">planned</span><span class="t">Web UI</span></li></ul>`, "3 status items, want 2 to 2"},
-		"too few backlog items":          {`<li data-backlog="B02"><span class="id">B02</span><span class="t">Build the second thing</span></li>`, ``, "1 backlog items, want at least 2"},
+		"a backlog id not shown":         {`(<a class="id" href="/b">B02</a>)`, ``, `data-backlog "B02" shows the ids []`},
+		"another backlog id shown":       {`<a class="id" href="/b">B02</a>`, `<a class="id" href="/b">B01</a>`, `data-backlog "B02" shows the ids ["B01"]`},
+		"too few status labels":          {`<p class="state" data-status="Kernel ` + "`x`" + `" title="Kernel x"><span class="st">implemented</span> today</p>`, ``, "2 status labels, want at least 3"},
+		"one task tied twice":            {`<p data-backlog="B02" title="Build the second thing">Later, <code>planned</code> (<a class="id" href="/b">B02</a>).</p>`, `<p data-backlog="B01" title="Build the first thing">Later, <code>planned</code> (<a class="id" href="/b">B01</a>).</p>`, "1 distinct backlog tasks, want at least 2"},
 	} {
 		page := strings.Replace(good, c.from, c.to, 1)
 		if page == good {
 			t.Fatalf("%s: the fixture edit changed nothing", name)
 		}
-		wantProblem(t, name, tagProblems(mustParse(t, page), status, backlog, 2, 2, 2), c.want)
+		wantProblem(t, name, tagProblems(mustParse(t, page), status, backlog, 3, 2), c.want)
+	}
+}
+
+func TestPlannedOutsideBacklog(t *testing.T) {
+	good := `<html><p>Built today.</p><section data-backlog="B01"><h2>Where it is going</h2><p>A graph view is planned.</p></section>` +
+		`<p>Records are checked. <span data-backlog="B02">Tampering is planned.</span></p></html>`
+	problems, read := plannedOutsideBacklog("index.html", pageSegments(mustParse(t, good)), nil)
+	wantNone(t, "planned sentences inside backlog items", problems)
+	if read != 2 {
+		t.Errorf("read %d sentences that say planned, want 2", read)
+	}
+	for name, c := range map[string]struct{ from, to, want string }{
+		"a planned sentence beside the item": {`<p>Built today.</p>`, `<p>Built today. Streaming is planned.</p>`, `"Streaming is planned." calls something planned`},
+		"a planned label in code":            {`<p>Built today.</p>`, `<p>Streaming: <code>Planned</code></p>`, `"Streaming: Planned"`},
+		"a section that lost its id":         {`<section data-backlog="B01">`, `<section>`, `"A graph view is planned."`},
+		"on the roadmap":                     {`<p>Built today.</p>`, `<p>Streaming is on the roadmap.</p>`, `"Streaming is on the roadmap."`},
+		"we plan to":                         {`<p>Built today.</p>`, `<p>We plan to stream.</p>`, `"We plan to stream."`},
+		"later this year":                    {`<p>Built today.</p>`, `<p>Streaming arrives later this year.</p>`, `"Streaming arrives later this year."`},
+		"coming soon":                        {`<p>Built today.</p>`, `<p>Streaming is coming soon.</p>`, `"Streaming is coming soon."`},
+		"will be added":                      {`<p>Built today.</p>`, `<p>Streaming will be added.</p>`, `"Streaming will be added."`},
+		"a task id outside the item":         {`<p>Built today.</p>`, `<p>Streaming is planned (B01).</p>`, `"Streaming is planned (B01)."`},
+	} {
+		page := strings.Replace(good, c.from, c.to, 1)
+		problems, _ := plannedOutsideBacklog("index.html", pageSegments(mustParse(t, page)), nil)
+		wantProblem(t, name, problems, c.want)
+	}
+	if _, read := plannedOutsideBacklog("index.html", pageSegments(mustParse(t, `<html><p>The plan is set.</p></html>`)), nil); read != 0 {
+		t.Errorf("a sentence without the word was read as planned")
+	}
+
+	tasks := map[string]string{"B29": "Make the trail tamper-evident"}
+	readme := "# P\n\nThe trail is checked for order, not yet for tampering (`planned`, [B29](docs/backlog.md)).\n"
+	segments, err := readmeSegments([]byte(readme))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if problems, read := plannedOutsideBacklog("README.md", segments, tasks); len(problems) != 0 || read != 1 {
+		t.Errorf("a README sentence that names its task: problems %q, read %d, want none and 1", problems, read)
+	}
+	for name, c := range map[string]struct{ from, to, want string }{
+		"no task named":     {"(`planned`, [B29](docs/backlog.md))", "(`planned`)", "tampering (`planned`)."},
+		"an unknown task":   {"[B29]", "[B99]", "B99"},
+		"a known and stray": {"[B29](docs/backlog.md)", "[B29](docs/backlog.md), B98", "B98"},
+		"a promise":         {"The trail is checked for order, not yet for tampering (`planned`, [B29](docs/backlog.md)).", "Tamper evidence will be added.", "Tamper evidence will be added."},
+	} {
+		changed := strings.Replace(readme, c.from, c.to, 1)
+		if changed == readme {
+			t.Fatalf("%s: the fixture edit changed nothing", name)
+		}
+		segments, err := readmeSegments([]byte(changed))
+		if err != nil {
+			t.Fatal(err)
+		}
+		problems, _ := plannedOutsideBacklog("README.md", segments, tasks)
+		wantProblem(t, name, problems, c.want)
+	}
+}
+
+func TestIllustrationProblems(t *testing.T) {
+	good := `<html><svg role="img" aria-label="A call is allowed."/><div role="img" aria-label="Three calls."/><p>text</p></html>`
+	problems, drawn := illustrationProblems(mustParse(t, good))
+	wantNone(t, "illustrations with text alternatives", problems)
+	if drawn != 2 {
+		t.Errorf("counted %d illustrations, want 2", drawn)
+	}
+	problems, drawn = illustrationProblems(mustParse(t, `<html><svg role="img" aria-label=" "/><div role="img"/></html>`))
+	wantProblem(t, "a blank text alternative", problems, `a <svg role="img"> has no aria-label`)
+	wantProblem(t, "no text alternative", problems, `a <div role="img"> has no aria-label`)
+	if drawn != 0 {
+		t.Errorf("counted %d illustrations without a text alternative, want 0", drawn)
+	}
+}
+
+func TestScriptProblems(t *testing.T) {
+	wantNone(t, "a page with no script", scriptProblems(mustParse(t, `<html><body><a href="/">x</a><svg><animate attributeName="opacity"/></svg></body></html>`)))
+	for name, c := range map[string]struct{ page, want string }{
+		"a script element":         {`<html><body><script>x()</script></body></html>`, "a script element"},
+		"a script in capitals":     {`<html><body><SCRIPT/></body></html>`, "a script element"},
+		"a script in an svg":       {`<html><svg><script href="/a.js"/></svg></html>`, "a script element"},
+		"an event handler":         {`<html><body onload="x()"/></html>`, "the event handler onload on a <body>"},
+		"an SVG animation handler": {`<html><svg><animate onbegin="x()"/></svg></html>`, "the event handler onbegin on a <animate>"},
+		"a handler in capitals":    {`<html><a ONCLICK="x()">x</a></html>`, "the event handler ONCLICK"},
+	} {
+		wantProblem(t, name, scriptProblems(mustParse(t, c.page)), c.want)
+	}
+}
+
+func TestThemeSwitchProblems(t *testing.T) {
+	const tokens = "/t.css"
+	good := `<html><head><link rel="stylesheet" href="/t.css"/></head><body><input type="checkbox" id="theme"/><label for="theme">x</label></body></html>`
+	wantNone(t, "a page with its switch", themeSwitchProblems(mustParse(t, good), tokens))
+	for name, c := range map[string]struct{ from, to, want string }{
+		"no checkbox":           {`<input type="checkbox" id="theme"/>`, ``, "0 elements carry the id theme"},
+		"a radio":               {`type="checkbox"`, `type="radio"`, "1 elements carry the id theme and 0 of them are a checkbox"},
+		"the id on a label too": {`<label for="theme">`, `<label for="theme" id="theme">`, "2 elements carry the id theme"},
+		"no label":              {`<label for="theme">x</label>`, ``, "0 labels for the theme switch"},
+		"no tokens":             {`<link rel="stylesheet" href="/t.css"/>`, ``, "0 links to /t.css"},
+		"other tokens":          {`href="/t.css"`, `href="/v1/t.css"`, "0 links to /t.css"},
+	} {
+		page := strings.Replace(good, c.from, c.to, 1)
+		wantProblem(t, name, themeSwitchProblems(mustParse(t, page), tokens), c.want)
+	}
+}
+
+func TestThemeTokenProblems(t *testing.T) {
+	lightP := "color-scheme:light;--a:#fff;--b:#000;--c:1;--d:2;--e:3;--f:4;--g:5;--h:6;--i:7"
+	darkP := "color-scheme:dark;--a:#000;--b:#fff;--c:1;--d:2;--e:3;--f:4;--g:5;--h:6;--i:7"
+	good := ":root{\n  " + lightP + ";\n  --sans:\"X\",sans-serif;\n}\n" +
+		"@media (prefers-color-scheme:dark){:root{\n  " + darkP + "}}\n" +
+		"@media (prefers-color-scheme:light){html:has(#theme:checked){\n  " + darkP + "}}\n" +
+		"@media (prefers-color-scheme:dark){html:has(#theme:checked){\n  " + lightP + "}}\n"
+	wantNone(t, "the pinned shape", themeTokenProblems([]byte(good)))
+	for name, c := range map[string]struct{ from, to, want string }{
+		"a switch that stays light": {"@media (prefers-color-scheme:light){html:has(#theme:checked){\n  " + darkP, "@media (prefers-color-scheme:light){html:has(#theme:checked){\n  " + lightP, "the switch to dark differs from the dark palette"},
+		"a colour that drifted":     {"html:has(#theme:checked){\n  " + lightP, "html:has(#theme:checked){\n  " + strings.Replace(lightP, "--b:#000", "--b:#111", 1), `the switch to light differs from the light palette in ["--b"]`},
+		"no switch to light":        {"@media (prefers-color-scheme:dark){html:has(#theme:checked){\n  " + lightP + "}}\n", "", "the switch to light holds 0 colours"},
+		"no dark default":           {"@media (prefers-color-scheme:dark){:root{\n  " + darkP + "}}\n", "", "the dark palette holds 0 colours"},
+		"a palette set twice":       {":root{", ":root{--z:1}\n:root{", `the palette " :root" is set twice`},
+	} {
+		css := strings.Replace(good, c.from, c.to, 1)
+		if css == good {
+			t.Fatalf("%s: the fixture edit changed nothing", name)
+		}
+		wantProblem(t, name, themeTokenProblems([]byte(css)), c.want)
 	}
 }
 

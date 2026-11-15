@@ -263,33 +263,42 @@ func backlogTitles(lines []string) map[string]string {
 	return titles
 }
 
-// tagProblems holds the page's status and backlog items to their sources.
-// Each data-status element names a component row exactly and shows that
-// row's own label in one `st` element; a list item also shows the row's name
-// in one `t` element, and an inline label is its own `st` element. A `st`
-// element outside a data-status element is refused. Each data-backlog item
-// names a task and shows its title in one `t` element. The list items
-// number between minStatus and maxStatus, the backlog items at least
-// minBacklog.
-func tagProblems(doc *xnode, status, backlog map[string]string, minStatus, maxStatus, minBacklog int) []string {
-	tally := &tagTally{status: status, backlog: backlog}
-	tally.visit(doc, false)
+var labelWord = regexp.MustCompile(`(?i)\b(?:implemented|experimental|planned)\b`)
+
+// tagProblems holds the page's labels and planned items to their sources.
+// Each data-status element names a component row exactly, carries the row's
+// name as its title and shows the row's own label in one `st` element,
+// itself or below it. Each data-backlog element names a task, carries the
+// task's Work cell as its title and shows its id in one `id` element. A
+// label word anywhere in the page's text is refused unless it is a `st`
+// element's inside a data-status element, or the word planned inside a
+// data-backlog element; a `st` element outside a data-status element is
+// refused too. The data-status elements number at least minStatus and the
+// distinct tasks at least minBacklog.
+func tagProblems(doc *xnode, status, backlog map[string]string, minStatus, minBacklog int) []string {
+	tally := &tagTally{status: status, backlog: backlog, tasks: map[string]bool{}}
+	tally.visit(doc, tagContext{})
 	problems := tally.problems
-	if tally.statusItems < minStatus || tally.statusItems > maxStatus {
-		problems = append(problems, fmt.Sprintf("%d status items, want %d to %d", tally.statusItems, minStatus, maxStatus))
+	if tally.statusItems < minStatus {
+		problems = append(problems, fmt.Sprintf("%d status labels, want at least %d", tally.statusItems, minStatus))
 	}
-	if tally.backlogItems < minBacklog {
-		problems = append(problems, fmt.Sprintf("%d backlog items, want at least %d", tally.backlogItems, minBacklog))
+	if len(tally.tasks) < minBacklog {
+		problems = append(problems, fmt.Sprintf("%d distinct backlog tasks, want at least %d", len(tally.tasks), minBacklog))
 	}
 	return problems
 }
 
 // tagTally walks a page for tagProblems, counting items as it goes.
 type tagTally struct {
-	status, backlog           map[string]string
-	statusItems, backlogItems int
-	problems                  []string
+	status, backlog map[string]string
+	statusItems     int
+	tasks           map[string]bool
+	problems        []string
 }
+
+// tagContext is what encloses a node: a data-status element, a data-backlog
+// element, a `st` element.
+type tagContext struct{ status, backlog, st bool }
 
 func (c *tagTally) add(problem string) {
 	if problem != "" {
@@ -297,26 +306,44 @@ func (c *tagTally) add(problem string) {
 	}
 }
 
-func (c *tagTally) visit(n *xnode, inStatus bool) {
+func (c *tagTally) visit(n *xnode, in tagContext) {
 	row, isStatus := n.attrs["data-status"]
-	switch {
-	case isStatus:
-		if !n.hasClass("st") {
-			c.statusItems++
-		}
+	id, isBacklog := n.attrs["data-backlog"]
+	if isStatus {
+		c.statusItems++
 		c.add(statusItemProblem(n, row, c.status))
-	case n.hasClass("st") && !inStatus:
-		c.add(fmt.Sprintf("a status label %q outside a data-status item", n.text()))
 	}
-	if id, ok := n.attrs["data-backlog"]; ok {
-		c.backlogItems++
+	if isBacklog {
+		c.tasks[id] = true
 		c.add(backlogItemProblem(n, id, c.backlog))
 	}
+	if n.hasClass("st") && !in.status && !isStatus {
+		c.add(fmt.Sprintf("a status label %q outside a data-status item", n.text()))
+	}
+	in = tagContext{in.status || isStatus, in.backlog || isBacklog, in.st || n.hasClass("st")}
 	for _, p := range n.parts {
 		if p.node != nil {
-			c.visit(p.node, inStatus || isStatus)
+			c.visit(p.node, in)
+			continue
+		}
+		for _, word := range labelWord.FindAllString(p.text, -1) {
+			c.add(labelWordProblem(n, word, in))
 		}
 	}
+}
+
+// labelWordProblem refuses a label word in a text the page does not tie to
+// a row or a task.
+func labelWordProblem(n *xnode, word string, in tagContext) string {
+	switch {
+	case n.name == "style":
+		return ""
+	case in.st && in.status:
+		return ""
+	case strings.EqualFold(word, "planned") && in.backlog && !in.st:
+		return ""
+	}
+	return fmt.Sprintf("the word %q in %q is tied to no row or task; show a label as `st` inside a data-status item, or planned inside a data-backlog item", word, n.text())
 }
 
 // texts lists the text of n and of every element below it that carries class.
@@ -337,31 +364,73 @@ func statusItemProblem(n *xnode, row string, status map[string]string) string {
 		return "an empty data-status"
 	case !known:
 		return fmt.Sprintf("data-status %q names no row of the component table", row)
+	case n.attrs["title"] != unwrapCode(row):
+		return fmt.Sprintf("data-status %q carries the title %q, want the row's name", row, n.attrs["title"])
 	}
 	if shown := n.texts("st"); len(shown) != 1 || shown[0] != label {
 		return fmt.Sprintf("data-status %q shows %q, want the row's label %q", row, shown, label)
-	}
-	if n.hasClass("st") {
-		return ""
-	}
-	if titled := n.texts("t"); len(titled) != 1 || titled[0] != row {
-		return fmt.Sprintf("data-status %q is titled %q, want the row %q", row, titled, row)
 	}
 	return ""
 }
 
 func backlogItemProblem(n *xnode, id string, backlog map[string]string) string {
-	title, known := backlog[id]
+	work, known := backlog[id]
 	switch {
 	case id == "":
 		return "an empty data-backlog"
 	case !known:
 		return fmt.Sprintf("data-backlog %q names no task of the backlog", id)
+	case n.attrs["title"] != unwrapCode(work):
+		return fmt.Sprintf("data-backlog %q carries the title %q, want the task's Work cell %q", id, n.attrs["title"], unwrapCode(work))
 	}
-	if titled := n.texts("t"); len(titled) != 1 || titled[0] != title {
-		return fmt.Sprintf("data-backlog %q is titled %q, want the task %q", id, titled, title)
+	if shown := n.texts("id"); len(shown) != 1 || shown[0] != id {
+		return fmt.Sprintf("data-backlog %q shows the ids %q, want %q once", id, shown, id)
 	}
 	return ""
+}
+
+// unwrapCode drops the backticks of Markdown code spans, as a title shows
+// the text.
+func unwrapCode(s string) string { return strings.ReplaceAll(s, "`", "") }
+
+var (
+	plannedWord = regexp.MustCompile(`(?i)\bplanned\b`)
+	taskID      = regexp.MustCompile(`\bB[0-9]{2}\b`)
+)
+
+// plannedOutsideBacklog refuses each sentence that calls something planned or
+// promises later work and is tied to no task, and counts the sentences that
+// do either. On the page a data-backlog element ties a sentence; in README,
+// read with tasks, the sentence names its task's id, and every id it names
+// is a task of the backlog.
+func plannedOutsideBacklog(name string, segments []proseSegment, tasks map[string]string) ([]string, int) {
+	var problems []string
+	read := 0
+	for _, seg := range segments {
+		for _, span := range sentenceSpans(seg.text) {
+			sentence := seg.text[span[0]:span[1]]
+			if !plannedWord.MatchString(sentence) && !futurePhrase.MatchString(sentence) {
+				continue
+			}
+			read++
+			if !seg.backlog && !namesTasks(sentence, tasks) {
+				problems = append(problems, fmt.Sprintf("%s: the sentence %q calls something planned or promises later work outside a data-backlog item; name its task in docs/backlog.md", name, sentence))
+			}
+		}
+	}
+	return problems, read
+}
+
+// namesTasks reports whether sentence names at least one task id, each a
+// task of tasks.
+func namesTasks(sentence string, tasks map[string]string) bool {
+	ids := taskID.FindAllString(sentence, -1)
+	for _, id := range ids {
+		if _, ok := tasks[id]; !ok {
+			return false
+		}
+	}
+	return len(ids) > 0
 }
 
 var boldLine = regexp.MustCompile(`^\*\*(.+)\*\*$`)

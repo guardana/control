@@ -53,10 +53,11 @@ type page struct {
 }
 
 // Build renders every page from fsys, rooted at the repository, and returns
-// what it writes keyed by repository path: each page under Dir and the
-// sitemap. listing says which files are read: never one the repository does
-// not list, and no page docs/docs.json excludes. released is the version
-// docs/docs.json names as published, which every page's header and foot name.
+// what it writes keyed by repository path: each page under Dir, the sitemap
+// and the llms.txt map. listing says which files are read: never one the
+// repository does not list, and no page docs/docs.json excludes. released is
+// the version docs/docs.json names as published, which every page's header and
+// foot name.
 func Build(fsys fs.FS, listing indexdoc.Listing, released string) (map[string][]byte, error) {
 	pages, err := collect(fsys, listing)
 	if err != nil {
@@ -73,8 +74,12 @@ func Build(fsys fs.FS, listing indexdoc.Listing, released string) (map[string][]
 	if err := sitedoc.Published(notes, released); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrSite, err)
 	}
+	lede, err := readmeLede(fsys)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrSite, err)
+	}
 	nav := buildNav(pages)
-	out := make(map[string][]byte, len(pages)+1)
+	out := make(map[string][]byte, len(pages)+2)
 	for _, p := range pages {
 		body, err := renderBody(p, bySource, fsys)
 		if err != nil {
@@ -87,6 +92,7 @@ func Build(fsys fs.FS, listing indexdoc.Listing, released string) (map[string][]
 		out[p.out] = page
 	}
 	out[Sitemap] = sitemap(pages)
+	out[LLMs] = llms(pages, lede)
 	return out, nil
 }
 
