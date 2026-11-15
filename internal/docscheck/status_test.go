@@ -1,0 +1,218 @@
+// The one inventory, docs/status.md: under "## Components" one table per
+// group, each row a stable id, a name, a label and one sentence that links to
+// its details; under "## Details" one heading per row, in the tables' order.
+// The label is the project's honesty claim and the id is what the landing
+// page binds to, so a row that loses either fails here.
+package docscheck
+
+import (
+	"fmt"
+	"regexp"
+	"slices"
+	"strings"
+	"testing"
+)
+
+const (
+	componentHead   = "ID | Component | Status | What it does"
+	maxComponentID  = 32
+	maxSummaryWords = 30
+	// minComponentRows is the inventory's row count: fewer means a row was
+	// lost or the tables were not read.
+	minComponentRows = 57
+)
+
+var (
+	componentGroups = []string{"Decisions", "Integrations", "Evidence", "Supervision and reaction", "Operations", "Project"}
+	componentID     = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+	allowedStatus   = map[string]bool{"`implemented`": true, "`experimental`": true, "`planned`": true}
+	// summaryRefused is what belongs in the details, not in the sentence: a
+	// path, a record's number, a test's name.
+	summaryRefused = regexp.MustCompile(`/|\bADR-?[0-9]|\b(?:Test|Fuzz|Benchmark|Example)[A-Z]`)
+	sentenceBreak  = regexp.MustCompile(`[.!?] +[A-Z]`)
+)
+
+// componentRow is one row of a component table.
+type componentRow struct {
+	line                            int
+	group, id, name, label, summary string
+}
+
+// statusComponents reads the component tables and the details of the page
+// in lines and returns their rows and every problem with them; a page with
+// fewer than minRows rows is a problem, so nothing parsed never passes.
+func statusComponents(lines []string, minRows int) ([]componentRow, []string) {
+	var (
+		problems         []string
+		rows             []componentRow
+		sections, groups []string
+		details          []string
+		detailLines      = map[string][]int{}
+		detailBody       = map[string]int{}
+		section, group   string
+		current          string
+		tableLine        int
+	)
+	add := func(format string, a ...any) { problems = append(problems, fmt.Sprintf(format, a...)) }
+	for i, raw := range lines {
+		s, n := strings.TrimSpace(raw), i+1
+		switch {
+		case strings.HasPrefix(s, "## "):
+			section, group, current = strings.TrimPrefix(s, "## "), "", ""
+			sections = append(sections, section)
+		case section == "Components" && strings.HasPrefix(s, "### "):
+			group, tableLine = strings.TrimPrefix(s, "### "), 0
+			groups = append(groups, group)
+		case section == "Details" && strings.HasPrefix(s, "### "):
+			current = strings.TrimPrefix(s, "### ")
+			details = append(details, current)
+			detailLines[current] = append(detailLines[current], n)
+		case section == "Details" && current != "" && s != "":
+			detailBody[current]++
+		case section == "Components" && strings.HasPrefix(s, "|"):
+			switch {
+			case group == "":
+				add("line %d: a table line before the first group heading", n)
+			case tableLine == 0:
+				if got := strings.Join(tableCells(s), " | "); got != componentHead {
+					add("line %d: header is %q, want %q", n, got, componentHead)
+				}
+				tableLine++
+			case tableLine == 1:
+				if !tableSeparator.MatchString(s) {
+					add("line %d: want the header separator row, got %q", n, s)
+				}
+				tableLine++
+			default:
+				cells := tableCells(s)
+				if len(cells) != 4 {
+					add("line %d: row has %d cells, want 4: %s", n, len(cells), s)
+					continue
+				}
+				row := componentRow{n, group, cells[0], cells[1], cells[2], cells[3]}
+				for _, p := range componentRowProblems(row, rows) {
+					add("line %d: %s", n, p)
+				}
+				row.label = strings.Trim(row.label, "`")
+				rows = append(rows, row)
+			}
+		}
+	}
+	components, detailsAt := slices.Index(sections, "Components"), slices.Index(sections, "Details")
+	switch {
+	case components < 0:
+		add(`no "## Components" section`)
+	case detailsAt < 0:
+		add(`no "## Details" section`)
+	case detailsAt < components:
+		add(`"## Details" comes before "## Components"`)
+	}
+	if !slices.Equal(groups, componentGroups) {
+		add("the groups are %q, want %q", groups, componentGroups)
+	}
+	for _, g := range componentGroups {
+		if slices.Contains(groups, g) && !slices.ContainsFunc(rows, func(r componentRow) bool { return r.group == g }) {
+			add("the group %q holds no row", g)
+		}
+	}
+	if len(rows) < minRows {
+		add("read %d component rows, want at least %d", len(rows), minRows)
+	}
+	return rows, append(problems, detailProblems(rows, details, detailLines, detailBody)...)
+}
+
+// componentRowProblems judges one row against itself and the rows before it.
+func componentRowProblems(row componentRow, before []componentRow) []string {
+	var problems []string
+	switch {
+	case !componentID.MatchString(row.id):
+		problems = append(problems, fmt.Sprintf("the id %q is not lowercase words joined by hyphens", row.id))
+	case len(row.id) > maxComponentID:
+		problems = append(problems, fmt.Sprintf("the id %q is longer than %d characters", row.id, maxComponentID))
+	}
+	if slices.ContainsFunc(before, func(r componentRow) bool { return r.id == row.id }) {
+		problems = append(problems, fmt.Sprintf("the id %q is used twice", row.id))
+	}
+	if row.name == "" {
+		problems = append(problems, fmt.Sprintf("%q has no name", row.id))
+	}
+	if !allowedStatus[row.label] {
+		problems = append(problems, fmt.Sprintf("%q has status %q, want one of `implemented`, `experimental`, `planned`", row.id, row.label))
+	}
+	if p := summaryProblem(row); p != "" {
+		problems = append(problems, p)
+	}
+	return problems
+}
+
+// summaryProblem holds a row's sentence to what a stranger reads in one
+// line: one sentence of at most maxSummaryWords words, no path, record
+// number or test name, then the link to the row's own details.
+func summaryProblem(row componentRow) string {
+	link := fmt.Sprintf("[details](#%s)", row.id)
+	sentence, ok := strings.CutSuffix(row.summary, " "+link)
+	switch words := len(strings.Fields(sentence)); {
+	case !ok:
+		return fmt.Sprintf("%q: the sentence does not end with %s", row.id, link)
+	case words > maxSummaryWords:
+		return fmt.Sprintf("%q: the sentence has %d words, want at most %d", row.id, words, maxSummaryWords)
+	case !strings.HasSuffix(sentence, "."):
+		return fmt.Sprintf("%q: the sentence does not end with a full stop", row.id)
+	case sentenceBreak.MatchString(sentence):
+		return fmt.Sprintf("%q: %q is more than one sentence", row.id, sentence)
+	case summaryRefused.MatchString(sentence):
+		return fmt.Sprintf("%q: the sentence names %q, which belongs in the details", row.id, summaryRefused.FindString(sentence))
+	}
+	return ""
+}
+
+// detailProblems holds the details to the rows: one heading with a body per
+// row, no heading without a row, and the rows' order.
+func detailProblems(rows []componentRow, details []string, lines map[string][]int, body map[string]int) []string {
+	var problems []string
+	ids := make([]string, len(rows))
+	for i, r := range rows {
+		ids[i] = r.id
+		switch n := len(lines[r.id]); {
+		case n == 0:
+			problems = append(problems, fmt.Sprintf("line %d: %q has no heading under Details", r.line, r.id))
+		case n > 1:
+			problems = append(problems, fmt.Sprintf("%q has %d headings under Details, at lines %v", r.id, n, lines[r.id]))
+		case body[r.id] == 0:
+			problems = append(problems, fmt.Sprintf("line %d: the details of %q are empty", lines[r.id][0], r.id))
+		}
+	}
+	for _, d := range details {
+		if !slices.Contains(ids, d) {
+			problems = append(problems, fmt.Sprintf("line %d: the details heading %q names no row", lines[d][0], d))
+		}
+	}
+	if len(problems) == 0 && len(details) == len(ids) && !slices.Equal(details, ids) {
+		i := 0
+		for i < len(ids) && details[i] == ids[i] {
+			i++
+		}
+		problems = append(problems, fmt.Sprintf("details heading %d is %q, want %q, the tables' order", i+1, details[i], ids[i]))
+	}
+	return problems
+}
+
+// statusRows maps each component row of the page in lines by its id, and
+// returns the page's problems: a site check reads it only when it parses.
+func statusRows(lines []string) (map[string]componentRow, []string) {
+	rows, problems := statusComponents(lines, minComponentRows)
+	byID := map[string]componentRow{}
+	for _, r := range rows {
+		byID[r.id] = r
+	}
+	return byID, problems
+}
+
+// TestStatusComponents is the load-bearing check. The root documents no
+// longer keep their own inventories, they all point here, so these tables
+// are the only place the project states what is implemented, experimental
+// or planned; a row that loses its label takes the honesty claim with it.
+func TestStatusComponents(t *testing.T) {
+	_, problems := statusComponents(readLines(t, repoFS(t), "docs/status.md"), minComponentRows)
+	report(t, "docs/status.md", problems)
+}

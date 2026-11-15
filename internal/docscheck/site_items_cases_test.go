@@ -6,23 +6,23 @@ import (
 )
 
 func TestItemListProblems(t *testing.T) {
-	page := `<html><div data-status="Spool"><h3>Can we read it?</h3></div>` +
-		`<div class="txt" data-status="Kernel"><span>01</span><h3>Rules first</h3><p class="state">x</p></div>` +
+	page := `<html><div data-status="spool"><h3>Can we read it?</h3></div>` +
+		`<div class="txt" data-status="kernel"><span>01</span><h3>Rules first</h3><p class="state">x</p></div>` +
 		`<li data-backlog="B29"><i></i><b>The record itself</b></li>` +
 		`<span data-backlog="B29">Records are checked (B29).</span>` +
 		`<details data-backlog="B28"><summary>Does it run alone?</summary><p>Not yet.</p></details></html>`
 	want := []siteItem{
-		{"Can we read it?", "status: Spool"},
-		{"Rules first", "status: Kernel"},
+		{"Can we read it?", "status: spool"},
+		{"Rules first", "status: kernel"},
 		{"The record itself", "backlog: B29"},
 		{"Records are checked (B29).", "backlog: B29"},
 		{"Does it run alone?", "backlog: B28"},
 	}
 	wantNone(t, "a page that matches its reviewed list", itemListProblems(pageItems(mustParse(t, page)), want))
 	for name, c := range map[string]struct{ from, to, want string }{
-		"a card that claims another row": {`data-status="Spool"><h3>Can we read it?`, `data-status="Architecture decision records"><h3>Can we read it?`, `the page ties "Can we read it?" to "status: Architecture decision records" 1 more time(s)`},
-		"one row tied to a second card":  {`</html>`, `<div data-status="Spool"><h3>Can we stop it?</h3></div></html>`, `ties "Can we stop it?" to "status: Spool"`},
-		"the same card twice":            {`</html>`, `<div data-status="Spool"><h3>Can we read it?</h3></div></html>`, `ties "Can we read it?" to "status: Spool" 1 more time(s)`},
+		"a card that claims another row": {`data-status="spool"><h3>Can we read it?`, `data-status="decision-records"><h3>Can we read it?`, `the page ties "Can we read it?" to "status: decision-records" 1 more time(s)`},
+		"one row tied to a second card":  {`</html>`, `<div data-status="spool"><h3>Can we stop it?</h3></div></html>`, `ties "Can we stop it?" to "status: spool"`},
+		"the same card twice":            {`</html>`, `<div data-status="spool"><h3>Can we read it?</h3></div></html>`, `ties "Can we read it?" to "status: spool" 1 more time(s)`},
 		"a listed card gone":             {`<details data-backlog="B28"><summary>Does it run alone?</summary><p>Not yet.</p></details>`, ``, `the reviewed list ties "Does it run alone?" to "backlog: B28", and the page does not`},
 		"a heading reworded":             {`<b>The record itself</b>`, `<b>The trail itself</b>`, `the page ties "The trail itself" to "backlog: B29"`},
 	} {

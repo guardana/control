@@ -154,6 +154,18 @@ func TestCodeIsEscaped(t *testing.T) {
 	}
 }
 
+// Each table sits in a box of its own, which scrolls it when it is wider
+// than the page, and keeps the table renderer's XHTML alignment.
+func TestATableSitsInABoxOfItsOwn(t *testing.T) {
+	out := renderA(t, "# A\n\n| Name | Size |\n| --- | ---: |\n| `a` | 1 B |\n\nAfter.\n\n| One |\n| --- |\n| x |\n")
+	if n := strings.Count(out, "<div class=\"tbl\">\n<table>"); n != 2 || strings.Count(out, "</table>\n</div>") != 2 {
+		t.Errorf("%d tables boxed, want 2:\n%s", n, out)
+	}
+	if !strings.Contains(out, `<td align="right">1 B</td>`) {
+		t.Errorf("the right-aligned cell lost its XHTML alignment:\n%s", out)
+	}
+}
+
 // A record the repository does not list, such as a local draft git ignores,
 // is neither rendered nor in the sitemap; once listed, it is both.
 func TestOnlyAListedRecordIsRendered(t *testing.T) {

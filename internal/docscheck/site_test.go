@@ -221,10 +221,10 @@ func TestSiteLinksResolve(t *testing.T) {
 
 func TestSiteItemsNameTheirSources(t *testing.T) {
 	fsys := repoFS(t)
-	status := statusRows(readLines(t, fsys, "docs/status.md"))
+	status, problems := statusRows(readLines(t, fsys, "docs/status.md"))
 	backlog := backlogTitles(readLines(t, fsys, "docs/backlog.md"))
-	if len(status) < minComponentRows || len(backlog) < 5 {
-		t.Fatalf("read %d status rows and %d backlog ids; the sources were not parsed", len(status), len(backlog))
+	if len(problems) > 0 || len(backlog) < 5 {
+		t.Fatalf("docs/status.md has %d problems (TestStatusComponents names them) and docs/backlog.md %d ids; the sources were not parsed", len(problems), len(backlog))
 	}
 	doc := loadPage(t, loadSite(t)["index.html"])
 	report(t, sitedoc.Page, tagProblems(doc, status, backlog, 12, minLandingTasks))
@@ -372,9 +372,9 @@ func TestSiteAndReadmePromiseNoUnlistedWork(t *testing.T) {
 
 func TestSitePlannedNamesNoDeliveredRow(t *testing.T) {
 	fsys := repoFS(t)
-	status := statusRows(readLines(t, fsys, "docs/status.md"))
-	if len(status) < minComponentRows {
-		t.Fatalf("read %d status rows; the source was not parsed", len(status))
+	status, problems := statusRows(readLines(t, fsys, "docs/status.md"))
+	if len(problems) > 0 {
+		t.Fatalf("docs/status.md has %d problems, which TestStatusComponents names; the source was not parsed", len(problems))
 	}
 	page, err := fs.ReadFile(fsys, sitedoc.Page)
 	if err != nil {
