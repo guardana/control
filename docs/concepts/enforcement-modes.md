@@ -88,8 +88,7 @@ them:
 | --- | --- | --- | --- |
 | a call an operator's pause covers, in every mode | `DENY` | `PAUSED` | the operator removes the entry |
 | every call, while a configured pause file cannot be read | `INDETERMINATE` | `PAUSE_STATE_UNAVAILABLE` | a read succeeds |
-| a call of an opened run a stop names, with a route, in every mode | `DENY` | `RUN_STOPPED` | the stop expires or is lifted ([reaction](../reference/reaction.md)) |
-| every call, a runless one included, while a stop names the plane's agent or principal, in every mode | `DENY` | `AGENT_OR_PRINCIPAL_STOPPED` | the stop expires or is lifted ([signed reaction](../reference/reaction-signed.md#a-stop-of-an-agent-or-a-principal)) |
+| a call of a stopped run, or of the plane's stopped agent or principal | `DENY` | `RUN_STOPPED`, `AGENT_OR_PRINCIPAL_STOPPED` | the stop expires or is lifted ([reaction](../reference/reaction.md)) |
 | every call, while a configured stop list cannot be read or trusted | `INDETERMINATE` | `STOP_STATE_UNAVAILABLE` | a read extends the list accepted |
 | a call nothing classifies, in every mode but `OBSERVE` | `INDETERMINATE` | `ACTION_UNCLASSIFIED` | the operator classifies it |
 | a material call after an execution ran with bytes that were not authorized: of that execution's opened run when a cooperating client reported it and fewer than `flow.max_runs` runs are halted, otherwise every one | `DENY` | `EXECUTED_ARGS_MISMATCH` | the enforcement point restarts |

@@ -121,6 +121,12 @@ the last two only under `signed`. A lift ends the stops of its scope and
 subject through its line alone: a lift of a run leaves a stop of its agent
 standing, and a lift of the agent ends that one.
 
+`doctor` names each rule that stops an agent or a principal, and each such
+stop whose agent, principal or tenant is not the listener's, which matches
+no call. `health.socket` lists each stop with its `scope` and `subject` and,
+under health schema `3`, names the stops that match no call by entry id in
+`unheld_entries` and `unread_entries`.
+
 `doctor` judges the route and the header through the roster file, holds the
 header to the stop list floor without raising it, and names who signed each.
 `/healthz` gives a `3.0` list's header serial under `stops.signed`; only
