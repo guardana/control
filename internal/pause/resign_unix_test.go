@@ -92,25 +92,30 @@ func TestResignCarriesEveryEntryToTheCurrentVersion(t *testing.T) {
 	p := newSignedPlane(t)
 	from := p.header(t, "alice", 5)
 	p.writeRaw(t, signV3(t, "alice", from, twoEntries))
-	got, err := Resign(t.Context(), p.path, "plane-a", signer("carol"))
-	if err != nil {
-		t.Fatalf("Resign: %v", err)
-	}
 	want := Header{KeyID: testKeyID("carol"), PlaneID: "plane-a", Tenant: "t1", Project: "A", File: from.File, Serial: 6}
-	if got.Header != want {
-		t.Errorf("Resign signed %+v, want %+v", got.Header, want)
-	}
-	l, err := List(p.path)
-	if err != nil || l.Signed == nil || l.Signed.Header != want || !slices.EqualFunc(l.Entries, twoEntries.Entries, sameEntry) {
-		t.Fatalf("the file lists %+v, %v; want %+v over the two entries", l, err, want)
-	}
+	wantResigned(t, "Resign", p.path, signer("carol"), want)
 	if s := p.read(t, takes); s.State() != Paused || len(s.Entries()) != 2 {
 		t.Errorf("a plane's read of the signed file = %s, %q: %s", s.State(), s.Cause(), s.Detail())
 	}
 	actAs(t, os.Geteuid())
-	again, err := Resign(t.Context(), p.path, "plane-a", signer("alice"))
-	if err != nil || again.Serial != 7 || again.PlaneID != "plane-a" || len(again.Entries) != 2 {
-		t.Errorf("Resign run again = %+v, %v; want serial 7 over the two entries", again.Header, err)
+	want.KeyID, want.Serial = testKeyID("alice"), 7
+	wantResigned(t, "Resign run again", p.path, signer("alice"), want)
+}
+
+// wantResigned runs Resign of the file at path for plane-a with s, and fails
+// t unless it signed want over twoEntries and the file lists the same.
+func wantResigned(t *testing.T, what, path string, s Signer, want Header) {
+	t.Helper()
+	got, err := Resign(t.Context(), path, "plane-a", s)
+	if err != nil {
+		t.Fatalf("%s: %v", what, err)
+	}
+	if got.Header != want || !slices.EqualFunc(got.Entries, twoEntries.Entries, sameEntry) {
+		t.Errorf("%s signed %+v over %d entries, want %+v over the two", what, got.Header, len(got.Entries), want)
+	}
+	l, err := List(path)
+	if err != nil || l.Signed == nil || l.Signed.Header != want || !slices.EqualFunc(l.Entries, twoEntries.Entries, sameEntry) {
+		t.Fatalf("%s: the file lists %+v, %v; want %+v over the two entries", what, l, err, want)
 	}
 }
 
@@ -163,8 +168,8 @@ func TestResignRefusesWhatItCannotCarry(t *testing.T) {
 		if _, err := Resign(t.Context(), p.path, c.plane, c.s); !errors.Is(err, c.want) {
 			t.Errorf("%s: Resign = %v, want %v", c.name, err, c.want)
 		}
-		if now, _ := os.ReadFile(p.path); !bytes.Equal(now, raw) {
-			t.Errorf("%s: a refused Resign changed the file", c.name)
+		if now, err := os.ReadFile(p.path); err != nil || !bytes.Equal(now, raw) {
+			t.Errorf("%s: a refused Resign changed the file: %v", c.name, err)
 		}
 	}
 	p.writeRaw(t, signV3(t, "alice", p.header(t, "alice", 3), paused))

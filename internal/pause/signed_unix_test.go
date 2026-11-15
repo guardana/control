@@ -431,26 +431,24 @@ func TestTheSignedWriterRefusesAFileThatChangedUnderIt(t *testing.T) {
 	}
 }
 
-func TestParseSignedHoldsTheFormat(t *testing.T) {
-	good := map[string]any{
+// signedBody is a canonical signed body of plane-a's t1/A at serial 1
+// holding no entries, as change leaves it.
+func signedBody(t *testing.T, change func(map[string]any)) []byte {
+	t.Helper()
+	m := map[string]any{
 		"schema_version": "4", "alg": "ed25519", "keyId": testKeyID("alice"), "plane_id": "plane-a", "tenant": "t1", "project": "A",
 		"file": "/srv/pause/pause.json", "serial": int64(1), "entries": []any{},
 	}
-	body := func(change func(map[string]any)) []byte {
-		m := map[string]any{}
-		for k, v := range good {
-			m[k] = v
-		}
-		change(m)
-		b, err := canon.Canonicalize(m)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return b
+	change(m)
+	b, err := canon.Canonicalize(m)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := ParseSigned(body(func(map[string]any) {})); err != nil {
-		t.Fatalf("the control body: %v", err)
-	}
+	return b
+}
+
+func TestParseSignedHoldsTheFormat(t *testing.T) {
+	body := func(change func(map[string]any)) []byte { return signedBody(t, change) }
 	for _, c := range []struct {
 		name   string
 		change func(map[string]any)
@@ -482,21 +480,29 @@ func TestParseSignedHoldsTheFormat(t *testing.T) {
 			t.Errorf("%s: %v, want %v", c.name, err, c.want)
 		}
 	}
-	if _, err := ParseSigned(body(func(m map[string]any) { m["tenant"] = strings.Repeat("t", MaxNameBytes) })); err != nil {
-		t.Errorf("a tenant at its bound: %v", err)
+	for _, c := range []struct {
+		name   string
+		change func(map[string]any)
+	}{
+		{"the control body", func(map[string]any) {}},
+		{"a tenant at its bound", func(m map[string]any) { m["tenant"] = strings.Repeat("t", MaxNameBytes) }},
+		{"a plane_id at its bound", func(m map[string]any) { m["plane_id"] = strings.Repeat("p", contract.MaxStringBytes) }},
+		{"a plane_id the contract takes, slashes and dots included", func(m map[string]any) { m["plane_id"] = "../planes/a" }},
+		{"a file at its bound", func(m map[string]any) { m["file"] = "/" + strings.Repeat("p", MaxFilePathBytes-1) }},
+	} {
+		if _, err := ParseSigned(body(c.change)); err != nil {
+			t.Errorf("%s: %v", c.name, err)
+		}
 	}
-	if _, err := ParseSigned(body(func(m map[string]any) { m["plane_id"] = strings.Repeat("p", contract.MaxStringBytes) })); err != nil {
-		t.Errorf("a plane_id at its bound: %v", err)
-	}
-	if _, err := ParseSigned(body(func(m map[string]any) { m["plane_id"] = "../planes/a" })); err != nil {
-		t.Errorf("a plane_id the contract takes, slashes and dots included: %v", err)
-	}
-	_, err := ParseSigned(body(func(m map[string]any) { m["schema_version"] = "3"; delete(m, "plane_id") }))
+}
+
+// TestParseSignedNamesTheUpgradeAndHoldsItsBounds: a version 3 body is
+// refused naming the command that signs it again, and the serial, the
+// canonical form and the size hold their bounds.
+func TestParseSignedNamesTheUpgradeAndHoldsItsBounds(t *testing.T) {
+	_, err := ParseSigned(signedBody(t, func(m map[string]any) { m["schema_version"] = "3"; delete(m, "plane_id") }))
 	if want := "pause sign --plane-id"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("a version 3 body = %v, want a refusal naming %q", err, want)
-	}
-	if _, err := ParseSigned(body(func(m map[string]any) { m["file"] = "/" + strings.Repeat("p", MaxFilePathBytes-1) })); err != nil {
-		t.Errorf("a file at its bound: %v", err)
 	}
 	if _, err := MarshalSigned(header("alice", policy.MaxSerial), Document{}); err != nil {
 		t.Errorf("the highest serial: %v", err)
@@ -504,7 +510,7 @@ func TestParseSignedHoldsTheFormat(t *testing.T) {
 	if _, err := MarshalSigned(header("alice", policy.MaxSerial+1), Document{}); !errors.Is(err, ErrMalformed) {
 		t.Errorf("a serial past the highest: %v", err)
 	}
-	spaced := append([]byte(" "), body(func(map[string]any) {})...)
+	spaced := append([]byte(" "), signedBody(t, func(map[string]any) {})...)
 	if _, err := ParseSigned(spaced); !errors.Is(err, ErrMalformed) {
 		t.Errorf("a body that is not its canonical form: %v", err)
 	}

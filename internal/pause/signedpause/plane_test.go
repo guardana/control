@@ -144,13 +144,11 @@ func writeV3(t *testing.T, path, by string, h pause.Header, d pause.Document) {
 	}
 }
 
-// TestAVersion3FileBlocksUntilItIsSignedAgain: a plane polling its pause
-// file finds a version 3 file at a higher serial: the read is unknown,
-// which blocks every call, it names pause sign, and the floor stays where
-// the last file the plane took left it. Signed again for the plane, the
-// same two entries pause and the floor rises past both.
-func TestAVersion3FileBlocksUntilItIsSignedAgain(t *testing.T) {
-	p := newPlane(t)
+// signedPoller is a poller under p's judge of p's pause file, which alice
+// signed empty for the plane at serial 1, past its first read, which took
+// it and raised the floor to 1.
+func signedPoller(t *testing.T, p *plane) *pause.Poller {
+	t.Helper()
 	if err := pause.InitSigned(t.Context(), p.file, pause.Header{KeyID: keyID("alice"), PlaneID: planeID, Tenant: "t1", Project: "A", Serial: 1}, p.operator()); err != nil {
 		t.Fatal(err)
 	}
@@ -161,6 +159,17 @@ func TestAVersion3FileBlocksUntilItIsSignedAgain(t *testing.T) {
 	if s := poller.Current(); s.State() != pause.Clear || floorSerial(t, p.floor) != 1 {
 		t.Fatalf("the first read = %s, %q: %s", s.State(), s.Cause(), s.Detail())
 	}
+	return poller
+}
+
+// TestAVersion3FileBlocksUntilItIsSignedAgain: a plane polling its pause
+// file finds a version 3 file at a higher serial: the read is unknown,
+// which blocks every call, it names pause sign, and the floor stays where
+// the last file the plane took left it. Signed again for the plane, the
+// same two entries pause and the floor rises past both.
+func TestAVersion3FileBlocksUntilItIsSignedAgain(t *testing.T) {
+	p := newPlane(t)
+	poller := signedPoller(t, p)
 	two := pause.Document{Entries: []pause.Entry{
 		{ID: "g", Scope: pause.Scope{Kind: pause.ScopeGlobal}, CreatedAt: now},
 		{ID: "a", Scope: pause.Scope{Kind: pause.ScopeAgent, ID: "agent-1"}, CreatedAt: now},
