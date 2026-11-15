@@ -37,7 +37,11 @@ const PayloadType = "application/vnd.agent-pause+json"
 
 // MaxSignedBodyBytes bounds a signed document's body at the operator
 // authenticator's bound on any statement, which a test holds it to.
-const MaxSignedBodyBytes = 16384
+const MaxSignedBodyBytes = 20480
+
+// maxUpgradeBodyBytes bounds a version upgradeVersion body: the bound it was
+// signed under, which leaves room for its plane_id below MaxSignedBodyBytes.
+const maxUpgradeBodyBytes = 16384
 
 // signedAlg is the one algorithm a signed body names: an operator key's.
 const signedAlg = "ed25519"
@@ -193,8 +197,12 @@ func ParseSigned(body []byte) (SignedDocument, error) {
 // parseSigned is ParseSigned of a body of version, SignedVersion or
 // upgradeVersion; an upgradeVersion body names no plane.
 func parseSigned(body []byte, version string) (SignedDocument, error) {
-	if len(body) > MaxSignedBodyBytes {
-		return SignedDocument{}, fmt.Errorf("%w: a signed body of %d bytes, the bound is %d", ErrTooLarge, len(body), MaxSignedBodyBytes)
+	bound := MaxSignedBodyBytes
+	if version == upgradeVersion {
+		bound = maxUpgradeBodyBytes
+	}
+	if len(body) > bound {
+		return SignedDocument{}, fmt.Errorf("%w: a signed body of %d bytes, the bound is %d", ErrTooLarge, len(body), bound)
 	}
 	top, err := signedTop(body, version)
 	if err != nil {

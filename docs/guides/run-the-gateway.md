@@ -261,9 +261,10 @@ pause:
 ## Upgrading a signed plane from 0.17
 
 ```
-# 0.18 refuses each file 0.17 signed, naming the command that carries it.
+# 0.18 refuses the pause file 0.17 signed, naming the command that carries it.
 # With the plane stopped and plane_id set, as the operator: the pause file's entries
-# signed for this plane at the next serial (a new pause init would lift them all)
+# signed for this plane at the next serial (a new pause init would lift them all).
+# A version 3 file names no plane: sign only the file this plane read.
 guardana-control pause sign --key op.key --roster /etc/guardana/roster.json \
   --root-key /etc/guardana/root.pub --plane-id orders-eu-1 /srv/pause/pause.json
 # as the plane: a new backup, whose manifest 0.2 names the plane; 0.17 refuses it

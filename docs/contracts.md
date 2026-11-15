@@ -1442,7 +1442,7 @@ of at most 4 KiB.
 Under `approvals.authority: signed`
 ([ADR-0077](adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures.md))
 each of the three is one DSSE signature by a roster operator over a body of
-at most 16 KiB in its canonical form, which names `alg` `ed25519`, the
+at most 20 KiB in its canonical form, which names `alg` `ed25519`, the
 signature's `keyId`, `tenant_id`, `project_id` and `file`: the absolute,
 cleaned path of the route file or of `stops.jsonl` it was signed for, at most
 1024 bytes, with every link on the way to its directory resolved. A plane

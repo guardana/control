@@ -105,10 +105,10 @@ func pauseSignFlagSet(command string, out io.Writer) *flag.FlagSet {
 
 // pauseSignCommand signs the entries of a signed pause file again, as the
 // current version for --plane-id at the next serial, once the roster vouches
-// for the file it starts from. It is how a file an earlier release signed,
-// which a plane now refuses, is carried with every pause it holds; a file
-// already of the current version for the same plane is signed again at the
-// next serial, and one of another plane is refused.
+// for the file it starts from. It is how a version 3 file, which a plane
+// refuses, is carried with every pause it holds; a file already of the
+// current version for the same plane is signed again at the next serial, and
+// one of another plane is refused.
 func pauseSignCommand(args []string, stdout, stderr io.Writer) int {
 	flags, v := pauseResignFlags(pauseSignName, stderr)
 	if err := flags.Parse(args); err != nil {

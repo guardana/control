@@ -191,9 +191,9 @@ therefore blocks everything; it never lifts a pause. A plane without
 Under `approvals.authority: signed` the file is version 4, which an operator
 signs from their own account: `pause init --key <k> --plane-id <id> --tenant <t> --project <p>`
 makes one, and `pause add` and `pause remove` with `--key`, `--roster` and
-`--root-key` check the file, then re-sign it at the next serial. Only its owner can write it. It is a DSSE envelope over the entries, the plane's
+`--root-key` check the file, then re-sign it at the next serial. It is a DSSE envelope over the entries, the plane's
 `plane_id`, `tenant_id` and `project_id`, its own path, the key and a serial, so a copy
-from another path or plane is refused. `pause sign` signs a version 3 file's entries
+from another path or plane is refused as `another pause file`. `pause sign` signs a version 3 file's entries
 again as version 4. `pause floor init` makes the
 floor. At every read the plane checks the signature against an operator key
 of its roster, the tenant and project, a grant of `operate` or `admin`

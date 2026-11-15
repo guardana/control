@@ -211,8 +211,9 @@ Write access to the approvals directory is the approval authority:
 An id that could read as authn:, mixes scripts or holds a hidden or restyled character is refused.
 Write access to the pause file is the authority to pause a call and to lift a pause;
 under approvals.authority signed, only a pause file signed with an operator's --key counts.
-pause sign signs a signed file's entries again for --plane-id at the next serial, an earlier
-version's included; run again, it signs them again one serial higher.
+pause sign signs a signed file's entries again for --plane-id at the next serial, a version 3
+file's included; run again, it signs them again one serial higher. A version 3 file names no
+plane, so it is signed for --plane-id whichever plane it came from: sign only this plane's file.
 Write access to the runs directory is the authority to open and to close a run;
 under approvals.authority signed, only a record an operator signed with --key counts.
 A token acts as its run until it expires or is closed, and runs open prints it once.

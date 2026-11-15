@@ -31,7 +31,8 @@ verify one.
   names the way forward. With the plane stopped, run
   `guardana-control pause sign --key <k> --roster <f> --root-key <f> --plane-id <id> <file>`
   as the operator: it signs the same entries as version `4` at the next serial.
-  Do not delete the file and run `pause init`: that lifts every pause.
+  A version `3` file names no plane, so sign only the file this plane read. Do
+  not delete the file and run `pause init`: that lifts every pause.
 - **Breaking:** `pause init --key` needs `--plane-id`, and says on standard
   error the serial, the plane and the entry count before it signs.
 - **Breaking:** the state backup manifest is `0.2`, and under `signed` names
@@ -45,6 +46,8 @@ verify one.
 - `doctor` judges a signed pause file with the plane's own check of its plane,
   tenant, project and file, so it names a version `3` file or another plane's
   as the plane refuses it.
+- An operator's signed statement may be 20 KiB, up from 16 KiB, so a signed
+  file of the earlier version at its bound still fits once it names the plane.
 - The 1.0 release bar no longer waits for people from outside the project
   ([ADR-0085](docs/adr/0085-the-1-0-bar-is-met-by-own-evidence-and-what-needs-outside-people-stays-not-met.md)).
   An outside threat-model review, trials with new users and new approvers'

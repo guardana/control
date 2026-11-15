@@ -5,6 +5,7 @@ package pause
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/guardana/control/internal/policy"
+	"github.com/guardana/control/pkg/contract"
 )
 
 // v3Placeholder is the plane id signV3 writes a version 4 body under before
@@ -116,6 +118,55 @@ func wantResigned(t *testing.T, what, path string, s Signer, want Header) {
 	l, err := List(path)
 	if err != nil || l.Signed == nil || l.Signed.Header != want || !slices.EqualFunc(l.Entries, twoEntries.Entries, sameEntry) {
 		t.Fatalf("%s: the file lists %+v, %v; want %+v over the two entries", what, l, err, want)
+	}
+}
+
+// fillV3 is a document whose version 3 body under h is exactly size bytes:
+// entries of the longest reason, the last ones cut until it fits.
+func fillV3(t *testing.T, h Header, size int) Document {
+	t.Helper()
+	h.PlaneID = v3Placeholder
+	member := len(`"plane_id":"` + v3Placeholder + `",`)
+	bodyOf := func(d Document) int {
+		body, err := MarshalSigned(h, d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(body) - member
+	}
+	var d Document
+	for bodyOf(d) < size {
+		d.Entries = append(d.Entries, Entry{ID: fmt.Sprintf("e%02d", len(d.Entries)), Scope: Scope{Kind: ScopeGlobal},
+			CreatedAt: signedNow, Reason: strings.Repeat("r", MaxReasonBytes)})
+	}
+	for i, over := len(d.Entries)-1, bodyOf(d)-size; over > 0; i-- {
+		cut := min(over, len(d.Entries[i].Reason)-1)
+		d.Entries[i].Reason = d.Entries[i].Reason[cut:]
+		over -= cut
+	}
+	if n := bodyOf(d); n != size {
+		t.Fatalf("fillV3 made a body of %d bytes, want %d", n, size)
+	}
+	return d
+}
+
+// TestResignCarriesAFullVersion3File: a version 3 body at its 16 KiB bound is
+// signed again for the longest plane id, every byte of which the canonical
+// form escapes, with every entry kept; a version 3 body one byte past that
+// bound is refused.
+func TestResignCarriesAFullVersion3File(t *testing.T) {
+	p := newSignedPlane(t)
+	from := p.header(t, "alice", 5)
+	full := fillV3(t, from, maxUpgradeBodyBytes)
+	p.writeRaw(t, signV3(t, "alice", from, full))
+	plane := strings.Repeat(`"`, contract.MaxStringBytes)
+	got, err := Resign(t.Context(), p.path, plane, signer("alice"))
+	if err != nil || got.PlaneID != plane || got.Serial != 6 || !slices.EqualFunc(got.Entries, full.Entries, sameEntry) {
+		t.Fatalf("Resign of a full version 3 file = serial %d, %d of %d entries, %v", got.Serial, len(got.Entries), len(full.Entries), err)
+	}
+	over := fillV3(t, from, maxUpgradeBodyBytes+1)
+	if _, err := ReadSignedV3(signV3(t, "alice", from, over)); !errors.Is(err, ErrTooLarge) {
+		t.Errorf("a version 3 body one byte past its bound = %v, want ErrTooLarge", err)
 	}
 }
 

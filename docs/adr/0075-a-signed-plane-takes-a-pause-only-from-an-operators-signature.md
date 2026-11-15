@@ -11,7 +11,7 @@ Amended by [ADR-0082](0082-a-signed-document-names-its-plane-and-a-signed-plane-
 under `signed` the pause file is version `4`, whose body also names the
 plane's `plane_id`, which the plane compares with its own beside the path.
 Version `3` is refused, naming `pause sign`, which signs its entries again as
-`4` at the next serial.
+`4` at the next serial. A body is held to the authenticator's 20 KiB bound.
 
 ## Context
 

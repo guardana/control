@@ -57,7 +57,7 @@ func stateArgs(command string, args []string, stderr io.Writer) (*gatewayconfig.
 func planeNotChecked(stderr io.Writer, report recovery.Report) {
 	if report.PlaneNotChecked {
 		writeLine(stderr, brand.CLI+": "+stateRestoreName+": plane not checked: the backup's manifest is of version 0.1, "+
-			"which names no plane; restore it only into the plane it was taken from")
+			"which names no plane, so it was restored without comparing the plane's id with plane_id")
 	}
 }
 

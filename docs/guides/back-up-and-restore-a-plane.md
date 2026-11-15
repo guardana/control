@@ -22,7 +22,7 @@ pause file and a stop list. `state backup` copies it; after a loss,
   as the plane does, and a restore writes only what that account owns.
   Under `signed` they refuse any key the environment sets.
 - `approvals.authority` set to `directory` or `signed`. Under `memory` there
-  is nothing to restore, and both commands refuse.
+  is nothing to restore; both commands refuse.
 
 ## Steps
 
@@ -98,7 +98,8 @@ only that copy, which a killed restore leaves behind.
 - Runs: every run closed at the restore time. Under `directory` each record
   either side holds is written closed, keeping an earlier close; under
   `signed`, `state/<id>.closed` is written for every run either side
-  names, so an open record put back later is refused. Each root's taint is
+  names, so an open record put back later is refused; `records/` is never
+  written. Each root's taint is
   the join of both sides under its lock, and a state lost beside its
   record, or under `signed` beside its lock file, counts as untrusted with
   an unknown read.
@@ -113,17 +114,17 @@ only that copy, which a killed restore leaves behind.
   added to it since. Under `signed` the list is an operator's file, and only
   its floor is raised.
 
-Nothing held resumes: a lost hold stays lost and a spent approval stays
-spent.
+A restore never writes the hold journal, its ledger or the approvals store:
+no hold resumes and no spent approval counts again.
 A missing floor directory is built under a temporary name and renamed into
 place; a restore stopped at any write and run again ends where an unbroken
 one does.
 
 ## Verify
 
-`doctor` reads each signed file against the raised floors. Put back the newest signed copy you hold, the
-backup's only when you hold none newer; the plane takes it wherever the
-raised floor still does. A lower signed pause file blocks every call until
+`doctor` reads each signed file against the raised floors. Put back the
+newest signed copy you hold; the plane takes it wherever the raised floor
+still does. A lower signed pause file blocks every call until
 an operator signs a new one.
 
 ## Take a stop list back

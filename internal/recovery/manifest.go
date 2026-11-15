@@ -97,12 +97,8 @@ func MarshalManifest(m Manifest) ([]byte, error) {
 	if err := enc.Encode(w); err != nil {
 		return nil, err
 	}
-	back, err := ParseManifest(b.Bytes())
-	if err != nil {
+	if _, err := ParseManifest(b.Bytes()); err != nil {
 		return nil, fmt.Errorf("the manifest would not read back: %w", err)
-	}
-	if back.PlaneID != m.PlaneID {
-		return nil, fmt.Errorf("%w: the manifest would not read back with its plane", ErrManifest)
 	}
 	return b.Bytes(), nil
 }

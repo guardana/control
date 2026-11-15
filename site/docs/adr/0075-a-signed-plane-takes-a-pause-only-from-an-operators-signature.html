@@ -124,7 +124,7 @@ over the roster of <a href="/docs/adr/0071-operators-are-named-by-a-signed-roste
 under <code>signed</code> the pause file is version <code>4</code>, whose body also names the
 plane's <code>plane_id</code>, which the plane compares with its own beside the path.
 Version <code>3</code> is refused, naming <code>pause sign</code>, which signs its entries again as
-<code>4</code> at the next serial.</p>
+<code>4</code> at the next serial. A body is held to the authenticator's 20 KiB bound.</p>
 <h2 id="context">Context</h2>
 <p>Under ADR-0019 write access to the pause file is the authority to pause and
 to lift. Under <code>approvals.authority: signed</code> an approval counts only signed

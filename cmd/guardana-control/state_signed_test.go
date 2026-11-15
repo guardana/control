@@ -80,6 +80,22 @@ func TestStateCommandsUnderSignedTakeNoKeyFromTheEnvironment(t *testing.T) {
 	}
 }
 
+// TestStateCommandsUnderDirectoryTakeTheEnvironment: outside signed a key
+// the environment sets still counts, as it does for the plane: the manifest
+// names the environment's tenant.
+func TestStateCommandsUnderDirectoryTakeTheEnvironment(t *testing.T) {
+	_, config := stoppedPlane(t)
+	backup := filepath.Join(t.TempDir(), "backup")
+	t.Setenv(brand.Env("TENANT_ID"), "acme-env")
+	if code, _, stderr := invoke(t, "state", "backup", config, backup); code != exitOK {
+		t.Fatalf("a directory backup with tenant_id from the environment: exit %d, %q", code, stderr)
+	}
+	m, err := recovery.ParseManifest(fileBytesOf(t, filepath.Join(backup, recovery.ManifestName)))
+	if err != nil || m.Tenant != "acme-env" || m.PlaneID != "" {
+		t.Errorf("the manifest names tenant %q and plane %q, %v; want the environment's acme-env and no plane", m.Tenant, m.PlaneID, err)
+	}
+}
+
 func fileBytesOf(t *testing.T, path string) []byte {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Clean(path))

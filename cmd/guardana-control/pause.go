@@ -43,8 +43,9 @@ const (
 // operator's signature over the whole file.
 const pauseAuthority = "Write access to the pause file is the authority to pause a call and to lift a pause;\n" +
 	"under approvals.authority signed, only a pause file signed with an operator's --key counts.\n" +
-	"pause sign signs a signed file's entries again for --plane-id at the next serial, an earlier\n" +
-	"version's included; run again, it signs them again one serial higher."
+	"pause sign signs a signed file's entries again for --plane-id at the next serial, a version 3\n" +
+	"file's included; run again, it signs them again one serial higher. A version 3 file names no\n" +
+	"plane, so it is signed for --plane-id whichever plane it came from: sign only this plane's file."
 
 // pauseLockWait bounds how long a writer waits for another writer's lock on
 // the pause file's directory. A running plane never takes it.

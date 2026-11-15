@@ -206,7 +206,9 @@ func judgeFrom(path string, from Signed, s Signer) error {
 // an unsigned file with ErrUnsigned, a version SignedVersion file of another
 // plane with ErrOtherPlane, and what AddSigned refuses of the file it starts
 // from, before it signs anything. A version SignedVersion file of plane is
-// signed again at the next serial.
+// signed again at the next serial. A version 3 file names no plane, so it is
+// signed for plane whichever plane it was read by: the caller vouches that it
+// is this plane's.
 func Resign(ctx context.Context, path, plane string, s Signer) (SignedDocument, error) {
 	var signed SignedDocument
 	err := locked(ctx, path, func(root *os.Root) error {
