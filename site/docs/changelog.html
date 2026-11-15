@@ -165,10 +165,13 @@ the run. A plane refuses the <code>v1alpha2</code> route and the <code>2.0</code
 at start, naming the way forward, and raises no floor. With the plane
 stopped, as an admin of the roster, edit the route document to
 <code>reaction-route/v1alpha3</code>, add <code>plane_id</code> and raise its serial, then sign it
-with <code>guardana-control route sign</code>; as an operator, carry the old list with
-<code>guardana-control stops init --key &lt;k&gt; --route &lt;new route&gt; --roster &lt;f&gt; --root-key &lt;f&gt; --carry &lt;old stops dir&gt; --carry-route &lt;old route&gt; --stops-floor &lt;floor dir&gt; &lt;new stops dir&gt;</code>, which signs a <code>3.0</code> header at the
-next serial naming the old head, and set <code>reaction.stops</code> to the new
-directory. <code>route sign</code> refuses a <code>v1alpha2</code> document, and <code>react</code>, <code>stops lift</code> and <code>stops list</code> a <code>v1alpha2</code> route
+at a new path with <code>guardana-control route sign</code>, since a signed route names
+its own file and the carry reads the old one at its path; as an operator,
+carry the old list with <code>guardana-control stops init --key &lt;k&gt; --route &lt;new route&gt; --roster &lt;f&gt; --root-key &lt;f&gt; --carry &lt;old stops dir&gt; --carry-route &lt;old route&gt; --stops-floor &lt;floor dir&gt; &lt;new stops dir&gt;</code>, which signs a <code>3.0</code> header
+at the next serial naming the old head; then set <code>reaction.route</code> to the new
+route's path and <code>reaction.stops</code> to the new directory, and run <code>react</code> with
+this release against them. <code>route sign</code> refuses a <code>v1alpha2</code> document, and
+<code>react</code>, <code>stops lift</code> and <code>stops list</code> a <code>v1alpha2</code> route
 (<a href="/docs/guides/upgrade-a-signed-plane-from-0-17">upgrade a signed plane from 0.17</a>).</li>
 <li><code>doctor</code> names a <code>v1alpha2</code> route or a <code>2.0</code> stop list as the plane refuses
 it.</li>
