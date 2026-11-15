@@ -14,12 +14,15 @@ import (
 	"github.com/guardana/control/internal/runs"
 )
 
-// widerRouteDoc is signedRouteDoc whose REPEATED_DENIAL stops the agent for
-// ten minutes and whose STEP_OUTSIDE_PROCEDURE stops the run.
+// widerRouteDoc is signedRouteDoc whose REPEATED_DENIAL stops the agent and
+// DENIED_ACTION_RETRIED_ARGUMENTS the principal for ten minutes, and whose
+// STEP_OUTSIDE_PROCEDURE stops the run.
 const widerRouteDoc = `{"kind":"reaction-route/v1alpha3","plane_id":"plane-a","route_id":"refund-stops","serial":1,` +
 	`"tenant_id":"acme","project_id":"orders","rules":[` +
 	`{"procedure_id":"refund","version":"1","digest":"` + stopProcDigest + `",` +
 	`"rule_id":"REPEATED_DENIAL","rule_version":"2","scope":"agent","expires_seconds":600},` +
+	`{"procedure_id":"refund","version":"1","digest":"` + stopProcDigest + `",` +
+	`"rule_id":"DENIED_ACTION_RETRIED_ARGUMENTS","rule_version":"1","scope":"principal","expires_seconds":600},` +
 	`{"procedure_id":"refund","version":"1","digest":"` + stopProcDigest + `",` +
 	`"rule_id":"STEP_OUTSIDE_PROCEDURE","rule_version":"1","scope":"run"}]}`
 
@@ -161,5 +164,45 @@ func TestAKeyedRouteLiftsRunsAlone(t *testing.T) {
 		if code, _, _ := invoke(t, args...); code != exitUsage {
 			t.Errorf("stops lift %s under a v1alpha1 route: %d, want %d", flag, code, exitUsage)
 		}
+	}
+}
+
+// TestReactStopsThePrincipalOfTheJudgedRun: a confirmed
+// DENIED_ACTION_RETRIED_ARGUMENTS under a rule of principals stops the
+// principal the run's record names, not its agent.
+func TestReactStopsThePrincipalOfTheJudgedRun(t *testing.T) {
+	tr := newWiderTree(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	written := tr.reactOver(t, now, map[string]time.Time{"run-1": now.Add(time.Hour)},
+		finding(1, "run-1", "DENIED_ACTION_RETRIED_ARGUMENTS", confirmed))
+	want := "stop line 2 principal user-1 run run-1 finding " + fid(1) + " rule DENIED_ACTION_RETRIED_ARGUMENTS expires_at " +
+		policy.FormatIssuedAt(now.Add(10*time.Minute))
+	if len(written) != 1 || written[0] != want {
+		t.Fatalf("react wrote %q, want %q", written, want)
+	}
+	l, err := reaction.Judge(tr.takenRoute(t), reaction.Prefix{}, listBytes(t, tr.stops), now, 0)
+	if err != nil || len(l.Entries()) != 1 || l.Entries()[0].Target() != (reaction.Target{Scope: reaction.ScopePrincipal, Subject: "user-1"}) {
+		t.Fatalf("the plane's judge reads %+v, %v; want one stop of principal user-1", l.Entries(), err)
+	}
+}
+
+// TestALiftOfAPrincipalNeverEndsAnAgentOfTheSameName: an agent stop of
+// agent-1 is not a stop a lift of principal agent-1 ends, so that lift is
+// refused and writes nothing, and a lift of agent agent-1 ends it.
+func TestALiftOfAPrincipalNeverEndsAnAgentOfTheSameName(t *testing.T) {
+	tr := newWiderTree(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	tr.reactOver(t, now, map[string]time.Time{"run-1": now.Add(time.Hour)}, finding(1, "run-1", denial, confirmed))
+	before := listBytes(t, tr.stops)
+	if code, _, stderr := tr.run(t, "stops lift", "--key", tr.keys["alice"], "--principal", "agent-1", tr.stops); code == exitOK ||
+		!strings.Contains(stderr, "principal agent-1 has no stop") {
+		t.Errorf("a lift of principal agent-1 beside a stop of agent agent-1: %d, %q", code, stderr)
+	}
+	if string(listBytes(t, tr.stops)) != string(before) {
+		t.Error("a refused lift wrote the list")
+	}
+	if code, stdout, stderr := tr.run(t, "stops lift", "--key", tr.keys["alice"], "--agent", "agent-1", tr.stops); code != exitOK ||
+		!strings.Contains(stdout, "agent agent-1 through line 2") {
+		t.Errorf("a lift of agent agent-1: %d, %q, %q", code, stdout, stderr)
 	}
 }

@@ -140,3 +140,53 @@ func TestTheSubjectIsTheListenersNeverTheRunsOrTheEnvelopes(t *testing.T) {
 	h := widePlaneOver(t, l, served("agent-9", "admin-1"))
 	expectExecuted(t, "a stop of the envelope's agent on a plane serving another", readUnder(h, opened("run-a", "root-1"), "envelope"))
 }
+
+// heldUnderAWideList holds a refund of run-a under a clear 3.0 list of
+// tenant-1 and approves it, and returns the list to stop the agent on.
+func heldUnderAWideList(t *testing.T, store **stepStore) (*harness, *stopSource, *wideList) {
+	t.Helper()
+	l := newWideList(t, "tenant-1")
+	src := newStopSource(l.readAt(base()))
+	h := stopPlane(t, modeEnforce, []string{approveRefunds}, src, withStepStore(store))
+	first := hold(t, h)
+	if err := h.store.Answer(first.Pending.ApprovalID, approved, "alice", "", base()); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	return h, src, l
+}
+
+// TestAnAgentStopDuringTheApprovalLookupBlocksTheResume: an agent stop
+// written while the store looks the hold up is read at the check before the
+// approval is consumed, so the retry is blocked AGENT_OR_PRINCIPAL_STOPPED,
+// nothing is consumed and the hold stands.
+func TestAnAgentStopDuringTheApprovalLookupBlocksTheResume(t *testing.T) {
+	var store *stepStore
+	h, src, l := heldUnderAWideList(t, &store)
+	l.stop(reaction.ScopeAgent, "agent-1")
+	store.onFind = func() { src.set(l.readAt(base())) }
+	expectPlaneBlock(t, h, h.admit(retry(t, "req-2"), refundArgs()), verdictDeny, codeSubjectStopped)
+	if h.spent() != 0 {
+		t.Errorf("the blocked retry consumed %d approval(s)", h.spent())
+	}
+	if h.p.Stats().Held != 1 {
+		t.Errorf("Stats.Held = %d, want the hold standing", h.p.Stats().Held)
+	}
+}
+
+// TestAnAgentStopReadAfterTheConsumeClosesTheHeldTrail: an agent stop
+// written while the approval is consumed is read before the execution
+// starts, so nothing runs and the held trail closes AGENT_OR_PRINCIPAL_STOPPED.
+func TestAnAgentStopReadAfterTheConsumeClosesTheHeldTrail(t *testing.T) {
+	var store *stepStore
+	h, src, l := heldUnderAWideList(t, &store)
+	l.stop(reaction.ScopePrincipal, "user-1")
+	h.ledger.afterSpend = func() { src.set(l.readAt(base())) }
+	d := h.admit(retry(t, "req-2"), refundArgs())
+	expectBlock(t, d, verdictDeny, codeSubjectStopped, gateway.PDPType)
+	if d.ExecutionID != "" {
+		t.Errorf("a stopped resume was handed execution %q", d.ExecutionID)
+	}
+	if s := h.p.Stats(); s.Executed != 0 || s.Open != 0 || s.Blocks[codeSubjectStopped] != 1 {
+		t.Errorf("Stats = %+v; want nothing run and the block counted as AGENT_OR_PRINCIPAL_STOPPED", s)
+	}
+}

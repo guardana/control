@@ -1,6 +1,7 @@
 package stopwrite_test
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -123,5 +124,50 @@ func TestAShorterAgentStopDoesNotCoverALongerOne(t *testing.T) {
 	later := clock0.Add(10 * time.Minute)
 	if _, covered, err := appendFinding(bg, dir, r, wideStopOf(t, "f-2", "run-2", reaction.ScopeAgent, "agent-a", later, time.Hour), later); err != nil || covered {
 		t.Errorf("an agent stop outlasting the active one: covered %v, %v; want a stop", covered, err)
+	}
+}
+
+// TestACarriedLiftOfAnAgentKeepsItsCoveredLinesScope: a carry names the
+// finding of a lifted agent stop as a covered line of that agent, scope and
+// subject kept, not of the run the finding was about.
+func TestACarriedLiftOfAnAgentKeepsItsCoveredLinesScope(t *testing.T) {
+	from := emptyDir(t)
+	fromRoute := widerRouteIn(t, from)
+	h, err := stopwrite.InitSigned(bg, from, fromRoute, clock0, signer(), 1)
+	if err != nil {
+		t.Fatalf("InitSigned: %v", err)
+	}
+	if _, _, err := appendFinding(bg, from, fromRoute, wideStopOf(t, "f-1", "run-1", reaction.ScopeAgent, "agent-a", clock0, time.Hour), clock0); err != nil {
+		t.Fatal(err)
+	}
+	body, err := reaction.SignedLiftV3{KeyID: operatorID(), PlaneID: "plane-a", ListHead: h.Signed.Digest, Scope: reaction.ScopeAgent,
+		Subject: "agent-a", ThroughLine: 2, TenantID: "acme", Project: "shop", File: listPath(from)}.Payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	line, err := reaction.LiftLine{Scope: reaction.ScopeAgent, Subject: "agent-a", ThroughLine: 2,
+		Envelope: envelopeBy(t, operatorKey(), reaction.SignedLiftPayloadType, body)}.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendRaw(t, from, line)
+	into := emptyDir(t)
+	c, err := stopwrite.CarrySigned(bg, from, fromRoute, into, widerRouteIn(t, into), clock0, signer(), nil)
+	if err != nil || c.Stops != 0 || c.LeftOut != 0 {
+		t.Fatalf("CarrySigned: %+v, %v; want the lifted stop carried as covered", c, err)
+	}
+	var found bool
+	for raw := range bytes.Lines(content(t, into)) {
+		l, err := reaction.ParseLine(bytes.TrimSuffix(raw, []byte{'\n'}))
+		if err != nil || l.Kind != reaction.KindCovered {
+			continue
+		}
+		found = true
+		if l.Covered.FindingID != "f-1" || l.Covered.Scope != reaction.ScopeAgent || l.Covered.Subject != "agent-a" || l.Covered.RunID != "run-1" {
+			t.Errorf("the carried covered line names %+v, want finding f-1 of agent agent-a found on run-1", l.Covered)
+		}
+	}
+	if !found {
+		t.Fatal("the carry wrote no covered line")
 	}
 }
