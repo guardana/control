@@ -125,6 +125,8 @@ raises no floor while it does
 <h2 id="prerequisites">Prerequisites</h2>
 <ul>
 <li>The plane is stopped, and <code>plane_id</code> is set in its configuration.</li>
+<li>A copy of the pause file is kept aside for a roll back: step 1 signs the
+file again in place.</li>
 <li>An operator of the roster holds <code>admin</code> for the route and <code>operate</code> for the
 pause file and the stop list in the plane's tenant and project.</li>
 <li>The paths below are examples: <code>/srv/plane</code> holds the plane's files and
@@ -178,15 +180,19 @@ stopped is still refused with <code>RUN_STOPPED</code>.</li>
 <h2 id="roll-back">Roll back</h2>
 <p>0.17 refuses a <code>reaction-route/v1alpha3</code> route, a <code>3.0</code> list and a backup
 whose manifest names a plane. To go back, stop the plane, point
-<code>reaction.route</code> and <code>reaction.stops</code> at the 0.17 files you kept, restore the
-0.17 pause file, and start 0.17. Two floors hold what 0.18 took:</p>
+<code>reaction.route</code> and <code>reaction.stops</code> at the 0.17 files you kept, copy the
+0.17 pause file you kept back to its path, and start 0.17. Three floors hold
+what 0.18 took:</p>
 <ul>
+<li>The pause floor holds the serial <code>pause sign</code> gave the pause file, so 0.17
+refuses the copy below it. Make a new pause floor with <code>pause floor init --tenant &lt;tenant&gt; --project &lt;project&gt;</code> in a new directory and name it in
+<code>pause.floor_dir</code>.</li>
 <li>The route floor holds the new route's serial, so 0.17 refuses the old
 route below it. Make a new route floor with <code>policy state init --kind route --route-id &lt;route_id&gt;</code> in a new directory and name it in
 <code>reaction.floor_dir</code>, or sign with 0.17's <code>route sign</code> a
 <code>reaction-route/v1alpha2</code> route at a serial above the new route's, at the
-path <code>reaction.route</code> names. A new
-route needs a new list, since a header names its route.</li>
+path <code>reaction.route</code> names. A new route needs a new list, since a header
+names its route.</li>
 <li>The stop list floor holds the carried list's serial, so 0.17 refuses the
 old list below it. Make a new floor with <code>stops floor init</code> in a new
 directory, name it in <code>reaction.stops_floor_dir</code>, and start a new list with

@@ -18,6 +18,8 @@ raises no floor while it does
 ## Prerequisites
 
 - The plane is stopped, and `plane_id` is set in its configuration.
+- A copy of the pause file is kept aside for a roll back: step 1 signs the
+  file again in place.
 - An operator of the roster holds `admin` for the route and `operate` for the
   pause file and the stop list in the plane's tenant and project.
 - The paths below are examples: `/srv/plane` holds the plane's files and
@@ -78,16 +80,21 @@ lifted run's findings are carried as covered.
 
 0.17 refuses a `reaction-route/v1alpha3` route, a `3.0` list and a backup
 whose manifest names a plane. To go back, stop the plane, point
-`reaction.route` and `reaction.stops` at the 0.17 files you kept, restore the
-0.17 pause file, and start 0.17. Two floors hold what 0.18 took:
+`reaction.route` and `reaction.stops` at the 0.17 files you kept, copy the
+0.17 pause file you kept back to its path, and start 0.17. Three floors hold
+what 0.18 took:
 
+- The pause floor holds the serial `pause sign` gave the pause file, so 0.17
+  refuses the copy below it. Make a new pause floor with `pause floor init
+  --tenant <tenant> --project <project>` in a new directory and name it in
+  `pause.floor_dir`.
 - The route floor holds the new route's serial, so 0.17 refuses the old
   route below it. Make a new route floor with `policy state init --kind route
   --route-id <route_id>` in a new directory and name it in
   `reaction.floor_dir`, or sign with 0.17's `route sign` a
   `reaction-route/v1alpha2` route at a serial above the new route's, at the
-path `reaction.route` names. A new
-  route needs a new list, since a header names its route.
+  path `reaction.route` names. A new route needs a new list, since a header
+  names its route.
 - The stop list floor holds the carried list's serial, so 0.17 refuses the
   old list below it. Make a new floor with `stops floor init` in a new
   directory, name it in `reaction.stops_floor_dir`, and start a new list with
