@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -202,4 +203,13 @@ func stopPlane(t *testing.T, mode controlv1.EnforcementMode, rules []string, src
 	h := build(t, mode, snapshot(t, rules...), opts...)
 	h.run = opened("run-a", "root-1")
 	return h
+}
+
+// stopsRun reports whether an active entry of s, read with no age rule,
+// stops run of tenant at now.
+func stopsRun(s reaction.Snapshot, tenant, run string, now time.Time) bool {
+	entries, _ := s.ActiveEntries(now, time.Time{})
+	return slices.ContainsFunc(entries, func(e reaction.Entry) bool {
+		return e.TenantID == tenant && e.Target() == reaction.Target{Scope: reaction.ScopeRun, Subject: run}
+	})
 }

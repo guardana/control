@@ -68,14 +68,10 @@ func (s Snapshot) ForSubject(who Subject, now, floor time.Time) (State, Cause, S
 	return Unknown, at.Cause(), 0
 }
 
-// Matches is the kinds of the entries of a list read whole that name a call
-// of who at the call's clock now, given floor, as ForSubject matches them. It
-// reads the entries whatever the state says, Clear included, since a clock
-// the call cannot trust brings back an entry that expired at the read, and
-// applies no age rule. Whether an Unknown snapshot blocks, or a call that
-// leaves out a field an entry needs, is ForSubject's rule, not a match:
-// Matches of an Unknown snapshot is none.
-func (s Snapshot) Matches(who Subject, now, floor time.Time) StopMatch {
+// matches is the kinds of the entries of a list read whole that name a call
+// of who at the call's clock now, given floor, as ForSubject matches them,
+// with no age rule; an Unknown snapshot matches none.
+func (s Snapshot) matches(who Subject, now, floor time.Time) StopMatch {
 	if s.state != Clear && s.state != Stopped {
 		return 0
 	}

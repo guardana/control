@@ -328,7 +328,7 @@ func TestAPrincipalStopMatchesItsPrincipalAlone(t *testing.T) {
 	if state, cause, _ := s.ForSubject(reaction.Subject{Tenant: sTenant, Agent: "agent-a"}, sNow, time.Time{}); state != reaction.Unknown || cause != reaction.CauseSubject {
 		t.Errorf("a call naming no principal: %s %q", state, cause)
 	}
-	if got := s.Matches(reaction.Subject{Tenant: sTenant, Principal: "alice"}, sNow, time.Time{}); got != reaction.StopWider {
+	if got := reaction.Matches(s, reaction.Subject{Tenant: sTenant, Principal: "alice"}, sNow, time.Time{}); got != reaction.StopWider {
 		t.Errorf("Matches = %b, want the principal's stop", got)
 	}
 }

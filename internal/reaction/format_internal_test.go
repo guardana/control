@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 // TestNoFormatIsNoneOfTheFormats: every switch on a route's format refuses
@@ -65,5 +66,18 @@ func TestALiftEndsTheScopeAndSubjectItNames(t *testing.T) {
 		if got, err := liftedTarget(l); err == nil || got != (Target{}) {
 			t.Errorf("a lift line %+v: %+v, %v; want a refusal", l, got, err)
 		}
+	}
+}
+
+// TestAnEntryOfAScopeNoReaderMakesNamesNoCall: every reader refuses a scope
+// the grammar does not name, so no List holds one; the matcher still reads
+// an active entry of such a scope as a call it cannot name, never as clear.
+func TestAnEntryOfAScopeNoReaderMakesNamesNoCall(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	l := List{entries: []Entry{{Line: 2, Stop: Stop{TenantID: "acme", Scope: "tree", Subject: "root-1", RunID: "run-1",
+		ExpiresAt: now.Add(time.Hour)}}}}
+	who := Subject{Tenant: "acme", Run: "run-1", Agent: "agent-a", Principal: "alice"}
+	if m, named := l.match(who, now, time.Time{}); named || m != 0 {
+		t.Errorf("an entry of scope tree: match %b, named %v; want none and not named", m, named)
 	}
 }

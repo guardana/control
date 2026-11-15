@@ -122,7 +122,7 @@ func TestALocalRunIsNeverStopped(t *testing.T) {
 	}
 	snap := stopped(t, local, "run-1")
 	for _, id := range []string{local, "run-1"} {
-		if !snap.Matches(reaction.Subject{Tenant: "tenant-1", Run: id}, base(), time.Time{}).Has(reaction.StopRun) {
+		if !stopsRun(snap, "tenant-1", id, base()) {
 			t.Fatalf("the list does not stop %s, so this test examines nothing", id)
 		}
 	}

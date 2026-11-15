@@ -218,7 +218,7 @@ func TestATornTailIsRepairedByTheNextWriter(t *testing.T) {
 	torn := must(t)(stopOf(t, "f-2", "run-2", clock0).Marshal())
 	torn = torn[:len(torn)-1]
 	setContent(t, dir, append(bytes.Clone(whole), torn...))
-	if s := plane.Poll(); s.State() != reaction.Stopped || s.Matches(reaction.Subject{Tenant: "acme", Run: "run-2"}, clock0, time.Time{}).Has(reaction.StopRun) ||
+	if s := plane.Poll(); s.State() != reaction.Stopped || stopsRun(s, "acme", "run-2", clock0) ||
 		s.Accepted().Length() != int64(len(whole)) {
 		t.Errorf("the plane over a torn tail: %s (%s), accepted %d of %d", s.State(), s.Detail(), s.Accepted().Length(), len(whole))
 	}
@@ -300,7 +300,7 @@ func TestAppendFindingNeverCutsALongerStopShort(t *testing.T) {
 			t.Errorf("finding %d, %s: covered %v, %v; want covered %v", i, c.s.FindingID, covered, err, c.covered)
 		}
 	}
-	if s := planeOn(t, dir, r).Current(); !s.Matches(reaction.Subject{Tenant: "acme", Run: "run-1"}, clock0.Add(time.Hour), time.Time{}).Has(reaction.StopRun) {
+	if s := planeOn(t, dir, r).Current(); !stopsRun(s, "acme", "run-1", clock0.Add(time.Hour)) {
 		t.Error("run-1 is not stopped an hour on, after the short stop ended and while the long one holds")
 	}
 }

@@ -78,7 +78,7 @@ func TestCarryBringsEveryUnliftedStopAndNamesEveryFinding(t *testing.T) {
 		t.Errorf("Carry = %+v; want 2 stops and 2 covered under serial 4", got)
 	}
 	expectCarried(t, to, content(t, dir))
-	if s := planeOn(t, dir, to).Current(); s.State() != reaction.Stopped || !s.Matches(reaction.Subject{Tenant: "acme", Run: "run-1"}, clock0, time.Time{}).Has(reaction.StopRun) {
+	if s := planeOn(t, dir, to).Current(); s.State() != reaction.Stopped || !stopsRun(s, "acme", "run-1", clock0) {
 		t.Errorf("a plane over the carried list: %s (%s), want run-1 stopped", s.State(), s.Detail())
 	}
 	_, err = stopwrite.AppendStop(bg, dir, to, stopOf(t, "f-lifted", "run-1", clock0), clock0.Add(time.Minute))
@@ -132,7 +132,7 @@ func carriedNoStop(t *testing.T, old string, from, to reaction.Route, now time.T
 	if err != nil {
 		t.Fatalf("a plane's poller: %v", err)
 	}
-	if s := p.Current(); s.State() != state || s.Matches(reaction.Subject{Tenant: "acme", Run: "run-2"}, now, time.Time{}).Has(reaction.StopRun) {
+	if s := p.Current(); s.State() != state || stopsRun(s, "acme", "run-2", now) {
 		t.Errorf("a plane over the carried list: %s (%s), want %s and run-2 not stopped", s.State(), s.Detail(), state)
 	}
 	if _, err := stopwrite.AppendStop(bg, dir, to, stopOf(t, "f-new", "run-2", now), now); err != nil {
@@ -220,7 +220,7 @@ func TestCarryKeepsAStopAClockAheadCallsExpired(t *testing.T) {
 	if _, err := stopwrite.Carry(bg, oldList(t, from, false), from, dir, to, clock0.Add(1000*time.Hour)); err != nil {
 		t.Fatalf("Carry: %v", err)
 	}
-	if s := planeOn(t, dir, to).Current(); s.State() != reaction.Stopped || !s.Matches(reaction.Subject{Tenant: "acme", Run: "run-1"}, clock0, time.Time{}).Has(reaction.StopRun) {
+	if s := planeOn(t, dir, to).Current(); s.State() != reaction.Stopped || !stopsRun(s, "acme", "run-1", clock0) {
 		t.Errorf("a plane at the right clock over the list: %s (%s), want run-1 stopped", s.State(), s.Detail())
 	}
 }
