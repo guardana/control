@@ -42,83 +42,99 @@ type componentRow struct {
 // in lines and returns their rows and every problem with them; a page with
 // fewer than minRows rows is a problem, so nothing parsed never passes.
 func statusComponents(lines []string, minRows int) ([]componentRow, []string) {
-	var (
-		problems         []string
-		rows             []componentRow
-		sections, groups []string
-		details          []string
-		detailLines      = map[string][]int{}
-		detailBody       = map[string]int{}
-		section, group   string
-		current          string
-		tableLine        int
-	)
-	add := func(format string, a ...any) { problems = append(problems, fmt.Sprintf(format, a...)) }
+	p := &statusPage{detailLines: map[string][]int{}, detailBody: map[string]int{}}
 	for i, raw := range lines {
-		s, n := strings.TrimSpace(raw), i+1
-		switch {
-		case strings.HasPrefix(s, "## "):
-			section, group, current = strings.TrimPrefix(s, "## "), "", ""
-			sections = append(sections, section)
-		case section == "Components" && strings.HasPrefix(s, "### "):
-			group, tableLine = strings.TrimPrefix(s, "### "), 0
-			groups = append(groups, group)
-		case section == "Details" && strings.HasPrefix(s, "### "):
-			current = strings.TrimPrefix(s, "### ")
-			details = append(details, current)
-			detailLines[current] = append(detailLines[current], n)
-		case section == "Details" && current != "" && s != "":
-			detailBody[current]++
-		case section == "Components" && strings.HasPrefix(s, "|"):
-			switch {
-			case group == "":
-				add("line %d: a table line before the first group heading", n)
-			case tableLine == 0:
-				if got := strings.Join(tableCells(s), " | "); got != componentHead {
-					add("line %d: header is %q, want %q", n, got, componentHead)
-				}
-				tableLine++
-			case tableLine == 1:
-				if !tableSeparator.MatchString(s) {
-					add("line %d: want the header separator row, got %q", n, s)
-				}
-				tableLine++
-			default:
-				cells := tableCells(s)
-				if len(cells) != 4 {
-					add("line %d: row has %d cells, want 4: %s", n, len(cells), s)
-					continue
-				}
-				row := componentRow{n, group, cells[0], cells[1], cells[2], cells[3]}
-				for _, p := range componentRowProblems(row, rows) {
-					add("line %d: %s", n, p)
-				}
-				row.label = strings.Trim(row.label, "`")
-				rows = append(rows, row)
-			}
-		}
+		p.read(i+1, strings.TrimSpace(raw))
 	}
-	components, detailsAt := slices.Index(sections, "Components"), slices.Index(sections, "Details")
+	components, detailsAt := slices.Index(p.sections, "Components"), slices.Index(p.sections, "Details")
 	switch {
 	case components < 0:
-		add(`no "## Components" section`)
+		p.add(`no "## Components" section`)
 	case detailsAt < 0:
-		add(`no "## Details" section`)
+		p.add(`no "## Details" section`)
 	case detailsAt < components:
-		add(`"## Details" comes before "## Components"`)
+		p.add(`"## Details" comes before "## Components"`)
 	}
-	if !slices.Equal(groups, componentGroups) {
-		add("the groups are %q, want %q", groups, componentGroups)
+	if !slices.Equal(p.groups, componentGroups) {
+		p.add("the groups are %q, want %q", p.groups, componentGroups)
 	}
 	for _, g := range componentGroups {
-		if slices.Contains(groups, g) && !slices.ContainsFunc(rows, func(r componentRow) bool { return r.group == g }) {
-			add("the group %q holds no row", g)
+		if slices.Contains(p.groups, g) && !slices.ContainsFunc(p.rows, func(r componentRow) bool { return r.group == g }) {
+			p.add("the group %q holds no row", g)
 		}
 	}
-	if len(rows) < minRows {
-		add("read %d component rows, want at least %d", len(rows), minRows)
+	if len(p.rows) < minRows {
+		p.add("read %d component rows, want at least %d", len(p.rows), minRows)
 	}
-	return rows, append(problems, detailProblems(rows, details, detailLines, detailBody)...)
+	return p.rows, append(p.problems, detailProblems(p.rows, p.details, p.detailLines, p.detailBody)...)
+}
+
+// statusPage is what statusComponents has read so far.
+type statusPage struct {
+	problems                  []string
+	rows                      []componentRow
+	sections, groups, details []string
+	detailLines               map[string][]int
+	detailBody                map[string]int
+	section, group, detail    string
+	tableLine                 int
+}
+
+func (p *statusPage) add(format string, a ...any) {
+	p.problems = append(p.problems, fmt.Sprintf(format, a...))
+}
+
+// read takes line n, trimmed.
+func (p *statusPage) read(n int, s string) {
+	switch {
+	case strings.HasPrefix(s, "## "):
+		p.section, p.group, p.detail = strings.TrimPrefix(s, "## "), "", ""
+		p.sections = append(p.sections, p.section)
+	case p.section == "Components" && strings.HasPrefix(s, "### "):
+		p.group, p.tableLine = strings.TrimPrefix(s, "### "), 0
+		p.groups = append(p.groups, p.group)
+	case p.section == "Components" && strings.HasPrefix(s, "|"):
+		p.table(n, s)
+	case p.section == "Details" && strings.HasPrefix(s, "### "):
+		p.detail = strings.TrimPrefix(s, "### ")
+		p.details = append(p.details, p.detail)
+		p.detailLines[p.detail] = append(p.detailLines[p.detail], n)
+	case p.section == "Details" && p.detail != "" && s != "":
+		p.detailBody[p.detail]++
+	}
+}
+
+// table takes line n of a component table: its header, its separator, or
+// a row.
+func (p *statusPage) table(n int, s string) {
+	switch {
+	case p.group == "":
+		p.add("line %d: a table line before the first group heading", n)
+		return
+	case p.tableLine == 0:
+		if got := strings.Join(tableCells(s), " | "); got != componentHead {
+			p.add("line %d: header is %q, want %q", n, got, componentHead)
+		}
+		p.tableLine++
+		return
+	case p.tableLine == 1:
+		if !tableSeparator.MatchString(s) {
+			p.add("line %d: want the header separator row, got %q", n, s)
+		}
+		p.tableLine++
+		return
+	}
+	cells := tableCells(s)
+	if len(cells) != 4 {
+		p.add("line %d: row has %d cells, want 4: %s", n, len(cells), s)
+		return
+	}
+	row := componentRow{n, p.group, cells[0], cells[1], cells[2], cells[3]}
+	for _, problem := range componentRowProblems(row, p.rows) {
+		p.add("line %d: %s", n, problem)
+	}
+	row.label = strings.Trim(row.label, "`")
+	p.rows = append(p.rows, row)
 }
 
 // componentRowProblems judges one row against itself and the rows before it.
