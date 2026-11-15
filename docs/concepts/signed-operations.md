@@ -91,7 +91,7 @@ archive was built from.
 - **The backup manifest.** Its hashes catch a corrupted backup, not a hostile
   writer of it ([back up and restore](../guides/back-up-and-restore-a-plane.md)).
 - **The lines `react` writes.** A stop line is signed by no operator. It
-  counts only where the route permits it: under a `v1alpha2` route a stop of
+  counts only where the route permits it: under a `v1alpha3` route a stop of
   its project and scope, under a `v1alpha1` route a stop of its tenant.
 - **Answers, pauses and run records outside `signed`.** Under `directory` or
   `memory`, write access to where the plane reads them is the authority, and

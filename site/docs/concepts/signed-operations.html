@@ -43,6 +43,7 @@
 <li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
 <li><a href="/docs/guides/supervise-and-stop-a-run">Supervise and stop a run</a></li>
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
+<li><a href="/docs/guides/upgrade-a-signed-plane-from-0-17">Upgrade a signed plane from 0.17</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
@@ -220,7 +221,7 @@ withhold a newer roster until the held one expires.</li>
 <li><strong>The backup manifest.</strong> Its hashes catch a corrupted backup, not a hostile
 writer of it (<a href="/docs/guides/back-up-and-restore-a-plane">back up and restore</a>).</li>
 <li><strong>The lines <code>react</code> writes.</strong> A stop line is signed by no operator. It
-counts only where the route permits it: under a <code>v1alpha2</code> route a stop of
+counts only where the route permits it: under a <code>v1alpha3</code> route a stop of
 its project and scope, under a <code>v1alpha1</code> route a stop of its tenant.</li>
 <li><strong>Answers, pauses and run records outside <code>signed</code>.</strong> Under <code>directory</code> or
 <code>memory</code>, write access to where the plane reads them is the authority, and
@@ -291,6 +292,7 @@ and <code>internal/gatewayconfig/reaction.go</code> checks a route at start.
 <li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
 <li><a href="/docs/guides/supervise-and-stop-a-run">Supervise and stop a run</a></li>
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
+<li><a href="/docs/guides/upgrade-a-signed-plane-from-0-17">Upgrade a signed plane from 0.17</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
