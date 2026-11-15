@@ -27,6 +27,11 @@ all, some or none of the plane's calls, and name each that covers none. A
 tenant is still no scope. The file is version `2`; version `1`, which names
 none of the three, is still read.
 
+Amended by [ADR-0083](0083-a-finding-may-stop-an-agent-or-a-principal.md):
+`AGENT_OR_PRINCIPAL_STOPPED` follows `RUN_STOPPED` in the order of the
+plane's causes, and a stop of an agent or a principal is matched, as a pause
+entry of that scope is, against the listener's configured identity.
+
 Amended by [ADR-0075](0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature.md):
 under `approvals.authority: signed` the plane takes a pause only from a
 version `3` file an operator signed, above its pause floor, and refuses

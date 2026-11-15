@@ -2,14 +2,17 @@
 title: Reaction
 summary: The signed route, the stop list and the commands that write them, and how a plane refuses a stopped run's calls and reports its stops.
 type: reference
-covers: [internal/reaction/**, internal/policystate/route.go, cmd/guardana-control/route.go, cmd/guardana-control/stops.go, cmd/guardana-control/react.go, cmd/guardana-gateway/reaction.go, cmd/guardana-gateway/health_stops.go, cmd/guardana-gateway/doctor_reaction.go, internal/gateway/pause.go]
+covers: [internal/reaction/**, internal/policystate/route.go, cmd/guardana-control/route.go, cmd/guardana-control/stops.go, cmd/guardana-control/stops_init.go, cmd/guardana-control/stops_list.go, cmd/guardana-control/react.go, cmd/guardana-gateway/reaction.go, cmd/guardana-gateway/health_stops.go, cmd/guardana-gateway/doctor_reaction.go, internal/gateway/pause.go]
 ---
 
 # Reaction
 
 `guardana-control react` turns a confirmed finding of `supervise` into a stop
 of the run it is about, under a route the operator signed. A plane with that
-route refuses the run's later calls `RUN_STOPPED`, and no other run's. It is
+route refuses the run's later calls `RUN_STOPPED`, and no other run's. Under
+`approvals.authority: signed` a route may instead stop the agent or the
+principal of the run, which on one plane stops the plane
+([signed reaction](reaction-signed.md#a-stop-of-an-agent-or-a-principal)). It is
 `experimental`: [status.md](../status.md) is the inventory,
 [ADR-0046](../adr/0046-a-finding-stops-one-run-through-a-signed-route.md) and
 [ADR-0047](../adr/0047-a-procedure-states-its-exceptions-resources-and-children.md)
@@ -144,11 +147,12 @@ consumed closes the held trail and spends the approval.
 | Code | Number | Verdict | When |
 | --- | --- | --- | --- |
 | `RUN_STOPPED` | 45 | `DENY` | the call's run has an active stop |
+| `AGENT_OR_PRINCIPAL_STOPPED` | 48 | `DENY` | an active stop names the agent or the principal the plane serves, under `signed` alone |
 | `STOP_STATE_UNAVAILABLE` | 46 | `INDETERMINATE` | every call, while the stop state is unknown |
 
-Both apply in every mode and to every effect class, before an external
+Each applies in every mode and to every effect class, before an external
 decision point is asked, in this order of the plane's causes: `PAUSED`,
-`RUN_STOPPED`, `EXECUTED_ARGS_MISMATCH`, `LOCKDOWN`,
+`RUN_STOPPED`, `AGENT_OR_PRINCIPAL_STOPPED`, `EXECUTED_ARGS_MISMATCH`, `LOCKDOWN`,
 `PAUSE_STATE_UNAVAILABLE`, `STOP_STATE_UNAVAILABLE`, `EVIDENCE_UNAVAILABLE`,
 `ACTION_UNCLASSIFIED`. A decision names no stop.
 
@@ -157,13 +161,17 @@ decision point is asked, in this order of the plane's causes: `PAUSED`,
 `doctor` reads the route, the floor and the list as a start would, takes no
 lock and leaves the floor as it was; what the start refuses fails. It prints
 the route's id, serial and digest, the floor, the list's id, state and age,
-the count of active stops and the first 64 of them, the stops among them naming
-no run of the plane's project, and each rule whose lifetime ends a stop
-before its run can end; a listed stop whose run's record cannot be read leaves it unknown. `/healthz` counts the same,
+the count of active stops and the first 64 of them, the stops among them that
+match no call of the plane (a run its project does not hold, or an agent,
+principal or tenant other than the listener's), each rule that stops an
+agent or a principal, and each rule whose lifetime ends a run's stop before
+its run can end; a listed stop whose run's record cannot be read leaves it unknown. `/healthz` counts the same,
 rule lifetimes apart, under `stops`, with the unknown state's cause, the
 list's use of its bounds and its reads; an unknown state answers `503`, and a list past nine
-tenths of a bound is `degraded`. `/metrics` counts the reads, the failed ones
-by cause, and the active stops ([metrics.md](metrics.md)). The plane logs each
+tenths of a bound is `degraded`. Only `health.socket` lists the stops, each with its `scope` and `subject`,
+and names those that match no call by entry id, `unheld_entries` and
+`unread_entries`, under schema `3`. `/metrics` counts the reads, the failed ones
+by cause, and the active stops of every scope ([metrics.md](metrics.md)). The plane logs each
 stop that becomes active, expires or is lifted, with its finding id.
 [failure-modes.md](failure-modes.md) says what an unknown state does.
 
