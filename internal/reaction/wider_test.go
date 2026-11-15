@@ -45,13 +45,13 @@ func ruleOf(scope string) (id, version string, life time.Duration) {
 	return "STEP_OUTSIDE_PROCEDURE", "1", time.Hour
 }
 
-// wideStop is a 3.0 stop of scope and subject for finding about run.
-func wideStop(t testing.TB, finding, run, scope, subject string) []byte {
+// wideStop is a 3.0 stop of scope and subject for finding about run-1.
+func wideStop(t testing.TB, finding, scope, subject string) []byte {
 	t.Helper()
 	id, version, life := ruleOf(scope)
 	line, err := reaction.Stop{
 		EntryID: reaction.EntryID(finding), TenantID: sTenant, ProjectID: sProject, Scope: scope, Subject: subject,
-		RunID: run, FindingID: finding, ProcedureID: "refund", ProcedureVersion: "3", ProcedureDigest: procDigest,
+		RunID: "run-1", FindingID: finding, ProcedureID: "refund", ProcedureVersion: "3", ProcedureDigest: procDigest,
 		RuleID: id, RuleVersion: version, CreatedAt: sCreated, ExpiresAt: sCreated.Add(life),
 	}.Marshal()
 	if err != nil {
@@ -82,40 +82,21 @@ func wideLift(t testing.TB, head, scope, subject string, through int64) []byte {
 // and DENIED_ACTION_RETRIED_RESOURCE with a lifetime; for any other rule it is
 // ErrRouteScope, and without expires_seconds ErrRouteLifetime.
 func TestOnlyTheActorRulesMayStopAnAgentOrAPrincipal(t *testing.T) {
-	doc := strings.NewReplacer("PLANE", sPlane, "PROJECT", sProject).Replace(signedRouteDoc)
-	ruled := func(id, version, scope string) string {
-		return strings.NewReplacer(`"rule_id":"STEP_OUTSIDE_PROCEDURE","rule_version":"1","scope":"run"`,
-			`"rule_id":"`+id+`","rule_version":"`+version+`","scope":"`+scope+`"`).Replace(doc)
-	}
-	if ruled("X", "1", "agent") == doc {
+	if ruledDoc("X", "1", "agent") == ruledDoc("STEP_OUTSIDE_PROCEDURE", "1", "run") {
 		t.Fatal("the route document names no rule to edit")
 	}
 	for _, scope := range []string{reaction.ScopeAgent, reaction.ScopePrincipal} {
 		for _, rule := range [][2]string{{"REPEATED_DENIAL", "2"}, {"DENIED_ACTION_RETRIED_ARGUMENTS", "1"}, {"DENIED_ACTION_RETRIED_RESOURCE", "1"}} {
-			r, err := reaction.ParseRouteDocument([]byte(ruled(rule[0], rule[1], scope)))
-			if err != nil {
-				t.Errorf("%s %s of scope %s: %v", rule[0], rule[1], scope, err)
-				continue
-			}
-			if got := r.Rules()[0]; got.Scope != scope || got.Lifetime != time.Hour {
-				t.Errorf("%s of scope %s read as scope %q, lifetime %v", rule[0], scope, got.Scope, got.Lifetime)
-			}
-			if err := reaction.CheckStopping(r); err != nil {
-				t.Errorf("CheckStopping of %s of scope %s: %v", rule[0], scope, err)
-			}
-			unbounded := strings.Replace(ruled(rule[0], rule[1], scope), `,"expires_seconds":3600`, ``, 1)
-			if _, err := reaction.ParseRouteDocument([]byte(unbounded)); !errors.Is(err, reaction.ErrRouteLifetime) {
-				t.Errorf("%s of scope %s with no lifetime: %v, want %v", rule[0], scope, err, reaction.ErrRouteLifetime)
-			}
+			expectActorRule(t, rule[0], rule[1], scope)
 		}
 		for _, rule := range [][2]string{{"STEP_OUTSIDE_PROCEDURE", "1"}, {"DEADLINE_EXCEEDED", "1"}, {"RESOURCE_OUTSIDE_RUN", "1"}} {
-			if _, err := reaction.ParseRouteDocument([]byte(ruled(rule[0], rule[1], scope))); !errors.Is(err, reaction.ErrRouteScope) {
+			if _, err := reaction.ParseRouteDocument([]byte(ruledDoc(rule[0], rule[1], scope))); !errors.Is(err, reaction.ErrRouteScope) {
 				t.Errorf("%s of scope %s: %v, want %v", rule[0], scope, err, reaction.ErrRouteScope)
 			}
 		}
 	}
 	for _, rule := range [][2]string{{"REPEATED_DENIAL", "2"}, {"STEP_OUTSIDE_PROCEDURE", "1"}} {
-		unbounded := strings.Replace(ruled(rule[0], rule[1], "run"), `,"expires_seconds":3600`, ``, 1)
+		unbounded := strings.Replace(ruledDoc(rule[0], rule[1], "run"), `,"expires_seconds":3600`, ``, 1)
 		if _, err := reaction.ParseRouteDocument([]byte(unbounded)); err != nil {
 			t.Errorf("%s of scope run with no lifetime: %v", rule[0], err)
 		}
@@ -126,42 +107,82 @@ func TestOnlyTheActorRulesMayStopAnAgentOrAPrincipal(t *testing.T) {
 	}
 }
 
+// ruledDoc is signedRouteDoc whose STEP_OUTSIDE_PROCEDURE rule of runs is
+// rule id at version, of scope.
+func ruledDoc(id, version, scope string) string {
+	doc := strings.NewReplacer("PLANE", sPlane, "PROJECT", sProject).Replace(signedRouteDoc)
+	return strings.NewReplacer(`"rule_id":"STEP_OUTSIDE_PROCEDURE","rule_version":"1","scope":"run"`,
+		`"rule_id":"`+id+`","rule_version":"`+version+`","scope":"`+scope+`"`).Replace(doc)
+}
+
+// expectActorRule fails unless rule id at version of scope is read with its
+// scope and lifetime, passes CheckStopping, and is refused with no lifetime.
+func expectActorRule(t *testing.T, id, version, scope string) {
+	t.Helper()
+	r, err := reaction.ParseRouteDocument([]byte(ruledDoc(id, version, scope)))
+	if err != nil {
+		t.Errorf("%s %s of scope %s: %v", id, version, scope, err)
+		return
+	}
+	if got := r.Rules()[0]; got.Scope != scope || got.Lifetime != time.Hour {
+		t.Errorf("%s of scope %s read as scope %q, lifetime %v", id, scope, got.Scope, got.Lifetime)
+	}
+	if err := reaction.CheckStopping(r); err != nil {
+		t.Errorf("CheckStopping of %s of scope %s: %v", id, scope, err)
+	}
+	unbounded := strings.Replace(ruledDoc(id, version, scope), `,"expires_seconds":3600`, ``, 1)
+	if _, err := reaction.ParseRouteDocument([]byte(unbounded)); !errors.Is(err, reaction.ErrRouteLifetime) {
+		t.Errorf("%s of scope %s with no lifetime: %v, want %v", id, scope, err, reaction.ErrRouteLifetime)
+	}
+}
+
 // TestAWiderStopLiftAndCoveredLineAreRead: a 3.0 stop or covered line of
 // scope agent or principal names its subject and the finding's run; a
-// subject up to MaxSubjectBytes is read and one past it refused, while a
-// run's subject keeps the run id's bound; a lift of either scope is signed
-// and read.
+// subject up to MaxSubjectBytes is read and one past it refused; a lift of
+// either scope is signed and read.
 func TestAWiderStopLiftAndCoveredLineAreRead(t *testing.T) {
 	long := strings.Repeat("a", reaction.MaxSubjectBytes)
 	for _, scope := range []string{reaction.ScopeAgent, reaction.ScopePrincipal} {
-		l, err := reaction.ParseLine(wideStop(t, "f-1", "run-1", scope, long))
+		l, err := reaction.ParseLine(wideStop(t, "f-1", scope, long))
 		if err != nil || l.Stop.Scope != scope || l.Stop.Subject != long || l.Stop.RunID != "run-1" {
 			t.Fatalf("a 3.0 stop of scope %s: %+v, %v", scope, l.Stop, err)
 		}
-		over := strings.Replace(string(wideStop(t, "f-1", "run-1", scope, long)), long, long+"a", 1)
+		over := strings.Replace(string(wideStop(t, "f-1", scope, long)), long, long+"a", 1)
 		if _, err := reaction.ParseLine([]byte(over)); !errors.Is(err, reaction.ErrLineValue) {
 			t.Errorf("a %s subject past its bound: %v, want %v", scope, err, reaction.ErrLineValue)
 		}
-		covered, err := reaction.Covered{FindingID: "f-2", TenantID: sTenant, RunID: "run-1", ProjectID: sProject,
-			Scope: scope, Subject: "agent-a", CreatedAt: sCreated}.Marshal()
-		if err != nil {
-			t.Fatalf("a covered line of scope %s: %v", scope, err)
-		}
-		if l, err := reaction.ParseLine(covered); err != nil || l.Covered.Scope != scope || l.Covered.Subject != "agent-a" {
-			t.Errorf("a covered line of scope %s read as %+v, %v", scope, l.Covered, err)
-		}
+		expectWiderCovered(t, scope)
 		lift, err := reaction.ParseLine(wideLift(t, "sha256:"+procDigest, scope, long, 2))
 		if err != nil || lift.Lift.Scope != scope || lift.Lift.Subject != long || lift.Lift.RunID != "" {
 			t.Errorf("a 3.0 lift of scope %s: %+v, %v", scope, lift.Lift, err)
 		}
 	}
+}
+
+// TestAWiderStopKeepsTheRunIDsBound: under an agent stop, whose subject may
+// reach MaxSubjectBytes, the finding's run_id still holds to MaxRunIDBytes.
+func TestAWiderStopKeepsTheRunIDsBound(t *testing.T) {
 	runLong := strings.Repeat("r", reaction.MaxRunIDBytes+1)
-	past := strings.Replace(string(wideStop(t, "f-1", "run-1", reaction.ScopeAgent, "agent-a")), `"run_id":"run-1"`, `"run_id":"`+runLong+`"`, 1)
+	past := strings.Replace(string(wideStop(t, "f-1", reaction.ScopeAgent, "agent-a")), `"run_id":"run-1"`, `"run_id":"`+runLong+`"`, 1)
 	if !strings.Contains(past, runLong) {
 		t.Fatal("the stop line names no run_id to lengthen")
 	}
 	if _, err := reaction.ParseLine([]byte(past)); !errors.Is(err, reaction.ErrLineValue) {
 		t.Errorf("a run id past its bound under an agent stop: %v, want %v", err, reaction.ErrLineValue)
+	}
+}
+
+// expectWiderCovered fails unless a covered line of scope reads back with
+// its scope and subject.
+func expectWiderCovered(t *testing.T, scope string) {
+	t.Helper()
+	covered, err := reaction.Covered{FindingID: "f-2", TenantID: sTenant, RunID: "run-1", ProjectID: sProject,
+		Scope: scope, Subject: "agent-a", CreatedAt: sCreated}.Marshal()
+	if err != nil {
+		t.Fatalf("a covered line of scope %s: %v", scope, err)
+	}
+	if l, err := reaction.ParseLine(covered); err != nil || l.Covered.Scope != scope || l.Covered.Subject != "agent-a" {
+		t.Errorf("a covered line of scope %s read as %+v, %v", scope, l.Covered, err)
 	}
 }
 
@@ -173,9 +194,9 @@ func TestALiftEndsOnlyItsOwnScopeAndSubject(t *testing.T) {
 	header, head := signedHeaderLine(t, r, headerOpts{})
 	lines := [][]byte{
 		header,
-		wideStop(t, "f-agent", "run-1", reaction.ScopeAgent, "agent-a"),
-		wideStop(t, "f-run", "run-1", reaction.ScopeRun, "run-1"),
-		wideStop(t, "f-principal", "run-1", reaction.ScopePrincipal, "alice"),
+		wideStop(t, "f-agent", reaction.ScopeAgent, "agent-a"),
+		wideStop(t, "f-run", reaction.ScopeRun, "run-1"),
+		wideStop(t, "f-principal", reaction.ScopePrincipal, "alice"),
 		wideLift(t, head, reaction.ScopeRun, "run-1", 4),
 	}
 	scopes := func(l reaction.List) []string {
@@ -217,7 +238,7 @@ func TestALiftEndsOnlyItsOwnScopeAndSubject(t *testing.T) {
 func TestAWiderStopUnderARuleOfAnotherScopeIsRefused(t *testing.T) {
 	r := widerRoute(t)
 	header, _ := signedHeaderLine(t, r, headerOpts{})
-	stop := strings.Replace(string(wideStop(t, "f-1", "run-1", reaction.ScopeAgent, "agent-a")),
+	stop := strings.Replace(string(wideStop(t, "f-1", reaction.ScopeAgent, "agent-a")),
 		`"rule_id":"REPEATED_DENIAL","rule_version":"2"`, `"rule_id":"STEP_OUTSIDE_PROCEDURE","rule_version":"1"`, 1)
 	if !strings.Contains(stop, "STEP_OUTSIDE_PROCEDURE") {
 		t.Fatal("the stop line names no rule to edit")
@@ -233,7 +254,7 @@ func widerSnapshot(t *testing.T, extra ...[]byte) reaction.Snapshot {
 	t.Helper()
 	r := widerRoute(t)
 	header, _ := signedHeaderLine(t, r, headerOpts{})
-	lines := append([][]byte{header, wideStop(t, "f-agent", "run-1", reaction.ScopeAgent, "agent-a")}, extra...)
+	lines := append([][]byte{header, wideStop(t, "f-agent", reaction.ScopeAgent, "agent-a")}, extra...)
 	s := reaction.Snapshot{}.Next(r, joinLines(lines...), sNow, time.Minute)
 	if s.State() != reaction.Stopped {
 		t.Fatalf("the list read as %s: %s", s.State(), s.Detail())
@@ -248,7 +269,7 @@ func widerSnapshot(t *testing.T, extra ...[]byte) reaction.Snapshot {
 // a call that names no agent under an active agent stop, or no tenant, is
 // Unknown and never Clear.
 func TestAWiderStopMatchesEveryCallOfItsSubject(t *testing.T) {
-	s := widerSnapshot(t, wideStop(t, "f-run", "run-1", reaction.ScopeRun, "run-1"))
+	s := widerSnapshot(t, wideStop(t, "f-run", reaction.ScopeRun, "run-1"))
 	now := sNow.Add(time.Second)
 	for _, c := range []struct {
 		name  string
@@ -293,7 +314,7 @@ func TestAWiderStopMatchesEveryCallOfItsSubject(t *testing.T) {
 func TestAPrincipalStopMatchesItsPrincipalAlone(t *testing.T) {
 	r := widerRoute(t)
 	header, _ := signedHeaderLine(t, r, headerOpts{})
-	s := reaction.Snapshot{}.Next(r, joinLines(header, wideStop(t, "f-p", "run-1", reaction.ScopePrincipal, "alice")), sNow, time.Minute)
+	s := reaction.Snapshot{}.Next(r, joinLines(header, wideStop(t, "f-p", reaction.ScopePrincipal, "alice")), sNow, time.Minute)
 	for who, want := range map[reaction.Subject]reaction.StopMatch{
 		{Tenant: sTenant, Agent: "agent-b", Principal: "alice"}:                reaction.StopWider,
 		{Tenant: sTenant, Run: "run-9", Agent: "agent-a", Principal: "bob"}:    0,

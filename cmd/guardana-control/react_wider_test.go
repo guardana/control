@@ -98,15 +98,13 @@ func TestReactStopsTheAgentOfTheJudgedRunForItsOwnLifetime(t *testing.T) {
 	}
 }
 
-// TestStopsLiftNamesExactlyOneSubject: stops lift takes exactly one of
-// --run, --agent and --principal; a lift of the run leaves the agent stop
-// standing and a lift of the agent ends it; a lift of a principal no stop
-// names is refused and writes nothing.
+// TestStopsLiftNamesExactlyOneSubject: stops lift refuses none or two of
+// --run, --agent and --principal, and an empty one, as a usage error; a lift
+// of a principal no stop names is refused and writes nothing.
 func TestStopsLiftNamesExactlyOneSubject(t *testing.T) {
 	tr := newWiderTree(t)
 	now := time.Now().UTC().Truncate(time.Second)
-	tr.reactOver(t, now, map[string]time.Time{"run-1": now.Add(time.Hour)},
-		finding(1, "run-1", denial, confirmed), finding(2, "run-1", outside, confirmed))
+	tr.reactOver(t, now, map[string]time.Time{"run-1": now.Add(time.Hour)}, finding(1, "run-1", denial, confirmed))
 	for _, args := range [][]string{
 		{},
 		{"--run", "run-1", "--agent", "agent-1"},
@@ -127,6 +125,15 @@ func TestStopsLiftNamesExactlyOneSubject(t *testing.T) {
 	if string(listBytes(t, tr.stops)) != string(before) {
 		t.Error("a refused lift wrote the list")
 	}
+}
+
+// TestStopsLiftOfTheRunLeavesItsAgentStopped: a lift of the run leaves the
+// agent stop found on it standing, and a lift of the agent ends it.
+func TestStopsLiftOfTheRunLeavesItsAgentStopped(t *testing.T) {
+	tr := newWiderTree(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	tr.reactOver(t, now, map[string]time.Time{"run-1": now.Add(time.Hour)},
+		finding(1, "run-1", denial, confirmed), finding(2, "run-1", outside, confirmed))
 	code, stdout, stderr := tr.run(t, "stops lift", "--key", tr.keys["alice"], "--run", "run-1", tr.stops)
 	if code != exitOK || !strings.Contains(stdout, "run run-1 through line 3") {
 		t.Fatalf("stops lift --run: %d, %q, %q", code, stdout, stderr)

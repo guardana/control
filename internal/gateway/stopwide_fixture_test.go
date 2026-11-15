@@ -116,9 +116,9 @@ func (l *wideList) add(line []byte, err error) int64 {
 	return int64(len(l.lines))
 }
 
-// stop appends a stop of scope and subject made from a finding about run,
-// created at the second of base() and lasting an hour.
-func (l *wideList) stop(scope, subject, run string) int64 {
+// stop appends a stop of scope and subject made from a finding about
+// run-a, created at the second of base() and lasting an hour.
+func (l *wideList) stop(scope, subject string) int64 {
 	l.t.Helper()
 	id, version := "STEP_OUTSIDE_PROCEDURE", "1"
 	switch scope {
@@ -131,7 +131,7 @@ func (l *wideList) stop(scope, subject, run string) int64 {
 	created := base().Truncate(time.Second)
 	return l.add(reaction.Stop{
 		EntryID: reaction.EntryID(finding), TenantID: l.tenant, ProjectID: wideProject, Scope: scope, Subject: subject,
-		RunID: run, FindingID: finding, ProcedureID: l.proc.ID(), ProcedureVersion: l.proc.Version(),
+		RunID: "run-a", FindingID: finding, ProcedureID: l.proc.ID(), ProcedureVersion: l.proc.Version(),
 		ProcedureDigest: l.proc.Digest(), RuleID: id, RuleVersion: version, CreatedAt: created, ExpiresAt: created.Add(time.Hour),
 	}.Marshal())
 }

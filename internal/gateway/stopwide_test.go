@@ -42,7 +42,7 @@ func expectExecuted(t *testing.T, what string, d gateway.Disposition) {
 // listing is the listing under no stop.
 func TestAnAgentStopBlocksEveryRunOfThePlane(t *testing.T) {
 	l := newWideList(t, "tenant-1")
-	l.stop(reaction.ScopeAgent, "agent-1", "run-a")
+	l.stop(reaction.ScopeAgent, "agent-1")
 	h := widePlaneOver(t, l)
 	for _, c := range []struct {
 		name string
@@ -72,11 +72,11 @@ func TestAnAgentStopBlocksEveryRunOfThePlane(t *testing.T) {
 // the first run's call lists both codes, the run's first.
 func TestARunStopBlocksOneRunAndBothCodesStand(t *testing.T) {
 	l := newWideList(t, "tenant-1")
-	l.stop(reaction.ScopeRun, "run-a", "run-a")
+	l.stop(reaction.ScopeRun, "run-a")
 	h := widePlaneOver(t, l)
 	expectPlaneBlock(t, h, readUnder(h, opened("run-a", "root-1"), "run-a"), verdictDeny, codeRunStopped)
 	expectExecuted(t, "the other run", readUnder(h, opened("run-b", "root-2"), "run-b"))
-	l.stop(reaction.ScopeAgent, "agent-1", "run-a")
+	l.stop(reaction.ScopeAgent, "agent-1")
 	h = widePlaneOver(t, l)
 	expectPlaneBlock(t, h, readUnder(h, opened("run-a", "root-1"), "both"), verdictDeny, codeRunStopped, codeSubjectStopped)
 	expectPlaneBlock(t, h, readUnder(h, opened("run-b", "root-2"), "agent"), verdictDeny, codeSubjectStopped)
@@ -87,8 +87,8 @@ func TestARunStopBlocksOneRunAndBothCodesStand(t *testing.T) {
 // ends it, and every run runs again.
 func TestARunLiftLeavesTheAgentStopStanding(t *testing.T) {
 	l := newWideList(t, "tenant-1")
-	l.stop(reaction.ScopeAgent, "agent-1", "run-a")
-	runStop := l.stop(reaction.ScopeRun, "run-a", "run-a")
+	l.stop(reaction.ScopeAgent, "agent-1")
+	runStop := l.stop(reaction.ScopeRun, "run-a")
 	l.lift(reaction.ScopeRun, "run-a", runStop)
 	h := widePlaneOver(t, l)
 	expectPlaneBlock(t, h, readUnder(h, opened("run-a", "root-1"), "run-a"), verdictDeny, codeSubjectStopped)
@@ -104,14 +104,14 @@ func TestARunLiftLeavesTheAgentStopStanding(t *testing.T) {
 // its calls, with a run or without.
 func TestAStopOfAnotherTenantsPrincipalBlocksNothing(t *testing.T) {
 	l := newWideList(t, "tenant-2")
-	l.stop(reaction.ScopePrincipal, "user-1", "run-a")
+	l.stop(reaction.ScopePrincipal, "user-1")
 	h := widePlaneOver(t, l)
 	expectExecuted(t, "a call of run-a", readUnder(h, opened("run-a", "root-1"), "run-a"))
 	if d := readUnder(h, nil, "no run"); slices.Contains(d.Decision.GetReasonCodes(), codeSubjectStopped) {
 		t.Errorf("a call with no run reads %v under another tenant's stop", d.Decision.GetReasonCodes())
 	}
 	own := newWideList(t, "tenant-1")
-	own.stop(reaction.ScopePrincipal, "user-1", "run-a")
+	own.stop(reaction.ScopePrincipal, "user-1")
 	h = widePlaneOver(t, own)
 	expectPlaneBlock(t, h, readUnder(h, opened("run-b", "root-2"), "own"), verdictDeny, codeSubjectStopped)
 }
@@ -131,12 +131,12 @@ func TestTheSubjectIsTheListenersNeverTheRunsOrTheEnvelopes(t *testing.T) {
 		{reaction.ScopeAgent, "agent-9"}, {reaction.ScopePrincipal, "admin-1"},
 	} {
 		l := newWideList(t, "tenant-1")
-		l.stop(c.scope, c.subject, "run-a")
+		l.stop(c.scope, c.subject)
 		h := widePlaneOver(t, l, served("agent-9", "admin-1"))
 		expectPlaneBlock(t, h, readUnder(h, opened("run-a", "root-1"), "listener"), verdictDeny, codeSubjectStopped)
 	}
 	l := newWideList(t, "tenant-1")
-	l.stop(reaction.ScopeAgent, "agent-1", "run-a")
+	l.stop(reaction.ScopeAgent, "agent-1")
 	h := widePlaneOver(t, l, served("agent-9", "admin-1"))
 	expectExecuted(t, "a stop of the envelope's agent on a plane serving another", readUnder(h, opened("run-a", "root-1"), "envelope"))
 }

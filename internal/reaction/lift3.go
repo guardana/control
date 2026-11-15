@@ -75,11 +75,8 @@ func readSignedLiftV3(body []byte) (SignedLiftV3, error) {
 	if l.PlaneID, ok = planeIdentifier(o[memberPlaneID]); !ok {
 		return SignedLiftV3{}, fmt.Errorf("%w: %s", ErrLiftValue, memberPlaneID)
 	}
-	if l.Scope, ok = readScope(o[memberScope]); !ok {
-		return SignedLiftV3{}, fmt.Errorf("%w: %s", ErrLiftValue, memberScope)
-	}
-	if l.Subject, ok = identifier(o[memberSubject], subjectBound(l.Scope)); !ok {
-		return SignedLiftV3{}, fmt.Errorf("%w: %s", ErrLiftValue, memberSubject)
+	if l.Scope, l.Subject, err = liftTarget(o); err != nil {
+		return SignedLiftV3{}, err
 	}
 	if l.ListHead, ok = strictjson.String(o[memberListHead]); !ok || !canon.ValidDigest(l.ListHead) {
 		return SignedLiftV3{}, fmt.Errorf("%w: %s", ErrLiftValue, memberListHead)
@@ -94,6 +91,19 @@ func readSignedLiftV3(body []byte) (SignedLiftV3, error) {
 		return SignedLiftV3{}, fmt.Errorf("%w: %s", ErrLiftValue, memberAlg)
 	}
 	return l, nil
+}
+
+// liftTarget is a lift's scope, one the grammar names, and its subject, an
+// identifier within that scope's bound.
+func liftTarget(o strictjson.Object) (scope, subject string, err error) {
+	scope, ok := readScope(o[memberScope])
+	if !ok {
+		return "", "", fmt.Errorf("%w: %s", ErrLiftValue, memberScope)
+	}
+	if subject, ok = identifier(o[memberSubject], subjectBound(scope)); !ok {
+		return "", "", fmt.Errorf("%w: %s", ErrLiftValue, memberSubject)
+	}
+	return scope, subject, nil
 }
 
 // verifySignedLiftLineV3 is verifySignedLiftLine for a 3.0 lift line under a

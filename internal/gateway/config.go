@@ -141,13 +141,8 @@ func checkConfig(cfg Config) (string, Capabilities, error) {
 	if err := checkAuthority(cfg); err != nil {
 		return "", Capabilities{}, err
 	}
-	if _, disabled := cfg.Stops.(disabledStops); !disabled {
-		switch l := cfg.Listener; {
-		case cfg.Runs == nil:
-			return "", Capabilities{}, ErrStopsWithoutRuns
-		case l.TenantID == "" || l.PrincipalID == "" || l.AgentID == "":
-			return "", Capabilities{}, ErrStopsWithoutIdentity
-		}
+	if err := checkStops(cfg); err != nil {
+		return "", Capabilities{}, err
 	}
 	if err := checkBounds(cfg); err != nil {
 		return "", Capabilities{}, err
@@ -156,6 +151,22 @@ func checkConfig(cfg Config) (string, Capabilities, error) {
 		return "", Capabilities{}, ErrIDSource
 	}
 	return name, caps, nil
+}
+
+// checkStops refuses a stop source a plane could not match a call against:
+// one with no runs directory to vouch for the call's run, or with a
+// Listener that names no tenant, principal or agent for a stop of one.
+func checkStops(cfg Config) error {
+	if _, disabled := cfg.Stops.(disabledStops); disabled {
+		return nil
+	}
+	switch l := cfg.Listener; {
+	case cfg.Runs == nil:
+		return ErrStopsWithoutRuns
+	case l.TenantID == "" || l.PrincipalID == "" || l.AgentID == "":
+		return ErrStopsWithoutIdentity
+	}
+	return nil
 }
 
 // checkSources refuses a source cfg leaves nil.

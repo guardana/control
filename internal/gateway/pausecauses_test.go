@@ -70,9 +70,9 @@ func (c planeCase) admitUnder(t *testing.T, rules []string, mut ...func(*gateway
 	case c.wider:
 		l := newWideList(t, "tenant-1")
 		if c.stopped {
-			l.stop(reaction.ScopeRun, "run-a", "run-a")
+			l.stop(reaction.ScopeRun, "run-a")
 		}
-		l.stop(reaction.ScopeAgent, "agent-1", "run-a")
+		l.stop(reaction.ScopeAgent, "agent-1")
 		stops.set(l.readAt(base()))
 	case c.stopped:
 		stops.set(stopped(t, "run-a"))
