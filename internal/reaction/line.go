@@ -335,7 +335,7 @@ func lineScope(o strictjson.Object, v, runID string) (scope, subject string, err
 		return scope, "", nil
 	}
 	if err := scopeServed(scope); err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("%w: %w", ErrLineValue, err)
 	}
 	if err := identifierOf(o, memberSubject, MaxRunIDBytes, &subject); err != nil {
 		return "", "", err
@@ -389,7 +389,7 @@ func readLiftLine(o strictjson.Object, v string, l *LiftLine) error {
 			return fmt.Errorf("%w: %s", ErrLineValue, memberScope)
 		}
 		if err := scopeServed(l.Scope); err != nil {
-			return err
+			return fmt.Errorf("%w: %w", ErrLineValue, err)
 		}
 		if err := identifierOf(o, memberSubject, MaxRunIDBytes, &l.Subject); err != nil {
 			return err
