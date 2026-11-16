@@ -229,7 +229,8 @@ expiry. A finding is covered only by an active stop of the same scope and
 subject that lasts as long, whichever run either was about.</p>
 <p>A plane matches such a stop against the agent and principal its listener's
 configuration names, within the listener's tenant, never against the
-envelope or a run record. Every opened run of a plane carries the listener's
+envelope or a run record; a principal stop matches the principal's id
+alone, never its type. Every opened run of a plane carries the listener's
 identity, so <strong>on one plane a stop of its agent or principal stops the
 plane</strong>: every run, a run opened after the stop, and a call with no run, each
 <code>AGENT_OR_PRINCIPAL_STOPPED</code> (48, <code>DENY</code>). The tool listing is not stopped.
