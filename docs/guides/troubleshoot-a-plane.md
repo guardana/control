@@ -44,7 +44,7 @@ call: an answer marked `pending` comes from a plane in another mode, which
 
 ## An approval did not let the call run
 
-**Symptom.** You approved a held call, and the agent's call still did not run.
+**Symptom.** You approved a held request, and the agent's call still did not run.
 
 **Cause.** An approval is spent only by the agent's retry of the same call,
 under the same policy bundle, before it expires
@@ -77,8 +77,8 @@ event.
 (`policy.freshness` is `unconfirmed` or `expired`), so material calls are
 blocked `POLICY_STALE` outside `OBSERVE`, or its stop list has passed nine
 tenths of a bound (`stops.degraded`), past which no more stops can be
-written. A halt, or a pause or stop state that is unknown, answers `503`
-instead.
+written. A halt, a spool that cannot answer, or a pause or stop state that
+is unknown answers `503` instead.
 
 **Show it.**
 
@@ -102,9 +102,11 @@ it`, or naming the environment.
 **Cause.** A signed plane refuses to start when its own account owns or may
 write the configuration, the roster, the root key, the pause file, the
 route, the stop list or the runs directory's `records/`, or a directory on
-their path; when it runs as root; and when the environment sets any of its
-keys. A missing `plane_id`, `approvals.inbox_dir` or `trust` key is refused
-with the configuration. A roster it cannot take does not stop the start, but
+their path; when any of those entries is missing or carries an access control
+list (on Linux and macOS); when it runs as root; and when the environment sets any of its keys. A
+key a signed plane requires and does not find, such as `plane_id`,
+`approvals.inbox_dir`, a `trust` key or an `operators` kind, is refused with
+the configuration, which names the key. A roster it cannot take does not stop the start, but
 no operator's signature counts until one is taken.
 
 **Show it.**

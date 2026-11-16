@@ -147,7 +147,7 @@ have their line.
 
 ## Next
 
-[Go further with the demo](go-further-with-the-demo.md) starts from this
+[Try the rest of the demo](try-the-rest-of-the-demo.md) starts from this
 running plane: it pauses a server, reads the counters and runs the demo's
 scenarios. To stop here, stop `dev` with Ctrl-C; the state directory stays.
 

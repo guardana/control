@@ -50,8 +50,8 @@ Have a tool ask before it acts or a sensor report what happened, hold a client t
 
 ## Get started
 
-- [Go further with the demo](get-started/go-further-with-the-demo.md): On the demo's running plane, pause a server, read the counters, run the seven scenarios and make one fail on purpose.
 - [Try the demo](get-started/try-the-demo.md): Start a plane in front of two vulnerable MCP servers, watch it allow a read, block a refund and hold an update for your approval, and read the trail.
+- [Try the rest of the demo](get-started/try-the-rest-of-the-demo.md): On the demo's running plane, pause a server, read the counters, run the seven scenarios and make one fail on purpose.
 
 ## Guides
 

@@ -120,7 +120,7 @@ verify one.
 ### Documentation
 
 - Three reading paths on the documentation index, a shorter first tutorial
-  with [a follow-up](docs/get-started/go-further-with-the-demo.md), and pages
+  with [a follow-up](docs/get-started/try-the-rest-of-the-demo.md), and pages
   to [set up signed operators](docs/guides/set-up-signed-operators.md),
   [troubleshoot a plane](docs/guides/troubleshoot-a-plane.md), compare
   [channels](docs/reference/channels.md) and see

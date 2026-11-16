@@ -34,8 +34,8 @@ isolation. Each answers a different question, and they combine.
 - It cancels nothing already running: a pause or a stop bites later calls
   ([run-stop](../status.md#run-stop)).
 - Its evidence trail is not tamper-evident: whoever can write the trail can
-  rewrite it; hash links and signed checkpoints are `planned`
-  ([signed operations](signed-operations.md#what-is-not-signed)).
+  rewrite it ([signed operations](signed-operations.md#what-is-not-signed));
+  hash links and signed checkpoints are [backlog B29](../backlog.md).
 - It records a call's arguments and result as hashes, keeps no model prompt or
   output, and never stores hidden reasoning ([privacy](privacy.md)).
 - It does not isolate processes, route model calls or count their cost.

@@ -6,8 +6,8 @@ This is alpha software and not a security boundary: do not deploy it as one. Wha
 
 ## Get started
 
-- [Go further with the demo](https://control.guardana.dev/docs/get-started/go-further-with-the-demo): On the demo's running plane, pause a server, read the counters, run the seven scenarios and make one fail on purpose.
 - [Try the demo](https://control.guardana.dev/docs/get-started/try-the-demo): Start a plane in front of two vulnerable MCP servers, watch it allow a read, block a refund and hold an update for your approval, and read the trail.
+- [Try the rest of the demo](https://control.guardana.dev/docs/get-started/try-the-rest-of-the-demo): On the demo's running plane, pause a server, read the counters, run the seven scenarios and make one fail on purpose.
 
 ## Guides
 

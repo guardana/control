@@ -30,19 +30,23 @@ security boundary yet.
 `run` and `doctor` refuse a signed plane whose own account owns, or may
 write, the configuration, `trust.root_public_key`, `trust.roster`,
 `pause.file`, `reaction.route`, `reaction.stops` or the runs directory's
-`records/`, or any directory on their paths, and one whose environment sets
-any of its keys. Root's files of mode `0644` in root's
-directories of mode `0755` pass.
+`records/`, or any directory on their paths; one where any of those entries
+is missing or carries an access control list (on Linux and macOS); and one
+whose environment sets any of its keys. Root's files of mode `0644` in
+root's directories of mode `0755` pass.
 
 | Path | Owner and mode |
 | --- | --- |
 | the configuration, `trust.root_public_key`, `trust.roster` | root, files `0644`, directories `0755` |
-| `approvals.dir` | the plane's, the operators' group, mode `0750`; the plane writes its records `0640` |
+| `approvals.dir` | the plane's, the operators' group, mode `2750`; the plane writes its records `0640` |
 | `approvals.inbox_dir` | the plane's, the operators' group, mode `1770`, so an operator removes only their own answers |
 | `approvals.hold_journal_dir`, `trust.floor_dir`, `pause.floor_dir` | the plane's |
-| the pause file's directory | the operator's, the plane's group, mode `0750` |
+| the pause file's directory | the operator's, the plane's group, mode `2750`; the operator writes the signed pause file `0640` |
 | `runs.dir` | as [a signed runs directory](../reference/runs.md#a-signed-runs-directory) says |
 | the route and the stop list | as [reaction under signed](../reference/reaction-signed.md) says |
+
+The `2` in `2750` is the setgid bit: on Linux it gives a new file the
+directory's group rather than its writer's, as BSD and macOS do without it.
 
 ## Steps
 
@@ -113,7 +117,7 @@ operators:
 A signed plane serves one tenant: a `listener.principal.tenant_id` other than
 `tenant_id` is refused. Run `doctor`, then `run`, as the plane's account.
 
-### 4. Approve a held call
+### 4. Approve a held request
 
 From an operator's own account, list the holds and answer one:
 
@@ -163,12 +167,13 @@ revoked key can still sign.
 
 `doctor` prints an `ok` line for `trust` naming the plane, its tenant, the
 roster's id and serial, how many keys it names and the floor's serial. A
-held call answered in step 4 runs on the agent's retry.
+held request answered in step 4 runs on the agent's retry.
 
 The two-account job of continuous integration runs the cases
 [scripts/expected-runs.txt](../../scripts/expected-runs.txt) names: file
-ownership, signed runs and stops, and the health and export sockets. None of
-them approves a held call from an operator's own account.
+ownership, a signed run, `react` under a signed route, and the health and
+export sockets. None of them approves a held request from an operator's own
+account.
 
 ## Roll back
 

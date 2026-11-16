@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Go further with the demo · Guardana Control</title>
+<title>Try the rest of the demo · Guardana Control</title>
 <meta name="description" content="On the demo&#39;s running plane, pause a server, read the counters, run the seven scenarios and make one fail on purpose."/>
-<link rel="canonical" href="https://control.guardana.dev/docs/get-started/go-further-with-the-demo"/>
+<link rel="canonical" href="https://control.guardana.dev/docs/get-started/try-the-rest-of-the-demo"/>
 <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)"/>
 <meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: dark)"/>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
@@ -26,12 +26,12 @@
 </div></header>
 <div class="w shell">
 <details class="mnav">
-<summary>Menu · <b>Go further with the demo</b></summary>
+<summary>Menu · <b>Try the rest of the demo</b></summary>
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
 <h2>Get started</h2><ul>
-<li><a href="/docs/get-started/go-further-with-the-demo" aria-current="page">Go further with the demo</a></li>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+<li><a href="/docs/get-started/try-the-rest-of-the-demo" aria-current="page">Try the rest of the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
@@ -120,19 +120,15 @@
 </nav>
 </details>
 <main id="main" class="prose">
-<h1 id="go-further-with-the-demo">Go further with the demo</h1>
+<h1 id="try-the-rest-of-the-demo">Try the rest of the demo</h1>
 <p>This starts where <a href="/docs/get-started/try-the-demo">Try the demo</a> ends: <code>dev</code> is running and
 <code>$MCP</code> holds its <code>mcp</code> address. You pause a server, read the plane's
 counters, then run the demo's seven scenarios, which describe an agent's
 calls as data, and make one fail on purpose.</p>
 <p>Everything here is <code>experimental</code> (<a href="/docs/status#demo-servers">status.md</a>) and
-runs on the loopback only.</p>
-<h2 id="what-dev-keeps-current">What <code>dev</code> keeps current</h2>
-<p><code>dev</code> signed the policy under a key it dropped once it signed, and vouches
-that the bundle is current under a second key it keeps only in memory,
-renewing that statement while it runs (<a href="/docs/reference/dev">reference/dev.md</a>).
-A plane of your own does the same with two keys you keep:
-<a href="/docs/guides/run-the-gateway">run the gateway</a>.</p>
+runs on the loopback only. How <code>dev</code> keeps its policy signed and current is
+on <a href="/docs/reference/dev">reference/dev.md</a>, and how a plane of your own does
+it with two keys you keep is on <a href="/docs/guides/run-the-gateway">run the gateway</a>.</p>
 <h2 id="1-pause-the-orders-server">1. Pause the orders server</h2>
 <p>A dev plane's pause file is signed, so the page shows its pauses and writes
 none. Run the <code>pause_command</code> dev printed, with <code>--provider orders</code> in place
@@ -245,13 +241,13 @@ change what the plane decides.</li>
 <li><a href="/docs/guides/run-the-gateway">guides/run-the-gateway.md</a> to run a plane of
 your own with <code>run</code>, which <code>dev</code> builds the same way.</li>
 </ul>
-<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/get-started/go-further-with-the-demo.md">docs/get-started/go-further-with-the-demo.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.17.0, and <a href="https://github.com/guardana/control/tree/v0.17.0/docs">its documentation</a> is in its tag.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/get-started/try-the-rest-of-the-demo.md">docs/get-started/try-the-rest-of-the-demo.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.17.0, and <a href="https://github.com/guardana/control/tree/v0.17.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
 <h2>Get started</h2><ul>
-<li><a href="/docs/get-started/go-further-with-the-demo" aria-current="page">Go further with the demo</a></li>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+<li><a href="/docs/get-started/try-the-rest-of-the-demo" aria-current="page">Try the rest of the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>

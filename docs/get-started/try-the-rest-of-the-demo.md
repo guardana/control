@@ -1,11 +1,11 @@
 ---
-title: Go further with the demo
+title: Try the rest of the demo
 summary: On the demo's running plane, pause a server, read the counters, run the seven scenarios and make one fail on purpose.
 type: tutorial
 covers: [examples/vulnerable-mcp-agent/**, cmd/guardana-gateway/dev*.go]
 ---
 
-# Go further with the demo
+# Try the rest of the demo
 
 This starts where [Try the demo](try-the-demo.md) ends: `dev` is running and
 `$MCP` holds its `mcp` address. You pause a server, read the plane's
@@ -13,15 +13,9 @@ counters, then run the demo's seven scenarios, which describe an agent's
 calls as data, and make one fail on purpose.
 
 Everything here is `experimental` ([status.md](../status.md#demo-servers)) and
-runs on the loopback only.
-
-## What `dev` keeps current
-
-`dev` signed the policy under a key it dropped once it signed, and vouches
-that the bundle is current under a second key it keeps only in memory,
-renewing that statement while it runs ([reference/dev.md](../reference/dev.md)).
-A plane of your own does the same with two keys you keep:
-[run the gateway](../guides/run-the-gateway.md).
+runs on the loopback only. How `dev` keeps its policy signed and current is
+on [reference/dev.md](../reference/dev.md), and how a plane of your own does
+it with two keys you keep is on [run the gateway](../guides/run-the-gateway.md).
 
 ## 1. Pause the orders server
 

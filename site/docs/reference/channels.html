@@ -30,8 +30,8 @@
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
 <h2>Get started</h2><ul>
-<li><a href="/docs/get-started/go-further-with-the-demo">Go further with the demo</a></li>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+<li><a href="/docs/get-started/try-the-rest-of-the-demo">Try the rest of the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
@@ -145,7 +145,7 @@ first column. The detail stays where it is: what a record holds on
 <td>the <code>tools/call</code>, <code>resources/read</code> and <code>prompts/get</code> a client sends through it, and each upstream's tool list</td>
 <td>per call, evidence events: the arguments' and the result's hashes, the resource id an override points to, a resource's URI or a prompt's name, and the decision; never the arguments or the result</td>
 <td>each call, from the signed policy, before the server sees it</td>
-<td>yes, inline: outside <code>OBSERVE</code> a blocked or held call never reaches the server, and an allowed one carries only the authorized bytes</td>
+<td>yes, inline: outside <code>OBSERVE</code> a blocked call or a held request never reaches the server, and an allowed one carries only the authorized bytes</td>
 <td>a client that reaches a server directly; the caller is the configured principal, not a login; the methods on <a href="/docs/reference/mcp-coverage#what-the-gateway-cannot-do">what the gateway cannot do</a></td>
 </tr>
 <tr>
@@ -166,7 +166,7 @@ first column. The detail stays where it is: what a record holds on
 </tr>
 <tr>
 <td><a href="/docs/status#observations">Egress access log</a></td>
-<td>the connections an egress proxy logged: host, port, method, status, byte counts, and the caller as the proxy wrote it</td>
+<td>the connections an egress proxy logged: time, host, port, method, status, byte counts, and the caller as the proxy wrote it</td>
 <td>those, in the observation log; nothing else of the line, such as a path, query, header or body</td>
 <td>nothing</td>
 <td>nothing: no plane decides egress</td>
@@ -175,7 +175,7 @@ first column. The detail stays where it is: what a record holds on
 <tr>
 <td><a href="/docs/status#observations">Imported traces</a></td>
 <td>the spans the agent's runtime emitted under the OpenTelemetry GenAI conventions 1.41.0: tool, agent and model operations</td>
-<td>the operation, the tool, agent or model name, the provider, the server address, the error type and the run attribute; never a prompt, an output or reasoning</td>
+<td>the span's end time, its trace, span and parent span ids, its status, the operation, the tool, agent or model name, the provider, the server address, the error type and the run attribute; never a prompt, an output or reasoning</td>
 <td>nothing</td>
 <td>nothing</td>
 <td>the agent's own process writes the spans, so what it leaves out is unseen, and the source may not declare <code>TRUST_INDEPENDENT</code></td>
@@ -201,8 +201,8 @@ reach.</li>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
 <h2>Get started</h2><ul>
-<li><a href="/docs/get-started/go-further-with-the-demo">Go further with the demo</a></li>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+<li><a href="/docs/get-started/try-the-rest-of-the-demo">Try the rest of the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>

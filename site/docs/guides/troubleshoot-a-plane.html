@@ -30,8 +30,8 @@
 <nav class="inner" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
 <h2>Get started</h2><ul>
-<li><a href="/docs/get-started/go-further-with-the-demo">Go further with the demo</a></li>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+<li><a href="/docs/get-started/try-the-rest-of-the-demo">Try the rest of the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
@@ -149,7 +149,7 @@ curl -s http://127.0.0.1:8081/metrics | grep pipeline_blocks_total
 call: an answer marked <code>pending</code> comes from a plane in another mode, which
 <code>mode</code> shows.</p>
 <h2 id="an-approval-did-not-let-the-call-run">An approval did not let the call run</h2>
-<p><strong>Symptom.</strong> You approved a held call, and the agent's call still did not run.</p>
+<p><strong>Symptom.</strong> You approved a held request, and the agent's call still did not run.</p>
 <p><strong>Cause.</strong> An approval is spent only by the agent's retry of the same call,
 under the same policy bundle, before it expires
 (<a href="/docs/concepts/approvals-and-the-held-call#the-states-of-a-held-request">approvals</a>):</p>
@@ -178,8 +178,8 @@ event.</p>
 (<code>policy.freshness</code> is <code>unconfirmed</code> or <code>expired</code>), so material calls are
 blocked <code>POLICY_STALE</code> outside <code>OBSERVE</code>, or its stop list has passed nine
 tenths of a bound (<code>stops.degraded</code>), past which no more stops can be
-written. A halt, or a pause or stop state that is unknown, answers <code>503</code>
-instead.</p>
+written. A halt, a spool that cannot answer, or a pause or stop state that
+is unknown answers <code>503</code> instead.</p>
 <p><strong>Show it.</strong></p>
 <pre><code>curl -s http://127.0.0.1:8081/healthz | jq &#39;{status, freshness: .policy.freshness, stops_degraded: .stops.degraded}&#39;
 curl -s http://127.0.0.1:8081/metrics | grep policy_refresh_refused_total
@@ -195,9 +195,11 @@ start a new stop list with <code>stops init --carry</code> and restart
 <p><strong>Cause.</strong> A signed plane refuses to start when its own account owns or may
 write the configuration, the roster, the root key, the pause file, the
 route, the stop list or the runs directory's <code>records/</code>, or a directory on
-their path; when it runs as root; and when the environment sets any of its
-keys. A missing <code>plane_id</code>, <code>approvals.inbox_dir</code> or <code>trust</code> key is refused
-with the configuration. A roster it cannot take does not stop the start, but
+their path; when any of those entries is missing or carries an access control
+list (on Linux and macOS); when it runs as root; and when the environment sets any of its keys. A
+key a signed plane requires and does not find, such as <code>plane_id</code>,
+<code>approvals.inbox_dir</code>, a <code>trust</code> key or an <code>operators</code> kind, is refused with
+the configuration, which names the key. A roster it cannot take does not stop the start, but
 no operator's signature counts until one is taken.</p>
 <p><strong>Show it.</strong></p>
 <pre><code>guardana-gateway doctor --config gateway.yaml
@@ -211,8 +213,8 @@ lists the layout that passes.</p>
 <nav class="side" aria-label="Documentation">
 <ul class="home"><li><a href="/docs/">Overview</a></li></ul>
 <h2>Get started</h2><ul>
-<li><a href="/docs/get-started/go-further-with-the-demo">Go further with the demo</a></li>
 <li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+<li><a href="/docs/get-started/try-the-rest-of-the-demo">Try the rest of the demo</a></li>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
