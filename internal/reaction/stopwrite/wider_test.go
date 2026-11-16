@@ -140,34 +140,46 @@ func TestACarriedLiftOfAnAgentKeepsItsCoveredLinesScope(t *testing.T) {
 	if _, _, err := appendFinding(bg, from, fromRoute, wideStopOf(t, "f-1", "run-1", reaction.ScopeAgent, "agent-a", clock0, time.Hour), clock0); err != nil {
 		t.Fatal(err)
 	}
-	body, err := reaction.SignedLiftV3{KeyID: operatorID(), PlaneID: "plane-a", ListHead: h.Signed.Digest, Scope: reaction.ScopeAgent,
-		Subject: "agent-a", ThroughLine: 2, TenantID: "acme", Project: "shop", File: listPath(from)}.Payload()
-	if err != nil {
-		t.Fatal(err)
-	}
-	line, err := reaction.LiftLine{Scope: reaction.ScopeAgent, Subject: "agent-a", ThroughLine: 2,
-		Envelope: envelopeBy(t, operatorKey(), reaction.SignedLiftPayloadType, body)}.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-	appendRaw(t, from, line)
+	appendAgentLift(t, from, h, "agent-a", 2)
 	into := emptyDir(t)
 	c, err := stopwrite.CarrySigned(bg, from, fromRoute, into, widerRouteIn(t, into), clock0, signer(), nil)
 	if err != nil || c.Stops != 0 || c.LeftOut != 0 {
 		t.Fatalf("CarrySigned: %+v, %v; want the lifted stop carried as covered", c, err)
 	}
-	var found bool
-	for raw := range bytes.Lines(content(t, into)) {
-		l, err := reaction.ParseLine(bytes.TrimSuffix(raw, []byte{'\n'}))
-		if err != nil || l.Kind != reaction.KindCovered {
-			continue
-		}
-		found = true
-		if l.Covered.FindingID != "f-1" || l.Covered.Scope != reaction.ScopeAgent || l.Covered.Subject != "agent-a" || l.Covered.RunID != "run-1" {
-			t.Errorf("the carried covered line names %+v, want finding f-1 of agent agent-a found on run-1", l.Covered)
+	covered := coveredLines(t, into)
+	if len(covered) != 1 {
+		t.Fatalf("the carry wrote covered lines %+v, want one", covered)
+	}
+	if c := covered[0]; c.FindingID != "f-1" || c.Scope != reaction.ScopeAgent || c.Subject != "agent-a" || c.RunID != "run-1" {
+		t.Errorf("the carried covered line names %+v, want finding f-1 of agent agent-a found on run-1", c)
+	}
+}
+
+// appendAgentLift appends to the signed list in dir a lift of agent through
+// line, signed by the operator over the list's header h.
+func appendAgentLift(t *testing.T, dir string, h reaction.Header, agent string, through int64) {
+	t.Helper()
+	body, err := reaction.SignedLiftV3{KeyID: operatorID(), PlaneID: "plane-a", ListHead: h.Signed.Digest, Scope: reaction.ScopeAgent,
+		Subject: agent, ThroughLine: through, TenantID: "acme", Project: "shop", File: listPath(dir)}.Payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	line, err := reaction.LiftLine{Scope: reaction.ScopeAgent, Subject: agent, ThroughLine: through,
+		Envelope: envelopeBy(t, operatorKey(), reaction.SignedLiftPayloadType, body)}.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendRaw(t, dir, line)
+}
+
+// coveredLines is every covered line of the list in dir, in order.
+func coveredLines(t *testing.T, dir string) []reaction.Covered {
+	t.Helper()
+	var out []reaction.Covered
+	for raw := range bytes.Lines(content(t, dir)) {
+		if l, err := reaction.ParseLine(bytes.TrimSuffix(raw, []byte{'\n'})); err == nil && l.Kind == reaction.KindCovered {
+			out = append(out, l.Covered)
 		}
 	}
-	if !found {
-		t.Fatal("the carry wrote no covered line")
-	}
+	return out
 }
