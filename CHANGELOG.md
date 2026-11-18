@@ -117,6 +117,17 @@ verify one.
 - `llms.txt` on the website: every documentation page with its address and
   summary, grouped as the index groups them, and the records.
 
+### Fixed
+
+- Under `signed` a new stop list is written `0640`, so a plane on an account
+  of its own reads it through the group of its directory, the stop writers',
+  mode `2750` in a group the plane's account is in. It was `0600`, which such
+  a plane could not read, so it refused every call with
+  `STOP_STATE_UNAVAILABLE`. A list written `0600` needs one `chmod 0640` by
+  the stop writers' account, its owner; `react` and `stops lift` keep the
+  mode, and the carry of the 0.18 upgrade writes its new list `0640`
+  ([signed reaction](docs/reference/reaction-signed.md)).
+
 ### Documentation
 
 - Three reading paths on the documentation index, a shorter first tutorial
