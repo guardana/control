@@ -39,7 +39,7 @@ func (l *lines) next() (line []byte, tooLong, ok bool, err error) {
 	for {
 		chunk, err := l.br.ReadSlice('\n')
 		if err != nil && !errors.Is(err, bufio.ErrBufferFull) {
-			if errors.Is(err, io.EOF) {
+			if err == io.EOF {
 				return nil, false, false, nil
 			}
 			return nil, false, false, err
