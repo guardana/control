@@ -141,7 +141,8 @@ func makeSignedLayout(dir string) error {
 
 // chmodMade sets the mode of the directory name, just made under top, through
 // a handle on that directory, so a link or another directory put in its place
-// is refused rather than changed.
+// is refused rather than changed. A setgid bit the directory took from a
+// setgid parent is kept, so what is written in it takes its group.
 func chmodMade(top *os.Root, name string, mode fs.FileMode) error {
 	made, err := top.Lstat(name)
 	if err != nil {
@@ -156,7 +157,7 @@ func chmodMade(top *os.Root, name string, mode fs.FileMode) error {
 		err = fmt.Errorf("%w: %s was replaced while it was made", ErrLayout, name)
 	}
 	if err == nil {
-		err = f.Chmod(mode)
+		err = f.Chmod(mode | opened.Mode()&fs.ModeSetgid)
 	}
 	return errors.Join(err, f.Close())
 }

@@ -46,9 +46,8 @@ Every flag but `--parent` is required. `--project` must be the plane's
 what its listener resolves: `listener.principal.tenant_id`, or else
 `tenant_id`, `listener.principal.type`, `listener.principal.id` and
 `listener.agent.id`. A token presented for any other identity is refused, so
-planes of two projects that share a directory and a listener identity never
-serve each other's runs. `--ttl` is a duration from `1m` to `720h`, with no
-default.
+planes of two projects sharing a directory and a listener identity never
+serve each other's runs. `--ttl` is a duration from `1m` to `720h`.
 
 `--parent <run id>` opens the run under an open run of the same project and
 tenant. The two then share the parent's root and its flow state, because data
@@ -107,7 +106,8 @@ by the plane's account, mode `0700`, and nothing else
 `runs open` with `--key <operator key> --roster <roster>
 --root-key <root public key>` makes an empty directory one, giving
 `state/` to the account that ran it: `chown` it to the plane's account, and
-put that account in `records/`'s group. A plane refuses an unsigned
+put that account in `records/`'s group. `records/` and its records take a
+setgid runs directory's group. A plane refuses an unsigned
 directory and a `records/` or record its own account owns, and will not
 start when that account may write `records/` or a directory on its path.
 
@@ -177,4 +177,4 @@ remove the old directory once no plane names it.
 
 A reopened run starts with a clean flow state, so what an agent took in
 under the old run goes unmarked: end each agent's task and start a new one
-under the new run, never handing a new token to an agent mid-task.
+under the new run.
