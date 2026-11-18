@@ -34,7 +34,7 @@ func (l *lines) next() (line []byte, tooLong, ok bool, err error) {
 	var parts [][]byte
 	for {
 		chunk, err := l.br.ReadSlice('\n')
-		if err != nil && err != bufio.ErrBufferFull {
+		if err != nil && err != bufio.ErrBufferFull { //nolint:errorlint // identity: ReadSlice returns the sentinel itself; a source error matching it is a failure
 			if err == io.EOF {
 				return nil, false, false, nil
 			}
