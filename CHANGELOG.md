@@ -127,6 +127,20 @@ verify one.
   the stop writers' account, its owner; `react` and `stops lift` keep the
   mode, and the carry of the 0.18 upgrade writes its new list `0640`
   ([signed reaction](docs/reference/reaction-signed.md)).
+- `approvals list` reads an approvals directory another account owns and
+  writes nothing, so an operator under `signed` lists the plane's directory
+  from their own account; it refused that directory as another account's. It
+  still refuses one a group or others may write.
+- Under `signed`, `runs open --key` keeps the setgid bit `records/` takes
+  from a setgid runs directory, so the records take `records/`'s group and a
+  plane in that group reads them. The bit was cleared, so the records took
+  the operator's primary group, which such a plane could not read. Over a
+  layout made before, the operator runs `chmod g+s records` and gives the
+  records already there `records/`'s group with `chgrp`.
+- The console no longer says an approved record past its expiry expired
+  before a retry used it: it cannot see whether a retry spent it first, and
+  says so. An OpenTelemetry or egress log import whose source fails with an
+  error wrapping `io.EOF` now fails, where it ended as a complete import.
 
 ### Documentation
 
