@@ -107,9 +107,10 @@ by the plane's account, mode `0700`, and nothing else
 --root-key <root public key>` makes an empty directory one, giving
 `state/` to the account that ran it: `chown` it to the plane's account, and
 put that account in `records/`'s group. `records/` and its records take a
-setgid runs directory's group. A plane refuses an unsigned
-directory and a `records/` or record its own account owns, and will not
-start when that account may write `records/` or a directory on its path.
+setgid runs directory's group if the account running `runs open` is in it,
+or `runs open` refuses. A plane refuses an unsigned directory and a
+`records/` or record its own account owns, and will not start when that
+account may write `records/` or a directory on its path.
 
 Each record is a `3.0` envelope an operator granted `operate` signed for the
 run's tenant and project and for one `records/` path
@@ -164,17 +165,16 @@ its id.
 
 A record from before `project_id` is of `schema_version` `1.0` and names no
 project. It is never read as any project's run: its token is refused as
-`unreadable`, a stdio plane given it refuses the start saying the record names
-no project, `runs list` refuses the directory while it holds one, and
-`runs close`, `runs open --parent` and `react`, for a finding that names it,
-refuse that run.
+`unreadable`, a stdio plane refuses to start on it, `runs list` refuses its
+directory, and `runs close`, `runs open --parent` and `react` refuse that
+run.
 
 Move to a new, empty directory, never into the old one: while one `1.0`
-record is left, `runs list` refuses the whole directory, and
-so does `supervise` of every run under a procedure that reads children. Open
+record is left, `runs list` and `supervise` under a procedure that reads
+children refuse the whole directory. Open
 each run again there with `runs open --project`, point `runs.dir` at it, and
 remove the old directory once no plane names it.
 
 A reopened run starts with a clean flow state, so what an agent took in
 under the old run goes unmarked: end each agent's task and start a new one
-under the new run.
+under the new run, never handing a new token to an agent mid-task.

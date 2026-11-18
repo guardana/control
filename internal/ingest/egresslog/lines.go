@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"hash"
 	"io"
 )
@@ -38,7 +37,7 @@ func (l *lines) next() (line []byte, tooLong, ok bool, err error) {
 	var buf []byte
 	for {
 		chunk, err := l.br.ReadSlice('\n')
-		if err != nil && !errors.Is(err, bufio.ErrBufferFull) {
+		if err != nil && err != bufio.ErrBufferFull {
 			if err == io.EOF {
 				return nil, false, false, nil
 			}
