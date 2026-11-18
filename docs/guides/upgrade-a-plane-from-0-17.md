@@ -32,7 +32,8 @@ both binaries and start it. Three things it answers differ.
 - `stops lift` takes exactly one of `--run`, `--agent` and `--principal`, the
   last two only under `signed`, so a 0.17 lift with `--run` runs as before.
 
-To go back, start the 0.17 binaries on the same files.
+To go back under `directory` or `memory`, start the 0.17 binaries on the
+same files; a signed plane goes back as its [roll back](#roll-back) says.
 
 ## A signed plane
 
@@ -45,9 +46,12 @@ To go back, start the 0.17 binaries on the same files.
   file again in place.
 - An operator of the roster holds `admin` for the route and `operate` for the
   pause file and the stop list in the plane's tenant and project.
-- The paths and names below are examples: `/srv/plane` holds the plane's
-  files, `orders-eu-1` is its `plane_id`, `ops` is the stop writers' account,
-  which holds an operator's key, and `guardana` is the plane's group.
+- The paths and names below are examples: `/srv/plane` holds the route and
+  the stop lists, which the account that signs the route may write and the
+  plane's account may not, or the plane refuses to start;
+  `/var/lib/guardana/stopsfloor` is the plane's stop list floor;
+  `orders-eu-1` is its `plane_id`, `ops` is the stop writers' account, which
+  holds an operator's key, and `guardana` is the plane's group.
 
 ### Steps
 
@@ -65,7 +69,7 @@ guardana-control route sign --key admin.key --out /srv/plane/route-018.json rout
 
 # 3. As root: a copy of the plane's stop list floor for ops, and the new stops
 # directory.
-cp -Rp /srv/plane/stopsfloor /srv/plane/stopsfloor-copy
+cp -Rp /var/lib/guardana/stopsfloor /srv/plane/stopsfloor-copy
 chown -R ops /srv/plane/stopsfloor-copy
 mkdir /srv/plane/stops-018
 chown ops:guardana /srv/plane/stops-018
@@ -81,15 +85,17 @@ guardana-control stops init --key op.key --route /srv/plane/route-018.json \
 # 5. As root: the copy is no longer needed.
 rm -r /srv/plane/stopsfloor-copy
 
-# 6. As the plane: a new backup, whose manifest 0.2 names the plane.
+# 6. In gateway.yaml: set reaction.route to /srv/plane/route-018.json and
+# reaction.stops to /srv/plane/stops-018. Then, with the plane still stopped,
+# as the plane: a new backup, whose manifest 0.2 names the plane and holds
+# the carried list.
 guardana-control state backup gateway.yaml /backups/plane-2
 ```
 
-Then set `reaction.route` to `/srv/plane/route-018.json` and
-`reaction.stops` to `/srv/plane/stops-018`, and start the plane. Leave the new
-route where step 2 signed it: a signed route names its own file and the new
-list's header names that route, so a route moved to the old path is refused.
-Keep `route.json` and `stops` for a roll back.
+Then start the plane. Leave the new route where step 2 signed it: a signed
+route names its own file and the new list's header names that route, so a
+route moved to the old path is refused. Keep `/srv/plane/route.json` and
+`/srv/plane/stops` for a roll back.
 
 Run `react` with the 0.18 binary as `ops`, with `--route
 /srv/plane/route-018.json` and `--stops /srv/plane/stops-018`. A 0.17 `react`
@@ -119,11 +125,11 @@ lifted run's findings are carried as covered.
 
 ### Roll back
 
-0.17 refuses a `reaction-route/v1alpha3` route, a `3.0` list and a backup
-whose manifest names a plane. To go back, stop the plane, point
-`reaction.route` and `reaction.stops` at the 0.17 files you kept, copy the
-0.17 pause file you kept back to its path, and start 0.17. Three floors hold
-what 0.18 took:
+0.17 refuses a `reaction-route/v1alpha3` route, a `3.0` list, a backup
+whose manifest names a plane and the `plane_id` key. To go back, stop the
+plane, remove `plane_id` from its configuration, point `reaction.route` and
+`reaction.stops` at the 0.17 files you kept, copy the 0.17 pause file you kept
+back to its path, and start 0.17. Three floors hold what 0.18 took:
 
 - The pause floor holds the serial `pause sign` gave the pause file, so 0.17
   refuses the copy below it. Make a new pause floor with `pause floor init

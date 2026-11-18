@@ -882,8 +882,9 @@ no path chosen yet, and no milestone names it.
 A plane reads a roster only under `approvals.authority: signed`, where it needs
 a `plane_id`, serves one tenant
 ([ADR-0082](adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant.md)),
-and `doctor` and `/healthz` report `trust`, naming that id,
-`operators.authenticator` and `operators.authorizer`; the plane refuses to start
+and `doctor` and `health.socket` report `trust`, naming that id,
+`operators.authenticator` and `operators.authorizer`, as `/healthz` does
+without the id; the plane refuses to start
 when its account may write the roster file, so that account cannot put an older
 roster in place; it still raises the roster's floor, so it can withhold a newer
 roster within the held one's lifetime; a `read` grant parses and grants nothing
