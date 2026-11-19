@@ -163,6 +163,14 @@ func TestThePipelineNeverTrustsTheStoresApproval(t *testing.T) {
 		{"another bundle", func(a *controlv1.Approval) *controlv1.Approval { a.PolicyBundleDigest = "sha256:" + digits; return a }, closesExpired, verdictDeny, codeApprovalBundleMismatch},
 		{"expiring now", func(a *controlv1.Approval) *controlv1.Approval { a.ExpiresAt = timestamppb.New(base()); return a }, closesExpired, verdictDeny, codeApprovalExpired},
 		{"no expiry", func(a *controlv1.Approval) *controlv1.Approval { a.ExpiresAt = nil; return a }, closesExpired, verdictDeny, codeApprovalExpired},
+		{"an expiry with nanos past a second", func(a *controlv1.Approval) *controlv1.Approval {
+			a.ExpiresAt = &timestamppb.Timestamp{Seconds: base().Unix() - 1, Nanos: 2_000_000_000}
+			return a
+		}, closesExpired, verdictDeny, codeApprovalExpired},
+		{"another major, expired", func(a *controlv1.Approval) *controlv1.Approval {
+			a.SchemaVersion, a.ExpiresAt = "2.0", timestamppb.New(base())
+			return a
+		}, closesExpired, verdictIndeterminate, codeEvidenceUnavailable},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
