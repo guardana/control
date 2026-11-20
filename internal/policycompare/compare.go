@@ -113,7 +113,7 @@ func judge(c Case, before, after side) (Reason, string) {
 	case before.external || after.external:
 		return ReasonExternalAnswerNeeded, "a rule reads the external decision point's answer and stays undetermined on what the case gives it"
 	case len(before.missing) > 0 || len(after.missing) > 0:
-		return ReasonMissingFacts, "a rule reads " + strings.Join(union(before.missing, after.missing), ", ") + ", which the case does not hold"
+		return ReasonMissingFacts, "the decision reads " + strings.Join(union(before.missing, after.missing), ", ") + ", which the case does not hold"
 	case c.Source == SourceEvidence:
 		return crossCheck(c.recorded, before, after)
 	}

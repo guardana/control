@@ -306,3 +306,29 @@ func TestPolicyCompareRefusesARepeatedFlag(t *testing.T) {
 		}
 	}
 }
+
+// A case the kernel denies for two tenants, whatever either policy says, is
+// unknown, so a run of it alone exits 1, never 0.
+func TestPolicyCompareKernelDenialExitsOne(t *testing.T) {
+	var c map[string]any
+	if err := json.Unmarshal([]byte(corpusCase(t, "read-order.json")), &c); err != nil {
+		t.Fatal(err)
+	}
+	envelope, _ := c["envelope"].(map[string]any)
+	resource, _ := envelope["resource"].(map[string]any)
+	if resource["tenantId"] != "tenant-1" {
+		t.Fatalf("the corpus case names resource tenant %v", resource["tenantId"])
+	}
+	resource["tenantId"] = "tenant-2"
+	raw, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	writeFixture(t, filepath.Join(dir, "tenants.json"), string(raw))
+	report := filepath.Join(t.TempDir(), "r.json")
+	code, stdout, stderr := invoke(t, compareArgsFor(report, "--cases", dir)...)
+	if code != exitFail || stderr != "" || !strings.Contains(stdout, "unknown: 1 of 1 (not_evaluated 1)\n") {
+		t.Errorf("exit %d, %q %q, want 1 and the case not evaluated", code, stdout, stderr)
+	}
+}

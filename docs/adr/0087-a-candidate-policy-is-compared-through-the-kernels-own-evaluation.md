@@ -29,8 +29,8 @@ each case's `loaded_at`. Every case is decided twice through
 `Kernel.Explain`, the evaluation the plane's `Decide` runs. Nothing else
 decides.
 
-**The cases.** A case file is a `policy test` case with `expect` optional,
-checked if present and not compared; its `document` must have the current document's canonical digest,
+**The cases.** A case file is a `policy test` case with `expect` optional:
+its format is checked; it is not compared with any decision; its `document` must have the current document's canonical digest,
 or the run is refused naming the file. A request of an evidence export is a
 case when it holds one `ACTION_PROPOSED` and one `POLICY_DECIDED`: the
 proposal's envelope with arguments `{}` and their hash recomputed, no flow,
@@ -42,7 +42,9 @@ either side, when it cannot say what the candidate changes: an incomplete
 request, in an export that is not whole or in one that is; a proposal or
 decision of a major this build does not read; more than one decision; a
 decision on another policy (the historic policy is missing); a decision not
-recorded fresh; a side the kernel could not evaluate or on which no rule ran;
+recorded fresh; a side the kernel could not evaluate, on which no rule ran, or that the
+kernel denied on its own whatever the rules decide (a refused delegation,
+two tenants);
 a side whose policy is stale at the case's time, for every source; a rule
 left undetermined on either side by a field, the flow or the decision point's
 answer the case lacks; and, for evidence, an obligation the record does not

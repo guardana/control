@@ -34,10 +34,13 @@ documents, nine cases, an export with a gap and a labels file.
 
 Each case file carries the whole document it is decided under, and
 `policy compare` refuses one whose document is not `--current`. Copy the
-current document into every case's `document`; `expect` may stay: it is
-checked if present, and not compared. Keep each case's `decided_at` within
-both policies' `maxStaleSeconds` of its `loaded_at`, or the case is unknown
-as `freshness_not_held`.
+current document into every case's `document`; `expect` may stay: its format
+is checked; it is not compared with any decision. Keep each case's
+`decided_at` within its staleness budget of its `loaded_at` under both
+policies, the smaller of the policy's `maxStaleSeconds` and the case's
+`options.max_stale_seconds`, or the case is unknown as `freshness_not_held`.
+A case the kernel denies on its own, for a refused delegation or two
+tenants, is unknown as `not_evaluated`: it says nothing about either policy.
 
 ### 2. Export the evidence
 

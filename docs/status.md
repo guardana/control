@@ -378,8 +378,9 @@ point answer, so a rule reading flow or that answer leaves it unknown, and so
 does a decision on another policy or not recorded fresh, of another major, or
 a current side that disagrees with the recorded decision. A request a gap cut
 is unknown, and one that looks whole may have lost later events, which the
-report's scope says. Any case is unknown when no rule ran on a side or a
-side's policy is stale at its time. Limits: every result is simulated,
+report's scope says. Any case is unknown when no rule ran on a side, the kernel
+denied it on its own for a refused delegation or two tenants, or a side's
+policy is stale at its time. Limits: every result is simulated,
 never a call that ran; labels count by label and change, and a labeller's
 independence from the author is declared, never verified; the plane's own
 staleness budget, `fail_open_read` and applicable obligations are not in the

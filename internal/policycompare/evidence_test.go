@@ -277,3 +277,20 @@ func TestNotWholeExportNamesWhatItMayHaveLost(t *testing.T) {
 		}
 	}
 }
+
+// A request the plane denied for an expired delegation was decided by the
+// kernel's own check, which today's kernel repeats on both sides: it is not
+// compared, though the candidate holds the wire under a second approver.
+func TestEvidenceOfAKernelDenialIsNotCompared(t *testing.T) {
+	current := signed(t, currentDoc).Bundle.GetRef().GetDigest()
+	env := envelope("expired", "wire", pay, "prod")
+	env.Delegation = expiredDelegation()
+	d := recorded("expired", current, controlv1.Verdict_VERDICT_DENY, "DELEGATION_EXPIRED", "APPROVAL_REQUIRED")
+	r := compareOrFail(t, EvidenceCases(Export{Whole: true, Events: []*controlv1.Event{proposed(env), decidedEvent(d)}}, current), nil)
+	if row := rowOf(t, r, "request:expired"); row.Change != Unknown || reasonOf(row) != ReasonNotEvaluated {
+		t.Errorf("expired delegation: %s %q (%v), want unknown %q", row.Change, reasonOf(row), row.UnknownDetail, ReasonNotEvaluated)
+	}
+	if r.Complete() {
+		t.Error("a run of one kernel denial is complete")
+	}
+}

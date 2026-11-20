@@ -8,6 +8,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 )
 
 func TestCompareCountsOverTheirOwnDenominators(t *testing.T) {
@@ -207,5 +211,68 @@ func TestNoRuleEvaluatedIsNotEvaluated(t *testing.T) {
 	}
 	if r.Complete() || r.Counts.EvaluatedBothSides.Count != 0 {
 		t.Errorf("complete %v, %+v, want incomplete with nothing evaluated", r.Complete(), r.Counts)
+	}
+}
+
+// expiredDelegation is a chain that expired an hour before t0.
+func expiredDelegation() []*controlv1.Delegation {
+	return []*controlv1.Delegation{{From: "user-1", To: "agent-1", Scopes: []string{"wire"},
+		IssuedAt: timestamppb.New(t0.Add(-2 * time.Hour)), ExpiresAt: timestamppb.New(t0.Add(-time.Hour))}}
+}
+
+// The kernel denies a refused delegation and two different tenants whatever
+// the rules decide, so such a case says nothing about either policy. Here
+// the candidate drops the wire's second approver, which only the plain wire
+// shows. A tenant left unstated on a material call is a fact the case lacks:
+// the kernel cannot decide it, whatever the rules allow.
+func TestAKernelDenialOfItsOwnIsNotCompared(t *testing.T) {
+	expired := envelope("r1", "wire", pay, "prod")
+	expired.Delegation = expiredDelegation()
+	tenants := envelope("r2", "wire", pay, "prod")
+	tenants.Resource.TenantId = "tenant-2"
+	// A transaction must name both tenants or the contract refuses it; a
+	// write may name one.
+	unstated := envelope("r3", "orders.update", write, "prod")
+	unstated.Resource.TenantId = ""
+	r, err := Compare(Run{Current: signed(t, candidateDoc), Candidate: signed(t, currentDoc), Build: "test", Cases: []Case{
+		explicit("case:expired.json", expired), explicit("case:tenants.json", tenants),
+		explicit("case:unstated.json", unstated), explicit("case:wire.json", envelope("r4", "wire", pay, "prod")),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]Reason{
+		"case:expired.json": ReasonNotEvaluated, "case:tenants.json": ReasonNotEvaluated, "case:unstated.json": ReasonMissingFacts,
+	} {
+		if row := rowOf(t, r, id); row.Change != Unknown || reasonOf(row) != want || row.Before.Verdict != nil {
+			t.Errorf("%s: %s %q, want unknown %q with no verdict", id, row.Change, reasonOf(row), want)
+		}
+	}
+	if got := rowOf(t, r, "case:unstated.json").Before.MissingFacts; !slices.Equal(got, []string{"resource.tenant_id"}) {
+		t.Errorf("unstated tenant: missing facts %q, want resource.tenant_id", got)
+	}
+	if row := rowOf(t, r, "case:wire.json"); row.Change != Looser {
+		t.Errorf("the wire without its second approver: %s, want looser", row.Change)
+	}
+}
+
+// A run made only of cases the kernel denied on its own is not complete.
+func TestARunOfKernelDenialsIsNotComplete(t *testing.T) {
+	for name, env := range map[string]func() *controlv1.ActionEnvelope{
+		"delegation": func() *controlv1.ActionEnvelope {
+			e := envelope("r1", "wire", pay, "prod")
+			e.Delegation = expiredDelegation()
+			return e
+		},
+		"tenants": func() *controlv1.ActionEnvelope {
+			e := envelope("r1", "wire", pay, "prod")
+			e.Resource.TenantId = "tenant-2"
+			return e
+		},
+	} {
+		r := compareOrFail(t, []Case{explicit("case:"+name+".json", env())}, nil)
+		if r.Complete() || r.Counts.Unknown.ByReason[ReasonNotEvaluated] != 1 {
+			t.Errorf("%s: complete %v, %+v, want incomplete with one not evaluated", name, r.Complete(), r.Counts)
+		}
 	}
 }

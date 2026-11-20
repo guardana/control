@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
@@ -15,6 +16,8 @@ import (
 // needsExternal is what a trace names for a rule that waits on the external
 // decision point's answer.
 const needsExternal = "external"
+
+const codeTenantMismatch = "TENANT_MISMATCH"
 
 // loader loads one policy once for each instant a case loads it at.
 type loader struct {
@@ -71,9 +74,8 @@ func evaluate(l *loader, in Input) side {
 	if d == nil {
 		return side{err: "the kernel returned no decision"}
 	}
-	if why.Rules == nil {
-		return side{err: fmt.Sprintf("no rule was evaluated: the kernel decided %s %v before the policy",
-			verdictName(d.GetVerdict()), d.GetReasonCodes())}
+	if reason := ownDecision(why, d); reason != "" {
+		return side{err: reason}
 	}
 	s := side{
 		evaluated:   true,
@@ -83,7 +85,37 @@ func evaluate(l *loader, in Input) side {
 		obligations: d.GetObligations(),
 		stale:       d.GetPolicyFreshness() != controlv1.PolicyFreshness_POLICY_FRESHNESS_FRESH,
 	}
-	for _, tr := range why.Rules {
+	// One tenant named on a material call is undetermined whatever the rules
+	// allow, so the tenant left out is a fact the case lacks.
+	if why.TenantUnstated != "" {
+		s.missing = append(s.missing, why.TenantUnstated)
+	}
+	s.readTraces(why.Rules)
+	return s
+}
+
+// ownDecision names why the kernel decided a side without its rules, or
+// regardless of them, or is empty when the rules decided it: no rule was
+// evaluated, the delegation chain was refused, or the two tenants differ.
+// The last two are DENYs of the kernel's own on every policy; a rule cannot
+// name TENANT_MISMATCH, so the code is the kernel's.
+func ownDecision(why core.Explanation, d *controlv1.Decision) string {
+	switch {
+	case why.Rules == nil:
+		return fmt.Sprintf("no rule was evaluated: the kernel decided %s %v before the policy",
+			verdictName(d.GetVerdict()), d.GetReasonCodes())
+	case why.Delegation.State == core.DelegationRefused:
+		return fmt.Sprintf("the kernel refused the delegation chain %s, a DENY of its own whatever the rules decide",
+			strconv.Quote(why.Delegation.Code))
+	case slices.Contains(d.GetReasonCodes(), codeTenantMismatch):
+		return "the principal's and the resource's tenants differ, a DENY of the kernel's own whatever the rules decide"
+	}
+	return ""
+}
+
+// readTraces adds every input an undetermined rule lacked to s.missing.
+func (s *side) readTraces(rules []match.RuleTrace) {
+	for _, tr := range rules {
 		// A rule a false constraint decided reads no unknown into the
 		// decision, whatever else it could not read.
 		if tr.Value != match.ValueUnknown {
@@ -98,5 +130,4 @@ func evaluate(l *loader, in Input) side {
 			}
 		}
 	}
-	return s
 }

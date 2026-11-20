@@ -44,7 +44,7 @@ func policyCompareFlags(command string, out io.Writer) (*flag.FlagSet, *compareA
 	a := &compareArgs{}
 	flags.Var(&onceString{dst: &a.current}, "current", "the policy `document` in force, as policy sign takes it; every case file's document is this one")
 	flags.Var(&onceString{dst: &a.candidate}, "candidate", "the policy `document` to compare with it")
-	flags.Var(&onceString{dst: &a.cases}, "cases", "a `dir` of policy test cases; expect is optional, checked if present, not compared")
+	flags.Var(&onceString{dst: &a.cases}, "cases", "a `dir` of policy test cases; expect is optional, its format is checked, and it is not compared with any decision")
 	flags.Var(&onceString{dst: &a.evidence}, "evidence", "an evidence `export`, as the gateway's trail export wrote it; each request is a case")
 	flags.Var(&onceString{dst: &a.labels}, "labels", "a policy-case-labels/v1alpha1 `file` labelling cases attack or legitimate")
 	flags.Var(&onceString{dst: &a.report}, "report", "the `file` the report is written to; one that exists is refused")

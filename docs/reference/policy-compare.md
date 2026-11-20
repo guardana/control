@@ -26,7 +26,7 @@ its obligation parameter check, as `policy explain` signs.
 | Flag | Reads |
 | --- | --- |
 | `--current`, `--candidate` | A policy document ([policy-format.md](policy-format.md#the-document)). |
-| `--cases` | A directory of [test cases](policy-format.md#a-test-case), read as `policy test` reads one; `expect` is optional, checked if present, not compared. Each case's `document` must have the current document's canonical digest, or the run is refused naming the file. A case's id is `case:` and its file name. |
+| `--cases` | A directory of [test cases](policy-format.md#a-test-case), read as `policy test` reads one; `expect` is optional; its format is checked; it is not compared with any decision. Each case's `document` must have the current document's canonical digest, or the run is refused naming the file. A case's id is `case:` and its file name. |
 | `--evidence` | An [evidence export](../contracts.md#the-evidence-export), owned by this account and not writable by others. Each request it names is a case, `request:` and its id. |
 | `--labels` | A labels file, below. |
 
@@ -36,9 +36,12 @@ of `--cases` and `--evidence` is given.
 ## A case's times
 
 Each side loads its policy at the case's `loaded_at` and decides at its
-`decided_at`, under that policy's own `maxStaleSeconds`. A side whose policy
-is stale at `decided_at` decides on its staleness, not its rules, so the case
-is unknown, `freshness_not_held`, whatever its source.
+`decided_at`. Its staleness budget is the smaller of that policy's
+`maxStaleSeconds` and, for a case file, the case's
+`options.max_stale_seconds`; an evidence case has no operator budget, so the
+policy's own applies alone. A side stale at `decided_at` decides on its
+staleness, not its rules, so the case is unknown, `freshness_not_held`,
+whatever its source.
 
 ## An evidence case
 
@@ -64,9 +67,9 @@ counted unchanged. The reasons, in the order the report lists them:
 | `several_decisions` | Holds more than one `POLICY_DECIDED`. |
 | `historic_policy_missing` | Was decided on a policy whose digest is not `--current`'s. |
 | `recorded_stale` | Was decided on a stale policy. |
-| `not_evaluated` | On a side the policy did not load, the kernel refused the case's options or returned no decision, or no rule was evaluated: the envelope or its arguments refused, a delegation refused, or a clock reading the kernel judges nothing at, such as a `decided_at` before the load. |
+| `not_evaluated` | On a side the policy did not load, the kernel refused the case's options or returned no decision, no rule was evaluated (the envelope or its arguments refused, or a clock reading the kernel judges nothing at, such as a `decided_at` before the load), or the kernel denied the call on its own whatever the rules decide: a delegation chain refused, or the principal's and the resource's tenants differ. |
 | `external_answer_needed` | A rule on either side waits on the decision point's answer. |
-| `missing_facts` | A rule on either side is undetermined for a field or a flow input the case lacks. |
+| `missing_facts` | A rule on either side is undetermined for a field or a flow input the case lacks, or a material call names one tenant only, which the kernel cannot decide. |
 | `freshness_not_held` | A side's policy is stale at the case's `decided_at`. |
 | `obligation_applicability_unknown` | Evidence: a side names a non-advisory obligation type the recorded decision does not carry. |
 | `disagrees_with_record` | Evidence: the current side's verdict or codes differ from the recorded ones. |
