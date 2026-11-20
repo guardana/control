@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCompareCountsOverTheirOwnDenominators(t *testing.T) {
@@ -158,5 +159,53 @@ func TestCompareRefusesARunItCannotCount(t *testing.T) {
 	twice := append(unknown(1), unknown(1)...)
 	if err := run(twice); !errors.Is(err, ErrInput) || !strings.Contains(err.Error(), "twice") {
 		t.Errorf("one id twice: %v", err)
+	}
+}
+
+// A case decided past one side's own staleness budget shows that side's
+// staleness, not its rules: the candidate keeps its policy fresh for a
+// minute, so ten minutes after the load its write would read stricter or
+// other though its rules allow more. It is unknown for every source.
+func TestAStaleSideMakesTheCaseUnknown(t *testing.T) {
+	late := func(c Case) Case {
+		c.Input.DecidedAt = t0.Add(10 * time.Minute)
+		return c
+	}
+	r := compareOrFail(t, []Case{
+		late(explicit("case:write.json", envelope("r1", "orders.update", write, "prod"))),
+		late(explicit("case:read.json", envelope("r2", "orders.read", read, "prod"))),
+		explicit("case:fresh.json", envelope("r3", "orders.update", write, "prod")),
+	}, nil)
+	for _, id := range []string{"case:write.json", "case:read.json"} {
+		if row := rowOf(t, r, id); row.Change != Unknown || reasonOf(row) != ReasonFreshnessNotHeld {
+			t.Errorf("%s: %s %q, want unknown %q", id, row.Change, reasonOf(row), ReasonFreshnessNotHeld)
+		}
+	}
+	if row := rowOf(t, r, "case:fresh.json"); row.Change != Looser {
+		t.Errorf("the same write decided at its load: %s, want looser", row.Change)
+	}
+	if c := r.Counts.Change; c.Stricter != 0 || c.Other != 0 || c.Looser != 1 {
+		t.Errorf("change %+v, want one looser and nothing stricter or other", c)
+	}
+}
+
+// A side on which no rule ran, because the kernel refused the envelope or
+// judged nothing at a time before the load, says nothing about either
+// policy: the case is unknown, never unchanged, and the run is not complete.
+func TestNoRuleEvaluatedIsNotEvaluated(t *testing.T) {
+	early := explicit("case:early.json", envelope("r1", "orders.update", write, "prod"))
+	early.Input.DecidedAt = t0.Add(-time.Hour)
+	refused := explicit("case:refused.json", envelope("r2", "orders.update", write, "prod"))
+	refused.Input.Envelope.SchemaVersion = "9.0"
+	r := compareOrFail(t, []Case{early, refused}, nil)
+	for _, id := range []string{"case:early.json", "case:refused.json"} {
+		row := rowOf(t, r, id)
+		if row.Change != Unknown || reasonOf(row) != ReasonNotEvaluated || row.Before.Evaluated || row.After.Evaluated {
+			t.Errorf("%s: %s %q, evaluated %v %v, want unknown %q on neither side evaluated", id, row.Change, reasonOf(row),
+				row.Before.Evaluated, row.After.Evaluated, ReasonNotEvaluated)
+		}
+	}
+	if r.Complete() || r.Counts.EvaluatedBothSides.Count != 0 {
+		t.Errorf("complete %v, %+v, want incomplete with nothing evaluated", r.Complete(), r.Counts)
 	}
 }

@@ -11,22 +11,28 @@ func decided(v controlv1.Verdict, a core.EnforcementAction, codes ...string) sid
 	return side{evaluated: true, verdict: v, action: a, codes: codes}
 }
 
+func with(s side, obligations ...*controlv1.Obligation) side {
+	s.obligations = obligations
+	return s
+}
+
 var (
 	execute     = decided(controlv1.Verdict_VERDICT_ALLOW, core.Execute, "RULE_ALLOW")
-	obligations = side{evaluated: true, verdict: controlv1.Verdict_VERDICT_ALLOW_WITH_OBLIGATIONS,
-		action: core.ExecuteWithObligations, codes: []string{"OBLIGATIONS_ATTACHED"},
-		obligations: []*controlv1.Obligation{{Type: "emit_alert"}}}
-	hold  = decided(controlv1.Verdict_VERDICT_REQUIRE_APPROVAL, core.AwaitApproval, "APPROVAL_REQUIRED")
-	block = decided(controlv1.Verdict_VERDICT_DENY, core.Block, "RULE_DENY")
+	obliged     = decided(controlv1.Verdict_VERDICT_ALLOW_WITH_OBLIGATIONS, core.ExecuteWithObligations, "OBLIGATIONS_ATTACHED")
+	obligations = with(obliged, &controlv1.Obligation{Type: "emit_alert"})
+	hold        = decided(controlv1.Verdict_VERDICT_REQUIRE_APPROVAL, core.AwaitApproval, "APPROVAL_REQUIRED")
+	block       = decided(controlv1.Verdict_VERDICT_DENY, core.Block, "RULE_DENY")
 )
 
 // Every ordered pair of the four actions, each with the change written out.
+// Holding a call for an approval does not hold it to emit_alert, so the pairs
+// between the two move both ways; a block holds every obligation.
 func TestClassifyEveryPairOfActions(t *testing.T) {
 	sides := map[string]side{"execute": execute, "obligations": obligations, "hold": hold, "block": block}
 	want := map[[2]string]Change{
 		{"execute", "execute"}: Unchanged, {"execute", "obligations"}: Stricter, {"execute", "hold"}: Stricter, {"execute", "block"}: Stricter,
-		{"obligations", "execute"}: Looser, {"obligations", "obligations"}: Unchanged, {"obligations", "hold"}: Stricter, {"obligations", "block"}: Stricter,
-		{"hold", "execute"}: Looser, {"hold", "obligations"}: Looser, {"hold", "hold"}: Unchanged, {"hold", "block"}: Stricter,
+		{"obligations", "execute"}: Looser, {"obligations", "obligations"}: Unchanged, {"obligations", "hold"}: Other, {"obligations", "block"}: Stricter,
+		{"hold", "execute"}: Looser, {"hold", "obligations"}: Other, {"hold", "hold"}: Unchanged, {"hold", "block"}: Stricter,
 		{"block", "execute"}: Looser, {"block", "obligations"}: Looser, {"block", "hold"}: Looser, {"block", "block"}: Unchanged,
 	}
 	if len(want) != 16 {
@@ -39,26 +45,58 @@ func TestClassifyEveryPairOfActions(t *testing.T) {
 	}
 }
 
-// The same action with anything else different is other, never unchanged.
+// The obligations a call must meet order a change with its action; an
+// advisory obligation binds nothing.
+func TestClassifyObligations(t *testing.T) {
+	approver := &controlv1.Obligation{Type: "second_approver"}
+	readOnly := &controlv1.Obligation{Type: "read_only"}
+	for name, c := range map[string]struct {
+		before, after side
+		want          Change
+	}{
+		"second approver dropped":    {with(hold, approver), hold, Looser},
+		"second approver added":      {hold, with(hold, approver), Stricter},
+		"read_only made advisory":    {with(obliged, readOnly), with(obliged, &controlv1.Obligation{Type: "read_only", Advisory: true}), Looser},
+		"advisory made binding":      {with(obliged, &controlv1.Obligation{Type: "read_only", Advisory: true}), with(obliged, readOnly), Stricter},
+		"one obligation for another": {obligations, with(obliged, readOnly), Other},
+		"an obligation added":        {obligations, with(obliged, obligations.obligations[0], readOnly), Stricter},
+		"an obligation dropped":      {with(obliged, obligations.obligations[0], readOnly), obligations, Looser},
+		"a cap raised": {with(obliged, &controlv1.Obligation{Type: "cap_amount", Params: map[string]string{"max": "100"}}),
+			with(obliged, &controlv1.Obligation{Type: "cap_amount", Params: map[string]string{"max": "1000000"}}), Other},
+		"emit_alert run to a bare hold":   {obligations, hold, Other},
+		"a bare hold to emit_alert run":   {hold, obligations, Other},
+		"run to advisory obligations":     {execute, with(obliged, &controlv1.Obligation{Type: "emit_alert", Advisory: true}), Other},
+		"advisory obligations to run":     {with(obliged, &controlv1.Obligation{Type: "emit_alert", Advisory: true}), execute, Other},
+		"advisory obligations to a hold":  {with(obliged, &controlv1.Obligation{Type: "emit_alert", Advisory: true}), hold, Stricter},
+		"a held approver to a block":      {with(hold, approver), block, Stricter},
+		"a block to a held approver":      {block, with(hold, approver), Looser},
+		"emit_alert run to a held alert":  {obligations, with(hold, obligations.obligations[0]), Stricter},
+		"a held alert to emit_alert run":  {with(hold, obligations.obligations[0]), obligations, Looser},
+		"a held alert to a held approver": {with(hold, obligations.obligations[0]), with(hold, approver), Other},
+	} {
+		if got := classify(c.before, c.after); got != c.want {
+			t.Errorf("%s: %s, want %s", name, got, c.want)
+		}
+	}
+}
+
+// The same action and the same binding obligations with anything else
+// different is other, never unchanged.
 func TestClassifySameActionOtherwiseDifferent(t *testing.T) {
 	for name, c := range map[string]struct{ before, after side }{
 		"another verdict": {block, decided(controlv1.Verdict_VERDICT_INDETERMINATE, core.Block, "RULE_DENY")},
 		"another code":    {block, decided(controlv1.Verdict_VERDICT_DENY, core.Block, "NO_MATCHING_RULE")},
 		"a code more":     {block, decided(controlv1.Verdict_VERDICT_DENY, core.Block, "RULE_DENY", "RULE_UNDETERMINED")},
 		"codes reordered": {decided(controlv1.Verdict_VERDICT_DENY, core.Block, "A", "B"), decided(controlv1.Verdict_VERDICT_DENY, core.Block, "B", "A")},
-		"an obligation added": {hold, side{evaluated: true, verdict: hold.verdict, action: hold.action, codes: hold.codes,
-			obligations: []*controlv1.Obligation{{Type: "second_approver"}}}},
-		"another obligation param": {obligations, side{evaluated: true, verdict: obligations.verdict, action: obligations.action,
-			codes: obligations.codes, obligations: []*controlv1.Obligation{{Type: "emit_alert", Params: map[string]string{"to": "x"}}}}},
-		"an obligation advisory": {obligations, side{evaluated: true, verdict: obligations.verdict, action: obligations.action,
-			codes: obligations.codes, obligations: []*controlv1.Obligation{{Type: "emit_alert", Advisory: true}}}},
+		"an advisory obligation added": {obligations, with(obliged, obligations.obligations[0],
+			&controlv1.Obligation{Type: "read_only", Advisory: true})},
+		"another obligation param": {obligations, with(obliged, &controlv1.Obligation{Type: "emit_alert", Params: map[string]string{"to": "x"}})},
 	} {
 		if got := classify(c.before, c.after); got != Other {
 			t.Errorf("%s: %s, want other", name, got)
 		}
 	}
-	same := side{evaluated: true, verdict: obligations.verdict, action: obligations.action, codes: []string{"OBLIGATIONS_ATTACHED"},
-		obligations: []*controlv1.Obligation{{Type: "emit_alert"}}}
+	same := with(decided(obligations.verdict, obligations.action, "OBLIGATIONS_ATTACHED"), &controlv1.Obligation{Type: "emit_alert"})
 	if got := classify(obligations, same); got != Unchanged {
 		t.Errorf("equal decisions built apart: %s, want unchanged", got)
 	}

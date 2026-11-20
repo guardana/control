@@ -25,7 +25,7 @@ func proposed(env *controlv1.ActionEnvelope) *controlv1.Event {
 
 // recorded is a fresh decision of digest, loaded at t0 and made a minute later.
 func recorded(req, digest string, v controlv1.Verdict, codes ...string) *controlv1.Decision {
-	return &controlv1.Decision{RequestId: req, PolicyBundleDigest: digest, Verdict: v, ReasonCodes: codes,
+	return &controlv1.Decision{SchemaVersion: "1.0", RequestId: req, PolicyBundleDigest: digest, Verdict: v, ReasonCodes: codes,
 		PolicyFreshness: controlv1.PolicyFreshness_POLICY_FRESHNESS_FRESH,
 		PolicyLoadedAt:  timestamppb.New(t0), DecidedAt: timestamppb.New(t0.Add(time.Minute))}
 }
@@ -195,5 +195,85 @@ func TestEvidenceCasesThroughCompare(t *testing.T) {
 	}
 	if d := rowOf(t, r, "request:disagrees").UnknownDetail; d == nil || !strings.Contains(*d, "DENY") || !strings.Contains(*d, "ALLOW") {
 		t.Errorf("disagreement detail %v", d)
+	}
+}
+
+// A recorded decision or a proposal of a major this build does not read, or
+// with no readable version, is never compared; a higher minor is read. A
+// decision whose freshness is not recorded as FRESH is not taken as fresh.
+func TestEvidenceOfAnotherVersionIsNotRead(t *testing.T) {
+	const digest = "sha256:ab"
+	allow := controlv1.Verdict_VERDICT_ALLOW
+	notRead := Reason("version_not_read")
+	decision := func(req, version string) *controlv1.Decision {
+		d := recorded(req, digest, allow, "RULE_ALLOW")
+		d.SchemaVersion = version
+		return d
+	}
+	proposal := func(req, version string) *controlv1.Event {
+		env := envelope(req, "orders.read", read, "prod")
+		env.SchemaVersion = version
+		return proposed(env)
+	}
+	unspecified := recorded("unspecified", digest, allow, "RULE_ALLOW")
+	unspecified.PolicyFreshness = controlv1.PolicyFreshness_POLICY_FRESHNESS_UNSPECIFIED
+	events := []*controlv1.Event{
+		proposal("minor", "1.7"), decidedEvent(decision("minor", "1.3")),
+		proposal("decision-2", "1.0"), decidedEvent(decision("decision-2", "2.0")),
+		proposal("decision-bare", "1.0"), decidedEvent(decision("decision-bare", "1")),
+		proposal("decision-none", "1.0"), decidedEvent(decision("decision-none", "")),
+		proposal("proposal-2", "2.0"), decidedEvent(decision("proposal-2", "1.0")),
+		proposal("proposal-signed", "-1.0"), decidedEvent(decision("proposal-signed", "1.0")),
+		proposed(envelope("unspecified", "orders.read", read, "prod")), decidedEvent(unspecified),
+	}
+	checkEvidenceCases(t, "versions", EvidenceCases(Export{Events: events, Whole: true}, digest), []wantEvidence{
+		{"request:minor", ""}, {"request:decision-2", notRead}, {"request:decision-bare", notRead},
+		{"request:decision-none", notRead}, {"request:proposal-2", notRead}, {"request:proposal-signed", notRead},
+		{"request:unspecified", ReasonIncompleteRequest},
+	}, "")
+}
+
+// A request whose proposal and decision name another request than their
+// events, or whose decision comes before its proposal, is not one case.
+func TestEvidenceRequestMustHoldTogether(t *testing.T) {
+	const digest = "sha256:ab"
+	allow := controlv1.Verdict_VERDICT_ALLOW
+	strayProposal := proposed(envelope("other", "orders.read", read, "prod"))
+	strayProposal.RequestId = "stray-proposal"
+	strayDecision := decidedEvent(recorded("other", digest, allow, "RULE_ALLOW"))
+	strayDecision.RequestId = "stray-decision"
+	events := []*controlv1.Event{
+		decidedEvent(recorded("decided-first", digest, allow, "RULE_ALLOW")), proposed(envelope("decided-first", "orders.read", read, "prod")),
+		strayProposal, decidedEvent(recorded("stray-proposal", digest, allow, "RULE_ALLOW")),
+		proposed(envelope("stray-decision", "orders.read", read, "prod")), strayDecision,
+		proposed(envelope("ok", "orders.read", read, "prod")), decidedEvent(recorded("ok", digest, allow, "RULE_ALLOW")),
+	}
+	checkEvidenceCases(t, "together", EvidenceCases(Export{Events: events, Whole: true}, digest), []wantEvidence{
+		{"request:decided-first", ReasonIncompleteRequest}, {"request:stray-proposal", ReasonIncompleteRequest},
+		{"request:stray-decision", ReasonIncompleteRequest}, {"request:ok", ""},
+	}, "")
+}
+
+// An export that is not whole may have lost a request's later events
+// though the request looks whole, and the report's scope says so.
+func TestNotWholeExportNamesWhatItMayHaveLost(t *testing.T) {
+	current := signed(t, currentDoc).Bundle.GetRef().GetDigest()
+	events := []*controlv1.Event{proposed(envelope("r1", "orders.read", read, "prod")),
+		decidedEvent(recorded("r1", current, controlv1.Verdict_VERDICT_ALLOW, "RULE_ALLOW"))}
+	lost := "a request that looks whole may have lost later events"
+	for _, whole := range []bool{true, false} {
+		x := Export{Events: events, Whole: whole}
+		if !whole {
+			x.NotWhole = "it holds a gap"
+		}
+		r, err := Compare(Run{Current: signed(t, currentDoc), Candidate: signed(t, candidateDoc), Build: "test",
+			Cases: EvidenceCases(x, current), Provenance: Provenance{Evidence: &EvidenceSource{Whole: whole, NotWhole: x.NotWhole, Requests: 1}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		said := slices.ContainsFunc(r.Scope.NotSeen, func(s string) bool { return strings.Contains(s, lost) })
+		if said == whole {
+			t.Errorf("whole %v: the scope says a request may have lost events: %v, want %v: %q", whole, said, !whole, r.Scope.NotSeen)
+		}
 	}
 }

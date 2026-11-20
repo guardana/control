@@ -27,19 +27,23 @@ func corpusCase(t *testing.T, name string) string {
 	return string(raw)
 }
 
-// A directory of 4096 case files is read; one of 4097 is refused for the
-// count before any file is read.
+// A directory of 4096 case files is compared; one of 4097 is refused for the
+// count before any file is read. Every file is a valid case, so the 4096
+// are refused by nothing but the bound.
 func TestPolicyCompareCaseCountBound(t *testing.T) {
+	body := corpusCase(t, "read-order.json")
 	for _, n := range []int{4096, 4097} {
 		dir := t.TempDir()
 		for i := range n {
-			writeFixture(t, filepath.Join(dir, fmt.Sprintf("c%04d.json", i)), "not a case")
+			writeFixture(t, filepath.Join(dir, fmt.Sprintf("c%04d.json", i)), body)
 		}
 		report := filepath.Join(t.TempDir(), "r.json")
-		code, _, stderr := invoke(t, compareArgsFor(report, "--cases", dir)...)
-		bound := strings.Contains(stderr, "4097 case files, at most 4096")
-		if code != exitUsage || bound != (n == 4097) {
-			t.Errorf("%d files: exit %d, %q", n, code, stderr)
+		code, stdout, stderr := invoke(t, compareArgsFor(report, "--cases", dir)...)
+		if n == 4096 && (code != exitOK || !strings.Contains(stdout, "read: 4096 (4096 case, 0 evidence)")) {
+			t.Errorf("%d files: exit %d, %q %q, want 0 and every file read", n, code, stdout, stderr)
+		}
+		if n == 4097 && (code != exitUsage || !strings.Contains(stderr, "4097 case files, at most 4096")) {
+			t.Errorf("%d files: exit %d, %q, want the count refused", n, code, stderr)
 		}
 	}
 }
@@ -79,20 +83,28 @@ func TestPolicyCompareLabelsFileBound(t *testing.T) {
 	}
 }
 
-// An export one byte over the bound is refused for its size, before any of
-// it is parsed; the file is sparse, so the test writes no such volume.
+// An export of 32 MiB is read and one byte more is refused for its size,
+// before any of it is parsed. The files are sparse, so the test writes no
+// such volume; zero bytes are no export, so the one at the bound is refused
+// for its content instead.
 func TestPolicyCompareExportBound(t *testing.T) {
-	export := filepath.Join(t.TempDir(), "export.jsonl")
-	f, err := os.OpenFile(export, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600) //nolint:gosec // G304: the test's own file
-	if err != nil {
-		t.Fatal(err)
+	for _, n := range []int64{32 << 20, 32<<20 + 1} {
+		export := filepath.Join(t.TempDir(), "export.jsonl")
+		f, err := os.OpenFile(export, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600) //nolint:gosec // G304: the test's own file
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Truncate(n); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		report := filepath.Join(t.TempDir(), "r.json")
+		code, _, stderr := invoke(t, compareArgsFor(report, "--evidence", export)...)
+		size := strings.Contains(stderr, "over the size bound")
+		if code != exitUsage || !strings.Contains(stderr, "--evidence") || size != (n > 32<<20) {
+			t.Errorf("%d bytes: exit %d, %q, want refused, for its size only over 32 MiB", n, code, stderr)
+		}
 	}
-	if err := f.Truncate(maxCompareExportBytes + 1); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-	report := filepath.Join(t.TempDir(), "r.json")
-	refused(t, report, compareArgsFor(report, "--evidence", export), "--evidence", "over the size bound")
 }

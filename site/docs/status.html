@@ -803,8 +803,11 @@ once, to a name that did not exist; it sends no call, consumes no approval and
 activates no policy. A case file must be written against the current document.
 An evidence request is decided with arguments <code>{}</code>, no flow and no decision
 point answer, so a rule reading flow or that answer leaves it unknown, and so
-does a decision on another policy or recorded stale, a gap, or a current side
-that disagrees with the recorded decision. Limits: every result is simulated,
+does a decision on another policy or not recorded fresh, of another major, or
+a current side that disagrees with the recorded decision. A request a gap cut
+is unknown, and one that looks whole may have lost later events, which the
+report's scope says. Any case is unknown when no rule ran on a side or a
+side's policy is stale at its time. Limits: every result is simulated,
 never a call that ran; labels count by label and change, and a labeller's
 independence from the author is declared, never verified; the plane's own
 staleness budget, <code>fail_open_read</code> and applicable obligations are not in the

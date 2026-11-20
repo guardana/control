@@ -146,8 +146,8 @@ fixed key <code>policy test</code> uses, as <code>policy explain</code> signs th
 each case's <code>loaded_at</code>. Every case is decided twice through
 <code>Kernel.Explain</code>, the evaluation the plane's <code>Decide</code> runs. Nothing else
 decides.</p>
-<p><strong>The cases.</strong> A case file is a <code>policy test</code> case with <code>expect</code> optional and
-not read; its <code>document</code> must have the current document's canonical digest,
+<p><strong>The cases.</strong> A case file is a <code>policy test</code> case with <code>expect</code> optional,
+checked if present and not compared; its <code>document</code> must have the current document's canonical digest,
 or the run is refused naming the file. A request of an evidence export is a
 case when it holds one <code>ACTION_PROPOSED</code> and one <code>POLICY_DECIDED</code>: the
 proposal's envelope with arguments <code>{}</code> and their hash recomputed, no flow,
@@ -155,17 +155,23 @@ no external answer, and the decision's two times. The recorded decision is a
 cross-check, never the before.</p>
 <p><strong>Unknown is a result.</strong> A case is unknown, with one reason and no verdict on
 either side, when it cannot say what the candidate changes: an incomplete
-request, in an export that is not whole or in one that is; more than one
-decision; a decision on another policy (the historic policy is missing); a
-decision recorded stale; a side the kernel could not evaluate; a rule left
-undetermined on either side by a field, the flow or the decision point's
-answer the case lacks; and, for evidence, a side stale only because the case
-is old, an obligation the record does not show the plane applying, or today's
-kernel on the current policy deciding otherwise than the record. An unknown
+request, in an export that is not whole or in one that is; a proposal or
+decision of a major this build does not read; more than one decision; a
+decision on another policy (the historic policy is missing); a decision not
+recorded fresh; a side the kernel could not evaluate or on which no rule ran;
+a side whose policy is stale at the case's time, for every source; a rule
+left undetermined on either side by a field, the flow or the decision point's
+answer the case lacks; and, for evidence, an obligation the record does not
+show the plane applying, or today's kernel on the current policy deciding
+otherwise than the record. An unknown
 case is never counted unchanged.</p>
 <p><strong>The change.</strong> The four actions are ordered: run, run under obligations,
-hold, block. Further along is stricter, back is looser; the same action with
-another verdict, other codes or other obligations is other.</p>
+hold, block, and the binding (non-advisory) obligations order with them.
+Further along, or as far binding more, while still binding everything the
+before side bound, is stricter; a block binds everything. The reverse is
+looser. Anything that moves both ways, changes an obligation's parameters, or
+changes only the verdict, the codes or advisory obligations is other, which
+names no direction and is read row by row.</p>
 <p><strong>The report.</strong> <code>policy-comparison/v1alpha1</code>, written once to a name that does
 not exist, marked simulated, naming both policies' ids, versions and digests,
 each input's provenance, each case's sides, and counts each over its own

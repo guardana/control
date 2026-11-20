@@ -87,7 +87,7 @@ func checkCorpusCounts(t *testing.T, c policycompare.Counts) {
 		t.Errorf("evaluated on both sides %+v, want 15 of 19", c.EvaluatedBothSides)
 	}
 	wantReasons := map[policycompare.Reason]int{
-		"export_not_whole": 1, "incomplete_request": 0, "several_decisions": 1, "historic_policy_missing": 1,
+		"export_not_whole": 1, "incomplete_request": 0, "version_not_read": 0, "several_decisions": 1, "historic_policy_missing": 1,
 		"recorded_stale": 1, "not_evaluated": 0, "external_answer_needed": 1, "missing_facts": 3,
 		"freshness_not_held": 1, "obligation_applicability_unknown": 1, "disagrees_with_record": 1,
 	}
@@ -97,13 +97,13 @@ func checkCorpusCounts(t *testing.T, c policycompare.Counts) {
 	if c.Compared != (policycompare.Share{Count: 8, Of: 19}) {
 		t.Errorf("compared %+v, want 8 of 19", c.Compared)
 	}
-	if c.Change != (policycompare.ChangeCount{Of: 8, Unchanged: 2, Stricter: 1, Looser: 3, Other: 2}) {
-		t.Errorf("change %+v, want of 8: 2 unchanged, 1 stricter, 3 looser, 2 other", c.Change)
+	if c.Change != (policycompare.ChangeCount{Of: 8, Unchanged: 2, Stricter: 2, Looser: 3, Other: 1}) {
+		t.Errorf("change %+v, want of 8: 2 unchanged, 2 stricter, 3 looser, 1 other", c.Change)
 	}
 	wantLabels := map[string]policycompare.Tally{
 		"attack":     {Of: 3, Stricter: 1, Other: 1, Unknown: 1},
 		"legitimate": {Of: 3, Unchanged: 1, Looser: 2},
-		"unlabelled": {Of: 13, Unchanged: 1, Looser: 1, Other: 1, Unknown: 10},
+		"unlabelled": {Of: 13, Unchanged: 1, Stricter: 1, Looser: 1, Unknown: 10},
 	}
 	if !maps.Equal(c.ByLabel, wantLabels) {
 		t.Errorf("by label %+v, want %+v", c.ByLabel, wantLabels)
@@ -157,6 +157,7 @@ func checkCorpusRows(t *testing.T, cases []policycompare.CaseRow) {
 		*row.After.Action != "Block" || !slices.Equal(row.After.Codes, []string{"RULE_DENY", "RULE_ALLOW"}) {
 		t.Errorf("rule conflict: %+v, want the deny to stay", row)
 	}
+	checkRefundRow(t, rows["case:refund-obligation.json"])
 	if row := rows["case:broadened-effect.json"]; row.Change != "looser" || *row.Before.Verdict != "DENY" || *row.After.Verdict != "ALLOW" {
 		t.Errorf("broadened effect: %+v", row)
 	}
@@ -165,10 +166,20 @@ func checkCorpusRows(t *testing.T, cases []policycompare.CaseRow) {
 	}
 }
 
+// checkRefundRow: the refund stays held, and the candidate binds it to a
+// second approver it was not bound to.
+func checkRefundRow(t *testing.T, row policycompare.CaseRow) {
+	t.Helper()
+	if row.Change != "stricter" || row.After.Action == nil || *row.After.Action != "AwaitApproval" ||
+		len(row.After.Obligations) != 1 || row.After.Obligations[0].Type != "second_approver" || len(row.Before.Obligations) != 0 {
+		t.Errorf("refund obligation: %+v, want held under a second approver", row)
+	}
+}
+
 func checkCorpusSummary(t *testing.T, report, stdout string) {
 	t.Helper()
 	for _, want := range []string{"report: " + report, "read: 19 (9 case, 10 evidence)", "evaluated on both sides: 15 of 19",
-		"unknown: 11 of 19 (export_not_whole 1, several_decisions 1, historic_policy_missing 1, recorded_stale 1, external_answer_needed 1, missing_facts 3, freshness_not_held 1, obligation_applicability_unknown 1, disagrees_with_record 1)", "changes of 8 compared: 2 unchanged, 1 stricter, 3 looser, 2 other",
+		"unknown: 11 of 19 (export_not_whole 1, several_decisions 1, historic_policy_missing 1, recorded_stale 1, external_answer_needed 1, missing_facts 3, freshness_not_held 1, obligation_applicability_unknown 1, disagrees_with_record 1)", "changes of 8 compared: 2 unchanged, 2 stricter, 3 looser, 1 other",
 		"labeller independence: declared, not verified"} {
 		if !strings.Contains(stdout, want+"\n") && !strings.Contains(stdout, want+" ") {
 			t.Errorf("stdout does not say %q:\n%s", want, stdout)
@@ -271,5 +282,27 @@ func TestPolicyCompareUsage(t *testing.T) {
 	labels := filepath.Join(t.TempDir(), "labels.json")
 	writeFixture(t, labels, `{"kind":"policy-case-labels/v1alpha1","labeller":"x","labels":[{"case":"case:gone.json","label":"attack"}]}`)
 	refused(t, report, compareArgsFor(report, "--cases", cases, "--labels", labels), "case:gone.json")
-	refused(t, report, compareArgsFor(report, "--cases", cases, "--current", corpusPath("labels.json")), "--current")
+	refused(t, report, []string{"policy", "compare", "--current", corpusPath("labels.json"), "--candidate", corpusPath("candidate.json"),
+		"--report", report, "--cases", cases}, "--current")
+}
+
+// Each flag takes one value: a flag given twice is refused rather than
+// read as its last value, whichever value that is.
+func TestPolicyCompareRefusesARepeatedFlag(t *testing.T) {
+	cases := corpusPath("cases")
+	report := filepath.Join(t.TempDir(), "r.json")
+	for flag, value := range map[string]string{
+		"current": corpusPath("current.json"), "candidate": corpusPath("candidate.json"), "report": report,
+		"cases": cases, "evidence": corpusPath("evidence.jsonl"), "labels": corpusPath("labels.json"),
+	} {
+		args := compareArgsFor(report, "--cases", cases, "--evidence", corpusPath("evidence.jsonl"), "--labels", corpusPath("labels.json"))
+		args = append(args, "--"+flag, value)
+		code, stdout, stderr := invoke(t, args...)
+		if code != exitUsage || stdout != "" || !strings.Contains(stderr, "-"+flag) || !strings.Contains(stderr, "given twice") {
+			t.Errorf("--%s twice: exit %d, %q %q, want 2 and the flag named", flag, code, stdout, stderr)
+		}
+		if _, err := os.Stat(report); !os.IsNotExist(err) {
+			t.Fatalf("--%s twice: a report was written: %v", flag, err)
+		}
+	}
 }

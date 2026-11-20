@@ -2,6 +2,7 @@ package policycompare
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"time"
 
@@ -15,11 +16,43 @@ import (
 // decision point's answer.
 const needsExternal = "external"
 
-// evaluate loads p at the case's loaded_at and decides the case at its
-// decided_at through Kernel.Explain, which decides as the plane's Decide
-// does. A side that cannot be loaded or decided is not evaluated.
-func evaluate(p Policy, in Input) side {
-	snap, err := policy.Load(p.Bundle, p.Keys, in.LoadedAt)
+// loader loads one policy once for each instant a case loads it at.
+type loader struct {
+	policy Policy
+	loads  map[instant]loaded
+}
+
+// instant is a time without its location, which no load reads.
+type instant struct {
+	sec  int64
+	nsec int
+}
+
+type loaded struct {
+	snap *policy.Snapshot
+	err  error
+}
+
+func newLoader(p Policy) *loader {
+	return &loader{policy: p, loads: map[instant]loaded{}}
+}
+
+func (l *loader) load(at time.Time) (*policy.Snapshot, error) {
+	key := instant{at.Unix(), at.Nanosecond()}
+	got, ok := l.loads[key]
+	if !ok {
+		got.snap, got.err = policy.Load(l.policy.Bundle, l.policy.Keys, at)
+		l.loads[key] = got
+	}
+	return got.snap, got.err
+}
+
+// evaluate loads the policy at the case's loaded_at and decides the case at
+// its decided_at through Kernel.Explain, which decides as the plane's Decide
+// does. A side that cannot be loaded or decided, or on which no rule was
+// evaluated, is not evaluated: its decision says nothing about the policy.
+func evaluate(l *loader, in Input) side {
+	snap, err := l.load(in.LoadedAt)
 	if err != nil {
 		return side{err: "the policy did not load: " + err.Error()}
 	}
@@ -37,6 +70,10 @@ func evaluate(p Policy, in Input) side {
 	d := out.Decision
 	if d == nil {
 		return side{err: "the kernel returned no decision"}
+	}
+	if why.Rules == nil {
+		return side{err: fmt.Sprintf("no rule was evaluated: the kernel decided %s %v before the policy",
+			verdictName(d.GetVerdict()), d.GetReasonCodes())}
 	}
 	s := side{
 		evaluated:   true,

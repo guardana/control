@@ -34,16 +34,19 @@ documents, nine cases, an export with a gap and a labels file.
 
 Each case file carries the whole document it is decided under, and
 `policy compare` refuses one whose document is not `--current`. Copy the
-current document into every case's `document`; `expect` may stay, and is
-not read.
+current document into every case's `document`; `expect` may stay: it is
+checked if present, and not compared. Keep each case's `decided_at` within
+both policies' `maxStaleSeconds` of its `loaded_at`, or the case is unknown
+as `freshness_not_held`.
 
 ### 2. Export the evidence
 
 Export the trail of the planes that run the current policy. A request whose
 decision names another policy digest is counted unknown as
 `historic_policy_missing`, so export the window the current policy was in
-force. An export with a gap still compares; the requests the gap cut are
-unknown.
+force. An export with a gap still compares: a request that lost its proposal
+or its decision is unknown, and the report's scope says that a request that
+looks whole may still have lost later events.
 
 ### 3. Label cases, if someone reviewed them
 
@@ -74,10 +77,10 @@ report: /tmp/compare.json
 read: 19 (9 case, 10 evidence)
 evaluated on both sides: 15 of 19
 unknown: 11 of 19 (export_not_whole 1, several_decisions 1, historic_policy_missing 1, recorded_stale 1, external_answer_needed 1, missing_facts 3, freshness_not_held 1, obligation_applicability_unknown 1, disagrees_with_record 1)
-changes of 8 compared: 2 unchanged, 1 stricter, 3 looser, 2 other
+changes of 8 compared: 2 unchanged, 2 stricter, 3 looser, 1 other
 attack: 3: 0 unchanged, 1 stricter, 0 looser, 1 other, 1 unknown
 legitimate: 3: 1 unchanged, 0 stricter, 2 looser, 0 other, 0 unknown
-unlabelled: 13: 1 unchanged, 0 stricter, 1 looser, 1 other, 10 unknown
+unlabelled: 13: 1 unchanged, 1 stricter, 1 looser, 0 other, 10 unknown
 labeller independence: declared, not verified
 ```
 
@@ -89,10 +92,13 @@ wrote nothing.
 
 Start with the counts, then the rows. `looser` rows are the calls the
 candidate lets through further: a broadened effect class or resource shows
-here. `stricter` rows are calls it blocks or holds where the current policy
-let them run. `other` is the same action with other codes or obligations;
-a rule conflict shows here: when an allow and a deny both match, the deny
-stays and the allow's code joins the decision's codes.
+here, and so does a binding obligation dropped. `stricter` rows are calls it
+blocks or holds where the current policy let them run, or binds to more.
+`other` says nothing about direction, so read each such row: it is a change
+that moves both ways, such as a call held for approval that no longer emits
+its alert, a changed obligation parameter, or the same action with other
+codes. A rule conflict shows here: when an allow and a deny both match, the
+deny stays and the allow's code joins the decision's codes.
 
 An `unknown` row names its reason. `missing_facts` and
 `external_answer_needed` mean a rule reads what the case does not hold:

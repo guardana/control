@@ -152,7 +152,7 @@ its obligation parameter check, as <code>policy explain</code> signs.</p>
 </tr>
 <tr>
 <td><code>--cases</code></td>
-<td>A directory of <a href="/docs/reference/policy-format#a-test-case">test cases</a>, read as <code>policy test</code> reads one, <code>expect</code> optional and ignored. Each case's <code>document</code> must have the current document's canonical digest, or the run is refused naming the file. A case's id is <code>case:</code> and its file name.</td>
+<td>A directory of <a href="/docs/reference/policy-format#a-test-case">test cases</a>, read as <code>policy test</code> reads one; <code>expect</code> is optional, checked if present, not compared. Each case's <code>document</code> must have the current document's canonical digest, or the run is refused naming the file. A case's id is <code>case:</code> and its file name.</td>
 </tr>
 <tr>
 <td><code>--evidence</code></td>
@@ -165,17 +165,25 @@ its obligation parameter check, as <code>policy explain</code> signs.</p>
 </tbody>
 </table>
 </div>
-<p>At least one of <code>--cases</code> and <code>--evidence</code> is given.</p>
+<p>Each flag is given at most once, a repeated one is refused, and at least one
+of <code>--cases</code> and <code>--evidence</code> is given.</p>
+<h2 id="a-cases-times">A case's times</h2>
+<p>Each side loads its policy at the case's <code>loaded_at</code> and decides at its
+<code>decided_at</code>, under that policy's own <code>maxStaleSeconds</code>. A side whose policy
+is stale at <code>decided_at</code> decides on its staleness, not its rules, so the case
+is unknown, <code>freshness_not_held</code>, whatever its source.</p>
 <h2 id="an-evidence-case">An evidence case</h2>
 <p>A request becomes a case with exactly one <code>ACTION_PROPOSED</code> and one
-<code>POLICY_DECIDED</code>. Its envelope is the proposal's, its arguments <code>{}</code> with
+<code>POLICY_DECIDED</code>, both with a <code>schema_version</code> on this build's major, both
+naming the request, the proposal first, and a decision recorded <code>FRESH</code>
+(<code>UNSPECIFIED</code> is not fresh). Its envelope is the proposal's, its arguments <code>{}</code> with
 their hash recomputed, since the evidence holds only a hash. It holds no flow
 and no external answer. It is loaded at the decision's <code>policy_loaded_at</code> and
 decided at its <code>decided_at</code>. The kernel runs no read open and applies every
 obligation type, and no operator budget narrows the author's.</p>
 <h2 id="unknown">Unknown</h2>
 <p>An unknown case has one reason, both sides' verdicts withheld, and is never
-counted unchanged. The reasons, in the order they are judged:</p>
+counted unchanged. The reasons, in the order the report lists them:</p>
 <div class="tbl">
 <table>
 <thead>
@@ -191,7 +199,11 @@ counted unchanged. The reasons, in the order they are judged:</p>
 </tr>
 <tr>
 <td><code>incomplete_request</code></td>
-<td>Lacks one proposal or its decision, holds two proposals, or a decision without both times.</td>
+<td>Lacks one proposal or its decision, holds two proposals, names another request in its proposal or decision, holds its decision before its proposal, or a decision without both times or not recorded <code>FRESH</code>.</td>
+</tr>
+<tr>
+<td><code>version_not_read</code></td>
+<td>Its proposal or decision has a <code>schema_version</code> that is not <code>MAJOR.MINOR</code> on this build's major.</td>
 </tr>
 <tr>
 <td><code>several_decisions</code></td>
@@ -207,7 +219,7 @@ counted unchanged. The reasons, in the order they are judged:</p>
 </tr>
 <tr>
 <td><code>not_evaluated</code></td>
-<td>A side did not load or the kernel refused the case's options.</td>
+<td>On a side the policy did not load, the kernel refused the case's options or returned no decision, or no rule was evaluated: the envelope or its arguments refused, a delegation refused, or a clock reading the kernel judges nothing at, such as a <code>decided_at</code> before the load.</td>
 </tr>
 <tr>
 <td><code>external_answer_needed</code></td>
@@ -219,7 +231,7 @@ counted unchanged. The reasons, in the order they are judged:</p>
 </tr>
 <tr>
 <td><code>freshness_not_held</code></td>
-<td>Evidence: a side is stale at the recorded times.</td>
+<td>A side's policy is stale at the case's <code>decided_at</code>.</td>
 </tr>
 <tr>
 <td><code>obligation_applicability_unknown</code></td>
@@ -233,10 +245,36 @@ counted unchanged. The reasons, in the order they are judged:</p>
 </table>
 </div>
 <h2 id="the-change">The change</h2>
-<p>The actions are ordered <code>Execute</code>, <code>ExecuteWithObligations</code>, <code>AwaitApproval</code>,
-<code>Block</code>. An after further along is <code>stricter</code>; further back, <code>looser</code>. The
-same action with the same verdict, codes and obligations, in order, is
-<code>unchanged</code>; with any of them different, <code>other</code>.</p>
+<p>The same verdict, action, codes and obligations, in order, is <code>unchanged</code>.
+Otherwise the actions are ordered <code>Execute</code>, <code>ExecuteWithObligations</code>,
+<code>AwaitApproval</code>, <code>Block</code>, and obligations order with them: only a
+non-advisory obligation binds, so <code>ExecuteWithObligations</code> whose obligations
+are all advisory ranks as <code>Execute</code>.</p>
+<div class="tbl">
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stricter</code></td>
+<td>The after side is further along, or as far with a binding obligation more, and binds every obligation the before side bound. <code>Block</code> binds them all.</td>
+</tr>
+<tr>
+<td><code>looser</code></td>
+<td>The reverse: further back, or as far with a binding obligation dropped or made advisory, and the before side binds every obligation the after side binds.</td>
+</tr>
+<tr>
+<td><code>other</code></td>
+<td>Anything else: a change that moves both ways, such as <code>ExecuteWithObligations</code> with <code>emit_alert</code> to <code>AwaitApproval</code> without it, a parameter changed (a <code>cap_amount</code> raised is <code>other</code>, since the order does not read parameters), or only the verdict, codes or advisory obligations changed.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code>other</code> says nothing about direction: read each such row.</p>
 <h2 id="the-report">The report</h2>
 <p><code>--report</code> names a file that does not exist; the report is forced to disk
 under a temporary name beside it and linked there, mode <code>0600</code>. It is one
@@ -284,7 +322,7 @@ JSON object:</p>
 </tr>
 <tr>
 <td><code>scope.not_seen</code></td>
-<td>What no case shows: live traffic, an evidence case's arguments and flow, a decision point's answer, approvals, the plane's own settings.</td>
+<td>What no case shows: live traffic, an evidence case's arguments and flow, a decision point's answer, approvals, the plane's own settings, and, from an export that is not whole, events after a gap that a request looking whole may have lost.</td>
 </tr>
 <tr>
 <td><code>scope.labeller_independence</code></td>

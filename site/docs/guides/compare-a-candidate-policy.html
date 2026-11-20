@@ -147,14 +147,17 @@ documents, nine cases, an export with a gap and a labels file.</p>
 <h3 id="1-point-your-cases-at-the-current-document">1. Point your cases at the current document</h3>
 <p>Each case file carries the whole document it is decided under, and
 <code>policy compare</code> refuses one whose document is not <code>--current</code>. Copy the
-current document into every case's <code>document</code>; <code>expect</code> may stay, and is
-not read.</p>
+current document into every case's <code>document</code>; <code>expect</code> may stay: it is
+checked if present, and not compared. Keep each case's <code>decided_at</code> within
+both policies' <code>maxStaleSeconds</code> of its <code>loaded_at</code>, or the case is unknown
+as <code>freshness_not_held</code>.</p>
 <h3 id="2-export-the-evidence">2. Export the evidence</h3>
 <p>Export the trail of the planes that run the current policy. A request whose
 decision names another policy digest is counted unknown as
 <code>historic_policy_missing</code>, so export the window the current policy was in
-force. An export with a gap still compares; the requests the gap cut are
-unknown.</p>
+force. An export with a gap still compares: a request that lost its proposal
+or its decision is unknown, and the report's scope says that a request that
+looks whole may still have lost later events.</p>
 <h3 id="3-label-cases-if-someone-reviewed-them">3. Label cases, if someone reviewed them</h3>
 <p>A labels file names who labelled and calls each case <code>attack</code> or
 <code>legitimate</code>:</p>
@@ -177,10 +180,10 @@ report: /tmp/compare.json
 read: 19 (9 case, 10 evidence)
 evaluated on both sides: 15 of 19
 unknown: 11 of 19 (export_not_whole 1, several_decisions 1, historic_policy_missing 1, recorded_stale 1, external_answer_needed 1, missing_facts 3, freshness_not_held 1, obligation_applicability_unknown 1, disagrees_with_record 1)
-changes of 8 compared: 2 unchanged, 1 stricter, 3 looser, 2 other
+changes of 8 compared: 2 unchanged, 2 stricter, 3 looser, 1 other
 attack: 3: 0 unchanged, 1 stricter, 0 looser, 1 other, 1 unknown
 legitimate: 3: 1 unchanged, 0 stricter, 2 looser, 0 other, 0 unknown
-unlabelled: 13: 1 unchanged, 0 stricter, 1 looser, 1 other, 10 unknown
+unlabelled: 13: 1 unchanged, 1 stricter, 1 looser, 0 other, 10 unknown
 labeller independence: declared, not verified
 </code></pre>
 <p>It exits 1 here: some cases are unknown. It exits 0 only when every case was
@@ -189,10 +192,13 @@ wrote nothing.</p>
 <h3 id="5-read-the-report">5. Read the report</h3>
 <p>Start with the counts, then the rows. <code>looser</code> rows are the calls the
 candidate lets through further: a broadened effect class or resource shows
-here. <code>stricter</code> rows are calls it blocks or holds where the current policy
-let them run. <code>other</code> is the same action with other codes or obligations;
-a rule conflict shows here: when an allow and a deny both match, the deny
-stays and the allow's code joins the decision's codes.</p>
+here, and so does a binding obligation dropped. <code>stricter</code> rows are calls it
+blocks or holds where the current policy let them run, or binds to more.
+<code>other</code> says nothing about direction, so read each such row: it is a change
+that moves both ways, such as a call held for approval that no longer emits
+its alert, a changed obligation parameter, or the same action with other
+codes. A rule conflict shows here: when an allow and a deny both match, the
+deny stays and the allow's code joins the decision's codes.</p>
 <p>An <code>unknown</code> row names its reason. <code>missing_facts</code> and
 <code>external_answer_needed</code> mean a rule reads what the case does not hold:
 evidence holds no flow and no decision point answer, so a policy that reads

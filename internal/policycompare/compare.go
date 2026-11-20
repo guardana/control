@@ -35,11 +35,12 @@ func Compare(r Run) (*Report, error) {
 		Current:    policyRef(r.Current),
 		Candidate:  policyRef(r.Candidate),
 		Provenance: r.Provenance,
-		Scope:      scope(r.Labels != nil),
+		Scope:      scope(r.Labels != nil, r.Provenance.Evidence != nil && !r.Provenance.Evidence.Whole),
 		Cases:      make([]CaseRow, 0, len(r.Cases)),
 	}
+	current, candidate := newLoader(r.Current), newLoader(r.Candidate)
 	for _, c := range r.Cases {
-		row := compareCase(r, c)
+		row := compareCase(current, candidate, c)
 		if r.Labels != nil {
 			if l, ok := r.Labels.ByCase[c.ID]; ok {
 				row.Label = &l
@@ -82,12 +83,12 @@ func policyRef(p Policy) PolicyRef {
 
 // compareCase evaluates one case on both sides, unless it is unknown already,
 // and judges what the two decisions can support.
-func compareCase(r Run, c Case) CaseRow {
+func compareCase(current, candidate *loader, c Case) CaseRow {
 	row := CaseRow{ID: c.ID, Source: c.Source, Simulated: true}
 	if c.Unknown != "" {
 		return unknownRow(row, side{}, side{}, c.Unknown, c.Detail)
 	}
-	before, after := evaluate(r.Current, c.Input), evaluate(r.Candidate, c.Input)
+	before, after := evaluate(current, c.Input), evaluate(candidate, c.Input)
 	if reason, detail := judge(c, before, after); reason != "" {
 		return unknownRow(row, before, after, reason, detail)
 	}
@@ -107,14 +108,27 @@ func judge(c Case, before, after side) (Reason, string) {
 		return ReasonNotEvaluated, "current: " + before.err
 	case !after.evaluated:
 		return ReasonNotEvaluated, "candidate: " + after.err
+	case before.stale || after.stale:
+		return ReasonFreshnessNotHeld, staleDetail(before.stale, after.stale)
 	case before.external || after.external:
-		return ReasonExternalAnswerNeeded, "a rule waits on the external decision point's answer, which the case does not hold"
+		return ReasonExternalAnswerNeeded, "a rule reads the external decision point's answer and stays undetermined on what the case gives it"
 	case len(before.missing) > 0 || len(after.missing) > 0:
 		return ReasonMissingFacts, "a rule reads " + strings.Join(union(before.missing, after.missing), ", ") + ", which the case does not hold"
 	case c.Source == SourceEvidence:
 		return crossCheck(c.recorded, before, after)
 	}
 	return "", ""
+}
+
+func staleDetail(before, after bool) string {
+	which := "both policies are"
+	switch {
+	case !after:
+		which = "the current policy is"
+	case !before:
+		which = "the candidate policy is"
+	}
+	return which + " stale at the case's decided_at, so a stale side's decision shows its staleness, not its rules"
 }
 
 func union(a, b []string) []string {
@@ -193,14 +207,21 @@ var notSeen = []string{
 	"the plane's own settings behind an evidence case: its staleness budget, fail_open_read and the obligations it applies",
 }
 
-func scope(labelled bool) Scope {
+// notSeenAfterAGap is what an export that is not whole cannot show.
+const notSeenAfterAGap = "events after a gap: in an export that is not whole, a request that looks whole may have lost later events"
+
+func scope(labelled, notWhole bool) Scope {
 	independence := "no labels"
 	if labelled {
 		independence = "declared, not verified"
 	}
+	seen := slices.Clone(notSeen)
+	if notWhole {
+		seen = append(seen, notSeenAfterAGap)
+	}
 	return Scope{
 		Evaluation:           "the kernel's own evaluation, Kernel.Explain, in ENFORCE mode, on each policy signed in memory",
-		NotSeen:              slices.Clone(notSeen),
+		NotSeen:              seen,
 		LabellerIndependence: independence,
 	}
 }

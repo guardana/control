@@ -39,10 +39,11 @@ const (
 // Reason is why a case is unknown.
 type Reason string
 
-// The reasons, in the order a case is judged.
+// The reasons, in the order the report lists them.
 const (
 	ReasonExportNotWhole          Reason = "export_not_whole"
 	ReasonIncompleteRequest       Reason = "incomplete_request"
+	ReasonVersionNotRead          Reason = "version_not_read"
 	ReasonSeveralDecisions        Reason = "several_decisions"
 	ReasonHistoricPolicyMissing   Reason = "historic_policy_missing"
 	ReasonRecordedStale           Reason = "recorded_stale"
@@ -54,10 +55,10 @@ const (
 	ReasonDisagreesWithRecord     Reason = "disagrees_with_record"
 )
 
-// Reasons is every reason, in the order a case is judged.
+// Reasons is every reason, in the order the report lists them.
 func Reasons() []Reason {
 	return []Reason{
-		ReasonExportNotWhole, ReasonIncompleteRequest, ReasonSeveralDecisions, ReasonHistoricPolicyMissing,
+		ReasonExportNotWhole, ReasonIncompleteRequest, ReasonVersionNotRead, ReasonSeveralDecisions, ReasonHistoricPolicyMissing,
 		ReasonRecordedStale, ReasonNotEvaluated, ReasonExternalAnswerNeeded, ReasonMissingFacts,
 		ReasonFreshnessNotHeld, ReasonObligationApplicability, ReasonDisagreesWithRecord,
 	}
