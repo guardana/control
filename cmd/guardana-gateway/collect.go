@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -150,11 +151,11 @@ func collect(ctx context.Context, listen string, cfg collectorConfig, stdout, st
 }
 
 // collector is a collect serving on a listener it was handed: the server,
-// the trail file it appends to, the URL a plane sends to, and what Serve
-// returned once it stops.
+// the trail file it appends to, the URL a plane sends to, its path escaped as
+// a plane's export.endpoint reads it, and what Serve returned once it stops.
 type collector struct {
 	srv   *http.Server
-	trail *trailfile.Log
+	trail io.Closer
 	url   string
 	// planeSetting is the key beside export.endpoint a plane needs to send
 	// here.
@@ -190,7 +191,7 @@ func startCollector(ln net.Listener, cfg collectorConfig, stderr io.Writer) (*co
 			ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
 		},
 		trail:        w,
-		url:          "unix://" + ln.Addr().String(),
+		url:          (&url.URL{Scheme: "unix", Path: ln.Addr().String()}).String(),
 		planeSetting: "export.collector_uid: " + strconv.Itoa(os.Geteuid()),
 		served:       make(chan error, 1),
 	}
@@ -199,13 +200,26 @@ func startCollector(ln net.Listener, cfg collectorConfig, stderr io.Writer) (*co
 }
 
 // stop waits for the requests in flight, each of which answers only after
-// the trail holds its records or refuses them, and closes the trail.
-func (c *collector) stop() error {
-	ctx, cancel := context.WithTimeout(context.Background(), collectShutdown)
+// the trail holds its records or refuses them, and closes the trail, for
+// collectShutdown in all.
+func (c *collector) stop() error { return c.stopWithin(collectShutdown) }
+
+// stopWithin is stop bounded by wait. An append waiting on the disk holds the
+// trail, so a close not done by then is reported and left to the process's
+// exit; the request it serves was not answered, and is sent again.
+func (c *collector) stopWithin(wait time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
 	err := c.srv.Shutdown(ctx)
 	if err != nil {
 		err = fmt.Errorf("stopping: %w", err)
 	}
-	return errors.Join(err, c.trail.Close())
+	closed := make(chan error, 1)
+	go func() { closed <- c.trail.Close() }()
+	select {
+	case cerr := <-closed:
+		return errors.Join(err, cerr)
+	case <-ctx.Done():
+		return errors.Join(err, fmt.Errorf("stopping: the trail was not closed within %s, as an append still waits on the disk", wait))
+	}
 }

@@ -84,7 +84,7 @@ func openWith(cfg Config, ops fsOps) (*segments, error) {
 	if !files.PermissionBits {
 		return nil, ErrNoPermissionBits
 	}
-	root, err := openDir(cfg.Dir)
+	root, err := openDir(cfg.Dir, ops.sync)
 	if err != nil {
 		return nil, err
 	}

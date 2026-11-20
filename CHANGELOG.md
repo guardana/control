@@ -53,6 +53,55 @@ verify one.
   with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
   approval closed the hold as `APPROVAL_EXPIRED` before its version was
   read.
+- `collect` answers a repeat of records it already holds only while the live
+  segment is as its last write left it, and otherwise answers 503 and takes
+  nothing more until it is started again. A repeat sent after the live file
+  was cut was answered 200 from the index alone, so the plane released
+  records the trail had lost
+  ([watch a plane without a collector](docs/guides/watch-a-plane-without-a-collector.md)).
+- `collect` and `prune` sync the directory the trail directory is named in
+  before the first answer, so a trail directory just made is still there
+  after a power loss. Evidence was acknowledged while the directory's own
+  name could still be lost.
+- `collect` and `prune` refuse a trail directory whose parent another account
+  owns or the group or others may write, as the guide requires. Only the
+  trail directory itself was checked.
+- A segment log whose `segments.json` is a symbolic link is refused by
+  `collect`, `prune` and every reader. The link was followed.
+- `prune` reads each segment it removes again before it writes the
+  tombstone, and refuses one that no longer holds what the manifest names,
+  changing nothing. A file put at a segment's name after the log was opened
+  was unlinked unread.
+- `trail export` of a segment log stops, exit 2 and with no trailer, at an
+  event of another tenant or project than the log is bound to. It wrote the
+  event, so an unfiltered export could report no gap
+  ([contracts](docs/contracts.md#a-directory-of-segments)).
+- `trail export` of a segment log does not report the end at a sealed segment
+  when the live segment after it holds only bytes no newline ends; the export
+  after its cursor reports them. A torn live segment after a seal was hidden
+  behind `end_reached: true`.
+- `trail export` of a segment log no longer reports the end of the log when a
+  seal renamed the live segment while the export was reading the manifest;
+  it reads the log again. The sealed segment was left out behind
+  `end_reached: true`.
+- `trail export` writes a line holding a `null` as a `malformed` gap, not as
+  an event. The codec reads a `null` as an absent member, and the export's
+  reader refuses any record holding one, so an export of such a line could
+  not be read ([contracts](docs/contracts.md#the-evidence-export)).
+- A collector's 401 to a request without the credential is sent before the
+  body is read, and closes the connection. Go's server read a small unread
+  body first, so a slow body delayed the answer.
+- A collector refuses with 415 a request carrying a content coding in any
+  `Content-Encoding` field. Only the first field was read.
+- `collect` prints its socket as an `export.endpoint` a plane reads, with a
+  `#`, `?` or `%` in the path escaped. It printed the path as it stands,
+  which a plane refused or read as another path.
+- `collect` stops within ten seconds of its signal also when a write is still
+  waiting on the disk; that request is not answered, and the plane sends it
+  again. The stop waited on the write without a bound.
+- The exporter refuses a collector's answer surrounded by bytes JSON does not
+  take as whitespace, such as a vertical tab, and sends the records again.
+  Such an answer was trimmed and accepted, releasing the records.
 
 ### Documentation
 

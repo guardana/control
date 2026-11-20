@@ -197,8 +197,9 @@ func openSource(dir string, v *segmentlog.View, s segmentlog.Segment, after stri
 		return Source{}, "", nil, err
 	}
 	seq := s.Seq
-	src := Source{Name: name, R: f, Size: size, More: holdsLater(v, s), PrunedBefore: gone,
-		Key: func(first lineexport.Digest) lineexport.Digest { return segmentlog.SegmentKey(seq, first) }}
+	m := v.Manifest()
+	src := Source{Name: name, R: f, Size: size, More: holdsLater(v, s), PrunedBefore: gone, Tenant: m.Tenant,
+		Project: m.Project, Key: func(first lineexport.Digest) lineexport.Digest { return segmentlog.SegmentKey(seq, first) }}
 	if s.State == segmentlog.StateLive {
 		src.Held = func() (bool, error) { return heldByWriter(f) }
 	}
@@ -218,14 +219,16 @@ func prunedBefore(v *segmentlog.View, seq int) int {
 	return n
 }
 
-// holdsLater reports whether a segment after s held a line when the view was
-// read, so an export of s has not reached the log's end at s's.
+// holdsLater reports whether a segment after s held a line, or bytes no
+// newline ends, when the view was read, so an export of s has not reached the
+// log's end at s's.
 func holdsLater(v *segmentlog.View, s segmentlog.Segment) bool {
 	if s.State != segmentlog.StateSealed {
 		return false
 	}
 	next := v.After(s.Seq)
-	return next.State() == segmentlog.StateSealed || next.State() == segmentlog.StateLive && next.Segment().Lines > 0
+	return next.State() == segmentlog.StateSealed ||
+		next.State() == segmentlog.StateLive && (next.Segment().Lines > 0 || v.Tail() > 0)
 }
 
 // ReadPath reads a trail file as ReadFile does, or every segment of a log not

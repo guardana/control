@@ -153,9 +153,9 @@ this account or root, and not writable by the group or others unless sticky.</li
 </code></pre>
 <p><code>--listen</code> takes a unix socket only: a TCP address was removed in 0.17
 (<a href="/docs/adr/0080-evidence-leaves-a-plane-over-a-unix-socket-or-tls">ADR-0080</a>).
-It prints where it listens, the directory and the plane's keys. It runs until Ctrl-C or <code>SIGTERM</code>, and waits up to
-ten seconds for the requests in flight. One collect holds a directory at a
-time; a second one is refused.</p>
+It prints where it listens, as a URL, the directory and the plane's keys. It
+runs until Ctrl-C or <code>SIGTERM</code>, and waits up to ten seconds for the requests
+in flight. One collect holds a directory; a second is refused.</p>
 <p>The directory is bound to the tenant and the project it was first opened
 with; opening it for another is refused. A request without the credential is
 answered 401 before its body is read. One carrying an event of another tenant

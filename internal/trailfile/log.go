@@ -51,6 +51,9 @@ type Log struct {
 	// failed is a failure of the log that refuses every later call, an
 	// append whose events the index holds included.
 	failed error
+	// live is the live segment's file as last opened, which an append whose
+	// events the index holds checks before it is answered.
+	live segmentlog.LiveFile
 }
 
 // OpenLog opens the log in cfg.Dir, of the default kind, and holds it until
@@ -69,7 +72,13 @@ func OpenLog(cfg LogConfig) (*Log, error) {
 	rl, err := segmentlog.Open(segmentlog.Config{
 		Kind: segmentlog.KindSegments, Dir: cfg.Dir, Tenant: cfg.Tenant, Project: cfg.Project,
 		SegmentBytes: cfg.SegmentBytes, MaxBytes: cfg.MaxBytes, MaxLineBytes: evidence.MaxLineBytes, Now: now,
-		OpenLive: openLive,
+		OpenLive: func(root *os.Root, name string) (segmentlog.LiveFile, error) {
+			f, err := openLive(root, name)
+			if err == nil {
+				l.live = f
+			}
+			return f, err
+		},
 		Visit: func(line []byte) error {
 			number++
 			ev, err := l.ids.addLine(number, line)
@@ -127,11 +136,12 @@ func (l *Log) binds(ev *controlv1.Event) bool {
 
 // Append writes events as evidence lines and returns nil once they are
 // synced. An event whose line the log holds, byte for byte, is taken and not
-// written again. The whole append is refused as ErrBinding when one event is
-// of another tenant or project, as ErrConflict when an event id the log or
-// the append holds arrives with another line, and as segmentlog.ErrBudget
-// when it would take the log past its byte bound, which is no refusal for
-// good: the sender sends it again.
+// written again while the live segment is as the last append left it. The
+// whole append is refused as ErrBinding when one event is of another tenant
+// or project, as ErrConflict when an event id the log or the append holds
+// arrives with another line, and as segmentlog.ErrBudget when it would take
+// the log past its byte bound, which is no refusal for good: the sender
+// sends it again.
 func (l *Log) Append(ctx context.Context, events []*controlv1.Event) error {
 	for i, ev := range events {
 		if !l.binds(ev) {
@@ -154,14 +164,32 @@ func (l *Log) Append(ctx context.Context, events []*controlv1.Event) error {
 		return err
 	}
 	buf, added, err := l.ids.fresh(events, lines)
-	if err != nil || len(buf) == 0 {
+	switch {
+	case err != nil:
 		return err
+	case len(buf) == 0:
+		return l.stillHeld()
 	}
 	if err := l.rl.Append(ctx, buf); err != nil {
 		return l.latch(err)
 	}
 	l.ids.add(added)
 	return nil
+}
+
+// stillHeld refuses an append the index alone answers once the live segment,
+// holding a line, is no longer as the last append left it: the lines the
+// index names may be gone. Such a change fails the log, as an append would.
+func (l *Log) stillHeld() error {
+	if l.live == nil || l.rl.Manifest().Live.Lines == 0 {
+		return nil
+	}
+	err := l.live.Check()
+	if errors.Is(err, segmentlog.ErrLiveChanged) {
+		l.failed = fmt.Errorf("%w: %w", segmentlog.ErrFailed, err)
+		return l.failed
+	}
+	return err
 }
 
 // latch keeps a failure of the segment log, so an append the index alone

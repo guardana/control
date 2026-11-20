@@ -46,9 +46,9 @@ guardana-gateway collect --listen unix:///run/collector/logs.sock --dir trail/pl
 
 `--listen` takes a unix socket only: a TCP address was removed in 0.17
 ([ADR-0080](../adr/0080-evidence-leaves-a-plane-over-a-unix-socket-or-tls.md)).
-It prints where it listens, the directory and the plane's keys. It runs until Ctrl-C or `SIGTERM`, and waits up to
-ten seconds for the requests in flight. One collect holds a directory at a
-time; a second one is refused.
+It prints where it listens, as a URL, the directory and the plane's keys. It
+runs until Ctrl-C or `SIGTERM`, and waits up to ten seconds for the requests
+in flight. One collect holds a directory; a second is refused.
 
 The directory is bound to the tenant and the project it was first opened
 with; opening it for another is refused. A request without the credential is

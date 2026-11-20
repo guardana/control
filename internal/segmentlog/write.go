@@ -133,7 +133,8 @@ func (l *segments) seal() error {
 // Prune prunes the sealed segments through the one numbered through. Each
 // one's tombstone is in the manifest before its file is unlinked. A prefix
 // already pruned, its tombstones dropped or not, is pruned again as nothing.
-// A clock before a seal it would prune is refused with nothing changed.
+// A clock before a seal it would prune, and a file that no longer holds what
+// the manifest names it with, are refused with nothing changed.
 func (l *segments) Prune(through int) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -146,19 +147,13 @@ func (l *segments) Prune(through int) error {
 			ErrPrune, through, last, last+1)
 	}
 	next := slices.Clone(l.segs)
-	var gone []string
 	at := l.now()
 	if err := sealedBy(next[:max(through-l.dropped, 0)], at); err != nil {
 		return err
 	}
-	for i := range next[:max(through-l.dropped, 0)] {
-		if next[i].State == StateSealed {
-			gone = append(gone, next[i].File)
-			next[i].State, next[i].PrunedAt, next[i].File = StatePruned, at, ""
-		}
-	}
-	if len(gone) == 0 {
-		return nil
+	gone, err := l.tombstone(next[:max(through-l.dropped, 0)], at)
+	if err != nil || len(gone) == 0 {
+		return err
 	}
 	if err := l.writeManifest(l.dropped, next); err != nil {
 		return err
@@ -173,6 +168,24 @@ func (l *segments) Prune(through int) error {
 	}
 	l.segs = next
 	return nil
+}
+
+// tombstone names each sealed segment of segs pruned at at, once its file
+// is read again and holds what the manifest names it with, and returns the
+// files to unlink.
+func (l *segments) tombstone(segs []Segment, at time.Time) ([]string, error) {
+	var gone []string
+	for i := range segs {
+		if segs[i].State != StateSealed {
+			continue
+		}
+		if err := l.verify(segs[i], nil); err != nil {
+			return nil, err
+		}
+		gone = append(gone, segs[i].File)
+		segs[i].State, segs[i].PrunedAt, segs[i].File = StatePruned, at, ""
+	}
+	return gone, nil
 }
 
 // sealedBy refuses a clock at before the seal of a sealed segment of segs:
