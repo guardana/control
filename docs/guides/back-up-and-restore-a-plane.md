@@ -82,9 +82,9 @@ only that copy, which a killed restore leaves behind.
 
 ## What a restore does
 
-- Plane floor, per bundle id either side holds: the higher serial of the
-  two, with its digest, stamped issued and latest at the restore time,
-  rounded up to the whole second; a plane started within that second
+- Plane floor, per bundle id either side holds: the higher serial, with its
+  digest, stamped issued and latest at the restore time,
+  rounded up to the second; a plane started within that second
   refuses until it passes. The bundle's own statement, issued before the
   restore, confirms nothing; the next renewal does. Two digests at one
   serial, or a clock behind either floor, refuse before that id is written.
@@ -110,15 +110,14 @@ only that copy, which a killed restore leaves behind.
   judged against `reaction.route`, into a list of a new id holding every
   stop no lift ended, where a lift made for the old list does not verify.
   Any other surviving list is two histories, and the restore refuses;
-  moving it aside lets the restore carry the backup's and loses the stops
-  added to it since. Under `signed` the list is an operator's file, and only
+  moving it aside lets the restore carry the backup's. Under `signed` the list is an operator's file, and only
   its floor is raised.
 
 A restore never writes the hold journal, its ledger or the approvals store:
 no hold resumes and no spent approval counts again.
-A missing floor directory is built under a temporary name and renamed into
-place; a restore stopped at any write and run again ends where an unbroken
-one does.
+A missing floor directory is built as `.<name>.restoring` beside it, refused
+where that is or holds another key's path, and renamed into place; a
+restore stopped at any write and run again ends where an unbroken one does.
 
 ## Verify
 

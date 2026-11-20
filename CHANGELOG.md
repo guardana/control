@@ -53,6 +53,61 @@ verify one.
   with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
   approval closed the hold as `APPROVAL_EXPIRED` before its version was
   read.
+- A signed plane refuses to start, and `doctor` fails, when `records/` holds
+  more than the 65,536 records a start reads to carry their closes. The
+  start logged the cut and served, so the open record of a run closed past
+  the cut, put back, was taken
+  ([runs](docs/reference/runs.md)).
+- A signed child's first call beside a root whose state file is gone and
+  whose lock file is not leaves no `.seen`. The mark was made before the
+  call was refused, so once the root's state was put back the child ran
+  after its parent's close was carried.
+- A signed child's first call whose ancestor walk reads a closed ancestor
+  carries that close and is refused as `closed`. The walk took the closed
+  record as a link to its parent and admitted the grandchild.
+- `react` under a signed route refuses an unsigned `--runs` directory. The
+  route's `--roster` and `--root-key` did not count as flags that judge
+  records, so without `--tenant` and `--project` it took a stop's subject
+  from an unsigned record.
+- `react` reads a finding's run again once it holds the stop list's lock,
+  and a run closed while it waited is counted as not stopping. It wrote the
+  stop from what it read before the wait.
+- A signed restore takes a backed-up root whose lock file stands without its
+  state as untrusted with an unknown read, as the plane does, and refuses,
+  before its first write, a surviving root's lock file the join would refuse.
+  It left such a root's live state as it was, and stamped floors and carried
+  closes before it met the lock
+  ([back up and restore](docs/guides/back-up-and-restore-a-plane.md)).
+- A restore under the directory authority judges the backup's stop list
+  against the configured route also when the live list begins with it, and
+  refuses one written under a route since replaced. It kept the old list,
+  which the next start refused.
+- Signed `/healthz` and `doctor` report a stop naming another tenant's or
+  project's run as unheld, not as unread, which made the reaction check
+  unknown.
+- A `2.0` list put in place of a `3.0` list a plane accepted names
+  `stops init --carry` at every read. The changed header was refused first,
+  without the instruction
+  ([reaction under signed](docs/reference/reaction-signed.md)).
+- `stops lift` refuses, with nothing written, a lift that ends no stop of
+  the list as it stands under the writer's lock, such as one signed against
+  the list before another lift ended that stop.
+- A signed start refuses a stop list its own account may write, an access
+  control list among the ways, as it refuses the stops directory. Only the
+  directory was judged
+  ([set up signed operators](docs/guides/set-up-signed-operators.md)).
+- `state backup` makes its directories `0700` and its copies `0600` whatever
+  the umask, as the guide says. A umask that took the owner's bits made them
+  narrower.
+- `state restore` refuses, before its first write, a configuration where the
+  temporary name a missing floor directory is built under is, or holds, a
+  path another key names. Building the floor removed that path first, so a
+  route floor named there was built again from the backup's lower serial.
+- A signed carry takes the write bits off the list it carried from once the
+  new list is written, and `react` and `stops lift` refuse a list its owner
+  may not write. A stop appended to the old list after the carry reached a
+  plane still serving it and was missing from the new list, whose header the
+  plane's floor followed ([reaction under signed](docs/reference/reaction-signed.md)).
 
 ## [0.18.0] - 2026-11-18
 

@@ -126,11 +126,12 @@ given its `--roster`, `--root-key`, `--tenant` and `--project`.
 
 A record that is unsigned, signed for another directory, of another tenant
 or project, or by a key the roster does not grant `operate` refuses its calls
-as `unreadable`. When the plane takes a closed record, at a call or when it
-starts, it writes the close into `state/`, and the open record put back
-after is refused as `closed`. So is a child it never admitted
+as `unreadable`. When the plane takes a closed record, at a call or start,
+it writes the close into `state/`, and the open record put back is refused
+as `closed`. So is a child it never admitted
 (`state/<id>.seen`) once an ancestor's close is carried
-([ADR-0079](../adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)). `/healthz` counts under
+([ADR-0079](../adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)).
+Starts refuse over 65,536 records. `/healthz` counts under
 `runs.signed` the records judged, each refusal cause, the closes carried and
 `carry_failed`, held per plane; `doctor` counts records by state and signer.
 

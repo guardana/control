@@ -47,7 +47,7 @@ var carrying func()
 // CarrySigned, and the unsigned list Carry would write under another route is
 // refused by the judge every write passes.
 func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir string, route reaction.Route, now time.Time) (Carried, error) {
-	return carry(ctx, from, fromRoute, dir, route, now, func(part) (reaction.Header, []byte, error) {
+	return carry(ctx, from, fromRoute, dir, route, now, false, func(part) (reaction.Header, []byte, error) {
 		h, err := newHeader(route)
 		if err != nil {
 			return reaction.Header{}, nil, err
@@ -70,7 +70,11 @@ func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 // and its run as its subject. hold, when set, is what the part of the old
 // list carried is held to before anything is signed, with that part's bytes:
 // the plane's stop list floor, so a list cut back below what the plane
-// accepted is not carried.
+// accepted is not carried. Once the new list is written the old one loses
+// its write bits under the lock, and no writer here appends to it again
+// (ErrCarried): a stop a plane still serving it took after the carry would
+// be one the new list lacks, and its floor follows the new header whatever
+// the old list held.
 func CarrySigned(ctx context.Context, from string, fromRoute reaction.Route, dir string, route reaction.Route, now time.Time, s Signer,
 	hold func(reaction.List, []byte) error) (Carried, error) {
 	switch fromRoute.Format() {
@@ -81,7 +85,7 @@ func CarrySigned(ctx context.Context, from string, fromRoute reaction.Route, dir
 	if route.Format() != reaction.FormatV1Alpha3 {
 		return Carried{}, fmt.Errorf("%w: a signed carry is into the list of a v1alpha3 route", ErrRefused)
 	}
-	return carry(ctx, from, fromRoute, dir, route, now, func(old part) (reaction.Header, []byte, error) {
+	return carry(ctx, from, fromRoute, dir, route, now, true, func(old part) (reaction.Header, []byte, error) {
 		if hold != nil {
 			if err := hold(old.list, old.accepted); err != nil {
 				return reaction.Header{}, nil, fmt.Errorf("%w: the list carried from: %w", ErrRefused, err)
@@ -99,7 +103,7 @@ func CarrySigned(ctx context.Context, from string, fromRoute reaction.Route, dir
 // list carried, and its line.
 type headerFor func(old part) (reaction.Header, []byte, error)
 
-func carry(ctx context.Context, from string, fromRoute reaction.Route, dir string, route reaction.Route, now time.Time, next headerFor) (Carried, error) {
+func carry(ctx context.Context, from string, fromRoute reaction.Route, dir string, route reaction.Route, now time.Time, retire bool, next headerFor) (Carried, error) {
 	var out Carried
 	err := locked(ctx, from, func(root *os.Root) error {
 		same, err := sameDir(root, dir)
@@ -131,7 +135,15 @@ func carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 			carrying()
 		}
 		lines := append([][]byte{header}, stops...)
-		return create(ctx, dir, route, now, append(lines, covered...))
+		if err := create(ctx, dir, route, now, append(lines, covered...)); err != nil {
+			return err
+		}
+		if retire {
+			if err := retireList(root); err != nil {
+				return fmt.Errorf("the list carried from was not made read-only: %w", err)
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return Carried{}, err
@@ -274,6 +286,27 @@ func coveredLines(old []byte, kept map[string]bool, into reaction.RouteFormat) (
 
 // readList reads the list root holds, with every check a plane's read makes;
 // the caller holds the lock.
+// retireList takes the write bits off the list in root and forces the change
+// to disk.
+func retireList(root *os.Root) error {
+	named, err := stoplist.Named(root)
+	if err != nil {
+		return err
+	}
+	f, err := root.OpenFile(stoplist.FileName, os.O_RDONLY|stoplist.OpenFlags, 0)
+	if err != nil {
+		return err
+	}
+	err = stoplist.CheckOpened(named, f)
+	if err == nil {
+		err = f.Chmod(named.Mode().Perm() &^ 0o222)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	return errors.Join(err, f.Close())
+}
+
 func readList(root *os.Root) ([]byte, error) {
 	named, err := stoplist.Named(root)
 	if err != nil {

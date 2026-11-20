@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/guardana/control/internal/gatewayconfig"
@@ -66,6 +67,9 @@ func Restore(ctx context.Context, cfg *gatewayconfig.Config, dir string, now tim
 	defer func() { err = errors.Join(err, release()) }()
 	r := restorer{ctx: ctx, cfg: cfg, dir: verified, now: now, held: held}
 	r.out.PlaneNotChecked = m.Authority == gatewayconfig.AuthoritySigned && m.PlaneID == ""
+	if err := r.checkStaging(); err != nil {
+		return Report{}, err
+	}
 	for _, c := range classes {
 		if err := r.check(c); err != nil {
 			return Report{}, fmt.Errorf("%s: %w", c.key, err)
@@ -115,6 +119,35 @@ func (r *restorer) restorePaths(c class) (live, from string, err error) {
 }
 
 func (r *restorer) signed() bool { return r.cfg.Approvals.Authority == gatewayconfig.AuthoritySigned }
+
+// checkStaging refuses a floor class whose temporary build name is, or
+// holds, the path another class names: building that floor removes whatever
+// stands there first.
+func (r *restorer) checkStaging() error {
+	for _, c := range classes {
+		if !c.floor() || !r.restores(c) {
+			continue
+		}
+		live, _, err := r.paths(c)
+		if err != nil {
+			return err
+		}
+		staging := policystate.StagingPath(live)
+		for _, other := range classes {
+			if other.value(r.cfg) == "" || !other.applies(r.cfg.Approvals.Authority) {
+				continue
+			}
+			path, _, err := r.paths(other)
+			if err != nil {
+				return err
+			}
+			if rel, err := filepath.Rel(staging, path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return fmt.Errorf("%w: %s is built under %s, which %s names", ErrStaging, c.key, staging, other.key)
+			}
+		}
+	}
+	return nil
+}
 
 // check refuses what restoring class c would refuse, and writes nothing.
 func (r *restorer) check(c class) error {

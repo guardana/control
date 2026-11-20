@@ -278,6 +278,29 @@ func TestInspectStopsAtItsBound(t *testing.T) {
 	}
 }
 
+// TestACarryOfFewerRecordsThanTheLayoutHoldsRefuses: the run closed past
+// the bound in filename order is one the carry never reads, so CarryCloses
+// refuses rather than leave its close uncarried; a bound that reads both
+// carries it.
+func TestACarryOfFewerRecordsThanTheLayoutHoldsRefuses(t *testing.T) {
+	dir, a := newSigned(t)
+	first, _ := openSignedRoot(t, a, "alice")
+	second, _ := openSignedRoot(t, a, "alice")
+	late := max(first.ID, second.ID)
+	closeSigned(t, a, late, opened.Add(time.Minute))
+	p := signedPlane(t, dir, alicesJudge)
+	s, err := p.CarryCloses(t.Context(), 1, opened.Add(2*time.Minute))
+	if !errors.Is(err, runs.ErrCarryBound) || s.Complete || s.Records != 1 || s.Carried != 0 {
+		t.Fatalf("CarryCloses bound 1 over two records = %+v, %v; want one read, incomplete, ErrCarryBound", s, err)
+	}
+	if _, err := os.Lstat(filepath.Join(dir, "state", late+".closed")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("the close past the bound: %v, want it uncarried", err)
+	}
+	if s, err := p.CarryCloses(t.Context(), 2, opened.Add(2*time.Minute)); err != nil || !s.Complete || s.Carried != 1 {
+		t.Fatalf("CarryCloses bound 2 = %+v, %v; want both read and one close carried", s, err)
+	}
+}
+
 // TestASignedCommandVerifiesWhatItSignsOver: a close and a child's opening
 // read a record and sign over what it holds, so each refuses a record its
 // judge does not take and writes nothing; an opening also refuses to write a

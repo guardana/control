@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"hash"
 	"slices"
@@ -59,7 +60,8 @@ type judging struct {
 // tolerance of one poll interval. Bytes after the last newline are a line
 // being written and are left out. It refuses a route CheckStopping refuses,
 // however it was read; a list over MaxListBytes or MaxListLines; one whose
-// header line is not the accepted one's, that is
+// header line is not the accepted one's, by its version's refusal where that
+// is not the route's lists'; one that is
 // shorter than the accepted prefix or does not begin with it; a header that
 // is not line 1 alone or names another route; a line ParseLine refuses; a
 // finding id two lines name; a stop the route does not permit; a covered line
@@ -75,7 +77,7 @@ func Judge(route Route, accepted Prefix, content []byte, now time.Time, toleranc
 	}
 	sum, err := extends(accepted, complete)
 	if err != nil {
-		return List{}, err
+		return List{}, otherVersion(route, complete, err)
 	}
 	return walk(context.Background(), route, List{}, complete, lines, sum, now, tolerance)
 }
@@ -102,7 +104,7 @@ func JudgeFromContext(ctx context.Context, route Route, from List, content []byt
 	}
 	sum, err := extends(from.prefix, complete)
 	if err != nil {
-		return List{}, err
+		return List{}, otherVersion(route, complete, err)
 	}
 	if from.seen == nil {
 		if err := vouchAgain(ctx, route, nil); err != nil {
@@ -209,6 +211,22 @@ func extends(accepted Prefix, complete []byte) ([sha256.Size]byte, error) {
 	h.Write(complete[accepted.length:])
 	h.Sum(sum[:0])
 	return sum, nil
+}
+
+// otherVersion is err, a refusal of complete's prefix, or, where it is a
+// changed header whose version is not route's lists', the refusal that
+// version has on line 1, so a list of another format names what to do with
+// it at every read.
+func otherVersion(route Route, complete []byte, err error) error {
+	if !errors.Is(err, ErrListHeader) {
+		return err
+	}
+	l, perr := ParseLine(complete[:bytes.IndexByte(complete, '\n')])
+	want, verr := listVersion(route.format)
+	if perr != nil || verr != nil || l.Version == want {
+		return err
+	}
+	return &LineError{Line: 1, Err: versionRefusal(1, l.Version, want)}
 }
 
 // checkPrefix refuses complete unless it begins with accepted, and leaves h

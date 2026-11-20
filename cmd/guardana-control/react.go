@@ -205,7 +205,7 @@ func (r *reactor) finding(fr *findingv1alpha1.FindingRecord) error {
 		r.skipped++
 		return nil
 	}
-	return r.write(fr, run)
+	return r.write(fr)
 }
 
 // now is the clock in whole seconds, which is what a line spells.
@@ -234,7 +234,13 @@ func (r *reactor) run(id string) (reaction.RunFacts, error) {
 	if facts, ok := r.runFacts[id]; ok {
 		return facts, nil
 	}
-	rec, err := r.lookup(r.ctx, id)
+	return r.lookupFacts(r.ctx, id)
+}
+
+// lookupFacts reads the facts of the run id names from the runs directory
+// and keeps them for the findings after.
+func (r *reactor) lookupFacts(ctx context.Context, id string) (reaction.RunFacts, error) {
+	rec, err := r.lookup(ctx, id)
 	switch {
 	case errors.Is(err, runs.ErrNoRun), errors.Is(err, runs.ErrRunID):
 		rec = runs.Record{}
@@ -270,11 +276,19 @@ func (r *reactor) claim(fr *findingv1alpha1.FindingRecord, run reaction.RunFacts
 // covered line for one with, the writer choosing under its lock over the
 // list as it stands, so a react running beside this one cannot give the
 // subject a second stop. The stop is the finding's claim at the clock read
-// under the lock. A write the list's bound or the judge refuses is named and
-// the pass goes on; any other refusal stops it.
-func (r *reactor) write(fr *findingv1alpha1.FindingRecord, run reaction.RunFacts) error {
+// under the lock, over the run as it stands then. A write the list's bound or
+// the judge refuses is named and the pass goes on; any other refusal stops
+// it.
+func (r *reactor) write(fr *findingv1alpha1.FindingRecord) error {
 	id, runID := fr.GetFinding().GetFindingId(), fr.GetFinding().GetRunId()
 	stopAt := func(now time.Time) (reaction.Stop, error) {
+		// The run is read again under the lock: an operator may have closed
+		// it while the pass waited. An interrupt ends the pass after the
+		// write it is in, so this read is not cut short by one.
+		run, err := r.lookupFacts(context.WithoutCancel(r.ctx), runID)
+		if err != nil {
+			return reaction.Stop{}, err
+		}
 		c, ok := r.stopping(fr, run, now)
 		if !ok {
 			return reaction.Stop{}, errNotStopping

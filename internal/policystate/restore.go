@@ -452,6 +452,13 @@ func readBackup[V any](k floorKind[V], backup string) ([]string, map[string]*V, 
 	return ids, held, nil
 }
 
+// StagingPath is the temporary sibling name a restore builds the floor
+// directory live under before it renames it into place. Whatever stands
+// there when a build starts is removed.
+func StagingPath(live string) string {
+	return filepath.Join(filepath.Dir(live), "."+filepath.Base(live)+".restoring")
+}
+
 // buildFloors makes live from the backup's floors under a temporary sibling
 // name, which a stopped build leaves for the next to remove, and renames it
 // into place, so the name holds either nothing or every floor.
@@ -465,7 +472,7 @@ func buildFloors[V any](k floorKind[V], live string, ids []string, held map[stri
 	if len(keep) == 0 {
 		return Restored{}, nil
 	}
-	tmp := filepath.Join(filepath.Dir(live), "."+filepath.Base(live)+".restoring")
+	tmp := StagingPath(live)
 	if err := step("build " + live); err != nil {
 		return Restored{}, err
 	}
