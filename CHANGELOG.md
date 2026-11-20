@@ -11,6 +11,17 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- `guardana-gateway attempts run` (`experimental`) runs a manifest of scripted
+  attempts against the demo's victims, each on a fresh dev plane, and counts
+  each named effect and each legitimate step at the victims' journals, with a
+  positive control on an OBSERVE plane and a negative control, in a report
+  written line by line
+  ([attempt format](docs/reference/attempt-format.md),
+  [ADR-0086](docs/adr/0086-controlled-attempts-are-counted-at-the-victim.md)).
+  The demo's manifest is `examples/vulnerable-mcp-agent/attempts/manifest.json`.
+
 ### Fixed
 
 - `supervise` lists a step's requests, and a finding cites and keeps its
@@ -55,7 +66,10 @@ verify one.
   approve the hold, or where that cannot be told, leaves the call
   `INDETERMINATE` and the hold standing. It was left out, so a valid approval
   beside it could run, though it may be the rejection that wins. From an
-  operator who may not approve the hold it is left out.
+  operator who may not approve the hold it is left out. A file named for the
+  approval that cannot be read as an answer at all still makes the batch
+  unavailable, since it may be the rejection
+  ([ADR-0073](docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
 - A signed start reads the trust root key only from the file its check
   judged, and refuses one renamed over the path in between. It opened the
   key again by name after the check.
@@ -69,6 +83,28 @@ verify one.
 - An approvals record whose `tenant`, `project` or any other member is
   `null` is refused as a member of the wrong type. A `null` tenant or project
   was read as empty.
+- An answer of the AuthZEN decision point whose body is not UTF-8 is refused
+  with `PDP_ANSWER_REFUSED`, so the call is blocked. JSON text is UTF-8; such
+  a body was read with replacement characters in its strings
+  ([let a decision point veto](docs/guides/let-a-decision-point-veto.md)).
+- An answer a decision point returns once its deadline, or the caller's, has
+  passed is a timeout, `PDP_TIMEOUT`, and one returned after the caller
+  cancelled is `PDP_UNAVAILABLE`, whatever either says. The gateway took the
+  answer an in-process decision point returned late, so an allow that came
+  after the deadline lifted the veto.
+- An approval whose expiry is not a valid timestamp, with nanos out of range
+  or a second past year 9999, is expired and never spent, and one whose
+  decision time is not a valid timestamp is no decision. Each was normalised
+  to another moment, which could fall inside the hold's window.
+- The binary decoder refuses an int32 member outside int32, as it does an
+  enum number, so a timestamp's `nanos` sent as 2^32+1 is refused before the
+  parse instead of arriving as one nanosecond. Only bytes no conforming
+  encoder writes are refused
+  ([contracts](docs/contracts.md#decoding-and-validation)).
+- A retry whose approval names a major this build does not read is refused
+  with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
+  approval closed the hold as `APPROVAL_EXPIRED` before its version was
+  read.
 
 ## [0.18.0] - 2026-11-18
 

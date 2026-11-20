@@ -36,6 +36,7 @@
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -67,6 +68,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -171,7 +173,7 @@ approval commands write and the plane checks field by field
 is on <a href="/docs/concepts/mcp-gateway">the MCP gateway</a> page.</p>
 <h2 id="who-may-approve">Who may approve</h2>
 <p><strong>Under <code>directory</code>, write access to the approvals directory is the approval
-authority.</strong> Whoever can write the records can answer a held request.
+authority.</strong>
 <code>approver_id</code> on an answer is an unauthenticated claim, worth what the
 directory's permissions are worth, and nothing in the plane treats it as an
 identity. The directory is refused at open when another account owns it or a
@@ -192,10 +194,10 @@ plane never reads back as truth.</p>
 <h2 id="a-hold-the-plane-loses">A hold the plane loses</h2>
 <p>A hold does not survive a restart, and the window between a request and an
 answer is as long as a person takes, so a plane that dies holding a call
-is an ordinary event rather than a rare one. The plane therefore keeps its own
+is an ordinary event. The plane therefore keeps its own
 journal of its own holds, in its own directory, under its own lock, written by
 no other process: <code>approvals.hold_journal_dir</code>. It is as trusted as the
-evidence, and for the same reason — whoever can write it can already write the
+evidence — whoever can write it can already write the
 evidence.</p>
 <p>An entry is recorded after <code>APPROVAL_REQUESTED</code> is appended and before the
 agent is told pending, and every append that moves that trail further is
@@ -495,7 +497,7 @@ record of the approval it minted, by approval and request id, and records
 </thead>
 <tbody>
 <tr>
-<td>pending, approved with no <code>approver_id</code>, multi-use (counted), or decided never, before <code>requested_at</code> or after now</td>
+<td>pending, approved with no <code>approver_id</code>, multi-use (counted), or decided never, at no valid time, before <code>requested_at</code> or after now</td>
 <td>the hold waits; the retry is told the same <code>approval_id</code></td>
 </tr>
 <tr>
@@ -507,11 +509,11 @@ record of the approval it minted, by approval and request id, and records
 <td>this call's own trail is blocked <code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code>; the hold stands, unspent</td>
 </tr>
 <tr>
-<td>expired, or with no expiry, and not marked spent</td>
+<td>expired, with no expiry or an invalid one, of a major this build reads, not marked spent</td>
 <td>the held trail closes <code>DENY</code>, <code>APPROVAL_EXPIRED</code></td>
 </tr>
 <tr>
-<td>approved or rejected, but of another major, another <code>requested_at</code>, a refused <code>approver_id</code>, or an expiry later than minted</td>
+<td>approved, rejected or expired of another major; approved or rejected with another <code>requested_at</code>, a refused <code>approver_id</code>, or an expiry later than minted</td>
 <td>the held trail closes with the plane's own approval, expired, <code>INDETERMINATE</code>, <code>EVIDENCE_UNAVAILABLE</code></td>
 </tr>
 <tr>
@@ -665,6 +667,7 @@ its MCP shape is in <code>adapters/mcp/answer.go</code>.</p>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -696,6 +699,7 @@ its MCP shape is in <code>adapters/mcp/answer.go</code>.</p>
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>

@@ -36,6 +36,7 @@
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -67,6 +68,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -503,7 +505,7 @@ correlation id has to come from the transport. Either way <strong>a non-nil mess
 is not a valid one</strong>: <code>err == nil</code> is the only test that separates the two.</p>
 <p><strong>The bytes received are not the envelope.</strong> The pre-scan refuses the byte
 strings two parsers would read as different envelopes: a field sent twice, an
-enum number past 32 bits, one key in two entries. Many other byte strings
+enum number or an int32 past 32 bits, one key in two entries. Many other byte strings
 still decode to one envelope: fields in any order, a repeated scalar packed or
 not, empty packed runs, a map entry without its value. Received bytes are
 therefore never evidence and never a key: hash, compare and store the
@@ -512,10 +514,11 @@ re-encoded message.</p>
 <ol>
 <li>the length of the input against <code>MaxEnvelopeBytes</code></li>
 <li>on the binary path, a pre-scan of the wire bytes, before the parse builds
-anything: a field that is not repeated sent twice, an enum number outside
-int32 read as a two's-complement int64, a collection past its bound, two
-entries of one map whose keys the runtime reads as one (an entry with no
-key reads as the empty key), a field in a map entry other than its key and
+anything: a field that is not repeated sent twice, an enum number or an
+int32 member, such as a timestamp's <code>nanos</code>, outside int32 read as a
+two's-complement int64, a collection past its bound, two entries of one
+map whose keys the runtime reads as one (an entry with no key reads as
+the empty key), a field in a map entry other than its key and
 value or either of those on a wire type other than its own
 (<code>ErrUnknownField</code> at the map), and bytes that are not wire format. The
 JSON codec itself refuses a field sent twice, an enum number outside int32
@@ -1586,7 +1589,7 @@ plane never delivered.</p>
 beside the evidence export: <code>Event.run_id</code> names a record, and the record names
 the root whose state a call was decided under. <code>experimental</code>, in
 <code>internal/runs/</code> (<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>).
-Only <code>guardana-control runs</code> writes a record, and a plane writes only a root's
+Only <code>guardana-control runs</code> writes a record, save <code>guardana-control state restore</code>, which writes a restored record closed; a plane writes only a root's
 state.</p>
 <p>Both files are one JSON object, a record of <code>schema_version</code> major <code>2</code> and a
 state of major <code>1</code>. Every key is required, none has a default, a key given
@@ -2228,6 +2231,7 @@ closing records.</p>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -2259,6 +2263,7 @@ closing records.</p>
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
