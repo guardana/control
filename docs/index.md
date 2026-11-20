@@ -56,6 +56,7 @@ Have a tool ask before it acts or a sensor report what happened, hold a client t
 ## Guides
 
 - [Back up and restore a plane](guides/back-up-and-restore-a-plane.md): Copy a stopped plane's floors, runs, pause file and stop list, and after a loss raise them back so no floor ends lower, every run is closed and no hold resumes.
+- [Compare a candidate policy](guides/compare-a-candidate-policy.md): Before signing a changed policy, decide your cases and a plane's evidence under both versions, and read what changes and what cannot be judged.
 - [Connect an existing MCP setup](guides/connect-an-existing-mcp-setup.md): Put the plane between an MCP client and a server you already use, classify the server's tools, hold its writes for approval, and end in a local report.
 - [Decide a tool of your own](guides/decide-a-tool-of-your-own.md): Serve the enforcement API, classify your tools by name, and have a client ask before each call and report how it ended, under one policy and trail.
 - [Keep two tasks apart](guides/keep-two-tasks-apart.md): Open a run per task in a runs directory, point a plane at it, and give each agent its token, so what one task took in never decides another's calls.
@@ -104,6 +105,7 @@ Have a tool ask before it acts or a sensor report what happened, hold a client t
 - [Metrics](reference/metrics.md): Every metric a plane answers on /metrics, with its type, its label, the statistic it reads and what it counts.
 - [Obligations](reference/obligations.md): The catalogue of obligation types a policy rule may name, the parameters each takes, and what the tree does with one.
 - [Observations](reference/observations.md): The source descriptor and its kinds, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export.
+- [Policy compare](reference/policy-compare.md): What `policy compare` reads, how it decides each case under two policies, its report and labels file, its counts, bounds and exit statuses.
 - [Policy explain](reference/policy-explain.md): What `guardana-control policy explain` reads, every line it prints, which rule decided and which input a rule could not read, and its bounds.
 - [Policy document format](reference/policy-format.md): Every member of an agent-policy/v1alpha1 document, the values each admits, the bounds, and the members of a policy test case.
 - [Signed reaction](reference/reaction-signed.md): How a signed plane takes its route, stop list header and lifts from roster operators, holds them to a stop list floor, and which commands sign them.
@@ -227,3 +229,4 @@ Have a tool ask before it acts or a sensor report what happened, hold a client t
 - [ADR-0083: A finding may stop an agent or a principal](adr/0083-a-finding-may-stop-an-agent-or-a-principal.md): accepted
 - [ADR-0084: The site is redrawn: one system for the landing page and the docs, a light and a dark theme, llms.txt](adr/0084-the-site-is-redrawn-in-one-system.md): accepted
 - [ADR-0085: The 1.0 bar is met by the project's own evidence, and what needs outside people stays not met](adr/0085-the-1-0-bar-is-met-by-own-evidence-and-what-needs-outside-people-stays-not-met.md): accepted
+- [ADR-0087: A candidate policy is compared through the kernel's own evaluation, and what a case cannot show stays unknown](adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation.md): proposed
