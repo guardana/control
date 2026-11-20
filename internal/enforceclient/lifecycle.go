@@ -84,7 +84,7 @@ func owed(ctx context.Context, ex *enforcev1alpha1.Execution, args []byte, carry
 	switch {
 	case len(ex.GetObligations()) > 0:
 		return enforcev1alpha1.AbortCause_ABORT_CAUSE_OBLIGATION
-	case len(authorized) == 0 && len(args) > 0,
+	case len(authorized) == 0,
 		carry != CarryAuthorized && !bytes.Equal(authorized, args):
 		return enforcev1alpha1.AbortCause_ABORT_CAUSE_ARGUMENTS_DIFFER
 	case ctx.Err() != nil:

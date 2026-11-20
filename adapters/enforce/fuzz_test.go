@@ -106,7 +106,7 @@ func checkComplete(t *testing.T, req *enforcev1alpha1.CompleteRequest) {
 	t.Helper()
 	if req.GetHandle() == "" || req.GetStatus() == 0 || !declared(req.GetStatus()) ||
 		len(req.GetSentArguments()) == 0 || len(req.GetSentArguments()) > contract.MaxArgumentsBytes ||
-		len(req.GetResultHash()) > contract.MaxStringBytes || len(req.GetSideEffectConfirmation()) > contract.MaxStringBytes {
+		!resultHash(req.GetResultHash()) || len(req.GetSideEffectConfirmation()) > contract.MaxStringBytes {
 		t.Fatalf("accepted a complete out of bounds: %v", req)
 	}
 }

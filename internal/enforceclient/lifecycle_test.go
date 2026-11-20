@@ -65,10 +65,26 @@ func TestExactOnlyHandsOutAnUnchangedExecute(t *testing.T) {
 	if adm.Handle != "h-2" || string(adm.Authorized) != `{"a":1}` || !adm.ExpiresAt.Equal(want) {
 		t.Fatalf("admission %+v", adm)
 	}
+}
 
-	c, _ = scriptedClient(t, answer(enforceclient.PathAdmit, 200, `{"outcome":"OUTCOME_EXECUTE","execution":{"handle":"h-3"}}`))
-	if _, adm, _, err := c.Admit(context.Background(), "t", nil, "", enforceclient.CarryExactOnly); err != nil || adm.Handle != "h-3" || !adm.ExpiresAt.IsZero() {
-		t.Fatalf("no bytes proposed, none authorized: %+v, %v", adm, err)
+// An EXECUTE that carries no authorized bytes is aborted whatever was
+// proposed, nothing included: the tool runs only on bytes the plane handed
+// back.
+func TestAnExecuteWithoutAuthorizedBytesIsAborted(t *testing.T) {
+	for _, carry := range []enforceclient.Carry{enforceclient.CarryExactOnly, enforceclient.CarryAuthorized} {
+		for _, proposed := range []string{"", `{"a":1}`} {
+			c, r := scriptedClient(t, answer(enforceclient.PathAdmit, 200, `{"outcome":"OUTCOME_EXECUTE","execution":{"handle":"h-3"}}`))
+			_, adm, cause, err := c.Admit(context.Background(), "t", []byte(proposed), "", carry)
+			if !errors.Is(err, enforceclient.ErrAbortOwed) || cause != argumentsDiffer {
+				t.Fatalf("carry %d, proposed %q: Admit = %v, cause %s; want ErrAbortOwed with ARGUMENTS_DIFFER", carry, proposed, err, cause)
+			}
+			if adm.Authorized != nil || adm.Handle != "h-3" || !adm.ExpiresAt.IsZero() {
+				t.Fatalf("carry %d, proposed %q: admission %+v; want only the handle h-3 to abort", carry, proposed, adm)
+			}
+			if got := r.requests(); len(got) != 1 {
+				t.Fatalf("carry %d, proposed %q: %d requests, want the admit alone", carry, proposed, len(got))
+			}
+		}
 	}
 }
 
