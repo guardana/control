@@ -156,6 +156,28 @@ func (set *attemptSet) header(manifest, state string, started time.Time) attempt
 	return h
 }
 
+// missingOf is what run r lacks: a journal that cannot be judged, a step
+// not sent, an operator's action that did not run, a clean-up that failed.
+func missingOf(r *attempts.Run) []string {
+	var out []string
+	for _, why := range r.JournalUnknown {
+		out = append(out, "journal: "+why)
+	}
+	for _, s := range r.Steps {
+		switch {
+		case !r.Started:
+		case s.Kind == "call" && !s.Sent:
+			out = append(out, fmt.Sprintf("%s step %d not sent on %s: %s", r.Attempt, s.Step, r.Plane, s.NotSent))
+		case s.Kind != "call" && !s.Ran:
+			out = append(out, fmt.Sprintf("%s step %d did not run on %s: %s", r.Attempt, s.Step, r.Plane, s.NotRun))
+		}
+	}
+	if r.Unfinished != "" {
+		out = append(out, "unfinished: "+r.Unfinished)
+	}
+	return out
+}
+
 // summarize counts every run and judges whether the run is complete: not
 // interrupted, every binary unchanged since the header, and one policy
 // digest reported by every plane that started.
@@ -177,9 +199,7 @@ func (set *attemptSet) summarize(ctx context.Context, results []*attempts.RunRes
 			s.Runs.NotRun++
 			missing = append(missing, "not run: "+r.NotRun)
 		}
-		for _, why := range r.JournalUnknown {
-			missing = append(missing, "journal: "+why)
-		}
+		missing = append(missing, missingOf(r)...)
 	}
 	s.Runs.Attempts = len(set.m.Attempts)
 	s.PolicyDigests = distinct(digestsSeen)

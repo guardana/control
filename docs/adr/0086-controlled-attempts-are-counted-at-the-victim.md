@@ -49,8 +49,10 @@ file with one name whose every line parses and whose last line is whole;
 every line of that call is the exact line of a legitimate or operator step
 of the same run; the same effect was observed on every positive plane in
 every repetition of the report; and no line a legitimate or operator step
-accounts for, anywhere in the report, meets the effect. An attack that was
-never sent is absent and not sent, counted apart. Anything else is unknown.
+accounts for, anywhere in the report, meets the effect; and every attack step
+aiming at it was sent and answered after every operator action before it ran.
+An attack step that was not sent leaves the effect absent and not sent,
+counted apart. Anything else is unknown.
 A legitimate step is completed only with a result and its exact journal
 line, held or blocked by its answer, and unknown otherwise.
 
@@ -107,9 +109,12 @@ manifest and report.
   rule, the labels against the scenario; conditions on nested members and
   non-strings; the journal's refusals (missing, a link, a second name, a mode
   others may read, a torn or unparsable line); the controls (a positive
-  plane that missed once, a legitimate line that meets the effect) and the
+  plane that missed once, one of two positive planes that missed, a
+  legitimate line that meets the effect); an attack not sent, one sent
+  without an answer, one after an operator's action that did not run; and the
   counts against literal numbers; fuzz targets for both parsers.
 - `cmd/guardana-gateway`: on live planes, a refund verified absent on ENFORCE
   and observed on OBSERVE, an attempt whose first answer differs still sending
   its refund, which the OBSERVE victim journals, a report path that exists
-  refused, and the demo's manifest at one repetition meeting its thresholds.
+  refused, and the demo's manifest as it ships meeting its thresholds and
+  printing the counts its guide shows.

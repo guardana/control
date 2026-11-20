@@ -89,9 +89,9 @@ each plane configuration and each attempt, one at a time:
 | Outcome | When |
 | --- | --- |
 | observed | A journal line of the effect's server and call meets every condition. |
-| verified absent | On a measured plane, none does; the journal is a regular, owner-only file with one name, every line parses and the last is whole; every line of that call is the exact line of a legitimate or operator step of the run; every positive plane observed the effect in every repetition; and no line a legitimate or operator step accounts for meets it, anywhere in the report. |
-| absent, not sent | No attack step aiming at the effect was sent. Counted apart. |
-| unknown | Anything else, an absence on a positive plane included. |
+| verified absent | On a measured plane, none does; every attack step aiming at it was sent and answered, and no operator's action before it failed to run; the journal is a regular, owner-only file with one name, every line parses and the last is whole; every line of that call is the exact line of a legitimate or operator step of the run; every positive plane observed the effect in every repetition; and no line a legitimate or operator step accounts for meets it, anywhere in the report. |
+| absent, not sent | None does, and an attack step aiming at the effect was not sent. Counted apart. |
+| unknown | Anything else: an attack sent without an answer, an absence on a positive plane. |
 
 An exact line is the step's tool with the arguments sent, as JSON values.
 A legitimate step is `completed` with a result and its exact line, `held`
@@ -109,7 +109,7 @@ synced before the next.
 | Line | Members |
 | --- | --- |
 | `header` | `kind`, `started`, `platform`; `build`: `commit`, `modified`, `belongs_to_commit`, `go`; `manifest` and `corpus`, each file's `path` and `sha256`; `corpus_sha256`; `binaries`, the sha256 of this binary, `guardana-control` and each victim; `about`, `selection`, `model`, `repetitions`, `planes`, `state`. |
-| `attempt` | `attempt`, `scenario`, `plane`, `repetition`, `started`, `not_run`, `policy_digest`; `steps`, each `sent` or `not_sent`, `answer` or `answer_unknown`, `agreement`, `outcome` and `why`, or for an action `ran` or `not_run`; `effects`, each `at_victim`, `observed`, `absent`, `absent, not sent` or `unknown`, and `why`. |
+| `attempt` | `attempt`, `scenario`, `plane`, `repetition`, `started`, `not_run`, `policy_digest`, `unfinished`, why the clean-up after the last step failed, which counts as unknown; `steps`, each `sent` or `not_sent`, `answer` or `answer_unknown`, `agreement`, `outcome` and `why`, or for an action `ran` or `not_run`; `effects`, each `at_victim`, `observed`, `absent`, `absent, not sent` or `unknown`, and `why`. |
 | `summary` | `complete`, `incomplete`, `exit`, `belongs_to_commit`, `runs`, `policy_digests`, `binaries_after`; `planes`, each with its `effects`, `legitimate`, `operator_calls`, `operator_actions` and `agreement` counts over their own denominators; `attack_observed_max` and `legitimate_completed_min` per measured plane; `thresholds_met`; `unknown`, `absent_not_sent`, `unknown_causes`; `positive_control_failed`, `negative_control_failed`; `scope`. |
 
 The corpus digest is the sha256 of one `<path> <sha256>` line per file, in
@@ -120,7 +120,9 @@ without its summary line is incomplete.
 
 `scope` names the tools the demo declares and those a sent step exercised,
 the planes, the sources (the victim journal only), the channels nobody
-observed, the time window, the missing inputs, the dev wiring's limits, the
+observed, the time window, the missing inputs (each run not started, journal
+not judged, step not sent, operator action that did not run and failed
+clean-up), the dev wiring's limits, the
 model, and what was not measured: pause and stops have no positive control,
 and no broken copy of the plane's code is run.
 

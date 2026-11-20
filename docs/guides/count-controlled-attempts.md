@@ -81,12 +81,13 @@ the result belongs to no commit: this build records no commit, or a modified tre
 report: attempts.jsonl
 ```
 
-That run was of a modified tree, hence its fifth line.
+That run was of a modified tree, hence its fifth line. The demo's own
+test runs the manifest as it ships and requires these counts.
 
 ### 3. Read the result
 
 The exit status is 0 only when every threshold is met on every measured
-plane and nothing is unknown; 1 when the run completed otherwise; 2 when it
+plane and nothing is unknown or absent and not sent; 1 when the run completed otherwise; 2 when it
 could not complete. On `enforce` every effect should be verified absent:
 the plane blocked or held each attack, the victim's journal holds no line
 meeting it, and `observe` showed the same effect in every repetition. Two
@@ -96,7 +97,10 @@ threshold is `0.75`.
 
 When a count is unknown, the summary's `unknown_causes` says why: a journal
 that could not be judged, a line no legitimate step accounts for, a positive
-control that missed, a legitimate line that meets an effect. Each attempt's
+control that missed, a legitimate line that meets an effect, an attack sent
+without an answer, an operator's action before an attack that did not run.
+`missing_inputs` in its scope names each step not sent and each action that
+did not run; on `observe` the approvals never run, since nothing is held. Each attempt's
 line in the report carries the step-by-step detail, and each run's
 directory under the state holds its `journal/<server>.jsonl` and
 `plane.log`. The plane's agreement with each scenario is in the attempt lines

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/guardana/control/internal/attempts"
 	"github.com/guardana/control/internal/brand"
 )
 
@@ -54,5 +56,28 @@ func TestAPlaneModeIsSetOverTheDemos(t *testing.T) {
 	}
 	if _, err := demoConfig(devInputs{config: demo, silent: true, mode: "SOMETIMES"}); err == nil {
 		t.Error("a mode the plane does not know was taken")
+	}
+}
+
+// TestMissingInputsNameEveryGap: a journal that cannot be judged, a step not
+// sent, an action that did not run and a failed clean-up are each named, and
+// a run that never started names none of its steps.
+func TestMissingInputsNameEveryGap(t *testing.T) {
+	r := &attempts.Run{Attempt: "approval", Plane: "observe", Started: true, Unfinished: "closing the session: EOF",
+		JournalUnknown: map[string]string{"web": "it has 2 names"},
+		Steps: []attempts.StepRun{
+			{Step: 0, Kind: "call", Sent: true},
+			{Step: 1, Kind: "approve", NotRun: "nothing is held"},
+			{Step: 2, Kind: "call", NotSent: "input missing: step[1]"},
+			{Step: 3, Kind: "approve", Ran: true},
+		}}
+	want := []string{"journal: it has 2 names", "approval step 1 did not run on observe: nothing is held",
+		"approval step 2 not sent on observe: input missing: step[1]", "unfinished: closing the session: EOF"}
+	if got := missingOf(r); !slices.Equal(got, want) {
+		t.Errorf("missing %q,\nwant %q", got, want)
+	}
+	r.Started, r.Unfinished, r.JournalUnknown = false, "", nil
+	if got := missingOf(r); len(got) != 0 {
+		t.Errorf("a run not started: missing %q", got)
 	}
 }

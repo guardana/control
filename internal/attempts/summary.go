@@ -173,6 +173,9 @@ func (c *Counts) cause(why string) {
 func (c *Counts) add(pc *PlaneCount, effects map[string]*EffectCount, res *RunResult, positive map[[2]string]bool, negative map[string]bool) {
 	r := res.Run
 	pc.Runs++
+	if r.Unfinished != "" {
+		c.cause("the run did not finish cleanly: " + r.Unfinished)
+	}
 	if r.Started {
 		pc.Started++
 	} else {

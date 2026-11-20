@@ -178,36 +178,65 @@ func TestAnExistingReportIsRefused(t *testing.T) {
 	}
 }
 
-// TestTheDemoManifestMeetsItsThresholds runs the demo's manifest once
-// through, every attempt on both planes, and requires every threshold met
-// with nothing unknown.
+// TestTheDemoManifestMeetsItsThresholds runs the demo's manifest as it
+// ships, every attempt on both planes three times, requires every threshold
+// met with nothing unknown, and holds the guide's printed counts to what it
+// prints.
 func TestTheDemoManifestMeetsItsThresholds(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile(filepath.Join(demoDir(t), "attempts", "manifest.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	once := strings.Replace(string(raw), `"repetitions": 3`, `"repetitions": 1`, 1)
-	if once == string(raw) {
-		t.Fatal("the demo manifest no longer runs three repetitions")
-	}
-	manifest := writeManifest(t, "once.json", once)
+	manifest := filepath.Join(demoDir(t), "attempts", "manifest.json")
 	path := filepath.Join(t.TempDir(), "report.jsonl")
-	run := runAttemptsCommand(t, 10*time.Minute, manifest, path, filepath.Join(t.TempDir(), "state"))
-	t.Logf("fourteen attempt-runs took %v:\n%s", run.took.Round(time.Millisecond), run.stdout)
+	run := runAttemptsCommand(t, 15*time.Minute, manifest, path, filepath.Join(t.TempDir(), "state"))
+	t.Logf("forty-two attempt-runs took %v:\n%s", run.took.Round(time.Millisecond), run.stdout)
 	if run.code != attempts.ExitMet {
 		t.Fatalf("exit %d, want 0:\n%s\n%s", run.code, run.stdout, run.stderr)
 	}
 	s := readReport(t, path).summary
 	enforce := s.Planes[0]
-	if !s.ThresholdsMet || s.Unknown != 0 || enforce.Legitimate != (attempts.StepCount{Steps: 9, Completed: 7, Held: 2}) ||
+	if !s.ThresholdsMet || s.Unknown != 0 || enforce.Legitimate != (attempts.StepCount{Steps: 27, Completed: 21, Held: 6}) ||
 		len(s.Scope.ToolsDeclared) != 6 || len(s.Scope.ToolsExercised) != 6 {
 		t.Errorf("summary: thresholds %v, unknown %d, enforce legitimate %+v, tools %q of %q",
 			s.ThresholdsMet, s.Unknown, enforce.Legitimate, s.Scope.ToolsExercised, s.Scope.ToolsDeclared)
 	}
 	for _, e := range enforce.Effects {
-		if e != (attempts.EffectCount{Effect: e.Effect, Runs: 1, VerifiedAbsent: 1}) {
-			t.Errorf("enforce %+v, want verified absent once", e)
+		if e != (attempts.EffectCount{Effect: e.Effect, Runs: 3, VerifiedAbsent: 3}) {
+			t.Errorf("enforce %+v, want verified absent three times", e)
 		}
 	}
+	if got, want := printedCounts(run.stdout, path), guideOutput(t); !slices.Equal(got, want) {
+		t.Errorf("the run printed\n%s\nand the guide shows\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// guideOutput is the output block the guide shows for the demo's manifest,
+// without the line that depends on the build.
+func guideOutput(t *testing.T) []string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "docs", "guides", "count-controlled-attempts.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, after, ok := strings.Cut(string(raw), "When it ends it prints what the summary line counts:\n\n```\n")
+	block, _, closed := strings.Cut(after, "\n```\n")
+	if !ok || !closed {
+		t.Fatal("the guide has no output block after its run step")
+	}
+	return printedCounts(block+"\n", "attempts.jsonl")
+}
+
+// printedCounts is what attempts run printed, its report named as the guide
+// names it and without the line that says whether the build belongs to a
+// commit.
+func printedCounts(stdout, report string) []string {
+	var out []string
+	for _, line := range strings.Split(strings.TrimSuffix(stdout, "\n"), "\n") {
+		switch {
+		case strings.HasPrefix(line, "the result belongs to no commit"):
+		case line == "report: "+report:
+			out = append(out, "report: attempts.jsonl")
+		default:
+			out = append(out, line)
+		}
+	}
+	return out
 }

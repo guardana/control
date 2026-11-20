@@ -8,6 +8,8 @@ import (
 	"unicode/utf8"
 )
 
+// internal/scenario reads by the same rules but keeps its nodes; conditions and journal lines need exported values.
+
 // Kind is the type of one JSON value.
 type Kind uint8
 

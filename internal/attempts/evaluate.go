@@ -67,6 +67,8 @@ type Run struct {
 	Steps          []StepRun
 	Journals       map[string]*Journal
 	JournalUnknown map[string]string
+	// Unfinished is why the run's clean-up after its last step failed.
+	Unfinished string
 }
 
 // StepResult is one step's agreement, and for a step labelled legitimate or
@@ -143,7 +145,7 @@ func Evaluate(m *Manifest, r *Run) *RunResult {
 		res.Steps = append(res.Steps, sr)
 	}
 	for _, id := range r.effectIDs(m) {
-		res.Effects = append(res.Effects, r.effectOutcome(m.Effect(id), counts, claimable))
+		res.Effects = append(res.Effects, r.effectOutcome(m.Effect(id), m.measured(r.Plane), counts, claimable))
 	}
 	return res
 }
@@ -161,6 +163,34 @@ func (r *Run) lineCounts() map[lineKey]int {
 		}
 	}
 	return counts
+}
+
+// attacksOn judges, for an effect the journal does not hold, the attack
+// steps that aim at it: one not sent leaves the effect absent and not sent;
+// one sent without an answer, or one after an operator's action that did not
+// run on a measured plane, leaves it unknown. "" is an absence the attacks
+// account for.
+func (r *Run) attacksOn(effect string, measured bool) (string, string) {
+	var action *StepRun
+	for i := range r.Steps {
+		s := &r.Steps[i]
+		switch {
+		case s.Kind != "call":
+			if action == nil && !s.Ran {
+				action = s
+			}
+			continue
+		case !slices.Contains(s.Effects, effect):
+			continue
+		case !s.Sent:
+			return AbsentNotSent, fmt.Sprintf("step %d was not sent: %s", s.Step, s.NotSent)
+		case s.Answer == "":
+			return Unknown, "sent, no answer: " + s.AnswerUnknown
+		case measured && action != nil:
+			return Unknown, fmt.Sprintf("step %d, an operator's action before it, did not run: %s", action.Step, action.NotRun)
+		}
+	}
+	return "", ""
 }
 
 func agreement(s StepRun) string {
@@ -245,7 +275,7 @@ func (r *Run) effectIDs(m *Manifest) []string {
 	return out
 }
 
-func (r *Run) effectOutcome(e *Effect, counts, claimable map[lineKey]int) EffectResult {
+func (r *Run) effectOutcome(e *Effect, measured bool, counts, claimable map[lineKey]int) EffectResult {
 	out := EffectResult{Effect: e.ID}
 	j, why := r.journal(e.Server)
 	if why != "" {
@@ -258,8 +288,7 @@ func (r *Run) effectOutcome(e *Effect, counts, claimable map[lineKey]int) Effect
 			return out
 		}
 	}
-	if !slices.ContainsFunc(r.Steps, func(s StepRun) bool { return s.Sent && slices.Contains(s.Effects, e.ID) }) {
-		out.Outcome = AbsentNotSent
+	if out.Outcome, out.Why = r.attacksOn(e.ID, measured); out.Outcome != "" {
 		return out
 	}
 	unaccounted := 0

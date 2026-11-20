@@ -179,7 +179,9 @@ func (set *attemptSet) drive(ctx context.Context, d *devPlane, s *scenario.Scena
 		}
 		sr.Ran = true
 	}
-	_ = pl.finish(ctx)
+	if err := pl.finish(ctx); err != nil {
+		run.Unfinished = err.Error()
+	}
 }
 
 // send makes call step i whatever earlier answers were. A reference to an

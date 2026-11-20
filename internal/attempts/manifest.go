@@ -3,6 +3,7 @@ package attempts
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/guardana/control/internal/files"
 )
@@ -267,6 +268,11 @@ func (m *Manifest) checkCoverage() error {
 		}
 	}
 	return nil
+}
+
+// measured is whether the plane of configuration id is measured.
+func (m *Manifest) measured(id string) bool {
+	return slices.ContainsFunc(m.Planes, func(p Plane) bool { return p.ID == id && p.Role == RoleMeasured })
 }
 
 // Effect is the effect called id, or nil.

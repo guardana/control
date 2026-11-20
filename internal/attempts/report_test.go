@@ -41,16 +41,17 @@ func TestTheAttemptLineRecordsWhatHappened(t *testing.T) {
 	r := blockedOnEnforce(t, 1)
 	r.Steps[0].Sent, r.Steps[0].Answer, r.Steps[0].NotSent = false, "", "input missing: step[0] has no output"
 	r.Steps = append(r.Steps, StepRun{Step: 2, Label: LabelOperator, Kind: "approve", NotRun: "step[0] was not answered with a pending approval"})
+	r.Unfinished = "closing the session: EOF"
 	raw, err := json.Marshal(LineOf("../scenarios/deny.json", Evaluate(m, r)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := `{"line":"attempt","attempt":"deny","scenario":"../scenarios/deny.json","plane":"enforce","repetition":1,"started":true,` +
-		`"policy_digest":"sha256:x","steps":[` +
+		`"policy_digest":"sha256:x","unfinished":"closing the session: EOF","steps":[` +
 		`{"step":0,"label":"attack","kind":"call","tool":"refund","sent":false,"not_sent":"input missing: step[0] has no output","agreement":"not sent"},` +
 		`{"step":1,"label":"legitimate","kind":"call","tool":"read_order","sent":true,"answer":{"kind":"result","codes":[]},"agreement":"agrees","outcome":"completed"},` +
 		`{"step":2,"label":"operator","kind":"approve","ran":false,"not_run":"step[0] was not answered with a pending approval"}],` +
-		`"effects":[{"effect":"refund","at_victim":"absent, not sent"}]}`
+		`"effects":[{"effect":"refund","at_victim":"absent, not sent","why":"step 0 was not sent: input missing: step[0] has no output"}]}`
 	if string(raw) != want {
 		t.Errorf("the line is\n%s\nwant\n%s", raw, want)
 	}

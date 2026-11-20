@@ -250,15 +250,15 @@ stop cleanly, leaves every journal unknown.</li>
 </tr>
 <tr>
 <td>verified absent</td>
-<td>On a measured plane, none does; the journal is a regular, owner-only file with one name, every line parses and the last is whole; every line of that call is the exact line of a legitimate or operator step of the run; every positive plane observed the effect in every repetition; and no line a legitimate or operator step accounts for meets it, anywhere in the report.</td>
+<td>On a measured plane, none does; every attack step aiming at it was sent and answered, and no operator's action before it failed to run; the journal is a regular, owner-only file with one name, every line parses and the last is whole; every line of that call is the exact line of a legitimate or operator step of the run; every positive plane observed the effect in every repetition; and no line a legitimate or operator step accounts for meets it, anywhere in the report.</td>
 </tr>
 <tr>
 <td>absent, not sent</td>
-<td>No attack step aiming at the effect was sent. Counted apart.</td>
+<td>None does, and an attack step aiming at the effect was not sent. Counted apart.</td>
 </tr>
 <tr>
 <td>unknown</td>
-<td>Anything else, an absence on a positive plane included.</td>
+<td>Anything else: an attack sent without an answer, an absence on a positive plane.</td>
 </tr>
 </tbody>
 </table>
@@ -288,7 +288,7 @@ synced before the next.</p>
 </tr>
 <tr>
 <td><code>attempt</code></td>
-<td><code>attempt</code>, <code>scenario</code>, <code>plane</code>, <code>repetition</code>, <code>started</code>, <code>not_run</code>, <code>policy_digest</code>; <code>steps</code>, each <code>sent</code> or <code>not_sent</code>, <code>answer</code> or <code>answer_unknown</code>, <code>agreement</code>, <code>outcome</code> and <code>why</code>, or for an action <code>ran</code> or <code>not_run</code>; <code>effects</code>, each <code>at_victim</code>, <code>observed</code>, <code>absent</code>, <code>absent, not sent</code> or <code>unknown</code>, and <code>why</code>.</td>
+<td><code>attempt</code>, <code>scenario</code>, <code>plane</code>, <code>repetition</code>, <code>started</code>, <code>not_run</code>, <code>policy_digest</code>, <code>unfinished</code>, why the clean-up after the last step failed, which counts as unknown; <code>steps</code>, each <code>sent</code> or <code>not_sent</code>, <code>answer</code> or <code>answer_unknown</code>, <code>agreement</code>, <code>outcome</code> and <code>why</code>, or for an action <code>ran</code> or <code>not_run</code>; <code>effects</code>, each <code>at_victim</code>, <code>observed</code>, <code>absent</code>, <code>absent, not sent</code> or <code>unknown</code>, and <code>why</code>.</td>
 </tr>
 <tr>
 <td><code>summary</code></td>
@@ -304,7 +304,9 @@ more than one policy digest or an interrupt makes the run incomplete. A file
 without its summary line is incomplete.</p>
 <p><code>scope</code> names the tools the demo declares and those a sent step exercised,
 the planes, the sources (the victim journal only), the channels nobody
-observed, the time window, the missing inputs, the dev wiring's limits, the
+observed, the time window, the missing inputs (each run not started, journal
+not judged, step not sent, operator action that did not run and failed
+clean-up), the dev wiring's limits, the
 model, and what was not measured: pause and stops have no positive control,
 and no broken copy of the plane's code is run.</p>
 <h2 id="exits">Exits</h2>

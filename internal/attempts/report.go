@@ -154,6 +154,7 @@ type AttemptLine struct {
 	Started      bool         `json:"started"`
 	NotRun       string       `json:"not_run,omitempty"`
 	PolicyDigest string       `json:"policy_digest,omitempty"`
+	Unfinished   string       `json:"unfinished,omitempty"`
 	Steps        []StepLine   `json:"steps"`
 	Effects      []EffectLine `json:"effects"`
 }
@@ -162,7 +163,7 @@ type AttemptLine struct {
 func LineOf(scenarioPath string, res *RunResult) AttemptLine {
 	r := res.Run
 	l := AttemptLine{Line: "attempt", Attempt: r.Attempt, Scenario: scenarioPath, Plane: r.Plane, Repetition: r.Repetition,
-		Started: r.Started, NotRun: r.NotRun, PolicyDigest: r.PolicyDigest, Steps: []StepLine{}, Effects: []EffectLine{}}
+		Started: r.Started, NotRun: r.NotRun, PolicyDigest: r.PolicyDigest, Unfinished: r.Unfinished, Steps: []StepLine{}, Effects: []EffectLine{}}
 	for i, s := range r.Steps {
 		sr := res.Steps[i]
 		sl := StepLine{Step: s.Step, Label: s.Label, Kind: s.Kind, Tool: s.Tool, Agreement: sr.Agreement, Outcome: sr.Outcome, Why: sr.Why}
