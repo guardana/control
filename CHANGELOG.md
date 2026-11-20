@@ -11,6 +11,17 @@ verify one.
 
 ## [Unreleased]
 
+### Added
+
+- `guardana-gateway attempts run` (`experimental`) runs a manifest of scripted
+  attempts against the demo's victims, each on a fresh dev plane, and counts
+  each named effect and each legitimate step at the victims' journals, with a
+  positive control on an OBSERVE plane and a negative control, in a report
+  written line by line
+  ([attempt format](docs/reference/attempt-format.md),
+  [ADR-0086](docs/adr/0086-controlled-attempts-are-counted-at-the-victim.md)).
+  The demo's manifest is `examples/vulnerable-mcp-agent/attempts/manifest.json`.
+
 ### Fixed
 
 - `supervise` lists a step's requests, and a finding cites and keeps its
@@ -78,6 +89,14 @@ verify one.
   [Claude Code hooks](docs/reference/claude-code-hooks.md) credits a decision
   to a sub-agent's `Write` only when the trail holds more decided writes of that file than the other
   calls that wrote it could account for.
+
+### Documentation
+
+- The fail-closed table names its third column "a cause in the policy's
+  availability". It was previously headed "the policy available" over the
+  same values, which made it appear that a fail-open read ran when the policy
+  was available rather than when it was unavailable
+  ([how a call is decided](docs/concepts/how-a-call-is-decided.md#when-the-kernel-cannot-decide)).
 
 ## [0.18.0] - 2026-11-18
 
