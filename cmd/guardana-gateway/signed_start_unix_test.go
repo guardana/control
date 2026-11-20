@@ -210,22 +210,17 @@ func TestDoctorFailsAnInboxThePlaneDoesNotOwn(t *testing.T) {
 	}
 }
 
-// foreignInboxTree is a signed plane tree whose inbox is /tmp, a sticky
-// directory another account owns; the test skips where /tmp is not one.
+// foreignInboxTree is a signed plane tree whose inbox is a sticky directory
+// another account owns and that holds none of the tree: /tmp holds the test's
+// own directories where the temporary directory is under it, so /var/tmp
+// stands in there. The test skips where neither is one.
 func foreignInboxTree(t *testing.T) tree {
 	t.Helper()
 	if os.Geteuid() == 0 {
 		t.Skip("the root account owns the directory this case points at, so nothing here is another account's")
 	}
-	const foreign = "/tmp"
-	info, err := os.Stat(foreign)
-	if err != nil {
-		t.Skipf("no %s to stand for another account's sticky directory: %v", foreign, err)
-	}
-	if st, ok := info.Sys().(*syscall.Stat_t); !ok || int(st.Uid) == os.Geteuid() || info.Mode()&os.ModeSticky == 0 {
-		t.Skipf("%s is not a sticky directory another account owns", foreign)
-	}
 	tr := signedPlaneTree(t, "roster-a", []ed25519.PublicKey{signedTestPublic("alice")}, "roster-a")
+	foreign := foreignStickyDir(t, tr.dir)
 	raw, err := os.ReadFile(tr.config)
 	if err != nil {
 		t.Fatal(err)
@@ -236,6 +231,37 @@ func foreignInboxTree(t *testing.T) tree {
 	}
 	writeTestFile(t, tr.config, []byte(moved))
 	return tr
+}
+
+// foreignStickyDir is the first of /tmp and /var/tmp that is a sticky
+// directory another account owns and does not hold treeDir: an inbox that
+// holds the tree's other directories is refused for sharing their path
+// before its owner is judged.
+func foreignStickyDir(t *testing.T, treeDir string) string {
+	t.Helper()
+	tree, err := filepath.EvalSymlinks(treeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{"/tmp", "/var/tmp"} {
+		info, err := os.Stat(dir)
+		if err != nil {
+			continue
+		}
+		if st, ok := info.Sys().(*syscall.Stat_t); !ok || int(st.Uid) == os.Geteuid() || info.Mode()&os.ModeSticky == 0 {
+			continue
+		}
+		real, err := filepath.EvalSymlinks(dir)
+		if err != nil {
+			continue
+		}
+		if rel, err := filepath.Rel(real, tree); err == nil && rel != ".." && !strings.HasPrefix(rel, "../") {
+			continue
+		}
+		return dir
+	}
+	t.Skip("neither /tmp nor /var/tmp is a sticky directory another account owns that holds none of this test's tree")
+	return ""
 }
 
 // TestASignedStartRefusesWhatThePlanesAccountCouldTurn: the configuration
