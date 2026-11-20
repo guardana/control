@@ -140,6 +140,9 @@ type judged struct {
 	readable bool
 	approval *controlv1.Approval
 	proof    string
+	// unanswered is a signed batch that held no answer at all, which a
+	// reconciliation can tell from answers the checks left out.
+	unanswered bool
 }
 
 // answerFor asks the authority about h and judges what comes back by the
@@ -189,9 +192,9 @@ func claimed(h heldFacts, claims []*controlv1.Approval) judged {
 // tenant and project at the grant that approves; one that fails any step is
 // counted and left out, save a rejection decided outside the window, which
 // is authorized like any. A valid rejection wins over every approval. Where an
-// answer could not be judged for want of the roster or the authorizer, and no
-// valid rejection was found, the fold cannot say there is none, so it is
-// unreadable.
+// answer could not be judged for want of the roster or the authorizer, or an
+// authenticated one's body cannot be read, and no valid rejection was found,
+// the fold cannot say there is none, so it is unreadable.
 func (p *Pipeline) judgeSigned(ctx context.Context, h heldFacts, signed []trust.Envelope, now time.Time) judged {
 	var approve *judged
 	unknown := false
@@ -213,7 +216,7 @@ func (p *Pipeline) judgeSigned(ctx context.Context, h heldFacts, signed []trust.
 	case approve != nil:
 		return *approve
 	}
-	return judged{readable: true}
+	return judged{readable: true, unanswered: len(signed) == 0}
 }
 
 // judgeEnvelope takes one signed answer through the four steps in order and
@@ -232,8 +235,10 @@ func (p *Pipeline) judgeEnvelope(ctx context.Context, h heldFacts, env trust.Env
 	}
 	body, err := approvals.ReadAnswer(who.Body())
 	if err != nil {
+		// An operator signed it, and what it decides cannot be read: it may
+		// be the rejection that wins.
 		p.counts.answerRefused(AnswerBody)
-		return nil, "", true
+		return nil, "", false
 	}
 	cause := compareWithHold(h, body, now)
 	skewed := cause == AnswerWindow && body.Decision == approvals.DecisionReject

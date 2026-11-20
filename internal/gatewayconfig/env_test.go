@@ -71,6 +71,10 @@ func TestAnEnvNameThePlaneOwnsOrNoProcessTakesIsRefused(t *testing.T) {
 		{name: "a space", items: []string{`"A B"`}, wants: "upstreams.0.env.0: not a variable name", withheld: "A B"},
 		{name: "an empty name", items: []string{`""`}, wants: "upstreams.0.env.0: not a variable name"},
 		{name: "a letter outside ASCII", items: []string{"RÉGION"}, wants: "upstreams.0.env.0: not a variable name", withheld: "RÉGION"},
+		{name: "a name and a value the reader refuses", items: []string{"API_KEY=" + secret + "&x"},
+			wants: "upstreams.0.env.0: " + NotPrinted + ": anchors", withheld: secret},
+		{name: "a quoted name and value left open", items: []string{`"API_KEY=` + secret},
+			wants: "upstreams.0.env.0: " + NotPrinted + ": the value ends without a closing quote", withheld: secret},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			path := writeDocument(t, withEnv(c.items...))
@@ -94,6 +98,20 @@ func TestAnEnvNameThePlaneOwnsOrNoProcessTakesIsRefused(t *testing.T) {
 
 // TestAnEnvWrittenAsOneValueSaysItTakesAList: env: dev is most likely the
 // deployment label under the wrong key, and the refusal says where it goes.
+// TestAnEnvValueTheReaderRefusesIsNotRepeated: a value written on the env
+// key's own line that the reader refuses is withheld like a listed item.
+func TestAnEnvValueTheReaderRefusesIsNotRepeated(t *testing.T) {
+	const secret = "sentinel-inline-value"
+	doc := strings.Replace(withEnv(), "    env:\n", "    env: API_KEY="+secret+"&x\n", 1)
+	err := loadRecovering(t, writeDocument(t, doc))
+	if want := "upstreams.0.env: " + NotPrinted + ": anchors"; err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("the refusal is %v, want one saying %q", err, want)
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Errorf("the refusal repeats %q: %v", secret, err)
+	}
+}
+
 func TestAnEnvWrittenAsOneValueSaysItTakesAList(t *testing.T) {
 	doc := strings.Replace(withEnv(), "    env:\n", "    env: dev\n", 1)
 	err := loadRecovering(t, writeDocument(t, doc))
@@ -160,6 +178,23 @@ func TestEveryKeyTheEnvironmentSetsIsListed(t *testing.T) {
 	}
 	if strings.Contains(strings.Join(got, " "), "tenant-secret") {
 		t.Errorf("EnvironmentOverrides = %q quotes a header's value", got)
+	}
+}
+
+// TestAHeaderVariableSpelledWithHyphensIsAnOverride: a variable may spell a
+// header's hyphens as they are, and the key it sets is listed like any other.
+func TestAHeaderVariableSpelledWithHyphensIsAnOverride(t *testing.T) {
+	path := write(t, identifierBlock)
+	environ := []string{brand.Env("PDP_HEADERS_X-TENANT") + "=example"}
+	cfg, err := Load(path, environ)
+	if err != nil {
+		t.Fatalf("Load refused a header variable spelled with hyphens: %v", err)
+	}
+	if got := cfg.PDP.Headers["X-Tenant"]; got != "example" {
+		t.Fatalf("the variable set the header to %q, want %q", got, "example")
+	}
+	if got, want := EnvironmentOverrides(cfg), []string{"pdp.headers.X-Tenant"}; !slices.Equal(got, want) {
+		t.Errorf("EnvironmentOverrides = %q, want %q", got, want)
 	}
 }
 

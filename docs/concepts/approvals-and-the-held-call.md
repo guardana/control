@@ -76,8 +76,9 @@ approves**, by a signed `approval-answer/v1alpha1` in `approvals.inbox_dir`
 that names the hold member for member, signed by `approvals approve --key`;
 a claim for a signed hold is refused, and the console answers none. Any
 valid rejection wins; an answer
-the plane could not judge leaves the call `INDETERMINATE`. Only an inbox the plane
-owns is pruned
+the plane could not judge leaves the call `INDETERMINATE`. The plane reads
+and prunes only an inbox its own account owns: under the sticky bit the
+owner may remove any answer, a rejection among them
 ([ADR-0073](../adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
 
 A writer of that directory chooses nothing else. A record carries no trail,

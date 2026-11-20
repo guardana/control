@@ -194,10 +194,9 @@ func TestDevRefusesADemoThatSetsWhatDevOwns(t *testing.T) {
 	for _, kv := range append(ownedKeys, [2]string{"export.endpoint", "not a collector"}) {
 		t.Run(kv[0]+"="+kv[1], func(t *testing.T) {
 			t.Parallel()
+			// The key is spelled whole, since the demo writes its group's
+			// block already and a block is written once.
 			line := fmt.Sprintf("%s: %q\n", kv[0], kv[1])
-			if group, leaf, nested := strings.Cut(kv[0], "."); nested {
-				line = fmt.Sprintf("%s:\n  %s: %q\n", group, leaf, kv[1])
-			}
 			d := writeDemo(t, "http://127.0.0.1:9/mcp", "5ms", line)
 			err := checkDemo(devInputs{config: d.config}, filepath.Join(t.TempDir(), "state"))
 			if err == nil || !strings.HasPrefix(err.Error(), kv[0]+": "+d.config+" sets it, and dev owns it") {

@@ -11,6 +11,7 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/approvals"
+	"github.com/guardana/control/internal/canon"
 	"github.com/guardana/control/internal/core"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/operators"
@@ -234,18 +235,21 @@ func TestNewRefusesAnAuthorityThatDoesNotFitItsKind(t *testing.T) {
 
 // TestASignedReconciliationSaysWhatTheRosterVouchesFor: after a restart the
 // plane closes a lost hold with alice's authenticated approval, carol's
-// rejection, and with nothing answered before the minted expiry, under
-// either kind, the state unknown.
+// rejection, and, with nothing answered before the minted expiry, expired
+// while the hold's record stands, as nobody answered, and unknown once the
+// record is gone, under either kind, as a record never filed cannot be told
+// from one deleted.
 func TestASignedReconciliationSaysWhatTheRosterVouchesFor(t *testing.T) {
 	for name, c := range map[string]struct {
 		kind  gateway.AuthorityKind
 		setup string
 		code  string
 	}{
-		"signed, approved":       {gateway.AuthoritySigned, "alice", codeApprovalNotResumed},
-		"signed, rejected":       {gateway.AuthoritySigned, "carol", codeApprovalRejected},
-		"signed, nothing signed": {gateway.AuthoritySigned, "", codeApprovalStateUnknown},
-		"directory, no record":   {gateway.AuthorityDirectory, "", codeApprovalStateUnknown},
+		"signed, approved":                  {gateway.AuthoritySigned, "alice", codeApprovalNotResumed},
+		"signed, rejected":                  {gateway.AuthoritySigned, "carol", codeApprovalRejected},
+		"signed, nothing signed":            {gateway.AuthoritySigned, "", codeApprovalExpired},
+		"signed, nothing signed, no record": {gateway.AuthoritySigned, "lost", codeApprovalStateUnknown},
+		"directory, no record":              {gateway.AuthorityDirectory, "lost", codeApprovalStateUnknown},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := newAuthorityRig(t, c.kind, "")
@@ -254,6 +258,14 @@ func TestASignedReconciliationSaysWhatTheRosterVouchesFor(t *testing.T) {
 				r.box.file(r.requested.GetApprovalId(), signedBy(t, "alice", answerTo(r.requested, approvals.DecisionApprove, nil)))
 			case "carol":
 				r.box.file(r.requested.GetApprovalId(), signedBy(t, "carol", answerTo(r.requested, approvals.DecisionReject, nil)))
+			case "lost":
+				binding, ok := r.h.store.BindingOf(r.requested.GetApprovalId())
+				if !ok {
+					t.Fatal("the store keeps no binding for the hold")
+				}
+				if err := r.h.store.Release(context.Background(), binding, "req-1", r.requested.GetApprovalId()); err != nil {
+					t.Fatalf("Release: %v", err)
+				}
 			}
 			r.expectReconciled(c.code)
 			if c.setup == "alice" {
@@ -261,6 +273,50 @@ func TestASignedReconciliationSaysWhatTheRosterVouchesFor(t *testing.T) {
 				if a := trail[3].GetApproval(); a.GetApproverId() != "authn:roster/roster-a:alice" {
 					t.Errorf("the closing names approver %q", a.GetApproverId())
 				}
+			}
+		})
+	}
+}
+
+// TestAnAuthenticatedAnswerWithAnUnreadableBodyLeavesTheHoldStanding: carol's
+// signed rejection whose body lacks its reason cannot be read as an answer,
+// and it may be the rejection that wins, so alice's approval beside it does
+// not run: the retry is INDETERMINATE, nothing is spent and the hold stays.
+// Without carol's file alice's approval runs.
+func TestAnAuthenticatedAnswerWithAnUnreadableBodyLeavesTheHoldStanding(t *testing.T) {
+	for _, unreadable := range []bool{true, false} {
+		t.Run(fmt.Sprintf("unreadable rejection %v", unreadable), func(t *testing.T) {
+			h, box, requested := signedRig(t)
+			if unreadable {
+				body, err := canon.Canonicalize(map[string]any{
+					"kind": approvals.AnswerKind, "alg": "ed25519", "keyId": operatorID("carol"),
+					"tenant": holdTenant, "project": holdProject,
+					"requestId": requested.GetRequestId(), "approvalId": requested.GetApprovalId(),
+					"actionDigest": requested.GetActionDigest(), "bundleDigest": requested.GetPolicyBundleDigest(),
+					"decision": approvals.DecisionReject, "decidedAt": base().Add(time.Minute).UTC().Format(time.RFC3339Nano),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := approvals.ReadAnswer(body); err == nil {
+					t.Fatal("the body without a reason reads as an answer, so the case examines nothing")
+				}
+				box.file(requested.GetApprovalId(), signAs(t, operators.AnswerPayloadType, body, operatorKey("carol"), operatorID("carol")))
+			}
+			box.file(requested.GetApprovalId(), signedBy(t, "alice", answerTo(requested, approvals.DecisionApprove, nil)))
+			d := h.admit(retry(t, "req-2"), refundArgs())
+			if !unreadable {
+				if d.Action != core.Execute {
+					t.Fatalf("alice's approval alone: Action = %d, codes %v; want it run", d.Action, d.Decision.GetReasonCodes())
+				}
+				return
+			}
+			expectBlock(t, d, verdictIndeterminate, codeEvidenceUnavailable, gateway.PDPType)
+			if h.spent() != 0 {
+				t.Errorf("the retry consumed %d approval(s)", h.spent())
+			}
+			if h.p.Stats().Held != 1 {
+				t.Errorf("Stats.Held = %d, want the hold standing", h.p.Stats().Held)
 			}
 		})
 	}
