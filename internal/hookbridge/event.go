@@ -3,6 +3,7 @@ package hookbridge
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"unicode/utf8"
@@ -81,14 +82,16 @@ func readInput(input []byte, phase Phase) ([]byte, error) {
 	case len(input) == 0 || input[0] != '{':
 		return nil, ErrInputNotObject
 	case repeatsAName(input):
-		return nil, fmt.Errorf("%w: the tool input names a member twice", ErrEventMalformed)
+		return nil, fmt.Errorf("%w: the tool input names a member twice or cannot be read", ErrEventMalformed)
 	}
 	return input, nil
 }
 
 // repeatsAName reports whether any object of raw, a JSON value already read
-// as valid, names a member twice by its decoded name. The tokens are read one
-// at a time, so no depth is bounded here: that is the plane's to judge.
+// as valid, names a member twice by its decoded name, or whether raw cannot
+// be read to its end after all, so that nothing unread passes as unrepeated.
+// The tokens are read one at a time, so no depth is bounded here: that is the
+// plane's to judge.
 func repeatsAName(raw []byte) bool {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
@@ -96,7 +99,7 @@ func repeatsAName(raw []byte) bool {
 	for {
 		tok, err := dec.Token()
 		if err != nil {
-			return false
+			return !errors.Is(err, io.EOF) || len(s.stack) > 0
 		}
 		if s.repeated(tok) {
 			return true

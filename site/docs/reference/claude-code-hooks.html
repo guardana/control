@@ -275,8 +275,10 @@ blocks every deferred tool <em>(seen on 2.1.303)</em>. <code>SPAWN_OR_DELEGATE</
 a delegation the enforcement API does not carry, so the plane refuses to
 start with a tool of that class, and <code>Agent</code> has to be classed <code>EXECUTE</code>.
 A rule on <code>SPAWN_OR_DELEGATE</code> then never sees a sub-agent start, and a
-rule that allows <code>EXECUTE</code> allows it: decide <code>Agent</code> by its name or its
-<code>agent</code> resource type, ahead of any rule on <code>EXECUTE</code>. For example:</p>
+rule that allows <code>EXECUTE</code> allows it unless another rule stops it: a rule
+on <code>action.name</code> <code>[Agent]</code> or <code>resource.type</code> <code>[agent]</code> whose <code>DENY</code> or
+<code>REQUIRE_APPROVAL</code> matches overrides an <code>ALLOW</code> on <code>EXECUTE</code>, wherever it
+stands in the policy. For example:</p>
 <pre><code class="language-yaml">tools:
   - name: Bash
     effect: EXECUTE

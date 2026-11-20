@@ -204,6 +204,12 @@ func TestADecisionOfAnotherMajorIsNotRead(t *testing.T) {
 		}
 	}
 	seen, facts := compareSeen()
+	decisionOf(seen).SchemaVersion = strings.Repeat("9", 4096) + ".0\x1b[2J"
+	_, err := judgeCall(3, compareScenario(t, compareCall), seen, facts)
+	if err == nil || strings.Contains(err.Error(), strings.Repeat("9", 33)) || strings.ContainsRune(err.Error(), 0x1b) {
+		t.Fatalf("a long version written with an escape: %v; want it refused, quoting at most 32 bytes and no escape", err)
+	}
+	seen, facts = compareSeen()
 	decisionOf(seen).SchemaVersion = "1.7"
 	if diffs, err := judgeCall(3, compareScenario(t, compareCall), seen, facts); err != nil || len(diffs) != 0 {
 		t.Fatalf("a decision of a later minor: %q, %v; want no difference", rendered(diffs), err)

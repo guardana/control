@@ -120,8 +120,10 @@ not the plane, runs the call.
   a delegation the enforcement API does not carry, so the plane refuses to
   start with a tool of that class, and `Agent` has to be classed `EXECUTE`.
   A rule on `SPAWN_OR_DELEGATE` then never sees a sub-agent start, and a
-  rule that allows `EXECUTE` allows it: decide `Agent` by its name or its
-  `agent` resource type, ahead of any rule on `EXECUTE`. For example:
+  rule that allows `EXECUTE` allows it unless another rule stops it: a rule
+  on `action.name` `[Agent]` or `resource.type` `[agent]` whose `DENY` or
+  `REQUIRE_APPROVAL` matches overrides an `ALLOW` on `EXECUTE`, wherever it
+  stands in the policy. For example:
 
   ```yaml
   tools:

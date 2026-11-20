@@ -57,12 +57,16 @@ verify one.
   says what classing `Agent` as `EXECUTE` costs: a rule on
   `SPAWN_OR_DELEGATE` never sees a sub-agent start and a rule that allows
   `EXECUTE` allows it, so a policy decides `Agent` by its name or its
-  resource type; the profile lists it among its gaps.
+  resource type, where a `DENY` or `REQUIRE_APPROVAL` overrides an `ALLOW`
+  on `EXECUTE`; the profile lists it among its gaps.
 - The enforcement API refuses a complete whose `resultHash` is not `sha256:`
   and 64 lower-case hex digits as `ERROR_CODE_MALFORMED`. Any text up to
   1 KiB was recorded, so a client could put a tool's output in the trail
   and the collector's export with capture off
-  ([contracts](docs/contracts.md)).
+  ([contracts](docs/contracts.md)). The Go and Python clients judge the hash
+  before sending it: a tool's result whose hash is in any other form is
+  completed `UNKNOWN` without the hash, and the Python client raises
+  `BadResult`.
 - An `EXECUTE` answer a shutdown overtakes reaches its client before the
   plane records the execution abandoned. The answer could wait in the
   server's buffer until after the abandon.

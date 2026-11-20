@@ -9,7 +9,9 @@ import (
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/canon"
+	"github.com/guardana/control/internal/policy/strictjson"
 	"github.com/guardana/control/internal/scenario"
+	"github.com/guardana/control/internal/trailchain"
 )
 
 // The flow state a fresh run starts from, as its first proposal records it.
@@ -285,25 +287,20 @@ func quotedList(items []string) string {
 	return list(quoted)
 }
 
+// maxQuotedVersionBytes bounds how much of a refused version an error quotes.
+const maxQuotedVersionBytes = 32
+
 // checkDecisionVersion refuses a decision whose schema_version is not
-// MAJOR.MINOR in decimal on the major the generated Decision carries; a later
-// minor is read.
+// MAJOR.MINOR on the major the generated Decision carries; a later minor is
+// read.
 func checkDecisionVersion(d *controlv1.Decision) error {
 	pkg := string((&controlv1.Decision{}).ProtoReflect().Descriptor().ParentFile().Package())
 	want := strings.TrimPrefix(pkg[strings.LastIndex(pkg, ".")+1:], "v")
-	major, minor, ok := strings.Cut(d.GetSchemaVersion(), ".")
-	if !ok || !decimal(major) || !decimal(minor) || major != want {
-		return fmt.Errorf("the trail's POLICY_DECIDED carries a decision of schema_version %q, and this build reads major %s",
-			oneLine(d.GetSchemaVersion()), want)
+	if !strictjson.IsVersion(d.GetSchemaVersion(), want) {
+		return fmt.Errorf("the trail's POLICY_DECIDED carries a decision of schema_version %s, and this build reads major %s",
+			trailchain.Quoted(d.GetSchemaVersion(), maxQuotedVersionBytes), want)
 	}
 	return nil
-}
-
-// decimal is ParseUint at base 10, which takes no sign, no underscore and no
-// empty string.
-func decimal(s string) bool {
-	_, err := strconv.ParseUint(s, 10, 32)
-	return err == nil
 }
 
 // wantObligations renders the scenario's obligations as canonical JSON, the
