@@ -54,6 +54,22 @@ verify one.
   approval closed the hold as `APPROVAL_EXPIRED` before its version was
   read.
 
+### Documentation
+
+- Risk references map the 2026 OWASP Top 10 lists for Agentic Applications
+  and LLM Applications to project controls and tests
+  ([risk references](docs/reference/risks/owasp-agentic-top-10.md)). For
+  each risk, the page lists the controls that apply, known bypasses and
+  the gaps. It does the same for published advisories on agentic attacks.
+- A comparison, checked on 2026-11-20, of tools that check an agent's tool
+  calls against policy before they run: Microsoft's agent controls, Policy in Amazon
+  Bedrock AgentCore, Hexgate and Guardana Control
+  ([comparison](docs/concepts/agent-tool-call-controls.md)).
+- [Check a security-testing agent's calls against a scope you declare](docs/guides/check-a-security-testing-agent.md)
+  covers policy tests (`implemented`), and the MCP gateway, approvals by
+  command, a stop after repeated denials, proxy observations and coverage
+  (all `experimental`).
+
 ## [0.18.0] - 2026-11-18
 
 Upgrading from 0.17 changes three things on every plane, and more under
