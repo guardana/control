@@ -13,6 +13,14 @@ verify one.
 
 ### Added
 
+- `guardana-gateway attempts run` (`experimental`) runs a manifest of scripted
+  attempts against the demo's victims, each on a fresh dev plane, and counts
+  each named effect and each legitimate step at the victims' journals, with a
+  positive control on an OBSERVE plane and a negative control, in a report
+  written line by line
+  ([attempt format](docs/reference/attempt-format.md),
+  [ADR-0086](docs/adr/0086-controlled-attempts-are-counted-at-the-victim.md)).
+  The demo's manifest is `examples/vulnerable-mcp-agent/attempts/manifest.json`.
 - `guardana-control policy compare` (`experimental`) decides policy test
   cases and an evidence export's requests under the current and a candidate
   policy through the kernel's own evaluation, and writes a
@@ -34,6 +42,28 @@ verify one.
   exports of one run could list requests differently and a finding citing
   more than ten could keep other references
   ([supervision](docs/reference/supervision.md)).
+- An answer of the AuthZEN decision point whose body is not UTF-8 is refused
+  with `PDP_ANSWER_REFUSED`, so the call is blocked. JSON text is UTF-8; such
+  a body was read with replacement characters in its strings
+  ([let a decision point veto](docs/guides/let-a-decision-point-veto.md)).
+- An answer a decision point returns once its deadline, or the caller's, has
+  passed is a timeout, `PDP_TIMEOUT`, and one returned after the caller
+  cancelled is `PDP_UNAVAILABLE`, whatever either says. The gateway took the
+  answer an in-process decision point returned late, so an allow that came
+  after the deadline lifted the veto.
+- An approval whose expiry is not a valid timestamp, with nanos out of range
+  or a second past year 9999, is expired and never spent, and one whose
+  decision time is not a valid timestamp is no decision. Each was normalised
+  to another moment, which could fall inside the hold's window.
+- The binary decoder refuses an int32 member outside int32, as it does an
+  enum number, so a timestamp's `nanos` sent as 2^32+1 is refused before the
+  parse instead of arriving as one nanosecond. Only bytes no conforming
+  encoder writes are refused
+  ([contracts](docs/contracts.md#decoding-and-validation)).
+- A retry whose approval names a major this build does not read is refused
+  with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
+  approval closed the hold as `APPROVAL_EXPIRED` before its version was
+  read.
 
 ## [0.18.0] - 2026-11-18
 

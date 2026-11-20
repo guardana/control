@@ -37,6 +37,7 @@
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -68,6 +69,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -133,6 +135,14 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.18.0...HEAD">Unreleased</a></h2>
 <h3 id="added">Added</h3>
 <ul>
+<li><code>guardana-gateway attempts run</code> (<code>experimental</code>) runs a manifest of scripted
+attempts against the demo's victims, each on a fresh dev plane, and counts
+each named effect and each legitimate step at the victims' journals, with a
+positive control on an OBSERVE plane and a negative control, in a report
+written line by line
+(<a href="/docs/reference/attempt-format">attempt format</a>,
+<a href="/docs/adr/0086-controlled-attempts-are-counted-at-the-victim">ADR-0086</a>).
+The demo's manifest is <code>examples/vulnerable-mcp-agent/attempts/manifest.json</code>.</li>
 <li><code>guardana-control policy compare</code> (<code>experimental</code>) decides policy test
 cases and an evidence export's requests under the current and a candidate
 policy through the kernel's own evaluation, and writes a
@@ -154,6 +164,28 @@ which follows the order the plane's batches reached the collector, so two
 exports of one run could list requests differently and a finding citing
 more than ten could keep other references
 (<a href="/docs/reference/supervision">supervision</a>).</li>
+<li>An answer of the AuthZEN decision point whose body is not UTF-8 is refused
+with <code>PDP_ANSWER_REFUSED</code>, so the call is blocked. JSON text is UTF-8; such
+a body was read with replacement characters in its strings
+(<a href="/docs/guides/let-a-decision-point-veto">let a decision point veto</a>).</li>
+<li>An answer a decision point returns once its deadline, or the caller's, has
+passed is a timeout, <code>PDP_TIMEOUT</code>, and one returned after the caller
+cancelled is <code>PDP_UNAVAILABLE</code>, whatever either says. The gateway took the
+answer an in-process decision point returned late, so an allow that came
+after the deadline lifted the veto.</li>
+<li>An approval whose expiry is not a valid timestamp, with nanos out of range
+or a second past year 9999, is expired and never spent, and one whose
+decision time is not a valid timestamp is no decision. Each was normalised
+to another moment, which could fall inside the hold's window.</li>
+<li>The binary decoder refuses an int32 member outside int32, as it does an
+enum number, so a timestamp's <code>nanos</code> sent as 2^32+1 is refused before the
+parse instead of arriving as one nanosecond. Only bytes no conforming
+encoder writes are refused
+(<a href="/docs/contracts#decoding-and-validation">contracts</a>).</li>
+<li>A retry whose approval names a major this build does not read is refused
+with <code>EVIDENCE_UNAVAILABLE</code> also when its expiry has passed. Such an
+approval closed the hold as <code>APPROVAL_EXPIRED</code> before its version was
+read.</li>
 </ul>
 <h2 id="0180---2026-11-18"><a href="https://github.com/guardana/control/releases/tag/v0.18.0">0.18.0</a> - 2026-11-18</h2>
 <p>Upgrading from 0.17 changes three things on every plane, and more under
@@ -2841,6 +2873,7 @@ independence of this project from Guardana
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -2872,6 +2905,7 @@ independence of this project from Guardana
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
