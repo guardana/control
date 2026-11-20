@@ -304,6 +304,9 @@ func decidedWithin(a *controlv1.Approval, requested, now time.Time) bool {
 	if decided == nil {
 		return a.GetState() == approvalPending || a.GetState() == approvalExpired
 	}
+	if decided.CheckValid() != nil {
+		return false
+	}
 	at := decided.AsTime()
 	return !at.Before(requested) && !at.After(now)
 }

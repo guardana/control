@@ -270,3 +270,27 @@ func TestAMalformedExpiryIsExpired(t *testing.T) {
 		}
 	}
 }
+
+func TestAMalformedDecisionTimeIsNoDecision(t *testing.T) {
+	approved := func(decided *timestamppb.Timestamp) *controlv1.Approval {
+		return &controlv1.Approval{
+			State:       controlv1.ApprovalState_APPROVAL_STATE_APPROVED,
+			ApproverId:  "duty-officer",
+			RequestedAt: timestamppb.New(requestedAt),
+			DecidedAt:   decided,
+			ExpiresAt:   timestamppb.New(judgedAt.Add(time.Minute)),
+		}
+	}
+	if got := approval.Consumable(approved(timestamppb.New(judgedAt)), judgedAt); got != approval.StandingUsable {
+		t.Fatalf("the approval decided at a well-formed time = %d, want usable, so the rows below prove nothing", got)
+	}
+	second := judgedAt.Unix()
+	for name, decided := range map[string]*timestamppb.Timestamp{
+		"nanos of two seconds": {Seconds: second - 2, Nanos: 1_999_999_999},
+		"negative nanos":       {Seconds: second - 1, Nanos: -5},
+	} {
+		if got := approval.Consumable(approved(decided), judgedAt); got != approval.StandingUnusable {
+			t.Errorf("%s: Consumable = %d, want unusable", name, got)
+		}
+	}
+}

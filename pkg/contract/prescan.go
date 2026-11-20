@@ -20,7 +20,7 @@ import (
 //     runtime keeps the last scalar and merges a second message into the
 //     first, so two byte strings become one accepted envelope, and a reader of
 //     the bytes that kept the first occurrence would see a different action;
-//   - an enum number or an int32 member outside int32 when its varint is read
+//   - an enum number, or a singular int32 member, outside int32 when its varint is read
 //     as a two's-complement int64. The runtime truncates it, and 2^32+1
 //     arrives as a declared class or as a timestamp's one nanosecond. A number
 //     inside int32 is the declared-value or timestamp check's;

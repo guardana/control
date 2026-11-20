@@ -478,6 +478,45 @@ func TestAnAnswerAfterTheCallerLeftIsUnavailable(t *testing.T) {
 	}
 }
 
+// callerDeadline is a caller's context whose deadline, sooner than the ask's,
+// passes when expire is called rather than by the clock.
+type callerDeadline struct {
+	context.Context
+	at   time.Time
+	done chan struct{}
+}
+
+func (c *callerDeadline) Deadline() (time.Time, bool) { return c.at, true }
+func (c *callerDeadline) Done() <-chan struct{}       { return c.done }
+func (c *callerDeadline) expire()                     { close(c.done) }
+
+func (c *callerDeadline) Err() error {
+	select {
+	case <-c.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+
+// TestAnAnswerAfterTheCallersDeadlineIsATimeout: an allowing answer that comes
+// after a deadline the caller's context carries, sooner than the ask's own, is
+// a timeout, as one after the ask's own deadline is.
+func TestAnAnswerAfterTheCallersDeadlineIsATimeout(t *testing.T) {
+	dp := &fakeDecisionPoint{answer: core.ExternalAllowed(), late: true}
+	h := build(t, modeEnforce, snapshot(t, allowWrites, vetoWrites), withDecisionPoint(dp))
+	ctx := &callerDeadline{Context: context.Background(), at: time.Now().Add(askDeadline / 2), done: make(chan struct{})}
+	dp.during = ctx.expire
+	d := h.p.Admit(ctx, h.onPlane(admission(writeEnvelope(), []byte(`{"k":1}`))))
+	if d.Action != core.Block || d.AuthorizedArgs != nil {
+		t.Errorf("a write answered after its caller's deadline: Action = %d, want Block", d.Action)
+	}
+	expectConsulted(t, h.recorded(t, "req-1"), verdictIndeterminate, codePDPTimeout)
+	if got := h.p.Stats().Asks; got != (gateway.Asks{Made: 1, TimedOut: 1}) {
+		t.Errorf("Stats.Asks = %+v, want one ask counted as timed out", got)
+	}
+}
+
 // TestADecisionPointCannotChangeWhatIsRecorded: a decision point that writes
 // to the envelope it was handed changes neither the proposal on the trail nor
 // what the kernel decides again.

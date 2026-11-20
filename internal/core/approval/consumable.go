@@ -70,11 +70,12 @@ func Expired(a *controlv1.Approval, now time.Time) bool {
 }
 
 // decidedWithin reports whether a was decided at or after its request and not
-// after now. An answer is only an answer from the time it was decided at. A
-// missing request time reads as the Unix epoch, which only a store that
-// takes such a record can hand in.
+// after now. An answer is only an answer from the time it was decided at,
+// and a decision time that is no valid timestamp names no time. A missing
+// request time reads as the Unix epoch, which only a store that takes such a
+// record can hand in.
 func decidedWithin(a *controlv1.Approval, now time.Time) bool {
-	if a.GetDecidedAt() == nil {
+	if a.GetDecidedAt().CheckValid() != nil {
 		return false
 	}
 	at := a.GetDecidedAt().AsTime()

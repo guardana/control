@@ -21,17 +21,17 @@ verify one.
   more than ten could keep other references
   ([supervision](docs/reference/supervision.md)).
 - An answer of the AuthZEN decision point whose body is not UTF-8 is refused
-  with `PDP_ANSWER_REFUSED`, so the call is blocked. A byte that is not UTF-8
-  inside a string was read as a replacement character, so an allowing answer
-  carrying one in a listed context member lifted the veto
+  with `PDP_ANSWER_REFUSED`, so the call is blocked. JSON text is UTF-8; such
+  a body was read with replacement characters in its strings
   ([let a decision point veto](docs/guides/let-a-decision-point-veto.md)).
-- An answer a decision point returns once its deadline has passed is a
-  timeout, `PDP_TIMEOUT`, and one returned after the caller's own context
-  ended is `PDP_UNAVAILABLE`, whatever either says. The gateway took the
+- An answer a decision point returns once its deadline, or the caller's, has
+  passed is a timeout, `PDP_TIMEOUT`, and one returned after the caller
+  cancelled is `PDP_UNAVAILABLE`, whatever either says. The gateway took the
   answer an in-process decision point returned late, so an allow that came
   after the deadline lifted the veto.
 - An approval whose expiry is not a valid timestamp, with nanos out of range
-  or a second past year 9999, is expired and never spent. It was normalised
+  or a second past year 9999, is expired and never spent, and one whose
+  decision time is not a valid timestamp is no decision. Each was normalised
   to another moment, which could fall inside the hold's window.
 - The binary decoder refuses an int32 member outside int32, as it does an
   enum number, so a timestamp's `nanos` sent as 2^32+1 is refused before the
@@ -39,9 +39,9 @@ verify one.
   encoder writes are refused
   ([contracts](docs/contracts.md#decoding-and-validation)).
 - A retry whose approval names a major this build does not read is refused
-  with `EVIDENCE_UNAVAILABLE` whether or not that approval says it expired. An
-  expired one of another major closed the hold as `APPROVAL_EXPIRED` before
-  its version was read.
+  with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
+  approval closed the hold as `APPROVAL_EXPIRED` before its version was
+  read.
 
 ## [0.18.0] - 2026-11-18
 

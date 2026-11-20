@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/pkg/contract"
@@ -455,4 +456,39 @@ func reversed(t *testing.T, b []byte) []byte {
 	}
 	slices.Reverse(fields)
 	return concat(fields...)
+}
+
+// TestNoVarintThePreScanLeavesUncheckedIsReachable: the pre-scan holds an
+// enum number and a singular int32 to int32, and the runtime truncates any
+// other 32-bit varint unseen, so a sint32, a uint32 or a repeated int32 the
+// envelope reaches would need a check of its own.
+func TestNoVarintThePreScanLeavesUncheckedIsReachable(t *testing.T) {
+	seen := map[protoreflect.FullName]bool{}
+	singularInt32 := 0
+	var walk func(protoreflect.MessageDescriptor)
+	walk = func(md protoreflect.MessageDescriptor) {
+		if seen[md.FullName()] {
+			return
+		}
+		seen[md.FullName()] = true
+		fields := md.Fields()
+		for i := range fields.Len() {
+			fd := fields.Get(i)
+			switch {
+			case fd.Kind() == protoreflect.Sint32Kind, fd.Kind() == protoreflect.Uint32Kind:
+				t.Errorf("%s is a %s, which the pre-scan does not hold to its width", fd.FullName(), fd.Kind())
+			case fd.Kind() == protoreflect.Int32Kind && fd.IsList():
+				t.Errorf("%s is a repeated int32, which the pre-scan does not hold to its width", fd.FullName())
+			case fd.Kind() == protoreflect.Int32Kind:
+				singularInt32++
+			}
+			if m := fd.Message(); m != nil {
+				walk(m)
+			}
+		}
+	}
+	walk((*controlv1.ActionEnvelope)(nil).ProtoReflect().Descriptor())
+	if singularInt32 == 0 {
+		t.Fatalf("the walk met no int32 in %d messages, so it reached nothing the pre-scan holds", len(seen))
+	}
 }

@@ -159,6 +159,11 @@ func TestThePipelineNeverTrustsTheStoresApproval(t *testing.T) {
 			a.DecidedAt = timestamppb.New(base().Add(time.Hour))
 			return a
 		}, waits, 0, ""},
+		{"a decision time with nanos past a second", func(a *controlv1.Approval) *controlv1.Approval {
+			at := a.GetDecidedAt()
+			a.DecidedAt = &timestamppb.Timestamp{Seconds: at.GetSeconds() - 1, Nanos: at.GetNanos() + 1_000_000_000}
+			return a
+		}, waits, 0, ""},
 		{"another digest", func(a *controlv1.Approval) *controlv1.Approval { a.ActionDigest = "sha256:" + digits; return a }, closesExpired, verdictDeny, codeApprovalDigestMismatch},
 		{"another bundle", func(a *controlv1.Approval) *controlv1.Approval { a.PolicyBundleDigest = "sha256:" + digits; return a }, closesExpired, verdictDeny, codeApprovalBundleMismatch},
 		{"expiring now", func(a *controlv1.Approval) *controlv1.Approval { a.ExpiresAt = timestamppb.New(base()); return a }, closesExpired, verdictDeny, codeApprovalExpired},
