@@ -109,6 +109,14 @@ verify one.
   plane still serving it and was missing from the new list, whose header the
   plane's floor followed ([reaction under signed](docs/reference/reaction-signed.md)).
 
+### Documentation
+
+- The fail-closed table names its third column "a cause in the policy's
+  availability". It was previously headed "the policy available" over the
+  same values, which made it appear that a fail-open read ran when the policy
+  was available rather than when it was unavailable
+  ([how a call is decided](docs/concepts/how-a-call-is-decided.md#when-the-kernel-cannot-decide)).
+
 ## [0.18.0] - 2026-11-18
 
 Upgrading from 0.17 changes three things on every plane, and more under
