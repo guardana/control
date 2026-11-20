@@ -329,6 +329,21 @@ func TestANestedBlockWrittenTwiceIsRefused(t *testing.T) {
 	}
 }
 
+// TestADottedKeyInsideABlockIsRefused: a key spelled with a dot inside a
+// block reopens, under another spelling, the block the dot names, so it is
+// refused as the top-level spelling is.
+func TestADottedKeyInsideABlockIsRefused(t *testing.T) {
+	const agent = "    framework: example\n"
+	doc := strings.Replace(document, agent, agent+"  principal.type: service\n", 1)
+	if doc == document {
+		t.Fatal("the document holds no listener agent block to follow")
+	}
+	err := loadRecovering(t, writeDocument(t, doc))
+	if want := `line 17: "principal.type": a key holds no "."`; err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("the refusal is %v, want one saying %q", err, want)
+	}
+}
+
 // TestEveryRefusalNamesWhatIsWrong is the table of configurations the loader
 // will not return. Each case is the smallest change to the document that
 // makes it wrong, and each message has to name the key, because an operator
@@ -344,6 +359,8 @@ func TestEveryRefusalNamesWhatIsWrong(t *testing.T) {
 		{name: "a nested key nothing declares", add: "pdp:\n  bundle_key: k\n", wants: "pdp.bundle_key is not a configuration key"},
 		{name: "a key set twice", add: "mode: ENFORCE\n", wants: "is set twice"},
 		{name: "a block written twice", add: "policy:\n  fail_open_read: true\n", wants: "line 42: policy is written twice; it was written at line 18"},
+		{name: "a dotted key under a block's name", add: "policy.fail_open_read: true\n", wants: `line 42: "policy.fail_open_read": a key holds no "."`},
+		{name: "a dotted key of a block not written", add: "pdp.timeout: 2s\n", wants: `line 42: "pdp.timeout": a key holds no "."`},
 		{name: "a mode this build does not name", env: [2]string{"mode", "AUDIT"}, wants: "not one of OBSERVE"},
 		{name: "a duration that is not one", env: [2]string{"approvals.ttl", "soon"}, wants: "not a duration"},
 		{name: "a byte count that is not one", env: [2]string{"evidence.max_bytes", "lots"}, wants: "not a byte count"},
@@ -429,6 +446,34 @@ func overrideWithout(key string) string {
 
 func overrideEffect(effect string) string {
 	return strings.ReplaceAll(overrideOf("orders"), "effect: READ", "effect: "+effect)
+}
+
+// TestAnArgsItemTheReaderRefusesIsNotRepeated: an upstream's argument may
+// carry a pasted token, so a refusal of an args item, or of a value written on
+// the args key's own line, names where it is and withholds what it holds.
+func TestAnArgsItemTheReaderRefusesIsNotRepeated(t *testing.T) {
+	const secret = "sentinel-args-token"
+	for _, c := range []struct {
+		name, block, wants string
+	}{
+		{"an item", "    args:\n      - --token=" + secret + "&x\n", "upstreams.0.args.0: " + NotPrinted + ": anchors"},
+		{"a quoted item left open", "    args:\n      - \"--token=" + secret + "\n", "upstreams.0.args.0: " + NotPrinted + ": "},
+		{"a value on the key's line", "    args: --token=" + secret + "&x\n", "upstreams.0.args: " + NotPrinted + ": anchors"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			doc := strings.Replace(document, "    endpoint: http://127.0.0.1:1/mcp\n", "    command: /bin/echo\n"+c.block, 1)
+			if doc == document {
+				t.Fatal("the document holds no upstream endpoint to replace")
+			}
+			err := loadRecovering(t, writeDocument(t, doc))
+			if err == nil || !strings.Contains(err.Error(), c.wants) {
+				t.Fatalf("the refusal is %v, want one saying %q", err, c.wants)
+			}
+			if strings.Contains(err.Error(), secret) {
+				t.Errorf("the refusal repeats %q: %v", secret, err)
+			}
+		})
+	}
 }
 
 // TestASequenceIndexIsSpelledOnce: an index of the upstreams or of their

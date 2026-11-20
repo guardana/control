@@ -96,8 +96,6 @@ func TestAnEnvNameThePlaneOwnsOrNoProcessTakesIsRefused(t *testing.T) {
 	}
 }
 
-// TestAnEnvWrittenAsOneValueSaysItTakesAList: env: dev is most likely the
-// deployment label under the wrong key, and the refusal says where it goes.
 // TestAnEnvValueTheReaderRefusesIsNotRepeated: a value written on the env
 // key's own line that the reader refuses is withheld like a listed item.
 func TestAnEnvValueTheReaderRefusesIsNotRepeated(t *testing.T) {
@@ -112,6 +110,8 @@ func TestAnEnvValueTheReaderRefusesIsNotRepeated(t *testing.T) {
 	}
 }
 
+// TestAnEnvWrittenAsOneValueSaysItTakesAList: env: dev is most likely the
+// deployment label under the wrong key, and the refusal says where it goes.
 func TestAnEnvWrittenAsOneValueSaysItTakesAList(t *testing.T) {
 	doc := strings.Replace(withEnv(), "    env:\n", "    env: dev\n", 1)
 	err := loadRecovering(t, writeDocument(t, doc))

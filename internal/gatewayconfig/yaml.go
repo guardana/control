@@ -221,6 +221,11 @@ func checkKey(key, shown string) error {
 	if strings.ContainsAny(key, "&*{}[]|>'\"") {
 		return fmt.Errorf("%s: anchors, tags, quoted keys and flow collections are not read here", shown)
 	}
+	if strings.Contains(key, ".") {
+		// A dotted key would reopen, under another spelling, a block that is
+		// written once.
+		return fmt.Errorf("%s: a key holds no \".\"; write a path as nested blocks", shown)
+	}
 	return nil
 }
 
@@ -284,7 +289,7 @@ func plain(raw string) (string, error) {
 // refused value is often half-written YAML, so it is judged by the key it was
 // meant for; an env item may be a pasted NAME=value.
 func shown(path, raw string) string {
-	if strings.HasPrefix(path, HeadersPrefix) || strings.HasPrefix(path, PDPHeadersPrefix) || envItem(path) {
+	if strings.HasPrefix(path, HeadersPrefix) || strings.HasPrefix(path, PDPHeadersPrefix) || processItem(path) {
 		return NotPrinted
 	}
 	credential, address := flagsOf(path)
@@ -299,14 +304,20 @@ func shown(path, raw string) string {
 	return quoteValue(raw)
 }
 
-// envItem reports whether path is an upstream's env list or an item of it.
-func envItem(path string) bool {
+// processItem reports whether path is an upstream's env or args list or an
+// item of one, either of which may carry a pasted credential.
+func processItem(path string) bool {
 	rest, ok := strings.CutPrefix(path, "upstreams.")
 	if !ok {
 		return false
 	}
 	_, name, ok := strings.Cut(rest, ".")
-	return ok && (name == "env" || strings.HasPrefix(name, "env."))
+	for _, list := range []string{"env", "args"} {
+		if ok && (name == list || strings.HasPrefix(name, list+".")) {
+			return true
+		}
+	}
+	return false
 }
 
 // flagsOf reports whether the key at path is a credential or an address; an

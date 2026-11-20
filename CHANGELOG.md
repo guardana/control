@@ -29,15 +29,19 @@ verify one.
   published, or a policy gone stale, while the answer was read spent the
   approval although the call was then blocked; the hold now stands for a
   later retry.
-- A refusal of an upstream's `env` item the configuration reader cannot
-  read, such as `API_KEY=value&x`, no longer repeats the item, which can
-  hold a pasted credential.
+- A refusal of an upstream's `env` or `args` item the configuration reader
+  cannot read, such as `API_KEY=value&x` or `--token=value&x`, no longer
+  repeats the item, which can hold a pasted credential.
 - The configuration refuses a block written twice, such as two `policy:`
   mappings, naming both lines. Two blocks whose keys differed were merged.
+- The configuration refuses a key holding a `.`, such as
+  `policy.fail_open_read: true`; a path is written as nested blocks. The
+  dotted spelling reopened a block already written.
 - `doctor` reads the spent ledger beside the hold journal as `run` opens and
   sweeps it, and fails naming it where `run` would refuse it: a damaged
   `ledger.meta`, a name the ledger did not write or a mark that will not
   decode. It printed `ok` for the approvals and `run` then refused to start.
+  A mark a running plane removes while `doctor` reads the ledger is passed.
 - `/healthz` reports the `directory` approval authority `unavailable` once
   its approvals directory is not the one the plane opened; it said `usable`
   whatever became of it.
@@ -47,9 +51,11 @@ verify one.
   says. It closed it `APPROVAL_STATE_UNKNOWN`, which stays for a record that
   is gone.
 - A signed answer that authenticates but whose body cannot be read as an
-  answer, such as a rejection with no `reason`, leaves the call
+  answer, such as a rejection with no `reason`, from an operator who may
+  approve the hold, or where that cannot be told, leaves the call
   `INDETERMINATE` and the hold standing. It was left out, so a valid approval
-  beside it could run, though it may be the rejection that wins.
+  beside it could run, though it may be the rejection that wins. From an
+  operator who may not approve the hold it is left out.
 - A signed start reads the trust root key only from the file its check
   judged, and refuses one renamed over the path in between. It opened the
   key again by name after the check.

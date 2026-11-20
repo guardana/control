@@ -278,18 +278,34 @@ func TestASignedReconciliationSaysWhatTheRosterVouchesFor(t *testing.T) {
 	}
 }
 
-// TestAnAuthenticatedAnswerWithAnUnreadableBodyLeavesTheHoldStanding: carol's
-// signed rejection whose body lacks its reason cannot be read as an answer,
-// and it may be the rejection that wins, so alice's approval beside it does
-// not run: the retry is INDETERMINATE, nothing is spent and the hold stays.
-// Without carol's file alice's approval runs.
+// TestAnAuthenticatedAnswerWithAnUnreadableBodyLeavesTheHoldStanding: a
+// signed rejection whose body lacks its reason cannot be read as an answer.
+// From carol, who may approve, it may be the rejection that wins, so alice's
+// approval beside it does not run: the retry is INDETERMINATE, nothing is
+// spent and the hold stays; so too when nobody can say whether carol may. From
+// bob, who may not, it is left out as his readable answer is, and alice's
+// approval runs, as it does with no such file.
 func TestAnAuthenticatedAnswerWithAnUnreadableBodyLeavesTheHoldStanding(t *testing.T) {
-	for _, unreadable := range []bool{true, false} {
-		t.Run(fmt.Sprintf("unreadable rejection %v", unreadable), func(t *testing.T) {
-			h, box, requested := signedRig(t)
-			if unreadable {
+	for _, c := range []struct {
+		name, signer string
+		silent       bool
+		runs         bool
+		count        string
+	}{
+		{name: "none", runs: true},
+		{name: "carol, who may approve", signer: "carol", count: gateway.AnswerBody},
+		{name: "carol, the authorizer silent", signer: "carol", silent: true, count: gateway.AnswerAuthzUnavailable},
+		{name: "bob, who may not approve", signer: "bob", runs: true, count: gateway.AnswerUnauthorized},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h, box, requested := signedRig(t, func(cfg *gateway.Config) {
+				if c.silent {
+					cfg.Authorizer = silentFor{Authorizer: cfg.Authorizer, subject: c.signer}
+				}
+			})
+			if c.signer != "" {
 				body, err := canon.Canonicalize(map[string]any{
-					"kind": approvals.AnswerKind, "alg": "ed25519", "keyId": operatorID("carol"),
+					"kind": approvals.AnswerKind, "alg": "ed25519", "keyId": operatorID(c.signer),
 					"tenant": holdTenant, "project": holdProject,
 					"requestId": requested.GetRequestId(), "approvalId": requested.GetApprovalId(),
 					"actionDigest": requested.GetActionDigest(), "bundleDigest": requested.GetPolicyBundleDigest(),
@@ -301,13 +317,18 @@ func TestAnAuthenticatedAnswerWithAnUnreadableBodyLeavesTheHoldStanding(t *testi
 				if _, err := approvals.ReadAnswer(body); err == nil {
 					t.Fatal("the body without a reason reads as an answer, so the case examines nothing")
 				}
-				box.file(requested.GetApprovalId(), signAs(t, operators.AnswerPayloadType, body, operatorKey("carol"), operatorID("carol")))
+				box.file(requested.GetApprovalId(), signAs(t, operators.AnswerPayloadType, body, operatorKey(c.signer), operatorID(c.signer)))
 			}
 			box.file(requested.GetApprovalId(), signedBy(t, "alice", answerTo(requested, approvals.DecisionApprove, nil)))
 			d := h.admit(retry(t, "req-2"), refundArgs())
-			if !unreadable {
+			if c.signer != "" {
+				if got := h.p.Stats().Answers[c.count]; got != 1 {
+					t.Errorf("Stats().Answers[%s] = %d, want the unreadable answer's one", c.count, got)
+				}
+			}
+			if c.runs {
 				if d.Action != core.Execute {
-					t.Fatalf("alice's approval alone: Action = %d, codes %v; want it run", d.Action, d.Decision.GetReasonCodes())
+					t.Fatalf("alice's approval: Action = %d, codes %v; want it run", d.Action, d.Decision.GetReasonCodes())
 				}
 				return
 			}

@@ -151,7 +151,8 @@ func (j *Journal) InspectLedger() (int, error) {
 }
 
 // inspect is InspectLedger past the open: the directory held to what was
-// opened, its listing and marker, and every mark read.
+// opened, its listing and marker, and every mark read. It holds no lock, so a
+// mark a running plane's sweep removed after the listing is passed as gone.
 func (l *Ledger) inspect() (int, error) {
 	now, err := l.root.Stat(".")
 	if err != nil || !os.SameFile(l.opened, now) {
@@ -161,13 +162,22 @@ func (l *Ledger) inspect() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	read := 0
 	for _, name := range names {
-		if _, err := l.readMark(name); err != nil {
+		_, err := inspectMark(l, name)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+		case err != nil:
 			return 0, err
+		default:
+			read++
 		}
 	}
-	return len(names), nil
+	return read, nil
 }
+
+// inspectMark is how inspect reads one mark.
+var inspectMark = (*Ledger).readMark
 
 // list reads the directory: the marks, sorted, and the temporary files. A
 // name this package did not write, or anything that is not a regular file,

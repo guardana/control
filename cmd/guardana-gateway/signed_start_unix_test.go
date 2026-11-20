@@ -193,6 +193,27 @@ func TestASignedStartReadsTheRootKeyItJudged(t *testing.T) {
 // account owns, whose owner may unlink any operator's answer, refuses the
 // start naming approvals.inbox_dir.
 func TestASignedStartRefusesAnInboxThePlaneDoesNotOwn(t *testing.T) {
+	tr := foreignInboxTree(t)
+	placedApart(t)
+	if _, err := buildSigned(t, tr); err == nil || !strings.Contains(err.Error(), "approvals.inbox_dir: "+inbox.ErrInboxOwner.Error()) {
+		t.Errorf("a start over another account's sticky inbox = %v; want approvals.inbox_dir refused as not the plane's", err)
+	}
+}
+
+// TestDoctorFailsAnInboxThePlaneDoesNotOwn: doctor judges the inbox as the
+// start does, so another account's sticky inbox fails its authority line.
+func TestDoctorFailsAnInboxThePlaneDoesNotOwn(t *testing.T) {
+	tr := foreignInboxTree(t)
+	verdict, key, found := (&examination{cfg: tr.load(t)}).authority(t.Context())
+	if verdict != verdictFail || key != doctorAuthority || !strings.Contains(found, "approvals.inbox_dir: "+inbox.ErrInboxOwner.Error()) {
+		t.Errorf("doctor's authority line over another account's sticky inbox = %s %s %q; want fail naming approvals.inbox_dir as not the plane's", verdict, key, found)
+	}
+}
+
+// foreignInboxTree is a signed plane tree whose inbox is /tmp, a sticky
+// directory another account owns; the test skips where /tmp is not one.
+func foreignInboxTree(t *testing.T) tree {
+	t.Helper()
 	if os.Geteuid() == 0 {
 		t.Skip("the root account owns the directory this case points at, so nothing here is another account's")
 	}
@@ -205,7 +226,6 @@ func TestASignedStartRefusesAnInboxThePlaneDoesNotOwn(t *testing.T) {
 		t.Skipf("%s is not a sticky directory another account owns", foreign)
 	}
 	tr := signedPlaneTree(t, "roster-a", []ed25519.PublicKey{signedTestPublic("alice")}, "roster-a")
-	placedApart(t)
 	raw, err := os.ReadFile(tr.config)
 	if err != nil {
 		t.Fatal(err)
@@ -215,9 +235,7 @@ func TestASignedStartRefusesAnInboxThePlaneDoesNotOwn(t *testing.T) {
 		t.Fatal("the signed configuration names no inbox to move")
 	}
 	writeTestFile(t, tr.config, []byte(moved))
-	if _, err := buildSigned(t, tr); err == nil || !strings.Contains(err.Error(), "approvals.inbox_dir: "+inbox.ErrInboxOwner.Error()) {
-		t.Errorf("a start over another account's sticky inbox = %v; want approvals.inbox_dir refused as not the plane's", err)
-	}
+	return tr
 }
 
 // TestASignedStartRefusesWhatThePlanesAccountCouldTurn: the configuration
