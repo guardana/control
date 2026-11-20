@@ -69,6 +69,11 @@ verify one.
   covers policy tests (`implemented`), and the MCP gateway, approvals by
   command, a stop after repeated denials, proxy observations and coverage
   (all `experimental`).
+- The fail-closed table names its third column "a cause in the policy's
+  availability". It was previously headed "the policy available" over the
+  same values, which made it appear that a fail-open read ran when the policy
+  was available rather than when it was unavailable
+  ([how a call is decided](docs/concepts/how-a-call-is-decided.md#when-the-kernel-cannot-decide)).
 
 ## [0.18.0] - 2026-11-18
 
