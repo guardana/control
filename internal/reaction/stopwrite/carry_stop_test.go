@@ -73,3 +73,30 @@ func TestASignedCarryRefusedAtItsWriteLeavesTheOldListWritable(t *testing.T) {
 		t.Errorf("a stop appended to the old list after a refused carry = %v", err)
 	}
 }
+
+// TestASignedCarryWhoseCreateFailedWithItsListInPlaceKeepsTheOldListReadOnly:
+// a create that fails once the new list stands in place, its own removal
+// failing too, leaves a list the plane may take; the old list keeps no
+// write bit, so no stop reaches a list nothing carries.
+func TestASignedCarryWhoseCreateFailedWithItsListInPlaceKeepsTheOldListReadOnly(t *testing.T) {
+	from := emptyDir(t)
+	fromRoute := signedRouteIn(t, from, 3)
+	if _, err := stopwrite.InitSigned(bg, from, fromRoute, clock0, signer(), 1); err != nil {
+		t.Fatalf("InitSigned: %v", err)
+	}
+	into := emptyDir(t)
+	route := signedRouteIn(t, into, 4)
+	failed := errors.New("the new list's directory did not reach the disk")
+	undo := stopwrite.SetAfterCreate(func(err error) error { return errors.Join(err, failed) })
+	_, err := stopwrite.CarrySigned(bg, from, fromRoute, into, route, clock0, signer(), nil)
+	undo()
+	if !errors.Is(err, failed) {
+		t.Fatalf("CarrySigned with a failed create = %v, want the failure", err)
+	}
+	if _, err := os.Stat(filepath.Join(into, stoplist.FileName)); err != nil {
+		t.Fatalf("the new list after the failed create: %v, want it in place", err)
+	}
+	if got := listMode(t, from); got != 0o440 {
+		t.Errorf("the old list is %04o beside a new list in place, want 0440", got)
+	}
+}

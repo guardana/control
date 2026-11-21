@@ -86,7 +86,8 @@ verify one.
   from an unsigned record.
 - `react` reads a finding's run again once it holds the stop list's lock,
   and a run closed while it waited is counted as not stopping; a run it
-  cannot read then stops the pass. It wrote the stop from what it read
+  cannot read then, or one naming no subject of its rule's scope, stops the
+  pass. It wrote the stop from what it read
   before the wait.
 - A signed restore takes a backed-up root whose lock file stands without its
   state as untrusted with an unknown read, as the plane does, and refuses,
@@ -119,14 +120,15 @@ verify one.
 - `state restore` refuses, before its first write, a configuration where the
   temporary name a missing floor directory is built under is, or holds, a
   path the configuration names, the hold journal and the keys among them,
-  compared as the file system resolves both, so another case or a link is
-  caught; the build removes there only a directory a build of its own left.
+  compared through links and without case, also where neither name exists
+  yet, so every refusal comes before the first write; the build removes there
+  only a directory a build of its own left.
   Building the floor removed that path first, so a route floor named there
   was built again from the backup's lower serial, and a hold journal named
   there was lost.
 - **Breaking:** a signed carry takes the write bits off the list it carried
-  from before it writes the new list, giving them back when that write is
-  refused, and `react` and `stops lift` refuse a list its owner may not
+  from before it writes the new list, giving them back when that write left
+  no new list in place, and `react` and `stops lift` refuse a list its owner may not
   write. Run the carry as the old list's owner: under another account it
   refuses before it writes anything. A 0.17 `react` left on the old list
   fails to write; give the list its write bits back before 0.17 uses it

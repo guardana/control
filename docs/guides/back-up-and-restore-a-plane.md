@@ -111,16 +111,16 @@ verified files, in an owner-only `state-restore-*` directory under
   stop no lift ended, where a lift made for the old list does not verify.
   Any other surviving list is two histories, and the restore refuses;
   moving it aside lets the restore carry the backup's and loses the stops
-  added to it since. Under `signed` the list is an operator's file, and only
-  its floor is raised.
+  added to it since. Under `signed` the list is an operator's file; only its
+  floor is raised.
 
 A restore never writes the hold journal, its ledger or the approvals store:
 no hold resumes and no spent approval counts again.
 A missing floor directory is built as `.<name>.restoring` beside it, then
 renamed into place. A restore refuses where that name is or holds a
-configured path, as the file system resolves both, and removes there only
+configured path, through a link or in another case, and removes there only
 its own leftover. Rerun after a stop at any write, it ends where an
-unbroken one does; killed just before the rename, it leaves that directory
+unbroken one does; killed while building it, it may leave that directory
 for you to remove.
 
 ## Verify

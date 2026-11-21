@@ -215,10 +215,11 @@ func (r *reactor) now() time.Time { return r.clock().UTC().Truncate(time.Second)
 // under the lock, such as one whose run expired while the pass waited.
 var errNotStopping = errors.New("the finding does not stop at the clock read under the lock")
 
-// errRunUnread is a run the pass could not read again under the lock. The
+// errUnbuilt is a stop the pass could not build under the lock: its run
+// could not be read again, or names no subject of its rule's scope. The
 // writer wraps whatever the stop's build returns as its own refusal, so this
-// mark is what keeps an unread run from being counted as a refused write.
-var errRunUnread = errors.New("the run could not be read under the lock")
+// mark is what keeps either from being counted as a refused write.
+var errUnbuilt = errors.New("the stop could not be built under the lock")
 
 // stopping is the stop fr would be at now, when Eligible takes it with run's
 // facts and the route permits it.
@@ -292,7 +293,7 @@ func (r *reactor) write(fr *findingv1alpha1.FindingRecord) error {
 		// write it is in, so this read is not cut short by one.
 		run, err := r.lookupFacts(context.WithoutCancel(r.ctx), runID)
 		if err != nil {
-			return reaction.Stop{}, fmt.Errorf("%w: %w", errRunUnread, err)
+			return reaction.Stop{}, fmt.Errorf("%w: %w", errUnbuilt, err)
 		}
 		c, ok := r.stopping(fr, run, now)
 		if !ok {
@@ -300,7 +301,7 @@ func (r *reactor) write(fr *findingv1alpha1.FindingRecord) error {
 		}
 		subject, err := subjectOf(r.route, c.Scope, run)
 		if err != nil {
-			return reaction.Stop{}, err
+			return reaction.Stop{}, fmt.Errorf("%w: %w", errUnbuilt, err)
 		}
 		return reaction.Stop{EntryID: reaction.EntryID(id), TenantID: c.TenantID, ProjectID: c.ProjectID, Scope: c.Scope,
 			Subject: subject, RunID: runID, FindingID: id,
@@ -325,7 +326,7 @@ func (r *reactor) write(fr *findingv1alpha1.FindingRecord) error {
 		// Another writer named it after this pass read the list.
 		r.alreadyNamed++
 		return nil
-	case errors.Is(err, errRunUnread):
+	case errors.Is(err, errUnbuilt):
 		return fmt.Errorf("finding %s run %s: %w", oneLine(id), oneLine(runID), err)
 	case errors.Is(err, stopwrite.ErrFull), errors.Is(err, stopwrite.ErrRefused):
 		if errors.Is(err, stopwrite.ErrFull) {

@@ -185,3 +185,63 @@ func backUpBetweenRouteSerials(t *testing.T, p *plane, routeFloor string) string
 	}
 	return dir
 }
+
+// TestARestoreRefusesBeforeItsFirstWriteAStagingNameNothingHoldsYet: both
+// floors are lost, and the plane floor is configured at the route floor's
+// staging name in another case, through a link, or at that very name. No
+// directory stands at either name, so the file system cannot tell whether
+// they are one; the restore refuses before it writes anything rather than
+// build the plane floor and then refuse the route floor over it.
+func TestARestoreRefusesBeforeItsFirstWriteAStagingNameNothingHoldsYet(t *testing.T) {
+	for _, c := range []struct{ name, stateDir string }{
+		{"in another case", ".ROUTEFLOOR.restoring"},
+		{"through a link", "alias/.routefloor.restoring"},
+		{"at that name", ".routefloor.restoring"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p, _, _ := stopsPlane(t)
+			if err := os.Symlink(".", p.path("alias")); err != nil {
+				t.Fatal(err)
+			}
+			cfg := string(readOrFail(t, p.path("plane.yaml")))
+			writeFile(t, p.path("plane.yaml"), []byte(strings.Replace(cfg, "state_dir: floors", "state_dir: "+c.stateDir, 1)))
+			p.load(t)
+			planeFloorAt(t, p.cfg.Resolve(p.cfg.Policy.StateDir))
+			dir := backUpBetweenRouteSerials(t, p, p.path("routefloor"))
+			for _, lost := range []string{p.cfg.Resolve(p.cfg.Policy.StateDir), p.path("routefloor")} {
+				if err := os.RemoveAll(lost); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := tree(t, p.root, "alias")
+			_, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt)
+			if !errors.Is(err, recovery.ErrStaging) || !strings.Contains(err.Error(), "policy.state_dir") {
+				t.Errorf("Restore = %v, want ErrStaging naming policy.state_dir", err)
+			}
+			if after := tree(t, p.root, "alias"); fmt.Sprint(after) != fmt.Sprint(before) {
+				t.Errorf("the restore wrote before it refused: the tree holds %q", after)
+			}
+			if _, err := os.Lstat(p.cfg.Resolve(p.cfg.Policy.StateDir)); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("the plane floor after the refusal: %v, want none", err)
+			}
+		})
+	}
+}
+
+// planeFloorAt makes a plane floor directory at dir holding serial 3.
+func planeFloorAt(t *testing.T, dir string) {
+	t.Helper()
+	if err := policystate.Init(t.Context(), dir, policystate.KindPlane, bundleID); err != nil {
+		t.Fatal(err)
+	}
+	s, err := policystate.Open(dir, policystate.KindPlane)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Raise(t.Context(), statement(t, 3, d1, t0), t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+}

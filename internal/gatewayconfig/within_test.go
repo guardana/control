@@ -75,3 +75,30 @@ func TestNamedPathsListsEveryFileKeySet(t *testing.T) {
 		t.Fatalf("NamedPaths = %v, want %v", got, want)
 	}
 }
+
+// TestWithinRefusesNamesNothingTellsApartYet: where neither name exists, one
+// in another case, or one through a link above it, is within the other, since
+// the file system may make them one directory once either is made.
+func TestWithinRefusesNamesNothingTellsApartYet(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Symlink(".", filepath.Join(dir, "alias")); err != nil {
+		t.Fatal(err)
+	}
+	staging := filepath.Join(dir, ".routefloor.restoring")
+	for _, c := range []struct {
+		path string
+		want bool
+	}{
+		{filepath.Join(dir, ".ROUTEFLOOR.restoring"), true},
+		{filepath.Join(dir, ".RouteFloor.restoring", "journal"), true},
+		{filepath.Join(dir, "alias", ".routefloor.restoring"), true},
+		{filepath.Join(dir, "alias", "alias", ".ROUTEFLOOR.restoring", "x"), true},
+		{filepath.Join(dir, ".routefloor"), false},
+		{filepath.Join(dir, "alias", "floors"), false},
+	} {
+		got, err := Within(c.path, staging)
+		if err != nil || got != c.want {
+			t.Errorf("Within(%q, staging) = %v, %v, want %v", strings.TrimPrefix(c.path, dir), got, err, c.want)
+		}
+	}
+}

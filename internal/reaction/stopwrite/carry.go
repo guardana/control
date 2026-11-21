@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/guardana/control/internal/policy"
@@ -39,6 +40,11 @@ var carrying func()
 // old list's mode and the new list; an error stops the carry there, as a
 // process killed between them would.
 var stopped func() error
+
+// afterCreate, when a test sets it, takes what a signed carry's create of the
+// new list returned and answers what the carry goes on with, as a create that
+// failed once its list stood in place would.
+var afterCreate func(error) error
 
 // Carry starts a stop list in dir, judged against route, from the list in
 // from, judged against fromRoute, which alone may name a rule version a later
@@ -80,8 +86,9 @@ func Carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 // its write bits under the lock, and no writer here appends to it again
 // (ErrCarried): a stop a plane still serving it took after the carry would
 // be one the new list lacks, and its floor follows the new header whatever
-// the old list held. A refused write gives the bits back; a carry stopped
-// between the two leaves the old list read-only, and a rerun finishes it.
+// the old list held. A write that leaves no new list gives the bits back; a
+// carry stopped between the two leaves the old list read-only, and a rerun
+// finishes it.
 func CarrySigned(ctx context.Context, from string, fromRoute reaction.Route, dir string, route reaction.Route, now time.Time, s Signer,
 	hold func(reaction.List, []byte) error) (Carried, error) {
 	switch fromRoute.Format() {
@@ -154,9 +161,10 @@ func carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 }
 
 // createRetiring is create of a new list from the old list root holds, which
-// loses its write bits first. A refused create gives them back; a process
-// killed between the two leaves the old list read-only, where no stop reaches
-// a list nothing carries, and a rerun finishes the carry.
+// loses its write bits first. A create that failed with no new list in place
+// gives them back; a process killed between the two leaves the old list
+// read-only, where no stop reaches a list nothing carries, and a rerun
+// finishes the carry.
 func createRetiring(ctx context.Context, root *os.Root, dir string, route reaction.Route, now time.Time, lines [][]byte) error {
 	was, err := retireList(root)
 	if err != nil {
@@ -167,11 +175,27 @@ func createRetiring(ctx context.Context, root *os.Root, dir string, route reacti
 			return err
 		}
 	}
-	if err := create(ctx, dir, route, now, lines); err != nil {
+	err = create(ctx, dir, route, now, lines)
+	if afterCreate != nil {
+		err = afterCreate(err)
+	}
+	if err != nil && noListPlaced(dir, err) {
 		_, back := chmodList(root, func(fs.FileMode) fs.FileMode { return was })
 		return errors.Join(err, back)
 	}
-	return nil
+	return err
+}
+
+// noListPlaced reports whether create's failure err left no new list in dir:
+// a list that stood there before, or nothing at its name. A list left in
+// place by a create that failed after placing it is one a plane may take, so
+// the old list keeps no write bit beside it.
+func noListPlaced(dir string, err error) bool {
+	if errors.Is(err, ErrExists) {
+		return true
+	}
+	_, lerr := os.Lstat(filepath.Join(dir, stoplist.FileName))
+	return errors.Is(lerr, fs.ErrNotExist)
 }
 
 // CarriedLines is what Carry writes after the new list's header when it

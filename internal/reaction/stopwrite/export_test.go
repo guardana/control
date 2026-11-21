@@ -43,3 +43,10 @@ func SetCarryStop(f func() error) func() {
 	stopped = f
 	return func() { stopped = nil }
 }
+
+// SetAfterCreate makes f take what a signed carry's create of the new list
+// returned, until the returned function puts the writer back.
+func SetAfterCreate(f func(error) error) func() {
+	afterCreate = f
+	return func() { afterCreate = nil }
+}
