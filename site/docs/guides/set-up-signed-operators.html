@@ -36,6 +36,7 @@
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -85,6 +86,7 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
@@ -150,9 +152,10 @@ the plane's own account, which runs <code>guardana-gateway run</code> and is not
 write, the configuration, <code>trust.root_public_key</code>, <code>trust.roster</code>,
 <code>pause.file</code>, <code>reaction.route</code>, <code>reaction.stops</code> or the runs directory's
 <code>records/</code>, or any directory on their paths; one where any of those entries
-is missing or carries an access control list (on Linux and macOS); and one
-whose environment sets any of its keys. Root's files of mode <code>0644</code> in
-root's directories of mode <code>0755</code> pass.</p>
+is missing or carries an access control list (on Linux and macOS); one
+whose environment sets any of its keys; and one whose <code>approvals.inbox_dir</code>
+its own account does not own. Root's files of mode <code>0644</code> in root's
+directories of mode <code>0755</code> pass.</p>
 <div class="tbl">
 <table>
 <thead>
@@ -302,6 +305,7 @@ authority again.</p>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -351,6 +355,7 @@ authority again.</p>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>

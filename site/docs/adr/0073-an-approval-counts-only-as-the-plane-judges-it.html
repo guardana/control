@@ -36,6 +36,7 @@
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -85,6 +86,7 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
@@ -187,6 +189,9 @@ file. The same owner, the plane's account included where it owns the
 directory, can therefore unlink any answer, a rejection among them; the
 sticky bit stops only the other operators. <code>directory</code> takes the claim filed under the
 hold's approval id, its approver id held to the claim rule.</p>
+<p>Amended in 0.19: the plane refuses an inbox its own account does not own, at
+the start, in doctor and at every read, and prunes no other. That owner could
+unlink any answer, a rejection among them, out of the plane's sight.</p>
 <p><strong><code>approvals.authority: memory | directory | signed</code> replaces
 <code>approvals.provider</code> and has no default.</strong> A configuration without it, or
 with the old key, is refused naming both. <code>directory</code> is what <code>provider: file</code> was. This amends ADR-0066 property 3 for this port: its kind is chosen
@@ -269,6 +274,7 @@ the start checks and the pinned key registry in <code>cmd/guardana-gateway</code
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -318,6 +324,7 @@ the start checks and the pinned key registry in <code>cmd/guardana-gateway</code
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>

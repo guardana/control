@@ -36,6 +36,7 @@
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -85,6 +86,7 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
@@ -285,7 +287,11 @@ included, differs on <code>trail.others</code>.</li>
 </ol>
 <p>It also holds each trail to the plane: every event carries the plane's mode,
 every <code>POLICY_DECIDED</code> the bundle digest <code>/healthz</code> reported, and, where the
-trail records a decision, the answer's decision id is one of them. A pending
+trail records a decision, the answer's decision id is one of them. A
+<code>/healthz</code> answer without a bundle digest is refused, and the decision a
+step is judged by must be of the major this build reads; either is a
+scenario that could not run, never a pass. Reason codes are compared item
+by item. A pending
 answer's approval id must be the one the trail's last <code>APPROVAL_REQUESTED</code>
 names, or the step differs on <code>answer.approval_id</code> and no operator step
 answers it. The first call's
@@ -335,7 +341,7 @@ differs, <code>&lt;id&gt; step[&lt;i&gt;].&lt;member&gt;: want &lt;x&gt;, got &l
 </tr>
 <tr>
 <td>2</td>
-<td>None differed, and some scenario could not run: no scenario, a file refused, a precondition, an answer naming no trail, a barrier past its bound, another client, a <code>guardana-control</code> missing or of another version, a trail file that is not the plane's. A gate treats 2 as a failure.</td>
+<td>None differed, and some scenario could not run: no scenario, a file refused, a precondition, an answer naming no trail, a barrier past its bound, another client, a <code>guardana-control</code> missing or of another version, a trail file that is not the plane's, or a report standard output did not take whole. A gate treats 2 as a failure.</td>
 </tr>
 </tbody>
 </table>
@@ -379,6 +385,7 @@ plane's beyond the ids, the digest and the mode it checks.</p>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -428,6 +435,7 @@ plane's beyond the ids, the digest and the mode it checks.</p>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>

@@ -11,6 +11,21 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `collect` and `prune` refuse a trail directory whose parent
+  is owned by an account other than this one or root, or may be written by
+  the group or others without being sticky, and a trail directory that is a
+  symbolic link. They open the trail directory through the parent they
+  judged, so `--dir P/l/../trail` is `P/trail` and not where the link `l`
+  leads. Only the trail directory itself was checked
+  ([watch a plane without a collector](docs/guides/watch-a-plane-without-a-collector.md)).
+- **Breaking:** `collect` reads `--listen` as a URL: escapes in its path are
+  undone, so the endpoint it prints names the same socket when given back,
+  and a host, a query, a fragment or a `%` that escapes nothing is refused.
+  A socket path holding `#`, `?`, `%` or a space is given escaped, as
+  `collect` prints it.
+
 ### Added
 
 - `guardana-gateway attempts run` (`experimental`) runs a manifest of scripted
@@ -21,6 +36,17 @@ verify one.
   ([attempt format](docs/reference/attempt-format.md),
   [ADR-0086](docs/adr/0086-controlled-attempts-are-counted-at-the-victim.md)).
   The demo's manifest is `examples/vulnerable-mcp-agent/attempts/manifest.json`.
+- `guardana-control policy compare` (`experimental`) decides policy test
+  cases and an evidence export's requests under the current and a candidate
+  policy through the kernel's own evaluation, and writes a
+  `policy-comparison/v1alpha1` report of each case's change, every result
+  marked simulated. A case it cannot judge, for a missing fact, a decision on
+  another policy, a gap or a disagreement with the recorded decision, is
+  unknown with its reason and counted apart; a `policy-case-labels/v1alpha1`
+  file counts cases by label and change. It sends no call, consumes no
+  approval and activates no policy
+  ([policy compare](docs/reference/policy-compare.md),
+  [ADR-0087](docs/adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation.md)).
 
 ### Fixed
 
@@ -31,6 +57,58 @@ verify one.
   exports of one run could list requests differently and a finding citing
   more than ten could keep other references
   ([supervision](docs/reference/supervision.md)).
+- A signed start refuses a header a variable sets with its hyphens spelled
+  as they are, such as `GUARDANA_CONTROL_EXPORT_HEADERS_X-TENANT`, as it
+  refuses every other key the environment sets. Only a header spelled with
+  `_` was refused; the hyphenated one was applied and the start went on.
+- A retry checks the pause, the stops, the clock and the policy again after
+  the approval authority answers and before it spends the approval. A stop
+  published, or a policy gone stale, while the answer was read spent the
+  approval although the call was then blocked; the hold now stands for a
+  later retry.
+- A refusal of an upstream's `env` or `args` item the configuration reader
+  cannot read, such as `API_KEY=value&x` or `--token=value&x`, no longer
+  repeats the item, which can hold a pasted credential.
+- The configuration refuses a block written twice, such as two `policy:`
+  mappings, naming both lines. Two blocks whose keys differed were merged.
+- The configuration refuses a key holding a `.`, such as
+  `policy.fail_open_read: true`; a path is written as nested blocks. The
+  dotted spelling reopened a block already written.
+- `doctor` reads the spent ledger beside the hold journal as `run` opens and
+  sweeps it, and fails naming it where `run` would refuse it: a damaged
+  `ledger.meta`, a name the ledger did not write or a mark that will not
+  decode. It printed `ok` for the approvals and `run` then refused to start.
+  A mark a running plane removes while `doctor` reads the ledger is passed.
+- `/healthz` reports the `directory` approval authority `unavailable` once
+  its approvals directory is not the one the plane opened; it said `usable`
+  whatever became of it.
+- After a restart, a signed plane closes an unexpired lost hold that nobody
+  answered `APPROVAL_EXPIRED` while the hold's record stands, as the
+  directory kind does and [failure modes](docs/reference/failure-modes.md)
+  says. It closed it `APPROVAL_STATE_UNKNOWN`, which stays for a record that
+  is gone.
+- A signed answer that authenticates but whose body cannot be read as an
+  answer, such as a rejection with no `reason`, from an operator who may
+  approve the hold, or where that cannot be told, leaves the call
+  `INDETERMINATE` and the hold standing. It was left out, so a valid approval
+  beside it could run, though it may be the rejection that wins. From an
+  operator who may not approve the hold it is left out. A file named for the
+  approval that cannot be read as an answer at all still makes the batch
+  unavailable, since it may be the rejection
+  ([ADR-0073](docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
+- A signed start reads the trust root key only from the file its check
+  judged, and refuses one renamed over the path in between. It opened the
+  key again by name after the check.
+- A signed plane refuses an `approvals.inbox_dir` its own account does not
+  own, at the start, in `doctor` and at every read, since that owner may
+  remove any operator's answer under the sticky bit, a rejection among them
+  ([approvals](docs/concepts/approvals-and-the-held-call.md)).
+- An inbox prune removes nothing from a directory this account does not
+  own, and says so. It unlinked there whatever stale answer the kernel let
+  it remove.
+- An approvals record whose `tenant`, `project` or any other member is
+  `null` is refused as a member of the wrong type. A `null` tenant or project
+  was read as empty.
 - An answer of the AuthZEN decision point whose body is not UTF-8 is refused
   with `PDP_ANSWER_REFUSED`, so the call is blocked. JSON text is UTF-8; such
   a body was read with replacement characters in its strings
@@ -101,6 +179,101 @@ verify one.
   newline that no writer holds, with `end_reached` and no `partial_tail`
   gap, so such an export no longer passes as whole
   ([contracts](docs/contracts.md#the-evidence-export)).
+- `collect` answers a repeat of records it already holds only once it has
+  read each repeated record's line back where it wrote it, in a sealed
+  segment or the live one. A segment removed, cut or rewritten under it, or
+  another file put at a segment's name, makes it answer 503 and take nothing
+  more until it is started again. A repeat was answered 200 from the index
+  alone, so the plane released records the trail had lost
+  ([watch a plane without a collector](docs/guides/watch-a-plane-without-a-collector.md)).
+- `collect` and `prune` sync the directory the trail directory is named in
+  before the first answer, so a trail directory just made is still there
+  after a power loss. Evidence was acknowledged while the directory's own
+  name could still be lost.
+- A segment log whose `segments.json` is a symbolic link is refused by
+  `collect`, `prune` and every reader. The link was followed.
+- `prune` reads each segment it removes again before it writes the
+  tombstone, and refuses one that no longer holds what the manifest names,
+  changing nothing; it unlinks a segment's file only while its name still
+  names the file it read. A file put at a segment's name after the log was
+  opened was unlinked unread.
+- `trail export` of a segment log stops, exit 2 and with no trailer, at an
+  event of another tenant or project than the log is bound to. It wrote the
+  event, so an unfiltered export could report no gap
+  ([contracts](docs/contracts.md#a-directory-of-segments)). `trail` and a
+  scenario reading a segment log refuse such an event too; they read it as
+  an ordinary trail.
+- `trail export` of a segment log does not report the end at a sealed segment
+  when the live segment after it holds only bytes no newline ends; the export
+  after its cursor reports them. A torn live segment after a seal was hidden
+  behind `end_reached: true`.
+- `trail export` of a segment log no longer reports the end of the log when a
+  seal renamed the live segment while the export was reading the manifest,
+  also when the next write had made a new live file by then; it reads the
+  log again. The sealed segment was left out behind `end_reached: true`.
+- `evidence-report -state` keeps its cursor on an export of a live segment
+  that holds no whole line yet, and reads on once it does. It refused that
+  export as another file, or as one naming no `next_cursor`.
+- `trail export` writes a line holding a `null` as a `malformed` gap, not as
+  an event. The codec reads a `null` as an absent member, and the export's
+  reader refuses any record holding one, so an export of such a line could
+  not be read ([contracts](docs/contracts.md#the-evidence-export)).
+- A collector's 401 to a request without the credential is sent before the
+  body is read, and closes the connection. Go's server read a small unread
+  body first, so a slow body delayed the answer.
+- A collector refuses with 415 a request carrying a content coding in any
+  `Content-Encoding` field, or more than one `Content-Type` field. Only the
+  first field of each was read.
+- `collect` prints its socket as an `export.endpoint` a plane reads, with a
+  `#`, `?` or `%` in the path escaped. It printed the path as it stands,
+  which a plane refused or read as another path.
+- `collect` stops within ten seconds of its signal, or of its server
+  failing, also when a write is still waiting on the disk; that request is
+  not answered, and the plane sends it again. The stop waited on the write
+  without a bound.
+- The exporter refuses a collector's answer surrounded by bytes JSON does not
+  take as whitespace, such as a vertical tab, and sends the records again.
+  Such an answer was trimmed and accepted, releasing the records.
+- The page of the [Claude Code hooks](docs/reference/claude-code-hooks.md)
+  says what classing `Agent` as `EXECUTE` costs: a rule on
+  `SPAWN_OR_DELEGATE` never sees a sub-agent start and a rule that allows
+  `EXECUTE` allows it, so a policy decides `Agent` by its name or its
+  resource type, where a `DENY` or `REQUIRE_APPROVAL` overrides an `ALLOW`
+  on `EXECUTE`; the profile lists it among its gaps.
+- The enforcement API refuses a complete whose `resultHash` is not `sha256:`
+  and 64 lower-case hex digits as `ERROR_CODE_MALFORMED`. Any text up to
+  1 KiB was recorded, so a client could put a tool's output in the trail
+  and the collector's export with capture off
+  ([contracts](docs/contracts.md)). The Go and Python clients judge the hash
+  before sending it: a tool's result whose hash is in any other form is
+  completed `UNKNOWN` without the hash, and the Python client raises
+  `BadResult`.
+- An `EXECUTE` answer a shutdown overtakes reaches its client before the
+  plane records the execution abandoned. The answer could wait in the
+  server's buffer until after the abandon.
+- The Go and Python clients of the enforcement API abort an `EXECUTE` that
+  carries no authorized bytes also when the call proposed none, as ADR-0051
+  requires; they ran the tool with no bytes.
+- `scenario run` refuses a `/healthz` answer without a bundle digest, and a
+  trail compared against no digest cannot pass; both sides empty compared
+  equal ([scenario format](docs/reference/scenario-format.md)).
+- `scenario run` refuses to judge a step by a `POLICY_DECIDED` whose decision
+  is of a major this build does not read, whatever the event's own version.
+- `scenario run` compares reason codes item by item: one code holding
+  `RULE_UNDETERMINED, PDP_TIMEOUT` compared equal to the two codes.
+- `scenario run` and `dev --scenario` exit 2 when the report could not be
+  written to standard output, and say so on standard error; a pass nobody
+  could read exited 0.
+- The hook bridge refuses an event whose `tool_input` names a member twice
+  in any of its objects, before anything is sent; only a member the event
+  itself named twice was refused.
+- The scenario reader judges `kind` before the depth bound, as ADR-0022
+  orders it: a document of another kind with containers past the bound was
+  refused for its depth.
+- The qualification of the
+  [Claude Code hooks](docs/reference/claude-code-hooks.md) credits a decision
+  to a sub-agent's `Write` only when the trail holds more decided writes of that file than the other
+  calls that wrote it could account for.
 
 ### Documentation
 
