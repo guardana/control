@@ -86,6 +86,10 @@ guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --find
 - `supervise` compares a recorded run with its procedure:
   [supervise and stop a run](docs/guides/supervise-and-stop-a-run.md).
 
+Read the risk references for [agentic applications](docs/reference/risks/owasp-agentic-top-10.md),
+[LLM applications](docs/reference/risks/owasp-llm-top-10.md), and
+[recent advisories](docs/reference/risks/advisories.md).
+
 Each release has archives of both binaries for Linux and macOS on amd64 and
 arm64, with a signed `checksums.txt`. With Go 1.27.4 or later:
 
@@ -112,3 +116,5 @@ run. The projects are independent.
 
 [Governance](GOVERNANCE.md) · [Decision records](docs/adr/README.md) ·
 [Code of conduct](CODE_OF_CONDUCT.md) · [Trademarks](TRADEMARKS.md)
+
+[Star Guardana Control on GitHub](https://github.com/guardana/control) to help others find it.
