@@ -21,6 +21,17 @@ verify one.
   ([attempt format](docs/reference/attempt-format.md),
   [ADR-0086](docs/adr/0086-controlled-attempts-are-counted-at-the-victim.md)).
   The demo's manifest is `examples/vulnerable-mcp-agent/attempts/manifest.json`.
+- `guardana-control policy compare` (`experimental`) decides policy test
+  cases and an evidence export's requests under the current and a candidate
+  policy through the kernel's own evaluation, and writes a
+  `policy-comparison/v1alpha1` report of each case's change, every result
+  marked simulated. A case it cannot judge, for a missing fact, a decision on
+  another policy, a gap or a disagreement with the recorded decision, is
+  unknown with its reason and counted apart; a `policy-case-labels/v1alpha1`
+  file counts cases by label and change. It sends no call, consumes no
+  approval and activates no policy
+  ([policy compare](docs/reference/policy-compare.md),
+  [ADR-0087](docs/adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation.md)).
 
 ### Fixed
 
@@ -123,9 +134,62 @@ verify one.
   a plane still serving it and was missing from the new list, whose header
   the plane's floor followed ([reaction under signed](docs/reference/reaction-signed.md),
   [upgrade a plane from 0.17](docs/guides/upgrade-a-plane-from-0-17.md)).
+- The page of the [Claude Code hooks](docs/reference/claude-code-hooks.md)
+  says what classing `Agent` as `EXECUTE` costs: a rule on
+  `SPAWN_OR_DELEGATE` never sees a sub-agent start and a rule that allows
+  `EXECUTE` allows it, so a policy decides `Agent` by its name or its
+  resource type, where a `DENY` or `REQUIRE_APPROVAL` overrides an `ALLOW`
+  on `EXECUTE`; the profile lists it among its gaps.
+- The enforcement API refuses a complete whose `resultHash` is not `sha256:`
+  and 64 lower-case hex digits as `ERROR_CODE_MALFORMED`. Any text up to
+  1 KiB was recorded, so a client could put a tool's output in the trail
+  and the collector's export with capture off
+  ([contracts](docs/contracts.md)). The Go and Python clients judge the hash
+  before sending it: a tool's result whose hash is in any other form is
+  completed `UNKNOWN` without the hash, and the Python client raises
+  `BadResult`.
+- An `EXECUTE` answer a shutdown overtakes reaches its client before the
+  plane records the execution abandoned. The answer could wait in the
+  server's buffer until after the abandon.
+- The Go and Python clients of the enforcement API abort an `EXECUTE` that
+  carries no authorized bytes also when the call proposed none, as ADR-0051
+  requires; they ran the tool with no bytes.
+- `scenario run` refuses a `/healthz` answer without a bundle digest, and a
+  trail compared against no digest cannot pass; both sides empty compared
+  equal ([scenario format](docs/reference/scenario-format.md)).
+- `scenario run` refuses to judge a step by a `POLICY_DECIDED` whose decision
+  is of a major this build does not read, whatever the event's own version.
+- `scenario run` compares reason codes item by item: one code holding
+  `RULE_UNDETERMINED, PDP_TIMEOUT` compared equal to the two codes.
+- `scenario run` and `dev --scenario` exit 2 when the report could not be
+  written to standard output, and say so on standard error; a pass nobody
+  could read exited 0.
+- The hook bridge refuses an event whose `tool_input` names a member twice
+  in any of its objects, before anything is sent; only a member the event
+  itself named twice was refused.
+- The scenario reader judges `kind` before the depth bound, as ADR-0022
+  orders it: a document of another kind with containers past the bound was
+  refused for its depth.
+- The qualification of the
+  [Claude Code hooks](docs/reference/claude-code-hooks.md) credits a decision
+  to a sub-agent's `Write` only when the trail holds more decided writes of that file than the other
+  calls that wrote it could account for.
 
 ### Documentation
 
+- Risk references map the 2026 OWASP Top 10 lists for Agentic Applications
+  and LLM Applications to project controls and tests
+  ([risk references](docs/reference/risks/owasp-agentic-top-10.md)). For
+  each risk, the page lists the controls that apply, known bypasses and
+  the gaps. It does the same for published advisories on agentic attacks.
+- A comparison, checked on 2026-11-20, of tools that check an agent's tool
+  calls against policy before they run: Microsoft's agent controls, Policy in Amazon
+  Bedrock AgentCore, Hexgate and Guardana Control
+  ([comparison](docs/concepts/agent-tool-call-controls.md)).
+- [Check a security-testing agent's calls against a scope you declare](docs/guides/check-a-security-testing-agent.md)
+  covers policy tests (`implemented`), and the MCP gateway, approvals by
+  command, a stop after repeated denials, proxy observations and coverage
+  (all `experimental`).
 - The fail-closed table names its third column "a cause in the policy's
   availability". It was previously headed "the policy available" over the
   same values, which made it appear that a fail-open read ran when the policy

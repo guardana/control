@@ -56,6 +56,8 @@ Have a tool ask before it acts or a sensor report what happened, hold a client t
 ## Guides
 
 - [Back up and restore a plane](guides/back-up-and-restore-a-plane.md): Copy a stopped plane's floors, runs, pause file and stop list, and after a loss raise them back so no floor ends lower, every run is closed and no hold resumes.
+- [Check a security-testing agent's calls against a scope you declare](guides/check-a-security-testing-agent.md): Test the policy (implemented). Check MCP calls through the plane, stop the run after four denials and compare proxy logs with the host list (experimental).
+- [Compare a candidate policy](guides/compare-a-candidate-policy.md): Before signing a changed policy, decide your cases and a plane's evidence under both versions, and read what changes and what cannot be judged.
 - [Connect an existing MCP setup](guides/connect-an-existing-mcp-setup.md): Put the plane between an MCP client and a server you already use, classify the server's tools, hold its writes for approval, and end in a local report.
 - [Count controlled attempts](guides/count-controlled-attempts.md): Run the demo's attempt manifest, read what its victims received, and write a manifest of your own.
 - [Decide a tool of your own](guides/decide-a-tool-of-your-own.md): Serve the enforcement API, classify your tools by name, and have a client ask before each call and report how it ended, under one policy and trail.
@@ -75,6 +77,7 @@ Have a tool ask before it acts or a sensor report what happened, hold a client t
 
 ## Concepts
 
+- [Which tools check AI agent tool calls against policy?](concepts/agent-tool-call-controls.md): A comparison of where tool call policies run, how people approve calls, what gets recorded, and how each product is deployed.
 - [Approvals and the held request](concepts/approvals-and-the-held-call.md): What the enforcement point holds when a call needs an approval, what a retry must equal to resume it, and the ways a hold ends.
 - [Architecture](concepts/architecture.md): The system in context, its containers, the request path from a proposed action to a decision and its evidence, the dependency rule, and where it is going.
 - [Control and supervision](concepts/control-and-supervision.md): The 1.0 goal for connected observation, procedure checks and scoped reactions, with today's alpha and the three API roles kept explicit.
@@ -106,11 +109,15 @@ Have a tool ask before it acts or a sensor report what happened, hold a client t
 - [Metrics](reference/metrics.md): Every metric a plane answers on /metrics, with its type, its label, the statistic it reads and what it counts.
 - [Obligations](reference/obligations.md): The catalogue of obligation types a policy rule may name, the parameters each takes, and what the tree does with one.
 - [Observations](reference/observations.md): The source descriptor and its kinds, what an import of OpenTelemetry GenAI spans keeps and drops, the observation log and its export.
+- [Policy compare](reference/policy-compare.md): What `policy compare` reads, how it decides each case under two policies, its report and labels file, its counts, bounds and exit statuses.
 - [Policy explain](reference/policy-explain.md): What `guardana-control policy explain` reads, every line it prints, which rule decided and which input a rule could not read, and its bounds.
 - [Policy document format](reference/policy-format.md): Every member of an agent-policy/v1alpha1 document, the values each admits, the bounds, and the members of a policy test case.
 - [Signed reaction](reference/reaction-signed.md): How a signed plane takes its route, stop list header and lifts from roster operators, holds them to a stop list floor, and which commands sign them.
 - [Reaction](reference/reaction.md): The signed route, the stop list and the commands that write them, and how a plane refuses a stopped run's calls and reports its stops.
 - [Reason codes](reference/reason-codes.md): Every reason code a decision may carry, with its number and the verdict it usually accompanies.
+- [Advisories on agentic attacks](reference/risks/advisories.md): What the FBI, Google, and WorkOS reported, which parts apply to agents you run, and the tests and limits of the relevant controls.
+- [OWASP Top 10 for Agentic Applications](reference/risks/owasp-agentic-top-10.md): The 2026 agentic risks, the tests that exercise Guardana Control's controls, the paths around them, and the remaining gaps.
+- [OWASP Top 10 for LLM Applications](reference/risks/owasp-llm-top-10.md): The 2026 LLM risks, tests for effects on connected tools, and gaps in the model, its data, and the application that uses its output.
 - [Run view](reference/run-view.md): The page guardana-control supervise --view draws for one run, what each mark on it means, and what the command refuses to overwrite.
 - [Runs](reference/runs.md): The runs directory, what runs open, close, list and prune print and refuse, and what a plane with runs.dir does with a token.
 - [Scenario format](reference/scenario-format.md): Every member of an agent-scenario/v1alpha1 document, how scenario run holds a live plane to one, and what it exits with.
@@ -230,3 +237,4 @@ Have a tool ask before it acts or a sensor report what happened, hold a client t
 - [ADR-0084: The site is redrawn: one system for the landing page and the docs, a light and a dark theme, llms.txt](adr/0084-the-site-is-redrawn-in-one-system.md): accepted
 - [ADR-0085: The 1.0 bar is met by the project's own evidence, and what needs outside people stays not met](adr/0085-the-1-0-bar-is-met-by-own-evidence-and-what-needs-outside-people-stays-not-met.md): accepted
 - [ADR-0086: Controlled attempts are counted at the victim, by an executor of their own](adr/0086-controlled-attempts-are-counted-at-the-victim.md): accepted
+- [ADR-0087: A candidate policy is compared through the kernel's own evaluation, and what a case cannot show stays unknown](adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation.md): proposed

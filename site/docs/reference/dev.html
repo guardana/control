@@ -35,6 +35,8 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -53,6 +55,7 @@
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -83,11 +86,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -245,8 +252,9 @@ each on a plane of its own: a new state directory (a numbered one under
 <code>--state</code> when given), a new plane, no page, stopped once the scenario ends.
 Each line is the runner's (<a href="/docs/reference/scenario-format">scenario-format.md</a>), after
 one line naming the scenario's state directory. It exits 1 when any
-scenario differed, else 2 when any could not run, or its plane stopped on its
-own or did not stop cleanly, else 0.</p>
+scenario differed, else 2 when any could not run, its plane stopped on its own
+or did not stop cleanly, or standard output did not take the report whole,
+else 0.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/dev.md">docs/reference/dev.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.18.0, and <a href="https://github.com/guardana/control/tree/v0.18.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
@@ -257,6 +265,8 @@ own or did not stop cleanly, else 0.</p>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -275,6 +285,7 @@ own or did not stop cleanly, else 0.</p>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -305,11 +316,15 @@ own or did not stop cleanly, else 0.</p>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
