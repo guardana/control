@@ -339,14 +339,15 @@ func (r *rig) settledWithin(bound time.Duration) bool {
 
 const settleBound = 10 * time.Second
 
-// statsWithin waits up to bound until ok holds for the adapter's counters and
-// returns the last reading: an abandon is counted after its pipeline returns,
-// so a test that hears of the abandon from the pipeline can read them early.
-func (r *rig) statsWithin(bound time.Duration, ok func(enforce.Stats) bool) enforce.Stats {
+// countsWithin waits up to bound until the adapter counts open and abandoned
+// executions as wanted, and returns its last reading: an abandon is counted
+// after its pipeline returns, so a test that hears of the abandon from the
+// pipeline can read the counters early.
+func (r *rig) countsWithin(bound time.Duration, open int, abandoned uint64) enforce.Stats {
 	deadline := time.Now().Add(bound)
 	for {
 		s := r.a.Stats()
-		if ok(s) || !time.Now().Before(deadline) {
+		if (s.Open == open && s.Abandoned == abandoned) || !time.Now().Before(deadline) {
 			return s
 		}
 		time.Sleep(time.Millisecond)
