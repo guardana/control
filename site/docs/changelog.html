@@ -152,6 +152,11 @@ undone, so the endpoint it prints names the same socket when given back,
 and a host, a query, a fragment or a <code>%</code> that escapes nothing is refused.
 A socket path holding <code>#</code>, <code>?</code>, <code>%</code> or a space is given escaped, as
 <code>collect</code> prints it.</li>
+<li><strong>Breaking:</strong> a <code>procedure test</code> cases document states <code>project</code> in <code>run</code>
+and in each run of <code>tree</code>; a document without it is refused with exit 2,
+naming the member. Add the project the run's record names. The format
+stays <code>0.1</code>, <code>experimental</code>
+(<a href="/docs/guides/test-a-procedure#2-write-a-case">test a procedure</a>).</li>
 </ul>
 <h3 id="added">Added</h3>
 <ul>
@@ -178,7 +183,7 @@ approval and activates no policy
 <h3 id="fixed">Fixed</h3>
 <ul>
 <li><code>policy test</code>, <code>policy explain</code> and <code>policy compare</code> refuse a case whose
-<code>authorized_args</code> is not valid UTF-8 or holds a lone surrogate escape
+<code>authorized_args</code> is not valid UTF-8 or holds an unpaired surrogate escape
 such as <code>\ud800</code>, naming the member. The case reader put U+FFFD in place
 of such bytes, so the kernel decided other arguments than the case wrote,
 and a case could pass <code>ALLOW</code> for bytes the kernel refuses

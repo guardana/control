@@ -25,6 +25,11 @@ verify one.
   and a host, a query, a fragment or a `%` that escapes nothing is refused.
   A socket path holding `#`, `?`, `%` or a space is given escaped, as
   `collect` prints it.
+- **Breaking:** a `procedure test` cases document states `project` in `run`
+  and in each run of `tree`; a document without it is refused with exit 2,
+  naming the member. Add the project the run's record names. The format
+  stays `0.1`, `experimental`
+  ([test a procedure](docs/guides/test-a-procedure.md#2-write-a-case)).
 
 ### Added
 

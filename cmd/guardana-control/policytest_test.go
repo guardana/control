@@ -385,6 +385,8 @@ func TestACaseIsRefusedArgumentsItCannotCarryExactly(t *testing.T) {
 		"a lone low surrogate":                   `"{\"note\":\"\udfff\"}"`,
 		"a high surrogate unpaired":              `"{\"note\":\"\ud800A\"}"`,
 		"a high surrogate before another escape": `"{\"note\":\"\ud800` + `\` + `u0041\"}"`,
+		"a low surrogate before another low":     `"{\"note\":\"\udc00` + `\` + `udc00\"}"`,
+		"two high surrogates":                    `"{\"note\":\"\ud800` + `\` + `ud800\"}"`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			p := base()

@@ -209,6 +209,43 @@ func TestACaseIsJudgedUnderItsRunsRecordedProject(t *testing.T) {
 // one line naming what was refused, for a member the format does not have
 // at each level, a version it does not read, a missing expectation, no case,
 // a case named twice, and a procedure or an export it cannot read.
+// TestACasesDocumentSpellingAnIdItCannotCarryIsRefused: an id, a tenant or a
+// project that supervise compares byte for byte, spelled with an unpaired
+// surrogate escape the decoder reads as U+FFFD, is refused, naming the
+// member, rather than compared on other bytes than the document wrote.
+func TestACasesDocumentSpellingAnIdItCannotCarryIsRefused(t *testing.T) {
+	const mark = "member-to-respell"
+	for name, c := range map[string]struct {
+		edit func(doc map[string]any)
+		want string
+	}{
+		"a run's project": {func(d map[string]any) { caseOf(t, d, 0)["run"].(map[string]any)["project"] = mark }, "cases.1.run.project: want valid UTF-8"},
+		"a run's id":      {func(d map[string]any) { caseOf(t, d, 0)["run"].(map[string]any)["id"] = mark }, "cases.1.run.id: want valid UTF-8"},
+		"a tree member's parent": {func(d map[string]any) {
+			caseOf(t, d, 0)["tree"].([]any)[0].(map[string]any)["parent"] = mark
+		}, "cases.1.tree.1.parent: want valid UTF-8"},
+		"a finding's run":     {func(d map[string]any) { findingOf(t, d, 0)["run"] = mark }, "cases.1.expect.findings.1.run: want valid UTF-8"},
+		"a finding's request": {func(d map[string]any) { findingOf(t, d, 1)["requests"] = []any{mark} }, "cases.2.expect.findings.1.requests: want valid UTF-8"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := editedCases(t, "cases-0.2.json", c.edit)
+			body, err := os.ReadFile(filepath.Clean(path))
+			if err != nil {
+				t.Fatal(err)
+			}
+			respelled := bytes.Replace(body, []byte(`"`+mark+`"`), []byte(`"orders\ud800"`), 1)
+			if bytes.Equal(respelled, body) {
+				t.Fatalf("%s holds no %q to respell", path, mark)
+			}
+			writeFixture(t, path, string(respelled))
+			code, stdout, stderr := invoke(t, "procedure", "test", path)
+			if code != exitUsage || stdout != "" || !strings.Contains(stderr, c.want) {
+				t.Errorf("exit %d, stdout %q, stderr %q; want 2 and %q", code, stdout, stderr, c.want)
+			}
+		})
+	}
+}
+
 func TestACasesDocumentItCannotReadIsRefused(t *testing.T) {
 	for name, c := range map[string]struct {
 		file string

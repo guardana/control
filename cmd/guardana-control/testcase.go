@@ -213,6 +213,23 @@ func (r *reader) exactString(m map[string]json.RawMessage, at, key string) strin
 	return s
 }
 
+// exactStrings is strings for a list whose members' bytes are compared, each
+// held as exactString holds a member.
+func (r *reader) exactStrings(m map[string]json.RawMessage, at, key string) []string {
+	list := r.strings(m, at, key)
+	var raws []json.RawMessage
+	if list == nil || json.Unmarshal(m[key], &raws) != nil {
+		return list
+	}
+	for _, raw := range raws {
+		if !exact(raw) {
+			r.refuse(at, key, errors.New("want valid UTF-8 and no unpaired surrogate escape"))
+			return nil
+		}
+	}
+	return list
+}
+
 // exact reports whether a JSON string the decoder accepted decodes to the
 // text it spells, with no U+FFFD put in for what it could not carry.
 func exact(raw []byte) bool {

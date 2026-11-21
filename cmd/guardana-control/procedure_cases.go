@@ -203,8 +203,8 @@ func (c *casesReader) run(raw json.RawMessage, where string) supervise.Run {
 	if c.err != nil {
 		return supervise.Run{}
 	}
-	r := supervise.Run{ID: c.string(m, where, "id"), Tenant: c.string(m, where, "tenant"),
-		Project: c.string(m, where, "project"), Parent: c.string(m, where, "parent"), Closed: c.bool(m, where, "closed")}
+	r := supervise.Run{ID: c.exactString(m, where, "id"), Tenant: c.exactString(m, where, "tenant"),
+		Project: c.exactString(m, where, "project"), Parent: c.exactString(m, where, "parent"), Closed: c.bool(m, where, "closed")}
 	if c.err == nil && r.Project == "" {
 		c.refuse(where, "project", errors.New("want a project"))
 	}
@@ -335,7 +335,7 @@ func (c *casesReader) finding(raw json.RawMessage, where string) caseFinding {
 	if c.err != nil {
 		return caseFinding{}
 	}
-	f := caseFinding{rule: c.string(m, where, "rule"), run: c.string(m, where, "run")}
+	f := caseFinding{rule: c.string(m, where, "rule"), run: c.exactString(m, where, "run")}
 	n, ok := enumNumber(controlv1.FindingVerdict(0).Descriptor(), "FINDING_VERDICT_", c.string(m, where, "verdict"))
 	if !ok || n == 0 {
 		c.refuse(where, "verdict", errors.New("want CONFIRMED, SUSPECTED or INDETERMINATE"))
@@ -350,7 +350,7 @@ func (c *casesReader) finding(raw json.RawMessage, where string) caseFinding {
 
 // ids reads a list of ids, each once, sorted.
 func (c *casesReader) ids(m map[string]json.RawMessage, where, key string) []string {
-	list := c.strings(m, where, key)
+	list := c.exactStrings(m, where, key)
 	slices.Sort(list)
 	for i := 1; i < len(list); i++ {
 		if list[i] == list[i-1] {
