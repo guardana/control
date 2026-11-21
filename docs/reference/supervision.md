@@ -60,9 +60,7 @@ Observations count when their correlation is claimed, with such a run id,
 tenant and project; a 33rd `--source`, one of another tenant or project, or
 of a kind naming no run ([observations](observations.md#the-source-descriptor)), is
 refused. Only a tool call is a step. An observation joined to a plane event
-by trace and span id is that call; a join cut short leaves
-`STEP_OUTSIDE_PROCEDURE` and `DENIED_ACTION_RETRIED_AROUND` not checked,
-findings kept. Everything else is counted and left out.
+by trace and span id is that call. Everything else is counted and left out.
 
 The procedure, descriptors and evidence exports must be regular
 files of this account that only it can write: a `CONFIRMED` finding rests on
@@ -81,31 +79,32 @@ the export being the plane's.
 | `RESOURCE_OUTSIDE_RUN` | one binding's calls carry more than one resource; indeterminate for one resource beside an id-less call |
 | `DENIED_ACTION_RETRIED_ARGUMENTS` | a denied tool is called again with other arguments |
 | `DENIED_ACTION_RETRIED_RESOURCE` | another tool or upstream on a denied call's resource, not a read after a denied non-read |
-| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool after the denial, joined to no plane call; not checked with no `--source` or one unread or unheard |
+| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool begun after the denial, joined to no plane call; not checked with no `--source` |
 | `EXCEPTION_TAKEN` | an exception waived a finding, at that finding's verdict at most |
 
 An order is untold, its finding `INDETERMINATE`, when a proposal or a failure
 has no time, or between two of one instant. A retry continues nothing, though
 each denial of it counts toward `REPEATED_DENIAL`; an approved call, no
 retry, belongs to the step it held. Plane calls order by the plane's times, never by place in
-an export; a retry confirms only when one export holds both.
+an export; no event names its plane, so retries suggest at most.
 
 ## The verdict
 
 The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it `CONFIRMED`; an observation makes it `SUSPECTED`; a record in doubt,
-`INDETERMINATE`. So are a silent source's observations. A request with
+`INDETERMINATE`, as are a silent source's observations. A request with
 conflicting copies, a broken chain or events of two runs leaves no rule
-checked; an observation
-with two contents, or a judged run its source doubts, until the log is rotated
-([observations](observations.md#the-log)), leaves `STEP_OUTSIDE_PROCEDURE`
-and `DENIED_ACTION_RETRIED_AROUND` not checked.
+checked; a denial with no block, none on how a call ends; an observation
+with two contents, a judged run its source doubts until the log is rotated
+([observations](observations.md#the-log)), a join cut short, a source
+sampled, silent, unheard or unread, or an unclosed write leaves
+`STEP_OUTSIDE_PROCEDURE` and `DENIED_ACTION_RETRIED_AROUND` not checked,
+findings kept.
 The step rules rest on something not seen:
 `SUSPECTED` at most, `INDETERMINATE` while a `--source` is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.
 Under `0.2` a finding confirms on its run's own events alone, save the
-deadline and a retry by a descendant of the denied run; one that needs
-another run's events is `SUSPECTED` at most.
+deadline; one that needs another run's events is `SUSPECTED` at most.
 
 ## Output and exit status
 
@@ -117,7 +116,7 @@ or `<id> silent` for each `--source` not judged against.
 
 | Exit | When |
 | --- | --- |
-| 0 | no finding, every rule checked or off, a plane event of the run read, no `--source` unread, unheard or silent |
+| 0 | no finding, every rule checked or off, a plane event of the run read |
 | 1 | otherwise |
 | 2 | nothing printed: an input refused, or a log not opened or written (a cut write no reader takes) |
 
@@ -148,7 +147,8 @@ A record is schema `0.2` exactly when it carries a member `0.1` lacks
 | `SuperviseReport.sources_in_doubt` | each `--source` unread (no id), unheard or silent |
 | `LogHeader` | a new log's first line: `log_id`, `log-` and 32 hex digits of 128 random bits |
 
-The reader refuses an unknown schema or a member its schema lacks.
+The reader refuses an unknown schema, a member its schema lacks, and one at
+its default.
 
 ## notify
 

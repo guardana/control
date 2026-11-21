@@ -10,8 +10,8 @@ import (
 )
 
 // TestAReportAroundADenialIsPlacedByTimeOnly: a source's report of the
-// denied tool no plane call joins suggests a retry when its time is after the
-// denial was decided; with no time on either side, or the same time, it is
+// denied tool no plane call joins suggests a retry when the call it reports
+// began after the denial was decided; with no time on either side, or the same time, it is
 // untold; before the decision it is none, in doubt or not. A name the denied tool's entry
 // does not list, or another entry's, is no report of it.
 func TestAReportAroundADenialIsPlacedByTimeOnly(t *testing.T) {
@@ -27,7 +27,7 @@ func TestAReportAroundADenialIsPlacedByTimeOnly(t *testing.T) {
 		src  supervise.Source
 		want []string
 	}{
-		"after the decision":    {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 20 * time.Second}), []string{runID + " FINDING_VERDICT_SUSPECTED"}},
+		"after the decision":    {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 20 * time.Second, stage: observev1.Stage_STAGE_STARTED}), []string{runID + " FINDING_VERDICT_SUSPECTED"}},
 		"at the decision":       {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 11 * time.Second}), []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
 		"before the decision":   {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 10 * time.Second}), nil},
 		"a report with no time": {acts(denial()), untimedReport, []string{runID + " FINDING_VERDICT_INDETERMINATE"}},

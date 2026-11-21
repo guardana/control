@@ -94,7 +94,7 @@ func TestProcedureTestPassesTheWorkedExamples(t *testing.T) {
 			"procedure refund version 1: 3 cases, 3 passed, 0 failed\n"},
 		{"cases-0.2.json", "ok   a waiver taken: EXCEPTION_TAKEN CONFIRMED\n" +
 			"ok   a resource outside the run: RESOURCE_OUTSIDE_RUN CONFIRMED\n" +
-			"ok   a denied refund retried with other arguments: DENIED_ACTION_RETRIED_ARGUMENTS CONFIRMED\n" +
+			"ok   a denied refund retried with other arguments: DENIED_ACTION_RETRIED_ARGUMENTS SUSPECTED\n" +
 			"procedure refund version 2: 3 cases, 3 passed, 0 failed\n"},
 	} {
 		code, stdout, stderr := invoke(t, "procedure", "test", filepath.Join(procedureDir, c.file))

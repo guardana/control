@@ -214,9 +214,7 @@ Observations count when their correlation is claimed, with such a run id,
 tenant and project; a 33rd <code>--source</code>, one of another tenant or project, or
 of a kind naming no run (<a href="/docs/reference/observations#the-source-descriptor">observations</a>), is
 refused. Only a tool call is a step. An observation joined to a plane event
-by trace and span id is that call; a join cut short leaves
-<code>STEP_OUTSIDE_PROCEDURE</code> and <code>DENIED_ACTION_RETRIED_AROUND</code> not checked,
-findings kept. Everything else is counted and left out.</p>
+by trace and span id is that call. Everything else is counted and left out.</p>
 <p>The procedure, descriptors and evidence exports must be regular
 files of this account that only it can write: a <code>CONFIRMED</code> finding rests on
 the export being the plane's.</p>
@@ -268,7 +266,7 @@ the export being the plane's.</p>
 </tr>
 <tr>
 <td><code>DENIED_ACTION_RETRIED_AROUND</code></td>
-<td>a source reports the denied tool after the denial, joined to no plane call; not checked with no <code>--source</code> or one unread or unheard</td>
+<td>a source reports the denied tool begun after the denial, joined to no plane call; not checked with no <code>--source</code></td>
 </tr>
 <tr>
 <td><code>EXCEPTION_TAKEN</code></td>
@@ -281,22 +279,23 @@ the export being the plane's.</p>
 has no time, or between two of one instant. A retry continues nothing, though
 each denial of it counts toward <code>REPEATED_DENIAL</code>; an approved call, no
 retry, belongs to the step it held. Plane calls order by the plane's times, never by place in
-an export; a retry confirms only when one export holds both.</p>
+an export; no event names its plane, so retries suggest at most.</p>
 <h2 id="the-verdict">The verdict</h2>
 <p>The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it <code>CONFIRMED</code>; an observation makes it <code>SUSPECTED</code>; a record in doubt,
-<code>INDETERMINATE</code>. So are a silent source's observations. A request with
+<code>INDETERMINATE</code>, as are a silent source's observations. A request with
 conflicting copies, a broken chain or events of two runs leaves no rule
-checked; an observation
-with two contents, or a judged run its source doubts, until the log is rotated
-(<a href="/docs/reference/observations#the-log">observations</a>), leaves <code>STEP_OUTSIDE_PROCEDURE</code>
-and <code>DENIED_ACTION_RETRIED_AROUND</code> not checked.
+checked; a denial with no block, none on how a call ends; an observation
+with two contents, a judged run its source doubts until the log is rotated
+(<a href="/docs/reference/observations#the-log">observations</a>), a join cut short, a source
+sampled, silent, unheard or unread, or an unclosed write leaves
+<code>STEP_OUTSIDE_PROCEDURE</code> and <code>DENIED_ACTION_RETRIED_AROUND</code> not checked,
+findings kept.
 The step rules rest on something not seen:
 <code>SUSPECTED</code> at most, <code>INDETERMINATE</code> while a <code>--source</code> is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.
 Under <code>0.2</code> a finding confirms on its run's own events alone, save the
-deadline and a retry by a descendant of the denied run; one that needs
-another run's events is <code>SUSPECTED</code> at most.</p>
+deadline; one that needs another run's events is <code>SUSPECTED</code> at most.</p>
 <h2 id="output-and-exit-status">Output and exit status</h2>
 <p>After the run's line come, under <code>0.2</code>, its children mode and a <code>tree:</code> line
 per run; a line per step, its requests apart from the observations no plane
@@ -314,7 +313,7 @@ or <code>&lt;id&gt; silent</code> for each <code>--source</code> not judged agai
 <tbody>
 <tr>
 <td>0</td>
-<td>no finding, every rule checked or off, a plane event of the run read, no <code>--source</code> unread, unheard or silent</td>
+<td>no finding, every rule checked or off, a plane event of the run read</td>
 </tr>
 <tr>
 <td>1</td>
@@ -377,7 +376,8 @@ is never read.</p>
 </tbody>
 </table>
 </div>
-<p>The reader refuses an unknown schema or a member its schema lacks.</p>
+<p>The reader refuses an unknown schema, a member its schema lacks, and one at
+its default.</p>
 <h2 id="notify">notify</h2>
 <p><code>notify</code> hands each <code>alert</code> record, in log order, one line on its
 standard input, to the program after <code>--</code>, without a shell, and kills its

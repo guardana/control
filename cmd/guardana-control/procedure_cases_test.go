@@ -144,7 +144,7 @@ func TestAFindingThatDiffersFailsAndSaysWhat(t *testing.T) {
 func TestAMissingOrAnUnexpectedFindingFails(t *testing.T) {
 	path := editedCases(t, "cases-0.2.json", func(doc map[string]any) { expectedOf(t, doc, 2)["findings"] = []any{} })
 	failedCase(t, path, "a denied refund retried with other arguments",
-		"unexpected finding DENIED_ACTION_RETRIED_ARGUMENTS CONFIRMED "+rootRun+" [r2 r3]")
+		"unexpected finding DENIED_ACTION_RETRIED_ARGUMENTS SUSPECTED "+rootRun+" [r2 r3]")
 
 	path = editedCases(t, "cases-0.1.json", func(doc map[string]any) {
 		expectedOf(t, doc, 0)["findings"] = []any{map[string]any{"rule": "REQUIRED_STEP_SKIPPED",
@@ -270,7 +270,9 @@ func TestACaseWhoseSourcesWentUnheardFailsUnlessItSaysSo(t *testing.T) {
 	const name = "a denied refund retried with other arguments"
 	unheard := func(edit func(c, src map[string]any)) func(doc map[string]any) {
 		return func(doc map[string]any) {
-			rulesOf(t, doc, 2)["DENIED_ACTION_RETRIED_AROUND"] = "NOT_CHECKED"
+			for _, rule := range []string{"DENIED_ACTION_RETRIED_AROUND", "STEP_OUTSIDE_PROCEDURE", "EXCEPTION_TAKEN"} {
+				rulesOf(t, doc, 2)[rule] = "NOT_CHECKED"
+			}
 			edit(caseOf(t, doc, 2), sourceOf(t, doc, 2))
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/trailchain"
 )
 
@@ -145,18 +146,23 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 // doubtCut leaves not checked every rule that would read as checked while
 // a record of the run is in doubt: the left-out copy, the missing link or the
 // order its links do not give may hold the failure, denial, tool or time a
-// rule looks for. A request in doubt touches every rule; an observation, a
-// source whose imports refused a copy that may be a call of a run judged,
-// and a span walk cut short only those that read a source's reports. A rule
-// already not checked names its own reason first and each doubt after it.
-// Findings stand, at the verdict the doubt allows.
+// rule looks for. A request in doubt touches every rule; a denial whose block
+// was not read those that read how a call ended; an observation, a source
+// whose imports refused a copy that may be a call of a run judged, a source
+// that may have missed a call, and a span walk cut short only those that read
+// a source's reports. A rule already not checked names its own reason first
+// and each doubt after it. Findings stand, at the verdict the doubt allows.
 func (e *evaluation) doubtCut(states map[string]ruleState) {
-	every, reports := e.doubts()
+	every, ends, reports := e.doubts()
 	for id, s := range states {
-		causes := every
-		if slices.Contains(reportRules, id) {
-			causes = append(slices.Clone(every), reports...)
+		causes := slices.Clone(every)
+		if slices.Contains(endRules, id) {
+			causes = append(causes, ends...)
 		}
+		if slices.Contains(reportRules, id) {
+			causes = append(causes, reports...)
+		}
+		causes = slices.DeleteFunc(causes, func(c string) bool { return c == s.why })
 		switch {
 		case id == RuleExceptionTaken || len(causes) == 0 || s == notApplied:
 		case s.state == checked.state:
@@ -167,22 +173,47 @@ func (e *evaluation) doubtCut(states map[string]ruleState) {
 	}
 }
 
-// doubts names, in a fixed order, what puts every rule in doubt, and what
-// puts in doubt the rules that read a source's reports besides.
-func (e *evaluation) doubts() (every, reports []string) {
-	var requests, sources []string
+// doubts names, in a fixed order, what puts every rule in doubt, what puts
+// in doubt the rules that read how a call ended, and what puts in doubt the
+// rules that read a source's reports.
+func (e *evaluation) doubts() (every, ends, reports []string) {
+	every, ends = e.requestDoubts()
+	return every, ends, e.reportDoubts()
+}
+
+// requestDoubts names the requests in doubt, and the denied ones whose block
+// was not read.
+func (e *evaluation) requestDoubts() (every, ends []string) {
+	var requests, unended []string
 	for _, rq := range e.reqs {
 		if rq.doubt {
 			requests = append(requests, rq.id)
 		}
+		if rq.kernel.GetVerdict() == controlv1.Verdict_VERDICT_DENY && rq.terminal == nil {
+			unended = append(unended, rq.id)
+		}
+	}
+	if why := inDoubt("request", requests); why != "" {
+		every = append(every, why)
+	}
+	if why := inDoubt("request", unended); why != "" {
+		ends = append(ends, why+": the policy denied it and its block was not read")
+	}
+	return every, ends
+}
+
+// reportDoubts names what may have left a call no source reported, or a
+// report that is a plane call.
+func (e *evaluation) reportDoubts() []string {
+	var reports, sources []string
+	if e.anySilent {
+		// A report that did not arrive is a call no one saw.
+		reports = append(reports, silentWhy)
 	}
 	for id, judged := range e.refusedJudged {
 		if judged {
 			sources = append(sources, id)
 		}
-	}
-	if why := inDoubt("request", requests); why != "" {
-		every = append(every, why)
 	}
 	if why := inDoubt("observation", slices.Collect(maps.Keys(e.rd.obsDoubt))); why != "" {
 		reports = append(reports, why)
@@ -190,10 +221,16 @@ func (e *evaluation) doubts() (every, reports []string) {
 	if why := inDoubt("source", sources); why != "" {
 		reports = append(reports, why+": an import refused a copy that may be a call of a run judged")
 	}
+	if why := inDoubt("source", e.sampled); why != "" {
+		reports = append(reports, why+": its descriptor does not say it reports every call")
+	}
+	if why := inDoubt("source", e.unclosed); why != "" {
+		reports = append(reports, why+": its log holds a write no import report closes")
+	}
 	if slices.Contains(slices.Collect(maps.Values(e.joinDoubt)), true) {
 		reports = append(reports, "a span walk ran out of steps, so a source's report may be a plane call")
 	}
-	return every, reports
+	return reports
 }
 
 // inDoubt names the least of ids, quoted and cut as a producer's bytes are,
@@ -212,6 +249,11 @@ func inDoubt(kind string, ids []string) string {
 // reportRules are the rules that read a source's reports of calls no plane
 // call joins.
 var reportRules = []string{RuleStepOutsideProcedure, RuleDeniedActionRetriedAround}
+
+// endRules are the rules that read whether a call ended blocked by a denial
+// or failed.
+var endRules = []string{RuleRepeatedDenial, RuleContinuedAfterFailure, RuleDeniedActionRetriedArguments,
+	RuleDeniedActionRetriedResource, RuleDeniedActionRetriedAround}
 
 // reportSchema02 is the version of a report that carries the children mode
 // and the run tree, which a 0.2 procedure's report always does, or names a

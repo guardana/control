@@ -103,7 +103,8 @@ the format does not have is refused:
   with the events as that export writes them.
 - `sources`, if given, are sources of an agent runtime's spans: `source_id`,
   `heartbeat_seconds`, `last_heard` (left out for a source never heard) and
-  `observations`. `sources_not_read` names sources given and not found.
+  `observations`, each read as a source that reports every call. `sources_not_read`
+  names sources given and not found.
 - Every time comes from the events and the sources, written in UTC with `Z`.
 
 `expect` states the state of every rule the report lists (`CHECKED`,
@@ -120,7 +121,7 @@ reason, so a source that went unheard fails a case that does not list it.
 $ go run ./cmd/guardana-control procedure test testdata/procedure/cases-0.2.json
 ok   a waiver taken: EXCEPTION_TAKEN CONFIRMED
 ok   a resource outside the run: RESOURCE_OUTSIDE_RUN CONFIRMED
-ok   a denied refund retried with other arguments: DENIED_ACTION_RETRIED_ARGUMENTS CONFIRMED
+ok   a denied refund retried with other arguments: DENIED_ACTION_RETRIED_ARGUMENTS SUSPECTED
 procedure refund version 2: 3 cases, 3 passed, 0 failed
 ```
 

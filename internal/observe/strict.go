@@ -57,6 +57,55 @@ func unmarshalStrict(b []byte, m proto.Message) error {
 	}
 }
 
+// checkSpelledSet refuses a member b spells, in either spelling, that m,
+// decoded from it, does not hold: one at its default, which MarshalLine never
+// spells, and which would let a record carry a member of a later minor while
+// it reads as one that lacks it. A map's entries are written whatever their
+// value, and a member spelled as a string, such as a timestamp, holds no
+// members.
+func checkSpelledSet(b []byte, m protoreflect.Message) error {
+	var members map[string]json.RawMessage
+	if err := json.Unmarshal(b, &members); err != nil {
+		return errors.New(cause(err))
+	}
+	fields := m.Descriptor().Fields()
+	for name, raw := range members {
+		fd := fields.ByJSONName(name)
+		if fd == nil {
+			fd = fields.ByTextName(name)
+		}
+		if fd != nil {
+			if err := checkSpelledMember(raw, m, fd); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// checkSpelledMember holds raw, the spelling of m's member fd, to
+// checkSpelledSet's rule, and the messages it holds with it.
+func checkSpelledMember(raw json.RawMessage, m protoreflect.Message, fd protoreflect.FieldDescriptor) error {
+	switch {
+	case !m.Has(fd):
+		return fmt.Errorf("%s: spelled at its default, which the writer leaves out", fd.JSONName())
+	case fd.IsList() && fd.Message() != nil:
+		var items []json.RawMessage
+		if err := json.Unmarshal(raw, &items); err != nil {
+			return errors.New(cause(err))
+		}
+		list := m.Get(fd).List()
+		for i := 0; i < len(items) && i < list.Len(); i++ {
+			if err := checkSpelledSet(items[i], list.Get(i).Message()); err != nil {
+				return err
+			}
+		}
+	case fd.Message() != nil && !fd.IsMap() && bytes.HasPrefix(raw, []byte("{")):
+		return checkSpelledSet(raw, m.Get(fd).Message())
+	}
+	return nil
+}
+
 // hasUnknownFields reports whether any message in the tree carries a field
 // this build cannot name; protojson would drop it without a word. It descends
 // only through singular messages: the contract holds no list or map of

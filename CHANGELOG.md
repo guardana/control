@@ -53,6 +53,54 @@ verify one.
   with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
   approval closed the hold as `APPROVAL_EXPIRED` before its version was
   read.
+- `supervise` no longer confirms `DENIED_ACTION_RETRIED_ARGUMENTS` or
+  `DENIED_ACTION_RETRIED_RESOURCE`: a retry is `SUSPECTED` at most. Two
+  planes may send to one collector, and nothing in an event or an export
+  names the plane whose clock timed it, so a call on a fast clock could look
+  later than a denial it preceded and confirm a retry a signed route acted
+  on. The example's `0.2` route now stops on `RESOURCE_OUTSIDE_RUN`
+  ([supervision](docs/reference/supervision.md#the-verdict)).
+- A request the policy denied whose block was not read, as when an export is
+  taken while the block is in transit, leaves `REPEATED_DENIAL`,
+  `CONTINUED_AFTER_FAILURE` and the three retry rules not checked. They were
+  checked with no finding, and a closed run could pass.
+- A `--source` whose descriptor does not say `SAMPLING_COMPLETE`, or one
+  silent, never heard or not read, leaves `STEP_OUTSIDE_PROCEDURE` and
+  `DENIED_ACTION_RETRIED_AROUND` not checked, findings kept. `supervise`
+  dropped the descriptor's sampling, so a sampled source that missed a call
+  left both checked.
+- A source whose observation log holds a write no import report closes,
+  such as an import cut short, leaves the same two rules not checked. The
+  reader left the write out and said nothing of it
+  ([supervision](docs/reference/supervision.md#the-verdict)).
+- A source's report of a call timed at the call's end, after a denial, is an
+  `INDETERMINATE` retry around it: the call may have begun before the
+  denial. It suggested a retry; a report of a call's start still does.
+- An OpenTelemetry or egress log import whose source returns the full-buffer
+  error itself, rather than one wrapping it, now fails. It ended as a
+  complete import.
+- A proposal, decision, approval or result of a payload major `supervise`
+  does not read puts its request in doubt, and an approval of such a major
+  waives no finding. Such a payload was read under this major's rules
+  ([contracts](docs/contracts.md#schema-versioning)).
+- The findings log reader refuses a member spelled at its default, `0`,
+  `false`, `""`, `[]` or `{}`, which the writer leaves out, so an explicit
+  empty `sources_in_doubt` or a `0.2` member given as zero no longer passes
+  as a `0.1` record. The observation log reader does the same, so an empty
+  `refused_by` no longer passes as a `0.1` report
+  ([observations](docs/reference/observations.md#the-log)).
+- `supervise` refuses a run whose proposal names another tenant or project
+  than the event that carries it. A proposal of another project could raise
+  a confirmed finding under the collector's project.
+- The findings log reader and writer refuse a `CONFIRMED` finding that cites
+  an observation, which suggests at most.
+- A retry decided `REQUIRE_APPROVAL` whose approval request has not been read
+  is `INDETERMINATE`, as one waiting on its approval is. An export cut
+  between the decision and the request confirmed it, and could stop the run.
+- A reader refuses an export whose trailer counts bytes after the last
+  newline that no writer holds, with `end_reached` and no `partial_tail`
+  gap, so such an export no longer passes as whole
+  ([contracts](docs/contracts.md#the-evidence-export)).
 
 ### Documentation
 

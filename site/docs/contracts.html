@@ -1462,7 +1462,9 @@ them, <code>writer_held</code> is <code>true</code>, and the next export reads t
 Whether a writer holds the file is asked only when such bytes exist. When none
 holds it they are a <code>partial_tail</code> gap. A gap takes a record like any other, so
 an export whose limit leaves no room for it ends with <code>end_reached</code> false and
-the next export writes it.</p>
+the next export writes it. A reader refuses an export whose trailer counts
+such bytes with <code>end_reached</code> true, <code>writer_held</code> false and no
+<code>partial_tail</code> gap.</p>
 <p><code>end_reached</code> is <code>true</code> when every whole line was read and the bytes after the
 last newline were reported.</p>
 <h3 id="the-cursor">The cursor</h3>

@@ -1185,7 +1185,9 @@ them, `writer_held` is `true`, and the next export reads them once they end.
 Whether a writer holds the file is asked only when such bytes exist. When none
 holds it they are a `partial_tail` gap. A gap takes a record like any other, so
 an export whose limit leaves no room for it ends with `end_reached` false and
-the next export writes it.
+the next export writes it. A reader refuses an export whose trailer counts
+such bytes with `end_reached` true, `writer_held` false and no
+`partial_tail` gap.
 
 `end_reached` is `true` when every whole line was read and the bytes after the
 last newline were reported.
