@@ -514,11 +514,15 @@ jobs:
       - name: Tag the verified image
         # The registry is handed the index's own bytes, checked against the
         # verified digest, so the version tag cannot name anything else. A
-        # client that rebuilds the index could change its digest.
+        # client that rebuilds the index could change its digest. The gate is
+        # checked again first: main can move after Check the gate, and a
+        # version tag is not taken back.
         env:
+          GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           DIGEST: ${{ steps.image.outputs.digest }}
         run: |
+          scripts/check-gate-runs.sh "${GITHUB_SHA}"
           repo="${IMAGE#ghcr.io/}"
           version="${GITHUB_REF_NAME#v}"
           token="$(curl -fsS -u "${GITHUB_ACTOR}:${GITHUB_TOKEN}" \
@@ -559,7 +563,10 @@ jobs:
         # with write access, so the draft is published only when it is the one
         # draft for this tag, the one this run made, and holds exactly those
         # files, digest for digest; it is then published by its id, never
-        # looked up by the tag again.
+        # looked up by the tag again. The request names the tag too, since a
+        # writer can move a draft to another tag, and the release has to read
+        # back under it. The gate is checked again right before: main can
+        # move after Check the gate, and a publication is not taken back.
         # The notes gain a last line naming the image's digest: that is where
         # users find it. A repository writer can still edit a published
         # release's notes, so the digest is trusted only once cosign verifies
@@ -594,8 +601,9 @@ jobs:
           fi
           line="Image: \`${IMAGE}@${DIGEST}\`"
           printf '\n%s\n' "${line}" >>"${RUNNER_TEMP}/notes.md"
+          scripts/check-gate-runs.sh "${GITHUB_SHA}"
           gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${id}" \
-            -F draft=false -F "body=@${RUNNER_TEMP}/notes.md" >/dev/null
+            -f "tag_name=${GITHUB_REF_NAME}" -F draft=false -F "body=@${RUNNER_TEMP}/notes.md" >/dev/null
           # A write could land between the comparison and the publication. The
           # published release is immutable, so reading it once more settles it.
           after="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${id}/assets?per_page=100" --paginate \
@@ -605,8 +613,14 @@ jobs:
             diff <(printf '%s\n' "${expected}") <(printf '%s\n' "${after}") >&2 || true
             exit 1
           fi
-          last="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${id}" --jq .body |
-            tr -d '\r' | awk 'NF { line = $0 } END { print line }')"
+          release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${id}")"
+          tag="$(jq -r .tag_name <<<"${release}")"
+          draft="$(jq -r .draft <<<"${release}")"
+          if [[ "${tag}" != "${GITHUB_REF_NAME}" || "${draft}" != false ]]; then
+            echo "RELEASE ${id} READS BACK UNDER TAG ${tag}, DRAFT ${draft}, NOT AS THE PUBLISHED ${GITHUB_REF_NAME}; withdraw it and release the next version" >&2
+            exit 1
+          fi
+          last="$(jq -r .body <<<"${release}" | tr -d '\r' | awk 'NF { line = $0 } END { print line }')"
           if [[ "${last}" != "${line}" ]]; then
             echo "RELEASE ${GITHUB_REF_NAME} WAS PUBLISHED WITHOUT ITS IMAGE LINE LAST IN THE NOTES; fix the notes by hand" >&2
             echo "want: ${line}" >&2

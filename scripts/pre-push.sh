@@ -11,12 +11,12 @@
 # other branches was never gated. For a v* tag it is the commit the tag names:
 # a release is cut from a commit that was gated cold. A line git did not write,
 # a source that names no commit, or a commit list git cannot give, refuses the
-# push. Replace refs are ignored: a push sends the commits' own objects, so the
-# hook lists those.
+# push. Replace refs and grafts are ignored: a push sends the commits' own
+# objects, so the hook lists the parents those name.
 #
 #   ln -s ../../scripts/pre-push.sh .git/hooks/pre-push
 set -euo pipefail
-export GIT_NO_REPLACE_OBJECTS=1
+export GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null
 
 refuse() {
   printf 'pre-push: %s; nothing pushed\n' "$*" >&2

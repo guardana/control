@@ -59,11 +59,11 @@ A version is `X.Y.Z`; a suffix such as `-rc.1` marks a preview.
 
 A known-vulnerable symbol, called or not, or an unavailable scan stops release.
 Only `main`'s head may release, with CI, Security and the newest CodeQL
-analysis covering it; advancing `main` before approval fails it. Before
+analysis covering it, rechecked before the image tag and Publish. Before
 Publish, failure leaves at most a draft and staging/version image tags:
-delete them, fix the cause, release the next version. Publish requires
-exactly the verified files and rereads their digests; failure then leaves a
-public release and names the recovery steps.
+delete them, fix the cause, release the next version. Publish names the tag,
+requires exactly the verified files and rereads both; failure then leaves a
+public release and names recovery steps.
 
 ## A dry run
 

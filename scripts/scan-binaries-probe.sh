@@ -8,8 +8,9 @@
 #            database time and scanner version the stand-in reported; an
 #            image by digest for the two platforms its index holds, each
 #            pulled
-#   refused  a dist with no archive, an archive holding no Go binary, an
-#            archive that cannot be extracted, an archive whose name names no
+#   refused  a dist with no archive, an archive holding no Go binary, a
+#            product archive without the binary of one command under cmd/,
+#            and a demo archive without one, an archive that cannot be extracted, an archive whose name names no
 #            platform, a binary built for another platform than its
 #            archive's name says, an ELF or a Mach-O file go cannot read
 #            beside a good binary, a file whose first bytes cannot be read
@@ -37,6 +38,12 @@ die() {
 root="$(repo_root)"
 script="${root}/scripts/scan-binaries.sh"
 [[ -f "${script}" ]] || die "${script} is missing"
+# The binaries every archive carries, one per command, as the script reads
+# them from this repository.
+commands="$(repo_files 'cmd/*.go' | awk -F/ 'NF > 2 { print $2 }' | LC_ALL=C sort -u)"
+[[ "$(grep -c . <<<"${commands}")" -eq 2 ]] || die "want two commands under cmd/, found: ${commands//$'\n'/ }"
+cli="$(sed -n 1p <<<"${commands}")"
+gateway="$(sed -n 2p <<<"${commands}")"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
@@ -133,19 +140,21 @@ binary() {
   chmod 0755 "$1"
 }
 
-# dist <directory> <verdict of the demo's victim>
-# A product archive with two binaries at its top, and a demo archive wrapped in
-# one directory with three binaries under bin/ beside a script and a README.
+# dist <directory> <verdict of the demo's victim> [<command whose binary the product archive lacks>]
+# A product archive with the two binaries at its top, and a demo archive
+# wrapped in one directory with three binaries under bin/ beside a script and
+# a README.
 dist() {
-  local d="$1" stage="${tmp}/stage-$RANDOM"
+  local d="$1" stage="${tmp}/stage-$RANDOM" c
   mkdir -p "${d}" "${stage}/product" "${stage}/demo/product-demo/examples"
-  binary "${stage}/product/cli" linux arm64 clean
-  binary "${stage}/product/gateway" linux arm64 clean
+  for c in "${cli}" "${gateway}"; do
+    [[ "${c}" == "${3:-}" ]] || binary "${stage}/product/${c}" linux arm64 clean
+  done
   printf 'readme\n' >"${stage}/product/README.md"
   tar -czf "${d}/product_1.0.0_linux_arm64.tar.gz" -C "${stage}/product" .
   local demo="${stage}/demo/product-demo"
-  binary "${demo}/bin/cli" darwin amd64 clean
-  binary "${demo}/bin/gateway" darwin amd64 clean
+  binary "${demo}/bin/${cli}" darwin amd64 clean
+  binary "${demo}/bin/${gateway}" darwin amd64 clean
   binary "${demo}/bin/vulnerable-mcp-agent" darwin amd64 "$2"
   printf '#!/bin/sh\n' >"${demo}/examples/call.sh"
   chmod 0755 "${demo}/examples/call.sh"
@@ -195,6 +204,18 @@ check "a binary's facts" pass \
 mkdir -p "${tmp}/empty"
 check "no archive" fail "holds no .tar.gz archive" -- archives "${tmp}/empty"
 
+dist "${tmp}/nocli" clean "${cli}"
+check "a product archive without the command-line binary" fail \
+  "product_1.0.0_linux_arm64.tar.gz holds no Go binary named ${cli}, the binary of cmd/${cli}" -- archives "${tmp}/nocli"
+scanned "a product archive without the command-line binary" 0
+stage="${tmp}/stage-nogateway"
+mkdir -p "${stage}/product-demo/bin" "${tmp}/nogateway"
+binary "${stage}/product-demo/bin/${cli}" darwin arm64 clean
+binary "${stage}/product-demo/bin/vulnerable-mcp-agent" darwin arm64 clean
+tar -czf "${tmp}/nogateway/product-demo_1.0.0_darwin_arm64.tar.gz" -C "${stage}" product-demo
+check "a demo archive without the gateway" fail \
+  "product-demo_1.0.0_darwin_arm64.tar.gz holds no Go binary named ${gateway}, the binary of cmd/${gateway}" -- archives "${tmp}/nogateway"
+
 mkdir -p "${tmp}/nogo/stage/bin" "${tmp}/nogo/dist"
 printf '#!/bin/sh\necho hi\n' >"${tmp}/nogo/stage/bin/tool"
 chmod 0755 "${tmp}/nogo/stage/bin/tool"
@@ -234,19 +255,20 @@ mkdir -p "${tmp}/oddname"
 cp "${clean}/product_1.0.0_linux_arm64.tar.gz" "${tmp}/oddname/a"$'\n'"b_linux_arm64.tar.gz"
 check "an archive named with a newline" fail "an archive's name holds a newline or a tab" -- archives "${tmp}/oddname"
 
-# archive <dist> <name> <file> <goos> <goarch>: one stand-in binary in an archive of that name.
+# archive <dist> <name> <goos> <goarch>: the two stand-in binaries in an archive of that name.
 archive() {
   local stage="${tmp}/stage-$RANDOM"
   mkdir -p "$1" "${stage}"
-  binary "${stage}/$3" "$4" "$5" clean
+  binary "${stage}/${cli}" "$3" "$4" clean
+  binary "${stage}/${gateway}" "$3" "$4" clean
   tar -czf "$1/$2" -C "${stage}" .
 }
-archive "${tmp}/unnamed" product.tar.gz gateway linux amd64
+archive "${tmp}/unnamed" product.tar.gz linux amd64
 check "an archive that names no platform" fail "product.tar.gz names no platform as _<os>_<arch>.tar.gz" \
   -- archives "${tmp}/unnamed"
-archive "${tmp}/misbuilt" product_1.0.0_linux_amd64.tar.gz gateway linux arm64
+archive "${tmp}/misbuilt" product_1.0.0_linux_amd64.tar.gz linux arm64
 check "a binary for another platform than its archive's" fail \
-  "product_1.0.0_linux_amd64.tar.gz/gateway: built for linux/arm64, not linux/amd64" -- archives "${tmp}/misbuilt"
+  "product_1.0.0_linux_amd64.tar.gz/${gateway}: built for linux/arm64, not linux/amd64" -- archives "${tmp}/misbuilt"
 scanned "a binary for another platform than its archive's" 0
 
 # An executable header with no build information behind it, beside a good binary.

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/build/constraint"
 	"go/parser"
 	"go/token"
@@ -128,7 +129,8 @@ func testsOfFiles(module string, files map[string][]byte) (map[testreport.Run]bo
 }
 
 // needsTwoAccountsTag reports whether the file's //go:build line holds on
-// Linux with the twoaccounts tag and not without it.
+// Linux with the twoaccounts tag and not without it, under the release tags
+// (go1.1 to this toolchain's own) the job's toolchain sets too.
 func needsTwoAccountsTag(src []byte) (bool, error) {
 	sc := bufio.NewScanner(bytes.NewReader(src))
 	for sc.Scan() {
@@ -145,7 +147,8 @@ func needsTwoAccountsTag(src []byte) (bool, error) {
 		}
 		on := func(with bool) bool {
 			return expr.Eval(func(tag string) bool {
-				return tag == "linux" || tag == "unix" || tag == "amd64" || tag == "gc" || (with && tag == twoAccountsTag)
+				return tag == "linux" || tag == "unix" || tag == "amd64" || tag == "gc" ||
+					slices.Contains(build.Default.ReleaseTags, tag) || (with && tag == twoAccountsTag)
 			})
 		}
 		return on(true) && !on(false), nil
@@ -311,13 +314,16 @@ func TestTwoAccountGapsRefusesWhatTheListMisses(t *testing.T) {
 // alone brings it into a Linux build.
 func TestOnlyTheTwoAccountsTagMarksATaggedFile(t *testing.T) {
 	for src, want := range map[string]bool{
-		"//go:build twoaccounts && unix\n\npackage p\n":    true,
-		"//go:build twoaccounts\n\npackage p\n":            true,
-		"//go:build unix\n\npackage p\n":                   false,
-		"package p\n":                                      false,
-		"//go:build twoaccounts || unix\n\npackage p\n":    false,
-		"//go:build twoaccounts && windows\n\npackage p\n": false,
-		"//go:build !twoaccounts\n\npackage p\n":           false,
+		"//go:build twoaccounts && unix\n\npackage p\n":     true,
+		"//go:build twoaccounts\n\npackage p\n":             true,
+		"//go:build unix\n\npackage p\n":                    false,
+		"package p\n":                                       false,
+		"//go:build twoaccounts || unix\n\npackage p\n":     false,
+		"//go:build twoaccounts && windows\n\npackage p\n":  false,
+		"//go:build !twoaccounts\n\npackage p\n":            false,
+		"//go:build twoaccounts && go1.1\n\npackage p\n":    true,
+		"//go:build twoaccounts && !go1.1\n\npackage p\n":   false,
+		"//go:build twoaccounts && go1.9999\n\npackage p\n": false,
 	} {
 		got, err := needsTwoAccountsTag([]byte(src))
 		if err != nil || got != want {

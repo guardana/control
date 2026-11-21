@@ -55,3 +55,69 @@ go_modules() {
   done <<<"${listed}"
   printf '%s\n' "${out}"
 }
+
+# go_packages_covered <go command> <module directory>
+# Fails, naming each one, unless every package of the module that holds a Go
+# file repo_files lists is one ./... names there. The module's go.mod can
+# leave a directory out of ./... with an ignore directive, and a target that
+# ran ./... alone would then pass without ever building that package's tests.
+# The inventory is every directory of the module, outside testdata, a nested
+# module and a directory whose name starts with "_" or ".", whose Go files
+# build on this platform, listed by path, which no ignore directive drops.
+go_packages_covered() {
+  local go="$1" mod="$2" mods files path dir owner m rel dirs="" want listed missing
+  mods="$(go_modules)" || return 1
+  files="$(repo_files '*.go')" || return 1
+  while IFS= read -r path; do
+    [[ -n "${path}" ]] || continue
+    case "/${path}" in */testdata/* | */_* | */.*) continue ;; esac
+    dir="."
+    [[ "${path}" != */* ]] || dir="${path%/*}"
+    owner="."
+    while IFS= read -r m; do
+      if [[ "${m}" != "." && ("${dir}" == "${m}" || "${dir}" == "${m}/"*) && ${#m} -gt ${#owner} ]]; then
+        owner="${m}"
+      fi
+    done <<<"${mods}"
+    [[ "${owner}" == "${mod}" ]] || continue
+    rel="${dir}"
+    [[ "${mod}" == "." ]] || rel="${dir#"${mod}"}"
+    rel="${rel#/}"
+    if [[ -z "${rel}" || "${rel}" == "." ]]; then
+      dirs+="."$'\n'
+    else
+      dirs+="./${rel}"$'\n'
+    fi
+  done <<<"${files}"
+  local -a args=()
+  while IFS= read -r rel; do
+    [[ -n "${rel}" ]] && args+=("${rel}")
+  done < <(printf '%s' "${dirs}" | LC_ALL=C sort -u)
+  if [[ ${#args[@]} -eq 0 ]]; then
+    printf 'go_packages_covered: module %s holds no Go file repo_files lists\n' "${mod}" >&2
+    return 1
+  fi
+  # A directory whose every file a build constraint leaves out is no package
+  # here, under ./... or by path, so it is not counted.
+  want="$("${go}" -C "${mod}" list -e \
+    -f '{{if or .GoFiles .CgoFiles .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' "${args[@]}")" || {
+    printf 'go_packages_covered: listing the packages of module %s by path failed\n' "${mod}" >&2
+    return 1
+  }
+  listed="$("${go}" -C "${mod}" list -e -f '{{.ImportPath}}' ./...)" || {
+    printf 'go_packages_covered: listing ./... in module %s failed\n' "${mod}" >&2
+    return 1
+  }
+  if [[ -z "${want}" ]]; then
+    printf 'go_packages_covered: module %s lists no package by path\n' "${mod}" >&2
+    return 1
+  fi
+  missing=""
+  while IFS= read -r m; do
+    [[ -z "${m}" ]] || grep -Fxq -- "${m}" <<<"${listed}" || missing+=" ${m}"
+  done <<<"${want}"
+  if [[ -n "${missing}" ]]; then
+    printf 'go_packages_covered: ./... in module %s leaves out a package that holds Go files:%s\n' "${mod}" "${missing}" >&2
+    return 1
+  fi
+}

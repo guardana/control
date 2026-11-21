@@ -163,7 +163,11 @@ shown_package() {
 
 # The targets run are the ones each package's test binary lists on this
 # platform, never the ones read from the source: a declaration the source
-# search misses would otherwise compile and never fuzz.
+# search misses would otherwise compile and never fuzz. A listed line no
+# source declares is refused, not run: a TestMain can print a line that begins
+# with Fuzz before the listing, and fuzzing a name that matches no target
+# passes with a warning.
+declared_text="$(printf '%s\n' ${declared[@]+"${declared[@]}"})"
 targets=()
 compiled=""
 while read -r mod pkg; do
@@ -175,6 +179,11 @@ while read -r mod pkg; do
   while IFS= read -r line; do
     case "${line}" in
       Fuzz*)
+        if ! grep -Fxq -- "${mod} ${pkg} ${line}" <<<"${declared_text}"; then
+          printf 'fuzz-smoke: %s lists "%s", which no source of the package declares; refusing to count it as a target\n' \
+            "$(shown_package "${mod}" "${pkg}")" "${line}" >&2
+          exit 1
+        fi
         targets+=("${mod} ${pkg} ${line}")
         compiled+="${mod} ${pkg} ${line}"$'\n'
         ;;
