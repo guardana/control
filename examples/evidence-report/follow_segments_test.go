@@ -254,7 +254,8 @@ func tornLive(cursor string, held bool) string {
 
 // TestAStateKeepsItsCursorOnALiveSegmentHoldingNoWholeLine: the live segment
 // after the state's sealed one, holding no whole line yet, is no other file
-// and no export cut short: the state keeps its cursor and source, and takes
+// and no export cut short: the state keeps its cursor and source, is not
+// entered as the next segment while a writer holds those bytes, and takes
 // the segment once it holds a line.
 func TestAStateKeepsItsCursorOnALiveSegmentHoldingNoWholeLine(t *testing.T) {
 	cursor := trailerOf(t, "outage-1.jsonl")
@@ -263,11 +264,16 @@ func TestAStateKeepsItsCursorOnALiveSegmentHoldingNoWholeLine(t *testing.T) {
 		if got := consume(t, dir, fixture(t, "outage-1.jsonl")); got.code == 2 {
 			t.Fatalf("the first export: exit 2, %s", got.stderr)
 		}
+		before := stateOf(t, dir)
 		if got := consume(t, dir, tornLive(cursor, held)); got.code == 2 {
 			t.Errorf("held %t: the live segment holding no whole line was refused: %s", held, got.stderr)
 		}
-		if s := stateOf(t, dir); !strings.Contains(s, `"cursor":"`+cursor+`"`) || !strings.Contains(s, `"source":"`+outageSource+`"`) {
+		s := stateOf(t, dir)
+		if !strings.Contains(s, `"cursor":"`+cursor+`"`) || !strings.Contains(s, `"source":"`+outageSource+`"`) {
 			t.Errorf("held %t: the state moved off its cursor and source:\n%s", held, s)
+		}
+		if held && s != before {
+			t.Errorf("held %t: the live segment holding no whole line changed the state:\n%s\nwant it as it was:\n%s", held, s, before)
 		}
 		if got := consume(t, dir, nextSegment(t, cursor)); got.code == 2 {
 			t.Errorf("held %t: the live segment once it holds a line was refused: %s", held, got.stderr)
