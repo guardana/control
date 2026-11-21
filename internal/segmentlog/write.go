@@ -157,6 +157,7 @@ func (l *segments) Prune(through int) error {
 	if err != nil || len(gone) == 0 {
 		return err
 	}
+	defer closeRead(gone)
 	if err := l.writeManifest(l.dropped, next); err != nil {
 		return err
 	}
@@ -172,34 +173,47 @@ func (l *segments) Prune(through int) error {
 	return nil
 }
 
-// readFile is a segment's file as a prune read it.
+// readFile is a segment's file as a prune read it, held open until the
+// prune has unlinked its name or left it.
 type readFile struct {
 	name string
+	file *os.File
 	info fs.FileInfo
 }
 
 // tombstone names each sealed segment of segs pruned at at, once its file
 // is read again and holds what the manifest names it with, and returns the
-// files to unlink.
+// files to unlink, still open.
 func (l *segments) tombstone(segs []Segment, at time.Time) ([]readFile, error) {
 	var gone []readFile
 	for i := range segs {
 		if segs[i].State != StateSealed {
 			continue
 		}
-		info, err := l.verified(segs[i], nil)
+		f, info, err := l.verified(segs[i], nil)
 		if err != nil {
+			closeRead(gone)
 			return nil, err
 		}
-		gone = append(gone, readFile{name: segs[i].File, info: info})
+		gone = append(gone, readFile{name: segs[i].File, file: f, info: info})
 		segs[i].State, segs[i].PrunedAt, segs[i].File = StatePruned, at, ""
 	}
 	return gone, nil
 }
 
+// closeRead closes the files a prune read. They were opened only to read,
+// so a close that fails loses nothing the prune wrote.
+func closeRead(files []readFile) {
+	for _, f := range files {
+		_ = f.file.Close()
+	}
+}
+
 // removeRead unlinks file's name only while it still names the file the
-// prune read. Between this check and the unlink another file can still be
-// put at the name: no POSIX call unlinks a name only if it names one file.
+// prune read. That file is held open, so no file put at the name since can
+// carry its inode number. Between this check and the unlink another file
+// can still be put at the name: no POSIX call unlinks a name only if it
+// names one file.
 func (l *segments) removeRead(file readFile) error {
 	now, err := l.root.Lstat(file.name)
 	switch {
