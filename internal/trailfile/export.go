@@ -129,7 +129,7 @@ func export(src Source, q Query, after string, w io.Writer) (Trailer, error) {
 	if src.Size < 0 {
 		return Trailer{}, fmt.Errorf("%w: size %d", ErrLimit, src.Size)
 	}
-	f.tenant, f.project = src.Tenant, src.Project
+	f.bound = binding{tenant: src.Tenant, project: src.Project}
 	tr, err := lineexport.Export(exportFormat(), lineexport.Source{Name: src.Name, R: src.R, Size: src.Size, Held: src.Held,
 		Key: src.Key, More: src.More, PrunedBefore: src.PrunedBefore},
 		lineexport.Query{After: after, Limit: q.Limit, MaxBytes: q.MaxBytes, Echo: q.echo()}, f.judge, w)
@@ -177,7 +177,7 @@ func (f filter) judge(l lineexport.Line) lineexport.Verdict {
 	if evidence.CheckEventVersion(ev) != nil {
 		return lineexport.Verdict{Type: lineexport.Gap, Reason: gapVersion}
 	}
-	if (f.tenant != "" || f.project != "") && (ev.GetTenantId() != f.tenant || ev.GetProjectId() != f.project) {
+	if f.bound.refusesEvent(ev) {
 		return lineexport.Verdict{Refuse: fmt.Errorf("%w: %w", ErrDamaged, ErrBinding)}
 	}
 	if bytes.IndexByte(l.Body(), '\r') >= 0 {

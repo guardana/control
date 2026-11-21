@@ -236,12 +236,16 @@ func (h *receiver) refuse(w http.ResponseWriter, status int, err error) {
 
 // unsupported says why a request's headers name a body this receiver does not
 // read, or nothing when they name JSON in UTF-8 with no content coding. Every
-// Content-Encoding field is read, as a coding in any one applies.
+// Content-Encoding field is read, as a coding in any one applies, and a
+// second Content-Type field is refused, as the two name no one media type.
 func unsupported(header http.Header) string {
 	for _, coding := range header.Values("Content-Encoding") {
 		if coding != "" && !strings.EqualFold(coding, "identity") {
 			return "the body carries a content coding"
 		}
+	}
+	if len(header.Values("Content-Type")) > 1 {
+		return "the request carries more than one content type"
 	}
 	media, params, err := mime.ParseMediaType(header.Get("Content-Type"))
 	switch {

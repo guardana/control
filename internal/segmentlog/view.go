@@ -26,9 +26,10 @@ type View struct {
 var inspected = func() {}
 
 // Inspect reads the log in dir as it is: a manifest is required, and a live
-// segment is read to its last newline. A live file absent while the manifest,
-// read again, names a segment the first read did not, was sealed since, and
-// is ErrMoved. Nothing is created, cut or removed.
+// segment is read to its last newline. The manifest is read again once the
+// live file was read, or found absent: one naming a segment the first read
+// did not means the live segment was sealed since, and the file read may be
+// the next one, so the view is ErrMoved. Nothing is created, cut or removed.
 func Inspect(dir string, maxLineBytes int) (*View, error) {
 	if maxLineBytes < 1 {
 		return nil, fmt.Errorf("%w: line bound %d", ErrConfig, maxLineBytes)
@@ -64,6 +65,9 @@ func Inspect(dir string, maxLineBytes int) (*View, error) {
 	defer func() { _ = f.Close() }()
 	if v.live, err = scan(f, maxLineBytes, nil); err != nil {
 		return nil, fmt.Errorf("%s: %w", LiveName, err)
+	}
+	if err := v.stillLive(root); err != nil {
+		return nil, err
 	}
 	return v, nil
 }

@@ -1233,7 +1233,8 @@ header's `file` is the segment's.
   pruned once.
 - An event of another tenant or project than the one the log is bound to,
   which no collector writes and the log refuses at open, stops the export
-  before its record, exit 2, with no trailer.
+  before its record, exit 2, with no trailer. `trail <dir>` and a scenario
+  reading the log refuse it too.
 - A cursor of a pruned segment is refused as expired, exit 2; one whose key no
   segment the manifest names has, as another file. A cursor at a sealed
   segment's end moves on only when its line digest is that of the segment's
@@ -1250,6 +1251,8 @@ header's `file` is the segment's.
 - `source` changes from one segment's export to the next. A reader that keeps
   one takes a new one only from an export after its own cursor whose first
   record is at offset 0, which an export after a cursor in one file never is.
+  An export naming no `source` is of a live segment holding no whole line
+  yet: a reader keeps its cursor and source, and exports again later.
 
 ### The query
 

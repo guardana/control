@@ -51,7 +51,7 @@ type collectorConfig struct {
 }
 
 func declareCollect(flags *flag.FlagSet) commandFunc {
-	listen := flags.String("listen", "", "unix:///<path>, a socket created there that a plane reaches with "+
+	listen := flags.String("listen", "", "unix:///<path>, the path escaped as in a URL, a socket created there that a plane reaches with "+
 		"export.collector_uid set to this account")
 	dir := flags.String("dir", "", "the directory of trail segments to append what arrives to, created when absent")
 	tenant := flags.String("tenant", "", "the tenant the trail is bound to; an event of another is refused")
@@ -141,7 +141,7 @@ func collect(ctx context.Context, listen string, cfg collectorConfig, stdout, st
 	}
 	select {
 	case err := <-c.served:
-		return fail(stderr, "collect", errors.Join(err, c.trail.Close()))
+		return fail(stderr, "collect", c.serveFailed(err, collectShutdown))
 	case <-ctx.Done():
 	}
 	if err := c.stop(); err != nil {
@@ -204,9 +204,7 @@ func startCollector(ln net.Listener, cfg collectorConfig, stderr io.Writer) (*co
 // collectShutdown in all.
 func (c *collector) stop() error { return c.stopWithin(collectShutdown) }
 
-// stopWithin is stop bounded by wait. An append waiting on the disk holds the
-// trail, so a close not done by then is reported and left to the process's
-// exit; the request it serves was not answered, and is sent again.
+// stopWithin is stop bounded by wait.
 func (c *collector) stopWithin(wait time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
@@ -214,12 +212,28 @@ func (c *collector) stopWithin(wait time.Duration) error {
 	if err != nil {
 		err = fmt.Errorf("stopping: %w", err)
 	}
+	return errors.Join(err, c.closeTrail(ctx, wait))
+}
+
+// serveFailed closes the trail once the server stopped serving on its own,
+// served, bounded by wait as a stop is.
+func (c *collector) serveFailed(served error, wait time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), wait)
+	defer cancel()
+	return errors.Join(served, c.closeTrail(ctx, wait))
+}
+
+// closeTrail closes the trail until ctx, of wait, ends. An append waiting on
+// the disk holds the trail, so a close not done by then is reported and left
+// to the process's exit; the request it serves was not answered, and is sent
+// again.
+func (c *collector) closeTrail(ctx context.Context, wait time.Duration) error {
 	closed := make(chan error, 1)
 	go func() { closed <- c.trail.Close() }()
 	select {
-	case cerr := <-closed:
-		return errors.Join(err, cerr)
+	case err := <-closed:
+		return err
 	case <-ctx.Done():
-		return errors.Join(err, fmt.Errorf("stopping: the trail was not closed within %s, as an append still waits on the disk", wait))
+		return fmt.Errorf("stopping: the trail was not closed within %s, as an append still waits on the disk", wait)
 	}
 }

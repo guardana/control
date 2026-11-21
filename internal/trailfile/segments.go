@@ -246,7 +246,9 @@ func ReadPath(path string, maxLines int) (Report, error) {
 
 // ReadLog reads every segment of the log in dir that is not pruned, sealed
 // ones first and in order, as one file Read reads. A trail whose first events
-// were in a pruned segment fails the chain check, which sees only its rest.
+// were in a pruned segment fails the chain check, which sees only its rest. A
+// trail of another tenant or project than the log is bound to, which the log
+// refuses at open, refuses the read as ErrDamaged and ErrBinding.
 func ReadLog(dir string, maxLines int) (Report, error) {
 	for range moveRetries {
 		rep, err := readLog(dir, maxLines)
@@ -268,6 +270,9 @@ func readLog(dir string, maxLines int) (Report, error) {
 	if err != nil {
 		return rep, err
 	}
+	if err := files.bound.trails(rep.Trails); err != nil {
+		return Report{}, err
+	}
 	rep.Log, rep.Pruned = true, files.pruned
 	if rep.Unread == 0 || files.live == nil {
 		return rep, nil
@@ -279,10 +284,12 @@ func readLog(dir string, maxLines int) (Report, error) {
 }
 
 // logFiles is what openLog found beside the segments it opened: the live
-// segment's file when there is one, and how many segments are gone.
+// segment's file when there is one, how many segments are gone, and what the
+// log is bound to.
 type logFiles struct {
 	live   *os.File
 	pruned int
+	bound  binding
 }
 
 // openLog opens every segment of the log in dir that is not pruned and
@@ -296,7 +303,7 @@ func openLog(dir string) (io.Reader, logFiles, func(), error) {
 	}
 	m := v.Manifest()
 	var readers []io.Reader
-	files := logFiles{pruned: prunedBefore(v, m.Live.Seq)}
+	files := logFiles{pruned: prunedBefore(v, m.Live.Seq), bound: binding{tenant: m.Tenant, project: m.Project}}
 	var opened []*os.File
 	done := func() {
 		for _, f := range opened {
@@ -330,13 +337,14 @@ const ErrTooLarge Error = "trailfile: the log's segments hold more than the boun
 
 // LogBytes is every whole line of the segments of the log in dir that are
 // not pruned, in order, at most limit bytes of them: a log holding more is
-// ErrTooLarge.
+// ErrTooLarge, and one holding an event of another tenant or project than
+// it is bound to is ErrDamaged and ErrBinding, as a read of it is.
 func LogBytes(dir string, limit int64) ([]byte, error) {
 	if limit < 0 {
 		return nil, fmt.Errorf("%w: %d", ErrLimit, limit)
 	}
 	for range moveRetries {
-		r, _, done, err := openLog(dir)
+		r, files, done, err := openLog(dir)
 		if errors.Is(err, segmentlog.ErrMoved) {
 			continue
 		}
@@ -351,7 +359,11 @@ func LogBytes(dir string, limit int64) ([]byte, error) {
 		case int64(len(raw)) > limit:
 			return nil, fmt.Errorf("%w: %d", ErrTooLarge, limit)
 		}
-		return raw[:bytes.LastIndexByte(raw, '\n')+1], nil
+		raw = raw[:bytes.LastIndexByte(raw, '\n')+1]
+		if err := files.bound.lines(raw); err != nil {
+			return nil, err
+		}
+		return raw, nil
 	}
 	return nil, fmt.Errorf("%w: %d times running", segmentlog.ErrMoved, moveRetries)
 }

@@ -121,3 +121,33 @@ func TestEveryContentEncodingIsRead(t *testing.T) {
 		}
 	}
 }
+
+// TestASecondContentTypeIsRefused: a request with two Content-Type fields
+// names no one media type, even when both are JSON, and is refused 415
+// without the sink being reached; one field is taken.
+func TestASecondContentTypeIsRefused(t *testing.T) {
+	for name, c := range map[string]struct {
+		types  []string
+		status int
+	}{
+		"JSON twice":      {[]string{"application/json", "application/json"}, http.StatusUnsupportedMediaType},
+		"JSON, then text": {[]string{"application/json", "text/plain"}, http.StatusUnsupportedMediaType},
+		"text, then JSON": {[]string{"text/plain", "application/json"}, http.StatusUnsupportedMediaType},
+		"JSON in one":     {[]string{"application/json"}, http.StatusOK},
+	} {
+		sink := &memorySink{}
+		req := httptest.NewRequest(http.MethodPost, "/v1/logs", strings.NewReader(base()))
+		for _, media := range c.types {
+			req.Header.Add("Content-Type", media)
+		}
+		rec := httptest.NewRecorder()
+		newReceiver(t, sink).ServeHTTP(rec, req)
+		want := 0
+		if c.status == http.StatusOK {
+			want = 1
+		}
+		if rec.Code != c.status || sink.appends() != want {
+			t.Errorf("%s: answered %d with %d append(s), want %d and %d", name, rec.Code, sink.appends(), c.status, want)
+		}
+	}
+}

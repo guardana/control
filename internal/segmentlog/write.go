@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"slices"
 	"time"
 )
@@ -158,8 +160,8 @@ func (l *segments) Prune(through int) error {
 	if err := l.writeManifest(l.dropped, next); err != nil {
 		return err
 	}
-	for _, name := range gone {
-		if err := l.ops.remove(l.root, name); err != nil {
+	for _, file := range gone {
+		if err := l.removeRead(file); err != nil {
 			return l.fail(err)
 		}
 	}
@@ -170,22 +172,43 @@ func (l *segments) Prune(through int) error {
 	return nil
 }
 
+// readFile is a segment's file as a prune read it.
+type readFile struct {
+	name string
+	info fs.FileInfo
+}
+
 // tombstone names each sealed segment of segs pruned at at, once its file
 // is read again and holds what the manifest names it with, and returns the
 // files to unlink.
-func (l *segments) tombstone(segs []Segment, at time.Time) ([]string, error) {
-	var gone []string
+func (l *segments) tombstone(segs []Segment, at time.Time) ([]readFile, error) {
+	var gone []readFile
 	for i := range segs {
 		if segs[i].State != StateSealed {
 			continue
 		}
-		if err := l.verify(segs[i], nil); err != nil {
+		info, err := l.verified(segs[i], nil)
+		if err != nil {
 			return nil, err
 		}
-		gone = append(gone, segs[i].File)
+		gone = append(gone, readFile{name: segs[i].File, info: info})
 		segs[i].State, segs[i].PrunedAt, segs[i].File = StatePruned, at, ""
 	}
 	return gone, nil
+}
+
+// removeRead unlinks file's name only while it still names the file the
+// prune read. Between this check and the unlink another file can still be
+// put at the name: no POSIX call unlinks a name only if it names one file.
+func (l *segments) removeRead(file readFile) error {
+	now, err := l.root.Lstat(file.name)
+	switch {
+	case err != nil:
+		return err
+	case !os.SameFile(now, file.info):
+		return fmt.Errorf("%w: another file stands at %s since the prune read it, and is left", ErrMoved, file.name)
+	}
+	return l.ops.remove(l.root, file.name)
 }
 
 // sealedBy refuses a clock at before the seal of a sealed segment of segs:

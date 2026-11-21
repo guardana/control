@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -38,5 +39,27 @@ func TestAStopIsBoundedByATrailAnAppendHolds(t *testing.T) {
 	c = &collector{srv: &http.Server{ReadHeaderTimeout: time.Second}, trail: free}
 	if err := c.stopWithin(time.Second); err != nil {
 		t.Errorf("a stop whose trail closes = %v", err)
+	}
+}
+
+// errServe is a server that stopped serving on its own.
+var errServe = errors.New("the listener failed")
+
+// TestATrailAfterServeFailedIsClosedWithinTheBound: when the server stops
+// on its own, a trail whose close waits on an append still syncing does not
+// hold collect past the bound, and both failures are said.
+func TestATrailAfterServeFailedIsClosedWithinTheBound(t *testing.T) {
+	held := heldTrail{released: make(chan struct{})}
+	defer close(held.released)
+	c := &collector{srv: &http.Server{ReadHeaderTimeout: time.Second}, trail: held}
+	done := make(chan error, 1)
+	go func() { done <- c.serveFailed(errServe, 50*time.Millisecond) }()
+	select {
+	case err := <-done:
+		if !errors.Is(err, errServe) || !strings.Contains(err.Error(), "the trail was not closed within 50ms") {
+			t.Errorf("a failed serve past the bound = %v, want the failure and that the trail was not closed", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("collect still waits on a trail an append holds after its server failed, past the bound")
 	}
 }

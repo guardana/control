@@ -3,6 +3,7 @@ package segmentlog
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"slices"
 	"sync"
@@ -272,23 +273,39 @@ func (l *segments) completeSeal(have *found) error {
 // verify reads a sealed segment whole and refuses it unless it holds what
 // the manifest names it with, handing each line to the visitor.
 func (l *segments) verify(s Segment, visit func([]byte) error) error {
-	st, err := l.scanFile(s.File, visit)
+	_, err := l.verified(s, visit)
+	return err
+}
+
+// verified is verify returning the file it read.
+func (l *segments) verified(s Segment, visit func([]byte) error) (fs.FileInfo, error) {
+	st, info, err := l.scanOpen(s.File, visit)
 	if err != nil {
-		return fmt.Errorf("%s: %w", s.File, err)
+		return nil, fmt.Errorf("%s: %w", s.File, err)
 	}
 	if !st.matches(s) {
-		return fmt.Errorf("%w: %s does not hold what the manifest names it with", ErrManifest, s.File)
+		return nil, fmt.Errorf("%w: %s does not hold what the manifest names it with", ErrManifest, s.File)
 	}
-	return nil
+	return info, nil
 }
 
 func (l *segments) scanFile(name string, visit func([]byte) error) (stats, error) {
+	st, _, err := l.scanOpen(name, visit)
+	return st, err
+}
+
+// scanOpen scans the file at name and returns it as opened.
+func (l *segments) scanOpen(name string, visit func([]byte) error) (stats, fs.FileInfo, error) {
 	f, err := openJudged(l.root, name, os.O_RDONLY)
 	if err != nil {
-		return stats{}, err
+		return stats{}, nil, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		return stats{}, nil, errors.Join(err, f.Close())
 	}
 	st, err := scan(f, l.cfg.MaxLineBytes, visit)
-	return st, errors.Join(err, f.Close())
+	return st, info, errors.Join(err, f.Close())
 }
 
 // openLive opens a live segment the directory holds, through the consumer,
