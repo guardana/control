@@ -36,6 +36,7 @@
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -85,6 +86,7 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
@@ -1157,7 +1159,8 @@ either spells the name. A name the file or the environment spells twice is refus
 and so is a <code>_</code> in a header's name in the file, since no variable could replace it.
 A relative path resolves against the directory of the file. Every path, the file's
 own included, is read taking each <code>..</code> the path spells before following any
-symbolic link.</p>
+symbolic link. The file writes a path as nested blocks: a key holding a <code>.</code>, a
+header's name among them, is refused, and so is a block written twice.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/reference/configuration.md">docs/reference/configuration.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.18.0, and <a href="https://github.com/guardana/control/tree/v0.18.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">
@@ -1169,6 +1172,7 @@ symbolic link.</p>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -1218,6 +1222,7 @@ symbolic link.</p>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>

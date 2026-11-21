@@ -36,6 +36,7 @@
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -85,6 +86,7 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
@@ -146,6 +148,17 @@ written line by line
 (<a href="/docs/reference/attempt-format">attempt format</a>,
 <a href="/docs/adr/0086-controlled-attempts-are-counted-at-the-victim">ADR-0086</a>).
 The demo's manifest is <code>examples/vulnerable-mcp-agent/attempts/manifest.json</code>.</li>
+<li><code>guardana-control policy compare</code> (<code>experimental</code>) decides policy test
+cases and an evidence export's requests under the current and a candidate
+policy through the kernel's own evaluation, and writes a
+<code>policy-comparison/v1alpha1</code> report of each case's change, every result
+marked simulated. A case it cannot judge, for a missing fact, a decision on
+another policy, a gap or a disagreement with the recorded decision, is
+unknown with its reason and counted apart; a <code>policy-case-labels/v1alpha1</code>
+file counts cases by label and change. It sends no call, consumes no
+approval and activates no policy
+(<a href="/docs/reference/policy-compare">policy compare</a>,
+<a href="/docs/adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation">ADR-0087</a>).</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
@@ -156,6 +169,58 @@ which follows the order the plane's batches reached the collector, so two
 exports of one run could list requests differently and a finding citing
 more than ten could keep other references
 (<a href="/docs/reference/supervision">supervision</a>).</li>
+<li>A signed start refuses a header a variable sets with its hyphens spelled
+as they are, such as <code>GUARDANA_CONTROL_EXPORT_HEADERS_X-TENANT</code>, as it
+refuses every other key the environment sets. Only a header spelled with
+<code>_</code> was refused; the hyphenated one was applied and the start went on.</li>
+<li>A retry checks the pause, the stops, the clock and the policy again after
+the approval authority answers and before it spends the approval. A stop
+published, or a policy gone stale, while the answer was read spent the
+approval although the call was then blocked; the hold now stands for a
+later retry.</li>
+<li>A refusal of an upstream's <code>env</code> or <code>args</code> item the configuration reader
+cannot read, such as <code>API_KEY=value&amp;x</code> or <code>--token=value&amp;x</code>, no longer
+repeats the item, which can hold a pasted credential.</li>
+<li>The configuration refuses a block written twice, such as two <code>policy:</code>
+mappings, naming both lines. Two blocks whose keys differed were merged.</li>
+<li>The configuration refuses a key holding a <code>.</code>, such as
+<code>policy.fail_open_read: true</code>; a path is written as nested blocks. The
+dotted spelling reopened a block already written.</li>
+<li><code>doctor</code> reads the spent ledger beside the hold journal as <code>run</code> opens and
+sweeps it, and fails naming it where <code>run</code> would refuse it: a damaged
+<code>ledger.meta</code>, a name the ledger did not write or a mark that will not
+decode. It printed <code>ok</code> for the approvals and <code>run</code> then refused to start.
+A mark a running plane removes while <code>doctor</code> reads the ledger is passed.</li>
+<li><code>/healthz</code> reports the <code>directory</code> approval authority <code>unavailable</code> once
+its approvals directory is not the one the plane opened; it said <code>usable</code>
+whatever became of it.</li>
+<li>After a restart, a signed plane closes an unexpired lost hold that nobody
+answered <code>APPROVAL_EXPIRED</code> while the hold's record stands, as the
+directory kind does and <a href="/docs/reference/failure-modes">failure modes</a>
+says. It closed it <code>APPROVAL_STATE_UNKNOWN</code>, which stays for a record that
+is gone.</li>
+<li>A signed answer that authenticates but whose body cannot be read as an
+answer, such as a rejection with no <code>reason</code>, from an operator who may
+approve the hold, or where that cannot be told, leaves the call
+<code>INDETERMINATE</code> and the hold standing. It was left out, so a valid approval
+beside it could run, though it may be the rejection that wins. From an
+operator who may not approve the hold it is left out. A file named for the
+approval that cannot be read as an answer at all still makes the batch
+unavailable, since it may be the rejection
+(<a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a>).</li>
+<li>A signed start reads the trust root key only from the file its check
+judged, and refuses one renamed over the path in between. It opened the
+key again by name after the check.</li>
+<li>A signed plane refuses an <code>approvals.inbox_dir</code> its own account does not
+own, at the start, in <code>doctor</code> and at every read, since that owner may
+remove any operator's answer under the sticky bit, a rejection among them
+(<a href="/docs/concepts/approvals-and-the-held-call">approvals</a>).</li>
+<li>An inbox prune removes nothing from a directory this account does not
+own, and says so. It unlinked there whatever stale answer the kernel let
+it remove.</li>
+<li>An approvals record whose <code>tenant</code>, <code>project</code> or any other member is
+<code>null</code> is refused as a member of the wrong type. A <code>null</code> tenant or project
+was read as empty.</li>
 <li>An answer of the AuthZEN decision point whose body is not UTF-8 is refused
 with <code>PDP_ANSWER_REFUSED</code>, so the call is blocked. JSON text is UTF-8; such
 a body was read with replacement characters in its strings
@@ -178,38 +243,46 @@ encoder writes are refused
 with <code>EVIDENCE_UNAVAILABLE</code> also when its expiry has passed. Such an
 approval closed the hold as <code>APPROVAL_EXPIRED</code> before its version was
 read.</li>
-<li><code>coverage</code> joins an <code>mcp_tool</code> path's observation only to a proposal the
-MCP adapter recorded. An enforcement API proposal with the same ids, tool
-and provider joined it too
-(<a href="/docs/reference/coverage#the-join">coverage</a>).</li>
-<li><code>coverage</code> exits 1 when its map cannot be written to standard output. It
-exited 2, the status of a refused input, after reading every input
-(<a href="/docs/reference/coverage#output-and-exit-status">coverage</a>).</li>
-<li>A shaped tool list cached before the plane halted material calls is shaped
-again once the halt stands, so a tool the halt denies is hidden. The cached
-list answered until its TTL ran out
-(<a href="/docs/reference/mcp-coverage#methods">MCP coverage</a>).</li>
-<li>A <code>tools/call</code> is recorded as sent with the bytes the upstream receives:
-the agent's arguments without whitespace between tokens, which the protocol
-library removes. Close was told the agent's spaced bytes
-(<a href="/docs/contracts#the-action-digest">contracts</a>).</li>
-<li>A <code>tools/call</code> the gateway answers <code>-32603</code> because the upstream never
-answered names its trail in <code>data</code>, as a wire error does. It carried no
-<code>data</code>
-(<a href="/docs/reference/mcp-coverage#the-codes-the-adapter-mints">MCP coverage</a>).</li>
-<li>A call blocked because its envelope could not be built carries <code>refused</code>
-with what the refusal said, as documented. Only an execution the adapter
-did not send carried it
-(<a href="/docs/reference/mcp-coverage#the-codes-the-adapter-mints">MCP coverage</a>).</li>
-<li>A tool name that quotes a credential the gateway holds is recorded as
-<code>withheld:sha256:</code> and the digest of the name when a client calls it. The
-proposal recorded the name, credential included
-(<a href="/docs/concepts/privacy#what-an-evidence-event-holds">privacy</a>).</li>
-<li>A <code>tools/call</code> admitted under a classification a manifest refresh withdrew
-before the send is not sent: the adapter aborts it as
-<code>ACTION_UNCLASSIFIED</code>. It ran under the decision made for the old
-definition
-(<a href="/docs/reference/mcp-coverage#reason-codes-in-the-gateways-answers">MCP coverage</a>).</li>
+<li>The page of the <a href="/docs/reference/claude-code-hooks">Claude Code hooks</a>
+says what classing <code>Agent</code> as <code>EXECUTE</code> costs: a rule on
+<code>SPAWN_OR_DELEGATE</code> never sees a sub-agent start and a rule that allows
+<code>EXECUTE</code> allows it, so a policy decides <code>Agent</code> by its name or its
+resource type, where a <code>DENY</code> or <code>REQUIRE_APPROVAL</code> overrides an <code>ALLOW</code>
+on <code>EXECUTE</code>; the profile lists it among its gaps.</li>
+<li>The enforcement API refuses a complete whose <code>resultHash</code> is not <code>sha256:</code>
+and 64 lower-case hex digits as <code>ERROR_CODE_MALFORMED</code>. Any text up to
+1 KiB was recorded, so a client could put a tool's output in the trail
+and the collector's export with capture off
+(<a href="/docs/contracts">contracts</a>). The Go and Python clients judge the hash
+before sending it: a tool's result whose hash is in any other form is
+completed <code>UNKNOWN</code> without the hash, and the Python client raises
+<code>BadResult</code>.</li>
+<li>An <code>EXECUTE</code> answer a shutdown overtakes reaches its client before the
+plane records the execution abandoned. The answer could wait in the
+server's buffer until after the abandon.</li>
+<li>The Go and Python clients of the enforcement API abort an <code>EXECUTE</code> that
+carries no authorized bytes also when the call proposed none, as ADR-0051
+requires; they ran the tool with no bytes.</li>
+<li><code>scenario run</code> refuses a <code>/healthz</code> answer without a bundle digest, and a
+trail compared against no digest cannot pass; both sides empty compared
+equal (<a href="/docs/reference/scenario-format">scenario format</a>).</li>
+<li><code>scenario run</code> refuses to judge a step by a <code>POLICY_DECIDED</code> whose decision
+is of a major this build does not read, whatever the event's own version.</li>
+<li><code>scenario run</code> compares reason codes item by item: one code holding
+<code>RULE_UNDETERMINED, PDP_TIMEOUT</code> compared equal to the two codes.</li>
+<li><code>scenario run</code> and <code>dev --scenario</code> exit 2 when the report could not be
+written to standard output, and say so on standard error; a pass nobody
+could read exited 0.</li>
+<li>The hook bridge refuses an event whose <code>tool_input</code> names a member twice
+in any of its objects, before anything is sent; only a member the event
+itself named twice was refused.</li>
+<li>The scenario reader judges <code>kind</code> before the depth bound, as ADR-0022
+orders it: a document of another kind with containers past the bound was
+refused for its depth.</li>
+<li>The qualification of the
+<a href="/docs/reference/claude-code-hooks">Claude Code hooks</a> credits a decision
+to a sub-agent's <code>Write</code> only when the trail holds more decided writes of that file than the other
+calls that wrote it could account for.</li>
 </ul>
 <h3 id="documentation">Documentation</h3>
 <ul>
@@ -2917,6 +2990,7 @@ independence of this project from Guardana
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
 <li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
 <li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
@@ -2966,6 +3040,7 @@ independence of this project from Guardana
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
