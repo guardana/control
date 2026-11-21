@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
-	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/trailchain"
 )
 
@@ -146,8 +145,9 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 // doubtCut leaves not checked every rule that would read as checked while
 // a record of the run is in doubt: the left-out copy, the missing link or the
 // order its links do not give may hold the failure, denial, tool or time a
-// rule looks for. A request in doubt touches every rule; a denial whose block
-// was not read those that read how a call ended; an observation, a source
+// rule looks for. A request in doubt touches every rule; a request whose end
+// was not read and that waits on no approval those that read how a call
+// ended; an observation, a source
 // whose imports refused a copy that may be a call of a run judged, a source
 // that may have missed a call, and a span walk cut short only those that read
 // a source's reports. A rule already not checked names its own reason first
@@ -181,15 +181,16 @@ func (e *evaluation) doubts() (every, ends, reports []string) {
 	return every, ends, e.reportDoubts()
 }
 
-// requestDoubts names the requests in doubt, and the denied ones whose block
-// was not read.
+// requestDoubts names the requests in doubt, and the others whose end was
+// not read and that wait on no approval: such a request may yet be blocked,
+// fail or complete.
 func (e *evaluation) requestDoubts() (every, ends []string) {
 	var requests, unended []string
 	for _, rq := range e.reqs {
 		if rq.doubt {
 			requests = append(requests, rq.id)
 		}
-		if rq.kernel.GetVerdict() == controlv1.Verdict_VERDICT_DENY && rq.terminal == nil {
+		if rq.terminal == nil && !rq.waiting && !rq.doubt {
 			unended = append(unended, rq.id)
 		}
 	}
@@ -197,7 +198,7 @@ func (e *evaluation) requestDoubts() (every, ends []string) {
 		every = append(every, why)
 	}
 	if why := inDoubt("request", unended); why != "" {
-		ends = append(ends, why+": the policy denied it and its block was not read")
+		ends = append(ends, why+": its end was not read")
 	}
 	return every, ends
 }

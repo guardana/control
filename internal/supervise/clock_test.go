@@ -33,3 +33,18 @@ func TestOneExportIsNoOneClock(t *testing.T) {
 		})
 	}
 }
+
+// TestADeadlineInOneExportIsNoOneClock: the first and the last event of a run
+// may be stamped by two planes' clocks in one export, so a span past the
+// deadline only suggests it was exceeded, and a stop never rests on it.
+func TestADeadlineInOneExportIsNoOneClock(t *testing.T) {
+	res := evaluate(t, supervise.Input{Procedure: procWith(t), Exports: []supervise.Export{export(
+		call{req: "r1", tool: "get_order", upstream: "shop"},
+		call{req: "r2", tool: "issue_refund", upstream: "pay", at: 700 * time.Second})}})
+	if got, want := verdicts(res, "DEADLINE_EXCEEDED"), []string{runID + " FINDING_VERDICT_SUSPECTED"}; !slices.Equal(got, want) {
+		t.Fatalf("DEADLINE_EXCEEDED findings %q, want %q:\n%s", got, want, dump(res.Findings))
+	}
+	if supervise.MayStop("DEADLINE_EXCEEDED") {
+		t.Error("a deadline that only suggests may stop a run")
+	}
+}

@@ -27,13 +27,14 @@ func TestAReportAroundADenialIsPlacedByTimeOnly(t *testing.T) {
 		src  supervise.Source
 		want []string
 	}{
-		"after the decision":    {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 20 * time.Second, stage: observev1.Stage_STAGE_STARTED}), []string{runID + " FINDING_VERDICT_SUSPECTED"}},
-		"at the decision":       {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 11 * time.Second}), []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
-		"before the decision":   {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 10 * time.Second}), nil},
-		"a report with no time": {acts(denial()), untimedReport, []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
-		"a denial with no time": {untimedDenial, source(ob{id: "obs-1", name: "issue_refund", at: 20 * time.Second}), []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
-		"another entry's name":  {acts(denial()), source(ob{id: "obs-1", name: "get_order", at: 20 * time.Second}), nil},
-		"a name no entry lists": {acts(mail), source(ob{id: "obs-1", name: "send_mail", at: 20 * time.Second}), nil},
+		"after the decision":          {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 20 * time.Second, stage: observev1.Stage_STAGE_STARTED}), []string{runID + " FINDING_VERDICT_SUSPECTED"}},
+		"proposed after the decision": {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 20 * time.Second, stage: observev1.Stage_STAGE_PROPOSED}), []string{runID + " FINDING_VERDICT_SUSPECTED"}},
+		"at the decision":             {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 11 * time.Second}), []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
+		"before the decision":         {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 10 * time.Second}), nil},
+		"a report with no time":       {acts(denial()), untimedReport, []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
+		"a denial with no time":       {untimedDenial, source(ob{id: "obs-1", name: "issue_refund", at: 20 * time.Second}), []string{runID + " FINDING_VERDICT_INDETERMINATE"}},
+		"another entry's name":        {acts(denial()), source(ob{id: "obs-1", name: "get_order", at: 20 * time.Second}), nil},
+		"a name no entry lists":       {acts(mail), source(ob{id: "obs-1", name: "send_mail", at: 20 * time.Second}), nil},
 		"one in doubt before the decision": {acts(denial()), source(ob{id: "obs-1", name: "issue_refund", at: 5 * time.Second},
 			ob{id: "obs-1", name: "issue_refund", at: 6 * time.Second}), nil},
 	} {

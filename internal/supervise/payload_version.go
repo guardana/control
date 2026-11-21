@@ -1,17 +1,17 @@
 package supervise
 
 import (
-	"strconv"
 	"strings"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/policy/strictjson"
 )
 
 // payloadReadable reports whether ev's payload, when it is one that carries a
 // version of its own (an ActionEnvelope, a Decision, an Approval or an
-// ActionResult), names MAJOR.MINOR in decimal on the major this build reads:
-// the event's version does not vouch for a payload that names its own. No
-// payload, or one that carries no version, is readable.
+// ActionResult), names MAJOR.MINOR on the major this build reads: the event's
+// version does not vouch for a payload that names its own. No payload, or one
+// that carries no version, is readable.
 func payloadReadable(ev *controlv1.Event) bool {
 	var version string
 	switch p := ev.GetPayload().(type) {
@@ -26,8 +26,7 @@ func payloadReadable(ev *controlv1.Event) bool {
 	default:
 		return true
 	}
-	major, minor, ok := strings.Cut(version, ".")
-	return ok && decimal(major) && decimal(minor) && major == contractMajor()
+	return strictjson.IsVersion(version, contractMajor())
 }
 
 // contractMajor is the major of the Protobuf package the generated types
@@ -35,11 +34,4 @@ func payloadReadable(ev *controlv1.Event) bool {
 func contractMajor() string {
 	pkg := string((&controlv1.ActionEnvelope{}).ProtoReflect().Descriptor().ParentFile().Package())
 	return strings.TrimPrefix(pkg[strings.LastIndex(pkg, ".")+1:], "v")
-}
-
-// decimal is ParseUint because it permits no sign, no underscore and no empty
-// string at base 10, which is the rule.
-func decimal(s string) bool {
-	_, err := strconv.ParseUint(s, 10, 32)
-	return err == nil
 }

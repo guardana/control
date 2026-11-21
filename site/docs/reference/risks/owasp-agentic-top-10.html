@@ -200,7 +200,7 @@
 </tr>
 <tr>
 <td>ASI10: Rogue Agents</td>
-<td><a href="/docs/status#run-stop">Stopping a run through a signed route</a> (<code>experimental</code>). After <code>supervise</code> reports a confirmed finding that a child retried a denied call with changed arguments, a signed route can stop later calls by that child.</td>
+<td><a href="/docs/status#run-stop">Stopping a run through a signed route</a> (<code>experimental</code>). When a child is denied mail and retries it to another address, also denied, <code>supervise</code> confirms the repeated denials, and a signed route naming that rule stops later calls by the child. The retry finding itself is suspected and stops nothing.</td>
 <td><code>cmd/guardana-gateway/reaction_tree_unix_test.go</code> · <code>TestAChildsRetryIsSupervisedOverTheTreeAndStopsTheChild</code>.</td>
 <td>The parent can still act. A call already running can finish, and the child can use a path outside the gateway. Continuous checks are work in <a href="/docs/backlog">B28</a>. <a href="/docs/concepts/threat-model#an-agent-that-is-wrong-or-steered">Threat model</a>.</td>
 </tr>

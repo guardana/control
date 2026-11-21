@@ -305,8 +305,8 @@ findings log: 3 written, 0 already held
 <p>It exits 1 because it made findings, which is what this run should produce.
 <code>RESOURCE_OUTSIDE_RUN</code>: the calls bound to one order reached two, <code>ord-1</code> and
 <code>ord-2</code>. <code>DENIED_ACTION_RETRIED_RESOURCE</code>: once the refund of <code>ord-2</code> was
-denied, another tool updated that order; suspected, not confirmed, since
-nothing in an event names the plane whose clock timed it. <code>EXCEPTION_TAKEN</code>: the approved
+denied, another tool updated that order; suspected, never confirmed and so
+never a stop, since nothing in an event names the plane whose clock timed it. <code>EXCEPTION_TAKEN</code>: the approved
 export is an exception the procedure allows, reported for information. The
 rules about what is missing wait for the run to close.</p>
 <p>Open <code>run.html</code> in a browser; it runs no script. It shows the expected steps
@@ -388,7 +388,7 @@ map have their own pages: <a href="/docs/reference/observations">observations.md
 <code>0.1</code> run; <code>notify</code> and child runs are in
 <a href="/docs/reference/supervision">supervision.md</a>.</p>
 <p>Under <code>signed</code> a route may stop the run's agent or principal in place of the
-run, for <code>REPEATED_DENIAL</code> and the two retry rules, for the rule's lifetime.
+run, for <code>REPEATED_DENIAL</code> alone, for the rule's lifetime.
 Every opened run of a plane carries the listener's identity, so on one plane
 such a stop stops the plane: every run, later runs and calls with no run are
 refused <code>AGENT_OR_PRINCIPAL_STOPPED</code>, and <code>stops lift --agent</code> or

@@ -174,9 +174,9 @@ type part struct {
 // times allow, none above v. The plane may land a later batch of an export
 // before an earlier one, so an export's sequence orders nothing; the plane's
 // times do. A call proposed before the denial was decided is no retry, one at
-// that instant or with no time is untold, and a later one suggests: two
-// planes may send to one collector and nothing in an event names its plane,
-// so the call and the denial may have been timed by clocks that differ.
+// that instant or with no time is untold, and a later one weighs at v; the
+// rule's row keeps that from confirming, since the two may have been timed by
+// two planes' clocks.
 func (l *lane) parts(d *request, k string, v controlv1.FindingVerdict, pos map[*controlv1.Event]int, out []part) []part {
 	self := func(s *seq) int {
 		if k != "" {
@@ -196,5 +196,5 @@ func (l *lane) parts(d *request, k string, v controlv1.FindingVerdict, pos map[*
 	hi := l.timed.search(ord{t.GetSeconds(), int64(t.GetNanos()) + 1, -1})
 	timedSelf := self(l.timed)
 	return append(out, untold, part{v: indeterminate, s: l.timed, lo: lo, hi: hi, self: timedSelf},
-		part{v: weaker(suspected, v), s: l.timed, lo: hi, hi: len(l.timed.calls), self: timedSelf})
+		part{v: v, s: l.timed, lo: hi, hi: len(l.timed.calls), self: timedSelf})
 }

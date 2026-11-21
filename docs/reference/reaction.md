@@ -50,10 +50,10 @@ The route says which findings may stop a run: its tenant, and rules, each a
 procedure by id, version and digest and a supervise rule, with an optional
 lifetime for the stops it allows. Without one a stop lasts as long as its run.
 `route sign` signs it with its own key and writes it mode `0644`,
-replacing only an earlier signed route. It refuses any rule but the six whose finding
+replacing only an earlier signed route. It refuses any rule but the three whose finding
 may stop a run, each at its version: `REPEATED_DENIAL` at `2`, and
-`STEP_OUTSIDE_PROCEDURE`, `DEADLINE_EXCEEDED`, `RESOURCE_OUTSIDE_RUN`,
-`DENIED_ACTION_RETRIED_ARGUMENTS` and `DENIED_ACTION_RETRIED_RESOURCE` at `1`.
+`STEP_OUTSIDE_PROCEDURE` and `RESOURCE_OUTSIDE_RUN` at `1`
+([ADR-0088](../adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md)).
 Every reader of a signed route refuses one naming another, but
 `--carry-route`. The route also names the lift key, whose holder alone can
 lift a stop; it need not be on the plane's machine.
@@ -71,7 +71,7 @@ takes a carried list and a restart.
 `stops.jsonl` in an owner-only directory: a header naming the route, then
 `stop`, `covered` and `lift` lines, appended and never rewritten, at most
 4 MiB and 20 000 lines. Only the `stops` commands and `react` write it, each
-line under the list's lock, waiting up to ten seconds for another writer; a
+line under the list's lock, waiting up to ten seconds; a
 plane takes no lock. A writer cuts a torn last line before it appends, and refuses a write past the bound rather than cut an unread
 line.
 
@@ -79,8 +79,8 @@ line.
 `--carry` it copies the old list's unlifted stops, expired or not, and names every other finding of it as covered, judging the
 old list by `--carry-route` under the same route key and holding its lock
 until the new list is written, so the new list only adds. Only
-`--carry-route` may name a superseded version, `REPEATED_DENIAL` `1`: its stops
-keep it, judged as `2`, and no writer appends one. A version `2` finding
+`--carry-route` may name `REPEATED_DENIAL` `1`, its stops judged as `2`, or the
+deadline or a retry rule at `1`, its stops kept; no writer appends either. A version `2` finding
 stops a lifted run again. A list a plane
 refuses at one line is carried up to that line, and `stops init` says what it
 left out, unless a stop or covered line follows it or the line is dated past

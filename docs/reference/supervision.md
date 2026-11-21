@@ -7,7 +7,7 @@ covers: [internal/supervise/**, internal/findinglog/**, internal/notify/**, cmd/
 
 # Supervision
 
-`guardana-control supervise` checks a run an operator opened against its
+`guardana-control supervise` checks an opened run against its
 procedure, from plane evidence and runtime reports, and
 appends findings to a log.
 `guardana-control notify` hands each alert in that log to a program of the
@@ -62,8 +62,8 @@ of a kind naming no run ([observations](observations.md#the-source-descriptor)),
 refused. Only a tool call is a step. An observation joined to a plane event
 by trace and span id is that call. Everything else is counted and left out.
 
-The procedure, descriptors and evidence exports must be regular
-files of this account that only it can write: a `CONFIRMED` finding rests on
+The procedure, descriptors and exports must be regular files only this
+account can write: a `CONFIRMED` finding rests on
 the export being the plane's.
 
 ## The rules
@@ -79,14 +79,15 @@ the export being the plane's.
 | `RESOURCE_OUTSIDE_RUN` | one binding's calls carry more than one resource; indeterminate for one resource beside an id-less call |
 | `DENIED_ACTION_RETRIED_ARGUMENTS` | a denied tool is called again with other arguments |
 | `DENIED_ACTION_RETRIED_RESOURCE` | another tool or upstream on a denied call's resource, not a read after a denied non-read |
-| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool begun after the denial, joined to no plane call; not checked with no `--source` |
+| `DENIED_ACTION_RETRIED_AROUND` | a source reports the denied tool after the denial, joined to no plane call; `INDETERMINATE`, no importer stamping a call's start; not checked with no `--source` |
 | `EXCEPTION_TAKEN` | an exception waived a finding, at that finding's verdict at most |
 
 An order is untold, its finding `INDETERMINATE`, when a proposal or a failure
 has no time, or between two of one instant. A retry continues nothing, though
 each denial of it counts toward `REPEATED_DENIAL`; an approved call, no
 retry, belongs to the step it held. Plane calls order by the plane's times, never by place in
-an export; no event names its plane, so retries suggest at most.
+an export. No event names its plane, so the deadline and the retries are
+`SUSPECTED` at most ([ADR-0088](../adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md)).
 
 ## The verdict
 
@@ -94,7 +95,7 @@ The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it `CONFIRMED`; an observation makes it `SUSPECTED`; a record in doubt,
 `INDETERMINATE`, as are a silent source's observations. A request with
 conflicting copies, a broken chain or events of two runs leaves no rule
-checked; a denial with no block, none on how a call ends; an observation
+checked; an unended request awaiting no approval, none on how a call ends; an observation
 with two contents, a judged run its source doubts until the log is rotated
 ([observations](observations.md#the-log)), a join cut short, a source
 sampled, silent, unheard or unread, or an unclosed write leaves
@@ -103,8 +104,8 @@ findings kept.
 The step rules rest on something not seen:
 `SUSPECTED` at most, `INDETERMINATE` while a `--source` is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.
-Under `0.2` a finding confirms on its run's own events alone, save the
-deadline; one that needs another run's events is `SUSPECTED` at most.
+Under `0.2` a finding confirms on its run's own events alone; one that
+needs another run's events is `SUSPECTED` at most.
 
 ## Output and exit status
 
@@ -112,11 +113,11 @@ After the run's line come, under `0.2`, its children mode and a `tree:` line
 per run; a line per step, its requests apart from the observations no plane
 call joins; per finding, with its run under `0.2` and the references it left
 out; per rule; and `not checked: source <path> absent`, `<id> never heard`
-or `<id> silent` for each `--source` not judged against.
+or `<id> silent` for each `--source` not judged.
 
 | Exit | When |
 | --- | --- |
-| 0 | no finding, every rule checked or off, a plane event of the run read |
+| 0 | no finding, every rule checked or off, a plane event of the run read, no `--source` unread, unheard or silent |
 | 1 | otherwise |
 | 2 | nothing printed: an input refused, or a log not opened or written (a cut write no reader takes) |
 
@@ -128,9 +129,9 @@ accepted. A failure after the write commits exits 2 and keeps it.
 `guardana.control.finding.v1alpha1`, outside the v1 promise. A
 `FindingRecord` holds the tenant, project, procedure (id, version, digest),
 escalation, references to plane events and observations and a v1
-finding with its id, rule, severity, verdict and run. Its id is
-`fnd-` and 32 hex digits, a function of the run, the procedure, the rule and
-its version, and what it is about, so a rerun finds the same ids. The log,
+finding with its id, rule, severity, verdict and run. Its id,
+`fnd-` and 32 hex digits, is a function of the run, the procedure, the rule,
+its version and what it is about, so a rerun finds the same ids. The log,
 `findings.jsonl`, is JSON Lines in an owner-only directory. The command writes only when it read an event
 of the run, ending its write with a `SuperviseReport`; a write without one
 is never read.
@@ -145,9 +146,9 @@ A record is schema `0.2` exactly when it carries a member `0.1` lacks
 | `SuperviseReport.children` | the procedure's `children`, as `CHILDREN_MODE_INHERIT` or `_SEPARATE` |
 | `SuperviseReport.run_tree` | each run's id and parent, the supervised run first, each other after its parent |
 | `SuperviseReport.sources_in_doubt` | each `--source` unread (no id), unheard or silent |
-| `LogHeader` | a new log's first line: `log_id`, `log-` and 32 hex digits of 128 random bits |
+| `LogHeader` | a new log's first line: `log_id`, `log-` and 32 random hex digits |
 
-The reader refuses an unknown schema, a member its schema lacks, and one at
+The reader refuses an unknown schema, a member its schema lacks or one at
 its default.
 
 ## notify
@@ -159,11 +160,11 @@ exits. A delivery is keyed on the
 finding id and verdict and marked in the state only after the program exits
 0, so a crash delivers that record again: a receiver drops a key it has
 seen. The state is an owner-only directory, locked while in use; `--init`
-starts one and is refused over one. The next run retries a failed delivery,
-and only a new state repeats a delivered one. Exit 0 when nothing
+starts one and is refused over one. A failed delivery is retried next run;
+only a new state repeats a delivered one. Exit 0 when nothing
 failed; 1 when a delivery failed, on an interrupt, or when the run stopped
-after a program had run (a mark not on disk, a log
-changed under it); 2, printing nothing, when the state or the log is refused
+after a program had run (a mark unwritten, a log
+changed); 2, printing nothing, when the state or the log is refused
 before any program ran.
 
 ## findings export

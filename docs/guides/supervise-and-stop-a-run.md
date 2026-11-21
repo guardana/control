@@ -239,8 +239,8 @@ findings log: 3 written, 0 already held
 It exits 1 because it made findings, which is what this run should produce.
 `RESOURCE_OUTSIDE_RUN`: the calls bound to one order reached two, `ord-1` and
 `ord-2`. `DENIED_ACTION_RETRIED_RESOURCE`: once the refund of `ord-2` was
-denied, another tool updated that order; suspected, not confirmed, since
-nothing in an event names the plane whose clock timed it. `EXCEPTION_TAKEN`: the approved
+denied, another tool updated that order; suspected, never confirmed and so
+never a stop, since nothing in an event names the plane whose clock timed it. `EXCEPTION_TAKEN`: the approved
 export is an exception the procedure allows, reported for information. The
 rules about what is missing wait for the run to close.
 
@@ -356,7 +356,7 @@ map have their own pages: [observations.md](../reference/observations.md) and
 [supervision.md](../reference/supervision.md).
 
 Under `signed` a route may stop the run's agent or principal in place of the
-run, for `REPEATED_DENIAL` and the two retry rules, for the rule's lifetime.
+run, for `REPEATED_DENIAL` alone, for the rule's lifetime.
 Every opened run of a plane carries the listener's identity, so on one plane
 such a stop stops the plane: every run, later runs and calls with no run are
 refused `AGENT_OR_PRINCIPAL_STOPPED`, and `stops lift --agent` or

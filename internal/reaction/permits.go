@@ -3,6 +3,7 @@ package reaction
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/guardana/control/internal/policy"
@@ -50,23 +51,56 @@ func (r Route) Permits(c StopClaim) error {
 
 // permitsListed is Permits for a stop line of a list: a stop naming a rule
 // version StoppingRules superseded, which only a carry writes, is permitted
-// as a stop of the version that replaced it, with that rule's lifetime.
+// as a stop of the version that replaced it, with that rule's lifetime, and
+// one naming a retired version as permitsRetired says.
 func (r Route) permitsListed(c StopClaim) error {
 	err := r.Permits(c)
-	current, superseded := replacement(c.RuleID, c.RuleVersion)
-	if !errors.Is(err, ErrClaimRule) || !superseded {
+	if !errors.Is(err, ErrClaimRule) {
 		return err
 	}
-	c.RuleVersion = current
-	return r.Permits(c)
+	if current, superseded := replacement(c.RuleID, c.RuleVersion); superseded {
+		c.RuleVersion = current
+		return r.Permits(c)
+	}
+	if mayWiden, ok := retired(c.RuleID, c.RuleVersion); ok {
+		return r.permitsRetired(c, mayWiden)
+	}
+	return err
+}
+
+// permitsRetired permits a stop naming a retired rule version, which only a
+// carry writes and the route no longer names, when its procedure is one a
+// rule of the route names, its scope is run (none under a v1alpha1 route) or,
+// for a version a route could let stop an agent or a principal, one of
+// those, and it lasts no longer than MaxLifetime. Its tenant and project are
+// the route's, as Permits found.
+func (r Route) permitsRetired(c StopClaim, mayWiden bool) error {
+	if !slices.ContainsFunc(r.rules, func(rule Rule) bool {
+		return rule.ProcedureID == c.ProcedureID && rule.ProcedureVersion == c.ProcedureVersion &&
+			rule.ProcedureDigest == c.ProcedureDigest
+	}) {
+		return ErrClaimRule
+	}
+	runScope := ScopeRun
+	if r.format == FormatV1Alpha1 {
+		runScope = ""
+	}
+	if c.Scope != runScope && (!mayWiden || !wider(c.Scope)) {
+		return ErrClaimScope
+	}
+	return Rule{}.permitsTimes(c.CreatedAt, c.ExpiresAt)
 }
 
 // CheckCurrent refuses, with ErrStopSuperseded, a stop naming a rule version
-// StoppingRules superseded. The stop list's writers append no such stop; a
-// list holds one only as a carry brought it.
+// StoppingRules superseded, and with ErrStopRetired one naming a retired
+// version. The stop list's writers append no such stop; a list holds one
+// only as a carry brought it.
 func CheckCurrent(s Stop) error {
-	if Superseded(s.RuleID, s.RuleVersion) {
+	switch {
+	case Superseded(s.RuleID, s.RuleVersion):
 		return fmt.Errorf("%w: rule_id %q rule_version %q", ErrStopSuperseded, s.RuleID, s.RuleVersion)
+	case Retired(s.RuleID, s.RuleVersion):
+		return fmt.Errorf("%w: rule_id %q rule_version %q", ErrStopRetired, s.RuleID, s.RuleVersion)
 	}
 	return nil
 }

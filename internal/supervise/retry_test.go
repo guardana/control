@@ -142,9 +142,11 @@ func TestWhatIsNoRetry(t *testing.T) {
 
 // TestARetryHeldForApprovalIsIndeterminate: a retry still waiting on an
 // approval may yet be approved; a later retry that ran keeps the finding
-// suggested and is what it cites.
+// suggested and is what it cites. One the plane blocked before it asked for
+// the approval waits on nothing.
 func TestARetryHeldForApprovalIsIndeterminate(t *testing.T) {
 	held := again().ending("held")
+	unasked := again().ending("unasked")
 	ran := again()
 	ran.req, ran.at, ran.hash = "r2", 30*time.Second, hashOf('c')
 	for name, c := range map[string]struct {
@@ -153,6 +155,7 @@ func TestARetryHeldForApprovalIsIndeterminate(t *testing.T) {
 	}{
 		"held alone":         {acts(denial(), held), "FINDING_VERDICT_INDETERMINATE", "d1-e2 r1-e1"},
 		"held, then one ran": {acts(denial(), held, ran), "FINDING_VERDICT_SUSPECTED", "d1-e2 r2-e1"},
+		"blocked unasked":    {acts(denial(), unasked), "FINDING_VERDICT_SUSPECTED", "d1-e2 r1-e1"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			res := retrySupervise(t, source(), c.x)

@@ -132,3 +132,30 @@ func TestSuperviseSaysWhatAFindingLeftOut(t *testing.T) {
 		t.Fatalf("stderr %q, the finding's line %q in\n%s", stderr, line, stdout)
 	}
 }
+
+// TestAClosedRunWhoseCallsEndIsUnreadIsNoPass: a run closed after a call was
+// allowed but before its end was read may hide a failure the next call
+// continued past, so the rule that reads ends is not checked and supervise
+// exits 1; the same run with every end read exits 0.
+func TestAClosedRunWhoseCallsEndIsUnreadIsNoPass(t *testing.T) {
+	for name, c := range map[string]struct {
+		cut  int
+		code int
+		line string
+	}{
+		"every end read":        {0, exitOK, "rule CONTINUED_AFTER_FAILURE checked\n"},
+		"a lookup's end unread": {2, exitFail, `rule CONTINUED_AFTER_FAILURE not checked: request "r1" is in doubt: its end was not read` + "\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tr := newSupTree(t)
+			calls := conformingCalls()
+			calls[0].cut = c.cut
+			x := tr.export(t, tr.run, supBase, calls...)
+			tr.closeRun(t, tr.run)
+			code, stdout, stderr := invoke(t, tr.args("--evidence", x)...)
+			if code != c.code || stderr != "" || !strings.Contains(stdout, c.line) {
+				t.Errorf("exit %d, stderr %q, stdout\n%s\nwant %d and %q", code, stderr, stdout, c.code, c.line)
+			}
+		})
+	}
+}

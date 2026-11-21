@@ -84,22 +84,12 @@ func checkSpelledSet(b []byte, m protoreflect.Message) error {
 }
 
 // checkSpelledMember holds raw, the spelling of m's member fd, to
-// checkSpelledSet's rule, and the messages it holds with it.
+// checkSpelledSet's rule, and the singular messages it holds with it, the
+// only ones the contract holds (see hasUnknownFields).
 func checkSpelledMember(raw json.RawMessage, m protoreflect.Message, fd protoreflect.FieldDescriptor) error {
 	switch {
 	case !m.Has(fd):
 		return fmt.Errorf("%s: spelled at its default, which the writer leaves out", fd.JSONName())
-	case fd.IsList() && fd.Message() != nil:
-		var items []json.RawMessage
-		if err := json.Unmarshal(raw, &items); err != nil {
-			return errors.New(cause(err))
-		}
-		list := m.Get(fd).List()
-		for i := 0; i < len(items) && i < list.Len(); i++ {
-			if err := checkSpelledSet(items[i], list.Get(i).Message()); err != nil {
-				return err
-			}
-		}
 	case fd.Message() != nil && !fd.IsMap() && bytes.HasPrefix(raw, []byte("{")):
 		return checkSpelledSet(raw, m.Get(fd).Message())
 	}

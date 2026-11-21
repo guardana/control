@@ -72,11 +72,13 @@ func (tr supTree) args(extra ...string) []string {
 
 // supCall is one request's trail in the run: ok runs and completes it, deny
 // is the policy's DENY. Its events are req-e1, req-e2, ... one second apart
-// from at past base; broken links the last to an event never read.
+// from at past base; broken links the last to an event never read, and a
+// cut above zero keeps only the first cut events.
 type supCall struct {
 	req, tool, upstream string
 	at                  time.Duration
 	deny, broken        bool
+	cut                 int
 }
 
 func (c supCall) events(run string, base time.Time) []*controlv1.Event {
@@ -115,6 +117,9 @@ func (c supCall) events(run string, base time.Time) []*controlv1.Event {
 		}
 		out = append(out, ev)
 		prev = ev.EventId
+	}
+	if c.cut > 0 {
+		out = out[:c.cut]
 	}
 	if c.broken {
 		out[len(out)-1].PrevEventId = c.req + "-e9"

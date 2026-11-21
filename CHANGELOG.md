@@ -25,6 +25,23 @@ verify one.
   and a host, a query, a fragment or a `%` that escapes nothing is refused.
   A socket path holding `#`, `?`, `%` or a space is given escaped, as
   `collect` prints it.
+- **Breaking:** `DEADLINE_EXCEEDED`, `DENIED_ACTION_RETRIED_ARGUMENTS` and
+  `DENIED_ACTION_RETRIED_RESOURCE` are rule version `2` and `SUSPECTED` at
+  most, and none of them may stop a run, an agent or a principal. Each
+  compares two events' times, and nothing in an event or an export names
+  the plane whose clock stamped it: two planes may send to one collector,
+  so a call on a fast clock could look later than a denial it preceded, or a
+  run longer than it was. `route sign`, `react` and a plane loading its route
+  refuse a route naming any of them, at either version, by name. The same
+  evidence now gives a finding with a new id, so a notifier delivers it as a
+  new record. To upgrade, remove those rules from the route, `route sign` it
+  again, and `stops init --carry <old list> --carry-route <old route>` under
+  the new route: stops those rules wrote are kept, never lifted by the
+  upgrade, and no new one is written. `stops list` shows each stop's rule;
+  review those and lift any you do not keep with `stops lift`. The
+  example's `0.2` route now stops on `RESOURCE_OUTSIDE_RUN`
+  ([ADR-0088](docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md),
+  [reaction](docs/reference/reaction.md)).
 
 ### Added
 
@@ -131,16 +148,10 @@ verify one.
   with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
   approval closed the hold as `APPROVAL_EXPIRED` before its version was
   read.
-- `supervise` no longer confirms `DENIED_ACTION_RETRIED_ARGUMENTS` or
-  `DENIED_ACTION_RETRIED_RESOURCE`: a retry is `SUSPECTED` at most. Two
-  planes may send to one collector, and nothing in an event or an export
-  names the plane whose clock timed it, so a call on a fast clock could look
-  later than a denial it preceded and confirm a retry a signed route acted
-  on. The example's `0.2` route now stops on `RESOURCE_OUTSIDE_RUN`
-  ([supervision](docs/reference/supervision.md#the-verdict)).
-- A request the policy denied whose block was not read, as when an export is
-  taken while the block is in transit, leaves `REPEATED_DENIAL`,
-  `CONTINUED_AFTER_FAILURE` and the three retry rules not checked. They were
+- A request whose end was not read and that waits on no approval, such as
+  one an export cut after its proposal or before its failure, leaves
+  `REPEATED_DENIAL`, `CONTINUED_AFTER_FAILURE` and the three retry rules not
+  checked. Only a denied request with no block read did; any other was
   checked with no finding, and a closed run could pass.
 - A `--source` whose descriptor does not say `SAMPLING_COMPLETE`, or one
   silent, never heard or not read, leaves `STEP_OUTSIDE_PROCEDURE` and
@@ -148,12 +159,14 @@ verify one.
   dropped the descriptor's sampling, so a sampled source that missed a call
   left both checked.
 - A source whose observation log holds a write no import report closes,
-  such as an import cut short, leaves the same two rules not checked. The
-  reader left the write out and said nothing of it
-  ([supervision](docs/reference/supervision.md#the-verdict)).
-- A source's report of a call timed at the call's end, after a denial, is an
-  `INDETERMINATE` retry around it: the call may have begun before the
-  denial. It suggested a retry; a report of a call's start still does.
+  such as an import cut short, leaves the same two rules not checked, and
+  `coverage` prints an `unclosed write` row and exits 1. The reader left the
+  write out and said nothing of it
+  ([supervision](docs/reference/supervision.md#the-verdict),
+  [coverage](docs/reference/coverage.md)).
+- A source's report of the denied tool after a denial is an `INDETERMINATE`
+  retry around it: no importer stamps a call's start, so the call may have
+  begun before the denial. It was a `SUSPECTED` retry.
 - An OpenTelemetry or egress log import whose source returns the full-buffer
   error itself, rather than one wrapping it, now fails. It ended as a
   complete import.

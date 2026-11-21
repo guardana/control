@@ -23,6 +23,7 @@ func TestAMemberAtItsDefaultIsRefused(t *testing.T) {
 	}
 	for name, c := range map[string]struct{ line, old, with string }{
 		"refused lines by reason, empty": {rep, `"otherResource":"1"`, `"otherResource":"1","refusedBy":{}`},
+		"the same in its proto name":     {rep, `"otherResource":"1"`, `"otherResource":"1","refused_by":{}`},
 		"callers dropped, zero":          {rep, `"otherResource":"1"`, `"otherResource":"1","callersDropped":"0"`},
 		"runs in doubt, none":            {rep, `"inputBytes":"4096"`, `"inputBytes":"4096","doubtedRunIds":[]`},
 		"every run doubted, false":       {rep, `"inputBytes":"4096"`, `"inputBytes":"4096","everyRunDoubted":false`},

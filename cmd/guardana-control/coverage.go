@@ -154,8 +154,7 @@ func readCoverageInput(a *coverageArgs) (coverage.Input, error) {
 	}
 	var given []givenLog
 	for i := range a.sources {
-		read, present, err := readSource(a.sources[i], a.logs[i])
-		src := read.Source
+		src, present, err := readSource(a.sources[i], a.logs[i])
 		if err != nil {
 			return in, err
 		}
@@ -282,30 +281,23 @@ func readPlane(path string) (coverage.Plane, error) {
 // records of a kind no path names, an egress source's, whose hosts the map
 // could then never show. A log directory that holds no log yet gives no
 // records, which is never heard.
-func readSource(descriptor, logDir string) (sourceRead, bool, error) {
+func readSource(descriptor, logDir string) (coverage.Source, bool, error) {
 	raw, err := ondisk.ReadOwned(descriptor, maxDescriptorBytes, descriptorForbidden, os.Geteuid())
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return sourceRead{}, false, absentSource(descriptor, logDir)
+		return coverage.Source{}, false, absentSource(descriptor, logDir)
 	case err != nil:
-		return sourceRead{}, false, refusedInput("source", descriptor, err)
+		return coverage.Source{}, false, refusedInput("source", descriptor, err)
 	}
 	desc, err := ingest.ReadDescriptor(raw)
 	if err != nil {
-		return sourceRead{}, false, refusedInput("source", descriptor, err)
+		return coverage.Source{}, false, refusedInput("source", descriptor, err)
 	}
 	log, err := readSourceLog(logDir)
 	if err != nil {
-		return sourceRead{}, false, err
+		return coverage.Source{}, false, err
 	}
-	return sourceRead{Source: coverage.Source{Descriptor: desc, Records: log.Records}, unclosed: log.Unclosed}, true, nil
-}
-
-// sourceRead is one source as read, and whether its log holds a write no
-// import report closes, whose records are not among those read.
-type sourceRead struct {
-	coverage.Source
-	unclosed bool
+	return coverage.Source{Descriptor: desc, Records: log.Records, Unclosed: log.Unclosed}, true, nil
 }
 
 func readSourceLog(logDir string) (observelog.Committed, error) {

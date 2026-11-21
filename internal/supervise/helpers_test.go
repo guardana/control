@@ -136,6 +136,9 @@ func (c call) kinds() ([]controlv1.EventKind, *controlv1.Decision, *controlv1.De
 			decision(p, c.req, controlv1.Verdict_VERDICT_DENY, "APPROVAL_EXPIRED")
 	case "held":
 		return []controlv1.EventKind{proposed, decided, requested}, approval, nil
+	case "unasked":
+		return []controlv1.EventKind{proposed, decided, blocked}, approval,
+			decision(p, c.req, controlv1.Verdict_VERDICT_DENY, "APPROVAL_STATE_UNKNOWN")
 	}
 	return []controlv1.EventKind{proposed, decided, started, completed}, allow, nil
 }
@@ -265,9 +268,9 @@ func obsRef(src, id string) *findingv1alpha1.Reference {
 // ruleVersions is each rule's version, spelled here rather than read from the
 // package's table.
 var ruleVersions = map[string]string{
-	"REPEATED_DENIAL": "2", "STEP_OUTSIDE_PROCEDURE": "1", "DEADLINE_EXCEEDED": "1",
+	"REPEATED_DENIAL": "2", "STEP_OUTSIDE_PROCEDURE": "1", "DEADLINE_EXCEEDED": "2",
 	"REQUIRED_STEP_SKIPPED": "1", "STEP_OUT_OF_ORDER": "2", "CONTINUED_AFTER_FAILURE": "2",
-	"RESOURCE_OUTSIDE_RUN": "1", "DENIED_ACTION_RETRIED_ARGUMENTS": "1", "DENIED_ACTION_RETRIED_RESOURCE": "1",
+	"RESOURCE_OUTSIDE_RUN": "1", "DENIED_ACTION_RETRIED_ARGUMENTS": "2", "DENIED_ACTION_RETRIED_RESOURCE": "2",
 	"DENIED_ACTION_RETRIED_AROUND": "1", "EXCEPTION_TAKEN": "1",
 }
 

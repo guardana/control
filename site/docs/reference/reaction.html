@@ -155,10 +155,10 @@ guardana-control stops lift --route &lt;file&gt; --public-key &lt;file&gt; --key
 procedure by id, version and digest and a supervise rule, with an optional
 lifetime for the stops it allows. Without one a stop lasts as long as its run.
 <code>route sign</code> signs it with its own key and writes it mode <code>0644</code>,
-replacing only an earlier signed route. It refuses any rule but the six whose finding
+replacing only an earlier signed route. It refuses any rule but the three whose finding
 may stop a run, each at its version: <code>REPEATED_DENIAL</code> at <code>2</code>, and
-<code>STEP_OUTSIDE_PROCEDURE</code>, <code>DEADLINE_EXCEEDED</code>, <code>RESOURCE_OUTSIDE_RUN</code>,
-<code>DENIED_ACTION_RETRIED_ARGUMENTS</code> and <code>DENIED_ACTION_RETRIED_RESOURCE</code> at <code>1</code>.
+<code>STEP_OUTSIDE_PROCEDURE</code> and <code>RESOURCE_OUTSIDE_RUN</code> at <code>1</code>
+(<a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>).
 Every reader of a signed route refuses one naming another, but
 <code>--carry-route</code>. The route also names the lift key, whose holder alone can
 lift a stop; it need not be on the plane's machine.</p>
@@ -173,15 +173,15 @@ takes a carried list and a restart.</p>
 <p><code>stops.jsonl</code> in an owner-only directory: a header naming the route, then
 <code>stop</code>, <code>covered</code> and <code>lift</code> lines, appended and never rewritten, at most
 4 MiB and 20 000 lines. Only the <code>stops</code> commands and <code>react</code> write it, each
-line under the list's lock, waiting up to ten seconds for another writer; a
+line under the list's lock, waiting up to ten seconds; a
 plane takes no lock. A writer cuts a torn last line before it appends, and refuses a write past the bound rather than cut an unread
 line.</p>
 <p><code>stops init</code> starts a list in an existing directory holding none. With
 <code>--carry</code> it copies the old list's unlifted stops, expired or not, and names every other finding of it as covered, judging the
 old list by <code>--carry-route</code> under the same route key and holding its lock
 until the new list is written, so the new list only adds. Only
-<code>--carry-route</code> may name a superseded version, <code>REPEATED_DENIAL</code> <code>1</code>: its stops
-keep it, judged as <code>2</code>, and no writer appends one. A version <code>2</code> finding
+<code>--carry-route</code> may name <code>REPEATED_DENIAL</code> <code>1</code>, its stops judged as <code>2</code>, or the
+deadline or a retry rule at <code>1</code>, its stops kept; no writer appends either. A version <code>2</code> finding
 stops a lifted run again. A list a plane
 refuses at one line is carried up to that line, and <code>stops init</code> says what it
 left out, unless a stop or covered line follows it or the line is dated past

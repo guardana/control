@@ -190,7 +190,7 @@ func fuzzInput(t *testing.T, g *lcg, n int) Input {
 
 // pairVerdict is what a call says as a retry of a denial, from every pair
 // apart from the index: the form, the approvals store and the plane's times,
-// which, with nothing to say the two were timed by one clock, suggest at most.
+// before the rule's row caps it.
 func pairVerdict(form string, d, r *request) (controlv1.FindingVerdict, bool) {
 	v, ok := pairForm(form, d, r)
 	switch {
@@ -206,7 +206,7 @@ func pairVerdict(form string, d, r *request) (controlv1.FindingVerdict, bool) {
 	case tr.AsTime().Before(td.AsTime()):
 		return 0, false
 	}
-	return weaker(v, suspected), true
+	return v, true
 }
 
 // pairForm is what the form alone lets r say of d.
@@ -263,7 +263,7 @@ func TestIndexedRetriesAgreeWithEveryPair(t *testing.T) {
 		}
 	}
 	t.Logf("verdicts reached: %v", seen)
-	if seen[confirmed] != 0 || seen[suspected] < 50 || seen[indeterminate] < 50 {
+	if seen[confirmed] < 50 || seen[indeterminate] < 50 {
 		t.Fatalf("the inputs reached too few verdicts: %v", seen)
 	}
 }

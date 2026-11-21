@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/supervise"
@@ -29,9 +30,9 @@ func cutAfter(x supervise.Export, req string, n int) supervise.Export {
 }
 
 // TestADenialWhoseBlockHasNotArrivedIsNoPass: on a closed run, a request
-// the policy denied whose block is still in transit is a denial and a
-// failure no rule has read, so the rules that count them are not checked;
-// the same block read makes the count.
+// whose decision or block is still in transit may be a denial and a failure
+// no rule has read, so the rules that count them are not checked; the same
+// block read makes the count.
 func TestADenialWhoseBlockHasNotArrivedIsNoPass(t *testing.T) {
 	p := procWith(t)
 	closed := supervise.Run{Closed: true}
@@ -39,18 +40,40 @@ func TestADenialWhoseBlockHasNotArrivedIsNoPass(t *testing.T) {
 	if got := len(only(whole, "REPEATED_DENIAL")); got != 1 {
 		t.Fatalf("four blocks read: %d REPEATED_DENIAL findings, want 1", got)
 	}
-	cut := evaluate(t, supervise.Input{Procedure: p, Run: closed,
-		Exports: []supervise.Export{cutAfter(export(denials(4)...), "d4", 2)}})
-	for _, rule := range []string{"REPEATED_DENIAL", "CONTINUED_AFTER_FAILURE"} {
-		if got := rules(cut)[rule]; !strings.HasPrefix(got, "RULE_STATE_NOT_CHECKED:") || !strings.Contains(got, "d4") {
-			t.Errorf("a denial with no block: %s is %q, want not checked naming d4", rule, got)
+	for _, n := range []int{1, 2} {
+		cut := evaluate(t, supervise.Input{Procedure: p, Run: closed,
+			Exports: []supervise.Export{cutAfter(export(denials(4)...), "d4", n)}})
+		for _, rule := range []string{"REPEATED_DENIAL", "CONTINUED_AFTER_FAILURE"} {
+			if got := rules(cut)[rule]; !strings.HasPrefix(got, "RULE_STATE_NOT_CHECKED:") || !strings.Contains(got, "d4") {
+				t.Errorf("d4 cut after %d events: %s is %q, want not checked naming d4", n, rule, got)
+			}
+		}
+		retry := retrySupervise(t, source(), cutAfter(acts(denial(), again()), "d1", n))
+		for _, rule := range retryRules {
+			if got := rules(retry)[rule]; !strings.HasPrefix(got, "RULE_STATE_NOT_CHECKED:") || !strings.Contains(got, `"d1"`) {
+				t.Errorf("d1 cut after %d events: %s is %q, want not checked naming d1", n, rule, got)
+			}
 		}
 	}
-	retry := supervise02(t, family(), cutAfter(acts(denial(), again()), "d1", 2))
-	for _, rule := range []string{ruleArgs, ruleRes} {
-		if got := rules(retry)[rule]; !strings.HasPrefix(got, "RULE_STATE_NOT_CHECKED:") {
-			t.Errorf("a denial with no block: %s is %q, want not checked", rule, got)
-		}
+}
+
+// TestACallWhoseEndHasNotArrivedIsNoPass: on a closed run, an allowed call
+// whose failure is still in transit, followed by another step, may be a
+// continuation after a failure no rule has read, so the rule is not checked;
+// the same failure read makes the finding.
+func TestACallWhoseEndHasNotArrivedIsNoPass(t *testing.T) {
+	p := procWith(t)
+	calls := []call{
+		{req: "r1", tool: "get_order", upstream: "shop", outcome: "fail"},
+		{req: "r3", tool: "issue_refund", upstream: "pay", at: 10 * time.Second},
+		{req: "r4", tool: "send_mail", upstream: "mail", at: 20 * time.Second},
+	}
+	if got := len(only(closedRun(t, p, export(calls...)), "CONTINUED_AFTER_FAILURE")); got != 1 {
+		t.Fatalf("the failure read: %d CONTINUED_AFTER_FAILURE findings, want 1", got)
+	}
+	cut := closedRun(t, p, cutAfter(export(calls...), "r1", 3))
+	if got := rules(cut)["CONTINUED_AFTER_FAILURE"]; got != `RULE_STATE_NOT_CHECKED:request "r1" is in doubt: its end was not read` {
+		t.Errorf("r1's failure in transit: CONTINUED_AFTER_FAILURE is %q", got)
 	}
 }
 

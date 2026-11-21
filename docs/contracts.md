@@ -1428,7 +1428,11 @@ line 1 alone or names another route; a finding id two lines name; a stop the
 route does not permit, whose tenant is not the route's, whose procedure and
 rule are no rule of it, or whose expiry passes the rule's lifetime; a stop
 that names a superseded version of a rule the route names at its current
-version is judged as that rule, which only a carried list holds; a covered
+version is judged as that rule, and one that names `DEADLINE_EXCEEDED`,
+`DENIED_ACTION_RETRIED_ARGUMENTS` or `DENIED_ACTION_RETRIED_RESOURCE` at `1`,
+which no route may name any more, stands if its procedure is one a rule of
+the route names, its scope one that rule version could have stopped and its
+span within 720 hours; only a carried list holds either; a covered
 line of another tenant; a `created_at` later than the reader's clock and its
 tolerance; and a lift that names a line at or after its own, names a run and
 line an earlier lift named, does not verify under the route's lift key, or
@@ -1482,9 +1486,10 @@ A list under a `v1alpha3` route is version `3.0`: its header line is
 line add `project_id`, `scope` and `subject`, and a `lift` line names `scope`
 and `subject` in place of `run_id` and holds a `v1alpha3` lift. Under scope
 `run` the subject is the line's `run_id`. Scope `agent` or `principal` is
-taken on a rule only for `REPEATED_DENIAL` `2`,
-`DENIED_ACTION_RETRIED_ARGUMENTS` `1` and `DENIED_ACTION_RETRIED_RESOURCE`
-`1`, each with `expires_seconds`; on a line its subject is the agent or the
+taken on a rule only for `REPEATED_DENIAL` `2`, with `expires_seconds`, and
+in the route a list is carried from for `DENIED_ACTION_RETRIED_ARGUMENTS` `1`
+and `DENIED_ACTION_RETRIED_RESOURCE` `1`, which may stop nothing new
+([ADR-0088](adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md)); on a line its subject is the agent or the
 principal, at most 256 bytes, and `run_id` is the finding's run
 ([ADR-0083](adr/0083-a-finding-may-stop-an-agent-or-a-principal.md)). A
 header's digest is `sha256:` and the lowercase hex SHA-256 of its signed

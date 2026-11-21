@@ -98,9 +98,9 @@ lowers it.
 ## A stop of an agent or a principal
 
 A route rule may carry scope `agent` or `principal` for `REPEATED_DENIAL`
-version `2`, `DENIED_ACTION_RETRIED_ARGUMENTS` version `1` and
-`DENIED_ACTION_RETRIED_RESOURCE` version `1`, the rules about what the actor
-did, and only with `expires_seconds`. Every reader of a route refuses either
+version `2` alone, the rule about what the actor did that may stop, and only
+with `expires_seconds`; the retry rules at `1` only in `--carry-route`
+([ADR-0088](../adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md)). Every reader of a route refuses either
 scope on any other rule, and either scope without a lifetime
 ([ADR-0083](../adr/0083-a-finding-may-stop-an-agent-or-a-principal.md)).
 
