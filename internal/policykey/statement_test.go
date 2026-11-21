@@ -356,3 +356,35 @@ func TestWriteStatementReadsTheExistingFileToItsBound(t *testing.T) {
 		t.Error("the file over the bound was changed")
 	}
 }
+
+// TestWriteStatementReplacesOnlyTheStatementItJudged: a statement renamed
+// over the path once the write judged it is kept and the write refused; the
+// control, the path as it was judged, is replaced.
+func TestWriteStatementReplacesOnlyTheStatementItJudged(t *testing.T) {
+	env := signedStatement(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "statement.json")
+	if err := os.WriteFile(path, []byte(envelopeFile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(dir, "other.json")
+	const another = envelopeFile + "\n"
+	policykey.BeforeStatementReplaced(t, func() {
+		if err := os.WriteFile(other, []byte(another), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(other, path); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if err := policykey.WriteStatement(path, env); !errors.Is(err, files.ErrNotJudged) {
+		t.Errorf("a write over a statement renamed in after it was judged = %v, want files.ErrNotJudged", err)
+	}
+	if got := readFile(t, path); string(got) != another {
+		t.Errorf("the statement renamed in now holds %q", got)
+	}
+	policykey.BeforeStatementReplaced(t, func() {})
+	if err := policykey.WriteStatement(path, env); err != nil {
+		t.Errorf("the control, the statement as it was judged: %v", err)
+	}
+}

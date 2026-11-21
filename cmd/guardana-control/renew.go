@@ -6,10 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"path/filepath"
 	"strconv"
 	"time"
 
+	ondisk "github.com/guardana/control/internal/files"
 	"github.com/guardana/control/internal/policy"
 	"github.com/guardana/control/internal/policykey"
 )
@@ -163,19 +165,31 @@ func signedStatement(p renewPaths, issuedAt time.Time) (signed, error) {
 	return signed{env: env, st: st, freshPub: freshPub}, nil
 }
 
+// outAttempts bounds how often a renew judges out again after another
+// writer, under another signer floor directory, replaced it in between.
+const outAttempts = 3
+
 // raiseAndWrite raises the signer floor to s and, still holding the floor
-// directory's lock, checks out for a newer statement and writes s there. An
-// error after the write says the statement was written.
+// directory's lock, checks out for a newer statement and writes s there. A
+// statement another renew put at out after the check is judged in turn, so
+// an older one is replaced and a newer one kept. An error after the write
+// says the statement was written.
 func raiseAndWrite(floor, out string, s signed, issuedAt time.Time) error {
 	written := false
 	err := raiseSignerFloor(floor, s.st, issuedAt, func() error {
 		afterRaise()
-		judged, err := checkNotNewer(out, s.st, s.freshPub)
-		if err != nil {
-			return err
+		var err error
+		for range outAttempts {
+			var judged fs.FileInfo
+			if judged, err = checkNotNewer(out, s.st, s.freshPub); err != nil {
+				return err
+			}
+			beforeOutReplaced(out)
+			if err = policykey.WriteStatementOver(out, s.env, judged); !errors.Is(err, ondisk.ErrNotJudged) {
+				break
+			}
 		}
-		beforeOutReplaced(out)
-		if err := policykey.WriteStatementOver(out, s.env, judged); err != nil {
+		if err != nil {
 			return fmt.Errorf("--out %s: %w; the signer floor was raised to the statement", out, err)
 		}
 		written = true

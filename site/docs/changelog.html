@@ -152,6 +152,12 @@ undone, so the endpoint it prints names the same socket when given back,
 and a host, a query, a fragment or a <code>%</code> that escapes nothing is refused.
 A socket path holding <code>#</code>, <code>?</code>, <code>%</code> or a space is given escaped, as
 <code>collect</code> prints it.</li>
+<li><strong>Breaking:</strong> <code>policy sign</code>, <code>route sign</code>, <code>operators roster sign</code>,
+<code>policy renew</code>, <code>supervise --view</code>, the signed pause writers and the dev
+plane's statement replace an existing output by swapping two names in one
+step, and refuse to replace it where the platform or file system cannot,
+as outside Linux and macOS or on some network file systems. A first
+output, where nothing stands yet, is written as before.</li>
 </ul>
 <h3 id="added">Added</h3>
 <ul>
@@ -401,28 +407,35 @@ the file from is still the one the pause path leads to. A link on the path
 retargeted between the path's binding and the read let the plane take a
 copy of a signed file from another directory.</li>
 <li>The policy watcher's start judges a statement's expiry by the time read
-after it read the floor and the files. A statement that expired while
-another process held the floor's lock was taken.</li>
+after it read the floor and the files, and again once the floor's store
+holds its lock to raise the floor. A statement that expired while another
+process held the floor's lock was taken, and raised the floor.</li>
 <li><code>policy sign</code>, <code>route sign</code>, <code>operators roster sign</code>, <code>policy renew</code>,
 <code>supervise --view</code> and the signed pause writers replace their output only
-while it is still the file they judged, swapping the new file in and back
-out again if another took its place; a name judged empty is only created.
-A file renamed over the output after the last check was replaced. Where
-the platform or file system cannot swap two names, as outside Linux and
-macOS, such a replace is refused.</li>
+while it is still the file they judged: its inode, type, mode, size and
+times, so a file written since or one reusing a freed inode number is
+another. A file put there before the replace began is refused untouched.
+One put there in the instant between that check and the swap comes out of
+the swap and is put back, but a reader of the name in that instant reads
+the refused file; only a lock every writer takes, as the pause
+directory's does, keeps another writer out of that instant. A file renamed
+over the output after the last check was replaced.</li>
 <li>Two <code>policy renew</code> runs over one <code>--out</code> under different signer floor
-directories keep the newer statement: the run that judged the older one
-finds its file replaced and is refused. The older statement could be
-written over the newer.</li>
+directories keep the newer statement, in either order: a run that finds
+<code>--out</code> replaced since it judged it judges it again, up to three times, and
+writes over an older statement but not a newer one. The older statement
+could be written over the newer.</li>
 <li>The policy watcher counts an unchanged statement past its budget as
-expired and refuses it. A statement the floor still took was confirmed
-again although it had expired.</li>
+expired and refuses it, judging the budget by the time read after the
+floor. A statement the floor still took was confirmed again although it
+had expired.</li>
 <li><code>policy renew</code> verifies a bundle signed under a key id a plane configures
 for its key, not only the id the key derives; a bundle another key signed
 is still refused. It refused such a bundle as naming no usable key.</li>
-<li>Initialising a floor directory leaves it <code>0700</code> under any umask. Under a
-umask of <code>0200</code> or <code>0100</code> the initialisation could not write its own new
-directory, failed, and left it <code>0500</code> or <code>0600</code>.</li>
+<li>Initialising a floor directory leaves it <code>0700</code> under any umask that keeps
+the owner's read bit, and under one that takes it fails and leaves no
+directory. Under a umask of <code>0200</code> or <code>0100</code> the initialisation could not
+write its own new directory, failed, and left it <code>0500</code> or <code>0600</code>.</li>
 <li><code>guardana-gateway doctor</code> reports pause coverage as unknown, counting the
 entries, when it cannot read a run record a pause entry names. It counted
 such an entry as covering nothing and passed.</li>

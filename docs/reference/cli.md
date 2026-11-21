@@ -8,10 +8,9 @@ covers: [cmd/guardana-control/**, cmd/guardana-gateway/**, internal/policykey/**
 # Command line
 
 Two binaries, built from the repository root with `go build ./cmd/<name>`;
-[status.md](../status.md) says what each does today. Each fenced block below
-is the help its binary prints on a usage error, byte for byte; the test its
-marker names diffs it against the binary, so a flag or command changed
-without this page fails the gate.
+[status.md](../status.md) says what each does. Each fenced block below
+is the help its binary prints on a usage error, byte for byte, which the test
+its marker names diffs against the binary.
 
 | Exit status | Means |
 | --- | --- |
@@ -52,8 +51,8 @@ a reset reaches a running plane's clock check only when it restarts.
 `policy keygen` creates the directory `--out` names, mode `0700`, and refuses a
 path that exists. Into it go `signing.key`, the private key as one PKCS#8 PEM
 block, mode `0600`, and `signing.pub`, the public key as one line of standard
-base64 and a newline, which `policy.public_key` takes as it is. It prints exactly two lines, `key_id: <id>` and `public_key: <line>`,
-the two members the gateway's `policy` group takes. The id is `ed25519-` and
+base64 and a newline, which `policy.public_key` takes as it is. It prints two lines, `key_id: <id>` and `public_key: <line>`,
+the gateway's `policy` members. The id is `ed25519-` and
 the first 16 hex digits of SHA-256 over the public key's 32 bytes; nothing
 lets an operator choose it.
 
@@ -68,9 +67,10 @@ named; an `--out` that is the key or the document by any spelling or link, and
 one that exists and is not a policy bundle, so no other file, another key
 included, is replaced; and a bundle the loader would refuse. `--out` is
 cleaned as text before anything reads it, so `a/link/../x` names `a/x`
-whatever `a/link` points at. If syncing the directory fails after the
-swap, `sign` reports it; the new bundle may be in
-place.
+whatever `a/link` points at. `sign`, `renew` and `operators roster sign`
+replace only the `--out` they judged, by a swap, refusing an existing one on
+file systems without it; a failed sync after it is reported, the file
+perhaps in place.
 
 The key reaches the command only as a path, and no refusal quotes it. Both
 refuse on a platform without permission bits

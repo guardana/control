@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -48,6 +49,13 @@ const (
 	// ErrNoExchange is ReplaceJudgedIn on a platform, or a file system, that
 	// cannot exchange two names in one step.
 	ErrNoExchange Error = "files: this platform cannot exchange two names in one step"
+	// ErrNotPutBack is a ReplaceJudgedIn refused once the exchange was made
+	// whose exchange back failed: the new file holds the name, and the error
+	// names where what stood there is.
+	ErrNotPutBack Error = "files: what stood at the name could not be put back"
+	// ErrNotOneName is a name that is not one entry of the directory: empty,
+	// ".", "..", or holding a separator.
+	ErrNotOneName Error = "files: not one name in the directory"
 )
 
 // tmpPrefix starts every temporary name this package makes. The random rest,
@@ -139,20 +147,28 @@ func ReplaceJudged(dir, name string, body []byte, perm fs.FileMode, judged fs.Fi
 
 // ReplaceJudgedIn puts body under name in the directory root holds, with mode
 // perm, only over the entry judged describes, as an Lstat of name found it,
-// and with a nil judged only where nothing stands at name. Anything else
-// there is left as it was and refused with ErrNotJudged, whenever it was put
-// there: the new file and the entry at name are exchanged in one step, and
-// the entry taken out is compared with judged before it is removed, so no
-// window between a check and the write lets another file be replaced. An
-// entry refused is exchanged back; should the name change again in between,
-// the error names the temporary name that holds what was taken out. A
-// platform or file system with no exchange refuses with ErrNoExchange.
+// and with a nil judged only where nothing stands at name. Another entry at
+// the name, a file, a link or a directory, is refused with ErrNotJudged. It
+// is judged first, and again after the new file and the entry at name are
+// exchanged in one step: an entry that took the name in between is
+// exchanged back, so the name ends holding it, but a reader of the name in
+// that instant reads the new file. Only a lock every writer takes keeps
+// another writer out of that instant. An exchange back that fails is
+// ErrNotPutBack, naming where the entry is; one whose name changed again in
+// between leaves what stood there under the temporary name the error names.
+// A platform or file system with no exchange refuses with ErrNoExchange.
 func ReplaceJudgedIn(root *os.Root, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
+	if !oneName(name) {
+		return fmt.Errorf("%w: %q", ErrNotOneName, name)
+	}
 	if judged == nil {
 		err := CreateNoReplaceIn(root, name, body, perm)
 		if errors.Is(err, ErrExists) {
 			return fmt.Errorf("%w: %q was absent when it was judged: %w", ErrNotJudged, name, err)
 		}
+		return err
+	}
+	if err := stillJudged(root, name, judged); err != nil {
 		return err
 	}
 	tmp, err := writeTemp(root, body, perm)
@@ -169,18 +185,65 @@ func ReplaceJudgedIn(root *os.Root, name string, body []byte, perm fs.FileMode, 
 		}
 		return errors.Join(err, root.Remove(tmp))
 	}
+	betweenExchanges(root, tmp)
 	out, err := root.Lstat(tmp)
-	if err == nil && os.SameFile(out, judged) {
+	if err == nil && sameMoved(out, judged) {
 		return errors.Join(root.Remove(tmp), syncRoot(root))
 	}
-	refused := fmt.Errorf("%w: %q changed since it was judged, and nothing was replaced", ErrNotJudged, name)
-	if err := exchangeIn(root, tmp, name); err != nil {
-		return errors.Join(refused, fmt.Errorf("putting back what stood at %q, now at %q: %w", name, tmp, err))
+	return putBack(root, name, tmp, written)
+}
+
+// stillJudged refuses with ErrNotJudged unless the entry at name is the one
+// judged describes.
+func stillJudged(root *os.Root, name string, judged fs.FileInfo) error {
+	switch now, err := root.Lstat(name); {
+	case errors.Is(err, fs.ErrNotExist):
+		return fmt.Errorf("%w: %q is gone since it was judged", ErrNotJudged, name)
+	case err != nil:
+		return err
+	case !SameEntry(now, judged):
+		return fmt.Errorf("%w: %q changed since it was judged, and nothing was written", ErrNotJudged, name)
 	}
+	return nil
+}
+
+// putBack exchanges what came out of name, now at tmp, back under name and
+// removes the new file, written, which the exchange returns to tmp.
+func putBack(root *os.Root, name, tmp string, written fs.FileInfo) error {
+	if err := exchangeIn(root, tmp, name); err != nil {
+		return fmt.Errorf("%w: %q changed since it was judged, and the new file holds it; what stood there is at %q: %w", ErrNotPutBack, name, tmp, err)
+	}
+	refused := fmt.Errorf("%w: %q changed since it was judged; the new file stood under the name until what stood there was put back", ErrNotJudged, name)
 	if back, err := root.Lstat(tmp); err != nil || !os.SameFile(back, written) {
-		return errors.Join(refused, fmt.Errorf("%q changed again while it was put back; %q holds what stood there", name, tmp))
+		return errors.Join(refused, fmt.Errorf("%q changed again while it was put back; %q holds what stood there then", name, tmp))
 	}
 	return errors.Join(refused, root.Remove(tmp))
+}
+
+// betweenExchanges runs, in a test, once the new file took the name and
+// before what came out is compared with the entry judged.
+var betweenExchanges = func(*os.Root, string) {}
+
+// oneName reports whether name is one entry of a directory, which the raw
+// exchange below takes as given, past the confinement os.Root keeps.
+func oneName(name string) bool {
+	return name != "" && name != "." && name != ".." && !strings.ContainsRune(name, '/') && filepath.Base(name) == name
+}
+
+// SameEntry reports whether a and b describe one file as it was: the same
+// device and inode, type and mode, size, modification time and, where the
+// platform keeps it, change time. A file whose inode number was reused, or
+// that was written since, is another.
+func SameEntry(a, b fs.FileInfo) bool {
+	ac, aok := changeTime(a)
+	bc, bok := changeTime(b)
+	return sameMoved(a, b) && aok == bok && ac.Equal(bc)
+}
+
+// sameMoved is SameEntry without the change time, which renaming a file
+// sets on some file systems.
+func sameMoved(a, b fs.FileInfo) bool {
+	return os.SameFile(a, b) && a.Mode() == b.Mode() && a.Size() == b.Size() && a.ModTime().Equal(b.ModTime())
 }
 
 // exchangeIn exchanges the entries at a and b in the directory root holds in
@@ -295,7 +358,7 @@ func readOf(path string, limit int64, forbidden fs.FileMode, owner int, judged f
 // the file judged describes.
 func readOpenedOf(f *os.File, name string, limit int64, forbidden fs.FileMode, owner int, judged fs.FileInfo) ([]byte, error) {
 	info, err := f.Stat()
-	if err == nil && !os.SameFile(info, judged) {
+	if err == nil && !SameEntry(info, judged) {
 		err = fmt.Errorf("%w: %s", ErrNotJudged, name)
 	}
 	if err != nil {

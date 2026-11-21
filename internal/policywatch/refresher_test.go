@@ -584,3 +584,26 @@ func TestAnUnchangedStatementPastItsBudgetIsCountedExpired(t *testing.T) {
 		t.Errorf("polls of a statement past its budget counted %d expiries, want 2", got)
 	}
 }
+
+// TestAnUnchangedStatementExpiredWhileTheFloorWasReadIsCountedExpired: a
+// poll a second before the budget ends whose floor read waits two seconds
+// counts the statement expired.
+func TestAnUnchangedStatementExpiredWhileTheFloorWasReadIsCountedExpired(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	r.startConfirmed()
+	r.clock.advance(569 * time.Second)
+	r.store.readHeld, r.store.readRelease = make(chan struct{}, 1), make(chan struct{})
+	done := make(chan struct{})
+	go func() { r.poll(); close(done) }()
+	select {
+	case <-r.store.readHeld:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the poll never read the floor")
+	}
+	r.clock.advance(2 * time.Second)
+	close(r.store.readRelease)
+	<-done
+	if got := r.refresher.Stats().Refused[policywatch.CauseStatementExpired]; got != 1 {
+		t.Errorf("a poll whose floor read waited past the budget counted %d expiries, want 1", got)
+	}
+}

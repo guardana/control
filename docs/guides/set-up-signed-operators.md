@@ -155,6 +155,12 @@ pause:
   floor_dir: /var/lib/guardana/pause-floor
 ```
 
+The signed pause writers, like `operators roster sign`, replace the file only
+while it is the one they read, by swapping two names in one step, and refuse
+where the file system cannot. The pause directory's lock keeps other writers
+out: a writer that skips it can see its file swapped back, and a plane
+reading in that instant reads the refused one.
+
 ### 6. Renew and revoke
 
 Sign the roster again before `expires_at`, each time with a higher `serial`,
@@ -176,9 +182,12 @@ held request answered in step 4 runs on the agent's retry.
 
 The two-account job of continuous integration runs the cases
 [scripts/expected-runs.txt](../../scripts/expected-runs.txt) names: file
-ownership, a signed run, `react` under a signed route, and the health and
-export sockets. None of them approves a held request from an operator's own
-account.
+ownership, a signed run, `react` under a signed route, the health and export
+sockets, a pause the operator rewrites that the plane's account reads through
+its group, and an answer an operator files from their own account that runs a
+held request. In that last case root is the plane, the test repeats the
+approve steps instead of running `approvals approve`, and the account outside
+the group is shown only failing to read the hold.
 
 ## Roll back
 

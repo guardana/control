@@ -115,6 +115,19 @@ func judge(ctx context.Context, o Options) (judged, error) {
 	return j, nil
 }
 
+// unexpiredAt is the reading the install's raise is judged at, taken once
+// the store holds its lock: a statement whose budget ran out while the raise
+// waited on that lock raises nothing.
+func (j judged) unexpiredAt(o Options) policy.Reading {
+	return func() (time.Time, error) {
+		now := o.Wall()
+		if expired(*j.st, j.disk.snap, o.MaxStale, now) {
+			return now, expiry(*j.st, j.disk.snap, o.MaxStale)
+		}
+		return now, nil
+	}
+}
+
 // floorRefuses reports whether f refuses snap whatever statement comes with
 // it: a serial below the floor's, or the floor's serial with another digest.
 func floorRefuses(f policy.Floor, snap *policy.Snapshot) bool {
@@ -129,7 +142,9 @@ func floorRefuses(f policy.Floor, snap *policy.Snapshot) bool {
 // not load or is not the pinned id's, and a bundle whose budget is not longer
 // than the poll interval are refused too. A statement that cannot be read or
 // verified is no statement: the bundle starts unconfirmed, or is refused if it
-// is above the floor, and the result says why.
+// is above the floor, and the result says why. A statement whose budget runs
+// out while the floor's raise waits on the store's lock refuses the start,
+// and the floor stays as it was.
 func Start(ctx context.Context, o Options) (StartResult, error) {
 	if err := o.check(); err != nil {
 		return StartResult{}, err
@@ -141,13 +156,15 @@ func Start(ctx context.Context, o Options) (StartResult, error) {
 	res := StartResult{Action: j.verdict.Action, Unconfirmed: j.verdict.Cause, Floor: j.floor}
 	switch j.verdict.Action {
 	case policy.StartConfirmed:
-		err = o.Holder.InstallConfirmed(ctx, j.disk.msg, o.BundleKeys, *j.st, j.now)
+		err = o.Holder.InstallConfirmedAt(ctx, j.disk.msg, o.BundleKeys, *j.st, j.unexpiredAt(o))
 	case policy.StartUnconfirmed:
 		err = o.Holder.InstallUnconfirmed(ctx, j.disk.msg, o.BundleKeys)
 	default:
 		return StartResult{Floor: j.floor}, j.refusedVerdict()
 	}
 	switch {
+	case errors.Is(err, ErrStatementExpired):
+		return StartResult{Floor: j.floor}, refused(InputStatement, err)
 	case errors.Is(err, policy.ErrFloorRaise), errors.Is(err, policy.ErrFloorRead):
 		return StartResult{Floor: j.floor}, refused(InputFloor, err)
 	case err != nil:

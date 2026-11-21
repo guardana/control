@@ -250,3 +250,50 @@ func TestAStatementThatExpiresWhileTheFloorIsHeldIsNoStatement(t *testing.T) {
 	r.expectRefused(err, policy.ErrAboveFloorUnbound, "3")
 	r.expectFloor(2, floorDigest, t0)
 }
+
+// slowRaise is the rig's store whose raise waits, as on a lock another
+// process holds, while the clock moves by wait.
+type slowRaise struct {
+	*memFloor
+	clock *clock
+	wait  time.Duration
+}
+
+func (s *slowRaise) RaiseAt(ctx context.Context, st policy.Statement, now policy.Reading) (policy.Floor, error) {
+	s.clock.advance(s.wait)
+	return s.memFloor.RaiseAt(ctx, st, now)
+}
+
+// TestAStatementThatExpiresWhileTheRaiseWaitsRaisesNothing starts a bundle
+// above the floor a second before its statement expires, and the floor's
+// raise waits two seconds on the lock: the start is refused naming the
+// expiry, and the floor and the holder are as they were. The control's raise
+// waits no time.
+func TestAStatementThatExpiresWhileTheRaiseWaitsRaisesNothing(t *testing.T) {
+	floorDigest := signed(t, doc(planeID, 2, "v2", 600), bundleKey).GetRef().GetDigest()
+	for _, wait := range []time.Duration{0, 2 * time.Second} {
+		r := newRig(t, floorAt2(t, floorDigest, t0))
+		h, err := policy.NewFloorHolder(planeID, &slowRaise{memFloor: r.store, clock: r.clock, wait: wait})
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.holder, r.opts.Holder = h, h
+		issued := r.clock.Wall().Add(-599 * time.Second)
+		r.writeStatement(3, r.writeBundle(3, "v3", 600), issued)
+		res, err := r.start()
+		if wait == 0 {
+			if err != nil || res.Action != policy.StartConfirmed {
+				t.Fatalf("the control, a raise that waits no time: %+v, %v; want confirmed", res, err)
+			}
+			continue
+		}
+		var refusal *policywatch.StartError
+		if !errors.As(err, &refusal) || refusal.Input != policywatch.InputStatement || !errors.Is(err, policywatch.ErrStatementExpired) {
+			t.Errorf("a start whose raise waited past the statement's budget = %v, want a refusal of the statement as expired", err)
+		}
+		if h.Current() != nil {
+			t.Error("a refused start installed a bundle")
+		}
+		r.expectFloor(2, floorDigest, t0)
+	}
+}

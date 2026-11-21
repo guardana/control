@@ -284,7 +284,7 @@ func replaceSigned(root *os.Root, path string, raw []byte, from Signed, next Doc
 	}
 	if err := files.ReplaceJudgedIn(root, filepath.Base(path), body, signedFileMode, judged); err != nil {
 		if errors.Is(err, files.ErrNotJudged) {
-			err = fmt.Errorf("%w: %s; nothing was written, so read it and write again: %w", ErrChanged, path, err)
+			err = fmt.Errorf("%w: %s; it holds what the other writer put there, so read it and write again: %w", ErrChanged, path, err)
 		}
 		return SignedDocument{}, err
 	}

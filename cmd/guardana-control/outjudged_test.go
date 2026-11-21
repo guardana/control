@@ -156,3 +156,71 @@ func TestSuperviseViewReplacesOnlyThePageItJudged(t *testing.T) {
 		t.Errorf("the file renamed over the page was replaced; it holds %q", got)
 	}
 }
+
+// TestARenewWhoseOutAnOlderRenewWroteSinceKeepsTheNewer: the renew of the
+// newer bundle judged --out, and a renew of the older one under another
+// signer floor directory wrote there before the newer's write; the newer
+// judges --out again and replaces the older statement.
+func TestARenewWhoseOutAnOlderRenewWroteSinceKeepsTheNewer(t *testing.T) {
+	start := time.Now().Truncate(time.Second).Add(-time.Minute)
+	r := newRenewTree(t)
+	newer := r.paths()
+	newer.bundle = filepath.Join(r.dir, "newer.bundle")
+	writeBundle(t, newer.bundle, renewDocument(4, "allow-reads"), r.bundleSigner)
+	older := r.paths()
+	older.floor = filepath.Join(r.dir, "other-floors")
+	if err := policystate.Init(context.Background(), older.floor, policystate.KindSigner, "orders-policy"); err != nil {
+		t.Fatal(err)
+	}
+	meddleBeforeReplace(t, func() {
+		var stderr bytes.Buffer
+		if code := renew(older, start, &bytes.Buffer{}, &stderr); code != exitOK {
+			t.Errorf("the older renew under the other floor: exit %d, stderr %q", code, stderr.String())
+		}
+	})
+	var stderr bytes.Buffer
+	if code := renew(newer, start, &bytes.Buffer{}, &stderr); code != exitOK {
+		t.Errorf("the newer renew: exit %d, stderr %q; want its statement written", code, stderr.String())
+	}
+	if _, st := freshStatement(t, r.out); st.Serial() != 4 {
+		t.Errorf("--out holds the statement for serial %d, want the newer, 4", st.Serial())
+	}
+}
+
+// TestARenewJudgesOutAgainABoundedNumberOfTimes: a renew whose --out an
+// older statement replaces before every write gives up after three
+// judgements and names --out, leaving the older statement there.
+func TestARenewJudgesOutAgainABoundedNumberOfTimes(t *testing.T) {
+	r := newRenewTree(t)
+	renewed(t, r, r.bundle, 3)
+	older := readFile(t, r.out)
+	newer := r.paths()
+	newer.bundle = filepath.Join(r.dir, "newer.bundle")
+	writeBundle(t, newer.bundle, renewDocument(4, "allow-reads"), r.bundleSigner)
+	judgements := 0
+	beforeOutReplaced = func(string) {
+		judgements++
+		if judgements > 10 {
+			return
+		}
+		tmp := r.out + ".older"
+		if err := os.WriteFile(tmp, []byte(older), 0o644); err != nil { //nolint:gosec // G306: a statement is public, 0644 as renew writes it
+			t.Fatal(err)
+		}
+		if err := os.Rename(tmp, r.out); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() { beforeOutReplaced = func(string) {} })
+	var stderr bytes.Buffer
+	code := renew(newer, time.Now().Add(time.Second), &bytes.Buffer{}, &stderr)
+	if code != exitFail || !strings.Contains(stderr.String(), "--out "+r.out) {
+		t.Errorf("a renew whose --out was replaced before every write: exit %d, stderr %q; want a refusal naming --out", code, stderr.String())
+	}
+	if judgements != 3 {
+		t.Errorf("--out was judged %d times, want 3", judgements)
+	}
+	if _, st := freshStatement(t, r.out); st.Serial() != 3 {
+		t.Errorf("--out holds the statement for serial %d, want the older, 3, put there last", st.Serial())
+	}
+}

@@ -280,7 +280,7 @@ func WriteStatement(path string, env policy.StatementEnvelope) error {
 // them, is refused with files.ErrNotJudged and left as it is.
 func WriteStatementOver(path string, env policy.StatementEnvelope, judged fs.FileInfo) error {
 	return writeStatement(path, env, func(held fs.FileInfo) (fs.FileInfo, error) {
-		if (held == nil) != (judged == nil) || held != nil && !os.SameFile(held, judged) {
+		if (held == nil) != (judged == nil) || held != nil && !files.SameEntry(held, judged) {
 			return nil, fmt.Errorf("%s: %w", filepath.Base(path), files.ErrNotJudged)
 		}
 		return judged, nil
@@ -308,10 +308,15 @@ func writeStatement(path string, env policy.StatementEnvelope, over func(held fs
 		held, err = over(held)
 	}
 	if err == nil {
+		beforeStatementReplaced()
 		err = files.ReplaceJudgedIn(root, name, raw, 0o644, held)
 	}
 	return errors.Join(err, root.Close())
 }
+
+// beforeStatementReplaced runs, in a test, once the entry at the name was
+// judged and before the statement takes its place.
+var beforeStatementReplaced = func() {}
 
 // checkStatementOut refuses a name in root that holds anything but a
 // statement, and returns the entry it judged, nil where none stands. It

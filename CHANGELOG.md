@@ -25,6 +25,12 @@ verify one.
   and a host, a query, a fragment or a `%` that escapes nothing is refused.
   A socket path holding `#`, `?`, `%` or a space is given escaped, as
   `collect` prints it.
+- **Breaking:** `policy sign`, `route sign`, `operators roster sign`,
+  `policy renew`, `supervise --view`, the signed pause writers and the dev
+  plane's statement replace an existing output by swapping two names in one
+  step, and refuse to replace it where the platform or file system cannot,
+  as outside Linux and macOS or on some network file systems. A first
+  output, where nothing stands yet, is written as before.
 
 ### Added
 
@@ -274,28 +280,35 @@ verify one.
   retargeted between the path's binding and the read let the plane take a
   copy of a signed file from another directory.
 - The policy watcher's start judges a statement's expiry by the time read
-  after it read the floor and the files. A statement that expired while
-  another process held the floor's lock was taken.
+  after it read the floor and the files, and again once the floor's store
+  holds its lock to raise the floor. A statement that expired while another
+  process held the floor's lock was taken, and raised the floor.
 - `policy sign`, `route sign`, `operators roster sign`, `policy renew`,
   `supervise --view` and the signed pause writers replace their output only
-  while it is still the file they judged, swapping the new file in and back
-  out again if another took its place; a name judged empty is only created.
-  A file renamed over the output after the last check was replaced. Where
-  the platform or file system cannot swap two names, as outside Linux and
-  macOS, such a replace is refused.
+  while it is still the file they judged: its inode, type, mode, size and
+  times, so a file written since or one reusing a freed inode number is
+  another. A file put there before the replace began is refused untouched.
+  One put there in the instant between that check and the swap comes out of
+  the swap and is put back, but a reader of the name in that instant reads
+  the refused file; only a lock every writer takes, as the pause
+  directory's does, keeps another writer out of that instant. A file renamed
+  over the output after the last check was replaced.
 - Two `policy renew` runs over one `--out` under different signer floor
-  directories keep the newer statement: the run that judged the older one
-  finds its file replaced and is refused. The older statement could be
-  written over the newer.
+  directories keep the newer statement, in either order: a run that finds
+  `--out` replaced since it judged it judges it again, up to three times, and
+  writes over an older statement but not a newer one. The older statement
+  could be written over the newer.
 - The policy watcher counts an unchanged statement past its budget as
-  expired and refuses it. A statement the floor still took was confirmed
-  again although it had expired.
+  expired and refuses it, judging the budget by the time read after the
+  floor. A statement the floor still took was confirmed again although it
+  had expired.
 - `policy renew` verifies a bundle signed under a key id a plane configures
   for its key, not only the id the key derives; a bundle another key signed
   is still refused. It refused such a bundle as naming no usable key.
-- Initialising a floor directory leaves it `0700` under any umask. Under a
-  umask of `0200` or `0100` the initialisation could not write its own new
-  directory, failed, and left it `0500` or `0600`.
+- Initialising a floor directory leaves it `0700` under any umask that keeps
+  the owner's read bit, and under one that takes it fails and leaves no
+  directory. Under a umask of `0200` or `0100` the initialisation could not
+  write its own new directory, failed, and left it `0500` or `0600`.
 - `guardana-gateway doctor` reports pause coverage as unknown, counting the
   entries, when it cannot read a run record a pause entry names. It counted
   such an entry as covering nothing and passed.

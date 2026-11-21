@@ -98,7 +98,8 @@ func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.S
 			r.refuse(causeOf(err), err)
 			return
 		}
-		if expired(st, cur, r.o.MaxStale, now) {
+		// Read again: the floor's read can wait on its lock past the budget.
+		if expired(st, cur, r.o.MaxStale, r.o.Wall()) {
 			r.refuse(CauseStatementExpired, expiry(st, cur, r.o.MaxStale))
 			return
 		}

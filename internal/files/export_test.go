@@ -15,3 +15,11 @@ func CreateNoReplace(dir, name string, body []byte, perm fs.FileMode) error {
 	}
 	return errors.Join(CreateNoReplaceIn(root, name, body, perm), root.Close())
 }
+
+// BetweenExchanges sets what runs once ReplaceJudgedIn's new file took the
+// name, for the test's length.
+func BetweenExchanges(t interface{ Cleanup(func()) }, f func(root *os.Root, tmp string)) {
+	saved := betweenExchanges
+	betweenExchanges = f
+	t.Cleanup(func() { betweenExchanges = saved })
+}

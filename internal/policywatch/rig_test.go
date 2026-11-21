@@ -142,7 +142,7 @@ func (s *memFloor) Floor(ctx context.Context, _ string) (policy.Floor, error) {
 	return s.floor, nil
 }
 
-func (s *memFloor) Raise(ctx context.Context, st policy.Statement, now time.Time) (policy.Floor, error) {
+func (s *memFloor) RaiseAt(ctx context.Context, st policy.Statement, at policy.Reading) (policy.Floor, error) {
 	s.mu.Lock()
 	if hung := s.hung; hung != nil {
 		s.mu.Unlock()
@@ -157,6 +157,10 @@ func (s *memFloor) Raise(ctx context.Context, st policy.Statement, now time.Time
 		return policy.Floor{}, ctx.Err()
 	}
 	defer s.mu.Unlock()
+	now, err := at()
+	if err != nil {
+		return policy.Floor{}, err
+	}
 	next, err := s.floor.Raise(st, now)
 	if err != nil {
 		return policy.Floor{}, err

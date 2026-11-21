@@ -32,10 +32,11 @@ type answerArg struct {
 // TestAnOperatorsAnswerFiledFromItsOwnAccountRunsThePlanesHeldCall lays the
 // approvals out as the operators' guide does: the plane's approvals
 // directory in the operators' group, mode 2750, and its inbox in that group,
-// mode 1770. Root is the plane, holding a call. A third account outside the
-// group can neither read the hold nor file an answer, and the retry stays
-// held; the operator, as its own account, reads the 0640 hold, files alice's
-// answer, and the plane's retry runs.
+// mode 1770. Root is the plane, holding a call, so the plane's own reads run
+// past file modes. A third account outside the group fails to read the hold,
+// and the retry stays held; the operator, as its own account, reads the 0640
+// hold, files alice's answer, and the plane's retry runs. The operator's
+// steps repeat what approvals approve does rather than run that command.
 func TestAnOperatorsAnswerFiledFromItsOwnAccountRunsThePlanesHeldCall(t *testing.T) {
 	operator, third := twoAccounts(t)
 	tr := signedPlaneTree(t, "roster-a", []ed25519.PublicKey{signedTestPublic("alice")}, "roster-a")
@@ -86,7 +87,7 @@ func TestAnOperatorsAnswerFiledFromItsOwnAccountRunsThePlanesHeldCall(t *testing
 
 // fileAnswerAsOperator reads the plane's hold of the approval the JSON
 // answerArg raw names, signs alice's approval of it and files it in the
-// inbox, as the approvals command does, printing "filed".
+// inbox by the steps approvals approve takes, printing "filed".
 func fileAnswerAsOperator(raw string) int {
 	var a answerArg
 	if err := json.Unmarshal([]byte(raw), &a); err != nil {
