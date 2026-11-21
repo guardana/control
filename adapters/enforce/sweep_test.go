@@ -40,6 +40,7 @@ func (r *rig) abandoned(t *testing.T) int {
 func TestAClientThatNeverCompletesIsAbandonedAtItsExpiry(t *testing.T) {
 	r := newRig(t, defaults())
 	handle := r.executed(t, runA, "refund", refund)
+	r.settle(t)
 	expiry := base().Add(time.Minute)
 	if n := r.a.Sweep(t.Context(), expiry.Add(-time.Nanosecond)); n != 0 || r.abandoned(t) != 0 {
 		t.Fatalf("a sweep before the expiry abandoned %d", n)
@@ -64,6 +65,7 @@ func TestASweepIsBoundedPerPass(t *testing.T) {
 	for range 3 {
 		r.executed(t, runA, "refund", refund)
 	}
+	r.settle(t)
 	at := base().Add(time.Minute)
 	for i, want := range []int{2, 1, 0} {
 		if n := r.a.Sweep(t.Context(), at); n != want {
@@ -76,6 +78,7 @@ func TestAnAbandonedExecutionFreesItsKey(t *testing.T) {
 	r := newRig(t, defaults())
 	key := `,"requestKey":"once"`
 	r.admit(t, runA, "read_file", `{"path":"a"}`, key)
+	r.settle(t)
 	r.clock.advance(time.Minute)
 	r.a.Sweep(t.Context(), r.clock.read())
 	if resp := r.admit(t, runA, "read_file", `{"path":"a"}`, key); resp.GetOutcome() != outcomeExecute {
@@ -185,6 +188,7 @@ func TestAnAbandonTheSinkRefusesIsCounted(t *testing.T) {
 	r := newRig(t, o)
 	r.executed(t, runA, "refund", refund)
 	r.executed(t, runB, "refund", refund)
+	r.settle(t)
 	if n := r.a.Sweep(t.Context(), base().Add(time.Minute)); n != 2 {
 		t.Fatalf("the sweep abandoned %d", n)
 	}
@@ -192,6 +196,7 @@ func TestAnAbandonTheSinkRefusesIsCounted(t *testing.T) {
 		t.Fatalf("stats after landed abandons %+v", s)
 	}
 	r.executed(t, runA, "refund", refund)
+	r.settle(t)
 	sink.failing.Store(true)
 	if n := r.a.Sweep(t.Context(), base().Add(time.Minute)); n != 1 {
 		t.Fatalf("the sweep abandoned %d", n)
@@ -331,5 +336,47 @@ func TestAnExecuteReachesItsClientBeforeAShutdownAbandonsIt(t *testing.T) {
 	}
 	if s := r.a.Stats(); s.Open != 0 || s.Abandoned != 1 || r.abandoned(t) != 1 {
 		t.Fatalf("after the request: stats %+v, %d abandoned on the trail", s, r.abandoned(t))
+	}
+}
+
+// holdFlush keeps an admit between writing its EXECUTE and opening the
+// execution until released.
+type holdFlush struct {
+	*httptest.ResponseRecorder
+	entered, release chan struct{}
+}
+
+func (h *holdFlush) Flush() {
+	close(h.entered)
+	<-h.release
+	h.ResponseRecorder.Flush()
+}
+
+// The wait a sweeping step makes is bounded both ways: it gives up on an
+// admit still writing its EXECUTE, and returns once that admit opened it.
+func TestTheSettleWaitSeesAnAdmitStillWritingItsExecute(t *testing.T) {
+	r := newRig(t, defaults())
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, enforce.PathAdmit, strings.NewReader(admitBody("refund", refund)))
+	req.Header.Set(enforce.RunTokenHeader, runA)
+	w := &holdFlush{ResponseRecorder: httptest.NewRecorder(), entered: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		r.a.Handler().ServeHTTP(w, req)
+	}()
+	<-w.entered
+	if n := enforce.Minting(r.a); n != 1 {
+		t.Fatalf("%d minting while the EXECUTE is written, want 1", n)
+	}
+	if r.settledWithin(20 * time.Millisecond) {
+		t.Fatal("the wait passed with an admit still writing its EXECUTE")
+	}
+	close(w.release)
+	<-done
+	if !r.settledWithin(settleBound) || enforce.Minting(r.a) != 0 {
+		t.Fatal("the wait still saw an admit minting after it returned")
+	}
+	if n := r.a.Sweep(t.Context(), base().Add(time.Minute)); n != 1 {
+		t.Fatalf("the sweep after the wait abandoned %d, want 1", n)
 	}
 }
