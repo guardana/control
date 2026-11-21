@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/guardana/control/internal/holdjournal"
 	"github.com/guardana/control/internal/policystate"
 	"github.com/guardana/control/internal/recovery"
 )
@@ -52,4 +53,135 @@ func TestRestoreRefusesAFloorBuiltUnderAnotherClasssName(t *testing.T) {
 	if after := tree(t, p.root); fmt.Sprint(after) != fmt.Sprint(before) {
 		t.Fatal("a refused restore changed the plane's tree")
 	}
+}
+
+// TestARestoreRefusesAStagingPathTheHoldJournalHolds: the hold journal, a
+// directory no backup holds, sits at the name the plane floor's directory is
+// built under. The restore refuses before its first write, and the journal,
+// which keeps an approval from counting twice, is as it was.
+func TestARestoreRefusesAStagingPathTheHoldJournalHolds(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		plane func(*testing.T) *plane
+	}{
+		{"a journal with its ledger", func(t *testing.T) *plane {
+			p := newPlane(t, strings.Replace(directoryBlock, "hold_journal_dir: holds", "hold_journal_dir: .floors.restoring", 1))
+			j, err := holdjournal.Open(p.path(".floors.restoring"))
+			if err != nil {
+				if err := os.Mkdir(p.path(".floors.restoring"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if j, err = holdjournal.Open(p.path(".floors.restoring")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := j.Close(); err != nil {
+				t.Fatal(err)
+			}
+			return p
+		}},
+		{"beside a stop list", func(t *testing.T) *plane {
+			p, _, _ := stopsPlane(t)
+			if err := os.Mkdir(p.path(".floors.restoring"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			cfg := string(readOrFail(t, p.path("plane.yaml")))
+			writeFile(t, p.path("plane.yaml"), []byte(strings.Replace(cfg, "hold_journal_dir: holds", "hold_journal_dir: .floors.restoring", 1)))
+			p.load(t)
+			return p
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p := c.plane(t)
+			writeFile(t, p.path(".floors.restoring/spent"), []byte("an approval this plane spent"))
+			p.raiseFloor(t, 1, d1, t0)
+			dir := filepath.Join(t.TempDir(), "backup")
+			if _, err := recovery.Backup(t.Context(), p.cfg, dir, t0); err != nil {
+				t.Fatalf("Backup: %v", err)
+			}
+			if err := os.RemoveAll(p.path("floors")); err != nil {
+				t.Fatal(err)
+			}
+			before := tree(t, p.root)
+			_, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt)
+			if !errors.Is(err, recovery.ErrStaging) || !strings.Contains(err.Error(), "approvals.hold_journal_dir") {
+				t.Errorf("Restore = %v, want ErrStaging naming approvals.hold_journal_dir", err)
+			}
+			if after := tree(t, p.root); fmt.Sprint(after) != fmt.Sprint(before) {
+				t.Fatalf("the restore changed the plane's tree; the hold journal holds %q", tree(t, p.path(".floors.restoring")))
+			}
+		})
+	}
+}
+
+// TestARestoreJudgesAStagingPathByWhatItNames: the route floor is named by
+// a spelling the plane floor's build name does not match as text, in
+// another case or through a link to the plane's own directory. Where the
+// file system makes the two one directory the restore refuses, and the
+// route floor keeps the serial it held after the backup either way.
+func TestARestoreJudgesAStagingPathByWhatItNames(t *testing.T) {
+	for _, c := range []struct {
+		name, floorDir, made string
+		link                 bool
+	}{
+		{"in another case", ".FLOORS.restoring", ".FLOORS.restoring", false},
+		{"through a link", "alias/.floors.restoring", ".floors.restoring", true},
+	} {
+		t.Run(c.name, func(t *testing.T) { restoreBesideAnotherSpelling(t, c.floorDir, c.made, c.link) })
+	}
+}
+
+// restoreBesideAnotherSpelling is one case of
+// TestARestoreJudgesAStagingPathByWhatItNames: reaction.floor_dir set to
+// floorDir, made at made under the plane's directory.
+func restoreBesideAnotherSpelling(t *testing.T, floorDir, made string, link bool) {
+	p, _, _ := stopsPlane(t)
+	p.raiseFloor(t, 1, d1, t0)
+	if link {
+		if err := os.Symlink(".", p.path("alias")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := string(readOrFail(t, p.path("plane.yaml")))
+	writeFile(t, p.path("plane.yaml"), []byte(strings.Replace(cfg, "floor_dir: routefloor", "floor_dir: "+floorDir, 1)))
+	p.load(t)
+	routeFloor := p.path(made)
+	dir := backUpBetweenRouteSerials(t, p, routeFloor)
+	staging, serr := os.Stat(p.path(".floors.restoring"))
+	floor, ferr := os.Stat(routeFloor)
+	one := serr == nil && ferr == nil && os.SameFile(staging, floor)
+	_, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt)
+	switch {
+	case one && !errors.Is(err, recovery.ErrStaging):
+		t.Errorf("Restore = %v over a route floor that is the build's name on this file system, want ErrStaging", err)
+	case !one && err != nil:
+		t.Errorf("Restore = %v over a route floor apart from the build's name", err)
+	}
+	if got, err := policystate.ReadRoute(routeFloor, "refunds"); err != nil || got.Serial != 7 {
+		t.Fatalf("the route floor holds serial %d (%v), and held 7", got.Serial, err)
+	}
+}
+
+// backUpBetweenRouteSerials backs p up with its route floor at serial 4,
+// raises that floor to 7 and loses the plane floor's directory, and returns
+// the backup.
+func backUpBetweenRouteSerials(t *testing.T, p *plane, routeFloor string) string {
+	t.Helper()
+	if err := policystate.InitRoute(t.Context(), routeFloor, "refunds"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := policystate.RaiseRoute(t.Context(), routeFloor, "refunds", 4, d1); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(t.TempDir(), "backup")
+	if _, err := recovery.Backup(t.Context(), p.cfg, dir, t0); err != nil {
+		t.Fatalf("Backup: %v", err)
+	}
+	if _, err := policystate.RaiseRoute(t.Context(), routeFloor, "refunds", 7, d2); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(p.path("floors")); err != nil {
+		t.Fatal(err)
+	}
+	return dir
 }

@@ -36,3 +36,10 @@ func SetCarrying(f func()) func() {
 	carrying = f
 	return func() { carrying = nil }
 }
+
+// SetCarryStop makes f run between a carry's two writes, an error stopping
+// the carry there, until the returned function puts the writer back.
+func SetCarryStop(f func() error) func() {
+	stopped = f
+	return func() { stopped = nil }
+}

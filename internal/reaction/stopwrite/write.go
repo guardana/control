@@ -60,15 +60,19 @@ func Init(ctx context.Context, dir string, route reaction.Route, now time.Time) 
 // with ErrNothingLifted, one that ends no stop of the list as it stands under
 // the lock, such as one another lift ended after its signer read the list.
 func AppendLift(ctx context.Context, dir string, route reaction.Route, l reaction.LiftLine, now time.Time) (int64, error) {
-	return appendLine(ctx, dir, route, at(now), fixed(l.Marshal()), endsAStop)
+	return appendLine(ctx, dir, route, at(now), fixed(l.Marshal()), func(before, _ reaction.List) error { return endsAStop(before, l) })
 }
 
-// endsAStop refuses a lift after which the list holds every stop it held.
-func endsAStop(before, after reaction.List) error {
-	if len(after.Entries()) < len(before.Entries()) {
-		return nil
+// endsAStop refuses a lift l that ends no stop of the list before it.
+func endsAStop(before reaction.List, l reaction.LiftLine) error {
+	target, err := l.Target()
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrRefused, err)
 	}
-	return fmt.Errorf("%w: %w", ErrRefused, ErrNothingLifted)
+	if !before.Ends(target, l.ThroughLine) {
+		return fmt.Errorf("%w: %w", ErrRefused, ErrNothingLifted)
+	}
+	return nil
 }
 
 // AppendFinding appends, for the finding of the stop stopAt makes, a covered

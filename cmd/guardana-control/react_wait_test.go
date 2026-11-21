@@ -77,3 +77,34 @@ func TestAnInterruptedPassStopsAfterTheLinesItWrote(t *testing.T) {
 		t.Errorf("the list names %s: %v, %s: %v; want the first alone", fid(1), l.Names(fid(1)), fid(2), l.Names(fid(2)))
 	}
 }
+
+// TestARunThatCannotBeReadUnderTheLockStopsThePass: the runs directory
+// answers the lookup before the lock and fails the one under it. The pass
+// stops on that failure, naming it, and writes nothing, as it does for a
+// lookup that fails before the lock; it is not a refusal of one finding.
+func TestARunThatCannotBeReadUnderTheLockStopsThePass(t *testing.T) {
+	tr := newStopTree(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	log := tr.findingsDir(t, "log", finding(1, tr.open, denial, confirmed), finding(2, tr.second, denial, confirmed))
+	broken := errors.New("the runs directory could not be read")
+	lookups := 0
+	r, records := readyReactor(context.Background(), t, tr, log, now, func(plane lookupRun) lookupRun {
+		return func(ctx context.Context, id string) (runs.Record, error) {
+			if lookups++; lookups == 2 {
+				return runs.Record{}, broken
+			}
+			return plane(ctx, id)
+		}
+	})
+	before := tr.listBytes(t)
+	err := r.each(records)
+	if !errors.Is(err, broken) {
+		t.Fatalf("each = %v, want the pass stopped on the lookup under the lock", err)
+	}
+	if r.stops != 0 || len(r.written) != 0 || len(r.unwritten) != 0 || lookups != 2 {
+		t.Errorf("%d stops, written %q, unwritten %q, %d lookups; want the pass stopped at the first finding", r.stops, r.written, r.unwritten, lookups)
+	}
+	if !bytes.Equal(tr.listBytes(t), before) {
+		t.Error("a pass stopped on a lookup changed the list")
+	}
+}

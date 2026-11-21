@@ -16,6 +16,7 @@ import (
 	"time"
 
 	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
+	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/runs"
 )
 
@@ -298,6 +299,29 @@ func TestACarryOfFewerRecordsThanTheLayoutHoldsRefuses(t *testing.T) {
 	}
 	if s, err := p.CarryCloses(t.Context(), 2, opened.Add(2*time.Minute)); err != nil || !s.Complete || s.Carried != 1 {
 		t.Fatalf("CarryCloses bound 2 = %+v, %v; want both read and one close carried", s, err)
+	}
+}
+
+// TestAPruneOfExpiredTreesEndsACarryBoundRefusal: a start refused at its
+// bound names runs prune, and once the prune archives an expired tree the
+// carry reads every record left.
+func TestAPruneOfExpiredTreesEndsACarryBoundRefusal(t *testing.T) {
+	dir, a := newSigned(t)
+	openSignedRoot(t, a, "alice")
+	if _, _, err := a.OpenSigned(t.Context(), runs.OpenRequest{Who: alice, TTL: 4 * time.Hour, Now: opened}, testSigner("alice"), takeKey("alice")); err != nil {
+		t.Fatal(err)
+	}
+	p := signedPlane(t, dir, alicesJudge)
+	cut := opened.Add(2 * time.Hour)
+	if _, err := p.CarryCloses(t.Context(), 1, cut); !errors.Is(err, runs.ErrCarryBound) || !strings.Contains(err.Error(), brand.CLI+" runs prune") {
+		t.Fatalf("CarryCloses bound 1 over two records = %v, want ErrCarryBound naming %s runs prune", err, brand.CLI)
+	}
+	got, err := a.Prune(t.Context(), runs.PruneRequest{ExpiredBefore: cut, Archive: filepath.Join(t.TempDir(), "archive"), Now: cut})
+	if err != nil || len(got.Trees) != 1 {
+		t.Fatalf("Prune = %+v, %v; want the expired tree archived", got, err)
+	}
+	if s, err := p.CarryCloses(t.Context(), 1, cut); err != nil || !s.Complete || s.Records != 1 {
+		t.Fatalf("CarryCloses bound 1 after the prune = %+v, %v; want the one record left read whole", s, err)
 	}
 }
 

@@ -215,6 +215,11 @@ func (r *reactor) now() time.Time { return r.clock().UTC().Truncate(time.Second)
 // under the lock, such as one whose run expired while the pass waited.
 var errNotStopping = errors.New("the finding does not stop at the clock read under the lock")
 
+// errRunUnread is a run the pass could not read again under the lock. The
+// writer wraps whatever the stop's build returns as its own refusal, so this
+// mark is what keeps an unread run from being counted as a refused write.
+var errRunUnread = errors.New("the run could not be read under the lock")
+
 // stopping is the stop fr would be at now, when Eligible takes it with run's
 // facts and the route permits it.
 func (r *reactor) stopping(fr *findingv1alpha1.FindingRecord, run reaction.RunFacts, now time.Time) (reaction.StopClaim, bool) {
@@ -287,7 +292,7 @@ func (r *reactor) write(fr *findingv1alpha1.FindingRecord) error {
 		// write it is in, so this read is not cut short by one.
 		run, err := r.lookupFacts(context.WithoutCancel(r.ctx), runID)
 		if err != nil {
-			return reaction.Stop{}, err
+			return reaction.Stop{}, fmt.Errorf("%w: %w", errRunUnread, err)
 		}
 		c, ok := r.stopping(fr, run, now)
 		if !ok {
@@ -320,6 +325,8 @@ func (r *reactor) write(fr *findingv1alpha1.FindingRecord) error {
 		// Another writer named it after this pass read the list.
 		r.alreadyNamed++
 		return nil
+	case errors.Is(err, errRunUnread):
+		return fmt.Errorf("finding %s run %s: %w", oneLine(id), oneLine(runID), err)
 	case errors.Is(err, stopwrite.ErrFull), errors.Is(err, stopwrite.ErrRefused):
 		if errors.Is(err, stopwrite.ErrFull) {
 			r.full = oneLine(err.Error())

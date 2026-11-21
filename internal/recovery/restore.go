@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/guardana/control/internal/gatewayconfig"
@@ -121,9 +120,10 @@ func (r *restorer) restorePaths(c class) (live, from string, err error) {
 func (r *restorer) signed() bool { return r.cfg.Approvals.Authority == gatewayconfig.AuthoritySigned }
 
 // checkStaging refuses a floor class whose temporary build name is, or
-// holds, the path another class names: building that floor removes whatever
-// stands there first.
+// holds, a path the configuration names, compared as gatewayconfig.Within
+// compares them.
 func (r *restorer) checkStaging() error {
+	named := r.cfg.NamedPaths()
 	for _, c := range classes {
 		if !c.floor() || !r.restores(c) {
 			continue
@@ -133,16 +133,13 @@ func (r *restorer) checkStaging() error {
 			return err
 		}
 		staging := policystate.StagingPath(live)
-		for _, other := range classes {
-			if other.value(r.cfg) == "" || !other.applies(r.cfg.Approvals.Authority) {
-				continue
-			}
-			path, _, err := r.paths(other)
+		for _, other := range named {
+			within, err := gatewayconfig.Within(other.Path, staging)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %s is built under %s, which cannot be compared with %s: %w", ErrStaging, c.key, staging, other.Key, err)
 			}
-			if rel, err := filepath.Rel(staging, path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-				return fmt.Errorf("%w: %s is built under %s, which %s names", ErrStaging, c.key, staging, other.key)
+			if within {
+				return fmt.Errorf("%w: %s is built under %s, which %s names", ErrStaging, c.key, staging, other.Key)
 			}
 		}
 	}

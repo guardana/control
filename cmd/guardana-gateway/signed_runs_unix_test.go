@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/guardana/control/internal/brand"
 	"github.com/guardana/control/internal/gateway"
 	"github.com/guardana/control/internal/policy/bundle"
 	"github.com/guardana/control/internal/policykey"
@@ -200,8 +201,9 @@ func TestDoctorFailsASignedLayoutItCannotReadWhole(t *testing.T) {
 	t.Cleanup(func() { doctorPlaneOwned = false })
 	d := &examination{cfg: tr.load(t)}
 	verdict, _, line := d.runs(t.Context())
-	if verdict != verdictFail || !strings.Contains(line, "only the first 1 were read") || !strings.Contains(line, "run refuses to start on it") {
-		t.Fatalf("doctor's runs line over more records than it reads = %s, %q; want fail, naming the bound and the start", verdict, line)
+	if verdict != verdictFail || !strings.Contains(line, "only the first 1 were read") || !strings.Contains(line, "run refuses to start on it") ||
+		!strings.Contains(line, brand.CLI+" runs prune") {
+		t.Fatalf("doctor's runs line over more records than it reads = %s, %q; want fail, naming the bound, the start and the way out", verdict, line)
 	}
 }
 

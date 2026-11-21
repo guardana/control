@@ -173,25 +173,30 @@ encoder writes are refused
 with <code>EVIDENCE_UNAVAILABLE</code> also when its expiry has passed. Such an
 approval closed the hold as <code>APPROVAL_EXPIRED</code> before its version was
 read.</li>
-<li>A signed plane refuses to start, and <code>doctor</code> fails, when <code>records/</code> holds
-more than the 65,536 records a start reads to carry their closes. The
-start logged the cut and served, so the open record of a run closed past
-the cut, put back, was taken
-(<a href="/docs/reference/runs">runs</a>).</li>
+<li><strong>Breaking:</strong> a signed plane refuses to start, and <code>doctor</code> fails, when
+<code>records/</code> holds more than the 65,536 records a start reads to carry their
+closes; <code>guardana-control runs prune</code> archives the expired trees to bring
+it under. The start logged the cut and served, so the open record of a run
+closed past the cut, put back, was taken
+(<a href="/docs/reference/runs">runs</a>,
+<a href="/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature">ADR-0076</a>).</li>
 <li>A signed child's first call beside a root whose state file is gone and
 whose lock file is not leaves no <code>.seen</code>. The mark was made before the
 call was refused, so once the root's state was put back the child ran
 after its parent's close was carried.</li>
 <li>A signed child's first call whose ancestor walk reads a closed ancestor
 carries that close and is refused as <code>closed</code>. The walk took the closed
-record as a link to its parent and admitted the grandchild.</li>
-<li><code>react</code> under a signed route refuses an unsigned <code>--runs</code> directory. The
+record as a link to its parent and admitted the grandchild
+(<a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>).</li>
+<li><strong>Breaking:</strong> <code>react</code> under a signed route refuses an unsigned <code>--runs</code>
+directory. The
 route's <code>--roster</code> and <code>--root-key</code> did not count as flags that judge
 records, so without <code>--tenant</code> and <code>--project</code> it took a stop's subject
 from an unsigned record.</li>
 <li><code>react</code> reads a finding's run again once it holds the stop list's lock,
-and a run closed while it waited is counted as not stopping. It wrote the
-stop from what it read before the wait.</li>
+and a run closed while it waited is counted as not stopping; a run it
+cannot read then stops the pass. It wrote the stop from what it read
+before the wait.</li>
 <li>A signed restore takes a backed-up root whose lock file stands without its
 state as untrusted with an unknown read, as the plane does, and refuses,
 before its first write, a surviving root's lock file the join would refuse.
@@ -205,9 +210,10 @@ which the next start refused.</li>
 <li>Signed <code>/healthz</code> and <code>doctor</code> report a stop naming another tenant's or
 project's run as unheld, not as unread, which made the reaction check
 unknown.</li>
-<li>A <code>2.0</code> list put in place of a <code>3.0</code> list a plane accepted names
-<code>stops init --carry</code> at every read. The changed header was refused first,
-without the instruction
+<li>A list of another version put in place of the one a plane accepted is
+refused naming both versions and saying to put the accepted list back, or,
+for a <code>2.0</code> list in place of a <code>3.0</code> one, to carry it with
+<code>stops init --carry</code>. The changed header was refused without either
 (<a href="/docs/reference/reaction-signed">reaction under signed</a>).</li>
 <li><code>stops lift</code> refuses, with nothing written, a lift that ends no stop of
 the list as it stands under the writer's lock, such as one signed against
@@ -221,13 +227,22 @@ the umask, as the guide says. A umask that took the owner's bits made them
 narrower.</li>
 <li><code>state restore</code> refuses, before its first write, a configuration where the
 temporary name a missing floor directory is built under is, or holds, a
-path another key names. Building the floor removed that path first, so a
-route floor named there was built again from the backup's lower serial.</li>
-<li>A signed carry takes the write bits off the list it carried from once the
-new list is written, and <code>react</code> and <code>stops lift</code> refuse a list its owner
-may not write. A stop appended to the old list after the carry reached a
-plane still serving it and was missing from the new list, whose header the
-plane's floor followed (<a href="/docs/reference/reaction-signed">reaction under signed</a>).</li>
+path the configuration names, the hold journal and the keys among them,
+compared as the file system resolves both, so another case or a link is
+caught; the build removes there only a directory a build of its own left.
+Building the floor removed that path first, so a route floor named there
+was built again from the backup's lower serial, and a hold journal named
+there was lost.</li>
+<li><strong>Breaking:</strong> a signed carry takes the write bits off the list it carried
+from before it writes the new list, giving them back when that write is
+refused, and <code>react</code> and <code>stops lift</code> refuse a list its owner may not
+write. Run the carry as the old list's owner: under another account it
+refuses before it writes anything. A 0.17 <code>react</code> left on the old list
+fails to write; give the list its write bits back before 0.17 uses it
+after a roll back. A stop appended to the old list after the carry reached
+a plane still serving it and was missing from the new list, whose header
+the plane's floor followed (<a href="/docs/reference/reaction-signed">reaction under signed</a>,
+<a href="/docs/guides/upgrade-a-plane-from-0-17">upgrade a plane from 0.17</a>).</li>
 </ul>
 <h3 id="documentation">Documentation</h3>
 <ul>

@@ -214,9 +214,9 @@ func extends(accepted Prefix, complete []byte) ([sha256.Size]byte, error) {
 }
 
 // otherVersion is err, a refusal of complete's prefix, or, where it is a
-// changed header whose version is not route's lists', the refusal that
-// version has on line 1, so a list of another format names what to do with
-// it at every read.
+// changed header whose version is not route's lists', a refusal of line 1
+// that names both versions and what to do, so a list of another format put
+// in place of the accepted one says so at every read.
 func otherVersion(route Route, complete []byte, err error) error {
 	if !errors.Is(err, ErrListHeader) {
 		return err
@@ -226,8 +226,25 @@ func otherVersion(route Route, complete []byte, err error) error {
 	if perr != nil || verr != nil || l.Version == want {
 		return err
 	}
-	return &LineError{Line: 1, Err: versionRefusal(1, l.Version, want)}
+	return &LineError{Line: 1, Err: versionSwap{got: l.Version, want: want}}
 }
+
+// versionSwap is a list of version got where the accepted list, of version
+// want, stood. Putting the accepted list back is always a way out; a carry
+// is one only from the version a carry takes.
+type versionSwap struct{ got, want string }
+
+func (e versionSwap) Error() string {
+	msg := fmt.Sprintf("reaction: a %s stop list in place of the accepted %s one is not served: put the accepted list back", e.got, e.want)
+	if errors.Is(e.refusal(), ErrListUpgrade) {
+		msg += ", or carry this one into " + e.want + " with stops init --carry"
+	}
+	return msg
+}
+
+func (e versionSwap) refusal() error { return versionRefusal(1, e.got, e.want) }
+
+func (e versionSwap) Unwrap() []error { return []error{ErrListHeader, e.refusal()} }
 
 // checkPrefix refuses complete unless it begins with accepted, and leaves h
 // having hashed the prefix.
@@ -280,7 +297,7 @@ func walk(ctx context.Context, route Route, from List, complete []byte, lines in
 		return l, nil
 	}
 	for _, e := range j.seen.stops {
-		if e.Line > j.seen.through[e.Target()] {
+		if !endedBy(e, e.Target(), j.seen.through[e.Target()]) {
 			l.entries = append(l.entries, e)
 		}
 	}

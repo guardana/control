@@ -118,9 +118,9 @@ func TestA20ListAndAV1alpha2LiftAreRefusedUnderAV1alpha3Route(t *testing.T) {
 }
 
 // TestA20ListPutInPlaceOfAnAcceptedOneNamesItsCarry: a plane that accepted
-// a 3.0 list reads a 2.0 list in its place; the changed header refuses it
-// all the same, and the refusal names stops init --carry, as at the first
-// read.
+// a 3.0 list reads a 2.0 list in its place. The refusal says what happened,
+// a list of another version where the accepted one stood, which is put back
+// or carried, and names stops init --carry, as at the first read.
 func TestA20ListPutInPlaceOfAnAcceptedOneNamesItsCarry(t *testing.T) {
 	ctx := context.Background()
 	r := vouchedRoute(t, newVoucher())
@@ -129,10 +129,18 @@ func TestA20ListPutInPlaceOfAnAcceptedOneNamesItsCarry(t *testing.T) {
 	if accepted.State() == reaction.Unknown {
 		t.Fatalf("the 3.0 list: %q %s", accepted.Cause(), accepted.Detail())
 	}
-	expectUpgrade(t, "a 2.0 list after a 3.0 one", accepted.NextContext(ctx, r, v2List(t, r), sNow, time.Second), "stops init --carry")
+	next := accepted.NextContext(ctx, r, v2List(t, r), sNow, time.Second)
+	if next.State() != reaction.Unknown || next.Cause() != reaction.CauseHeader {
+		t.Errorf("a 2.0 list after a 3.0 one: %v %q, want unknown with %q", next.State(), next.Cause(), reaction.CauseHeader)
+	}
+	for _, want := range []string{"a 2.0 stop list in place of the accepted 3.0 one", "put the accepted list back", "stops init --carry"} {
+		if !strings.Contains(next.Detail(), want) || strings.HasSuffix(next.Detail(), "...") {
+			t.Errorf("a 2.0 list after a 3.0 one: the detail %q does not name %q whole", next.Detail(), want)
+		}
+	}
 	_, err := reaction.JudgeFrom(r, accepted.AcceptedList(), v2List(t, r), sNow, 0)
-	if !errors.Is(err, reaction.ErrListUpgrade) {
-		t.Errorf("JudgeFrom of a 2.0 list after a 3.0 one: %v, want %v", err, reaction.ErrListUpgrade)
+	if !errors.Is(err, reaction.ErrListUpgrade) || !errors.Is(err, reaction.ErrListHeader) {
+		t.Errorf("JudgeFrom of a 2.0 list after a 3.0 one: %v, want %v and %v", err, reaction.ErrListHeader, reaction.ErrListUpgrade)
 	}
 	other, _ := signedHeaderLine(t, r, headerOpts{key: strangerKey()})
 	if _, err := reaction.JudgeFrom(r, accepted.AcceptedList(), joinLines(other), sNow, 0); !errors.Is(err, reaction.ErrListHeader) {
