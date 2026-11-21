@@ -8,8 +8,12 @@ import (
 	"io"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	"google.golang.org/protobuf/reflect/protoreflect"
 
@@ -73,7 +77,7 @@ func readCaseExpecting(raw []byte, expectRequired bool) (*testCase, error) {
 	var r reader
 	c.document = r.object(m, "", "document")
 	c.envelope = r.object(m, "", "envelope")
-	c.authorizedArgs = []byte(r.string(m, "", "authorized_args"))
+	c.authorizedArgs = []byte(r.exactString(m, "", "authorized_args"))
 	c.flow = r.flow(m["flow"])
 	c.options = r.options(m["options"])
 	c.loadedAt = r.time(m, "", "loaded_at")
@@ -194,6 +198,53 @@ func (r *reader) string(m map[string]json.RawMessage, at, key string) string {
 		r.refuse(at, key, errors.New("want a string"))
 	}
 	return s
+}
+
+// exactString is string for a member whose bytes the kernel judges: the
+// decoder reads an invalid UTF-8 byte, and an escaped surrogate that is not
+// half of a pair, as U+FFFD, so such a member is refused rather than decided
+// on other bytes than the case wrote.
+func (r *reader) exactString(m map[string]json.RawMessage, at, key string) string {
+	s := r.string(m, at, key)
+	if !exact(m[key]) {
+		r.refuse(at, key, errors.New("want valid UTF-8 and no unpaired surrogate escape"))
+		return ""
+	}
+	return s
+}
+
+// exact reports whether a JSON string the decoder accepted decodes to the
+// text it spells, with no U+FFFD put in for what it could not carry.
+func exact(raw []byte) bool {
+	if !utf8.Valid(raw) {
+		return false
+	}
+	for i := 0; i < len(raw); i++ {
+		if raw[i] != '\\' {
+			continue
+		}
+		if i++; raw[i] != 'u' {
+			continue
+		}
+		r := escaped(raw[i+1:])
+		if i += 4; !utf16.IsSurrogate(r) {
+			continue
+		}
+		if i+6 >= len(raw) || raw[i+1] != '\\' || raw[i+2] != 'u' || utf16.DecodeRune(r, escaped(raw[i+3:])) == unicode.ReplacementChar {
+			return false
+		}
+		i += 6
+	}
+	return true
+}
+
+// escaped reads the four hex digits of a \u escape.
+func escaped(hex []byte) rune {
+	n, err := strconv.ParseUint(string(hex[:4]), 16, 16)
+	if err != nil {
+		return unicode.ReplacementChar
+	}
+	return rune(n)
 }
 
 func (r *reader) bool(m map[string]json.RawMessage, at, key string) bool {

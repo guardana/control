@@ -35,6 +35,19 @@ verify one.
 
 ### Fixed
 
+- `policy test`, `policy explain` and `policy compare` refuse a case whose
+  `authorized_args` is not valid UTF-8 or holds an unpaired surrogate escape
+  such as `\ud800`, naming the member. The case reader put U+FFFD in place
+  of such bytes, so the kernel decided other arguments than the case wrote,
+  and a case could pass `ALLOW` for bytes the kernel refuses
+  ([policy format](docs/reference/policy-format.md#a-test-case)).
+- A `procedure test` case states the project its run's record names, as
+  `project` in `run` and in each run of `tree`, and is judged as `supervise`
+  judges that run: events or a run of another project fail the case as
+  `refused:`, and its sources are of the run's project. The case took the
+  project from its events, so a case passed with a finding that `supervise`
+  would refuse to make for a run recorded under another project
+  ([test a procedure](docs/guides/test-a-procedure.md#2-write-a-case)).
 - `supervise` lists a step's requests, and a finding cites and keeps its
   references, in the order of the plane's times of the proposals, a tie by
   request id. It used the order in which an export first held each request,

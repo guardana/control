@@ -196,13 +196,19 @@ func (c *casesReader) procedureCase(raw json.RawMessage, where string) procedure
 	return pc
 }
 
+// run reads a run as its record says, the project included: a record names
+// one, and supervise holds the run's events, tree and sources to it.
 func (c *casesReader) run(raw json.RawMessage, where string) supervise.Run {
-	m := c.object(raw, where, []string{"id", "tenant", "parent", "closed"}, nil)
+	m := c.object(raw, where, []string{"id", "tenant", "project", "parent", "closed"}, nil)
 	if c.err != nil {
 		return supervise.Run{}
 	}
-	return supervise.Run{ID: c.string(m, where, "id"), Tenant: c.string(m, where, "tenant"),
-		Parent: c.string(m, where, "parent"), Closed: c.bool(m, where, "closed")}
+	r := supervise.Run{ID: c.string(m, where, "id"), Tenant: c.string(m, where, "tenant"),
+		Project: c.string(m, where, "project"), Parent: c.string(m, where, "parent"), Closed: c.bool(m, where, "closed")}
+	if c.err == nil && r.Project == "" {
+		c.refuse(where, "project", errors.New("want a project"))
+	}
+	return r
 }
 
 // export reads one export: a path to an export file, or its events inline
