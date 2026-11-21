@@ -33,7 +33,7 @@ const (
 	tagClient   = "mcp.client="
 	tagRevision = "mcp.protocol_version="
 	// withheldPrefix starts the name a call is recorded under in place of a
-	// tool name that quotes a credential.
+	// tool name, prompt name or resource URI that quotes a credential.
 	withheldPrefix = "withheld:sha256:"
 )
 
@@ -165,11 +165,13 @@ func (a *Adapter) toolCall(req *mcp.CallToolRequest) call {
 	return c
 }
 
-// recordedName is a called tool's name as the envelope carries it: the name,
-// or, when it quotes a credential the gateway holds or could not be scanned,
-// withheldPrefix and its digest, since the trail and the log outlive the call.
+// recordedName is a called name as the envelope carries it: the name, or,
+// when it quotes a credential the gateway holds, could not be scanned or
+// starts with withheldPrefix, withheldPrefix and its digest, since the trail
+// and the log outlive the call. A withheld name on the trail is then never
+// one the agent spelled.
 func (a *Adapter) recordedName(name string) string {
-	if a.cfg.Secrets.ScanText(name).State == secretscan.Clean {
+	if !strings.HasPrefix(name, withheldPrefix) && a.cfg.Secrets.ScanText(name).State == secretscan.Clean {
 		return name
 	}
 	sum := sha256.Sum256([]byte(name))
@@ -193,7 +195,9 @@ func (a *Adapter) route(entry *Entry) string {
 // resource on the upstream that serves it, with the arguments the agent
 // asked with. The manifest lists tools only, so a read routes only where one
 // upstream is configured; with several, nothing says which holds the URI or
-// the prompt, and the read reaches the pipeline as unclassified.
+// the prompt, and the read reaches the pipeline as unclassified. The envelope
+// names what is read as recordedName records it; the name as asked goes only
+// upstream.
 func (a *Adapter) read(req mcp.Request, meta map[string]any, kind, name string, args []byte, argErr error) call {
 	c := call{requestID: a.cfg.NewID(), upstream: a.route(nil)}
 	c.admission.Arguments = args
@@ -204,7 +208,8 @@ func (a *Adapter) read(req mcp.Request, meta map[string]any, kind, name string, 
 	}
 	env := a.base(req, meta, principal, agent, c.requestID)
 	c.admission.Envelope = env
-	env.Action = &controlv1.Action{Kind: kind, Name: name, Protocol: channel.ProtocolMCP}
+	recorded := a.recordedName(name)
+	env.Action = &controlv1.Action{Kind: kind, Name: recorded, Protocol: channel.ProtocolMCP}
 	if argErr != nil {
 		c.admission.Refusal = argErr
 		return c
@@ -217,7 +222,7 @@ func (a *Adapter) read(req mcp.Request, meta map[string]any, kind, name string, 
 	up := a.upstreamConfig(c.upstream)
 	env.Action.Effect = controlv1.EffectClass_EFFECT_CLASS_READ
 	env.Action.Provider = c.upstream
-	env.Resource = &controlv1.Resource{Type: channel.ProtocolMCP + "." + kind, Id: name, TenantId: up.TenantID, Environment: up.Environment}
+	env.Resource = &controlv1.Resource{Type: channel.ProtocolMCP + "." + kind, Id: recorded, TenantId: up.TenantID, Environment: up.Environment}
 	c.admission.Refusal = a.finish(env, args)
 	return c
 }

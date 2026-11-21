@@ -47,6 +47,9 @@ type realPipeline struct {
 	// misreport, when set, has Close told of other bytes than were sent, as
 	// a mismatch the plane halts on.
 	misreport atomic.Bool
+	// onAdmit, when set before the first call, runs after every Admit and
+	// before the adapter reads the disposition.
+	onAdmit func()
 
 	mu       sync.Mutex
 	proposed []string
@@ -56,7 +59,11 @@ func (r *realPipeline) Admit(ctx context.Context, a gateway.Admission) gateway.D
 	r.mu.Lock()
 	r.proposed = append(r.proposed, a.Envelope.GetRequestId())
 	r.mu.Unlock()
-	return r.Pipeline.Admit(ctx, a)
+	d := r.Pipeline.Admit(ctx, a)
+	if r.onAdmit != nil {
+		r.onAdmit()
+	}
+	return d
 }
 
 // admitted are the request ids the adapter proposed, in order.

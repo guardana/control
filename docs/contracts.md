@@ -271,7 +271,11 @@ resource id it takes off becomes `overlong:sha256:` followed by the lower-case
 hex SHA-256 of the original bytes, 80 bytes in all, so the recorded proposal
 keeps the fields the contract requires and can be tied to what was sent
 ([ADR-0043](adr/0043-a-refused-over-long-name-is-recorded-by-its-digest.md)).
-No policy reads it: the refusal stops the decision first.
+No policy reads it: the refusal stops the decision first. A called tool name,
+prompt name or resource URI that quotes a credential the plane holds, cannot
+be scanned or starts with `withheld:sha256:` is recorded as that prefix and
+the same digest of the name, and a policy reads that form
+([ADR-0042](adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld.md)).
 
 The error types and the validation that returns them are `implemented`, and so
 is the mapping: the kernel in `internal/core` turns each refusal into the

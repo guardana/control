@@ -35,14 +35,14 @@ child process (`upstreams[].command`).
 | Method | What the gateway does | Decided |
 | --- | --- | --- |
 | `tools/list` | Answers from the manifest, without a [withheld](../concepts/mcp-gateway.md#an-answer-that-quotes-a-credential) definition, shaped for the principal, with `cacheScope: private` and the operator's `ttlMs` | under `annotate` or `hide`, one preview per classified tool one upstream serves; a cached list, one naming the bundle and halts in force; nothing recorded |
-| `tools/call` | Admits an `ActionEnvelope`; if the mode lets it run, applies the plane's obligations, none under `OBSERVE`, sends the authorized bytes, compacted by the library, and closes the trail with those | yes |
+| `tools/call` | Admits an `ActionEnvelope`; if the mode lets it run, applies the plane's obligations, none under `OBSERVE`, sends the authorized bytes, compacted by the adapter, and closes the trail with those | yes |
 | `resources/read` | Translated as a `READ` of the URI. Routed only when one upstream is configured; with several it is `ACTION_UNCLASSIFIED`: nothing says which server holds the URI | yes |
 | `prompts/get` | Translated as a `READ` of the prompt, its arguments authorized as a canonical JSON object of strings. Routed as above | yes |
 | `resources/list`, `resources/templates/list`, `prompts/list` | Merged from every upstream, bounded, with the gateway's own `_meta` keys stripped and `cacheScope: private`; `-31103` when an item quotes a credential | no: a listing names no action |
 | a batch | On `stateful_http`, before `2025-06-18`: each member as if sent alone | each call |
 | `tools/call` with no `id` | Dropped by the library | no |
 | `notifications/cancelled` | After the send, the upstream's call is cancelled, never resent, and recorded unknown | no |
-| everything else | Handled by the library's own server, which registers nothing, so nothing is forwarded | no |
+| everything else | Handled by the library's own server, which registers nothing to forward | no |
 
 ## What the gateway cannot do
 
@@ -114,13 +114,13 @@ and undecided answers carry neither.
 
 ## Reason codes in the gateway's answers
 
-A kernel decision comes back as written, with the kernel's codes such as `NO_MATCHING_RULE`;
+A kernel decision comes back as written, with codes such as `NO_MATCHING_RULE`;
 [reference/reason-codes](reason-codes.md) lists every code; an untranslatable call is the kernel's
 block in every mode. The codes below are the enforcement point's own.
 
 | Code | When |
 | --- | --- |
-| `ACTION_UNCLASSIFIED` | no manifest entry classifies the operation, blocked outside `OBSERVE`; or a refresh withdrew its classification before the send |
+| `ACTION_UNCLASSIFIED` | no manifest entry classifies the operation, or a refresh withdrew its classification after admission, which spends an approved retry's approval unrun; blocked outside `OBSERVE` |
 | `LOCKDOWN` | a material call under `LOCKDOWN` |
 | `PAUSED` | an operator's pause covers the call ([scopes](../concepts/enforcement-modes.md#pausing-calls)); in every mode, reads included, and never in a listing |
 | `RUN_STOPPED`, `AGENT_OR_PRINCIPAL_STOPPED` | a stop names the call's run, or its agent or principal, reads included |

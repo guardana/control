@@ -443,7 +443,11 @@ resource id it takes off becomes <code>overlong:sha256:</code> followed by the l
 hex SHA-256 of the original bytes, 80 bytes in all, so the recorded proposal
 keeps the fields the contract requires and can be tied to what was sent
 (<a href="/docs/adr/0043-a-refused-over-long-name-is-recorded-by-its-digest">ADR-0043</a>).
-No policy reads it: the refusal stops the decision first.</p>
+No policy reads it: the refusal stops the decision first. A called tool name,
+prompt name or resource URI that quotes a credential the plane holds, cannot
+be scanned or starts with <code>withheld:sha256:</code> is recorded as that prefix and
+the same digest of the name, and a policy reads that form
+(<a href="/docs/adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld">ADR-0042</a>).</p>
 <p>The error types and the validation that returns them are <code>implemented</code>, and so
 is the mapping: the kernel in <code>internal/core</code> turns each refusal into the
 verdict and the reason code of its row, by sentinel and never by text, and

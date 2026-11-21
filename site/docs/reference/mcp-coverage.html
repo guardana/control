@@ -193,7 +193,7 @@ child process (<code>upstreams[].command</code>).</p>
 </tr>
 <tr>
 <td><code>tools/call</code></td>
-<td>Admits an <code>ActionEnvelope</code>; if the mode lets it run, applies the plane's obligations, none under <code>OBSERVE</code>, sends the authorized bytes, compacted by the library, and closes the trail with those</td>
+<td>Admits an <code>ActionEnvelope</code>; if the mode lets it run, applies the plane's obligations, none under <code>OBSERVE</code>, sends the authorized bytes, compacted by the adapter, and closes the trail with those</td>
 <td>yes</td>
 </tr>
 <tr>
@@ -228,7 +228,7 @@ child process (<code>upstreams[].command</code>).</p>
 </tr>
 <tr>
 <td>everything else</td>
-<td>Handled by the library's own server, which registers nothing, so nothing is forwarded</td>
+<td>Handled by the library's own server, which registers nothing to forward</td>
 <td>no</td>
 </tr>
 </tbody>
@@ -394,7 +394,7 @@ on its own trail names that. The ids are added after the result is hashed,
 so <code>result_hash</code> stays the upstream's. Reads, prompts, lists
 and undecided answers carry neither.</p>
 <h2 id="reason-codes-in-the-gateways-answers">Reason codes in the gateway's answers</h2>
-<p>A kernel decision comes back as written, with the kernel's codes such as <code>NO_MATCHING_RULE</code>;
+<p>A kernel decision comes back as written, with codes such as <code>NO_MATCHING_RULE</code>;
 <a href="/docs/reference/reason-codes">reference/reason-codes</a> lists every code; an untranslatable call is the kernel's
 block in every mode. The codes below are the enforcement point's own.</p>
 <div class="tbl">
@@ -408,7 +408,7 @@ block in every mode. The codes below are the enforcement point's own.</p>
 <tbody>
 <tr>
 <td><code>ACTION_UNCLASSIFIED</code></td>
-<td>no manifest entry classifies the operation, blocked outside <code>OBSERVE</code>; or a refresh withdrew its classification before the send</td>
+<td>no manifest entry classifies the operation, or a refresh withdrew its classification after admission, which spends an approved retry's approval unrun; blocked outside <code>OBSERVE</code></td>
 </tr>
 <tr>
 <td><code>LOCKDOWN</code></td>

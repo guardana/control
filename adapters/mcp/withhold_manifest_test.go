@@ -166,8 +166,7 @@ func TestAToolNameHoldingASecretIsNeverLogged(t *testing.T) {
 func TestACalledToolNameHoldingASecretIsNeverRecorded(t *testing.T) {
 	secret := leaks()[0]
 	name := "fetch_" + secret.value
-	sum := sha256.Sum256([]byte(name))
-	recorded := "withheld:sha256:" + hex.EncodeToString(sum[:])
+	recorded := withheldName(name)
 	for _, mode := range []controlv1.EnforcementMode{modeObserve, modeEnforce} {
 		t.Run(mode.String(), func(t *testing.T) {
 			logs := &lockedBuffer{}
@@ -176,25 +175,109 @@ func TestACalledToolNameHoldingASecretIsNeverRecorded(t *testing.T) {
 			v.tools[name] = leaky
 			v.server.AddTool(leaky, v.handler(name))
 			r := newRigOver(t, v, mcp.KindStdio, rigOptions{mode: mode, rules: []string{allowEverything}, secrets: leakSet(t), logger: slog.New(slog.NewTextHandler(logs, nil))})
-			if _, err := callTool(t, r.connect(t, "agent-a"), name, map[string]any{"path": "/x"}); err != nil {
+			res, err := callTool(t, r.connect(t, "agent-a"), name, map[string]any{"path": "/x"})
+			if err != nil {
 				t.Fatalf("the call by name: %v", err)
+			}
+			// The refusal of a call nothing classifies names why its tool is
+			// unclassified, which for this one quotes the secret's key.
+			if mode == modeEnforce {
+				if !res.IsError || !slices.Equal(codesOf(t, res), []string{"ACTION_UNCLASSIFIED"}) {
+					t.Fatalf("the unclassified call is not blocked as unclassified: %+v", res)
+				}
+				if refused, ok := structured(t, res)["refused"]; ok {
+					t.Errorf("the block answers refused %q", refused)
+				}
 			}
 			proposed := r.lastOf(t, controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED)
 			if got := proposed.GetProposed().GetAction().GetName(); got != recorded {
 				t.Errorf("the proposal names the call %q, want %q", got, recorded)
 			}
-			for _, e := range r.events() {
-				raw, err := protojson.Marshal(e)
-				if err != nil {
-					t.Fatalf("an event does not encode: %v", err)
-				}
-				if strings.Contains(string(raw), secret.value) {
-					t.Errorf("the %v event carries the secret: %s", e.GetKind(), raw)
-				}
-			}
+			noEventCarries(t, r, secret.value)
 			if strings.Contains(logs.String(), secret.value) {
 				t.Errorf("the log carries the secret:\n%s", logs.String())
 			}
 		})
+	}
+}
+
+// TestAReadNameHoldingASecretIsNeverRecorded: a prompt name and a resource
+// URI that quote a secret reach the upstream as the agent spelled them, and
+// the trail names each read by the digest of what was read, in the action's
+// name and the resource's id alike.
+func TestAReadNameHoldingASecretIsNeverRecorded(t *testing.T) {
+	secret := leaks()[0]
+	prompt, uri := "p_"+secret.value, "file:///"+secret.value
+	for _, mode := range []controlv1.EnforcementMode{modeObserve, modeEnforce} {
+		t.Run(mode.String(), func(t *testing.T) {
+			r := newRig(t, mcp.KindStdio, rigOptions{mode: mode, rules: []string{allowEverything}, secrets: leakSet(t)})
+			agent := r.connect(t, "agent-a")
+			reads := []struct {
+				name string
+				read func() error
+			}{
+				{prompt, func() error {
+					_, err := agent.GetPrompt(ctxT(t), &sdk.GetPromptParams{Name: prompt})
+					return err
+				}},
+				{uri, func() error {
+					_, err := agent.ReadResource(ctxT(t), &sdk.ReadResourceParams{URI: uri})
+					return err
+				}},
+			}
+			for _, c := range reads {
+				before := len(r.events())
+				// The victim serves neither, so its refusal is what proves the
+				// read was sent.
+				if err := c.read(); err == nil {
+					t.Fatalf("the victim answered a read of something it does not serve")
+				}
+				proposed := r.lastOf(t, controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED).GetProposed()
+				if len(r.events()) == before || proposed == nil {
+					t.Fatalf("the read left no proposal")
+				}
+				want := withheldName(c.name)
+				if got := proposed.GetAction().GetName(); got != want {
+					t.Errorf("action.name = %q, want %q", got, want)
+				}
+				if got := proposed.GetResource().GetId(); got != want {
+					t.Errorf("resource.id = %q, want %q", got, want)
+				}
+			}
+			noEventCarries(t, r, secret.value)
+		})
+	}
+}
+
+// TestANameSpelledAsWithheldIsWithheldAgain: a name that starts as a
+// withheld one does is recorded by its own digest, so a withheld name on the
+// trail is never one an agent spelled.
+func TestANameSpelledAsWithheldIsWithheldAgain(t *testing.T) {
+	spelled := withheldName("anything")
+	r := newRig(t, mcp.KindStdio, rigOptions{mode: modeObserve, rules: []string{allowEverything}})
+	// The victim serves no such tool; what it answers does not matter here.
+	_, _ = callTool(t, r.connect(t, "agent-a"), spelled, map[string]any{"path": "/x"})
+	if got, want := r.lastOf(t, controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED).GetProposed().GetAction().GetName(), withheldName(spelled); got != want {
+		t.Errorf("the proposal names the call %q, want %q", got, want)
+	}
+}
+
+// withheldName is the name the trail records in place of name.
+func withheldName(name string) string {
+	sum := sha256.Sum256([]byte(name))
+	return "withheld:sha256:" + hex.EncodeToString(sum[:])
+}
+
+// noEventCarries fails for every event the rig's sink kept that holds value.
+func noEventCarries(t *testing.T, r *rig, value string) {
+	t.Helper()
+	for _, e := range r.events() {
+		raw, err := protojson.Marshal(e)
+		if err != nil {
+			t.Fatalf("an event does not encode: %v", err)
+		}
+		if strings.Contains(string(raw), value) {
+			t.Errorf("the %v event carries the secret: %s", e.GetKind(), raw)
+		}
 	}
 }

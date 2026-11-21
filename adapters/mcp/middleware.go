@@ -88,18 +88,23 @@ func (a *Adapter) middleware(next mcp.MethodHandler) mcp.MethodHandler {
 // toolSender sends the authorized bytes as the call's arguments, in params
 // the adapter builds: what the agent put beside them, its _meta and its
 // input responses, is the agent's business with the gateway and reaches no
-// upstream. The library writes a raw message without the whitespace between
-// its tokens, so that form is what the upstream receives and what is sent.
+// upstream. The library writes the message through an encoder that leaves
+// HTML alone, which drops the whitespace between tokens and escapes what that
+// encoder escapes; the arguments are encoded the same way here, so what is
+// sent is what the upstream receives, and the library's pass changes nothing.
 func toolSender(name string) sender {
 	return func(authorized []byte) (func(context.Context, *mcp.ClientSession) (mcp.Result, error), []byte, error) {
 		var wire bytes.Buffer
-		if err := json.Compact(&wire, authorized); err != nil {
+		enc := json.NewEncoder(&wire)
+		enc.SetEscapeHTML(false)
+		if err := enc.Encode(json.RawMessage(authorized)); err != nil {
 			return nil, nil, fmt.Errorf("%w: %w", ErrArguments, err)
 		}
-		params := &mcp.CallToolParams{Name: name, Arguments: json.RawMessage(wire.Bytes())}
+		sent := bytes.TrimSuffix(wire.Bytes(), []byte("\n"))
+		params := &mcp.CallToolParams{Name: name, Arguments: json.RawMessage(sent)}
 		return func(ctx context.Context, cs *mcp.ClientSession) (mcp.Result, error) {
 			return cs.CallTool(ctx, params)
-		}, wire.Bytes(), nil
+		}, sent, nil
 	}
 }
 
@@ -214,7 +219,8 @@ func (a *Adapter) run(ctx context.Context, c call, send sender) (outcome, error)
 // dispatch sends an execution the pipeline handed out over cs, or aborts it
 // when nothing serves it, its bytes are not the authorized ones, an
 // obligation does not hold, a refresh withdrew the classification it was
-// admitted under, or the method cannot carry its bytes.
+// admitted under in a mode that blocks an unclassified call, or the method
+// cannot carry its bytes.
 func (a *Adapter) dispatch(ctx context.Context, p Pipeline, cs *mcp.ClientSession, d gateway.Disposition, c *call, send sender) outcome {
 	if cs == nil {
 		return a.abort(ctx, p, d, gateway.AbortUnroutable, nil, ErrUnroutable)
@@ -227,7 +233,7 @@ func (a *Adapter) dispatch(ctx context.Context, p Pipeline, cs *mcp.ClientSessio
 	if err != nil {
 		return a.abort(ctx, p, d, gateway.AbortObligation, d.Decision.GetReasonCodes(), err)
 	}
-	if c.entry != nil && c.entry.Classified && !a.manifest.holds(c.entry) {
+	if c.entry != nil && c.entry.Classified && !d.RunsUnclassified && !a.manifest.holds(c.entry) {
 		return a.abort(ctx, p, d, gateway.AbortUnroutable, nil, ErrReclassified)
 	}
 	do, sent, err := send(d.AuthorizedArgs)

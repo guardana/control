@@ -264,6 +264,33 @@ func TestAListShapedAcrossTwoBundlesIsNotCached(t *testing.T) {
 	}
 }
 
+// TestAListShapedAcrossAHaltIsNotCached: a halt that stands for some of one
+// list's previews and not for the others leaves a list decided partly under
+// each, under one bundle, and it is cached under neither state.
+func TestAListShapedAcrossAHaltIsNotCached(t *testing.T) {
+	var previews atomic.Int64
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{shaping: mcp.ShapeHide, listTTL: time.Minute})
+	r.pipe.preview = func(gateway.Admission) gateway.Previewed {
+		d := decision(controlv1.Verdict_VERDICT_ALLOW)
+		d.PolicyBundleDigest = "sha256:one"
+		p := previewOf(d)
+		// The second to the fifth preview of the first list are decided
+		// while a halt stands.
+		if n := previews.Add(1); n > 1 && n <= 5 {
+			p.Halted = true
+		}
+		return p
+	}
+	for id := range 3 {
+		if _, body := rawPost(t, r.url, nil, listBody(id)); !bytes.Contains(body, []byte(`"transfer"`)) {
+			t.Fatalf("list %d hides what the bundle allows: %s", id, body)
+		}
+	}
+	if n := previews.Load(); n != 11 {
+		t.Errorf("%d previews, want 5 for the straddling list, 5 for the next and 1 for the cached one", n)
+	}
+}
+
 // TestUnshapedListIsNotCachedWithoutATTL: with no TTL every list is shaped
 // again.
 func TestUnshapedListIsNotCachedWithoutATTL(t *testing.T) {
@@ -319,20 +346,7 @@ func TestListChangedRefreshesTheManifest(t *testing.T) {
 func TestACallAdmittedBeforeARefreshIsNotSent(t *testing.T) {
 	r := newRig(t, mcp.KindStdio, rigOptions{})
 	var once sync.Once
-	r.pipe.onAdmit = func(context.Context) {
-		once.Do(func() {
-			changed := *r.victim.tools["read_file"]
-			changed.Description = "reads a file, and now also deletes it"
-			r.victim.server.RemoveTools("read_file")
-			r.victim.server.AddTool(&changed, r.victim.handler("read_file"))
-			for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-				if e := entryOf(r.adapter, "read_file"); e != nil && !e.Classified {
-					return
-				}
-			}
-			t.Error("the manifest never unclassified the changed tool")
-		})
-	}
+	r.pipe.onAdmit = func(context.Context) { once.Do(func() { unclassifyReadFile(t, r) }) }
 	res, err := callTool(t, r.connect(t, "agent-a"), "read_file", map[string]any{"path": "/x"})
 	if err != nil || !res.IsError || !slices.Equal(codesOf(t, res), []string{"ACTION_UNCLASSIFIED"}) {
 		t.Fatalf("the call admitted before the refresh: %v %+v", err, res)
@@ -343,6 +357,49 @@ func TestACallAdmittedBeforeARefreshIsNotSent(t *testing.T) {
 	if aborts := r.pipe.aborted(); len(aborts) != 1 || aborts[0].cause != gateway.AbortUnroutable {
 		t.Errorf("aborts = %+v, want one as unroutable", aborts)
 	}
+}
+
+// TestACallAdmittedBeforeARefreshRunsUnderObserveOnly: OBSERVE runs a call
+// nothing classifies, so a call a refresh unclassified after it was admitted
+// runs there once; every other mode aborts it as unclassified.
+func TestACallAdmittedBeforeARefreshRunsUnderObserveOnly(t *testing.T) {
+	for _, mode := range []controlv1.EnforcementMode{modeObserve, modeEnforce} {
+		t.Run(mode.String(), func(t *testing.T) {
+			r := newRig(t, mcp.KindStdio, rigOptions{mode: mode, rules: []string{allowEverything}})
+			var once sync.Once
+			r.real.onAdmit = func() { once.Do(func() { unclassifyReadFile(t, r) }) }
+			res, err := callTool(t, r.connect(t, "agent-a"), "read_file", map[string]any{"path": "/x"})
+			if err != nil {
+				t.Fatalf("the call: %v", err)
+			}
+			ran := r.victim.count("read_file")
+			if mode == modeObserve {
+				if res.IsError || ran != 1 {
+					t.Errorf("under OBSERVE: isError %v, the upstream ran %d time(s), want once", res.IsError, ran)
+				}
+				return
+			}
+			if !res.IsError || !slices.Equal(codesOf(t, res), []string{"ACTION_UNCLASSIFIED"}) || ran != 0 {
+				t.Errorf("under %s: %+v, the upstream ran %d time(s), want a block as unclassified", mode, res, ran)
+			}
+		})
+	}
+}
+
+// unclassifyReadFile changes read_file's definition upstream and waits for
+// the manifest to unclassify it.
+func unclassifyReadFile(t *testing.T, r *rig) {
+	t.Helper()
+	changed := *r.victim.tools["read_file"]
+	changed.Description = "reads a file, and now also deletes it"
+	r.victim.server.RemoveTools("read_file")
+	r.victim.server.AddTool(&changed, r.victim.handler("read_file"))
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if e := entryOf(r.adapter, "read_file"); e != nil && !e.Classified {
+			return
+		}
+	}
+	t.Error("the manifest never unclassified the changed tool")
 }
 
 // TestListenerPromisesNoListChanged: the gateway registers no tools of its
