@@ -7,13 +7,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
 
-// releaseStepRun is the run block of the release job's step of that name,
-// with the block's indentation removed.
-func releaseStepRun(t *testing.T, name string) string {
+// releaseStepRun is the run block of the step of that name in the release
+// workflow's job, with the block's indentation removed.
+func releaseStepRun(t *testing.T, jobName, name string) string {
 	t.Helper()
 	root, err := parseBlockYAML(readLines(t, repoFS(t), releaseWorkflowPath))
 	if err != nil {
@@ -21,26 +22,36 @@ func releaseStepRun(t *testing.T, name string) string {
 	}
 	var found []string
 	for _, jobs := range root.children("jobs") {
-		for _, job := range jobs.children("release") {
+		for _, job := range jobs.children(jobName) {
 			for _, steps := range job.children("steps") {
 				for _, step := range steps.kids {
-					named := false
-					for _, n := range step.children("name") {
-						named = named || n.value == name
-					}
-					for _, run := range step.children("run") {
-						if named && run.value == "|" {
-							found = append(found, dedent(run.block))
-						}
-					}
+					found = append(found, stepScripts(step, name)...)
 				}
 			}
 		}
 	}
 	if len(found) != 1 {
-		t.Fatalf("%s: %d run block(s) of a release step named %q, want 1", releaseWorkflowPath, len(found), name)
+		t.Fatalf("%s: %d run block(s) of a %s step named %q, want 1", releaseWorkflowPath, len(found), jobName, name)
 	}
 	return found[0]
+}
+
+// stepScripts is the script of each run of step when the step has that name:
+// a block without its indentation, or a one-line run.
+func stepScripts(step *yamlNode, name string) []string {
+	if !slices.ContainsFunc(step.children("name"), func(n *yamlNode) bool { return n.value == name }) {
+		return nil
+	}
+	var scripts []string
+	for _, run := range step.children("run") {
+		switch {
+		case run.value == "|":
+			scripts = append(scripts, dedent(run.block))
+		case run.value != "":
+			scripts = append(scripts, run.value+"\n")
+		}
+	}
+	return scripts
 }
 
 func dedent(lines []string) string {
@@ -63,9 +74,10 @@ func dedent(lines []string) string {
 	return b.String()
 }
 
-// releaseStandIns answer the calls the Publish and the image tag steps make,
-// keeping the draft's tag, state and body in files under $STUB, and logging
-// every call to gh, curl and the gate check in $STUB/calls. STUB_RETAG moves
+// releaseStandIns answer the calls the Publish, the image tag and the upload
+// steps make, keeping the draft's tag, state and body in files under $STUB,
+// and logging every call to gh, curl, the gate check and the upload in
+// $STUB/calls. STUB_RETAG moves
 // the draft to another tag once its assets are read, as a writer could;
 // STUB_KEEP_TAG makes the publication leave the tag as it finds it; STUB_GATE
 // set to refuse makes the gate check fail, as it does once main has moved.
@@ -103,7 +115,8 @@ case "$*" in
   *) echo "stand-in gh: unexpected call: $*" >&2; exit 64 ;;
 esac
 `,
-	"bin/curl": "#!/bin/sh\nprintf 'curl %s\\n' \"$*\" >>\"${STUB}/calls\"\nexit 22\n",
+	"bin/curl":                       "#!/bin/sh\nprintf 'curl %s\\n' \"$*\" >>\"${STUB}/calls\"\nexit 22\n",
+	"scripts/publish-python-dist.sh": "#!/bin/sh\nprintf 'upload %s\\n' \"$*\" >>\"${STUB}/calls\"\n",
 	"scripts/check-gate-runs.sh": `#!/bin/sh
 printf 'gate %s\n' "$*" >>"${STUB}/calls"
 [ "${STUB_GATE:-}" != refuse ] || { echo "check-gate-runs: ${1} is not the head of main" >&2; exit 1; }
@@ -119,7 +132,7 @@ type releaseRun struct {
 
 // runReleaseStep runs one release step's block as the workflow's shell runs
 // it, in a directory holding dist/ and the stand-ins.
-func runReleaseStep(t *testing.T, step string, env ...string) releaseRun {
+func runReleaseStep(t *testing.T, job, step string, env ...string) releaseRun {
 	t.Helper()
 	dir := t.TempDir()
 	stub := filepath.Join(dir, "stub")
@@ -137,7 +150,7 @@ func runReleaseStep(t *testing.T, step string, env ...string) releaseRun {
 		"stub/draft":                                     "true",
 		"stub/body":                                      "",
 		"runner/notes.md":                                "The notes.\n",
-		"step.sh":                                        releaseStepRun(t, step),
+		"step.sh":                                        releaseStepRun(t, job, step),
 	}
 	for name, body := range releaseStandIns {
 		files[name] = body
@@ -179,12 +192,13 @@ func gateRightBefore(calls string) bool {
 
 // TestPublishPublishesTheVerifiedTagWhileItIsMainsHead: Publish releases the
 // draft under the tag the run was started for, even when a writer moves the
-// draft to another tag between the checks and the publication, and refuses
+// draft to another tag between the checks and the publication, since the
+// request that publishes names the tag, and refuses
 // loudly when the release reads back under another tag. It checks the gate
 // again right before the publication, so a main that moved since the job's
 // first check publishes nothing.
 func TestPublishPublishesTheVerifiedTagWhileItIsMainsHead(t *testing.T) {
-	r := runReleaseStep(t, "Publish")
+	r := runReleaseStep(t, "release", "Publish")
 	if r.err != nil || r.tag != "v1.0.0" || !strings.Contains(r.out, "published release 42 for v1.0.0") {
 		t.Fatalf("Publish of an untouched draft = %v, tag %q:\n%s\ncalls:\n%s", r.err, r.tag, r.out, r.calls)
 	}
@@ -192,18 +206,18 @@ func TestPublishPublishesTheVerifiedTagWhileItIsMainsHead(t *testing.T) {
 		t.Errorf("Publish did not check the gate right before it published:\n%s", r.calls)
 	}
 
-	r = runReleaseStep(t, "Publish", "STUB_RETAG=v0.9.0")
-	if r.err == nil && r.tag != "v1.0.0" {
-		t.Errorf("Publish of a draft moved to v0.9.0 reported success and left it under %q:\n%s\ncalls:\n%s", r.tag, r.out, r.calls)
+	r = runReleaseStep(t, "release", "Publish", "STUB_RETAG=v0.9.0")
+	if r.err != nil || r.tag != "v1.0.0" || !strings.Contains(r.out, "published release 42 for v1.0.0") {
+		t.Errorf("Publish of a draft moved to v0.9.0 = %v and left it under %q, want it published under v1.0.0:\n%s\ncalls:\n%s", r.err, r.tag, r.out, r.calls)
 	}
 
-	r = runReleaseStep(t, "Publish", "STUB_RETAG=v0.9.0", "STUB_KEEP_TAG=1")
+	r = runReleaseStep(t, "release", "Publish", "STUB_RETAG=v0.9.0", "STUB_KEEP_TAG=1")
 	const misfiled = "READS BACK UNDER TAG v0.9.0, DRAFT false, NOT AS THE PUBLISHED v1.0.0"
 	if r.err == nil || !strings.Contains(r.out, misfiled) {
 		t.Errorf("Publish read back under %q = %v, want a failure saying %q:\n%s\ncalls:\n%s", r.tag, r.err, misfiled, r.out, r.calls)
 	}
 
-	r = runReleaseStep(t, "Publish", "STUB_GATE=refuse")
+	r = runReleaseStep(t, "release", "Publish", "STUB_GATE=refuse")
 	if r.err == nil || strings.Contains(r.calls, "--method PATCH") {
 		t.Errorf("Publish with main moved on = %v, and it published:\n%s\ncalls:\n%s", r.err, r.out, r.calls)
 	}
@@ -213,12 +227,27 @@ func TestPublishPublishesTheVerifiedTagWhileItIsMainsHead(t *testing.T) {
 // taken back, so the step checks the gate before it asks the registry for
 // anything; with the gate passing it does reach the registry.
 func TestTheImageIsTaggedOnlyWhileItsCommitIsMainsHead(t *testing.T) {
-	r := runReleaseStep(t, "Tag the verified image", "STUB_GATE=refuse")
+	r := runReleaseStep(t, "release", "Tag the verified image", "STUB_GATE=refuse")
 	if r.err == nil || strings.Contains(r.calls, "curl ") {
 		t.Errorf("the image tag step with main moved on = %v, and it called the registry:\n%s\ncalls:\n%s", r.err, r.out, r.calls)
 	}
-	r = runReleaseStep(t, "Tag the verified image")
+	r = runReleaseStep(t, "release", "Tag the verified image")
 	if !strings.HasPrefix(r.calls, fmt.Sprintf("gate %s\ncurl ", strings.Repeat("a", 40))) {
 		t.Errorf("the image tag step with the gate passing did not check it first and then call the registry:\n%s", r.calls)
+	}
+}
+
+// TestTheClientIsUploadedOnlyWhileItsCommitIsMainsHead: an upload to the
+// package index is not taken back, and the index job can wait for its
+// approval long after the release job's checks, so the upload step checks
+// the gate before it uploads anything; with the gate passing it uploads.
+func TestTheClientIsUploadedOnlyWhileItsCommitIsMainsHead(t *testing.T) {
+	r := runReleaseStep(t, "index", "Upload", "STUB_GATE=refuse")
+	if r.err == nil || strings.Contains(r.calls, "upload ") {
+		t.Errorf("the upload step with main moved on = %v, and it uploaded:\n%s\ncalls:\n%s", r.err, r.out, r.calls)
+	}
+	r = runReleaseStep(t, "index", "Upload")
+	if r.err != nil || !strings.HasPrefix(r.calls, fmt.Sprintf("gate %s\nupload ", strings.Repeat("a", 40))) {
+		t.Errorf("the upload step with the gate passing = %v, want the gate checked and then the upload:\n%s\ncalls:\n%s", r.err, r.out, r.calls)
 	}
 }

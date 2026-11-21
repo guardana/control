@@ -302,7 +302,7 @@ const shadowRefused = "beside the Makefile, which make reads before it"
 // would run its own quality and print the pass line. The entry points name
 // the Makefile, and the Makefile, so named, refuses either one for every goal.
 // A case-insensitive file system holds no makefile beside a Makefile, since
-// both are one file there.
+// both are one file there, and that case is skipped.
 func TestTheGateRefusesAMakefileMakeReadsFirst(t *testing.T) {
 	makeBin, err := exec.LookPath("make")
 	if err != nil {
@@ -316,8 +316,7 @@ func TestTheGateRefusesAMakefileMakeReadsFirst(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !holdsBoth(t, dir, name, "Makefile") {
-				t.Logf("%s and Makefile are one file on this file system; nothing to plant", name)
-				return
+				t.Skipf("%s and Makefile are one file on this file system, so there is nothing to plant", name)
 			}
 			bare := exec.Command(makeBin, "-C", dir, "quality") //nolint:gosec // G204: make, in a stand-in tree, with fixed arguments
 			bare.Env = cleanMakeEnv()

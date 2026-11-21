@@ -66,7 +66,8 @@ func coldGateOn(t *testing.T, link, target string) (string, error) {
 // committed link that is absolute or climbs with .. would let a stamp rest on
 // bytes the commit does not hold. A link that stays below its own directory
 // passes the archive check, and the run stops later, at the repo_files this
-// tree lacks.
+// tree lacks. No run prints one of git's hints, which a maintainer would have
+// to read past in every gate log.
 func TestTheColdGateRefusesALinkOutOfTheCommit(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "fixture.jsonl")
 	if err := os.WriteFile(outside, []byte("{}\n"), 0o600); err != nil {
@@ -84,10 +85,19 @@ func TestTheColdGateRefusesALinkOutOfTheCommit(t *testing.T) {
 			if err == nil || strings.Contains(out, passed) || !strings.Contains(out, want) {
 				t.Errorf("gate-commit.sh = %v, want a refusal saying %q before %q:\n%.800s", err, want, passed, out)
 			}
+			noHint(t, out)
 		})
 	}
 	out, err := coldGateOn(t, "docs/link.md", "inside/page.md")
 	if err == nil || !strings.Contains(out, passed) {
 		t.Errorf("gate-commit.sh over a link that stays inside = %v, want the archive check passed and a later stop:\n%.800s", err, out)
+	}
+	noHint(t, out)
+}
+
+func noHint(t *testing.T, out string) {
+	t.Helper()
+	if strings.Contains(out, "hint:") {
+		t.Errorf("gate-commit.sh printed a hint of git's:\n%.800s", out)
 	}
 }

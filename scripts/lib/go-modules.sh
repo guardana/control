@@ -63,9 +63,12 @@ go_modules() {
 # ran ./... alone would then pass without ever building that package's tests.
 # The inventory is every directory of the module, outside testdata, a nested
 # module and a directory whose name starts with "_" or ".", whose Go files
-# build on this platform, listed by path, which no ignore directive drops.
+# build on this platform, listed by path, which no ignore directive drops;
+# and every package of the module that one of those, or a package of ./...,
+# imports, since go builds that one wherever it lies, while ./... skips a
+# directory under testdata or one whose name starts with "_" or ".".
 go_packages_covered() {
-  local go="$1" mod="$2" mods files path dir owner m rel dirs="" want listed missing
+  local go="$1" mod="$2" mods files path dir owner m rel dirs="" want imported listed missing
   mods="$(go_modules)" || return 1
   files="$(repo_files '*.go')" || return 1
   while IFS= read -r path; do
@@ -112,6 +115,16 @@ go_packages_covered() {
     printf 'go_packages_covered: module %s lists no package by path\n' "${mod}" >&2
     return 1
   fi
+  # GOWORK=off keeps the module the only main one, so another module's package
+  # it imports is not taken for its own. A directory named by path whose every
+  # file a build constraint leaves out lists as a package with no files, and
+  # is no package here.
+  imported="$(GOWORK=off "${go}" -C "${mod}" list -e -deps \
+    -f '{{if and .Module .Module.Main (or .GoFiles .CgoFiles)}}{{.ImportPath}}{{end}}' ./... "${args[@]}")" || {
+    printf 'go_packages_covered: listing what the packages of module %s import failed\n' "${mod}" >&2
+    return 1
+  }
+  want="$(printf '%s\n%s\n' "${want}" "${imported}" | LC_ALL=C sort -u)"
   missing=""
   while IFS= read -r m; do
     [[ -z "${m}" ]] || grep -Fxq -- "${m}" <<<"${listed}" || missing+=" ${m}"

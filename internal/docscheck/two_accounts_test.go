@@ -128,9 +128,22 @@ func testsOfFiles(module string, files map[string][]byte) (map[testreport.Run]bo
 	return declared, tagged, nil
 }
 
-// needsTwoAccountsTag reports whether the file's //go:build line holds on
-// Linux with the twoaccounts tag and not without it, under the release tags
-// (go1.1 to this toolchain's own) the job's toolchain sets too.
+// jobBuildTag reports whether the two-accounts job's build satisfies tag: it
+// builds for linux/amd64 under gc with cgo on, and sets the release tags (go1.1
+// to this toolchain's own) and the experiment tags of this toolchain. An
+// experiment this toolchain enables for another architecture alone is not
+// seen.
+func jobBuildTag(tag string) bool {
+	switch tag {
+	case "linux", "unix", "amd64", "amd64.v1", "gc", "cgo":
+		return true
+	}
+	return slices.Contains(build.Default.ReleaseTags, tag) ||
+		strings.HasPrefix(tag, "goexperiment.") && slices.Contains(build.Default.ToolTags, tag)
+}
+
+// needsTwoAccountsTag reports whether the file's //go:build line holds in the
+// two-accounts job's build with the twoaccounts tag and not without it.
 func needsTwoAccountsTag(src []byte) (bool, error) {
 	sc := bufio.NewScanner(bytes.NewReader(src))
 	for sc.Scan() {
@@ -147,8 +160,7 @@ func needsTwoAccountsTag(src []byte) (bool, error) {
 		}
 		on := func(with bool) bool {
 			return expr.Eval(func(tag string) bool {
-				return tag == "linux" || tag == "unix" || tag == "amd64" || tag == "gc" ||
-					slices.Contains(build.Default.ReleaseTags, tag) || (with && tag == twoAccountsTag)
+				return jobBuildTag(tag) || (with && tag == twoAccountsTag)
 			})
 		}
 		return on(true) && !on(false), nil
@@ -311,20 +323,31 @@ func TestTwoAccountGapsRefusesWhatTheListMisses(t *testing.T) {
 }
 
 // TestOnlyTheTwoAccountsTagMarksATaggedFile: a file is the job's when the tag
-// alone brings it into a Linux build.
+// alone brings it into the job's build, linux/amd64 with cgo on.
 func TestOnlyTheTwoAccountsTagMarksATaggedFile(t *testing.T) {
-	for src, want := range map[string]bool{
-		"//go:build twoaccounts && unix\n\npackage p\n":     true,
-		"//go:build twoaccounts\n\npackage p\n":             true,
-		"//go:build unix\n\npackage p\n":                    false,
-		"package p\n":                                       false,
-		"//go:build twoaccounts || unix\n\npackage p\n":     false,
-		"//go:build twoaccounts && windows\n\npackage p\n":  false,
-		"//go:build !twoaccounts\n\npackage p\n":            false,
-		"//go:build twoaccounts && go1.1\n\npackage p\n":    true,
-		"//go:build twoaccounts && !go1.1\n\npackage p\n":   false,
-		"//go:build twoaccounts && go1.9999\n\npackage p\n": false,
-	} {
+	cases := map[string]bool{
+		"//go:build twoaccounts && unix\n\npackage p\n":       true,
+		"//go:build twoaccounts\n\npackage p\n":               true,
+		"//go:build unix\n\npackage p\n":                      false,
+		"package p\n":                                         false,
+		"//go:build twoaccounts || unix\n\npackage p\n":       false,
+		"//go:build twoaccounts && windows\n\npackage p\n":    false,
+		"//go:build !twoaccounts\n\npackage p\n":              false,
+		"//go:build twoaccounts && go1.1\n\npackage p\n":      true,
+		"//go:build twoaccounts && !go1.1\n\npackage p\n":     false,
+		"//go:build twoaccounts && go1.9999\n\npackage p\n":   false,
+		"//go:build twoaccounts && cgo\n\npackage p\n":        true,
+		"//go:build twoaccounts && !cgo\n\npackage p\n":       false,
+		"//go:build twoaccounts && amd64.v1\n\npackage p\n":   true,
+		"//go:build twoaccounts && arm64.v8.0\n\npackage p\n": false,
+		"//go:build twoaccounts && darwin\n\npackage p\n":     false,
+	}
+	i := slices.IndexFunc(build.Default.ToolTags, func(tag string) bool { return strings.HasPrefix(tag, "goexperiment.") })
+	if i < 0 {
+		t.Fatalf("this toolchain sets no goexperiment tag: %v", build.Default.ToolTags)
+	}
+	cases["//go:build twoaccounts && "+build.Default.ToolTags[i]+"\n\npackage p\n"] = true
+	for src, want := range cases {
 		got, err := needsTwoAccountsTag([]byte(src))
 		if err != nil || got != want {
 			t.Errorf("%q: %v, %v; want %v", src, got, err, want)

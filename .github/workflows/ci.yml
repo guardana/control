@@ -12,7 +12,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # GitHub keeps one pending run per group and drops the one queued before it,
+  # so each event has its own group: a manual run never displaces a pending
+  # push run on main. Two pushes to main in quick succession still can, and
+  # the release then refuses the commit that has no result of its own.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   # Superseded pull request runs are cancelled; runs on main are not, because
   # every commit there has to have its own recorded result.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

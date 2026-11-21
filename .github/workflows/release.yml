@@ -707,6 +707,8 @@ jobs:
       contents: read
       attestations: read # Verify the files: reads their provenance
       id-token: write # Upload: the index takes this job's identity in place of a token
+      actions: read # Upload: checks the gate first, reading CI's and Security's runs of the tagged commit
+      security-events: read # Upload: checks the gate first, reading the open code scanning alerts on main
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -752,8 +754,13 @@ jobs:
       - name: Upload
         # The version and the digests come from the step that built the files,
         # which no later tool of that job could change: an attestation that
-        # job's identity made afterwards would vouch for a substitute too.
+        # job's identity made afterwards would vouch for a substitute too. The
+        # gate is checked again first: this job can wait for its approval long
+        # after the release job's checks, and an upload is not taken back.
         env:
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.release.outputs.client-version }}
           FILES: ${{ needs.release.outputs.client-files }}
-        run: scripts/publish-python-dist.sh "${RUNNER_TEMP}/python" pypi "${VERSION}" "${FILES}"
+        run: |
+          scripts/check-gate-runs.sh "${GITHUB_SHA}"
+          scripts/publish-python-dist.sh "${RUNNER_TEMP}/python" pypi "${VERSION}" "${FILES}"

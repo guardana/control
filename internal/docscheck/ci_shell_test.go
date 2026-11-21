@@ -314,3 +314,29 @@ func TestNightlyProblems(t *testing.T) {
 		}
 	}
 }
+
+// TestARunOfAPushToMainIsNotDisplacedByAnotherEvent: GitHub keeps one pending
+// run per concurrency group, so a manual or scheduled run sharing the group
+// of a push to main could drop that push's run, and the release would find no
+// result for its commit. CI and Security give each event its own group, and
+// no job of theirs sets one.
+func TestARunOfAPushToMainIsNotDisplacedByAnotherEvent(t *testing.T) {
+	for _, path := range []string{ciWorkflowPath, ".github/workflows/security.yml"} {
+		root, err := parseBlockYAML(readLines(t, repoFS(t), path))
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if !slices.ContainsFunc(root.children("concurrency"), func(c *yamlNode) bool {
+			return slices.ContainsFunc(c.children("group"), func(g *yamlNode) bool { return g.value == nightlyGroup })
+		}) {
+			t.Errorf("%s: the concurrency group is not %s, so a run of another event can displace a pending push run on main", path, nightlyGroup)
+		}
+		for _, jobs := range root.children("jobs") {
+			for _, job := range jobs.kids {
+				for _, c := range job.children("concurrency") {
+					t.Errorf("%s: line %d: job %s sets a concurrency group of its own", path, c.line, job.key)
+				}
+			}
+		}
+	}
+}

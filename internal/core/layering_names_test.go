@@ -18,8 +18,9 @@ import (
 // path: the functions of allowed packages that read the clock, standard input
 // or the zone database, or draw on the system's randomness. The timer types
 // are refused whole: Reset schedules from the clock, and a Reset selector
-// cannot be told from a buffer's without the receiver's type, while a timer
-// cannot be held without naming its type. .golangci.yml refuses the same
+// cannot be told from a buffer's without the receiver's type. A timer held
+// through an interface of its Reset alone names neither type: a read no name
+// reveals, which no name refusal can catch. .golangci.yml refuses the same
 // names through forbidigo, and layering_agreement_test.go holds the two to
 // each other.
 var refusedNames = map[string][]string{

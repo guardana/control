@@ -1029,7 +1029,8 @@ outside `api/gen/` and a skipped test `scripts/expected-skips.txt` does not name
 and it reads what the test binary prints, so a test that prints its own pass and
 exits 0 hides the tests after it, which only review catches; before it, both
 targets refuse a module whose `./...` leaves out a package holding Go files, as
-a `go.mod` `ignore` directive can), `scripts/`,
+a `go.mod` `ignore` directive can, or one the module's code imports, as one
+under `testdata` or `_` is), `scripts/`,
 `internal/docscheck/`, `internal/core/layering_test.go`. The dependency rule is
 an allowlist over six trees, all examined, and every package of this module they
 reach is held to the same refusals by name; no non-test file under `adapters/`
@@ -1101,13 +1102,14 @@ verified by the workflow before it publishes.
 Every binary of every archive and the image's binary for each platform are
 scanned with `govulncheck` in binary mode before anything is attested; a finding
 stops the release (`scripts/scan-binaries.sh`), and so does an archive without
-the binary of a command under `cmd/`. The release job refuses a commit that is
-not main's head, that lacks a successful CI and Security push run on main, or
-that main's newest CodeQL analysis is not of, and refuses while main has an open
-CodeQL alert of severity high or critical (`scripts/check-gate-runs.sh`); it
-checks again right before it tags the image and right before it publishes,
-names the tag in the request that publishes the draft, and reads the release
-back under that tag.
+the binary of a command under `cmd/` where goreleaser puts it. The release job
+refuses a commit that is not main's head, that lacks a successful CI and
+Security push run on main, or that main's newest CodeQL analysis is not of, and
+refuses while main has an open CodeQL alert of severity high or critical
+(`scripts/check-gate-runs.sh`); it checks again right before it tags the image
+and right before it publishes, names the tag in the request that publishes the
+draft, and reads the release back under that tag. The job that uploads the
+client to the package index checks again right before the upload.
 
 Also an OCI image of the gateway, `ghcr.io/guardana/control-gateway`, for
 linux/amd64 and linux/arm64 on a distroless nonroot base, signed and attested by

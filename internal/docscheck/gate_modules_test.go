@@ -73,7 +73,7 @@ func TestFuzzListRefusesALineNoSourceDeclares(t *testing.T) {
 	planted := files()
 	planted["main_test.go"] = printer
 	dir := stageModule(t, []string{"scripts/fuzz-smoke.sh"}, planted)
-	const want = `fuzz-smoke: . lists "Fuzz configuration loaded", which no source of the package declares`
+	const want = `fuzz-smoke: . lists "Fuzz configuration loaded", which no file the build includes declares`
 	for _, args := range []string{"--list", "1s"} {
 		if out, err := runIn(t, dir, "bash scripts/fuzz-smoke.sh "+args); err == nil || !strings.Contains(out, want) {
 			t.Errorf("fuzz-smoke %s with the TestMain planted = %v, want a refusal saying %q:\n%s", args, err, want, out)
@@ -81,12 +81,65 @@ func TestFuzzListRefusesALineNoSourceDeclares(t *testing.T) {
 	}
 }
 
+// TestFuzzListRefusesANameOnlyAnExcludedFileDeclares: a TestMain that prints
+// the name of a target declared only in a file a build constraint leaves out
+// would have that name counted as compiled, and fuzzing it would match
+// nothing and pass. A listed name must be declared in a file the build takes.
+func TestFuzzListRefusesANameOnlyAnExcludedFileDeclares(t *testing.T) {
+	dir := stageModule(t, []string{"scripts/fuzz-smoke.sh"}, map[string]string{
+		"go.mod":          stagedGoMod,
+		"b/b.go":          "package b\n",
+		"b/never_test.go": "//go:build never\n\npackage b\n\nimport \"testing\"\n\nfunc FuzzB(f *testing.F) { f.Fuzz(func(t *testing.T, _ int) {}) }\n",
+		"b/main_test.go":  testMainThat("if flag.Lookup(\"test.list\").Value.String() != \"\" {\n\t\tfmt.Println(\"FuzzB\")\n\t}", "b"),
+	})
+	const want = `fuzz-smoke: ./b lists "FuzzB", which no file the build includes declares`
+	if out, err := runIn(t, dir, "bash scripts/fuzz-smoke.sh --list"); err == nil || !strings.Contains(out, want) {
+		t.Errorf("fuzz-smoke --list with FuzzB declared only under a constraint that never holds = %v, want a refusal saying %q:\n%s", err, want, out)
+	}
+}
+
+// TestFuzzRunCountsOnlyATargetThatFuzzed: a TestMain that exits 0 when the
+// binary is told to fuzz makes go test pass without fuzzing. A target counts
+// as run only once the fuzzing engine reports executions; the same package
+// without that TestMain fuzzes and passes.
+func TestFuzzRunCountsOnlyATargetThatFuzzed(t *testing.T) {
+	files := func() map[string]string {
+		return map[string]string{
+			"go.mod":         stagedGoMod,
+			"a/a.go":         "package a\n",
+			"a/fuzz_test.go": "package a\n\nimport \"testing\"\n\nfunc FuzzA(f *testing.F) {\n\tf.Add(1)\n\tf.Fuzz(func(t *testing.T, _ int) {})\n}\n",
+		}
+	}
+	clean := stageModule(t, []string{"scripts/fuzz-smoke.sh"}, files())
+	if out, err := runIn(t, clean, "bash scripts/fuzz-smoke.sh 1s"); err != nil || !strings.Contains(out, "fuzz-smoke: 1 target(s) run for 1s each") {
+		t.Fatalf("fuzz-smoke 1s over one target = %v, want it fuzzed:\n%s", err, out)
+	}
+	planted := files()
+	planted["a/main_test.go"] = testMainThat("if flag.Lookup(\"test.fuzz\").Value.String() != \"\" {\n\t\tfmt.Println(\"PASS\")\n\t\tos.Exit(0)\n\t}", "a")
+	dir := stageModule(t, []string{"scripts/fuzz-smoke.sh"}, planted)
+	const want = "fuzz-smoke: ./a FuzzA reported no execution of the fuzzing engine"
+	out, err := runIn(t, dir, "bash scripts/fuzz-smoke.sh 1s")
+	if err == nil || !strings.Contains(out, want) || strings.Contains(out, "target(s) run") {
+		t.Errorf("fuzz-smoke 1s with a TestMain that exits before fuzzing = %v, want a refusal saying %q:\n%s", err, want, out)
+	}
+}
+
+// testMainThat is a TestMain of package pkg that parses the test flags, runs
+// body, then the tests.
+func testMainThat(body, pkg string) string {
+	return "package " + pkg + "\n\nimport (\n\t\"flag\"\n\t\"fmt\"\n\t\"os\"\n\t\"testing\"\n)\n\n" +
+		"func TestMain(m *testing.M) {\n\tflag.Parse()\n\t" + body + "\n\tos.Exit(m.Run())\n}\n"
+}
+
 // TestTheTestTargetsRefuseAModuleThatHidesAPackage: a go.mod's ignore
 // directive drops a directory from ./..., and the reporter sees only the
 // packages that ran, so the failing test planted there would pass make test
 // unseen. go_packages_covered lists the module's packages by path and refuses
-// the one ./... leaves out; without the directive it passes. Both test
-// targets run it for every module before their tests.
+// the one ./... leaves out; without the directive it passes. A package under
+// a directory named testdata or starting with "_" is not in ./... either, and
+// is refused once the module's code imports it, so it is built and shipped
+// with no test of its own run. Both test targets run it for every module
+// before their tests.
 func TestTheTestTargetsRefuseAModuleThatHidesAPackage(t *testing.T) {
 	files := func(gomod string) map[string]string {
 		return map[string]string{
@@ -109,6 +162,26 @@ func TestTheTestTargetsRefuseAModuleThatHidesAPackage(t *testing.T) {
 		t.Errorf("go_packages_covered over a module that ignores ./skipped = %v, want a refusal saying %q:\n%s", err, want, out)
 	}
 
+	imported := files(stagedGoMod)
+	imported["staged.go"] = "package staged\n\nimport (\n\t_ \"example.com/staged/_hidden\"\n\t_ \"example.com/staged/internal/testdata/td\"\n)\n"
+	imported["_hidden/h.go"] = "package hidden\n"
+	imported["_hidden/h_test.go"] = "package hidden\n\nimport \"testing\"\n\nfunc TestH(t *testing.T) { t.Fatal(\"hidden\") }\n"
+	imported["internal/testdata/td/td.go"] = "package td\n"
+	imported["internal/testdata/td/td_test.go"] = "package td\n\nimport \"testing\"\n\nfunc TestT(t *testing.T) { t.Fatal(\"testdata\") }\n"
+	out, err := runIn(t, stageModule(t, nil, imported), covered)
+	const leaves = "go_packages_covered: ./... in module . leaves out a package that holds Go files:"
+	if err == nil || !strings.Contains(out, leaves) || !strings.Contains(out, " example.com/staged/_hidden") ||
+		!strings.Contains(out, " example.com/staged/internal/testdata/td") {
+		t.Errorf("go_packages_covered over a module whose code imports _hidden and internal/testdata/td = %v, want a refusal naming both:\n%s", err, out)
+	}
+
+	wantTestTargetsCovered(t)
+}
+
+// wantTestTargetsCovered wants the Makefile's test and test-race to run
+// go_packages_covered over each module before its tests.
+func wantTestTargetsCovered(t *testing.T) {
+	t.Helper()
 	lines := readLines(t, repoFS(t), "Makefile")
 	for _, target := range []string{"test", "test-race"} {
 		i := slices.Index(lines, target+":")
