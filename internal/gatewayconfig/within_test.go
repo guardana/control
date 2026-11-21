@@ -38,21 +38,19 @@ func TestWithinComparesOneWay(t *testing.T) {
 	}
 }
 
-// TestWithinFollowsTheFileSystemsNames: on a file system that folds case,
-// a name in another case is the same directory, and Within says so.
-func TestWithinFollowsTheFileSystemsNames(t *testing.T) {
+// TestWithinRefusesANameInAnotherCase: a name in another case is the same
+// directory on a file system that folds case, so Within reports it within on
+// every file system rather than answer by the one it runs on.
+func TestWithinRefusesANameInAnotherCase(t *testing.T) {
 	dir := t.TempDir()
 	staging := filepath.Join(dir, ".floors.restoring")
 	if err := os.Mkdir(staging, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	other := filepath.Join(dir, ".FLOORS.restoring")
-	a, aerr := os.Stat(staging)
-	b, berr := os.Stat(other)
-	folds := aerr == nil && berr == nil && os.SameFile(a, b)
-	got, err := Within(other, staging)
-	if err != nil || got != folds {
-		t.Fatalf("Within(another case, staging) = %v, %v, want %v, as the file system names them", got, err, folds)
+	for _, other := range []string{filepath.Join(dir, ".FLOORS.restoring"), filepath.Join(dir, ".FLOORS.restoring", "journal")} {
+		if got, err := Within(other, staging); err != nil || !got {
+			t.Errorf("Within(%q, staging) = %v, %v, want true", strings.TrimPrefix(other, dir), got, err)
+		}
 	}
 }
 

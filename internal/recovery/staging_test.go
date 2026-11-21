@@ -116,9 +116,10 @@ func TestARestoreRefusesAStagingPathTheHoldJournalHolds(t *testing.T) {
 
 // TestARestoreJudgesAStagingPathByWhatItNames: the route floor is named by
 // a spelling the plane floor's build name does not match as text, in
-// another case or through a link to the plane's own directory. Where the
-// file system makes the two one directory the restore refuses, and the
-// route floor keeps the serial it held after the backup either way.
+// another case or through a link to the plane's own directory. Either may be
+// the build's directory, on a file system that folds case or through the
+// link, so the restore refuses both on every file system, and the route
+// floor keeps the serial it held after the backup.
 func TestARestoreJudgesAStagingPathByWhatItNames(t *testing.T) {
 	for _, c := range []struct {
 		name, floorDir, made string
@@ -147,15 +148,8 @@ func restoreBesideAnotherSpelling(t *testing.T, floorDir, made string, link bool
 	p.load(t)
 	routeFloor := p.path(made)
 	dir := backUpBetweenRouteSerials(t, p, routeFloor)
-	staging, serr := os.Stat(p.path(".floors.restoring"))
-	floor, ferr := os.Stat(routeFloor)
-	one := serr == nil && ferr == nil && os.SameFile(staging, floor)
-	_, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt)
-	switch {
-	case one && !errors.Is(err, recovery.ErrStaging):
-		t.Errorf("Restore = %v over a route floor that is the build's name on this file system, want ErrStaging", err)
-	case !one && err != nil:
-		t.Errorf("Restore = %v over a route floor apart from the build's name", err)
+	if _, err := recovery.Restore(t.Context(), p.cfg, dir, restoreAt); !errors.Is(err, recovery.ErrStaging) {
+		t.Errorf("Restore = %v over a route floor that may be the build's name, want ErrStaging", err)
 	}
 	if got, err := policystate.ReadRoute(routeFloor, "refunds"); err != nil || got.Serial != 7 {
 		t.Fatalf("the route floor holds serial %d (%v), and held 7", got.Serial, err)
