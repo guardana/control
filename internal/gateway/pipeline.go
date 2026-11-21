@@ -215,11 +215,16 @@ func (p *Pipeline) Preview(ctx context.Context, a Admission) Previewed {
 	c.checkTranslation()
 	c.refuseFlowTags()
 	c.stampFlow()
-	c.causes = planeCauses(c.planeState())
+	state := c.planeState()
+	c.causes = planeCauses(state)
 	c.decideProposed(p.cfg.Policy.Current(), false)
 	c.applyMode()
 	c.refuseFlow()
-	return Previewed{Decision: c.decision, Listing: listingOf(c.decision, c.kernel, c.noRuleMatched, c.unknownAllows, c.in)}
+	return Previewed{
+		Decision: c.decision,
+		Listing:  listingOf(c.decision, c.kernel, c.noRuleMatched, c.unknownAllows, c.in),
+		Halted:   state.sinkHalt || state.mismatchHalt || state.runHalt,
+	}
 }
 
 // Stats returns what the pipeline counted so far. A nil or zero Pipeline

@@ -823,7 +823,9 @@ even though the two values are equal: this call is the first place those bytes
 exist.
 
 The gateway sends the agent's own bytes upstream when no obligation rewrites
-them, and those bytes may spell a number differently from the canonical form:
+them, without the whitespace between tokens, which the protocol library
+removes from every message it writes; the closing record is told those bytes.
+They may still spell a number differently from the canonical form:
 `1.0` where the digest holds `1`. The digest binds a number's value, not its
 spelling, its scale or whether it was written as an integer, so an upstream
 that reads `1.0` as a float and `1` as an integer sees a difference the digest

@@ -53,6 +53,38 @@ verify one.
   with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
   approval closed the hold as `APPROVAL_EXPIRED` before its version was
   read.
+- `coverage` joins an `mcp_tool` path's observation only to a proposal the
+  MCP adapter recorded. An enforcement API proposal with the same ids, tool
+  and provider joined it too
+  ([coverage](docs/reference/coverage.md#the-join)).
+- `coverage` exits 1 when its map cannot be written to standard output. It
+  exited 2, the status of a refused input, after reading every input
+  ([coverage](docs/reference/coverage.md#output-and-exit-status)).
+- A shaped tool list cached before the plane halted material calls is shaped
+  again once the halt stands, so a tool the halt denies is hidden. The cached
+  list answered until its TTL ran out
+  ([MCP coverage](docs/reference/mcp-coverage.md#methods)).
+- A `tools/call` is recorded as sent with the bytes the upstream receives:
+  the agent's arguments without whitespace between tokens, which the protocol
+  library removes. Close was told the agent's spaced bytes
+  ([contracts](docs/contracts.md#the-action-digest)).
+- A `tools/call` the gateway answers `-32603` because the upstream never
+  answered names its trail in `data`, as a wire error does. It carried no
+  `data`
+  ([MCP coverage](docs/reference/mcp-coverage.md#the-codes-the-adapter-mints)).
+- A call blocked because its envelope could not be built carries `refused`
+  with what the refusal said, as documented. Only an execution the adapter
+  did not send carried it
+  ([MCP coverage](docs/reference/mcp-coverage.md#the-codes-the-adapter-mints)).
+- A tool name that quotes a credential the gateway holds is recorded as
+  `withheld:sha256:` and the digest of the name when a client calls it. The
+  proposal recorded the name, credential included
+  ([privacy](docs/concepts/privacy.md#what-an-evidence-event-holds)).
+- A `tools/call` admitted under a classification a manifest refresh withdrew
+  before the send is not sent: the adapter aborts it as
+  `ACTION_UNCLASSIFIED`. It ran under the decision made for the old
+  definition
+  ([MCP coverage](docs/reference/mcp-coverage.md#reason-codes-in-the-gateways-answers)).
 
 ### Documentation
 

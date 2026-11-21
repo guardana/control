@@ -26,9 +26,12 @@ const (
 )
 
 // Previewed is a preview's decision and what a listing may do with the tool.
+// Halted says a halt of material calls stood when it was decided, which
+// shapes a listing as much as the bundle the decision names.
 type Previewed struct {
 	Decision *controlv1.Decision
 	Listing  Listing
+	Halted   bool
 }
 
 // listingOf is what a listing may do with a tool previewed as decision under

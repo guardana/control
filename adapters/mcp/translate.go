@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +19,7 @@ import (
 	"github.com/guardana/control/internal/canon"
 	"github.com/guardana/control/internal/channel"
 	"github.com/guardana/control/internal/gateway"
+	"github.com/guardana/control/internal/secretscan"
 	"github.com/guardana/control/pkg/contract"
 )
 
@@ -29,6 +32,9 @@ const (
 	// tag, which the digest leaves out, never a field it covers.
 	tagClient   = "mcp.client="
 	tagRevision = "mcp.protocol_version="
+	// withheldPrefix starts the name a call is recorded under in place of a
+	// tool name that quotes a credential.
+	withheldPrefix = "withheld:sha256:"
 )
 
 // call is one operation the middleware translated: what the pipeline is
@@ -132,7 +138,7 @@ func (a *Adapter) toolCall(req *mcp.CallToolRequest) call {
 		return c
 	}
 	env := a.base(req, req.Params.Meta, principal, agent, c.requestID)
-	env.Action = &controlv1.Action{Kind: channel.KindTool, Name: req.Params.Name, Protocol: channel.ProtocolMCP}
+	env.Action = &controlv1.Action{Kind: channel.KindTool, Name: a.recordedName(req.Params.Name), Protocol: channel.ProtocolMCP}
 	c.admission.Envelope = env
 	entry, err := a.manifest.route(req.Params.Name)
 	c.entry = entry
@@ -157,6 +163,17 @@ func (a *Adapter) toolCall(req *mcp.CallToolRequest) call {
 	c.admission.ResultTrust, c.admission.ResultSensitivity = entry.ReturnsTrust, entry.ReturnsSensitivity
 	c.admission.Refusal = a.finish(env, args)
 	return c
+}
+
+// recordedName is a called tool's name as the envelope carries it: the name,
+// or, when it quotes a credential the gateway holds or could not be scanned,
+// withheldPrefix and its digest, since the trail and the log outlive the call.
+func (a *Adapter) recordedName(name string) string {
+	if a.cfg.Secrets.ScanText(name).State == secretscan.Clean {
+		return name
+	}
+	sum := sha256.Sum256([]byte(name))
+	return withheldPrefix + hex.EncodeToString(sum[:])
 }
 
 // route is the upstream a call goes to: the one whose entry classifies the

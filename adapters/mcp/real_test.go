@@ -44,6 +44,9 @@ const (
 type realPipeline struct {
 	*gateway.Pipeline
 	previews atomic.Int64
+	// misreport, when set, has Close told of other bytes than were sent, as
+	// a mismatch the plane halts on.
+	misreport atomic.Bool
 
 	mu       sync.Mutex
 	proposed []string
@@ -61,6 +64,13 @@ func (r *realPipeline) admitted() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return slices.Clone(r.proposed)
+}
+
+func (r *realPipeline) Close(ctx context.Context, d gateway.Disposition, sent []byte, result *controlv1.ActionResult) error {
+	if r.misreport.Load() {
+		sent = []byte(`{"to":"someone-else@example.com"}`)
+	}
+	return r.Pipeline.Close(ctx, d, sent, result)
 }
 
 func (r *realPipeline) Preview(ctx context.Context, a gateway.Admission) gateway.Previewed {

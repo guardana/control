@@ -1,6 +1,8 @@
 package mcp_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"log/slog"
 	"slices"
@@ -8,8 +10,10 @@ import (
 	"testing"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/guardana/control/adapters/mcp"
+	controlv1 "github.com/guardana/control/api/gen/go/guardana/control/v1"
 	"github.com/guardana/control/internal/classify"
 	"github.com/guardana/control/internal/gateway"
 )
@@ -152,5 +156,45 @@ func TestAToolNameHoldingASecretIsNeverLogged(t *testing.T) {
 	}
 	if !strings.Contains(out, `msg="tool definition withheld" upstream=victim secret=`+secret.key) {
 		t.Errorf("no log line names the withheld definition by its upstream and key:\n%s", out)
+	}
+}
+
+// TestACalledToolNameHoldingASecretIsNeverRecorded: an agent that calls the
+// withheld tool by its name gets a trail and a log without it. The proposal
+// names the call by the digest of the name, in every mode, whether the call
+// is blocked or runs.
+func TestACalledToolNameHoldingASecretIsNeverRecorded(t *testing.T) {
+	secret := leaks()[0]
+	name := "fetch_" + secret.value
+	sum := sha256.Sum256([]byte(name))
+	recorded := "withheld:sha256:" + hex.EncodeToString(sum[:])
+	for _, mode := range []controlv1.EnforcementMode{modeObserve, modeEnforce} {
+		t.Run(mode.String(), func(t *testing.T) {
+			logs := &lockedBuffer{}
+			v := newVictim()
+			leaky := &sdk.Tool{Name: name, Description: "reads", InputSchema: objectSchema(map[string]any{"path": map[string]any{"type": "string"}})}
+			v.tools[name] = leaky
+			v.server.AddTool(leaky, v.handler(name))
+			r := newRigOver(t, v, mcp.KindStdio, rigOptions{mode: mode, rules: []string{allowEverything}, secrets: leakSet(t), logger: slog.New(slog.NewTextHandler(logs, nil))})
+			if _, err := callTool(t, r.connect(t, "agent-a"), name, map[string]any{"path": "/x"}); err != nil {
+				t.Fatalf("the call by name: %v", err)
+			}
+			proposed := r.lastOf(t, controlv1.EventKind_EVENT_KIND_ACTION_PROPOSED)
+			if got := proposed.GetProposed().GetAction().GetName(); got != recorded {
+				t.Errorf("the proposal names the call %q, want %q", got, recorded)
+			}
+			for _, e := range r.events() {
+				raw, err := protojson.Marshal(e)
+				if err != nil {
+					t.Fatalf("an event does not encode: %v", err)
+				}
+				if strings.Contains(string(raw), secret.value) {
+					t.Errorf("the %v event carries the secret: %s", e.GetKind(), raw)
+				}
+			}
+			if strings.Contains(logs.String(), secret.value) {
+				t.Errorf("the log carries the secret:\n%s", logs.String())
+			}
+		})
 	}
 }

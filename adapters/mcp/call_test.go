@@ -2,8 +2,11 @@ package mcp_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"net/http"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +37,41 @@ func TestAllowSendsTheAuthorizedBytes(t *testing.T) {
 		}
 		assertClosedSuccess(t, r, env, `{"path":"/x"}`)
 	})
+}
+
+// TestTheBytesSentAreTheBytesRecorded: the library writes a call's
+// arguments without the whitespace between their tokens, so an agent's spaced
+// document reaches the upstream compacted, each number spelled as the agent
+// wrote it, and Close is told those very bytes.
+func TestTheBytesSentAreTheBytesRecorded(t *testing.T) {
+	r := newRig(t, mcp.KindStatelessHTTP, rigOptions{})
+	m, err := json.Marshal(meta())
+	if err != nil {
+		t.Fatal(err)
+	}
+	spaced := `{ "path" : "/x", "n" : 1.0 }`
+	body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"read_file","arguments":` + spaced + `,"_meta":` + string(m) + `}}`
+	if status, out := rawPostWith(t, r.url, nil, body, "read_file"); status != http.StatusOK || !bytes.Contains(out, []byte(upstreamMark)) {
+		t.Fatalf("the call: %d %s", status, out)
+	}
+	const wire = `{"path":"/x","n":1.0}`
+	if got := r.victim.args("read_file"); len(got) != 1 || string(got[0]) != wire {
+		t.Fatalf("the upstream received %q, want %q", got, wire)
+	}
+	if adm := r.pipe.admitted(); len(adm) != 1 || string(adm[0].a.Arguments) != spaced {
+		t.Errorf("Admit was not asked about the agent's own bytes: %+v", adm)
+	}
+	if closes := r.pipe.closed(); len(closes) != 1 || string(closes[0].sent) != wire {
+		t.Errorf("Close was told %q was sent, want the bytes the upstream received", sentOf(closes))
+	}
+}
+
+func sentOf(closes []closed) []string {
+	var out []string
+	for _, c := range closes {
+		out = append(out, string(c.sent))
+	}
+	return out
 }
 
 // assertAdmittedFirst checks the one admission names the tool with the
@@ -258,6 +296,9 @@ func TestRefusedTranslationIsNeverSent(t *testing.T) {
 			}
 			if got := codesOf(t, res); !slices.Equal(got, []string{"REQUIRED_FIELD_ABSENT"}) {
 				t.Errorf("the block names %v, want the kernel's REQUIRED_FIELD_ABSENT alone", got)
+			}
+			if refused, _ := structured(t, res)["refused"].(string); !strings.Contains(refused, "resource.id") {
+				t.Errorf("the block's refused is %q, want what the refusal of the envelope said", refused)
 			}
 			if n := r.victim.count("delete_file"); n != 0 {
 				t.Fatalf("victim ran %d times", n)
