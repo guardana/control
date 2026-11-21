@@ -443,7 +443,11 @@ resource id it takes off becomes <code>overlong:sha256:</code> followed by the l
 hex SHA-256 of the original bytes, 80 bytes in all, so the recorded proposal
 keeps the fields the contract requires and can be tied to what was sent
 (<a href="/docs/adr/0043-a-refused-over-long-name-is-recorded-by-its-digest">ADR-0043</a>).
-No policy reads it: the refusal stops the decision first.</p>
+No policy reads it: the refusal stops the decision first. A called tool name,
+prompt name or resource URI that quotes a credential the plane holds, cannot
+be scanned or starts with <code>withheld:sha256:</code> is recorded as that prefix and
+the same digest of the name, and a policy reads that form
+(<a href="/docs/adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld">ADR-0042</a>).</p>
 <p>The error types and the validation that returns them are <code>implemented</code>, and so
 is the mapping: the kernel in <code>internal/core</code> turns each refusal into the
 verdict and the reason code of its row, by sentinel and never by text, and
@@ -1071,7 +1075,9 @@ constant in <code>internal/canon</code> that is deliberately not <code>MaxArgume
 even though the two values are equal: this call is the first place those bytes
 exist.</p>
 <p>The gateway sends the agent's own bytes upstream when no obligation rewrites
-them, and those bytes may spell a number differently from the canonical form:
+them, without the whitespace between tokens, which the protocol library
+removes from every message it writes; the closing record is told those bytes.
+They may still spell a number differently from the canonical form:
 <code>1.0</code> where the digest holds <code>1</code>. The digest binds a number's value, not its
 spelling, its scale or whether it was written as an integer, so an upstream
 that reads <code>1.0</code> as a float and <code>1</code> as an integer sees a difference the digest
@@ -1431,7 +1437,7 @@ before the end</strong>: more remains, and a reader MUST export again after
 <tbody>
 <tr>
 <td><code>malformed</code></td>
-<td>is not one <code>Event</code> under the codec's rules: not JSON, an unknown field, a blank line</td>
+<td>is not one <code>Event</code> under the codec's rules: not JSON, an unknown field, a blank line; or holds a <code>null</code>, which the codec reads as an absent member, never writes, and a reader of the export refuses in a record</td>
 </tr>
 <tr>
 <td><code>too_long</code></td>
@@ -1498,11 +1504,16 @@ their cursors apart, and a segment keeps its key when it is sealed. The
 header's <code>file</code> is the segment's.</p>
 <ul>
 <li>Without <code>--after</code> the export reads the first segment not pruned.</li>
-<li><code>end_reached</code> is <code>true</code> only at the end of the last segment that held a line
-when the export began. At the end of an earlier one it is <code>false</code>, and the
-export after its <code>next_cursor</code> reads the next segment from its first line. A
-reader that follows <code>next_cursor</code> until <code>end_reached</code> reads every line of
-every segment not pruned once.</li>
+<li><code>end_reached</code> is <code>true</code> only at the end of the last segment that held a line,
+or bytes no newline ends, when the export began. At the end of an earlier one
+it is <code>false</code>, and the export after its <code>next_cursor</code> reads the next segment
+from its first line, or reports those bytes. A reader that follows
+<code>next_cursor</code> until <code>end_reached</code> reads every line of every segment not
+pruned once.</li>
+<li>An event of another tenant or project than the one the log is bound to,
+which no collector writes and the log refuses at open, stops the export
+before its record, exit 2, with no trailer. <code>trail &lt;dir&gt;</code> and a scenario
+reading the log refuse it too.</li>
 <li>A cursor of a pruned segment is refused as expired, exit 2; one whose key no
 segment the manifest names has, as another file. A cursor at a sealed
 segment's end moves on only when its line digest is that of the segment's
@@ -1518,7 +1529,9 @@ collector writes no event id twice across the segments it retains; a line
 without an event id is written each time it arrives.</li>
 <li><code>source</code> changes from one segment's export to the next. A reader that keeps
 one takes a new one only from an export after its own cursor whose first
-record is at offset 0, which an export after a cursor in one file never is.</li>
+record is at offset 0, which an export after a cursor in one file never is.
+An export naming no <code>source</code> is of a live segment holding no whole line
+yet: a reader keeps its cursor and source, and exports again later.</li>
 </ul>
 <h3 id="the-query">The query</h3>
 <ul>

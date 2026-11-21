@@ -11,6 +11,21 @@ verify one.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `collect` and `prune` refuse a trail directory whose parent
+  is owned by an account other than this one or root, or may be written by
+  the group or others without being sticky, and a trail directory that is a
+  symbolic link. They open the trail directory through the parent they
+  judged, so `--dir P/l/../trail` is `P/trail` and not where the link `l`
+  leads. Only the trail directory itself was checked
+  ([watch a plane without a collector](docs/guides/watch-a-plane-without-a-collector.md)).
+- **Breaking:** `collect` reads `--listen` as a URL: escapes in its path are
+  undone, so the endpoint it prints names the same socket when given back,
+  and a host, a query, a fragment or a `%` that escapes nothing is refused.
+  A socket path holding `#`, `?`, `%` or a space is given escaped, as
+  `collect` prints it.
+
 ### Added
 
 - `guardana-gateway attempts run` (`experimental`) runs a manifest of scripted
@@ -116,6 +131,97 @@ verify one.
   with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
   approval closed the hold as `APPROVAL_EXPIRED` before its version was
   read.
+- `coverage` joins an `mcp_tool` path's observation only to a proposal the
+  MCP adapter recorded. An enforcement API proposal with the same ids, tool
+  and provider joined it too
+  ([coverage](docs/reference/coverage.md#the-join)).
+- `coverage` exits 1 when its map cannot be written to standard output. It
+  exited 2, the status of a refused input, after reading every input
+  ([coverage](docs/reference/coverage.md#output-and-exit-status)).
+- A shaped tool list cached before the plane halted material calls is shaped
+  again once the halt stands, so a tool the halt denies is hidden. The cached
+  list answered until its TTL ran out
+  ([MCP coverage](docs/reference/mcp-coverage.md#methods)).
+- A `tools/call` is recorded as sent with the bytes the upstream receives:
+  the agent's arguments as the protocol library writes them, without
+  whitespace between tokens and with U+2028 and U+2029 escaped. The record
+  named the agent's own spelling
+  ([contracts](docs/contracts.md#the-action-digest)).
+- A `tools/call` the gateway answers `-32603` because the upstream never
+  answered names its trail in `data`, as a wire error does. It carried no
+  `data`
+  ([MCP coverage](docs/reference/mcp-coverage.md#the-codes-the-adapter-mints)).
+- A call blocked because its envelope could not be built carries `refused`
+  with what the refusal said, as documented. Only an execution the adapter
+  did not send carried it
+  ([MCP coverage](docs/reference/mcp-coverage.md#the-codes-the-adapter-mints)).
+- A tool name, prompt name or resource URI that quotes a credential the
+  gateway holds, or that starts with `withheld:sha256:`, is recorded as
+  `withheld:sha256:` and the digest of the name when a client calls it; the
+  upstream still receives the name. The proposal recorded the name,
+  credential included
+  ([privacy](docs/concepts/privacy.md#what-an-evidence-event-holds)).
+- A `tools/call` admitted under a classification a manifest refresh withdrew
+  before the send is not sent outside `OBSERVE`: the adapter aborts it as
+  `ACTION_UNCLASSIFIED`, and an approved retry's approval stays spent. Under
+  `OBSERVE` it runs, as an unclassified call does. It ran under the decision
+  made for the old definition
+  ([MCP coverage](docs/reference/mcp-coverage.md#reason-codes-in-the-gateways-answers)).
+- `collect` answers a repeat of records it already holds only once it has
+  read each repeated record's line back where it wrote it, in a sealed
+  segment or the live one. A segment removed, cut or rewritten under it, or
+  another file put at a segment's name, makes it answer 503 and take nothing
+  more until it is started again. A repeat was answered 200 from the index
+  alone, so the plane released records the trail had lost
+  ([watch a plane without a collector](docs/guides/watch-a-plane-without-a-collector.md)).
+- `collect` and `prune` sync the directory the trail directory is named in
+  before the first answer, so a trail directory just made is still there
+  after a power loss. Evidence was acknowledged while the directory's own
+  name could still be lost.
+- A segment log whose `segments.json` is a symbolic link is refused by
+  `collect`, `prune` and every reader. The link was followed.
+- `prune` reads each segment it removes again before it writes the
+  tombstone, and refuses one that no longer holds what the manifest names,
+  changing nothing; it unlinks a segment's file only while its name still
+  names the file it read. A file put at a segment's name after the log was
+  opened was unlinked unread.
+- `trail export` of a segment log stops, exit 2 and with no trailer, at an
+  event of another tenant or project than the log is bound to. It wrote the
+  event, so an unfiltered export could report no gap
+  ([contracts](docs/contracts.md#a-directory-of-segments)). `trail` and a
+  scenario reading a segment log refuse such an event too; they read it as
+  an ordinary trail.
+- `trail export` of a segment log does not report the end at a sealed segment
+  when the live segment after it holds only bytes no newline ends; the export
+  after its cursor reports them. A torn live segment after a seal was hidden
+  behind `end_reached: true`.
+- `trail export` of a segment log no longer reports the end of the log when a
+  seal renamed the live segment while the export was reading the manifest,
+  also when the next write had made a new live file by then; it reads the
+  log again. The sealed segment was left out behind `end_reached: true`.
+- `evidence-report -state` keeps its cursor on an export of a live segment
+  that holds no whole line yet, and reads on once it does. It refused that
+  export as another file, or as one naming no `next_cursor`.
+- `trail export` writes a line holding a `null` as a `malformed` gap, not as
+  an event. The codec reads a `null` as an absent member, and the export's
+  reader refuses any record holding one, so an export of such a line could
+  not be read ([contracts](docs/contracts.md#the-evidence-export)).
+- A collector's 401 to a request without the credential is sent before the
+  body is read, and closes the connection. Go's server read a small unread
+  body first, so a slow body delayed the answer.
+- A collector refuses with 415 a request carrying a content coding in any
+  `Content-Encoding` field, or more than one `Content-Type` field. Only the
+  first field of each was read.
+- `collect` prints its socket as an `export.endpoint` a plane reads, with a
+  `#`, `?` or `%` in the path escaped. It printed the path as it stands,
+  which a plane refused or read as another path.
+- `collect` stops within ten seconds of its signal, or of its server
+  failing, also when a write is still waiting on the disk; that request is
+  not answered, and the plane sends it again. The stop waited on the write
+  without a bound.
+- The exporter refuses a collector's answer surrounded by bytes JSON does not
+  take as whitespace, such as a vertical tab, and sends the records again.
+  Such an answer was trimmed and accepted, releasing the records.
 - The page of the [Claude Code hooks](docs/reference/claude-code-hooks.md)
   says what classing `Agent` as `EXECUTE` costs: a rule on
   `SPAWN_OR_DELEGATE` never sees a sub-agent start and a rule that allows
