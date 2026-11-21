@@ -251,11 +251,11 @@ func foreignStickyDir(t *testing.T, treeDir string) string {
 		if st, ok := info.Sys().(*syscall.Stat_t); !ok || int(st.Uid) == os.Geteuid() || info.Mode()&os.ModeSticky == 0 {
 			continue
 		}
-		real, err := filepath.EvalSymlinks(dir)
+		resolved, err := filepath.EvalSymlinks(dir)
 		if err != nil {
 			continue
 		}
-		if rel, err := filepath.Rel(real, tree); err == nil && rel != ".." && !strings.HasPrefix(rel, "../") {
+		if rel, err := filepath.Rel(resolved, tree); err == nil && rel != ".." && !strings.HasPrefix(rel, "../") {
 			continue
 		}
 		return dir
