@@ -117,7 +117,8 @@ func sign(keyPath, out, document string, now time.Time, stdout, stderr io.Writer
 	// The kernel resolves "link/.." through the link and the write cleans by
 	// text, so the path is cleaned once and every check sees the file written.
 	out = filepath.Clean(out)
-	if err := checkOut(out, keyPath, document); err != nil {
+	judged, err := checkOut(out, keyPath, document)
+	if err != nil {
 		return fail(stderr, signName, err)
 	}
 	raw, err := ondisk.ReadRegular(document, maxReadBytes, 0)
@@ -143,7 +144,8 @@ func sign(keyPath, out, document string, now time.Time, stdout, stderr io.Writer
 	if err != nil {
 		return fail(stderr, signName, err)
 	}
-	if err := policykey.WriteBundle(out, b); err != nil {
+	beforeOutReplaced(out)
+	if err := policykey.WriteBundleOver(out, b, judged); err != nil {
 		return fail(stderr, signName, fmt.Errorf("--out %s: %w", out, err))
 	}
 	lines := "bundle_id: " + oneLine(snap.Ref().GetBundleId()) + "\n" +
@@ -158,32 +160,47 @@ func sign(keyPath, out, document string, now time.Time, stdout, stderr io.Writer
 	return exitOK
 }
 
+// beforeOutReplaced, when a test sets it, runs once a command judged its
+// output for the last time, just before the new file takes the name.
+var beforeOutReplaced = func(string) {}
+
 // checkOut refuses an output path whose directory is missing, one that would
 // replace the key or the document, by whatever spelling or link reaches the
 // same file, and one that exists and is not a regular file holding a policy
-// bundle: sign replaces an earlier bundle and nothing else.
-func checkOut(out, keyPath, document string) error {
+// bundle: sign replaces an earlier bundle and nothing else. It returns the
+// entry at out as it judged it, nil where none stands, for the write to
+// replace that entry and no other.
+func checkOut(out, keyPath, document string) (fs.FileInfo, error) {
 	info, err := os.Stat(out)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		if err := ondisk.CheckDir(filepath.Dir(filepath.Clean(out)), 0); err != nil {
-			return fmt.Errorf("--out %s: %w", out, err)
+			return nil, fmt.Errorf("--out %s: %w", out, err)
 		}
-		return nil
+		return nil, nil
 	case err != nil:
-		return fmt.Errorf("--out %s: %w", out, err)
+		return nil, fmt.Errorf("--out %s: %w", out, err)
 	}
 	for _, other := range []struct{ name, path string }{{"--key", keyPath}, {"the document", document}} {
 		if o, err := os.Stat(other.path); err == nil && os.SameFile(info, o) {
-			return fmt.Errorf("--out %s is the same file as %s, which the bundle would replace", out, other.name)
+			return nil, fmt.Errorf("--out %s is the same file as %s, which the bundle would replace", out, other.name)
 		}
 	}
-	raw, err := ondisk.ReadRegular(out, maxReadBytes, 0)
+	named, err := os.Lstat(out)
 	if err != nil {
-		return fmt.Errorf("--out %s: %w", out, err)
+		return nil, fmt.Errorf("--out %s: %w", out, err)
+	}
+	var raw []byte
+	if named.Mode()&fs.ModeSymlink != 0 {
+		raw, err = ondisk.ReadRegular(out, maxReadBytes, 0)
+	} else {
+		raw, err = ondisk.ReadRegularOf(out, maxReadBytes, named)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("--out %s: %w", out, err)
 	}
 	if !policykey.IsBundle(raw) {
-		return fmt.Errorf("--out %s exists and is not a policy bundle, and sign replaces nothing else", out)
+		return nil, fmt.Errorf("--out %s exists and is not a policy bundle, and sign replaces nothing else", out)
 	}
-	return nil
+	return named, nil
 }

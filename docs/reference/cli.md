@@ -69,7 +69,7 @@ one that exists and is not a policy bundle, so no other file, another key
 included, is replaced; and a bundle the loader would refuse. `--out` is
 cleaned as text before anything reads it, so `a/link/../x` names `a/x`
 whatever `a/link` points at. If syncing the directory fails after the
-rename, `sign` reports it; the new bundle may be in
+swap, `sign` reports it; the new bundle may be in
 place.
 
 The key reaches the command only as a path, and no refusal quotes it. Both

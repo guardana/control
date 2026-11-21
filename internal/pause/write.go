@@ -27,6 +27,10 @@ const signedFileMode fs.FileMode = 0o640
 // and before it reads it again to replace it.
 var beforeReplace func()
 
+// beforeRename, when a test sets it, runs once a signed write read the file
+// again and found it unchanged, just before the new file takes its name.
+var beforeRename func()
+
 // Init writes a pause file that pauses nothing at path, and refuses with
 // ErrExists when the name is taken, by a file or by a link.
 func Init(ctx context.Context, path string) error {
@@ -271,11 +275,17 @@ func replaceSigned(root *os.Root, path string, raw []byte, from Signed, next Doc
 	if beforeReplace != nil {
 		beforeReplace()
 	}
-	now, err := readIn(root, path, ownedByThisUser)
+	now, judged, err := readHeld(root, path, ownedByThisUser)
 	if err != nil || !bytes.Equal(now, raw) {
 		return SignedDocument{}, errors.Join(fmt.Errorf("%w: %s; nothing was written, so read it and write again", ErrChanged, path), err)
 	}
-	if err := files.ReplaceIn(root, filepath.Base(path), body, signedFileMode); err != nil {
+	if beforeRename != nil {
+		beforeRename()
+	}
+	if err := files.ReplaceJudgedIn(root, filepath.Base(path), body, signedFileMode, judged); err != nil {
+		if errors.Is(err, files.ErrNotJudged) {
+			err = fmt.Errorf("%w: %s; nothing was written, so read it and write again: %w", ErrChanged, path, err)
+		}
 		return SignedDocument{}, err
 	}
 	return SignedDocument{Header: h, Document: next}, nil

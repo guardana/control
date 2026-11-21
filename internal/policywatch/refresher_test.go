@@ -567,3 +567,20 @@ func TestSincePollShowsTheRefresherIsAlive(t *testing.T) {
 		t.Errorf("a wall clock set back changed SincePoll to %v; it is monotonic time", got)
 	}
 }
+
+// An unchanged statement whose budget ran out is counted as expired at every
+// poll that finds it, and the snapshot it confirmed is left as it was.
+func TestAnUnchangedStatementPastItsBudgetIsCountedExpired(t *testing.T) {
+	r := newRig(t, emptyFloor(t))
+	digest := r.startConfirmed()
+	r.clock.advance(569 * time.Second)
+	r.poll()
+	r.expectStats(map[policywatch.Cause]uint64{}, 0, 0, 0, 0)
+	r.clock.advance(2 * time.Second)
+	r.poll()
+	r.poll()
+	r.expectSnapshot(2, digest, t0)
+	if got := r.refresher.Stats().Refused[policywatch.CauseStatementExpired]; got != 2 {
+		t.Errorf("polls of a statement past its budget counted %d expiries, want 2", got)
+	}
+}

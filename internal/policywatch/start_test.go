@@ -213,3 +213,40 @@ func TestAnExpiredStatementAtStartIsNoStatement(t *testing.T) {
 	r.expectRefused(err, policy.ErrAboveFloorUnbound, "3")
 	r.expectFloor(2, floorDigest, old)
 }
+
+// TestAStatementThatExpiresWhileTheFloorIsHeldIsNoStatement starts a bundle
+// above the floor a second before its statement expires, and holds the
+// floor's read until two seconds later.
+func TestAStatementThatExpiresWhileTheFloorIsHeldIsNoStatement(t *testing.T) {
+	floorDigest := signed(t, doc(planeID, 2, "v2", 600), bundleKey).GetRef().GetDigest()
+	r := newRig(t, floorAt2(t, floorDigest, t0))
+	issued := r.clock.Wall().Add(-599 * time.Second)
+	r.writeStatement(3, r.writeBundle(3, "v3", 600), issued)
+	if res, err := r.start(); err != nil || res.Action != policy.StartConfirmed {
+		t.Fatalf("the control, a start not held: %+v, %v; want confirmed", res, err)
+	}
+
+	r = newRig(t, floorAt2(t, floorDigest, t0))
+	r.writeStatement(3, r.writeBundle(3, "v3", 600), issued)
+	r.store.readHeld, r.store.readRelease = make(chan struct{}, 1), make(chan struct{})
+	started := make(chan error, 1)
+	go func() {
+		_, err := r.start()
+		started <- err
+	}()
+	select {
+	case <-r.store.readHeld:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the start never read the floor")
+	}
+	r.clock.advance(2 * time.Second)
+	close(r.store.readRelease)
+	var err error
+	select {
+	case err = <-started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the start did not return once the floor was read")
+	}
+	r.expectRefused(err, policy.ErrAboveFloorUnbound, "3")
+	r.expectFloor(2, floorDigest, t0)
+}

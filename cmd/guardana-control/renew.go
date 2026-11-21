@@ -170,10 +170,12 @@ func raiseAndWrite(floor, out string, s signed, issuedAt time.Time) error {
 	written := false
 	err := raiseSignerFloor(floor, s.st, issuedAt, func() error {
 		afterRaise()
-		if err := checkNotNewer(out, s.st, s.freshPub); err != nil {
+		judged, err := checkNotNewer(out, s.st, s.freshPub)
+		if err != nil {
 			return err
 		}
-		if err := policykey.WriteStatement(out, s.env); err != nil {
+		beforeOutReplaced(out)
+		if err := policykey.WriteStatementOver(out, s.env, judged); err != nil {
 			return fmt.Errorf("--out %s: %w; the signer floor was raised to the statement", out, err)
 		}
 		written = true

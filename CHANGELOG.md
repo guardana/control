@@ -156,6 +156,47 @@ verify one.
   [Claude Code hooks](docs/reference/claude-code-hooks.md) credits a decision
   to a sub-agent's `Write` only when the trail holds more decided writes of that file than the other
   calls that wrote it could account for.
+- A lookup in the trust roster judges the roster's expiry by the time read
+  after it waited on the trust floor's lock. A roster that expired while
+  another process held the lock still named its keys.
+- `guardana-gateway doctor` refuses a roster at the floor's serial with
+  another digest, and one naming a pinned key such as the policy key as an
+  operator, as a serving plane refuses both. It reported the trust check
+  `ok` for either.
+- A plane under `signed` takes a pause file only when the directory it read
+  the file from is still the one the pause path leads to. A link on the path
+  retargeted between the path's binding and the read let the plane take a
+  copy of a signed file from another directory.
+- The policy watcher's start judges a statement's expiry by the time read
+  after it read the floor and the files. A statement that expired while
+  another process held the floor's lock was taken.
+- `policy sign`, `route sign`, `operators roster sign`, `policy renew`,
+  `supervise --view` and the signed pause writers replace their output only
+  while it is still the file they judged, swapping the new file in and back
+  out again if another took its place; a name judged empty is only created.
+  A file renamed over the output after the last check was replaced. Where
+  the platform or file system cannot swap two names, as outside Linux and
+  macOS, such a replace is refused.
+- Two `policy renew` runs over one `--out` under different signer floor
+  directories keep the newer statement: the run that judged the older one
+  finds its file replaced and is refused. The older statement could be
+  written over the newer.
+- The policy watcher counts an unchanged statement past its budget as
+  expired and refuses it. A statement the floor still took was confirmed
+  again although it had expired.
+- `policy renew` verifies a bundle signed under a key id a plane configures
+  for its key, not only the id the key derives; a bundle another key signed
+  is still refused. It refused such a bundle as naming no usable key.
+- Initialising a floor directory leaves it `0700` under any umask. Under a
+  umask of `0200` or `0100` the initialisation could not write its own new
+  directory, failed, and left it `0500` or `0600`.
+- `guardana-gateway doctor` reports pause coverage as unknown, counting the
+  entries, when it cannot read a run record a pause entry names. It counted
+  such an entry as covering nothing and passed.
+- The [signed operators guide](docs/guides/set-up-signed-operators.md) says
+  that a sticky directory on a path, such as `/tmp`, passes the signed start
+  check although the plane's account may write it, as the check lets it; the
+  entry the path ends at never passes that way.
 
 ### Documentation
 

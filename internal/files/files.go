@@ -42,9 +42,12 @@ const (
 	// ErrNoDirOpen is OpenDir on a platform that cannot open a directory
 	// without following a link.
 	ErrNoDirOpen Error = "files: this platform cannot open a directory without following a link"
-	// ErrNotJudged is a file ReadRegularOf opened that is not the one its
-	// caller judged.
+	// ErrNotJudged is a file ReadRegularOf opened, or ReplaceJudgedIn found
+	// under the name, that is not the one its caller judged.
 	ErrNotJudged Error = "files: not the file that was judged"
+	// ErrNoExchange is ReplaceJudgedIn on a platform, or a file system, that
+	// cannot exchange two names in one step.
+	ErrNoExchange Error = "files: this platform cannot exchange two names in one step"
 )
 
 // tmpPrefix starts every temporary name this package makes. The random rest,
@@ -125,6 +128,71 @@ func ReplaceIn(root *os.Root, name string, body []byte, perm fs.FileMode) error 
 	return syncRoot(root)
 }
 
+// ReplaceJudged is ReplaceJudgedIn through a handle to dir.
+func ReplaceJudged(dir, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	return errors.Join(ReplaceJudgedIn(root, name, body, perm, judged), root.Close())
+}
+
+// ReplaceJudgedIn puts body under name in the directory root holds, with mode
+// perm, only over the entry judged describes, as an Lstat of name found it,
+// and with a nil judged only where nothing stands at name. Anything else
+// there is left as it was and refused with ErrNotJudged, whenever it was put
+// there: the new file and the entry at name are exchanged in one step, and
+// the entry taken out is compared with judged before it is removed, so no
+// window between a check and the write lets another file be replaced. An
+// entry refused is exchanged back; should the name change again in between,
+// the error names the temporary name that holds what was taken out. A
+// platform or file system with no exchange refuses with ErrNoExchange.
+func ReplaceJudgedIn(root *os.Root, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
+	if judged == nil {
+		err := CreateNoReplaceIn(root, name, body, perm)
+		if errors.Is(err, ErrExists) {
+			return fmt.Errorf("%w: %q was absent when it was judged: %w", ErrNotJudged, name, err)
+		}
+		return err
+	}
+	tmp, err := writeTemp(root, body, perm)
+	if err != nil {
+		return err
+	}
+	written, err := root.Lstat(tmp)
+	if err != nil {
+		return errors.Join(err, root.Remove(tmp))
+	}
+	if err := exchangeIn(root, tmp, name); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			err = fmt.Errorf("%w: %q is gone since it was judged", ErrNotJudged, name)
+		}
+		return errors.Join(err, root.Remove(tmp))
+	}
+	out, err := root.Lstat(tmp)
+	if err == nil && os.SameFile(out, judged) {
+		return errors.Join(root.Remove(tmp), syncRoot(root))
+	}
+	refused := fmt.Errorf("%w: %q changed since it was judged, and nothing was replaced", ErrNotJudged, name)
+	if err := exchangeIn(root, tmp, name); err != nil {
+		return errors.Join(refused, fmt.Errorf("putting back what stood at %q, now at %q: %w", name, tmp, err))
+	}
+	if back, err := root.Lstat(tmp); err != nil || !os.SameFile(back, written) {
+		return errors.Join(refused, fmt.Errorf("%q changed again while it was put back; %q holds what stood there", name, tmp))
+	}
+	return errors.Join(refused, root.Remove(tmp))
+}
+
+// exchangeIn exchanges the entries at a and b in the directory root holds in
+// one step. It refuses with fs.ErrNotExist when either is missing.
+func exchangeIn(root *os.Root, a, b string) error {
+	d, err := root.Open(".")
+	if err != nil {
+		return err
+	}
+	return errors.Join(exchange(d, a, b), d.Close())
+}
+
 // writeTemp writes body to a fresh temporary file in root and forces it to
 // disk. The mode is set on the descriptor, so the process umask cannot narrow
 // or widen it. A file this fails on is removed.
@@ -200,18 +268,40 @@ func read(path string, limit int64, forbidden fs.FileMode, owner int) ([]byte, e
 // path since is refused with ErrNotJudged. The identity is read from the
 // opened descriptor, so the bytes returned are the judged file's.
 func ReadRegularOf(path string, limit int64, judged fs.FileInfo) ([]byte, error) {
+	return readOf(path, limit, 0, anyOwner, judged)
+}
+
+// ReadOwnedOf is ReadOwned of the very file judged describes, as
+// ReadRegularOf holds it.
+func ReadOwnedOf(path string, limit int64, forbidden fs.FileMode, uid int, judged fs.FileInfo) ([]byte, error) {
+	if uid < 0 {
+		return nil, ErrOwnerUnknown
+	}
+	return readOf(path, limit, forbidden, uid, judged)
+}
+
+func readOf(path string, limit int64, forbidden fs.FileMode, owner int, judged fs.FileInfo) ([]byte, error) {
+	if forbidden != 0 && !PermissionBits {
+		return nil, ErrNoPermissionBits
+	}
 	f, err := os.OpenFile(path, os.O_RDONLY|nonBlocking, 0) //nolint:gosec // G304: the path is the caller's to name, and the descriptor is held to the file judged before any byte is read
 	if err != nil {
 		return nil, err
 	}
+	return readOpenedOf(f, path, limit, forbidden, owner, judged)
+}
+
+// readOpenedOf is readOpened of f, refused with ErrNotJudged unless it is
+// the file judged describes.
+func readOpenedOf(f *os.File, name string, limit int64, forbidden fs.FileMode, owner int, judged fs.FileInfo) ([]byte, error) {
 	info, err := f.Stat()
 	if err == nil && !os.SameFile(info, judged) {
-		err = fmt.Errorf("%w: %s", ErrNotJudged, path)
+		err = fmt.Errorf("%w: %s", ErrNotJudged, name)
 	}
 	if err != nil {
 		return nil, errors.Join(err, f.Close())
 	}
-	return readOpened(f, limit, 0, anyOwner)
+	return readOpened(f, limit, forbidden, owner)
 }
 
 // ReadRegularIn is ReadRegular of name in the directory root holds, with no
@@ -223,6 +313,16 @@ func ReadRegularIn(root *os.Root, name string, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	return readOpened(f, limit, 0, anyOwner)
+}
+
+// ReadRegularInOf is ReadRegularIn of the very file judged describes, as
+// ReadRegularOf holds it.
+func ReadRegularInOf(root *os.Root, name string, limit int64, judged fs.FileInfo) ([]byte, error) {
+	f, err := root.OpenFile(name, os.O_RDONLY|nonBlocking, 0)
+	if err != nil {
+		return nil, err
+	}
+	return readOpenedOf(f, name, limit, 0, anyOwner, judged)
 }
 
 // readOpened judges the opened f, as read describes, closes it and returns

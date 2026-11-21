@@ -34,7 +34,11 @@ write, the configuration, `trust.root_public_key`, `trust.roster`,
 is missing or carries an access control list (on Linux and macOS); one
 whose environment sets any of its keys; and one whose `approvals.inbox_dir`
 its own account does not own. Root's files of mode `0644` in root's
-directories of mode `0755` pass.
+directories of mode `0755` pass. A directory on a path, though not the
+entry the path ends at, passes although the plane's account may write it
+when it carries the sticky bit, as `/tmp` does: there only an entry's owner
+or the directory's can replace the entry, and the entry below is judged in
+turn.
 
 | Path | Owner and mode |
 | --- | --- |

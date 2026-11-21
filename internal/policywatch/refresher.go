@@ -98,6 +98,10 @@ func (r *Refresher) renew(ctx context.Context, cur *policy.Snapshot, st policy.S
 			r.refuse(causeOf(err), err)
 			return
 		}
+		if expired(st, cur, r.o.MaxStale, now) {
+			r.refuse(CauseStatementExpired, expiry(st, cur, r.o.MaxStale))
+			return
+		}
 		r.settle("confirmed")
 	case binds(st, cur):
 		r.confirm(ctx, cur, st, nil)

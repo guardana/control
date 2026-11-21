@@ -78,10 +78,11 @@ type judged struct {
 }
 
 // judge reads the floor, the bundle and the statement and applies the start
-// rule at the wall clock's reading, writing nothing. A statement that cannot
-// be read or verified is no statement, and the verdict's cause says why.
+// rule at the wall clock's reading taken once they are read, writing
+// nothing. A statement that cannot be read or verified is no statement, and
+// the verdict's cause says why.
 func judge(ctx context.Context, o Options) (judged, error) {
-	j := judged{now: o.Wall()}
+	var j judged
 	f, err := o.Floor.Floor(ctx, o.BundleID)
 	if err != nil {
 		return j, refused(InputFloor, err)
@@ -94,6 +95,7 @@ func judge(ctx context.Context, o Options) (judged, error) {
 		return j, j.refusedBundle(err)
 	}
 	j.read = readStatement(o, nil)
+	j.now = o.Wall()
 	if j.read.err == nil && expired(j.read.st, j.disk.snap, o.MaxStale, j.now) {
 		j.read = &diskStatement{cause: CauseStatementExpired, err: expiry(j.read.st, j.disk.snap, o.MaxStale)}
 	}

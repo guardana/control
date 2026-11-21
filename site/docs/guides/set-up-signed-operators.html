@@ -155,7 +155,11 @@ write, the configuration, <code>trust.root_public_key</code>, <code>trust.roster
 is missing or carries an access control list (on Linux and macOS); one
 whose environment sets any of its keys; and one whose <code>approvals.inbox_dir</code>
 its own account does not own. Root's files of mode <code>0644</code> in root's
-directories of mode <code>0755</code> pass.</p>
+directories of mode <code>0755</code> pass. A directory on a path, though not the
+entry the path ends at, passes although the plane's account may write it
+when it carries the sticky bit, as <code>/tmp</code> does: there only an entry's owner
+or the directory's can replace the entry, and the entry below is judged in
+turn.</p>
 <div class="tbl">
 <table>
 <thead>
