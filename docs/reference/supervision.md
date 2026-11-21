@@ -95,7 +95,7 @@ The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it `CONFIRMED`; an observation makes it `SUSPECTED`; a record in doubt,
 `INDETERMINATE`, as are a silent source's observations. A request with
 conflicting copies, a broken chain or events of two runs leaves no rule
-checked; an unended request awaiting no approval, none on how a call ends; an observation
+checked; an unended request, unless held on an open run, none on how a call ends; an observation
 with two contents, a judged run its source doubts until the log is rotated
 ([observations](observations.md#the-log)), a join cut short, a source
 sampled, silent, unheard or unread, or an unclosed write leaves
@@ -121,8 +121,7 @@ or `<id> silent` for each `--source` not judged.
 | 1 | otherwise |
 | 2 | nothing printed: an input refused, or a log not opened or written (a cut write no reader takes) |
 
-The log is opened, and `findings.jsonl` created, only once every input is
-accepted. A failure after the write commits exits 2 and keeps it.
+The log is opened only once every input is accepted. A failure after the write commits exits 2 and keeps it.
 
 ## The finding record and its log
 

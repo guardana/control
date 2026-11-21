@@ -40,10 +40,16 @@ run, an agent or a principal that did nothing the rule names.
   may stop an agent or a principal.
 - A stop already written under version `1` of the three stays on its list: an
   upgrade lifts nothing. `stops init --carry-route` may name a route that
-  names version `1`, and the carried list keeps those stops while the new
-  route names the stop's procedure, its scope is one the old rule allowed and
-  it lasts at most the stop lifetime bound. No writer appends a new stop of
-  those versions. The operator finds them with `stops list` and lifts them.
+  names version `1`. The carried list keeps such a stop only within what the
+  new route grants now: a rule of it names the stop's procedure (id, version
+  and digest) at the stop's scope, an agent or a principal only for a retry
+  rule's stop, and the stop lasts no longer than that rule's lifetime, or 720
+  hours for a rule with none. No writer appends a new stop of those versions.
+- A carry that cannot keep a stop is refused, naming the stop and the
+  `stops lift` that ends it. `stops lift` takes the route the list was
+  written under even when it names a version `1` of the three, since a lift
+  only ends a stop; the carry then goes through. The operator finds the kept
+  stops with `stops list` and lifts them.
 - `DENIED_ACTION_RETRIED_AROUND` is unchanged: `SUSPECTED` at most, and
   `INDETERMINATE` while no importer stamps a call's start.
 
@@ -78,7 +84,10 @@ backlog, not decided here.
 `internal/supervise` gives `SUSPECTED` for a deadline and a retry inside one
 export, and its rule table lets none of the three confirm or stop.
 `internal/reaction` refuses the three in a route at both versions and keeps a
-carried stop of version `1` under the stated bounds. `route sign`, `react` and
+carried stop of version `1` only where a rule of the route names its
+procedure at its scope, within that rule's lifetime; a carry it cannot keep
+is refused naming the lift, and the lift under the old route lets the carry
+through. `route sign`, `react` and
 the plane's route load each refuse a route naming
 `DENIED_ACTION_RETRIED_ARGUMENTS` `1` or `DEADLINE_EXCEEDED` `1` by name, and
 `react` stops nothing for a confirmed version `1` retry already in a findings

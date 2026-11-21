@@ -131,12 +131,30 @@ func carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 			carrying()
 		}
 		lines := append([][]byte{header}, stops...)
-		return create(ctx, dir, route, now, append(lines, covered...))
+		if err := create(ctx, dir, route, now, append(lines, covered...)); err != nil {
+			return liftFirst(err, part.list.Entries())
+		}
+		return nil
 	})
 	if err != nil {
 		return Carried{}, err
 	}
 	return out, nil
+}
+
+// liftFirst is err, the new list's refusal, naming the stop it refused when
+// that is a stop the carry brought from entries, and the lift that ends it
+// on the list carried from: an upgrade lifts no stop, so the operator does.
+func liftFirst(err error, entries []reaction.Entry) error {
+	var at *reaction.LineError
+	if !errors.As(err, &at) || !errors.Is(err, reaction.ErrStopRefused) || at.Line < 2 || at.Line-2 >= int64(len(entries)) {
+		return err
+	}
+	e := entries[at.Line-2]
+	target := e.Target()
+	return fmt.Errorf("%w: it is the stop of %s %q at line %d of the list carried from, for finding %q under rule %s %s, "+
+		"which the new route does not grant; end it there with stops lift --%s %q under the route it was written under, then carry again",
+		err, target.Scope, target.Subject, e.Line, e.FindingID, e.RuleID, e.RuleVersion, target.Scope, target.Subject)
 }
 
 // CarriedLines is what Carry writes after the new list's header when it

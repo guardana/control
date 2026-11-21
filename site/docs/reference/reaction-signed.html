@@ -218,15 +218,14 @@ it says that the floor was not read. Only the floor's owner reads it: on two
 accounts root copies it for the operator
 (<a href="/docs/guides/upgrade-a-plane-from-0-17">upgrade a plane</a>). <code>--carry-route</code> may name a
 <code>v1alpha2</code> route and <code>--carry</code> its <code>2.0</code> list: a carry is the one reader of
-both, judges them by tenant, project and file, as 0.17 did, and writes a
+both, judges them by tenant, project and file, and writes a
 <code>3.0</code> list for the plane the new route names, at the next serial, naming the
 old head as <code>previous</code>; each carried stop takes scope <code>run</code> and its run as
 subject. The operator vouches that the old list is this plane's. Each
 command judges a route against the plane the route names. <code>react</code> takes <code>--approvals</code>, the plane's
 approvals directory, and will not run as the account that owns it; the
 directory is the caller's to name, so this guards against a mistake and does
-not keep the plane's account out. The console writes no stop and no lift at
-any setting.</p>
+not keep the plane's account out. The console writes no stop and no lift.</p>
 <p><code>--serial</code> matters only while the floor holds no serial: once it holds one, a
 new list is taken only as a carry naming the floor's head. When the old list
 cannot be carried, the plane's account makes a new floor with <code>stops floor init</code> in a new directory and names it in <code>reaction.stops_floor_dir</code>, an
@@ -236,7 +235,8 @@ lowers it.</p>
 <h2 id="a-stop-of-an-agent-or-a-principal">A stop of an agent or a principal</h2>
 <p>A route rule may carry scope <code>agent</code> or <code>principal</code> for <code>REPEATED_DENIAL</code>
 version <code>2</code> alone, the rule about what the actor did that may stop, and only
-with <code>expires_seconds</code>; the retry rules at <code>1</code> only in <code>--carry-route</code>
+with <code>expires_seconds</code>; the retry rules at <code>1</code> only in <code>--carry-route</code>, a
+carry keeping their stops only within what the new route grants
 (<a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>). Every reader of a route refuses either
 scope on any other rule, and either scope without a lifetime
 (<a href="/docs/adr/0083-a-finding-may-stop-an-agent-or-a-principal">ADR-0083</a>).</p>

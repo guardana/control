@@ -77,7 +77,7 @@ func (tr supTree) args(extra ...string) []string {
 type supCall struct {
 	req, tool, upstream string
 	at                  time.Duration
-	deny, broken        bool
+	deny, broken, held  bool
 	cut                 int
 }
 
@@ -88,6 +88,7 @@ func (c supCall) events(run string, base time.Time) []*controlv1.Event {
 		started   = controlv1.EventKind_EVENT_KIND_ACTION_STARTED
 		completed = controlv1.EventKind_EVENT_KIND_ACTION_COMPLETED
 		blocked   = controlv1.EventKind_EVENT_KIND_ACTION_BLOCKED
+		requested = controlv1.EventKind_EVENT_KIND_APPROVAL_REQUESTED
 	)
 	kinds := []controlv1.EventKind{proposed, decided, started, completed}
 	d := &controlv1.Decision{SchemaVersion: "1.0", DecisionId: c.req + "-k", RequestId: c.req,
@@ -95,6 +96,10 @@ func (c supCall) events(run string, base time.Time) []*controlv1.Event {
 	if c.deny {
 		kinds = []controlv1.EventKind{proposed, decided, blocked}
 		d.Verdict, d.ReasonCodes = controlv1.Verdict_VERDICT_DENY, []string{"RULE_DENY"}
+	}
+	if c.held {
+		kinds = []controlv1.EventKind{proposed, decided, requested}
+		d.Verdict, d.ReasonCodes = controlv1.Verdict_VERDICT_REQUIRE_APPROVAL, []string{"APPROVAL_REQUIRED"}
 	}
 	var out []*controlv1.Event
 	prev := ""

@@ -288,7 +288,7 @@ an export. No event names its plane, so the deadline and the retries are
 make it <code>CONFIRMED</code>; an observation makes it <code>SUSPECTED</code>; a record in doubt,
 <code>INDETERMINATE</code>, as are a silent source's observations. A request with
 conflicting copies, a broken chain or events of two runs leaves no rule
-checked; an unended request awaiting no approval, none on how a call ends; an observation
+checked; an unended request, unless held on an open run, none on how a call ends; an observation
 with two contents, a judged run its source doubts until the log is rotated
 (<a href="/docs/reference/observations#the-log">observations</a>), a join cut short, a source
 sampled, silent, unheard or unread, or an unclosed write leaves
@@ -329,8 +329,7 @@ or <code>&lt;id&gt; silent</code> for each <code>--source</code> not judged.</p>
 </tbody>
 </table>
 </div>
-<p>The log is opened, and <code>findings.jsonl</code> created, only once every input is
-accepted. A failure after the write commits exits 2 and keeps it.</p>
+<p>The log is opened only once every input is accepted. A failure after the write commits exits 2 and keeps it.</p>
 <h2 id="the-finding-record-and-its-log">The finding record and its log</h2>
 <p><code>guardana.control.finding.v1alpha1</code>, outside the v1 promise. A
 <code>FindingRecord</code> holds the tenant, project, procedure (id, version, digest),

@@ -146,8 +146,8 @@ func (e *evaluation) result(drafts []draft, states map[string]ruleState) *Result
 // a record of the run is in doubt: the left-out copy, the missing link or the
 // order its links do not give may hold the failure, denial, tool or time a
 // rule looks for. A request in doubt touches every rule; a request whose end
-// was not read and that waits on no approval those that read how a call
-// ended; an observation, a source
+// was not read, waiting on no approval or of a closed run, those that read
+// how a call ended; an observation, a source
 // whose imports refused a copy that may be a call of a run judged, a source
 // that may have missed a call, and a span walk cut short only those that read
 // a source's reports. A rule already not checked names its own reason first
@@ -182,15 +182,21 @@ func (e *evaluation) doubts() (every, ends, reports []string) {
 }
 
 // requestDoubts names the requests in doubt, and the others whose end was
-// not read and that wait on no approval: such a request may yet be blocked,
-// fail or complete.
+// not read: such a request may yet be blocked, fail or complete. One waiting
+// on an approval is left out only while its run is open; a closed run's
+// request waits on nothing, so its approval, start and end are events no
+// rule read.
 func (e *evaluation) requestDoubts() (every, ends []string) {
+	closed := map[string]bool{}
+	for _, r := range treeOf(e.in) {
+		closed[r.ID] = r.Closed
+	}
 	var requests, unended []string
 	for _, rq := range e.reqs {
 		if rq.doubt {
 			requests = append(requests, rq.id)
 		}
-		if rq.terminal == nil && !rq.waiting && !rq.doubt {
+		if rq.terminal == nil && !rq.doubt && (!rq.waiting || closed[rq.events[0].GetRunId()]) {
 			unended = append(unended, rq.id)
 		}
 	}

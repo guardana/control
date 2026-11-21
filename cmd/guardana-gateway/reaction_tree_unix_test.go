@@ -192,8 +192,9 @@ func stopLine(run string) *regexp.Regexp {
 }
 
 // superviseTree runs the built supervise over the export from root under
-// treeProcedure, which must judge the tree and find the child's denials and
-// nothing else confirmed, and returns that finding's id.
+// treeProcedure, which must judge the tree, find the child's denials and
+// nothing else confirmed, and suspect the child's retry of its denied mail
+// with another address; it returns the denials' finding id.
 func (rp *runsPlane) superviseTree(root, child, export string) string {
 	rp.t.Helper()
 	procedure, findings := filepath.Join(rp.dir, "procedure.json"), filepath.Join(rp.dir, "findings")
@@ -213,6 +214,11 @@ func (rp *runsPlane) superviseTree(root, child, export string) string {
 		if !strings.Contains(out, want) {
 			rp.t.Errorf("supervise printed no %q:\n%s", want, out)
 		}
+	}
+	retry := regexp.MustCompile(`(?m)^finding DENIED_ACTION_RETRIED_ARGUMENTS suspected alert fnd-[0-9a-f]{32} run ` +
+		regexp.QuoteMeta(child) + ` `)
+	if !retry.MatchString(out) {
+		rp.t.Errorf("supervise printed no suspected retry of the child's mail:\n%s", out)
 	}
 	match := stopLine(child).FindStringSubmatch(out)
 	if match == nil || strings.Count(out, " confirmed ") != 1 {

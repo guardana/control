@@ -77,30 +77,112 @@ func TestAListUnderARouteThatNoLongerNamesARetiredRuleKeepsItsStop(t *testing.T)
 	}
 }
 
-// TestAKeptStopOfARetiredRuleKeepsItsScope: under a v1alpha3 route that no
-// longer names the retry rules, a principal's stop of
-// DENIED_ACTION_RETRIED_ARGUMENTS version "1", which a route could let stop
-// one, is kept; the deadline's, which never could, is refused for its scope.
-func TestAKeptStopOfARetiredRuleKeepsItsScope(t *testing.T) {
-	r := widerRoute(t)
-	header, _ := signedHeaderLine(t, r, headerOpts{})
-	stop := func(id string) []byte {
-		line, err := reaction.Stop{
-			EntryID: reaction.EntryID("f-1"), TenantID: sTenant, ProjectID: sProject, Scope: reaction.ScopePrincipal,
-			Subject: "alice", RunID: "run-1", FindingID: "f-1", ProcedureID: "refund", ProcedureVersion: "3",
-			ProcedureDigest: procDigest, RuleID: id, RuleVersion: "1", CreatedAt: sCreated, ExpiresAt: sCreated.Add(2 * time.Hour),
-		}.Marshal()
-		if err != nil {
-			t.Fatalf("Stop.Marshal: %v", err)
-		}
-		return line
+// runOnlyRouteDoc is a v1alpha3 route whose one rule stops a run of refund
+// version "3" for an hour, and lets nothing stop an agent or a principal.
+const runOnlyRouteDoc = `{"kind":"reaction-route/v1alpha3","plane_id":"plane-a","route_id":"refunds","serial":7,"tenant_id":"acme",
+ "project_id":"shop","rules":[
+ {"procedure_id":"refund","version":"3","digest":"` + procDigest + `","rule_id":"STEP_OUTSIDE_PROCEDURE","rule_version":"1","scope":"run","expires_seconds":3600}]}`
+
+// signedRouteOf is doc signed for plane-a and taken by the fake voucher.
+func signedRouteOf(t *testing.T, doc string) reaction.Route {
+	t.Helper()
+	body, err := reaction.SignedRouteBody([]byte(doc), keyIDOf(operatorKey()), sRouteFile)
+	if err != nil {
+		t.Fatalf("SignedRouteBody: %v", err)
 	}
-	l, err := reaction.Judge(r, reaction.Prefix{}, joinLines(header, stop("DENIED_ACTION_RETRIED_ARGUMENTS")), sNow, 0)
-	if err != nil || len(l.Entries()) != 1 || l.Entries()[0].Subject != "alice" {
-		t.Fatalf("a principal's stop of the retired retry rule: %+v, %v", l.Entries(), err)
+	r, err := reaction.VerifySignedRoute(envelopeOf(t, reaction.SignedRoutePayloadType, body, operatorKey(), keyIDOf(operatorKey())), newVoucher())
+	if err != nil {
+		t.Fatalf("VerifySignedRoute: %v", err)
 	}
-	if _, err := reaction.Judge(r, reaction.Prefix{}, joinLines(header, stop("DEADLINE_EXCEEDED")), sNow, 0); !errors.Is(err, reaction.ErrClaimScope) {
-		t.Errorf("a principal's stop of the retired deadline: %v, want %v", err, reaction.ErrClaimScope)
+	return r
+}
+
+// wideRetiredStop is a 3.0 stop of scope and subject alice, for refund at
+// procedure version, under rule id at version, lasting life from sCreated.
+func wideRetiredStop(t *testing.T, scope, procedure, id, version string, life time.Duration) []byte {
+	t.Helper()
+	subject := "alice"
+	if scope == reaction.ScopeRun {
+		subject = "run-1"
+	}
+	line, err := reaction.Stop{
+		EntryID: reaction.EntryID("f-1"), TenantID: sTenant, ProjectID: sProject, Scope: scope,
+		Subject: subject, RunID: "run-1", FindingID: "f-1", ProcedureID: "refund", ProcedureVersion: procedure,
+		ProcedureDigest: procDigest, RuleID: id, RuleVersion: version, CreatedAt: sCreated, ExpiresAt: sCreated.Add(life),
+	}.Marshal()
+	if err != nil {
+		t.Fatalf("Stop.Marshal: %v", err)
+	}
+	return line
+}
+
+// TestAKeptStopOfARetiredRuleIsHeldToWhatTheRouteGrantsNow: a stop of a
+// retired version stands only where a rule of the route names its procedure
+// at its scope, and for no longer than that rule's lifetime. Under the wider
+// route, refund "3" stops a run for an hour and an agent for two, and refund
+// "4" a principal for two: a retry rule's agent stop of "3" lasting two hours
+// stands, one a second longer does not, nor a principal stop of "3", nor the
+// deadline's agent stop, which no route could ever let stop an agent; a run
+// stop of "3" stands for an hour and not a second more. Under a route that
+// stops runs alone, a principal or agent stop of the retry rule is refused,
+// as one of REPEATED_DENIAL "2" is.
+func TestAKeptStopOfARetiredRuleIsHeldToWhatTheRouteGrantsNow(t *testing.T) {
+	const args = "DENIED_ACTION_RETRIED_ARGUMENTS"
+	for _, c := range []struct {
+		name  string
+		doc   string
+		stop  func(t *testing.T) []byte
+		wants error
+	}{
+		{"an agent stop within the agent rule's lifetime", widerRouteDoc,
+			func(t *testing.T) []byte { return wideRetiredStop(t, reaction.ScopeAgent, "3", args, "1", 2*time.Hour) }, nil},
+		{"a principal stop under the procedure that stops a principal", widerRouteDoc,
+			func(t *testing.T) []byte {
+				return wideRetiredStop(t, reaction.ScopePrincipal, "4", args, "1", 2*time.Hour)
+			}, nil},
+		{"an agent stop past the agent rule's lifetime", widerRouteDoc,
+			func(t *testing.T) []byte {
+				return wideRetiredStop(t, reaction.ScopeAgent, "3", args, "1", 2*time.Hour+time.Second)
+			}, reaction.ErrClaimLifetime},
+		{"a principal stop of a procedure that stops none", widerRouteDoc,
+			func(t *testing.T) []byte {
+				return wideRetiredStop(t, reaction.ScopePrincipal, "3", args, "1", time.Hour)
+			}, reaction.ErrClaimScope},
+		{"the deadline's agent stop", widerRouteDoc,
+			func(t *testing.T) []byte {
+				return wideRetiredStop(t, reaction.ScopeAgent, "3", "DEADLINE_EXCEEDED", "1", time.Hour)
+			}, reaction.ErrClaimScope},
+		{"a run stop within the run rule's lifetime", widerRouteDoc,
+			func(t *testing.T) []byte { return wideRetiredStop(t, reaction.ScopeRun, "3", args, "1", time.Hour) }, nil},
+		{"a run stop past the run rule's lifetime", widerRouteDoc,
+			func(t *testing.T) []byte {
+				return wideRetiredStop(t, reaction.ScopeRun, "3", args, "1", time.Hour+time.Second)
+			}, reaction.ErrClaimLifetime},
+		{"a principal stop under a route that stops runs alone", runOnlyRouteDoc,
+			func(t *testing.T) []byte {
+				return wideRetiredStop(t, reaction.ScopePrincipal, "3", args, "1", reaction.MaxLifetime)
+			}, reaction.ErrClaimScope},
+		{"an agent stop under a route that stops runs alone", runOnlyRouteDoc,
+			func(t *testing.T) []byte { return wideRetiredStop(t, reaction.ScopeAgent, "3", args, "1", time.Minute) }, reaction.ErrClaimScope},
+		{"REPEATED_DENIAL's principal stop under a route that stops runs alone", runOnlyRouteDoc,
+			func(t *testing.T) []byte {
+				return wideRetiredStop(t, reaction.ScopePrincipal, "3", "REPEATED_DENIAL", "2", time.Hour)
+			}, reaction.ErrClaimRule},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := signedRouteOf(t, c.doc)
+			header, _ := signedHeaderLine(t, r, headerOpts{})
+			l, err := reaction.Judge(r, reaction.Prefix{}, joinLines(header, c.stop(t)), sNow, 0)
+			if c.wants == nil {
+				if err != nil || len(l.Entries()) != 1 {
+					t.Fatalf("Judge: %d entries, %v; want the stop kept", len(l.Entries()), err)
+				}
+				return
+			}
+			if !errors.Is(err, reaction.ErrStopRefused) || !errors.Is(err, c.wants) {
+				t.Fatalf("Judge: %v; want %v and %v", err, reaction.ErrStopRefused, c.wants)
+			}
+		})
 	}
 }
 

@@ -3,7 +3,6 @@ package reaction
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/guardana/control/internal/policy"
@@ -69,18 +68,13 @@ func (r Route) permitsListed(c StopClaim) error {
 }
 
 // permitsRetired permits a stop naming a retired rule version, which only a
-// carry writes and the route no longer names, when its procedure is one a
-// rule of the route names, its scope is run (none under a v1alpha1 route) or,
-// for a version a route could let stop an agent or a principal, one of
-// those, and it lasts no longer than MaxLifetime. Its tenant and project are
-// the route's, as Permits found.
+// carry writes and the route no longer names, only within what the route
+// grants now: a rule of the route names its procedure at its scope, which is
+// run (none under a v1alpha1 route) or, for a version a route could let stop
+// an agent or a principal, one of those, and the stop lasts no longer than
+// that rule's lifetime. Its tenant and project are the route's, as Permits
+// found.
 func (r Route) permitsRetired(c StopClaim, mayWiden bool) error {
-	if !slices.ContainsFunc(r.rules, func(rule Rule) bool {
-		return rule.ProcedureID == c.ProcedureID && rule.ProcedureVersion == c.ProcedureVersion &&
-			rule.ProcedureDigest == c.ProcedureDigest
-	}) {
-		return ErrClaimRule
-	}
 	runScope := ScopeRun
 	if r.format == FormatV1Alpha1 {
 		runScope = ""
@@ -88,7 +82,23 @@ func (r Route) permitsRetired(c StopClaim, mayWiden bool) error {
 	if c.Scope != runScope && (!mayWiden || !wider(c.Scope)) {
 		return ErrClaimScope
 	}
-	return Rule{}.permitsTimes(c.CreatedAt, c.ExpiresAt)
+	var err error = ErrClaimRule
+	for _, rule := range r.rules {
+		if rule.ProcedureID != c.ProcedureID || rule.ProcedureVersion != c.ProcedureVersion ||
+			rule.ProcedureDigest != c.ProcedureDigest {
+			continue
+		}
+		if rule.Scope != c.Scope {
+			if errors.Is(err, ErrClaimRule) {
+				err = ErrClaimScope
+			}
+			continue
+		}
+		if err = rule.permitsTimes(c.CreatedAt, c.ExpiresAt); err == nil {
+			return nil
+		}
+	}
+	return err
 }
 
 // CheckCurrent refuses, with ErrStopSuperseded, a stop naming a rule version

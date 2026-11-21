@@ -77,6 +77,65 @@ func TestACallWhoseEndHasNotArrivedIsNoPass(t *testing.T) {
 	}
 }
 
+// approvedThenFailed is r1's whole trail: approval required and asked,
+// approved, started and failed.
+func approvedThenFailed() []*controlv1.Event {
+	evs := call{req: "r1", tool: "get_order", upstream: "shop", outcome: "held"}.events()
+	prev := evs[len(evs)-1].GetEventId()
+	add := func(id string, kind controlv1.EventKind, sec int) {
+		ev := &controlv1.Event{EventId: id, Kind: kind, RequestId: "r1", RunId: runID, ProjectId: proj, TenantId: tenant,
+			OccurredAt: at(time.Duration(sec) * time.Second), SchemaVersion: "1.0",
+			EnforcementMode: controlv1.EnforcementMode_ENFORCEMENT_MODE_ENFORCE, PrevEventId: prev}
+		if kind == controlv1.EventKind_EVENT_KIND_APPROVAL_DECIDED {
+			ev.Payload = &controlv1.Event_Approval{Approval: &controlv1.Approval{SchemaVersion: "1.0", ApprovalId: "a1", RequestId: "r1",
+				State: controlv1.ApprovalState_APPROVAL_STATE_APPROVED}}
+		} else {
+			ev.ExecutionId = "r1-x"
+		}
+		evs = append(evs, ev)
+		prev = id
+	}
+	add("r1-e4", controlv1.EventKind_EVENT_KIND_APPROVAL_DECIDED, 3)
+	add("r1-e5", controlv1.EventKind_EVENT_KIND_ACTION_STARTED, 4)
+	add("r1-e6", controlv1.EventKind_EVENT_KIND_ACTION_FAILED, 5)
+	return evs
+}
+
+// TestAClosedRunCutAfterAnApprovalAskIsNoPass: on a closed run nothing
+// waits any more, so a call whose trail ends at its approval request, or at
+// the decision that required one, may have been approved, run and failed in
+// events no rule read: the rules that read how calls end are not checked.
+// The whole trail makes the finding.
+func TestAClosedRunCutAfterAnApprovalAskIsNoPass(t *testing.T) {
+	p := procWith(t)
+	rest := export(call{req: "r3", tool: "issue_refund", upstream: "pay", at: 10 * time.Second},
+		call{req: "r4", tool: "send_mail", upstream: "mail", at: 20 * time.Second})
+	trail := func(n int) supervise.Export {
+		return supervise.Export{Whole: true, Events: append(approvedThenFailed()[:n], rest.Events...)}
+	}
+	if got := len(only(closedRun(t, p, trail(6)), "CONTINUED_AFTER_FAILURE")); got != 1 {
+		t.Fatalf("the whole trail: %d CONTINUED_AFTER_FAILURE findings, want 1", got)
+	}
+	for _, n := range []int{2, 3} {
+		cut := closedRun(t, p, trail(n))
+		for _, rule := range []string{"REPEATED_DENIAL", "CONTINUED_AFTER_FAILURE"} {
+			if got := rules(cut)[rule]; got != `RULE_STATE_NOT_CHECKED:request "r1" is in doubt: its end was not read` {
+				t.Errorf("r1 cut after %d events: %s is %q", n, rule, got)
+			}
+		}
+	}
+}
+
+// TestAnOpenRunWaitingOnAnApprovalIsNotInDoubt: on an open run a call
+// waiting on its approval has not ended, and that puts nothing in doubt.
+func TestAnOpenRunWaitingOnAnApprovalIsNotInDoubt(t *testing.T) {
+	p := procWith(t)
+	res := evaluate(t, supervise.Input{Procedure: p, Exports: []supervise.Export{{Whole: true, Events: approvedThenFailed()[:3]}}})
+	if got := rules(res)["REPEATED_DENIAL"]; got != "RULE_STATE_CHECKED:" {
+		t.Errorf("REPEATED_DENIAL beside a call waiting on its approval: %q", got)
+	}
+}
+
 // TestARetryDecidedForApprovalIsHeldBeforeItsRequest: the plane writes a
 // decision that requires approval before it asks for one, so a trail that
 // ends between the two may yet be approved, as one that ends after the ask.

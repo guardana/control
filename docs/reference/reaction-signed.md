@@ -77,15 +77,14 @@ it says that the floor was not read. Only the floor's owner reads it: on two
 accounts root copies it for the operator
 ([upgrade a plane](../guides/upgrade-a-plane-from-0-17.md)). `--carry-route` may name a
 `v1alpha2` route and `--carry` its `2.0` list: a carry is the one reader of
-both, judges them by tenant, project and file, as 0.17 did, and writes a
+both, judges them by tenant, project and file, and writes a
 `3.0` list for the plane the new route names, at the next serial, naming the
 old head as `previous`; each carried stop takes scope `run` and its run as
 subject. The operator vouches that the old list is this plane's. Each
 command judges a route against the plane the route names. `react` takes `--approvals`, the plane's
 approvals directory, and will not run as the account that owns it; the
 directory is the caller's to name, so this guards against a mistake and does
-not keep the plane's account out. The console writes no stop and no lift at
-any setting.
+not keep the plane's account out. The console writes no stop and no lift.
 
 `--serial` matters only while the floor holds no serial: once it holds one, a
 new list is taken only as a carry naming the floor's head. When the old list
@@ -99,7 +98,8 @@ lowers it.
 
 A route rule may carry scope `agent` or `principal` for `REPEATED_DENIAL`
 version `2` alone, the rule about what the actor did that may stop, and only
-with `expires_seconds`; the retry rules at `1` only in `--carry-route`
+with `expires_seconds`; the retry rules at `1` only in `--carry-route`, a
+carry keeping their stops only within what the new route grants
 ([ADR-0088](../adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md)). Every reader of a route refuses either
 scope on any other rule, and either scope without a lifetime
 ([ADR-0083](../adr/0083-a-finding-may-stop-an-agent-or-a-principal.md)).

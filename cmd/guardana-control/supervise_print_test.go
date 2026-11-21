@@ -134,22 +134,25 @@ func TestSuperviseSaysWhatAFindingLeftOut(t *testing.T) {
 }
 
 // TestAClosedRunWhoseCallsEndIsUnreadIsNoPass: a run closed after a call was
-// allowed but before its end was read may hide a failure the next call
-// continued past, so the rule that reads ends is not checked and supervise
-// exits 1; the same run with every end read exits 0.
+// allowed, or asked for its approval, but before its end was read may hide a
+// failure the next call continued past, so the rule that reads ends is not
+// checked and supervise exits 1; the same run with every end read exits 0.
 func TestAClosedRunWhoseCallsEndIsUnreadIsNoPass(t *testing.T) {
 	for name, c := range map[string]struct {
 		cut  int
+		held bool
 		code int
 		line string
 	}{
-		"every end read":        {0, exitOK, "rule CONTINUED_AFTER_FAILURE checked\n"},
-		"a lookup's end unread": {2, exitFail, `rule CONTINUED_AFTER_FAILURE not checked: request "r1" is in doubt: its end was not read` + "\n"},
+		"every end read":        {0, false, exitOK, "rule CONTINUED_AFTER_FAILURE checked\n"},
+		"a lookup's end unread": {2, false, exitFail, `rule CONTINUED_AFTER_FAILURE not checked: request "r1" is in doubt: its end was not read` + "\n"},
+		"a lookup left at its approval request": {0, true, exitFail,
+			`rule CONTINUED_AFTER_FAILURE not checked: request "r1" is in doubt: its end was not read` + "\n"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			tr := newSupTree(t)
 			calls := conformingCalls()
-			calls[0].cut = c.cut
+			calls[0].cut, calls[0].held = c.cut, c.held
 			x := tr.export(t, tr.run, supBase, calls...)
 			tr.closeRun(t, tr.run)
 			code, stdout, stderr := invoke(t, tr.args("--evidence", x)...)

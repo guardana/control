@@ -36,9 +36,13 @@ verify one.
   evidence now gives a finding with a new id, so a notifier delivers it as a
   new record. To upgrade, remove those rules from the route, `route sign` it
   again, and `stops init --carry <old list> --carry-route <old route>` under
-  the new route: stops those rules wrote are kept, never lifted by the
-  upgrade, and no new one is written. `stops list` shows each stop's rule;
-  review those and lift any you do not keep with `stops lift`. The
+  the new route. A stop those rules wrote is kept, never lifted by the
+  upgrade, only where a rule of the new route still stops its procedure at
+  its scope, for no longer than that rule allows; no new one is written. A
+  carry that cannot keep a stop is refused, naming the stop and the
+  `stops lift` that ends it: run it on the old list with the old route,
+  which `stops lift` takes for that alone, then carry again. `stops list`
+  shows each kept stop's rule; review those and lift any you do not keep. The
   example's `0.2` route now stops on `RESOURCE_OUTSIDE_RUN`
   ([ADR-0088](docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md),
   [reaction](docs/reference/reaction.md)).
@@ -148,11 +152,12 @@ verify one.
   with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
   approval closed the hold as `APPROVAL_EXPIRED` before its version was
   read.
-- A request whose end was not read and that waits on no approval, such as
-  one an export cut after its proposal or before its failure, leaves
-  `REPEATED_DENIAL`, `CONTINUED_AFTER_FAILURE` and the three retry rules not
-  checked. Only a denied request with no block read did; any other was
-  checked with no finding, and a closed run could pass.
+- A request whose end was not read, waiting on no approval or of a closed
+  run, such as one an export cut after its proposal, its approval request or
+  before its failure, leaves `REPEATED_DENIAL`, `CONTINUED_AFTER_FAILURE` and
+  the three retry rules not checked. Only a denied request with no block
+  read did; any other was checked with no finding, and a closed run could
+  pass.
 - A `--source` whose descriptor does not say `SAMPLING_COMPLETE`, or one
   silent, never heard or not read, leaves `STEP_OUTSIDE_PROCEDURE` and
   `DENIED_ACTION_RETRIED_AROUND` not checked, findings kept. `supervise`

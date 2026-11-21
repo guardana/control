@@ -85,8 +85,10 @@ func (tr stopTree) listUnder(t *testing.T, name string, route reaction.Route, ru
 // init, stops list, stops lift and both sides of a carry, each naming the
 // flag and the rule, over a list the judge accepts under that route, and
 // nothing is written; the superseded and the retired versions alone are
-// taken as the route a list is carried from. The route naming REPEATED_DENIAL version "2", over a
-// list written the same way, is the control: every command takes it.
+// taken as the route a list is carried from, and as the route a lift ends a
+// stop under, since a lift lets no one stop more. The route naming
+// REPEATED_DENIAL version "2", over a list written the same way, is the
+// control: every command takes it.
 func TestEveryStopsCommandRefusesARouteNamingARuleThatMayNotStop(t *testing.T) {
 	tr := newStopTree(t)
 	next := filepath.Join(tr.dir, "next.signed")
@@ -110,8 +112,9 @@ func TestEveryStopsCommandRefusesARouteNamingARuleThatMayNotStop(t *testing.T) {
 			{"a carry into it", withFlags(pub, "stops", "init", "--route", bad, "--carry", tr.stops, "--carry-route", tr.route, fresh),
 				"--route " + bad + ": " + refusal},
 		}
-		if c == supersededRule || slices.Contains(retiredRules, c) {
-			runs = slices.DeleteFunc(runs, func(r refusedRun) bool { return r.what == "a carry from it" })
+		carrySource := c == supersededRule || slices.Contains(retiredRules, c)
+		if carrySource {
+			runs = slices.DeleteFunc(runs, func(r refusedRun) bool { return r.what == "a carry from it" || r.what == "stops lift" })
 		}
 		expectRefused(t, c.id+" "+c.version, runs)
 		if !bytes.Equal(readList(t, list), before) {
@@ -119,6 +122,9 @@ func TestEveryStopsCommandRefusesARouteNamingARuleThatMayNotStop(t *testing.T) {
 		}
 		if _, err := os.Lstat(filepath.Join(fresh, stoplist.FileName)); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("%s %s: a refused route started a list: %v", c.id, c.version, err)
+		}
+		if carrySource {
+			tr.expectLiftUnder(t, c.id+" "+c.version, withFlags(pub, "stops", "lift", "--route", bad, "--key", tr.liftKey, "--run", tr.open, list))
 		}
 	}
 
@@ -136,6 +142,15 @@ func TestEveryStopsCommandRefusesARouteNamingARuleThatMayNotStop(t *testing.T) {
 		if code, stdout, stderr := invoke(t, run.args...); code != exitOK || stderr != "" {
 			t.Errorf("the 0.9 route: %s answered %d: %q %q", run.what, code, stdout, stderr)
 		}
+	}
+}
+
+// expectLiftUnder runs args, a stops lift of tr's open run under the route
+// its list was written under, and expects the lift on line 3.
+func (tr stopTree) expectLiftUnder(t *testing.T, label string, args []string) {
+	t.Helper()
+	if code, stdout, stderr := invoke(t, args...); code != exitOK || stderr != "" || !strings.HasPrefix(stdout, "lift line 3 run "+tr.open+" ") {
+		t.Errorf("%s: stops lift under the route the list was written under answered %d: %q %q", label, code, stdout, stderr)
 	}
 }
 

@@ -165,10 +165,16 @@ refusal names the rule.</li>
 may stop an agent or a principal.</li>
 <li>A stop already written under version <code>1</code> of the three stays on its list: an
 upgrade lifts nothing. <code>stops init --carry-route</code> may name a route that
-names version <code>1</code>, and the carried list keeps those stops while the new
-route names the stop's procedure, its scope is one the old rule allowed and
-it lasts at most the stop lifetime bound. No writer appends a new stop of
-those versions. The operator finds them with <code>stops list</code> and lifts them.</li>
+names version <code>1</code>. The carried list keeps such a stop only within what the
+new route grants now: a rule of it names the stop's procedure (id, version
+and digest) at the stop's scope, an agent or a principal only for a retry
+rule's stop, and the stop lasts no longer than that rule's lifetime, or 720
+hours for a rule with none. No writer appends a new stop of those versions.</li>
+<li>A carry that cannot keep a stop is refused, naming the stop and the
+<code>stops lift</code> that ends it. <code>stops lift</code> takes the route the list was
+written under even when it names a version <code>1</code> of the three, since a lift
+only ends a stop; the carry then goes through. The operator finds the kept
+stops with <code>stops list</code> and lifts them.</li>
 <li><code>DENIED_ACTION_RETRIED_AROUND</code> is unchanged: <code>SUSPECTED</code> at most, and
 <code>INDETERMINATE</code> while no importer stamps a call's start.</li>
 </ul>
@@ -198,7 +204,10 @@ backlog, not decided here.</p>
 <p><code>internal/supervise</code> gives <code>SUSPECTED</code> for a deadline and a retry inside one
 export, and its rule table lets none of the three confirm or stop.
 <code>internal/reaction</code> refuses the three in a route at both versions and keeps a
-carried stop of version <code>1</code> under the stated bounds. <code>route sign</code>, <code>react</code> and
+carried stop of version <code>1</code> only where a rule of the route names its
+procedure at its scope, within that rule's lifetime; a carry it cannot keep
+is refused naming the lift, and the lift under the old route lets the carry
+through. <code>route sign</code>, <code>react</code> and
 the plane's route load each refuse a route naming
 <code>DENIED_ACTION_RETRIED_ARGUMENTS</code> <code>1</code> or <code>DEADLINE_EXCEEDED</code> <code>1</code> by name, and
 <code>react</code> stops nothing for a confirmed version <code>1</code> retry already in a findings

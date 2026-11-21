@@ -56,9 +56,11 @@ func Init(ctx context.Context, dir string, route reaction.Route, now time.Time) 
 
 // AppendLift appends l, signed elsewhere, to the list in dir, judged against
 // route at the writer's clock now, and returns its line number. The writer
-// holds no key: a lift the route's lift key did not sign is refused.
+// holds no key: a lift the route's lift key did not sign is refused. Route
+// may name a rule version that may no longer stop a run, as the route a list
+// is carried from may (reaction.JudgeForLift): a lift only ends a stop.
 func AppendLift(ctx context.Context, dir string, route reaction.Route, l reaction.LiftLine, now time.Time) (int64, error) {
-	return appendLine(ctx, dir, route, at(now), fixed(l.Marshal()))
+	return appendLine(ctx, dir, route, at(now), fixed(l.Marshal()), true)
 }
 
 // AppendFinding appends, for the finding of the stop stopAt makes, a covered
@@ -105,7 +107,7 @@ func AppendFinding(ctx context.Context, dir string, route reaction.Route, clock 
 				Scope: s.Scope, Subject: s.Subject, CreatedAt: s.CreatedAt}.Marshal()
 		}
 		return s.Marshal()
-	})
+	}, false)
 	if err != nil {
 		return 0, reaction.Stop{}, false, err
 	}
@@ -130,9 +132,15 @@ func at(now time.Time) func() time.Time { return func() time.Time { return now }
 // after its last complete line is judged again, with no tolerance past the
 // reading; only a list the judge accepts is written. Bytes after the last
 // newline are a line a writer did not finish, and are cut before the append.
-// A refused write changes nothing.
-func appendLine(ctx context.Context, dir string, route reaction.Route, clock func() time.Time, build lineFor) (int64, error) {
-	if err := stopping(route); err != nil {
+// A refused write changes nothing. A lift's write holds route to the rules
+// of the route a list is carried from, and every other write to those that
+// may stop a run.
+func appendLine(ctx context.Context, dir string, route reaction.Route, clock func() time.Time, build lineFor, lift bool) (int64, error) {
+	check := stopping
+	if lift {
+		check = carrySource
+	}
+	if err := check(route); err != nil {
 		return 0, err
 	}
 	var n int64
@@ -145,7 +153,7 @@ func appendLine(ctx context.Context, dir string, route reaction.Route, clock fun
 		if err != nil {
 			return err
 		}
-		n, err = appendTo(f, named, route, clock(), build)
+		n, err = appendTo(f, named, route, clock(), build, lift)
 		return errors.Join(err, f.Close())
 	})
 	if err != nil {
@@ -154,7 +162,7 @@ func appendLine(ctx context.Context, dir string, route reaction.Route, clock fun
 	return n, nil
 }
 
-func appendTo(f *os.File, named fs.FileInfo, route reaction.Route, now time.Time, build lineFor) (int64, error) {
+func appendTo(f *os.File, named fs.FileInfo, route reaction.Route, now time.Time, build lineFor, lift bool) (int64, error) {
 	if err := stoplist.CheckOpened(named, f); err != nil {
 		return 0, err
 	}
@@ -168,7 +176,8 @@ func appendTo(f *os.File, named fs.FileInfo, route reaction.Route, now time.Time
 		return 0, fmt.Errorf("%w: %w: limit %d", ErrFull, stoplist.ErrTooLarge, reaction.MaxListBytes)
 	}
 	complete := content[:bytes.LastIndexByte(content, '\n')+1]
-	before, err := reaction.Judge(route, reaction.Prefix{}, complete, now, 0)
+	judge, judgeNext := judgesFor(route, now, lift)
+	before, err := judge(complete)
 	if err != nil {
 		return 0, refusal(err)
 	}
@@ -177,7 +186,7 @@ func appendTo(f *os.File, named fs.FileInfo, route reaction.Route, now time.Time
 		return 0, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	next := append(append(bytes.Clone(complete), line...), '\n')
-	list, err := reaction.JudgeFrom(route, before, next, now, 0)
+	list, err := judgeNext(before, next)
 	if err != nil {
 		return 0, refusal(err)
 	}
@@ -196,6 +205,23 @@ func appendTo(f *os.File, named fs.FileInfo, route reaction.Route, now time.Time
 		return 0, err
 	}
 	return list.Usage().Lines, nil
+}
+
+// judgesFor is how a write judges the list before its line and with it: a
+// lift's write through JudgeForLift, every other through Judge and JudgeFrom.
+func judgesFor(route reaction.Route, now time.Time, lift bool) (
+	judge func([]byte) (reaction.List, error), judgeNext func(reaction.List, []byte) (reaction.List, error),
+) {
+	if lift {
+		judge = func(content []byte) (reaction.List, error) { return reaction.JudgeForLift(route, content, now) }
+		return judge, func(_ reaction.List, next []byte) (reaction.List, error) { return judge(next) }
+	}
+	judge = func(content []byte) (reaction.List, error) {
+		return reaction.Judge(route, reaction.Prefix{}, content, now, 0)
+	}
+	return judge, func(before reaction.List, next []byte) (reaction.List, error) {
+		return reaction.JudgeFrom(route, before, next, now, 0)
+	}
 }
 
 // create writes lines as a new list in dir, under the lock, once the judge
@@ -232,6 +258,15 @@ func modeFor(route reaction.Route) fs.FileMode {
 // rather than trust that the caller verified it.
 func stopping(route reaction.Route) error {
 	if err := reaction.CheckStopping(route); err != nil {
+		return fmt.Errorf("%w: %w", ErrRefused, err)
+	}
+	return nil
+}
+
+// carrySource refuses a route naming a rule that may not stop a run and was
+// never superseded or retired.
+func carrySource(route reaction.Route) error {
+	if err := reaction.CheckCarrySource(route); err != nil {
 		return fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil
