@@ -334,7 +334,8 @@ func TestAnExecuteReachesItsClientBeforeAShutdownAbandonsIt(t *testing.T) {
 	if !await.heard.Load() {
 		t.Fatal("the plane recorded the execution abandoned before its client had the EXECUTE")
 	}
-	if s := r.a.Stats(); s.Open != 0 || s.Abandoned != 1 || r.abandoned(t) != 1 {
+	s := r.statsWithin(settleBound, func(s enforce.Stats) bool { return s.Open == 0 && s.Abandoned == 1 })
+	if s.Open != 0 || s.Abandoned != 1 || r.abandoned(t) != 1 {
 		t.Fatalf("after the request: stats %+v, %d abandoned on the trail", s, r.abandoned(t))
 	}
 }
